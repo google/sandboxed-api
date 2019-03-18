@@ -170,8 +170,8 @@ static std::string PathToSAPILib(const std::string& lib_path) {
       return ::sapi::UnavailableError("Could not start the forkserver");
     }
   }
-    sandbox2::PolicyBuilder policy_builder;
-    InitDefaultPolicyBuilder(&policy_builder);
+  sandbox2::PolicyBuilder policy_builder;
+  InitDefaultPolicyBuilder(&policy_builder);
   auto s2p = ModifyPolicy(&policy_builder);
 
   // Spawn new process from the forkserver.
