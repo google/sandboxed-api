@@ -74,7 +74,7 @@ sudo apt-get install -qy build-essential linux-libc-dev bazel
 
 Clone and run the build:
 ```bash
-git clone github.com/google/sandboxed-api && cd sandboxed-api
+git clone https://github.com/google/sandboxed-api && cd sandboxed-api
 bazel build ...
 ```
 
