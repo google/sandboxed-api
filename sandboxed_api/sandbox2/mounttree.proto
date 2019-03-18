@@ -1,0 +1,57 @@
+// Copyright 2019 Google LLC. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// A proto for serializing the sandbox2::MountTree class
+
+syntax = "proto2";
+package sandbox2;
+
+// The MountTree maps path components to mount operations (bind/tmpfs). The path
+// is encoded in the key of the entries map, with the root node representing /.
+// To get the full path of a node, you will need to assemble the keys starting
+// at the root node.
+message MountTree {
+  // FileNode represents a bind mount for a regular file using "outside" as the
+  // source.
+  message FileNode {
+    required string outside = 2;
+    required bool is_ro = 3;
+  }
+
+  // DirNode is like FileNode but for directories.
+  message DirNode {
+    required string outside = 2;
+    required bool is_ro = 3;
+  }
+
+  // TmpfsNode mounts a tmpfs with given options.
+  message TmpfsNode {
+    required string tmpfs_options = 1;
+  }
+
+  message Node {
+    oneof node {
+      FileNode file_node = 1;
+      DirNode dir_node = 2;
+      TmpfsNode tmpfs_node = 3;
+    }
+  }
+
+  // The entries are mappings from the next path component to the subtree.
+  map<string, MountTree> entries = 1;
+
+  // The node of the current path. If not set, we'll just create a directory at
+  // this position.
+  optional Node node = 2;
+}

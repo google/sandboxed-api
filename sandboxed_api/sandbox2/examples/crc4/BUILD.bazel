@@ -1,0 +1,65 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The 'crc4' example demonstrates:
+# - Separate executor and sandboxee
+# - Sandboxee enables sandboxing by calling SandboxMeHere()
+# - Strict syscall policy
+# - Using sandbox2::Comms for data exchange (IPC)
+# - Test to ensure sandbox executor runs sandboxee without issue
+
+licenses(["notice"])  # Apache 2.0
+
+# Executor
+cc_binary(
+    name = "crc4sandbox",
+    srcs = ["crc4sandbox.cc"],
+    data = [":crc4bin"],
+    deps = [
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:runfiles",
+        "//sandboxed_api/util:flag",
+        "@com_google_absl//absl/memory",
+    ],
+)
+
+# Sandboxee
+cc_binary(
+    name = "crc4bin",
+    srcs = ["crc4bin.cc"],
+    deps = [
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:flag",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+# Test
+cc_test(
+    name = "crc4sandbox_test",
+    srcs = ["crc4sandbox_test.cc"],
+    data = [":crc4sandbox"],
+    tags = ["local"],
+    deps = [
+        "//sandboxed_api/sandbox2:testing",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_glog//:glog",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

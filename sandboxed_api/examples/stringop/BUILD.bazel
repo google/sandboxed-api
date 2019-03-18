@@ -1,0 +1,35 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Description: Examples using dynamic length structures for Sandboxed-API
+
+licenses(["notice"])  # Apache 2.0
+
+cc_test(
+    name = "main_stringop",
+    srcs = ["main_stringop.cc"],
+    tags = ["local"],
+    deps = [
+        "//sandboxed_api:sapi",
+        "//sandboxed_api:vars",
+        "//sandboxed_api/examples/stringop/lib:stringop-sapi",
+        "//sandboxed_api/examples/stringop/lib:stringop_params_proto_cc",
+        "//sandboxed_api/util:flag",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

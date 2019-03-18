@@ -1,0 +1,129 @@
+// Copyright 2019 Google LLC. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Implementation file for the sandbox2::Sandbox class.
+
+#include "sandboxed_api/sandbox2/sandbox2.h"
+
+#include <csignal>
+#include <memory>
+#include <string>
+
+#include "absl/memory/memory.h"
+#include "absl/synchronization/blocking_counter.h"
+#include "sandboxed_api/sandbox2/monitor.h"
+#include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/util/canonical_errors.h"
+
+namespace sandbox2 {
+
+Sandbox2::~Sandbox2() {
+  if (monitor_thread_ && monitor_thread_->joinable()) {
+    monitor_thread_->join();
+  }
+}
+
+sapi::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
+    absl::Duration timeout) {
+  CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
+  CHECK(monitor_thread_ != nullptr) << "Sandbox was already waited on";
+
+  absl::MutexLock lock(&monitor_->done_mutex_);
+  auto done = monitor_->done_mutex_.AwaitWithTimeout(
+      absl::Condition(monitor_.get(), &Monitor::IsDone), timeout);
+  if (!done) {
+    return ::sapi::DeadlineExceededError(
+        "Sandbox did not finish within timeout");
+  }
+  monitor_thread_->join();
+
+  CHECK(IsTerminated()) << "Monitor did not terminate";
+
+  // Reset the Monitor Thread object to its initial state, as to mark that this
+  // object cannot be used anymore to control behavior of the sandboxee (e.g.
+  // via signals).
+  monitor_thread_.reset(nullptr);
+
+  VLOG(1) << "Final execution status: " << monitor_->result_.ToString();
+  CHECK(monitor_->result_.final_status() != Result::UNSET);
+  return std::move(monitor_->result_);
+}
+
+Result Sandbox2::AwaitResult() {
+  return AwaitResultWithTimeout(absl::InfiniteDuration()).ValueOrDie();
+}
+
+bool Sandbox2::RunAsync() {
+  Launch();
+
+  // If the sandboxee setup failed we return 'false' here.
+  if (monitor_->IsDone() &&
+      monitor_->result_.final_status() == Result::SETUP_ERROR) {
+    return false;
+  }
+  return true;
+}
+
+void Sandbox2::Kill() {
+  CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
+
+  // The sandboxee (and its monitoring thread) are already gone. Ignore the
+  // request instead of panic'ing in such case.
+  if (monitor_thread_ == nullptr) {
+    return;
+  }
+  pthread_kill(monitor_thread_->native_handle(), Monitor::kExternalKillSignal);
+}
+
+void Sandbox2::DumpStackTrace() {
+  CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
+
+  if (monitor_thread_ == nullptr) {
+    return;
+  }
+  pthread_kill(monitor_thread_->native_handle(), Monitor::kDumpStackSignal);
+}
+
+bool Sandbox2::IsTerminated() const {
+  CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
+
+  return monitor_->IsDone();
+}
+
+void Sandbox2::SetWallTimeLimit(time_t limit) const {
+  CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
+
+  if (monitor_thread_ == nullptr) {
+    return;
+  }
+
+  union sigval v;
+  v.sival_int = static_cast<int>(limit);
+  pthread_sigqueue(monitor_thread_->native_handle(), Monitor::kTimerSetSignal,
+                   v);
+}
+
+void Sandbox2::Launch() {
+  monitor_ =
+      absl::make_unique<Monitor>(executor_.get(), policy_.get(), notify_.get());
+  monitor_thread_ =
+      absl::make_unique<std::thread>(&Monitor::Run, monitor_.get());
+
+  // Wait for the Monitor to set-up the sandboxee correctly (or fail while
+  // doing that). From here on, it is safe to use the IPC object for
+  // non-sandbox-related data exchange.
+  monitor_->setup_counter_->Wait();
+}
+
+}  // namespace sandbox2

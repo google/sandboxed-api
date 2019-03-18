@@ -1,0 +1,128 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
+
+licenses(["notice"])  # Apache 2.0
+
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+
+sapi_proto_library(
+    name = "status_proto",
+    srcs = ["status.proto"],
+)
+
+# A custom fork of util/task/status.h. This will become obsolete and will be
+# replaced once Abseil releases absl::Status.
+cc_library(
+    name = "status",
+    srcs = [
+        "canonical_errors.cc",
+        "status.cc",
+    ],
+    hdrs = [
+        "canonical_errors.h",
+        "status.h",
+        "status_internal.h",
+        "status_macros.h",
+    ],
+    deps = [
+        ":status_proto_cc",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "statusor",
+    hdrs = ["statusor.h"],
+    deps = [
+        ":raw_logging",
+        ":status",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+# gMock matchers for sapi::Status and sapi::StatusOr<T> and a gUnit printer
+# extension for sapi::StatusOr<T>.
+cc_library(
+    name = "status_matchers",
+    testonly = 1,
+    hdrs = ["status_matchers.h"],
+    deps = [
+        ":status",
+        ":statusor",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+# Tests for the Status utility.
+cc_test(
+    name = "status_test",
+    srcs = ["status_test.cc"],
+    deps = [
+        ":status_matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Tests for the StatusOr template class.
+cc_test(
+    name = "statusor_test",
+    srcs = ["statusor_test.cc"],
+    deps = [
+        ":status",
+        ":status_matchers",
+        ":statusor",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Tests for the Status macros.
+cc_test(
+    name = "status_macros_test",
+    srcs = ["status_macros_test.cc"],
+    deps = [
+        ":status",
+        ":status_matchers",
+        ":statusor",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Compatibility layer for Abseil's flags vs. gFlags
+cc_library(
+    name = "flag",
+    hdrs = ["flag.h"],
+    deps = ["@com_github_gflags_gflags//:gflags"],
+)
+
+# Small support library emulating verbose logging using Abseil's raw logging
+# facility.
+cc_library(
+    name = "raw_logging",
+    srcs = ["raw_logging.cc"],
+    hdrs = ["raw_logging.h"],
+    deps = [
+        "//sandboxed_api/sandbox2/util:strerror",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)

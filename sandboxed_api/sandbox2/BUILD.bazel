@@ -1,0 +1,734 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Description: sandbox2 is a C++ sandbox technology for Linux.
+
+package(
+    default_visibility = [
+        "//sandboxed_api:__subpackages__",
+    ],
+)
+
+licenses(["notice"])  # Apache 2.0
+
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+
+cc_library(
+    name = "bpfdisassembler",
+    srcs = ["bpfdisassembler.cc"],
+    hdrs = ["bpfdisassembler.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "regs",
+    srcs = ["regs.cc"],
+    hdrs = ["regs.h"],
+    deps = [
+        ":deathrattle_fatalmsg_proto_cc",
+        ":syscall",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "syscall",
+    srcs = [
+        "syscall.cc",
+        "syscall_defs.cc",
+        "syscall_defs.h",
+    ],
+    hdrs = [
+        "syscall.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":util",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_glog//:glog",
+    ],
+)
+
+cc_test(
+    name = "syscall_test",
+    srcs = ["syscall_test.cc"],
+    deps = [
+        ":syscall",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "result",
+    srcs = ["result.cc"],
+    hdrs = ["result.h"],
+    deps = [
+        ":regs",
+        ":syscall",
+        ":util",
+        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+sapi_proto_library(
+    name = "logserver_proto",
+    srcs = ["logserver.proto"],
+)
+
+cc_library(
+    name = "logserver",
+    srcs = ["logserver.cc"],
+    hdrs = ["logserver.h"],
+    deps = [
+        ":comms",
+        ":logserver_proto_cc",
+        "@com_google_absl//absl/memory",
+        "@com_google_glog//:glog",
+    ],
+)
+
+cc_library(
+    name = "logsink",
+    srcs = ["logsink.cc"],
+    hdrs = ["logsink.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":comms",
+        ":logserver_proto_cc",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_glog//:glog",
+    ],
+)
+
+cc_library(
+    name = "network_proxy_server",
+    srcs = ["network_proxy_server.cc"],
+    hdrs = ["network_proxy_server.h"],
+    deps = [
+        ":comms",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "@com_google_absl//absl/memory",
+        "@com_google_glog//:glog",
+    ],
+)
+
+cc_library(
+    name = "network_proxy_client",
+    srcs = ["network_proxy_client.cc"],
+    hdrs = ["network_proxy_client.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":comms",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_glog//:glog",
+    ],
+)
+
+cc_library(
+    name = "ipc",
+    srcs = ["ipc.cc"],
+    hdrs = ["ipc.h"],
+    deps = [
+        ":comms",
+        ":logserver",
+        ":logsink",
+        ":network_proxy_client",
+        ":network_proxy_server",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "policy",
+    srcs = ["policy.cc"],
+    hdrs = ["policy.h"],
+    deps = [
+        ":bpfdisassembler",
+        ":comms",
+        ":deathrattle_fatalmsg_proto_cc",
+        ":namespace",
+        ":regs",
+        ":syscall",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:flag",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:optional",
+        "@org_kernel_libcap//:libcap",
+    ],
+)
+
+cc_library(
+    name = "notify",
+    srcs = [],
+    hdrs = ["notify.h"],
+    deps = [
+        ":comms",
+        ":result",
+        ":syscall",
+    ],
+)
+
+cc_library(
+    name = "limits",
+    hdrs = ["limits.h"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "global_forkserver",
+    srcs = ["global_forkclient.cc"],
+    hdrs = ["global_forkclient.h"],
+    deps = [
+        ":client",
+        ":comms",
+        ":forkserver",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+# Should not be used in sandboxee code if it only uses sandbox2::Comms and
+# sandbox2::Client objects
+cc_library(
+    name = "sandbox2",
+    srcs = [
+        "executor.cc",
+        "monitor.cc",
+        "monitor.h",
+        "policybuilder.cc",
+        "sandbox2.cc",
+        "stack-trace.cc",
+    ],
+    hdrs = [
+        "executor.h",
+        "policybuilder.h",
+        "sandbox2.h",
+        "stack-trace.h",
+        # Workaround: reexporting the header files of our dependencies, see b/15420638
+        "ipc.h",
+        "limits.h",
+        "notify.h",
+        "policy.h",
+        "regs.h",
+        "result.h",
+        "syscall.h",
+        "client.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":client",
+        ":comms",
+        ":deathrattle_fatalmsg_proto_cc",
+        ":forkserver",
+        ":forkserver_proto_cc",
+        ":global_forkserver",
+        ":ipc",
+        ":limits",
+        ":logsink",
+        ":mounts",
+        ":namespace",
+        ":notify",
+        ":policy",
+        ":regs",
+        ":result",
+        ":syscall",
+        ":util",
+        ":network_proxy_client",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "//sandboxed_api/util:flag",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:optional",
+        "@org_kernel_libcap//:libcap",
+        "//sandboxed_api/sandbox2/unwind",
+        "//sandboxed_api/sandbox2/unwind:unwind_proto_cc",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:file_base",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+
+        # Do not remove this dependency as it defines ptrace_wrapped.
+        "//sandboxed_api/sandbox2/unwind:ptrace_hook",  # buildcleaner: keep
+    ],
+)
+
+# Should be used in sandboxee code instead of :sandbox2 if it uses just
+# sandbox2::Client::SandboxMeHere() and sandbox2::Comms
+cc_library(
+    name = "client",
+    srcs = [
+        "client.cc",
+        "sanitizer.cc",
+    ],
+    hdrs = [
+        "client.h",
+        "sanitizer.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":comms",
+        ":logsink",
+        ":network_proxy_client",
+        "//sandboxed_api/sandbox2/util:file_helpers",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "forkserver",
+    srcs = ["forkserver.cc"],
+    hdrs = ["forkserver.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":client",
+        ":comms",
+        ":forkserver_proto_cc",
+        ":namespace",
+        ":policy",
+        ":syscall",
+        ":util",
+        "//sandboxed_api/sandbox2/unwind",
+        "//sandboxed_api/sandbox2/unwind:ptrace_hook",
+        "//sandboxed_api/sandbox2/unwind:unwind_proto_cc",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
+        "@org_kernel_libcap//:libcap",
+    ],
+)
+
+cc_library(
+    name = "mounts",
+    srcs = ["mounts.cc"],
+    hdrs = ["mounts.h"],
+    deps = [
+        ":mounttree_proto_cc",
+        "//sandboxed_api/sandbox2/util:file_base",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:minielf",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "mounts_test",
+    srcs = ["mounts_test.cc"],
+    data = ["//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
+    deps = [
+        ":mounts",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:file_base",
+        "//sandboxed_api/sandbox2/util:temp_file",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "namespace",
+    srcs = ["namespace.cc"],
+    hdrs = ["namespace.h"],
+    deps = [
+        ":deathrattle_fatalmsg_proto_cc",
+        ":mounts",
+        ":mounttree_proto_cc",
+        ":util",
+        "//sandboxed_api/sandbox2/util:file_base",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "namespace_test",
+    srcs = ["namespace_test.cc"],
+    data = [
+        "//sandboxed_api/sandbox2/testcases:hostname",
+        "//sandboxed_api/sandbox2/testcases:namespace",
+    ],
+    deps = [
+        ":comms",
+        ":namespace",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "forkingclient",
+    srcs = ["forkingclient.cc"],
+    hdrs = ["forkingclient.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":client",
+        ":comms",
+        ":forkserver",
+        "@com_google_absl//absl/memory",
+    ],
+)
+
+cc_library(
+    name = "util",
+    srcs = ["util.cc"],
+    hdrs = ["util.h"],
+    # The default is 16384, however we need to do a clone with a
+    # stack-allocated buffer -- and PTHREAD_STACK_MIN also happens to be 16384.
+    # Thus the slight increase.
+    copts = ["-Wframe-larger-than=17000"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//sandboxed_api/sandbox2/util:file_base",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "buffer",
+    srcs = ["buffer.cc"],
+    hdrs = ["buffer.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":util",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "buffer_test",
+    srcs = ["buffer_test.cc"],
+    data = ["//sandboxed_api/sandbox2/testcases:buffer"],
+    deps = [
+        ":buffer",
+        ":comms",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+sapi_proto_library(
+    name = "forkserver_proto",
+    srcs = ["forkserver.proto"],
+    deps = [":mounttree_proto"],
+)
+
+sapi_proto_library(
+    name = "mounttree_proto",
+    srcs = ["mounttree.proto"],
+)
+
+cc_library(
+    name = "comms",
+    srcs = ["comms.cc"],
+    hdrs = ["comms.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":util",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+sapi_proto_library(
+    name = "comms_test_proto",
+    srcs = ["comms_test.proto"],
+)
+
+cc_test(
+    name = "comms_test",
+    srcs = ["comms_test.cc"],
+    deps = [
+        ":comms",
+        ":comms_test_proto_cc",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/container:fixed_array",
+        "@com_google_absl//absl/strings",
+        "@com_google_glog//:glog",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "forkserver_test",
+    srcs = [
+        "forkserver_test.cc",
+        "global_forkclient.h",
+    ],
+    data = ["//sandboxed_api/sandbox2/testcases:minimal"],
+    deps = [
+        ":comms",
+        ":forkserver",
+        ":forkserver_proto_cc",
+        ":sandbox2",
+        ":testing",
+        "@com_google_absl//absl/strings",
+        "@com_google_glog//:glog",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "limits_test",
+    srcs = ["limits_test.cc"],
+    data = ["//sandboxed_api/sandbox2/testcases:limits"],
+    deps = [
+        ":limits",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "notify_test",
+    srcs = ["notify_test.cc"],
+    data = [
+        "//sandboxed_api/sandbox2/testcases:personality",
+        "//sandboxed_api/sandbox2/testcases:pidcomms",
+    ],
+    deps = [
+        ":comms",
+        ":regs",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "policy_test",
+    srcs = ["policy_test.cc"],
+    data = [
+        "//sandboxed_api/sandbox2/testcases:add_policy_on_syscalls",
+        "//sandboxed_api/sandbox2/testcases:malloc_system",
+        "//sandboxed_api/sandbox2/testcases:minimal",
+        "//sandboxed_api/sandbox2/testcases:minimal_dynamic",
+        "//sandboxed_api/sandbox2/testcases:policy",
+    ],
+    deps = [
+        ":limits",
+        ":regs",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "sandbox2_test",
+    srcs = ["sandbox2_test.cc"],
+    data = [
+        "//sandboxed_api/sandbox2/testcases:abort",
+        "//sandboxed_api/sandbox2/testcases:minimal",
+        "//sandboxed_api/sandbox2/testcases:sleep",
+        "//sandboxed_api/sandbox2/testcases:tsync",
+    ],
+    tags = ["local"],
+    deps = [
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "sanitizer_test",
+    srcs = ["sanitizer_test.cc"],
+    data = ["//sandboxed_api/sandbox2/testcases:sanitizer"],
+    deps = [
+        ":client",
+        ":comms",
+        ":sandbox2",
+        ":testing",
+        ":util",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "util_test",
+    srcs = ["util_test.cc"],
+    deps = [
+        ":testing",
+        ":util",
+        "//sandboxed_api/sandbox2/util:file_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "stack-trace_test",
+    srcs = ["stack-trace_test.cc"],
+    data = ["//sandboxed_api/sandbox2/testcases:symbolize"],
+    deps = [
+        ":global_forkserver",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:temp_file",
+        "//sandboxed_api/util:flag",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "ipc_test",
+    srcs = ["ipc_test.cc"],
+    data = ["//sandboxed_api/sandbox2/testcases:ipc"],
+    deps = [
+        ":comms",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Utility library for writing tests
+cc_library(
+    name = "testing",
+    testonly = 1,
+    srcs = ["testing.cc"],
+    hdrs = ["testing.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//sandboxed_api/sandbox2/util:file_base",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+sapi_proto_library(
+    name = "deathrattle_fatalmsg_proto",
+    srcs = ["deathrattle_fatalmsg.proto"],
+    deps = [":mounttree_proto"],
+)
+
+cc_test(
+    name = "policybuilder_test",
+    srcs = ["policybuilder_test.cc"],
+    data = ["//sandboxed_api/sandbox2/testcases:print_fds"],
+    deps = [
+        ":comms",
+        ":sandbox2",
+        ":testing",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_glog//:glog",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

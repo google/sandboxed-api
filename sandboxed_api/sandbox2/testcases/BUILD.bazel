@@ -1,0 +1,269 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Description: test cases for sandbox2 unit tests.
+#
+# The following cc_binary options avoid dynamic linking which uses a lot of
+# syscalls (open, mmap, etc.):
+#   linkopts = ["-static"]
+#   linkstatic = 1
+#   features = ["-pie"]
+# Bazel adds -pie by default but -static is incompatible with it, so we use
+# the features flag to force it off.
+
+package(default_visibility = [
+    "//sandboxed_api/sandbox2:__subpackages__",
+])
+
+licenses(["notice"])  # Apache 2.0
+
+STATIC_LINKOPTS = [
+    # Necessary for linking pthread statically into the binary. See the
+    # answer to https://stackoverflow.com/questions/35116327/ for context.
+    # The odd '-Wl,' prefix before '-lpthread' is a workaround for Bazel's
+    # behavior when constructing the final linker command line.
+    "-Wl,--whole-archive",
+    "-Wl,-lpthread",
+    "-Wl,--no-whole-archive",
+]
+
+cc_binary(
+    name = "abort",
+    testonly = 1,
+    srcs = ["abort.cc"],
+    deps = ["//sandboxed_api/util:raw_logging"],
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "add_policy_on_syscalls",
+    testonly = 1,
+    srcs = ["add_policy_on_syscalls.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "buffer",
+    testonly = 1,
+    srcs = ["buffer.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+    deps = [
+        "//sandboxed_api/sandbox2:buffer",
+        "//sandboxed_api/sandbox2:comms",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_binary(
+    name = "ipc",
+    testonly = 1,
+    srcs = ["ipc.cc"],
+    deps = [
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "malloc_system",
+    testonly = 1,
+    srcs = ["malloc.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+cc_binary(
+    name = "minimal_dynamic",
+    testonly = 1,
+    srcs = ["minimal.cc"],
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "minimal",
+    testonly = 1,
+    srcs = ["minimal.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "personality",
+    testonly = 1,
+    srcs = ["personality.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "pidcomms",
+    testonly = 1,
+    srcs = ["pidcomms.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+    deps = [
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/util:raw_logging",
+    ],
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "policy",
+    testonly = 1,
+    srcs = ["policy.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "print_fds",
+    testonly = 1,
+    srcs = ["print_fds.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "sanitizer",
+    testonly = 1,
+    srcs = ["sanitizer.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "sleep",
+    testonly = 1,
+    srcs = ["sleep.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "symbolize",
+    testonly = 1,
+    srcs = ["symbolize.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+    deps = [
+        "//sandboxed_api/sandbox2/util:temp_file",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "tsync",
+    testonly = 1,
+    srcs = ["tsync.cc"],
+    deps = [
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+    ],
+)
+
+cc_binary(
+    name = "hostname",
+    testonly = 1,
+    srcs = ["hostname.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+cc_binary(
+    name = "limits",
+    testonly = 1,
+    srcs = ["limits.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)
+
+cc_binary(
+    name = "namespace",
+    testonly = 1,
+    srcs = ["namespace.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkopts = STATIC_LINKOPTS,
+    linkstatic = 1,  # prefer static libraries
+)

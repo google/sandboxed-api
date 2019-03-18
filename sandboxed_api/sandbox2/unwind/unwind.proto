@@ -1,0 +1,39 @@
+// Copyright 2019 Google LLC. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Proto for the communication between executor and sandboxed libunwind
+syntax = "proto3";
+
+package sandbox2;
+
+message UnwindSetup {
+  // Required
+  // Process ID of the process to unwind
+  uint64 pid = 1;
+  // Register content for the process to unwind
+  bytes regs = 2;
+  // Optional
+  // Maximum number of stack frames to unwind
+  uint64 default_max_frames = 3;
+  // Delimiter used in the result to separate the stack frames
+  bytes delim = 4;
+}
+
+message UnwindResult {
+  // Readable stacktrace, symbolized, each framed separated by the delim
+  // specified in the UnwindSetup message
+  bytes stacktrace = 1;
+  // Stack frames
+  repeated uint64 ip = 2;
+}

@@ -1,0 +1,214 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+package(default_visibility = [
+    "//sandboxed_api:__subpackages__",
+    "//security/gfence:__subpackages__",
+])
+
+licenses(["notice"])  # Apache 2.0
+
+cc_library(
+    name = "bpf_helper",
+    srcs = ["bpf_helper.c"],
+    hdrs = ["bpf_helper.h"],
+)
+
+# String file routines
+cc_library(
+    name = "file_helpers",
+    srcs = ["file_helpers.cc"],
+    hdrs = ["file_helpers.h"],
+    deps = [
+        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "file_helpers_test",
+    size = "small",
+    srcs = ["file_helpers_test.cc"],
+    deps = [
+        ":file_helpers",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Portable filesystem and path utility functions
+cc_library(
+    name = "fileops",
+    srcs = ["fileops.cc"],
+    hdrs = ["fileops.h"],
+    copts = [
+        "-Wno-deprecated-declarations",  # readdir64_r
+    ],
+    deps = [
+        ":strerror",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "fileops_test",
+    size = "small",
+    srcs = ["fileops_test.cc"],
+    deps = [
+        ":file_helpers",
+        ":fileops",
+        "//sandboxed_api/sandbox2:testing",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Another helper library with filesystem and path utility functions.
+cc_library(
+    name = "file_base",
+    srcs = ["path.cc"],
+    hdrs = ["path.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "file_base_test",
+    size = "small",
+    srcs = ["path_test.cc"],
+    deps = [
+        ":file_base",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Internal thread-safe helper to format system error messages. Mostly
+# equivalent to base/strerror.h.
+cc_library(
+    name = "strerror",
+    srcs = ["strerror.cc"],
+    hdrs = ["strerror.h"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "strerror_test",
+    srcs = ["strerror_test.cc"],
+    deps = [
+        ":strerror",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "minielf",
+    srcs = ["minielf.cc"],
+    hdrs = ["minielf.h"],
+    deps = [
+        ":strerror",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/base:endian",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "minielf_test",
+    srcs = ["minielf_test.cc"],
+    data = [
+        ":testdata/chrome_grte_header",
+        ":testdata/hello_world",
+    ],
+    features = ["-dynamic_link_test_srcs"],  # see go/dynamic_link_test_srcs
+    deps = [
+        ":maps_parser",
+        ":minielf",
+        "//sandboxed_api/sandbox2:testing",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "temp_file",
+    srcs = ["temp_file.cc"],
+    hdrs = ["temp_file.h"],
+    deps = [
+        ":fileops",
+        ":strerror",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "temp_file_test",
+    srcs = ["temp_file_test.cc"],
+    deps = [
+        ":file_base",
+        ":fileops",
+        ":temp_file",
+        "//sandboxed_api/sandbox2:testing",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "maps_parser",
+    srcs = ["maps_parser.cc"],
+    hdrs = ["maps_parser.h"],
+    deps = [
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "maps_parser_test",
+    srcs = ["maps_parser_test.cc"],
+    deps = [
+        ":maps_parser",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "runfiles",
+    srcs = ["runfiles.cc"],
+    hdrs = ["runfiles.h"],
+    deps = [
+        ":file_base",
+        "//sandboxed_api/util:flag",
+        "//sandboxed_api/util:raw_logging",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)

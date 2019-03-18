@@ -1,0 +1,48 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The 'static' example demonstrates:
+# - separate executor and sandboxee
+# - sandboxee already sandboxed, not using google3 and compiled statically
+# - minimal syscall policy written with BPF macros
+# - communication with file descriptors and MapFd
+# - test to ensure sandbox executor runs sandboxee without issue
+
+licenses(["notice"])  # Apache 2.0
+
+# Executor
+cc_binary(
+    name = "static_sandbox",
+    srcs = ["static_sandbox.cc"],
+    data = [":static_bin"],
+    deps = [
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:runfiles",
+        "//sandboxed_api/util:flag",
+        "@com_google_absl//absl/memory",
+    ],
+)
+
+# Sandboxee
+# security: disable=cc-static-no-pie
+cc_binary(
+    name = "static_bin",
+    srcs = ["static_bin.cc"],
+    features = [
+        "-pie",
+        "fully_static_link",  # link libc statically
+    ],
+    linkstatic = 1,
+)
