@@ -6,7 +6,7 @@
 Here, you'll prepare a build target, that your [host code](host-code.md)
 will make use of.
 
-Start by preparing a [sapi_library()][sapi_library] target in your `BUILD.bazel`
+Start by preparing a `sapi_library()` target in your `BUILD.bazel`
 file.
 
 For reference, you can take a peek at a working example from the
