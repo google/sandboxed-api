@@ -47,7 +47,7 @@ can specify raw BPF macros, like in the [crc4](../examples/crc4/crc4sandbox.cc)
 example.
 
 Filesystem accesses are restricted with the help of Linux
-[user namespaces][(http://man7.org/linux/man-pages/man7/user_namespaces.7.html).
+[user namespaces](http://man7.org/linux/man-pages/man7/user_namespaces.7.html).
 User namespaces allow to drop the sandboxee into a custom chroot environment
 without requiring root privileges.
 
