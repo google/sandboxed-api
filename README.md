@@ -93,4 +93,4 @@ send us pull requests. You can also report bugs or file feature requests.
 
 If you'd like to talk to the developers or get notified about major product
 updates, you may want to subscribe to our
-[mailing list](sandboxed-api-users@googlegroups.com).
+[mailing list](mailto:sandboxed-api-users@googlegroups.com) or sign up with this [link](https://groups.google.com/forum/#!forum/sandboxed-api-users).
