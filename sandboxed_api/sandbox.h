@@ -32,6 +32,7 @@ namespace sapi {
 
 // The Sandbox class represents the sandboxed library. It provides users with
 // means to communicate with it (make function calls, transfer memory).
+// Debug comment to test Pull-Request functionality. DO NOT ACCEPT THE PR!
 class Sandbox {
  public:
   Sandbox(const Sandbox&) = delete;
