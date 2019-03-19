@@ -110,6 +110,7 @@ void IPC::EnableNetworkProxyServer() {
     NetworkProxyServer network_proxy_server(fd);
     network_proxy_server.Run();
   };
+
   std::thread proxy_thread{proxy_server};
   proxy_thread.detach();
 }

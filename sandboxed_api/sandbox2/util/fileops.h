@@ -22,6 +22,7 @@
 
 namespace sandbox2 {
 namespace file_util {
+
 namespace fileops {
 
 // RAII helper class to automatically close file descriptors.

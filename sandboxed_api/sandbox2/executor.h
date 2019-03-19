@@ -79,11 +79,14 @@ class Executor final {
 
   // Accessors
   IPC* ipc() { return &ipc_; }
+
   Limits* limits() { return &limits_; }
+
   Executor& set_enable_sandbox_before_exec(bool value) {
     enable_sandboxing_pre_execve_ = value;
     return *this;
   }
+
   Executor& set_cwd(std::string value) {
     cwd_ = std::move(value);
     return *this;

@@ -83,6 +83,7 @@ void Sandbox2::Kill() {
   if (monitor_thread_ == nullptr) {
     return;
   }
+
   pthread_kill(monitor_thread_->native_handle(), Monitor::kExternalKillSignal);
 }
 
@@ -92,6 +93,7 @@ void Sandbox2::DumpStackTrace() {
   if (monitor_thread_ == nullptr) {
     return;
   }
+
   pthread_kill(monitor_thread_->native_handle(), Monitor::kDumpStackSignal);
 }
 
@@ -110,6 +112,7 @@ void Sandbox2::SetWallTimeLimit(time_t limit) const {
 
   union sigval v;
   v.sival_int = static_cast<int>(limit);
+
   pthread_sigqueue(monitor_thread_->native_handle(), Monitor::kTimerSetSignal,
                    v);
 }

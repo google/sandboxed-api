@@ -295,5 +295,4 @@ union arg64 {
 }
 #endif
 
-
 #endif  // SANDBOXED_API_SANDBOX2_UTIL_BPF_HELPER_H_

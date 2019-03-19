@@ -55,6 +55,7 @@ class Limits final {
     rlimit_as_.rlim_max = value;
     return *this;
   }
+
   const rlimit64& rlimit_cpu() const { return rlimit_cpu_; }
   Limits& set_rlimit_cpu(const rlimit64& value) {
     rlimit_cpu_ = value;
@@ -65,6 +66,7 @@ class Limits final {
     rlimit_cpu_.rlim_max = value;
     return *this;
   }
+
   const rlimit64& rlimit_fsize() const { return rlimit_fsize_; }
   Limits& set_rlimit_fsize(const rlimit64& value) {
     rlimit_fsize_ = value;
@@ -75,6 +77,7 @@ class Limits final {
     rlimit_fsize_.rlim_max = value;
     return *this;
   }
+
   const rlimit64& rlimit_nofile() const { return rlimit_nofile_; }
   Limits& set_rlimit_nofile(const rlimit64& value) {
     rlimit_nofile_ = value;
@@ -85,6 +88,7 @@ class Limits final {
     rlimit_nofile_.rlim_max = value;
     return *this;
   }
+
   const rlimit64& rlimit_core() const { return rlimit_core_; }
   Limits& set_rlimit_core(const rlimit64& value) {
     rlimit_core_ = value;

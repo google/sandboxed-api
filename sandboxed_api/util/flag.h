@@ -14,6 +14,7 @@
 
 #ifndef SANDBOXED_API_UTIL_FLAG_H_
 #define SANDBOXED_API_UTIL_FLAG_H_
+
 #include <gflags/gflags.h>
 
 #define ABSL_FLAG(type, name, default_value, help) \

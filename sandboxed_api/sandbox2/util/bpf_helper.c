@@ -22,7 +22,6 @@
 // and can serve as a starting point for developing
 // applications using prctl(PR_ATTACH_SECCOMP_FILTER).
 
-
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
 #include <stdio.h>
@@ -107,4 +106,3 @@ void seccomp_bpf_print(struct sock_filter *filter, size_t count)
 		printf("{ code=%u,jt=%u,jf=%u,k=%u },\n",
 			filter->code, filter->jt, filter->jf, filter->k);
 }
-

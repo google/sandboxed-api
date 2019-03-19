@@ -67,6 +67,7 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
+
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
     EXPECT_THAT(result.reason_code(), Eq(1));  // __NR_exit in 32-bit
     EXPECT_THAT(result.GetSyscallArch(), Eq(Syscall::kX86_32));
@@ -83,6 +84,7 @@ TEST(PolicyTest, AMD64Syscall32FsAllowed) {
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
+
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
     EXPECT_THAT(result.reason_code(),
                 Eq(33));  // __NR_access in 32-bit
