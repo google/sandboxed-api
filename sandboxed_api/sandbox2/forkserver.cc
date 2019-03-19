@@ -255,9 +255,8 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   SAPI_RAW_CHECK(cap_set_proc(caps) == 0, "while dropping capabilities");
   cap_free(caps);
 
-  // The unwind sandbox is not running in a PID namespace and doesn't require
-  // an init process, everything else does.
-  if (request.mode() != FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
+  // A custom init process is only needed if a new PID NS is created.
+  if (request.clone_flags() & CLONE_NEWPID) {
     RunInitProcess(signaling_fd, open_fds);
   }
   if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX ||
@@ -392,7 +391,7 @@ pid_t ForkServer::ServeRequest() const {
 
   fd_closer1.Close();
 
-  if (fork_request.mode() != FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
+  if (fork_request.clone_flags() & CLONE_NEWPID) {
     union {
       struct cmsghdr cmh;
       char ctrl[CMSG_SPACE(sizeof(struct ucred))];
@@ -414,8 +413,8 @@ pid_t ForkServer::ServeRequest() const {
     // previously forked.
     init_pid = sandboxee_pid;
 
-    // And the actual sandboxee will be forked from the init process, so we need
-    // to receive the actual PID.
+    // And the actual sandboxee will be forked from the init process, so we
+    // need to receive the actual PID.
     struct cmsghdr* cmsgp = nullptr;
     if (TEMP_FAILURE_RETRY(recvmsg(fd_closer0.get(), &msgh, MSG_WAITALL)) <=
             0 ||
@@ -431,6 +430,7 @@ pid_t ForkServer::ServeRequest() const {
       sandboxee_pid = ucredp->pid;
     }
   }
+
   // Parent.
   close(comms_fd);
   if (exec_fd >= 0) {
