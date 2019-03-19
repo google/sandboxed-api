@@ -26,9 +26,7 @@ cc_library(
     name = "bpfdisassembler",
     srcs = ["bpfdisassembler.cc"],
     hdrs = ["bpfdisassembler.h"],
-    deps = [
-        "@com_google_absl//absl/strings",
-    ],
+    deps = ["@com_google_absl//absl/strings"],
 )
 
 cc_library(
@@ -52,9 +50,7 @@ cc_library(
         "syscall_defs.cc",
         "syscall_defs.h",
     ],
-    hdrs = [
-        "syscall.h",
-    ],
+    hdrs = ["syscall.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":util",
