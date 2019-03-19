@@ -29,6 +29,7 @@ def append_all(arguments, name, values):
 
 def get_embed_dir():
     return native.package_name()
+
 def sort_deps(deps):
     colon_deps = [x for x in deps if x.startswith(":")]
     other_deps = [x for x in deps if not x.startswith(":")]
@@ -65,7 +66,6 @@ def sapi_interface_impl(ctx):
     # package path. Including extra headers is harmless except that
     # we may hit the Bazel file-count limit, so be conservative and
     # pass a lot through that we don't strictly need.
-    #
 
     extra_flags = []
     if "cc" in dir(ctx.attr.lib) and ctx.attr.lib.cc:
