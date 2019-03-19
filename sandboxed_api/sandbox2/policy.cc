@@ -28,7 +28,7 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include <sys/capability.h>
+#include "external/org_kernel_libcap/libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/regs.h"

@@ -811,7 +811,7 @@ class Generator(object):
     if call_arguments:  # fake empty space to add ',' before first argument
       call_arguments.insert(0, '')
     result.append('')
-    # In OSS code, the code below uses SAPI_RETURN_IF_ERROR().
+    # For OSS, the macro below will be replaced.
     result.append('    SAPI_RETURN_IF_ERROR(sandbox_->Call("{}", &ret{}));'
                   ''.format(f.name, ', '.join(call_arguments)))
 
