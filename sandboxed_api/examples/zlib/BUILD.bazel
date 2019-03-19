@@ -31,7 +31,6 @@ sapi_library(
     lib = "@net_zlib//:zlib",
     lib_name = "Zlib",
     namespace = "sapi::zlib",
-    deps = [],
 )
 
 cc_binary(

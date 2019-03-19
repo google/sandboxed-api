@@ -81,9 +81,7 @@ cc_library(
     name = "file_base",
     srcs = ["path.cc"],
     hdrs = ["path.h"],
-    deps = [
-        "@com_google_absl//absl/strings",
-    ],
+    deps = ["@com_google_absl//absl/strings"],
 )
 
 cc_test(

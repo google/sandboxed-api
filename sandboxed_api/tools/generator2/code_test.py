@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for google3.third_party.sandboxed_api.tools.generator2.code."""
+"""Tests for code."""
 
 from __future__ import absolute_import
 from __future__ import division

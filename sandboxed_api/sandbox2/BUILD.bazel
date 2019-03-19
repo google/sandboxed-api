@@ -14,11 +14,9 @@
 
 # Description: sandbox2 is a C++ sandbox technology for Linux.
 
-package(
-    default_visibility = [
-        "//sandboxed_api:__subpackages__",
-    ],
-)
+package(default_visibility = [
+    "//sandboxed_api:__subpackages__",
+])
 
 licenses(["notice"])  # Apache 2.0
 
