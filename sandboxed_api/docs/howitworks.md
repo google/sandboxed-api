@@ -23,7 +23,7 @@ Libraries, and restarts them if they fail (e.g, due to security violations,
 crashes or resource exhaustion).
 
 
-## Getting startd
+## Getting started
 
 Read our [Get Started](getting-started.md) page to set up your first Sandboxed
 API project.
