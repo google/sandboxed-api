@@ -77,6 +77,13 @@ void TestBpf() {
   exit(EXIT_FAILURE);
 }
 
+void TestIsatty() {
+  isatty(0);
+
+  printf("Syscall violation should have been discovered by now\n");
+  exit(EXIT_FAILURE);
+}
+
 int main(int argc, char** argv) {
   // Disable buffering.
   setbuf(stdin, nullptr);
@@ -106,6 +113,9 @@ int main(int argc, char** argv) {
       break;
     case 5:
       TestBpf();
+      break;
+    case 6:
+      TestIsatty();
       break;
     default:
       printf("Unknown test: %d\n", testno);

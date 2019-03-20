@@ -47,6 +47,7 @@ std::unique_ptr<Policy> PolicyTestcasePolicy() {
       .AllowWrite()
       .AllowSyscall(__NR_close)
       .AllowSyscall(__NR_getppid)
+      .AllowTCGETS()
       .BlockSyscallWithErrno(__NR_open, ENOENT)
       .BlockSyscallWithErrno(__NR_openat, ENOENT)
       .BlockSyscallWithErrno(__NR_access, ENOENT)
@@ -138,6 +139,20 @@ TEST(PolicyTest, BpfDisallowed) {
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
+}
+
+TEST(PolicyTest, IsattyAllowed) {
+  SKIP_SANITIZERS_AND_COVERAGE;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  std::vector<std::string> args = {path, "6"};
+  auto executor = absl::make_unique<Executor>(path, args);
+
+  auto policy = PolicyTestcasePolicy();
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
+  auto result = s2.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
 }
 
 std::unique_ptr<Policy> MinimalTestcasePolicy() {
