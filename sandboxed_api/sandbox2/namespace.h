@@ -24,8 +24,8 @@
 #include <memory>
 
 #include "absl/base/macros.h"
-#include "sandboxed_api/sandbox2/deathrattle_fatalmsg.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
+#include "sandboxed_api/sandbox2/violation.pb.h"
 
 namespace sandbox2 {
 

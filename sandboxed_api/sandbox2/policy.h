@@ -30,9 +30,9 @@
 
 #include "absl/base/macros.h"
 #include "absl/types/optional.h"
-#include "sandboxed_api/sandbox2/deathrattle_fatalmsg.pb.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/sandbox2/violation.pb.h"
 
 #define SANDBOX2_TRACE TRACE(::sandbox2::Syscall::GetHostArch())
 

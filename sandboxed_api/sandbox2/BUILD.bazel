@@ -34,8 +34,8 @@ cc_library(
     srcs = ["regs.cc"],
     hdrs = ["regs.h"],
     deps = [
-        ":deathrattle_fatalmsg_proto_cc",
         ":syscall",
+        ":violation_proto_cc",
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
@@ -167,10 +167,10 @@ cc_library(
     deps = [
         ":bpfdisassembler",
         ":comms",
-        ":deathrattle_fatalmsg_proto_cc",
         ":namespace",
         ":regs",
         ":syscall",
+        ":violation_proto_cc",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:flag",
         "@com_google_absl//absl/base:core_headers",
@@ -245,7 +245,7 @@ cc_library(
     deps = [
         ":client",
         ":comms",
-        ":deathrattle_fatalmsg_proto_cc",
+        ":violation_proto_cc",
         ":forkserver",
         ":forkserver_proto_cc",
         ":global_forkserver",
@@ -380,10 +380,10 @@ cc_library(
     srcs = ["namespace.cc"],
     hdrs = ["namespace.h"],
     deps = [
-        ":deathrattle_fatalmsg_proto_cc",
         ":mounts",
         ":mounttree_proto_cc",
         ":util",
+        ":violation_proto_cc",
         "//sandboxed_api/sandbox2/util:file_base",
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:strerror",
@@ -704,8 +704,8 @@ cc_library(
 )
 
 sapi_proto_library(
-    name = "deathrattle_fatalmsg_proto",
-    srcs = ["deathrattle_fatalmsg.proto"],
+    name = "violation_proto",
+    srcs = ["violation.proto"],
     deps = [":mounttree_proto"],
 )
 

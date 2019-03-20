@@ -23,8 +23,8 @@
 #include <cstdint>
 #include <string>
 
-#include "sandboxed_api/sandbox2/deathrattle_fatalmsg.pb.h"
 #include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/status.h"
 
 namespace sandbox2 {
