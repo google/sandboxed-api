@@ -117,7 +117,7 @@ This object will also specify where your SAPI Library can be found
 and how it should be executed (though you can depend on default settings).
 
 A working example of such SAPI object definition file can be found
-[here](../examples/zlib/lib/sandbox.h).
+[here](../examples/sum/lib/sandbox.h).
 
 In order to familiarize yourself with the Sandbox2 policies, you might want to
 take a look at the [Sandbox2 documenation](../sandbox2/README.md).
