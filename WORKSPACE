@@ -134,6 +134,7 @@ autotools_repository(
     build_file = "//sandboxed_api:bazel/external/libunwind.BUILD",
     configure_args = [
         "--disable-documentation",
+        "--disable-minidebuginfo",
         "--disable-shared",
         "--enable-ptrace",
     ],
