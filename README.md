@@ -10,12 +10,12 @@ Copyright 2019 Google LLC
 The Sandboxed API project (**SAPI**) aims to make sandboxing of C/C++ libraries
 less burdensome: after initial setup of security policies and generation of
 library interfaces, an almost-identical stub API is generated (using a
-[templated based programming variable hierarchy system](sandboxed_api/docs/variables.md)),
+[template-based programming variable hierarchy system](sandboxed_api/docs/variables.md)),
 transparently forwarding calls using a custom RPC layer to the real library
 running inside a sandboxed environment.
 
 Additionally, each SAPI library utilizes a tightly defined security policy, in
-contrast to typical sandboxed project, where security policies must cover total
+contrast to the typical sandboxed project, where security policies must cover the total
 syscall/resource footprint of all utilized libraries.
 
 
