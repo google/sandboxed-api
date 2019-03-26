@@ -252,7 +252,7 @@ class Type(object):
 
       return result
 
-    raise ValueError('Unkhandled kind: {}'.format(self._clang_type.kind))
+    raise ValueError('Unhandled kind: {}'.format(self._clang_type.kind))
 
   def _get_related_types_of_typedef(self, result):
     # type: (Set[Type]) -> Set[Type]
