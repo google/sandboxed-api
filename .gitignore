@@ -1,0 +1,10 @@
+# macOS Finder metadata
+.DS_Store
+# Build files
+bazel-*
+# Editor backup files
+*.swp
+*~
+# IDE files
+.vscode/
+.idea
