@@ -29,7 +29,6 @@
 
 #include <cstdio>
 #include <cstring>
-#include <string>
 #include <utility>
 
 #include "absl/strings/str_cat.h"

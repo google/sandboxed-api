@@ -59,8 +59,8 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
-  ASSERT_EQ(result.final_status(), Result::SIGNALED);
-  EXPECT_EQ(result.reason_code(), SIGABRT);
+  ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
+  EXPECT_THAT(result.reason_code(), Eq(SIGABRT));
 }
 
 // Test that with TSYNC we are able to sandbox when multithreaded and with no

@@ -29,7 +29,6 @@
 using sapi::IsOk;
 using sapi::StatusIs;
 using ::testing::Eq;
-using ::testing::StrEq;
 
 namespace sandbox2 {
 namespace {

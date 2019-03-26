@@ -22,6 +22,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include "absl/base/macros.h"
 #include "sandboxed_api/sandbox2/mounts.h"
@@ -40,7 +41,8 @@ class Namespace final {
   Namespace(const Namespace&) = delete;
   Namespace& operator=(const Namespace&) = delete;
 
-  Namespace(bool allow_unrestricted_networking, Mounts mounts, std::string hostname);
+  Namespace(bool allow_unrestricted_networking, Mounts mounts,
+            std::string hostname);
 
   void DisableUserNamespace();
 

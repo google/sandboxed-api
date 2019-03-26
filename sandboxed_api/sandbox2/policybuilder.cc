@@ -624,7 +624,8 @@ PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
   return ValidatePath(path);
 }
 
-::sapi::StatusOr<std::string> PolicyBuilder::ValidatePath(absl::string_view path) {
+::sapi::StatusOr<std::string> PolicyBuilder::ValidatePath(
+    absl::string_view path) {
   std::string fixed_path = file::CleanPath(path);
   if (fixed_path != path) {
     return ::sapi::InvalidArgumentError(absl::StrCat(

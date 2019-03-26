@@ -15,6 +15,8 @@
 #ifndef SANDBOXED_API_SANDBOX2_UTIL_TEMP_FILE_H_
 #define SANDBOXED_API_SANDBOX2_UTIL_TEMP_FILE_H_
 
+#include <string>
+
 #include "sandboxed_api/util/statusor.h"
 
 namespace sandbox2 {
@@ -27,7 +29,8 @@ sapi::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
 // Creates a temporary file under a path starting with prefix. File is not
 // unlinked and its path is returned. FD of the created file is closed just
 // after creation.
-sapi::StatusOr<std::string> CreateNamedTempFileAndClose(absl::string_view prefix);
+sapi::StatusOr<std::string> CreateNamedTempFileAndClose(
+    absl::string_view prefix);
 
 // Creates a temporary directory under a path starting with prefix.
 // Returns the path of the created directory.

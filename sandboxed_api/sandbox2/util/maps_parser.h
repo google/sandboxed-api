@@ -16,6 +16,7 @@
 #define SANDBOXED_API_SANDBOX2_UTIL_MAPS_PARSER_H_
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "sandboxed_api/util/status.h"
@@ -37,7 +38,8 @@ struct MapsEntry {
   std::string path;
 };
 
-::sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(const std::string& contents);
+::sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
+    const std::string& contents);
 
 }  // namespace sandbox2
 

@@ -19,7 +19,6 @@
 #define SANDBOXED_API_SANDBOX2_SANITIZER_H_
 
 #include <set>
-#include <string>
 
 #include "absl/base/macros.h"
 

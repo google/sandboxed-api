@@ -43,7 +43,8 @@ sapi::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
   return std::pair<std::string, int>{std::move(name_template), fd};
 }
 
-sapi::StatusOr<std::string> CreateNamedTempFileAndClose(absl::string_view prefix) {
+sapi::StatusOr<std::string> CreateNamedTempFileAndClose(
+    absl::string_view prefix) {
   auto result_or = CreateNamedTempFile(prefix);
   if (result_or.ok()) {
     std::string path;

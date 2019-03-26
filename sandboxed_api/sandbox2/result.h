@@ -107,7 +107,9 @@ class Result {
   // The stacktrace must be sometimes fetched before SetExitStatusCode is
   // called, because after WIFEXITED() or WIFSIGNALED() the process is just a
   // zombie.
-  void SetStackTrace(const std::string& stack_trace) { stack_trace_ = stack_trace; }
+  void SetStackTrace(const std::string& stack_trace) {
+    stack_trace_ = stack_trace;
+  }
 
   void LoadRegs(pid_t pid) {
     auto regs = absl::make_unique<Regs>(pid);
@@ -150,13 +152,13 @@ class Result {
   // OK if the sandbox process exited normally with an exit code of 0.
   ::sapi::Status ToStatus() const;
 
-  // Returns a descriptive std::string for final result.
+  // Returns a descriptive string for final result.
   std::string ToString() const;
 
-  // Converts StatusEnum to a std::string.
+  // Converts StatusEnum to a string.
   static std::string StatusEnumToString(StatusEnum value);
 
-  // Converts ReasonCodeEnum to a std::string.
+  // Converts ReasonCodeEnum to a string.
   static std::string ReasonCodeEnumToString(ReasonCodeEnum value);
 
   rusage* GetRUsageMonitor() { return &rusage_monitor_; }

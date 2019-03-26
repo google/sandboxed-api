@@ -15,7 +15,6 @@
 #ifndef SANDBOXED_API_EMBED_FILE_H_
 #define SANDBOXED_API_EMBED_FILE_H_
 
-#include <string>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"

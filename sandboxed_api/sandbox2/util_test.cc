@@ -16,6 +16,8 @@
 
 #include <unistd.h>
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/testing.h"

@@ -40,7 +40,7 @@ constexpr size_t kDefaultMaxFrames = 200;
 
 // Returns the stack-trace of the PID=pid, delimited by the delim argument.
 std::string GetStackTrace(const Regs* regs, const Mounts& mounts,
-                     const std::string& delim = " ");
+                          const std::string& delim = " ");
 
 // Similar to GetStackTrace() but without using the sandbox to isolate
 // libunwind.

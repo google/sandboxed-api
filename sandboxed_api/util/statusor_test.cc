@@ -106,7 +106,9 @@ struct StringCtor {
 struct StringVectorCtor {
   using value_type = std::vector<std::string>;
 
-  std::vector<std::string> operator()() { return {kStringElement, kErrorMessage}; }
+  std::vector<std::string> operator()() {
+    return {kStringElement, kErrorMessage};
+  }
 };
 
 bool operator==(const Foo& lhs, const Foo& rhs) {

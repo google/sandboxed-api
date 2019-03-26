@@ -44,9 +44,9 @@ struct status_type_traits {
 
   template <typename StatusU>
   static auto CheckMinimalApi(...) -> decltype(std::false_type());
-  using minimal_api_type = decltype(
-      CheckMinimalApi<StatusT>(static_cast<StatusT*>(0), static_cast<int*>(0),
-                               static_cast<std::string*>(0), static_cast<bool*>(0)));
+  using minimal_api_type = decltype(CheckMinimalApi<StatusT>(
+      static_cast<StatusT*>(0), static_cast<int*>(0),
+      static_cast<std::string*>(0), static_cast<bool*>(0)));
 
  public:
   static constexpr bool is_status = minimal_api_type::value;

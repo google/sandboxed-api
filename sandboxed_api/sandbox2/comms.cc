@@ -500,7 +500,7 @@ socklen_t Comms::CreateSockaddrUn(sockaddr_un* sun) {
   bzero(sun->sun_path, sizeof(sun->sun_path));
   // Create an 'abstract socket address' by specifying a leading null byte. The
   // remainder of the path is used as a unique name, but no file is created on
-  // the filesystem. No need to NUL-terminate the std::string.
+  // the filesystem. No need to NUL-terminate the string.
   // See `man 7 unix` for further explanation.
   strncpy(&sun->sun_path[1], socket_name_.c_str(), sizeof(sun->sun_path) - 1);
 

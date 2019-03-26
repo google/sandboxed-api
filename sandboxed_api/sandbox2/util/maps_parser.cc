@@ -18,16 +18,18 @@
 
 namespace sandbox2 {
 
-::sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(const std::string& contents) {
-  // Note: The format std::string
+::sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
+    const std::string& contents) {
+  // Note: The format string
   //       https://github.com/torvalds/linux/blob/v4.14/fs/proc/task_mmu.c#L289
-  //       changed to a non-format std::string implementation
+  //       changed to a non-format string implementation
   //       (show_vma_header_prefix()).
   static constexpr char kFormatString[] =
       "%lx-%lx %c%c%c%c %lx %x:%x %lu %1023s";
   static constexpr size_t kFilepathLength = 1023;
 
-  std::vector<std::string> lines = absl::StrSplit(contents, '\n', absl::SkipEmpty());
+  std::vector<std::string> lines =
+      absl::StrSplit(contents, '\n', absl::SkipEmpty());
   std::vector<MapsEntry> entries;
   for (const auto& line : lines) {
     MapsEntry entry{};

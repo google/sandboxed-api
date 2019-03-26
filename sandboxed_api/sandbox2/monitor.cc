@@ -93,7 +93,8 @@ Monitor::Monitor(Executor* executor, Policy* policy, Notify* notify)
       setup_counter_(new absl::BlockingCounter(1)),
       done_(false),
       wait_for_execve_(executor->enable_sandboxing_pre_execve_) {
-  std::string path = absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all_and_log);
+  std::string path =
+      absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all_and_log);
   if (!path.empty()) {
     log_file_ = std::fopen(path.c_str(), "a+");
     PCHECK(log_file_ != nullptr) << "Failed to open log file '" << path << "'";

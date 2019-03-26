@@ -50,7 +50,7 @@ extern "C" int reverse_string(sapi::LenValStruct* input) {
 
   // Free old value.
   free(input->data);
-  // Replace pointer to our new std::string.
+  // Replace pointer to our new string.
   input->data = new_buf;
   return 1;
 }

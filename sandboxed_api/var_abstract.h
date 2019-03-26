@@ -16,6 +16,7 @@
 #define SANDBOXED_API_VAR_ABSTRACT_H_
 
 #include <memory>
+#include <string>
 #include <type_traits>
 
 #include "absl/base/macros.h"
@@ -55,10 +56,10 @@ class Var {
   // Returns the type of the variable.
   virtual Type GetType() const = 0;
 
-  // Returns a std::string representation of the variable type.
+  // Returns a string representation of the variable type.
   virtual std::string GetTypeString() const = 0;
 
-  // Returns a std::string representation of the variable value.
+  // Returns a string representation of the variable value.
   virtual std::string ToString() const = 0;
 
   virtual ~Var();

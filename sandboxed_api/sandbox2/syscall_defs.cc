@@ -11,7 +11,7 @@ namespace sandbox2 {
 namespace {
 
 std::string GetArgumentDescription(uint64_t value, SyscallTable::ArgType type,
-                              pid_t pid) {
+                                   pid_t pid) {
   std::string ret = absl::StrFormat("%#x", value);
   switch (type) {
     case SyscallTable::kOct:

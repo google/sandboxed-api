@@ -487,7 +487,8 @@ class PolicyBuilder final {
 
   std::vector<sock_filter> ResolveBpfFunc(BpfFunc f);
 
-  static ::sapi::StatusOr<std::string> ValidateAbsolutePath(absl::string_view path);
+  static ::sapi::StatusOr<std::string> ValidateAbsolutePath(
+      absl::string_view path);
   static ::sapi::StatusOr<std::string> ValidatePath(absl::string_view path);
 
   void StoreDescription(PolicyBuilderDescription* pb_description);

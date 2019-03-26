@@ -186,7 +186,8 @@ TEST(MinimalTest, MinimalBinaryWorks) {
 // Test that we can sandbox a minimal non-static binary returning 0.
 TEST(MinimalTest, MinimalSharedBinaryWorks) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
   std::vector<std::string> args = {path};
   auto executor = absl::make_unique<Executor>(path, args);
 
@@ -212,7 +213,8 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
 // Test that the AllowSystemMalloc helper works as expected.
 TEST(MallocTest, SystemMallocWorks) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  const std::string path = GetTestSourcePath("sandbox2/testcases/malloc_system");
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/malloc_system");
   std::vector<std::string> args = {path};
   auto executor = absl::make_unique<Executor>(path, args);
 

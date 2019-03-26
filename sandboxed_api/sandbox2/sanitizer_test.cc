@@ -51,7 +51,7 @@ namespace sandbox2 {
 namespace {
 
 // Runs a new process and returns 0 if the process terminated with 0.
-static int RunTestcase(const std::string& path, const std::vector<std::string>& args) {
+int RunTestcase(const std::string& path, const std::vector<std::string>& args) {
   pid_t pid = fork();
   if (pid < 0) {
     PLOG(ERROR) << "fork()";
@@ -79,7 +79,7 @@ static int RunTestcase(const std::string& path, const std::vector<std::string>& 
   }
 }
 
-static bool IsFdOpen(int fd) {
+bool IsFdOpen(int fd) {
   int ret = fcntl(fd, F_GETFD);
   if (ret == -1) {
     VLOG(1) << "FD: " << fd << " is closed";

@@ -62,7 +62,8 @@ class StackTracePeer {
                                            const Mounts& mounts);
 
   static bool LaunchLibunwindSandbox(const Regs* regs, const Mounts& mounts,
-                                     UnwindResult* result, const std::string& delim);
+                                     UnwindResult* result,
+                                     const std::string& delim);
 };
 
 std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
@@ -269,7 +270,7 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
 }
 
 std::string GetStackTrace(const Regs* regs, const Mounts& mounts,
-                     const std::string& delim) {
+                          const std::string& delim) {
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
     return "";
   }

@@ -16,6 +16,7 @@
 #define SANDBOXED_API_SANDBOX_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
@@ -71,7 +72,8 @@ class Sandbox {
 
   // Makes a call to the sandboxee.
   template <typename... Args>
-  ::sapi::Status Call(const std::string& func, v::Callable* ret, Args&&... args) {
+  ::sapi::Status Call(const std::string& func, v::Callable* ret,
+                      Args&&... args) {
     static_assert(sizeof...(Args) <= FuncCall::kArgsMax,
                   "Too many arguments to sapi::Sandbox::Call()");
     return Call(func, ret, {std::forward<Args>(args)...});

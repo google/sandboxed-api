@@ -153,7 +153,8 @@ TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
   SKIP_SANITIZERS_AND_COVERAGE;
   // Get list of open FDs in the global forkserver.
   pid_t forkserver_pid = GetGlobalForkServerPid();
-  std::string forkserver_fd_path = absl::StrCat("/proc/", forkserver_pid, "/fd");
+  std::string forkserver_fd_path =
+      absl::StrCat("/proc/", forkserver_pid, "/fd");
   size_t filecount_before = FileCountInDirectory(forkserver_fd_path);
 
   TemporaryFlagOverride<bool> temp_override(

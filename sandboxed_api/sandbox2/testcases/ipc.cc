@@ -15,8 +15,8 @@
 // A binary that uses comms and client, to receive FDs by name, communicate
 // with them, sandboxed or not.
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #include "absl/strings/numbers.h"

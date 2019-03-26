@@ -45,7 +45,7 @@ TEST(StrErrorTest, InvalidErrorCode) {
 TEST(StrErrorTest, MultipleThreads) {
   // In this test, we will start up 2 threads and have each one call StrError
   // 1000 times, each time with a different errnum. We expect that
-  // StrError(errnum) will return a std::string equal to the one returned by
+  // StrError(errnum) will return a string equal to the one returned by
   // strerror(errnum), if the code is known. Since strerror is known to be
   // thread-hostile, collect all the expected strings up front.
   constexpr int kNumCodes = 1000;

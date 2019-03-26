@@ -35,7 +35,7 @@ namespace sandbox2 {
 namespace {
 
 std::string GetSymbolAt(const std::map<uint64_t, std::string>& addr_to_symbol,
-                   uint64_t addr) {
+                        uint64_t addr) {
   auto entry_for_next_symbol = addr_to_symbol.lower_bound(addr);
   if (entry_for_next_symbol != addr_to_symbol.end() &&
       entry_for_next_symbol != addr_to_symbol.begin()) {

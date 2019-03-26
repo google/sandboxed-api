@@ -23,9 +23,9 @@ This is the simplest and safest way to use sandboxing. For examples see
 #include "sandboxed_api/sandbox2/executor.h"
 
 std::string path = "path/to/binary";
-std::vector<string> args = {path};  // args[0] will become the sandboxed
-                                    // process' argv[0], typically the path
-                                    // to the binary.
+std::vector<std::string> args = {path};  // args[0] will become the sandboxed
+                                         // process' argv[0], typically the
+                                         // path to the binary.
 auto executor = absl::make_unique<sandbox2::Executor>(path, args);
 ```
 

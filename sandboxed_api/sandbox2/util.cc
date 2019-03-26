@@ -296,7 +296,7 @@ std::string GetSignalName(int signo) {
   auto pos = path.find('\0');
   if (pos == std::string::npos) {
     return ::sapi::FailedPreconditionError(absl::StrCat(
-        "No NUL-byte inside the C std::string '", absl::CHexEscape(path), "'"));
+        "No NUL-byte inside the C string '", absl::CHexEscape(path), "'"));
   }
   path.resize(pos);
   return path;

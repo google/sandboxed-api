@@ -31,7 +31,7 @@ namespace sandbox2 {
 namespace util {
 
 // Converts an array of char* (terminated by a nullptr, like argv, or environ
-// arrays), to an std::vector<string>.
+// arrays), to an std::vector<std::string>.
 void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec);
 
 // Converts a vector of strings to a newly allocated array. The array is limited

@@ -72,7 +72,8 @@ bool Exists(const std::string& filename, bool fully_resolve);
 // On error, false is returned and error is set to a description of the
 // error. The filenames in entries are just the basenames of the
 // files found.
-bool ListDirectoryEntries(const std::string& directory, std::vector<std::string>* entries,
+bool ListDirectoryEntries(const std::string& directory,
+                          std::vector<std::string>* entries,
                           std::string* error);
 
 // Deletes the specified file or directory, including any sub-directories.
@@ -81,7 +82,8 @@ bool DeleteRecursively(const std::string& filename);
 // Copies a file from one location to another. The file will be overwritten  if
 // it already exists. If it does not exist, its mode will be new_mode. Returns
 // true on success. On failure, a partial copy of the file may remain.
-bool CopyFile(const std::string& old_path, const std::string& new_path, int new_mode);
+bool CopyFile(const std::string& old_path, const std::string& new_path,
+              int new_mode);
 
 // Makes filename absolute with respect to base. Returns an empty string on
 // failure.

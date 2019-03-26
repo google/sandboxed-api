@@ -192,7 +192,7 @@ std::string GetPlatform(absl::string_view interpreter) {
 
   auto split = file::SplitPath(fixed_path);
   absl::string_view cur = split.first;
-  std::string final_part = std::string(split.second);
+  auto final_part = std::string(split.second);
 
   while (cur != "/") {
     auto split = file::SplitPath(cur);

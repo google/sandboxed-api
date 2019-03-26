@@ -59,7 +59,8 @@ bool GetCWD(std::string* result) {
 
 // Makes a path absolute with respect to base. Returns true on success. Result
 // may be an alias of base or filename.
-bool MakeAbsolute(const std::string& filename, const std::string& base, std::string* result) {
+bool MakeAbsolute(const std::string& filename, const std::string& base,
+                  std::string* result) {
   if (filename.empty()) {
     return false;
   }
@@ -95,10 +96,10 @@ std::string MakeAbsolute(const std::string& filename, const std::string& base) {
 }
 
 bool RemoveLastPathComponent(const std::string& file, std::string* output) {
-  // Point idx at the last non-slash in the std::string. This should mark the last
+  // Point idx at the last non-slash in the string. This should mark the last
   // character of the base name.
   auto idx = file.find_last_not_of('/');
-  // If no non-slash is found, we have all slashes or an empty std::string. Return
+  // If no non-slash is found, we have all slashes or an empty string. Return
   // the appropriate value and false to indicate there was no path component to
   // remove.
   if (idx == std::string::npos) {
@@ -114,7 +115,7 @@ bool RemoveLastPathComponent(const std::string& file, std::string* output) {
   // Point idx at the last slash before the base name.
   idx = file.find_last_of('/', idx);
   // If we don't find a slash, then we have something of the form "file/*", so
-  // just return the empty std::string.
+  // just return the empty string.
   if (idx == std::string::npos) {
     output->clear();
   } else {
@@ -168,8 +169,8 @@ bool ReadLinkAbsolute(const std::string& filename, std::string* result) {
 std::string Basename(absl::string_view path) {
   const auto last_slash = path.find_last_of('/');
   return std::string(last_slash == std::string::npos
-                    ? path
-                    : absl::ClippedSubstr(path, last_slash + 1));
+                         ? path
+                         : absl::ClippedSubstr(path, last_slash + 1));
 }
 
 std::string StripBasename(absl::string_view path) {
@@ -189,7 +190,8 @@ bool Exists(const std::string& filename, bool fully_resolve) {
                         : lstat64(filename.c_str(), &st)) != -1;
 }
 
-bool ListDirectoryEntries(const std::string& directory, std::vector<std::string>* entries,
+bool ListDirectoryEntries(const std::string& directory,
+                          std::vector<std::string>* entries,
                           std::string* error) {
   errno = 0;
   std::unique_ptr<DIR, void (*)(DIR*)> dir{opendir(directory.c_str()),
@@ -266,7 +268,8 @@ bool DeleteRecursively(const std::string& filename) {
   return true;
 }
 
-bool CopyFile(const std::string& old_path, const std::string& new_path, int new_mode) {
+bool CopyFile(const std::string& old_path, const std::string& new_path,
+              int new_mode) {
   {
     std::ifstream input(old_path, std::ios_base::binary);
     std::ofstream output(new_path,

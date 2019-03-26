@@ -17,6 +17,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <string>
 #include <utility>
 
 #include <glog/logging.h>
@@ -56,7 +57,8 @@ class PolicyBuilderPeer {
 
   int policy_size() const { return builder_->output_->user_policy_.size(); }
 
-  static ::sapi::StatusOr<std::string> ValidateAbsolutePath(absl::string_view path) {
+  static ::sapi::StatusOr<std::string> ValidateAbsolutePath(
+      absl::string_view path) {
     return PolicyBuilder::ValidateAbsolutePath(path);
   }
 
@@ -154,7 +156,8 @@ TEST_F(PolicyBuilderTest, TestValidateAbsolutePath) {
   }
 }
 
-std::string PolicyBuilderTest::Run(std::vector<std::string> args, bool network) {
+std::string PolicyBuilderTest::Run(std::vector<std::string> args,
+                                   bool network) {
   PolicyBuilder builder;
   // Don't restrict the syscalls at all.
   builder.DangerDefaultAllowAll();

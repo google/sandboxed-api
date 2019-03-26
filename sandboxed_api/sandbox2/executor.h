@@ -105,9 +105,11 @@ class Executor final {
                  /*fork_client=*/nullptr) {}
 
   // Delegate constructor that gets called by the public ones.
-  Executor(int exec_fd, const std::string& path, const std::vector<std::string>& argv,
-           const std::vector<std::string>& envp, bool enable_sandboxing_pre_execve,
-           pid_t libunwind_sbox_for_pid, ForkClient* fork_client);
+  Executor(int exec_fd, const std::string& path,
+           const std::vector<std::string>& argv,
+           const std::vector<std::string>& envp,
+           bool enable_sandboxing_pre_execve, pid_t libunwind_sbox_for_pid,
+           ForkClient* fork_client);
 
   // Creates a copy of the environment
   static std::vector<std::string> CopyEnviron();
