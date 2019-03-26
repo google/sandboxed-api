@@ -61,11 +61,8 @@ TEST_F(CRC4Test, TestExploitAttempt) {
 
   std::string output;
   SAPI_ASSERT_OK_AND_ASSIGN(
-      int exit_code,
-      util::Communicate(
-          {path_, "-input",
-           "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"},
-          env_, &output));
+      int exit_code, util::Communicate({path_, "-input", std::string(128, 'A')},
+                                       env_, &output));
 
   LOG(INFO) << "Output: " << output;
   EXPECT_THAT(exit_code, Eq(3));

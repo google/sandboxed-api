@@ -17,6 +17,7 @@
 
 #include <syscall.h>
 
+#include <cstdint>
 #include <cstring>
 
 #include <glog/logging.h>
@@ -66,7 +67,8 @@ int main(int argc, char** argv) {
 
   // Make sure we don't inline the function. See the comment in
   // ComputeCRC4Impl() for more details.
-  std::function<uint32_t(const uint8_t*, uint64_t)> ComputeCRC4 = ComputeCRC4Impl;
+  std::function<uint32_t(const uint8_t*, uint64_t)> ComputeCRC4 =
+      ComputeCRC4Impl;
 
   uint32_t crc4 = ComputeCRC4(buffer.data(), buffer.size());
 
