@@ -176,6 +176,7 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
                                               ARG_32(2),
                                               JEQ32(MADV_DONTNEED, ALLOW),
                                               JEQ32(MADV_REMOVE, ALLOW),
+                                              JEQ32(MADV_NOHUGEPAGE, ALLOW),
                                           });
 }
 
