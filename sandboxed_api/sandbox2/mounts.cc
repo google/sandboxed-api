@@ -274,6 +274,7 @@ std::string GetPlatform(absl::string_view interpreter) {
   }
 
   SAPI_RAW_VLOG(1, "The file %s is using interpreter %s", path, interpreter);
+  SAPI_RETURN_IF_ERROR(ValidateInterpreter(interpreter));
 
   std::vector<std::string> search_paths;
   // 1. LD_LIBRARY_PRELOAD
@@ -290,7 +291,6 @@ std::string GetPlatform(absl::string_view interpreter) {
                                               "/usr/lib",
                                               "/usr/lib64",
                                           });
-  SAPI_RETURN_IF_ERROR(ValidateInterpreter(interpreter));
   std::vector<std::string> hw_cap_paths = {
       GetPlatform(interpreter),
       "tls",
