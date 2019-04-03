@@ -261,4 +261,5 @@ def sapi_library(
                  $(CC) -E -x c++ - -v 2>&1 |
                  awk '/> search starts here:/{flag=1;next}/End of search/{flag=0}flag' > $@
               """,
+        toolchains = ["@bazel_tools//tools/cpp:current_cc_toolchain"],
     )
