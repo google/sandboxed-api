@@ -221,7 +221,7 @@ static void RunInitProcess(int signaling_fd, std::set<int> open_fds) {
       // Wait until we don't have any children anymore.
       // We cannot watch for the child pid as ptrace steals our waitpid
       // notifications. (See man ptrace / man waitpid).
-      pid = waitpid(-1, &status, 0);
+      pid = TEMP_FAILURE_RETRY(waitpid(-1, &status, __WALL));
       if (pid < 0) {
         if (errno == ECHILD) {
           _exit(0);
