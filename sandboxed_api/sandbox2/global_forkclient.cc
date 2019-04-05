@@ -87,8 +87,8 @@ static void StartGlobalForkServer() {
   // Make sure the logs go stderr.
   google::LogToStderr();
 
-  // Child.
-  close(sv[1]);
+  // Close all non-essential FDs to keep newly opened FD numbers consistent.
+  sandbox2::sanitizer::CloseAllFDsExcept({0, 1, 2, sv[0]});
 
   // Make the process' name easily recognizable with ps/pstree.
   if (prctl(PR_SET_NAME, "S2-FORK-SERV", 0, 0, 0) != 0) {

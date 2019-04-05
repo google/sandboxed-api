@@ -57,6 +57,25 @@
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
 
+namespace {
+// "Moves" the old FD to the new FD number.
+// The old FD will be closed, the new one is marked as CLOEXEC.
+void MoveToFdNumber(int* old_fd, int new_fd) {
+  if (dup2(*old_fd, new_fd) == -1) {
+    SAPI_RAW_PLOG(FATAL, "Moving temporary to proper FD failed.");
+  }
+  close(*old_fd);
+
+  // Try to mark that FD as CLOEXEC.
+  int flags = fcntl(new_fd, F_GETFD);
+  if (flags == -1 || fcntl(new_fd, F_SETFD, flags | O_CLOEXEC) != 0) {
+    SAPI_RAW_PLOG(ERROR, "Marking FD as CLOEXEC failed");
+  }
+
+  *old_fd = new_fd;
+}
+}  // namespace
+
 namespace sandbox2 {
 
 pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
@@ -314,6 +333,10 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
 }
 
 pid_t ForkServer::ServeRequest() const {
+  // Keep the low FD numbers clean so that client FD mappings don't interfer
+  // with us.
+  constexpr int kTargetExecFd = 1022;
+
   ForkRequest fork_request;
   if (!comms_->RecvProtoBuf(&fork_request)) {
     if (comms_->IsTerminated()) {
@@ -334,6 +357,9 @@ pid_t ForkServer::ServeRequest() const {
     if (!comms_->RecvFD(&exec_fd)) {
       SAPI_RAW_LOG(FATAL, "Failed to receive Exec FD");
     }
+
+    // We're duping to a high number here to avoid colliding with the IPC FDs.
+    MoveToFdNumber(&exec_fd, kTargetExecFd);
   }
 
   // Make the kernel notify us with SIGCHLD when the process terminates.
@@ -381,12 +407,6 @@ pid_t ForkServer::ServeRequest() const {
   if (sandboxee_pid == 0) {
     LaunchChild(fork_request, exec_fd, comms_fd, uid, gid, user_ns_fd,
                 fd_closer1.get());
-
-    // comms_fd has been remapped to 1023 (kSandbox2ClientCommsFD), so the
-    // original FD is not required anymore.
-    if (comms_fd != Comms::kSandbox2ClientCommsFD) {
-      close(comms_fd);
-    }
     return sandboxee_pid;
   }
 
@@ -483,6 +503,7 @@ void ForkServer::SanitizeEnvironment(int client_fd) {
   // Duplicate client's CommsFD onto fd=Comms::kSandbox2ClientCommsFD (1023).
   SAPI_RAW_CHECK(dup2(client_fd, Comms::kSandbox2ClientCommsFD) != -1,
                  "while remapping client comms fd");
+  close(client_fd);
   // Mark all file descriptors, except the standard ones (needed
   // for proper sandboxed process operations), as close-on-exec.
   if (!sanitizer::SanitizeCurrentProcess(
