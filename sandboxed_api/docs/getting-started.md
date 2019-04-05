@@ -11,10 +11,14 @@ on the system:
 * [Bazel](https://bazel.build/) version 0.23.0
 * Python 2.7 with type annotations
 * Linux userspace API headers
+* Linux kernel with support for UTS, IPC, user, PID and network namespaces
 
-On a system running Debian 10 "Buster", these commands will install the
-necessary packages:
+Please refer to the
+[Bazel documentation](https://docs.bazel.build/versions/master/bazel-overview.html)
+for information on how to change the default compiler toolchain.
 
+### Debian 10 "Buster"
+Build dependencies:
 ```bash
 echo "deb http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
   sudo tee /etc/apt/sources.list.d/bazel.list
@@ -23,10 +27,22 @@ sudo apt-get install -qy python-typing python-clang-7 libclang-7-dev
 sudo apt-get install -qy build-essential linux-libc-dev bazel
 ```
 
-Please refer to the
-[Bazel documentation](https://docs.bazel.build/versions/master/bazel-overview.html)
-for information on how to change the default compiler toolchain.
+### Gentoo
+Kernel options required:
+```
+General setup  --->
+ -*- Namespaces support
+  [*]   UTS namespace
+  [*]   IPC namespace
+  [*]   User namespace (EXPERIMENTAL)
+  [*]   PID Namespaces
+  [*]   Network namespace
+```
 
+Build dependencies:
+```bash
+emerge dev-util/bazel dev-python/typing dev-python/clang-python
+```
 
 ## Examples
 
