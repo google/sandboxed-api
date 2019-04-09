@@ -142,7 +142,23 @@ std::string DecodeInstruction(const sock_filter& inst, int pc) {
       return absl::StrCat("M[", inst.k, "] := X");
     case BPF_RET | BPF_K: {
       __u32 data = inst.k & SECCOMP_RET_DATA;
+#ifdef SECCOMP_RET_ACTION_FULL
+      switch (inst.k & SECCOMP_RET_ACTION_FULL) {
+#ifdef SECCOMP_RET_KILL_PROCESS
+        case SECCOMP_RET_KILL_PROCESS:
+          return "KILL_PROCESS";
+#endif
+#else
       switch (inst.k & SECCOMP_RET_ACTION) {
+#endif
+#ifdef SECCOMP_RET_LOG
+        case SECCOMP_RET_LOG:
+          return "LOG";
+#endif
+#ifdef SECCOMP_RET_USER_NOTIF
+        case SECCOMP_RET_USER_NOTIF:
+          return "USER_NOTIF";
+#endif
         case SECCOMP_RET_KILL:
           return "KILL";
         case SECCOMP_RET_ALLOW:
