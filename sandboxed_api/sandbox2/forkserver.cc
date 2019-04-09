@@ -182,6 +182,11 @@ static void RunInitProcess(int signaling_fd, std::set<int> open_fds) {
     if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0) {
       SAPI_RAW_PLOG(ERROR, "prctl(PR_SET_PDEATHSIG, SIGKILL) failed");
     }
+
+    if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
+      SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
+    }
+
     for (const auto& fd : open_fds) {
       close(fd);
     }
