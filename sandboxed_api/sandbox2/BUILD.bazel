@@ -21,6 +21,7 @@ package(default_visibility = [
 licenses(["notice"])  # Apache 2.0
 
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 
 cc_library(
     name = "bpfdisassembler",
@@ -199,6 +200,25 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "forkserver_bin",
+    srcs = ["forkserver_bin.cc"],
+    deps = [
+        ":client",
+        ":comms",
+        ":forkserver",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+sapi_cc_embed_data(
+    name = "forkserver_bin_embed",
+    srcs = [":forkserver_bin.stripped"],
+)
+
 cc_library(
     name = "global_forkserver",
     srcs = ["global_forkclient.cc"],
@@ -207,6 +227,8 @@ cc_library(
         ":client",
         ":comms",
         ":forkserver",
+        ":forkserver_bin_embed",
+        "//sandboxed_api:embed_file",
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",

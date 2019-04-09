@@ -24,22 +24,43 @@ sapi_proto_library(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "embed_file",
+    srcs = [
+        "embed_file.cc",
+        "file_toc.h",
+    ],
+    hdrs = ["embed_file.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_glog//:glog",
+    ],
+)
+
 # The main Sandboxed-API library
 cc_library(
     name = "sapi",
     srcs = [
-        "embed_file.cc",
-        "file_toc.h",
         "sandbox.cc",
         "transaction.cc",
     ],
     hdrs = [
+        # TODO(hamacher): Remove reexport workaround as soon as the buildsystem
+        #                 supports this usecase.
         "embed_file.h",
         "sandbox.h",
         "transaction.h",
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":embed_file",
         ":vars",
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:client",
