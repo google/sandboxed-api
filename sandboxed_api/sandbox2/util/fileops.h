@@ -29,6 +29,9 @@ namespace fileops {
 class FDCloser {
  public:
   explicit FDCloser(int fd) : fd_{fd} {}
+  FDCloser(const FDCloser&) = delete;
+  FDCloser& operator=(const FDCloser&) = delete;
+  FDCloser(FDCloser&& other) : fd_(other.Release()) {}
   ~FDCloser();
 
   int get() const { return fd_; }
