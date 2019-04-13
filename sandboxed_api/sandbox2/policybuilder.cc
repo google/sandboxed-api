@@ -114,6 +114,9 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowSyscalls({__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore});
   AllowFutexOp(FUTEX_WAKE);
   AllowLimitedMadvise();
+#ifdef __NR_rseq
+  AllowSyscall(__NR_rseq);
+#endif
 
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
