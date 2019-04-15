@@ -14,6 +14,8 @@
 
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 
+#include <cxxabi.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -34,6 +36,16 @@
 namespace sandbox2 {
 namespace {
 
+std::string DemangleSymbol(const std::string& maybe_mangled) {
+  int status;
+  std::unique_ptr<char, std::function<void(char*)>> symbol = {
+      abi::__cxa_demangle(maybe_mangled.c_str(), nullptr, nullptr, &status),
+      free};
+  if (symbol && status == 0) {
+    return symbol.get();
+  }
+  return maybe_mangled;
+}
 std::string GetSymbolAt(const std::map<uint64_t, std::string>& addr_to_symbol,
                         uint64_t addr) {
   auto entry_for_next_symbol = addr_to_symbol.lower_bound(addr);
@@ -41,13 +53,14 @@ std::string GetSymbolAt(const std::map<uint64_t, std::string>& addr_to_symbol,
       entry_for_next_symbol != addr_to_symbol.begin()) {
     // Matches the addr exactly:
     if (entry_for_next_symbol->first == addr) {
-      return entry_for_next_symbol->second;
+      return DemangleSymbol(entry_for_next_symbol->second);
     }
 
     // Might be inside a function, return symbol+offset;
     const auto entry_for_previous_symbol = --entry_for_next_symbol;
     if (!entry_for_previous_symbol->second.empty()) {
-      return absl::StrCat(entry_for_previous_symbol->second, "+0x",
+      return absl::StrCat(DemangleSymbol(entry_for_previous_symbol->second),
+                          "+0x",
                           absl::Hex(addr - entry_for_previous_symbol->first));
     }
   }
@@ -166,7 +179,7 @@ void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
       addr_to_symbol[entry.end] = "";
     }
 
-    if (!entry.path.empty() && entry.is_executable) {
+    if (!entry.path.empty() && entry.path != "[vdso]" && entry.is_executable) {
       auto elf_or = ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
       if (!elf_or.ok()) {
         SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s", entry.path,

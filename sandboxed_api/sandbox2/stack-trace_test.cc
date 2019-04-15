@@ -92,6 +92,8 @@ void SymbolizationWorksCommon(
 
   ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
   ASSERT_THAT(result.GetStackTrace(), HasSubstr("CrashMe"));
+  // Check that demangling works as well.
+  ASSERT_THAT(result.GetStackTrace(), HasSubstr("CrashMe()"));
 }
 
 TEST(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
