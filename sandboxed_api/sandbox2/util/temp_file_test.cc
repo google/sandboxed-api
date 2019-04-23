@@ -25,6 +25,7 @@
 #include "sandboxed_api/util/status_matchers.h"
 
 using sapi::IsOk;
+using sapi::StatusIs;
 using testing::Eq;
 using testing::IsTrue;
 using testing::Ne;

@@ -34,6 +34,7 @@
 #include "absl/base/attributes.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/util/status.h"
+#include "sandboxed_api/util/status.pb.h"
 
 namespace proto2 {
 class Message;

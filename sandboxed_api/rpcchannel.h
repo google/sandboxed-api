@@ -20,9 +20,9 @@
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/var_type.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/statusor.h"
-#include "sandboxed_api/var_type.h"
 
 namespace sapi {
 
@@ -33,38 +33,38 @@ class RPCChannel {
   explicit RPCChannel(sandbox2::Comms* comms) : comms_(comms) {}
 
   // Calls a function.
-  sapi::Status Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
-                    v::Type exp_type);
+  ::sapi::Status Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
+                      v::Type exp_type);
 
   // Allocates memory.
-  sapi::Status Allocate(size_t size, void** addr);
+  ::sapi::Status Allocate(size_t size, void** addr);
 
   // Reallocates memory.
-  sapi::Status Reallocate(void* old_addr, size_t size, void** new_addr);
+  ::sapi::Status Reallocate(void* old_addr, size_t size, void** new_addr);
 
   // Frees memory.
-  sapi::Status Free(void* addr);
+  ::sapi::Status Free(void* addr);
 
   // Returns address of a symbol.
-  sapi::Status Symbol(const char* symname, void** addr);
+  ::sapi::Status Symbol(const char* symname, void** addr);
 
   // Makes the remote part exit.
-  sapi::Status Exit();
+  ::sapi::Status Exit();
 
   // Transfers fd to sandboxee.
-  sapi::Status SendFD(int local_fd, int* remote_fd);
+  ::sapi::Status SendFD(int local_fd, int* remote_fd);
 
   // Retrieves fd from sandboxee.
-  sapi::Status RecvFD(int remote_fd, int* local_fd);
+  ::sapi::Status RecvFD(int remote_fd, int* local_fd);
 
   // Closes fd in sandboxee.
-  sapi::Status Close(int remote_fd);
+  ::sapi::Status Close(int remote_fd);
 
   sandbox2::Comms* comms() const { return comms_; }
 
  private:
   // Receives the result after a call.
-  sapi::StatusOr<FuncRet> Return(v::Type exp_type);
+  ::sapi::StatusOr<FuncRet> Return(v::Type exp_type);
 
   sandbox2::Comms* comms_;  // Owned by sandbox2;
   absl::Mutex mutex_;
