@@ -23,8 +23,8 @@
 
 namespace sapi {
 
-::sapi::Status RPCChannel::Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
-                                v::Type exp_type) {
+::sapi::Status RPCChannel::Call(const FuncCall& call, uint32_t tag,
+                                FuncRet* ret, v::Type exp_type) {
   absl::MutexLock lock(&mutex_);
   if (!comms_->SendTLV(tag, sizeof(call),
                        reinterpret_cast<const uint8_t*>(&call))) {
