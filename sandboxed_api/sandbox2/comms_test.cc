@@ -51,9 +51,10 @@ class CommsTest : public ::testing::Test {
     timespec ts1, ts2;
     CHECK_NE(clock_gettime(CLOCK_REALTIME, &ts1), -1);
     CHECK_NE(clock_gettime(CLOCK_REALTIME, &ts2), -1);
-    snprintf(sockname_, sizeof(sockname_), "comms-test-%u-%u-%u-%u",
-             static_cast<uint32_t>(ts1.tv_sec), static_cast<uint32_t>(ts1.tv_nsec),
-             static_cast<uint32_t>(ts2.tv_sec), static_cast<uint32_t>(ts2.tv_nsec));
+    snprintf(
+        sockname_, sizeof(sockname_), "comms-test-%u-%u-%u-%u",
+        static_cast<uint32_t>(ts1.tv_sec), static_cast<uint32_t>(ts1.tv_nsec),
+        static_cast<uint32_t>(ts2.tv_sec), static_cast<uint32_t>(ts2.tv_nsec));
     LOG(INFO) << "Sockname: " << sockname_;
 
     // Comms channel using a descriptor (initialized with a file descriptor).
@@ -406,8 +407,9 @@ class SenderThread {
   SenderThread(Comms* comms, size_t rounds) : comms_(comms), rounds_(rounds) {}
   void operator()() {
     for (size_t i = 0; i < rounds_; i++) {
-      ASSERT_THAT(comms_->SendBytes(reinterpret_cast<const uint8_t*>("Test"), 4),
-                  IsTrue());
+      ASSERT_THAT(
+          comms_->SendBytes(reinterpret_cast<const uint8_t*>("Test"), 4),
+          IsTrue());
     }
   }
 

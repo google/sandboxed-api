@@ -295,7 +295,7 @@ buffer.Create(1ULL << 20);  // 1 MiB
 s2.RunAsync();
 comms->SendFD(buffer.GetFD());
 auto result = s2.AwaitResult();
-uint8* buf = buffer.buffer();  // As modified by sandboxee
+uint8_t* buf = buffer.buffer();  // As modified by sandboxee
 size_t len = buffer.size();
 ```
 
@@ -307,7 +307,7 @@ int fd;
 comms.RecvFD(&fd);
 sandbox2::Buffer buffer;
 buffer.Setup(fd);
-uint8 *buf = buffer.GetBuffer();
+uint8_t *buf = buffer.GetBuffer();
 memset(buf, 'X', buffer.GetSize()); /* work with the buffer */
 ```
 
