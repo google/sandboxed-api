@@ -28,6 +28,7 @@ py_test(
         "code_test.py",
         "code_test_util.py",
     ],
+    python_version = "PY2",
     deps = [
         ":code",
         "@com_google_absl_py//absl/testing:absltest",
@@ -38,6 +39,7 @@ py_test(
 py_binary(
     name = "sapi_generator",
     srcs = ["sapi_generator.py"],
+    python_version = "PY2",
     visibility = ["//visibility:public"],
     deps = [
         ":code",
