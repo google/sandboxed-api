@@ -168,6 +168,7 @@ cc_library(
     deps = [
         ":bpfdisassembler",
         ":comms",
+        ":fs",
         ":namespace",
         ":regs",
         ":syscall",
@@ -270,6 +271,7 @@ cc_library(
         ":violation_proto_cc",
         ":forkserver",
         ":forkserver_proto_cc",
+        ":fs",
         ":global_forkserver",
         ":ipc",
         ":limits",
@@ -279,6 +281,7 @@ cc_library(
         ":notify",
         ":policy",
         ":regs",
+        ":reporter",
         ":result",
         ":syscall",
         ":util",
@@ -385,7 +388,7 @@ cc_library(
 cc_test(
     name = "mounts_test",
     srcs = ["mounts_test.cc"],
-    data = ["//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
+    data = [":testdata/minimal_dynamic"],
     deps = [
         ":mounts",
         ":testing",
