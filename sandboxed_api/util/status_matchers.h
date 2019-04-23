@@ -15,6 +15,8 @@
 #ifndef SANDBOXED_API_UTIL_STATUS_MATCHERS_H_
 #define SANDBOXED_API_UTIL_STATUS_MATCHERS_H_
 
+#include <type_traits>
+
 #include "gmock/gmock.h"
 #include "absl/types/optional.h"
 #include "sandboxed_api/util/status.h"
@@ -59,9 +61,10 @@ class StatusIsMatcher {
   StatusIsMatcher(Enum code, absl::optional<absl::string_view> message)
       : code_{code}, message_{message} {}
 
-  template <typename StatusT>
-  bool MatchAndExplain(const StatusT& status,
+  template <typename T>
+  bool MatchAndExplain(const T& value,
                        ::testing::MatchResultListener* listener) const {
+    auto status = GetStatus(value);
     if (code_ != status.code()) {
       *listener << "whose error code is generic::"
                 << internal::CodeEnumToString(status.code());
@@ -72,12 +75,6 @@ class StatusIsMatcher {
       return false;
     }
     return true;
-  }
-
-  template <typename T>
-  bool MatchAndExplain(const StatusOr<T>& status_or,
-                       ::testing::MatchResultListener* listener) const {
-    return MatchAndExplain(status_or.status(), listener);
   }
 
   void DescribeTo(std::ostream* os) const {
@@ -98,6 +95,20 @@ class StatusIsMatcher {
   }
 
  private:
+  template <typename StatusT,
+            typename std::enable_if<
+                !std::is_void<decltype(std::declval<StatusT>().code())>::value,
+                int>::type = 0>
+  static const StatusT& GetStatus(const StatusT& status) {
+    return status;
+  }
+
+  template <typename StatusOrT,
+            typename StatusT = decltype(std::declval<StatusOrT>().status())>
+  static StatusT GetStatus(const StatusOrT& status_or) {
+    return status_or.status();
+  }
+
   const Enum code_;
   const absl::optional<std::string> message_;
 };
