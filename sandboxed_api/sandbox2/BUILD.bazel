@@ -388,7 +388,7 @@ cc_library(
 cc_test(
     name = "mounts_test",
     srcs = ["mounts_test.cc"],
-    data = [":testdata/minimal_dynamic"],
+    data = ["//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
     deps = [
         ":mounts",
         ":testing",
