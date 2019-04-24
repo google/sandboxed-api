@@ -54,7 +54,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -97,7 +96,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -116,7 +114,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -129,7 +126,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -160,7 +156,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -173,7 +168,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -186,7 +180,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -199,7 +192,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -212,7 +204,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
     deps = [
         "//sandboxed_api/sandbox2/util:temp_file",
@@ -240,7 +231,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -252,7 +242,6 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -264,6 +253,5 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
