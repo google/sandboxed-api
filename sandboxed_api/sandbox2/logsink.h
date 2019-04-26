@@ -16,6 +16,7 @@
 #define SANDBOXED_API_SANDBOX2_LOGSINK_H_
 
 #include <glog/logging.h>
+
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
