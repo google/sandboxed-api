@@ -14,6 +14,7 @@
 
 // Simple utility to wrap a binary file in a C++ source file.
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -216,9 +217,10 @@ int main(int argc, char* argv[]) {
   {  // Write header file first.
     File out_h(*arg++, "wb");
     --argc;
-    std::string header_guard = absl::StrReplaceAll(
-        absl::AsciiStrToUpper(absl::StrFormat("%s_%s_H_", package, toc_ident)),
-        {{"/", "_"}});
+    std::string header_guard = absl::StrFormat("%s_%s_H_", package, toc_ident);
+    std::replace_if(
+        header_guard.begin(), header_guard.end(),
+        [](char c) { return !absl::ascii_isalnum(c); }, '_');
     absl::FPrintF(out_h.get(), kHFileHeaderFmt, package, toc_ident,
                   header_guard);
     if (have_ns) {
@@ -248,8 +250,10 @@ int main(int argc, char* argv[]) {
     File in(in_filename, "rb");
 
     std::string basename = sandbox2::file_util::fileops::Basename(in_filename);
-    std::string ident = absl::StrCat(
-        "k", absl::StrReplaceAll(basename, {{".", "_"}, {"-", "_"}}));
+    std::string ident = absl::StrCat("k", basename);
+    std::replace_if(
+        ident.begin(), ident.end(),
+        [](char c) { return !absl::ascii_isalnum(c); }, '_');
     absl::FPrintF(out_cc.get(), kCcDataBeginFmt, ident);
     // Remember identifiers, they are needed in the kToc array.
     toc_entries.emplace_back(std::move(basename), std::move(ident));
