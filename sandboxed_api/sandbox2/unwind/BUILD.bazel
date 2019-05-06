@@ -36,15 +36,15 @@ cc_library(
     ] + [
         "-D{symbol}={symbol}_wrapped".format(symbol = symbol)
         for symbol in [
-            "_UPT_create",
             "_UPT_accessors",
+            "_UPT_create",
             "_UPT_destroy",
             "_Ux86_64_create_addr_space",
             "_Ux86_64_destroy_addr_space",
-            "_Ux86_64_init_remote",
-            "_Ux86_64_step",
             "_Ux86_64_get_proc_name",
             "_Ux86_64_get_reg",
+            "_Ux86_64_init_remote",
+            "_Ux86_64_step",
         ]
     ],
     deps = [
