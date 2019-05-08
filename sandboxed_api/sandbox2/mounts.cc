@@ -30,8 +30,6 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
@@ -519,6 +517,41 @@ void CreateMounts(const MountTree& tree, const std::string& path,
 
 void Mounts::CreateMounts(const std::string& root_path) const {
   sandbox2::CreateMounts(mount_tree_, root_path, true);
+}
+
+namespace {
+
+void RecursivelyListMountsImpl(const MountTree& tree,
+                               const std::string& tree_path,
+                               std::vector<std::string>* outside_entries,
+                               std::vector<std::string>* inside_entries) {
+  const MountTree::Node& node = tree.node();
+  if (node.has_dir_node()) {
+    const char* rw_str = node.dir_node().is_ro() ? "R " : "W ";
+    inside_entries->emplace_back(absl::StrCat(rw_str, tree_path, "/"));
+    outside_entries->emplace_back(absl::StrCat(node.dir_node().outside(), "/"));
+  } else if (node.has_file_node()) {
+    const char* rw_str = node.file_node().is_ro() ? "R " : "W ";
+    inside_entries->emplace_back(absl::StrCat(rw_str, tree_path));
+    outside_entries->emplace_back(absl::StrCat(node.file_node().outside()));
+  } else if (node.has_tmpfs_node()) {
+    outside_entries->emplace_back(
+        absl::StrCat("tmpfs: ", node.tmpfs_node().tmpfs_options()));
+  }
+
+  for (const auto& subentry : tree.entries()) {
+    RecursivelyListMountsImpl(subentry.second,
+                              absl::StrCat(tree_path, "/", subentry.first),
+                              outside_entries, inside_entries);
+  }
+}
+
+}  // namespace
+
+void Mounts::RecursivelyListMounts(std::vector<std::string>* outside_entries,
+                                   std::vector<std::string>* inside_entries) {
+  RecursivelyListMountsImpl(GetMountTree(), "", outside_entries,
+                            inside_entries);
 }
 
 }  // namespace sandbox2

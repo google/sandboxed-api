@@ -20,8 +20,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/sandbox2/util/file_helpers.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/util/status_matchers.h"
@@ -29,6 +31,7 @@
 using sapi::IsOk;
 using sapi::StatusIs;
 using ::testing::Eq;
+using ::testing::UnorderedElementsAreArray;
 
 namespace sandbox2 {
 namespace {
@@ -164,6 +167,70 @@ TEST(MountTreeTest, TestMinimalDynamicBinary) {
                   GetTestSourcePath("sandbox2/testcases/minimal_dynamic")),
               IsOk());
   EXPECT_THAT(mounts.AddFile("/lib/x86_64-linux-gnu/libc.so.6"), IsOk());
+}
+
+TEST(MountTreeTest, TestList) {
+  struct TestCase {
+    const char *path;
+    const bool is_ro;
+  };
+  // clang-format off
+  const TestCase test_cases[] = {
+      // NOTE: Directories have a trailing '/'; files don't.
+      {"/a/b", true},
+      {"/a/c/", true},
+      {"/a/c/d/e/f/g", true},
+      {"/h", true},
+      {"/i/j/k", false},
+      {"/i/l/", false},
+  };
+  // clang-format on
+
+  Mounts mounts;
+
+  // Create actual directories and files on disk and selectively add
+  for (const auto &test_case : test_cases) {
+    const auto inside_path = test_case.path;
+    const std::string outside_path = absl::StrCat("/some/dir/", inside_path);
+    if (absl::EndsWith(outside_path, "/")) {
+      ASSERT_THAT(
+          mounts.AddDirectoryAt(file::CleanPath(outside_path),
+                                file::CleanPath(inside_path), test_case.is_ro),
+          IsOk());
+    } else {
+      ASSERT_THAT(
+          mounts.AddFileAt(file::CleanPath(outside_path),
+                           file::CleanPath(inside_path), test_case.is_ro),
+          IsOk());
+    }
+  }
+
+  std::vector<std::string> outside_entries;
+  std::vector<std::string> inside_entries;
+  mounts.RecursivelyListMounts(&outside_entries, &inside_entries);
+
+  // clang-format off
+  EXPECT_THAT(
+      inside_entries,
+      UnorderedElementsAreArray({
+          "R /a/b",
+          "R /a/c/",
+          "R /a/c/d/e/f/g",
+          "R /h",
+          "W /i/j/k",
+          "W /i/l/",
+      }));
+  EXPECT_THAT(
+      outside_entries,
+      UnorderedElementsAreArray({
+          absl::StrCat("/some/dir/", "a/b"),
+          absl::StrCat("/some/dir/", "a/c/"),
+          absl::StrCat("/some/dir/", "a/c/d/e/f/g"),
+          absl::StrCat("/some/dir/", "h"),
+          absl::StrCat("/some/dir/", "i/j/k"),
+          absl::StrCat("/some/dir/", "i/l/"),
+      }));
+  // clang-format on
 }
 
 }  // namespace

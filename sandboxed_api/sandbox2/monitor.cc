@@ -16,9 +16,10 @@
 
 #include "sandboxed_api/sandbox2/monitor.h"
 
+// clang-format off
 #include <linux/posix_types.h>  // NOLINT: Needs to come before linux/ipc.h
-
 #include <linux/ipc.h>
+// clang-format on
 #include <sched.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
@@ -59,6 +60,7 @@
 #include "sandboxed_api/sandbox2/stack-trace.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 ABSL_FLAG(bool, sandbox2_report_on_sandboxee_signal, true,
           "Report sandbox2 sandboxee deaths caused by signals");
@@ -108,6 +110,16 @@ Monitor::~Monitor() {
   }
 }
 
+namespace {
+
+void LogContainer(const std::vector<std::string>& container) {
+  for (size_t i = 0; i < container.size(); ++i) {
+    SAPI_RAW_LOG(INFO, "[%4d]=%s", i, container[i]);
+  }
+}
+
+}  // namespace
+
 void Monitor::Run() {
   using DecrementCounter = decltype(setup_counter_);
   std::unique_ptr<DecrementCounter, std::function<void(DecrementCounter*)>>
@@ -137,6 +149,18 @@ void Monitor::Run() {
   if (!InitSetupSignals(&sigtimedwait_sset)) {
     result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SIGNALS);
     return;
+  }
+
+  if (SAPI_VLOG_IS_ON(1) && policy_->GetNamespace() != nullptr) {
+    std::vector<std::string> outside_entries;
+    std::vector<std::string> inside_entries;
+    policy_->GetNamespace()->mounts().RecursivelyListMounts(
+        /*outside_entries=*/&outside_entries,
+        /*inside_entries=*/&inside_entries);
+    SAPI_RAW_VLOG(1, "Outside entries mapped to chroot:");
+    LogContainer(outside_entries);
+    SAPI_RAW_VLOG(1, "Inside entries as they appear in chroot:");
+    LogContainer(inside_entries);
   }
 
   // Don't trace the child: it will allow to use 'strace -f' with the whole

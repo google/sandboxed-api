@@ -47,6 +47,16 @@ class Mounts {
 
   MountTree GetMountTree() const { return mount_tree_; }
 
+  // Lists the outside and inside entries of the input tree in the output
+  // parameters, in an ls-like manner. Each entry is traversed in the
+  // depth-first order. However, the entries on the same level of hierarchy are
+  // traversed in their natural order in the tree. The elements in the output
+  // containers match each other pairwise: outside_entries[i] is mounted as
+  // inside_entries[i]. The elements of inside_entries are prefixed with either
+  // 'R' (read-only) or 'W' (writable).
+  void RecursivelyListMounts(std::vector<std::string>* outside_entries,
+                             std::vector<std::string>* inside_entries);
+
  private:
   friend class MountTreeTest;
   ::sapi::Status Insert(absl::string_view path, const MountTree::Node& node);
