@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Macros that simplify header and library generation for Sandboxed API."""
+"""Macros that simplifies header and library generation for Sandboxed API."""
 
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 
@@ -39,7 +39,6 @@ def sapi_interface_impl(ctx):
     """Implementation of build rule that generates SAPI interface."""
 
     # TODO(szwl): warn if input_files is not set and we didn't find anything
-
     input_files_paths = []
     input_files = []
 
@@ -64,21 +63,20 @@ def sapi_interface_impl(ctx):
     #
     # Allow all headers through that contain the dependency's
     # package path. Including extra headers is harmless except that
-    # we may hit the Bazel file-count limit, so be conservative and
+    # we may hit Bazel's file-count limit, so be conservative and
     # pass a lot through that we don't strictly need.
 
     extra_flags = []
-    if "cc" in dir(ctx.attr.lib) and ctx.attr.lib.cc:
+    if ctx.attr.lib[CcInfo]:
+        cc_ctx = ctx.attr.lib[CcInfo].compilation_context
+
         # Append system headers as dependencies
-        input_files += ctx.attr.lib[CcInfo].compilation_context.headers.to_list()
+        input_files += cc_ctx.headers.to_list()
+        append_all(extra_flags, "-D", cc_ctx.defines)
+        append_all(extra_flags, "-isystem", cc_ctx.system_includes)
+        append_all(extra_flags, "-iquote", cc_ctx.quote_includes)
 
-        # ctx.attr.lib[CcInfo].compilation_context.system_includes seems
-        # to be equal to .system_include_directories
-        append_all(extra_flags, "-D", ctx.attr.lib.cc.defines)
-        append_all(extra_flags, "-isystem", ctx.attr.lib.cc.system_include_directories)
-        append_all(extra_flags, "-iquote", ctx.attr.lib.cc.quote_include_directories)
-
-        for h in ctx.attr.lib.cc.transitive_headers:
+        for h in cc_ctx.headers:
             # Collect all headers as dependency in case libclang needs them.
             if h.extension == "h" and "/PROTECTED/" not in h.path:
                 input_files.append(h)
@@ -91,7 +89,7 @@ def sapi_interface_impl(ctx):
 
             # Try to find files automatically.
         else:
-            for h in ctx.attr.lib.cc.transitive_headers:
+            for h in cc_ctx.headers:
                 # Collect all headers as dependency in case clang needs them.
                 if h.extension == "h" and "/PROTECTED/" not in h.path:
                     input_files.append(h)
@@ -168,8 +166,7 @@ def sapi_library(
     generated_header = name + ".sapi.h"
 
     # Reference (pull into the archive) required functions only. If the functions'
-    # array is empty, pull in the whole archive (may not compile with MSAN
-    # )
+    # array is empty, pull in the whole archive (may not compile with MSAN).
     exported_funcs = ["-Wl,--export-dynamic-symbol," + s for s in functions]
     if (not exported_funcs):
         exported_funcs = [
@@ -183,9 +180,7 @@ def sapi_library(
     else:
         lib_hdrs += [generated_header]
 
-    default_deps = [
-        "//sandboxed_api/sandbox2",
-    ]
+    default_deps = ["//sandboxed_api/sandbox2"]
 
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
