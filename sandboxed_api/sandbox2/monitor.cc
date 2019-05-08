@@ -84,6 +84,26 @@ std::string ReadProcMaps(pid_t pid) {
   return contents.str();
 }
 
+void InterruptProcess(pid_t pid) {
+  if (ptrace(PTRACE_INTERRUPT, pid, 0, 0) == -1) {
+    PLOG(WARNING) << "ptrace(PTRACE_INTERRUPT, pid=" << pid << ")";
+  }
+}
+
+void ContinueProcess(pid_t pid, int signo) {
+  if (ptrace(PTRACE_CONT, pid, 0, signo) == -1) {
+    PLOG(ERROR) << "ptrace(PTRACE_CONT, pid=" << pid << ", sig=" << signo
+                << ")";
+  }
+}
+
+void StopProcess(pid_t pid, int signo) {
+  if (ptrace(PTRACE_LISTEN, pid, 0, signo) == -1) {
+    PLOG(ERROR) << "ptrace(PTRACE_LISTEN, pid=" << pid << ", sig=" << signo
+                << ")";
+  }
+}
+
 }  // namespace
 
 Monitor::Monitor(Executor* executor, Policy* policy, Notify* notify)
@@ -92,7 +112,7 @@ Monitor::Monitor(Executor* executor, Policy* policy, Notify* notify)
       policy_(policy),
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),
-      setup_counter_(new absl::BlockingCounter(1)),
+      setup_counter_(1),
       done_(false),
       wait_for_execve_(executor->enable_sandboxing_pre_execve_) {
   std::string path =
@@ -122,9 +142,9 @@ void LogContainer(const std::vector<std::string>& container) {
 
 void Monitor::Run() {
   using DecrementCounter = decltype(setup_counter_);
-  std::unique_ptr<DecrementCounter, std::function<void(DecrementCounter*)>>
+  std::unique_ptr<DecrementCounter, void (*)(DecrementCounter*)>
       decrement_count{&setup_counter_, [](DecrementCounter* counter) {
-                        (*counter)->DecrementCount();
+                        counter->DecrementCount();
                       }};
 
   struct MonitorCleanup {
@@ -139,7 +159,7 @@ void Monitor::Run() {
   } monitor_cleanup{this};
 
   if (!InitSetupTimer()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_TIMERS);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_TIMERS);
     return;
   }
 
@@ -147,7 +167,7 @@ void Monitor::Run() {
   // invocation, so do it once per Monitor.
   sigset_t sigtimedwait_sset;
   if (!InitSetupSignals(&sigtimedwait_sset)) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SIGNALS);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SIGNALS);
     return;
   }
 
@@ -180,43 +200,43 @@ void Monitor::Run() {
   }
 
   if (pid_ < 0) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SUBPROCESS);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SUBPROCESS);
     return;
   }
 
   if (!notify_->EventStarted(pid_, comms_)) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_NOTIFY);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_NOTIFY);
     return;
   }
   if (!InitAcceptConnection()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CONNECTION);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CONNECTION);
     return;
   }
   if (!InitSendIPC()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
     return;
   }
   if (!InitSendCwd()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CWD);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CWD);
     return;
   }
   if (!InitSendPolicy()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_POLICY);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_POLICY);
     return;
   }
   if (!WaitForSandboxReady()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_WAIT);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_WAIT);
     return;
   }
   if (!InitApplyLimits()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_LIMITS);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_LIMITS);
     return;
   }
   // This call should be the last in the init sequence, because it can cause the
   // sandboxee to enter ptrace-stopped state, in which it will not be able to
   // send any messages over the Comms channel.
   if (!InitPtraceAttach()) {
-    result_.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_PTRACE);
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_PTRACE);
     return;
   }
 
@@ -238,6 +258,59 @@ bool Monitor::IsActivelyMonitoring() {
 }
 
 void Monitor::SetActivelyMonitoring() { wait_for_execve_ = false; }
+
+void Monitor::SetExitStatusCode(Result::StatusEnum final_status,
+                                uintptr_t reason_code) {
+  CHECK(result_.final_status() == Result::UNSET);
+  result_.SetExitStatusCode(final_status, reason_code);
+}
+
+bool Monitor::ShouldCollectStackTrace() {
+  // Only get the stacktrace if we are not in the libunwind sandbox (avoid
+  // recursion).
+  bool stacktrace_collection_possible =
+      policy_->GetNamespace() && executor_->libunwind_sbox_for_pid_ == 0;
+  if (!stacktrace_collection_possible) {
+    LOG(ERROR) << "Cannot collect stack trace. Unwind pid "
+               << executor_->libunwind_sbox_for_pid_ << ", namespace "
+               << policy_->GetNamespace();
+    return false;
+  }
+  switch (result_.final_status()) {
+    case Result::EXTERNAL_KILL:
+      return policy_->collect_stacktrace_on_kill_;
+    case Result::TIMEOUT:
+      return policy_->collect_stacktrace_on_timeout_;
+    case Result::SIGNALED:
+      return policy_->collect_stacktrace_on_signal_;
+    case Result::VIOLATION:
+      return policy_->collect_stacktrace_on_violation_;
+    default:
+      return false;
+  }
+}
+
+void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
+  pid_t pid = regs->pid();
+  result_.SetRegs(std::move(regs));
+  result_.SetProgName(util::GetProgName(pid));
+  result_.SetProcMaps(ReadProcMaps(pid_));
+  if (ShouldCollectStackTrace()) {
+    result_.SetStackTrace(
+        GetStackTrace(result_.GetRegs(), policy_->GetNamespace()->mounts()));
+    LOG(ERROR) << "Stack trace: " << result_.GetStackTrace();
+  } else {
+    LOG(ERROR) << "Stack traces have been disabled";
+  }
+}
+
+void Monitor::KillSandboxee() {
+  VLOG(1) << "Sending SIGKILL to the PID: " << pid_;
+  if (kill(pid_, SIGKILL) != 0) {
+    LOG(ERROR) << "Could not send SIGKILL to PID " << pid_;
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
+  }
+}
 
 void Monitor::MainSignals(int signo, siginfo_t* si) {
   VLOG(3) << "Signal '" << strsignal(signo) << "' (" << signo
@@ -268,11 +341,13 @@ void Monitor::MainSignals(int signo, siginfo_t* si) {
   switch (signo) {
     case Monitor::kExternalKillSignal:
       VLOG(1) << "Will kill the main pid";
-      ActionProcessKill(pid_, Result::EXTERNAL_KILL, 0);
+      external_kill_ = true;
+      KillSandboxee();
       break;
     case Monitor::kTimerWallTimeSignal:
       VLOG(1) << "Sandbox process hit timeout due to the walltime timer";
-      ActionProcessKill(pid_, Result::TIMEOUT, 0);
+      timed_out_ = true;
+      KillSandboxee();
       break;
     case Monitor::kTimerSetSignal:
       VLOG(1) << "Will set the walltime timer to " << si->si_value.sival_int
@@ -282,7 +357,7 @@ void Monitor::MainSignals(int signo, siginfo_t* si) {
     case Monitor::kDumpStackSignal:
       VLOG(1) << "Dump the main pid's stack";
       should_dump_stack_ = true;
-      PidInterrupt(pid_);
+      InterruptProcess(pid_);
       break;
     default:
       LOG(ERROR) << "Unknown signal received: " << signo;
@@ -292,86 +367,70 @@ void Monitor::MainSignals(int signo, siginfo_t* si) {
 
 // Not defined in glibc.
 #define __WPTRACEEVENT(x) ((x & 0xff0000) >> 16)
-bool Monitor::MainWait() {
+void Monitor::MainWait() {
   // All possible process status change event must be checked as SIGCHLD
   // is reported once only for all events that arrived at the same time.
+  int ret;
+  int status;
   for (;;) {
-    int status;
     // It should be a non-blocking operation (hence WNOHANG), so this function
     // returns quickly if there are no events to be processed.
-    int ret = waitpid(-1, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
+    ret = waitpid(-1, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
 
     // No traced processes have changed their status yet.
     if (ret == 0) {
-      return false;
+      return;
     }
 
-    if (ret == -1 && errno == ECHILD) {
+    if (ret != -1) {
+      break;
+    }
+
+    if (errno == ECHILD) {
       LOG(ERROR) << "PANIC(). The main process has not exited yet, "
                  << "yet we haven't seen its exit event";
-      // We'll simply exit which will kill all remaining processes (if
-      // there are any) because of the PTRACE_O_EXITKILL ptrace() flag.
-      return true;
+      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_CHILD);
+      return;
     }
-    if (ret == -1 && errno == EINTR) {
+
+    if (errno == EINTR) {
       VLOG(3) << "waitpid() interruped with EINTR";
-      continue;
-    }
-    if (ret == -1) {
+    } else {
       PLOG(ERROR) << "waitpid() failed";
-      continue;
     }
+  }
 
-    VLOG(3) << "waitpid() returned with PID: " << ret << ", status: " << status;
+  VLOG(3) << "waitpid() returned with PID: " << ret << ", status: " << status;
 
-    if (WIFEXITED(status)) {
-      VLOG(1) << "PID: " << ret
-              << " finished with code: " << WEXITSTATUS(status);
-      // That's the main process, set the exit code, and exit. It will kill
-      // all remaining processes (if there are any) because of the
-      // PTRACE_O_EXITKILL ptrace() flag.
-      if (ret == pid_) {
-        if (IsActivelyMonitoring()) {
-          result_.SetExitStatusCode(Result::OK, WEXITSTATUS(status));
-        } else {
-          result_.SetExitStatusCode(Result::SETUP_ERROR,
-                                    Result::FAILED_MONITOR);
-        }
-        return true;
+  if (WIFEXITED(status)) {
+    VLOG(1) << "PID: " << ret << " finished with code: " << WEXITSTATUS(status);
+    // That's the main process, set the exit code, and exit. It will kill
+    // all remaining processes (if there are any) because of the
+    // PTRACE_O_EXITKILL ptrace() flag.
+    if (ret == pid_) {
+      if (IsActivelyMonitoring()) {
+        SetExitStatusCode(Result::OK, WEXITSTATUS(status));
+      } else {
+        SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_MONITOR);
       }
-    } else if (WIFSIGNALED(status)) {
-      VLOG(1) << "PID: " << ret << " terminated with signal: "
-              << util::GetSignalName(WTERMSIG(status));
-      if (ret == pid_) {
-        // That's the main process, depending on the result of the process take
-        // the register content and/or the stack trace. The death of this
-        // process will cause all remaining processes to be killed (if there are
-        // any), see the PTRACE_O_EXITKILL ptrace() flag.
-
-        // When the process is killed from a signal from within the result
-        // status will be still unset, fix this.
-        // The other cases should either be already handled, or (in the case of
-        // Result::OK) should be impossible to reach.
-        if (result_.final_status() == Result::UNSET) {
-          result_.SetExitStatusCode(Result::SIGNALED, WTERMSIG(status));
-        } else if (result_.final_status() == Result::OK) {
-          LOG(ERROR) << "Unexpected codepath taken";
-        }
-        return true;
-      }
-    } else if (WIFSTOPPED(status)) {
-      VLOG(2) << "PID: " << ret
-              << " received signal: " << util::GetSignalName(WSTOPSIG(status))
-              << " with event: " << __WPTRACEEVENT(status);
-      StateProcessStopped(ret, status);
-    } else if (WIFCONTINUED(status)) {
-      VLOG(2) << "PID: " << ret << " is being continued";
     }
+  } else if (WIFSIGNALED(status)) {
+    VLOG(1) << "PID: " << ret << " terminated with signal: "
+            << util::GetSignalName(WTERMSIG(status));
+  } else if (WIFSTOPPED(status)) {
+    VLOG(2) << "PID: " << ret
+            << " received signal: " << util::GetSignalName(WSTOPSIG(status))
+            << " with event: " << __WPTRACEEVENT(status);
+    StateProcessStopped(ret, status);
+  } else if (WIFCONTINUED(status)) {
+    VLOG(2) << "PID: " << ret << " is being continued";
   }
 }
 
 void Monitor::MainLoop(sigset_t* sset) {
-  for (;;) {
+  // All possible still running children of main process, will be killed due to
+  // PTRACE_O_EXITKILL ptrace() flag.
+  while (result_.final_status() == Result::UNSET) {
     // Use a time-out, so we can check for missed waitpid() events. It should
     // not happen during regular operations, so it's a defense-in-depth
     // mechanism against SIGCHLD signals being lost by the kernel (since these
@@ -388,15 +447,12 @@ void Monitor::MainLoop(sigset_t* sset) {
       MainSignals(ret, &si);
     }
 
-    // If CheckWait reported no more traced processes, or that
-    // the main pid had exited, we should break this loop (i.e. our job is
-    // done here).
     //
     // MainWait() should use a not-blocking (e.g. WNOHANG with waitpid())
     // syntax, so it returns quickly if there are not status changes in
     // traced processes.
-    if (MainWait()) {
-      return;
+    if (result_.final_status() == Result::UNSET) {
+      MainWait();
     }
   }
 }
@@ -728,20 +784,6 @@ bool Monitor::InitAcceptConnection() {
   return true;
 }
 
-void Monitor::ActionProcessContinue(pid_t pid, int signo) {
-  if (ptrace(PTRACE_CONT, pid, 0, signo) == -1) {
-    PLOG(ERROR) << "ptrace(PTRACE_CONT, pid=" << pid << ", sig=" << signo
-                << ")";
-  }
-}
-
-void Monitor::ActionProcessStop(pid_t pid, int signo) {
-  if (ptrace(PTRACE_LISTEN, pid, 0, signo) == -1) {
-    PLOG(ERROR) << "ptrace(PTRACE_LISTEN, pid=" << pid << ", sig=" << signo
-                << ")";
-  }
-}
-
 void Monitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
   // If the sandboxing is not enabled yet, allow the first __NR_execveat.
   if (syscall.nr() == __NR_execveat && !IsActivelyMonitoring()) {
@@ -749,7 +791,7 @@ void Monitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
             << "SYSCALL ::: PID: " << regs->pid() << ", PROG: '"
             << util::GetProgName(regs->pid())
             << "' : " << syscall.GetDescription();
-    ActionProcessContinue(regs->pid(), 0);
+    ContinueProcess(regs->pid(), 0);
     return;
   }
 
@@ -761,7 +803,7 @@ void Monitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
                  << ", PROG: '" << util::GetProgName(regs->pid())
                  << "' : " << syscall.GetDescription();
 
-    ActionProcessContinue(regs->pid(), 0);
+    ContinueProcess(regs->pid(), 0);
     return;
   }
 
@@ -772,12 +814,12 @@ void Monitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
     std::string syscall_description = syscall.GetDescription();
     PCHECK(absl::FPrintF(log_file_, "PID: %d %s\n", regs->pid(),
                          syscall_description) >= 0);
-    ActionProcessContinue(regs->pid(), 0);
+    ContinueProcess(regs->pid(), 0);
     return;
   }
 
   if (absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all)) {
-    ActionProcessContinue(regs->pid(), 0);
+    ContinueProcess(regs->pid(), 0);
     return;
   }
 
@@ -786,40 +828,20 @@ void Monitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
 
 void Monitor::ActionProcessSyscallViolation(Regs* regs, const Syscall& syscall,
                                             ViolationType violation_type) {
-  pid_t pid = regs->pid();
-
-  LogAccessViolation(syscall);
+  LogSyscallViolation(syscall);
   notify_->EventSyscallViolation(syscall, violation_type);
-  result_.SetExitStatusCode(Result::VIOLATION, syscall.nr());
+  SetExitStatusCode(Result::VIOLATION, syscall.nr());
   result_.SetSyscall(absl::make_unique<Syscall>(syscall));
-  // Only get the stacktrace if we are not in the libunwind sandbox (avoid
-  // recursion).
-  if (executor_->libunwind_sbox_for_pid_ == 0 && policy_->GetNamespace()) {
-    if (policy_->collect_stacktrace_on_violation_) {
-      result_.SetStackTrace(
-          GetStackTrace(regs, policy_->GetNamespace()->mounts()));
-      LOG(ERROR) << "Stack trace: " << result_.GetStackTrace();
-    } else {
-      LOG(ERROR) << "Stack traces have been disabled";
-    }
-  }
-  // We make the result object create its own Reg instance. our regs is a
-  // pointer to a stack variable which might not live long enough.
-  result_.LoadRegs(pid);
-  result_.SetProgName(util::GetProgName(pid));
-  result_.SetProcMaps(ReadProcMaps(pid_));
-
-  // Rewrite the syscall argument to something invalid (-1). The process will
-  // be killed by ActionProcessKill(), so this is just a precaution.
+  SetAdditionalResultInfo(absl::make_unique<Regs>(*regs));
+  // Rewrite the syscall argument to something invalid (-1).
+  // The process will be killed anyway so this is just a precaution.
   auto status = regs->SkipSyscallReturnValue(-ENOSYS);
   if (!status.ok()) {
     LOG(ERROR) << status;
   }
-
-  ActionProcessKill(pid, Result::VIOLATION, syscall.nr());
 }
 
-void Monitor::LogAccessViolation(const Syscall& syscall) {
+void Monitor::LogSyscallViolation(const Syscall& syscall) const {
   // Do not unwind libunwind.
   if (executor_->libunwind_sbox_for_pid_ != 0) {
     LOG(ERROR) << "Sandbox violation during execution of libunwind: "
@@ -827,58 +849,16 @@ void Monitor::LogAccessViolation(const Syscall& syscall) {
     return;
   }
 
-  uintptr_t syscall_nr = syscall.nr();
-  uintptr_t arg0 = syscall.args()[0];
-
   // So, this is an invalid syscall. Will be killed by seccomp-bpf policies as
   // well, but we should be on a safe side here as well.
   LOG(ERROR) << "SANDBOX VIOLATION : PID: " << syscall.pid() << ", PROG: '"
              << util::GetProgName(syscall.pid())
              << "' : " << syscall.GetDescription();
 
-  // This follows policy in Policy::GetDefaultPolicy - keep it in sync.
-  if (syscall.arch() != Syscall::GetHostArch()) {
-    LOG(ERROR)
-        << "This is a violation because the syscall was issued because the"
-        << " sandboxee and executor architectures are different.";
-    return;
-  }
-
-  if (syscall_nr == __NR_ptrace) {
-    LOG(ERROR)
-        << "This is a violation because the ptrace syscall would be unsafe in"
-        << " sandbox2, so it has been blocked.";
-    return;
-  }
-  if (syscall_nr == __NR_bpf) {
-    LOG(ERROR)
-        << "This is a violation because the bpf syscall would be risky in"
-        << " a sandbox, so it has been blocked.";
-    return;
-  }
-
-  if (syscall_nr == __NR_clone && ((arg0 & CLONE_UNTRACED) != 0)) {
-    LOG(ERROR) << "This is a violation because calling clone with CLONE_UNTRACE"
-               << " would be unsafe in sandbox2, so it has been blocked.";
-    return;
-  }
-}
-
-void Monitor::ActionProcessKill(pid_t pid, Result::StatusEnum status,
-                                uintptr_t code) {
-  // Avoid overwriting result if we set it for instance after a violation.
-  if (result_.final_status() == Result::UNSET) {
-    result_.SetExitStatusCode(status, code);
-  }
-
-  VLOG(1) << "Sending SIGKILL to the PID: " << pid_;
-  if (kill(pid_, SIGKILL) != 0) {
-    LOG(FATAL) << "Could not send SIGKILL to PID " << pid_;
-  }
+  LogSyscallViolationExplanation(syscall);
 }
 
 void Monitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
-  VLOG(1) << "PID: " << pid << " violation uncovered via the SECCOMP_EVENT";
   // If the seccomp-policy is using RET_TRACE, we request that it returns the
   // syscall architecture identifier in the SECCOMP_RET_DATA.
   const auto syscall_arch = static_cast<Syscall::CpuArch>(event_msg);
@@ -886,7 +866,7 @@ void Monitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
   auto status = regs.Fetch();
   if (!status.ok()) {
     LOG(ERROR) << status;
-    ActionProcessKill(pid, Result::INTERNAL_ERROR, Result::FAILED_FETCH);
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
     return;
   }
 
@@ -907,84 +887,48 @@ void Monitor::EventPtraceExec(pid_t pid, int event_msg) {
             << ". SANDBOX ENABLED!";
     SetActivelyMonitoring();
   }
-  ActionProcessContinue(pid, 0);
+  ContinueProcess(pid, 0);
 }
 
 void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
-  // A regular exit, let it continue.
+  // A regular exit, let it continue (fast-path).
   if (WIFEXITED(event_msg)) {
-    ActionProcessContinue(pid, 0);
+    ContinueProcess(pid, 0);
     return;
   }
 
-  // Everything except the SECCOMP violation can continue.
-  if (!WIFSIGNALED(event_msg) || WTERMSIG(event_msg) != SIGSYS) {
-    // Process is dying because it received a signal.
-    // This can occur in three cases:
-    // 1) Process was killed from the sandbox, in this case the result status
-    //    was already set to Result::EXTERNAL_KILL. We do not get the stack
-    //    trace in this case.
-    // 2) Process was killed because it hit a timeout. The result status is
-    //    also already set, however we are interested in the stack trace.
-    // 3) Regular signal. We need to obtain everything. The status will be set
-    //    upon the process exit handler.
-    if (pid == pid_) {
-      result_.LoadRegs(pid_);
-      result_.SetProgName(util::GetProgName(pid_));
-      result_.SetProcMaps(ReadProcMaps(pid_));
-      bool stacktrace_collection_possible =
-          policy_->GetNamespace() && executor_->libunwind_sbox_for_pid_ == 0;
-      auto collect_stacktrace = [this]() {
-        result_.SetStackTrace(GetStackTrace(result_.GetRegs(),
-                                            policy_->GetNamespace()->mounts()));
-      };
-      switch (result_.final_status()) {
-        case Result::EXTERNAL_KILL:
-          if (stacktrace_collection_possible &&
-              policy_->collect_stacktrace_on_kill_) {
-            collect_stacktrace();
-          }
-          break;
-        case Result::TIMEOUT:
-          if (stacktrace_collection_possible &&
-              policy_->collect_stacktrace_on_timeout_) {
-            collect_stacktrace();
-          }
-          break;
-        case Result::VIOLATION:
-          break;
-        case Result::UNSET:
-          // Regular signal.
-          if (stacktrace_collection_possible &&
-              policy_->collect_stacktrace_on_signal_) {
-            collect_stacktrace();
-          }
-          break;
-        default:
-          LOG(ERROR) << "Unexpected codepath taken";
-          break;
-      }
-    }
-
-    ActionProcessContinue(pid, 0);
-    return;
-  }
-
-  VLOG(1) << "PID: " << pid << " violation uncovered via the EXIT_EVENT";
-
-  // We do not generate the stack trace in the SECCOMP case as it will be
-  // generated during ActionProcessSyscallViolation anyway.
-  Regs regs(pid);
-  auto status = regs.Fetch();
+  // Fetch the registers as we'll need them to fill the result in any case
+  auto regs = absl::make_unique<Regs>(pid);
+  auto status = regs->Fetch();
   if (!status.ok()) {
-    LOG(ERROR) << status;
-    ActionProcessKill(pid, Result::INTERNAL_ERROR, Result::FAILED_FETCH);
+    LOG(ERROR) << "failed to fetch regs: " << status;
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
     return;
   }
 
-  auto syscall = regs.ToSyscall(Syscall::GetHostArch());
+  // Process signaled due to seccomp violation.
+  if (WIFSIGNALED(event_msg) && WTERMSIG(event_msg) == SIGSYS) {
+    VLOG(1) << "PID: " << pid << " violation uncovered via the EXIT_EVENT";
+    ActionProcessSyscallViolation(
+        regs.get(), regs->ToSyscall(Syscall::GetHostArch()), kSyscallViolation);
+    return;
+  }
 
-  ActionProcessSyscallViolation(&regs, syscall, kSyscallViolation);
+  // This can be reached in three cases:
+  // 1) Process was killed from the sandbox.
+  // 2) Process was killed because it hit a timeout.
+  // 3) Regular signal/other exit cause.
+  if (pid == pid_) {
+    if (external_kill_) {
+      SetExitStatusCode(Result::EXTERNAL_KILL, 0);
+    } else if (timed_out_) {
+      SetExitStatusCode(Result::TIMEOUT, 0);
+    } else {
+      SetExitStatusCode(Result::SIGNALED, WTERMSIG(event_msg));
+    }
+    SetAdditionalResultInfo(std::move(regs));
+  }
+  ContinueProcess(pid, 0);
 }
 
 void Monitor::EventPtraceStop(pid_t pid, int stopsig) {
@@ -992,13 +936,13 @@ void Monitor::EventPtraceStop(pid_t pid, int stopsig) {
   // flags to ptrace(PTRACE_SEIZE) might generate this event with SIGTRAP.
   if (stopsig != SIGSTOP && stopsig != SIGTSTP && stopsig != SIGTTIN &&
       stopsig != SIGTTOU) {
-    ActionProcessContinue(pid, 0);
+    ContinueProcess(pid, 0);
     return;
   }
   // It's our PID stop signal. Stop it.
   VLOG(2) << "PID: " << pid << " stopped due to "
           << util::GetSignalName(stopsig);
-  ActionProcessStop(pid, 0);
+  StopProcess(pid, 0);
 }
 
 void Monitor::StateProcessStopped(pid_t pid, int status) {
@@ -1008,7 +952,7 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
     VLOG(2) << "PID: " << pid
             << " received signal: " << util::GetSignalName(stopsig);
     notify_->EventSignal(pid, stopsig);
-    ActionProcessContinue(pid, stopsig);
+    ContinueProcess(pid, stopsig);
     return;
   }
 
@@ -1021,12 +965,13 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
       return;
     }
     PLOG(ERROR) << "ptrace(PTRACE_GETEVENTMSG, " << pid << ")";
-    ActionProcessKill(pid, Result::INTERNAL_ERROR, Result::FAILED_GETEVENT);
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_GETEVENT);
     return;
   }
 
-  if (pid == pid_ && should_dump_stack_ &&
-      executor_->libunwind_sbox_for_pid_ == 0 && policy_->GetNamespace()) {
+  if (ABSL_PREDICT_FALSE(pid == pid_ && should_dump_stack_ &&
+                         executor_->libunwind_sbox_for_pid_ == 0 &&
+                         policy_->GetNamespace())) {
     Regs regs(pid);
     auto status = regs.Fetch();
     if (status.ok()) {
@@ -1050,7 +995,7 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
     case PTRACE_EVENT_CLONE:
       /* fall through */
     case PTRACE_EVENT_VFORK_DONE:
-      ActionProcessContinue(pid, 0);
+      ContinueProcess(pid, 0);
       break;
     case PTRACE_EVENT_EXEC:
       VLOG(2) << "PID: " << pid << " PTRACE_EVENT_EXEC, PID: " << event_msg;
@@ -1075,9 +1020,34 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
   }
 }
 
-void Monitor::PidInterrupt(pid_t pid) {
-  if (ptrace(PTRACE_INTERRUPT, pid, 0, 0) == -1) {
-    PLOG(WARNING) << "ptrace(PTRACE_INTERRUPT, pid=" << pid << ")";
+void Monitor::LogSyscallViolationExplanation(const Syscall& syscall) const {
+  const uintptr_t syscall_nr = syscall.nr();
+  const uintptr_t arg0 = syscall.args()[0];
+  const uintptr_t arg3 = syscall.args()[3];
+
+  // This follows policy in Policy::GetDefaultPolicy - keep it in sync.
+  if (syscall.arch() != Syscall::GetHostArch()) {
+    LOG(ERROR)
+        << "This is a violation because the syscall was issued because the"
+        << " sandboxee and executor architectures are different.";
+    return;
+  }
+  if (syscall_nr == __NR_ptrace) {
+    LOG(ERROR)
+        << "This is a violation because the ptrace syscall would be unsafe in"
+        << " sandbox2, so it has been blocked.";
+    return;
+  }
+  if (syscall_nr == __NR_bpf) {
+    LOG(ERROR)
+        << "This is a violation because the bpf syscall would be risky in"
+        << " a sandbox, so it has been blocked.";
+    return;
+  }
+  if (syscall_nr == __NR_clone && ((arg0 & CLONE_UNTRACED) != 0)) {
+    LOG(ERROR) << "This is a violation because calling clone with CLONE_UNTRACE"
+               << " would be unsafe in sandbox2, so it has been blocked.";
+    return;
   }
 }
 
