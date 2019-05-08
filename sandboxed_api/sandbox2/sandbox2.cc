@@ -126,7 +126,7 @@ void Sandbox2::Launch() {
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for
   // non-sandbox-related data exchange.
-  monitor_->setup_counter_.Wait();
+  monitor_->setup_counter_->Wait();
 }
 
 }  // namespace sandbox2

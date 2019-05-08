@@ -83,6 +83,16 @@ class Monitor final {
   bool IsActivelyMonitoring();
   void SetActivelyMonitoring();
 
+  // Waits for events from monitored clients and signals from the main process.
+  void MainLoop(sigset_t* sset);
+
+  // Analyzes signals which Monitor might have already received.
+  void MainSignals(int signo, siginfo_t* si);
+
+  // Analyzes any possible children process status changes; returns 'true' if
+  // there are no more processes to track.
+  bool MainWait();
+
   // Sends Policy to the Client.
   // Returns success/failure status.
   bool InitSendPolicy();
@@ -127,41 +137,27 @@ class Monitor final {
   // Arms the walltime timer, absl::ZeroDuration() disarms the timer.
   bool TimerArm(absl::Duration duration);
 
-  // Kills the main traced PID with PTRACE_KILL.
-  void KillSandboxee();
+  // Final action with regard to PID.
+  // Continues PID with an optional signal.
+  void ActionProcessContinue(pid_t pid, int signo);
 
-  // Waits for events from monitored clients and signals from the main process.
-  void MainLoop(sigset_t* sset);
-  // Analyzes signals which Monitor might have already received.
-  void MainSignals(int signo, siginfo_t* si);
-  // Analyzes any possible children process status changes
-  void MainWait();
-
-  // Process with given PID changed state to a stopped state.
-  void StateProcessStopped(pid_t pid, int status);
+  // Stops the PID with an optional signal.
+  void ActionProcessStop(pid_t pid, int signo);
 
   // Logs the syscall violation and kills the process afterwards.
   void ActionProcessSyscallViolation(Regs* regs, const Syscall& syscall,
                                      ViolationType violation_type);
 
-  // PID called a traced syscall, or was killed due to syscall.
+  // Prints a SANDBOX VIOLATION message based on the registers.
+  // If the registers match something disallowed by Policy::GetDefaultPolicy,
+  // then it also prints a additional description of the reason.
+  void LogAccessViolation(const Syscall& syscall);
+
+  // PID called a syscall, or was killed due to syscall.
   void ActionProcessSyscall(Regs* regs, const Syscall& syscall);
 
-  // Sets basic info status and reason code in the result object.
-  void SetExitStatusCode(Result::StatusEnum final_status,
-                         uintptr_t reason_code);
-  // Whether a stack trace should be collected given the current status
-  bool ShouldCollectStackTrace();
-  // Sets additional information in the result object, such as program name,
-  // stack trace etc.
-  void SetAdditionalResultInfo(std::unique_ptr<Regs> regs);
-
-  // Logs a SANDBOX VIOLATION message based on the registers and additional
-  // explanation for the reason of the violation.
-  void LogSyscallViolation(const Syscall& syscall) const;
-  // Logs an additional explanation for the possible reason of the violation
-  // based on the registers.
-  void LogSyscallViolationExplanation(const Syscall& syscall) const;
+  // Kills the PID with PTRACE_KILL.
+  void ActionProcessKill(pid_t pid, Result::StatusEnum status, uintptr_t code);
 
   // Ptrace events:
   // Syscall violation processing path.
@@ -176,6 +172,14 @@ class Monitor final {
   // Processes stop path.
   void EventPtraceStop(pid_t pid, int stopsig);
 
+  // Changes the state of a given PID:
+  // Process is in a stopped state.
+  void StateProcessStopped(pid_t pid, int status);
+
+  // Helpers operating on PIDs.
+  // Interrupts the PID.
+  void PidInterrupt(pid_t pid);
+
   // Internal objects, owned by the Sandbox2 object.
   Executor* executor_;
   Notify* notify_;
@@ -189,7 +193,7 @@ class Monitor final {
   // Parent (the Sandbox2 object) waits on it, until we either enable
   // monitoring of a process (sandboxee) successfully, or the setup process
   // fails.
-  absl::BlockingCounter setup_counter_;
+  std::unique_ptr<absl::BlockingCounter> setup_counter_;
   // The Wall-Time timer for traced processes.
   std::unique_ptr<timer_t> walltime_timer_;
 
@@ -202,10 +206,6 @@ class Monitor final {
   absl::Mutex done_mutex_;
   // Should we dump the main sandboxed PID's stack?
   bool should_dump_stack_ = false;
-  // Was external kill request received
-  bool external_kill_ = false;
-  // Is the sandboxee timed out
-  bool timed_out_ = false;
 
   // Is the sandboxee actively monitored, or maybe we're waiting for execve()?
   bool wait_for_execve_;

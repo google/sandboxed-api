@@ -77,8 +77,6 @@ class Result {
     FAILED_FETCH,
     FAILED_GETEVENT,
     FAILED_MONITOR,
-    FAILED_KILL,
-    FAILED_CHILD,
 
     // TODO(wiktorg) not used currently (syscall number stored insted) - need to
     // fix clients first
@@ -111,6 +109,13 @@ class Result {
   // zombie.
   void SetStackTrace(const std::string& stack_trace) {
     stack_trace_ = stack_trace;
+  }
+
+  void LoadRegs(pid_t pid) {
+    auto regs = absl::make_unique<Regs>(pid);
+    if (regs->Fetch().ok()) {
+      SetRegs(std::move(regs));
+    }
   }
 
   void SetRegs(std::unique_ptr<Regs> regs) { regs_ = std::move(regs); }

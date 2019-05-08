@@ -177,10 +177,6 @@ std::string Result::ReasonCodeEnumToString(ReasonCodeEnum value) {
       return "FAILED_GETEVENT";
     case sandbox2::Result::FAILED_MONITOR:
       return "FAILED_MONITOR";
-    case sandbox2::Result::FAILED_KILL:
-      return "FAILED_KILL";
-    case sandbox2::Result::FAILED_CHILD:
-      return "FAILED_CHILD";
     case sandbox2::Result::VIOLATION_SYSCALL:
       return "VIOLATION_SYSCALL";
     case sandbox2::Result::VIOLATION_ARCH:
