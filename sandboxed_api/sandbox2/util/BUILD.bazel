@@ -19,10 +19,14 @@ package(default_visibility = [
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 cc_library(
     name = "bpf_helper",
     srcs = ["bpf_helper.c"],
     hdrs = ["bpf_helper.h"],
+    copts = sapi_platform_copts([
+    ]),
 )
 
 # String file routines
@@ -30,6 +34,7 @@ cc_library(
     name = "file_helpers",
     srcs = ["file_helpers.cc"],
     hdrs = ["file_helpers.h"],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/strings",
@@ -40,6 +45,7 @@ cc_test(
     name = "file_helpers_test",
     size = "small",
     srcs = ["file_helpers_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":file_helpers",
         "//sandboxed_api/util:status_matchers",
@@ -53,9 +59,9 @@ cc_library(
     name = "fileops",
     srcs = ["fileops.cc"],
     hdrs = ["fileops.h"],
-    copts = [
+    copts = sapi_platform_copts([
         "-Wno-deprecated-declarations",  # readdir64_r
-    ],
+    ]),
     deps = [
         ":strerror",
         "@com_google_absl//absl/strings",
@@ -66,6 +72,7 @@ cc_test(
     name = "fileops_test",
     size = "small",
     srcs = ["fileops_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":file_helpers",
         ":fileops",
@@ -81,6 +88,7 @@ cc_library(
     name = "file_base",
     srcs = ["path.cc"],
     hdrs = ["path.h"],
+    copts = sapi_platform_copts(),
     deps = ["@com_google_absl//absl/strings"],
 )
 
@@ -88,6 +96,7 @@ cc_test(
     name = "file_base_test",
     size = "small",
     srcs = ["path_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":file_base",
         "@com_google_absl//absl/strings",
@@ -101,6 +110,7 @@ cc_library(
     name = "strerror",
     srcs = ["strerror.cc"],
     hdrs = ["strerror.h"],
+    copts = sapi_platform_copts(),
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
@@ -110,6 +120,7 @@ cc_library(
 cc_test(
     name = "strerror_test",
     srcs = ["strerror_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":strerror",
         "@com_google_absl//absl/strings",
@@ -121,6 +132,7 @@ cc_library(
     name = "minielf",
     srcs = ["minielf.cc"],
     hdrs = ["minielf.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":strerror",
         "//sandboxed_api/sandbox2:util",
@@ -135,6 +147,7 @@ cc_library(
 cc_test(
     name = "minielf_test",
     srcs = ["minielf_test.cc"],
+    copts = sapi_platform_copts(),
     data = [
         ":testdata/chrome_grte_header",
         ":testdata/hello_world",
@@ -154,6 +167,7 @@ cc_library(
     name = "temp_file",
     srcs = ["temp_file.cc"],
     hdrs = ["temp_file.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":fileops",
         ":strerror",
@@ -166,6 +180,7 @@ cc_library(
 cc_test(
     name = "temp_file_test",
     srcs = ["temp_file_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":file_base",
         ":fileops",
@@ -180,6 +195,7 @@ cc_library(
     name = "maps_parser",
     srcs = ["maps_parser.cc"],
     hdrs = ["maps_parser.h"],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:statusor",
@@ -190,6 +206,7 @@ cc_library(
 cc_test(
     name = "maps_parser_test",
     srcs = ["maps_parser_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":maps_parser",
         "//sandboxed_api/util:status_matchers",
@@ -201,6 +218,7 @@ cc_library(
     name = "runfiles",
     srcs = ["runfiles.cc"],
     hdrs = ["runfiles.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":file_base",
         "//sandboxed_api/util:flag",

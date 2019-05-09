@@ -16,9 +16,12 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 cc_test(
     name = "main_stringop",
     srcs = ["main_stringop.cc"],
+    copts = sapi_platform_copts(),
     tags = ["local"],
     deps = [
         "//sandboxed_api:sapi",

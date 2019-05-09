@@ -14,10 +14,13 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 # Executor
 cc_binary(
     name = "zpipe_sandbox",
     srcs = ["zpipe_sandbox.cc"],
+    copts = sapi_platform_copts(),
     data = [":zpipe"],
     deps = [
         "//sandboxed_api/sandbox2",
@@ -33,6 +36,7 @@ cc_binary(
 cc_binary(
     name = "zpipe",
     srcs = ["zpipe.c"],
+    copts = sapi_platform_copts(),
     features = [
         "fully_static_link",  # link libc statically
     ],

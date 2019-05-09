@@ -18,19 +18,21 @@ package(default_visibility = [
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 cc_library(
     name = "ptrace_hook",
     srcs = ["ptrace_hook.cc"],
     hdrs = ["ptrace_hook.h"],
+    copts = sapi_platform_copts(),
 )
 
 cc_library(
     name = "unwind",
     srcs = ["unwind.cc"],
     hdrs = ["unwind.h"],
-    copts = [
+    copts = sapi_platform_copts([
         # TODO(cblichmann): Remove this, fix bazel/external/libunwind.BUILD
         "-Iexternal/org_gnu_libunwind/include",
     ] + [
@@ -46,7 +48,7 @@ cc_library(
             "_Ux86_64_init_remote",
             "_Ux86_64_step",
         ]
-    ],
+    ]),
     deps = [
         ":unwind_proto_cc",
         "//sandboxed_api/sandbox2:comms",

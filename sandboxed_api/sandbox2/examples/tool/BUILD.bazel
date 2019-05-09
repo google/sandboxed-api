@@ -22,10 +22,13 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 # Executor
 cc_binary(
     name = "sandbox2tool",
     srcs = ["sandbox2tool.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:util",

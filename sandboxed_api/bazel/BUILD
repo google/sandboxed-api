@@ -20,16 +20,15 @@ exports_files([
     "sapi.bzl",
 ])
 
-load(
-    "//sandboxed_api/bazel:embed_data.bzl",
-    "sapi_cc_embed_data",
-)
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 
 # An implicit dependency of all "sapi_cc_embed_data" rules that builds
 # embedded data into .cc files.
 cc_binary(
     name = "filewrapper",
     srcs = ["filewrapper.cc"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         "@com_google_absl//absl/strings",
@@ -48,6 +47,7 @@ sapi_cc_embed_data(
 cc_test(
     name = "filewrapper_test",
     srcs = ["filewrapper_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["testdata/filewrapper_embedded.bin"],
     deps = [
         ":filewrapper_embedded",

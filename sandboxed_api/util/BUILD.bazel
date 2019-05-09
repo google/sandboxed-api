@@ -17,6 +17,7 @@ package(default_visibility = ["//sandboxed_api:__subpackages__"])
 licenses(["notice"])  # Apache 2.0
 
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 sapi_proto_library(
     name = "status_proto",
@@ -37,6 +38,7 @@ cc_library(
         "status_internal.h",
         "status_macros.h",
     ],
+    copts = sapi_platform_copts(),
     deps = [
         ":status_proto_cc",
         "@com_google_absl//absl/base:core_headers",
@@ -48,6 +50,7 @@ cc_library(
 cc_library(
     name = "statusor",
     hdrs = ["statusor.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":raw_logging",
         ":status",
@@ -63,6 +66,7 @@ cc_library(
     name = "status_matchers",
     testonly = 1,
     hdrs = ["status_matchers.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":status",
         ":statusor",
@@ -75,6 +79,7 @@ cc_library(
 cc_test(
     name = "status_test",
     srcs = ["status_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":status",
         ":status_matchers",
@@ -86,6 +91,7 @@ cc_test(
 cc_test(
     name = "statusor_test",
     srcs = ["statusor_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":status",
         ":status_matchers",
@@ -98,6 +104,7 @@ cc_test(
 cc_test(
     name = "status_macros_test",
     srcs = ["status_macros_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":status",
         ":status_matchers",
@@ -112,6 +119,7 @@ cc_test(
 cc_library(
     name = "flag",
     hdrs = ["flag.h"],
+    copts = sapi_platform_copts(),
     deps = ["@com_github_gflags_gflags//:gflags"],
 )
 
@@ -121,6 +129,7 @@ cc_library(
     name = "raw_logging",
     srcs = ["raw_logging.cc"],
     hdrs = ["raw_logging.h"],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/sandbox2/util:strerror",
         "@com_google_absl//absl/strings",

@@ -16,6 +16,7 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
 sapi_library(
@@ -36,7 +37,7 @@ sapi_library(
 cc_binary(
     name = "main_zlib",
     srcs = ["main_zlib.cc"],
-    copts = ["-Wframe-larger-than=65536"],
+    copts = sapi_platform_copts(["-Wframe-larger-than=65536"]),
     deps = [
         ":zlib-sapi",
         ":zlib-sapi_embed",

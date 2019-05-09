@@ -12,23 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])  # Apache 2.0
+"""General build definitions useful for the whole project."""
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+_SAPI_LINUX_COPTS = [
+    "-Wno-narrowing",
+    "-Wno-sign-compare",
+]
 
-# A quick'n'dirty testing binary
-cc_binary(
-    name = "main_sum",
-    srcs = ["main_sum.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        "//sandboxed_api:sapi",
-        "//sandboxed_api:vars",
-        "//sandboxed_api/examples/sum/lib:sum-sapi",
-        "//sandboxed_api/examples/sum/lib:sum_params_proto_cc",
-        "//sandboxed_api/util:flag",
-        "//sandboxed_api/util:status",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/strings",
-    ],
-)
+def sapi_platform_copts(copts = []):
+    """Returns the default compiler options for the current platform.
+
+    Args:
+      copts: additional compiler options to include.
+    """
+
+    # Linux only for now.
+    return select({"//conditions:default": _SAPI_LINUX_COPTS}) + copts

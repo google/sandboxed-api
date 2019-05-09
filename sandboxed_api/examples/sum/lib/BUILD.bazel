@@ -14,11 +14,9 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
-load(
-    "//sandboxed_api/bazel:proto.bzl",
-    "sapi_proto_library",
-)
 
 sapi_proto_library(
     name = "sum_params_proto",
@@ -33,6 +31,7 @@ cc_library(
         "sum.c",
         "sum_cpp.cc",
     ],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":sum_params_proto_cc",

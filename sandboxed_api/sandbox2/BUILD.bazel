@@ -20,13 +20,15 @@ package(default_visibility = [
 
 licenses(["notice"])  # Apache 2.0
 
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 cc_library(
     name = "bpfdisassembler",
     srcs = ["bpfdisassembler.cc"],
     hdrs = ["bpfdisassembler.h"],
+    copts = sapi_platform_copts(),
     deps = ["@com_google_absl//absl/strings"],
 )
 
@@ -34,6 +36,7 @@ cc_library(
     name = "regs",
     srcs = ["regs.cc"],
     hdrs = ["regs.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":syscall",
         ":violation_proto_cc",
@@ -52,6 +55,7 @@ cc_library(
         "syscall_defs.h",
     ],
     hdrs = ["syscall.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":util",
@@ -65,6 +69,7 @@ cc_library(
 cc_test(
     name = "syscall_test",
     srcs = ["syscall_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":syscall",
         "@com_google_absl//absl/strings",
@@ -76,6 +81,7 @@ cc_library(
     name = "result",
     srcs = ["result.cc"],
     hdrs = ["result.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":regs",
         ":syscall",
@@ -96,6 +102,7 @@ cc_library(
     name = "logserver",
     srcs = ["logserver.cc"],
     hdrs = ["logserver.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":comms",
         ":logserver_proto_cc",
@@ -108,6 +115,7 @@ cc_library(
     name = "logsink",
     srcs = ["logsink.cc"],
     hdrs = ["logsink.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":comms",
@@ -122,6 +130,7 @@ cc_library(
     name = "network_proxy_server",
     srcs = ["network_proxy_server.cc"],
     hdrs = ["network_proxy_server.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":comms",
         "//sandboxed_api/sandbox2/util:fileops",
@@ -134,6 +143,7 @@ cc_library(
     name = "network_proxy_client",
     srcs = ["network_proxy_client.cc"],
     hdrs = ["network_proxy_client.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":comms",
@@ -149,6 +159,7 @@ cc_library(
     name = "ipc",
     srcs = ["ipc.cc"],
     hdrs = ["ipc.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":comms",
         ":logserver",
@@ -165,6 +176,7 @@ cc_library(
     name = "policy",
     srcs = ["policy.cc"],
     hdrs = ["policy.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":bpfdisassembler",
         ":comms",
@@ -184,6 +196,7 @@ cc_library(
     name = "notify",
     srcs = [],
     hdrs = ["notify.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":comms",
         ":result",
@@ -194,6 +207,7 @@ cc_library(
 cc_library(
     name = "limits",
     hdrs = ["limits.h"],
+    copts = sapi_platform_copts(),
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/time",
@@ -203,6 +217,7 @@ cc_library(
 cc_binary(
     name = "forkserver_bin",
     srcs = ["forkserver_bin.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":client",
         ":comms",
@@ -223,6 +238,7 @@ cc_library(
     name = "global_forkserver",
     srcs = ["global_forkclient.cc"],
     hdrs = ["global_forkclient.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":client",
         ":comms",
@@ -263,6 +279,7 @@ cc_library(
         "syscall.h",
         "client.h",
     ],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":client",
@@ -320,6 +337,7 @@ cc_library(
         "client.h",
         "sanitizer.h",
     ],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":comms",
@@ -339,6 +357,7 @@ cc_library(
     name = "forkserver",
     srcs = ["forkserver.cc"],
     hdrs = ["forkserver.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":client",
@@ -366,6 +385,7 @@ cc_library(
     name = "mounts",
     srcs = ["mounts.cc"],
     hdrs = ["mounts.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":mounttree_proto_cc",
         "//sandboxed_api/sandbox2/util:file_base",
@@ -385,6 +405,7 @@ cc_library(
 cc_test(
     name = "mounts_test",
     srcs = ["mounts_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
     deps = [
         ":mounts",
@@ -402,6 +423,7 @@ cc_library(
     name = "namespace",
     srcs = ["namespace.cc"],
     hdrs = ["namespace.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":mounts",
         ":mounttree_proto_cc",
@@ -420,6 +442,7 @@ cc_library(
 cc_test(
     name = "namespace_test",
     srcs = ["namespace_test.cc"],
+    copts = sapi_platform_copts(),
     data = [
         "//sandboxed_api/sandbox2/testcases:hostname",
         "//sandboxed_api/sandbox2/testcases:namespace",
@@ -441,6 +464,7 @@ cc_library(
     name = "forkingclient",
     srcs = ["forkingclient.cc"],
     hdrs = ["forkingclient.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":client",
@@ -457,7 +481,7 @@ cc_library(
     # The default is 16384, however we need to do a clone with a
     # stack-allocated buffer -- and PTHREAD_STACK_MIN also happens to be 16384.
     # Thus the slight increase.
-    copts = ["-Wframe-larger-than=17000"],
+    copts = sapi_platform_copts(["-Wframe-larger-than=17000"]),
     visibility = ["//visibility:public"],
     deps = [
         "//sandboxed_api/sandbox2/util:file_base",
@@ -476,6 +500,7 @@ cc_library(
     name = "buffer",
     srcs = ["buffer.cc"],
     hdrs = ["buffer.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":util",
@@ -491,6 +516,7 @@ cc_library(
 cc_test(
     name = "buffer_test",
     srcs = ["buffer_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:buffer"],
     deps = [
         ":buffer",
@@ -506,6 +532,7 @@ cc_test(
 sapi_proto_library(
     name = "forkserver_proto",
     srcs = ["forkserver.proto"],
+    copts = sapi_platform_copts(),
     deps = [":mounttree_proto"],
 )
 
@@ -518,6 +545,7 @@ cc_library(
     name = "comms",
     srcs = ["comms.cc"],
     hdrs = ["comms.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":util",
@@ -543,6 +571,7 @@ sapi_proto_library(
 cc_test(
     name = "comms_test",
     srcs = ["comms_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":comms",
         ":comms_test_proto_cc",
@@ -561,6 +590,7 @@ cc_test(
         "forkserver_test.cc",
         "global_forkclient.h",
     ],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:minimal"],
     deps = [
         ":comms",
@@ -577,6 +607,7 @@ cc_test(
 cc_test(
     name = "limits_test",
     srcs = ["limits_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:limits"],
     deps = [
         ":limits",
@@ -592,6 +623,7 @@ cc_test(
 cc_test(
     name = "notify_test",
     srcs = ["notify_test.cc"],
+    copts = sapi_platform_copts(),
     data = [
         "//sandboxed_api/sandbox2/testcases:personality",
         "//sandboxed_api/sandbox2/testcases:pidcomms",
@@ -611,6 +643,7 @@ cc_test(
 cc_test(
     name = "policy_test",
     srcs = ["policy_test.cc"],
+    copts = sapi_platform_copts(),
     data = [
         "//sandboxed_api/sandbox2/testcases:add_policy_on_syscalls",
         "//sandboxed_api/sandbox2/testcases:malloc_system",
@@ -633,6 +666,7 @@ cc_test(
 cc_test(
     name = "sandbox2_test",
     srcs = ["sandbox2_test.cc"],
+    copts = sapi_platform_copts(),
     data = [
         "//sandboxed_api/sandbox2/testcases:abort",
         "//sandboxed_api/sandbox2/testcases:minimal",
@@ -654,6 +688,7 @@ cc_test(
 cc_test(
     name = "sanitizer_test",
     srcs = ["sanitizer_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:sanitizer"],
     deps = [
         ":client",
@@ -672,6 +707,7 @@ cc_test(
 cc_test(
     name = "util_test",
     srcs = ["util_test.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         ":testing",
         ":util",
@@ -683,6 +719,7 @@ cc_test(
 cc_test(
     name = "stack-trace_test",
     srcs = ["stack-trace_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:symbolize"],
     deps = [
         ":global_forkserver",
@@ -702,6 +739,7 @@ cc_test(
 cc_test(
     name = "ipc_test",
     srcs = ["ipc_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:ipc"],
     deps = [
         ":comms",
@@ -720,6 +758,7 @@ cc_library(
     testonly = 1,
     srcs = ["testing.cc"],
     hdrs = ["testing.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         "//sandboxed_api/sandbox2/util:file_base",
@@ -736,6 +775,7 @@ sapi_proto_library(
 cc_test(
     name = "policybuilder_test",
     srcs = ["policybuilder_test.cc"],
+    copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:print_fds"],
     deps = [
         ":comms",

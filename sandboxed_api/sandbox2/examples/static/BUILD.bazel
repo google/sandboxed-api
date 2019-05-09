@@ -21,10 +21,13 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 # Executor
 cc_binary(
     name = "static_sandbox",
     srcs = ["static_sandbox.cc"],
+    copts = sapi_platform_copts(),
     data = [":static_bin"],
     deps = [
         "//sandboxed_api/sandbox2",
@@ -40,6 +43,7 @@ cc_binary(
 cc_binary(
     name = "static_bin",
     srcs = ["static_bin.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically

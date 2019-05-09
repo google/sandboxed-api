@@ -14,6 +14,7 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
 py_library(
@@ -54,6 +55,7 @@ cc_library(
         "testdata/tests.h",
         "testdata/tests2.cc",
     ],
+    copts = sapi_platform_copts(),
     alwayslink = 1,
 )
 
@@ -77,6 +79,7 @@ cc_binary(
         ":tests_sapi_generator.sapi.h",
         ":tests_sapi_generator_embed.h",
     ],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",

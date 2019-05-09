@@ -21,10 +21,13 @@
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 # Executor
 cc_binary(
     name = "crc4sandbox",
     srcs = ["crc4sandbox.cc"],
+    copts = sapi_platform_copts(),
     data = [":crc4bin"],
     deps = [
         "//sandboxed_api/sandbox2",
@@ -40,6 +43,7 @@ cc_binary(
 cc_binary(
     name = "crc4bin",
     srcs = ["crc4bin.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -49,10 +53,10 @@ cc_binary(
     ],
 )
 
-# Test
 cc_test(
     name = "crc4sandbox_test",
     srcs = ["crc4sandbox_test.cc"],
+    copts = sapi_platform_copts(),
     data = [":crc4sandbox"],
     tags = ["local"],
     deps = [

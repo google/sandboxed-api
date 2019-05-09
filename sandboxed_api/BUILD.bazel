@@ -16,6 +16,7 @@ licenses(["notice"])  # Apache 2.0
 
 exports_files(["LICENSE"])
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 sapi_proto_library(
@@ -31,6 +32,7 @@ cc_library(
         "file_toc.h",
     ],
     hdrs = ["embed_file.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         "//sandboxed_api/sandbox2:util",
@@ -59,6 +61,7 @@ cc_library(
         "sandbox.h",
         "transaction.h",
     ],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":embed_file",
@@ -89,6 +92,7 @@ cc_library(
 cc_library(
     name = "call",
     hdrs = ["call.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":var_type",
         "@com_google_absl//absl/base:core_headers",
@@ -98,12 +102,14 @@ cc_library(
 cc_library(
     name = "lenval_core",
     hdrs = ["lenval_core.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
 )
 
 cc_library(
     name = "var_type",
     hdrs = ["var_type.h"],
+    copts = sapi_platform_copts(),
 )
 
 # Variable hierarchy
@@ -131,6 +137,7 @@ cc_library(
         "var_void.h",
         "vars.h",
     ],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":call",
@@ -152,6 +159,7 @@ cc_library(
 cc_library(
     name = "client",
     srcs = ["client.cc"],
+    copts = sapi_platform_copts(),
     # TODO(124852776): investigate whether this is necessary
     linkopts = [
         "-Wl,-ldl",
@@ -176,6 +184,7 @@ cc_library(
 cc_test(
     name = "sapi_test",
     srcs = ["sapi_test.cc"],
+    copts = sapi_platform_copts(),
     tags = ["local"],
     deps = [
         ":sapi",

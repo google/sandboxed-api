@@ -28,6 +28,8 @@ package(default_visibility = [
 
 licenses(["notice"])  # Apache 2.0
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 STATIC_LINKOPTS = [
     # Necessary for linking pthread statically into the binary. See the
     # answer to https://stackoverflow.com/questions/35116327/ for context.
@@ -42,6 +44,7 @@ cc_binary(
     name = "abort",
     testonly = 1,
     srcs = ["abort.cc"],
+    copts = sapi_platform_copts(),
     deps = ["//sandboxed_api/util:raw_logging"],
 )
 
@@ -50,6 +53,7 @@ cc_binary(
     name = "add_policy_on_syscalls",
     testonly = 1,
     srcs = ["add_policy_on_syscalls.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -62,6 +66,7 @@ cc_binary(
     name = "buffer",
     testonly = 1,
     srcs = ["buffer.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -79,6 +84,7 @@ cc_binary(
     name = "ipc",
     testonly = 1,
     srcs = ["ipc.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -92,6 +98,7 @@ cc_binary(
     name = "malloc_system",
     testonly = 1,
     srcs = ["malloc.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -103,6 +110,7 @@ cc_binary(
     name = "minimal_dynamic",
     testonly = 1,
     srcs = ["minimal.cc"],
+    copts = sapi_platform_copts(),
 )
 
 # security: disable=cc-static-no-pie
@@ -110,6 +118,7 @@ cc_binary(
     name = "minimal",
     testonly = 1,
     srcs = ["minimal.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -122,6 +131,7 @@ cc_binary(
     name = "personality",
     testonly = 1,
     srcs = ["personality.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -134,6 +144,7 @@ cc_binary(
     name = "pidcomms",
     testonly = 1,
     srcs = ["pidcomms.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -152,6 +163,7 @@ cc_binary(
     name = "policy",
     testonly = 1,
     srcs = ["policy.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -164,6 +176,7 @@ cc_binary(
     name = "print_fds",
     testonly = 1,
     srcs = ["print_fds.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -176,6 +189,7 @@ cc_binary(
     name = "sanitizer",
     testonly = 1,
     srcs = ["sanitizer.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -188,6 +202,7 @@ cc_binary(
     name = "sleep",
     testonly = 1,
     srcs = ["sleep.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -200,6 +215,7 @@ cc_binary(
     name = "symbolize",
     testonly = 1,
     srcs = ["symbolize.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -217,6 +233,7 @@ cc_binary(
     name = "tsync",
     testonly = 1,
     srcs = ["tsync.cc"],
+    copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -227,6 +244,7 @@ cc_binary(
     name = "hostname",
     testonly = 1,
     srcs = ["hostname.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -238,6 +256,7 @@ cc_binary(
     name = "limits",
     testonly = 1,
     srcs = ["limits.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
@@ -249,6 +268,7 @@ cc_binary(
     name = "namespace",
     testonly = 1,
     srcs = ["namespace.cc"],
+    copts = sapi_platform_copts(),
     features = [
         "-pie",
         "fully_static_link",  # link libc statically
