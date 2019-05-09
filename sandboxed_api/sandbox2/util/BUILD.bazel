@@ -221,9 +221,9 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":file_base",
-        "//sandboxed_api/util:flag",
         "//sandboxed_api/util:raw_logging",
         "@bazel_tools//tools/cpp/runfiles",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],

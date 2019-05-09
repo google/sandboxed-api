@@ -7,7 +7,7 @@ set(EXTRA_CMAKE_ARGS)
 
 ExternalProject_Add(absl
   GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
-  GIT_TAG 88a152ae747c3c42dc9167d46c590929b048d436
+  GIT_TAG aa468ad75539619b47979911297efbb629c52e44  # 2019-05-07
   # Just clone into directory
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""

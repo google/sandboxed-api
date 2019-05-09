@@ -19,7 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -48,7 +48,7 @@ namespace {
 template <typename T>
 class TemporaryFlagOverride {
  public:
-  using Flag = T;
+  using Flag = absl::Flag<T>;
   TemporaryFlagOverride(Flag* flag, T value)
       : flag_(flag), original_value_(absl::GetFlag(*flag)) {
     absl::SetFlag(flag, value);

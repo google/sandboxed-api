@@ -27,7 +27,7 @@ cc_binary(
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/sandbox2/util:runfiles",
-        "//sandboxed_api/util:flag",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/memory",
     ],
 )

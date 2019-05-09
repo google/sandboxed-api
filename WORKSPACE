@@ -20,8 +20,9 @@ load("//sandboxed_api/bazel:repositories.bzl", "autotools_repository")
 # Abseil
 http_archive(
     name = "com_google_absl",
-    strip_prefix = "abseil-cpp-master",
-    urls = ["https://github.com/abseil/abseil-cpp/archive/master.zip"],
+    sha256 = "57cadb5f4e35e479de395490994db5cd91a23b3a4d6fba85ffbe86590d70f606",  # 2019-05-07
+    strip_prefix = "abseil-cpp-aa468ad75539619b47979911297efbb629c52e44",
+    urls = ["https://github.com/abseil/abseil-cpp/archive/aa468ad75539619b47979911297efbb629c52e44.zip"],
 )
 
 # Abseil-py

@@ -23,7 +23,7 @@
 #include <glog/logging.h>
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/lenval_core.h"

@@ -14,10 +14,10 @@
 
 #include <cstdlib>
 
+#include "absl/flags/internal/program_name.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/runfiles.h"
-#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
@@ -28,7 +28,8 @@ namespace sandbox2 {
 std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   static Runfiles* runfiles = []() {
     std::string error;
-    auto* runfiles = Runfiles::Create(gflags::GetArgv0(), &error);
+    auto* runfiles =
+        Runfiles::Create(absl::flags_internal::ProgramInvocationName(), &error);
     SAPI_RAW_CHECK(runfiles != nullptr, "%s", error);
 
     // Setup environment for child processes.

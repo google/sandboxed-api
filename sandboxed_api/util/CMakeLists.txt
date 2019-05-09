@@ -81,15 +81,6 @@ target_link_libraries(status_test PRIVATE
 )
 gtest_discover_tests(status_test)
 
-# sandboxed_api/util:flag
-add_library(sapi_util_flag STATIC
-  flag.h
-)
-add_library(sapi::flag ALIAS sapi_util_flag)
-target_link_libraries(sapi_util_flag PUBLIC
-  gflags
-)
-
 # sandboxed_api/util:raw_logging
 add_library(sapi_util_raw_logging STATIC
   raw_logging.cc

@@ -210,10 +210,10 @@ add_library(sandbox2_util_runfiles STATIC
 )
 add_library(sandbox2::runfiles ALIAS sandbox2_util_runfiles)
 target_link_libraries(sandbox2_util_runfiles PRIVATE
+  absl::flags
   absl::str_format
   absl::strings
   sandbox2::file_base
   sapi::base
-  sapi::flag
   sapi::raw_logging
 )

@@ -24,7 +24,7 @@
 #include <memory>
 #include <string>
 
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
