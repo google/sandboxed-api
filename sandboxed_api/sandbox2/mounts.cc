@@ -255,6 +255,16 @@ std::string GetPlatform(absl::string_view interpreter) {
   return Insert(inside, node);
 }
 
+namespace {
+
+void LogContainer(const std::vector<std::string>& container) {
+  for (size_t i = 0; i < container.size(); ++i) {
+    SAPI_RAW_LOG(INFO, "[%4d]=%s", i, container[i]);
+  }
+}
+
+}  // namespace
+
 ::sapi::Status Mounts::AddMappingsForBinary(const std::string& path,
                                             absl::string_view ld_library_path) {
   auto elf_or = ElfFile::ParseFromFile(
@@ -327,7 +337,19 @@ std::string GetPlatform(absl::string_view interpreter) {
     for (const auto& imported_lib : imported_libs) {
       to_resolve.emplace_back(imported_lib, 1);
     }
+
+    if (SAPI_VLOG_IS_ON(1)) {
+      SAPI_RAW_VLOG(
+          1, "Resolving dynamic library dependencies of %s using these dirs:",
+          path);
+      LogContainer(full_search_paths);
+    }
+    if (SAPI_VLOG_IS_ON(2)) {
+      SAPI_RAW_VLOG(2, "Direct dependencies of %s to resolve:", path);
+      LogContainer(imported_libs);
+    }
   }
+
   // This is DFS with an auxiliary stack
   int resolved = 0;
   int loaded = 0;
@@ -347,11 +369,15 @@ std::string GetPlatform(absl::string_view interpreter) {
     }
     std::string resolved_lib = ResolveLibraryPath(lib, full_search_paths);
     if (resolved_lib.empty()) {
+      SAPI_RAW_LOG(ERROR, "Failed to resolve library: %s", lib);
       continue;
     }
     if (imported_libraries.contains(resolved_lib)) {
       continue;
     }
+
+    SAPI_RAW_VLOG(1, "Resolved library: %s ==> %s", lib, resolved_lib);
+
     imported_libraries.insert(resolved_lib);
     if (imported_libraries.size() > kMaxImportedLibraries) {
       return ::sapi::FailedPreconditionError(
@@ -370,6 +396,14 @@ std::string GetPlatform(absl::string_view interpreter) {
       return ::sapi::FailedPreconditionError(
           "Exceeded max entries pending resolving limit");
     }
+
+    if (SAPI_VLOG_IS_ON(2)) {
+      SAPI_RAW_VLOG(2,
+                    "Transitive dependencies of %s to resolve (depth = %d): ",
+                    resolved_lib, depth + 1);
+      LogContainer(imported_libs);
+    }
+
     for (const auto& imported_lib : imported_libs) {
       to_resolve.emplace_back(imported_lib, depth + 1);
     }
