@@ -241,6 +241,13 @@ cc_binary(
 )
 
 cc_binary(
+    name = "starve",
+    testonly = 1,
+    srcs = ["starve.cc"],
+    copts = sapi_platform_copts(),
+)
+
+cc_binary(
     name = "hostname",
     testonly = 1,
     srcs = ["hostname.cc"],

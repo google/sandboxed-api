@@ -37,6 +37,8 @@
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::IsTrue;
+using ::testing::Lt;
 
 namespace sandbox2 {
 namespace {
@@ -194,6 +196,26 @@ TEST(RunAsyncTest, SandboxeeViolationDisabledStacktraces) {
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::VIOLATION);
   EXPECT_THAT(result.GetStackTrace(), IsEmpty());
+}
+
+TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/starve");
+
+  std::vector<std::string> args = {path};
+  std::vector<std::string> envs;
+  auto executor = absl::make_unique<Executor>(path, args, envs);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                       PolicyBuilder().DangerDefaultAllowAll().TryBuild());
+  executor->limits()->set_walltime_limit(absl::Seconds(5));
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto start = absl::Now();
+  ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+  auto result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::TIMEOUT));
+  auto end = absl::Now();
+  auto elapsed = end - start;
+  EXPECT_THAT(elapsed, Lt(absl::Seconds(10)));
 }
 
 }  // namespace

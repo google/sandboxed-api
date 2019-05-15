@@ -212,6 +212,19 @@ target_link_libraries(symbolize PRIVATE
   ${_sandbox2_fully_static_linkopts}
 )
 
+# sandboxed_api/sandbox2/testcases:starve
+add_executable(starve
+  starve.cc
+)
+add_executable(sandbox2::testcase_starve ALIAS starve)
+set_target_properties(starve PROPERTIES
+  ${_sandbox2_testcase_properties}
+)
+target_link_libraries(starve PRIVATE
+  sapi::base
+)
+
+
 # sandboxed_api/sandbox2/testcases:tsync
 add_executable(tsync
   tsync.cc
