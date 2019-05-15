@@ -112,6 +112,8 @@ class Sandbox2 final {
  private:
   // Launches the Monitor.
   void Launch();
+  // Notifies monitor about a state change
+  void NotifyMonitor();
 
   // Executor set by user - owned by Sandbox2.
   std::unique_ptr<Executor> executor_;

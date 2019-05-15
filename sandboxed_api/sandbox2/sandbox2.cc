@@ -75,26 +75,24 @@ bool Sandbox2::RunAsync() {
   return true;
 }
 
+void Sandbox2::NotifyMonitor() {
+  if (monitor_thread_ != nullptr) {
+    pthread_kill(monitor_thread_->native_handle(), SIGCHLD);
+  }
+}
+
 void Sandbox2::Kill() {
   CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
 
-  // The sandboxee (and its monitoring thread) are already gone. Ignore the
-  // request instead of panic'ing in such case.
-  if (monitor_thread_ == nullptr) {
-    return;
-  }
-
-  pthread_kill(monitor_thread_->native_handle(), Monitor::kExternalKillSignal);
+  monitor_->external_kill_request_flag_.clear(std::memory_order_relaxed);
+  NotifyMonitor();
 }
 
 void Sandbox2::DumpStackTrace() {
   CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
 
-  if (monitor_thread_ == nullptr) {
-    return;
-  }
-
-  pthread_kill(monitor_thread_->native_handle(), Monitor::kDumpStackSignal);
+  monitor_->dump_stack_request_flag_.clear(std::memory_order_relaxed);
+  NotifyMonitor();
 }
 
 bool Sandbox2::IsTerminated() const {
@@ -106,15 +104,15 @@ bool Sandbox2::IsTerminated() const {
 void Sandbox2::SetWallTimeLimit(time_t limit) const {
   CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
 
-  if (monitor_thread_ == nullptr) {
-    return;
+  if (limit == 0) {
+    VLOG(1) << "Disarming walltime timer to ";
+    monitor_->deadline_millis_.store(0, std::memory_order_relaxed);
+  } else {
+    VLOG(1) << "Will set the walltime timer to " << limit << " seconds";
+    auto deadline = absl::Now() + absl::Seconds(limit);
+    monitor_->deadline_millis_.store(absl::ToUnixMillis(deadline),
+                                     std::memory_order_relaxed);
   }
-
-  union sigval v;
-  v.sival_int = static_cast<int>(limit);
-
-  pthread_sigqueue(monitor_thread_->native_handle(), Monitor::kTimerSetSignal,
-                   v);
 }
 
 void Sandbox2::Launch() {
@@ -126,7 +124,7 @@ void Sandbox2::Launch() {
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for
   // non-sandbox-related data exchange.
-  monitor_->setup_counter_->Wait();
+  monitor_->setup_counter_.Wait();
 }
 
 }  // namespace sandbox2

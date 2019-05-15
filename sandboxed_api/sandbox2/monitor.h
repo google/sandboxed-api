@@ -52,23 +52,6 @@ class Monitor final {
  private:
   friend class Sandbox2;
 
-  // As per 'man 7 pthreads' pthreads uses first three RT signals, so we use
-  // something safe here (but still lower than __SIGRTMAX).
-  //
-  // A signal which makes wait() to exit due to interrupt, so the Monitor can
-  // check whether it should terminate.
-  static const int kExternalKillSignal = (__SIGRTMIN + 10);
-  // A signal which system timer delivers in case the wall-time timer limit was
-  // reached.
-  static const int kTimerWallTimeSignal = (__SIGRTMIN + 12);
-  // A signal which makes Monitor to arm its wall-time timer.
-  static const int kTimerSetSignal = (__SIGRTMIN + 13);
-  // Dump the main sandboxed process's stack trace to log.
-  static const int kDumpStackSignal = (__SIGRTMIN + 14);
-#if ((__SIGRTMIN + 14) > __SIGRTMAX)
-#error "sandbox2::Monitor exceeding > __SIGRTMAX)"
-#endif
-
   // Timeout used with sigtimedwait (0.5s).
   static const int kWakeUpPeriodSec = 0L;
   static const int kWakeUpPeriodNSec = (500L * 1000L * 1000L);
@@ -82,16 +65,6 @@ class Monitor final {
   // Getter/Setter for wait_for_execve_.
   bool IsActivelyMonitoring();
   void SetActivelyMonitoring();
-
-  // Waits for events from monitored clients and signals from the main process.
-  void MainLoop(sigset_t* sset);
-
-  // Analyzes signals which Monitor might have already received.
-  void MainSignals(int signo, siginfo_t* si);
-
-  // Analyzes any possible children process status changes; returns 'true' if
-  // there are no more processes to track.
-  bool MainWait();
 
   // Sends Policy to the Client.
   // Returns success/failure status.
@@ -112,9 +85,6 @@ class Monitor final {
   // Sets up required signal masks/handlers; prepare mask for sigtimedwait().
   bool InitSetupSignals(sigset_t* sset);
 
-  // Sets up a given signal; modify the sigmask used with sigtimedwait().
-  bool InitSetupSig(int signo, sigset_t* sset);
-
   // Sends information about data exchange channels.
   bool InitSendIPC();
 
@@ -128,36 +98,37 @@ class Monitor final {
   bool InitApplyLimit(pid_t pid, __rlimit_resource resource,
                       const rlimit64& rlim) const;
 
-  // Creates timers.
-  bool InitSetupTimer();
+  // Kills the main traced PID with PTRACE_KILL.
+  void KillSandboxee();
 
-  // Deletes timers.
-  void CleanUpTimer();
+  // Waits for events from monitored clients and signals from the main process.
+  void MainLoop(sigset_t* sset);
 
-  // Arms the walltime timer, absl::ZeroDuration() disarms the timer.
-  bool TimerArm(absl::Duration duration);
-
-  // Final action with regard to PID.
-  // Continues PID with an optional signal.
-  void ActionProcessContinue(pid_t pid, int signo);
-
-  // Stops the PID with an optional signal.
-  void ActionProcessStop(pid_t pid, int signo);
+  // Process with given PID changed state to a stopped state.
+  void StateProcessStopped(pid_t pid, int status);
 
   // Logs the syscall violation and kills the process afterwards.
   void ActionProcessSyscallViolation(Regs* regs, const Syscall& syscall,
                                      ViolationType violation_type);
 
-  // Prints a SANDBOX VIOLATION message based on the registers.
-  // If the registers match something disallowed by Policy::GetDefaultPolicy,
-  // then it also prints a additional description of the reason.
-  void LogAccessViolation(const Syscall& syscall);
-
-  // PID called a syscall, or was killed due to syscall.
+  // PID called a traced syscall, or was killed due to syscall.
   void ActionProcessSyscall(Regs* regs, const Syscall& syscall);
 
-  // Kills the PID with PTRACE_KILL.
-  void ActionProcessKill(pid_t pid, Result::StatusEnum status, uintptr_t code);
+  // Sets basic info status and reason code in the result object.
+  void SetExitStatusCode(Result::StatusEnum final_status,
+                         uintptr_t reason_code);
+  // Whether a stack trace should be collected given the current status
+  bool ShouldCollectStackTrace();
+  // Sets additional information in the result object, such as program name,
+  // stack trace etc.
+  void SetAdditionalResultInfo(std::unique_ptr<Regs> regs);
+
+  // Logs a SANDBOX VIOLATION message based on the registers and additional
+  // explanation for the reason of the violation.
+  void LogSyscallViolation(const Syscall& syscall) const;
+  // Logs an additional explanation for the possible reason of the violation
+  // based on the registers.
+  void LogSyscallViolationExplanation(const Syscall& syscall) const;
 
   // Ptrace events:
   // Syscall violation processing path.
@@ -172,14 +143,6 @@ class Monitor final {
   // Processes stop path.
   void EventPtraceStop(pid_t pid, int stopsig);
 
-  // Changes the state of a given PID:
-  // Process is in a stopped state.
-  void StateProcessStopped(pid_t pid, int status);
-
-  // Helpers operating on PIDs.
-  // Interrupts the PID.
-  void PidInterrupt(pid_t pid);
-
   // Internal objects, owned by the Sandbox2 object.
   Executor* executor_;
   Notify* notify_;
@@ -193,17 +156,25 @@ class Monitor final {
   // Parent (the Sandbox2 object) waits on it, until we either enable
   // monitoring of a process (sandboxee) successfully, or the setup process
   // fails.
-  std::unique_ptr<absl::BlockingCounter> setup_counter_;
-  // The Wall-Time timer for traced processes.
-  std::unique_ptr<timer_t> walltime_timer_;
+  absl::BlockingCounter setup_counter_;
 
   // The main tracked PID.
   pid_t pid_ = -1;
 
   // The field indicates whether the sandboxing task has been completed (either
   // successfully or with error).
-  std::atomic<bool> done_;
+  std::atomic<bool> done_{false};
   absl::Mutex done_mutex_;
+  // False iff external kill is requested
+  std::atomic_flag external_kill_request_flag_;
+  // False iff dump stack is requested
+  std::atomic_flag dump_stack_request_flag_;
+  // Deadline in Unix millis
+  std::atomic<int64_t> deadline_millis_{0};
+  // Was external kill sent to the sandboxee
+  bool external_kill_ = false;
+  // Is the sandboxee timed out
+  bool timed_out_ = false;
   // Should we dump the main sandboxed PID's stack?
   bool should_dump_stack_ = false;
 
