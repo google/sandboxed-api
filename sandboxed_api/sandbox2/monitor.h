@@ -27,7 +27,7 @@
 #include <ctime>
 #include <memory>
 
-#include "absl/synchronization/blocking_counter.h"
+#include "absl/synchronization/notification.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -60,7 +60,7 @@ class Monitor final {
   void Run();
 
   // Getters for private fields.
-  bool IsDone() const { return done_.load(std::memory_order_acquire); }
+  bool IsDone() const { return done_notification_.HasBeenNotified(); }
 
   // Getter/Setter for wait_for_execve_.
   bool IsActivelyMonitoring();
@@ -156,15 +156,14 @@ class Monitor final {
   // Parent (the Sandbox2 object) waits on it, until we either enable
   // monitoring of a process (sandboxee) successfully, or the setup process
   // fails.
-  absl::BlockingCounter setup_counter_;
+  absl::Notification setup_notification_;
+  // The field indicates whether the sandboxing task has been completed (either
+  // successfully or with error).
+  absl::Notification done_notification_;
 
   // The main tracked PID.
   pid_t pid_ = -1;
 
-  // The field indicates whether the sandboxing task has been completed (either
-  // successfully or with error).
-  std::atomic<bool> done_{false};
-  absl::Mutex done_mutex_;
   // False iff external kill is requested
   std::atomic_flag external_kill_request_flag_;
   // False iff dump stack is requested

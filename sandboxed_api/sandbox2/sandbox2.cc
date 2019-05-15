@@ -21,7 +21,6 @@
 #include <string>
 
 #include "absl/memory/memory.h"
-#include "absl/synchronization/blocking_counter.h"
 #include "sandboxed_api/sandbox2/monitor.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/util/canonical_errors.h"
@@ -39,9 +38,8 @@ sapi::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
   CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
   CHECK(monitor_thread_ != nullptr) << "Sandbox was already waited on";
 
-  absl::MutexLock lock(&monitor_->done_mutex_);
-  auto done = monitor_->done_mutex_.AwaitWithTimeout(
-      absl::Condition(monitor_.get(), &Monitor::IsDone), timeout);
+  auto done =
+      monitor_->done_notification_.WaitForNotificationWithTimeout(timeout);
   if (!done) {
     return ::sapi::DeadlineExceededError(
         "Sandbox did not finish within timeout");
@@ -124,7 +122,7 @@ void Sandbox2::Launch() {
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for
   // non-sandbox-related data exchange.
-  monitor_->setup_counter_.Wait();
+  monitor_->setup_notification_.WaitForNotification();
 }
 
 }  // namespace sandbox2

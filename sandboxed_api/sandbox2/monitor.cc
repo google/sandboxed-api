@@ -112,7 +112,6 @@ Monitor::Monitor(Executor* executor, Policy* policy, Notify* notify)
       policy_(policy),
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),
-      setup_counter_(1),
       wait_for_execve_(executor->enable_sandboxing_pre_execve_) {
   std::string path =
       absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all_and_log);
@@ -141,19 +140,17 @@ void LogContainer(const std::vector<std::string>& container) {
 }  // namespace
 
 void Monitor::Run() {
-  using DecrementCounter = decltype(setup_counter_);
-  std::unique_ptr<DecrementCounter, void (*)(DecrementCounter*)>
-      decrement_count{&setup_counter_, [](DecrementCounter* counter) {
-                        counter->DecrementCount();
-                      }};
+  std::unique_ptr<absl::Notification, void (*)(absl::Notification*)>
+      setup_notify{&setup_notification_, [](absl::Notification* notification) {
+                     notification->Notify();
+                   }};
 
   struct MonitorCleanup {
     ~MonitorCleanup() {
       getrusage(RUSAGE_THREAD, capture->result_.GetRUsageMonitor());
       capture->notify_->EventFinished(capture->result_);
       capture->ipc_->InternalCleanupFdMap();
-      absl::MutexLock lock(&capture->done_mutex_);
-      capture->done_.store(true, std::memory_order_release);
+      capture->done_notification_.Notify();
     }
     Monitor* capture;
   } monitor_cleanup{this};
@@ -243,7 +240,7 @@ void Monitor::Run() {
 
   // Tell the parent thread (Sandbox2 object) that we're done with the initial
   // set-up process of the sandboxee.
-  decrement_count.reset();
+  setup_notify.reset();
 
   MainLoop(&sigtimedwait_sset);
 }
