@@ -504,18 +504,17 @@ bool Monitor::InitApplyLimit(pid_t pid, __rlimit_resource resource,
   rlimit64 curr_limit;
   if (prlimit64(pid, resource, nullptr, &curr_limit) == -1) {
     PLOG(ERROR) << "prlimit64(" << pid << ", " << rlim_name << ")";
-  } else {
+  } else if (rlim.rlim_cur > curr_limit.rlim_max) {
     // In such case, don't update the limits, as it will fail. Just stick to the
     // current ones (which are already lower than intended).
-    if (rlim.rlim_cur > curr_limit.rlim_max) {
-      LOG(ERROR) << rlim_name << ": new.current > current.max ("
-                 << rlim.rlim_cur << " > " << curr_limit.rlim_max
-                 << "), skipping";
-      return true;
-    }
+    LOG(ERROR) << rlim_name << ": new.current > current.max (" << rlim.rlim_cur
+               << " > " << curr_limit.rlim_max << "), skipping";
+    return true;
   }
+
   if (prlimit64(pid, resource, &rlim, nullptr) == -1) {
-    PLOG(ERROR) << "prlimit64(RLIMIT_AS, " << rlim.rlim_cur << ")";
+    PLOG(ERROR) << "prlimit64(" << pid << ", " << rlim_name << ", "
+                << rlim.rlim_cur << ")";
     return false;
   }
 
