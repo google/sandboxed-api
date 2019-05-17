@@ -210,7 +210,6 @@ bool Comms::Connect() {
   return true;
 }
 
-// All member variables touched by Terminate() should be marked as 'mutable'.
 void Comms::Terminate() {
   {
     PotentiallyBlockingRegion region;
