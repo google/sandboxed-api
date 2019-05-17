@@ -113,6 +113,8 @@ Monitor::Monitor(Executor* executor, Policy* policy, Notify* notify)
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),
       wait_for_execve_(executor->enable_sandboxing_pre_execve_) {
+  // It's a pre-connected Comms channel, no need to accept new connection.
+  CHECK(comms_->IsConnected());
   std::string path =
       absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all_and_log);
   external_kill_request_flag_.test_and_set(std::memory_order_relaxed);
@@ -204,10 +206,6 @@ void Monitor::Run() {
 
   if (!notify_->EventStarted(pid_, comms_)) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_NOTIFY);
-    return;
-  }
-  if (!InitAcceptConnection()) {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CONNECTION);
     return;
   }
   if (!InitSendIPC()) {
@@ -645,36 +643,6 @@ bool Monitor::InitPtraceAttach() {
     LOG(ERROR) << "Couldn't send Client::kSandbox2ClientDone message";
     return false;
   }
-  return true;
-}
-
-bool Monitor::InitAcceptConnection() {
-  // It's a pre-connected Comms channel, no need to accept new connection or
-  // verify the peer (sandboxee).
-  if (comms_->IsConnected()) {
-    return true;
-  }
-
-  if (!comms_->Accept()) {
-    return false;
-  }
-
-  // Check whether the PID which has connected to us, is the PID we're
-  // expecting.
-  pid_t cred_pid;
-  uid_t cred_uid;
-  gid_t cred_gid;
-  if (!comms_->RecvCreds(&cred_pid, &cred_uid, &cred_gid)) {
-    LOG(ERROR) << "Couldn't receive credentials";
-    return false;
-  }
-
-  if (pid_ != cred_pid) {
-    LOG(ERROR) << "Initial PID (" << pid_ << ") differs from the PID received "
-               << "from the peer (" << cred_pid << ")";
-    return false;
-  }
-
   return true;
 }
 

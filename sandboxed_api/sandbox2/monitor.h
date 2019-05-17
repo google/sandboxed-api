@@ -78,10 +78,6 @@ class Monitor final {
   // Returns success/failure status.
   bool InitPtraceAttach();
 
-  // Waits for the Client to connect.
-  // Returns success/failure status.
-  bool InitAcceptConnection();
-
   // Sets up required signal masks/handlers; prepare mask for sigtimedwait().
   bool InitSetupSignals(sigset_t* sset);
 
