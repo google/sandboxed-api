@@ -69,6 +69,9 @@ bool CreateMemFd(int* fd, const char* name = "buffer_file");
 // Returns signal description.
 std::string GetSignalName(int signo);
 
+// Returns rlimit resource name
+std::string GetRlimitName(int resource);
+
 // Reads a path string (NUL-terminated, shorter than PATH_MAX) from another
 // process memory
 ::sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);

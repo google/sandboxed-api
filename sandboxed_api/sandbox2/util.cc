@@ -18,6 +18,7 @@
 #include <bits/local_lim.h>
 #include <sched.h>
 #include <spawn.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
@@ -259,6 +260,23 @@ std::string GetSignalName(int signo) {
     return absl::StrFormat("UNKNOWN_SIGNAL [%d]", signo);
   }
   return absl::StrFormat("%s [%d]", kSignalNames[signo], signo);
+}
+
+std::string GetRlimitName(int resource) {
+  switch (resource) {
+    case RLIMIT_AS:
+      return "RLIMIT_AS";
+    case RLIMIT_FSIZE:
+      return "RLIMIT_FSIZE";
+    case RLIMIT_NOFILE:
+      return "RLIMIT_NOFILE";
+    case RLIMIT_CPU:
+      return "RLIMIT_CPU";
+    case RLIMIT_CORE:
+      return "RLIMIT_CORE";
+    default:
+      return absl::StrCat("UNKNOWN: ", resource);
+  }
 }
 
 ::sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {

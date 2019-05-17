@@ -480,41 +480,22 @@ bool Monitor::InitSendCwd() {
 
 bool Monitor::InitApplyLimit(pid_t pid, __rlimit_resource resource,
                              const rlimit64& rlim) const {
-  std::string rlim_name = absl::StrCat("UNKNOWN: ", resource);
-  switch (resource) {
-    case RLIMIT_AS:
-      rlim_name = "RLIMIT_AS";
-      break;
-    case RLIMIT_FSIZE:
-      rlim_name = "RLIMIT_FSIZE";
-      break;
-    case RLIMIT_NOFILE:
-      rlim_name = "RLIMIT_NOFILE";
-      break;
-    case RLIMIT_CPU:
-      rlim_name = "RLIMIT_CPU";
-      break;
-    case RLIMIT_CORE:
-      rlim_name = "RLIMIT_CORE";
-      break;
-    default:
-      break;
-  }
-
   rlimit64 curr_limit;
   if (prlimit64(pid, resource, nullptr, &curr_limit) == -1) {
-    PLOG(ERROR) << "prlimit64(" << pid << ", " << rlim_name << ")";
+    PLOG(ERROR) << "prlimit64(" << pid << ", " << util::GetRlimitName(resource)
+                << ")";
   } else if (rlim.rlim_cur > curr_limit.rlim_max) {
     // In such case, don't update the limits, as it will fail. Just stick to the
     // current ones (which are already lower than intended).
-    LOG(ERROR) << rlim_name << ": new.current > current.max (" << rlim.rlim_cur
-               << " > " << curr_limit.rlim_max << "), skipping";
+    LOG(ERROR) << util::GetRlimitName(resource)
+               << ": new.current > current.max (" << rlim.rlim_cur << " > "
+               << curr_limit.rlim_max << "), skipping";
     return true;
   }
 
   if (prlimit64(pid, resource, &rlim, nullptr) == -1) {
-    PLOG(ERROR) << "prlimit64(" << pid << ", " << rlim_name << ", "
-                << rlim.rlim_cur << ")";
+    PLOG(ERROR) << "prlimit64(" << pid << ", " << util::GetRlimitName(resource)
+                << ", " << rlim.rlim_cur << ")";
     return false;
   }
 
