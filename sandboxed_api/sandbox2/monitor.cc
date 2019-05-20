@@ -289,9 +289,9 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   if (ShouldCollectStackTrace()) {
     result_.SetStackTrace(
         GetStackTrace(result_.GetRegs(), policy_->GetNamespace()->mounts()));
-    LOG(ERROR) << "Stack trace: " << result_.GetStackTrace();
+    LOG(INFO) << "Stack trace: " << result_.GetStackTrace();
   } else {
-    LOG(ERROR) << "Stack traces have been disabled";
+    LOG(INFO) << "Stack traces have been disabled";
   }
 }
 
