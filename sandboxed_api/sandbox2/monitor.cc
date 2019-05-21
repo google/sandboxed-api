@@ -92,15 +92,25 @@ void InterruptProcess(pid_t pid) {
 
 void ContinueProcess(pid_t pid, int signo) {
   if (ptrace(PTRACE_CONT, pid, 0, signo) == -1) {
-    PLOG(ERROR) << "ptrace(PTRACE_CONT, pid=" << pid << ", sig=" << signo
-                << ")";
+    if (errno == ESRCH) {
+      LOG(WARNING) << "Process " << pid
+                   << " died while trying to PTRACE_CONT it";
+    } else {
+      PLOG(ERROR) << "ptrace(PTRACE_CONT, pid=" << pid << ", sig=" << signo
+                  << ")";
+    }
   }
 }
 
 void StopProcess(pid_t pid, int signo) {
   if (ptrace(PTRACE_LISTEN, pid, 0, signo) == -1) {
-    PLOG(ERROR) << "ptrace(PTRACE_LISTEN, pid=" << pid << ", sig=" << signo
-                << ")";
+    if (errno == ESRCH) {
+      LOG(WARNING) << "Process " << pid
+                   << " died while trying to PTRACE_LISTEN it";
+    } else {
+      PLOG(ERROR) << "ptrace(PTRACE_CONT, pid=" << pid << ", sig=" << signo
+                  << ")";
+    }
   }
 }
 
