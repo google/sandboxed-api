@@ -31,7 +31,6 @@
 #include <cstdint>
 #include <utility>
 
-#include <glog/logging.h>
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "sandboxed_api/sandbox2/namespace.h"

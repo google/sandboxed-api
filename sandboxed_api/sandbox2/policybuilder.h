@@ -26,6 +26,7 @@
 #include <tuple>
 #include <vector>
 
+#include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
@@ -444,7 +445,24 @@ class PolicyBuilder final {
   // (e.g. AddFile), therefore it is only necessary to explicitly enable
   // namespaces when not using any other namespace helper feature.
   PolicyBuilder& EnableNamespaces() {
+    CHECK(!disable_namespaces_)
+        << "Namespaces cannot be both disabled and enabled";
     use_namespaces_ = true;
+    return *this;
+  }
+
+  // Disables the use of namespaces.
+  //
+  // Sandbox2 with namespaces enabled is the recommended mode and will be the
+  // default in future, then calling this function will be necessary in order
+  // to use Sandbox2 without namespaces.
+  PolicyBuilder& DisableNamespaces() {
+    CHECK(!use_namespaces_)
+        << "Namespaces cannot be both disabled and enabled. You're probably "
+           "using features that implicitly enable namespaces (SetHostname, "
+           "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary or "
+           "similar)";
+    disable_namespaces_ = true;
     return *this;
   }
 
@@ -495,6 +513,7 @@ class PolicyBuilder final {
 
   Mounts mounts_;
   bool use_namespaces_ = false;
+  bool disable_namespaces_ = false;
   bool allow_unrestricted_networking_ = false;
   std::string hostname_ = kDefaultHostname;
 
