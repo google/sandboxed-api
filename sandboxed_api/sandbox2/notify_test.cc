@@ -42,6 +42,7 @@ namespace {
 // chosen because unlikely to be called by a regular program.
 std::unique_ptr<Policy> NotifyTestcasePolicy() {
   return PolicyBuilder()
+      .DisableNamespaces()
       .AllowStaticStartup()
       .AllowExit()
       .AllowRead()

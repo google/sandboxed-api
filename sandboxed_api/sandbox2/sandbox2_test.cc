@@ -54,6 +54,7 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
   auto executor = absl::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        .DisableNamespaces()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
                                         .TryBuild());
@@ -75,6 +76,7 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
   executor->set_enable_sandbox_before_exec(false);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        .DisableNamespaces()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
                                         .TryBuild());
@@ -101,6 +103,7 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   auto executor = absl::make_unique<Executor>(fd, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        .DisableNamespaces()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
                                         .TryBuild());
@@ -205,8 +208,9 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
   std::vector<std::string> envs;
   auto executor = absl::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                       PolicyBuilder().DangerDefaultAllowAll().TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy,
+      PolicyBuilder().DisableNamespaces().DangerDefaultAllowAll().TryBuild());
   executor->limits()->set_walltime_limit(absl::Seconds(5));
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto start = absl::Now();

@@ -41,6 +41,7 @@ namespace {
 
 std::unique_ptr<Policy> PolicyTestcasePolicy() {
   return PolicyBuilder()
+      .DisableNamespaces()
       .AllowStaticStartup()
       .AllowExit()
       .AllowRead()

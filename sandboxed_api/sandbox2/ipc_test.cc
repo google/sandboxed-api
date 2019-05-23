@@ -44,6 +44,7 @@ TEST(IPCTest, MapFDByNamePreExecve) {
   Comms comms(executor->ipc()->ReceiveFd(kPreferredIpcFd, "ipc_test"));
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        .DisableNamespaces()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
                                         .TryBuild());
@@ -74,6 +75,7 @@ TEST(IPCTest, MapFDByNamePostExecve) {
   Comms comms(executor->ipc()->ReceiveFd(kPreferredIpcFd, "ipc_test"));
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        .DisableNamespaces()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
                                         .TryBuild());
@@ -100,6 +102,7 @@ TEST(IPCTest, NoMappedFDsPreExecve) {
   auto executor = absl::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        .DisableNamespaces()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
                                         .TryBuild());

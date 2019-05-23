@@ -63,6 +63,7 @@ TEST(BufferTest, TestImplementation) {
 
 std::unique_ptr<Policy> BufferTestcasePolicy() {
   auto s2p = PolicyBuilder()
+                 .DisableNamespaces()
                  .AllowStaticStartup()
                  .AllowExit()
                  .AllowSafeFcntl()

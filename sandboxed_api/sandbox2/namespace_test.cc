@@ -83,6 +83,7 @@ TEST(NamespaceTest, UserNamespaceWorks) {
   {
     auto executor = absl::make_unique<Executor>(path, args);
     SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                          .DisableNamespaces()
                                           // Don't restrict the syscalls at all
                                           .DangerDefaultAllowAll()
                                           .TryBuild());
@@ -103,6 +104,7 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
     std::vector<std::string> args = {path, "3", "1000", "1000"};
     auto executor = absl::make_unique<Executor>(path, args);
     SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                          .EnableNamespaces()
                                           // Don't restrict the syscalls at all
                                           .DangerDefaultAllowAll()
                                           .EnableNamespaces()
@@ -122,6 +124,7 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
     std::vector<std::string> args = {path, "3", uid, gid};
     auto executor = absl::make_unique<Executor>(path, args);
     SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                          .DisableNamespaces()
                                           // Don't restrict the syscalls at all
                                           .DangerDefaultAllowAll()
                                           .TryBuild());
@@ -151,6 +154,7 @@ class HostnameTest : public testing::Test {
 
 TEST_F(HostnameTest, None) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        .DisableNamespaces()
                                         // Don't restrict the syscalls at all
                                         .DangerDefaultAllowAll()
                                         .TryBuild());

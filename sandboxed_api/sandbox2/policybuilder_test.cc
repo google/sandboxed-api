@@ -194,6 +194,7 @@ std::string PolicyBuilderTest::Run(std::vector<std::string> args,
 
 TEST_F(PolicyBuilderTest, TestCanOnlyBuildOnce) {
   PolicyBuilder b;
+  b.EnableNamespaces();
   ASSERT_THAT(b.BuildOrDie(), NotNull());
   ASSERT_DEATH(b.BuildOrDie(), "Can only build policy once");
 }

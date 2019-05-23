@@ -49,6 +49,7 @@ namespace {
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
   return sandbox2::PolicyBuilder()
+      .DisableNamespaces()
       .AllowExit()
       .AddPolicyOnSyscalls(
           {__NR_read, __NR_write, __NR_close},
