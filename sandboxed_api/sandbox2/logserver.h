@@ -15,8 +15,6 @@
 #ifndef SANDBOXED_API_SANDBOX2_LOGSERVER_H_
 #define SANDBOXED_API_SANDBOX2_LOGSERVER_H_
 
-#include <memory>
-
 #include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
@@ -34,7 +32,7 @@ class LogServer {
   void Run();
 
  private:
-  std::unique_ptr<Comms> comms_;
+  Comms comms_;
 };
 
 }  // namespace sandbox2

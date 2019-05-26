@@ -17,17 +17,16 @@
 #include <string>
 
 #include <glog/logging.h>
-#include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/logserver.pb.h"
 
 namespace sandbox2 {
 
-LogServer::LogServer(int fd) : comms_(absl::make_unique<Comms>(fd)) {}
+LogServer::LogServer(int fd) : comms_(fd) {}
 
 void LogServer::Run() {
   namespace logging = ::google;
   LogMessage msg;
-  while (comms_->RecvProtoBuf(&msg)) {
+  while (comms_.RecvProtoBuf(&msg)) {
     logging::LogSeverity severity = msg.severity();
     const char* fatal_string = "";
     if (severity == logging::FATAL) {

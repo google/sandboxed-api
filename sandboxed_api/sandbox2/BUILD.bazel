@@ -106,7 +106,6 @@ cc_library(
     deps = [
         ":comms",
         ":logserver_proto_cc",
-        "@com_google_absl//absl/memory",
         "@com_google_glog//:glog",
     ],
 )
