@@ -35,6 +35,8 @@ class Buffer final {
   Buffer& operator=(const Buffer&) = delete;
 
   // Creates a new Buffer that is backed by the specified file descriptor.
+  // The Buffer takes ownership of the descriptor and will close it when
+  // destroyed.
   static ::sapi::StatusOr<std::unique_ptr<Buffer>> CreateFromFd(int fd);
 
   // Creates a new Buffer of the specified size, backed by a temporary file that
