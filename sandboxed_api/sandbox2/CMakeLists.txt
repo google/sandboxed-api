@@ -532,7 +532,9 @@ target_link_libraries(buffer_test PRIVATE
   sapi::status_matchers
   sapi::test_main
 )
-gtest_discover_tests(buffer_test)
+gtest_discover_tests(buffer_test PROPERTIES
+  ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+)
 
 # sandboxed_api/sandbox2:forkserver_proto
 sapi_protobuf_generate_cpp(_sandbox2_forkserver_pb_h _sandbox2_forkserver_pb_cc
@@ -633,13 +635,17 @@ target_link_libraries(forkserver_test PRIVATE
   sandbox2::testing
   sapi::test_main
 )
-gtest_discover_tests(forkserver_test)
+gtest_discover_tests(forkserver_test PROPERTIES
+  ENVIRONMENT "TEST_TMPDIR=/tmp"
+  ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+)
 
 # sandboxed_api/sandbox2:limits_test
 add_executable(limits_test
   limits_test.cc
 )
 add_dependencies(limits_test
+  sandbox2::testcase_limits
   sandbox2::testcase_minimal
 )
 target_link_libraries(limits_test PRIVATE
@@ -651,7 +657,10 @@ target_link_libraries(limits_test PRIVATE
   sapi::status_matchers
   sapi::test_main
 )
-gtest_discover_tests(limits_test)
+gtest_discover_tests(limits_test PROPERTIES
+  ENVIRONMENT "TEST_TMPDIR=/tmp"
+  ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+)
 
 # sandboxed_api/sandbox2:notify_test
 add_executable(notify_test

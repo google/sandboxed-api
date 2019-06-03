@@ -94,7 +94,7 @@ target_link_libraries(sapi_test_main INTERFACE
 )
 
 # Setup tests to work like with Bazel
-create_directory_symlink(${PROJECT_SOURCE_DIR} com_google_sandboxed_api)
+create_directory_symlink(${PROJECT_BINARY_DIR} com_google_sandboxed_api)
 enable_testing()
 
 add_subdirectory(cmake/libunwind)

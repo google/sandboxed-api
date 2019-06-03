@@ -138,6 +138,10 @@ target_link_libraries(sandbox2_util_minielf PRIVATE
 add_executable(minielf_test
   minielf_test.cc
 )
+configure_file(testdata/hello_world
+               testdata/hello_world COPYONLY)
+configure_file(testdata/chrome_grte_header
+               testdata/chrome_grte_header COPYONLY)
 target_link_libraries(minielf_test PRIVATE
   absl::strings
   sandbox2::maps_parser
@@ -146,8 +150,8 @@ target_link_libraries(minielf_test PRIVATE
   sapi::test_main
 )
 gtest_discover_tests(minielf_test PROPERTIES
-  ENVIRONMENT TEST_TMPDIR=/tmp
-  ENVIRONMENT TEST_SRCDIR=${PROJECT_BINARY_DIR}
+  ENVIRONMENT "TEST_TMPDIR=/tmp"
+  ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
 )
 
 # sandboxed_api/sandbox2/util:temp_file

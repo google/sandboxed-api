@@ -33,6 +33,8 @@ sapi_cc_embed_data(NAME filewrapper_embedded
 add_executable(filewrapper_test
   filewrapper_test.cc
 )
+configure_file(testdata/filewrapper_embedded.bin
+               testdata/filewrapper_embedded.bin COPYONLY)
 target_link_libraries(filewrapper_test PRIVATE
   absl::strings
   filewrapper_embedded
@@ -42,6 +44,6 @@ target_link_libraries(filewrapper_test PRIVATE
   sapi::test_main
 )
 gtest_discover_tests(filewrapper_test PROPERTIES
-  ENVIRONMENT TEST_TMPDIR=/tmp
-  ENVIRONMENT TEST_SRCDIR=${PROJECT_BINARY_DIR}
+  ENVIRONMENT "TEST_TMPDIR=/tmp"
+  ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
 )
