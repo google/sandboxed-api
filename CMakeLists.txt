@@ -75,8 +75,12 @@ configure_file(cmake/libunwind_ptrace.h.in
                external/org_gnu_libunwind/include/libunwind-ptrace.h
                @ONLY)
 
-# Interface library with basic project settings
-add_library(sapi_base INTERFACE)
+# Library with basic project settings. The empty file is there to be able to
+# define header-only libraries without cumbersome target_sources() hacks.
+file(TOUCH sapi_base_force_cxx_linkage.cc)
+add_library(sapi_base STATIC
+  sapi_base_force_cxx_linkage.cc
+)
 add_library(sapi::base ALIAS sapi_base)
 target_include_directories(sapi_base INTERFACE
   ${PROJECT_BINARY_DIR}
