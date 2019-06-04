@@ -77,9 +77,9 @@ configure_file(cmake/libunwind_ptrace.h.in
 
 # Library with basic project settings. The empty file is there to be able to
 # define header-only libraries without cumbersome target_sources() hacks.
-file(TOUCH sapi_base_force_cxx_linkage.cc)
+file(TOUCH ${PROJECT_BINARY_DIR}/sapi_base_force_cxx_linkage.cc)
 add_library(sapi_base STATIC
-  sapi_base_force_cxx_linkage.cc
+  ${PROJECT_BINARY_DIR}/sapi_base_force_cxx_linkage.cc
 )
 add_library(sapi::base ALIAS sapi_base)
 target_include_directories(sapi_base INTERFACE
