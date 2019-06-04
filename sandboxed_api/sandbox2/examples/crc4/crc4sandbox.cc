@@ -29,6 +29,7 @@
 
 #include <glog/logging.h>
 #include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
 #include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -82,7 +83,7 @@ bool SandboxedCRC4(sandbox2::Comms* comms, uint32_t* crc4) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  absl::ParseCommandLine(argc, argv);
   google::InitGoogleLogging(argv[0]);
 
   if (absl::GetFlag(FLAGS_input).empty()) {

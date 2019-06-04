@@ -22,6 +22,7 @@
 
 #include <glog/logging.h>
 #include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util.h"
@@ -46,7 +47,7 @@ static uint32_t ComputeCRC4Impl(const uint8_t* ptr, uint64_t len) {
 }
 
 int main(int argc, char** argv) {
-  google::ParseCommandLineFlags(&argc, &argv, false);
+  absl::ParseCommandLine(argc, argv);
 
   // Set-up the sandbox2::Client object, using a file descriptor (1023).
   sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
