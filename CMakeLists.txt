@@ -26,6 +26,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 list(APPEND CMAKE_PREFIX_PATH
   "${PROJECT_BINARY_DIR}/Dependencies/Build/gflags"
   "${PROJECT_BINARY_DIR}/Dependencies/Build/glog"
+  "${PROJECT_BINARY_DIR}/Dependencies/Build/protobuf"
 )
 
 include(SapiCompilerOptions)
@@ -85,6 +86,7 @@ add_library(sapi::base ALIAS sapi_base)
 target_include_directories(sapi_base INTERFACE
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}
+  ${Protobuf_INCLUDE_DIR}
   # Need to reach into Abseil internal headers from a few targets.
   ${PROJECT_BINARY_DIR}/Dependencies/Source/absl
 )

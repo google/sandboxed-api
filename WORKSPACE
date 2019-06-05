@@ -17,6 +17,13 @@ workspace(name = "com_google_sandboxed_api")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//sandboxed_api/bazel:repositories.bzl", "autotools_repository")
 
+# Bazel Skylib, needed by newer Protobuf builds
+http_archive(
+    name = "bazel_skylib",
+    sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e",
+    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/0.8.0/bazel-skylib.0.8.0.tar.gz",  # 2019-03-20
+)
+
 # Abseil
 http_archive(
     name = "com_google_absl",
@@ -106,10 +113,14 @@ http_archive(
 # Protobuf
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "9510dd2afc29e7245e9e884336f848c8a6600a14ae726adb6befdb4f786f0be2",
-    strip_prefix = "protobuf-3.6.1.3",
-    urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.6.1.3.zip"],
+    sha256 = "1e622ce4b84b88b6d2cdf1db38d1a634fe2392d74f0b7b74ff98f3a51838ee53",
+    strip_prefix = "protobuf-3.8.0",
+    urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.8.0.zip"],
 )
+
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+
+protobuf_deps()
 
 # libcap
 http_archive(
