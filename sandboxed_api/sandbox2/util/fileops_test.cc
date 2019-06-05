@@ -58,7 +58,7 @@ namespace {
 
 class FileOpsTest : public testing::Test {
  protected:
-  static void SetUpTestCase() {
+  static void SetUpTestSuite() {
     ASSERT_THAT(chdir(GetTestTempPath().c_str()), Eq(0));
   }
 };
