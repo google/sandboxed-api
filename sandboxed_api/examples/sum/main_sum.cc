@@ -17,7 +17,7 @@
 #include <sys/types.h>
 
 #include <glog/logging.h>
-#include "absl/flags/flag.h"
+#include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/examples/sum/lib/sandbox.h"

@@ -20,7 +20,7 @@
 
 #include <cstdint>
 
-#include "absl/flags/flag.h"
+#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/util/raw_logging.h"

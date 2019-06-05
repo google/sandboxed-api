@@ -115,6 +115,14 @@ cc_test(
     ],
 )
 
+# Compatibility layer for Abseil's flags vs. gFlags
+cc_library(
+    name = "flags",
+    hdrs = ["flag.h"],
+    copts = sapi_platform_copts(),
+    deps = ["@com_github_gflags_gflags//:gflags"],
+)
+
 # Small support library emulating verbose logging using Abseil's raw logging
 # facility.
 cc_library(

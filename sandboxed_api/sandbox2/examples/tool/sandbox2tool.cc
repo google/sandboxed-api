@@ -30,7 +30,7 @@
 #include <vector>
 
 #include <glog/logging.h>
-#include "absl/flags/flag.h"
+#include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
@@ -69,9 +69,9 @@ ABSL_FLAG(uint64_t, sandbox2tool_walltime_timeout, 60U,
           "Wall-time timeout in seconds (if >0)");
 ABSL_FLAG(uint64_t, sandbox2tool_file_size_creation_limit, 1024U,
           "Maximum size of created files");
-ABSL_FLAG(std::string, sandbox2tool_cwd, "/",
+ABSL_FLAG(string, sandbox2tool_cwd, "/",
           "If not empty, chdir to the directory before sandboxed");
-ABSL_FLAG(std::string, sandbox2tool_additional_bind_mounts, "",
+ABSL_FLAG(string, sandbox2tool_additional_bind_mounts, "",
           "If user namespaces are enabled, this option will add additional "
           "bind mounts. Mounts are separated by comma and can optionally "
           "specify a target using \"=>\" "

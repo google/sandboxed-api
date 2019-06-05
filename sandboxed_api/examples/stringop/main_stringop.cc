@@ -19,7 +19,7 @@
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/flags/flag.h"
+#include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/examples/stringop/lib/sandbox.h"

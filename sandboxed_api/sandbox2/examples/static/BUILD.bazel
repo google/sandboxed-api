@@ -33,7 +33,7 @@ cc_binary(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/sandbox2/util:runfiles",
-        "@com_google_absl//absl/flags:flag",
+        "//sandboxed_api/util:flags",
         "@com_google_absl//absl/memory",
     ],
 )

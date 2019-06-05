@@ -187,7 +187,6 @@ add_library(sandbox2_policy STATIC
 add_library(sandbox2::policy ALIAS sandbox2_policy)
 target_link_libraries(sandbox2_policy PRIVATE
   absl::core_headers
-  absl::flags
   absl::optional
   libcap::libcap
   sandbox2::bpf_helper
@@ -198,6 +197,7 @@ target_link_libraries(sandbox2_policy PRIVATE
   sandbox2::syscall
   sandbox2::violation_proto
   sapi::base
+  sapi::flags
 )
 
 # sandboxed_api/sandbox2:notify
@@ -284,7 +284,6 @@ add_library(sandbox2::sandbox2 ALIAS sandbox2_sandbox2)
 target_link_libraries(sandbox2_sandbox2
   PRIVATE absl::core_headers
           absl::flat_hash_map
-          absl::flags
           absl::flat_hash_set
           absl::memory
           absl::optional
@@ -319,7 +318,8 @@ target_link_libraries(sandbox2_sandbox2
           sapi::base
           sapi::status
           sapi::statusor
-  PUBLIC  sandbox2::logsink
+  PUBLIC  sapi::flags
+          sandbox2::logsink
 )
 
 # sandboxed_api/sandbox2:client
@@ -779,7 +779,6 @@ add_dependencies(stack-trace_test
   sandbox2::testcase_symbolize
 )
 target_link_libraries(stack-trace_test PRIVATE
-  absl::flags
   absl::memory
   absl::strings
   sandbox2::bpf_helper
@@ -789,6 +788,7 @@ target_link_libraries(stack-trace_test PRIVATE
   sandbox2::temp_file
   sandbox2::testing
   sandbox2::util
+  sapi::flags
   sapi::status_matchers
   sapi::test_main
 )
@@ -805,12 +805,12 @@ add_dependencies(ipc_test
   sandbox2::testcase_ipc
 )
 target_link_libraries(ipc_test PRIVATE
-  absl::flags
   absl::memory
   sandbox2::bpf_helper
   sandbox2::comms
   sandbox2::sandbox2
   sandbox2::testing
+  sapi::flags
   sapi::status_matchers
   sapi::test_main
 )
@@ -854,7 +854,6 @@ add_dependencies(policybuilder_test
   sandbox2::testcase_print_fds
 )
 target_link_libraries(policybuilder_test PRIVATE
-  absl::flags
   absl::memory
   absl::strings
   glog::glog
@@ -862,6 +861,7 @@ target_link_libraries(policybuilder_test PRIVATE
   sandbox2::comms
   sandbox2::sandbox2
   sandbox2::testing
+  sapi::flags
   sapi::status_matchers
   sapi::test_main
 )

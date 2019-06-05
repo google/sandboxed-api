@@ -42,7 +42,7 @@
 #include <string>
 
 #include <glog/logging.h>
-#include "absl/flags/flag.h"
+#include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -69,7 +69,7 @@ ABSL_FLAG(bool, sandbox2_report_on_sandboxee_timeout, true,
           "Report sandbox2 sandboxee timeouts");
 
 ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
-ABSL_DECLARE_FLAG(std::string, sandbox2_danger_danger_permit_all_and_log);
+ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 
 namespace sandbox2 {
 

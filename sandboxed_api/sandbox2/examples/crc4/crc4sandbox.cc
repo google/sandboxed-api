@@ -28,8 +28,7 @@
 #include <vector>
 
 #include <glog/logging.h>
-#include "absl/flags/flag.h"
-#include "absl/flags/parse.h"
+#include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -42,7 +41,7 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/runfiles.h"
 
-ABSL_FLAG(std::string, input, "", "Input to calculate CRC4 of.");
+ABSL_FLAG(string, input, "", "Input to calculate CRC4 of.");
 ABSL_FLAG(bool, call_syscall_not_allowed, false,
           "Have sandboxee call clone (violation).");
 
@@ -83,7 +82,7 @@ bool SandboxedCRC4(sandbox2::Comms* comms, uint32_t* crc4) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  absl::ParseCommandLine(argc, argv);
+  google::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
   if (absl::GetFlag(FLAGS_input).empty()) {
