@@ -35,7 +35,7 @@
 #define Z_STREAM_END 1
 
 int main(int argc, char** argv) {
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
   sapi::Sandbox sandbox(sapi::zlib::zlib_sapi_embed_create());

@@ -98,7 +98,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
 }
 
 int main(int argc, char** argv) {
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
   const std::string path = sandbox2::GetInternalDataDependencyFilePath(

@@ -39,9 +39,9 @@ static int SandboxeeFunction(sandbox2::Comms* comms) {
 
 int main(int argc, char** argv) {
   // Writing to stderr limits the number of invoked syscalls.
-  google::SetCommandLineOptionWithMode("logtostderr", "true",
-                                       google::SET_FLAG_IF_DEFAULT);
-  google::ParseCommandLineFlags(&argc, &argv, false);
+  gflags::SetCommandLineOptionWithMode("logtostderr", "true",
+                                       gflags::SET_FLAG_IF_DEFAULT);
+  gflags::ParseCommandLineFlags(&argc, &argv, false);
 
   // Instantiate Comms channel with the parent Executor
   sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);

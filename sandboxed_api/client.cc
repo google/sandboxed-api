@@ -418,9 +418,9 @@ void ServeRequest(sandbox2::Comms* comms) {
 }  // namespace sapi
 
 extern "C" ABSL_ATTRIBUTE_WEAK int main(int argc, char** argv) {
-  google::SetCommandLineOptionWithMode("userspace_coredumper", "false",
-                                       google::SET_FLAG_IF_DEFAULT);
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  gflags::SetCommandLineOptionWithMode("userspace_coredumper", "false",
+                                       gflags::SET_FLAG_IF_DEFAULT);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
   // Note regarding the FD usage here: Parent and child seem to make use of the

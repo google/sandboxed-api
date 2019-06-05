@@ -107,7 +107,7 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
 }
 
 int main(int argc, char** argv) {
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
   // Start a custom fork-server (via sandbox2::Executor).

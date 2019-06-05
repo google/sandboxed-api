@@ -82,7 +82,7 @@ bool SandboxedCRC4(sandbox2::Comms* comms, uint32_t* crc4) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
   if (absl::GetFlag(FLAGS_input).empty()) {
