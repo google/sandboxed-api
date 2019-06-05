@@ -90,9 +90,9 @@ http_archive(
 # GoogleTest/GoogleMock
 http_archive(
     name = "com_google_googletest",
-    sha256 = "70404b4a887fd8efce2179e9918e58cdac03245e575408ed87799696e816ecb8",
-    strip_prefix = "googletest-f80d6644d4b451f568a2e7aea1e01e842eb242dc",
-    urls = ["https://github.com/google/googletest/archive/f80d6644d4b451f568a2e7aea1e01e842eb242dc.zip"],  # 2019-02-05
+    sha256 = "baed63b97595c32667694de0a434f8f23da59609c4a44f3360ba94b0abd5c583",
+    strip_prefix = "googletest-8ffb7e5c88b20a297a2e786c480556467496463b",
+    urls = ["https://github.com/google/googletest/archive/8ffb7e5c88b20a297a2e786c480556467496463b.zip"],  # 2019-05-30
 )
 
 # Google Benchmark

@@ -38,7 +38,7 @@ list(APPEND DEPENDENCIES glog)
 
 ExternalProject_Add(googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG f80d6644d4b451f568a2e7aea1e01e842eb242dc  # 2019-02-05
+  GIT_TAG 8ffb7e5c88b20a297a2e786c480556467496463b  # 2019-05-30
   # Just clone into directory
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
