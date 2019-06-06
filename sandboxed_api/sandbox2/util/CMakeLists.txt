@@ -209,8 +209,8 @@ gtest_discover_tests(maps_parser_test)
 
 # sandboxed_api/sandbox2/util:runfiles
 add_library(sandbox2_util_runfiles STATIC
-  #runfiles.cc
   runfiles.h
+  runfiles_nobazel.cc
 )
 add_library(sandbox2::runfiles ALIAS sandbox2_util_runfiles)
 target_link_libraries(sandbox2_util_runfiles PRIVATE
