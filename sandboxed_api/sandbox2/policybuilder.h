@@ -139,6 +139,13 @@ class PolicyBuilder final {
   // friends.
   PolicyBuilder& AllowTcMalloc();
 
+  // Allows system calls typically used by the LLVM sanitizers (address
+  // sanitizer, memory sanitizer, and thread sanitizer). This method is
+  // intended as a best effort for adding system calls that are common to many
+  // binaries. It may not be fully inclusive of all potential system calls for
+  // all binaries.
+  PolicyBuilder& AllowLlvmSanitizers();
+
   // Appends code to allow mmap. Specifically this allows the mmap2 syscall on
   // architectures where this syscalls exist and the mmap syscall on all other
   // architectures.

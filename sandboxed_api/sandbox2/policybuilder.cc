@@ -173,6 +173,17 @@ PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
+#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER)
+  AddPolicyOnSyscall(__NR_madvise, {
+                                       ARG_32(2),
+                                       JEQ32(MADV_DONTDUMP, ALLOW),
+                                       JEQ32(MADV_NOHUGEPAGE, ALLOW),
+                                   });
+#endif
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
   return AddPolicyOnSyscall(__NR_madvise, {
                                               ARG_32(2),

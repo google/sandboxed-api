@@ -92,6 +92,12 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
       })
       .AddFile("/etc/localtime")
       .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size) */);
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+  LOG(WARNING) << "Allowing additional calls to support the LLVM "
+               << "(ASAN/MSAN/TSAN) sanitizer";
+  builder->AllowLlvmSanitizers();
+#endif
 }
 
 void Sandbox::Terminate(bool attempt_graceful_exit) {
