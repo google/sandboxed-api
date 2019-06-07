@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+add_subdirectory(examples)
 add_subdirectory(testcases)
 add_subdirectory(unwind)
 add_subdirectory(util)
@@ -467,11 +468,11 @@ add_library(sandbox2_forkingclient STATIC
   forkingclient.h
 )
 add_library(sandbox2::forkingclient ALIAS sandbox2_forkingclient)
-target_link_libraries(sandbox2_forkingclient PRIVATE
-  absl::memory
-  sandbox2::client
-  sandbox2::forkserver
-  sapi::base
+target_link_libraries(sandbox2_forkingclient
+  PRIVATE absl::memory
+          sandbox2::forkserver
+          sapi::base
+  PUBLIC  sandbox2::client
 )
 
 # sandboxed_api/sandbox2:util

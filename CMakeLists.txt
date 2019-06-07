@@ -65,6 +65,7 @@ find_package(gflags REQUIRED)
 find_package(glog REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(Libcap REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # Make Bazel-like includes work
 configure_file(cmake/libcap_capability.h.in
