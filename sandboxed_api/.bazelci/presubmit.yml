@@ -1,0 +1,5 @@
+---
+tasks:
+  ubuntu1804:
+    build_targets:
+    - "..."
