@@ -56,7 +56,6 @@ class Namespace final {
   const Mounts& mounts() const { return mounts_; }
 
   const std::string& hostname() const { return hostname_; }
-  const std::string& GetHostname() const { return hostname_; }
 
  private:
   friend class StackTracePeer;

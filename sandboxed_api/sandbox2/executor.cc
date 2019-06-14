@@ -129,7 +129,7 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   if (ns) {
     clone_flags |= ns->GetCloneFlags();
     *request.mutable_mount_tree() = ns->mounts().GetMountTree();
-    request.set_hostname(ns->GetHostname());
+    request.set_hostname(ns->hostname());
   }
 
   request.set_clone_flags(clone_flags);
