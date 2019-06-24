@@ -68,8 +68,9 @@ echo "deb http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
   sudo tee /etc/apt/sources.list.d/bazel.list
 wget -qO - https://bazel.build/bazel-release.pub.gpg | sudo apt-key add -
 sudo apt-get update
-sudo apt-get install -qy python-typing python-clang-7 libclang-7-dev
-sudo apt-get install -qy build-essential linux-libc-dev bazel
+sudo apt-get install -qy build-essential linux-libc-dev bazel python3 \
+  python3-pip libclang-7-dev
+pip3 install clang
 ```
 
 Clone and run the build:

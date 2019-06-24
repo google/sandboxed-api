@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from ctypes import util
 import itertools
 import os
 from clang import cindex
@@ -30,6 +31,23 @@ _PARSE_OPTIONS = (cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES |
                   cindex.TranslationUnit.PARSE_INCOMPLETE |
                   # for include directives
                   cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
+
+
+def _init_libclang():
+  """Finds and initializes the libclang library."""
+  if cindex.Config.loaded:
+    return
+  # Try to find libclang in the standard location and a few versioned paths
+  # that are used on Debian (and others). If LD_LIBRARY_PATH is set, it is
+  # used as well.
+  for lib in [
+      'clang', 'clang-9', 'clang-8', 'clang-7', 'clang-6.0', 'clang-5.0',
+      'clang-4.0'
+  ]:
+    libclang = util.find_library(lib)
+    if libclang:
+      cindex.Config.set_library_file(libclang)
+      break
 
 
 def get_header_guard(path):
@@ -610,6 +628,7 @@ class Analyzer(object):
   @staticmethod
   def process_files(input_paths, compile_flags):
     # type: (Text, List[Text]) -> List[_TranslationUnit]
+    _init_libclang()
     return [Analyzer._analyze_file_for_tu(path, compile_flags=compile_flags)
             for path in input_paths]
 
@@ -663,9 +682,9 @@ class Generator(object):
       facultative. If not given, then one is computed for each element of
       input_paths
     """
-
     self.translation_units = translation_units
     self.functions = None
+    _init_libclang()
 
   def generate(self, name, function_names, namespace=None, output_file=None,
                embed_dir=None, embed_name=None):
