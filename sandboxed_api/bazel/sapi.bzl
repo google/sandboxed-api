@@ -73,23 +73,23 @@ def sapi_interface_impl(ctx):
         # Append system headers as dependencies
         input_files += cc_ctx.headers.to_list()
         append_all(extra_flags, "-D", cc_ctx.defines)
-        append_all(extra_flags, "-isystem", cc_ctx.system_includes)
-        append_all(extra_flags, "-iquote", cc_ctx.quote_includes)
+        append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
+        append_all(extra_flags, "-iquote", cc_ctx.quote_includes.to_list())
 
-        for h in cc_ctx.headers:
-            # Collect all headers as dependency in case libclang needs them.
-            if h.extension == "h" and "/PROTECTED/" not in h.path:
-                input_files.append(h)
         if ctx.attr.input_files:
+            for h in cc_ctx.headers.to_list():
+                # Collect all headers as dependency in case libclang needs them.
+                if h.extension == "h" and "/PROTECTED/" not in h.path:
+                    input_files.append(h)
             for target in ctx.attr.input_files:
                 if target.files:
-                    for f in target.files:
+                    for f in target.files.to_list():
                         input_files_paths.append(f.path)
                         input_files.append(f)
 
             # Try to find files automatically.
         else:
-            for h in cc_ctx.headers:
+            for h in cc_ctx.headers.to_list():
                 # Collect all headers as dependency in case clang needs them.
                 if h.extension == "h" and "/PROTECTED/" not in h.path:
                     input_files.append(h)
