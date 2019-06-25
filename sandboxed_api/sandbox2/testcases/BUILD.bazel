@@ -40,6 +40,9 @@ STATIC_LINKOPTS = [
     "-Wl,--no-whole-archive",
 ]
 
+# TODO(https://github.com/bazelbuild/bazel/issues/8672): Remove this workaround
+EXTRA_FULLY_STATIC_LINKOPTS = ["-l:libstdc++.a"]
+
 cc_binary(
     name = "abort",
     testonly = 1,
@@ -71,7 +74,7 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
+    linkopts = STATIC_LINKOPTS + EXTRA_FULLY_STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
     deps = [
         "//sandboxed_api/sandbox2:buffer",
@@ -103,6 +106,7 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
+    linkopts = EXTRA_FULLY_STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
 )
 
@@ -149,7 +153,7 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
-    linkopts = STATIC_LINKOPTS,
+    linkopts = STATIC_LINKOPTS + EXTRA_FULLY_STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
     deps = [
         "//sandboxed_api/sandbox2:client",
@@ -220,6 +224,7 @@ cc_binary(
         "-pie",
         "fully_static_link",  # link libc statically
     ],
+    linkopts = EXTRA_FULLY_STATIC_LINKOPTS,
     linkstatic = 1,  # prefer static libraries
     deps = [
         "//sandboxed_api/sandbox2/util:temp_file",
