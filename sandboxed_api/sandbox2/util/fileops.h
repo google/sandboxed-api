@@ -42,6 +42,10 @@ class FDCloser {
   int fd_;
 };
 
+// Returns the current working directory. On error, returns an empty string. Use
+// errno/GetLastError() to check the root cause in that case.
+std::string GetCWD();
+
 // Returns the target of a symlink. Returns an empty string on failure.
 std::string ReadLink(const std::string& filename);
 

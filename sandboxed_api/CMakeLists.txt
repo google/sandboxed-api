@@ -13,9 +13,12 @@
 # limitations under the License.
 
 add_subdirectory(bazel)  # For filewrapper
-add_subdirectory(examples)
 add_subdirectory(sandbox2)
 add_subdirectory(util)
+if(SAPI_ENABLE_GENERATOR)
+  add_subdirectory(tools/clang_generator)
+endif()
+add_subdirectory(examples)
 
 # sandboxed_api:proto_arg
 sapi_protobuf_generate_cpp(_sapi_proto_arg_pb_cc _sapi_proto_arg_pb_h

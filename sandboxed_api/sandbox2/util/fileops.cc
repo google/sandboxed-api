@@ -48,13 +48,19 @@ int FDCloser::Release() {
 
 bool GetCWD(std::string* result) {
   // Calling getcwd() with a nullptr buffer is a commonly implemented extension.
-  std::unique_ptr<char, void (*)(char*)> cwd{getcwd(nullptr, 0),
-                                             [](char* p) { free(p); }};
+  std::unique_ptr<char, void (*)(char*)> cwd(getcwd(nullptr, 0),
+                                             [](char* p) { free(p); });
   if (!cwd) {
     return false;
   }
   *result = cwd.get();
   return true;
+}
+
+std::string GetCWD() {
+  std::string cwd;
+  GetCWD(&cwd);
+  return cwd;
 }
 
 // Makes a path absolute with respect to base. Returns true on success. Result
