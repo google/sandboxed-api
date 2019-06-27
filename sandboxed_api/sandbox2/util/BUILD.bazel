@@ -27,6 +27,7 @@ cc_library(
     hdrs = ["bpf_helper.h"],
     copts = sapi_platform_copts([
     ]),
+    visibility = ["//visibility:public"],
 )
 
 # String file routines
