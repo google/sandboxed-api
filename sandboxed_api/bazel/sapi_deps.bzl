@@ -49,7 +49,7 @@ def sapi_deps():
     if "six_archive" not in native.existing_rules():
         http_archive(
             name = "six_archive",
-            build_file = "//sandboxed_api:bazel/external/six.BUILD",
+            build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/six.BUILD",
             sha256 = "105f8d68616f8248e24bf0e9372ef04d3cc10104f1980f54d57b2ce73a5ad56a",
             strip_prefix = "six-1.10.0",
             urls = [
@@ -88,7 +88,7 @@ def sapi_deps():
     # libcap
     http_archive(
         name = "org_kernel_libcap",
-        build_file = "//sandboxed_api:bazel/external/libcap.BUILD",
+        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libcap.BUILD",
         sha256 = "ef83108f77314e50bae926ae473f9b130b15240d17cbae05089e19c36a8676d6",
         strip_prefix = "libcap-2.13",
         urls = ["https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.13.tar.gz"],
@@ -97,7 +97,7 @@ def sapi_deps():
     # libffi
     autotools_repository(
         name = "org_sourceware_libffi",
-        build_file = "//sandboxed_api:bazel/external/libffi.BUILD",
+        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libffi.BUILD",
         sha256 = "403d67aabf1c05157855ea2b1d9950263fb6316536c8c333f5b9ab1eb2f20ecf",
         strip_prefix = "libffi-3.3-rc0",
         urls = ["https://github.com/libffi/libffi/releases/download/v3.3-rc0/libffi-3.3-rc0.tar.gz"],
@@ -106,7 +106,7 @@ def sapi_deps():
     # libunwind
     autotools_repository(
         name = "org_gnu_libunwind",
-        build_file = "//sandboxed_api:bazel/external/libunwind.BUILD",
+        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libunwind.BUILD",
         configure_args = [
             "--disable-documentation",
             "--disable-minidebuginfo",

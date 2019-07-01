@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "absl/strings/str_cat.h"
-#include "external/org_gnu_libunwind/include/libunwind-ptrace.h"
+#include "libunwind-ptrace.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"

@@ -72,7 +72,7 @@ def sapi_interface_impl(ctx):
 
         # Append system headers as dependencies
         input_files += cc_ctx.headers.to_list()
-        append_all(extra_flags, "-D", cc_ctx.defines)
+        append_all(extra_flags, "-D", cc_ctx.defines.to_list())
         append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
         append_all(extra_flags, "-iquote", cc_ctx.quote_includes.to_list())
 
@@ -133,7 +133,7 @@ sapi_interface = rule(
             executable = True,
             cfg = "host",
             allow_files = True,
-            default = Label("//sandboxed_api/" +
+            default = Label("@com_google_sandboxed_api//sandboxed_api/" +
                             "tools/generator2:sapi_generator"),
         ),
     },
@@ -180,7 +180,7 @@ def sapi_library(
     else:
         lib_hdrs += [generated_header]
 
-    default_deps = ["//sandboxed_api/sandbox2"]
+    default_deps = ["@com_google_sandboxed_api//sandboxed_api/sandbox2"]
 
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
@@ -191,8 +191,8 @@ def sapi_library(
         data = [":" + name + ".bin"],
         deps = sort_deps(
             [
-                "//sandboxed_api:sapi",
-                "//sandboxed_api:vars",
+                "@com_google_sandboxed_api//sandboxed_api:sapi",
+                "@com_google_sandboxed_api//sandboxed_api:vars",
             ] + deps +
             ([":" + name + "_embed"] if embed else []) +
             (default_deps if add_default_deps else []),
@@ -208,7 +208,7 @@ def sapi_library(
         ] + exported_funcs,  # must be both referenced, and exported
         deps = [
             ":" + name + ".lib",
-            "//sandboxed_api:client",
+            "@com_google_sandboxed_api//sandboxed_api:client",
         ],
         **common
     )

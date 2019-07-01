@@ -69,12 +69,12 @@ find_package(ZLIB REQUIRED)
 
 # Make Bazel-like includes work
 configure_file(cmake/libcap_capability.h.in
-               external/org_kernel_libcap/libcap/include/sys/capability.h
+               libcap/include/sys/capability.h
                @ONLY)
 set(libunwind_INCLUDE_DIR
   ${PROJECT_BINARY_DIR}/Dependencies/Source/libunwind/include)
 configure_file(cmake/libunwind_ptrace.h.in
-               external/org_gnu_libunwind/include/libunwind-ptrace.h
+               libunwind-ptrace.h
                @ONLY)
 
 # Library with basic project settings. The empty file is there to be able to

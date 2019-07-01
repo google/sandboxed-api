@@ -26,7 +26,7 @@
 
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
-#include "external/org_kernel_libcap/libcap/include/sys/capability.h"
+#include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"

@@ -131,6 +131,7 @@ filegroup(
     hdrs = [
         "include/config.h",
         "include/libunwind.h",
+        "include/libunwind-ptrace.h",
     ],
     copts = LIBUNWIND_COPTS + [
         # Assume our inferior doesn't have frame pointers, regardless of
