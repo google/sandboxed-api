@@ -39,6 +39,7 @@ cc_library(
         "status_macros.h",
     ],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         ":status_proto_cc",
         "@com_google_absl//absl/base:core_headers",
@@ -51,6 +52,7 @@ cc_library(
     name = "statusor",
     hdrs = ["statusor.h"],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         ":raw_logging",
         ":status",
@@ -67,6 +69,7 @@ cc_library(
     testonly = 1,
     hdrs = ["status_matchers.h"],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         ":status",
         ":statusor",
