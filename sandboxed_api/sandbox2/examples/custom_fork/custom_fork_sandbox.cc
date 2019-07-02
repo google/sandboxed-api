@@ -110,6 +110,14 @@ int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
+  // This test is incompatible with sanitizers.
+  // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
+  // need to return something.
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+  return EXIT_SUCCESS;
+#endif
+
   // Start a custom fork-server (via sandbox2::Executor).
   const std::string path = sandbox2::GetInternalDataDependencyFilePath(
       "sandbox2/examples/custom_fork/custom_fork_bin");
