@@ -65,8 +65,8 @@ def get_header_guard(path):
   return path + '_'
 
 
-def _stringify_tokens(tokens, separator='\n', callbacks=None):
-  # type: (Sequence[cindex.Token], Text, Dict[int, Callable]) -> Text
+def _stringify_tokens(tokens, separator='\n'):
+  # type: (Sequence[cindex.Token], Text) -> Text
   """Converts tokens to text respecting line position (disrespecting column)."""
   previous = OutputLine(0, [])  # not used in output
   lines = []  # type: List[OutputLine]
@@ -74,9 +74,6 @@ def _stringify_tokens(tokens, separator='\n', callbacks=None):
   for _, group in itertools.groupby(tokens, lambda t: t.location.line):
     group_list = list(group)
     line = OutputLine(previous.next_tab, group_list)
-
-    if callbacks and len(group_list) in callbacks:
-      callbacks[len(group_list)](group_list)
 
     lines.append(line)
     previous = line
@@ -298,6 +295,7 @@ class Type(object):
     # skip unnamed structures eg. typedef struct {...} x;
     # struct {...} will be rendered as part of typedef rendering
     if self._get_declaration().spelling and not skip_self:
+      self._tu.search_for_macro_name(self._get_declaration())
       result.add(self)
 
     for f in self._clang_type.get_fields():
@@ -335,17 +333,8 @@ class Type(object):
     # break things; this will go through clang format nevertheless
     tokens = [x for x in self._get_declaration().get_tokens()
               if x.kind is not cindex.TokenKind.COMMENT]
-    # look for lines with two tokens: a way of finding structures with
-    # body as a macro eg:
-    # #define BODY \
-    # int a; \
-    # int b;
-    # struct test {
-    #  BODY;
-    # }
-    callbacks = {}
-    callbacks[2] = lambda x: self._tu.required_defines.add(x[0].spelling)
-    return _stringify_tokens(tokens, callbacks=callbacks)
+
+    return _stringify_tokens(tokens)
 
 
 class OutputLine(object):
@@ -354,19 +343,15 @@ class OutputLine(object):
   def __init__(self, tab, tokens):
     # type: (int, List[cindex.Token]) -> None
     self.tokens = tokens
+    self.spellings = []
     self.define = False
     self.tab = tab
     self.next_tab = tab
-    map(self._process_token, self.tokens)
-
-  def append(self, t):
-    # type: (cindex.Token) -> None
-    """Appends token to the line."""
-    self._process_token(t)
-    self.tokens.append(t)
+    list(map(self._process_token, self.tokens))
 
   def _process_token(self, t):
     # type: (cindex.Token) -> None
+    """Processes a token, setting up internal states rel. to intendation."""
     if t.spelling == '#':
       self.define = True
     elif t.spelling == '{':
@@ -375,11 +360,16 @@ class OutputLine(object):
       self.tab -= 1
       self.next_tab -= 1
 
+    is_bracket = t.spelling == '('
+    is_macro = len(self.spellings) == 1 and self.spellings[0] == '#'
+    if self.spellings and not is_bracket and not is_macro:
+      self.spellings.append(' ')
+    self.spellings.append(t.spelling)
+
   def __str__(self):
     # type: () -> Text
     tabs = ('\t'*self.tab) if not self.define else ''
-
-    return tabs + ' '.join(t.spelling for t in self.tokens)
+    return tabs + ''.join(t for t in self.spellings)
 
 
 class ArgumentType(Type):
@@ -587,6 +577,7 @@ class _TranslationUnit(object):
 
         if (cursor.kind == cindex.CursorKind.MACRO_DEFINITION and
             cursor.location.file):
+          self.order[cursor.hash] = i
           self.defines[cursor.spelling] = cursor
 
         # most likely a forward decl of struct
@@ -609,15 +600,15 @@ class _TranslationUnit(object):
     for c in self._tu.cursor.walk_preorder():
       yield c
 
-  # TODO(szwl): expand to look for macros in structs, unions etc.
   def search_for_macro_name(self, cursor):
     # type: (cindex.Cursor) -> None
     """Searches for possible macro usage in constant array types."""
     tokens = list(t.spelling for t in cursor.get_tokens())
     try:
       for token in tokens:
-        if token in self.defines:
+        if token in self.defines and token not in self.required_defines:
           self.required_defines.add(token)
+          self.search_for_macro_name(self.defines[token])
     except ValueError:
       return
 
@@ -776,13 +767,20 @@ class Generator(object):
     Returns:
       list of #define string representations
     """
+    def make_sort_condition(translation_unit):
+      return lambda cursor: translation_unit.order[cursor.hash]
+
     result = []
     for tu in self.translation_units:
+      tmp_result = []
+      sort_condition = make_sort_condition(tu)
       for name in tu.required_defines:
         if name in tu.defines:
           define = tu.defines[name]
-          result.append('#define ' + _stringify_tokens(define.get_tokens(),
-                                                       separator=' \\\n'))
+          tmp_result.append(define)
+      for define in sorted(tmp_result, key=sort_condition):
+        result.append('#define ' + _stringify_tokens(define.get_tokens(),
+                                                     separator=' \\\n'))
     return result
 
   def _get_forward_decls(self, types):

@@ -600,11 +600,11 @@ class CodeAnalysisTest(parameterized.TestCase):
 
     # pylint: disable=trailing-whitespace
     expected = """typedef struct {
-# if SOME_DEFINE >= 12 && SOME_OTHER == 13
+#if SOME_DEFINE >= 12 && SOME_OTHER == 13
 \tuint a ;
-# else
+#else
 \tuint aa ;
-# endif
+#endif
 \tstruct {
 \t\tuint a ;
 \t\tint b ;
@@ -652,6 +652,38 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertIn('#define SIZE2 2 * 1024', defines)
     self.assertIn('#define SIZE3 1337', defines)
     self.assertIn('#define SIZE4 10', defines)
+
+    # Extra check for generation, in case rendering throws error for this test.
+    generator.generate('Test', [], 'sapi::Tests', None, None)
+
+  def testYaraCase(self):
+    body = """
+      #define YR_ALIGN(n) __attribute__((aligned(n)))
+      #define DECLARE_REFERENCE(type, name) union {    \
+        type name;            \
+        int64_t name##_;      \
+      } YR_ALIGN(8)
+      struct YR_NAMESPACE {
+        int32_t t_flags[1337];
+        DECLARE_REFERENCE(char*, name);
+      };
+
+      extern "C" int function_1(struct YR_NAMESPACE* a1);
+    """
+    generator = code.Generator([analyze_string(body)])
+    self.assertLen(generator.translation_units, 1)
+
+    generator._get_related_types()
+    tu = generator.translation_units[0]
+    tu._process()
+
+    self.assertLen(tu.required_defines, 2)
+    defines = generator._get_defines()
+    # _get_defines will add dependant defines to tu.required_defines
+    self.assertLen(defines, 2)
+    gold = '#define DECLARE_REFERENCE('
+    # DECLARE_REFERENCE must be second to pass this test
+    self.assertTrue(defines[1].startswith(gold))
 
     # Extra check for generation, in case rendering throws error for this test.
     generator.generate('Test', [], 'sapi::Tests', None, None)
