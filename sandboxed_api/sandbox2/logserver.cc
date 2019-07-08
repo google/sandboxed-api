@@ -34,7 +34,7 @@ void LogServer::Run() {
       severity = logging::ERROR;
       fatal_string = " FATAL";
     }
-    logging::LogMessage(msg.path().c_str(), msg.line(), severity);
+    logging::LogMessage log_message(msg.path().c_str(), msg.line(), severity);
     log_message.stream()
         << "(sandboxee " << msg.pid() << fatal_string << "): " << msg.message();
   }
