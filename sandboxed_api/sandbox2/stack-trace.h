@@ -24,14 +24,10 @@
 #include <memory>
 #include <string>
 
-#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
-
-// Exposed for testing only
-ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 
 namespace sandbox2 {
 

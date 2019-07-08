@@ -36,6 +36,8 @@
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/util/status_matchers.h"
 
+ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
+
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Not;
