@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
 
     case 2: {
       if (getpid() != 2) {
-        return getpid();
+        return -1;
       }
     } break;
 
@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
 
       if (getuid() != atoi(argv[2])        // NOLINT(runtime/deprecated_fn)
           || getgid() != atoi(argv[3])) {  // NOLINT(runtime/deprecated_fn)
-        return getuid();
+        return -1;
       }
     } break;
 
