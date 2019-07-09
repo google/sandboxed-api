@@ -268,10 +268,31 @@ target_link_libraries(sandbox2_global_forkserver PRIVATE
   sapi::raw_logging
 )
 
-# sandboxed_api/sandbox2:sandbox2
-add_library(sandbox2_sandbox2 STATIC
+# sandboxed_api/sandbox2:executor
+add_library(sandbox2_executor STATIC
   executor.cc
   executor.h
+)
+add_library(sandbox2::executor ALIAS sandbox2_executor)
+target_link_libraries(sandbox2_executor PRIVATE
+  absl::core_headers
+  absl::memory
+  absl::strings
+  glog::glog
+  libcap::libcap
+  sandbox2::fileops
+  sandbox2::forkserver
+  sandbox2::forkserver_proto
+  sandbox2::global_forkserver
+  sandbox2::ipc
+  sandbox2::limits
+  sandbox2::namespace
+  sandbox2::util
+  sapi::base
+)
+
+# sandboxed_api/sandbox2:sandbox2
+add_library(sandbox2_sandbox2 STATIC
   monitor.cc
   monitor.h
   policybuilder.cc
@@ -296,6 +317,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::bpf_helper
           sandbox2::client
           sandbox2::comms
+          sandbox2::executor
           sandbox2::file_base
           sandbox2::fileops
           sandbox2::forkserver

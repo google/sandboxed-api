@@ -251,12 +251,32 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "executor",
+    srcs = ["executor.cc"],
+    hdrs = ["executor.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":forkserver",
+        ":forkserver_proto",
+        ":global_forkserver",
+        ":ipc",
+        ":limits",
+        ":namespace",
+        ":util",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@org_kernel_libcap//:libcap",
+    ],
+)
+
 # Should not be used in sandboxee code if it only uses sandbox2::Comms and
 # sandbox2::Client objects
 cc_library(
     name = "sandbox2",
     srcs = [
-        "executor.cc",
         "monitor.cc",
         "monitor.h",
         "policybuilder.cc",
@@ -264,24 +284,24 @@ cc_library(
         "stack_trace.cc",
     ],
     hdrs = [
+        "client.h",
         "executor.h",
-        "policybuilder.h",
-        "sandbox2.h",
-        "stack_trace.h",
-        # Workaround: reexporting the header files of our dependencies, see b/15420638
         "ipc.h",
         "limits.h",
         "notify.h",
         "policy.h",
+        "policybuilder.h",
         "regs.h",
         "result.h",
+        "sandbox2.h",
+        "stack_trace.h",
         "syscall.h",
-        "client.h",
     ],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":client",
+        ":executor",
         ":comms",
         ":violation_proto_cc",
         ":forkserver",
