@@ -71,9 +71,10 @@ endif()
 
 find_package(gflags REQUIRED)
 find_package(glog REQUIRED)
-find_package(Protobuf REQUIRED)
 find_package(Libcap REQUIRED)
+find_package(Libffi REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(Protobuf REQUIRED)
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${_sapi_saved_CMAKE_FIND_LIBRARY_SUFFIXES})
 
