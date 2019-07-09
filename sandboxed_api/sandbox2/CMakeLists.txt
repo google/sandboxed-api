@@ -278,8 +278,8 @@ add_library(sandbox2_sandbox2 STATIC
   policybuilder.h
   sandbox2.cc
   sandbox2.h
-  stack-trace.cc
-  stack-trace.h
+  stack_trace.cc
+  stack_trace.h
 )
 add_library(sandbox2::sandbox2 ALIAS sandbox2_sandbox2)
 target_link_libraries(sandbox2_sandbox2
@@ -773,13 +773,13 @@ target_link_libraries(util_test PRIVATE
 gtest_discover_tests(util_test)
 
 # sandboxed_api/sandbox2:stack_trace_test
-add_executable(stack-trace_test
-  stack-trace_test.cc
+add_executable(stack_trace_test
+  stack_trace_test.cc
 )
-add_dependencies(stack-trace_test
+add_dependencies(stack_trace_test
   sandbox2::testcase_symbolize
 )
-target_link_libraries(stack-trace_test PRIVATE
+target_link_libraries(stack_trace_test PRIVATE
   absl::memory
   absl::strings
   sandbox2::bpf_helper
@@ -793,7 +793,7 @@ target_link_libraries(stack-trace_test PRIVATE
   sapi::status_matchers
   sapi::test_main
 )
-gtest_discover_tests(stack-trace_test PROPERTIES
+gtest_discover_tests(stack_trace_test PROPERTIES
   ENVIRONMENT "TEST_TMPDIR=/tmp"
   ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
 )

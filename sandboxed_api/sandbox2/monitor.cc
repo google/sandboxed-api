@@ -57,7 +57,7 @@
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
-#include "sandboxed_api/sandbox2/stack-trace.h"
+#include "sandboxed_api/sandbox2/stack_trace.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/raw_logging.h"

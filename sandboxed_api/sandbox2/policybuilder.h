@@ -32,7 +32,6 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/policy.h"
-#include "sandboxed_api/sandbox2/stack-trace.h"
 #include "sandboxed_api/util/statusor.h"
 
 struct bpf_labels;

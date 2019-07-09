@@ -261,13 +261,13 @@ cc_library(
         "monitor.h",
         "policybuilder.cc",
         "sandbox2.cc",
-        "stack-trace.cc",
+        "stack_trace.cc",
     ],
     hdrs = [
         "executor.h",
         "policybuilder.h",
         "sandbox2.h",
-        "stack-trace.h",
+        "stack_trace.h",
         # Workaround: reexporting the header files of our dependencies, see b/15420638
         "ipc.h",
         "limits.h",
@@ -717,8 +717,8 @@ cc_test(
 )
 
 cc_test(
-    name = "stack-trace_test",
-    srcs = ["stack-trace_test.cc"],
+    name = "stack_trace_test",
+    srcs = ["stack_trace_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:symbolize"],
     deps = [
