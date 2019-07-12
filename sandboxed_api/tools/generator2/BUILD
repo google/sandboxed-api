@@ -60,7 +60,6 @@ cc_library(
 # Targets for testing if generated code compiles
 sapi_library(
     name = "tests_sapi_generator",
-    embed = True,
     input_files = [
         "testdata/tests.cc",
         "testdata/tests2.cc",

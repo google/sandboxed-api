@@ -23,7 +23,7 @@ sapi_library(
     srcs = [],   # Extra code compiled with the SAPI library
     hdrs = []    # Leave empty if embedded SAPI libraries are used, and the
                  # default sandbox policy is sufficient.
-    embed = True,
+    embed = True,  # This is the default
     functions = [
         "deflateInit_",
         "deflate",
@@ -48,7 +48,7 @@ sapi_library(
   in the library.
 * **`embed`** - whether the SAPI library should be embedded inside host code,
   so the SAPI Sandbox can be initialized with the
-  `::sapi::Sandbox::Sandbox(FileToc*)` constructor.
+  `::sapi::Sandbox::Sandbox(FileToc*)` constructor. This is the default.
 * **`lib`** - (mandatory) the library target you want to sandbox and expose to
     the host code.
 * **`lib_name`** - (mandatory) name of the object which is proxying your library

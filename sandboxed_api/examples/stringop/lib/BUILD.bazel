@@ -40,7 +40,6 @@ sapi_library(
     name = "stringop-sapi",
     srcs = [],
     hdrs = ["sandbox.h"],
-    embed = True,
     functions = [
         "duplicate_string",
         "reverse_string",

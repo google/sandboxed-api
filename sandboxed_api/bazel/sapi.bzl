@@ -145,7 +145,7 @@ def sapi_library(
         lib,
         lib_name,
         namespace = "",
-        embed = False,
+        embed = True,
         add_default_deps = True,
         srcs = [],
         hdrs = [],

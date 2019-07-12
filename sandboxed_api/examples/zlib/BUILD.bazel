@@ -23,7 +23,6 @@ sapi_library(
     name = "zlib-sapi",
     srcs = [],
     hdrs = [],
-    embed = True,
     functions = [
         "deflateInit_",
         "deflate",

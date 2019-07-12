@@ -44,7 +44,6 @@ sapi_library(
     name = "sum-sapi",
     srcs = [],
     hdrs = ["sandbox.h"],
-    embed = True,
     functions = [
         "sum",
         "sums",
