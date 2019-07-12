@@ -10,7 +10,7 @@ Start by preparing a `sapi_library()` target in your `BUILD.bazel`
 file.
 
 For reference, you can take a peek at a working example from the
-[zlib example](../examples/zlib/lib/BUILD.bazel).
+[zlib example](../examples/zlib/BUILD.bazel).
 
 ```python
 load(
