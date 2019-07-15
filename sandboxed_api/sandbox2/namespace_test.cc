@@ -107,7 +107,6 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
                                           .EnableNamespaces()
                                           // Don't restrict the syscalls at all
                                           .DangerDefaultAllowAll()
-                                          .EnableNamespaces()
                                           .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
