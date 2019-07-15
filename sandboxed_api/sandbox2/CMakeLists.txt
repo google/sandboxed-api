@@ -90,7 +90,7 @@ target_link_libraries(sandbox2_result PRIVATE
 )
 
 # sandboxed_api/sandbox2:logserver_proto
-sapi_protobuf_generate_cpp(_sandbox2_logserver_pb_h _sandbox2_logserver_pb_cc
+protobuf_generate_cpp(_sandbox2_logserver_pb_h _sandbox2_logserver_pb_cc
   logserver.proto
 )
 add_library(sandbox2_logserver_proto STATIC
@@ -560,7 +560,7 @@ gtest_discover_tests(buffer_test PROPERTIES
 )
 
 # sandboxed_api/sandbox2:forkserver_proto
-sapi_protobuf_generate_cpp(_sandbox2_forkserver_pb_h _sandbox2_forkserver_pb_cc
+protobuf_generate_cpp(_sandbox2_forkserver_pb_h _sandbox2_forkserver_pb_cc
   forkserver.proto
 )
 add_library(sandbox2_forkserver_proto STATIC
@@ -575,7 +575,7 @@ target_link_libraries(sandbox2_forkserver_proto PRIVATE
 )
 
 # sandboxed_api/sandbox2:mounttree_proto
-sapi_protobuf_generate_cpp(_sandbox2_mounttree_pb_h _sandbox2_mounttree_pb_cc
+protobuf_generate_cpp(_sandbox2_mounttree_pb_h _sandbox2_mounttree_pb_cc
   mounttree.proto
 )
 add_library(sandbox2_mounttree_proto STATIC
@@ -611,7 +611,7 @@ target_link_libraries(sandbox2_comms PRIVATE
 )
 
 # sandboxed_api/sandbox2:comms_test_proto
-sapi_protobuf_generate_cpp(_sandbox2_comms_test_pb_h _sandbox2_comms_test_pb_cc
+protobuf_generate_cpp(_sandbox2_comms_test_pb_h _sandbox2_comms_test_pb_cc
   comms_test.proto
 )
 add_library(sandbox2_comms_test_proto STATIC
@@ -855,7 +855,7 @@ target_link_libraries(sandbox2_testing PRIVATE
 )
 
 # sandboxed_api/sandbox2:violation_proto
-sapi_protobuf_generate_cpp(_sandbox2_violation_pb_cc _sandbox2_violation_pb_h
+protobuf_generate_cpp(_sandbox2_violation_pb_cc _sandbox2_violation_pb_h
   violation.proto
 )
 add_library(sandbox2_violation_proto STATIC
