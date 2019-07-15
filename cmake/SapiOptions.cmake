@@ -12,7 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(SAPI_ENABLE_EXAMPLES)
-  add_subdirectory(stringop)
-  add_subdirectory(sum)
-endif()
+option(SAPI_ENABLE_EXAMPLES "Build example code" ON)
+option(SAPI_ENABLE_TESTS "Build unit tests" ON)

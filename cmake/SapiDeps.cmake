@@ -33,16 +33,18 @@ if(_sapi_saved_CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD "${_sapi_saved_CMAKE_CXX_STANDARD}")
 endif()
 
-# Build Googletest directly, as recommended upstream
-find_path(googletest_src_dir
-  googletest/include/gtest/gtest.h
-  HINTS ${GOOGLETEST_ROOT_DIR}
-  PATHS ${PROJECT_BINARY_DIR}/Dependencies/Source/googletest
-)
-set(gtest_force_shared_crt ON CACHE BOOL "")
-add_subdirectory(${googletest_src_dir}
-                 ${PROJECT_BINARY_DIR}/Dependencies/Build/googletest
-                 EXCLUDE_FROM_ALL)
+if(SAPI_ENABLE_TESTS)
+  # Build Googletest directly, as recommended upstream
+  find_path(googletest_src_dir
+    googletest/include/gtest/gtest.h
+    HINTS ${GOOGLETEST_ROOT_DIR}
+    PATHS ${PROJECT_BINARY_DIR}/Dependencies/Source/googletest
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "")
+  add_subdirectory(${googletest_src_dir}
+                   ${PROJECT_BINARY_DIR}/Dependencies/Build/googletest
+                   EXCLUDE_FROM_ALL)
+endif()
 
 # Prefer to use static libraries
 set(_sapi_saved_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
@@ -56,7 +58,9 @@ find_package(gflags REQUIRED)
 find_package(glog REQUIRED)
 find_package(Libcap REQUIRED)
 find_package(Libffi REQUIRED)
-find_package(ZLIB REQUIRED)
+if(SAPI_ENABLE_EXAMPLES)
+  find_package(ZLIB REQUIRED)
+endif()
 find_package(Protobuf REQUIRED)
 
 if(CMAKE_VERSION VERSION_LESS "3.12")

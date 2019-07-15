@@ -25,10 +25,13 @@ project(sandboxed_api C CXX ASM)
 # SAPI-wide setting for the language level
 set(SAPI_CXX_STANDARD 11)
 
+# Sapi CMake modules, order matters
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+include(SapiOptions)
 include(SapiDeps)
-include(SapiUtil)  # Needs to come after SapiDeps
+include(SapiUtil)
 include(SapiBuildDefs)
+
 include(GoogleTest)
 
 # Make Bazel-style includes work

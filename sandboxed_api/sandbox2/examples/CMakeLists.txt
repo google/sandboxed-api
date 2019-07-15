@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(crc4)
-add_subdirectory(custom_fork)
-add_subdirectory(static)
-add_subdirectory(tool)
-add_subdirectory(zlib)
+if(SAPI_ENABLE_EXAMPLES)
+  add_subdirectory(crc4)
+  add_subdirectory(custom_fork)
+  add_subdirectory(static)
+  add_subdirectory(tool)
+  add_subdirectory(zlib)
+endif()

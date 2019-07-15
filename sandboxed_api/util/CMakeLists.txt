@@ -56,31 +56,6 @@ target_link_libraries(sapi_util_statusor PRIVATE
   sapi::status
 )
 
-# sandboxed_api/util:status_matchers
-add_library(sapi_util_status_matchers STATIC
-  status_matchers.h
-)
-add_library(sapi::status_matchers ALIAS sapi_util_status_matchers)
-target_link_libraries(sapi_util_status_matchers PRIVATE
-  absl::optional
-  gmock
-  gtest
-  sapi::base
-  sapi::status
-  sapi::statusor
-)
-
-# sandboxed_api/util:status_test
-add_executable(status_test
-  status_test.cc
-)
-target_link_libraries(status_test PRIVATE
-  sapi::status_matchers
-  sapi::test_main
-  absl::type_traits
-)
-gtest_discover_tests(status_test)
-
 # sandboxed_api/util:flag
 add_library(sapi_util_flags STATIC
   flag.h
@@ -103,3 +78,29 @@ target_link_libraries(sapi_util_raw_logging PRIVATE
   sapi::base
 )
 
+if(SAPI_ENABLE_TESTS)
+  # sandboxed_api/util:status_matchers
+  add_library(sapi_util_status_matchers STATIC
+    status_matchers.h
+  )
+  add_library(sapi::status_matchers ALIAS sapi_util_status_matchers)
+  target_link_libraries(sapi_util_status_matchers PRIVATE
+    absl::optional
+    gmock
+    gtest
+    sapi::base
+    sapi::status
+    sapi::statusor
+  )
+
+  # sandboxed_api/util:status_test
+  add_executable(status_test
+    status_test.cc
+  )
+  target_link_libraries(status_test PRIVATE
+    sapi::status_matchers
+    sapi::test_main
+    absl::type_traits
+  )
+  gtest_discover_tests(status_test)
+endif()
