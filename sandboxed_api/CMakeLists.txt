@@ -13,6 +13,7 @@
 # limitations under the License.
 
 add_subdirectory(bazel)  # For filewrapper
+add_subdirectory(examples)
 add_subdirectory(sandbox2)
 add_subdirectory(util)
 

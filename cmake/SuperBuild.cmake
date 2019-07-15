@@ -18,7 +18,9 @@ list(APPEND DEPENDENCIES absl)
 ExternalProject_Add(gflags
   GIT_REPOSITORY https://github.com/gflags/gflags.git
   GIT_TAG 28f50e0fed19872e0fd50dd23ce2ee8cd759338e
-  CMAKE_ARGS -DGFLAGS_IS_SUBPROJECT=TRUE
+  CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+             -DGFLAGS_IS_SUBPROJECT=TRUE
   INSTALL_COMMAND ""
 )
 list(APPEND DEPENDENCIES gflags)
@@ -27,11 +29,13 @@ ExternalProject_Add(glog
   DEPENDS gflags
   GIT_REPOSITORY https://github.com/google/glog.git
   GIT_TAG 41f4bf9cbc3e8995d628b459f6a239df43c2b84a
-  CMAKE_ARGS
-    # Disable symbolizer
-    -DCMAKE_PREFIX_PATH= -DUNWIND_LIBRARY=
-    # getpwuid_r() cannot be linked statically with glibc
-    -DHAVE_PWD_H=
+  CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+             "-DCMAKE_PREFIX_PATH=${PROJECT_BINARY_DIR}/Dependencies/Build/gflags"
+             # Disable symbolizer
+             -DUNWIND_LIBRARY=
+             # getpwuid_r() cannot be linked statically with glibc
+             -DHAVE_PWD_H=
   INSTALL_COMMAND ""
 )
 list(APPEND DEPENDENCIES glog)
@@ -66,9 +70,9 @@ ExternalProject_Add(protobuf
   GIT_TAG e08f01ce6a78a6cf2834dfa37281eb366eb0c5c3  # 2019-06-05
   PREFIX ${CMAKE_CURRENT_BINARY_DIR}/Dependencies/Build/protobuf
   SOURCE_SUBDIR cmake
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-             -DCMAKE_BUILD_TYPE=@CMAKE_BUILD_TYPE@
+  CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
              -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+             -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
              -Dprotobuf_BUILD_TESTS=OFF
              -Dprotobuf_BUILD_SHARED_LIBS=OFF
              -Dprotobuf_WITH_ZLIB=OFF

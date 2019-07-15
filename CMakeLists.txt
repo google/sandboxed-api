@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 option(USE_SUPERBUILD "Whether or not a superbuild should be invoked" ON)
 if(USE_SUPERBUILD)
@@ -76,6 +76,20 @@ find_package(Libffi REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(Protobuf REQUIRED)
 
+if(CMAKE_VERSION VERSION_LESS "3.12")
+  # Work around FindPythonInterp sometimes not preferring Python 3.
+  foreach(v IN ITEMS 3 3.9 3.8 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0)
+    list(APPEND _sapi_py_names python${v})
+  endforeach()
+  find_program(Python3_EXECUTABLE NAMES ${_sapi_py_names})
+  if(NOT Python3_EXECUTABLE)
+    message(FATAL_ERROR "No suitable version of Python 3 found")
+  endif()
+else()
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+endif()
+
+# Undo global change
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${_sapi_saved_CMAKE_FIND_LIBRARY_SUFFIXES})
 
 # Make Bazel-like includes work

@@ -36,13 +36,15 @@ class SumSapiSandbox : public SumSandbox {
         .AllowExit()
         .AllowStat()
         .AllowTime()
+        .AllowGetIDs()
+        .AllowGetPIDs()
         .AllowSyscalls({
+            __NR_tgkill,
             __NR_recvmsg,
             __NR_sendmsg,
             __NR_lseek,
             __NR_nanosleep,
             __NR_futex,
-            __NR_gettid,
             __NR_close,
         })
         .AddFile("/etc/localtime")
