@@ -249,6 +249,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
       syscall(__NR_pivot_root, kSandbox2ChrootPath, kSandbox2ChrootPath) != -1,
       "pivot root");
   SAPI_RAW_PCHECK(umount2("/", MNT_DETACH) != -1, "detaching old root");
+  SAPI_RAW_PCHECK(chdir("/") == 0, "changing cwd after pivot_root failed");
 
   if (SAPI_VLOG_IS_ON(2)) {
     SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");

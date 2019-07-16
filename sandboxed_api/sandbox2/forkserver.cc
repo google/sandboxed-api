@@ -175,7 +175,6 @@ static void RunInitProcess(int signaling_fd, std::set<int> open_fds) {
     SAPI_RAW_CHECK(sendmsg(signaling_fd, &msgh, 0), "Sending child PID");
     return;
   } else if (child > 0) {
-    SAPI_RAW_CHECK(chdir("/") == 0, "changing init cwd failed");
     if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
       SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
     }
