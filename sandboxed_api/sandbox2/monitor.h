@@ -161,9 +161,9 @@ class Monitor final {
   pid_t pid_ = -1;
 
   // False iff external kill is requested
-  std::atomic_flag external_kill_request_flag_;
+  std::atomic_flag external_kill_request_flag_ = ATOMIC_FLAG_INIT;
   // False iff dump stack is requested
-  std::atomic_flag dump_stack_request_flag_;
+  std::atomic_flag dump_stack_request_flag_ = ATOMIC_FLAG_INIT;
   // Deadline in Unix millis
   std::atomic<int64_t> deadline_millis_{0};
   // Was external kill sent to the sandboxee
