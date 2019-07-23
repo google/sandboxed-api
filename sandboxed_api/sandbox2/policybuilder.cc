@@ -23,14 +23,17 @@
 #endif
 #include <fcntl.h>  // For the fcntl flags
 #include <linux/futex.h>
+#include <linux/net.h>     // For SYS_CONNECT
 #include <linux/random.h>  // For GRND_NONBLOCK
 #include <sys/mman.h>      // For mmap arguments
+#include <sys/socket.h>
 #include <syscall.h>
 
 #include <csignal>
 #include <cstdint>
 #include <utility>
 
+#include "absl/memory/memory.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "sandboxed_api/sandbox2/namespace.h"
@@ -557,31 +560,33 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(unsigned int num, BpfFunc f) {
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
     SyscallInitializer nums, const std::vector<sock_filter>& policy) {
-  auto resolved_policy = ResolveBpfFunc([nums, policy](bpf_labels& labels)
-                                            -> std::vector<sock_filter> {
-    std::vector<sock_filter> out;
-    out.reserve(nums.size() + policy.size());
-    for (auto num : nums) {
-      out.insert(out.end(), {SYSCALL(num, JUMP(&labels, do_policy_l))});
-    }
-    out.insert(out.end(),
-               {JUMP(&labels, dont_do_policy_l), LABEL(&labels, do_policy_l)});
-    for (const auto& filter : policy) {
-      // Syscall arch is expected as TRACE value
-      if (filter.code == (BPF_RET | BPF_K) &&
-          (filter.k & SECCOMP_RET_ACTION) == SECCOMP_RET_TRACE &&
-          (filter.k & SECCOMP_RET_DATA) != Syscall::GetHostArch()) {
-        LOG(WARNING) << "SANDBOX2_TRACE should be used in policy instead of "
-                        "TRACE(value)";
-        out.push_back(SANDBOX2_TRACE);
-      } else {
-        out.push_back(filter);
-      }
-    }
-    out.push_back(LOAD_SYSCALL_NR);
-    out.insert(out.end(), {LABEL(&labels, dont_do_policy_l)});
-    return out;
-  });
+  auto resolved_policy =
+      ResolveBpfFunc(
+          [nums, policy](bpf_labels& labels) -> std::vector<sock_filter> {
+            std::vector<sock_filter> out;
+            out.reserve(nums.size() + policy.size());
+            for (auto num : nums) {
+              out.insert(out.end(), {SYSCALL(num, JUMP(&labels, do_policy_l))});
+            }
+            out.insert(out.end(), {JUMP(&labels, dont_do_policy_l),
+                                   LABEL(&labels, do_policy_l)});
+            for (const auto& filter : policy) {
+              // Syscall arch is expected as TRACE value
+              if (filter.code == (BPF_RET | BPF_K) &&
+                  (filter.k & SECCOMP_RET_ACTION) == SECCOMP_RET_TRACE &&
+                  (filter.k & SECCOMP_RET_DATA) != Syscall::GetHostArch()) {
+                LOG(WARNING)
+                    << "SANDBOX2_TRACE should be used in policy instead of "
+                       "TRACE(value)";
+                out.push_back(SANDBOX2_TRACE);
+              } else {
+                out.push_back(filter);
+              }
+            }
+            out.push_back(LOAD_SYSCALL_NR);
+            out.insert(out.end(), {LABEL(&labels, dont_do_policy_l)});
+            return out;
+          });
   // Pre-/Postcondition: Syscall number loaded into A register
   output_->user_policy_.insert(output_->user_policy_.end(),
                                resolved_policy.begin(), resolved_policy.end());
@@ -837,6 +842,66 @@ PolicyBuilder& PolicyBuilder::CollectStacktracesOnTimeout(bool enable) {
 
 PolicyBuilder& PolicyBuilder::CollectStacktracesOnKill(bool enable) {
   collect_stacktrace_on_kill_ = enable;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
+  AllowFutexOp(FUTEX_WAKE);
+  AllowFutexOp(FUTEX_WAIT);
+  AllowFutexOp(FUTEX_WAIT_BITSET);
+  AllowSyscalls({
+      __NR_dup2,
+      __NR_recvmsg,
+      __NR_close,
+      __NR_gettid,
+  });
+  AddPolicyOnSyscall(__NR_socket, {
+                                      ARG_32(0),
+                                      JEQ32(AF_INET, ALLOW),
+                                      JEQ32(AF_INET6, ALLOW),
+                                  });
+  AddPolicyOnSyscall(__NR_getsockopt,
+                     [](bpf_labels& labels) -> std::vector<sock_filter> {
+                       return {
+                           ARG_32(1),
+                           JNE32(SOL_SOCKET, JUMP(&labels, getsockopt_end)),
+                           ARG_32(2),
+                           JEQ32(SO_TYPE, ALLOW),
+                           LABEL(&labels, getsockopt_end),
+                       };
+                     });
+#if defined(__powerpc64__)
+  AddPolicyOnSyscall(__NR_socketcall, {
+                                          ARG_32(0),
+                                          JEQ32(SYS_SOCKET, ALLOW),
+                                          JEQ32(SYS_GETSOCKOPT, ALLOW),
+                                          JEQ32(SYS_RECVMSG, ALLOW),
+                                      });
+#endif
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
+  AddNetworkProxyPolicy();
+  AllowSyscall(__NR_rt_sigreturn);
+
+  AddPolicyOnSyscall(__NR_rt_sigaction, {
+                                            ARG_32(0),
+                                            JEQ32(SIGSYS, ALLOW),
+                                        });
+
+  AddPolicyOnSyscall(__NR_rt_sigprocmask, {
+                                              ARG_32(0),
+                                              JEQ32(SIG_UNBLOCK, ALLOW),
+                                          });
+
+  AddPolicyOnSyscall(__NR_connect, {TRAP(0)});
+#if defined(__powerpc64__)
+  AddPolicyOnSyscall(__NR_socketcall, {
+                                          ARG_32(0),
+                                          JEQ32(SYS_CONNECT, TRAP(0)),
+                                      });
+#endif
   return *this;
 }
 

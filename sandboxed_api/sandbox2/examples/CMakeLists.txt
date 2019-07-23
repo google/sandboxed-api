@@ -15,6 +15,8 @@
 if(SAPI_ENABLE_EXAMPLES)
   add_subdirectory(crc4)
   add_subdirectory(custom_fork)
+  add_subdirectory(network)
+  add_subdirectory(network_proxy)
   add_subdirectory(static)
   add_subdirectory(tool)
   add_subdirectory(zlib)

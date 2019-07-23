@@ -14,10 +14,17 @@
 
 #include "sandboxed_api/sandbox2/network_proxy_client.h"
 
+#include <linux/net.h>
+#include <linux/seccomp.h>
+#include <stdio.h>
+#include <syscall.h>
+#include <ucontext.h>
+
 #include <cerrno>
 #include <iostream>
 
 #include <glog/logging.h>
+#include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/canonical_errors.h"
@@ -25,6 +32,25 @@
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
+
+#ifndef SYS_SECCOMP
+constexpr int SYS_SECCOMP = 1;
+#endif
+
+#if defined(__x86_64__)
+constexpr int kRegResult = REG_RAX;
+constexpr int kRegSyscall = REG_RAX;
+constexpr int kRegArg0 = REG_RDI;
+constexpr int kRegArg1 = REG_RSI;
+constexpr int kRegArg2 = REG_RDX;
+#endif
+#if defined(__powerpc64__)
+constexpr int kRegResult = 3;
+constexpr int kRegSyscall = 0;
+constexpr int kRegArg0 = 3;
+constexpr int kRegArg1 = 4;
+constexpr int kRegArg2 = 5;
+#endif
 
 constexpr char NetworkProxyClient::kFDName[];
 
@@ -34,7 +60,7 @@ int NetworkProxyClient::ConnectHandler(int sockfd, const struct sockaddr* addr,
   if (status.ok()) {
     return 0;
   }
-  PLOG(ERROR) << "ConnectHandler() failed: " << status.message();
+  LOG(ERROR) << "ConnectHandler() failed: " << status.message();
   return -1;
 }
 
@@ -86,9 +112,106 @@ sapi::Status NetworkProxyClient::ReceiveRemoteResult() {
   if (result != 0) {
     errno = result;
     return sapi::InternalError(
-        absl::StrCat("Error in network proxy: ", StrError(errno)));
+        absl::StrCat("Error in network proxy server: ", StrError(errno)));
   }
   return sapi::OkStatus();
+}
+
+namespace {
+
+static NetworkProxyHandler* g_network_proxy_handler = nullptr;
+
+void SignalHandler(int nr, siginfo_t* info, void* void_context) {
+  g_network_proxy_handler->ProcessSeccompTrap(nr, info, void_context);
+}
+
+}  // namespace
+
+sapi::Status NetworkProxyHandler::InstallNetworkProxyHandler(
+    NetworkProxyClient* npc) {
+  if (g_network_proxy_handler) {
+    return sapi::AlreadyExistsError(
+        "Network proxy handler is already installed");
+  }
+  g_network_proxy_handler = new NetworkProxyHandler(npc);
+  return sapi::OkStatus();
+}
+
+void NetworkProxyHandler::InvokeOldAct(int nr, siginfo_t* info,
+                                       void* void_context) {
+  if (oldact_.sa_flags & SA_SIGINFO) {
+    if (oldact_.sa_sigaction) {
+      oldact_.sa_sigaction(nr, info, void_context);
+    }
+  } else if (oldact_.sa_handler == SIG_IGN) {
+    return;
+  } else if (oldact_.sa_handler == SIG_DFL) {
+    sigaction(SIGSYS, &oldact_, nullptr);
+    raise(SIGSYS);
+  } else if (oldact_.sa_handler) {
+    oldact_.sa_handler(nr);
+  }
+}  // namespace sandbox2
+
+void NetworkProxyHandler::ProcessSeccompTrap(int nr, siginfo_t* info,
+                                             void* void_context) {
+  ucontext_t* ctx = (ucontext_t*)(void_context);
+  if (info->si_code != SYS_SECCOMP) {
+    InvokeOldAct(nr, info, void_context);
+    return;
+  }
+  if (!ctx) return;
+
+#if defined(__x86_64__)
+  auto* registers = ctx->uc_mcontext.gregs;
+#elif defined(__powerpc64__)
+  auto* registers = ctx->uc_mcontext.gp_regs;
+  using ppc_gpreg_t = std::decay<decltype(registers[0])>::type;
+#endif
+
+  int syscall = registers[kRegSyscall];
+
+  int sockfd;
+  const struct sockaddr* addr;
+  socklen_t addrlen;
+
+  if (syscall == __NR_connect) {
+    sockfd = static_cast<int>(registers[kRegArg0]);
+    addr = reinterpret_cast<const struct sockaddr*>(registers[kRegArg1]);
+    addrlen = static_cast<socklen_t>(registers[kRegArg2]);
+#if defined(__powerpc64__)
+  } else if (syscall == __NR_socketcall &&
+             static_cast<int>(registers[kRegArg0]) == SYS_CONNECT) {
+    ppc_gpreg_t* args = reinterpret_cast<ppc_gpreg_t*>(registers[kRegArg1]);
+
+    sockfd = static_cast<int>(args[0]);
+    addr = reinterpret_cast<const struct sockaddr*>(args[1]);
+    addrlen = static_cast<socklen_t>(args[2]);
+#endif
+  } else {
+    InvokeOldAct(nr, info, void_context);
+    return;
+  }
+
+  sapi::Status result = network_proxy_client_->Connect(sockfd, addr, addrlen);
+  if (result.ok()) {
+    registers[kRegResult] = 0;
+  } else {
+    registers[kRegResult] = -errno;
+  }
+}
+
+void NetworkProxyHandler::InstallSeccompTrap() {
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, SIGSYS);
+
+  struct sigaction act = {};
+  act.sa_sigaction = &SignalHandler;
+  act.sa_flags = SA_SIGINFO;
+
+  CHECK_EQ(sigaction(SIGSYS, &act, &oldact_), 0);
+  CHECK_EQ(sigprocmask(SIG_UNBLOCK, &mask, nullptr), 0);
 }
 
 }  // namespace sandbox2

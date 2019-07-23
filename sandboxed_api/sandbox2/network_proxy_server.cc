@@ -39,32 +39,35 @@ void NetworkProxyServer::ProcessConnectRequest() {
     return;
   }
 
-  // Only sockaddr_in is supported.
-  if (addr.size() != sizeof(sockaddr_in)) {
-    SendResult(-1, EINVAL);
-    return;
-  }
   const struct sockaddr_in* saddr =
       reinterpret_cast<const sockaddr_in*>(addr.data());
 
   // Only IPv4 TCP and IPv6 TCP are supported.
-  if (saddr->sin_family != AF_INET && saddr->sin_family != AF_INET6) {
-    SendResult(-1, EINVAL);
+  if (!((addr.size() == sizeof(sockaddr_in) && saddr->sin_family == AF_INET) ||
+        (addr.size() == sizeof(sockaddr_in6) &&
+         saddr->sin_family == AF_INET6))) {
+    SendError(EINVAL);
     return;
   }
 
   int new_socket = socket(saddr->sin_family, SOCK_STREAM, 0);
+  if (new_socket < 0) {
+    SendError(errno);
+    return;
+  }
+
   file_util::fileops::FDCloser new_socket_closer(new_socket);
 
   int result = connect(
       new_socket, reinterpret_cast<const sockaddr*>(addr.data()), addr.size());
 
-  SendResult(result, errno);
-
-  if (result == 0 && !fatal_error_) {
-    if (!comms_->SendFD(new_socket)) {
-      fatal_error_ = true;
-      return;
+  if (result == 0) {
+    NotifySuccess();
+    if (!fatal_error_) {
+      if (!comms_->SendFD(new_socket)) {
+        fatal_error_ = true;
+        return;
+      }
     }
   }
 }
@@ -77,8 +80,14 @@ void NetworkProxyServer::Run() {
       << "Clean shutdown or error occurred, shutting down NetworkProxyServer";
 }
 
-void NetworkProxyServer::SendResult(int result, int saved_errno) {
-  if (!comms_->SendInt32(result == 0 ? result : saved_errno)) {
+void NetworkProxyServer::SendError(int saved_errno) {
+  if (!comms_->SendInt32(saved_errno)) {
+    fatal_error_ = true;
+  }
+}
+
+void NetworkProxyServer::NotifySuccess() {
+  if (!comms_->SendInt32(0)) {
     fatal_error_ = true;
   }
 }

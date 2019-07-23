@@ -40,9 +40,11 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/network_proxy_client.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/canonical_errors.h"
 
 namespace sandbox2 {
 
@@ -254,6 +256,17 @@ NetworkProxyClient* Client::GetNetworkProxyClient() {
         GetMappedFD(NetworkProxyClient::kFDName));
   }
   return proxy_client_.get();
+}
+
+sapi::Status Client::InstallNetworkProxyHandler() {
+  if (fd_map_.find(NetworkProxyClient::kFDName) == fd_map_.end()) {
+    return sapi::FailedPreconditionError(
+        "InstallNetworkProxyHandler() must be called at most once after the "
+        "sandbox is installed. Also, the NetworkProxyServer needs to be "
+        "enabled.");
+  }
+  return NetworkProxyHandler::InstallNetworkProxyHandler(
+      GetNetworkProxyClient());
 }
 
 }  // namespace sandbox2

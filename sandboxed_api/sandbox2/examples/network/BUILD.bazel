@@ -1,0 +1,52 @@
+# Copyright 2019 Google LLC. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The 'network' example demonstrates:
+# - separate executor and sandboxee
+# - sandboxee enables sandboxing by calling SandboxMeHere()
+# - strict syscall policy
+# - sandbox2::Comms for data exchange (IPC)
+
+licenses(["notice"])  # Apache 2.0
+
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
+# Executor
+cc_binary(
+    name = "network_sandbox",
+    srcs = ["network_sandbox.cc"],
+    copts = sapi_platform_copts(),
+    data = [":network_bin"],
+    deps = [
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:runfiles",
+        "//sandboxed_api/util:flags",
+    ],
+)
+
+# Sandboxee
+cc_binary(
+    name = "network_bin",
+    srcs = ["network_bin.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:util",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)

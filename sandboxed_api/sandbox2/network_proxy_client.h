@@ -50,6 +50,26 @@ class NetworkProxyClient {
   absl::Mutex mutex_;
 };
 
+class NetworkProxyHandler {
+ public:
+  // Installs the handler that redirects connect() syscalls to the trap
+  // function. This function exchange data with NetworkProxyServer that checks
+  // if this connection is allowed and sends the connected socket to us.
+  // In other words, this function just use NetworkProxyClient class.
+  static sapi::Status InstallNetworkProxyHandler(NetworkProxyClient* npc);
+  void ProcessSeccompTrap(int nr, siginfo_t* info, void* void_context);
+
+ private:
+  NetworkProxyHandler(NetworkProxyClient* npc) : network_proxy_client_(npc) {
+    InstallSeccompTrap();
+  }
+  void InvokeOldAct(int nr, siginfo_t* info, void* void_context);
+  void InstallSeccompTrap();
+
+  struct sigaction oldact_;
+  NetworkProxyClient* network_proxy_client_;
+};
+
 }  // namespace sandbox2
 
 #endif  // SANDBOXED_API_SANDBOX2_NETWORK_PROXY_CLIENT_H_

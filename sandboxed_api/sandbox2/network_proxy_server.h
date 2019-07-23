@@ -35,11 +35,13 @@ class NetworkProxyServer {
   void Run();
 
  private:
-  // Sends the result of internal functions to the sandboxee. It sends errno in
-  // case of error and 0 if no error occurred. On error, it sets fatal_error_ to
-  // true, which terminates the processing loop in ProcessConnectRequest().
-  void SendResult(int result, int saved_errno);
+  // Notifies the network proxy client about the error and sends its code.
+  void SendError(int saved_errno);
 
+  // Notifies the network proxy client that no error occurred.
+  void NotifySuccess();
+
+  // Serves connection requests from the network proxy client.
   void ProcessConnectRequest();
 
   std::unique_ptr<Comms> comms_;

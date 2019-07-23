@@ -497,6 +497,13 @@ class PolicyBuilder final {
   // sandbox-team@ first if unsure.
   PolicyBuilder& DangerDefaultAllowAll();
 
+  // Allows syscalls that are necessary for the NetworkProxyClient
+  PolicyBuilder& AddNetworkProxyPolicy();
+
+  // Allows syscalls that are necessary for the NetworkProxyClient and
+  // the NetworkProxyHandler
+  PolicyBuilder& AddNetworkProxyHandlerPolicy();
+
  private:
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
