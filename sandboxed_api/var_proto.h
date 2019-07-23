@@ -19,6 +19,7 @@
 
 #include <cinttypes>
 
+#include "absl/memory/memory.h"
 #include "sandboxed_api/proto_helper.h"
 #include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_pointable.h"

@@ -32,9 +32,9 @@ def sapi_deps():
     if "com_google_absl" not in native.existing_rules():
         http_archive(
             name = "com_google_absl",
-            sha256 = "57cadb5f4e35e479de395490994db5cd91a23b3a4d6fba85ffbe86590d70f606",  # 2019-05-07
-            strip_prefix = "abseil-cpp-aa468ad75539619b47979911297efbb629c52e44",
-            urls = ["https://github.com/abseil/abseil-cpp/archive/aa468ad75539619b47979911297efbb629c52e44.zip"],
+            sha256 = "3c119a995f3bb1e2aa7b3a37efe526172695816d63bb7a001139f25d628b9c6e",  # 2019-07-18
+            strip_prefix = "abseil-cpp-278b26058c036833a4f7f3047d3f4d9296527f87",
+            urls = ["https://github.com/abseil/abseil-cpp/archive/278b26058c036833a4f7f3047d3f4d9296527f87.zip"],
         )
 
     # Abseil-py
