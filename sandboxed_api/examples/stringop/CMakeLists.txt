@@ -14,20 +14,22 @@
 
 add_subdirectory(lib)
 
-# sandboxed_api/examples/stringop:main_stringop
-add_executable(main_stringop
-  main_stringop.cc
-)
-target_link_libraries(main_stringop PRIVATE
-  absl::memory
-  absl::strings
-  absl::time
-  glog::glog
-  sapi::flags
-  sapi::sapi
-  sapi::status
-  sapi::stringop_sapi
-  sapi::test_main
-  sapi::vars
-)
-gtest_discover_tests(main_stringop)
+if(SAPI_ENABLE_TESTS)
+  # sandboxed_api/examples/stringop:main_stringop
+  add_executable(main_stringop
+    main_stringop.cc
+  )
+  target_link_libraries(main_stringop PRIVATE
+    absl::memory
+    absl::strings
+    absl::time
+    glog::glog
+    sapi::flags
+    sapi::sapi
+    sapi::status
+    sapi::stringop_sapi
+    sapi::test_main
+    sapi::vars
+  )
+  gtest_discover_tests(main_stringop)
+endif()
