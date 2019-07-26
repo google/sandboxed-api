@@ -14,41 +14,31 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-option(SAPI_USE_SUPERBUILD "Whether or not a superbuild should be invoked" ON)
-if(SAPI_USE_SUPERBUILD)
-  project(superbuild NONE)
-  include(cmake/SapiSuperBuild.cmake)
-  return()
-endif()
-project(sandboxed_api C CXX ASM)
+project(SandboxedAPI C CXX ASM)
 
 # SAPI-wide setting for the language level
 set(SAPI_CXX_STANDARD 11)
 
+set(SAPI_BINARY_DIR "${PROJECT_BINARY_DIR}" CACHE INTERNAL "" FORCE)
+set(SAPI_SOURCE_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "" FORCE)
+
 # Sapi CMake modules, order matters
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${SAPI_SOURCE_DIR}/cmake")
 include(SapiOptions)
 include(SapiDeps)
 include(SapiUtil)
 include(SapiBuildDefs)
 
-include(GoogleTest)
-
 # Make Bazel-style includes work
 configure_file(cmake/libcap_capability.h.in
                libcap/include/sys/capability.h
                @ONLY)
-set(libunwind_INCLUDE_DIR
-    ${PROJECT_BINARY_DIR}/Dependencies/Source/libunwind/include)
-configure_file(cmake/libunwind_ptrace.h.in
-               libunwind-ptrace.h
-               @ONLY)
 
 # Library with basic project settings. The empty file is there to be able to
 # define header-only libraries without cumbersome target_sources() hacks.
-file(TOUCH ${PROJECT_BINARY_DIR}/sapi_base_force_cxx_linkage.cc)
+file(TOUCH ${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc)
 add_library(sapi_base STATIC
-  ${PROJECT_BINARY_DIR}/sapi_base_force_cxx_linkage.cc
+  "${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc"
 )
 add_library(sapi::base ALIAS sapi_base)
 set_target_properties(sapi_base PROPERTIES
@@ -59,11 +49,9 @@ set_target_properties(sapi_base PROPERTIES
   POSITION_INDEPENDENT_CODE TRUE
 )
 target_include_directories(sapi_base INTERFACE
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${Protobuf_INCLUDE_DIR}
-  # Need to reach into Abseil internal headers from a few targets.
-  ${PROJECT_BINARY_DIR}/Dependencies/Source/absl
+  "${SAPI_BINARY_DIR}"
+  "${SAPI_SOURCE_DIR}"
+  "${Protobuf_INCLUDE_DIR}"
 )
 if(UNIX)
   target_compile_options(sapi_base INTERFACE
@@ -80,9 +68,11 @@ target_link_libraries(sapi_test_main INTERFACE
   sapi::base
 )
 
-# Setup tests to work like with Bazel
-create_directory_symlink(${PROJECT_BINARY_DIR} com_google_sandboxed_api)
-enable_testing()
+if(SAPI_ENABLE_TESTS)
+  include(GoogleTest)
+  # Setup tests to work like with Bazel
+  create_directory_symlink("${SAPI_BINARY_DIR}" com_google_sandboxed_api)
+  enable_testing()
+endif()
 
-add_subdirectory(cmake/libunwind)
 add_subdirectory(sandboxed_api)

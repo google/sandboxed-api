@@ -86,9 +86,9 @@ add_library(sandbox2_logserver_proto STATIC
   ${_sandbox2_logserver_pb_h}
 )
 add_library(sandbox2::logserver_proto ALIAS sandbox2_logserver_proto)
-target_link_libraries(sandbox2_logserver_proto PRIVATE
-  protobuf::libprotobuf
-  sapi::base
+target_link_libraries(sandbox2_logserver_proto
+  PRIVATE sapi::base
+  PUBLIC protobuf::libprotobuf
 )
 
 # sandboxed_api/sandbox2:logserver
@@ -102,7 +102,7 @@ target_link_libraries(sandbox2_logserver
           sandbox2::comms
           sandbox2::logserver_proto
           sapi::base
-  PUBLIC  glog::glog
+  PUBLIC glog::glog
 )
 
 # sandboxed_api/sandbox2:logsink
@@ -117,7 +117,7 @@ target_link_libraries(sandbox2_logsink
           sandbox2::comms
           sandbox2::logserver_proto
           sapi::base
-  PUBLIC  glog::glog
+  PUBLIC glog::glog
 )
 
 # sandboxed_api/sandbox2:network_proxy_server
@@ -221,6 +221,7 @@ add_executable(sandbox2::forkserver_bin ALIAS forkserver_bin)
 target_link_libraries(forkserver_bin PRIVATE
   absl::core_headers
   absl::strings
+  glog::glog
   sandbox2::client
   sandbox2::comms
   sandbox2::forkserver
@@ -327,9 +328,9 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::util
           sandbox2::violation_proto
           sapi::base
-          sapi::status
           sapi::statusor
   PUBLIC  sapi::flags
+          sapi::status
           sandbox2::logsink
 )
 
@@ -345,7 +346,6 @@ target_link_libraries(sandbox2_client
   PRIVATE absl::core_headers
           absl::memory
           absl::strings
-          sandbox2::comms
           sandbox2::file_helpers
           sandbox2::fileops
           sandbox2::logsink
@@ -353,7 +353,8 @@ target_link_libraries(sandbox2_client
           sandbox2::strerror
           sapi::base
           sapi::raw_logging
-  PUBLIC  glog::glog
+  PUBLIC glog::glog
+         sandbox2::comms
 )
 
 # sandboxed_api/sandbox2:forkserver
@@ -438,7 +439,7 @@ target_link_libraries(sandbox2_forkingclient
   PRIVATE absl::memory
           sandbox2::forkserver
           sapi::base
-  PUBLIC  sandbox2::client
+  PUBLIC sandbox2::client
 )
 
 # sandboxed_api/sandbox2:util
@@ -447,17 +448,17 @@ add_library(sandbox2_util STATIC
   util.h
 )
 add_library(sandbox2::util ALIAS sandbox2_util)
-target_link_libraries(sandbox2_util PRIVATE
-  absl::core_headers
-  absl::str_format
-  absl::strings
-  sandbox2::file_base
-  sandbox2::fileops
-  sandbox2::strerror
-  sapi::base
-  sapi::raw_logging
-  sapi::status
-  sapi::statusor
+target_link_libraries(sandbox2_util
+  PRIVATE absl::core_headers
+          absl::str_format
+          absl::strings
+          sandbox2::file_base
+          sandbox2::fileops
+          sandbox2::strerror
+          sapi::base
+          sapi::raw_logging
+          sapi::statusor
+  PUBLIC sapi::status
 )
 target_compile_options(sandbox2_util PRIVATE
   # The default is 16384, however we need to do a clone with a
@@ -518,20 +519,20 @@ add_library(sandbox2_comms STATIC
   comms.h
 )
 add_library(sandbox2::comms ALIAS sandbox2_comms)
-target_link_libraries(sandbox2_comms PRIVATE
-  absl::core_headers
-  absl::memory
-  absl::str_format
-  absl::strings
-  absl::synchronization
-  protobuf::libprotobuf
-  sandbox2::strerror
-  sandbox2::util
-  sapi::base
-  sapi::raw_logging
-  sapi::status
-  sapi::status_proto
-  sapi::statusor
+target_link_libraries(sandbox2_comms
+  PRIVATE absl::memory
+          absl::str_format
+          absl::strings
+          protobuf::libprotobuf
+          sandbox2::strerror
+          sandbox2::util
+          sapi::base
+          sapi::raw_logging
+          sapi::status_proto
+          sapi::statusor
+  PUBLIC absl::core_headers
+         absl::synchronization
+         sapi::status
 )
 
 # sandboxed_api/sandbox2:violation_proto

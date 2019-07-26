@@ -20,33 +20,34 @@
 #   target the target binary is embedded instead.
 macro(sapi_cc_embed_data)
   cmake_parse_arguments(_sapi_embed "" "NAME;NAMESPACE" "SOURCES" ${ARGN})
-  foreach(src ${_sapi_embed_SOURCES})
-    if(TARGET ${src})
-      list(APPEND _sapi_embed_in ${CMAKE_CURRENT_BINARY_DIR}/${src})
+  foreach(src IN LISTS _sapi_embed_SOURCES)
+    if(TARGET "${src}")
+      list(APPEND _sapi_embed_in "${CMAKE_CURRENT_BINARY_DIR}/${src}")
     else()
-      list(APPEND _sapi_embed_in ${src})
+      list(APPEND _sapi_embed_in "${src}")
     endif()
   endforeach()
   file(RELATIVE_PATH _sapi_embed_pkg
-                     ${PROJECT_BINARY_DIR}
-                     ${CMAKE_CURRENT_BINARY_DIR})
+                     "${PROJECT_BINARY_DIR}"
+                     "${CMAKE_CURRENT_BINARY_DIR}")
   add_custom_command(
-    OUTPUT ${_sapi_embed_NAME}.h ${_sapi_embed_NAME}.cc
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMAND filewrapper ${_sapi_embed_pkg}
-                        ${_sapi_embed_NAME}
+    OUTPUT "${_sapi_embed_NAME}.h"
+           "${_sapi_embed_NAME}.cc"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMAND filewrapper "${_sapi_embed_pkg}"
+                        "${_sapi_embed_NAME}"
                         "${_sapi_embed_NAMESPACE}"
-                        ${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_NAME}.h
-                        ${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_NAME}.cc
+                        "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_NAME}.h"
+                        "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_NAME}.cc"
                         ${_sapi_embed_in}
     DEPENDS ${_sapi_embed_SOURCES}
     VERBATIM
   )
-  add_library(${_sapi_embed_NAME} STATIC
-    ${_sapi_embed_NAME}.h
-    ${_sapi_embed_NAME}.cc
+  add_library("${_sapi_embed_NAME}" STATIC
+    "${_sapi_embed_NAME}.h"
+    "${_sapi_embed_NAME}.cc"
   )
-  target_link_libraries(${_sapi_embed_NAME} PRIVATE
+  target_link_libraries("${_sapi_embed_NAME}" PRIVATE
     sapi::base
     absl::core_headers
   )
@@ -135,7 +136,7 @@ function(add_sapi_library)
   add_custom_command(
     OUTPUT "${_sapi_gen_header}"
     COMMAND "${Python3_EXECUTABLE}" -B
-            "${PROJECT_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
+            "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
             "--sapi_name=${_sapi_LIBRARY_NAME}"
             "--sapi_out=${_sapi_gen_header}"
             "--sapi_embed_dir=${_sapi_embed_dir}"
@@ -155,7 +156,7 @@ function(add_sapi_library)
     list(APPEND _sapi_SOURCES "${_sapi_force_cxx_linkage}")
   endif()
   add_library("${_sapi_NAME}" STATIC
-    ${_sapi_gen_header}
+    "${_sapi_gen_header}"
     ${_sapi_SOURCES}
   )
   target_link_libraries("${_sapi_NAME}" PRIVATE

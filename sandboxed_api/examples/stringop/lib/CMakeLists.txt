@@ -23,9 +23,9 @@ add_library(sapi_stringop_params_proto OBJECT
   ${_sapi_stringop_params_pb_h}
 )
 add_library(sapi::stringop_params_proto ALIAS sapi_stringop_params_proto)
-target_link_libraries(sapi_stringop_params_proto PRIVATE
-  protobuf::libprotobuf
-  sapi::base
+target_link_libraries(sapi_stringop_params_proto
+  PRIVATE sapi::base
+  PUBLIC protobuf::libprotobuf
 )
 
 # sandboxed_api/examples/stringop/lib:stringop
@@ -33,10 +33,11 @@ add_library(sapi_stringop STATIC
   stringop.cc
 )
 add_library(sapi::stringop ALIAS sapi_stringop)
-target_link_libraries(sapi_stringop PRIVATE
-  $<TARGET_OBJECTS:sapi_stringop_params_proto>
-  sapi::base
-  sapi::lenval_core
+target_link_libraries(sapi_stringop
+  PRIVATE $<TARGET_OBJECTS:sapi_stringop_params_proto>
+          sapi::base
+          sapi::lenval_core
+  PUBLIC protobuf::libprotobuf
 )
 
 # sandboxed_api/examples/stringop/lib:stringop-sapi

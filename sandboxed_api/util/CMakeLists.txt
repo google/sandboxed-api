@@ -21,8 +21,9 @@ add_library(sapi_util_status_proto STATIC
   ${_sapi_util_status_pb_h}
 )
 add_library(sapi::status_proto ALIAS sapi_util_status_proto)
-target_link_libraries(sapi_util_status_proto PRIVATE
-  protobuf::libprotobuf
+target_link_libraries(sapi_util_status_proto
+  PRIVATE sapi::base
+  PUBLIC protobuf::libprotobuf
 )
 
 # sandboxed_api/util:status
@@ -35,12 +36,12 @@ add_library(sapi_util_status STATIC
   status_macros.h
 )
 add_library(sapi::status ALIAS sapi_util_status)
-target_link_libraries(sapi_util_status PRIVATE
-  absl::core_headers
-  absl::strings
-  absl::type_traits
-  sapi::base
-  sapi::status_proto
+target_link_libraries(sapi_util_status
+  PRIVATE absl::core_headers
+          absl::strings
+          absl::type_traits
+          sapi::base
+  PUBLIC sapi::status_proto
 )
 
 # sandboxed_api/util:statusor
@@ -62,7 +63,7 @@ add_library(sapi_util_flags STATIC
 )
 add_library(sapi::flags ALIAS sapi_util_flags)
 target_link_libraries(sapi_util_flags PUBLIC
-  gflags
+  gflags::gflags
 )
 
 # sandboxed_api/util:raw_logging

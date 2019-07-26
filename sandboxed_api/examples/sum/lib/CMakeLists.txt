@@ -23,9 +23,9 @@ add_library(sapi_sum_params_proto OBJECT
   ${_sapi_sum_params_pb_h}
 )
 add_library(sapi::sum_params_proto ALIAS sapi_sum_params_proto)
-target_link_libraries(sapi_sum_params_proto PRIVATE
-  protobuf::libprotobuf
-  sapi::base
+target_link_libraries(sapi_sum_params_proto
+  PRIVATE sapi::base
+  PUBLIC protobuf::libprotobuf
 )
 
 # sandboxed_api/examples/sum/lib:sum
@@ -34,10 +34,11 @@ add_library(sapi_sum STATIC
   sum_cpp.cc
 )
 add_library(sapi::sum ALIAS sapi_sum)
-target_link_libraries(sapi_sum PRIVATE
-  $<TARGET_OBJECTS:sapi_sum_params_proto>
-  glog::glog
-  sapi::base
+target_link_libraries(sapi_sum
+  PRIVATE $<TARGET_OBJECTS:sapi_sum_params_proto>
+          glog::glog
+          sapi::base
+  PUBLIC protobuf::libprotobuf
 )
 
 # sandboxed_api/examples/sum/lib:sum-sapi

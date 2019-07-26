@@ -28,6 +28,7 @@ target_link_libraries(sandbox2_network_sandbox PRIVATE
   sandbox2::runfiles
   sandbox2::sandbox2
   sapi::base
+  sapi::flags
 )
 
 # sandboxed_api/sandbox2/examples/network_bin:network_bin
@@ -37,6 +38,8 @@ add_executable(network_bin
 add_executable(sandbox2::network_bin ALIAS network_bin)
 target_link_libraries(network_bin PRIVATE
   absl::str_format
+  glog::glog
+  gflags::gflags
   sandbox2::client
   sandbox2::comms
   sandbox2::fileops

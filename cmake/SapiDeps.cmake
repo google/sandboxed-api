@@ -12,39 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-list(APPEND CMAKE_PREFIX_PATH
-  "${PROJECT_BINARY_DIR}/Dependencies/Build/gflags"
-  "${PROJECT_BINARY_DIR}/Dependencies/Build/glog"
-  "${PROJECT_BINARY_DIR}/Dependencies/Build/protobuf"
-)
-
-# Build Abseil directly, as recommended upstream
-find_path(absl_src_dir
-  absl/base/port.h
-  HINTS ${ABSL_ROOT_DIR}
-  PATHS ${PROJECT_BINARY_DIR}/Dependencies/Source/absl
-)
-set(_sapi_saved_CMAKE_CXX_STANDARD ${CMAKE_CXX_STANDARD})
-set(CMAKE_CXX_STANDARD ${SAPI_CXX_STANDARD})
-add_subdirectory(${absl_src_dir}
-                 ${PROJECT_BINARY_DIR}/Dependencies/Build/absl
-                 EXCLUDE_FROM_ALL)
-if(_sapi_saved_CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD "${_sapi_saved_CMAKE_CXX_STANDARD}")
-endif()
-
-if(SAPI_ENABLE_TESTS)
-  # Build Googletest directly, as recommended upstream
-  find_path(googletest_src_dir
-    googletest/include/gtest/gtest.h
-    HINTS ${GOOGLETEST_ROOT_DIR}
-    PATHS ${PROJECT_BINARY_DIR}/Dependencies/Source/googletest
-  )
-  set(gtest_force_shared_crt ON CACHE BOOL "")
-  add_subdirectory(${googletest_src_dir}
-                   ${PROJECT_BINARY_DIR}/Dependencies/Build/googletest
-                   EXCLUDE_FROM_ALL)
-endif()
+function(check_target target)
+  if(NOT TARGET ${target})
+    message(FATAL_ERROR " SAPI: compiling Sandboxed API requires a ${target}
+                   CMake target in your project")
+  endif()
+endfunction()
 
 # Prefer to use static libraries
 set(_sapi_saved_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
@@ -54,14 +27,47 @@ else()
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
 endif()
 
-find_package(gflags REQUIRED)
-find_package(glog REQUIRED)
+if(SAPI_ENABLE_TESTS)
+  if(SAPI_USE_GOOGLETEST)
+    include(cmake/googletest/Download.cmake)
+  endif()
+  check_target(gtest)
+  check_target(gtest_main)
+  check_target(gmock)
+endif()
+
+if(SAPI_USE_ABSL)
+  include(cmake/abseil/Download.cmake)
+endif()
+check_target(absl::core_headers)
+
+if(SAPI_USE_LIBUNWIND)
+  include(cmake/libunwind/Download.cmake)
+endif()
+check_target(unwind_ptrace)
+check_target(unwind_ptrace_wrapped)
+
+if(SAPI_USE_GFLAGS)
+  include(cmake/gflags/Download.cmake)
+endif()
+check_target(gflags)
+
+if(SAPI_USE_GLOG)
+  include(cmake/glog/Download.cmake)
+endif()
+check_target(glog::glog)
+
+if(SAPI_USE_PROTOBUF)
+  include(cmake/protobuf/Download.cmake)
+endif()
+check_target(protobuf::libprotobuf)
+find_package(Protobuf REQUIRED)
+
 find_package(Libcap REQUIRED)
 find_package(Libffi REQUIRED)
 if(SAPI_ENABLE_EXAMPLES)
   find_package(ZLIB REQUIRED)
 endif()
-find_package(Protobuf REQUIRED)
 
 if(CMAKE_VERSION VERSION_LESS "3.12")
   # Work around FindPythonInterp sometimes not preferring Python 3.

@@ -59,25 +59,26 @@ add_library(sapi_sapi STATIC
   transaction.h
 )
 add_library(sapi::sapi ALIAS sapi_sapi)
-target_link_libraries(sapi_sapi PRIVATE
-  absl::core_headers
-  absl::flat_hash_map
-  absl::memory
-  absl::str_format
-  absl::strings
-  absl::synchronization
-  sandbox2::bpf_helper
-  sandbox2::client
-  sandbox2::file_base
-  sandbox2::fileops
-  sandbox2::runfiles
-  sandbox2::sandbox2
-  sandbox2::strerror
-  sandbox2::util
-  sapi::base
-  sapi::embed_file
-  sapi::status
-  sapi::vars
+target_link_libraries(sapi_sapi
+  PRIVATE absl::flat_hash_map
+          absl::memory
+          absl::str_format
+          absl::strings
+          absl::synchronization
+          sandbox2::bpf_helper
+          sandbox2::file_base
+          sandbox2::fileops
+          sandbox2::runfiles
+          sandbox2::sandbox2
+          sandbox2::strerror
+          sandbox2::util
+          sapi::embed_file
+          sapi::status
+          sapi::vars
+  PUBLIC absl::core_headers
+         sandbox2::client
+         sapi::base
+         sapi::status
 )
 
 # sandboxed_api:call

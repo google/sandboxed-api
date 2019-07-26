@@ -28,6 +28,7 @@ target_link_libraries(sandbox2_networkproxy_sandbox PRIVATE
   sandbox2::runfiles
   sandbox2::sandbox2
   sapi::base
+  sapi::flags
 )
 
 # sandboxed_api/sandbox2/examples/networkproxy_bin:networkproxy_bin
@@ -37,6 +38,8 @@ add_executable(networkproxy_bin
 add_executable(sandbox2::networkproxy_bin ALIAS networkproxy_bin)
 target_link_libraries(networkproxy_bin PRIVATE
   absl::str_format
+  glog::glog
+  gflags::gflags
   sandbox2::client
   sandbox2::comms
   sandbox2::fileops

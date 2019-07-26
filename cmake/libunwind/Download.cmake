@@ -12,10 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Custom build for libunwind. We need this to remap libunwind symbols.
+# Downloads and unpacks libunwind at configure time
 
-set(_unwind_src ${PROJECT_BINARY_DIR}/Dependencies/Source/libunwind)
+set(workdir "${CMAKE_BINARY_DIR}/libunwind-download")
 
+configure_file("${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt.in"
+               "${workdir}/CMakeLists.txt")
+execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+                RESULT_VARIABLE error
+                WORKING_DIRECTORY "${workdir}")
+if(error)
+  message(FATAL_ERROR "CMake step for ${PROJECT_NAME} failed: ${error}")
+endif()
+
+execute_process(COMMAND ${CMAKE_COMMAND} --build .
+                RESULT_VARIABLE error
+                WORKING_DIRECTORY "${workdir}")
+if(error)
+  message(FATAL_ERROR "Build step for ${PROJECT_NAME} failed: ${error}")
+endif()
+
+set(_unwind_src "${CMAKE_BINARY_DIR}/libunwind-src")
 foreach(wrapped _wrapped "")
   add_library(unwind_ptrace${wrapped} STATIC
     # internal_headers
