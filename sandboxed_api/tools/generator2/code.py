@@ -666,7 +666,7 @@ class Generator(object):
 
   def __init__(self, translation_units):
     # type: (List[cindex.TranslationUnit]) -> None
-    """Initialize Generator.
+    """Initializes the generator.
 
     Args:
       translation_units: list of translation_units for analyzed files,
@@ -876,19 +876,16 @@ class Generator(object):
     if embed_dir and embed_name:
       result.append(Generator.EMBED_INCLUDE.format(embed_dir, embed_name))
 
-    result.append('')
     if namespaces:
+      result.append('')
       for n in namespaces:
         result.append('namespace {} {{'.format(n))
 
-    result.append('')
-    result.append('')
-
     if related_types:
+      result.append('')
       for t in related_types:
         result.append(t)
 
-    result.append('')
     result.append('')
 
     if embed_dir and embed_name:
@@ -899,15 +896,13 @@ class Generator(object):
     result.append(' public:')
     result.append('  explicit {}Api(::sapi::Sandbox* sandbox)'
                   ' : sandbox_(sandbox) {{}}'.format(name))
-    result.append('  ::sapi::Sandbox* GetSandbox() {')
-    result.append('    return sandbox_;')
-    result.append('  }')
-    result.append('')
-    result.append('')
+    result.append('  // Deprecated')
+    result.append('  ::sapi::Sandbox* GetSandbox() const { return sandbox(); }')
+    result.append('  ::sapi::Sandbox* sandbox() const { return sandbox_; }')
 
     for f in functions:
-      result.append(self._format_function(f))
       result.append('')
+      result.append(self._format_function(f))
 
     result.append('')
     result.append(' private:')
@@ -922,8 +917,6 @@ class Generator(object):
     if header_guard:
       result.append(Generator.GUARD_END.format(header_guard))
 
-    result.append('')
-    result.append('')
     result.append('')
 
     return '\n'.join(result)
