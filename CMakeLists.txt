@@ -22,6 +22,8 @@ set(SAPI_CXX_STANDARD 11)
 set(SAPI_BINARY_DIR "${PROJECT_BINARY_DIR}" CACHE INTERNAL "" FORCE)
 set(SAPI_SOURCE_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "" FORCE)
 
+include(CheckCXXCompilerFlag)
+
 # Sapi CMake modules, order matters
 list(APPEND CMAKE_MODULE_PATH "${SAPI_SOURCE_DIR}/cmake")
 include(SapiOptions)
@@ -52,12 +54,20 @@ target_include_directories(sapi_base INTERFACE
   "${SAPI_BINARY_DIR}"
   "${SAPI_SOURCE_DIR}"
   "${Protobuf_INCLUDE_DIR}"
+  # Need to reach into Abseil internal headers from a few targets.
+  "${CMAKE_BINARY_DIR}/absl-src"
 )
 if(UNIX)
-  target_compile_options(sapi_base INTERFACE
-    -Wno-deprecated
-    -Wno-psabi
-  )
+  foreach(flag IN ITEMS -Wno-deprecated
+                        -Wno-deprecated-declarations
+                        -Wno-psabi)
+    check_cxx_compiler_flag(${flag} _sapi_has_flag)
+    if(_sapi_has_flag)
+      target_compile_options(sapi_base INTERFACE
+        ${flag}
+      )
+    endif()
+  endforeach()
 endif()
 
 add_library(sapi_test_main INTERFACE)
