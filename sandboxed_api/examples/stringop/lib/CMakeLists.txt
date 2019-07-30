@@ -33,6 +33,9 @@ add_library(sapi_stringop STATIC
   stringop.cc
 )
 add_library(sapi::stringop ALIAS sapi_stringop)
+add_dependencies(sapi_stringop
+  sapi::stringop_params_proto
+)
 target_link_libraries(sapi_stringop
   PRIVATE $<TARGET_OBJECTS:sapi_stringop_params_proto>
           sapi::base

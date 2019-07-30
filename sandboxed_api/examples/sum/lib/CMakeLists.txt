@@ -34,6 +34,9 @@ add_library(sapi_sum STATIC
   sum_cpp.cc
 )
 add_library(sapi::sum ALIAS sapi_sum)
+add_dependencies(sapi_sum
+  sapi::sum_params_proto
+)
 target_link_libraries(sapi_sum
   PRIVATE $<TARGET_OBJECTS:sapi_sum_params_proto>
           glog::glog

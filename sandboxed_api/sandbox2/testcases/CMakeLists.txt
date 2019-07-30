@@ -71,6 +71,9 @@ add_executable(ipc
 add_executable(sandbox2::testcase_ipc ALIAS ipc)
 target_link_libraries(ipc PRIVATE
   absl::strings
+  -Wl,--whole-archive
+  gflags::gflags
+  -Wl,--no-whole-archive
   glog::glog
   sandbox2::client
   sandbox2::comms
@@ -135,6 +138,9 @@ set_target_properties(pidcomms PROPERTIES
   ${_sandbox2_testcase_properties}
 )
 target_link_libraries(pidcomms PRIVATE
+  -Wl,--whole-archive
+  gflags::gflags
+  -Wl,--no-whole-archive
   glog::glog
   sandbox2::client
   sandbox2::comms
@@ -234,10 +240,13 @@ set_target_properties(tsync PROPERTIES
   ${_sandbox2_testcase_properties}
 )
 target_link_libraries(tsync PRIVATE
+  -Wl,--whole-archive
+  gflags::gflags
+  -Wl,--no-whole-archive
   glog::glog
-  sapi::base
   sandbox2::client
   sandbox2::comms
+  sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 

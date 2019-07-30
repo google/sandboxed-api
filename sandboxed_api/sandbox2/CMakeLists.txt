@@ -57,7 +57,8 @@ target_link_libraries(sandbox2_syscall
           absl::strings
           sandbox2::util
           sapi::base
-  PUBLIC  glog::glog
+  PUBLIC glog::glog
+         gflags::gflags
 )
 
 # sandboxed_api/sandbox2:result
@@ -637,9 +638,9 @@ if(SAPI_ENABLE_TESTS)
     ${_sandbox2_comms_test_pb_h}
   )
   add_library(sandbox2::comms_test_proto ALIAS sandbox2_comms_test_proto)
-  target_link_libraries(sandbox2_comms_test_proto PRIVATE
-    protobuf::libprotobuf
-    sapi::base
+  target_link_libraries(sandbox2_comms_test_proto
+    PRIVATE sapi::base
+    PUBLIC protobuf::libprotobuf
   )
 
   # sandboxed_api/sandbox2:comms_test
@@ -650,7 +651,7 @@ if(SAPI_ENABLE_TESTS)
     absl::fixed_array
     absl::strings
     glog::glog
-    protobuf::libprotobuf
+    gflags::gflags
     sandbox2::comms
     sandbox2::comms_test_proto
     sapi::status_matchers

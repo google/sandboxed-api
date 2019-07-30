@@ -89,13 +89,13 @@ add_library(sandbox2_util_temp_file STATIC
   temp_file.h
 )
 add_library(sandbox2::temp_file ALIAS sandbox2_util_temp_file)
-target_link_libraries(sandbox2_util_temp_file PRIVATE
-  absl::strings
-  sandbox2::fileops
-  sandbox2::strerror
-  sapi::base
-  sapi::status
-  sapi::statusor
+target_link_libraries(sandbox2_util_temp_file
+  PRIVATE absl::strings
+          sandbox2::fileops
+          sandbox2::strerror
+          sapi::base
+  PUBLIC sapi::status
+         sapi::statusor
 )
 
 # sandboxed_api/sandbox2/util:maps_parser
@@ -191,6 +191,7 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::maps_parser
     sandbox2::minielf
     sandbox2::testing
+    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests(minielf_test PROPERTIES

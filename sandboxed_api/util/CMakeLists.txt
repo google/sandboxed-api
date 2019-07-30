@@ -85,13 +85,13 @@ if(SAPI_ENABLE_TESTS)
     status_matchers.h
   )
   add_library(sapi::status_matchers ALIAS sapi_util_status_matchers)
-  target_link_libraries(sapi_util_status_matchers PRIVATE
-    absl::optional
-    gmock
-    gtest
-    sapi::base
-    sapi::status
-    sapi::statusor
+  target_link_libraries(sapi_util_status_matchers
+    PRIVATE absl::optional
+            gmock
+            gtest
+            sapi::base
+    PUBLIC sapi::status
+           sapi::statusor
   )
 
   # sandboxed_api/util:status_test

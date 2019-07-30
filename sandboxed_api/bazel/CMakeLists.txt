@@ -42,6 +42,7 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::file_helpers
     sandbox2::fileops
     sandbox2::testing
+    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests(filewrapper_test PROPERTIES
