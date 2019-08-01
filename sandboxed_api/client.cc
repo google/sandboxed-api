@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "sandboxed_api/sandbox2/client.h"
+
 #include <dlfcn.h>
 #include <sys/syscall.h>
 
@@ -20,6 +22,7 @@
 #include <list>
 #include <vector>
 
+#include "base/commandlineflags.h"
 #include <glog/logging.h>
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
@@ -28,7 +31,6 @@
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/proto_arg.pb.h"
-#include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/vars.h"
