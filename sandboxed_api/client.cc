@@ -22,7 +22,6 @@
 #include <list>
 #include <vector>
 
-#include "base/commandlineflags.h"
 #include <glog/logging.h>
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
