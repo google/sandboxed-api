@@ -120,7 +120,7 @@ foreach(wrapped _wrapped "")
     ${_unwind_src}/src/x86_64/Ginit_remote.c
   )
   add_library(unwind::unwind_ptrace${wrapped} ALIAS unwind_ptrace${wrapped})
-  target_include_directories(unwind_ptrace${wrapped} PRIVATE
+  target_include_directories(unwind_ptrace${wrapped} PUBLIC
     ${_unwind_src}/include
     ${_unwind_src}/include/tdep
     ${_unwind_src}/src

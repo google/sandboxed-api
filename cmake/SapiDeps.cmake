@@ -59,9 +59,11 @@ check_target(glog::glog)
 
 if(SAPI_USE_PROTOBUF)
   include(cmake/protobuf/Download.cmake)
+  check_target(protobuf::libprotobuf)
+  check_target(protobuf::protoc)
+else()
+  find_package(Protobuf REQUIRED)
 endif()
-check_target(protobuf::libprotobuf)
-find_package(Protobuf REQUIRED)
 
 find_package(Libcap REQUIRED)
 find_package(Libffi REQUIRED)
