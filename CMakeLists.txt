@@ -38,7 +38,7 @@ configure_file(cmake/libcap_capability.h.in
 
 # Library with basic project settings. The empty file is there to be able to
 # define header-only libraries without cumbersome target_sources() hacks.
-file(TOUCH ${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc)
+file(WRITE ${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc "")
 add_library(sapi_base STATIC
   "${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc"
 )

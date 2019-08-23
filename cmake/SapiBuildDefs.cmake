@@ -102,7 +102,7 @@ function(add_sapi_library)
   set(_sapi_bin "${_sapi_NAME}.bin")
   set(_sapi_force_cxx_linkage
     "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_bin}_force_cxx_linkage.cc")
-  file(TOUCH "${_sapi_force_cxx_linkage}")
+  file(WRITE "${_sapi_force_cxx_linkage}" "")
   add_executable("${_sapi_bin}" "${_sapi_force_cxx_linkage}")
   # TODO(cblichmann): Use target_link_options on CMake >= 3.13
   target_link_libraries("${_sapi_bin}" PRIVATE
@@ -123,12 +123,12 @@ function(add_sapi_library)
   endif()
 
   # Interface
-  list(JOIN _sapi_FUNCTIONS "," _sapi_funcs)
+  list_join(_sapi_FUNCTIONS "," _sapi_funcs)
   foreach(src IN LISTS _sapi_INPUTS)
     get_filename_component(src "${src}" ABSOLUTE)
     list(APPEND _sapi_full_inputs "${src}")
   endforeach()
-  list(JOIN _sapi_full_inputs "," _sapi_full_inputs)
+  list_join(_sapi_full_inputs "," _sapi_full_inputs)
   if(NOT _sapi_NOEMBED)
     set(_sapi_embed_dir "${CMAKE_CURRENT_BINARY_DIR}")
     set(_sapi_embed_name "${_sapi_NAME}")
@@ -152,7 +152,7 @@ function(add_sapi_library)
   if(NOT _sapi_SOURCES)
     set(_sapi_force_cxx_linkage
       "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_NAME}_force_cxx_linkage.cc")
-    file(TOUCH "${_sapi_force_cxx_linkage}")
+    file(WRITE "${_sapi_force_cxx_linkage}" "")
     list(APPEND _sapi_SOURCES "${_sapi_force_cxx_linkage}")
   endif()
   add_library("${_sapi_NAME}" STATIC

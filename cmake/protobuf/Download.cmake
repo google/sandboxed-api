@@ -38,3 +38,5 @@ set(protobuf_WITH_ZLIB OFF CACHE BOOL "")
 
 add_subdirectory("${CMAKE_BINARY_DIR}/protobuf-src/cmake"
                  "${CMAKE_BINARY_DIR}/protobuf-build" EXCLUDE_FROM_ALL)
+get_property(Protobuf_INCLUDE_DIRS TARGET protobuf::libprotobuf
+                                   PROPERTY INCLUDE_DIRECTORIES)

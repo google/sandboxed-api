@@ -23,9 +23,8 @@ add_library(sapi_sum_params_proto OBJECT
   ${_sapi_sum_params_pb_h}
 )
 add_library(sapi::sum_params_proto ALIAS sapi_sum_params_proto)
-target_link_libraries(sapi_sum_params_proto
-  PRIVATE sapi::base
-  PUBLIC protobuf::libprotobuf
+target_include_directories(sapi_sum_params_proto PUBLIC
+  ${Protobuf_INCLUDE_DIRS}
 )
 
 # sandboxed_api/examples/sum/lib:sum
