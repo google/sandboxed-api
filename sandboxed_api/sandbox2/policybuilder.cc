@@ -634,20 +634,20 @@ PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
   return *this;
 }
 
-::sapi::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
+sapi::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
     absl::string_view path) {
   if (!file::IsAbsolutePath(path)) {
-    return ::sapi::InvalidArgumentError(
+    return sapi::InvalidArgumentError(
         absl::StrCat("Path is not absolute: '", path, "'"));
   }
   return ValidatePath(path);
 }
 
-::sapi::StatusOr<std::string> PolicyBuilder::ValidatePath(
+sapi::StatusOr<std::string> PolicyBuilder::ValidatePath(
     absl::string_view path) {
   std::string fixed_path = file::CleanPath(path);
   if (fixed_path != path) {
-    return ::sapi::InvalidArgumentError(absl::StrCat(
+    return sapi::InvalidArgumentError(absl::StrCat(
         "Path was not normalized. '", path, "' != '", fixed_path, "'"));
   }
   return fixed_path;
@@ -658,13 +658,13 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
 
   std::vector<sock_filter> policy = f(l);
   if (bpf_resolve_jumps(&l, policy.data(), policy.size()) != 0) {
-    SetError(::sapi::InternalError("Cannot resolve bpf jumps"));
+    SetError(sapi::InternalError("Cannot resolve bpf jumps"));
   }
 
   return policy;
 }
 
-::sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
+sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   CHECK_NE(use_namespaces_, disable_namespaces_)
       << "Namespaces should either be enabled (by calling EnableNamespaces(), "
          "AddFile(), etc.) or disabled (by calling DisableNamespaces())";
@@ -673,12 +673,12 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
   }
 
   if (!output_) {
-    return ::sapi::FailedPreconditionError("Can only build policy once.");
+    return sapi::FailedPreconditionError("Can only build policy once.");
   }
 
   if (use_namespaces_) {
     if (allow_unrestricted_networking_ && hostname_ != kDefaultHostname) {
-      return ::sapi::FailedPreconditionError(
+      return sapi::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
     output_->SetNamespace(absl::make_unique<Namespace>(
@@ -706,7 +706,7 @@ PolicyBuilder& PolicyBuilder::AddFile(absl::string_view path, bool is_ro) {
   return AddFileAt(path, path, is_ro);
 }
 
-PolicyBuilder& PolicyBuilder::SetError(const ::sapi::Status& status) {
+PolicyBuilder& PolicyBuilder::SetError(const sapi::Status& status) {
   LOG(ERROR) << status;
   last_status_ = status;
   return *this;
@@ -724,7 +724,7 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
   auto fixed_outside = std::move(fixed_outside_or.ValueOrDie());
 
   if (absl::StartsWith(fixed_outside, "/proc/self")) {
-    SetError(::sapi::InvalidArgumentError(
+    SetError(sapi::InvalidArgumentError(
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",
                      outside)));
@@ -733,9 +733,9 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
 
   auto status = mounts_.AddFileAt(fixed_outside, inside, is_ro);
   if (!status.ok()) {
-    SetError(::sapi::InternalError(absl::StrCat("Could not add file ", outside,
-                                                " => ", inside, ": ",
-                                                status.message())));
+    SetError(
+        sapi::InternalError(absl::StrCat("Could not add file ", outside, " => ",
+                                         inside, ": ", status.message())));
   }
 
   return *this;
@@ -754,7 +754,7 @@ PolicyBuilder& PolicyBuilder::AddLibrariesForBinary(
 
   auto status = mounts_.AddMappingsForBinary(fixed_path, ld_library_path);
   if (!status.ok()) {
-    SetError(::sapi::InternalError(absl::StrCat(
+    SetError(sapi::InternalError(absl::StrCat(
         "Could not add libraries for ", fixed_path, ": ", status.message())));
   }
   return *this;
@@ -782,7 +782,7 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
   }
   auto fixed_outside = std::move(fixed_outside_or.ValueOrDie());
   if (absl::StartsWith(fixed_outside, "/proc/self")) {
-    SetError(::sapi::InvalidArgumentError(
+    SetError(sapi::InvalidArgumentError(
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",
                      outside)));
@@ -791,9 +791,9 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
 
   auto status = mounts_.AddDirectoryAt(fixed_outside, inside, is_ro);
   if (!status.ok()) {
-    SetError(::sapi::InternalError(absl::StrCat("Could not add directory ",
-                                                outside, " => ", inside, ": ",
-                                                status.message())));
+    SetError(sapi::InternalError(absl::StrCat("Could not add directory ",
+                                              outside, " => ", inside, ": ",
+                                              status.message())));
   }
 
   return *this;
@@ -804,8 +804,8 @@ PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t sz) {
 
   auto status = mounts_.AddTmpfs(inside, sz);
   if (!status.ok()) {
-    SetError(::sapi::InternalError(absl::StrCat(
-        "Could not mount tmpfs ", inside, ": ", status.message())));
+    SetError(sapi::InternalError(absl::StrCat("Could not mount tmpfs ", inside,
+                                              ": ", status.message())));
   }
 
   return *this;

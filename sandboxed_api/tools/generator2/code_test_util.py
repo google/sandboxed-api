@@ -32,7 +32,7 @@ class TestApi {
   ::sapi::Sandbox* sandbox() const { return sandbox_; }
 
   // int function_a(int, int)
-  ::sapi::StatusOr<int> function_a(int x, int y) {
+  sapi::StatusOr<int> function_a(int x, int y) {
     ::sapi::v::Int ret;
     ::sapi::v::Int x_((x));
     ::sapi::v::Int y_((y));
@@ -42,7 +42,7 @@ class TestApi {
   }
 
   // int types_1(bool, unsigned char, char, unsigned short, short)
-  ::sapi::StatusOr<int> types_1(bool a0, unsigned char a1, char a2, unsigned short a3, short a4) {
+  sapi::StatusOr<int> types_1(bool a0, unsigned char a1, char a2, unsigned short a3, short a4) {
     ::sapi::v::Int ret;
     ::sapi::v::Bool a0_((a0));
     ::sapi::v::UChar a1_((a1));
@@ -55,7 +55,7 @@ class TestApi {
   }
 
   // int types_2(int, unsigned int, long, unsigned long)
-  ::sapi::StatusOr<int> types_2(int a0, unsigned int a1, long a2, unsigned long a3) {
+  sapi::StatusOr<int> types_2(int a0, unsigned int a1, long a2, unsigned long a3) {
     ::sapi::v::Int ret;
     ::sapi::v::Int a0_((a0));
     ::sapi::v::UInt a1_((a1));
@@ -67,7 +67,7 @@ class TestApi {
   }
 
   // int types_3(long long, unsigned long long, float, double)
-  ::sapi::StatusOr<int> types_3(long long a0, unsigned long long a1, float a2, double a3) {
+  sapi::StatusOr<int> types_3(long long a0, unsigned long long a1, float a2, double a3) {
     ::sapi::v::Int ret;
     ::sapi::v::LLong a0_((a0));
     ::sapi::v::ULLong a1_((a1));
@@ -79,7 +79,7 @@ class TestApi {
   }
 
   // int types_4(signed char, short, int, long)
-  ::sapi::StatusOr<int> types_4(signed char a0, short a1, int a2, long a3) {
+  sapi::StatusOr<int> types_4(signed char a0, short a1, int a2, long a3) {
     ::sapi::v::Int ret;
     ::sapi::v::SChar a0_((a0));
     ::sapi::v::Short a1_((a1));
@@ -91,7 +91,7 @@ class TestApi {
   }
 
   // int types_5(long long, long double)
-  ::sapi::StatusOr<int> types_5(long long a0, long double a1) {
+  sapi::StatusOr<int> types_5(long long a0, long double a1) {
     ::sapi::v::Int ret;
     ::sapi::v::LLong a0_((a0));
     ::sapi::v::Reg<long double> a1_((a1));
@@ -101,11 +101,11 @@ class TestApi {
   }
 
   // void types_6(char *)
-  ::sapi::Status types_6(::sapi::v::Ptr* a0) {
+  sapi::Status types_6(::sapi::v::Ptr* a0) {
     ::sapi::v::Void ret;
 
     SAPI_RETURN_IF_ERROR(sandbox_->Call("types_6", &ret, a0));
-    return ::sapi::OkStatus();
+    return sapi::OkStatus();
   }
 
  private:
@@ -136,7 +136,7 @@ class TestApi {
   ::sapi::Sandbox* sandbox() const { return sandbox_; }
 
   // uint function(uintp)
-  ::sapi::StatusOr<uint> function(::sapi::v::Ptr* a) {
+  sapi::StatusOr<uint> function(::sapi::v::Ptr* a) {
     ::sapi::v::UInt ret;
 
     SAPI_RETURN_IF_ERROR(sandbox_->Call("function", &ret, a));
@@ -173,7 +173,7 @@ class TestApi {
   ::sapi::Sandbox* sandbox() const { return sandbox_; }
 
   // ProcessStatus ProcessDatapoint(ProcessStatus)
-  ::sapi::StatusOr<ProcessStatus> ProcessDatapoint(ProcessStatus status) {
+  sapi::StatusOr<ProcessStatus> ProcessDatapoint(ProcessStatus status) {
     ::sapi::v::IntBase<ProcessStatus> ret;
     ::sapi::v::IntBase<ProcessStatus> status_((status));
 

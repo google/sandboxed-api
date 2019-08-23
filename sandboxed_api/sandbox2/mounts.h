@@ -30,18 +30,18 @@ class Mounts {
   Mounts() = default;
   explicit Mounts(MountTree mount_tree) : mount_tree_(std::move(mount_tree)) {}
 
-  ::sapi::Status AddFile(absl::string_view path, bool is_ro = true);
+  sapi::Status AddFile(absl::string_view path, bool is_ro = true);
 
-  ::sapi::Status AddFileAt(absl::string_view outside, absl::string_view inside,
-                           bool is_ro = true);
+  sapi::Status AddFileAt(absl::string_view outside, absl::string_view inside,
+                         bool is_ro = true);
 
-  ::sapi::Status AddDirectoryAt(absl::string_view outside,
-                                absl::string_view inside, bool is_ro = true);
+  sapi::Status AddDirectoryAt(absl::string_view outside,
+                              absl::string_view inside, bool is_ro = true);
 
-  ::sapi::Status AddMappingsForBinary(const std::string& path,
-                                      absl::string_view ld_library_path = {});
+  sapi::Status AddMappingsForBinary(const std::string& path,
+                                    absl::string_view ld_library_path = {});
 
-  ::sapi::Status AddTmpfs(absl::string_view inside, size_t sz);
+  sapi::Status AddTmpfs(absl::string_view inside, size_t sz);
 
   void CreateMounts(const std::string& root_path) const;
 
@@ -59,7 +59,7 @@ class Mounts {
 
  private:
   friend class MountTreeTest;
-  ::sapi::Status Insert(absl::string_view path, const MountTree::Node& node);
+  sapi::Status Insert(absl::string_view path, const MountTree::Node& node);
   MountTree mount_tree_;
 };
 

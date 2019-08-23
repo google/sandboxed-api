@@ -308,7 +308,7 @@ TEST_F(CommsTest, TestSendRecvStatusOK) {
   };
   auto b = [](Comms* comms) {
     // Send a good status.
-    ASSERT_THAT(comms->SendStatus(::sapi::OkStatus()), IsTrue());
+    ASSERT_THAT(comms->SendStatus(sapi::OkStatus()), IsTrue());
   };
   HandleCommunication(sockname_, a, b);
 }

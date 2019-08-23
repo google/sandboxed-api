@@ -33,7 +33,7 @@ class ElfFile {
     std::string name;
   };
 
-  static ::sapi::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
+  static sapi::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
                                                  uint32_t features);
 
   int64_t file_size() const { return file_size_; }

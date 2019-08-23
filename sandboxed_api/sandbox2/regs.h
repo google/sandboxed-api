@@ -40,13 +40,13 @@ class Regs {
   explicit Regs(pid_t pid) : pid_(pid) {}
 
   // Copies register values from the process
-  ::sapi::Status Fetch();
+  sapi::Status Fetch();
 
   // Copies register values to the process
-  ::sapi::Status Store();
+  sapi::Status Store();
 
   // Causes the process to skip current syscall and return given value instead
-  ::sapi::Status SkipSyscallReturnValue(uint64_t value);
+  sapi::Status SkipSyscallReturnValue(uint64_t value);
 
   // Converts raw register values obtained on syscall entry to syscall info
   Syscall ToSyscall(Syscall::CpuArch syscall_arch) const;

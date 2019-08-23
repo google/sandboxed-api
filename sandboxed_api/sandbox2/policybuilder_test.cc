@@ -57,7 +57,7 @@ class PolicyBuilderPeer {
 
   int policy_size() const { return builder_->output_->user_policy_.size(); }
 
-  static ::sapi::StatusOr<std::string> ValidateAbsolutePath(
+  static sapi::StatusOr<std::string> ValidateAbsolutePath(
       absl::string_view path) {
     return PolicyBuilder::ValidateAbsolutePath(path);
   }

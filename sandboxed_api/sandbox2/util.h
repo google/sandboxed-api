@@ -62,7 +62,7 @@ bool CreateMemFd(int* fd, const char* name = "buffer_file");
 
 // Executes a the program given by argv and the specified environment and
 // captures any output to stdout/stderr.
-::sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
+sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
                                   const std::vector<std::string>& envv,
                                   std::string* output);
 
@@ -74,7 +74,7 @@ std::string GetRlimitName(int resource);
 
 // Reads a path string (NUL-terminated, shorter than PATH_MAX) from another
 // process memory
-::sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);
+sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);
 
 }  // namespace util
 }  // namespace sandbox2

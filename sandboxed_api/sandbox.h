@@ -43,7 +43,7 @@ class Sandbox {
   virtual ~Sandbox();
 
   // Initializes a new sandboxing session.
-  ::sapi::Status Init();
+  sapi::Status Init();
 
   // Is the current sandboxing session alive?
   bool IsActive() const;
@@ -52,7 +52,7 @@ class Sandbox {
   void Terminate(bool attempt_graceful_exit = true);
 
   // Restarts the sandbox.
-  ::sapi::Status Restart(bool attempt_graceful_exit) {
+  sapi::Status Restart(bool attempt_graceful_exit) {
     Terminate(attempt_graceful_exit);
     return Init();
   }
@@ -65,42 +65,41 @@ class Sandbox {
   int GetPid() const { return pid_; }
 
   // Synchronizes the underlying memory for the pointer before the call.
-  ::sapi::Status SynchronizePtrBefore(v::Callable* ptr);
+  sapi::Status SynchronizePtrBefore(v::Callable* ptr);
 
   // Synchronizes the underlying memory for pointer after the call.
-  ::sapi::Status SynchronizePtrAfter(v::Callable* ptr) const;
+  sapi::Status SynchronizePtrAfter(v::Callable* ptr) const;
 
   // Makes a call to the sandboxee.
   template <typename... Args>
-  ::sapi::Status Call(const std::string& func, v::Callable* ret,
-                      Args&&... args) {
+  sapi::Status Call(const std::string& func, v::Callable* ret, Args&&... args) {
     static_assert(sizeof...(Args) <= FuncCall::kArgsMax,
                   "Too many arguments to sapi::Sandbox::Call()");
     return Call(func, ret, {std::forward<Args>(args)...});
   }
-  ::sapi::Status Call(const std::string& func, v::Callable* ret,
-                      std::initializer_list<v::Callable*> args);
+  sapi::Status Call(const std::string& func, v::Callable* ret,
+                    std::initializer_list<v::Callable*> args);
 
   // Allocates memory in the sandboxee, automatic_free indicates whether the
   // memory should be freed on the remote side when the 'var' goes out of scope.
-  ::sapi::Status Allocate(v::Var* var, bool automatic_free = false);
+  sapi::Status Allocate(v::Var* var, bool automatic_free = false);
 
   // Frees memory in the sandboxee.
-  ::sapi::Status Free(v::Var* var);
+  sapi::Status Free(v::Var* var);
 
   // Finds address of a symbol in the sandboxee.
-  ::sapi::Status Symbol(const char* symname, void** addr);
+  sapi::Status Symbol(const char* symname, void** addr);
 
   // Transfers memory (both directions). Status is returned (memory transfer
   // succeeded/failed).
-  ::sapi::Status TransferToSandboxee(v::Var* var);
-  ::sapi::Status TransferFromSandboxee(v::Var* var);
+  sapi::Status TransferToSandboxee(v::Var* var);
+  sapi::Status TransferFromSandboxee(v::Var* var);
 
   // Waits until the sandbox terminated and returns the result.
   const sandbox2::Result& AwaitResult();
   const sandbox2::Result& result() const { return result_; }
 
-  ::sapi::Status SetWallTimeLimit(time_t limit) const;
+  sapi::Status SetWallTimeLimit(time_t limit) const;
 
  protected:
 

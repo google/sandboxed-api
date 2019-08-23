@@ -29,47 +29,47 @@
 
 namespace sandbox2 {
 
-::sapi::Status Regs::Fetch() {
+sapi::Status Regs::Fetch() {
 #if defined(__powerpc64__)
   iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
   if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
-    return ::sapi::InternalError(absl::StrCat(
+    return sapi::InternalError(absl::StrCat(
         "ptrace(PTRACE_GETREGSET, pid=", pid_, ") failed: ", StrError(errno)));
   }
   if (pt_iov.iov_len != sizeof(user_regs_)) {
-    return ::sapi::InternalError(absl::StrCat(
+    return sapi::InternalError(absl::StrCat(
         "ptrace(PTRACE_GETREGSET, pid=", pid_,
         ") size returned: ", pt_iov.iov_len,
         " different than sizeof(user_regs_): ", sizeof(user_regs_)));
   }
 #else
   if (ptrace(PTRACE_GETREGS, pid_, 0, &user_regs_) == -1L) {
-    return ::sapi::InternalError(absl::StrCat(
-        "ptrace(PTRACE_GETREGS, pid=", pid_, ") failed: ", StrError(errno)));
+    return sapi::InternalError(absl::StrCat("ptrace(PTRACE_GETREGS, pid=", pid_,
+                                            ") failed: ", StrError(errno)));
   }
 #endif
-  return ::sapi::OkStatus();
+  return sapi::OkStatus();
 }
 
-::sapi::Status Regs::Store() {
+sapi::Status Regs::Store() {
 #if defined(__powerpc64__)
   iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
   if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
-    return ::sapi::InternalError(absl::StrCat(
+    return sapi::InternalError(absl::StrCat(
         "ptrace(PTRACE_SETREGSET, pid=", pid_, ") failed: ", StrError(errno)));
   }
 #else
   if (ptrace(PTRACE_SETREGS, pid_, 0, &user_regs_) == -1) {
-    return ::sapi::InternalError(absl::StrCat(
-        "ptrace(PTRACE_SETREGS, pid=", pid_, ") failed: ", StrError(errno)));
+    return sapi::InternalError(absl::StrCat("ptrace(PTRACE_SETREGS, pid=", pid_,
+                                            ") failed: ", StrError(errno)));
   }
 #endif
-  return ::sapi::OkStatus();
+  return sapi::OkStatus();
 }
 
-::sapi::Status Regs::SkipSyscallReturnValue(uint64_t value) {
+sapi::Status Regs::SkipSyscallReturnValue(uint64_t value) {
 #if defined(__x86_64__)
   user_regs_.orig_rax = -1;
   user_regs_.rax = value;

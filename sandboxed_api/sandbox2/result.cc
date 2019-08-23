@@ -43,19 +43,19 @@ Result& Result::operator=(const Result& other) {
   return *this;
 }
 
-::sapi::Status Result::ToStatus() const {
+sapi::Status Result::ToStatus() const {
   switch (final_status()) {
     case OK:
       if (reason_code() == 0) {
-        return ::sapi::OkStatus();
+        return sapi::OkStatus();
       }
       break;
     case TIMEOUT:
-      return ::sapi::DeadlineExceededError(ToString());
+      return sapi::DeadlineExceededError(ToString());
     default:
       break;
   }
-  return ::sapi::InternalError(ToString());
+  return sapi::InternalError(ToString());
 }
 
 std::string Result::ToString() const {

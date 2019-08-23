@@ -388,7 +388,7 @@ class PolicyBuilder final {
 
   // Builds the policy returning a unique_ptr to it. This should only be called
   // once.
-  ::sapi::StatusOr<std::unique_ptr<Policy>> TryBuild();
+  sapi::StatusOr<std::unique_ptr<Policy>> TryBuild();
 
   // Builds the policy returning a unique_ptr to it. This should only be called
   // once.
@@ -518,9 +518,9 @@ class PolicyBuilder final {
 
   std::vector<sock_filter> ResolveBpfFunc(BpfFunc f);
 
-  static ::sapi::StatusOr<std::string> ValidateAbsolutePath(
+  static sapi::StatusOr<std::string> ValidateAbsolutePath(
       absl::string_view path);
-  static ::sapi::StatusOr<std::string> ValidatePath(absl::string_view path);
+  static sapi::StatusOr<std::string> ValidatePath(absl::string_view path);
 
   void StoreDescription(PolicyBuilderDescription* pb_description);
 
@@ -540,10 +540,10 @@ class PolicyBuilder final {
   std::set<unsigned int> handled_syscalls_;
 
   // Error handling
-  ::sapi::Status last_status_;
+  sapi::Status last_status_;
   // This function returns a PolicyBuilder so that we can use it in the status
   // macros
-  PolicyBuilder& SetError(const ::sapi::Status& status);
+  PolicyBuilder& SetError(const sapi::Status& status);
 };
 
 }  // namespace sandbox2

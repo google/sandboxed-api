@@ -38,7 +38,7 @@ struct MapsEntry {
   std::string path;
 };
 
-::sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
+sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
     const std::string& contents);
 
 }  // namespace sandbox2

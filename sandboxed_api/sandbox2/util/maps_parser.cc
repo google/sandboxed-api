@@ -18,7 +18,7 @@
 
 namespace sandbox2 {
 
-::sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
+sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
     const std::string& contents) {
   // Note: The format string
   //       https://github.com/torvalds/linux/blob/v4.14/fs/proc/task_mmu.c#L289
@@ -45,7 +45,7 @@ namespace sandbox2 {
     } else if (n_matches == 11) {
       entry.path.resize(strlen(entry.path.c_str()));
     } else {
-      return ::sapi::FailedPreconditionError("Invalid format");
+      return sapi::FailedPreconditionError("Invalid format");
     }
     entry.is_readable = r == 'r';
     entry.is_writable = w == 'w';

@@ -97,15 +97,14 @@ absl::string_view GetOutsidePath(const MountTree::Node& node) {
   }
 }
 
-::sapi::StatusOr<std::string> ExistingPathInsideDir(
+sapi::StatusOr<std::string> ExistingPathInsideDir(
     absl::string_view dir_path, absl::string_view relative_path) {
   auto path = file::CleanPath(file::JoinPath(dir_path, relative_path));
   if (file_util::fileops::StripBasename(path) != dir_path) {
-    return ::sapi::InvalidArgumentError(
-        "Relative path goes above the base dir");
+    return sapi::InvalidArgumentError("Relative path goes above the base dir");
   }
   if (!file_util::fileops::Exists(path, false)) {
-    return ::sapi::NotFoundError(absl::StrCat("Does not exist: ", path));
+    return sapi::NotFoundError(absl::StrCat("Does not exist: ", path));
   }
   return path;
 }
@@ -116,10 +115,10 @@ sapi::Status ValidateInterpreter(absl::string_view interpreter) {
   };
 
   if (!allowed_interpreters.contains(interpreter)) {
-    return ::sapi::InvalidArgumentError(
+    return sapi::InvalidArgumentError(
         absl::StrCat("Interpreter not on the whitelist: ", interpreter));
   }
-  return ::sapi::OkStatus();
+  return sapi::OkStatus();
 }
 
 std::string ResolveLibraryPath(absl::string_view lib_name,
@@ -146,8 +145,8 @@ std::string GetPlatform(absl::string_view interpreter) {
 
 }  // namespace
 
-::sapi::Status Mounts::Insert(absl::string_view path,
-                              const MountTree::Node& new_node) {
+sapi::Status Mounts::Insert(absl::string_view path,
+                            const MountTree::Node& new_node) {
   // Some sandboxes allow the inside/outside paths to be partially
   // user-controlled with some sanitization.
   // Since we're handling C++ strings and later convert them to C style
@@ -155,7 +154,7 @@ std::string GetPlatform(absl::string_view interpreter) {
   // and mount something not expected by the caller. Check for null bytes in the
   // strings to protect against this.
   if (PathContainsNullByte(path)) {
-    return ::sapi::InvalidArgumentError(
+    return sapi::InvalidArgumentError(
         absl::StrCat("Inside path contains a null byte: ", path));
   }
   switch (new_node.node_case()) {
@@ -163,10 +162,10 @@ std::string GetPlatform(absl::string_view interpreter) {
     case MountTree::Node::kDirNode: {
       auto outside_path = GetOutsidePath(new_node);
       if (outside_path.empty()) {
-        return ::sapi::InvalidArgumentError("Outside path cannot be empty");
+        return sapi::InvalidArgumentError("Outside path cannot be empty");
       }
       if (PathContainsNullByte(outside_path)) {
-        return ::sapi::InvalidArgumentError(
+        return sapi::InvalidArgumentError(
             absl::StrCat("Outside path contains a null byte: ", outside_path));
       }
       break;
@@ -179,11 +178,11 @@ std::string GetPlatform(absl::string_view interpreter) {
   std::string fixed_path = file::CleanPath(path);
 
   if (!absl::StartsWith(fixed_path, "/")) {
-    return ::sapi::InvalidArgumentError("Only absolute paths are supported");
+    return sapi::InvalidArgumentError("Only absolute paths are supported");
   }
 
   if (fixed_path == "/") {
-    return ::sapi::InvalidArgumentError("The root already exists");
+    return sapi::InvalidArgumentError("The root already exists");
   }
 
   std::vector<absl::string_view> parts;
@@ -204,7 +203,7 @@ std::string GetPlatform(absl::string_view interpreter) {
                     ->insert({std::string(*part), MountTree()})
                     .first->second);
     if (curtree->has_node() && curtree->node().has_file_node()) {
-      return ::sapi::FailedPreconditionError(
+      return sapi::FailedPreconditionError(
           absl::StrCat("Cannot insert ", path,
                        " since a file is mounted as a parent directory"));
     }
@@ -217,28 +216,28 @@ std::string GetPlatform(absl::string_view interpreter) {
   if (curtree->has_node()) {
     if (IsEquivalentNode(curtree->node(), new_node)) {
       SAPI_RAW_LOG(INFO, "Inserting %s with the same value twice", path);
-      return ::sapi::OkStatus();
+      return sapi::OkStatus();
     }
-    return ::sapi::FailedPreconditionError(absl::StrCat(
+    return sapi::FailedPreconditionError(absl::StrCat(
         "Inserting ", path, " twice with conflicting values ",
         curtree->node().DebugString(), " vs. ", new_node.DebugString()));
   }
 
   if (new_node.has_file_node() && !curtree->entries().empty()) {
-    return ::sapi::FailedPreconditionError(
+    return sapi::FailedPreconditionError(
         absl::StrCat("Trying to mount file over existing directory at ", path));
   }
 
   *curtree->mutable_node() = new_node;
-  return ::sapi::OkStatus();
+  return sapi::OkStatus();
 }
 
-::sapi::Status Mounts::AddFile(absl::string_view path, bool is_ro) {
+sapi::Status Mounts::AddFile(absl::string_view path, bool is_ro) {
   return AddFileAt(path, path, is_ro);
 }
 
-::sapi::Status Mounts::AddFileAt(absl::string_view outside,
-                                 absl::string_view inside, bool is_ro) {
+sapi::Status Mounts::AddFileAt(absl::string_view outside,
+                               absl::string_view inside, bool is_ro) {
   MountTree::Node node;
   auto* file_node = node.mutable_file_node();
   file_node->set_outside(std::string(outside));
@@ -246,8 +245,8 @@ std::string GetPlatform(absl::string_view interpreter) {
   return Insert(inside, node);
 }
 
-::sapi::Status Mounts::AddDirectoryAt(absl::string_view outside,
-                                      absl::string_view inside, bool is_ro) {
+sapi::Status Mounts::AddDirectoryAt(absl::string_view outside,
+                                    absl::string_view inside, bool is_ro) {
   MountTree::Node node;
   auto dir_node = node.mutable_dir_node();
   dir_node->set_outside(std::string(outside));
@@ -265,12 +264,12 @@ void LogContainer(const std::vector<std::string>& container) {
 
 }  // namespace
 
-::sapi::Status Mounts::AddMappingsForBinary(const std::string& path,
-                                            absl::string_view ld_library_path) {
+sapi::Status Mounts::AddMappingsForBinary(const std::string& path,
+                                          absl::string_view ld_library_path) {
   auto elf_or = ElfFile::ParseFromFile(
       path, ElfFile::kGetInterpreter | ElfFile::kLoadImportedLibraries);
   if (!elf_or.ok()) {
-    return ::sapi::FailedPreconditionError(
+    return sapi::FailedPreconditionError(
         absl::StrCat("Could not parse ELF file: ", elf_or.status().message()));
   }
   auto elf = elf_or.ValueOrDie();
@@ -278,7 +277,7 @@ void LogContainer(const std::vector<std::string>& container) {
 
   if (interpreter.empty()) {
     SAPI_RAW_VLOG(1, "The file %s is not a dynamic executable", path);
-    return ::sapi::OkStatus();
+    return sapi::OkStatus();
   }
 
   SAPI_RAW_VLOG(1, "The file %s is using interpreter %s", path, interpreter);
@@ -331,7 +330,7 @@ void LogContainer(const std::vector<std::string>& container) {
   {
     auto imported_libs = elf.imported_libraries();
     if (imported_libs.size() > kMaxWorkQueueSize) {
-      return ::sapi::FailedPreconditionError(
+      return sapi::FailedPreconditionError(
           "Exceeded max entries pending resolving limit");
     }
     for (const auto& imported_lib : imported_libs) {
@@ -360,11 +359,11 @@ void LogContainer(const std::vector<std::string>& container) {
     to_resolve.pop_back();
     ++resolved;
     if (resolved > kMaxResolvedEntries) {
-      return ::sapi::FailedPreconditionError(
+      return sapi::FailedPreconditionError(
           "Exceeded max resolved entries limit");
     }
     if (depth > kMaxResolvingDepth) {
-      return ::sapi::FailedPreconditionError(
+      return sapi::FailedPreconditionError(
           "Exceeded max resolving depth limit");
     }
     std::string resolved_lib = ResolveLibraryPath(lib, full_search_paths);
@@ -380,20 +379,19 @@ void LogContainer(const std::vector<std::string>& container) {
 
     imported_libraries.insert(resolved_lib);
     if (imported_libraries.size() > kMaxImportedLibraries) {
-      return ::sapi::FailedPreconditionError(
+      return sapi::FailedPreconditionError(
           "Exceeded max imported libraries limit");
     }
     ++loaded;
     if (loaded > kMaxLoadedEntries) {
-      return ::sapi::FailedPreconditionError(
-          "Exceeded max loaded entries limit");
+      return sapi::FailedPreconditionError("Exceeded max loaded entries limit");
     }
     SAPI_ASSIGN_OR_RETURN(
         auto lib_elf,
         ElfFile::ParseFromFile(resolved_lib, ElfFile::kLoadImportedLibraries));
     auto imported_libs = lib_elf.imported_libraries();
     if (imported_libs.size() > kMaxWorkQueueSize - to_resolve.size()) {
-      return ::sapi::FailedPreconditionError(
+      return sapi::FailedPreconditionError(
           "Exceeded max entries pending resolving limit");
     }
 
@@ -414,10 +412,10 @@ void LogContainer(const std::vector<std::string>& container) {
     SAPI_RETURN_IF_ERROR(AddFile(lib));
   }
 
-  return ::sapi::OkStatus();
+  return sapi::OkStatus();
 }
 
-::sapi::Status Mounts::AddTmpfs(absl::string_view inside, size_t sz) {
+sapi::Status Mounts::AddTmpfs(absl::string_view inside, size_t sz) {
   MountTree::Node node;
   auto tmpfs_node = node.mutable_tmpfs_node();
   tmpfs_node->set_tmpfs_options(absl::StrCat("size=", sz));

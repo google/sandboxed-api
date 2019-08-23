@@ -180,15 +180,14 @@ bool CreateMemFd(int* fd, const char* name) {
   return true;
 }
 
-::sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
+sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
                                   const std::vector<std::string>& envv,
                                   std::string* output) {
   int cout_pipe[2];
   posix_spawn_file_actions_t action;
 
   if (pipe(cout_pipe) == -1) {
-    return ::sapi::UnknownError(
-        absl::StrCat("creating pipe: ", StrError(errno)));
+    return sapi::UnknownError(absl::StrCat("creating pipe: ", StrError(errno)));
   }
   file_util::fileops::FDCloser cout_closer{cout_pipe[1]};
 
@@ -217,7 +216,7 @@ bool CreateMemFd(int* fd, const char* name) {
 
   pid_t pid;
   if (posix_spawnp(&pid, args[0], &action, nullptr, args, envp) != 0) {
-    return ::sapi::UnknownError(
+    return sapi::UnknownError(
         absl::StrCat("posix_spawnp() failed: ", StrError(errno)));
   }
 
@@ -229,7 +228,7 @@ bool CreateMemFd(int* fd, const char* name) {
     int bytes_read =
         TEMP_FAILURE_RETRY(read(cout_pipe[0], &buffer[0], buffer.length()));
     if (bytes_read < 0) {
-      return ::sapi::InternalError(
+      return sapi::InternalError(
           absl::StrCat("reading from cout pipe failed: ", StrError(errno)));
     }
     if (bytes_read == 0) {
@@ -279,7 +278,7 @@ std::string GetRlimitName(int resource) {
   }
 }
 
-::sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
+sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
   std::string path(PATH_MAX, '\0');
   iovec local_iov[] = {{&path[0], path.size()}};
 
@@ -304,7 +303,7 @@ std::string GetRlimitName(int resource) {
   ssize_t sz = process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
                                 remote_iov, ABSL_ARRAYSIZE(remote_iov), 0);
   if (sz < 0) {
-    return ::sapi::InternalError(absl::StrFormat(
+    return sapi::InternalError(absl::StrFormat(
         "process_vm_readv() failed for PID: %d at address: %#x: %s", pid,
         reinterpret_cast<uintptr_t>(ptr), StrError(errno)));
   }
@@ -313,7 +312,7 @@ std::string GetRlimitName(int resource) {
   // incorrect path (or >PATH_MAX).
   auto pos = path.find('\0');
   if (pos == std::string::npos) {
-    return ::sapi::FailedPreconditionError(absl::StrCat(
+    return sapi::FailedPreconditionError(absl::StrCat(
         "No NUL-byte inside the C string '", absl::CHexEscape(path), "'"));
   }
   path.resize(pos);

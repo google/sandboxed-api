@@ -143,9 +143,9 @@ class Result {
 
   void SetProcMaps(const std::string& proc_maps) { proc_maps_ = proc_maps; }
 
-  // Converts this result to a ::sapi::Status object.  The status will only be
+  // Converts this result to a sapi::Status object.  The status will only be
   // OK if the sandbox process exited normally with an exit code of 0.
-  ::sapi::Status ToStatus() const;
+  sapi::Status ToStatus() const;
 
   // Returns a descriptive string for final result.
   std::string ToString() const;

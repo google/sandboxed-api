@@ -76,7 +76,7 @@ class Sandbox2 final {
   // Waits for sandbox execution to finish within the timeout.
   // Returns execution result or a DeadlineExceededError if the sandboxee does
   // not finish in time.
-  ::sapi::StatusOr<Result> AwaitResultWithTimeout(absl::Duration timeout);
+  sapi::StatusOr<Result> AwaitResultWithTimeout(absl::Duration timeout);
 
   // Requests termination of the sandboxee.
   // Sandbox should still waited with AwaitResult(), as it may finish for other
