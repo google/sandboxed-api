@@ -897,7 +897,6 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
 void Monitor::LogSyscallViolationExplanation(const Syscall& syscall) const {
   const uintptr_t syscall_nr = syscall.nr();
   const uintptr_t arg0 = syscall.args()[0];
-  const uintptr_t arg3 = syscall.args()[3];
 
   // This follows policy in Policy::GetDefaultPolicy - keep it in sync.
   if (syscall.arch() != Syscall::GetHostArch()) {
