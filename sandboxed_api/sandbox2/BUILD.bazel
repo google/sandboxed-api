@@ -504,7 +504,7 @@ cc_library(
     # The default is 16384, however we need to do a clone with a
     # stack-allocated buffer -- and PTHREAD_STACK_MIN also happens to be 16384.
     # Thus the slight increase.
-    copts = sapi_platform_copts(["-Wframe-larger-than=17000"]),
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         "//sandboxed_api/sandbox2/util:file_base",
