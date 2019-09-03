@@ -153,16 +153,16 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   pid_t sandboxee_pid = fork_client_->SendRequest(
       request, exec_fd_, client_comms_fd_, ns_fd, &init_pid);
 
-  if (init_pid == -1) {
+  if (init_pid < 0) {
     LOG(ERROR) << "Could not obtain init PID";
   } else if (init_pid == 0 && request.clone_flags() & CLONE_NEWPID) {
     LOG(FATAL)
         << "No init process was spawned even though a PID NS was created, "
         << "potential logic bug";
-  } else if (init_pid > 0) {
-    if (init_pid_out) {
-      *init_pid_out = init_pid;
-    }
+  }
+
+  if (init_pid_out) {
+    *init_pid_out = init_pid;
   }
 
   started_ = true;

@@ -199,17 +199,16 @@ void Monitor::Run() {
 
   // Get PID of the sandboxee.
   pid_t init_pid = 0;
-  pid_ = executor_->StartSubProcess(clone_flags, policy_->GetNamespace(),
-                                    policy_->GetCapabilities(), &init_pid);
+  Namespace* ns = policy_->GetNamespace();
+  bool should_have_init = ns && (ns->GetCloneFlags() & CLONE_NEWPID);
+  pid_ = executor_->StartSubProcess(clone_flags, ns, policy_->GetCapabilities(),
+                                    &init_pid);
 
-  if (init_pid < 0) {
-    // TODO(hamacher): does this require additional handling here?
-    LOG(ERROR) << "Spawning init process failed";
-  } else if (init_pid > 0) {
+  if (init_pid > 0) {
     PCHECK(ptrace(PTRACE_SEIZE, init_pid, 0, PTRACE_O_EXITKILL) == 0);
   }
 
-  if (pid_ < 0) {
+  if (pid_ <= 0 || (should_have_init && init_pid <= 0)) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SUBPROCESS);
     return;
   }
