@@ -5,15 +5,12 @@ programs or portions of programs in confined environments. The idea is that the
 runtime environment is so restricted that security bugs such as buffer overflows
 in the protected region cause no harm.
 
-## Who is it for?
+## Documentation
 
-Sandbox2 is aimed to sandbox C/C++ code or whole binaries in production.
+Detailed developer documentation is available on the Google Developers site for Sandboxed API under
+[Sandbox2](hhttps://developers.google.com/sandboxed-api/docs/sandbox2/overview).
 
-See the sandboxing options [overview page](../docs/sandbox-overview.md) to make
-sure this is the type of sandboxing you are looking for.
-
-## How does it work?
-
-Read our [How it works](docs/howitworks.md) page to learn everything about this
-technology.
+There is also a
+[Getting Started](https://developers.google.com/sandboxed-api/docs/sandbox2/getting-started)
+guide for Sandbox2.
 
