@@ -144,8 +144,6 @@ int main(int argc, char** argv) {
   builder.AddPolicyOnSyscall(__NR_tee, {KILL});
   builder.DangerDefaultAllowAll();
 
-  builder.EnableNamespaces();
-
   if (absl::GetFlag(FLAGS_sandbox2tool_need_networking)) {
     builder.AllowUnrestrictedNetworking();
   }

@@ -82,7 +82,6 @@ void SymbolizationWorksCommon(
   policybuilder
       // Don't restrict the syscalls at all.
       .DangerDefaultAllowAll()
-      .EnableNamespaces()
       .AddFile(path)
       .AddLibrariesForBinary(path)
       .AddFileAt(temp_filename, "/proc/cpuinfo");
@@ -180,7 +179,6 @@ TEST(StackTraceTest, SymbolizationTrustedFilesOnly) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder{}
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
-                                        .EnableNamespaces()
                                         .AddFile(path)
                                         .AddLibrariesForBinary(path)
                                         .TryBuild());

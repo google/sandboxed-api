@@ -46,7 +46,6 @@ class StringopSapiSandbox : public StringopSandbox {
             __NR_close,
         })
         .AddFile("/etc/localtime")
-        .EnableNamespaces()
         .BuildOrDie();
   }
 };

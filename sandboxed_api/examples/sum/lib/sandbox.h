@@ -48,7 +48,6 @@ class SumSapiSandbox : public SumSandbox {
             __NR_close,
         })
         .AddFile("/etc/localtime")
-        .EnableNamespaces()
         .BuildOrDie();
   }
 };

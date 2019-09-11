@@ -125,7 +125,6 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
-                                        .EnableNamespaces()
                                         .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
@@ -148,7 +147,6 @@ TEST(RunAsyncTest, SandboxeeTimeoutWithStacktraces) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
-                                        .EnableNamespaces()
                                         .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
@@ -169,7 +167,6 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
                                         // Don't restrict the syscalls at all.
                                         .DangerDefaultAllowAll()
-                                        .EnableNamespaces()
                                         .CollectStacktracesOnTimeout(false)
                                         .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
@@ -191,7 +188,6 @@ TEST(RunAsyncTest, SandboxeeViolationDisabledStacktraces) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                        PolicyBuilder()
                            // Don't allow anything - Make sure that we'll crash.
-                           .EnableNamespaces()
                            .CollectStacktracesOnViolation(false)
                            .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));

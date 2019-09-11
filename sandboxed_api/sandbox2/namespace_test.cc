@@ -49,7 +49,6 @@ TEST(NamespaceTest, FileNamespaceWorks) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
                                         // Don't restrict the syscalls at all
                                         .DangerDefaultAllowAll()
-                                        .EnableNamespaces()
                                         .AddFileAt(path, "/binary_path")
                                         .TryBuild());
 
@@ -69,7 +68,6 @@ TEST(NamespaceTest, UserNamespaceWorks) {
     SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
                                           // Don't restrict the syscalls at all
                                           .DangerDefaultAllowAll()
-                                          .EnableNamespaces()
                                           .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
@@ -104,7 +102,6 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
     std::vector<std::string> args = {path, "3", "1000", "1000"};
     auto executor = absl::make_unique<Executor>(path, args);
     SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                          .EnableNamespaces()
                                           // Don't restrict the syscalls at all
                                           .DangerDefaultAllowAll()
                                           .TryBuild());
@@ -165,7 +162,6 @@ TEST_F(HostnameTest, Default) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
                                         // Don't restrict the syscalls at all
                                         .DangerDefaultAllowAll()
-                                        .EnableNamespaces()
                                         .TryBuild());
   Try("sandbox2", std::move(policy));
   EXPECT_EQ(code_, 0);

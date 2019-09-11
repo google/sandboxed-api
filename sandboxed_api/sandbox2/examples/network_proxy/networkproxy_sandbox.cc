@@ -32,7 +32,6 @@ namespace {
 std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
   return sandbox2::PolicyBuilder()
       .AllowExit()
-      .EnableNamespaces()
       .AllowMmap()
       .AllowRead()
       .AllowWrite()

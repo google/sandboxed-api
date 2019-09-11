@@ -114,8 +114,6 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
               JEQ32(static_cast<unsigned int>(1), ALLOW),
           })
 
-      .EnableNamespaces()
-
       // Add proc maps.
       .AddFileAt(maps_file,
                  file::JoinPath("/proc", absl::StrCat(target_pid), "maps"))

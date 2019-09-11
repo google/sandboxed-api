@@ -56,7 +56,6 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
     defined(THREAD_SANITIZER)
       .AllowMmap()
 #endif
-      .EnableNamespaces()
       .BuildOrDie();
 }
 

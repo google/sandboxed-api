@@ -665,9 +665,6 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
 }
 
 sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
-  CHECK_NE(use_namespaces_, disable_namespaces_)
-      << "Namespaces should either be enabled (by calling EnableNamespaces(), "
-         "AddFile(), etc.) or disabled (by calling DisableNamespaces())";
   if (!last_status_.ok()) {
     return last_status_;
   }

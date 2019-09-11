@@ -56,7 +56,6 @@ Sandbox::~Sandbox() {
 // are single-threaded and require ~30 basic syscalls.
 void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
   (*builder)
-      .EnableNamespaces()
       .AllowRead()
       .AllowWrite()
       .AllowExit()

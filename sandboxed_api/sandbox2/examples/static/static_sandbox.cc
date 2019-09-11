@@ -93,7 +93,6 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
 #else
       .BlockSyscallWithErrno(__NR_openat, ENOENT)
 #endif
-      .EnableNamespaces()
       .BuildOrDie();
 }
 

@@ -57,7 +57,6 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       .AllowStaticStartup()
       .AllowSystemMalloc()
       .AllowExit()
-      .EnableNamespaces()
       .BlockSyscallWithErrno(__NR_access, ENOENT)
       .BuildOrDie();
 }

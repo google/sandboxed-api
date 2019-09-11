@@ -447,28 +447,26 @@ class PolicyBuilder final {
 
   // Enables the use of namespaces.
   //
-  // Namespaces are automatically enabled when using namespace helper features
-  // (e.g. AddFile), therefore it is only necessary to explicitly enable
-  // namespaces when not using any other namespace helper feature.
+  // Namespaces are enabled by default.
+  // This is a no-op.
+  ABSL_DEPRECATED("Namespaces are enabled by default; no need to call this")
   PolicyBuilder& EnableNamespaces() {
-    CHECK(!disable_namespaces_)
-        << "Namespaces cannot be both disabled and enabled";
-    use_namespaces_ = true;
+    CHECK(use_namespaces_) << "Namespaces cannot be both disabled and enabled";
+    requires_namespaces_ = true;
     return *this;
   }
 
   // Disables the use of namespaces.
   //
-  // Sandbox2 with namespaces enabled is the recommended mode and will be the
-  // default in future, then calling this function will be necessary in order
-  // to use Sandbox2 without namespaces.
+  // Call in order to use Sandbox2 without namespaces.
+  // This is not recommended.
   PolicyBuilder& DisableNamespaces() {
-    CHECK(!use_namespaces_)
+    CHECK(!requires_namespaces_)
         << "Namespaces cannot be both disabled and enabled. You're probably "
            "using features that implicitly enable namespaces (SetHostname, "
            "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary or "
            "similar)";
-    disable_namespaces_ = true;
+    use_namespaces_ = false;
     return *this;
   }
 
@@ -525,8 +523,8 @@ class PolicyBuilder final {
   void StoreDescription(PolicyBuilderDescription* pb_description);
 
   Mounts mounts_;
-  bool use_namespaces_ = false;
-  bool disable_namespaces_ = false;
+  bool use_namespaces_ = true;
+  bool requires_namespaces_ = false;
   bool allow_unrestricted_networking_ = false;
   std::string hostname_ = kDefaultHostname;
 

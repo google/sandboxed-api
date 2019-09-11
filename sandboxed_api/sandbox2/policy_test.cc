@@ -162,7 +162,6 @@ std::unique_ptr<Policy> MinimalTestcasePolicy() {
       .AllowExit()
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
       .BlockSyscallWithErrno(__NR_access, ENOENT)
-      .EnableNamespaces()
       .BuildOrDie();
 }
 
@@ -200,7 +199,6 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
                     // New glibc accesses /etc/ld.so.preload
                     .BlockSyscallWithErrno(__NR_access, ENOENT)
                     .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-                    .EnableNamespaces()
                     .AddLibrariesForBinary(path)
                     .BuildOrDie();
 
@@ -223,7 +221,6 @@ TEST(MallocTest, SystemMallocWorks) {
                     .AllowStaticStartup()
                     .AllowSystemMalloc()
                     .AllowExit()
-                    .EnableNamespaces()
                     .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
                     .BlockSyscallWithErrno(__NR_access, ENOENT)
                     .BuildOrDie();
@@ -259,7 +256,6 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
           .AddPolicyOnSyscalls({__NR_getresuid, __NR_getresgid}, {ERRNO(42)})
           .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
           .AddPolicyOnSyscall(__NR_umask, {DENY})
-          .EnableNamespaces()
           .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
           .BlockSyscallWithErrno(__NR_access, ENOENT)
           .BuildOrDie();
