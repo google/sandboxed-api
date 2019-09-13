@@ -18,12 +18,16 @@
 #define SANDBOXED_API_VAR_PROTO_H_
 
 #include <cinttypes>
+#include <cstdint>
+#include <vector>
 
+#include "absl/base/macros.h"
 #include "absl/memory/memory.h"
 #include "sandboxed_api/proto_helper.h"
 #include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 namespace v {
@@ -31,7 +35,17 @@ namespace v {
 template <typename T>
 class Proto : public Pointable, public Var {
  public:
-  explicit Proto(const T& proto) : wrapped_var_(SerializeProto(proto)) {}
+  static_assert(std::is_base_of<google::protobuf::Message, T>::value,
+                "Template argument must be a proto message");
+
+  ABSL_DEPRECATED("Use Proto<>::FromMessage() instead")
+  explicit Proto(const T& proto)
+      : wrapped_var_(SerializeProto(proto).ValueOrDie()) {}
+
+  static sapi::StatusOr<Proto<T>> FromMessage(const T& proto) {
+    SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> len_val, SerializeProto(proto));
+    return Proto(len_val);
+  }
 
   size_t GetSize() const final { return wrapped_var_.GetSize(); }
   Type GetType() const final { return Type::kProto; }
@@ -46,18 +60,21 @@ class Proto : public Pointable, public Var {
   void* GetLocal() const override { return wrapped_var_.GetLocal(); }
 
   // Returns a copy of the stored protobuf object.
-  std::unique_ptr<T> GetProtoCopy() const {
-    auto res = absl::make_unique<T>();
-    if (!res ||
-        !DeserializeProto(res.get(),
-                          reinterpret_cast<const char*>(wrapped_var_.GetData()),
-                          wrapped_var_.GetDataSize())) {
-      res.reset();
-    }
-    return res;
+  sapi::StatusOr<T> GetMessage() const {
+    return DeserializeProto<T>(
+        reinterpret_cast<const char*>(wrapped_var_.GetData()),
+        wrapped_var_.GetDataSize());
   }
 
-  void SetRemote(void* remote) override {
+  ABSL_DEPRECATED("Use GetMessage() instead")
+  std::unique_ptr<T> GetProtoCopy() const {
+    if (auto result_or = GetMessage(); result_or.ok()) {
+      return absl::make_unique<T>(std::move(result_or).ValueOrDie());
+    }
+    return nullptr;
+  }
+
+  void SetRemote(void* /* remote */) override {
     // We do not support that much indirection (pointer to a pointer to a
     // protobuf) as it is unlikely that this is wanted behavior. If you expect
     // this to work, please get in touch with us.
@@ -85,6 +102,8 @@ class Proto : public Pointable, public Var {
   }
 
  private:
+  explicit Proto(std::vector<uint8_t> data) : wrapped_var_(data) {}
+
   // The management of reading/writing the data to the sandboxee is handled by
   // the LenVal class.
   LenVal wrapped_var_;

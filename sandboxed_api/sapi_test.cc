@@ -53,9 +53,8 @@ sapi::Status InvokeStringReversal(Sandbox* sandbox) {
   v::Proto<stringop::StringReverse> pp(proto);
   SAPI_ASSIGN_OR_RETURN(int return_code, api.pb_reverse_string(pp.PtrBoth()));
   TRANSACTION_FAIL_IF_NOT(return_code != 0, "pb_reverse_string failed");
-  std::unique_ptr<stringop::StringReverse> pb_result = pp.GetProtoCopy();
-  TRANSACTION_FAIL_IF_NOT(pb_result, "Could not deserialize pb result");
-  TRANSACTION_FAIL_IF_NOT(pb_result->output() == "olleH", "Incorrect output");
+  SAPI_ASSIGN_OR_RETURN(auto pb_result, pp.GetMessage());
+  TRANSACTION_FAIL_IF_NOT(pb_result.output() == "olleH", "Incorrect output");
   return sapi::OkStatus();
 }
 

@@ -45,7 +45,7 @@ namespace sapi {
 namespace {
 
 // Guess the FFI type on the basis of data size and float/non-float/bool.
-static ffi_type* GetFFIType(size_t size, v::Type type) {
+ffi_type* GetFFIType(size_t size, v::Type type) {
   switch (type) {
     case v::Type::kVoid:
       return &ffi_type_void;
@@ -94,11 +94,11 @@ class FunctionCallPreparer {
   explicit FunctionCallPreparer(const FuncCall& call) {
     CHECK(call.argc <= FuncCall::kArgsMax)
         << "Number of arguments of a sandbox call exceeds limits.";
-    for (size_t i = 0; i < call.argc; i++) {
+    for (int i = 0; i < call.argc; ++i) {
       arg_types_[i] = GetFFIType(call.arg_size[i], call.arg_type[i]);
     }
     ret_type_ = GetFFIType(call.ret_size, call.ret_type);
-    for (size_t i = 0; i < call.argc; i++) {
+    for (int i = 0; i < call.argc; ++i) {
       if (call.arg_type[i] == v::Type::kPointer &&
           call.aux_type[i] == v::Type::kProto) {
         // Deserialize protobuf stored in the LenValueStruct and keep a
@@ -107,13 +107,10 @@ class FunctionCallPreparer {
         // This will also make sure that the protobuf is freed afterwards.
         arg_values_[i] = GetDeserializedProto(
             reinterpret_cast<LenValStruct*>(call.args[i].arg_int));
+      } else if (call.arg_type[i] == v::Type::kFloat) {
+        arg_values_[i] = reinterpret_cast<const void*>(&call.args[i].arg_float);
       } else {
-        if (call.arg_type[i] == v::Type::kFloat) {
-          arg_values_[i] =
-              reinterpret_cast<const void*>(&call.args[i].arg_float);
-        } else {
-          arg_values_[i] = reinterpret_cast<const void*>(&call.args[i].arg_int);
-        }
+        arg_values_[i] = reinterpret_cast<const void*>(&call.args[i].arg_int);
       }
     }
   }
@@ -125,8 +122,8 @@ class FunctionCallPreparer {
       // There is no way to figure out whether the protobuf structure has
       // changed or not, so we always serialize the protobuf again and replace
       // the LenValStruct content.
-      std::vector<uint8_t> serialized = SerializeProto(*proto);
-      // Reallocate the LV memory to match it's length.
+      std::vector<uint8_t> serialized = SerializeProto(*proto).ValueOrDie();
+      // Reallocate the LV memory to match its length.
       if (lvs->size != serialized.size()) {
         void* newdata = realloc(lvs->data, serialized.size());
         if (!newdata) {

@@ -18,40 +18,49 @@
 #define SANDBOXED_API_PROTO_HELPER_H_
 
 #include <cinttypes>
+#include <type_traits>
 #include <vector>
 
-#include <glog/logging.h>
 #include "sandboxed_api/proto_arg.pb.h"
+#include "sandboxed_api/util/canonical_errors.h"
+#include "sandboxed_api/util/status.h"
+#include "sandboxed_api/util/statusor.h"
 
 namespace sapi {
 
 template <typename T>
-std::vector<uint8_t> SerializeProto(const T& proto) {
+sapi::StatusOr<std::vector<uint8_t>> SerializeProto(const T& proto) {
+  static_assert(std::is_base_of<google::protobuf::Message, T>::value,
+                "Template argument must be a proto message");
   // Wrap protobuf in a envelope so that we know the name of the protobuf
   // structure when deserializing in the sandboxee.
   ProtoArg proto_arg;
   proto_arg.set_protobuf_data(proto.SerializeAsString());
   proto_arg.set_full_name(proto.GetDescriptor()->full_name());
-  std::vector<uint8_t> serialized_proto(proto_arg.ByteSizeLong());
 
+  std::vector<uint8_t> serialized_proto(proto_arg.ByteSizeLong());
   if (!proto_arg.SerializeToArray(serialized_proto.data(),
                                   serialized_proto.size())) {
-    LOG(ERROR) << "Unable to serialize array";
+    return sapi::InternalError("Unable to serialize proto to array");
   }
-
   return serialized_proto;
 }
 
 template <typename T>
-bool DeserializeProto(T* result, const char* data, size_t len) {
+sapi::StatusOr<T> DeserializeProto(const char* data, size_t len) {
+  static_assert(std::is_base_of<google::protobuf::Message, T>::value,
+                "Template argument must be a proto message");
   ProtoArg envelope;
   if (!envelope.ParseFromArray(data, len)) {
-    LOG(ERROR) << "Unable to deserialize envelope";
-    return false;
+    return sapi::InternalError("Unable to parse proto from array");
   }
 
   auto pb_data = envelope.protobuf_data();
-  return result->ParseFromArray(pb_data.c_str(), pb_data.size());
+  T result;
+  if (!result.ParseFromArray(pb_data.data(), pb_data.size())) {
+    return sapi::InternalError("Unable to parse proto from envelope data");
+  }
+  return result;
 }
 
 }  // namespace sapi

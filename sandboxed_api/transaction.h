@@ -149,6 +149,7 @@ class Transaction : public TransactionBase {
 
 // Callback style transactions:
 class BasicTransaction final : public TransactionBase {
+ private:
   using InitFunction = std::function<sapi::Status(Sandbox*)>;
   using FinishFunction = std::function<sapi::Status(Sandbox*)>;
 

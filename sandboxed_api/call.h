@@ -28,7 +28,6 @@ struct ReallocRequest {
 };
 
 // Types of TAGs used with Comms channel.
-// TODO(cblichmann): Mark these as "inline" once we're on C++17.
 // Call:
 constexpr uint32_t kMsgCall = 0x101;
 constexpr uint32_t kMsgAllocate = 0x102;

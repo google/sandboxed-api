@@ -30,25 +30,32 @@
 #include "sandboxed_api/vars.h"
 #include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status.h"
+#include "sandboxed_api/util/status_macros.h"
 
 using ::sapi::IsOk;
+using ::testing::Eq;
+using ::testing::Ne;
+using ::testing::SizeIs;
+using ::testing::StrEq;
 
 namespace {
 
-// Tests using the simple transaction (and function pointers):
+// Tests using a simple transaction (and function pointers):
 TEST(StringopTest, ProtobufStringDuplication) {
   sapi::BasicTransaction st(absl::make_unique<StringopSapiSandbox>());
   EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
-    StringopApi f(sandbox);
+    StringopApi api(sandbox);
     stringop::StringDuplication proto;
     proto.set_input("Hello");
     sapi::v::Proto<stringop::StringDuplication> pp(proto);
-    SAPI_ASSIGN_OR_RETURN(int v, f.pb_duplicate_string(pp.PtrBoth()));
-    TRANSACTION_FAIL_IF_NOT(v, "pb_duplicate_string failed");
-    auto pb_result = pp.GetProtoCopy();
-    TRANSACTION_FAIL_IF_NOT(pb_result, "Could not deserialize pb result");
-    LOG(INFO) << "Result PB: " << pb_result->DebugString();
-    TRANSACTION_FAIL_IF_NOT(pb_result->output() == "HelloHello",
+    {
+      SAPI_ASSIGN_OR_RETURN(int return_value, api.pb_duplicate_string(pp.PtrBoth()));
+      TRANSACTION_FAIL_IF_NOT(return_value, "pb_duplicate_string() failed");
+    }
+
+    SAPI_ASSIGN_OR_RETURN(auto pb_result, pp.GetMessage());
+    LOG(INFO) << "Result PB: " << pb_result.DebugString();
+    TRANSACTION_FAIL_IF_NOT(pb_result.output() == "HelloHello",
                             "Incorrect output");
     return sapi::OkStatus();
   }),
@@ -56,84 +63,71 @@ TEST(StringopTest, ProtobufStringDuplication) {
 }
 
 TEST(StringopTest, ProtobufStringReversal) {
-  sapi::BasicTransaction st(absl::make_unique<StringopSapiSandbox>());
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
-    StringopApi f(sandbox);
-    stringop::StringReverse proto;
-    proto.set_input("Hello");
-    sapi::v::Proto<stringop::StringReverse> pp(proto);
-    SAPI_ASSIGN_OR_RETURN(int v, f.pb_reverse_string(pp.PtrBoth()));
-    TRANSACTION_FAIL_IF_NOT(v, "pb_reverse_string failed");
-    auto pb_result = pp.GetProtoCopy();
-    TRANSACTION_FAIL_IF_NOT(pb_result, "Could not deserialize pb result");
-    LOG(INFO) << "Result PB: " << pb_result->DebugString();
-    TRANSACTION_FAIL_IF_NOT(pb_result->output() == "olleH", "Incorrect output");
-    return sapi::OkStatus();
-  }),
-              IsOk());
+  StringopSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  StringopApi api(&sandbox);
+
+  stringop::StringReverse proto;
+  proto.set_input("Hello");
+  sapi::v::Proto<stringop::StringReverse> pp(proto);
+  SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.pb_reverse_string(pp.PtrBoth()));
+  EXPECT_THAT(return_value, Ne(0)) << "pb_reverse_string() failed";
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pb_result, pp.GetMessage());
+  LOG(INFO) << "Result PB: " << pb_result.DebugString();
+  EXPECT_THAT(pb_result.output(), StrEq("olleH"));
 }
 
-// Tests using raw dynamic buffers.
 TEST(StringopTest, RawStringDuplication) {
-  sapi::BasicTransaction st(absl::make_unique<StringopSapiSandbox>());
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
-    StringopApi f(sandbox);
-    sapi::v::LenVal param("0123456789", 10);
-    SAPI_ASSIGN_OR_RETURN(int return_value, f.duplicate_string(param.PtrBoth()));
-    TRANSACTION_FAIL_IF_NOT(return_value == 1,
-                            "duplicate_string() returned incorrect value");
-    TRANSACTION_FAIL_IF_NOT(param.GetDataSize() == 20,
-                            "duplicate_string() did not return enough data");
-    absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
-                           param.GetDataSize());
-    TRANSACTION_FAIL_IF_NOT(
-        data == "01234567890123456789",
-        "duplicate_string() did not return the expected data");
-    return sapi::OkStatus();
-  }),
-              IsOk());
+  StringopSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  StringopApi api(&sandbox);
+
+  sapi::v::LenVal param("0123456789", 10);
+  SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.duplicate_string(param.PtrBoth()));
+  EXPECT_THAT(return_value, Eq(1)) << "duplicate_string() failed";
+
+  absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
+                         param.GetDataSize());
+  EXPECT_THAT(data, SizeIs(20))
+      << "duplicate_string() did not return enough data";
+  EXPECT_THAT(std::string(data), StrEq("01234567890123456789"));
 }
 
 TEST(StringopTest, RawStringReversal) {
-  sapi::BasicTransaction st(absl::make_unique<StringopSapiSandbox>());
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
-    StringopApi f(sandbox);
-    sapi::v::LenVal param("0123456789", 10);
-    {
-      SAPI_ASSIGN_OR_RETURN(int return_value, f.reverse_string(param.PtrBoth()));
-      TRANSACTION_FAIL_IF_NOT(return_value == 1,
-                              "reverse_string() returned incorrect value");
-      TRANSACTION_FAIL_IF_NOT(param.GetDataSize() == 10,
-                              "reverse_string() did not return enough data");
-      absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
+  StringopSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  StringopApi api(&sandbox);
+
+  sapi::v::LenVal param("0123456789", 10);
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.reverse_string(param.PtrBoth()));
+    EXPECT_THAT(return_value, Eq(1))
+        << "reverse_string() returned incorrect value";
+    absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
+                           param.GetDataSize());
+    EXPECT_THAT(param.GetDataSize(), Eq(10))
+        << "reverse_string() did not return enough data";
+    EXPECT_THAT(std::string(data), StrEq("9876543210"))
+        << "reverse_string() did not return the expected data";
+  }
+  {
+    // Let's call it again with different data as argument, reusing the
+    // existing LenVal object.
+    EXPECT_THAT(param.ResizeData(sandbox.GetRpcChannel(), 16), IsOk());
+    memcpy(param.GetData() + 10, "ABCDEF", 6);
+    absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
+                           param.GetDataSize());
+    EXPECT_THAT(data, SizeIs(16)) << "Resize did not behave correctly";
+    EXPECT_THAT(std::string(data), StrEq("9876543210ABCDEF"));
+
+    SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.reverse_string(param.PtrBoth()));
+    EXPECT_THAT(return_value, Eq(1))
+        << "reverse_string() returned incorrect value";
+    data = absl::string_view(reinterpret_cast<const char*>(param.GetData()),
                              param.GetDataSize());
-      TRANSACTION_FAIL_IF_NOT(
-          data == "9876543210",
-          "reverse_string() did not return the expected data");
-    }
-    {
-      // Let's call it again with different data as argument, reusing the
-      // existing LenVal object.
-      SAPI_RETURN_IF_ERROR(param.ResizeData(sandbox->GetRpcChannel(), 16));
-      memcpy(param.GetData() + 10, "ABCDEF", 6);
-      TRANSACTION_FAIL_IF_NOT(param.GetDataSize() == 16,
-                              "Resize did not behave correctly");
-      absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
-                             param.GetDataSize());
-      TRANSACTION_FAIL_IF_NOT(data == "9876543210ABCDEF",
-                              "Data not as expected");
-      SAPI_ASSIGN_OR_RETURN(int return_value, f.reverse_string(param.PtrBoth()));
-      TRANSACTION_FAIL_IF_NOT(return_value == 1,
-                              "reverse_string() returned incorrect value");
-      data = absl::string_view(reinterpret_cast<const char*>(param.GetData()),
-                               param.GetDataSize());
-      TRANSACTION_FAIL_IF_NOT(
-          data == "FEDCBA0123456789",
-          "reverse_string() did not return the expected data");
-    }
-    return sapi::OkStatus();
-  }),
-              IsOk());
+    EXPECT_THAT(std::string(data), StrEq("FEDCBA0123456789"));
+  }
 }
 
 }  // namespace
