@@ -97,6 +97,13 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
 }
 
 int main(int argc, char** argv) {
+  // This test is incompatible with sanitizers.
+  // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
+  // need to return something.
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+  return EXIT_SUCCESS;
+#endif
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
@@ -116,7 +123,7 @@ int main(int argc, char** argv) {
       ->set_rlimit_as(RLIM64_INFINITY)
       // Kill sandboxed processes with a signal (SIGXFSZ) if it writes more than
       // these many bytes to the file-system.
-      .set_rlimit_fsize(1024)
+      .set_rlimit_fsize(1024 * 1024)
       // The CPU time limit.
       .set_rlimit_cpu(60)
       .set_walltime_limit(absl::Seconds(30));
@@ -135,5 +142,6 @@ int main(int argc, char** argv) {
 
   LOG(INFO) << "Final execution status: " << result.ToString();
 
-  return EXIT_SUCCESS;
+  return result.final_status() == sandbox2::Result::OK ? EXIT_SUCCESS
+                                                       : EXIT_FAILURE;
 }
