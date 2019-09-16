@@ -167,6 +167,9 @@ int main(int argc, char** argv) {
     defined(THREAD_SANITIZER)
   return EXIT_SUCCESS;
 #endif
+  if (getenv("COVERAGE") != nullptr) {
+    return EXIT_SUCCESS;
+  }
 
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
