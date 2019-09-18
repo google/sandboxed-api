@@ -180,7 +180,10 @@ void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
       addr_to_symbol[entry.end] = "";
     }
 
-    if (!entry.path.empty() && entry.path != "[vdso]" && entry.is_executable) {
+    const bool should_parse = entry.is_executable && !entry.path.empty() &&
+                              entry.path != "[vdso]" &&
+                              entry.path != "[vsyscall]";
+    if (should_parse) {
       auto elf_or = ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
       if (!elf_or.ok()) {
         SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s", entry.path,
