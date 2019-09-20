@@ -205,7 +205,13 @@ void Monitor::Run() {
                                     &init_pid);
 
   if (init_pid > 0) {
-    PCHECK(ptrace(PTRACE_SEIZE, init_pid, 0, PTRACE_O_EXITKILL) == 0);
+    if (ptrace(PTRACE_SEIZE, init_pid, 0, PTRACE_O_EXITKILL) != 0) {
+      if (errno == ESRCH) {
+        SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_PTRACE);
+        return;
+      }
+      PLOG(FATAL) << "attaching to init process failed";
+    }
   }
 
   if (pid_ <= 0 || (should_have_init && init_pid <= 0)) {
