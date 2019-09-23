@@ -50,7 +50,7 @@ cc_library(
         ]
     ]),
     deps = [
-        ":unwind_proto_cc",
+        ":unwind_proto_cc_cc_proto",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/util:maps_parser",
         "//sandboxed_api/sandbox2/util:minielf",
