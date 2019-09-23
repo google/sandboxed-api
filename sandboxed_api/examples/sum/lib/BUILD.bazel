@@ -34,7 +34,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":sum_params_proto_cc",
+        ":sum_params_proto_cc_cc_proto",
         "@com_google_glog//:glog",
     ],
     alwayslink = 1,  # All functions are linked into depending binaries

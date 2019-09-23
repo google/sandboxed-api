@@ -30,7 +30,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":stringop_params_proto_cc",
+        ":stringop_params_proto_cc_cc_proto",
         "//sandboxed_api:lenval_core",
     ],
     alwayslink = 1,  # All functions are linked into dependent binaries
