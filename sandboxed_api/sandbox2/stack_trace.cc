@@ -270,7 +270,7 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
 std::string GetStackTrace(const Regs* regs, const Mounts& mounts,
                           const std::string& delim) {
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
-    return "";
+    return "[Stacktraces disabled]";
   }
   if (!regs) {
     LOG(WARNING) << "Could not obtain stacktrace, regs == nullptr";
