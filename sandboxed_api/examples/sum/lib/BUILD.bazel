@@ -68,5 +68,5 @@ sapi_library(
     lib_name = "Sum",
     namespace = "",
     visibility = ["//visibility:public"],
-    deps = [":sum_params_proto_cc"],
+    deps = [":sum_params_proto_cc_cc_proto"],
 )
