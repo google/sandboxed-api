@@ -25,7 +25,7 @@ cc_binary(
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
         "//sandboxed_api/examples/sum/lib:sum-sapi",
-        "//sandboxed_api/examples/sum/lib:sum_params_proto_cc_cc_proto",
+        "//sandboxed_api/examples/sum/lib:sum_params_proto_cc",
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/memory",

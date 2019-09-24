@@ -27,7 +27,7 @@ cc_test(
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
         "//sandboxed_api/examples/stringop/lib:stringop-sapi",
-        "//sandboxed_api/examples/stringop/lib:stringop_params_proto_cc_cc_proto",
+        "//sandboxed_api/examples/stringop/lib:stringop_params_proto_cc",
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_matchers",
