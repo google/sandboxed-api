@@ -145,4 +145,6 @@ message Violation {
   RegisterValues register_values = 8;
   FsDescription fs = 9;
   string proc_maps = 10;
+  // Contains the received signal that caused the death if applicable.
+  int32 signal = 11;
 }
