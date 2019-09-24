@@ -55,5 +55,5 @@ sapi_library(
     lib_name = "Stringop",
     namespace = "",
     visibility = ["//visibility:public"],
-    deps = [":stringop_params_proto_cc"],
+    deps = [":stringop_params_proto_cc_cc_proto"],
 )
