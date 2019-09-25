@@ -20,7 +20,7 @@
 # - set limits, wall time, filesystem checks, asynchronous run
 # - test to ensure sandbox executor runs sandboxee without issue
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 

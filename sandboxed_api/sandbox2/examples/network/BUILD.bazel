@@ -18,7 +18,7 @@
 # - strict syscall policy
 # - sandbox2::Comms for data exchange (IPC)
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 

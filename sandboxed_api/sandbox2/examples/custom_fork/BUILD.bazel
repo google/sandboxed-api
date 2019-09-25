@@ -16,7 +16,7 @@
 # - create a custom fork-server, which will prepare and fork a sandboxee
 #   from the current process
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 

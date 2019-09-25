@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])  #  BSD/MIT-like license
+licenses(["notice"])
 
 cc_library(
     name = "zlib",

@@ -14,11 +14,41 @@
 
 """Generates proto targets in various languages."""
 
-load(
-    "@com_google_protobuf//:protobuf.bzl",
-    "cc_proto_library",
-    "py_proto_library",
-)
+load("@com_google_protobuf//:protobuf.bzl", "cc_proto_library")
+
+def _cc_proto_library_name_from_proto_name(name):
+    """Converts proto name to cc_proto_library name.
+
+    Several suffixes will be considered.
+    Args:
+      name: the proto name
+    Returns:
+      The cc_proto_library name.
+    """
+    name = name.replace("-", "_")
+    if name == "proto":
+        # replace 'proto' with 'cc_proto'
+        return "cc_proto"
+    for suffix in [
+        ".protolib",
+        "protolib",
+        "proto2lib",
+        "proto_lib",
+        "proto2",
+        "protos",
+        "proto2_lib",
+        "libproto",
+        "genproto",
+        "proto",
+    ]:
+        # replace 'suffix' or '_suffix' with '_cc_proto'
+        if name.endswith("_" + suffix):
+            return name[:-len("_" + suffix)] + "_cc_proto"
+        elif name.endswith(suffix):
+            return name[:-len(suffix)] + "_cc_proto"
+
+    # no match; simply append '_cc_proto' to the end
+    return name + "_cc_proto"
 
 def sapi_proto_library(
         name,
@@ -30,7 +60,7 @@ def sapi_proto_library(
 
     Args:
       name: Name for proto_library and base for the cc_proto_library name, name +
-            "_cc".
+            "_cc_proto".
       srcs: Same as proto_library deps.
       deps: Same as proto_library deps.
       alwayslink: Same as cc_library.
@@ -39,10 +69,6 @@ def sapi_proto_library(
     if kwargs.get("has_services", False):
         fail("Services are not currently supported.")
 
-    # TODO(cblichmann): For the time being, rely on the non-native rule
-    #                   provided by Protobuf. Once the Starlark C++ API has
-    #                   landed, it'll become possible to implement alwayslink
-    #                   natively.
     cc_proto_library(
         name = name,
         srcs = srcs,
@@ -51,25 +77,8 @@ def sapi_proto_library(
         **kwargs
     )
     native.cc_library(
-        name = name + "_cc",
-        deps = [":" + name],
-        **kwargs
-    )
-
-def sapi_py_proto_library(name, srcs = [], deps = [], **kwargs):
-    """Generates proto targets for Python.
-
-    Args:
-      name: Name for proto_library.
-      srcs: Same as py_proto_library deps.
-      deps: Ignored, provided for compatibility only.
-      **kwargs: proto_library arguments.
-    """
-    _ignore = [deps]
-    py_proto_library(
-        name = name,
-        srcs = srcs,
-        default_runtime = "@com_google_protobuf//:protobuf_python",
-        protoc = "@com_google_protobuf//:protoc",
+        name = _cc_proto_library_name_from_proto_name(name),
+        deps = [name],
+        alwayslink = alwayslink,
         **kwargs
     )

@@ -14,7 +14,7 @@
 
 # The 'network proxy' example demonstrates how to use network proxy server.
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 

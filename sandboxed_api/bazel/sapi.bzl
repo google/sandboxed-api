@@ -157,6 +157,8 @@ def sapi_library(
         visibility = None):
     """BUILD rule providing implementation of a Sandboxed API library."""
 
+    repo_name = native.repository_name()
+    rprefix = "@com_google_sandboxed_api" if repo_name != "@" else ""
     common = {
         "tags": tags,
     }
@@ -180,7 +182,7 @@ def sapi_library(
     else:
         lib_hdrs += [generated_header]
 
-    default_deps = ["@com_google_sandboxed_api//sandboxed_api/sandbox2"]
+    default_deps = [rprefix + "//sandboxed_api/sandbox2"]
 
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
@@ -191,8 +193,8 @@ def sapi_library(
         data = [":" + name + ".bin"],
         deps = sort_deps(
             [
-                "@com_google_sandboxed_api//sandboxed_api:sapi",
-                "@com_google_sandboxed_api//sandboxed_api:vars",
+                rprefix + "//sandboxed_api:sapi",
+                rprefix + "//sandboxed_api:vars",
             ] + deps +
             ([":" + name + "_embed"] if embed else []) +
             (default_deps if add_default_deps else []),
@@ -208,7 +210,7 @@ def sapi_library(
         ] + exported_funcs,  # must be both referenced, and exported
         deps = [
             ":" + name + ".lib",
-            "@com_google_sandboxed_api//sandboxed_api:client",
+            rprefix + "//sandboxed_api:client",
         ],
         **common
     )

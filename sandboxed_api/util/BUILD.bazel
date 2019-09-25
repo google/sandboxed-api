@@ -14,7 +14,7 @@
 
 package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
@@ -41,7 +41,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":status_proto_cc_cc_proto",
+        ":status_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",

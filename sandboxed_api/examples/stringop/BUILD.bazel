@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Description: Examples using dynamic length structures for Sandboxed-API
+# Description: Example using dynamic length structures for Sandboxed API
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
@@ -27,7 +27,7 @@ cc_test(
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
         "//sandboxed_api/examples/stringop/lib:stringop-sapi",
-        "//sandboxed_api/examples/stringop/lib:stringop_params_proto_cc_cc_proto",
+        "//sandboxed_api/examples/stringop/lib:stringop_params_cc_proto",
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_matchers",

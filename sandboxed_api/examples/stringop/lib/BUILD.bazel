@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
@@ -30,7 +30,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":stringop_params_proto_cc_cc_proto",
+        ":stringop_params_cc_proto",
         "//sandboxed_api:lenval_core",
     ],
     alwayslink = 1,  # All functions are linked into dependent binaries
@@ -55,5 +55,5 @@ sapi_library(
     lib_name = "Stringop",
     namespace = "",
     visibility = ["//visibility:public"],
-    deps = [":stringop_params_proto_cc"],
+    deps = [":stringop_params_cc_proto"],
 )
