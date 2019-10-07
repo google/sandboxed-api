@@ -8,7 +8,7 @@ in the protected region cause no harm.
 ## Documentation
 
 Detailed developer documentation is available on the Google Developers site for Sandboxed API under
-[Sandbox2](hhttps://developers.google.com/sandboxed-api/docs/sandbox2/overview).
+[Sandbox2](https://developers.google.com/sandboxed-api/docs/sandbox2/overview).
 
 There is also a
 [Getting Started](https://developers.google.com/sandboxed-api/docs/sandbox2/getting-started)
