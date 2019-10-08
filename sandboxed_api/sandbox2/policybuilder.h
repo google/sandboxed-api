@@ -94,11 +94,6 @@ class PolicyBuilder final {
   using BpfFunc = const std::function<std::vector<sock_filter>(bpf_labels&)>&;
   using SyscallInitializer = std::initializer_list<unsigned int>;
 
-  PolicyBuilder() : output_{new Policy()} {}
-
-  PolicyBuilder(const PolicyBuilder&) = delete;
-  PolicyBuilder& operator=(const PolicyBuilder&) = delete;
-
   // Appends code to allow a specific syscall
   PolicyBuilder& AllowSyscall(unsigned int num);
 
@@ -534,11 +529,12 @@ class PolicyBuilder final {
   bool collect_stacktrace_on_kill_ = false;
 
   // Seccomp fields
-  std::unique_ptr<Policy> output_;
+  std::vector<sock_filter> user_policy_;
   std::set<unsigned int> handled_syscalls_;
 
   // Error handling
   sapi::Status last_status_;
+  bool already_built_ = false;
   // This function returns a PolicyBuilder so that we can use it in the status
   // macros
   PolicyBuilder& SetError(const sapi::Status& status);

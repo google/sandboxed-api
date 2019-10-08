@@ -55,7 +55,7 @@ class PolicyBuilderPeer {
  public:
   explicit PolicyBuilderPeer(PolicyBuilder* builder) : builder_{builder} {}
 
-  int policy_size() const { return builder_->output_->user_policy_.size(); }
+  int policy_size() const { return builder_->user_policy_.size(); }
 
   static sapi::StatusOr<std::string> ValidateAbsolutePath(
       absl::string_view path) {
@@ -196,6 +196,18 @@ TEST_F(PolicyBuilderTest, TestCanOnlyBuildOnce) {
   PolicyBuilder b;
   ASSERT_THAT(b.BuildOrDie(), NotNull());
   ASSERT_DEATH(b.BuildOrDie(), "Can only build policy once");
+}
+
+TEST_F(PolicyBuilderTest, TestIsCopyable) {
+  PolicyBuilder builder;
+  builder.DangerDefaultAllowAll();
+
+  PolicyBuilder copy = builder;
+  ASSERT_EQ(PolicyBuilderPeer(&copy).policy_size(), 1);
+
+  // Building both does not crash.
+  builder.BuildOrDie();
+  copy.BuildOrDie();
 }
 
 TEST_F(PolicyBuilderTest, TestEcho) {

@@ -49,8 +49,7 @@ namespace {
 
 PolicyBuilder& PolicyBuilder::AllowSyscall(unsigned int num) {
   if (handled_syscalls_.insert(num).second) {
-    output_->user_policy_.insert(output_->user_policy_.end(),
-                                 {SYSCALL(num, ALLOW)});
+    user_policy_.insert(user_policy_.end(), {SYSCALL(num, ALLOW)});
   }
   return *this;
 }
@@ -72,8 +71,7 @@ PolicyBuilder& PolicyBuilder::AllowSyscalls(SyscallInitializer nums) {
 PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(unsigned int num,
                                                     int error) {
   if (handled_syscalls_.insert(num).second) {
-    output_->user_policy_.insert(output_->user_policy_.end(),
-                                 {SYSCALL(num, ERRNO(error))});
+    user_policy_.insert(user_policy_.end(), {SYSCALL(num, ERRNO(error))});
   }
   return *this;
 }
@@ -588,8 +586,8 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
             return out;
           });
   // Pre-/Postcondition: Syscall number loaded into A register
-  output_->user_policy_.insert(output_->user_policy_.end(),
-                               resolved_policy.begin(), resolved_policy.end());
+  user_policy_.insert(user_policy_.end(), resolved_policy.begin(),
+                      resolved_policy.end());
   return *this;
 }
 
@@ -630,7 +628,7 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(BpfFunc f) {
 }
 
 PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
-  output_->user_policy_.push_back(ALLOW);
+  user_policy_.push_back(ALLOW);
   return *this;
 }
 
@@ -665,11 +663,13 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
 }
 
 sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
+  auto output = absl::WrapUnique(new Policy());
+
   if (!last_status_.ok()) {
     return last_status_;
   }
 
-  if (!output_) {
+  if (already_built_) {
     return sapi::FailedPreconditionError("Can only build policy once.");
   }
 
@@ -678,7 +678,7 @@ sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
       return sapi::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    output_->SetNamespace(absl::make_unique<Namespace>(
+    output->SetNamespace(absl::make_unique<Namespace>(
         allow_unrestricted_networking_, std::move(mounts_), hostname_));
   } else {
     // Not explicitly disabling them here as this is a technical limitation in
@@ -687,16 +687,18 @@ sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
                  << " crash";
   }
 
-  output_->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
-  output_->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;
-  output_->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;
-  output_->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
+  output->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
+  output->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;
+  output->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;
+  output->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
+  output->user_policy_ = std::move(user_policy_);
 
   auto pb_description = absl::make_unique<PolicyBuilderDescription>();
 
   StoreDescription(pb_description.get());
-  output_->policy_builder_description_ = std::move(pb_description);
-  return std::move(output_);
+  output->policy_builder_description_ = std::move(pb_description);
+  already_built_ = true;
+  return std::move(output);
 }
 
 PolicyBuilder& PolicyBuilder::AddFile(absl::string_view path, bool is_ro) {
