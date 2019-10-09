@@ -73,10 +73,6 @@ void PrepareChroot(const Mounts& mounts) {
 
   // Walk the tree and perform all the mount operations.
   mounts.CreateMounts(kSandbox2ChrootPath);
-
-  SAPI_RAW_PCHECK(
-      mount("/", "/", "", MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) != -1,
-      "Remounting / RO failed");
 }
 
 void TryDenySetgroups() {
