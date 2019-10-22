@@ -254,6 +254,28 @@ sapi::Status Mounts::AddDirectoryAt(absl::string_view outside,
   return Insert(inside, node);
 }
 
+const MountTree::Node* Mounts::GetNode(const std::string& path) const {
+  std::string fixed_path = file::CleanPath(path);
+  absl::string_view cur = fixed_path;
+  std::vector<std::string> parts;
+
+  while (cur != "/") {
+    auto split = file::SplitPath(cur);
+    cur = split.first;
+    parts.push_back(std::string(split.second));
+  }
+
+  const MountTree* curtree = &mount_tree_;
+  for (auto part = parts.rbegin(); part != parts.rend(); ++part) {
+    const auto& p = curtree->entries().find(*part);
+    if (p == curtree->entries().end()) {
+      return nullptr;
+    }
+    curtree = &p->second;
+  }
+  return &curtree->node();
+}
+
 namespace {
 
 void LogContainer(const std::vector<std::string>& container) {

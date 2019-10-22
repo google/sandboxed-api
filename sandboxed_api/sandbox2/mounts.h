@@ -57,6 +57,8 @@ class Mounts {
   void RecursivelyListMounts(std::vector<std::string>* outside_entries,
                              std::vector<std::string>* inside_entries);
 
+  const MountTree::Node* GetNode(const std::string& path) const;
+
  private:
   friend class MountTreeTest;
   sapi::Status Insert(absl::string_view path, const MountTree::Node& node);

@@ -19,6 +19,7 @@
 #include <sys/capability.h>
 #include <sys/resource.h>
 #include <syscall.h>
+
 #include <memory>
 #include <utility>
 #include <vector>
@@ -199,20 +200,28 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
   }
 
   // Get path to the binary.
-  // app_path contains the path like it is also in /proc/pid/maps. This is
-  // important when the file was removed, it will have a ' (deleted)' suffix.
+  // app_path contains the path like it is also in /proc/pid/maps. It is
+  // relative to the sandboxee's mount namespace. If it is not existing
+  // (anymore) it will have a ' (deleted)' suffix.
   std::string app_path;
-  // The exe_path will have a mountable path of the application, even if it was
-  // removed.
-  std::string exe_path;
   std::string proc_pid_exe = file::JoinPath("/proc", absl::StrCat(pid), "exe");
   if (!file_util::fileops::ReadLinkAbsolute(proc_pid_exe, &app_path)) {
     LOG(WARNING) << "Could not obtain absolute path to the binary";
     return false;
   }
 
-  // Check whether the file still exists or not (SAPI).
-  if (access(app_path.c_str(), F_OK) == -1) {
+  // The exe_path will have a mountable path of the application, even if it was
+  // removed.
+  std::string exe_path;
+
+  // Resolve app_path backing file.
+  const auto* app_node = mounts.GetNode(app_path);
+  if (app_node) {
+    exe_path = app_node->file_node().outside();
+  }
+
+  if (exe_path.empty()) {
+    // File was probably removed.
     LOG(WARNING) << "File was removed, using /proc/pid/exe.";
     app_path = std::string(absl::StripSuffix(app_path, " (deleted)"));
     // Create a copy of /proc/pid/exe, mount that one.
@@ -221,8 +230,6 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
       LOG(WARNING) << "Could not copy /proc/pid/exe";
       return false;
     }
-  } else {
-    exe_path = app_path;
   }
 
   VLOG(1) << "Resolved binary: " << app_path << " / " << exe_path;
