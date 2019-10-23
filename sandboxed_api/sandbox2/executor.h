@@ -72,6 +72,8 @@ class Executor final {
                  /*enable_sandboxing_pre_execve=*/false,
                  /*libunwind_sbox_for_pid=*/0, fork_client) {}
 
+  ~Executor();
+
   // Creates a new process which will act as a custom ForkServer. Should be used
   // with custom fork servers only.
   // This function returns immediately and returns a nullptr on failure.

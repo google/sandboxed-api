@@ -60,6 +60,12 @@ Executor::Executor(int exec_fd, const std::string& path,
   SetDefaultCwd();
 }
 
+Executor::~Executor() {
+  if (client_comms_fd_ != -1) {
+    close(client_comms_fd_);
+  }
+}
+
 std::vector<std::string> Executor::CopyEnviron() {
   std::vector<std::string> environ_copy;
   util::CharPtrArrToVecString(environ, &environ_copy);
