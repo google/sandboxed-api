@@ -1,8 +1,7 @@
 ---
 tasks:
-  ubuntu1804:
+  debian10:
     shell_commands:
-    - apt-get update && apt-get install libcap-dev
     - pip3 install absl-py clang
     build_targets:
     - "..."
