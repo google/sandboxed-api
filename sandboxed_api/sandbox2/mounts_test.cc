@@ -205,6 +205,8 @@ TEST(MountTreeTest, TestList) {
     }
   }
 
+  ASSERT_THAT(mounts.AddTmpfs(file::CleanPath("/d"), 1024 * 1024), IsOk());
+
   std::vector<std::string> outside_entries;
   std::vector<std::string> inside_entries;
   mounts.RecursivelyListMounts(&outside_entries, &inside_entries);
@@ -219,6 +221,7 @@ TEST(MountTreeTest, TestList) {
           "R /h",
           "W /i/j/k",
           "W /i/l/",
+          "/d",
       }));
   EXPECT_THAT(
       outside_entries,
@@ -229,6 +232,7 @@ TEST(MountTreeTest, TestList) {
           absl::StrCat("/some/dir/", "h"),
           absl::StrCat("/some/dir/", "i/j/k"),
           absl::StrCat("/some/dir/", "i/l/"),
+          absl::StrCat("tmpfs: size=", 1024*1024),
       }));
   // clang-format on
 }

@@ -589,6 +589,7 @@ void RecursivelyListMountsImpl(const MountTree& tree,
     inside_entries->emplace_back(absl::StrCat(rw_str, tree_path));
     outside_entries->emplace_back(absl::StrCat(node.file_node().outside()));
   } else if (node.has_tmpfs_node()) {
+    inside_entries->emplace_back(tree_path);
     outside_entries->emplace_back(
         absl::StrCat("tmpfs: ", node.tmpfs_node().tmpfs_options()));
   }
