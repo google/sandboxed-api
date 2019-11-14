@@ -497,6 +497,10 @@ class PolicyBuilder final {
   // the NetworkProxyHandler
   PolicyBuilder& AddNetworkProxyHandlerPolicy();
 
+  // Makes root of the filesystem writeable
+  // Not recommended
+  PolicyBuilder& SetRootWritable();
+
  private:
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;

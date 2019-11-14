@@ -27,8 +27,18 @@ namespace sandbox2 {
 
 class Mounts {
  public:
-  Mounts() = default;
+  Mounts() {
+    MountTree::Node root;
+    root.mutable_root_node()->set_is_ro(true);
+    *mount_tree_.mutable_node() = root;
+  }
+
   explicit Mounts(MountTree mount_tree) : mount_tree_(std::move(mount_tree)) {}
+
+  Mounts(const Mounts&) = default;
+  Mounts(Mounts&&) = default;
+  Mounts& operator=(const Mounts&) = default;
+  Mounts& operator=(Mounts&&) = default;
 
   sapi::Status AddFile(absl::string_view path, bool is_ro = true);
 
@@ -46,6 +56,15 @@ class Mounts {
   void CreateMounts(const std::string& root_path) const;
 
   MountTree GetMountTree() const { return mount_tree_; }
+
+  void SetRootWritable() {
+    mount_tree_.mutable_node()->mutable_root_node()->set_is_ro(false);
+  }
+
+  bool IsRootReadOnly() const {
+    return mount_tree_.has_node() && mount_tree_.node().has_root_node() &&
+           mount_tree_.node().root_node().is_ro();
+  }
 
   // Lists the outside and inside entries of the input tree in the output
   // parameters, in an ls-like manner. Each entry is traversed in the

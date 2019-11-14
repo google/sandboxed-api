@@ -15,17 +15,22 @@
 // Checks various things related to namespaces, depending on the first argument:
 // ./binary 0 <file1> <file2> ... <fileN>:
 //    Make sure all provided files exist and are RO, return 0 on OK.
-//    Returns the index of the first non-existing file + 1 on failure.
+//    Returns the index of the first non-existing file on failure.
 // ./binary 1 <file1> <file2> ... <fileN>:
 //    Make sure all provided files exist and are RW, return 0 on OK.
-//    Returns the index of the first non-existing file + 1 on failure.
+//    Returns the index of the first non-existing file on failure.
 // ./binary 2
 //    Make sure that we run in a PID namespace (this implies getpid() == 1)
 //    Returns 0 on OK.
 // ./binary 3 <uid> <gid>
 //    Make sure getuid()/getgid() returns the provided uid/gid (User namespace).
 //    Returns 0 on OK.
+// ./binary 4 <file1> <file2> ... <fileN>:
+//    Create provided files, return 0 on OK.
+//    Returns the index of the first non-creatable file on failure.
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <cstdlib>
@@ -71,6 +76,14 @@ int main(int argc, char* argv[]) {
         return -1;
       }
     } break;
+
+    case 4:
+      for (int i = 2; i < argc; ++i) {
+        if (open(argv[i], O_CREAT | O_WRONLY) == -1) {
+          return i - 1;
+        }
+      }
+      break;
 
     default:
       return 1;

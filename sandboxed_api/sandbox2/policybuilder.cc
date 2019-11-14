@@ -904,6 +904,13 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::SetRootWritable() {
+  EnableNamespaces();
+  mounts_.SetRootWritable();
+
+  return *this;
+}
+
 void PolicyBuilder::StoreDescription(PolicyBuilderDescription* pb_description) {
   for (const auto& handled_syscall : handled_syscalls_) {
     pb_description->add_handled_syscalls(handled_syscall);

@@ -73,6 +73,13 @@ void PrepareChroot(const Mounts& mounts) {
 
   // Walk the tree and perform all the mount operations.
   mounts.CreateMounts(kSandbox2ChrootPath);
+
+  if (mounts.IsRootReadOnly()) {
+    // Remount the chroot read-only
+    SAPI_RAW_PCHECK(mount(kSandbox2ChrootPath, kSandbox2ChrootPath, "",
+                          MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) == 0,
+                    "remounting chroot read-only failed");
+  }
 }
 
 void TryDenySetgroups() {

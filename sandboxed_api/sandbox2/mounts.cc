@@ -170,6 +170,8 @@ sapi::Status Mounts::Insert(absl::string_view path,
       }
       break;
     }
+    case MountTree::Node::kRootNode:
+      return sapi::InvalidArgumentError("Cannot insert a RootNode");
     case MountTree::Node::kTmpfsNode:
     case MountTree::Node::NODE_NOT_SET:
       break;
@@ -517,6 +519,7 @@ void CreateMounts(const MountTree& tree, const std::string& path,
       }
       case MountTree::Node::kDirNode:
       case MountTree::Node::kTmpfsNode:
+      case MountTree::Node::kRootNode:
       case MountTree::Node::NODE_NOT_SET:
         SAPI_RAW_VLOG(2, "Creating directory at %s", path);
         SAPI_RAW_PCHECK(mkdir(path.c_str(), 0700) == 0 || errno == EEXIST, "");
@@ -554,6 +557,7 @@ void CreateMounts(const MountTree& tree, const std::string& path,
       // A file node has to be a leaf so we can skip traversing here.
       return;
     }
+    case MountTree::Node::kRootNode:
     case MountTree::Node::NODE_NOT_SET:
       // Nothing to do, we already created the directory above.
       break;

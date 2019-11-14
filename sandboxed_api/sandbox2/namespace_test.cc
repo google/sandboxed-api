@@ -133,6 +133,43 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
   }
 }
 
+TEST(NamespaceTest, RootReadOnly) {
+  // Mount rw tmpfs at /tmp and check it is rw.
+  // Check also that / is ro.
+  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
+  std::vector<std::string> args = {path, "4", "/tmp/testfile", "/testfile"};
+  auto executor = absl::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        // Don't restrict the syscalls at all
+                                        .DangerDefaultAllowAll()
+                                        .AddTmpfs("/tmp")
+                                        .TryBuild());
+
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+
+  ASSERT_EQ(result.final_status(), Result::OK);
+  EXPECT_EQ(result.reason_code(), 2);
+}
+
+TEST(NamespaceTest, RootWritable) {
+  // Mount root rw and check it
+  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
+  std::vector<std::string> args = {path, "4", "/testfile"};
+  auto executor = absl::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                        // Don't restrict the syscalls at all
+                                        .DangerDefaultAllowAll()
+                                        .SetRootWritable()
+                                        .TryBuild());
+
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+
+  ASSERT_EQ(result.final_status(), Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
 class HostnameTest : public testing::Test {
  protected:
   void Try(std::string arg, std::unique_ptr<Policy> policy) {

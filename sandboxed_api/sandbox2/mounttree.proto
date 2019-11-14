@@ -15,6 +15,7 @@
 // A proto for serializing the sandbox2::MountTree class
 
 syntax = "proto2";
+
 package sandbox2;
 
 // The MountTree maps path components to mount operations (bind/tmpfs). The path
@@ -40,11 +41,17 @@ message MountTree {
     required string tmpfs_options = 1;
   }
 
+  // RootNode is as special node for root of the MountTree
+  message RootNode {
+    required bool is_ro = 3;
+  }
+
   message Node {
     oneof node {
       FileNode file_node = 1;
       DirNode dir_node = 2;
       TmpfsNode tmpfs_node = 3;
+      RootNode root_node = 4;
     }
   }
 
