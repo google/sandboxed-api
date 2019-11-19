@@ -31,9 +31,9 @@
 #include <cstring>
 #include <utility>
 
+#include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
@@ -62,7 +62,6 @@ int MountFallbackToReadOnly(const char* source, const char* target,
   }
   return rv;
 }
-}  // namespace
 
 void PrepareChroot(const Mounts& mounts) {
   // Create a tmpfs mount for the new rootfs.
@@ -83,25 +82,29 @@ void PrepareChroot(const Mounts& mounts) {
 }
 
 void TryDenySetgroups() {
-  int fd = open("/proc/self/setgroups", O_WRONLY);
+  file_util::fileops::FDCloser fd(
+      TEMP_FAILURE_RETRY(open("/proc/self/setgroups", O_WRONLY | O_CLOEXEC)));
   // We ignore errors since they are most likely due to an old kernel.
-  if (fd == -1) {
+  if (fd.get() == -1) {
     return;
   }
 
-  file_util::fileops::FDCloser fd_closer{fd};
-
-  dprintf(fd, "deny");
+  dprintf(fd.get(), "deny");
 }
 
 void WriteIDMap(const char* map_path, int32_t uid) {
-  int fd = open(map_path, O_WRONLY);
-  SAPI_RAW_PCHECK(fd != -1, "Couldn't open %s", map_path);
+  file_util::fileops::FDCloser fd(
+      TEMP_FAILURE_RETRY(open(map_path, O_WRONLY | O_CLOEXEC)));
+  SAPI_RAW_PCHECK(fd.get() != -1, "Couldn't open %s", map_path);
 
-  file_util::fileops::FDCloser fd_closer{fd};
-
-  SAPI_RAW_PCHECK(dprintf(fd, "1000 %d 1", uid) >= 0,
+  SAPI_RAW_PCHECK(dprintf(fd.get(), "1000 %d 1", uid) >= 0,
                   "Could not write %d to %s", uid, map_path);
+}
+
+void SetupIDMaps(uid_t uid, gid_t gid) {
+  TryDenySetgroups();
+  WriteIDMap("/proc/self/uid_map", uid);
+  WriteIDMap("/proc/self/gid_map", gid);
 }
 
 void ActivateLoopbackInterface() {
@@ -188,6 +191,8 @@ void LogFilesystem(const std::string& dir) {
   }
 }
 
+}  // namespace
+
 Namespace::Namespace(bool allow_unrestricted_networking, Mounts mounts,
                      std::string hostname)
     : clone_flags_(CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWPID |
@@ -205,17 +210,27 @@ int32_t Namespace::GetCloneFlags() const { return clone_flags_; }
 
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts, bool mount_proc,
-                                     const std::string& hostname) {
-  if (clone_flags & CLONE_NEWUSER) {
-    // Set up the uid and gid map.
-    TryDenySetgroups();
-    WriteIDMap("/proc/self/uid_map", uid);
-    WriteIDMap("/proc/self/gid_map", gid);
+                                     const std::string& hostname,
+                                     bool avoid_pivot_root) {
+  if (clone_flags & CLONE_NEWUSER && !avoid_pivot_root) {
+    SetupIDMaps(uid, gid);
   }
 
   if (!(clone_flags & CLONE_NEWNS)) {
     // CLONE_NEWNS is always set if we're running in namespaces.
     return;
+  }
+
+  std::unique_ptr<file_util::fileops::FDCloser> root_fd;
+  if (avoid_pivot_root) {
+    // We want to bind-mount chrooted to real root, so that symlinks work.
+    // Reference to main root is kept to escape later from the chroot
+    root_fd = absl::make_unique<file_util::fileops::FDCloser>(
+        TEMP_FAILURE_RETRY(open("/", O_PATH)));
+    SAPI_RAW_CHECK(root_fd->get() != -1, "creating fd for main root");
+
+    SAPI_RAW_PCHECK(chroot("/realroot") != -1, "chrooting to real root");
+    SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting real root");
   }
 
   SAPI_RAW_PCHECK(
@@ -242,22 +257,93 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
 
   PrepareChroot(mounts);
 
-  // This requires some explanation: It's actually possible to pivot_root('/',
-  // '/'). After this operation has been completed, the old root is mounted over
-  // the new root, and it's OK to simply umount('/') now, and to have new_root
-  // as '/'. This allows us not care about providing any special directory for
-  // old_root, which is sometimes not easy, given that e.g. /tmp might not
-  // always be present inside new_root.
-  SAPI_RAW_PCHECK(
-      syscall(__NR_pivot_root, kSandbox2ChrootPath, kSandbox2ChrootPath) != -1,
-      "pivot root");
-  SAPI_RAW_PCHECK(umount2("/", MNT_DETACH) != -1, "detaching old root");
-  SAPI_RAW_PCHECK(chdir("/") == 0, "changing cwd after pivot_root failed");
+  if (avoid_pivot_root) {
+    // Keep a reference to /proc/self as it might not be mounted later
+    file_util::fileops::FDCloser proc_self_fd(
+        TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH)));
+    SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
+
+    // Return to the main root
+    SAPI_RAW_PCHECK(fchdir(root_fd->get()) != -1, "chdir to main root");
+    SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting to main root");
+    SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting main root");
+
+    // Get a refrence to /realroot to umount it later
+    file_util::fileops::FDCloser realroot_fd(
+        TEMP_FAILURE_RETRY(open("/realroot", O_PATH)));
+
+    // Move the chroot out of realroot to /
+    std::string chroot_path = file::JoinPath("/realroot", kSandbox2ChrootPath);
+    SAPI_RAW_PCHECK(chdir(chroot_path.c_str()) != -1, "chdir to chroot");
+    SAPI_RAW_PCHECK(mount(".", "/", "", MS_MOVE, nullptr) == 0,
+                    "moving rootfs failed");
+    SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting moved chroot");
+    SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chroot");
+
+    // Umount the realroot so that no reference is left
+    SAPI_RAW_PCHECK(fchdir(realroot_fd.get()) != -1, "fchdir to /realroot");
+    SAPI_RAW_PCHECK(umount2(".", MNT_DETACH) != -1, "detaching old root");
+
+    if (clone_flags & CLONE_NEWUSER) {
+      // Also CLONE_NEWNS so that / mount becomes locked
+      SAPI_RAW_PCHECK(unshare(CLONE_NEWUSER | CLONE_NEWNS) != -1,
+                      "unshare(CLONE_NEWUSER | CLONE_NEWNS)");
+      // Setup ID maps using reference to /proc/self obatined earlier
+      file_util::fileops::FDCloser setgroups_fd(TEMP_FAILURE_RETRY(
+          openat(proc_self_fd.get(), "setgroups", O_WRONLY | O_CLOEXEC)));
+      // We ignore errors since they are most likely due to an old kernel.
+      if (setgroups_fd.get() != -1) {
+        dprintf(setgroups_fd.get(), "deny");
+      }
+      file_util::fileops::FDCloser uid_map_fd(
+          TEMP_FAILURE_RETRY(openat(proc_self_fd.get(), "uid_map", O_WRONLY)));
+      SAPI_RAW_PCHECK(uid_map_fd.get() != -1, "Couldn't open uid_map");
+      SAPI_RAW_PCHECK(dprintf(uid_map_fd.get(), "1000 1000 1") >= 0,
+                      "Could not write uid_map");
+      file_util::fileops::FDCloser gid_map_fd(
+          TEMP_FAILURE_RETRY(openat(proc_self_fd.get(), "gid_map", O_WRONLY)));
+      SAPI_RAW_PCHECK(gid_map_fd.get() != -1, "Couldn't open gid_map");
+      SAPI_RAW_PCHECK(dprintf(gid_map_fd.get(), "1000 1000 1") >= 0,
+                      "Could not write gid_map");
+    }
+  } else {
+    // This requires some explanation: It's actually possible to pivot_root('/',
+    // '/'). After this operation has been completed, the old root is mounted
+    // over the new root, and it's OK to simply umount('/') now, and to have
+    // new_root as '/'. This allows us not care about providing any special
+    // directory for old_root, which is sometimes not easy, given that e.g. /tmp
+    // might not always be present inside new_root.
+    SAPI_RAW_PCHECK(syscall(__NR_pivot_root, kSandbox2ChrootPath,
+                            kSandbox2ChrootPath) != -1,
+                    "pivot root");
+    SAPI_RAW_PCHECK(umount2("/", MNT_DETACH) != -1, "detaching old root");
+  }
+
+  SAPI_RAW_PCHECK(chdir("/") == 0,
+                  "changing cwd after mntns initialization failed");
 
   if (SAPI_VLOG_IS_ON(2)) {
     SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");
     LogFilesystem("/");
   }
+}
+
+void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
+  SetupIDMaps(uid, gid);
+  SAPI_RAW_CHECK(util::CreateDirRecursive(kSandbox2ChrootPath, 0700),
+                 "could not create directory for rootfs");
+  SAPI_RAW_PCHECK(mount("none", kSandbox2ChrootPath, "tmpfs", 0, nullptr) == 0,
+                  "mounting rootfs failed");
+  auto realroot_path = file::JoinPath(kSandbox2ChrootPath, "/realroot");
+  SAPI_RAW_CHECK(util::CreateDirRecursive(realroot_path, 0700),
+                 "could not create directory for real root");
+  SAPI_RAW_PCHECK(syscall(__NR_pivot_root, kSandbox2ChrootPath,
+                          realroot_path.c_str()) != -1,
+                  "pivot root");
+  SAPI_RAW_PCHECK(symlink("/realroot/proc", "/proc") != -1, "symlinking /proc");
+  SAPI_RAW_PCHECK(
+      mount("/", "/", "", MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) == 0,
+      "remounting rootfs read-only failed");
 }
 
 void Namespace::GetNamespaceDescription(NamespaceDescription* pb_description) {

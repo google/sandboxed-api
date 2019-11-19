@@ -14,15 +14,15 @@
 
 # Description: sandbox2 is a C++ sandbox technology for Linux.
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+
 package(default_visibility = [
     "//sandboxed_api:__subpackages__",
 ])
 
 licenses(["notice"])  # Apache 2.0
-
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 cc_library(
     name = "bpfdisassembler",
@@ -397,6 +397,7 @@ cc_library(
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
@@ -457,6 +458,7 @@ cc_library(
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],

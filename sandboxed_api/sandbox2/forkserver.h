@@ -70,19 +70,18 @@ class ForkServer {
   pid_t ServeRequest() const;
 
  private:
-  // Analyzes the PB received, and execute the process. If kept_fds is
-  // non-nullptr, it specifies a list of file descriptors to be kept open after
-  // sanitization call is done, the remaining file descriptors will be closed.
-  static void LaunchChild(const ForkRequest& request, int execve_fd,
-                          int client_fd, uid_t uid, gid_t gid, int user_ns_fd,
-                          int signaling_fd);
+  // Creates and launched the child process.
+  void LaunchChild(const ForkRequest& request, int execve_fd, int client_fd,
+                   uid_t uid, gid_t gid, int user_ns_fd, int signaling_fd,
+                   bool avoid_pivot_root) const;
 
   // Prepares the Fork-Server (worker side, not the requester side) for work by
   // sanitizing the environment:
   // - go down if the parent goes down,
   // - become subreaper - PR_SET_CHILD_SUBREAPER (man prctl),
   // - don't convert children processes into zombies if they terminate.
-  static bool Initialize();
+  // - create initial namespaces
+  bool Initialize();
 
   // Prepares arguments for the upcoming execve (if execve was requested).
   static void PrepareExecveArgs(const ForkRequest& request,
@@ -98,11 +97,13 @@ class ForkServer {
 
   // Runs namespace initializers for a sandboxee.
   static void InitializeNamespaces(const ForkRequest& request, uid_t uid,
-                                   gid_t gid);
+                                   gid_t gid, bool avoid_pivot_root);
 
   // Comms channel which is used to send requests to this class. Not owned by
   // the object.
   Comms* comms_;
+  int initial_mntns_fd_ = -1;
+  int initial_userns_fd_ = -1;
 };
 
 }  // namespace sandbox2

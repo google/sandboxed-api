@@ -36,6 +36,7 @@
 #include <cstring>
 
 #include <glog/logging.h>
+#include "absl/memory/memory.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -256,7 +257,8 @@ void ForkServer::PrepareExecveArgs(const ForkRequest& request,
 
 void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
                              int client_fd, uid_t uid, gid_t gid,
-                             int user_ns_fd, int signaling_fd) {
+                             int user_ns_fd, int signaling_fd,
+                             bool avoid_pivot_root) const {
   bool will_execve = (request.mode() == FORKSERVER_FORK_EXECVE ||
                       request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX);
 
@@ -282,7 +284,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   if (!sanitizer::GetListOfFDs(&open_fds)) {
     SAPI_RAW_LOG(WARNING, "Could not get list of current open FDs");
   }
-  InitializeNamespaces(request, uid, gid);
+  InitializeNamespaces(request, uid, gid, avoid_pivot_root);
 
   auto caps = cap_init();
   for (auto cap : request.capabilities()) {
@@ -429,19 +431,61 @@ pid_t ForkServer::ServeRequest() const {
   file_util::fileops::FDCloser fd_closer0{socketpair_fds[0]};
   file_util::fileops::FDCloser fd_closer1{socketpair_fds[1]};
 
-  pid_t sandboxee_pid = util::ForkWithFlags(clone_flags);
   // Note: init_pid will be overwritten with the actual init pid if the init
-  //       process was started or stays at 0 if that is not needed (custom
-  //       forkserver).
+  //       process was started or stays at 0 if that is not needed - no pidns.
   pid_t init_pid = 0;
-  if (sandboxee_pid == -1) {
-    SAPI_RAW_LOG(ERROR, "util::ForkWithFlags(%x)", clone_flags);
+  pid_t sandboxee_pid = -1;
+  bool avoid_pivot_root = clone_flags & (CLONE_NEWUSER | CLONE_NEWNS);
+  if (avoid_pivot_root) {
+    // We first just fork a child, which will join the initial namespaces
+    // Note: Not a regular fork() as one really needs to be single-threaded to
+    //       setns and this is not the case with TSAN.
+    pid_t pid = util::ForkWithFlags(0);
+    SAPI_RAW_PCHECK(pid != -1, "fork failed");
+    if (pid == 0) {
+      SAPI_RAW_PCHECK(setns(initial_userns_fd_, CLONE_NEWUSER) != -1,
+                      "joining initial user namespace");
+      SAPI_RAW_PCHECK(setns(initial_mntns_fd_, CLONE_NEWNS) != -1,
+                      "joining initial mnt namespace");
+      close(initial_userns_fd_);
+      close(initial_mntns_fd_);
+      // Do not create new userns it will be unshared later
+      sandboxee_pid =
+          util::ForkWithFlags((clone_flags & ~CLONE_NEWUSER) | CLONE_PARENT);
+      if (sandboxee_pid == -1) {
+        SAPI_RAW_LOG(ERROR, "util::ForkWithFlags(%x)", clone_flags);
+      }
+      if (sandboxee_pid != 0) {
+        _exit(0);
+      }
+      // Send sandboxee pid
+      sapi::Status status = SendPid(fd_closer1.get());
+      if (!status.ok()) {
+        SAPI_RAW_LOG(FATAL, "%s", status.message());
+      }
+    } else {
+      auto pid_or = ReceivePid(fd_closer0.get());
+      if (!pid_or.ok()) {
+        SAPI_RAW_LOG(ERROR, "%s", pid_or.status().message());
+      } else {
+        sandboxee_pid = pid_or.ValueOrDie();
+      }
+    }
+  } else {
+    sandboxee_pid = util::ForkWithFlags(clone_flags);
+    if (sandboxee_pid == -1) {
+      SAPI_RAW_LOG(ERROR, "util::ForkWithFlags(%x)", clone_flags);
+    }
+    if (sandboxee_pid == 0) {
+      close(initial_userns_fd_);
+      close(initial_mntns_fd_);
+    }
   }
 
   // Child.
   if (sandboxee_pid == 0) {
     LaunchChild(fork_request, exec_fd, comms_fd, uid, gid, user_ns_fd,
-                fd_closer1.get());
+                fd_closer1.get(), avoid_pivot_root);
     return sandboxee_pid;
   }
 
@@ -488,6 +532,44 @@ bool ForkServer::Initialize() {
     SAPI_RAW_PLOG(ERROR, "prctl(PR_SET_PDEATHSIG, SIGKILL)");
     return false;
   }
+
+  // Spawn a new process to create initial user and mount namespaces to be used
+  // as a base for each namespaced sandboxee.
+
+  // Store uid and gid to create mappings after CLONE_NEWUSER
+  uid_t uid = getuid();
+  gid_t gid = getgid();
+
+  // Pipe to synchronize so that we open ns fds before process dies
+  int fds[2];
+  SAPI_RAW_PCHECK(pipe2(fds, O_CLOEXEC) != -1, "creating pipe");
+  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS);
+  SAPI_RAW_PCHECK(pid != -1, "failed to fork initial namespaces process");
+  char unused = '\0';
+  if (pid == 0) {
+    close(fds[1]);
+    Namespace::InitializeInitialNamespaces(uid, gid);
+    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(fds[0], &unused, 1)) == 1,
+                    "synchronizing initial namespaces creation");
+    _exit(0);
+  }
+  close(fds[0]);
+  initial_userns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/user").c_str(),
+                            O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_PCHECK(initial_userns_fd_ != -1, "getting initial userns fd");
+  initial_mntns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/mnt").c_str(),
+                           O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_PCHECK(initial_mntns_fd_ != -1, "getting initial mntns fd");
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(fds[1], &unused, 1)) == 1,
+                  "synchronizing initial namespaces creation");
+  close(fds[1]);
+  int status;
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(waitpid(pid, &status, __WALL)) == pid,
+                  "synchronizing initial namespaces creation");
+  SAPI_RAW_PCHECK(WIFEXITED(status),
+                  "initial namespace did not terminate normally");
+  SAPI_RAW_PCHECK(WEXITSTATUS(status) == 0,
+                  "initial namespace exited with non-zero code %d", status);
 
   // All processes spawned by the fork'd/execute'd process will see this process
   // as /sbin/init. Therefore it will receive (and ignore) their final status
@@ -552,7 +634,7 @@ void ForkServer::ExecuteProcess(int execve_fd, const char** argv,
 }
 
 void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,
-                                      gid_t gid) {
+                                      gid_t gid, bool avoid_pivot_root) {
   if (!request.has_mount_tree()) {
     return;
   }
@@ -564,8 +646,8 @@ void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,
   }
   Namespace::InitializeNamespaces(
       uid, gid, clone_flags, Mounts(request.mount_tree()),
-      request.mode() != FORKSERVER_FORK_JOIN_SANDBOX_UNWIND,
-      request.hostname());
+      request.mode() != FORKSERVER_FORK_JOIN_SANDBOX_UNWIND, request.hostname(),
+      avoid_pivot_root);
 }
 
 }  // namespace sandbox2

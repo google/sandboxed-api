@@ -365,6 +365,7 @@ add_library(sandbox2_forkserver STATIC
 )
 add_library(sandbox2::forkserver ALIAS sandbox2_forkserver)
 target_link_libraries(sandbox2_forkserver PRIVATE
+  absl::memory
   absl::str_format
   absl::strings
   absl::synchronization
@@ -417,6 +418,7 @@ add_library(sandbox2_namespace STATIC
 add_library(sandbox2::namespace ALIAS sandbox2_namespace)
 target_link_libraries(sandbox2_namespace PRIVATE
   absl::core_headers
+  absl::memory
   absl::str_format
   absl::strings
   sandbox2::file_base
