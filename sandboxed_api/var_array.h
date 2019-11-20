@@ -27,8 +27,7 @@
 #include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 // Class representing an array.
 template <class T>
@@ -168,7 +167,6 @@ class ConstCStr : public Array<const char> {
   }
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_ARRAY_H_

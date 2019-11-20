@@ -27,8 +27,7 @@
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_struct.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 template <class T>
 class Proto;
@@ -79,7 +78,6 @@ class LenVal : public Var, public Pointable {
   friend class Proto;
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_LENVAL_H_

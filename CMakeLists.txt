@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.10)
 project(SandboxedAPI C CXX ASM)
 
 # SAPI-wide setting for the language level
-set(SAPI_CXX_STANDARD 11)
+set(SAPI_CXX_STANDARD 17)
 
 set(SAPI_BINARY_DIR "${PROJECT_BINARY_DIR}" CACHE INTERNAL "" FORCE)
 set(SAPI_SOURCE_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "" FORCE)

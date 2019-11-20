@@ -22,8 +22,7 @@
 #include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 // Class representing a structure.
 template <class T>
@@ -55,7 +54,6 @@ class Struct : public Var, public Pointable {
   friend class LenVal;
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_STRUCT_H_

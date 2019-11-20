@@ -17,8 +17,7 @@
 
 #include <ostream>
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 enum class Type {
   kVoid,     // Void
@@ -36,7 +35,6 @@ inline std::ostream& operator<<(std::ostream& os, const Type& type) {
   return os << static_cast<int>(type);
 }
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_TYPE_H_

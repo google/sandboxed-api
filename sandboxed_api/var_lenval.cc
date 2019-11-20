@@ -22,8 +22,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/rpcchannel.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 sapi::Status LenVal::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
   SAPI_RETURN_IF_ERROR(struct_.Allocate(rpc_channel, automatic_free));
@@ -69,5 +68,4 @@ sapi::Status LenVal::ResizeData(RPCChannel* rpc_channel, size_t size) {
   return sapi::OkStatus();
 }
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v

@@ -29,8 +29,7 @@
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/util/status_macros.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 template <typename T>
 class Proto : public Pointable, public Var {
@@ -110,7 +109,6 @@ class Proto : public Pointable, public Var {
   LenVal wrapped_var_;
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_PROTO_H_

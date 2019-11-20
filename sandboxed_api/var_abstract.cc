@@ -25,8 +25,7 @@
 #include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 Var::~Var() {
   if (free_rpc_channel_ && GetRemote()) {
@@ -130,5 +129,4 @@ sapi::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   return sapi::OkStatus();
 }
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v

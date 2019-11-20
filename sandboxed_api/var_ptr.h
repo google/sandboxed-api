@@ -22,8 +22,7 @@
 #include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_reg.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 // Class representing a pointer. Takes both Var* and regular pointers in the
 // initializers.
@@ -100,7 +99,6 @@ class RemotePtr : public Ptr {
   Reg<void*> pointed_obj_;
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_PTR_H_

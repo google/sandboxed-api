@@ -19,8 +19,7 @@
 
 #include "sandboxed_api/var_reg.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 class Ptr;
 
@@ -93,7 +92,6 @@ class Pointable {
   std::unique_ptr<Ptr, PtrDeleter> ptr_after_;
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_POINTABLE_H_

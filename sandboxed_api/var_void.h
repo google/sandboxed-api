@@ -20,8 +20,7 @@
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 // Good, old void.
 class Void : public Callable, public Pointable {
@@ -44,7 +43,6 @@ class Void : public Callable, public Pointable {
   }
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_VOID_H_

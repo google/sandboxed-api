@@ -15,10 +15,8 @@
 #include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 void PtrDeleter::operator()(Ptr *p) { delete p; }
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v

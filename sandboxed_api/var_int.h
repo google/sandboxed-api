@@ -22,8 +22,7 @@
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 // Intermediate class for register sized variables
 // so we don't have to implement ptr() everywhere.
@@ -101,7 +100,6 @@ class Fd : public Int {
   bool own_remote_;
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_INT_H_

@@ -21,8 +21,7 @@
 #include <glog/logging.h>
 #include "sandboxed_api/var_abstract.h"
 
-namespace sapi {
-namespace v {
+namespace sapi::v {
 
 // The super-class for Reg. Specified as a class, so it can be used as a
 // type specifier in methods.
@@ -177,7 +176,6 @@ class Reg : public Callable {
   }
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_REG_H_

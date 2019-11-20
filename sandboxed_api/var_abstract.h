@@ -25,13 +25,14 @@
 
 namespace sandbox2 {
 class Comms;
-}
+}  // namespace sandbox2
 
 namespace sapi {
 class Sandbox;
 class RPCChannel;
+}  // namespace sapi
 
-namespace v {
+namespace sapi::v {
 
 class Ptr;
 
@@ -71,8 +72,8 @@ class Var {
   void SetLocal(void* local) { local_ = local; }
 
   // Setter/Getter for the address of a Comms object which can be used to
-  // remotely free allocated memory backing up this variable, upon this object's
-  // end of life-time
+  // remotely free allocated memory backing up this variable, upon this
+  // object's end of life-time
   void SetFreeRPCChannel(RPCChannel* rpc_channel) {
     free_rpc_channel_ = rpc_channel;
   }
@@ -108,7 +109,6 @@ class Var {
   friend class ::sapi::Sandbox;
 };
 
-}  // namespace v
-}  // namespace sapi
+}  // namespace sapi::v
 
 #endif  // SANDBOXED_API_VAR_ABSTRACT_H_
