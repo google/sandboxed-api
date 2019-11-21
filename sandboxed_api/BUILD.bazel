@@ -161,10 +161,6 @@ cc_library(
     name = "client",
     srcs = ["client.cc"],
     copts = sapi_platform_copts(),
-    # TODO(124852776): investigate whether this is necessary
-    linkopts = [
-        "-Wl,-ldl",
-    ],
     visibility = ["//visibility:public"],
     deps = [
         ":call",

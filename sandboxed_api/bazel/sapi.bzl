@@ -205,9 +205,12 @@ def sapi_library(
     native.cc_binary(
         name = name + ".bin",
         linkopts = [
-            # The sandboxing client must have access to all
-            "-Wl,-E",  # symbols used in the sandboxed library, so these
-        ] + exported_funcs,  # must be both referenced, and exported
+            "-ldl",  # For dlopen(), dlsym()
+            # The sandboxing client must have access to all symbols used in
+            # the sandboxed library, so these must be both referenced, and
+            # exported
+            "-Wl,-E",
+        ] + exported_funcs,
         deps = [
             ":" + name + ".lib",
             rprefix + "//sandboxed_api:client",
@@ -217,9 +220,7 @@ def sapi_library(
 
     native.cc_library(
         name = name + ".lib",
-        deps = [
-            lib,
-        ],
+        deps = [lib],
         alwayslink = 1,  # All functions are linked into depending binaries
         **common
     )
