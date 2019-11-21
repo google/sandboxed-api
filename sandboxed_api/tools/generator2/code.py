@@ -636,6 +636,7 @@ class Analyzer(object):
     if test_file_existence and not os.path.isfile(path):
       raise IOError('Path {} does not exist.'.format(path))
 
+    _init_libclang()
     index = cindex.Index.create()  # type: cindex.Index
     # TODO(szwl): hack until I figure out how python swig does that.
     # Headers will be parsed as C++. C libs usually have
