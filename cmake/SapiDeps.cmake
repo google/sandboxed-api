@@ -34,6 +34,11 @@ if(SAPI_ENABLE_TESTS)
   check_target(gtest)
   check_target(gtest_main)
   check_target(gmock)
+
+  if(SAPI_USE_BENCHMARK)
+    include(cmake/benchmark/Download.cmake)
+  endif()
+  check_target(benchmark)
 endif()
 
 if(SAPI_USE_ABSL)

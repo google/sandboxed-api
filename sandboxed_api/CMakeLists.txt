@@ -168,5 +168,20 @@ target_link_libraries(sapi_client PRIVATE
   sapi::vars
 )
 
-# sandboxed_api:sapi_test
-# TODO(cblichmann): Add sapi_test once generator can be invoked via CMake
+if(SAPI_ENABLE_TESTS)
+  # sandboxed_api:sapi_test
+  add_executable(sapi_test
+    sapi_test.cc
+  )
+  target_link_libraries(sapi_test PRIVATE
+    absl::memory
+    benchmark
+    sapi::sapi
+    sapi::status
+    sapi::status_matchers
+    sapi::stringop_sapi
+    sapi::sum_sapi
+    sapi::test_main
+  )
+  gtest_discover_tests(sapi_test)
+endif()

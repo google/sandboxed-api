@@ -21,6 +21,7 @@
 # depend on some of these libraries (e.g. Abseil).
 option(SAPI_USE_ABSL "Download Abseil at config time" ON)
 option(SAPI_USE_GOOGLETEST "Download googletest at config time" ON)
+option(SAPI_USE_BENCHMARK "Download benchmark at config time" ON)
 option(SAPI_USE_GFLAGS "Download gflags at config time" ON)
 option(SAPI_USE_GLOG "Download glog at config time" ON)
 option(SAPI_USE_PROTOBUF "Download protobuf at config time" ON)
