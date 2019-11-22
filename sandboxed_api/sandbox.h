@@ -95,6 +95,10 @@ class Sandbox {
   sapi::Status TransferToSandboxee(v::Var* var);
   sapi::Status TransferFromSandboxee(v::Var* var);
 
+  sapi::StatusOr<std::string> GetCString(const v::RemotePtr& str,
+                                           uint64_t max_length = 10 * 1024 *
+                                                                 1024);
+
   // Waits until the sandbox terminated and returns the result.
   const sandbox2::Result& AwaitResult();
   const sandbox2::Result& result() const { return result_; }

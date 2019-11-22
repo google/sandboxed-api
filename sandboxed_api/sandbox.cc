@@ -391,6 +391,43 @@ sapi::Status Sandbox::TransferFromSandboxee(v::Var* var) {
   return var->TransferFromSandboxee(GetRpcChannel(), GetPid());
 }
 
+sapi::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
+                                                  uint64_t max_length) {
+  if (!IsActive()) {
+    return sapi::UnavailableError("Sandbox not active");
+  }
+
+  SAPI_ASSIGN_OR_RETURN(auto len, GetRpcChannel()->Strlen(str.GetValue()));
+  if (len > max_length) {
+    return sapi::InvalidArgumentError(
+        absl::StrCat("Target string too large: ", len, " > ", max_length));
+  }
+  std::string buffer(len, '\0');
+  struct iovec local = {
+      .iov_base = &buffer[0],
+      .iov_len = len,
+  };
+  struct iovec remote = {
+      .iov_base = str.GetValue(),
+      .iov_len = len,
+  };
+
+  ssize_t ret = process_vm_readv(pid_, &local, 1, &remote, 1, 0);
+  if (ret == -1) {
+    PLOG(WARNING) << "reading c-string failed: process_vm_readv(pid: " << pid_
+                  << " raddr: " << str.GetValue() << " size: " << len << ")";
+    return sapi::UnavailableError("process_vm_readv failed");
+  }
+  if (ret != len) {
+    LOG(WARNING) << "partial read when reading c-string: process_vm_readv(pid: "
+                 << pid_ << " raddr: " << str.GetValue() << " size: " << len
+                 << ") transferred " << ret << " bytes";
+    return sapi::UnavailableError("process_vm_readv succeeded partially");
+  }
+
+  return buffer;
+}
+
 const sandbox2::Result& Sandbox::AwaitResult() {
   if (s2_) {
     result_ = s2_->AwaitResult();

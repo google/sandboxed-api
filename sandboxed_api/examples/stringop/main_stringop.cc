@@ -140,4 +140,18 @@ TEST(StringopTest, RawStringLength) {
   EXPECT_THAT(len, Eq(10));
 }
 
+TEST(StringopTest, RawStringReading) {
+  StringopSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  StringopApi api(&sandbox);
+  SAPI_ASSERT_OK_AND_ASSIGN(void* target_mem_ptr, api.get_raw_c_string());
+  SAPI_ASSERT_OK_AND_ASSIGN(uint64_t len,
+                       sandbox.GetRpcChannel()->Strlen(target_mem_ptr));
+  EXPECT_THAT(len, Eq(10));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string data,
+                       sandbox.GetCString(sapi::v::RemotePtr(target_mem_ptr)));
+  EXPECT_THAT(data, StrEq("Ten chars."));
+}
+
 }  // namespace
