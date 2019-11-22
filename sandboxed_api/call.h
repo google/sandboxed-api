@@ -38,6 +38,7 @@ constexpr uint32_t kMsgSendFd = 0x106;
 constexpr uint32_t kMsgRecvFd = 0x107;
 constexpr uint32_t kMsgClose = 0x108;
 constexpr uint32_t kMsgReallocate = 0x109;
+constexpr uint32_t kMsgStrlen = 0x10A;
 // Return:
 constexpr uint32_t kMsgReturn = 0x201;
 

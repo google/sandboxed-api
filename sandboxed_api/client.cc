@@ -329,6 +329,12 @@ void HandleCloseFd(sandbox2::Comms* comms, int fd_to_close, FuncRet* ret) {
   ret->success = true;
 }
 
+void HandleStrlen(sandbox2::Comms* comms, const char* ptr, FuncRet* ret) {
+  ret->ret_type = v::Type::kInt;
+  ret->int_val = strlen(ptr);
+  ret->success = true;
+}
+
 template <typename T>
 static T BytesAs(const std::vector<uint8_t>& bytes) {
   static_assert(std::is_trivial<T>(),
@@ -393,6 +399,11 @@ void ServeRequest(sandbox2::Comms* comms) {
     case comms::kMsgClose:
       VLOG(1) << "Received Client::kMsgClose message";
       HandleCloseFd(comms, BytesAs<int>(bytes), &ret);
+      break;
+    case comms::kMsgStrlen:
+      VLOG(1) << "Received Client::kMsgStrlen message";
+      HandleStrlen(comms, BytesAs<const char*>(bytes), &ret);
+      break;
       break;
     default:
       LOG(FATAL) << "Received unknown tag: " << tag;

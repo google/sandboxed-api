@@ -48,7 +48,6 @@ extern "C" int reverse_string(sapi::LenValStruct* input) {
   for (size_t i = 0; i < input->size; i++) {
     new_buf[i] = src_buf[input->size - i - 1];
   }
-
   // Free old value.
   free(input->data);
   // Replace pointer to our new string.
@@ -73,6 +72,8 @@ extern "C" int duplicate_string(sapi::LenValStruct* input) {
   input->data = new_buf;
   return 1;
 }
+
+extern "C" const void* get_raw_c_string() { return "Ten chars."; }
 
 extern "C" void nop() {}
 

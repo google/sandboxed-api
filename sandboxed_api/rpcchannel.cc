@@ -17,6 +17,7 @@
 #include <glog/logging.h>
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -202,6 +203,20 @@ sapi::Status RPCChannel::Close(int remote_fd) {
     return sapi::UnavailableError("Close() failed on the remote side");
   }
   return sapi::OkStatus();
+}
+
+sapi::StatusOr<uint64_t> RPCChannel::Strlen(void* str) {
+  absl::MutexLock lock(&mutex_);
+  if (!comms_->SendTLV(comms::kMsgStrlen, sizeof(str),
+                       reinterpret_cast<uint8_t*>(&str))) {
+    return sapi::UnavailableError("Sending TLV value failed");
+  }
+
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
+  if (!fret.success) {
+    return sapi::UnavailableError("Close() failed on the remote side");
+  }
+  return fret.int_val;
 }
 
 }  // namespace sapi

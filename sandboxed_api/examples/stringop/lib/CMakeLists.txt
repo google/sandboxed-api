@@ -51,6 +51,7 @@ add_sapi_library(stringop-sapi
             pb_reverse_string
             nop
             violate
+            get_raw_c_string
   INPUTS stringop.cc
   LIBRARY sapi_stringop
   LIBRARY_NAME Stringop

@@ -60,6 +60,9 @@ class RPCChannel {
   // Closes fd in sandboxee.
   sapi::Status Close(int remote_fd);
 
+  // Returns length of a null-terminated c-style string (invokes strlen).
+  sapi::StatusOr<uint64_t> Strlen(void* str);
+
   sandbox2::Comms* comms() const { return comms_; }
 
  private:

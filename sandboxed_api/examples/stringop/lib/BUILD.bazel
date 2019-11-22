@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+
+licenses(["notice"])
 
 sapi_proto_library(
     name = "stringop_params_proto",
@@ -47,6 +47,7 @@ sapi_library(
         "pb_reverse_string",
         "nop",
         "violate",
+        "get_raw_c_string",
     ],
     input_files = [
         "stringop.cc",
