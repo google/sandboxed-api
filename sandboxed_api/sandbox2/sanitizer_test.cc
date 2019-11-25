@@ -79,16 +79,6 @@ int RunTestcase(const std::string& path, const std::vector<std::string>& args) {
   }
 }
 
-bool IsFdOpen(int fd) {
-  int ret = fcntl(fd, F_GETFD);
-  if (ret == -1) {
-    VLOG(1) << "FD: " << fd << " is closed";
-    return false;
-  }
-  VLOG(1) << "FD: " << fd << " is open";
-  return true;
-}
-
 // Test that marking file descriptors as close-on-exec works.
 TEST(SanitizerTest, TestMarkFDsAsCOE) {
   // Open a few file descriptors in non-close-on-exec mode.
