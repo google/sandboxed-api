@@ -13,9 +13,9 @@
 # limitations under the License.
 
 genrule(
-    name = "cap_names_sed",
-    srcs = ["libcap/include/linux/capability.h"],
-    outs = ["cap_names.sed"],
+    name = "cap_names_list_h",
+    srcs = ["libcap/include/uapi/linux/capability.h"],
+    outs = ["cap_names.list.h"],
     # Use the same logic as libcap/Makefile
     cmd = """
         sed -ne '/^#define[ \\t]CAP[_A-Z]\+[ \\t]\+[0-9]\+/{s/^#define \([^ \\t]*\)[ \\t]*\([^ \\t]*\)/\{\"\\1\",\\2\},/p;}' $< | \\
@@ -27,8 +27,8 @@ genrule(
 cc_library(
     name = "makenames_textual_hdrs",
     textual_hdrs = [
-        "cap_names.sed",
-        "libcap/include/linux/capability.h",
+        ":cap_names.list.h",
+        "libcap/include/uapi/linux/capability.h",
     ],
     visibility = ["//visibility:private"],
 )
@@ -75,9 +75,11 @@ cc_library(
     includes = [
         "libcap",
         "libcap/include",
+        "libcap/include/uapi",
     ],
     textual_hdrs = [
         "libcap/include/sys/capability.h",
+        "libcap/include/uapi/linux/capability.h",
         "libcap/libcap.h",
         "libcap/cap_names.h",
     ],

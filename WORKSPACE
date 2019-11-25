@@ -15,6 +15,7 @@
 workspace(name = "com_google_sandboxed_api")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("//sandboxed_api/bazel:sapi_deps.bzl", "sapi_deps")
 
 # Load common dependencies, then Protobuf's
@@ -36,22 +37,28 @@ http_archive(
     # We are investigating better ways to avoid this issue. For most "normal"
     # C and C++ headers, parsing just works.
     patches = ["//sandboxed_api:bazel/external/zlib.patch"],
-    sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
+    sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",  # 2017-01-15
     strip_prefix = "zlib-1.2.11",
-    urls = ["https://www.zlib.net/zlib-1.2.11.tar.gz"],
+    urls = [
+        "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
+        "https://www.zlib.net/zlib-1.2.11.tar.gz",
+    ],
 )
 
 # GoogleTest/GoogleMock
-http_archive(
+maybe(
+    http_archive,
     name = "com_google_googletest",
-    sha256 = "baed63b97595c32667694de0a434f8f23da59609c4a44f3360ba94b0abd5c583",
-    strip_prefix = "googletest-8ffb7e5c88b20a297a2e786c480556467496463b",
-    urls = ["https://github.com/google/googletest/archive/8ffb7e5c88b20a297a2e786c480556467496463b.zip"],  # 2019-05-30
+    sha256 = "ba5b04a4849246e7c16ba94227eed46486ef942f61dc8b78609732543c19c9f4",  # 2019-11-21
+    strip_prefix = "googletest-200ff599496e20f4e39566feeaf2f6734ca7570f",
+    urls = ["https://github.com/google/googletest/archive/200ff599496e20f4e39566feeaf2f6734ca7570f.zip"],
 )
 
 # Google Benchmark
-http_archive(
+maybe(
+    http_archive,
     name = "com_google_benchmark",
-    strip_prefix = "benchmark-master",
-    urls = ["https://github.com/google/benchmark/archive/master.zip"],
+    sha256 = "9067442aa447e54cc144160420daf37fcd0663ccf3057ce2d87b9d7f6ad45d3f",  # 2019-11-05
+    strip_prefix = "benchmark-c50ac68c50ff8da3827cd6720792117910d85666",
+    urls = ["https://github.com/google/benchmark/archive/c50ac68c50ff8da3827cd6720792117910d85666.zip"],
 )
