@@ -26,8 +26,8 @@ option(SAPI_DOWNLOAD_GFLAGS "Download gflags at config time" ON)
 option(SAPI_DOWNLOAD_GLOG "Download glog at config time" ON)
 option(SAPI_DOWNLOAD_PROTOBUF "Download protobuf at config time" ON)
 option(SAPI_DOWNLOAD_LIBUNWIND "Download libunwind at config time" ON)
-# TODO(cblichmann): These two are not currently implemented
 option(SAPI_DOWNLOAD_LIBCAP "Download libcap at config time" ON)
+# TODO(cblichmann): Not currently implemented
 option(SAPI_DOWNLOAD_LIBFFI "Download libffi at config time" ON)
 
 option(SAPI_ENABLE_EXAMPLES "Build example code" ON)
