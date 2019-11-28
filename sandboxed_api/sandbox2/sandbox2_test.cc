@@ -150,7 +150,7 @@ TEST(RunAsyncTest, SandboxeeTimeoutWithStacktraces) {
                                         .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
-  sandbox.SetWallTimeLimit(1);
+  sandbox.set_walltime_limit(absl::Seconds(1));
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::TIMEOUT);
   EXPECT_THAT(result.GetStackTrace(), HasSubstr("sleep"));
@@ -171,7 +171,7 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
                                         .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
-  sandbox.SetWallTimeLimit(1);
+  sandbox.set_walltime_limit(absl::Seconds(1));
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::TIMEOUT);
   EXPECT_THAT(result.GetStackTrace(), IsEmpty());

@@ -21,6 +21,7 @@
 #include <string>
 
 #include "absl/memory/memory.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/monitor.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/util/canonical_errors.h"
@@ -99,14 +100,16 @@ bool Sandbox2::IsTerminated() const {
 }
 
 void Sandbox2::SetWallTimeLimit(time_t limit) const {
-  CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
+  set_walltime_limit(absl::Seconds(limit));
+}
 
-  if (limit == 0) {
+void Sandbox2::set_walltime_limit(absl::Duration limit) const {
+  if (limit == absl::ZeroDuration()) {
     VLOG(1) << "Disarming walltime timer to ";
     monitor_->deadline_millis_.store(0, std::memory_order_relaxed);
   } else {
-    VLOG(1) << "Will set the walltime timer to " << limit << " seconds";
-    auto deadline = absl::Now() + absl::Seconds(limit);
+    VLOG(1) << "Will set the walltime timer to " << limit;
+    absl::Time deadline = absl::Now() + limit;
     monitor_->deadline_millis_.store(absl::ToUnixMillis(deadline),
                                      std::memory_order_relaxed);
   }
