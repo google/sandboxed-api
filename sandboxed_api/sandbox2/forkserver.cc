@@ -369,7 +369,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   }
 }
 
-pid_t ForkServer::ServeRequest() const {
+pid_t ForkServer::ServeRequest() {
   // Keep the low FD numbers clean so that client FD mappings don't interfer
   // with us.
   constexpr int kTargetExecFd = 1022;
@@ -437,6 +437,11 @@ pid_t ForkServer::ServeRequest() const {
   pid_t sandboxee_pid = -1;
   bool avoid_pivot_root = clone_flags & (CLONE_NEWUSER | CLONE_NEWNS);
   if (avoid_pivot_root) {
+    // Create initial namespaces only when they're first needed.
+    // This allows sandbox2 to be still used without any namespaces support
+    if (initial_mntns_fd_ == -1) {
+      CreateInitialNamespaces();
+    }
     // We first just fork a child, which will join the initial namespaces
     // Note: Not a regular fork() as one really needs to be single-threaded to
     //       setns and this is not the case with TSAN.
@@ -533,44 +538,6 @@ bool ForkServer::Initialize() {
     return false;
   }
 
-  // Spawn a new process to create initial user and mount namespaces to be used
-  // as a base for each namespaced sandboxee.
-
-  // Store uid and gid to create mappings after CLONE_NEWUSER
-  uid_t uid = getuid();
-  gid_t gid = getgid();
-
-  // Pipe to synchronize so that we open ns fds before process dies
-  int fds[2];
-  SAPI_RAW_PCHECK(pipe2(fds, O_CLOEXEC) != -1, "creating pipe");
-  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS);
-  SAPI_RAW_PCHECK(pid != -1, "failed to fork initial namespaces process");
-  char unused = '\0';
-  if (pid == 0) {
-    close(fds[1]);
-    Namespace::InitializeInitialNamespaces(uid, gid);
-    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(fds[0], &unused, 1)) == 1,
-                    "synchronizing initial namespaces creation");
-    _exit(0);
-  }
-  close(fds[0]);
-  initial_userns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/user").c_str(),
-                            O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_PCHECK(initial_userns_fd_ != -1, "getting initial userns fd");
-  initial_mntns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/mnt").c_str(),
-                           O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_PCHECK(initial_mntns_fd_ != -1, "getting initial mntns fd");
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(fds[1], &unused, 1)) == 1,
-                  "synchronizing initial namespaces creation");
-  close(fds[1]);
-  int status;
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(waitpid(pid, &status, __WALL)) == pid,
-                  "synchronizing initial namespaces creation");
-  SAPI_RAW_PCHECK(WIFEXITED(status),
-                  "initial namespace did not terminate normally");
-  SAPI_RAW_PCHECK(WEXITSTATUS(status) == 0,
-                  "initial namespace exited with non-zero code %d", status);
-
   // All processes spawned by the fork'd/execute'd process will see this process
   // as /sbin/init. Therefore it will receive (and ignore) their final status
   // (see the next comment as well). PR_SET_CHILD_SUBREAPER is available since
@@ -591,6 +558,44 @@ bool ForkServer::Initialize() {
     return false;
   }
   return true;
+}
+
+void ForkServer::CreateInitialNamespaces() {
+  // Spawn a new process to create initial user and mount namespaces to be used
+  // as a base for each namespaced sandboxee.
+
+  // Store uid and gid to create mappings after CLONE_NEWUSER
+  uid_t uid = getuid();
+  gid_t gid = getgid();
+
+  // Socket to synchronize so that we open ns fds before process dies
+  int fds[2];
+  SAPI_RAW_PCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != -1,
+                  "creating socket");
+  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS);
+  SAPI_RAW_PCHECK(pid != -1, "failed to fork initial namespaces process");
+  char unused = '\0';
+  if (pid == 0) {
+    close(fds[1]);
+    Namespace::InitializeInitialNamespaces(uid, gid);
+    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(fds[0], &unused, 1)) == 1,
+                    "synchronizing initial namespaces creation");
+    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(fds[0], &unused, 1)) == 1,
+                    "synchronizing initial namespaces creation");
+    _exit(0);
+  }
+  close(fds[0]);
+  initial_userns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/user").c_str(),
+                            O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_PCHECK(initial_userns_fd_ != -1, "getting initial userns fd");
+  initial_mntns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/mnt").c_str(),
+                           O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_PCHECK(initial_mntns_fd_ != -1, "getting initial mntns fd");
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(fds[1], &unused, 1)) == 1,
+                  "synchronizing initial namespaces creation");
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(fds[1], &unused, 1)) == 1,
+                  "synchronizing initial namespaces creation");
+  close(fds[1]);
 }
 
 void ForkServer::SanitizeEnvironment(int client_fd) {

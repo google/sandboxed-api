@@ -67,7 +67,7 @@ class ForkServer {
   // not need to be waited for (with waitid/waitpid/wait3/wait4) as the current
   // process will have the SIGCHLD set to sa_flags=SA_NOCLDWAIT.
   // Returns values defined as with fork() (-1 means error).
-  pid_t ServeRequest() const;
+  pid_t ServeRequest();
 
  private:
   // Creates and launched the child process.
@@ -80,8 +80,10 @@ class ForkServer {
   // - go down if the parent goes down,
   // - become subreaper - PR_SET_CHILD_SUBREAPER (man prctl),
   // - don't convert children processes into zombies if they terminate.
-  // - create initial namespaces
   bool Initialize();
+
+  // Creates initial namespaces used as a template for namespaced sandboxees
+  void CreateInitialNamespaces();
 
   // Prepares arguments for the upcoming execve (if execve was requested).
   static void PrepareExecveArgs(const ForkRequest& request,
