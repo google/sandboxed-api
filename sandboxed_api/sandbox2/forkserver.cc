@@ -445,7 +445,7 @@ pid_t ForkServer::ServeRequest() {
     // We first just fork a child, which will join the initial namespaces
     // Note: Not a regular fork() as one really needs to be single-threaded to
     //       setns and this is not the case with TSAN.
-    pid_t pid = util::ForkWithFlags(0);
+    pid_t pid = util::ForkWithFlags(SIGCHLD);
     SAPI_RAW_PCHECK(pid != -1, "fork failed");
     if (pid == 0) {
       SAPI_RAW_PCHECK(setns(initial_userns_fd_, CLONE_NEWUSER) != -1,
@@ -572,7 +572,7 @@ void ForkServer::CreateInitialNamespaces() {
   int fds[2];
   SAPI_RAW_PCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != -1,
                   "creating socket");
-  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS);
+  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | SIGCHLD);
   SAPI_RAW_PCHECK(pid != -1, "failed to fork initial namespaces process");
   char unused = '\0';
   if (pid == 0) {
