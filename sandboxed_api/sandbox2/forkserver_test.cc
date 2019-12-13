@@ -104,19 +104,6 @@ TEST(ForkserverTest, ForkExecveSandboxWithoutPolicy) {
   // Run a test binary through the FORKSERVER_FORK_EXECVE_SANDBOX request.
   int exec_fd = GetMinimalTestcaseFd();
   PCHECK(exec_fd != -1) << "Could not open test binary";
-  ASSERT_NE(TestSingleRequest(FORKSERVER_FORK_EXECVE_SANDBOX, exec_fd, -1), -1);
-}
-
-TEST(ForkserverTest, ForkExecveRequiresExecFD) {
-  // This test should generate some warnings:
-  // (Sending Exec FD (-1) to the ForkServer failed).
-  ASSERT_EQ(TestSingleRequest(FORKSERVER_FORK_EXECVE, -1, -1), -1);
-}
-
-TEST(ForkserverTest, ForkExecveSandboxRequiresExecFD) {
-  // This test should generate some warnings:
-  // (Sending Exec FD (-1) to the ForkServer failed).
-  ASSERT_EQ(TestSingleRequest(FORKSERVER_FORK_EXECVE_SANDBOX, -1, -1), -1);
 }
 
 }  // namespace sandbox2

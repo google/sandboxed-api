@@ -189,6 +189,7 @@ pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
     SAPI_RAW_LOG(ERROR, "Sending PB to the ForkServer failed");
     return -1;
   }
+  SAPI_RAW_CHECK(comms_fd != -1, "comms_fd was not properly set up");
   if (!comms_->SendFD(comms_fd)) {
     SAPI_RAW_LOG(ERROR, "Sending Comms FD (%d) to the ForkServer failed",
                  comms_fd);
@@ -196,6 +197,7 @@ pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
   }
   if (request.mode() == FORKSERVER_FORK_EXECVE ||
       request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
+    SAPI_RAW_CHECK(exec_fd != -1, "exec_fd cannot be -1 in execve mode");
     if (!comms_->SendFD(exec_fd)) {
       SAPI_RAW_LOG(ERROR, "Sending Exec FD (%d) to the ForkServer failed",
                    exec_fd);
@@ -204,6 +206,7 @@ pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
   }
 
   if (request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
+    SAPI_RAW_CHECK(user_ns_fd != -1, "user_ns_fd cannot be -1 in unwind mode");
     if (!comms_->SendFD(user_ns_fd)) {
       SAPI_RAW_LOG(ERROR, "Sending user ns FD (%d) to the ForkServer failed",
                    user_ns_fd);
