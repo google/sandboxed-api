@@ -550,6 +550,11 @@ bool Monitor::InitPtraceAttach() {
     return false;
   }
 
+  if (tasks.find(pid_) == tasks.end()) {
+    LOG(ERROR) << "The pid " << pid_ << " was not found in its own tasklist.";
+    return false;
+  }
+
   // With TSYNC, we can allow threads: seccomp applies to all threads.
 
   if (tasks.size() > 1) {
@@ -560,83 +565,70 @@ bool Monitor::InitPtraceAttach() {
                  << ".";
   }
 
-  intptr_t ptrace_opts =
-      PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
-      PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC |
-      PTRACE_O_TRACEEXIT | PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL;
+  std::set<int> tasks_attached;
+  int retries = 0;
+  absl::Time deadline = absl::Now() + absl::Seconds(2);
 
-  bool main_pid_found = false;
-  for (auto task : tasks) {
-    if (task == pid_) {
-      main_pid_found = true;
-    }
-
-    // In some situations we allow ptrace to try again when it fails.
-    bool ptrace_succeeded = false;
-    int retries = 0;
-    auto deadline = absl::Now() + absl::Seconds(2);
-    while (absl::Now() < deadline) {
-      int ret = ptrace(PTRACE_SEIZE, task, 0, ptrace_opts);
-      if (ret == 0) {
-        ptrace_succeeded = true;
-        break;
+  // In some situations we allow ptrace to try again when it fails.
+  while (!tasks.empty()) {
+    std::set<int> tasks_left;
+    for (int task : tasks) {
+      constexpr intptr_t options =
+          PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
+          PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC |
+          PTRACE_O_TRACEEXIT | PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL;
+      int ret = ptrace(PTRACE_SEIZE, task, 0, options);
+      if (ret != 0) {
+        if (errno == EPERM) {
+          // Sometimes when a task is exiting we can get an EPERM from ptrace.
+          // Let's try again up until the timeout in this situation.
+          PLOG(WARNING) << "ptrace(PTRACE_SEIZE, " << task << ", "
+                        << absl::StrCat("0x", absl::Hex(options))
+                        << "), trying again...";
+          tasks_left.insert(task);
+          continue;
+        }
+        if (errno == ESRCH) {
+          // A task may have exited since we captured the task list, we will
+          // allow things to continue after we log a warning.
+          PLOG(WARNING)
+              << "ptrace(PTRACE_SEIZE, " << task << ", "
+              << absl::StrCat("0x", absl::Hex(options))
+              << ") skipping exited task. Continuing with other tasks.";
+          continue;
+        }
+        // Any other errno will be considered a failure.
+        PLOG(ERROR) << "ptrace(PTRACE_SEIZE, " << task << ", "
+                    << absl::StrCat("0x", absl::Hex(options)) << ") failed.";
+        return false;
       }
-      if (ret != 0 && errno == ESRCH) {
-        // A task may have exited since we captured the task list, we will allow
-        // things to continue after we log a warning.
-        PLOG(WARNING) << "ptrace(PTRACE_SEIZE, " << task << ", "
-                      << absl::StrCat("0x", absl::Hex(ptrace_opts))
-                      << ") skipping exited task. Continuing with other tasks.";
-        ptrace_succeeded = true;
-        break;
-      }
-      if (ret != 0 && errno == EPERM) {
-        // Sometimes when a task is exiting we can get an EPERM from ptrace.
-        // Let's try again up until the timeout in this situation.
-        PLOG(WARNING) << "ptrace(PTRACE_SEIZE, " << task << ", "
-                      << absl::StrCat("0x", absl::Hex(ptrace_opts))
-                      << "), trying again...";
-
-        // Exponential Backoff.
-        constexpr auto kInitialRetry = absl::Milliseconds(1);
-        constexpr auto kMaxRetry = absl::Milliseconds(20);
-        const auto retry_interval =
-            kInitialRetry * (1 << std::min(10, retries++));
-        absl::SleepFor(std::min(retry_interval, kMaxRetry));
-        continue;
-      }
-
-      // Any other errno will be considered a failure.
-      PLOG(ERROR) << "ptrace(PTRACE_SEIZE, " << task << ", "
-                  << absl::StrCat("0x", absl::Hex(ptrace_opts)) << ") failed.";
-      return false;
+      tasks_attached.insert(task);
     }
-
-    if (!ptrace_succeeded) {
-      LOG(ERROR) << "ptrace(PTRACE_SEIZE, " << task << ", "
-                 << absl::StrCat("0x", absl::Hex(ptrace_opts))
-                 << ") failed after retrying until the timeout.";
-      return false;
+    if (!tasks_left.empty()) {
+      if (absl::Now() < deadline) {
+        LOG(ERROR) << "Attaching to sandboxee timed out: could not attach to "
+                   << tasks_left.size() << " tasks";
+        return false;
+      }
+      // Exponential Backoff.
+      constexpr absl::Duration kInitialRetry = absl::Milliseconds(1);
+      constexpr absl::Duration kMaxRetry = absl::Milliseconds(20);
+      const absl::Duration retry_interval =
+          kInitialRetry * (1 << std::min(10, retries++));
+      absl::SleepFor(
+          std::min({retry_interval, kMaxRetry, deadline - absl::Now()}));
     }
-  }
-
-  if (!main_pid_found) {
-    LOG(ERROR) << "The pid " << pid_ << " was not found in its own tasklist.";
-    return false;
+    tasks = std::move(tasks_left);
   }
 
   // Get a list of tasks after attaching.
-  std::set<int> tasks_after;
-  if (!sanitizer::GetListOfTasks(pid_, &tasks_after)) {
+  if (!sanitizer::GetListOfTasks(pid_, &tasks)) {
     LOG(ERROR) << "Could not get list of tasks";
     return false;
   }
 
-  // Check that no new threads have shown up. Note: tasks_after can have fewer
-  // tasks than before but no new tasks can be added as they would be missing
-  // from the initial task list.
-  if (!std::includes(tasks.begin(), tasks.end(), tasks_after.begin(),
-                     tasks_after.end())) {
+  // Check that we attached to all the threads
+  if (tasks_attached != tasks) {
     LOG(ERROR) << "The pid " << pid_
                << " spawned new threads while we were trying to attach to it.";
     return false;
