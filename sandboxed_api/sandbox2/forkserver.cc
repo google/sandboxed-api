@@ -635,6 +635,13 @@ void ForkServer::ExecuteProcess(int execve_fd, const char** argv,
                  "sandbox2::ForkServer: This is likely caused by running"
                  " sandbox2 on too old a kernel."
     );
+  } else if (saved_errno == ENOENT && execve_fd >= 0) {
+    // Since we know the file exists, it must be that the file is dynamically
+    // linked and the ELF interpreter is what's actually missing.
+    SAPI_RAW_LOG(ERROR,
+                 "sandbox2::ForkServer: This is likely caused by running"
+                 " dynamically-linked sandboxee without calling"
+                 " .AddLibrariesForBinary() on the policy builder.");
   }
 
   util::Syscall(__NR_exit_group, EXIT_FAILURE);
