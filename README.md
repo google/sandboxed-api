@@ -1,6 +1,6 @@
 # Sandboxed API
 
-Copyright 2019 Google LLC.
+Copyright 2020 Google LLC.
 
 ![Sandbox](sandboxed_api/docs/images/playing-in-sand.png)
 
