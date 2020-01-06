@@ -69,6 +69,7 @@ ABSL_FLAG(bool, sandbox2_report_on_sandboxee_timeout, true,
           "Report sandbox2 sandboxee timeouts");
 
 ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
+ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 
 namespace sandbox2 {
@@ -275,7 +276,9 @@ bool Monitor::ShouldCollectStackTrace() {
   // Only get the stacktrace if we are not in the libunwind sandbox (avoid
   // recursion).
   bool stacktrace_collection_possible =
-      policy_->GetNamespace() && executor_->libunwind_sbox_for_pid_ == 0;
+      (policy_->GetNamespace() ||
+       absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) == false) &&
+      executor_->libunwind_sbox_for_pid_ == 0;
   if (!stacktrace_collection_possible) {
     LOG(ERROR) << "Cannot collect stack trace. Unwind pid "
                << executor_->libunwind_sbox_for_pid_ << ", namespace "
@@ -302,8 +305,10 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   result_.SetProgName(util::GetProgName(pid));
   result_.SetProcMaps(ReadProcMaps(pid_));
   if (ShouldCollectStackTrace()) {
+    auto* ns = policy_->GetNamespace();
+    const Mounts empty_mounts;
     result_.SetStackTrace(
-        GetStackTrace(result_.GetRegs(), policy_->GetNamespace()->mounts()));
+        GetStackTrace(result_.GetRegs(), ns ? ns->mounts() : empty_mounts));
     LOG(INFO) << "Stack trace: " << result_.GetStackTrace();
   } else {
     LOG(INFO) << "Stack traces have been disabled";
