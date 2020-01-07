@@ -68,38 +68,17 @@ uint32_t Syscall::GetHostAuditArch() {
 #endif
 }
 
-namespace {
-
-// Syscall entry in syscall table for the architecture
-const SyscallTable GetSyscallTable(Syscall::CpuArch arch) {
-  switch (arch) {
-#if defined(__x86_64__)
-    case Syscall::kX86_64:
-      return SyscallTable::kSyscallDataX8664;
-    case Syscall::kX86_32:
-      return SyscallTable::kSyscallDataX8632;
-#elif defined(__powerpc64__)
-    case Syscall::kPPC_64:
-      return SyscallTable::kSyscallDataPPC64;
-#endif
-    default:
-      return SyscallTable();
-  }
-}
-
-}  // namespace
-
 std::string Syscall::GetName() const {
-  const char* name = GetSyscallTable(arch_).GetEntry(nr_).name;
-  if (name == nullptr) {
+  absl::string_view name = SyscallTable::get(arch_).GetName(nr_);
+  if (name.empty()) {
     return absl::StrFormat("UNKNOWN[%d/0x%x]", nr_, nr_);
   }
-  return name;
+  return std::string(name);
 }
 
 std::vector<std::string> Syscall::GetArgumentsDescription() const {
-  return GetSyscallTable(arch_).GetEntry(nr_).GetArgumentsDescription(
-      args_.data(), pid_);
+  return SyscallTable::get(arch_).GetArgumentsDescription(nr_, args_.data(),
+                                                          pid_);
 }
 
 std::string Syscall::GetDescription() const {
