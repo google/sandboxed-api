@@ -322,6 +322,9 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
   SAPI_RAW_PCHECK(chdir("/") == 0,
                   "changing cwd after mntns initialization failed");
 
+  SAPI_RAW_PCHECK(mount("/", "/", "", MS_PRIVATE | MS_REC, nullptr) == 0,
+                  "changing mount propagation to private failed");
+
   if (SAPI_VLOG_IS_ON(2)) {
     SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");
     LogFilesystem("/");
