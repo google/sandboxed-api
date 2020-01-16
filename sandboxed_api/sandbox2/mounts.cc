@@ -478,7 +478,10 @@ uint64_t GetMountFlagsFor(const std::string& path) {
 void MountWithDefaults(const std::string& source, const std::string& target,
                        const char* fs_type, uint64_t extra_flags,
                        const char* option_str, bool is_ro) {
-  uint64_t flags = MS_REC | MS_NODEV | MS_NOSUID | extra_flags;
+  uint64_t flags = MS_REC | MS_NOSUID | extra_flags;
+  if (is_ro) {
+    flags |= MS_RDONLY;
+  }
   SAPI_RAW_VLOG(1, R"(mount("%s", "%s", "%s", %d, "%s"))", source, target,
                 fs_type, flags, option_str);
 
@@ -494,13 +497,22 @@ void MountWithDefaults(const std::string& source, const std::string& target,
     SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed", source, target);
   }
 
-  // Bind mounting as read-only doesn't work, we have to remount it.
-  if (is_ro) {
+  // Flags are ignored for a bind mount, a remount is needed to set the flags.
+  if (extra_flags & MS_BIND) {
     // Get actual mount flags.
     flags |= GetMountFlagsFor(target);
-    res = mount("", target.c_str(), "", flags | MS_REMOUNT | MS_RDONLY,
-                option_str);
-    SAPI_RAW_PCHECK(res != -1, "remounting %s read-only failed", target);
+    res = mount("", target.c_str(), "", flags | MS_REMOUNT, nullptr);
+    SAPI_RAW_PCHECK(res != -1, "remounting %s with flags %d failed", target,
+                    flags);
+  }
+
+  // Mount propagation has to be set separately
+  const uint64_t propagation =
+      extra_flags & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE);
+  if (propagation != 0) {
+    res = mount("", target.c_str(), "", propagation, nullptr);
+    SAPI_RAW_PCHECK(res != -1, "changing %s mount propagation to %d failed",
+                    target, propagation);
   }
 }
 
