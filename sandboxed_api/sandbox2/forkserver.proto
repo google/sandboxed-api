@@ -15,7 +15,6 @@
 // A proto for the sandbox2::Forkserver class
 
 syntax = "proto2";
-
 package sandbox2;
 
 import "sandboxed_api/sandbox2/mounttree.proto";
