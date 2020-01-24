@@ -34,14 +34,15 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/testing.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
 
 TEST(NamespaceTest, FileNamespaceWorks) {
-  // Mount /binary_path RO and check that it actually is RO.
+  // Mount /binary_path RO and check that it exists and is readable.
   // /etc/passwd should not exist.
   const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
   std::vector<std::string> args = {path, "0", "/binary_path", "/etc/passwd"};
@@ -57,6 +58,47 @@ TEST(NamespaceTest, FileNamespaceWorks) {
 
   ASSERT_EQ(result.final_status(), Result::OK);
   EXPECT_EQ(result.reason_code(), 2);
+}
+
+TEST(NamespaceTest, ReadOnlyIsRespected) {
+  // Mount temporary file as RO and check that it actually is RO.
+  auto [name, fd] =
+      CreateNamedTempFile(GetTestTempPath("temp_file")).ValueOrDie();
+  file_util::fileops::FDCloser temp_closer{fd};
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
+  {
+    // First check that it is readable
+    std::vector<std::string> args = {path, "0", "/temp_file"};
+    auto executor = absl::make_unique<Executor>(path, args);
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                          // Don't restrict the syscalls at all
+                                          .DangerDefaultAllowAll()
+                                          .AddFileAt(name, "/temp_file")
+                                          .TryBuild());
+
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    auto result = sandbox.Run();
+
+    ASSERT_EQ(result.final_status(), Result::OK);
+    EXPECT_EQ(result.reason_code(), 0);
+  }
+  {
+    // Then check that it is not writeable
+    std::vector<std::string> args = {path, "1", "/temp_file"};
+    auto executor = absl::make_unique<Executor>(path, args);
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
+                                          // Don't restrict the syscalls at all
+                                          .DangerDefaultAllowAll()
+                                          .AddFileAt(name, "/temp_file")
+                                          .TryBuild());
+
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    auto result = sandbox.Run();
+
+    ASSERT_EQ(result.final_status(), Result::OK);
+    EXPECT_EQ(result.reason_code(), 1);
+  }
 }
 
 TEST(NamespaceTest, UserNamespaceWorks) {

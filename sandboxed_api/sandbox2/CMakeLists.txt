@@ -600,9 +600,11 @@ if(SAPI_ENABLE_TESTS)
     absl::memory
     absl::strings
     sandbox2::comms
+    sandbox2::fileops
     sandbox2::namespace
     sandbox2::sandbox2
     sandbox2::testing
+    sandbox2::temp_file
     sapi::status_matchers
     sapi::test_main
   )
