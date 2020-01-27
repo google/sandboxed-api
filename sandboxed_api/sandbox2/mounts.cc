@@ -30,6 +30,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
@@ -475,6 +476,57 @@ uint64_t GetMountFlagsFor(const std::string& path) {
   return flags;
 }
 
+std::string MountFlagsToString(uint64_t flags) {
+#define SAPI_MAP(x) \
+  { x, #x }
+  static constexpr std::pair<uint64_t, absl::string_view> map[] = {
+      SAPI_MAP(MS_RDONLY),
+      SAPI_MAP(MS_NOSUID),
+      SAPI_MAP(MS_NODEV),
+      SAPI_MAP(MS_NOEXEC),
+      SAPI_MAP(MS_SYNCHRONOUS),
+      SAPI_MAP(MS_REMOUNT),
+      SAPI_MAP(MS_MANDLOCK),
+      SAPI_MAP(MS_DIRSYNC),
+      SAPI_MAP(MS_NOATIME),
+      SAPI_MAP(MS_NODIRATIME),
+      SAPI_MAP(MS_BIND),
+      SAPI_MAP(MS_MOVE),
+      SAPI_MAP(MS_REC),
+#ifdef MS_VERBOSE
+      // MS_VERBOSE is deprecated
+      SAPI_MAP(MS_VERBOSE),
+#endif
+      SAPI_MAP(MS_SILENT),
+      SAPI_MAP(MS_POSIXACL),
+      SAPI_MAP(MS_UNBINDABLE),
+      SAPI_MAP(MS_PRIVATE),
+      SAPI_MAP(MS_SLAVE),
+      SAPI_MAP(MS_SHARED),
+      SAPI_MAP(MS_RELATIME),
+      SAPI_MAP(MS_KERNMOUNT),
+      SAPI_MAP(MS_I_VERSION),
+      SAPI_MAP(MS_STRICTATIME),
+#ifdef MS_LAZYTIME
+      // MS_LAZYTIME was added in Linux 4.0
+      SAPI_MAP(MS_LAZYTIME),
+#endif
+  };
+#undef SAPI_MAP
+  std::vector<absl::string_view> flags_list;
+  for (auto [val, str] : map) {
+    if ((flags & val) == val) {
+      flags &= ~val;
+      flags_list.push_back(str);
+    }
+  }
+  std::string flags_str = absl::StrCat(flags);
+  if (flags_list.empty() || flags != 0) {
+    flags_list.push_back(flags_str);
+  }
+  return absl::StrJoin(flags_list, "|");
+}
+
 void MountWithDefaults(const std::string& source, const std::string& target,
                        const char* fs_type, uint64_t extra_flags,
                        const char* option_str, bool is_ro) {
@@ -494,7 +546,8 @@ void MountWithDefaults(const std::string& source, const std::string& target,
       SAPI_RAW_LOG(WARNING, "Could not mount %s: file does not exist", source);
       return;
     }
-    SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed", source, target);
+    SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed (flags=%s)", source, target,
+                  MountFlagsToString(flags));
   }
 
   // Flags are ignored for a bind mount, a remount is needed to set the flags.
@@ -502,8 +555,8 @@ void MountWithDefaults(const std::string& source, const std::string& target,
     // Get actual mount flags.
     flags |= GetMountFlagsFor(target);
     res = mount("", target.c_str(), "", flags | MS_REMOUNT, nullptr);
-    SAPI_RAW_PCHECK(res != -1, "remounting %s with flags %d failed", target,
-                    flags);
+    SAPI_RAW_PCHECK(res != -1, "remounting %s with flags=%s failed", target,
+                    MountFlagsToString(flags));
   }
 
   // Mount propagation has to be set separately
@@ -511,8 +564,8 @@ void MountWithDefaults(const std::string& source, const std::string& target,
       extra_flags & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE);
   if (propagation != 0) {
     res = mount("", target.c_str(), "", propagation, nullptr);
-    SAPI_RAW_PCHECK(res != -1, "changing %s mount propagation to %d failed",
-                    target, propagation);
+    SAPI_RAW_PCHECK(res != -1, "changing %s mount propagation to %s failed",
+                    target, MountFlagsToString(propagation));
   }
 }
 
