@@ -314,9 +314,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     }
     // Send sandboxee pid
     auto status = SendPid(signaling_fd);
-    if (!status.ok()) {
-      SAPI_RAW_LOG(FATAL, "%s", status.message());
-    }
+    SAPI_RAW_CHECK(status.ok(), "sending pid: %s", status.message());
   }
 
   if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX ||
@@ -387,17 +385,12 @@ pid_t ForkServer::ServeRequest() {
     }
   }
   int comms_fd;
-  if (!comms_->RecvFD(&comms_fd)) {
-    SAPI_RAW_LOG(FATAL, "Failed to receive Comms FD");
-  }
+  SAPI_RAW_CHECK(comms_->RecvFD(&comms_fd), "Failed to receive Comms FD");
 
   int exec_fd = -1;
   if (fork_request.mode() == FORKSERVER_FORK_EXECVE ||
       fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-    if (!comms_->RecvFD(&exec_fd)) {
-      SAPI_RAW_LOG(FATAL, "Failed to receive Exec FD");
-    }
-
+    SAPI_RAW_CHECK(comms_->RecvFD(&exec_fd), "Failed to receive Exec FD");
     // We're duping to a high number here to avoid colliding with the IPC FDs.
     MoveToFdNumber(&exec_fd, kTargetExecFd);
   }
@@ -409,9 +402,8 @@ pid_t ForkServer::ServeRequest() {
 
   int user_ns_fd = -1;
   if (fork_request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
-    if (!comms_->RecvFD(&user_ns_fd)) {
-      SAPI_RAW_LOG(FATAL, "Failed to receive user namespace fd");
-    }
+    SAPI_RAW_CHECK(comms_->RecvFD(&user_ns_fd),
+                   "Failed to receive user namespace fd");
   }
 
   // Store uid and gid since they will change if CLONE_NEWUSER is set.
@@ -419,16 +411,14 @@ pid_t ForkServer::ServeRequest() {
   uid_t gid = getgid();
 
   int socketpair_fds[2];
-  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, socketpair_fds)) {
-    SAPI_RAW_LOG(FATAL, "socketpair()");
-  }
-
+  SAPI_RAW_PCHECK(
+      socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, socketpair_fds) == 0,
+      "creating signaling socketpair");
   for (int i = 0; i < 2; i++) {
     int val = 1;
-    if (setsockopt(socketpair_fds[i], SOL_SOCKET, SO_PASSCRED, &val,
-                   sizeof(val))) {
-      SAPI_RAW_LOG(FATAL, "setsockopt failed");
-    }
+    SAPI_RAW_PCHECK(setsockopt(socketpair_fds[i], SOL_SOCKET, SO_PASSCRED, &val,
+                               sizeof(val)) == 0,
+                    "setsockopt failed");
   }
 
   file_util::fileops::FDCloser fd_closer0{socketpair_fds[0]};
@@ -468,13 +458,11 @@ pid_t ForkServer::ServeRequest() {
       }
       // Send sandboxee pid
       sapi::Status status = SendPid(fd_closer1.get());
-      if (!status.ok()) {
-        SAPI_RAW_LOG(FATAL, "%s", status.message());
-      }
+      SAPI_RAW_CHECK(status.ok(), "sending pid: %s", status.message());
     } else {
       auto pid_or = ReceivePid(fd_closer0.get());
       if (!pid_or.ok()) {
-        SAPI_RAW_LOG(ERROR, "%s", pid_or.status().message());
+        SAPI_RAW_LOG(ERROR, "receiving pid: %s", pid_or.status().message());
       } else {
         sandboxee_pid = pid_or.ValueOrDie();
       }
@@ -524,13 +512,10 @@ pid_t ForkServer::ServeRequest() {
   if (user_ns_fd >= 0) {
     close(user_ns_fd);
   }
-  if (!comms_->SendInt32(init_pid)) {
-    SAPI_RAW_LOG(FATAL, "Failed to send init PID: %d", init_pid);
-  }
-  if (!comms_->SendInt32(sandboxee_pid)) {
-    SAPI_RAW_LOG(FATAL, "Failed to send sandboxee PID: %d", sandboxee_pid);
-  }
-
+  SAPI_RAW_CHECK(comms_->SendInt32(init_pid), "Failed to send init PID: %d",
+                 init_pid);
+  SAPI_RAW_CHECK(comms_->SendInt32(sandboxee_pid),
+                 "Failed to send sandboxee PID: %d", sandboxee_pid);
   return sandboxee_pid;
 }
 
@@ -608,12 +593,11 @@ void ForkServer::SanitizeEnvironment(int client_fd) {
   close(client_fd);
   // Mark all file descriptors, except the standard ones (needed
   // for proper sandboxed process operations), as close-on-exec.
-  if (!sanitizer::SanitizeCurrentProcess(
-          {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
-           Comms::kSandbox2ClientCommsFD},
-          /* close_fds = */ false)) {
-    SAPI_RAW_LOG(FATAL, "sanitizer::SanitizeCurrentProcess(close_fds=false)");
-  }
+  SAPI_RAW_CHECK(sanitizer::SanitizeCurrentProcess(
+                     {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+                      Comms::kSandbox2ClientCommsFD},
+                     /* close_fds = */ false),
+                 "while sanitizing process");
 }
 
 void ForkServer::ExecuteProcess(int execve_fd, const char** argv,

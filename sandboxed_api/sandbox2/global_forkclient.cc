@@ -94,9 +94,7 @@ static void StartGlobalForkServer() {
 
   int exec_fd = sapi::EmbedFile::GetEmbedFileSingleton()->GetFdForFileToc(
       forkserver_bin_embed_create());
-  if (exec_fd < 0) {
-    SAPI_RAW_LOG(FATAL, "Getting FD for init binary failed");
-  }
+  SAPI_RAW_CHECK(exec_fd >= 0, "Getting FD for init binary failed");
 
   char* const args[] = {strdup("S2-FORK-SERV"), nullptr};
   char* const envp[] = {nullptr};
