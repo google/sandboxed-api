@@ -181,6 +181,9 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
                                        JEQ32(MADV_DONTDUMP, ALLOW),
                                        JEQ32(MADV_NOHUGEPAGE, ALLOW),
                                    });
+  // Sanitizers read from /proc. For example:
+  // https://github.com/llvm-mirror/compiler-rt/blob/69445f095c22aac2388f939bedebf224a6efcdaf/lib/sanitizer_common/sanitizer_linux.cpp#L1101
+  AddDirectory("/proc");
 #endif
   return *this;
 }
