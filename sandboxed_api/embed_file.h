@@ -48,7 +48,7 @@ class EmbedFile {
 
   // List of File TOCs and corresponding file-descriptors.
   absl::flat_hash_map<const FileToc*, int> file_tocs_
-      GUARDED_BY(file_tocs_mutex_);
+      ABSL_GUARDED_BY(file_tocs_mutex_);
   absl::Mutex file_tocs_mutex_;
 };
 
