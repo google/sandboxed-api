@@ -201,7 +201,7 @@ class Comms {
   // Receives tag and length. Assumes that the `tlv_transmission_mutex_` mutex
   // is locked.
   bool RecvTL(uint32_t* tag, uint64_t* length)
-      EXCLUSIVE_LOCKS_REQUIRED(tlv_recv_transmission_mutex_);
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(tlv_recv_transmission_mutex_);
 
   // Receives whole TLV structure, allocates memory for the data.
   bool RecvTLV(TLV* tlv);
