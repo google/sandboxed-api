@@ -45,8 +45,6 @@ class Result {
     SETUP_ERROR,
     // Syscall violation
     VIOLATION,
-    // Network policy violation
-    NETWORK_VIOLATION,
     // Process terminated with a signal
     SIGNALED,
     // Process terminated with a timeout
@@ -121,10 +119,6 @@ class Result {
     syscall_ = std::move(syscall);
   }
 
-  void SetNetworkViolation(std::string network_violation) {
-    network_violation_ = std::move(network_violation);
-  }
-
   StatusEnum final_status() const { return final_status_; }
   uintptr_t reason_code() const { return reason_code_; }
 
@@ -142,8 +136,6 @@ class Result {
   const Syscall* GetSyscall() const { return syscall_.get(); }
 
   const std::string& GetProgName() const { return prog_name_; }
-
-  const std::string& GetNetworkViolation() const { return network_violation_; }
 
   void SetProgName(const std::string& name) { prog_name_ = name; }
 
@@ -187,8 +179,6 @@ class Result {
   std::string prog_name_;
   // /proc/pid/maps of the main process.
   std::string proc_maps_;
-  // IP and port if network violation occurred
-  std::string network_violation_;
   // Final resource usage as defined in <sys/resource.h> (man getrusage), for
   // the Monitor thread.
   rusage rusage_monitor_;

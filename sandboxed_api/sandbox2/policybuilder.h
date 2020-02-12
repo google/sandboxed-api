@@ -31,7 +31,6 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/mounts.h"
-#include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/util/statusor.h"
 
@@ -502,10 +501,6 @@ class PolicyBuilder final {
   // Not recommended
   PolicyBuilder& SetRootWritable();
 
-  // Allows connections to this IP.
-  PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
-  PolicyBuilder& AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
-
  private:
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
@@ -547,9 +542,6 @@ class PolicyBuilder final {
   // This function returns a PolicyBuilder so that we can use it in the status
   // macros
   PolicyBuilder& SetError(const sapi::Status& status);
-
-  // Contains list of allowed hosts.
-  absl::optional<AllowedHosts> allowed_hosts_;
 };
 
 }  // namespace sandbox2

@@ -17,12 +17,16 @@
 #include "sandboxed_api/sandbox2/ipc.h"
 
 #include <sys/socket.h>
-#include <thread>
+#include <unistd.h>
+
+#include <thread>  // NOLINT(build/c++11)
 
 #include <glog/logging.h>
 #include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/logserver.h"
 #include "sandboxed_api/sandbox2/logsink.h"
+#include "sandboxed_api/sandbox2/network_proxy_client.h"
+#include "sandboxed_api/sandbox2/network_proxy_server.h"
 
 namespace sandbox2 {
 
@@ -97,6 +101,18 @@ void IPC::EnableLogServer() {
   };
   std::thread log_thread{logger};
   log_thread.detach();
+}
+
+void IPC::EnableNetworkProxyServer() {
+  int fd = ReceiveFd(NetworkProxyClient::kFDName);
+
+  auto proxy_server = [fd]() {
+    NetworkProxyServer network_proxy_server(fd);
+    network_proxy_server.Run();
+  };
+
+  std::thread proxy_thread{proxy_server};
+  proxy_thread.detach();
 }
 
 }  // namespace sandbox2

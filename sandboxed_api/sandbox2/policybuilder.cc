@@ -39,7 +39,6 @@
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
@@ -48,7 +47,7 @@ namespace {
 
 }  // namespace
 
-PolicyBuilder& PolicyBuilder::AllowSyscall(uint32_t num) {
+PolicyBuilder& PolicyBuilder::AllowSyscall(unsigned int num) {
   if (handled_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ALLOW)});
   }
@@ -69,7 +68,8 @@ PolicyBuilder& PolicyBuilder::AllowSyscalls(SyscallInitializer nums) {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
+PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(unsigned int num,
+                                                    int error) {
   if (handled_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ERRNO(error))});
   }
@@ -545,17 +545,17 @@ PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
   });
 }
 
-PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(uint32_t num,
+PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(unsigned int num,
                                                  BpfInitializer policy) {
   return AddPolicyOnSyscalls({num}, policy);
 }
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(
-    uint32_t num, const std::vector<sock_filter>& policy) {
+    unsigned int num, const std::vector<sock_filter>& policy) {
   return AddPolicyOnSyscalls({num}, policy);
 }
 
-PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(uint32_t num, BpfFunc f) {
+PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(unsigned int num, BpfFunc f) {
   return AddPolicyOnSyscalls({num}, f);
 }
 
@@ -700,7 +700,6 @@ sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
 
   StoreDescription(pb_description.get());
   output->policy_builder_description_ = std::move(pb_description);
-  output->allowed_hosts_ = std::move(allowed_hosts_);
   already_built_ = true;
   return std::move(output);
 }
@@ -849,15 +848,6 @@ PolicyBuilder& PolicyBuilder::CollectStacktracesOnKill(bool enable) {
 }
 
 PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
-  if (allowed_hosts_) {
-    SetError(sapi::FailedPreconditionError(
-        "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy can be called "
-        "at most once"));
-    return *this;
-  }
-
-  allowed_hosts_ = AllowedHosts();
-
   AllowFutexOp(FUTEX_WAKE);
   AllowFutexOp(FUTEX_WAIT);
   AllowFutexOp(FUTEX_WAIT_BITSET);
@@ -928,38 +918,6 @@ void PolicyBuilder::StoreDescription(PolicyBuilderDescription* pb_description) {
   for (const auto& handled_syscall : handled_syscalls_) {
     pb_description->add_handled_syscalls(handled_syscall);
   }
-}
-
-PolicyBuilder& PolicyBuilder::AllowIPv4(const std::string& ip_and_mask,
-                                        uint32_t port) {
-  if (!allowed_hosts_) {
-    SetError(sapi::FailedPreconditionError(
-        "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy must be called "
-        "before adding IP rules"));
-    return *this;
-  }
-
-  sapi::Status status = allowed_hosts_->AllowIPv4(ip_and_mask, port);
-  if (!status.ok()) {
-    SetError(status);
-  }
-  return *this;
-}
-
-PolicyBuilder& PolicyBuilder::AllowIPv6(const std::string& ip_and_mask,
-                                        uint32_t port) {
-  if (!allowed_hosts_) {
-    SetError(sapi::FailedPreconditionError(
-        "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy must be called "
-        "before adding IP rules"));
-    return *this;
-  }
-
-  sapi::Status status = allowed_hosts_->AllowIPv6(ip_and_mask, port);
-  if (!status.ok()) {
-    SetError(status);
-  }
-  return *this;
 }
 
 }  // namespace sandbox2

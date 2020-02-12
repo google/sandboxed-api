@@ -42,8 +42,6 @@ std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
       .AllowSyscall(__NR_munmap)
       .AllowSyscall(__NR_getpid)
       .AddNetworkProxyHandlerPolicy()
-      .AllowTcMalloc()
-      .AllowIPv6("::1")
       .AddLibrariesForBinary(sandboxee_path)
       .BuildOrDie();
 }
@@ -131,7 +129,10 @@ int main(int argc, char** argv) {
       // is capable of enabling sandboxing on its own).
       ->set_enable_sandbox_before_exec(false)
       // Set cwd to / to get rids of warnings connected with file namespace.
-      .set_cwd("/");
+      .set_cwd("/")
+      // Enable built-in network proxy.
+      .ipc()
+      ->EnableNetworkProxyServer();
   executor
       ->limits()
       // Remove restrictions on the size of address-space of sandboxed

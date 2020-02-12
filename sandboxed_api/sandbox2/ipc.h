@@ -23,6 +23,7 @@
 #include <tuple>
 #include <vector>
 
+#include "absl/base/macros.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
@@ -58,6 +59,10 @@ class IPC final {
   // messages from the sandboxee. You'll also have to call
   // Client::SendLogsToSupervisor in the sandboxee.
   void EnableLogServer();
+
+  // Enable network proxy server, this will start a thread in the sandbox
+  // that waits for connection requests from the sandboxee.
+  void EnableNetworkProxyServer();
 
  private:
   friend class Executor;
