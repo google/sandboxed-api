@@ -31,6 +31,7 @@
 #include "absl/base/macros.h"
 #include "absl/types/optional.h"
 #include "sandboxed_api/sandbox2/namespace.h"
+#include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 
@@ -103,6 +104,9 @@ class Policy final {
   std::vector<sock_filter> GetDefaultPolicy() const;
   // Get a policy which would allow the Monitor module to track all syscalls.
   std::vector<sock_filter> GetTrackingPolicy() const;
+
+  // Contains a list of hosts the sandboxee is allowed to connect to.
+  absl::optional<AllowedHosts> allowed_hosts_;
 
   friend class Monitor;
   friend class PolicyBuilder;

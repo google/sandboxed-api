@@ -26,11 +26,13 @@
 #include <cstdio>
 #include <ctime>
 #include <memory>
+#include <thread>
 
 #include "absl/synchronization/notification.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
+#include "sandboxed_api/sandbox2/network_proxy/server.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
@@ -139,6 +141,10 @@ class Monitor final {
   // Processes stop path.
   void EventPtraceStop(pid_t pid, int stopsig);
 
+  // Enable network proxy server, this will start a thread in the sandbox
+  // that waits for connection requests from the sandboxee.
+  void EnableNetworkProxyServer();
+
   // Internal objects, owned by the Sandbox2 object.
   Executor* executor_;
   Notify* notify_;
@@ -168,6 +174,8 @@ class Monitor final {
   std::atomic<int64_t> deadline_millis_{0};
   // Was external kill sent to the sandboxee
   bool external_kill_ = false;
+  // Network violation occurred and process of killing sandboxee started
+  bool network_violation_ = false;
   // Is the sandboxee timed out
   bool timed_out_ = false;
   // Should we dump the main sandboxed PID's stack?
@@ -178,6 +186,12 @@ class Monitor final {
   // Log file specified by
   // --sandbox_danger_danger_permit_all_and_log flag.
   FILE* log_file_ = nullptr;
+
+  // Handle to the class responsible for proxying and validating connect()
+  // requests.
+  std::unique_ptr<NetworkProxyServer> network_proxy_server_;
+
+  std::thread network_proxy_thread_;
 };
 
 }  // namespace sandbox2

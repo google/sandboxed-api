@@ -79,6 +79,10 @@ std::string Result::ToString() const {
                             Syscall(GetSyscallArch(), reason_code()).GetName(),
                             "] Stack: ", GetStackTrace());
       break;
+    case sandbox2::Result::NETWORK_VIOLATION:
+      result = absl::StrCat("NETWORK VIOLATION - Violating network policy: ",
+                            network_violation_);
+      break;
     case sandbox2::Result::SIGNALED:
       result = absl::StrCat("Process terminated with a SIGNAL - Signal: ",
                             util::GetSignalName(reason_code()),
@@ -129,6 +133,8 @@ std::string Result::StatusEnumToString(StatusEnum value) {
       return "SETUP_ERROR";
     case sandbox2::Result::VIOLATION:
       return "VIOLATION";
+    case sandbox2::Result::NETWORK_VIOLATION:
+      return "NETWORK_VIOLATION";
     case sandbox2::Result::SIGNALED:
       return "SIGNALED";
     case sandbox2::Result::TIMEOUT:

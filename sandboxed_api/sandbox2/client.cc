@@ -40,7 +40,6 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/network_proxy_client.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
