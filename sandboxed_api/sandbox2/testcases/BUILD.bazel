@@ -22,13 +22,13 @@
 # Bazel adds -pie by default but -static is incompatible with it, so we use
 # the features flag to force it off.
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 package(default_visibility = [
     "//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])  # Apache 2.0
-
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 STATIC_LINKOPTS = [
     # Necessary for linking pthread statically into the binary. See the
