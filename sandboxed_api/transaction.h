@@ -51,13 +51,14 @@ class TransactionBase {
  public:
   TransactionBase(const TransactionBase&) = delete;
   TransactionBase& operator=(const TransactionBase&) = delete;
+
   virtual ~TransactionBase();
 
-  // Getter/Setter for retry_cnt_.
-  int GetRetryCnt() const { return retry_cnt_; }
-  void SetRetryCnt(int retry_count) {
-    CHECK_GE(retry_count, 0);
-    retry_cnt_ = retry_count;
+  // Getter/Setter for retry_count_.
+  int retry_count() const { return retry_count_; }
+  void set_retry_count(int value) {
+    CHECK_GE(value, 0);
+    retry_count_ = value;
   }
 
   // Getter/Setter for time_limit_.
@@ -67,30 +68,28 @@ class TransactionBase {
     time_limit_ = absl::ToTimeT(absl::UnixEpoch() + time_limit);
   }
 
-  // Getter/Setter for inited_.
-  bool GetInited() const { return inited_; }
-  void SetInited(bool inited) { inited_ = inited; }
+  bool IsInitialized() const { return initialized_; }
 
   // Getter for the sandbox_.
-  Sandbox* GetSandbox() { return sandbox_.get(); }
+  Sandbox* sandbox() const { return sandbox_.get(); }
 
   // Restarts the sandbox.
   // WARNING: This will invalidate any references to the remote process, make
-  // sure you don't keep any var's or FD's to the remote process when calling
-  // this.
+  //          sure you don't keep any vars or FDs to the remote process when
+  //          calling this.
   sapi::Status Restart() {
-    if (inited_) {
+    if (initialized_) {
       Finish().IgnoreError();
-      inited_ = false;
+      initialized_ = false;
     }
     return sandbox_->Restart(true);
   }
 
  protected:
   explicit TransactionBase(std::unique_ptr<Sandbox> sandbox)
-      : retry_cnt_(kDefaultRetryCnt),
+      : retry_count_(kDefaultRetryCount),
         time_limit_(absl::ToTimeT(absl::UnixEpoch() + kDefaultTimeLimit)),
-        inited_(false),
+        initialized_(false),
         sandbox_(std::move(sandbox)) {}
 
   // Runs the main (retrying) transaction loop.
@@ -98,7 +97,7 @@ class TransactionBase {
 
  private:
   // Number of default transaction execution re-tries, in case of failures.
-  static constexpr int kDefaultRetryCnt = 1;
+  static constexpr int kDefaultRetryCount = 1;
 
   // Wall-time limit for a single transaction execution (60 s.).
   static constexpr absl::Duration kDefaultTimeLimit = absl::Seconds(60);
@@ -108,7 +107,7 @@ class TransactionBase {
   sapi::Status RunTransactionFunctionInSandbox(
       const std::function<sapi::Status()>& f);
 
-  // Initialization routine of the sandboxed process that ill be called only
+  // Initialization routine of the sandboxed process that will be called only
   // once upon sandboxee startup.
   virtual sapi::Status Init() { return sapi::OkStatus(); }
 
@@ -117,14 +116,14 @@ class TransactionBase {
   virtual sapi::Status Finish() { return sapi::OkStatus(); }
 
   // Number of tries this transaction will be re-executed until it succeeds.
-  int retry_cnt_;
+  int retry_count_;
 
   // Time (wall-time) limit for a single Run() call (in seconds). 0 means: no
   // wall-time limit.
   time_t time_limit_;
 
   // Has Init() finished with success?
-  bool inited_;
+  bool initialized_;
 
   // The main sapi::Sandbox object.
   std::unique_ptr<Sandbox> sandbox_;
@@ -172,13 +171,13 @@ class BasicTransaction final : public TransactionBase {
         init_function_(static_cast<InitFunction>(init_function)),
         finish_function_(static_cast<FinishFunction>(fini_function)) {}
 
-  // Run any function as body of the transaction that matches our expectations (
-  // that is: Returning a sapi::Status and accepting a Sandbox object as first
+  // Run any function as body of the transaction that matches our expectations
+  // (that is: Returning a Status and accepting a Sandbox object as first
   // parameter).
   template <typename T, typename... Args>
   sapi::Status Run(T func, Args&&... args) {
     return RunTransactionLoop(
-        [&] { return func(GetSandbox(), std::forward<Args>(args)...); });
+        [&] { return func(sandbox(), std::forward<Args>(args)...); });
   }
 
  private:
@@ -186,11 +185,11 @@ class BasicTransaction final : public TransactionBase {
   FinishFunction finish_function_;
 
   sapi::Status Init() final {
-    return init_function_ ? init_function_(GetSandbox()) : sapi::OkStatus();
+    return init_function_ ? init_function_(sandbox()) : sapi::OkStatus();
   }
 
   sapi::Status Finish() final {
-    return finish_function_ ? finish_function_(GetSandbox()) : sapi::OkStatus();
+    return finish_function_ ? finish_function_(sandbox()) : sapi::OkStatus();
   }
 };
 

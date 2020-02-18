@@ -72,10 +72,10 @@ void BenchmarkSandboxRestartOverhead(benchmark::State& state) {
 BENCHMARK(BenchmarkSandboxRestartOverhead);
 
 void BenchmarkSandboxRestartForkserverOverhead(benchmark::State& state) {
-  sapi::BasicTransaction st{absl::make_unique<StringopSandbox>()};
+  sapi::BasicTransaction st(absl::make_unique<StringopSandbox>());
   for (auto _ : state) {
     EXPECT_THAT(st.Run(InvokeNop), IsOk());
-    EXPECT_THAT(st.GetSandbox()->Restart(true), IsOk());
+    EXPECT_THAT(st.sandbox()->Restart(true), IsOk());
   }
 }
 BENCHMARK(BenchmarkSandboxRestartForkserverOverhead);
@@ -84,7 +84,7 @@ void BenchmarkSandboxRestartForkserverOverheadForced(benchmark::State& state) {
   sapi::BasicTransaction st{absl::make_unique<StringopSandbox>()};
   for (auto _ : state) {
     EXPECT_THAT(st.Run(InvokeNop), IsOk());
-    EXPECT_THAT(st.GetSandbox()->Restart(false), IsOk());
+    EXPECT_THAT(st.sandbox()->Restart(false), IsOk());
   }
 }
 BENCHMARK(BenchmarkSandboxRestartForkserverOverheadForced);

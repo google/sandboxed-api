@@ -23,23 +23,23 @@ constexpr absl::Duration TransactionBase::kDefaultTimeLimit;
 sapi::Status TransactionBase::RunTransactionFunctionInSandbox(
     const std::function<sapi::Status()>& f) {
   // Run Main(), invoking Init() if this hasn't been yet done.
-  SAPI_RETURN_IF_ERROR(GetSandbox()->Init());
+  SAPI_RETURN_IF_ERROR(sandbox_->Init());
 
   // Set the wall-time limit for this transaction run, and clean it up
   // afterwards, no matter what the result.
-  SAPI_RETURN_IF_ERROR(GetSandbox()->SetWallTimeLimit(GetTimeLimit()));
+  SAPI_RETURN_IF_ERROR(sandbox_->SetWallTimeLimit(GetTimeLimit()));
   struct TimeCleanup {
     ~TimeCleanup() {
-      if (capture->GetSandbox()->IsActive()) {
-        capture->GetSandbox()->SetWallTimeLimit(0).IgnoreError();
+      if (capture->sandbox_->IsActive()) {
+        capture->sandbox_->SetWallTimeLimit(0).IgnoreError();
       }
     }
     TransactionBase* capture;
-  } sandbox_cleanup{this};
+  } sandbox_cleanup = {this};
 
-  if (!GetInited()) {
+  if (!initialized_) {
     SAPI_RETURN_IF_ERROR(Init());
-    SetInited(true);
+    initialized_ = true;
   }
 
   return f();
@@ -50,24 +50,24 @@ sapi::Status TransactionBase::RunTransactionLoop(
   // Try to run Main() for a few times, return error if none of the tries
   // succeeded.
   sapi::Status status;
-  for (int i = 0; i <= GetRetryCnt(); i++) {
+  for (int i = 0; i <= retry_count_; ++i) {
     status = RunTransactionFunctionInSandbox(f);
     if (status.ok()) {
       return status;
     }
-    GetSandbox()->Terminate();
-    SetInited(false);
+    sandbox_->Terminate();
+    initialized_ = false;
   }
 
-  LOG(ERROR) << "Tried " << (GetRetryCnt() + 1) << " times to run the "
+  LOG(ERROR) << "Tried " << (retry_count_ + 1) << " times to run the "
              << "transaction, but it failed. SAPI error: '" << status
              << "'. Latest sandbox error: '"
-             << GetSandbox()->AwaitResult().ToString() << "'";
+             << sandbox_->AwaitResult().ToString() << "'";
   return status;
 }
 
 TransactionBase::~TransactionBase() {
-  if (GetInited()) {
+  if (initialized_) {
     Finish().IgnoreError();
   }
 }

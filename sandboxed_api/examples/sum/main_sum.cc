@@ -58,7 +58,7 @@ class SumTransaction : public sapi::Transaction {
 };
 
 sapi::Status SumTransaction::Main() {
-  SumApi f(GetSandbox());
+  SumApi f(sandbox());
   SAPI_ASSIGN_OR_RETURN(int v, f.sum(1000, 337));
   LOG(INFO) << "1000 + 337 = " << v;
   TRANSACTION_FAIL_IF_NOT(v == 1337, "1000 + 337 != 1337");
@@ -89,10 +89,10 @@ sapi::Status SumTransaction::Main() {
   // Gets symbol address and prints its value.
   int* ssaddr;
   SAPI_RETURN_IF_ERROR(
-      GetSandbox()->Symbol("sumsymbol", reinterpret_cast<void**>(&ssaddr)));
+      sandbox()->Symbol("sumsymbol", reinterpret_cast<void**>(&ssaddr)));
   sapi::v::Int sumsymbol;
   sumsymbol.SetRemote(ssaddr);
-  SAPI_RETURN_IF_ERROR(GetSandbox()->TransferFromSandboxee(&sumsymbol));
+  SAPI_RETURN_IF_ERROR(sandbox()->TransferFromSandboxee(&sumsymbol));
   LOG(INFO) << "sumsymbol value (exp: 5): " << sumsymbol.GetValue()
             << ", address: " << ssaddr;
   TRANSACTION_FAIL_IF_NOT(sumsymbol.GetValue() == 5,
@@ -120,7 +120,7 @@ sapi::Status SumTransaction::Main() {
   LOG(INFO) << "Print: '" << hwstr << "' via puts()";
   sapi::v::Array<const char> hwarr(hwstr, sizeof(hwstr));
   sapi::v::Int ret;
-  SAPI_RETURN_IF_ERROR(GetSandbox()->Call("puts", &ret, hwarr.PtrBefore()));
+  SAPI_RETURN_IF_ERROR(sandbox()->Call("puts", &ret, hwarr.PtrBefore()));
   TRANSACTION_FAIL_IF_NOT(ret.GetValue() == 15, "puts('Hello World!!!') != 15");
 
   sapi::v::Int vp;
@@ -144,13 +144,13 @@ sapi::Status SumTransaction::Main() {
   // Fd transfer test.
   int fdesc = open("/proc/self/exe", O_RDONLY);
   sapi::v::Fd fd(fdesc);
-  SAPI_RETURN_IF_ERROR(GetSandbox()->TransferToSandboxee(&fd));
+  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd));
   LOG(INFO) << "remote_fd = " << fd.GetRemoteFd();
   TRANSACTION_FAIL_IF_NOT(fd.GetRemoteFd() == 3, "remote_fd != 3");
 
   fdesc = open("/proc/self/comm", O_RDONLY);
   sapi::v::Fd fd2(fdesc);
-  SAPI_RETURN_IF_ERROR(GetSandbox()->TransferToSandboxee(&fd2));
+  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd2));
   LOG(INFO) << "remote_fd2 = " << fd2.GetRemoteFd();
   TRANSACTION_FAIL_IF_NOT(fd2.GetRemoteFd() == 4, "remote_fd2 != 4");
 
@@ -158,19 +158,19 @@ sapi::Status SumTransaction::Main() {
   char buffer[1024] = {0};
   sapi::v::Array<char> buf(buffer, sizeof(buffer));
   sapi::v::UInt size(128);
-  SAPI_RETURN_IF_ERROR(GetSandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
+  SAPI_RETURN_IF_ERROR(sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
   LOG(INFO) << "Read from /proc/self/comm = [" << buffer << "]";
 
   // Close test.
-  SAPI_RETURN_IF_ERROR(fd2.CloseRemoteFd(GetSandbox()->GetRpcChannel()));
+  SAPI_RETURN_IF_ERROR(fd2.CloseRemoteFd(sandbox()->GetRpcChannel()));
   memset(buffer, 0, sizeof(buffer));
-  SAPI_RETURN_IF_ERROR(GetSandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
+  SAPI_RETURN_IF_ERROR(sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
   LOG(INFO) << "Read from closed /proc/self/comm = [" << buffer << "]";
 
   // Pass fd as function arg example.
   fdesc = open("/proc/self/statm", O_RDONLY);
   sapi::v::Fd fd3(fdesc);
-  SAPI_RETURN_IF_ERROR(GetSandbox()->TransferToSandboxee(&fd3));
+  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd3));
   SAPI_ASSIGN_OR_RETURN(int r2, f.read_int(fd3.GetRemoteFd()));
   LOG(INFO) << "statm value (should not be 0) = " << r2;
 
