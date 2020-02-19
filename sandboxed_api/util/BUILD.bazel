@@ -28,12 +28,8 @@ sapi_proto_library(
 # replaced once Abseil releases absl::Status.
 cc_library(
     name = "status",
-    srcs = [
-        "canonical_errors.cc",
-        "status.cc",
-    ],
+    srcs = ["status.cc"],
     hdrs = [
-        "canonical_errors.h",
         "status.h",
         "status_internal.h",
         "status_macros.h",

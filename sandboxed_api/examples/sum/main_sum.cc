@@ -25,7 +25,6 @@
 #include "sandboxed_api/examples/sum/lib/sum_params.pb.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/vars.h"
-#include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status.h"
 
 namespace {

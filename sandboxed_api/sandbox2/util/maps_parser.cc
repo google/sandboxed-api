@@ -14,7 +14,6 @@
 
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "absl/strings/str_split.h"
-#include "sandboxed_api/util/canonical_errors.h"
 
 namespace sandbox2 {
 

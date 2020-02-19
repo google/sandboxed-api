@@ -22,7 +22,6 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi::v {

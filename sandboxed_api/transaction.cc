@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "sandboxed_api/transaction.h"
-#include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {

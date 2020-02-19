@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "sandboxed_api/proto_arg.pb.h"
-#include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/statusor.h"
 
