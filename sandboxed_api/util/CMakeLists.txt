@@ -28,6 +28,8 @@ target_link_libraries(sapi_util_status_proto
 
 # sandboxed_api/util:status
 add_library(sapi_util_status STATIC
+  canonical_errors.cc
+  canonical_errors.h
   status.cc
   status.h
   status_internal.h

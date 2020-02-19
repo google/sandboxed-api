@@ -27,6 +27,7 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status.h"
 
 namespace file_util = ::sandbox2::file_util;

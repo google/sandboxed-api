@@ -21,6 +21,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox.h"
+#include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 

@@ -19,6 +19,7 @@
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/canonical_errors.h"
 
 namespace sandbox2 {
 

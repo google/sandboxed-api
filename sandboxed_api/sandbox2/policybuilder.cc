@@ -39,6 +39,7 @@
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {

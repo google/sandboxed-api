@@ -44,6 +44,7 @@
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/canonical_errors.h"
 
 namespace sandbox2 {
 
