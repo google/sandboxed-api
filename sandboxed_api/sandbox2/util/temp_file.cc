@@ -25,7 +25,6 @@
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
-#include "util/task/canonical_errors.h"
 
 namespace sandbox2 {
 

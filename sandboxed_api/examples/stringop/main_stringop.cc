@@ -28,7 +28,6 @@
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/vars.h"
-#include "util/task/canonical_errors.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 

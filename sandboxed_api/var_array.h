@@ -24,7 +24,6 @@
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
-#include "util/task/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi::v {

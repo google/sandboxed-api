@@ -38,7 +38,6 @@
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "util/task/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/statusor.h"
 
