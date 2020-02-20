@@ -15,6 +15,7 @@
 add_subdirectory(examples)
 add_subdirectory(unwind)
 add_subdirectory(util)
+add_subdirectory(network_proxy)
 
 # sandboxed_api/sandbox2:bpfdisassembler
 add_library(sandbox2_bpfdisassembler STATIC
@@ -119,36 +120,6 @@ target_link_libraries(sandbox2_logsink
           sandbox2::logserver_proto
           sapi::base
   PUBLIC glog::glog
-)
-
-# sandboxed_api/sandbox2:network_proxy_server
-add_library(sandbox2_network_proxy_server STATIC
-  network_proxy_server.cc
-  network_proxy_server.h
-)
-add_library(sandbox2::network_proxy_server ALIAS sandbox2_network_proxy_server)
-target_link_libraries(sandbox2_network_proxy_server PRIVATE
-  absl::memory
-  glog::glog
-  sandbox2::comms
-  sandbox2::fileops
-  sapi::base
-)
-
-# sandboxed_api/sandbox2:network_proxy_client
-add_library(sandbox2_network_proxy_client STATIC
-  network_proxy_client.cc
-  network_proxy_client.h
-)
-add_library(sandbox2::network_proxy_client ALIAS sandbox2_network_proxy_client)
-target_link_libraries(sandbox2_network_proxy_client PRIVATE
-  absl::strings
-  absl::synchronization
-  glog::glog
-  sandbox2::comms
-  sandbox2::strerror
-  sapi::base
-  sapi::status
 )
 
 # sandboxed_api/sandbox2:ipc

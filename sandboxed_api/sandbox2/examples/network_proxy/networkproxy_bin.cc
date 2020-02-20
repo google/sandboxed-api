@@ -14,7 +14,7 @@
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/network_proxy_client.h"
+#include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
 static ssize_t ReadFromFd(int fd, uint8_t* buf, size_t size) {
@@ -113,5 +113,6 @@ int main(int argc, char** argv) {
   if (!CommunicationTest(client.get())) {
     return 4;
   }
+
   return 0;
 }

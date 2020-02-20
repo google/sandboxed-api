@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/network_proxy_server.h"
+#include "sandboxed_api/sandbox2/network_proxy/server.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syscall.h>
+
 #include <cerrno>
 #include <cstring>
 
@@ -29,8 +30,13 @@
 
 namespace sandbox2 {
 
-NetworkProxyServer::NetworkProxyServer(int fd)
-    : comms_{absl::make_unique<Comms>(fd)}, fatal_error_{false} {}
+NetworkProxyServer::NetworkProxyServer(int fd, AllowedHosts* allowed_hosts,
+                                       pthread_t monitor_thread_id)
+    : violation_occurred_(false),
+      comms_{absl::make_unique<Comms>(fd)},
+      fatal_error_(false),
+      monitor_thread_id_(monitor_thread_id),
+      allowed_hosts_(allowed_hosts) {}
 
 void NetworkProxyServer::ProcessConnectRequest() {
   std::vector<uint8_t> addr;
@@ -39,18 +45,22 @@ void NetworkProxyServer::ProcessConnectRequest() {
     return;
   }
 
-  const struct sockaddr_in* saddr =
-      reinterpret_cast<const sockaddr_in*>(addr.data());
+  const struct sockaddr* saddr = reinterpret_cast<const sockaddr*>(addr.data());
 
   // Only IPv4 TCP and IPv6 TCP are supported.
-  if (!((addr.size() == sizeof(sockaddr_in) && saddr->sin_family == AF_INET) ||
+  if (!((addr.size() == sizeof(sockaddr_in) && saddr->sa_family == AF_INET) ||
         (addr.size() == sizeof(sockaddr_in6) &&
-         saddr->sin_family == AF_INET6))) {
+         saddr->sa_family == AF_INET6))) {
     SendError(EINVAL);
     return;
   }
 
-  int new_socket = socket(saddr->sin_family, SOCK_STREAM, 0);
+  if (!allowed_hosts_->IsHostAllowed(saddr)) {
+    NotifyViolation(saddr);
+    return;
+  }
+
+  int new_socket = socket(saddr->sa_family, SOCK_STREAM, 0);
   if (new_socket < 0) {
     SendError(errno);
     return;
@@ -73,7 +83,8 @@ void NetworkProxyServer::ProcessConnectRequest() {
 }
 
 void NetworkProxyServer::Run() {
-  while (!fatal_error_) {
+  while (!fatal_error_ &&
+         !violation_occurred_.load(std::memory_order_relaxed)) {
     ProcessConnectRequest();
   }
   LOG(INFO)
@@ -92,4 +103,14 @@ void NetworkProxyServer::NotifySuccess() {
   }
 }
 
+void NetworkProxyServer::NotifyViolation(const struct sockaddr* saddr) {
+  sapi::StatusOr<std::string> result = AddrToString(saddr);
+  if (result.ok()) {
+    violation_msg_ = result.ValueOrDie();
+  } else {
+    violation_msg_ = std::string(result.status().message());
+  }
+  violation_occurred_.store(true, std::memory_order_release);
+  pthread_kill(monitor_thread_id_, SIGCHLD);
+}
 }  // namespace sandbox2

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/network_proxy_client.h"
+#include "sandboxed_api/sandbox2/network_proxy/client.h"
 
 #include <linux/net.h>
 #include <linux/seccomp.h>

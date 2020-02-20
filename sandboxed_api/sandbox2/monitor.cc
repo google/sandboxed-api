@@ -53,6 +53,7 @@
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/namespace.h"
+#include "sandboxed_api/sandbox2/network_proxy/server.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -140,6 +141,9 @@ Monitor::~Monitor() {
   if (log_file_) {
     std::fclose(log_file_);
   }
+  if (network_proxy_server_) {
+    network_proxy_thread_.join();
+  }
 }
 
 namespace {
@@ -197,6 +201,10 @@ void Monitor::Run() {
   // Don't trace the child: it will allow to use 'strace -f' with the whole
   // sandbox master/monitor, which ptrace_attach'es to the child.
   int clone_flags = CLONE_UNTRACED;
+
+  if (policy_->allowed_hosts_) {
+    EnableNetworkProxyServer();
+  }
 
   // Get PID of the sandboxee.
   pid_t init_pid = 0;
@@ -349,6 +357,14 @@ void Monitor::MainLoop(sigset_t* sset) {
       KillSandboxee();
     }
 
+    if (network_proxy_server_ &&
+        network_proxy_server_->violation_occurred_.load(
+            std::memory_order_acquire) &&
+        !network_violation_) {
+      network_violation_ = true;
+      KillSandboxee();
+    }
+
     // It should be a non-blocking operation (hence WNOHANG), so this function
     // returns quickly if there are no events to be processed.
     // Prioritize main pid to avoid resource starvation
@@ -401,7 +417,10 @@ void Monitor::MainLoop(sigset_t* sset) {
       VLOG(1) << "PID: " << ret << " terminated with signal: "
               << util::GetSignalName(WTERMSIG(status));
       if (ret == pid_) {
-        if (external_kill_) {
+        if (network_violation_) {
+          SetExitStatusCode(Result::VIOLATION, Result::VIOLATION_NETWORK);
+          result_.SetNetworkViolation(network_proxy_server_->violation_msg_);
+        } else if (external_kill_) {
           SetExitStatusCode(Result::EXTERNAL_KILL, 0);
         } else if (timed_out_) {
           SetExitStatusCode(Result::TIMEOUT, 0);
@@ -794,7 +813,10 @@ void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
   // 3) Regular signal/other exit cause.
   if (pid == pid_) {
     VLOG(1) << "PID: " << pid << " main special exit";
-    if (external_kill_) {
+    if (network_violation_) {
+      SetExitStatusCode(Result::VIOLATION, Result::VIOLATION_NETWORK);
+      result_.SetNetworkViolation(network_proxy_server_->violation_msg_);
+    } else if (external_kill_) {
       SetExitStatusCode(Result::EXTERNAL_KILL, 0);
     } else if (timed_out_) {
       SetExitStatusCode(Result::TIMEOUT, 0);
@@ -924,6 +946,16 @@ void Monitor::LogSyscallViolationExplanation(const Syscall& syscall) const {
                << " would be unsafe in sandbox2, so it has been blocked.";
     return;
   }
+}
+
+void Monitor::EnableNetworkProxyServer() {
+  int fd = ipc_->ReceiveFd(NetworkProxyClient::kFDName);
+
+  network_proxy_server_ = absl::make_unique<NetworkProxyServer>(
+      fd, &policy_->allowed_hosts_.value(), pthread_self());
+
+  network_proxy_thread_ = std::thread(&NetworkProxyServer::Run,
+  network_proxy_server_.get());
 }
 
 }  // namespace sandbox2

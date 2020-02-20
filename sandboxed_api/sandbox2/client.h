@@ -25,7 +25,7 @@
 
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logsink.h"
-#include "sandboxed_api/sandbox2/network_proxy_client.h"
+#include "sandboxed_api/sandbox2/network_proxy/client.h"
 
 namespace sandbox2 {
 

@@ -72,11 +72,15 @@ std::string Result::ToString() const {
           ReasonCodeEnumToString(static_cast<ReasonCodeEnum>(reason_code())));
       break;
     case sandbox2::Result::VIOLATION:
-      result = absl::StrCat("SYSCALL VIOLATION - Violating Syscall ",
-                            Syscall::GetArchDescription(GetSyscallArch()), "[",
-                            reason_code(), "/",
-                            Syscall(GetSyscallArch(), reason_code()).GetName(),
-                            "] Stack: ", GetStackTrace());
+      if (reason_code() == sandbox2::Result::VIOLATION_NETWORK) {
+        result = absl::StrCat("NETWORK VIOLATION: ", GetNetworkViolation());
+      } else {
+        result = absl::StrCat(
+            "SYSCALL VIOLATION - Violating Syscall ",
+            Syscall::GetArchDescription(GetSyscallArch()), "[", reason_code(),
+            "/", Syscall(GetSyscallArch(), reason_code()).GetName(),
+            "] Stack: ", GetStackTrace());
+      }
       break;
     case sandbox2::Result::SIGNALED:
       result = absl::StrCat("Process terminated with a SIGNAL - Signal: ",
@@ -184,6 +188,8 @@ std::string Result::ReasonCodeEnumToString(ReasonCodeEnum value) {
       return "VIOLATION_SYSCALL";
     case sandbox2::Result::VIOLATION_ARCH:
       return "VIOLATION_ARCH";
+    case sandbox2::Result::VIOLATION_NETWORK:
+      return "VIOLATION_NETWORK";
   }
   return absl::StrCat("UNKNOWN: ", value);
 }

@@ -14,9 +14,9 @@
 
 # The 'network proxy' example demonstrates how to use network proxy server.
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
+licenses(["notice"])
 
 # Executor
 cc_binary(
@@ -27,6 +27,7 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/network_proxy:filtering",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:runfiles",
@@ -42,7 +43,7 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:network_proxy_client",
+        "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/util:fileops",
         "@com_google_absl//absl/strings:str_format",
     ],

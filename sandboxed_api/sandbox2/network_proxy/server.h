@@ -18,21 +18,29 @@
 #include <memory>
 
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 
 namespace sandbox2 {
 
 // This is a proxy server that spawns connected sockets on requests.
 // Then it sends the file descriptor to the requestor. It is used to get around
-// limitations created by network namespaces.
+// limitations created by network namespaces. It also contains a set of rules
+// of allowed hosts.
 class NetworkProxyServer {
  public:
-  explicit NetworkProxyServer(int fd);
+  NetworkProxyServer(int fd, AllowedHosts* allowed_hosts,
+                     pthread_t monitor_thread_id);
 
   NetworkProxyServer(const NetworkProxyServer&) = delete;
   NetworkProxyServer& operator=(const NetworkProxyServer&) = delete;
 
   // Starts handling incoming connection requests.
   void Run();
+
+  // When the network rules were violated violation_occurred_ is set and
+  // violation_msg_ contains details about the host.
+  std::atomic<bool> violation_occurred_;
+  std::string violation_msg_;
 
  private:
   // Notifies the network proxy client about the error and sends its code.
@@ -44,8 +52,15 @@ class NetworkProxyServer {
   // Serves connection requests from the network proxy client.
   void ProcessConnectRequest();
 
+  // Throw a violation when the network rules are subverted.
+  void NotifyViolation(const struct sockaddr* saddr);
+
   std::unique_ptr<Comms> comms_;
   bool fatal_error_;
+  pthread_t monitor_thread_id_;
+
+  // Contains list of allowed to connect hosts.
+  AllowedHosts* allowed_hosts_;
 };
 
 }  // namespace sandbox2
