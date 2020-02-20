@@ -24,7 +24,7 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/monitor.h"
 #include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/util/canonical_errors.h"
+#include "util/task/canonical_errors.h"
 
 namespace sandbox2 {
 

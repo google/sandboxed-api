@@ -25,7 +25,7 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/canonical_errors.h"
+#include "util/task/canonical_errors.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 

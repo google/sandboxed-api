@@ -39,7 +39,7 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/runfiles.h"
-#include "sandboxed_api/util/canonical_errors.h"
+#include "util/task/canonical_errors.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace file = ::sandbox2::file;
