@@ -233,7 +233,7 @@ class Type(object):
     return decl
 
   def get_related_types(self, result=None, skip_self=False):
-    # type: (Set[Type], bool) -> Set[Type]
+    # type: (Optional[Set[Type]], bool) -> Set[Type]
     """Returns all types related to this one eg. typedefs, nested structs."""
     if result is None:
       result = set()
@@ -385,7 +385,7 @@ class ArgumentType(Type):
   """
 
   def __init__(self, function, pos, arg_type, name=None):
-    # type: (Function, int, cindex.Type, Text) -> None
+    # type: (Function, int, cindex.Type, Optional[Text]) -> None
     super(ArgumentType, self).__init__(function.translation_unit(), arg_type)
     self._function = function
 
@@ -527,7 +527,7 @@ class Function(object):
     return prefix + self.get_absolute_path().split('/')[-1]
 
   def get_related_types(self, processed=None):
-    # type: (Set[Type]) -> Set[Type]
+    # type: (Optional[Set[Type]]) -> Set[Type]
     result = self.result.get_related_types(processed)
     for a in self.argument_types:
       result.update(a.get_related_types(processed))
@@ -630,7 +630,7 @@ class Analyzer(object):
                            test_file_existence=True,
                            unsaved_files=None
                           ):
-    # type: (Text, List[Text], bool, Tuple[Text, Union[Text, IO[Text]]]) -> _TranslationUnit
+    # type: (Text, Optional[List[Text]], bool, Optional[Tuple[Text, Union[Text, IO[Text]]]]) -> _TranslationUnit
     """Returns Analysis object for given path."""
     compile_flags = compile_flags or []
     if test_file_existence and not os.path.isfile(path):
@@ -678,9 +678,10 @@ class Generator(object):
     self.functions = None
     _init_libclang()
 
+  # pylint: disable=line-too-long
   def generate(self, name, function_names, namespace=None, output_file=None,
                embed_dir=None, embed_name=None):
-    # type: (Text, List[Text], Text, Text, Text, Text) -> Text
+    # type: (Text, List[Text], Optional[Text], Optional[Text], Optional[Text], Optional[Text]) -> Text
     """Generates structures, functions and typedefs.
 
     Args:
@@ -714,7 +715,7 @@ class Generator(object):
     return self.format_template(**api)
 
   def _get_functions(self, func_names=None):
-    # type: (List[Text]) -> List[Function]
+    # type: (Optional[List[Text]]) -> List[Function]
     """Gets Function objects that will be used to generate interface."""
     if self.functions is not None:
       return self.functions
@@ -733,7 +734,7 @@ class Generator(object):
     return self.functions
 
   def _get_related_types(self, func_names=None):
-    # type: (List[Text]) -> List[Type]
+    # type: (Optional[List[Text]]) -> List[Type]
     """Gets type definitions related to chosen functions.
 
     Types related to one function will land in the same translation unit,
