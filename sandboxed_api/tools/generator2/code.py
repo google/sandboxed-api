@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Module related to code analysis and generation."""
 
 from __future__ import absolute_import
@@ -23,14 +22,15 @@ import os
 from clang import cindex
 
 # pylint: disable=unused-import
-from typing import (Text, List, Optional, Set, Dict, Callable, IO,
-                    Generator as Gen, Tuple, Union, Sequence)
+from typing import (Text, List, Optional, Set, Dict, Callable, IO, Generator as
+                    Gen, Tuple, Union, Sequence)
 # pylint: enable=unused-import
 
-_PARSE_OPTIONS = (cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES |
-                  cindex.TranslationUnit.PARSE_INCOMPLETE |
-                  # for include directives
-                  cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
+_PARSE_OPTIONS = (
+    cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
+    | cindex.TranslationUnit.PARSE_INCOMPLETE |
+    # for include directives
+    cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
 
 
 def _init_libclang():
@@ -79,6 +79,7 @@ def _stringify_tokens(tokens, separator='\n'):
     previous = line
 
   return separator.join(str(l) for l in lines)
+
 
 TYPE_MAPPING = {
     cindex.TypeKind.VOID: '::sapi::v::Void',
@@ -331,8 +332,10 @@ class Type(object):
     """Returns string representation of the Type."""
     # (szwl): as simple as possible, keeps macros in separate lines not to
     # break things; this will go through clang format nevertheless
-    tokens = [x for x in self._get_declaration().get_tokens()
-              if x.kind is not cindex.TokenKind.COMMENT]
+    tokens = [
+        x for x in self._get_declaration().get_tokens()
+        if x.kind is not cindex.TokenKind.COMMENT
+    ]
 
     return _stringify_tokens(tokens)
 
@@ -368,7 +371,7 @@ class OutputLine(object):
 
   def __str__(self):
     # type: () -> Text
-    tabs = ('\t'*self.tab) if not self.define else ''
+    tabs = ('\t' * self.tab) if not self.define else ''
     return tabs + ''.join(t for t in self.spellings)
 
 
@@ -426,8 +429,9 @@ class ArgumentType(Type):
       type_ = type_.get_canonical()
     if type_.kind == cindex.TypeKind.ENUM:
       return '::sapi::v::IntBase<{}>'.format(self._clang_type.spelling)
-    if type_.kind in [cindex.TypeKind.CONSTANTARRAY,
-                      cindex.TypeKind.INCOMPLETEARRAY]:
+    if type_.kind in [
+        cindex.TypeKind.CONSTANTARRAY, cindex.TypeKind.INCOMPLETEARRAY
+    ]:
       return '::sapi::v::Reg<{}>'.format(self._clang_type.spelling)
 
     if type_.kind == cindex.TypeKind.LVALUEREFERENCE:
@@ -489,12 +493,13 @@ class Function(object):
     self.name = cursor.spelling  # type: Text
     self.mangled_name = cursor.mangled_name  # type: Text
     self.result = ReturnType(self, cursor.result_type)
-    self.original_definition = '{} {}'.format(cursor.result_type.spelling,
-                                              self.cursor.displayname)  # type: Text
+    self.original_definition = '{} {}'.format(
+        cursor.result_type.spelling, self.cursor.displayname)  # type: Text
 
     types = self.cursor.get_arguments()
-    self.argument_types = [ArgumentType(self, i, t.type, t.spelling) for i, t
-                           in enumerate(types)]
+    self.argument_types = [
+        ArgumentType(self, i, t.type, t.spelling) for i, t in enumerate(types)
+    ]
 
   def translation_unit(self):
     # type: () -> _TranslationUnit
@@ -550,8 +555,10 @@ class Function(object):
 class _TranslationUnit(object):
   """Class wrapping clang's _TranslationUnit. Provides extra utilities."""
 
-  def __init__(self, tu):
-    # type: (cindex.TranslatioUnit) -> None
+  def __init__(self, path, tu, limit_scan_depth=False):
+    # type: (Text, cindex.TranslationUnit, bool) -> None
+    self.path = path
+    self.limit_scan_depth = limit_scan_depth
     self._tu = tu
     self._processed = False
     self.forward_decls = dict()
@@ -584,10 +591,13 @@ class _TranslationUnit(object):
         if (cursor.kind == cindex.CursorKind.STRUCT_DECL and
             not cursor.is_definition()):
           self.forward_decls[Type(self, cursor.type)] = cursor
-
         if (cursor.kind == cindex.CursorKind.FUNCTION_DECL and
             cursor.linkage != cindex.LinkageKind.INTERNAL):
-          self.functions.add(Function(self, cursor))
+          if self.limit_scan_depth:
+            if (cursor.location and cursor.location.file.name == self.path):
+              self.functions.add(Function(self, cursor))
+          else:
+            self.functions.add(Function(self, cursor))
 
   def get_functions(self):
     # type: () -> Set[Function]
@@ -617,20 +627,26 @@ class Analyzer(object):
   """Class responsible for analysis."""
 
   @staticmethod
-  def process_files(input_paths, compile_flags):
-    # type: (Text, List[Text]) -> List[_TranslationUnit]
+  def process_files(input_paths, compile_flags, limit_scan_depth=False):
+    # type: (Text, List[Text], bool) -> List[_TranslationUnit]
+    """Processes files with libclang and returns TranslationUnit objects."""
     _init_libclang()
-    return [Analyzer._analyze_file_for_tu(path, compile_flags=compile_flags)
-            for path in input_paths]
+
+    tus = []
+    for path in input_paths:
+      tu = Analyzer._analyze_file_for_tu(
+          path, compile_flags=compile_flags, limit_scan_depth=limit_scan_depth)
+      tus.append(tu)
+    return tus
 
   # pylint: disable=line-too-long
   @staticmethod
   def _analyze_file_for_tu(path,
                            compile_flags=None,
                            test_file_existence=True,
-                           unsaved_files=None
-                          ):
-    # type: (Text, Optional[List[Text]], bool, Optional[Tuple[Text, Union[Text, IO[Text]]]]) -> _TranslationUnit
+                           unsaved_files=None,
+                           limit_scan_depth=False):
+    # type: (Text, Optional[List[Text]], bool, Optional[Tuple[Text, Union[Text, IO[Text]]]], bool) -> _TranslationUnit
     """Returns Analysis object for given path."""
     compile_flags = compile_flags or []
     if test_file_existence and not os.path.isfile(path):
@@ -645,9 +661,14 @@ class Analyzer(object):
     args = [lang]
     args += compile_flags
     args.append('-I.')
-    return _TranslationUnit(index.parse(path, args=args,
-                                        unsaved_files=unsaved_files,
-                                        options=_PARSE_OPTIONS))
+    return _TranslationUnit(
+        path,
+        index.parse(
+            path,
+            args=args,
+            unsaved_files=unsaved_files,
+            options=_PARSE_OPTIONS),
+        limit_scan_depth=limit_scan_depth)
 
 
 class Generator(object):
@@ -656,8 +677,7 @@ class Generator(object):
   AUTO_GENERATED = ('// AUTO-GENERATED by the Sandboxed API generator.\n'
                     '// Edits will be discarded when regenerating this file.\n')
 
-  GUARD_START = ('#ifndef {0}\n'
-                 '#define {0}')
+  GUARD_START = ('#ifndef {0}\n' '#define {0}')
   GUARD_END = '#endif  // {}'
   EMBED_INCLUDE = '#include \"{}/{}_embed.h"'
   EMBED_CLASS = ('class {0}Sandbox : public ::sapi::Sandbox {{\n'
@@ -671,16 +691,21 @@ class Generator(object):
 
     Args:
       translation_units: list of translation_units for analyzed files,
-      facultative. If not given, then one is computed for each element of
-      input_paths
+        facultative. If not given, then one is computed for each element of
+        input_paths
     """
     self.translation_units = translation_units
     self.functions = None
     _init_libclang()
 
-  # pylint: disable=line-too-long
-  def generate(self, name, function_names, namespace=None, output_file=None,
-               embed_dir=None, embed_name=None):
+  def generate(self,
+               name,
+               function_names,
+               namespace=None,
+               output_file=None,
+               embed_dir=None,
+               embed_name=None):
+    # pylint: disable=line-too-long
     # type: (Text, List[Text], Optional[Text], Optional[Text], Optional[Text], Optional[Text]) -> Text
     """Generates structures, functions and typedefs.
 
@@ -689,11 +714,11 @@ class Generator(object):
       function_names: list of function names to export to the interface
       namespace: namespace of the interface
       output_file: path to the output file, used to generate header guards;
-      defaults to None that does not generate the guard
-      #include directives; defaults to None that causes to emit the whole file
-      path
+        defaults to None that does not generate the guard #include directives;
+        defaults to None that causes to emit the whole file path
       embed_dir: path to directory with embed includes
       embed_name: name of the embed object
+
     Returns:
       generated interface as a string
     """
@@ -722,8 +747,10 @@ class Generator(object):
     self.functions = []
     # TODO(szwl): for d in translation_unit.diagnostics:, handle that
     for translation_unit in self.translation_units:
-      self.functions += [f for f in translation_unit.get_functions()
-                         if not func_names or f.name in func_names]
+      self.functions += [
+          f for f in translation_unit.get_functions()
+          if not func_names or f.name in func_names
+      ]
     # allow only nonmangled functions - C++ overloads are not handled in
     # code generation
     self.functions = [f for f in self.functions if not f.is_mangled()]
@@ -744,7 +771,7 @@ class Generator(object):
 
     Args:
       func_names: list of function names to take into consideration, empty means
-      all functions.
+        all functions.
 
     Returns:
       list of types in correct (ready to render) order
@@ -769,6 +796,7 @@ class Generator(object):
     Returns:
       list of #define string representations
     """
+
     def make_sort_condition(translation_unit):
       return lambda cursor: translation_unit.order[cursor.hash]
 
@@ -781,8 +809,8 @@ class Generator(object):
           define = tu.defines[name]
           tmp_result.append(define)
       for define in sorted(tmp_result, key=sort_condition):
-        result.append('#define ' + _stringify_tokens(define.get_tokens(),
-                                                     separator=' \\\n'))
+        result.append('#define ' +
+                      _stringify_tokens(define.get_tokens(), separator=' \\\n'))
     return result
 
   def _get_forward_decls(self, types):

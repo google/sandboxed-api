@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for code."""
 
 from __future__ import absolute_import
@@ -22,7 +21,6 @@ from absl.testing import parameterized
 from clang import cindex
 import code
 import code_test_util
-
 
 CODE = """
 typedef int(fun*)(int,int);
@@ -35,14 +33,15 @@ struct a {
 """
 
 
-def analyze_string(content, path='tmp.cc'):
+def analyze_string(content, path='tmp.cc', limit_scan_depth=False):
   """Returns Analysis object for in memory content."""
-  return analyze_strings(path, [(path, content)])
+  return analyze_strings(path, [(path, content)], limit_scan_depth)
 
 
-def analyze_strings(path, unsaved_files):
+def analyze_strings(path, unsaved_files, limit_scan_depth=False):
   """Returns Analysis object for in memory content."""
-  return code.Analyzer._analyze_file_for_tu(path, None, False, unsaved_files)
+  return code.Analyzer._analyze_file_for_tu(path, None, False, unsaved_files,
+                                            limit_scan_depth)
 
 
 class CodeAnalysisTest(parameterized.TestCase):
@@ -84,12 +83,16 @@ class CodeAnalysisTest(parameterized.TestCase):
 
   def testExternC(self):
     translation_unit = analyze_string('extern "C" int function(char* a);')
-    cursor_kinds = [x.kind for x in translation_unit._walk_preorder()
-                    if x.kind != cindex.CursorKind.MACRO_DEFINITION]
-    self.assertListEqual(cursor_kinds, [cindex.CursorKind.TRANSLATION_UNIT,
-                                        cindex.CursorKind.UNEXPOSED_DECL,
-                                        cindex.CursorKind.FUNCTION_DECL,
-                                        cindex.CursorKind.PARM_DECL])
+    cursor_kinds = [
+        x.kind
+        for x in translation_unit._walk_preorder()
+        if x.kind != cindex.CursorKind.MACRO_DEFINITION
+    ]
+    self.assertListEqual(cursor_kinds, [
+        cindex.CursorKind.TRANSLATION_UNIT, cindex.CursorKind.UNEXPOSED_DECL,
+        cindex.CursorKind.FUNCTION_DECL, cindex.CursorKind.PARM_DECL
+    ])
+
   @parameterized.named_parameters(
       ('1:', '/tmp/test.h', 'tmp', 'tmp/test.h'),
       ('2:', '/a/b/c/d/tmp/test.h', 'c/d', 'c/d/tmp/test.h'),
@@ -97,7 +100,6 @@ class CodeAnalysisTest(parameterized.TestCase):
       ('4:', '/tmp/test.h', '', '/tmp/test.h'),
       ('5:', '/tmp/test.h', 'xxx', 'xxx/test.h'),
   )
-
   def testGetIncludes(self, path, prefix, expected):
     function_body = 'extern "C" int function(bool a1) { return a1 ? 1 : 2; }'
     translation_unit = analyze_string(function_body)
@@ -120,8 +122,10 @@ class CodeAnalysisTest(parameterized.TestCase):
         void types_6(char* a0);
       }
     """
-    functions = ['function_a', 'types_1', 'types_2', 'types_3', 'types_4',
-                 'types_5', 'types_6']
+    functions = [
+        'function_a', 'types_1', 'types_2', 'types_3', 'types_4', 'types_5',
+        'types_6'
+    ]
     generator = code.Generator([analyze_string(body)])
     result = generator.generate('Test', functions, 'sapi::Tests', None, None)
     self.assertMultiLineEqual(code_test_util.CODE_GOLD, result)
@@ -132,7 +136,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" int function(struct x a) { return a.a; }
     """
     generator = code.Generator([analyze_string(body)])
-    with self.assertRaisesRegexp(ValueError, r'Elaborate.*mapped.*'):
+    with self.assertRaisesRegex(ValueError, r'Elaborate.*mapped.*'):
       generator.generate('Test', ['function'], 'sapi::Tests', None, None)
 
   def testElaboratedArgument2(self):
@@ -141,7 +145,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" int function(x a) { return a.a; }
     """
     generator = code.Generator([analyze_string(body)])
-    with self.assertRaisesRegexp(ValueError, r'Elaborate.*mapped.*'):
+    with self.assertRaisesRegex(ValueError, r'Elaborate.*mapped.*'):
       generator.generate('Test', ['function'], 'sapi::Tests', None, None)
 
   def testGetMappedType(self):
@@ -170,8 +174,7 @@ class CodeAnalysisTest(parameterized.TestCase):
        'extern "C" int function(bool arg_bool, char* arg_ptr);',
        ['arg_bool', 'arg_ptr']),
       ('function without return value and no arguments',
-       'extern "C" void function();',
-       []),
+       'extern "C" void function();', []),
   )
   def testArgumentNames(self, body, names):
     generator = code.Generator([analyze_string(body)])
@@ -436,19 +439,19 @@ class CodeAnalysisTest(parameterized.TestCase):
     types = args[0].get_related_types()
     names = [t._clang_type.spelling for t in types]
     self.assertLen(types, 4)
-    self.assertSameElements(names, ['struct_6p', 'struct_6',
-                                    'struct struct_6_def', 'function_p3'])
+    self.assertSameElements(
+        names, ['struct_6p', 'struct_6', 'struct struct_6_def', 'function_p3'])
 
     self.assertLen(generator.translation_units, 1)
     self.assertLen(generator.translation_units[0].forward_decls, 1)
 
-    t = next(x for x in types
-             if x._clang_type.spelling == 'struct struct_6_def')
+    t = next(
+        x for x in types if x._clang_type.spelling == 'struct struct_6_def')
     self.assertIn(t, generator.translation_units[0].forward_decls)
 
     names = [t._clang_type.spelling for t in generator._get_related_types()]
-    self.assertEqual(names, ['struct_6', 'struct_6p',
-                             'function_p3', 'struct struct_6_def'])
+    self.assertEqual(
+        names, ['struct_6', 'struct_6p', 'function_p3', 'struct struct_6_def'])
 
     # Extra check for generation, in case rendering throws error for this test.
     forward_decls = generator._get_forward_decls(generator._get_related_types())
@@ -565,8 +568,8 @@ class CodeAnalysisTest(parameterized.TestCase):
     typedef unsigned char uchar;"""
     file3_code = 'typedef unsigned long ulong;'
     file4_code = 'typedef char chr;'
-    files = [('f1.h', file1_code), ('/f2.h', file2_code),
-             ('/f3.h', file3_code), ('/f4.h', file4_code)]
+    files = [('f1.h', file1_code), ('/f2.h', file2_code), ('/f3.h', file3_code),
+             ('/f4.h', file4_code)]
     generator = code.Generator([analyze_strings('f1.h', files)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
@@ -575,6 +578,25 @@ class CodeAnalysisTest(parameterized.TestCase):
     getattr(self, func)(args[a1], args[a2])
     # Extra check for generation, in case rendering throws error for this test.
     generator.generate('Test', [], 'sapi::Tests', None, None)
+
+  def testFilterFunctionsFromInputFilesOnly(self):
+    file1_code = """
+      #include "/f2.h"
+
+      extern "C" int function1();
+    """
+    file2_code = """
+      extern "C" int function2();
+    """
+
+    files = [('f1.h', file1_code), ('/f2.h', file2_code)]
+    generator = code.Generator([analyze_strings('f1.h', files)])
+    functions = generator._get_functions()
+    self.assertLen(functions, 2)
+
+    generator = code.Generator([analyze_strings('f1.h', files, True)])
+    functions = generator._get_functions()
+    self.assertLen(functions, 1)
 
   def testTypeToString(self):
     body = """

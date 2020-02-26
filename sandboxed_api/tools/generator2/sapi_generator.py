@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """SAPI interface header generator.
 
 Parses headers to extract type information from functions and generate a SAPI
@@ -34,6 +33,9 @@ flags.DEFINE_list('sapi_functions', [], 'function list to analyze')
 flags.DEFINE_list('sapi_in', None, 'input files to analyze')
 flags.DEFINE_string('sapi_embed_dir', None, 'directory with embed includes')
 flags.DEFINE_string('sapi_embed_name', None, 'name of the embed object')
+flags.DEFINE_bool(
+    'sapi_limit_scan_depth', False,
+    'scan only functions from top level file in compilation unit')
 
 
 def extract_includes(path, array):
@@ -52,20 +54,19 @@ def main(c_flags):
   c_flags.pop(0)
   logging.debug(FLAGS.sapi_functions)
   extract_includes(FLAGS.sapi_isystem, c_flags)
-  tus = code.Analyzer.process_files(FLAGS.sapi_in, c_flags)
+  tus = code.Analyzer.process_files(FLAGS.sapi_in, c_flags,
+                                    FLAGS.sapi_limit_scan_depth)
   generator = code.Generator(tus)
-  result = generator.generate(FLAGS.sapi_name,
-                              FLAGS.sapi_functions,
-                              FLAGS.sapi_ns,
-                              FLAGS.sapi_out,
-                              FLAGS.sapi_embed_dir,
-                              FLAGS.sapi_embed_name)
+  result = generator.generate(FLAGS.sapi_name, FLAGS.sapi_functions,
+                              FLAGS.sapi_ns, FLAGS.sapi_out,
+                              FLAGS.sapi_embed_dir, FLAGS.sapi_embed_name)
 
   if FLAGS.sapi_out:
     with open(FLAGS.sapi_out, 'w') as out_file:
       out_file.write(result)
   else:
     sys.stdout.write(result)
+
 
 if __name__ == '__main__':
   flags.mark_flags_as_required(['sapi_name', 'sapi_in'])
