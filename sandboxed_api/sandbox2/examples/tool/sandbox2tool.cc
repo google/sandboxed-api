@@ -44,6 +44,8 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
+using std::string;
+
 ABSL_FLAG(bool, sandbox2tool_keep_env, false,
           "Keep current environment variables");
 ABSL_FLAG(bool, sandbox2tool_redirect_fd1, false,

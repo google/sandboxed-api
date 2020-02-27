@@ -63,6 +63,8 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/raw_logging.h"
 
+using std::string;
+
 ABSL_FLAG(bool, sandbox2_report_on_sandboxee_signal, true,
           "Report sandbox2 sandboxee deaths caused by signals");
 

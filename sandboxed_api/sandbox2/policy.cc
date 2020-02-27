@@ -35,6 +35,8 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
+using std::string;
+
 ABSL_FLAG(bool, sandbox2_danger_danger_permit_all, false,
           "Allow all syscalls, useful for testing");
 ABSL_FLAG(string, sandbox2_danger_danger_permit_all_and_log, "",

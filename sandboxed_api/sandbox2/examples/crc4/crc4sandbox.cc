@@ -41,6 +41,8 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/runfiles.h"
 
+using std::string;
+
 ABSL_FLAG(string, input, "", "Input to calculate CRC4 of.");
 ABSL_FLAG(bool, call_syscall_not_allowed, false,
           "Have sandboxee call clone (violation).");

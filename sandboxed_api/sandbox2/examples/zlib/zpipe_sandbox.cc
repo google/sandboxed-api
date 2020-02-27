@@ -40,6 +40,8 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/runfiles.h"
 
+using std::string;
+
 ABSL_FLAG(string, input, "", "Input file");
 ABSL_FLAG(string, output, "", "Output file");
 ABSL_FLAG(bool, decompress, false, "Decompress instead of compress.");
