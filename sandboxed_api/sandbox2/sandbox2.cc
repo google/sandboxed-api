@@ -41,7 +41,7 @@ sapi::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
   auto done =
       monitor_->done_notification_.WaitForNotificationWithTimeout(timeout);
   if (!done) {
-    return sapi::DeadlineExceededError("Sandbox did not finish within timeout");
+    return absl::DeadlineExceededError("Sandbox did not finish within timeout");
   }
   monitor_thread_->join();
 

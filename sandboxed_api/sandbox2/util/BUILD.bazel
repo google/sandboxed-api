@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
 package(default_visibility = [
     "//sandboxed_api:__subpackages__",
     "//security/gfence:__subpackages__",
 ])
 
 licenses(["notice"])  # Apache 2.0
-
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 cc_library(
     name = "bpf_helper",
@@ -37,7 +37,7 @@ cc_library(
     hdrs = ["file_helpers.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -141,6 +141,7 @@ cc_library(
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:endian",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -172,8 +173,8 @@ cc_library(
     deps = [
         ":fileops",
         ":strerror",
-        "//sandboxed_api/util:status",
         "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -198,8 +199,8 @@ cc_library(
     hdrs = ["maps_parser.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/util:status",
         "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )

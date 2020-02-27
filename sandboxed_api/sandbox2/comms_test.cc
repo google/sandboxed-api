@@ -302,13 +302,13 @@ TEST_F(CommsTest, TestSendRecvProto) {
 TEST_F(CommsTest, TestSendRecvStatusOK) {
   auto a = [](Comms* comms) {
     // Receive a good status.
-    sapi::Status status;
+    absl::Status status;
     ASSERT_THAT(comms->RecvStatus(&status), IsTrue());
     EXPECT_THAT(status, IsOk());
   };
   auto b = [](Comms* comms) {
     // Send a good status.
-    ASSERT_THAT(comms->SendStatus(sapi::OkStatus()), IsTrue());
+    ASSERT_THAT(comms->SendStatus(absl::OkStatus()), IsTrue());
   };
   HandleCommunication(sockname_, a, b);
 }
@@ -316,15 +316,15 @@ TEST_F(CommsTest, TestSendRecvStatusOK) {
 TEST_F(CommsTest, TestSendRecvStatusFailing) {
   auto a = [](Comms* comms) {
     // Receive a failing status.
-    sapi::Status status;
+    absl::Status status;
     ASSERT_THAT(comms->RecvStatus(&status), IsTrue());
     EXPECT_THAT(status, Not(IsOk()));
-    EXPECT_THAT(status, StatusIs(sapi::StatusCode::kInternal, "something odd"));
+    EXPECT_THAT(status, StatusIs(absl::StatusCode::kInternal, "something odd"));
   };
   auto b = [](Comms* comms) {
     // Send a failing status.
     ASSERT_THAT(comms->SendStatus(
-                    sapi::Status{sapi::StatusCode::kInternal, "something odd"}),
+                    absl::Status{absl::StatusCode::kInternal, "something odd"}),
                 IsTrue());
   };
   HandleCommunication(sockname_, a, b);

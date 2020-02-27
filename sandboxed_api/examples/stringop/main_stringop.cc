@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/examples/stringop/lib/sandbox.h"
 #include "sandboxed_api/examples/stringop/lib/stringop-sapi.sapi.h"
@@ -28,7 +29,6 @@
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/vars.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 
 using ::sapi::IsOk;
@@ -42,7 +42,7 @@ namespace {
 // Tests using a simple transaction (and function pointers):
 TEST(StringopTest, ProtobufStringDuplication) {
   sapi::BasicTransaction st(absl::make_unique<StringopSapiSandbox>());
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
+  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     StringopApi api(sandbox);
     stringop::StringDuplication proto;
     proto.set_input("Hello");
@@ -56,7 +56,7 @@ TEST(StringopTest, ProtobufStringDuplication) {
     LOG(INFO) << "Result PB: " << pb_result.DebugString();
     TRANSACTION_FAIL_IF_NOT(pb_result.output() == "HelloHello",
                             "Incorrect output");
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }),
               IsOk());
 }

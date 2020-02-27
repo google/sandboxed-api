@@ -24,29 +24,29 @@
 
 namespace sapi::v {
 
-sapi::Status LenVal::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
+absl::Status LenVal::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
   SAPI_RETURN_IF_ERROR(struct_.Allocate(rpc_channel, automatic_free));
   SAPI_RETURN_IF_ERROR(array_.Allocate(rpc_channel, true));
 
   // Set data pointer.
   struct_.mutable_data()->data = array_.GetRemote();
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status LenVal::Free(RPCChannel* rpc_channel) {
+absl::Status LenVal::Free(RPCChannel* rpc_channel) {
   SAPI_RETURN_IF_ERROR(array_.Free(rpc_channel));
   SAPI_RETURN_IF_ERROR(struct_.Free(rpc_channel));
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status LenVal::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
+absl::Status LenVal::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   // Sync the structure and the underlying array.
   SAPI_RETURN_IF_ERROR(struct_.TransferToSandboxee(rpc_channel, pid));
   SAPI_RETURN_IF_ERROR(array_.TransferToSandboxee(rpc_channel, pid));
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status LenVal::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
+absl::Status LenVal::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   // Sync the structure back.
   SAPI_RETURN_IF_ERROR(struct_.TransferFromSandboxee(rpc_channel, pid));
 
@@ -60,12 +60,12 @@ sapi::Status LenVal::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   return array_.TransferFromSandboxee(rpc_channel, pid);
 }
 
-sapi::Status LenVal::ResizeData(RPCChannel* rpc_channel, size_t size) {
+absl::Status LenVal::ResizeData(RPCChannel* rpc_channel, size_t size) {
   SAPI_RETURN_IF_ERROR(array_.Resize(rpc_channel, size));
   auto* struct_data = struct_.mutable_data();
   struct_data->data = array_.GetRemote();
   struct_data->size = size;
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 }  // namespace sapi::v

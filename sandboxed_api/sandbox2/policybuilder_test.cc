@@ -35,7 +35,7 @@
 #include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include "sandboxed_api/util/status.h"
+#include "absl/status/status.h"
 
 using ::testing::AllOf;
 using ::testing::AnyOf;
@@ -143,7 +143,7 @@ TEST_F(PolicyBuilderTest, TestValidateAbsolutePath) {
            "/a/bAAAAAAAAAAAAAAAAAAAAAA/c/d/",
        }) {
     auto path_or = PolicyBuilderPeer::ValidateAbsolutePath(bad_path);
-    EXPECT_THAT(path_or.status(), StatusIs(sapi::StatusCode::kInvalidArgument));
+    EXPECT_THAT(path_or.status(), StatusIs(absl::StatusCode::kInvalidArgument));
   }
 
   for (auto const& good_path :

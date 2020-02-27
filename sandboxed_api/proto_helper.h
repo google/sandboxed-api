@@ -21,8 +21,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "sandboxed_api/proto_arg.pb.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/statusor.h"
 
 namespace sapi {
@@ -40,7 +40,7 @@ sapi::StatusOr<std::vector<uint8_t>> SerializeProto(const T& proto) {
   std::vector<uint8_t> serialized_proto(proto_arg.ByteSizeLong());
   if (!proto_arg.SerializeToArray(serialized_proto.data(),
                                   serialized_proto.size())) {
-    return sapi::InternalError("Unable to serialize proto to array");
+    return absl::InternalError("Unable to serialize proto to array");
   }
   return serialized_proto;
 }
@@ -51,13 +51,13 @@ sapi::StatusOr<T> DeserializeProto(const char* data, size_t len) {
                 "Template argument must be a proto message");
   ProtoArg envelope;
   if (!envelope.ParseFromArray(data, len)) {
-    return sapi::InternalError("Unable to parse proto from array");
+    return absl::InternalError("Unable to parse proto from array");
   }
 
   auto pb_data = envelope.protobuf_data();
   T result;
   if (!result.ParseFromArray(pb_data.data(), pb_data.size())) {
-    return sapi::InternalError("Unable to parse proto from envelope data");
+    return absl::InternalError("Unable to parse proto from envelope data");
   }
   return result;
 }

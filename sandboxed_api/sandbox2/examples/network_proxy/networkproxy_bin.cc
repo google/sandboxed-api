@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
   // Enable sandboxing from here.
   sandbox2_client.SandboxMeHere();
 
-  sapi::Status status = sandbox2_client.InstallNetworkProxyHandler();
+  absl::Status status = sandbox2_client.InstallNetworkProxyHandler();
   if (!status.ok()) {
     LOG(ERROR) << "InstallNetworkProxyHandler() failed: " << status.message();
     return 1;

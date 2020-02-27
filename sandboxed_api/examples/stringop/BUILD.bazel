@@ -14,9 +14,9 @@
 
 # Description: Example using dynamic length structures for Sandboxed API
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
+licenses(["notice"])
 
 cc_test(
     name = "main_stringop",
@@ -32,6 +32,7 @@ cc_test(
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],

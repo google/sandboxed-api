@@ -32,7 +32,7 @@ using ::testing::Not;
 namespace sapi {
 namespace {
 
-constexpr auto kErrorCode = StatusCode::kInvalidArgument;
+constexpr auto kErrorCode = absl::StatusCode::kInvalidArgument;
 constexpr char kErrorMessage[] = "Invalid argument";
 
 const int kIntElement = 47;
@@ -140,17 +140,17 @@ TYPED_TEST_SUITE(StatusOrTest, TestTypes);
 TYPED_TEST(StatusOrTest, ConstructorDefault) {
   StatusOr<typename TypeParam::value_type> statusor;
   EXPECT_THAT(statusor.ok(), IsFalse());
-  EXPECT_THAT(statusor.status().code(), Eq(StatusCode::kUnknown));
+  EXPECT_THAT(statusor.status().code(), Eq(absl::StatusCode::kUnknown));
 }
 
 // Verify that StatusOr can be constructed from a Status object.
 TYPED_TEST(StatusOrTest, ConstructorStatus) {
-  StatusOr<typename TypeParam::value_type> statusor{
-      Status{kErrorCode, kErrorMessage}};
+  StatusOr<typename TypeParam::value_type> statusor(
+      absl::Status(kErrorCode, kErrorMessage));
 
   EXPECT_THAT(statusor.ok(), IsFalse());
   EXPECT_THAT(statusor.status().ok(), IsFalse());
-  EXPECT_THAT(statusor.status(), Eq(Status(kErrorCode, kErrorMessage)));
+  EXPECT_THAT(statusor.status(), Eq(absl::Status(kErrorCode, kErrorMessage)));
 }
 
 // Verify that StatusOr can be constructed from an object of its element type.
@@ -181,8 +181,8 @@ TYPED_TEST(StatusOrTest, ConstructorElementRValue) {
 // status.
 TYPED_TEST(StatusOrTest, CopyConstructorNonOkStatus) {
   StatusOr<typename TypeParam::value_type> statusor1 =
-      Status{kErrorCode, kErrorMessage};
-  StatusOr<typename TypeParam::value_type> statusor2{statusor1};
+      absl::Status(kErrorCode, kErrorMessage);
+  StatusOr<typename TypeParam::value_type> statusor2(statusor1);
 
   EXPECT_THAT(statusor1.ok(), Eq(statusor2.ok()));
   EXPECT_THAT(statusor1.status(), Eq(statusor2.status()));
@@ -203,7 +203,7 @@ TYPED_TEST(StatusOrTest, CopyConstructorOkStatus) {
 // expected.
 TYPED_TEST(StatusOrTest, CopyAssignmentNonOkStatus) {
   StatusOr<typename TypeParam::value_type> statusor1{
-      Status(kErrorCode, kErrorMessage)};
+      absl::Status(kErrorCode, kErrorMessage)};
   StatusOr<typename TypeParam::value_type> statusor2{TypeParam()()};
 
   // Invoke the copy-assignment operator.
@@ -217,7 +217,7 @@ TYPED_TEST(StatusOrTest, CopyAssignmentNonOkStatus) {
 TYPED_TEST(StatusOrTest, CopyAssignmentOkStatus) {
   StatusOr<typename TypeParam::value_type> statusor1{TypeParam()()};
   StatusOr<typename TypeParam::value_type> statusor2{
-      Status(kErrorCode, kErrorMessage)};
+      absl::Status(kErrorCode, kErrorMessage)};
 
   // Invoke the copy-assignment operator.
   statusor2 = statusor1;
@@ -229,14 +229,13 @@ TYPED_TEST(StatusOrTest, CopyAssignmentOkStatus) {
 // Verify that StatusOr can be move-constructed from a StatusOr with a non-ok
 // status.
 TYPED_TEST(StatusOrTest, MoveConstructorNonOkStatus) {
-  Status status{kErrorCode, kErrorMessage};
-  StatusOr<typename TypeParam::value_type> statusor1{status};
-  StatusOr<typename TypeParam::value_type> statusor2{std::move(statusor1)};
+  absl::Status status(kErrorCode, kErrorMessage);
+  StatusOr<typename TypeParam::value_type> statusor1(status);
+  StatusOr<typename TypeParam::value_type> statusor2(std::move(statusor1));
 
   // Verify that the status of the donor object was updated.
   EXPECT_THAT(statusor1.ok(), IsFalse());  // NOLINT
-  // NOLINTNEXTLINE
-  EXPECT_THAT(statusor1.status(), StatusIs(StatusCode::kUnknown, ""));
+  EXPECT_THAT(statusor1.status(), StatusIs(absl::StatusCode::kInternal));
 
   // Verify that the destination object contains the status previously held by
   // the donor.
@@ -260,7 +259,7 @@ TYPED_TEST(StatusOrTest, MoveConstructorOkStatus) {
 // Verify that move-assignment from a StatusOr with a non-ok status is working
 // as expected.
 TYPED_TEST(StatusOrTest, MoveAssignmentOperatorNonOkStatus) {
-  Status status(kErrorCode, kErrorMessage);
+  absl::Status status(kErrorCode, kErrorMessage);
   StatusOr<typename TypeParam::value_type> statusor1{status};
   StatusOr<typename TypeParam::value_type> statusor2{TypeParam()()};
 
@@ -269,8 +268,7 @@ TYPED_TEST(StatusOrTest, MoveAssignmentOperatorNonOkStatus) {
 
   // Verify that the status of the donor object was updated.
   EXPECT_THAT(statusor1.ok(), IsFalse());  // NOLINT
-  // NOLINTNEXTLINE
-  EXPECT_THAT(statusor1.status(), StatusIs(StatusCode::kUnknown, ""));
+  EXPECT_THAT(statusor1.status(), StatusIs(absl::StatusCode::kInternal));
 
   // Verify that the destination object contains the status previously held by
   // the donor.
@@ -282,9 +280,9 @@ TYPED_TEST(StatusOrTest, MoveAssignmentOperatorNonOkStatus) {
 // expected.
 TYPED_TEST(StatusOrTest, MoveAssignmentOperatorOkStatus) {
   auto value = TypeParam()();
-  StatusOr<typename TypeParam::value_type> statusor1{value};
-  StatusOr<typename TypeParam::value_type> statusor2{
-      Status{kErrorCode, kErrorMessage}};
+  StatusOr<typename TypeParam::value_type> statusor1(value);
+  StatusOr<typename TypeParam::value_type> statusor2(
+      absl::Status(kErrorCode, kErrorMessage));
 
   // Invoke the move-assignment operator.
   statusor2 = std::move(statusor1);
@@ -302,8 +300,8 @@ TYPED_TEST(StatusOrTest, IsOkMatcher) {
 
   EXPECT_THAT(statusor, IsOk());
 
-  statusor = StatusOr<typename TypeParam::value_type>{
-      Status{kErrorCode, kErrorMessage}};
+  statusor = StatusOr<typename TypeParam::value_type>(
+      absl::Status(kErrorCode, kErrorMessage));
   EXPECT_THAT(statusor, Not(IsOk()));
 }
 
@@ -318,7 +316,7 @@ TYPED_TEST(StatusOrTest, IsOkMatcher) {
 
 // Verify that a StatusOr object can be constructed from a move-only type.
 TEST(StatusOrTest, InitializationMoveOnlyType) {
-  std::string* str = new std::string{kStringElement};
+  auto* str = new std::string(kStringElement);
   std::unique_ptr<std::string> value(str);
   StatusOr<std::unique_ptr<std::string>> statusor(std::move(value));
 
@@ -328,10 +326,10 @@ TEST(StatusOrTest, InitializationMoveOnlyType) {
 
 // Verify that a StatusOr object can be move-constructed from a move-only type.
 TEST(StatusOrTest, MoveConstructorMoveOnlyType) {
-  std::string* str = new std::string{kStringElement};
+  auto* str = new std::string(kStringElement);
   std::unique_ptr<std::string> value{str};
-  StatusOr<std::unique_ptr<std::string>> statusor1{std::move(value)};
-  StatusOr<std::unique_ptr<std::string>> statusor2{std::move(statusor1)};
+  StatusOr<std::unique_ptr<std::string>> statusor1(std::move(value));
+  StatusOr<std::unique_ptr<std::string>> statusor2(std::move(statusor1));
 
   // The destination object should possess the value previously held by the
   // donor.
@@ -342,11 +340,11 @@ TEST(StatusOrTest, MoveConstructorMoveOnlyType) {
 // Verify that a StatusOr object can be move-assigned to from a StatusOr object
 // containing a move-only type.
 TEST(StatusOrTest, MoveAssignmentMoveOnlyType) {
-  std::string* str = new std::string{kStringElement};
-  std::unique_ptr<std::string> value{str};
+  auto* str = new std::string(kStringElement);
+  std::unique_ptr<std::string> value(str);
   StatusOr<std::unique_ptr<std::string>> statusor1(std::move(value));
   StatusOr<std::unique_ptr<std::string>> statusor2(
-      Status(kErrorCode, kErrorMessage));
+      absl::Status(kErrorCode, kErrorMessage));
 
   // Invoke the move-assignment operator.
   statusor2 = std::move(statusor1);
@@ -359,9 +357,9 @@ TEST(StatusOrTest, MoveAssignmentMoveOnlyType) {
 
 // Verify that a value can be moved out of a StatusOr object via ValueOrDie().
 TEST(StatusOrTest, ValueOrDieMovedValue) {
-  std::string* str = new std::string{kStringElement};
-  std::unique_ptr<std::string> value{str};
-  StatusOr<std::unique_ptr<std::string>> statusor{std::move(value)};
+  auto* str = new std::string(kStringElement);
+  std::unique_ptr<std::string> value(str);
+  StatusOr<std::unique_ptr<std::string>> statusor(std::move(value));
 
   std::unique_ptr<std::string> moved_value = std::move(statusor).ValueOrDie();
   EXPECT_THAT(moved_value.get(), Eq(str));

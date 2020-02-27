@@ -31,7 +31,7 @@ static sapi::StatusOr<std::string> Addr6ToString(
   char addr[INET6_ADDRSTRLEN];
   int port = htons(saddr->sin6_port);
   if (!inet_ntop(AF_INET6, &saddr->sin6_addr, addr, sizeof addr)) {
-    return sapi::InternalError(
+    return absl::InternalError(
         "Error in converting sockaddr_in6 addres to string");
   }
   return absl::StrCat("IP: ", addr, ", port: ", port);
@@ -43,7 +43,7 @@ static sapi::StatusOr<std::string> Addr4ToString(
   char addr[INET_ADDRSTRLEN];
   int port = htons(saddr->sin_port);
   if (!inet_ntop(AF_INET, &saddr->sin_addr, addr, sizeof addr)) {
-    return sapi::InternalError(
+    return absl::InternalError(
         "Error in converting sockaddr_in addres to string");
   }
   return absl::StrCat("IP: ", addr, ", port: ", port);
@@ -57,33 +57,33 @@ sapi::StatusOr<std::string> AddrToString(const struct sockaddr* saddr) {
     case AF_INET6:
       return Addr6ToString(reinterpret_cast<const struct sockaddr_in6*>(saddr));
     default:
-      return sapi::InternalError(
+      return absl::InternalError(
           absl::StrCat("Unexpected sa_family value: ", saddr->sa_family));
   }
 }
 
-static sapi::Status IPStringToAddr(const std::string& ip, int address_family,
+static absl::Status IPStringToAddr(const std::string& ip, int address_family,
                                    void* addr) {
   int err = inet_pton(address_family, ip.c_str(), addr);
   if (err == 0) {
-    return sapi::InvalidArgumentError(absl::StrCat("Invalid address: ", ip));
+    return absl::InvalidArgumentError(absl::StrCat("Invalid address: ", ip));
   }
   if (err == -1) {
-    return sapi::InternalError(
+    return absl::InternalError(
         absl::StrCat("inet_pton() failed for ", ip, ": ", StrError(errno)));
   }
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 // Parses a string of type IP or IP/mask or IP/cidr and saves appropriate
 // values in output arguments.
-static sapi::Status ParseIpAndMask(const std::string& ip_and_mask,
+static absl::Status ParseIpAndMask(const std::string& ip_and_mask,
                                    std::string* ip, std::string* mask,
                                    uint32_t* cidr) {
   // mask is checked later because only IPv4 format supports mask
   if (ip == nullptr || cidr == nullptr) {
-    return sapi::InvalidArgumentError(
+    return absl::InvalidArgumentError(
         "ip and cidr arguments of ParseIpAndMask cannot be nullptr");
   }
   *cidr = 0;
@@ -93,7 +93,7 @@ static sapi::Status ParseIpAndMask(const std::string& ip_and_mask,
 
   *ip = ip_and_mask_split[0];
   if (ip_and_mask_split.size() == 1) {
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
   std::string mask_or_cidr = ip_and_mask_split[1];
 
@@ -101,22 +101,22 @@ static sapi::Status ParseIpAndMask(const std::string& ip_and_mask,
   if (has_dot) {  // mask_or_cidr is cidr
     bool res = absl::SimpleAtoi<uint32_t>(mask_or_cidr, cidr);
     if (!res || !*cidr) {
-      return sapi::InvalidArgumentError(
+      return absl::InvalidArgumentError(
           absl::StrCat(mask_or_cidr, " is not a correct cidr"));
     }
   } else {
     if (mask == nullptr) {
-      return sapi::InvalidArgumentError(
+      return absl::InvalidArgumentError(
           "mask argument of ParseIpAndMask cannot be NULL in this case");
     }
     *mask = std::string(mask_or_cidr);
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-static sapi::Status CidrToIn6Addr(uint32_t cidr, in6_addr* addr) {
+static absl::Status CidrToIn6Addr(uint32_t cidr, in6_addr* addr) {
   if (cidr > 128) {
-    return sapi::InvalidArgumentError(
+    return absl::InvalidArgumentError(
         absl::StrCat(cidr, " is not a correct cidr"));
   }
 
@@ -135,12 +135,12 @@ static sapi::Status CidrToIn6Addr(uint32_t cidr, in6_addr* addr) {
     }
     addr->s6_addr[i] = tmp;
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-static sapi::Status CidrToInAddr(uint32_t cidr, in_addr* addr) {
+static absl::Status CidrToInAddr(uint32_t cidr, in_addr* addr) {
   if (cidr > 32) {
-    return sapi::InvalidArgumentError(
+    return absl::InvalidArgumentError(
         absl::StrCat(cidr, " is not a correct cidr"));
   }
 
@@ -152,7 +152,7 @@ static sapi::Status CidrToInAddr(uint32_t cidr, in_addr* addr) {
     tmp |= 0x80000000;
   }
   addr->s_addr = htonl(tmp);
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 static bool IsIPv4MaskCorrect(in_addr_t m) {
@@ -164,26 +164,26 @@ static bool IsIPv4MaskCorrect(in_addr_t m) {
   return !(m & (m - 1));
 }
 
-sapi::Status AllowedHosts::AllowIPv4(const std::string& ip_and_mask,
+absl::Status AllowedHosts::AllowIPv4(const std::string& ip_and_mask,
                                      uint32_t port) {
   std::string ip, mask;
   uint32_t cidr;
   SAPI_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, &mask, &cidr));
   SAPI_RETURN_IF_ERROR(AllowIPv4(ip, mask, cidr, port));
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status AllowedHosts::AllowIPv6(const std::string& ip_and_mask,
+absl::Status AllowedHosts::AllowIPv6(const std::string& ip_and_mask,
                                      uint32_t port) {
   std::string ip;
   uint32_t cidr;
   SAPI_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, NULL, &cidr));
   SAPI_RETURN_IF_ERROR(AllowIPv6(ip, cidr, port));
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status AllowedHosts::AllowIPv4(const std::string& ip,
+absl::Status AllowedHosts::AllowIPv4(const std::string& ip,
                                      const std::string& mask, uint32_t cidr,
                                      uint32_t port) {
   in_addr addr{};
@@ -193,13 +193,13 @@ sapi::Status AllowedHosts::AllowIPv4(const std::string& ip,
     SAPI_RETURN_IF_ERROR(IPStringToAddr(mask, AF_INET, &m));
 
     if (!IsIPv4MaskCorrect(m.s_addr)) {
-      return sapi::InvalidArgumentError(
+      return absl::InvalidArgumentError(
           absl::StrCat(mask, " is not a correct mask"));
     }
 
   } else {
     if (cidr > 32) {
-      return sapi::InvalidArgumentError(
+      return absl::InvalidArgumentError(
           absl::StrCat(cidr, " is not a correct cidr"));
     }
     if (!cidr) {
@@ -212,10 +212,10 @@ sapi::Status AllowedHosts::AllowIPv4(const std::string& ip,
   SAPI_RETURN_IF_ERROR(IPStringToAddr(ip, AF_INET, &addr));
   allowed_IPv4_.emplace_back(addr.s_addr, m.s_addr, htons(port));
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status AllowedHosts::AllowIPv6(const std::string& ip, uint32_t cidr,
+absl::Status AllowedHosts::AllowIPv6(const std::string& ip, uint32_t cidr,
                                      uint32_t port) {
   if (cidr == 0) {
     cidr = 128;
@@ -228,7 +228,7 @@ sapi::Status AllowedHosts::AllowIPv6(const std::string& ip, uint32_t cidr,
   SAPI_RETURN_IF_ERROR(CidrToIn6Addr(cidr, &m));
 
   allowed_IPv6_.emplace_back(addr, m, htons(port));
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 bool AllowedHosts::IsHostAllowed(const struct sockaddr* saddr) const {

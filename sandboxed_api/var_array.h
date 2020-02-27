@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "absl/base/macros.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/var_abstract.h"
@@ -74,7 +75,7 @@ class Array : public Var, public Pointable {
   // Resizes the local and remote buffer using realloc(). Note that this will
   // make all pointers to the current data (inside and outside of the sandbox)
   // invalid.
-  sapi::Status Resize(RPCChannel* rpc_channel, size_t nelems) {
+  absl::Status Resize(RPCChannel* rpc_channel, size_t nelems) {
     size_t absolute_size = sizeof(T) * nelems;
     // Resize local buffer.
     SAPI_RETURN_IF_ERROR(EnsureOwnedLocalBuffer(absolute_size));
@@ -85,23 +86,23 @@ class Array : public Var, public Pointable {
     SAPI_RETURN_IF_ERROR(
         rpc_channel->Reallocate(GetRemote(), absolute_size, &new_addr));
     if (!new_addr) {
-      return sapi::UnavailableError("Reallocate() returned nullptr");
+      return absl::UnavailableError("Reallocate() returned nullptr");
     }
     SetRemote(new_addr);
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
 
  private:
   // Resizes the internal storage.
-  sapi::Status EnsureOwnedLocalBuffer(size_t size) {
+  absl::Status EnsureOwnedLocalBuffer(size_t size) {
     if (size % sizeof(T)) {
-      return sapi::FailedPreconditionError(
+      return absl::FailedPreconditionError(
           "Array size not a multiple of the item size");
     }
     // Do not (re-)allocate memory if the new size matches our size - except
     // when we don't own that buffer.
     if (size == total_size_ && buffer_owned_) {
-      return sapi::OkStatus();
+      return absl::OkStatus();
     }
     void* new_addr = nullptr;
     if (buffer_owned_) {
@@ -114,14 +115,14 @@ class Array : public Var, public Pointable {
       }
     }
     if (!new_addr) {
-      return sapi::UnavailableError("(Re-)malloc failed");
+      return absl::UnavailableError("(Re-)malloc failed");
     }
 
     arr_ = static_cast<T*>(new_addr);
     total_size_ = size;
     nelem_ = size / sizeof(T);
     SetLocal(arr_);
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
 
   // Pointer to the data, owned by the object if buffer_owned_ is 'true'.

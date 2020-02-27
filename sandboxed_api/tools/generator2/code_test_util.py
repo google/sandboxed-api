@@ -101,11 +101,11 @@ class TestApi {
   }
 
   // void types_6(char *)
-  sapi::Status types_6(::sapi::v::Ptr* a0) {
+  absl::Status types_6(::sapi::v::Ptr* a0) {
     ::sapi::v::Void ret;
 
     SAPI_RETURN_IF_ERROR(sandbox_->Call("types_6", &ret, a0));
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
 
  private:

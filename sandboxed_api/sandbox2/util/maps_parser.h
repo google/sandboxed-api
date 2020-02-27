@@ -19,7 +19,6 @@
 #include <string>
 #include <vector>
 
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/statusor.h"
 
 namespace sandbox2 {

@@ -18,8 +18,8 @@
 #include <type_traits>
 
 #include "gmock/gmock.h"
+#include "absl/status/status.h"
 #include "absl/types/optional.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/statusor.h"
 
@@ -52,25 +52,25 @@ class IsOkMatcher {
   void DescribeNegationTo(std::ostream* os) const { *os << "is not OK"; }
 };
 
-template <typename Enum>
 class StatusIsMatcher {
  public:
   StatusIsMatcher(const StatusIsMatcher&) = default;
   StatusIsMatcher& operator=(const StatusIsMatcher&) = default;
 
-  StatusIsMatcher(Enum code, absl::optional<absl::string_view> message)
-      : code_{code}, message_{message} {}
+  StatusIsMatcher(absl::StatusCode code,
+                  absl::optional<absl::string_view> message)
+      : code_(code), message_(message) {}
 
   template <typename T>
   bool MatchAndExplain(const T& value,
                        ::testing::MatchResultListener* listener) const {
     auto status = GetStatus(value);
     if (code_ != status.code()) {
-      *listener << "whose error code is generic::"
-                << internal::CodeEnumToString(status.code());
+      *listener << "whose error code is "
+                << absl::StatusCodeToString(status.code());
       return false;
     }
-    if (message_.has_value() && status.error_message() != message_.value()) {
+    if (message_.has_value() && status.message() != message_.value()) {
       *listener << "whose error message is '" << message_.value() << "'";
       return false;
     }
@@ -78,16 +78,14 @@ class StatusIsMatcher {
   }
 
   void DescribeTo(std::ostream* os) const {
-    *os << "has a status code that is generic::"
-        << internal::CodeEnumToString(code_);
+    *os << "has a status code that is " << absl::StatusCodeToString(code_);
     if (message_.has_value()) {
       *os << ", and has an error message that is '" << message_.value() << "'";
     }
   }
 
   void DescribeNegationTo(std::ostream* os) const {
-    *os << "has a status code that is not generic::"
-        << internal::CodeEnumToString(code_);
+    *os << "has a status code that is not " << absl::StatusCodeToString(code_);
     if (message_.has_value()) {
       *os << ", and has an error message that is not '" << message_.value()
           << "'";
@@ -109,7 +107,7 @@ class StatusIsMatcher {
     return status_or.status();
   }
 
-  const Enum code_;
+  const absl::StatusCode code_;
   const absl::optional<std::string> message_;
 };
 
@@ -119,11 +117,11 @@ inline ::testing::PolymorphicMatcher<internal::IsOkMatcher> IsOk() {
   return ::testing::MakePolymorphicMatcher(internal::IsOkMatcher{});
 }
 
-template <typename Enum>
-::testing::PolymorphicMatcher<internal::StatusIsMatcher<Enum>> StatusIs(
-    Enum code, absl::optional<absl::string_view> message = absl::nullopt) {
+inline ::testing::PolymorphicMatcher<internal::StatusIsMatcher> StatusIs(
+    absl::StatusCode code,
+    absl::optional<absl::string_view> message = absl::nullopt) {
   return ::testing::MakePolymorphicMatcher(
-      internal::StatusIsMatcher<Enum>{code, message});
+      internal::StatusIsMatcher(code, message));
 }
 
 }  // namespace sapi

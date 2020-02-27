@@ -17,7 +17,8 @@ syntax = "proto3";
 package sapi;
 
 message StatusProto {
-  reserved 2;  // For wire compatibility with the original StatusProto
+  reserved 2, 4, 5;  // For compatibility with the original StatusProto
   int32 code = 1;
-  string error_message = 3;
-};
+  string message = 3;
+  map<string, bytes> payloads = 297070138;
+}

@@ -26,6 +26,7 @@
 #include "absl/base/casts.h"
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
@@ -126,10 +127,10 @@ static std::string PathToSAPILib(const std::string& lib_path) {
              : sandbox2::GetDataDependencyFilePath(lib_path);
 }
 
-sapi::Status Sandbox::Init() {
+absl::Status Sandbox::Init() {
   // It's already initialized
   if (IsActive()) {
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
 
   // Initialize the forkserver if it is not already running.
@@ -144,14 +145,14 @@ sapi::Status Sandbox::Init() {
       if (embed_lib_fd == -1) {
         PLOG(ERROR) << "Cannot create executable FD for TOC:'"
                     << embed_lib_toc_->name << "'";
-        return sapi::UnavailableError("Could not create executable FD");
+        return absl::UnavailableError("Could not create executable FD");
       }
       lib_path = embed_lib_toc_->name;
     } else {
       lib_path = PathToSAPILib(GetLibPath());
       if (lib_path.empty()) {
         LOG(ERROR) << "SAPI library path is empty";
-        return sapi::FailedPreconditionError("No SAPI library path given");
+        return absl::FailedPreconditionError("No SAPI library path given");
       }
     }
 
@@ -171,7 +172,7 @@ sapi::Status Sandbox::Init() {
 
     if (!fork_client_) {
       LOG(ERROR) << "Could not start forkserver";
-      return sapi::UnavailableError("Could not start the forkserver");
+      return absl::UnavailableError("Could not start the forkserver");
     }
   }
 
@@ -208,38 +209,38 @@ sapi::Status Sandbox::Init() {
 
   if (!res) {
     Terminate();
-    return sapi::UnavailableError("Could not start the sandbox");
+    return absl::UnavailableError("Could not start the sandbox");
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 bool Sandbox::IsActive() const { return s2_ && !s2_->IsTerminated(); }
 
-sapi::Status Sandbox::Allocate(v::Var* var, bool automatic_free) {
+absl::Status Sandbox::Allocate(v::Var* var, bool automatic_free) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   return var->Allocate(GetRpcChannel(), automatic_free);
 }
 
-sapi::Status Sandbox::Free(v::Var* var) {
+absl::Status Sandbox::Free(v::Var* var) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   return var->Free(GetRpcChannel());
 }
 
-sapi::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
+absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   if (ptr->GetType() != v::Type::kPointer) {
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
   // Cast is safe, since type is v::Type::kPointer
   auto* p = static_cast<v::Ptr*>(ptr);
   if (p->GetSyncType() == v::Pointable::SYNC_NONE) {
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
 
   if (p->GetPointedVar()->GetRemote() == nullptr) {
@@ -252,7 +253,7 @@ sapi::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   // memory is transferred to the sandboxee only if v::Pointable::SYNC_BEFORE
   // was requested.
   if ((p->GetSyncType() & v::Pointable::SYNC_BEFORE) == 0) {
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
 
   VLOG(3) << "Synchronization (TO), ptr " << p << ", Type: " << p->GetSyncType()
@@ -261,16 +262,16 @@ sapi::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   return p->GetPointedVar()->TransferToSandboxee(GetRpcChannel(), GetPid());
 }
 
-sapi::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
+absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   if (ptr->GetType() != v::Type::kPointer) {
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
   v::Ptr* p = reinterpret_cast<v::Ptr*>(ptr);
   if ((p->GetSyncType() & v::Pointable::SYNC_AFTER) == 0) {
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }
 
   VLOG(3) << "Synchronization (FROM), ptr " << p
@@ -280,7 +281,7 @@ sapi::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
   if (p->GetPointedVar()->GetRemote() == nullptr) {
     LOG(ERROR) << "Trying to synchronize a variable which is not allocated in "
                << "the sandboxee p=" << p->ToString();
-    return sapi::FailedPreconditionError(absl::StrCat(
+    return absl::FailedPreconditionError(absl::StrCat(
         "Trying to synchronize a variable which is not allocated in the "
         "sandboxee p=",
         p->ToString()));
@@ -289,10 +290,10 @@ sapi::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
   return p->GetPointedVar()->TransferFromSandboxee(GetRpcChannel(), GetPid());
 }
 
-sapi::Status Sandbox::Call(const std::string& func, v::Callable* ret,
+absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
                            std::initializer_list<v::Callable*> args) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   // Send data.
   FuncCall rfcall{};
@@ -366,26 +367,26 @@ sapi::Status Sandbox::Call(const std::string& func, v::Callable* ret,
   VLOG(1) << "CALL EXIT: Type: " << ret->GetTypeString()
           << ", Size: " << ret->GetSize() << ", Val: " << ret->ToString();
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status Sandbox::Symbol(const char* symname, void** addr) {
+absl::Status Sandbox::Symbol(const char* symname, void** addr) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   return rpc_channel_->Symbol(symname, addr);
 }
 
-sapi::Status Sandbox::TransferToSandboxee(v::Var* var) {
+absl::Status Sandbox::TransferToSandboxee(v::Var* var) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   return var->TransferToSandboxee(GetRpcChannel(), GetPid());
 }
 
-sapi::Status Sandbox::TransferFromSandboxee(v::Var* var) {
+absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   return var->TransferFromSandboxee(GetRpcChannel(), GetPid());
 }
@@ -393,12 +394,12 @@ sapi::Status Sandbox::TransferFromSandboxee(v::Var* var) {
 sapi::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
                                                   uint64_t max_length) {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
 
   SAPI_ASSIGN_OR_RETURN(auto len, GetRpcChannel()->Strlen(str.GetValue()));
   if (len > max_length) {
-    return sapi::InvalidArgumentError(
+    return absl::InvalidArgumentError(
         absl::StrCat("Target string too large: ", len, " > ", max_length));
   }
   std::string buffer(len, '\0');
@@ -415,13 +416,13 @@ sapi::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
   if (ret == -1) {
     PLOG(WARNING) << "reading c-string failed: process_vm_readv(pid: " << pid_
                   << " raddr: " << str.GetValue() << " size: " << len << ")";
-    return sapi::UnavailableError("process_vm_readv failed");
+    return absl::UnavailableError("process_vm_readv failed");
   }
   if (ret != len) {
     LOG(WARNING) << "partial read when reading c-string: process_vm_readv(pid: "
                  << pid_ << " raddr: " << str.GetValue() << " size: " << len
                  << ") transferred " << ret << " bytes";
-    return sapi::UnavailableError("process_vm_readv succeeded partially");
+    return absl::UnavailableError("process_vm_readv succeeded partially");
   }
 
   return buffer;
@@ -435,12 +436,12 @@ const sandbox2::Result& Sandbox::AwaitResult() {
   return result_;
 }
 
-sapi::Status Sandbox::SetWallTimeLimit(time_t limit) const {
+absl::Status Sandbox::SetWallTimeLimit(time_t limit) const {
   if (!IsActive()) {
-    return sapi::UnavailableError("Sandbox not active");
+    return absl::UnavailableError("Sandbox not active");
   }
   s2_->SetWallTimeLimit(limit);
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 void Sandbox::Exit() const {

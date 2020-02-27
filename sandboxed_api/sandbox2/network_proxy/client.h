@@ -36,7 +36,7 @@ class NetworkProxyClient {
   // Semantic is similar to a regular connect() call.
   // Arguments are sent to network proxy server, which sends back a connected
   // socket.
-  sapi::Status Connect(int sockfd, const struct sockaddr* addr,
+  absl::Status Connect(int sockfd, const struct sockaddr* addr,
                        socklen_t addrlen);
   // Same as Connect, but with same API as regular connect() call.
   int ConnectHandler(int sockfd, const struct sockaddr* addr,
@@ -44,7 +44,7 @@ class NetworkProxyClient {
 
  private:
   Comms comms_;
-  sapi::Status ReceiveRemoteResult();
+  absl::Status ReceiveRemoteResult();
 
   // Needed to make the Proxy thread safe.
   absl::Mutex mutex_;
@@ -56,7 +56,7 @@ class NetworkProxyHandler {
   // function. This function exchange data with NetworkProxyServer that checks
   // if this connection is allowed and sends the connected socket to us.
   // In other words, this function just use NetworkProxyClient class.
-  static sapi::Status InstallNetworkProxyHandler(NetworkProxyClient* npc);
+  static absl::Status InstallNetworkProxyHandler(NetworkProxyClient* npc);
   void ProcessSeccompTrap(int nr, siginfo_t* info, void* void_context);
 
  private:

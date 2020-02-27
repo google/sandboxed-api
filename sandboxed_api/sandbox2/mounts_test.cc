@@ -41,19 +41,19 @@ constexpr size_t kTmpfsSize = 1024;
 TEST(MountTreeTest, TestInvalidFilenames) {
   Mounts mounts;
 
-  EXPECT_THAT(mounts.AddFile(""), StatusIs(sapi::StatusCode::kInvalidArgument));
+  EXPECT_THAT(mounts.AddFile(""), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFile("a"),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFileAt("/a", ""),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFileAt("", "/a"),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFileAt("/a", "a"),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFile("/"),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFileAt("/a", "/"),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(MountTreeTest, TestAddFile) {
@@ -127,17 +127,17 @@ TEST(MountTreeTest, TestMultipleInsertion) {
   EXPECT_THAT(mounts.AddFile("/c/d"), IsOk());
 
   EXPECT_THAT(mounts.AddFile("/c"),
-              StatusIs(sapi::StatusCode::kFailedPrecondition));
+              StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(mounts.AddFileAt("/f", "/c"),
-              StatusIs(sapi::StatusCode::kFailedPrecondition));
+              StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(mounts.AddDirectoryAt("/f", "/c"), IsOk());
 
   EXPECT_THAT(mounts.AddFile("/c/d/e"),
-              StatusIs(sapi::StatusCode::kFailedPrecondition));
+              StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(mounts.AddFileAt("/f", "/c/d/e"),
-              StatusIs(sapi::StatusCode::kFailedPrecondition));
+              StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(mounts.AddDirectoryAt("/f", "/c/d/e"),
-              StatusIs(sapi::StatusCode::kFailedPrecondition));
+              StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST(MountTreeTest, TestEvilNullByte) {
@@ -148,17 +148,17 @@ TEST(MountTreeTest, TestEvilNullByte) {
   filename[2] = '\0';
 
   EXPECT_THAT(mounts.AddFile(filename),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFileAt(filename, "/a"),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFileAt("/a", filename),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddDirectoryAt(filename, "/a"),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddDirectoryAt("/a", filename),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddTmpfs(filename, kTmpfsSize),
-              StatusIs(sapi::StatusCode::kInvalidArgument));
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(MountTreeTest, TestMinimalDynamicBinary) {

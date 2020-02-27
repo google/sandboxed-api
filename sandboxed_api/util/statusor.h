@@ -22,20 +22,20 @@
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/attributes.h"
 #include "absl/base/log_severity.h"
+#include "absl/status/status.h"
 #include "absl/types/variant.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status.h"
 
 namespace sapi {
 
 template <typename T>
 class StatusOr {
  public:
-  explicit StatusOr() : variant_{Status{StatusCode::kUnknown, ""}} {}
+  explicit StatusOr() : variant_(absl::UnknownError("")) {}
 
-  StatusOr(const Status& status) : variant_{status} { EnsureNotOk(); }
+  StatusOr(const absl::Status& status) : variant_(status) { EnsureNotOk(); }
 
-  StatusOr& operator=(const Status& status) {
+  StatusOr& operator=(const absl::Status& status) {
     variant_ = status;
     EnsureNotOk();
   }
@@ -69,8 +69,8 @@ class StatusOr {
     return absl::holds_alternative<T>(variant_);
   }
 
-  Status status() const {
-    return ok() ? OkStatus() : absl::get<Status>(variant_);
+  absl::Status status() const {
+    return ok() ? absl::OkStatus() : absl::get<absl::Status>(variant_);
   }
 
   const T& ValueOrDie() const& {
@@ -83,10 +83,9 @@ class StatusOr {
     return absl::get<T>(variant_);
   }
 
-  T ValueOrDie() && {
+  T&& ValueOrDie() && {
     EnsureOk();
-    T tmp(std::move(absl::get<T>(variant_)));
-    return std::move(tmp);
+    return std::move(absl::get<T>(variant_));
   }
 
  private:
@@ -107,7 +106,7 @@ class StatusOr {
     }
   }
 
-  absl::variant<Status, T> variant_;
+  absl::variant<absl::Status, T> variant_;
 };
 
 }  // namespace sapi

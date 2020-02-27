@@ -19,13 +19,13 @@
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/examples/sum/lib/sandbox.h"
 #include "sandboxed_api/examples/sum/lib/sum-sapi.sapi.h"
 #include "sandboxed_api/examples/sum/lib/sum_params.pb.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/vars.h"
-#include "sandboxed_api/util/status.h"
 
 namespace {
 
@@ -53,10 +53,10 @@ class SumTransaction : public sapi::Transaction {
   bool time_out_;
 
   // The main processing function.
-  sapi::Status Main() override;
+  absl::Status Main() override;
 };
 
-sapi::Status SumTransaction::Main() {
+absl::Status SumTransaction::Main() {
   SumApi f(sandbox());
   SAPI_ASSIGN_OR_RETURN(int v, f.sum(1000, 337));
   LOG(INFO) << "1000 + 337 = " << v;
@@ -187,15 +187,15 @@ sapi::Status SumTransaction::Main() {
   if (time_out_) {
     SAPI_RETURN_IF_ERROR(f.sleep_for_sec(kTimeOutVal * 2));
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status test_addition(sapi::Sandbox* sandbox, int a, int b, int c) {
+absl::Status test_addition(sapi::Sandbox* sandbox, int a, int b, int c) {
   SumApi f(sandbox);
 
   SAPI_ASSIGN_OR_RETURN(int v, f.sum(a, b));
   TRANSACTION_FAIL_IF_NOT(v == c, absl::StrCat(a, " + ", b, " != ", c));
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -204,16 +204,16 @@ int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
-  sapi::Status status;
+  absl::Status status;
 
   sapi::BasicTransaction st{absl::make_unique<SumSapiSandbox>()};
   // Using the simple transaction (and function pointers):
   CHECK(st.Run(test_addition, 1, 1, 2).ok());
   CHECK(st.Run(test_addition, 1336, 1, 1337).ok());
   CHECK(st.Run(test_addition, 1336, 1, 7).code() ==
-        sapi::StatusCode::kFailedPrecondition);
+        absl::StatusCode::kFailedPrecondition);
 
-  status = st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
+  status = st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     SumApi f(sandbox);
 
     // Sums two int's held in a structure.
@@ -224,11 +224,11 @@ int main(int argc, char** argv) {
     SAPI_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
     LOG(INFO) << "1111 + 222 = " << params.data().ret;
     TRANSACTION_FAIL_IF_NOT(params.data().ret == 1333, "1111 + 222 != 1333");
-    return sapi::OkStatus();
+    return absl::OkStatus();
   });
   CHECK(status.ok()) << status.message();
 
-  status = st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
+  status = st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     SumApi f(sandbox);
     SumParams params;
     params.mutable_data()->a = 1111;
@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
     SAPI_RETURN_IF_ERROR(f.sums(p.PtrBoth()));
     LOG(INFO) << "1234 + 5678 = " << p.data().ret;
     TRANSACTION_FAIL_IF_NOT(p.data().ret == 6912, "1234 + 5678 != 6912");
-    return sapi::OkStatus();
+    return absl::OkStatus();
   });
   CHECK(status.ok()) << status.message();
 
@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
                             /*time_out=*/false};
   status = sapi_crash.Run();
   LOG(INFO) << "Final run result for crash: " << status;
-  CHECK(status.code() == sapi::StatusCode::kUnavailable);
+  CHECK(status.code() == absl::StatusCode::kUnavailable);
 
   SumTransaction sapi_violate{absl::make_unique<SumSapiSandbox>(),
                               /*crash=*/false,
@@ -264,7 +264,7 @@ int main(int argc, char** argv) {
                               /*time_out=*/false};
   status = sapi_violate.Run();
   LOG(INFO) << "Final run result for violate: " << status;
-  CHECK(status.code() == sapi::StatusCode::kUnavailable);
+  CHECK(status.code() == absl::StatusCode::kUnavailable);
 
   SumTransaction sapi_timeout{absl::make_unique<SumSapiSandbox>(),
                               /*crash=*/false,
@@ -272,7 +272,7 @@ int main(int argc, char** argv) {
                               /*time_out=*/true};
   status = sapi_timeout.Run();
   LOG(INFO) << "Final run result for timeout: " << status;
-  CHECK(status.code() == sapi::StatusCode::kUnavailable);
+  CHECK(status.code() == absl::StatusCode::kUnavailable);
 
   SumTransaction sapi{absl::make_unique<SumSapiSandbox>(), /*crash=*/false,
                       /*violate=*/false, /*time_out=*/false};

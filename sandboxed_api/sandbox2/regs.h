@@ -23,9 +23,9 @@
 #include <cstdint>
 #include <string>
 
+#include "absl/status/status.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
-#include "sandboxed_api/util/status.h"
 
 namespace sandbox2 {
 
@@ -40,13 +40,13 @@ class Regs {
   explicit Regs(pid_t pid) : pid_(pid) {}
 
   // Copies register values from the process
-  sapi::Status Fetch();
+  absl::Status Fetch();
 
   // Copies register values to the process
-  sapi::Status Store();
+  absl::Status Store();
 
   // Causes the process to skip current syscall and return given value instead
-  sapi::Status SkipSyscallReturnValue(uint64_t value);
+  absl::Status SkipSyscallReturnValue(uint64_t value);
 
   // Converts raw register values obtained on syscall entry to syscall info
   Syscall ToSyscall(Syscall::CpuArch syscall_arch) const;

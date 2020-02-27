@@ -33,7 +33,7 @@ sapi::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
 
   struct stat stat_buf;
   if (fstat(fd, &stat_buf) != 0) {
-    return sapi::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not stat buffer fd: ", StrError(errno)));
   }
   size_t size = stat_buf.st_size;
@@ -43,7 +43,7 @@ sapi::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
   buffer->buf_ =
       reinterpret_cast<uint8_t*>(mmap(nullptr, size, prot, flags, fd, offset));
   if (buffer->buf_ == MAP_FAILED) {
-    return sapi::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not map buffer fd: ", StrError(errno)));
   }
   buffer->fd_ = fd;
@@ -56,10 +56,10 @@ sapi::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
 sapi::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(int64_t size) {
   int fd;
   if (!util::CreateMemFd(&fd)) {
-    return sapi::InternalError("Could not create buffer temp file");
+    return absl::InternalError("Could not create buffer temp file");
   }
   if (ftruncate(fd, size) != 0) {
-    return sapi::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not extend buffer fd: ", StrError(errno)));
   }
   return CreateFromFd(fd);

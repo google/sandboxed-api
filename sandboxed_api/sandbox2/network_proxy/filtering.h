@@ -49,16 +49,16 @@ struct IPv6 {
 class AllowedHosts {
  public:
   // ip_and_mask should have one of following formats: IP, IP/mask, IP/cidr.
-  sapi::Status AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
+  absl::Status AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
   // ip_and_mask should have following format: IP or IP/cidr.
-  sapi::Status AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
+  absl::Status AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
   // Checks if this host is allowed.
   bool IsHostAllowed(const struct sockaddr* saddr) const;
 
  private:
-  sapi::Status AllowIPv4(const std::string& ip, const std::string& mask,
+  absl::Status AllowIPv4(const std::string& ip, const std::string& mask,
                          uint32_t cidr, uint32_t port);
-  sapi::Status AllowIPv6(const std::string& ip, uint32_t cidr, uint32_t port);
+  absl::Status AllowIPv6(const std::string& ip, uint32_t cidr, uint32_t port);
   bool IsIPv4Allowed(const struct sockaddr_in* saddr) const;
   bool IsIPv6Allowed(const struct sockaddr_in6* saddr) const;
 

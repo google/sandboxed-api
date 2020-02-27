@@ -250,6 +250,7 @@ target_link_libraries(sandbox2_executor PRIVATE
   sandbox2::namespace
   sandbox2::util
   sapi::base
+  sapi::status_proto
 )
 
 # sandboxed_api/sandbox2:sandbox2
@@ -356,6 +357,7 @@ target_link_libraries(sandbox2_forkserver PRIVATE
   sandbox2::util
   sapi::base
   sapi::raw_logging
+  sapi::statusor
 )
 
 # sandboxed_api/sandbox2:mounts
@@ -367,6 +369,7 @@ add_library(sandbox2::mounts ALIAS sandbox2_mounts)
 target_link_libraries(sandbox2_mounts PRIVATE
   absl::core_headers
   absl::flat_hash_set
+  absl::status
   absl::str_format
   absl::strings
   protobuf::libprotobuf
@@ -392,6 +395,7 @@ target_link_libraries(sandbox2_namespace PRIVATE
   absl::memory
   absl::str_format
   absl::strings
+  protobuf::libprotobuf
   sandbox2::file_base
   sandbox2::fileops
   sandbox2::mounts
@@ -432,7 +436,7 @@ target_link_libraries(sandbox2_util
           sapi::base
           sapi::raw_logging
           sapi::statusor
-  PUBLIC sapi::status
+  PUBLIC absl::status
 )
 target_compile_options(sandbox2_util PRIVATE
   # The default is 16384, however we need to do a clone with a
@@ -497,7 +501,6 @@ target_link_libraries(sandbox2_comms
   PRIVATE absl::memory
           absl::str_format
           absl::strings
-          protobuf::libprotobuf
           sandbox2::strerror
           sandbox2::util
           sapi::base
@@ -505,7 +508,9 @@ target_link_libraries(sandbox2_comms
           sapi::status_proto
           sapi::statusor
   PUBLIC absl::core_headers
+         absl::status
          absl::synchronization
+         protobuf::libprotobuf
          sapi::status
 )
 

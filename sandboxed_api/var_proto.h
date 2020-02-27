@@ -83,20 +83,20 @@ class Proto : public Pointable, public Var {
 
  protected:
   // Forward a couple of function calls to the actual var.
-  sapi::Status Allocate(RPCChannel* rpc_channel, bool automatic_free) override {
+  absl::Status Allocate(RPCChannel* rpc_channel, bool automatic_free) override {
     return wrapped_var_.Allocate(rpc_channel, automatic_free);
   }
 
-  sapi::Status Free(RPCChannel* rpc_channel) override {
-    return sapi::OkStatus();
+  absl::Status Free(RPCChannel* rpc_channel) override {
+    return absl::OkStatus();
   }
 
-  sapi::Status TransferToSandboxee(RPCChannel* rpc_channel,
+  absl::Status TransferToSandboxee(RPCChannel* rpc_channel,
                                    pid_t pid) override {
     return wrapped_var_.TransferToSandboxee(rpc_channel, pid);
   }
 
-  sapi::Status TransferFromSandboxee(RPCChannel* rpc_channel,
+  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
                                      pid_t pid) override {
     return wrapped_var_.TransferFromSandboxee(rpc_channel, pid);
   }

@@ -60,7 +60,7 @@ class Client {
 
   // Redirects the connect() syscall to the ConnectHandler() method in
   // the NetworkProxyClient class.
-  sapi::Status InstallNetworkProxyHandler();
+  absl::Status InstallNetworkProxyHandler();
 
  protected:
   // Comms used for synchronization with the monitor, not owned by the object.

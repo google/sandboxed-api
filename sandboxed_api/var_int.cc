@@ -27,11 +27,11 @@ Fd::~Fd() {
   }
 }
 
-sapi::Status Fd::CloseRemoteFd(RPCChannel* rpc_channel) {
+absl::Status Fd::CloseRemoteFd(RPCChannel* rpc_channel) {
   SAPI_RETURN_IF_ERROR(rpc_channel->Close(GetRemoteFd()));
 
   SetRemoteFd(-1);
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 void Fd::CloseLocalFd() {
@@ -45,29 +45,29 @@ void Fd::CloseLocalFd() {
   SetValue(-1);
 }
 
-sapi::Status Fd::TransferToSandboxee(RPCChannel* rpc_channel, pid_t /* pid */) {
+absl::Status Fd::TransferToSandboxee(RPCChannel* rpc_channel, pid_t /* pid */) {
   int remote_fd;
 
   SetFreeRPCChannel(rpc_channel);
   OwnRemoteFd(true);
 
   if (GetValue() < 0) {
-    return sapi::FailedPreconditionError(
+    return absl::FailedPreconditionError(
         "Cannot transfer FD: Local FD not valid");
   }
 
   if (GetRemoteFd() >= 0) {
-    return sapi::FailedPreconditionError(
+    return absl::FailedPreconditionError(
         "Cannot transfer FD: Sandboxee already has a valid FD");
   }
 
   SAPI_RETURN_IF_ERROR(rpc_channel->SendFD(GetValue(), &remote_fd));
   SetRemoteFd(remote_fd);
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status Fd::TransferFromSandboxee(RPCChannel* rpc_channel,
+absl::Status Fd::TransferFromSandboxee(RPCChannel* rpc_channel,
                                        pid_t /* pid */) {
   int local_fd;
 
@@ -75,19 +75,19 @@ sapi::Status Fd::TransferFromSandboxee(RPCChannel* rpc_channel,
   OwnRemoteFd(false);
 
   if (GetValue()) {
-    return sapi::FailedPreconditionError(
+    return absl::FailedPreconditionError(
         "Cannot transfer FD back: Our FD is already valid");
   }
 
   if (GetRemoteFd() < 0) {
-    return sapi::FailedPreconditionError(
+    return absl::FailedPreconditionError(
         "Cannot transfer FD back: Sandboxee has no valid FD");
   }
 
   SAPI_RETURN_IF_ERROR(rpc_channel->RecvFD(GetRemoteFd(), &local_fd));
   SetValue(local_fd);
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 }  // namespace sapi::v

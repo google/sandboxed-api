@@ -58,17 +58,17 @@ class LenVal : public Var, public Pointable {
     return new Ptr(this, type);
   }
 
-  sapi::Status ResizeData(RPCChannel* rpc_channel, size_t size);
+  absl::Status ResizeData(RPCChannel* rpc_channel, size_t size);
   size_t GetDataSize() const { return struct_.data().size; }
   uint8_t* GetData() const { return array_.GetData(); }
   void* GetRemote() const final { return struct_.GetRemote(); }
 
  protected:
   size_t GetSize() const final { return 0; }
-  sapi::Status Allocate(RPCChannel* rpc_channel, bool automatic_free) override;
-  sapi::Status Free(RPCChannel* rpc_channel) override;
-  sapi::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
-  sapi::Status TransferFromSandboxee(RPCChannel* rpc_channel,
+  absl::Status Allocate(RPCChannel* rpc_channel, bool automatic_free) override;
+  absl::Status Free(RPCChannel* rpc_channel) override;
+  absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
+  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
                                      pid_t pid) override;
 
   Array<uint8_t> array_;

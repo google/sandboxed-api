@@ -32,13 +32,13 @@ Var::~Var() {
   }
 }
 
-sapi::Status Var::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
+absl::Status Var::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
   void* addr;
   SAPI_RETURN_IF_ERROR(rpc_channel->Allocate(GetSize(), &addr));
 
   if (!addr) {
     LOG(ERROR) << "Allocate: returned nullptr";
-    return sapi::UnavailableError("Allocating memory failed");
+    return absl::UnavailableError("Allocating memory failed");
   }
 
   SetRemote(addr);
@@ -46,24 +46,24 @@ sapi::Status Var::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
     SetFreeRPCChannel(rpc_channel);
   }
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status Var::Free(RPCChannel* rpc_channel) {
+absl::Status Var::Free(RPCChannel* rpc_channel) {
   SAPI_RETURN_IF_ERROR(rpc_channel->Free(GetRemote()));
 
   SetRemote(nullptr);
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
+absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   VLOG(3) << "TransferToSandboxee for: " << ToString()
           << ", local: " << GetLocal() << ", remote: " << GetRemote()
           << ", size: " << GetSize();
 
   if (remote_ == nullptr) {
     LOG(WARNING) << "Object: " << GetType() << " has no remote object set";
-    return sapi::FailedPreconditionError(
+    return absl::FailedPreconditionError(
         absl::StrCat("Object: ", GetType(), " has no remote object set"));
   }
 
@@ -81,25 +81,25 @@ sapi::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
     PLOG(WARNING) << "process_vm_writev(pid: " << pid
                   << " laddr: " << GetLocal() << " raddr: " << GetRemote()
                   << " size: " << GetSize() << ")";
-    return sapi::UnavailableError("process_vm_writev failed");
+    return absl::UnavailableError("process_vm_writev failed");
   }
   if (ret != GetSize()) {
     LOG(WARNING) << "process_vm_writev(pid: " << pid << " laddr: " << GetLocal()
                  << " raddr: " << GetRemote() << " size: " << GetSize() << ")"
                  << " transferred " << ret << " bytes";
-    return sapi::UnavailableError("process_vm_writev: partial success");
+    return absl::UnavailableError("process_vm_writev: partial success");
   }
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
+absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   VLOG(3) << "TransferFromSandboxee for: " << ToString()
           << ", local: " << GetLocal() << ", remote: " << GetRemote()
           << ", size: " << GetSize();
 
   if (local_ == nullptr) {
-    return sapi::FailedPreconditionError(
+    return absl::FailedPreconditionError(
         absl::StrCat("Object: ", GetType(), " has no local storage set"));
   }
 
@@ -116,16 +116,16 @@ sapi::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   if (ret == -1) {
     PLOG(WARNING) << "process_vm_readv(pid: " << pid << " laddr: " << GetLocal()
                   << " raddr: " << GetRemote() << " size: " << GetSize() << ")";
-    return sapi::UnavailableError("process_vm_readv failed");
+    return absl::UnavailableError("process_vm_readv failed");
   }
   if (ret != GetSize()) {
     LOG(WARNING) << "process_vm_readv(pid: " << pid << " laddr: " << GetLocal()
                  << " raddr: " << GetRemote() << " size: " << GetSize() << ")"
                  << " transferred " << ret << " bytes";
-    return sapi::UnavailableError("process_vm_readv succeeded partially");
+    return absl::UnavailableError("process_vm_readv succeeded partially");
   }
 
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 }  // namespace sapi::v

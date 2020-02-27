@@ -19,9 +19,9 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/mounttree.pb.h"
-#include "sandboxed_api/util/status.h"
 
 namespace sandbox2 {
 
@@ -40,18 +40,18 @@ class Mounts {
   Mounts& operator=(const Mounts&) = default;
   Mounts& operator=(Mounts&&) = default;
 
-  sapi::Status AddFile(absl::string_view path, bool is_ro = true);
+  absl::Status AddFile(absl::string_view path, bool is_ro = true);
 
-  sapi::Status AddFileAt(absl::string_view outside, absl::string_view inside,
+  absl::Status AddFileAt(absl::string_view outside, absl::string_view inside,
                          bool is_ro = true);
 
-  sapi::Status AddDirectoryAt(absl::string_view outside,
+  absl::Status AddDirectoryAt(absl::string_view outside,
                               absl::string_view inside, bool is_ro = true);
 
-  sapi::Status AddMappingsForBinary(const std::string& path,
+  absl::Status AddMappingsForBinary(const std::string& path,
                                     absl::string_view ld_library_path = {});
 
-  sapi::Status AddTmpfs(absl::string_view inside, size_t sz);
+  absl::Status AddTmpfs(absl::string_view inside, size_t sz);
 
   void CreateMounts(const std::string& root_path) const;
 
@@ -80,7 +80,7 @@ class Mounts {
 
  private:
   friend class MountTreeTest;
-  sapi::Status Insert(absl::string_view path, const MountTree::Node& node);
+  absl::Status Insert(absl::string_view path, const MountTree::Node& node);
   MountTree mount_tree_;
 };
 

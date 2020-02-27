@@ -12,26 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+
 package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
-
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 sapi_proto_library(
     name = "status_proto",
     srcs = ["status.proto"],
 )
 
-# A custom fork of util/task/status.h. This will become obsolete and will be
-# replaced once Abseil releases absl::Status.
+# Reimplementations of utility functions not released with absl::Status.
 cc_library(
     name = "status",
     srcs = ["status.cc"],
     hdrs = [
         "status.h",
-        "status_internal.h",
         "status_macros.h",
     ],
     copts = sapi_platform_copts(),
@@ -39,7 +37,7 @@ cc_library(
     deps = [
         ":status_cc_proto",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -58,11 +56,12 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:variant",
     ],
 )
 
-# gMock matchers for sapi::Status and sapi::StatusOr<T> and a gUnit printer
+# gMock matchers for absl::Status and sapi::StatusOr<T> and a gUnit printer
 # extension for sapi::StatusOr<T>.
 cc_library(
     name = "status_matchers",
@@ -73,6 +72,7 @@ cc_library(
     deps = [
         ":status",
         ":statusor",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
         "@com_google_googletest//:gtest",
     ],
@@ -86,6 +86,7 @@ cc_test(
     deps = [
         ":status",
         ":status_matchers",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -113,6 +114,7 @@ cc_test(
         ":status_matchers",
         ":statusor",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],

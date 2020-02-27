@@ -19,7 +19,7 @@
 #define THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_
 
 #include "absl/base/optimization.h"
-#include "sandboxed_api/util/status.h"
+#include "absl/status/status.h"
 
 // Internal helper for concatenating macro values.
 #define SAPI_MACROS_IMPL_CONCAT_INNER_(x, y) x##y

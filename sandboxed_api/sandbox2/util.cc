@@ -186,7 +186,7 @@ sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
   posix_spawn_file_actions_t action;
 
   if (pipe(cout_pipe) == -1) {
-    return sapi::UnknownError(absl::StrCat("creating pipe: ", StrError(errno)));
+    return absl::UnknownError(absl::StrCat("creating pipe: ", StrError(errno)));
   }
   file_util::fileops::FDCloser cout_closer{cout_pipe[1]};
 
@@ -215,7 +215,7 @@ sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
 
   pid_t pid;
   if (posix_spawnp(&pid, args[0], &action, nullptr, args, envp) != 0) {
-    return sapi::UnknownError(
+    return absl::UnknownError(
         absl::StrCat("posix_spawnp() failed: ", StrError(errno)));
   }
 
@@ -227,7 +227,7 @@ sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
     int bytes_read =
         TEMP_FAILURE_RETRY(read(cout_pipe[0], &buffer[0], buffer.length()));
     if (bytes_read < 0) {
-      return sapi::InternalError(
+      return absl::InternalError(
           absl::StrCat("reading from cout pipe failed: ", StrError(errno)));
     }
     if (bytes_read == 0) {
@@ -302,7 +302,7 @@ sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
   ssize_t sz = process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
                                 remote_iov, ABSL_ARRAYSIZE(remote_iov), 0);
   if (sz < 0) {
-    return sapi::InternalError(absl::StrFormat(
+    return absl::InternalError(absl::StrFormat(
         "process_vm_readv() failed for PID: %d at address: %#x: %s", pid,
         reinterpret_cast<uintptr_t>(ptr), StrError(errno)));
   }
@@ -311,7 +311,7 @@ sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
   // incorrect path (or >PATH_MAX).
   auto pos = path.find('\0');
   if (pos == std::string::npos) {
-    return sapi::FailedPreconditionError(absl::StrCat(
+    return absl::FailedPreconditionError(absl::StrCat(
         "No NUL-byte inside the C string '", absl::CHexEscape(path), "'"));
   }
   path.resize(pos);

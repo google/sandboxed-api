@@ -542,11 +542,11 @@ class PolicyBuilder final {
   std::set<unsigned int> handled_syscalls_;
 
   // Error handling
-  sapi::Status last_status_;
+  absl::Status last_status_;
   bool already_built_ = false;
   // This function returns a PolicyBuilder so that we can use it in the status
   // macros
-  PolicyBuilder& SetError(const sapi::Status& status);
+  PolicyBuilder& SetError(const absl::Status& status);
 
   // Contains list of allowed hosts.
   absl::optional<AllowedHosts> allowed_hosts_;

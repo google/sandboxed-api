@@ -28,29 +28,29 @@ namespace sapi {
 namespace {
 
 TEST(ReturnIfError, ReturnsOnErrorStatus) {
-  auto func = []() -> Status {
-    SAPI_RETURN_IF_ERROR(OkStatus());
-    SAPI_RETURN_IF_ERROR(OkStatus());
-    SAPI_RETURN_IF_ERROR(Status(sapi::StatusCode::kUnknown, "EXPECTED"));
-    return Status(sapi::StatusCode::kUnknown, "ERROR");
+  auto func = []() -> absl::Status {
+    SAPI_RETURN_IF_ERROR(absl::OkStatus());
+    SAPI_RETURN_IF_ERROR(absl::OkStatus());
+    SAPI_RETURN_IF_ERROR(absl::Status(absl::StatusCode::kUnknown, "EXPECTED"));
+    return absl::Status(absl::StatusCode::kUnknown, "ERROR");
   };
 
-  EXPECT_THAT(func(), StatusIs(sapi::StatusCode::kUnknown, "EXPECTED"));
+  EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
 }
 
 TEST(ReturnIfError, ReturnsOnErrorFromLambda) {
-  auto func = []() -> Status {
-    SAPI_RETURN_IF_ERROR([] { return sapi::OkStatus(); }());
+  auto func = []() -> absl::Status {
+    SAPI_RETURN_IF_ERROR([] { return absl::OkStatus(); }());
     SAPI_RETURN_IF_ERROR(
-        [] { return Status(sapi::StatusCode::kUnknown, "EXPECTED"); }());
-    return Status(sapi::StatusCode::kUnknown, "ERROR");
+        [] { return absl::Status(absl::StatusCode::kUnknown, "EXPECTED"); }());
+    return absl::Status(absl::StatusCode::kUnknown, "ERROR");
   };
 
-  EXPECT_THAT(func(), StatusIs(sapi::StatusCode::kUnknown, "EXPECTED"));
+  EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
 }
 
 TEST(AssignOrReturn, AssignsMultipleVariablesInSequence) {
-  auto func = []() -> Status {
+  auto func = []() -> absl::Status {
     int value1;
     SAPI_ASSIGN_OR_RETURN(value1, StatusOr<int>(1));
     EXPECT_EQ(1, value1);
@@ -61,56 +61,56 @@ TEST(AssignOrReturn, AssignsMultipleVariablesInSequence) {
     SAPI_ASSIGN_OR_RETURN(value3, StatusOr<int>(3));
     EXPECT_EQ(3, value3);
     int value4;
-    SAPI_ASSIGN_OR_RETURN(
-        value4, StatusOr<int>(Status(sapi::StatusCode::kUnknown, "EXPECTED")));
-    return Status(sapi::StatusCode::kUnknown,
-                  absl::StrCat("ERROR: assigned value ", value4));
+    SAPI_ASSIGN_OR_RETURN(value4, StatusOr<int>(absl::Status(
+                                      absl::StatusCode::kUnknown, "EXPECTED")));
+    return absl::Status(absl::StatusCode::kUnknown,
+                        absl::StrCat("ERROR: assigned value ", value4));
   };
 
-  EXPECT_THAT(func(), StatusIs(sapi::StatusCode::kUnknown, "EXPECTED"));
+  EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
 }
 
 TEST(AssignOrReturn, AssignsRepeatedlyToSingleVariable) {
-  auto func = []() -> Status {
+  auto func = []() -> absl::Status {
     int value = 1;
     SAPI_ASSIGN_OR_RETURN(value, StatusOr<int>(2));
     EXPECT_EQ(2, value);
     SAPI_ASSIGN_OR_RETURN(value, StatusOr<int>(3));
     EXPECT_EQ(3, value);
-    SAPI_ASSIGN_OR_RETURN(
-        value, StatusOr<int>(Status(sapi::StatusCode::kUnknown, "EXPECTED")));
-    return Status(sapi::StatusCode::kUnknown, "ERROR");
+    SAPI_ASSIGN_OR_RETURN(value, StatusOr<int>(absl::Status(
+                                     absl::StatusCode::kUnknown, "EXPECTED")));
+    return absl::Status(absl::StatusCode::kUnknown, "ERROR");
   };
 
-  EXPECT_THAT(func(), StatusIs(sapi::StatusCode::kUnknown, "EXPECTED"));
+  EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
 }
 
 TEST(AssignOrReturn, MovesUniquePtr) {
-  auto func = []() -> Status {
+  auto func = []() -> absl::Status {
     std::unique_ptr<int> ptr;
     SAPI_ASSIGN_OR_RETURN(
         ptr, StatusOr<std::unique_ptr<int>>(absl::make_unique<int>(1)));
     EXPECT_EQ(*ptr, 1);
-    return Status(sapi::StatusCode::kUnknown, "EXPECTED");
+    return absl::Status(absl::StatusCode::kUnknown, "EXPECTED");
   };
 
-  EXPECT_THAT(func(), StatusIs(sapi::StatusCode::kUnknown, "EXPECTED"));
+  EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
 }
 
 TEST(AssignOrReturn, DoesNotAssignUniquePtrOnErrorStatus) {
-  auto func = []() -> Status {
+  auto func = []() -> absl::Status {
     std::unique_ptr<int> ptr;
-    SAPI_ASSIGN_OR_RETURN(ptr, StatusOr<std::unique_ptr<int>>(Status(
-                                   sapi::StatusCode::kUnknown, "EXPECTED")));
+    SAPI_ASSIGN_OR_RETURN(ptr, StatusOr<std::unique_ptr<int>>(absl::Status(
+                                   absl::StatusCode::kUnknown, "EXPECTED")));
     EXPECT_EQ(ptr, nullptr);
-    return OkStatus();
+    return absl::OkStatus();
   };
 
-  EXPECT_THAT(func(), StatusIs(sapi::StatusCode::kUnknown, "EXPECTED"));
+  EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
 }
 
 TEST(AssignOrReturn, MovesUniquePtrRepeatedlyToSingleVariable) {
-  auto func = []() -> Status {
+  auto func = []() -> absl::Status {
     std::unique_ptr<int> ptr;
     SAPI_ASSIGN_OR_RETURN(
         ptr, StatusOr<std::unique_ptr<int>>(absl::make_unique<int>(1)));
@@ -118,10 +118,10 @@ TEST(AssignOrReturn, MovesUniquePtrRepeatedlyToSingleVariable) {
     SAPI_ASSIGN_OR_RETURN(
         ptr, StatusOr<std::unique_ptr<int>>(absl::make_unique<int>(2)));
     EXPECT_EQ(*ptr, 2);
-    return Status(sapi::StatusCode::kUnknown, "EXPECTED");
+    return absl::Status(absl::StatusCode::kUnknown, "EXPECTED");
   };
 
-  EXPECT_THAT(func(), StatusIs(sapi::StatusCode::kUnknown, "EXPECTED"));
+  EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
 }
 
 }  // namespace

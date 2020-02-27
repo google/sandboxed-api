@@ -42,7 +42,7 @@ TEST(TempFileTest, CreateTempDirTest) {
   EXPECT_THAT(path, StartsWith(prefix));
   EXPECT_THAT(file_util::fileops::Exists(path, false), IsTrue());
   result_or = CreateTempDir("non_existing_dir/prefix");
-  EXPECT_THAT(result_or, StatusIs(sapi::StatusCode::kUnknown));
+  EXPECT_THAT(result_or, StatusIs(absl::StatusCode::kUnknown));
 }
 
 TEST(TempFileTest, MakeTempFileTest) {
@@ -57,7 +57,7 @@ TEST(TempFileTest, MakeTempFileTest) {
   EXPECT_THAT(fcntl(fd, F_GETFD), Ne(-1));
   EXPECT_THAT(close(fd), Eq(0));
   result_or = CreateNamedTempFile("non_existing_dir/prefix");
-  EXPECT_THAT(result_or, StatusIs(sapi::StatusCode::kUnknown));
+  EXPECT_THAT(result_or, StatusIs(absl::StatusCode::kUnknown));
 }
 
 }  // namespace

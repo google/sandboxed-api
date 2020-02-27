@@ -30,15 +30,15 @@ target_link_libraries(sapi_util_status_proto
 add_library(sapi_util_status STATIC
   status.cc
   status.h
-  status_internal.h
   status_macros.h
 )
 add_library(sapi::status ALIAS sapi_util_status)
 target_link_libraries(sapi_util_status
   PRIVATE absl::core_headers
+          absl::status
           absl::strings
-          absl::type_traits
           sapi::base
+          protobuf::libprotobuf
   PUBLIC sapi::status_proto
 )
 
@@ -88,7 +88,8 @@ if(SAPI_ENABLE_TESTS)
             gmock
             gtest
             sapi::base
-    PUBLIC sapi::status
+    PUBLIC absl::status
+           sapi::status
            sapi::statusor
   )
 
@@ -102,4 +103,15 @@ if(SAPI_ENABLE_TESTS)
     absl::type_traits
   )
   gtest_discover_tests(status_test)
+
+  # sandboxed_api/util:statusor_test
+  add_executable(statusor_test
+    statusor_test.cc
+  )
+  target_link_libraries(statusor_test PRIVATE
+    sapi::status_matchers
+    sapi::test_main
+    absl::type_traits
+  )
+  gtest_discover_tests(statusor_test)
 endif()

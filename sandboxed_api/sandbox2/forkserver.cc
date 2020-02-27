@@ -37,6 +37,7 @@
 
 #include <glog/logging.h>
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -57,7 +58,6 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/statusor.h"
 
 namespace {
@@ -133,16 +133,16 @@ void RunInitProcess(std::set<int> open_fds) {
   }
 }
 
-sapi::Status SendPid(int signaling_fd) {
+absl::Status SendPid(int signaling_fd) {
   // Send our PID (the actual sandboxee process) via SCM_CREDENTIALS.
   // The ancillary message will be attached to the message as SO_PASSCRED is set
   // on the socket.
   char dummy = ' ';
   if (TEMP_FAILURE_RETRY(send(signaling_fd, &dummy, 1, 0)) != 1) {
-    return sapi::InternalError(
+    return absl::InternalError(
         absl::StrCat("Sending PID: send: ", sandbox2::StrError(errno)));
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 sapi::StatusOr<pid_t> ReceivePid(int signaling_fd) {
@@ -164,13 +164,13 @@ sapi::StatusOr<pid_t> ReceivePid(int signaling_fd) {
   iov.iov_len = sizeof(char);
 
   if (TEMP_FAILURE_RETRY(recvmsg(signaling_fd, &msgh, MSG_WAITALL)) != 1) {
-    return sapi::InternalError(absl::StrCat("Receiving pid failed: recvmsg: ",
+    return absl::InternalError(absl::StrCat("Receiving pid failed: recvmsg: ",
                                             sandbox2::StrError(errno)));
   }
   struct cmsghdr* cmsgp = CMSG_FIRSTHDR(&msgh);
   if (cmsgp->cmsg_len != CMSG_LEN(sizeof(struct ucred)) ||
       cmsgp->cmsg_level != SOL_SOCKET || cmsgp->cmsg_type != SCM_CREDENTIALS) {
-    return sapi::InternalError("Receiving pid failed");
+    return absl::InternalError("Receiving pid failed");
   }
   struct ucred* ucredp = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsgp));
   return ucredp->pid;
@@ -456,7 +456,7 @@ pid_t ForkServer::ServeRequest() {
         _exit(0);
       }
       // Send sandboxee pid
-      sapi::Status status = SendPid(fd_closer1.get());
+      absl::Status status = SendPid(fd_closer1.get());
       SAPI_RAW_CHECK(status.ok(), "sending pid: %s", status.message());
     } else {
       auto pid_or = ReceivePid(fd_closer0.get());

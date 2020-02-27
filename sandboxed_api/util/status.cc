@@ -14,177 +14,27 @@
 
 #include "sandboxed_api/util/status.h"
 
-#include "absl/strings/str_cat.h"
+#include "absl/status/status.h"
 
 namespace sapi {
-namespace internal {
 
-std::string CodeEnumToString(StatusCode code) {
-  switch (code) {
-    case StatusCode::kOk:
-      return "OK";
-    case StatusCode::kCancelled:
-      return "CANCELLED";
-    case StatusCode::kUnknown:
-      return "UNKNOWN";
-    case StatusCode::kInvalidArgument:
-      return "INVALID_ARGUMENT";
-    case StatusCode::kDeadlineExceeded:
-      return "DEADLINE_EXCEEDED";
-    case StatusCode::kNotFound:
-      return "NOT_FOUND";
-    case StatusCode::kAlreadyExists:
-      return "ALREADY_EXISTS";
-    case StatusCode::kPermissionDenied:
-      return "PERMISSION_DENIED";
-    case StatusCode::kUnauthenticated:
-      return "UNAUTHENTICATED";
-    case StatusCode::kResourceExhausted:
-      return "RESOURCE_EXHAUSTED";
-    case StatusCode::kFailedPrecondition:
-      return "FAILED_PRECONDITION";
-    case StatusCode::kAborted:
-      return "ABORTED";
-    case StatusCode::kOutOfRange:
-      return "OUT_OF_RANGE";
-    case StatusCode::kUnimplemented:
-      return "UNIMPLEMENTED";
-    case StatusCode::kInternal:
-      return "INTERNAL";
-    case StatusCode::kUnavailable:
-      return "UNAVAILABLE";
-    case StatusCode::kDataLoss:
-      return "DATA_LOSS";
+void SaveStatusToProto(const absl::Status& status, StatusProto* out) {
+  out->set_code(status.raw_code());
+  out->set_message(std::string(status.message()));
+  auto* payloads = out->mutable_payloads();
+  status.ForEachPayload(
+      [payloads](absl::string_view type_key, const absl::Cord& payload) {
+        (*payloads)[std::string(type_key)] = static_cast<std::string>(payload);
+      });
+}
+
+absl::Status MakeStatusFromProto(const StatusProto& proto) {
+  absl::Status status(static_cast<absl::StatusCode>(proto.code()),
+                      proto.message());
+  for (const auto& [type_key, payload] : proto.payloads()) {
+    status.SetPayload(type_key, absl::Cord(payload));
   }
-  return "UNKNOWN";
-}
-
-}  // namespace internal
-
-Status::Status() : error_code_{static_cast<int>(StatusCode::kOk)} {}
-
-Status::Status(Status&& other)
-    : error_code_(other.error_code_), message_(std::move(other.message_)) {
-  other.Set(StatusCode::kUnknown, "");
-}
-
-Status& Status::operator=(Status&& other) {
-  error_code_ = other.error_code_;
-  message_ = std::move(other.message_);
-  other.Set(StatusCode::kUnknown, "");
-  return *this;
-}
-
-std::string Status::ToString() const {
-  return ok() ? "OK"
-              : absl::StrCat("generic::",
-                             internal::CodeEnumToString(
-                                 static_cast<StatusCode>(error_code_)),
-                             ": ", message_);
-}
-
-Status OkStatus() { return Status{}; }
-
-std::ostream& operator<<(std::ostream& os, const Status& status) {
-  return os << status.ToString();
-}
-
-Status AbortedError(absl::string_view message) {
-  return Status{StatusCode::kAborted, message};
-}
-Status AlreadyExistsError(absl::string_view message) {
-  return Status{StatusCode::kAlreadyExists, message};
-}
-Status CancelledError(absl::string_view message) {
-  return Status{StatusCode::kCancelled, message};
-}
-Status DataLossError(absl::string_view message) {
-  return Status{StatusCode::kDataLoss, message};
-}
-Status DeadlineExceededError(absl::string_view message) {
-  return Status{StatusCode::kDeadlineExceeded, message};
-}
-Status FailedPreconditionError(absl::string_view message) {
-  return Status{StatusCode::kFailedPrecondition, message};
-}
-Status InternalError(absl::string_view message) {
-  return Status{StatusCode::kInternal, message};
-}
-Status InvalidArgumentError(absl::string_view message) {
-  return Status{StatusCode::kInvalidArgument, message};
-}
-Status NotFoundError(absl::string_view message) {
-  return Status{StatusCode::kNotFound, message};
-}
-Status OutOfRangeError(absl::string_view message) {
-  return Status{StatusCode::kOutOfRange, message};
-}
-Status PermissionDeniedError(absl::string_view message) {
-  return Status{StatusCode::kPermissionDenied, message};
-}
-Status ResourceExhaustedError(absl::string_view message) {
-  return Status{StatusCode::kResourceExhausted, message};
-}
-Status UnauthenticatedError(absl::string_view message) {
-  return Status{StatusCode::kUnauthenticated, message};
-}
-Status UnavailableError(absl::string_view message) {
-  return Status{StatusCode::kUnavailable, message};
-}
-Status UnimplementedError(absl::string_view message) {
-  return Status{StatusCode::kUnimplemented, message};
-}
-Status UnknownError(absl::string_view message) {
-  return Status{StatusCode::kUnknown, message};
-}
-
-bool IsAborted(const Status& status) {
-  return status.code() == StatusCode::kAborted;
-}
-bool IsAlreadyExists(const Status& status) {
-  return status.code() == StatusCode::kAlreadyExists;
-}
-bool IsCancelled(const Status& status) {
-  return status.code() == StatusCode::kCancelled;
-}
-bool IsDataLoss(const Status& status) {
-  return status.code() == StatusCode::kDataLoss;
-}
-bool IsDeadlineExceeded(const Status& status) {
-  return status.code() == StatusCode::kDeadlineExceeded;
-}
-bool IsFailedPrecondition(const Status& status) {
-  return status.code() == StatusCode::kFailedPrecondition;
-}
-bool IsInternal(const Status& status) {
-  return status.code() == StatusCode::kInternal;
-}
-bool IsInvalidArgument(const Status& status) {
-  return status.code() == StatusCode::kInvalidArgument;
-}
-bool IsNotFound(const Status& status) {
-  return status.code() == StatusCode::kNotFound;
-}
-bool IsOutOfRange(const Status& status) {
-  return status.code() == StatusCode::kOutOfRange;
-}
-bool IsPermissionDenied(const Status& status) {
-  return status.code() == StatusCode::kPermissionDenied;
-}
-bool IsResourceExhausted(const Status& status) {
-  return status.code() == StatusCode::kResourceExhausted;
-}
-bool IsUnauthenticated(const Status& status) {
-  return status.code() == StatusCode::kUnauthenticated;
-}
-bool IsUnavailable(const Status& status) {
-  return status.code() == StatusCode::kUnavailable;
-}
-bool IsUnimplemented(const Status& status) {
-  return status.code() == StatusCode::kUnimplemented;
-}
-bool IsUnknown(const Status& status) {
-  return status.code() == StatusCode::kUnknown;
+  return status;
 }
 
 }  // namespace sapi

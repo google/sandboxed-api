@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+
 licenses(["notice"])
 
 exports_files(["LICENSE"])
-
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 sapi_proto_library(
     name = "proto_arg",
@@ -39,8 +39,8 @@ cc_library(
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_glog//:glog",
@@ -80,6 +80,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
@@ -149,6 +150,7 @@ cc_library(
         "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
@@ -189,9 +191,9 @@ cc_test(
         "//sandboxed_api/examples/stringop/lib:stringop_params_cc_proto",
         "//sandboxed_api/examples/sum/lib:sum-sapi",
         "//sandboxed_api/examples/sum/lib:sum-sapi_embed",
-        "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest_main",
     ],

@@ -17,8 +17,8 @@
 
 #include <string>
 
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/util/status.h"
 
 namespace sandbox2 {
 namespace file {
@@ -29,10 +29,10 @@ struct Options {};
 // Default constructed Options struct for compatiblity with Google File.
 const Options& Defaults();
 
-sapi::Status GetContents(absl::string_view path, std::string* output,
+absl::Status GetContents(absl::string_view path, std::string* output,
                          const file::Options& options);
 
-sapi::Status SetContents(absl::string_view path, absl::string_view content,
+absl::Status SetContents(absl::string_view path, absl::string_view content,
                          const file::Options& options);
 
 }  // namespace file

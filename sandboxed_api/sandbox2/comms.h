@@ -32,8 +32,8 @@
 #include <string>
 
 #include "absl/base/attributes.h"
+#include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status.pb.h"
 
 namespace proto2 {
@@ -150,10 +150,8 @@ class Comms {
   bool SendProtoBuf(const google::protobuf::Message& message);
 
   // Receives/sends Status objects.
-  template <typename StatusT>
-  bool RecvStatus(StatusT* status);
-  template <typename StatusT>
-  bool SendStatus(const StatusT& status);
+  bool RecvStatus(absl::Status* status);
+  bool SendStatus(const absl::Status& status);
 
  private:
   // State of the channel
@@ -219,23 +217,6 @@ class Comms {
     return SendTLV(tag, sizeof(T), reinterpret_cast<const uint8_t*>(&value));
   }
 };
-
-template <typename StatusT>
-bool Comms::RecvStatus(StatusT* status) {
-  sapi::StatusProto proto;
-  if (!RecvProtoBuf(&proto)) {
-    return false;
-  }
-  *status = sapi::MakeStatusFromProto(proto);
-  return true;
-}
-
-template <typename StatusT>
-bool Comms::SendStatus(const StatusT& status) {
-  sapi::StatusProto proto;
-  sapi::SaveStatusToProto(status, &proto);
-  return SendProtoBuf(proto);
-}
 
 }  // namespace sandbox2
 

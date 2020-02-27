@@ -20,8 +20,8 @@
 #include <type_traits>
 
 #include "absl/base/macros.h"
+#include "absl/status/status.h"
 #include "sandboxed_api/var_type.h"
-#include "sandboxed_api/util/status.h"
 
 namespace sandbox2 {
 class Comms;
@@ -82,17 +82,17 @@ class Var {
   // Allocates the local variable on the remote side. The 'automatic_free'
   // argument dictates whether the remote memory should be freed upon end of
   // this object's lifetime.
-  virtual sapi::Status Allocate(RPCChannel* rpc_channel, bool automatic_free);
+  virtual absl::Status Allocate(RPCChannel* rpc_channel, bool automatic_free);
 
   // Frees the local variable on the remote side.
-  virtual sapi::Status Free(RPCChannel* rpc_channel);
+  virtual absl::Status Free(RPCChannel* rpc_channel);
 
   // Transfers the variable to the sandboxee's address space, has to be
   // allocated there first.
-  virtual sapi::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid);
+  virtual absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid);
 
   // Transfers the variable from the sandboxee's address space.
-  virtual sapi::Status TransferFromSandboxee(RPCChannel* rpc_channel,
+  virtual absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
                                              pid_t pid);
 
  private:

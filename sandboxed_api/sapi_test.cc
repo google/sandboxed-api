@@ -18,6 +18,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "sandboxed_api/examples/stringop/lib/sandbox.h"
 #include "sandboxed_api/examples/stringop/lib/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/lib/stringop_params.pb.h"
@@ -26,7 +27,6 @@
 #include "sandboxed_api/examples/sum/lib/sum-sapi_embed.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include "sandboxed_api/util/status.h"
 
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
@@ -39,14 +39,14 @@ namespace {
 // Functions that will be used during the benchmarks:
 
 // Function causing no load in the sandboxee.
-sapi::Status InvokeNop(Sandbox* sandbox) {
+absl::Status InvokeNop(Sandbox* sandbox) {
   StringopApi api(sandbox);
   return api.nop();
 }
 
 // Function that makes use of our special protobuf (de)-serialization code
 // inside SAPI (including the back-synchronization of the structure).
-sapi::Status InvokeStringReversal(Sandbox* sandbox) {
+absl::Status InvokeStringReversal(Sandbox* sandbox) {
   StringopApi api(sandbox);
   stringop::StringReverse proto;
   proto.set_input("Hello");
@@ -55,7 +55,7 @@ sapi::Status InvokeStringReversal(Sandbox* sandbox) {
   TRANSACTION_FAIL_IF_NOT(return_code != 0, "pb_reverse_string failed");
   SAPI_ASSIGN_OR_RETURN(auto pb_result, pp.GetMessage());
   TRANSACTION_FAIL_IF_NOT(pb_result.output() == "olleH", "Incorrect output");
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 // Benchmark functions:
@@ -138,7 +138,7 @@ TEST(SAPITest, HasStackTraces) {
   auto sandbox = absl::make_unique<StringopSandbox>();
   ASSERT_THAT(sandbox->Init(), IsOk());
   StringopApi api(sandbox.get());
-  EXPECT_THAT(api.violate(), StatusIs(sapi::StatusCode::kUnavailable));
+  EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
   const auto& result = sandbox->AwaitResult();
   EXPECT_THAT(result.GetStackTrace(), HasSubstr("violate"));
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));
@@ -160,7 +160,7 @@ int leak_file_descriptor(sapi::Sandbox* sandbox, const char* path) {
 TEST(SandboxTest, RestartSandboxFD) {
   sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
 
-  auto test_body = [](sapi::Sandbox* sandbox) -> sapi::Status {
+  auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
     // Open some FDs and check their value.
     EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
     EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(4));
@@ -168,7 +168,7 @@ TEST(SandboxTest, RestartSandboxFD) {
     // We should have a fresh sandbox now = FDs open previously should be
     // closed now.
     EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
-    return sapi::OkStatus();
+    return absl::OkStatus();
   };
 
   EXPECT_THAT(st.Run(test_body), IsOk());
@@ -177,23 +177,23 @@ TEST(SandboxTest, RestartSandboxFD) {
 TEST(SandboxTest, RestartTransactionSandboxFD) {
   sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
 
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
+  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }),
               IsOk());
 
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
+  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(4));
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }),
               IsOk());
 
   EXPECT_THAT(st.Restart(), IsOk());
 
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> sapi::Status {
+  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
-    return sapi::OkStatus();
+    return absl::OkStatus();
   }),
               IsOk());
 }
@@ -202,12 +202,12 @@ TEST(SandboxTest, RestartTransactionSandboxFD) {
 TEST(SandboxTest, RestartSandboxAfterCrash) {
   sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
 
-  auto test_body = [](sapi::Sandbox* sandbox) -> sapi::Status {
+  auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
     SumApi sumapi(sandbox);
     // Crash the sandbox.
-    EXPECT_THAT(sumapi.crash(), StatusIs(sapi::StatusCode::kUnavailable));
+    EXPECT_THAT(sumapi.crash(), StatusIs(absl::StatusCode::kUnavailable));
     EXPECT_THAT(sumapi.sum(1, 2).status(),
-                StatusIs(sapi::StatusCode::kUnavailable));
+                StatusIs(absl::StatusCode::kUnavailable));
     EXPECT_THAT(sandbox->AwaitResult().final_status(),
                 Eq(sandbox2::Result::SIGNALED));
 
@@ -216,7 +216,7 @@ TEST(SandboxTest, RestartSandboxAfterCrash) {
     // The sandbox should now be responsive again.
     auto result_or = sumapi.sum(1, 2);
     EXPECT_THAT(result_or.ValueOrDie(), Eq(3));
-    return sapi::OkStatus();
+    return absl::OkStatus();
   };
 
   EXPECT_THAT(st.Run(test_body), IsOk());
@@ -225,12 +225,12 @@ TEST(SandboxTest, RestartSandboxAfterCrash) {
 TEST(SandboxTest, RestartSandboxAfterViolation) {
   sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
 
-  auto test_body = [](sapi::Sandbox* sandbox) -> sapi::Status {
+  auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
     SumApi sumapi(sandbox);
     // Violate the sandbox policy.
-    EXPECT_THAT(sumapi.violate(), StatusIs(sapi::StatusCode::kUnavailable));
+    EXPECT_THAT(sumapi.violate(), StatusIs(absl::StatusCode::kUnavailable));
     EXPECT_THAT(sumapi.sum(1, 2).status(),
-                StatusIs(sapi::StatusCode::kUnavailable));
+                StatusIs(absl::StatusCode::kUnavailable));
     EXPECT_THAT(sandbox->AwaitResult().final_status(),
                 Eq(sandbox2::Result::VIOLATION));
 
@@ -240,7 +240,7 @@ TEST(SandboxTest, RestartSandboxAfterViolation) {
     auto result_or = sumapi.sum(1, 2);
     EXPECT_THAT(result_or, IsOk());
     EXPECT_THAT(result_or.ValueOrDie(), Eq(3));
-    return sapi::OkStatus();
+    return absl::OkStatus();
   };
 
   EXPECT_THAT(st.Run(test_body), IsOk());
@@ -250,7 +250,7 @@ TEST(SandboxTest, NoRaceInAwaitResult) {
   auto sandbox = absl::make_unique<StringopSandbox>();
   ASSERT_THAT(sandbox->Init(), IsOk());
   StringopApi api(sandbox.get());
-  EXPECT_THAT(api.violate(), StatusIs(sapi::StatusCode::kUnavailable));
+  EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
   absl::SleepFor(absl::Milliseconds(200));  // make sure we lose the race
   const auto& result = sandbox->AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));

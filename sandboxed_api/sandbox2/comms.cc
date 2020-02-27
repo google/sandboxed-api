@@ -35,6 +35,7 @@
 
 #include "google/protobuf/message.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
@@ -655,6 +656,21 @@ bool Comms::RecvInt(void* buffer, uint64_t len, uint32_t tag) {
     return false;
   }
   return true;
+}
+
+bool Comms::RecvStatus(absl::Status* status) {
+  sapi::StatusProto proto;
+  if (!RecvProtoBuf(&proto)) {
+    return false;
+  }
+  *status = sapi::MakeStatusFromProto(proto);
+  return true;
+}
+
+bool Comms::SendStatus(const absl::Status& status) {
+  sapi::StatusProto proto;
+  sapi::SaveStatusToProto(status, &proto);
+  return SendProtoBuf(proto);
 }
 
 }  // namespace sandbox2

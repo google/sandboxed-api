@@ -27,9 +27,9 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/util/status.h"
 
 namespace sandbox2 {
 
@@ -151,9 +151,9 @@ class Result {
 
   void SetProcMaps(const std::string& proc_maps) { proc_maps_ = proc_maps; }
 
-  // Converts this result to a sapi::Status object.  The status will only be
+  // Converts this result to a absl::Status object.  The status will only be
   // OK if the sandbox process exited normally with an exit code of 0.
-  sapi::Status ToStatus() const;
+  absl::Status ToStatus() const;
 
   // Returns a descriptive string for final result.
   std::string ToString() const;

@@ -17,6 +17,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
 namespace sandbox2 {
@@ -27,33 +28,30 @@ const Options& Defaults() {
   return *instance;
 }
 
-sapi::Status GetContents(absl::string_view path, std::string* output,
+absl::Status GetContents(absl::string_view path, std::string* output,
                          const file::Options& options) {
   std::ifstream in_stream{std::string(path), std::ios_base::binary};
   std::ostringstream out_stream;
   out_stream << in_stream.rdbuf();
   if (!in_stream || !out_stream) {
-    return sapi::Status{sapi::StatusCode::kUnknown,
-                        absl::StrCat("Error during read: ", path)};
+    return absl::UnknownError(absl::StrCat("Error during read: ", path));
   }
   *output = out_stream.str();
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status SetContents(absl::string_view path, absl::string_view content,
+absl::Status SetContents(absl::string_view path, absl::string_view content,
                          const file::Options& options) {
-  std::ofstream out_stream{std::string(path),
-                           std::ios_base::trunc | std::ios_base::binary};
+  std::ofstream out_stream(std::string(path),
+                           std::ios_base::trunc | std::ios_base::binary);
   if (!out_stream) {
-    return sapi::Status{sapi::StatusCode::kUnknown,
-                        absl::StrCat("Failed to open file: ", path)};
+    return absl::UnknownError(absl::StrCat("Failed to open file: ", path));
   }
   out_stream.write(content.data(), content.size());
   if (!out_stream) {
-    return sapi::Status{sapi::StatusCode::kUnknown,
-                        absl::StrCat("Error during write: ", path)};
+    return absl::UnknownError(absl::StrCat("Error during write: ", path));
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 }  // namespace file

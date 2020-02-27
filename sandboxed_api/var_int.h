@@ -82,17 +82,17 @@ class Fd : public Int {
   void OwnLocalFd(bool owned) { own_local_ = owned; }
 
   // Close remote fd in the sadboxee.
-  sapi::Status CloseRemoteFd(RPCChannel* rpc_channel);
+  absl::Status CloseRemoteFd(RPCChannel* rpc_channel);
   // Close local fd.
   void CloseLocalFd();
 
  protected:
   // Sends local fd to sandboxee, takes ownership of the fd.
-  sapi::Status TransferFromSandboxee(RPCChannel* rpc_channel,
+  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
                                      pid_t pid) override;
 
   // Retrieves remote file descriptor, does not own fd.
-  sapi::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
+  absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
 
  private:
   int remote_fd_;

@@ -256,9 +256,9 @@ NetworkProxyClient* Client::GetNetworkProxyClient() {
   return proxy_client_.get();
 }
 
-sapi::Status Client::InstallNetworkProxyHandler() {
+absl::Status Client::InstallNetworkProxyHandler() {
   if (fd_map_.find(NetworkProxyClient::kFDName) == fd_map_.end()) {
-    return sapi::FailedPreconditionError(
+    return absl::FailedPreconditionError(
         "InstallNetworkProxyHandler() must be called at most once after the "
         "sandbox is installed. Also, the NetworkProxyServer needs to be "
         "enabled.");

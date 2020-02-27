@@ -55,7 +55,7 @@ constexpr char NetworkProxyClient::kFDName[];
 
 int NetworkProxyClient::ConnectHandler(int sockfd, const struct sockaddr* addr,
                                        socklen_t addrlen) {
-  sapi::Status status = Connect(sockfd, addr, addrlen);
+  absl::Status status = Connect(sockfd, addr, addrlen);
   if (status.ok()) {
     return 0;
   }
@@ -63,7 +63,7 @@ int NetworkProxyClient::ConnectHandler(int sockfd, const struct sockaddr* addr,
   return -1;
 }
 
-sapi::Status NetworkProxyClient::Connect(int sockfd,
+absl::Status NetworkProxyClient::Connect(int sockfd,
                                          const struct sockaddr* addr,
                                          socklen_t addrlen) {
   absl::MutexLock lock(&mutex_);
@@ -73,18 +73,18 @@ sapi::Status NetworkProxyClient::Connect(int sockfd,
   socklen_t type_size = sizeof(int);
   int result = getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &type, &type_size);
   if (result == -1) {
-    return sapi::FailedPreconditionError("Invalid socket FD");
+    return absl::FailedPreconditionError("Invalid socket FD");
   }
   if (type_size != sizeof(int) || type != SOCK_STREAM) {
     errno = EINVAL;
-    return sapi::InvalidArgumentError(
+    return absl::InvalidArgumentError(
         "Invalid socket, only SOCK_STREAM is allowed");
   }
 
   // Send sockaddr struct
   if (!comms_.SendBytes(reinterpret_cast<const uint8_t*>(addr), addrlen)) {
     errno = EIO;
-    return sapi::InternalError("Sending data to network proxy failed");
+    return absl::InternalError("Sending data to network proxy failed");
   }
 
   SAPI_RETURN_IF_ERROR(ReceiveRemoteResult());
@@ -93,27 +93,27 @@ sapi::Status NetworkProxyClient::Connect(int sockfd,
   int s;
   if (!comms_.RecvFD(&s)) {
     errno = EIO;
-    return sapi::InternalError("Receiving data from network proxy failed");
+    return absl::InternalError("Receiving data from network proxy failed");
   }
   if (dup2(s, sockfd) == -1) {
     close(s);
-    return sapi::InternalError("Processing data from network proxy failed");
+    return absl::InternalError("Processing data from network proxy failed");
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
-sapi::Status NetworkProxyClient::ReceiveRemoteResult() {
+absl::Status NetworkProxyClient::ReceiveRemoteResult() {
   int result;
   if (!comms_.RecvInt32(&result)) {
     errno = EIO;
-    return sapi::InternalError("Receiving data from the network proxy failed");
+    return absl::InternalError("Receiving data from the network proxy failed");
   }
   if (result != 0) {
     errno = result;
-    return sapi::InternalError(
+    return absl::InternalError(
         absl::StrCat("Error in network proxy server: ", StrError(errno)));
   }
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 namespace {
@@ -126,14 +126,14 @@ void SignalHandler(int nr, siginfo_t* info, void* void_context) {
 
 }  // namespace
 
-sapi::Status NetworkProxyHandler::InstallNetworkProxyHandler(
+absl::Status NetworkProxyHandler::InstallNetworkProxyHandler(
     NetworkProxyClient* npc) {
   if (g_network_proxy_handler) {
-    return sapi::AlreadyExistsError(
+    return absl::AlreadyExistsError(
         "Network proxy handler is already installed");
   }
   g_network_proxy_handler = new NetworkProxyHandler(npc);
-  return sapi::OkStatus();
+  return absl::OkStatus();
 }
 
 void NetworkProxyHandler::InvokeOldAct(int nr, siginfo_t* info,
@@ -192,7 +192,7 @@ void NetworkProxyHandler::ProcessSeccompTrap(int nr, siginfo_t* info,
     return;
   }
 
-  sapi::Status result = network_proxy_client_->Connect(sockfd, addr, addrlen);
+  absl::Status result = network_proxy_client_->Connect(sockfd, addr, addrlen);
   if (result.ok()) {
     registers[kRegResult] = 0;
   } else {

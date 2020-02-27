@@ -18,15 +18,15 @@
 #include <memory>
 
 #include <glog/logging.h>
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 
 #define TRANSACTION_FAIL_IF_NOT(x, y)        \
   if (!(x)) {                                \
-    return sapi::FailedPreconditionError(y); \
+    return absl::FailedPreconditionError(y); \
   }
 
 namespace sapi {
@@ -76,7 +76,7 @@ class TransactionBase {
   // WARNING: This will invalidate any references to the remote process, make
   //          sure you don't keep any vars or FDs to the remote process when
   //          calling this.
-  sapi::Status Restart() {
+  absl::Status Restart() {
     if (initialized_) {
       Finish().IgnoreError();
       initialized_ = false;
@@ -92,7 +92,7 @@ class TransactionBase {
         sandbox_(std::move(sandbox)) {}
 
   // Runs the main (retrying) transaction loop.
-  sapi::Status RunTransactionLoop(const std::function<sapi::Status()>& f);
+  absl::Status RunTransactionLoop(const std::function<absl::Status()>& f);
 
  private:
   // Number of default transaction execution re-tries, in case of failures.
@@ -103,16 +103,16 @@ class TransactionBase {
 
   // Executes a single function in the sandbox, used in the main transaction
   // loop. Asserts that the sandbox has been set up and Init() was called.
-  sapi::Status RunTransactionFunctionInSandbox(
-      const std::function<sapi::Status()>& f);
+  absl::Status RunTransactionFunctionInSandbox(
+      const std::function<absl::Status()>& f);
 
   // Initialization routine of the sandboxed process that will be called only
   // once upon sandboxee startup.
-  virtual sapi::Status Init() { return sapi::OkStatus(); }
+  virtual absl::Status Init() { return absl::OkStatus(); }
 
   // End routine for the sandboxee that gets calls when the transaction is
   // destroyed/restarted to clean up resources.
-  virtual sapi::Status Finish() { return sapi::OkStatus(); }
+  virtual absl::Status Finish() { return absl::OkStatus(); }
 
   // Number of tries this transaction will be re-executed until it succeeds.
   int retry_count_;
@@ -136,20 +136,20 @@ class Transaction : public TransactionBase {
   using TransactionBase::TransactionBase;
 
   // Run the transaction.
-  sapi::Status Run() {
+  absl::Status Run() {
     return RunTransactionLoop([this] { return Main(); });
   }
 
  protected:
   // The main sandboxee routine: Can be called multiple times.
-  virtual sapi::Status Main() { return sapi::OkStatus(); }
+  virtual absl::Status Main() { return absl::OkStatus(); }
 };
 
 // Callback style transactions:
 class BasicTransaction final : public TransactionBase {
  private:
-  using InitFunction = std::function<sapi::Status(Sandbox*)>;
-  using FinishFunction = std::function<sapi::Status(Sandbox*)>;
+  using InitFunction = std::function<absl::Status(Sandbox*)>;
+  using FinishFunction = std::function<absl::Status(Sandbox*)>;
 
  public:
   explicit BasicTransaction(std::unique_ptr<Sandbox> sandbox)
@@ -174,7 +174,7 @@ class BasicTransaction final : public TransactionBase {
   // (that is: Returning a Status and accepting a Sandbox object as first
   // parameter).
   template <typename T, typename... Args>
-  sapi::Status Run(T func, Args&&... args) {
+  absl::Status Run(T func, Args&&... args) {
     return RunTransactionLoop(
         [&] { return func(sandbox(), std::forward<Args>(args)...); });
   }
@@ -183,12 +183,12 @@ class BasicTransaction final : public TransactionBase {
   InitFunction init_function_;
   FinishFunction finish_function_;
 
-  sapi::Status Init() final {
-    return init_function_ ? init_function_(sandbox()) : sapi::OkStatus();
+  absl::Status Init() final {
+    return init_function_ ? init_function_(sandbox()) : absl::OkStatus();
   }
 
-  sapi::Status Finish() final {
-    return finish_function_ ? finish_function_(sandbox()) : sapi::OkStatus();
+  absl::Status Finish() final {
+    return finish_function_ ? finish_function_(sandbox()) : absl::OkStatus();
   }
 };
 

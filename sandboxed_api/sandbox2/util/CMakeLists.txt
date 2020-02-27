@@ -29,9 +29,9 @@ add_library(sandbox2_util_file_helpers STATIC
 )
 add_library(sandbox2::file_helpers ALIAS sandbox2_util_file_helpers)
 target_link_libraries(sandbox2_util_file_helpers PRIVATE
+  absl::status
   absl::strings
   sapi::base
-  sapi::status
 )
 
 # sandboxed_api/sandbox2/util:fileops
@@ -75,11 +75,11 @@ add_library(sandbox2_util_minielf STATIC
 )
 add_library(sandbox2::minielf ALIAS sandbox2_util_minielf)
 target_link_libraries(sandbox2_util_minielf PRIVATE
+  absl::status
   absl::strings
   sandbox2::util
   sapi::base
   sapi::raw_logging
-  sapi::status
   sapi::statusor
 )
 
@@ -94,7 +94,7 @@ target_link_libraries(sandbox2_util_temp_file
           sandbox2::fileops
           sandbox2::strerror
           sapi::base
-  PUBLIC sapi::status
+  PUBLIC absl::status
          sapi::statusor
 )
 
@@ -105,9 +105,9 @@ add_library(sandbox2_util_maps_parser STATIC
 )
 add_library(sandbox2::maps_parser ALIAS sandbox2_util_maps_parser)
 target_link_libraries(sandbox2_util_maps_parser PRIVATE
+  absl::status
   absl::strings
   sapi::base
-  sapi::status
   sapi::statusor
 )
 

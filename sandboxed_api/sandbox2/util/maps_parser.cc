@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
+
+#include "absl/status/status.h"
 #include "absl/strings/str_split.h"
 
 namespace sandbox2 {
@@ -44,7 +46,7 @@ sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
     } else if (n_matches == 11) {
       entry.path.resize(strlen(entry.path.c_str()));
     } else {
-      return sapi::FailedPreconditionError("Invalid format");
+      return absl::FailedPreconditionError("Invalid format");
     }
     entry.is_readable = r == 'r';
     entry.is_writable = w == 'w';

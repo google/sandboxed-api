@@ -19,8 +19,8 @@ namespace sapi {
 
 constexpr absl::Duration TransactionBase::kDefaultTimeLimit;
 
-sapi::Status TransactionBase::RunTransactionFunctionInSandbox(
-    const std::function<sapi::Status()>& f) {
+absl::Status TransactionBase::RunTransactionFunctionInSandbox(
+    const std::function<absl::Status()>& f) {
   // Run Main(), invoking Init() if this hasn't been yet done.
   SAPI_RETURN_IF_ERROR(sandbox_->Init());
 
@@ -44,11 +44,11 @@ sapi::Status TransactionBase::RunTransactionFunctionInSandbox(
   return f();
 }
 
-sapi::Status TransactionBase::RunTransactionLoop(
-    const std::function<sapi::Status()>& f) {
+absl::Status TransactionBase::RunTransactionLoop(
+    const std::function<absl::Status()>& f) {
   // Try to run Main() for a few times, return error if none of the tries
   // succeeded.
-  sapi::Status status;
+  absl::Status status;
   for (int i = 0; i <= retry_count_; ++i) {
     status = RunTransactionFunctionInSandbox(f);
     if (status.ok()) {

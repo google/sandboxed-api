@@ -462,7 +462,7 @@ class ReturnType(ArgumentType):
 
      Attributes:
        return_type: sapi::StatusOr<T> where T is original return type, or
-                    sapi::Status for functions returning void
+                    absl::Status for functions returning void
   """
 
   def __init__(self, function, arg_type):
@@ -475,7 +475,7 @@ class ReturnType(ArgumentType):
     # TODO(szwl): const ptrs do not play well with SAPI C++ API...
     spelling = self._clang_type.spelling.replace('const', '')
     return_type = 'sapi::StatusOr<{}>'.format(spelling)
-    return_type = 'sapi::Status' if self.is_void() else return_type
+    return_type = 'absl::Status' if self.is_void() else return_type
     return return_type
 
 
@@ -862,7 +862,7 @@ class Generator(object):
     result.append('    SAPI_RETURN_IF_ERROR(sandbox_->Call("{}", &ret{}));'
                   ''.format(f.name, ', '.join(call_arguments)))
 
-    return_status = 'return sapi::OkStatus();'
+    return_status = 'return absl::OkStatus();'
     if f.result and not f.result.is_void():
       if f.result and f.result.is_enum():
         return_status = ('return static_cast<{}>'

@@ -37,7 +37,7 @@ sapi::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
   std::string name_template = absl::StrCat(prefix, kMktempSuffix);
   int fd = mkstemp(&name_template[0]);
   if (fd < 0) {
-    return sapi::UnknownError(absl::StrCat("mkstemp():", StrError(errno)));
+    return absl::UnknownError(absl::StrCat("mkstemp():", StrError(errno)));
   }
   return std::pair<std::string, int>{std::move(name_template), fd};
 }
@@ -58,7 +58,7 @@ sapi::StatusOr<std::string> CreateNamedTempFileAndClose(
 sapi::StatusOr<std::string> CreateTempDir(absl::string_view prefix) {
   std::string name_template = absl::StrCat(prefix, kMktempSuffix);
   if (mkdtemp(&name_template[0]) == nullptr) {
-    return sapi::UnknownError(absl::StrCat("mkdtemp():", StrError(errno)));
+    return absl::UnknownError(absl::StrCat("mkdtemp():", StrError(errno)));
   }
   return name_template;
 }
