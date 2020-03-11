@@ -27,11 +27,16 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/runfiles.h"
 
+ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
+
 namespace {
 
+constexpr char kSandboxeePath[] =
+    "sandbox2/examples/network_proxy/networkproxy_bin";
+
 std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
-  return sandbox2::PolicyBuilder()
-      .AllowExit()
+  sandbox2::PolicyBuilder policy;
+  policy.AllowExit()
       .AllowMmap()
       .AllowRead()
       .AllowWrite()
@@ -41,11 +46,14 @@ std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
       .AllowSyscall(__NR_lseek)
       .AllowSyscall(__NR_munmap)
       .AllowSyscall(__NR_getpid)
-      .AddNetworkProxyHandlerPolicy()
       .AllowTcMalloc()
-      .AllowIPv6("::1")
-      .AddLibrariesForBinary(sandboxee_path)
-      .BuildOrDie();
+      .AddLibrariesForBinary(sandboxee_path);
+  if (absl::GetFlag(FLAGS_connect_with_handler)) {
+    policy.AddNetworkProxyHandlerPolicy();
+  } else {
+    policy.AddNetworkProxyPolicy();
+  }
+  return policy.AllowIPv6("::1").BuildOrDie();
 }
 
 void Server(int port) {
@@ -119,9 +127,12 @@ int main(int argc, char** argv) {
   std::thread server_thread{Server,port};
   server_thread.detach();
 
-  std::string path = sandbox2::GetInternalDataDependencyFilePath(
-      "sandbox2/examples/network_proxy/networkproxy_bin");
+  std::string path =
+      sandbox2::GetInternalDataDependencyFilePath(kSandboxeePath);
   std::vector<std::string> args = {path};
+  if (!absl::GetFlag(FLAGS_connect_with_handler)) {
+    args.push_back("--noconnect_with_handler");
+  }
   std::vector<std::string> envs = {};
 
   auto executor = absl::make_unique<sandbox2::Executor>(path, args, envs);
