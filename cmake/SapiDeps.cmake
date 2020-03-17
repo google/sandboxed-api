@@ -77,7 +77,11 @@ find_package(Libffi REQUIRED)
 if(SAPI_ENABLE_EXAMPLES)
   find_package(ZLIB REQUIRED)
 endif()
+
+# Find Python 3 and add its location to the cache so that its available in
+# the add_sapi_library() macro in embedding projects.
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(SAPI_PYTHON3_EXECUTABLE "${Python3_EXECUTABLE}" CACHE INTERNAL "" FORCE)
 
 # Undo global change
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${_sapi_saved_CMAKE_FIND_LIBRARY_SUFFIXES})

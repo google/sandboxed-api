@@ -135,7 +135,7 @@ function(add_sapi_library)
   endif()
   add_custom_command(
     OUTPUT "${_sapi_gen_header}"
-    COMMAND "${Python3_EXECUTABLE}" -B
+    COMMAND "${SAPI_PYTHON3_EXECUTABLE}" -B
             "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
             "--sapi_name=${_sapi_LIBRARY_NAME}"
             "--sapi_out=${_sapi_gen_header}"
