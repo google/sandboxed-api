@@ -18,7 +18,7 @@ add_subdirectory(sandbox2)
 add_subdirectory(util)
 
 # sandboxed_api:proto_arg
-protobuf_generate_cpp(_sapi_proto_arg_pb_cc _sapi_proto_arg_pb_h
+sapi_protobuf_generate_cpp(_sapi_proto_arg_pb_cc _sapi_proto_arg_pb_h
   proto_arg.proto
 )
 add_library(sapi_proto_arg_proto STATIC

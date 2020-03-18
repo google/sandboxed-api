@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # sandboxed_api/util:status_proto
-protobuf_generate_cpp(_sapi_util_status_pb_cc _sapi_util_status_pb_h
+sapi_protobuf_generate_cpp(_sapi_util_status_pb_cc _sapi_util_status_pb_h
   status.proto
 )
 add_library(sapi_util_status_proto STATIC

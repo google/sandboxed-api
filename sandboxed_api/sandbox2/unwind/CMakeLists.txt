@@ -40,7 +40,7 @@ target_link_libraries(sandbox2_unwind PRIVATE
 )
 
 # sandboxed_api/sandbox2/unwind:unwind_proto
-protobuf_generate_cpp(_sandbox2_unwind_pb_h _sandbox2_unwind_pb_cc
+sapi_protobuf_generate_cpp(_sandbox2_unwind_pb_h _sandbox2_unwind_pb_cc
   unwind.proto
 )
 add_library(sandbox2_unwind_proto STATIC
