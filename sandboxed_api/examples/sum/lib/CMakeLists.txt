@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # sandboxed_api/examples/sum/lib:sum_params_proto
-protobuf_generate_cpp(_sapi_sum_params_pb_cc _sapi_sum_params_pb_h
+sapi_protobuf_generate_cpp(_sapi_sum_params_pb_cc _sapi_sum_params_pb_h
   sum_params.proto
 )
 # Object library to avoid having to use -Wl,--whole-archive. This simulates
