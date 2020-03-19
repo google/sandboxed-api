@@ -1,8 +1,6 @@
-# Sandboxed API
+![Sandbox](sandboxed_api/docs/images/sapi-lockup-vertical.png)
 
-Copyright 2019 Google LLC.
-
-![Sandbox](sandboxed_api/docs/images/playing-in-sand.png)
+Copyright 2019-2020 Google LLC.
 
 [![Build status](https://badge.buildkite.com/2f662d7bddfd1c07d25bf92d243538c8344bc6fbf38fe187f8.svg)](https://buildkite.com/bazel/sandboxed-api)
 
