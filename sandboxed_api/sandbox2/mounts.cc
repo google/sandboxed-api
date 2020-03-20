@@ -179,7 +179,7 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   std::string fixed_path = file::CleanPath(path);
 
-  if (!absl::StartsWith(fixed_path, "/")) {
+  if (!file::IsAbsolutePath(fixed_path)) {
     return absl::InvalidArgumentError("Only absolute paths are supported");
   }
 
