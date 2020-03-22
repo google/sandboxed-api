@@ -23,7 +23,7 @@ def _configure(ctx):
     ctx.execute(
         [bash_exe, "-c", """
                     ./configure --disable-dependency-tracking {args}
-                     mv $(. config.guess) configure-bazel-gen || true
+                     mv -t configure-bazel-gen $(. config.guess) || true
                  """.format(args = " ".join(ctx.attr.configure_args))],
         quiet = ctx.attr.quiet,
     )

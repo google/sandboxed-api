@@ -1,4 +1,4 @@
-# Copyright 2019 Google LLC
+# Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,19 +13,16 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.12)
-project(libunwind-download NONE)
+project(libffi-download NONE)
 
 include(ExternalProject)
-ExternalProject_Add(libunwind
-  URL https://github.com/libunwind/libunwind/releases/download/v1.2.1/libunwind-1.2.1.tar.gz
-  URL_HASH SHA256=3f3ecb90e28cbe53fba7a4a27ccce7aad188d3210bb1964a923a731a27a75acb
-  SOURCE_DIR        "${CMAKE_BINARY_DIR}/libunwind-src"
-  CONFIGURE_COMMAND ./configure
-                    --disable-dependency-tracking
-                    --disable-documentation
-                    --disable-minidebuginfo
-                    --disable-shared
-                    --enable-ptrace
+ExternalProject_Add(libffi
+  URL https://github.com/libffi/libffi/releases/download/v3.3-rc2/libffi-3.3-rc2.tar.gz
+  URL_HASH SHA256=653ffdfc67fbb865f39c7e5df2a071c0beb17206ebfb0a9ecb18a18f63f6b263 # 2019-11-02
+  SOURCE_DIR        "${CMAKE_BINARY_DIR}/libffi-src"
+  CONFIGURE_COMMAND sh -c "./configure            \
+                    --disable-dependency-tracking \
+                    && (mv -t configure-cmake-gen `sh config.guess` || true)"
   BUILD_COMMAND     ""
   INSTALL_COMMAND   ""
   TEST_COMMAND      ""
