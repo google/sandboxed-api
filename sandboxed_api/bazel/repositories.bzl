@@ -21,10 +21,9 @@ def _configure(ctx):
     # Run configure script and move host-specific directory to a well-known
     # location.
     ctx.execute(
-        [bash_exe, "-c", """
-                    ./configure --disable-dependency-tracking {args}
-                     mv -t configure-bazel-gen $(. config.guess) || true
-                 """.format(args = " ".join(ctx.attr.configure_args))],
+        [bash_exe, "-c", """./configure --disable-dependency-tracking {args};
+                            mv $(. config.guess) configure-bazel-gen || true
+                         """.format(args = " ".join(ctx.attr.configure_args))],
         quiet = ctx.attr.quiet,
     )
 
