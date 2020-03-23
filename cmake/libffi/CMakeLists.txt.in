@@ -22,7 +22,7 @@ ExternalProject_Add(libffi
   SOURCE_DIR        "${CMAKE_BINARY_DIR}/libffi-src"
   CONFIGURE_COMMAND sh -c "./configure            \
                     --disable-dependency-tracking \
-                    && (mv -t configure-cmake-gen `sh config.guess` || true)"
+                    && (mv `sh config.guess` configure-cmake-gen || true)"
   BUILD_COMMAND     ""
   INSTALL_COMMAND   ""
   TEST_COMMAND      ""
