@@ -350,6 +350,23 @@ cc_library(
 )
 
 cc_library(
+    name = "sanitizer",
+    srcs = ["sanitizer.cc"],
+    hdrs = ["sanitizer.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//sandboxed_api/sandbox2/util:file_helpers",
+        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings",
+        "@com_google_glog//:glog",
+    ],
+)
+
+cc_library(
     name = "forkserver",
     srcs = ["forkserver.cc"],
     hdrs = ["forkserver.h"],
