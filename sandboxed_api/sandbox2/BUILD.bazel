@@ -324,10 +324,7 @@ cc_library(
 # sandbox2::Client::SandboxMeHere() and sandbox2::Comms
 cc_library(
     name = "client",
-    srcs = [
-        "client.cc",
-        "sanitizer.cc",
-    ],
+    srcs = ["client.cc"],
     hdrs = [
         "client.h",
         "sanitizer.h",
@@ -337,6 +334,7 @@ cc_library(
     deps = [
         ":comms",
         ":logsink",
+        ":sanitizer",
         "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/util:file_helpers",
         "//sandboxed_api/sandbox2/util:fileops",
