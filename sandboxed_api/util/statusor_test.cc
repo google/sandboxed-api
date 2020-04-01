@@ -28,6 +28,7 @@
 using ::testing::Eq;
 using ::testing::IsFalse;
 using ::testing::Not;
+using ::testing::Pointee;
 
 namespace sapi {
 namespace {
@@ -364,6 +365,42 @@ TEST(StatusOrTest, ValueOrDieMovedValue) {
   std::unique_ptr<std::string> moved_value = std::move(statusor).ValueOrDie();
   EXPECT_THAT(moved_value.get(), Eq(str));
   EXPECT_THAT(*moved_value, Eq(kStringElement));
+}
+
+TEST(StatusOrTest, MapToStatusOrUniquePtr) {
+  // A reduced version of a problematic type found in the wild. All of the
+  // operations below should compile.
+  using MapType = std::map<std::string, StatusOr<std::unique_ptr<int>>>;
+
+  MapType a;
+
+  // Move-construction
+  MapType b(std::move(a));
+
+  // Move-assignment
+  a = std::move(b);
+}
+
+TEST(StatusOrTest, ValueOrOk) {
+  const StatusOr<int> status_or = 0;
+  EXPECT_EQ(status_or.value_or(-1), 0);
+}
+
+TEST(StatusOrTest, ValueOrDefault) {
+  const StatusOr<int> status_or = absl::CancelledError();
+  EXPECT_EQ(status_or.value_or(-1), -1);
+}
+
+TEST(StatusOrTest, MoveOnlyValueOrOk) {
+  EXPECT_THAT(StatusOr<std::unique_ptr<int>>(absl::make_unique<int>(0))
+                  .value_or(absl::make_unique<int>(-1)),
+              Pointee(0));
+}
+
+TEST(StatusOr, MoveOnlyValueOrDefault) {
+  EXPECT_THAT(StatusOr<std::unique_ptr<int>>(absl::CancelledError())
+                  .value_or(absl::make_unique<int>(-1)),
+              Pointee(-1));
 }
 
 }  // namespace
