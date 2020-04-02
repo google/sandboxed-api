@@ -62,9 +62,8 @@ TEST(NamespaceTest, FileNamespaceWorks) {
 
 TEST(NamespaceTest, ReadOnlyIsRespected) {
   // Mount temporary file as RO and check that it actually is RO.
-  auto [name, fd] =
-      CreateNamedTempFile(GetTestTempPath("temp_file")).ValueOrDie();
-  file_util::fileops::FDCloser temp_closer{fd};
+  auto [name, fd] = CreateNamedTempFile(GetTestTempPath("temp_file")).value();
+  file_util::fileops::FDCloser temp_closer(fd);
 
   const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
   {

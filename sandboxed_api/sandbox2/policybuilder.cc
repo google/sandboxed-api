@@ -723,7 +723,7 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
     SetError(fixed_outside_or.status());
     return *this;
   }
-  auto fixed_outside = std::move(fixed_outside_or.ValueOrDie());
+  auto fixed_outside = std::move(fixed_outside_or).value();
 
   if (absl::StartsWith(fixed_outside, "/proc/self")) {
     SetError(absl::InvalidArgumentError(
@@ -733,13 +733,12 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
     return *this;
   }
 
-  auto status = mounts_.AddFileAt(fixed_outside, inside, is_ro);
-  if (!status.ok()) {
+  if (auto status = mounts_.AddFileAt(fixed_outside, inside, is_ro);
+      !status.ok()) {
     SetError(
         absl::InternalError(absl::StrCat("Could not add file ", outside, " => ",
                                          inside, ": ", status.message())));
   }
-
   return *this;
 }
 
@@ -752,10 +751,10 @@ PolicyBuilder& PolicyBuilder::AddLibrariesForBinary(
     SetError(fixed_path_or.status());
     return *this;
   }
-  auto fixed_path = std::move(fixed_path_or.ValueOrDie());
+  auto fixed_path = std::move(fixed_path_or).value();
 
-  auto status = mounts_.AddMappingsForBinary(fixed_path, ld_library_path);
-  if (!status.ok()) {
+  if (auto status = mounts_.AddMappingsForBinary(fixed_path, ld_library_path);
+      !status.ok()) {
     SetError(absl::InternalError(absl::StrCat(
         "Could not add libraries for ", fixed_path, ": ", status.message())));
   }
@@ -782,7 +781,7 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
     SetError(fixed_outside_or.status());
     return *this;
   }
-  auto fixed_outside = std::move(fixed_outside_or.ValueOrDie());
+  auto fixed_outside = std::move(fixed_outside_or).value();
   if (absl::StartsWith(fixed_outside, "/proc/self")) {
     SetError(absl::InvalidArgumentError(
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
@@ -791,25 +790,22 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
     return *this;
   }
 
-  auto status = mounts_.AddDirectoryAt(fixed_outside, inside, is_ro);
-  if (!status.ok()) {
+  if (auto status = mounts_.AddDirectoryAt(fixed_outside, inside, is_ro);
+      !status.ok()) {
     SetError(absl::InternalError(absl::StrCat("Could not add directory ",
                                               outside, " => ", inside, ": ",
                                               status.message())));
   }
-
   return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t sz) {
   EnableNamespaces();
 
-  auto status = mounts_.AddTmpfs(inside, sz);
-  if (!status.ok()) {
+  if (auto status = mounts_.AddTmpfs(inside, sz); !status.ok()) {
     SetError(absl::InternalError(absl::StrCat("Could not mount tmpfs ", inside,
                                               ": ", status.message())));
   }
-
   return *this;
 }
 

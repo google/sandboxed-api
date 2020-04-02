@@ -40,7 +40,7 @@ void RunWritable() {
 
   std::string tmpname;
   int tmp_fd;
-  std::tie(tmpname, tmp_fd) = sandbox2::CreateNamedTempFile("tmp").ValueOrDie();
+  std::tie(tmpname, tmp_fd) = sandbox2::CreateNamedTempFile("tmp").value();
   SAPI_RAW_PCHECK(fchmod(tmp_fd, S_IRWXU) == 0, "Fchmod on temporary file");
 
   char buf[4096];

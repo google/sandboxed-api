@@ -29,13 +29,12 @@ int main(int argc, char** argv) {
 
   int testno = atoi(argv[1]);  // NOLINT
   switch (testno) {
-    case 1:  // Dup and map to static FD
-    {
+    case 1: {  // Dup and map to static FD
       auto buffer_or = sandbox2::Buffer::CreateFromFd(3);
       if (!buffer_or) {
         return EXIT_FAILURE;
       }
-      auto buffer = std::move(buffer_or).ValueOrDie();
+      auto buffer = std::move(buffer_or).value();
       uint8_t* buf = buffer->data();
       // Test that we can read data from the executor.
       if (buf[0] != 'A') {
@@ -46,8 +45,7 @@ int main(int argc, char** argv) {
       return EXIT_SUCCESS;
     }
 
-    case 2:  // Send and receive FD
-    {
+    case 2: {  // Send and receive FD
       sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
       int fd;
       if (!comms.RecvFD(&fd)) {
@@ -57,7 +55,7 @@ int main(int argc, char** argv) {
       if (!buffer_or) {
         return EXIT_FAILURE;
       }
-      auto buffer = std::move(buffer_or).ValueOrDie();
+      auto buffer = std::move(buffer_or).value();
       uint8_t* buf = buffer->data();
       // Test that we can read data from the executor.
       if (buf[0] != 'A') {
@@ -70,6 +68,6 @@ int main(int argc, char** argv) {
 
     default:
       absl::FPrintF(stderr, "Unknown test: %d\n", testno);
-      return EXIT_FAILURE;
   }
+  return EXIT_FAILURE;
 }

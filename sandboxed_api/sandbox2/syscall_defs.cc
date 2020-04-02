@@ -60,7 +60,7 @@ std::string SyscallTable::Entry::GetArgumentDescription(uint64_t value,
     case kPath:
       if (auto path_or = util::ReadCPathFromPid(pid, value); path_or.ok()) {
         absl::StrAppendFormat(&ret, " ['%s']",
-                              absl::CHexEscape(path_or.ValueOrDie()));
+                              absl::CHexEscape(path_or.value()));
       } else {
         absl::StrAppend(&ret, " [unreadable path]");
       }

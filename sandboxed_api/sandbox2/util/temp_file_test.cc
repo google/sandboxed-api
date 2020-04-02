@@ -24,40 +24,39 @@
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-using sapi::IsOk;
-using sapi::StatusIs;
-using testing::Eq;
-using testing::IsTrue;
-using testing::Ne;
-using testing::StartsWith;
-
 namespace sandbox2 {
 namespace {
 
+using ::sapi::IsOk;
+using ::sapi::StatusIs;
+using ::testing::Eq;
+using ::testing::IsTrue;
+using ::testing::Ne;
+using ::testing::StartsWith;
+
 TEST(TempFileTest, CreateTempDirTest) {
   const std::string prefix = GetTestTempPath("MakeTempDirTest_");
-  auto result_or = CreateTempDir(prefix);
-  ASSERT_THAT(result_or.status(), IsOk());
-  std::string path = result_or.ValueOrDie();
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path, CreateTempDir(prefix));
+
   EXPECT_THAT(path, StartsWith(prefix));
   EXPECT_THAT(file_util::fileops::Exists(path, false), IsTrue());
-  result_or = CreateTempDir("non_existing_dir/prefix");
-  EXPECT_THAT(result_or, StatusIs(absl::StatusCode::kUnknown));
+  EXPECT_THAT(CreateTempDir("non_existing_dir/prefix"),
+              StatusIs(absl::StatusCode::kUnknown));
 }
 
 TEST(TempFileTest, MakeTempFileTest) {
   const std::string prefix = GetTestTempPath("MakeTempDirTest_");
+
   auto result_or = CreateNamedTempFile(prefix);
   ASSERT_THAT(result_or.status(), IsOk());
-  std::string path;
-  int fd;
-  std::tie(path, fd) = result_or.ValueOrDie();
+  auto [path, fd] = std::move(result_or).value();
+
   EXPECT_THAT(path, StartsWith(prefix));
   EXPECT_THAT(file_util::fileops::Exists(path, false), IsTrue());
   EXPECT_THAT(fcntl(fd, F_GETFD), Ne(-1));
   EXPECT_THAT(close(fd), Eq(0));
-  result_or = CreateNamedTempFile("non_existing_dir/prefix");
-  EXPECT_THAT(result_or, StatusIs(absl::StatusCode::kUnknown));
+  EXPECT_THAT(CreateNamedTempFile("non_existing_dir/prefix"),
+              StatusIs(absl::StatusCode::kUnknown));
 }
 
 }  // namespace

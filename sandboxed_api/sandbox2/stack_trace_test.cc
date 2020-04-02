@@ -39,12 +39,12 @@
 
 ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 
+namespace sandbox2 {
+namespace {
+
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Not;
-
-namespace sandbox2 {
-namespace {
 
 // Temporarily overrides a flag, restores the original flag value when it goes
 // out of scope.
@@ -71,7 +71,7 @@ void SymbolizationWorksCommon(
   std::vector<std::string> args = {path, "1"};
   auto executor = absl::make_unique<Executor>(path, args);
 
-  std::string temp_filename = CreateNamedTempFileAndClose("/tmp/").ValueOrDie();
+  std::string temp_filename = CreateNamedTempFileAndClose("/tmp/").value();
   file_util::fileops::CopyFile("/proc/cpuinfo", temp_filename, 0444);
   struct TempCleanup {
     ~TempCleanup() { remove(capture->c_str()); }

@@ -88,16 +88,16 @@ TEST(MountTreeTest, TestAddTmpFs) {
 TEST(MountTreeTest, TestMultipleInsertionFileSymlink) {
   Mounts mounts;
 
-  auto result_or = CreateNamedTempFileAndClose(
-      file::JoinPath(GetTestTempPath(), "testdir_"));
-  ASSERT_THAT(result_or.status(), IsOk());
-  std::string path = result_or.ValueOrDie();
-  result_or = CreateNamedTempFileAndClose(
-      file::JoinPath(GetTestTempPath(), "testdir_"));
-  ASSERT_THAT(result_or.status(), IsOk());
-  std::string symlink_path = result_or.ValueOrDie();
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                       CreateNamedTempFileAndClose(
+                           file::JoinPath(GetTestTempPath(), "testdir_")));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string symlink_path,
+                       CreateNamedTempFileAndClose(
+                           file::JoinPath(GetTestTempPath(), "testdir_")));
+
   ASSERT_THAT(unlink(symlink_path.c_str()), Eq(0));
   ASSERT_THAT(symlink(path.c_str(), symlink_path.c_str()), Eq(0));
+
   EXPECT_THAT(mounts.AddFileAt(path, "/a"), IsOk());
   EXPECT_THAT(mounts.AddFileAt(path, "/a"), IsOk());
   EXPECT_THAT(mounts.AddFileAt(symlink_path, "/a"), IsOk());
@@ -106,15 +106,15 @@ TEST(MountTreeTest, TestMultipleInsertionFileSymlink) {
 TEST(MountTreeTest, TestMultipleInsertionDirSymlink) {
   Mounts mounts;
 
-  auto result_or = CreateTempDir(file::JoinPath(GetTestTempPath(), "testdir_"));
-  ASSERT_THAT(result_or.status(), IsOk());
-  std::string path = result_or.ValueOrDie();
-  result_or = CreateNamedTempFileAndClose(
-      file::JoinPath(GetTestTempPath(), "testdir_"));
-  ASSERT_THAT(result_or.status(), IsOk());
-  std::string symlink_path = result_or.ValueOrDie();
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path, CreateTempDir(file::JoinPath(
+                                             GetTestTempPath(), "testdir_")));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string symlink_path,
+                       CreateNamedTempFileAndClose(
+                           file::JoinPath(GetTestTempPath(), "testdir_")));
+
   ASSERT_THAT(unlink(symlink_path.c_str()), Eq(0));
   ASSERT_THAT(symlink(path.c_str(), symlink_path.c_str()), Eq(0));
+
   EXPECT_THAT(mounts.AddDirectoryAt(path, "/a"), IsOk());
   EXPECT_THAT(mounts.AddDirectoryAt(path, "/a"), IsOk());
   EXPECT_THAT(mounts.AddDirectoryAt(symlink_path, "/a"), IsOk());
@@ -144,7 +144,7 @@ TEST(MountTreeTest, TestEvilNullByte) {
   Mounts mounts;
   // create the filename with a null byte this way as g4 fix forces newlines
   // otherwise.
-  std::string filename{"/a/b"};
+  std::string filename = "/a/b";
   filename[2] = '\0';
 
   EXPECT_THAT(mounts.AddFile(filename),

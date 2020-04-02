@@ -104,13 +104,13 @@ void NetworkProxyServer::NotifySuccess() {
 }
 
 void NetworkProxyServer::NotifyViolation(const struct sockaddr* saddr) {
-  sapi::StatusOr<std::string> result = AddrToString(saddr);
-  if (result.ok()) {
-    violation_msg_ = result.ValueOrDie();
+  if (sapi::StatusOr<std::string> result = AddrToString(saddr); result.ok()) {
+    violation_msg_ = std::move(result).value();
   } else {
     violation_msg_ = std::string(result.status().message());
   }
   violation_occurred_.store(true, std::memory_order_release);
   pthread_kill(monitor_thread_id_, SIGCHLD);
 }
+
 }  // namespace sandbox2

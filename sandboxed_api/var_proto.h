@@ -39,7 +39,7 @@ class Proto : public Pointable, public Var {
 
   ABSL_DEPRECATED("Use Proto<>::FromMessage() instead")
   explicit Proto(const T& proto)
-      : wrapped_var_(SerializeProto(proto).ValueOrDie()) {}
+      : wrapped_var_(SerializeProto(proto).value()) {}
 
   static sapi::StatusOr<Proto<T>> FromMessage(const T& proto) {
     SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> len_val, SerializeProto(proto));
@@ -67,9 +67,8 @@ class Proto : public Pointable, public Var {
 
   ABSL_DEPRECATED("Use GetMessage() instead")
   std::unique_ptr<T> GetProtoCopy() const {
-    auto result_or = GetMessage();
-    if (result_or.ok()) {
-      return absl::make_unique<T>(std::move(result_or).ValueOrDie());
+    if (auto result_or = GetMessage(); result_or.ok()) {
+      return absl::make_unique<T>(std::move(result_or).value());
     }
     return nullptr;
   }

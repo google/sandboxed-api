@@ -96,9 +96,7 @@ absl::Status RPCChannel::Reallocate(void* old_addr, size_t size,
         absl::StrCat("Reallocate() failed on the remote side: ",
                      fret_or.status().message()));
   }
-  auto fret = std::move(fret_or).ValueOrDie();
-
-  *new_addr = reinterpret_cast<void*>(fret.int_val);
+  *new_addr = reinterpret_cast<void*>(fret_or->int_val);
   return absl::OkStatus();
 }
 

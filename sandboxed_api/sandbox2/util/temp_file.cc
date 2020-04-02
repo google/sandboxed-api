@@ -48,7 +48,7 @@ sapi::StatusOr<std::string> CreateNamedTempFileAndClose(
   if (result_or.ok()) {
     std::string path;
     int fd;
-    std::tie(path, fd) = result_or.ValueOrDie();
+    std::tie(path, fd) = std::move(result_or).value();
     close(fd);
     return path;
   }

@@ -58,7 +58,7 @@ sapi::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
 }
 
 Result Sandbox2::AwaitResult() {
-  return AwaitResultWithTimeout(absl::InfiniteDuration()).ValueOrDie();
+  return AwaitResultWithTimeout(absl::InfiniteDuration()).value();
 }
 
 bool Sandbox2::RunAsync() {

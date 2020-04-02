@@ -142,17 +142,15 @@ TEST_F(PolicyBuilderTest, TestValidateAbsolutePath) {
            "/a/b/c/d/",
            "/a/bAAAAAAAAAAAAAAAAAAAAAA/c/d/",
        }) {
-    auto path_or = PolicyBuilderPeer::ValidateAbsolutePath(bad_path);
-    EXPECT_THAT(path_or.status(), StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(PolicyBuilderPeer::ValidateAbsolutePath(bad_path),
+                StatusIs(absl::StatusCode::kInvalidArgument));
   }
 
   for (auto const& good_path :
        {"/", "/a/b/c/d", "/a/b/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}) {
-    auto path_or = PolicyBuilderPeer::ValidateAbsolutePath(good_path);
-    EXPECT_THAT(path_or, IsOk());
-    if (path_or.ok()) {
-      EXPECT_THAT(path_or.ValueOrDie(), StrEq(good_path));
-    }
+    SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                         PolicyBuilderPeer::ValidateAbsolutePath(good_path));
+    EXPECT_THAT(path, StrEq(good_path));
   }
 }
 

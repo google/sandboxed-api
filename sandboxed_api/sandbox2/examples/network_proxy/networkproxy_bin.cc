@@ -26,7 +26,7 @@ ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 
 namespace {
 
-sandbox2::NetworkProxyClient* proxy_client;
+static sandbox2::NetworkProxyClient* g_proxy_client;
 
 ssize_t ReadFromFd(int fd, uint8_t* buf, size_t size) {
   ssize_t received = 0;
@@ -72,7 +72,7 @@ sapi::StatusOr<struct sockaddr_in6> CreateAddres(int port) {
 }
 
 absl::Status ConnectManually(int s, const struct sockaddr_in6& saddr) {
-  return proxy_client->Connect(
+  return g_proxy_client->Connect(
       s, reinterpret_cast<const struct sockaddr*>(&saddr), sizeof(saddr));
 }
 
@@ -118,19 +118,19 @@ int main(int argc, char** argv) {
   sandbox2_client.SandboxMeHere();
 
   if (absl::GetFlag(FLAGS_connect_with_handler)) {
-    absl::Status status = sandbox2_client.InstallNetworkProxyHandler();
-    if (!status.ok()) {
+    if (auto status = sandbox2_client.InstallNetworkProxyHandler();
+        !status.ok()) {
       LOG(ERROR) << "InstallNetworkProxyHandler() failed: " << status.message();
       return 1;
     }
   } else {
-    proxy_client = sandbox2_client.GetNetworkProxyClient();
+    g_proxy_client = sandbox2_client.GetNetworkProxyClient();
   }
 
   // Receive port number of the server
   int port;
   if (!comms.RecvInt32(&port)) {
-    LOG(ERROR) << "sandboxee_comms->RecvUint32(&crc4) failed";
+    LOG(ERROR) << "Failed to receive port number";
     return 2;
   }
 
@@ -139,13 +139,11 @@ int main(int argc, char** argv) {
     LOG(ERROR) << sock_s.status().message();
     return 3;
   }
-  sandbox2::file_util::fileops::FDCloser client{sock_s.ValueOrDie()};
+  sandbox2::file_util::fileops::FDCloser client(sock_s.value());
 
-  absl::Status status = CommunicationTest(client.get());
-  if (!status.ok()) {
-    LOG(ERROR) << sock_s.status().message();
+  if (auto status = CommunicationTest(client.get()); !status.ok()) {
+    LOG(ERROR) << status.message();
     return 4;
   }
-
   return 0;
 }

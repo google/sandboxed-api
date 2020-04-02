@@ -122,7 +122,7 @@ class FunctionCallPreparer {
       // There is no way to figure out whether the protobuf structure has
       // changed or not, so we always serialize the protobuf again and replace
       // the LenValStruct content.
-      std::vector<uint8_t> serialized = SerializeProto(*proto).ValueOrDie();
+      std::vector<uint8_t> serialized = SerializeProto(*proto).value();
       // Reallocate the LV memory to match its length.
       if (lvs->size != serialized.size()) {
         void* newdata = realloc(lvs->data, serialized.size());

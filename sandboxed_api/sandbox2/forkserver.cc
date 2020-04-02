@@ -458,13 +458,10 @@ pid_t ForkServer::ServeRequest() {
       // Send sandboxee pid
       absl::Status status = SendPid(fd_closer1.get());
       SAPI_RAW_CHECK(status.ok(), "sending pid: %s", status.message());
+    } else if (auto pid_or = ReceivePid(fd_closer0.get()); !pid_or.ok()) {
+      SAPI_RAW_LOG(ERROR, "receiving pid: %s", pid_or.status().message());
     } else {
-      auto pid_or = ReceivePid(fd_closer0.get());
-      if (!pid_or.ok()) {
-        SAPI_RAW_LOG(ERROR, "receiving pid: %s", pid_or.status().message());
-      } else {
-        sandboxee_pid = pid_or.ValueOrDie();
-      }
+      sandboxee_pid = pid_or.value();
     }
   } else {
     sandboxee_pid = util::ForkWithFlags(clone_flags);
@@ -493,13 +490,12 @@ pid_t ForkServer::ServeRequest() {
     sandboxee_pid = -1;
     // And the actual sandboxee is forked from the init process, so we need to
     // receive the actual PID.
-    auto pid_or = ReceivePid(fd_closer0.get());
-    if (!pid_or.ok()) {
+    if (auto pid_or = ReceivePid(fd_closer0.get()); !pid_or.ok()) {
       SAPI_RAW_LOG(ERROR, "%s", pid_or.status().message());
       kill(init_pid, SIGKILL);
       init_pid = -1;
     } else {
-      sandboxee_pid = pid_or.ValueOrDie();
+      sandboxee_pid = pid_or.value();
     }
   }
 

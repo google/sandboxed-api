@@ -200,59 +200,51 @@ TEST(SandboxTest, RestartTransactionSandboxFD) {
 
 // Make sure we can recover from a dying sandbox.
 TEST(SandboxTest, RestartSandboxAfterCrash) {
-  sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
+  SumSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
 
-  auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
-    SumApi sumapi(sandbox);
-    // Crash the sandbox.
-    EXPECT_THAT(sumapi.crash(), StatusIs(absl::StatusCode::kUnavailable));
-    EXPECT_THAT(sumapi.sum(1, 2).status(),
-                StatusIs(absl::StatusCode::kUnavailable));
-    EXPECT_THAT(sandbox->AwaitResult().final_status(),
-                Eq(sandbox2::Result::SIGNALED));
+  // Crash the sandbox.
+  EXPECT_THAT(api.crash(), StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(api.sum(1, 2).status(), StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(sandbox.AwaitResult().final_status(),
+              Eq(sandbox2::Result::SIGNALED));
 
-    // Restart the sandbox.
-    EXPECT_THAT(sandbox->Restart(false), IsOk());
-    // The sandbox should now be responsive again.
-    auto result_or = sumapi.sum(1, 2);
-    EXPECT_THAT(result_or.ValueOrDie(), Eq(3));
-    return absl::OkStatus();
-  };
+  // Restart the sandbox.
+  ASSERT_THAT(sandbox.Restart(false), IsOk());
 
-  EXPECT_THAT(st.Run(test_body), IsOk());
+  // The sandbox should now be responsive again.
+  SAPI_ASSERT_OK_AND_ASSIGN(int result, api.sum(1, 2));
+  EXPECT_THAT(result, Eq(3));
 }
 
 TEST(SandboxTest, RestartSandboxAfterViolation) {
-  sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
+  SumSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
 
-  auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
-    SumApi sumapi(sandbox);
-    // Violate the sandbox policy.
-    EXPECT_THAT(sumapi.violate(), StatusIs(absl::StatusCode::kUnavailable));
-    EXPECT_THAT(sumapi.sum(1, 2).status(),
-                StatusIs(absl::StatusCode::kUnavailable));
-    EXPECT_THAT(sandbox->AwaitResult().final_status(),
-                Eq(sandbox2::Result::VIOLATION));
+  // Violate the sandbox policy.
+  EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(api.sum(1, 2).status(), StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(sandbox.AwaitResult().final_status(),
+              Eq(sandbox2::Result::VIOLATION));
 
-    // Restart the sandbox.
-    EXPECT_THAT(sandbox->Restart(false), IsOk());
-    // The sandbox should now be responsive again.
-    auto result_or = sumapi.sum(1, 2);
-    EXPECT_THAT(result_or, IsOk());
-    EXPECT_THAT(result_or.ValueOrDie(), Eq(3));
-    return absl::OkStatus();
-  };
+  // Restart the sandbox.
+  ASSERT_THAT(sandbox.Restart(false), IsOk());
 
-  EXPECT_THAT(st.Run(test_body), IsOk());
+  // The sandbox should now be responsive again.
+  SAPI_ASSERT_OK_AND_ASSIGN(int result, api.sum(1, 2));
+  EXPECT_THAT(result, Eq(3));
 }
 
 TEST(SandboxTest, NoRaceInAwaitResult) {
-  auto sandbox = absl::make_unique<StringopSandbox>();
-  ASSERT_THAT(sandbox->Init(), IsOk());
-  StringopApi api(sandbox.get());
+  StringopSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  StringopApi api(&sandbox);
+
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
-  absl::SleepFor(absl::Milliseconds(200));  // make sure we lose the race
-  const auto& result = sandbox->AwaitResult();
+  absl::SleepFor(absl::Milliseconds(200));  // Make sure we lose the race
+  const auto& result = sandbox.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));
 }
 

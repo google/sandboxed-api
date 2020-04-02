@@ -124,9 +124,9 @@ absl::Status ValidateInterpreter(absl::string_view interpreter) {
 std::string ResolveLibraryPath(absl::string_view lib_name,
                                const std::vector<std::string>& search_paths) {
   for (const auto& search_path : search_paths) {
-    auto path_or = ExistingPathInsideDir(search_path, lib_name);
-    if (path_or.ok()) {
-      return path_or.ValueOrDie();
+    if (auto path_or = ExistingPathInsideDir(search_path, lib_name);
+        path_or.ok()) {
+      return path_or.value();
     }
   }
   return "";
@@ -290,14 +290,10 @@ void LogContainer(const std::vector<std::string>& container) {
 
 absl::Status Mounts::AddMappingsForBinary(const std::string& path,
                                           absl::string_view ld_library_path) {
-  auto elf_or = ElfFile::ParseFromFile(
-      path, ElfFile::kGetInterpreter | ElfFile::kLoadImportedLibraries);
-  if (!elf_or.ok()) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("Could not parse ELF file: ", elf_or.status().message()));
-  }
-  auto elf = elf_or.ValueOrDie();
-  const std::string interpreter = elf.interpreter();
+  SAPI_ASSIGN_OR_RETURN(auto elf, ElfFile::ParseFromFile(
+                                 path, ElfFile::kGetInterpreter |
+                                           ElfFile::kLoadImportedLibraries));
+  const std::string& interpreter = elf.interpreter();
 
   if (interpreter.empty()) {
     SAPI_RAW_VLOG(1, "The file %s is not a dynamic executable", path);

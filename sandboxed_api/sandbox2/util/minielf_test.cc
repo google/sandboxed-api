@@ -23,18 +23,17 @@
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-using sapi::IsOk;
-using ::testing::Eq;
-using ::testing::IsTrue;
-using ::testing::Not;
-using ::testing::StrEq;
-
 extern "C" void ExportedFunctionName() {
   // Don't do anything - used to generate a symbol.
 }
 
 namespace sandbox2 {
 namespace {
+
+using ::testing::Eq;
+using ::testing::IsTrue;
+using ::testing::Not;
+using ::testing::StrEq;
 
 TEST(MinielfTest, Chrome70) {
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -58,9 +57,7 @@ TEST(MinielfTest, SymbolResolutionWorks) {
   fread(maps_buffer, 1, sizeof(maps_buffer), f);
   fclose(f);
 
-  auto maps_or = ParseProcMaps(maps_buffer);
-  ASSERT_THAT(maps_or.status(), IsOk());
-  std::vector<MapsEntry> maps = maps_or.ValueOrDie();
+  SAPI_ASSERT_OK_AND_ASSIGN(std::vector<MapsEntry> maps, ParseProcMaps(maps_buffer));
 
   // Find maps entry that covers this entry.
   uint64_t function_address = reinterpret_cast<uint64_t>(ExportedFunctionName);

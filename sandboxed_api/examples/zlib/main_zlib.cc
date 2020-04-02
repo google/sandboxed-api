@@ -15,6 +15,8 @@
 #include <linux/audit.h>
 #include <sys/syscall.h>
 
+#include <cstdlib>
+
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "sandboxed_api/util/flag.h"
@@ -40,11 +42,13 @@ int main(int argc, char** argv) {
 
   sapi::Sandbox sandbox(sapi::zlib::zlib_sapi_embed_create());
   sapi::zlib::ZlibApi api(&sandbox);
-  if (!sandbox.Init().ok()) {
-    LOG(FATAL) << "Couldn't initialize the Sandboxed API Lib";
+  if (auto status = sandbox.Init(); !status.ok()) {
+    LOG(FATAL) << "Couldn't initialize Sandboxed API for zlib: "
+               << status.message();
   }
 
-  int ret, flush;
+  sapi::StatusOr<int> ret;
+  int flush;
   unsigned have;
   sapi::v::Struct<sapi::zlib::z_stream> strm;
 
@@ -64,11 +68,10 @@ int main(int argc, char** argv) {
   // Allocate deflate state.
   *strm.mutable_data() = sapi::zlib::z_stream{};
 
-  ret = api.deflateInit_(strm.PtrBoth(), Z_DEFAULT_COMPRESSION,
-                         version.PtrBefore(), sizeof(sapi::zlib::z_stream))
-            .ValueOrDie();
-  if (ret != Z_OK) {
-    return ret;
+  if (ret = api.deflateInit_(strm.PtrBoth(), Z_DEFAULT_COMPRESSION,
+                             version.PtrBefore(), sizeof(sapi::zlib::z_stream));
+      *ret != Z_OK) {
+    return *ret;
   }
 
   LOG(INFO) << "Starting decompression";
@@ -81,7 +84,7 @@ int main(int argc, char** argv) {
     }
     if (ferror(stdin)) {
       LOG(INFO) << "Error reading from stdin";
-      (void)api.deflateEnd(strm.PtrBoth()).ValueOrDie();
+      api.deflateEnd(strm.PtrBoth()).IgnoreError();
       return Z_ERRNO;
     }
     flush = feof(stdin) ? Z_FINISH : Z_NO_FLUSH;
@@ -95,10 +98,8 @@ int main(int argc, char** argv) {
       strm.mutable_data()->next_out =
           reinterpret_cast<unsigned char*>(output.GetRemote());
 
-      ret = api.deflate(strm.PtrBoth(), flush)
-                .ValueOrDie();  // no bad return value.
-
-      assert(ret != Z_STREAM_ERROR);  // state not clobbered.
+      ret = api.deflate(strm.PtrBoth(), flush);  // no bad return value.
+      assert(*ret != Z_STREAM_ERROR);            // state not clobbered.
       have = kChunk - strm.data().avail_out;
 
       if (!sandbox.TransferFromSandboxee(&output).ok()) {
@@ -107,7 +108,7 @@ int main(int argc, char** argv) {
       if (fwrite(output.GetLocal(), 1, have, stdout) != have ||
           ferror(stdout)) {
         // Not really necessary as strm did not change from last transfer.
-        (void)api.deflateEnd(strm.PtrBoth()).ValueOrDie();
+        api.deflateEnd(strm.PtrBoth()).IgnoreError();
         return Z_ERRNO;
       }
     } while (strm.data().avail_out == 0);
@@ -115,10 +116,10 @@ int main(int argc, char** argv) {
 
     // done when last data in file processed.
   } while (flush != Z_FINISH);
-  assert(ret == Z_STREAM_END);  // stream will be complete.
+  assert(*ret == Z_STREAM_END);  // stream will be complete.
 
   // clean up and return.
-  (void)api.deflateEnd(strm.PtrBoth()).ValueOrDie();
+  api.deflateEnd(strm.PtrBoth()).IgnoreError();
 
-  return 0;
+  return EXIT_SUCCESS;
 }

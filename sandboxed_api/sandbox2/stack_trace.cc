@@ -145,7 +145,7 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
     LOG(ERROR) << "Creating stack unwinder sandbox policy failed";
     return nullptr;
   }
-  std::unique_ptr<Policy> policy = std::move(policy_or).ValueOrDie();
+  std::unique_ptr<Policy> policy = std::move(policy_or).value();
   auto keep_capabilities = absl::make_unique<std::vector<cap_value_t>>();
   keep_capabilities->push_back(CAP_SYS_PTRACE);
   policy->AllowUnsafeKeepCapabilities(std::move(keep_capabilities));

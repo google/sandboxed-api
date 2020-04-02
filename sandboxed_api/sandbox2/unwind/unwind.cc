@@ -165,7 +165,7 @@ void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
     SAPI_RAW_LOG(ERROR, "Could not parse /proc/%d/maps", pid);
     return;
   }
-  auto maps = std::move(maps_or).ValueOrDie();
+  auto maps = std::move(maps_or).value();
 
   // Get symbols for each file entry in the maps entry.
   // This is not a very efficient way, so we might want to optimize it.
@@ -190,7 +190,7 @@ void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
                      elf_or.status().message());
         continue;
       }
-      auto elf = std::move(elf_or).ValueOrDie();
+      auto elf = std::move(elf_or).value();
 
       for (const auto& symbol : elf.symbols()) {
         if (elf.position_independent()) {
