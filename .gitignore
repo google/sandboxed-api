@@ -2,9 +2,11 @@
 .DS_Store
 # Build files
 bazel-*
+build/
 # Editor backup files
 *.swp
 *~
 # IDE files
 .vscode/
 .idea
+compile_commands.json
