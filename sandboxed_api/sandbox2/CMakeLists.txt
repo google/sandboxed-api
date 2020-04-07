@@ -197,6 +197,7 @@ target_link_libraries(forkserver_bin PRIVATE
   sandbox2::client
   sandbox2::comms
   sandbox2::forkserver
+  sandbox2::sanitizer
   sandbox2::strerror
   sapi::base
   sapi::raw_logging
@@ -223,6 +224,7 @@ target_link_libraries(sandbox2_global_forkserver PRIVATE
   sandbox2::comms
   sandbox2::forkserver
   sandbox2::forkserver_bin_embed
+  sandbox2::sanitizer
   sandbox2::strerror
   sapi::base
   sapi::embed_file
@@ -295,6 +297,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::ptrace_hook
           sandbox2::regs
           sandbox2::result
+          sandbox2::sanitizer
           sandbox2::syscall
           sandbox2::unwind
           sandbox2::unwind_proto
@@ -311,23 +314,37 @@ target_link_libraries(sandbox2_sandbox2
 add_library(sandbox2_client STATIC
   client.cc
   client.h
-  sanitizer.cc
-  sanitizer.h
 )
 add_library(sandbox2::client ALIAS sandbox2_client)
 target_link_libraries(sandbox2_client
   PRIVATE absl::core_headers
           absl::memory
           absl::strings
-          sandbox2::file_helpers
-          sandbox2::fileops
           sandbox2::logsink
           sandbox2::network_proxy_client
+          sandbox2::sanitizer
           sandbox2::strerror
           sapi::base
           sapi::raw_logging
   PUBLIC glog::glog
          sandbox2::comms
+)
+
+# sandboxed_api/sandbox2:sanitizer
+add_library(sandbox2_sanitizer STATIC
+  sanitizer.cc
+  sanitizer.h
+)
+add_library(sandbox2::sanitizer ALIAS sandbox2_sanitizer)
+target_link_libraries(sandbox2_sanitizer
+  PRIVATE absl::core_headers
+          absl::strings
+          sandbox2::file_helpers
+          sandbox2::fileops
+          sandbox2::strerror
+          sapi::base
+          sapi::raw_logging
+  PUBLIC glog::glog
 )
 
 # sandboxed_api/sandbox2:forkserver
@@ -351,6 +368,7 @@ target_link_libraries(sandbox2_forkserver PRIVATE
   sandbox2::policy
   sandbox2::ptrace_hook
   sandbox2::strerror
+  sandbox2::sanitizer
   sandbox2::syscall
   sandbox2::unwind
   sandbox2::unwind_proto
@@ -416,6 +434,7 @@ add_library(sandbox2::forkingclient ALIAS sandbox2_forkingclient)
 target_link_libraries(sandbox2_forkingclient
   PRIVATE absl::memory
           sandbox2::forkserver
+          sandbox2::sanitizer
           sapi::base
   PUBLIC sandbox2::client
 )
@@ -772,6 +791,7 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::client
     sandbox2::comms
     sandbox2::sandbox2
+    sandbox2::sanitizer
     sandbox2::testing
     sandbox2::util
     sapi::status_matchers
