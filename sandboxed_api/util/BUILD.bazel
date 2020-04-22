@@ -45,10 +45,7 @@ cc_library(
 cc_library(
     name = "statusor",
     hdrs = ["statusor.h"],
-    copts = sapi_platform_copts([
-        # Disable ABI warning about passing long double unions
-        "-Wno-psabi",
-    ]),
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":raw_logging",
