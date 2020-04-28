@@ -248,8 +248,8 @@ TYPED_TEST(StatusOrTest, MoveConstructorNonOkStatus) {
 // status.
 TYPED_TEST(StatusOrTest, MoveConstructorOkStatus) {
   auto value = TypeParam()();
-  StatusOr<typename TypeParam::value_type> statusor1{value};
-  StatusOr<typename TypeParam::value_type> statusor2{std::move(statusor1)};
+  StatusOr<typename TypeParam::value_type> statusor1(value);
+  StatusOr<typename TypeParam::value_type> statusor2(std::move(statusor1));
 
   // The destination object should possess the value previously held by the
   // donor.
@@ -261,7 +261,7 @@ TYPED_TEST(StatusOrTest, MoveConstructorOkStatus) {
 // as expected.
 TYPED_TEST(StatusOrTest, MoveAssignmentOperatorNonOkStatus) {
   absl::Status status(kErrorCode, kErrorMessage);
-  StatusOr<typename TypeParam::value_type> statusor1{status};
+  StatusOr<typename TypeParam::value_type> statusor1(status);
   StatusOr<typename TypeParam::value_type> statusor2{TypeParam()()};
 
   // Invoke the move-assignment operator.
@@ -297,7 +297,7 @@ TYPED_TEST(StatusOrTest, MoveAssignmentOperatorOkStatus) {
 // Verify that the sapi::IsOk() gMock matcher works with StatusOr<T>.
 TYPED_TEST(StatusOrTest, IsOkMatcher) {
   auto value = TypeParam()();
-  StatusOr<typename TypeParam::value_type> statusor{value};
+  StatusOr<typename TypeParam::value_type> statusor(value);
 
   EXPECT_THAT(statusor, IsOk());
 
@@ -328,7 +328,7 @@ TEST(StatusOrTest, InitializationMoveOnlyType) {
 // Verify that a StatusOr object can be move-constructed from a move-only type.
 TEST(StatusOrTest, MoveConstructorMoveOnlyType) {
   auto* str = new std::string(kStringElement);
-  std::unique_ptr<std::string> value{str};
+  std::unique_ptr<std::string> value(str);
   StatusOr<std::unique_ptr<std::string>> statusor1(std::move(value));
   StatusOr<std::unique_ptr<std::string>> statusor2(std::move(statusor1));
 

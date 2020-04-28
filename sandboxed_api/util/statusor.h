@@ -47,22 +47,27 @@ class ABSL_MUST_USE_RESULT StatusOr {
   StatusOr(StatusOr&&) = default;
   StatusOr& operator=(StatusOr&&) = default;
 
-  template <typename U>
-  StatusOr(const StatusOr<U>& other) : StatusOr(other) {}
-
-  template <typename U>
-  StatusOr(StatusOr<U>&& other) : StatusOr(other) {}
+  // Not implemented:
+  // template <typename U> StatusOr(const StatusOr<U>& other)
+  // template <typename U> StatusOr(StatusOr<U>&& other)
 
   template <typename U>
   StatusOr& operator=(const StatusOr<U>& other) {
-    variant_ = other.ok() ? other.value() : other.status();
+    if (other.ok()) {
+      variant_ = other.value();
+    } else {
+      variant_ = other.status();
+    }
     return *this;
   }
 
   template <typename U>
   StatusOr& operator=(StatusOr<U>&& other) {
-    variant_ =
-        other.ok() ? std::move(other).value() : std::move(other).status();
+    if (other.ok()) {
+      variant_ = std::move(other).value();
+    } else {
+      variant_ = std::move(other).status();
+    }
     return *this;
   }
 
@@ -71,8 +76,7 @@ class ABSL_MUST_USE_RESULT StatusOr {
   StatusOr(const absl::Status& status) : variant_(status) { EnsureNotOk(); }
 
   // Not implemented:
-  // template <typename U = T>
-  // StatusOr& operator=(U&& value);
+  // template <typename U = T> StatusOr& operator=(U&& value)
 
   StatusOr(T&& value) : variant_(std::move(value)) {}
 
@@ -120,12 +124,12 @@ class ABSL_MUST_USE_RESULT StatusOr {
 
   const T&& value() const&& {
     EnsureOk();
-    return std::move(absl::get<T>(variant_));
+    return absl::get<T>(std::move(variant_));
   }
 
   T&& value() && {
     EnsureOk();
-    return std::move(absl::get<T>(variant_));
+    return absl::get<T>(std::move(variant_));
   }
 
   const T& ValueOrDie() const& {
@@ -140,7 +144,7 @@ class ABSL_MUST_USE_RESULT StatusOr {
 
   T&& ValueOrDie() && {
     EnsureOk();
-    return std::move(absl::get<T>(variant_));
+    return absl::get<T>(std::move(variant_));
   }
 
   const T& operator*() const& {
@@ -155,12 +159,12 @@ class ABSL_MUST_USE_RESULT StatusOr {
 
   const T&& operator*() const&& {
     EnsureOk();
-    return std::move(absl::get<T>(variant_));
+    return absl::get<T>(std::move(variant_));
   }
 
   T&& operator*() && {
     EnsureOk();
-    return std::move(absl::get<T>(variant_));
+    return absl::get<T>(std::move(variant_));
   }
 
   const T* operator->() const {
@@ -184,7 +188,7 @@ class ABSL_MUST_USE_RESULT StatusOr {
   template <typename U>
   T value_or(U&& default_value) && {
     if (ok()) {
-      return std::move(absl::get<T>(variant_));
+      return absl::get<T>(std::move(variant_));
     }
     return std::forward<U>(default_value);
   }

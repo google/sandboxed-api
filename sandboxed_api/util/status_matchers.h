@@ -55,7 +55,6 @@ class IsOkMatcher {
 class StatusIsMatcher {
  public:
   StatusIsMatcher(const StatusIsMatcher&) = default;
-  StatusIsMatcher& operator=(const StatusIsMatcher&) = default;
 
   StatusIsMatcher(absl::StatusCode code,
                   absl::optional<absl::string_view> message)

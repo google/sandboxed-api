@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_matchers.h"
@@ -31,8 +32,8 @@ TEST(ReturnIfError, ReturnsOnErrorStatus) {
   auto func = []() -> absl::Status {
     SAPI_RETURN_IF_ERROR(absl::OkStatus());
     SAPI_RETURN_IF_ERROR(absl::OkStatus());
-    SAPI_RETURN_IF_ERROR(absl::Status(absl::StatusCode::kUnknown, "EXPECTED"));
-    return absl::Status(absl::StatusCode::kUnknown, "ERROR");
+    SAPI_RETURN_IF_ERROR(absl::UnknownError("EXPECTED"));
+    return absl::UnknownError("ERROR");
   };
 
   EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
@@ -41,9 +42,8 @@ TEST(ReturnIfError, ReturnsOnErrorStatus) {
 TEST(ReturnIfError, ReturnsOnErrorFromLambda) {
   auto func = []() -> absl::Status {
     SAPI_RETURN_IF_ERROR([] { return absl::OkStatus(); }());
-    SAPI_RETURN_IF_ERROR(
-        [] { return absl::Status(absl::StatusCode::kUnknown, "EXPECTED"); }());
-    return absl::Status(absl::StatusCode::kUnknown, "ERROR");
+    SAPI_RETURN_IF_ERROR([] { return absl::UnknownError("EXPECTED"); }());
+    return absl::UnknownError("ERROR");
   };
 
   EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
@@ -61,10 +61,9 @@ TEST(AssignOrReturn, AssignsMultipleVariablesInSequence) {
     SAPI_ASSIGN_OR_RETURN(value3, StatusOr<int>(3));
     EXPECT_EQ(3, value3);
     int value4;
-    SAPI_ASSIGN_OR_RETURN(value4, StatusOr<int>(absl::Status(
-                                      absl::StatusCode::kUnknown, "EXPECTED")));
-    return absl::Status(absl::StatusCode::kUnknown,
-                        absl::StrCat("ERROR: assigned value ", value4));
+    SAPI_ASSIGN_OR_RETURN(value4,
+                          StatusOr<int>(absl::UnknownError("EXPECTED")));
+    return absl::UnknownError(absl::StrCat("ERROR: assigned value ", value4));
   };
 
   EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
@@ -77,9 +76,8 @@ TEST(AssignOrReturn, AssignsRepeatedlyToSingleVariable) {
     EXPECT_EQ(2, value);
     SAPI_ASSIGN_OR_RETURN(value, StatusOr<int>(3));
     EXPECT_EQ(3, value);
-    SAPI_ASSIGN_OR_RETURN(value, StatusOr<int>(absl::Status(
-                                     absl::StatusCode::kUnknown, "EXPECTED")));
-    return absl::Status(absl::StatusCode::kUnknown, "ERROR");
+    SAPI_ASSIGN_OR_RETURN(value, StatusOr<int>(absl::UnknownError("EXPECTED")));
+    return absl::UnknownError("ERROR");
   };
 
   EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
@@ -91,7 +89,7 @@ TEST(AssignOrReturn, MovesUniquePtr) {
     SAPI_ASSIGN_OR_RETURN(
         ptr, StatusOr<std::unique_ptr<int>>(absl::make_unique<int>(1)));
     EXPECT_EQ(*ptr, 1);
-    return absl::Status(absl::StatusCode::kUnknown, "EXPECTED");
+    return absl::UnknownError("EXPECTED");
   };
 
   EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
@@ -100,8 +98,8 @@ TEST(AssignOrReturn, MovesUniquePtr) {
 TEST(AssignOrReturn, DoesNotAssignUniquePtrOnErrorStatus) {
   auto func = []() -> absl::Status {
     std::unique_ptr<int> ptr;
-    SAPI_ASSIGN_OR_RETURN(ptr, StatusOr<std::unique_ptr<int>>(absl::Status(
-                                   absl::StatusCode::kUnknown, "EXPECTED")));
+    SAPI_ASSIGN_OR_RETURN(
+        ptr, StatusOr<std::unique_ptr<int>>(absl::UnknownError("EXPECTED")));
     EXPECT_EQ(ptr, nullptr);
     return absl::OkStatus();
   };
@@ -118,7 +116,7 @@ TEST(AssignOrReturn, MovesUniquePtrRepeatedlyToSingleVariable) {
     SAPI_ASSIGN_OR_RETURN(
         ptr, StatusOr<std::unique_ptr<int>>(absl::make_unique<int>(2)));
     EXPECT_EQ(*ptr, 2);
-    return absl::Status(absl::StatusCode::kUnknown, "EXPECTED");
+    return absl::UnknownError("EXPECTED");
   };
 
   EXPECT_THAT(func(), StatusIs(absl::StatusCode::kUnknown, "EXPECTED"));
