@@ -18,7 +18,7 @@ project(gflags-download NONE)
 include(ExternalProject)
 ExternalProject_Add(gflags
   GIT_REPOSITORY    https://github.com/gflags/gflags.git
-  GIT_TAG           d9b184bd0026b16bb4c2fded75d56fb2cce50d66  # 2019-11-13
+  GIT_TAG           addd749114fab4f24b7ea1e0f2f837584389e52c  # 2020-03-18
   SOURCE_DIR        "${CMAKE_BINARY_DIR}/gflags-src"
   BINARY_DIR        "${CMAKE_BINARY_DIR}/gflags-build"
   CONFIGURE_COMMAND ""

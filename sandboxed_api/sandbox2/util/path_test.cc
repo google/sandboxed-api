@@ -17,11 +17,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using testing::Pair;
-using testing::StrEq;
-
 namespace sandbox2 {
 namespace {
+
+using ::testing::Pair;
+using ::testing::StrEq;
 
 TEST(PathTest, ArgumentTypes) {
   // JoinPath must be able to accept arguments that are compatible with
@@ -66,13 +66,14 @@ TEST(PathTest, JoinPath) {
 TEST(PathTest, SplitPath) {
   // We cannot write the type directly within the EXPECT, because the ',' breaks
   // the macro.
-  EXPECT_THAT(file::SplitPath("/hello/"), Pair("/hello", ""));
-  EXPECT_THAT(file::SplitPath("/hello"), Pair("/", "hello"));
-  EXPECT_THAT(file::SplitPath("hello/world"), Pair("hello", "world"));
-  EXPECT_THAT(file::SplitPath("hello/"), Pair("hello", ""));
-  EXPECT_THAT(file::SplitPath("world"), Pair("", "world"));
-  EXPECT_THAT(file::SplitPath("/"), Pair("/", ""));
-  EXPECT_THAT(file::SplitPath(""), Pair("", ""));
+  EXPECT_THAT(file::SplitPath("/hello/"), Pair(StrEq("/hello"), StrEq("")));
+  EXPECT_THAT(file::SplitPath("/hello"), Pair(StrEq("/"), StrEq("hello")));
+  EXPECT_THAT(file::SplitPath("hello/world"),
+              Pair(StrEq("hello"), StrEq("world")));
+  EXPECT_THAT(file::SplitPath("hello/"), Pair(StrEq("hello"), StrEq("")));
+  EXPECT_THAT(file::SplitPath("world"), Pair(StrEq(""), StrEq("world")));
+  EXPECT_THAT(file::SplitPath("/"), Pair(StrEq("/"), StrEq("")));
+  EXPECT_THAT(file::SplitPath(""), Pair(StrEq(""), StrEq("")));
 }
 
 TEST(PathTest, CleanPath) {

@@ -25,24 +25,25 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "bazel_skylib",
-        sha256 = "1dde365491125a3db70731e25658dfdd3bc5dbdfd11b840b3e987ecf043c7ca0",  # 2019-07-12
-        url = "https://github.com/bazelbuild/bazel-skylib/releases/download/0.9.0/bazel_skylib-0.9.0.tar.gz",
+        sha256 = "154f4063d96a4e47b17a917108eaabdfeb4ef08383795cf936b3be6f8179c9fc",  # 2020-04-15
+        strip_prefix = "bazel-skylib-560d7b2359aecb066d81041cb532b82d7354561b",
+        url = "https://github.com/bazelbuild/bazel-skylib/archive/560d7b2359aecb066d81041cb532b82d7354561b.zip",
     )
 
     # Abseil
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "a245e059514f2e3bd0bd6ca455b6a66e34656b1b447fec3dc98419153af23b14",  # 2020-02-25
-        strip_prefix = "abseil-cpp-0033c9ea91a52ade7c6b725aa2ef3cbe15463421",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/0033c9ea91a52ade7c6b725aa2ef3cbe15463421.zip"],
+        sha256 = "6668ada01192e2b95b42bb3668cfa5282c047de5176f5e567028e12f8bfb8aef",  # 2020-04-28
+        strip_prefix = "abseil-cpp-6e18c7115df9b7ca0987cc346b1b1d4b3cc829b3",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/6e18c7115df9b7ca0987cc346b1b1d4b3cc829b3.zip"],
     )
     maybe(
         http_archive,
         name = "com_google_absl_py",
-        sha256 = "51e9bbd6fbfedbad5627a782b6912c48a9a46f4b4095389cee586c9d80f6a56e",  # 2019-10-25
-        strip_prefix = "abseil-py-62b0407d5e6cd3912d2c7d130cffdf6613018260",
-        urls = ["https://github.com/abseil/abseil-py/archive/62b0407d5e6cd3912d2c7d130cffdf6613018260.zip"],
+        sha256 = "6ace3cd8921804aaabc37970590edce05c6664901cc98d30010d09f2811dc56f",  # 2019-10-25
+        strip_prefix = "abseil-py-06edd9c20592cec39178b94240b5e86f32e19768",
+        urls = ["https://github.com/abseil/abseil-py/archive/06edd9c20592cec39178b94240b5e86f32e19768.zip"],
     )
 
     # Abseil-py dependency for Python 2/3 compatiblity
@@ -59,31 +60,32 @@ def sapi_deps():
     )
 
     # gflags
-    # TODO(cblichmann): Use Abseil flags once compatible with logging
+    # TODO(cblichmann): Use Abseil flags once logging is in Abseil
     maybe(
         http_archive,
         name = "com_github_gflags_gflags",
-        sha256 = "2c3403730ae711b29161b27380548a57204f683cb7152aa645657dcf6c57f72a",  # 2019-11-13
-        strip_prefix = "gflags-d9b184bd0026b16bb4c2fded75d56fb2cce50d66",
-        urls = ["https://github.com/gflags/gflags/archive/d9b184bd0026b16bb4c2fded75d56fb2cce50d66.zip"],
+        sha256 = "97312c67e5e0ad7fe02446ee124629ca7890727469b00c9a4bf45da2f9b80d32",  # 2019-11-13
+        strip_prefix = "gflags-addd749114fab4f24b7ea1e0f2f837584389e52c",
+        urls = ["https://github.com/gflags/gflags/archive/addd749114fab4f24b7ea1e0f2f837584389e52c.zip"],
     )
 
     # Google logging
+    # TODO(cblichmann): Remove dependency once logging is in Abseil
     maybe(
         http_archive,
         name = "com_google_glog",
-        sha256 = "dbe787f2a7cf1146f748a191c99ae85d6b931dd3ebdcc76aa7ccae3699149c67",  # 2019-11-04
-        strip_prefix = "glog-925858d9969d8ee22aabc3635af00a37891f4e25",
-        urls = ["https://github.com/google/glog/archive/925858d9969d8ee22aabc3635af00a37891f4e25.zip"],
+        sha256 = "feca3c7e29a693cab7887409756d89d342d4a992d54d7c5599bebeae8f7b50be",  # 2020-02-16
+        strip_prefix = "glog-3ba8976592274bc1f907c402ce22558011d6fc5e",
+        urls = ["https://github.com/google/glog/archive/3ba8976592274bc1f907c402ce22558011d6fc5e.zip"],
     )
 
     # Protobuf
     maybe(
         http_archive,
         name = "com_google_protobuf",
-        sha256 = "678d91d8a939a1ef9cb268e1f20c14cd55e40361dc397bb5881e4e1e532679b1",  # 2019-10-29
-        strip_prefix = "protobuf-3.10.1",
-        urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.10.1.zip"],
+        sha256 = "9748c0d90e54ea09e5e75fb7fac16edce15d2028d4356f32211cfa3c0e956564",  # 2020-02-14
+        strip_prefix = "protobuf-3.11.4",
+        urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.11.4.zip"],
     )
 
     # libcap
