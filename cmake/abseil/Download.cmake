@@ -33,13 +33,20 @@ if(error)
 endif()
 
 set(_sapi_saved_CMAKE_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+set(_sapi_saved_BUILD_TESTING ${BUILD_TESTING})
+
 set(CMAKE_CXX_STANDARD ${SAPI_CXX_STANDARD})
 set(ABSL_USE_GOOGLETEST_HEAD OFF CACHE BOOL "" FORCE)
+set(ABSL_RUN_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF)  # Avoid errors when re-configuring SAPI
 set(ABSL_CXX_STANDARD ${SAPI_CXX_STANDARD} CACHE STRING "" FORCE)
 
 add_subdirectory("${CMAKE_BINARY_DIR}/absl-src"
                  "${CMAKE_BINARY_DIR}/absl-build" EXCLUDE_FROM_ALL)
 
+if(_sapi_saved_BUILD_TESTING)
+  set(BUILD_TESTING "${_sapi_saved_BUILD_TESTING}")
+endif()
 if(_sapi_saved_CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD "${_sapi_saved_CMAKE_CXX_STANDARD}")
 endif()
