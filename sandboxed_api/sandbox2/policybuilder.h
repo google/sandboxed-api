@@ -289,7 +289,13 @@ class PolicyBuilder final {
   // Appends code to allow reading random bytes.
   // Allows these sycalls:
   // - getrandom (with no flags or GRND_NONBLOCK)
+  //
   PolicyBuilder& AllowGetRandom();
+
+  // Appends code to allow configuring wipe-on-fork memory
+  // Allows these syscalls:
+  // - madvise (with advice equal to -1 or MADV_WIPEONFORK).
+  PolicyBuilder& AllowWipeOnFork();
 
   // Enables syscalls required to use the logging support enabled via
   // Client::SendLogsToSupervisor()

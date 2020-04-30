@@ -85,6 +85,7 @@ PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
   AllowFutexOp(FUTEX_WAKE);
   AllowLimitedMadvise();
   AllowGetRandom();
+  AllowWipeOnFork();
 
   return AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
     return {
@@ -424,6 +425,20 @@ PolicyBuilder& PolicyBuilder::AllowGetRandom() {
                                                 JEQ32(0, ALLOW),
                                                 JEQ32(GRND_NONBLOCK, ALLOW),
                                             });
+}
+
+PolicyBuilder& PolicyBuilder::AllowWipeOnFork() {
+  // System headers may not be recent enough to include MADV_WIPEONFORK.
+  static constexpr uint32_t kMadv_WipeOnFork = 18;
+  // The -1 value is used by code to probe that the kernel returns -EINVAL for
+  // unknown values because some environments, like qemu, ignore madvise
+  // completely, but code needs to know whether WIPEONFORK took effect.
+  return AddPolicyOnSyscall(__NR_madvise,
+                            {
+                                ARG_32(2),
+                                JEQ32(kMadv_WipeOnFork, ALLOW),
+                                JEQ32(static_cast<uint32_t>(-1), ALLOW),
+                            });
 }
 
 PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
