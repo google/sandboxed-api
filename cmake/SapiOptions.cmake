@@ -29,5 +29,8 @@ option(SAPI_DOWNLOAD_LIBUNWIND "Download libunwind at config time" ON)
 option(SAPI_DOWNLOAD_LIBCAP "Download libcap at config time" ON)
 option(SAPI_DOWNLOAD_LIBFFI "Download libffi at config time" ON)
 
+# Options for building examples
 option(SAPI_ENABLE_EXAMPLES "Build example code" ON)
+option(SAPI_DOWNLOAD_ZLIB "Download zlib at config time (only if SAPI_ENABLE_EXAMPLES is set)" ON)
+
 option(SAPI_ENABLE_TESTS "Build unit tests" ON)

@@ -37,5 +37,4 @@ add_executable(zpipe
 add_executable(sandbox2::zpipe ALIAS zpipe)
 target_link_libraries(zpipe PRIVATE
   ZLIB::ZLIB
-  -static  # Fully static link
 )

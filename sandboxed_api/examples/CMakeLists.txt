@@ -15,4 +15,5 @@
 if(SAPI_ENABLE_EXAMPLES)
   add_subdirectory(stringop)
   add_subdirectory(sum)
+  add_subdirectory(zlib)
 endif()

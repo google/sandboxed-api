@@ -81,7 +81,12 @@ else()
 endif()
 
 if(SAPI_ENABLE_EXAMPLES)
-  find_package(ZLIB REQUIRED)
+  if(SAPI_DOWNLOAD_ZLIB)
+    include(cmake/zlib/Download.cmake)
+    check_target(ZLIB::ZLIB)
+  else()
+    find_package(ZLIB REQUIRED)
+  endif()
 endif()
 
 # Find Python 3 and add its location to the cache so that its available in
