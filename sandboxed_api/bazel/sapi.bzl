@@ -155,10 +155,9 @@ def sapi_library(
         deps = [],
         tags = [],
         visibility = None):
-    """BUILD rule providing implementation of a Sandboxed API library."""
+    """Provides the implementation of a Sandboxed API library."""
 
-    repo_name = native.repository_name()
-    rprefix = "@com_google_sandboxed_api" if repo_name != "@" else ""
+    rprefix = "@com_google_sandboxed_api"
     common = {
         "tags": tags,
     }
