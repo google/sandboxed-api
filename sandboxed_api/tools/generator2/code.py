@@ -679,7 +679,7 @@ class Generator(object):
 
   GUARD_START = ('#ifndef {0}\n' '#define {0}')
   GUARD_END = '#endif  // {}'
-  EMBED_INCLUDE = '#include \"{}/{}_embed.h"'
+  EMBED_INCLUDE = '#include "{}"'
   EMBED_CLASS = ('class {0}Sandbox : public ::sapi::Sandbox {{\n'
                  ' public:\n'
                  '  {0}Sandbox() : ::sapi::Sandbox({1}_embed_create()) {{}}\n'
@@ -903,8 +903,10 @@ class Generator(object):
     result.append('#include "sandboxed_api/sandbox.h"')
     result.append('#include "sandboxed_api/vars.h"')
 
-    if embed_dir and embed_name:
-      result.append(Generator.EMBED_INCLUDE.format(embed_dir, embed_name))
+    if (embed_dir is not None) and (embed_name is not None):
+      result.append(
+          Generator.EMBED_INCLUDE.format(
+              os.path.join(embed_dir, embed_name) + '_embed.h'))
 
     if namespaces:
       result.append('')
@@ -918,7 +920,7 @@ class Generator(object):
 
     result.append('')
 
-    if embed_dir and embed_name:
+    if (embed_dir is not None) and (embed_name is not None):
       result.append(
           Generator.EMBED_CLASS.format(name, embed_name.replace('-', '_')))
 

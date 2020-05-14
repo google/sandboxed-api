@@ -31,8 +31,8 @@ flags.DEFINE_string('sapi_ns', '', 'namespace')
 flags.DEFINE_string('sapi_isystem', '', 'system includes')
 flags.DEFINE_list('sapi_functions', [], 'function list to analyze')
 flags.DEFINE_list('sapi_in', None, 'input files to analyze')
-flags.DEFINE_string('sapi_embed_dir', None, 'directory with embed includes')
-flags.DEFINE_string('sapi_embed_name', None, 'name of the embed object')
+flags.DEFINE_string('sapi_embed_dir', '', 'directory with embed includes')
+flags.DEFINE_string('sapi_embed_name', '', 'name of the embed object')
 flags.DEFINE_bool(
     'sapi_limit_scan_depth', False,
     'scan only functions from top level file in compilation unit')
