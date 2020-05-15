@@ -83,6 +83,8 @@ GeneratorOptions GeneratorOptionsFromFlags() {
   options.name = *g_sapi_name;
   options.namespace_name = *g_sapi_ns;
   options.out_file = *g_sapi_out;
+  options.embed_dir = *g_sapi_embed_dir;
+  options.embed_name = *g_sapi_embed_name;
   return options;
 }
 

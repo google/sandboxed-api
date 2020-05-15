@@ -78,7 +78,24 @@ void GatherRelatedTypes(const clang::ASTContext& context, clang::QualType qual,
   }
 }
 
-std::string MapQualType(clang::QualType qual) {
+namespace {
+
+// Removes "const" from a qualified type if it denotes a pointer or reference
+// type.
+clang::QualType MaybeRemoveConst(const clang::ASTContext& context,
+                                 clang::QualType qual) {
+  if (IsPointerOrReference(qual)) {
+    clang::QualType pointee_qual = qual->getPointeeType();
+    pointee_qual.removeLocalConst();
+    qual = context.getPointerType(pointee_qual);
+  }
+  return qual;
+}
+
+}  // namespace
+
+std::string MapQualType(const clang::ASTContext& context,
+                        clang::QualType qual) {
   if (const auto* builtin = qual->getAs<clang::BuiltinType>()) {
     switch (builtin->getKind()) {
       case clang::BuiltinType::Void:
@@ -156,12 +173,18 @@ std::string MapQualType(clang::QualType qual) {
   } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
     return absl::StrCat("::sapi::v::IntBase<",
                         enum_type->getDecl()->getQualifiedNameAsString(), ">");
+  } else if (IsPointerOrReference(qual)) {
+    // Remove "const" qualifier from a pointer or reference type's pointee, as
+    // e.g. const pointers do not work well with SAPI.
+    return absl::StrCat("::sapi::v::Reg<",
+                        MaybeRemoveConst(context, qual).getAsString(), ">");
   }
-  // Best-effort mapping to "int"
-  return "::sapi::v::Int";
+  // Best-effort mapping to "int", leave a comment.
+  return absl::StrCat("::sapi::v::Int /* aka '", qual.getAsString(), "' */");
 }
 
-std::string MapQualTypeParameter(clang::QualType qual) {
+std::string MapQualTypeParameter(const clang::ASTContext& /*context*/,
+                                 clang::QualType qual) {
   // TODO(cblichmann): Define additional mappings, as appropriate
   //   _Bool              -> bool
   //   unsigned long long -> uint64_t (where applicable)
@@ -169,10 +192,14 @@ std::string MapQualTypeParameter(clang::QualType qual) {
   return IsPointerOrReference(qual) ? "::sapi::v::Ptr*" : qual.getAsString();
 }
 
-std::string MapQualTypeReturn(clang::QualType qual) {
-  return qual->isVoidType() ? "absl::Status"
-                            : absl::StrCat("::sapi::StatusOr<",
-                                           MapQualTypeParameter(qual), ">");
+std::string MapQualTypeReturn(const clang::ASTContext& context,
+                              clang::QualType qual) {
+  if (qual->isVoidType()) {
+    return "absl::Status";
+  }
+  // Remove const qualifier like in MapQualType().
+  return absl::StrCat("::sapi::StatusOr<",
+                      MaybeRemoveConst(context, qual).getAsString(), ">");
 }
 
 }  // namespace sapi

@@ -46,6 +46,8 @@ struct GeneratorOptions {
   std::string name;            // Name of the Sandboxed API
   std::string namespace_name;  // Namespace to wrap the SAPI in
   std::string out_file;        // Output path of the generated header
+  std::string embed_dir;       // Directory with embedded includes
+  std::string embed_name;      // Identifier of the embed object
 };
 
 class GeneratorASTVisitor
@@ -92,8 +94,6 @@ class GeneratorAction : public clang::ASTFrontendAction {
       : options_(options) {}
 
  private:
-  friend class GeneratorFactory;
-
   std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
       clang::CompilerInstance&, llvm::StringRef in_file) override {
     return absl::make_unique<GeneratorASTConsumer>(std::string(in_file),

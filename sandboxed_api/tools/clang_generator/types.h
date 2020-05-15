@@ -60,17 +60,19 @@ void GatherRelatedTypes(const clang::ASTContext& context, clang::QualType qual,
 // Maps a qualified type to a fully qualified SAPI-compatible type name. This
 // is used for the generated code that invokes the actual function call RPC.
 // If no mapping can be found, "int" is assumed.
-std::string MapQualType(clang::QualType qual);
+std::string MapQualType(const clang::ASTContext& context, clang::QualType qual);
 
 // Maps a qualified type used as a function parameter to a type name compatible
 // with the generated Sandboxed API.
-std::string MapQualTypeParameter(clang::QualType qual);
+std::string MapQualTypeParameter(const clang::ASTContext& context,
+                                 clang::QualType qual);
 
 // Maps a qualified type used as a function return type to a type name
-// compatible with the generated Sandboxed API. Uses MapQualTypeParameter() and 
+// compatible with the generated Sandboxed API. Uses MapQualTypeParameter() and
 // wraps the type in a ::sapi::StatusOr<> if qual is non-void. Otherwise returns
 // absl::Status.
-std::string MapQualTypeReturn(clang::QualType qual);
+std::string MapQualTypeReturn(const clang::ASTContext& context,
+                              clang::QualType qual);
 
 }  // namespace sapi
 
