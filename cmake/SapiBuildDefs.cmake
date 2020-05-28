@@ -128,25 +128,42 @@ function(add_sapi_library)
     get_filename_component(src "${src}" ABSOLUTE)
     list(APPEND _sapi_full_inputs "${src}")
   endforeach()
-  list_join(_sapi_full_inputs "," _sapi_full_inputs)
   if(NOT _sapi_NOEMBED)
     set(_sapi_embed_dir "${CMAKE_CURRENT_BINARY_DIR}")
     set(_sapi_embed_name "${_sapi_NAME}")
   endif()
-  add_custom_command(
-    OUTPUT "${_sapi_gen_header}"
-    COMMAND "${SAPI_PYTHON3_EXECUTABLE}" -B
-            "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
-            "--sapi_name=${_sapi_LIBRARY_NAME}"
-            "--sapi_out=${_sapi_gen_header}"
-            "--sapi_embed_dir=${_sapi_embed_dir}"
-            "--sapi_embed_name=${_sapi_embed_name}"
-            "--sapi_functions=${_sapi_funcs}"
-            "--sapi_ns=${_sapi_NAMESPACE}"
-            # TODO(cblichmann): Implement sapi_isystem
-            "--sapi_in=${_sapi_full_inputs}"
-    COMMENT "Generating interface"
-  )
+  # TODO(cblichmann): Implement sapi_isystem
+  if(SAPI_ENABLE_GENERATOR)
+    add_custom_command(
+      OUTPUT "${_sapi_gen_header}"
+      COMMAND sapi_generator_tool
+              "--sapi_name=${_sapi_LIBRARY_NAME}"
+              "--sapi_out=${_sapi_gen_header}"
+              "--sapi_embed_dir=${_sapi_embed_dir}"
+              "--sapi_embed_name=${_sapi_embed_name}"
+              "--sapi_functions=${_sapi_funcs}"
+              "--sapi_ns=${_sapi_NAMESPACE}"
+              ${_sapi_full_inputs}
+      COMMENT "Generating interface"
+      DEPENDS ${_sapi_INPUTS}
+      VERBATIM
+    )
+  else()
+    list_join(_sapi_full_inputs "," _sapi_full_inputs)
+    add_custom_command(
+      OUTPUT "${_sapi_gen_header}"
+      COMMAND "${SAPI_PYTHON3_EXECUTABLE}" -B
+              "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
+              "--sapi_name=${_sapi_LIBRARY_NAME}"
+              "--sapi_out=${_sapi_gen_header}"
+              "--sapi_embed_dir=${_sapi_embed_dir}"
+              "--sapi_embed_name=${_sapi_embed_name}"
+              "--sapi_functions=${_sapi_funcs}"
+              "--sapi_ns=${_sapi_NAMESPACE}"
+              "--sapi_in=${_sapi_full_inputs}"
+      COMMENT "Generating interface"
+    )
+  endif()
 
   # Library with the interface
   if(NOT _sapi_SOURCES)

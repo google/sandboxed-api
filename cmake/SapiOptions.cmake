@@ -34,3 +34,6 @@ option(SAPI_ENABLE_EXAMPLES "Build example code" ON)
 option(SAPI_DOWNLOAD_ZLIB "Download zlib at config time (only if SAPI_ENABLE_EXAMPLES is set)" ON)
 
 option(SAPI_ENABLE_TESTS "Build unit tests" ON)
+option(SAPI_ENABLE_GENERATOR "Build Clang based code generator from source" OFF)
+
+option(SAPI_FORCE_COLOR_OUTPUT "Force colored compiler diagnostics when using Ninja" ON)

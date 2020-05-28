@@ -2,11 +2,16 @@
 .DS_Store
 # Build files
 bazel-*
+# Local CMake build dir
 build/
 # Editor backup files
 *.swp
 *~
+# Compiled Python files and cache
+*.py[co]
+__py_cache__/
 # IDE files
+.clangd/
 .vscode/
 .idea
 compile_commands.json

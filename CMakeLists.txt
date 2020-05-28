@@ -31,6 +31,24 @@ include(SapiDeps)
 include(SapiUtil)
 include(SapiBuildDefs)
 
+# Fix Ninja generator output to not rebuild entire sub-trees needlessly.
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  file(WRITE "${SAPI_BINARY_DIR}/UserMakeRulesOverride.cmake"
+    "STRING(REPLACE \"-MD\" \"-MMD\" CMAKE_DEPFILE_FLAGS_C \"\${CMAKE_DEPFILE_FLAGS_C}\")\n"
+    "STRING(REPLACE \"-MD\" \"-MMD\" CMAKE_DEPFILE_FLAGS_CXX \"\${CMAKE_DEPFILE_FLAGS_CXX}\")\n"
+  )
+  set(CMAKE_USER_MAKE_RULES_OVERRIDE
+      "${SAPI_BINARY_DIR}/UserMakeRulesOverride.cmake" CACHE INTERNAL "")
+endif()
+
+if (SAPI_FORCE_COLOR_OUTPUT)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")  # GCC
+    add_compile_options(-fdiagnostics-color=always)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")  # Clang or Apple Clang
+    add_compile_options(-fcolor-diagnostics)
+  endif()
+endif()
+
 # Make Bazel-style includes work
 configure_file(cmake/libcap_capability.h.in
                libcap/include/sys/capability.h
