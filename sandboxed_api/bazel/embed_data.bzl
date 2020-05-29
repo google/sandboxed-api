@@ -14,7 +14,7 @@
 
 """Embeds binary data in cc_*() rules."""
 
-_FILEWRAPPER = "//sandboxed_api/bazel:filewrapper"
+_FILEWRAPPER = "//sandboxed_api/tools/filewrapper"
 
 # TODO(cblichmann): Convert this is to use a "_cc_toolchain" once Bazel #4370
 #                   is fixed.

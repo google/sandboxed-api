@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# sandboxed_api/bazel:filewrapper
+# sandboxed_api/tools/filewrapper:filewrapper
 add_executable(filewrapper
   filewrapper.cc
 )
@@ -30,7 +30,7 @@ sapi_cc_embed_data(NAME filewrapper_embedded
 )
 
 if(SAPI_ENABLE_TESTS)
-  # sandboxed_api/bazel:filewrapper_test
+  # sandboxed_api/tools/filewrapper:filewrapper_test
   add_executable(filewrapper_test
     filewrapper_test.cc
   )

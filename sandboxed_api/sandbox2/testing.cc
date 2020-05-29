@@ -24,13 +24,15 @@ std::string GetTestTempPath(absl::string_view name) {
   // set.
   // See https://docs.bazel.build/versions/master/test-encyclopedia.html for
   // details.
-  return file::JoinPath(getenv("TEST_TMPDIR"), name);
+  const char* test_tmpdir = getenv("TEST_TMPDIR");
+  return file::JoinPath(test_tmpdir ? test_tmpdir : ".", name);
 }
 
 std::string GetTestSourcePath(absl::string_view name) {
   // Like in GetTestTempPath(), when using Bazel, the environment variable
   // TEST_SRCDIR is guaranteed to be set.
-  return file::JoinPath(getenv("TEST_SRCDIR"),
+  const char* test_srcdir = getenv("TEST_SRCDIR");
+  return file::JoinPath(test_srcdir ? test_srcdir : ".",
                         "com_google_sandboxed_api/sandboxed_api", name);
 }
 

@@ -16,11 +16,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/bazel/filewrapper_embedded.h"
 #include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/file_helpers.h"
+#include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 using ::sandbox2::GetTestSourcePath;
@@ -40,7 +39,8 @@ TEST(FilewrapperTest, BasicFunctionality) {
 
   std::string contents;
   ASSERT_THAT(sandbox2::file::GetContents(
-                  GetTestSourcePath("bazel/testdata/filewrapper_embedded.bin"),
+                  GetTestSourcePath(
+                      "tools/filewrapper/testdata/filewrapper_embedded.bin"),
                   &contents, sandbox2::file::Defaults()),
               IsOk());
   EXPECT_THAT(std::string(toc->data, toc->size), StrEq(contents));

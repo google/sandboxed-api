@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(bazel)  # For filewrapper
+add_subdirectory(tools/filewrapper)
 add_subdirectory(sandbox2)
 add_subdirectory(util)
 if(SAPI_ENABLE_GENERATOR)
