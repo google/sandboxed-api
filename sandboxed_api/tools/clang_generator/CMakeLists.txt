@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Minimum supported: LLVM 9
+# Minimum supported: LLVM 7.0.1
 find_package(LLVM REQUIRED)
 find_package(Clang REQUIRED)
+if(LLVM_VERSION VERSION_LESS "7.0.1")
+  message(FATAL_ERROR "SAPI header generator needs LLVM 7.0.1 or newer")
+endif()
 
 add_library(sapi_generator
   diagnostics.cc

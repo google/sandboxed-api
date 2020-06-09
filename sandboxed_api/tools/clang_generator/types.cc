@@ -17,6 +17,18 @@
 #include "absl/strings/str_cat.h"
 
 namespace sapi {
+namespace {
+
+bool IsFunctionReferenceType(clang::QualType qual) {
+#if LLVM_VERSION_MAJOR >= 9
+  return qual->isFunctionReferenceType();
+#else
+  const auto* ref = qual->getAs<clang::ReferenceType>();
+  return ref && ref->getPointeeType()->isFunctionType();
+#endif
+}
+
+}  // namespace
 
 void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
@@ -25,7 +37,7 @@ void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
     return;
   }
 
-  if (qual->isFunctionPointerType() || qual->isFunctionReferenceType() ||
+  if (qual->isFunctionPointerType() || IsFunctionReferenceType(qual) ||
       qual->isMemberFunctionPointerType()) {
     if (const auto* function_type = qual->getPointeeOrArrayElementType()
                                         ->getAs<clang::FunctionProtoType>()) {
