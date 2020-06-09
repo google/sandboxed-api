@@ -46,9 +46,9 @@ constexpr absl::string_view kHeaderProlog =
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "sandboxed_api/sandbox.h"
-#include "sandboxed_api/vars.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/statusor.h"
+#include "sandboxed_api/vars.h"
 
 )";
 constexpr absl::string_view kHeaderEpilog =
@@ -110,15 +110,17 @@ std::string GetIncludeGuard(absl::string_view filename) {
     return absl::StrCat(
         // Copybara will transform the string. This is intentional.
         "SANDBOXED_API_GENERATED_HEADER_",
-        absl::Hex(absl::Uniform<uint64_t>(*bit_gen), absl::kZeroPad16), "_");
+        absl::AsciiStrToUpper(absl::StrCat(
+            absl::Hex(absl::Uniform<uint64_t>(*bit_gen), absl::kZeroPad16))),
+        "_");
   }
 
-  constexpr absl::string_view kUnderscorePrefix = "SAPI";
+  constexpr absl::string_view kUnderscorePrefix = "SAPI_";
   std::string guard;
   guard.reserve(filename.size() + kUnderscorePrefix.size() + 1);
   for (auto c : filename) {
     if (absl::ascii_isalpha(c)) {
-      guard += c;
+      guard += absl::ascii_toupper(c);
       continue;
     }
     if (guard.empty()) {
@@ -234,8 +236,8 @@ sapi::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
                       ");\n");
     }
   }
-  absl::StrAppend(&out, "\nSAPI_RETURN_IF_ERROR(sandbox_->Call(\"", function_name,
-                  "\", &v_ret_");
+  absl::StrAppend(&out, "\nSAPI_RETURN_IF_ERROR(sandbox_->Call(\"",
+                  function_name, "\", &v_ret_");
   for (const auto& [qual, name] : params) {
     absl::StrAppend(&out, ", ", IsPointerOrReference(qual) ? "" : "&v_", name);
   }
