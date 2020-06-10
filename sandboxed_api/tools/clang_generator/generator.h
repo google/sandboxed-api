@@ -18,6 +18,7 @@
 #include <string>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -111,9 +112,15 @@ class GeneratorFactory : public clang::tooling::FrontendActionFactory {
       : options_(std::move(options)) {}
 
  private:
+#if LLVM_VERSION_MAJOR >= 10
+  std::unique_ptr<clang::FrontendAction> create() override {
+    return absl::make_unique<GeneratorAction>(&options_);
+  }
+#else
   clang::FrontendAction* create() override {
     return new GeneratorAction(&options_);
   }
+#endif
 
   GeneratorOptions options_;
 };
