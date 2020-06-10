@@ -28,7 +28,7 @@
 namespace sapi {
 
 // Constructs an include guard name for the given filename. The name is of the
-// same for as the include guards in this project.
+// same form as the include guards in this project.
 // For example,
 //   sandboxed_api/examples/zlib/zlib-sapi.sapi.h
 // will be mapped to

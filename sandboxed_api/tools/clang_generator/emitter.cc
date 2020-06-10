@@ -110,15 +110,17 @@ std::string GetIncludeGuard(absl::string_view filename) {
     return absl::StrCat(
         // Copybara will transform the string. This is intentional.
         "SANDBOXED_API_GENERATED_HEADER_",
-        absl::Hex(absl::Uniform<uint64_t>(*bit_gen), absl::kZeroPad16), "_");
+        absl::AsciiStrToUpper(absl::StrCat(
+            absl::Hex(absl::Uniform<uint64_t>(*bit_gen), absl::kZeroPad16))),
+        "_");
   }
 
-  constexpr absl::string_view kUnderscorePrefix = "SAPI";
+  constexpr absl::string_view kUnderscorePrefix = "SAPI_";
   std::string guard;
   guard.reserve(filename.size() + kUnderscorePrefix.size() + 1);
   for (auto c : filename) {
     if (absl::ascii_isalpha(c)) {
-      guard += c;
+      guard += absl::ascii_toupper(c);
       continue;
     }
     if (guard.empty()) {

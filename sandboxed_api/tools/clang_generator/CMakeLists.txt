@@ -63,3 +63,18 @@ target_link_libraries(sapi_generator_tool PRIVATE
   sapi::generator
 )
 
+if(SAPI_ENABLE_TESTS)
+  add_executable(sapi_generator_test
+    emitter_test.cc
+  )
+  target_link_libraries(sapi_generator_test PRIVATE
+    absl::memory
+    benchmark
+    sapi::sapi
+    sapi::generator
+    sapi::status
+    sapi::status_matchers
+    sapi::test_main
+  )
+  gtest_discover_tests(sapi_generator_test)
+endif()
