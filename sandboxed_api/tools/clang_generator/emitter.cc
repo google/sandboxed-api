@@ -19,6 +19,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/strip.h"
@@ -168,7 +169,7 @@ std::string PrintAstDecl(const clang::Decl* decl) {
 }
 
 std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
-  if (std::string name = decl->getName(); !name.empty()) {
+  if (std::string name = decl->getName().str(); !name.empty()) {
     return absl::StrCat(name, "_");  // Suffix to avoid collisions
   }
   return absl::StrCat("unnamed", index, "_");
@@ -187,7 +188,7 @@ std::string PrintFunctionPrototype(const clang::FunctionDecl* decl) {
     absl::StrAppend(&out, print_separator);
     print_separator = ", ";
     absl::StrAppend(&out, param->getType().getAsString());
-    if (std::string name = param->getName(); !name.empty()) {
+    if (std::string name = param->getName().str(); !name.empty()) {
       absl::StrAppend(&out, " ", name);
     }
   }
