@@ -374,7 +374,7 @@ bool Comms::RecvFD(int* fd) {
   // syscall(__NR_recvmsg) semantics so we need to suppress the error (here and
   // everywhere below).
 #ifdef MEMORY_SANITIZER
-  ANNOTATE_MEMORY_IS_INITIALIZED(&tlv, sizeof(tlv));
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&tlv, sizeof(tlv));
 #endif
 
   if (tlv.tag != kTagFd) {
@@ -384,7 +384,7 @@ bool Comms::RecvFD(int* fd) {
 
   cmsg = CMSG_FIRSTHDR(&msg);
 #ifdef MEMORY_SANITIZER
-  ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
 #endif
   while (cmsg) {
     if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
@@ -397,7 +397,7 @@ bool Comms::RecvFD(int* fd) {
       int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
       *fd = fds[0];
 #ifdef MEMORY_SANITIZER
-      ANNOTATE_MEMORY_IS_INITIALIZED(fd, sizeof(int));
+      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(fd, sizeof(int));
 #endif
       return true;
     }
