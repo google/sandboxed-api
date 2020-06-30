@@ -20,9 +20,9 @@ ExternalProject_Add(libffi
   URL https://github.com/libffi/libffi/releases/download/v3.3-rc2/libffi-3.3-rc2.tar.gz
   URL_HASH SHA256=653ffdfc67fbb865f39c7e5df2a071c0beb17206ebfb0a9ecb18a18f63f6b263 # 2019-11-02
   SOURCE_DIR        "${CMAKE_BINARY_DIR}/libffi-src"
-  CONFIGURE_COMMAND sh -c "./configure            \
-                    --disable-dependency-tracking \
-                    && (mv `sh config.guess` configure-cmake-gen || true)"
+  CONFIGURE_COMMAND ./configure
+                    --disable-dependency-tracking
+                    --disable-builddir
   BUILD_COMMAND     ""
   INSTALL_COMMAND   ""
   TEST_COMMAND      ""
