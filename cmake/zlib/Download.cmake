@@ -34,6 +34,7 @@ endif()
 
 set(_zlib_src "${CMAKE_BINARY_DIR}/zlib-src")
 
+set(ZLIB_FOUND TRUE)
 set(ZLIB_INCLUDE_DIRS ${_zlib_src})
 
 add_library(z STATIC
