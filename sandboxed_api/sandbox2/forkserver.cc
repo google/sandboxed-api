@@ -624,7 +624,6 @@ void ForkServer::ExecuteProcess(int execve_fd, const char** argv,
   }
 
   util::Syscall(__NR_exit_group, EXIT_FAILURE);
-  abort();
 }
 
 void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,
