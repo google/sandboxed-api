@@ -185,6 +185,9 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   // https://github.com/llvm-mirror/compiler-rt/blob/69445f095c22aac2388f939bedebf224a6efcdaf/lib/sanitizer_common/sanitizer_linux.cpp#L1101
   AddDirectory("/proc");
 #endif
+#if defined(ADDRESS_SANITIZER)
+  AllowSyscall(__NR_sigaltstack);
+#endif
   return *this;
 }
 
@@ -347,6 +350,9 @@ PolicyBuilder& PolicyBuilder::AllowHandleSignals() {
 #endif
 #ifdef __NR_sigprocmask
       __NR_sigprocmask,
+#endif
+#ifdef __NR_sigaltstack
+      __NR_sigaltstack,
 #endif
   });
 }
