@@ -37,11 +37,11 @@ set(_ffi_src "${CMAKE_BINARY_DIR}/libffi-src")
 set(libffi_INCLUDE_DIR ${_ffi_src}/libffi/include)
 
 add_library(ffi STATIC
-  ${_ffi_src}/configure-cmake-gen/fficonfig.h
-  ${_ffi_src}/configure-cmake-gen/include/ffi.h
-  ${_ffi_src}/configure-cmake-gen/include/ffitarget.h
+  ${_ffi_src}/fficonfig.h
+  ${_ffi_src}/include/ffi.h
   ${_ffi_src}/include/ffi_cfi.h
   ${_ffi_src}/include/ffi_common.h
+  ${_ffi_src}/include/ffitarget.h
   ${_ffi_src}/src/closures.c
   ${_ffi_src}/src/debug.c
   ${_ffi_src}/src/java_raw_api.c
@@ -60,8 +60,7 @@ add_library(ffi STATIC
 )
 add_library(libffi::libffi ALIAS ffi)
 target_include_directories(ffi PUBLIC
-  ${_ffi_src}/configure-cmake-gen
-  ${_ffi_src}/configure-cmake-gen/include
+  ${_ffi_src}
   ${_ffi_src}/include
 )
 target_compile_options(ffi PRIVATE

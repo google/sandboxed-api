@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-find_package(ZLIB REQUIRED)
-
 # sandboxed_api/sandbox2/examples/zlib:zpipe_sandbox
 add_executable(sandbox2_zpipe_sandbox
   zpipe_sandbox.cc
