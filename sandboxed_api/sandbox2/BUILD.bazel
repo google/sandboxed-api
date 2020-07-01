@@ -159,7 +159,6 @@ cc_library(
         "//sandboxed_api/util:flags",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",
-        "@org_kernel_libcap//:libcap",
     ],
 )
 
@@ -240,7 +239,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
-        "@org_kernel_libcap//:libcap",
     ],
 )
 

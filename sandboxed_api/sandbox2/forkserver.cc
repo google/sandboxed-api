@@ -19,7 +19,6 @@
 #include <asm/types.h>
 #include <fcntl.h>
 #include <sched.h>
-#include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -43,6 +42,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/synchronization/mutex.h"
+#include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"

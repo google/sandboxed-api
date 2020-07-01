@@ -16,7 +16,6 @@
 
 #include "sandboxed_api/sandbox2/stack_trace.h"
 
-#include <sys/capability.h>
 #include <sys/resource.h>
 #include <syscall.h>
 
@@ -146,7 +145,7 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
     return nullptr;
   }
   std::unique_ptr<Policy> policy = std::move(policy_or).value();
-  auto keep_capabilities = absl::make_unique<std::vector<cap_value_t>>();
+  auto keep_capabilities = absl::make_unique<std::vector<int>>();
   keep_capabilities->push_back(CAP_SYS_PTRACE);
   policy->AllowUnsafeKeepCapabilities(std::move(keep_capabilities));
   // Use no special namespace flags when cloning. We will join an existing

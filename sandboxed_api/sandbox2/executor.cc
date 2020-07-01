@@ -26,7 +26,6 @@
 
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
-#include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
@@ -73,7 +72,7 @@ std::vector<std::string> Executor::CopyEnviron() {
 }
 
 pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
-                                const std::vector<cap_value_t>* caps,
+                                const std::vector<int>* caps,
                                 pid_t* init_pid_out) {
   if (started_) {
     LOG(ERROR) << "This executor has already been started";

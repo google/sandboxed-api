@@ -16,7 +16,6 @@
 #define SANDBOXED_API_SANDBOX2_EXECUTOR_H_
 
 #include <stdlib.h>
-#include <sys/capability.h>
 #include <unistd.h>
 #include <memory>
 #include <string>
@@ -137,7 +136,7 @@ class Executor final {
   //
   // Returns the same values as fork().
   pid_t StartSubProcess(int clone_flags, const Namespace* ns = nullptr,
-                        const std::vector<cap_value_t>* caps = nullptr,
+                        const std::vector<int>* caps = nullptr,
                         pid_t* init_pid_out = nullptr);
 
   // Whether the Executor has been started yet

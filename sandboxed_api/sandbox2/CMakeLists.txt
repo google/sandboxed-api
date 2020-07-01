@@ -149,7 +149,6 @@ add_library(sandbox2::policy ALIAS sandbox2_policy)
 target_link_libraries(sandbox2_policy PRIVATE
   absl::core_headers
   absl::optional
-  libcap::libcap
   sandbox2::bpf_helper
   sandbox2::bpfdisassembler
   sandbox2::comms
@@ -242,7 +241,6 @@ target_link_libraries(sandbox2_executor PRIVATE
   absl::memory
   absl::strings
   glog::glog
-  libcap::libcap
   sandbox2::fileops
   sandbox2::forkserver
   sandbox2::forkserver_proto
@@ -277,7 +275,6 @@ target_link_libraries(sandbox2_sandbox2
           absl::strings
           absl::synchronization
           absl::time
-          libcap::libcap
           sandbox2::bpf_helper
           sandbox2::client
           sandbox2::comms

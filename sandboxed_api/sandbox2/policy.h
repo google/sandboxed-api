@@ -20,7 +20,6 @@
 
 #include <asm/types.h>
 #include <linux/filter.h>
-#include <sys/capability.h>
 
 #include <cstddef>
 #include <memory>
@@ -53,8 +52,7 @@ class Policy final {
   // Skips creation of a user namespace and keep capabilities in the global
   // namespace. This only makes sense in some rare cases where the sandbox is
   // started as root, please talk to sandbox-team@ before using this function.
-  void AllowUnsafeKeepCapabilities(
-      std::unique_ptr<std::vector<cap_value_t>> caps);
+  void AllowUnsafeKeepCapabilities(std::unique_ptr<std::vector<int>> caps);
 
   // Stores information about the policy (and the policy builder if existing)
   // in the protobuf structure.
@@ -76,7 +74,7 @@ class Policy final {
     namespace_ = std::move(ns);
   }
 
-  const std::vector<cap_value_t>* GetCapabilities() const {
+  const std::vector<int>* GetCapabilities() const {
     return capabilities_.get();
   }
 
@@ -91,7 +89,7 @@ class Policy final {
   bool collect_stacktrace_on_kill_ = true;
 
   // The capabilities to keep in the sandboxee.
-  std::unique_ptr<std::vector<cap_value_t>> capabilities_;
+  std::unique_ptr<std::vector<int>> capabilities_;
 
   // Optional pointer to a PolicyBuilder description pb object.
   std::unique_ptr<PolicyBuilderDescription> policy_builder_description_;

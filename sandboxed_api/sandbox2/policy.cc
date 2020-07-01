@@ -28,7 +28,6 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/regs.h"
@@ -151,7 +150,7 @@ bool Policy::SendPolicy(Comms* comms) const {
 }
 
 void Policy::AllowUnsafeKeepCapabilities(
-    std::unique_ptr<std::vector<cap_value_t>> caps) {
+    std::unique_ptr<std::vector<int>> caps) {
   if (namespace_) {
     namespace_->DisableUserNamespace();
   }
