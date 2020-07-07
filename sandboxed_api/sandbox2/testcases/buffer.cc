@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
   switch (testno) {
     case 1: {  // Dup and map to static FD
       auto buffer_or = sandbox2::Buffer::CreateFromFd(3);
-      if (!buffer_or) {
+      if (!buffer_or.ok()) {
         return EXIT_FAILURE;
       }
       auto buffer = std::move(buffer_or).value();
@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
       }
       auto buffer_or = sandbox2::Buffer::CreateFromFd(fd);
-      if (!buffer_or) {
+      if (!buffer_or.ok()) {
         return EXIT_FAILURE;
       }
       auto buffer = std::move(buffer_or).value();
