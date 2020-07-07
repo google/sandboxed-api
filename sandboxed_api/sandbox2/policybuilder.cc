@@ -175,7 +175,8 @@ PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
-#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER)
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
   AddPolicyOnSyscall(__NR_madvise, {
                                        ARG_32(2),
                                        JEQ32(MADV_DONTDUMP, ALLOW),
