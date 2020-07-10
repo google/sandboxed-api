@@ -77,7 +77,10 @@ static void StartGlobalForkServer() {
                  "creating socket pair");
 
   // Fork the fork-server, and clean-up the resources (close remote sockets).
-  pid_t pid = fork();
+  pid_t pid;
+  {
+    pid = fork();
+  }
   SAPI_RAW_PCHECK(pid != -1, "during fork");
 
   // Parent.

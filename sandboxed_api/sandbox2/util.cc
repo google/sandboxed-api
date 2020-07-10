@@ -133,7 +133,10 @@ pid_t CloneAndJump(int flags, jmp_buf* env_ptr) {
 #else
 #error "Architecture is not supported"
 #endif
-  int r = clone(&ChildFunc, stack, flags, env_ptr, nullptr, nullptr, nullptr);
+  int r;
+  {
+    r = clone(&ChildFunc, stack, flags, env_ptr, nullptr, nullptr, nullptr);
+  }
   if (r == -1) {
     SAPI_RAW_PLOG(ERROR, "clone()");
   }

@@ -304,7 +304,10 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   // A custom init process is only needed if a new PID NS is created.
   if (request.clone_flags() & CLONE_NEWPID) {
     // Spawn a child process
-    pid_t child = fork();
+    pid_t child;
+    {
+      child = fork();
+    }
     if (child < 0) {
       SAPI_RAW_PLOG(FATAL, "Could not spawn init process");
     }
