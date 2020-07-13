@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     return *ret;
   }
 
-  LOG(INFO) << "Starting decompression";
+  LOG(INFO) << "Starting compression";
 
   // Compress until end of file.
   do {
