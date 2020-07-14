@@ -130,7 +130,7 @@ std::vector<std::string> SyscallTable::GetArgumentsDescription(
 
 #if defined(__x86_64__)
 // Syscall description table for Linux x86_64
-const absl::Span<const SyscallTable::Entry> kSyscallDataX8664 = {
+constexpr SyscallTable::Entry kSyscallDataX8664[] = {
     MakeEntry("read", kInt, kHex, kInt),                                 // 0
     MakeEntry("write", kInt, kHex, kInt),                                // 1
     MakeEntry("open", kPath, kHex, kOct),                                // 2
@@ -333,7 +333,7 @@ const absl::Span<const SyscallTable::Entry> kSyscallDataX8664 = {
     MakeEntry("fremovexattr", UnknownArguments()),                       // 199
     MakeEntry("tkill", kInt, kSignal),                                   // 200
     MakeEntry("time", kHex),                                             // 201
-    MakeEntry("futex", UnknownArguments()),                              // 202
+    MakeEntry("futex", kGen, kInt, kInt, kGen, kGen, kInt),              // 202
     MakeEntry("sched_setaffinity", UnknownArguments()),                  // 203
     MakeEntry("sched_getaffinity", UnknownArguments()),                  // 204
     MakeEntry("set_thread_area", kHex),                                  // 205
@@ -458,7 +458,7 @@ const absl::Span<const SyscallTable::Entry> kSyscallDataX8664 = {
     MakeEntry("membarrier", kHex, kHex),                                 // 324
 };
 
-const absl::Span<const SyscallTable::Entry> kSyscallDataX8632 = {
+constexpr SyscallTable::Entry kSyscallDataX8632[] = {
     MakeEntry("restart_syscall", kHex, kHex, kHex, kHex, kHex, kHex),     // 0
     MakeEntry("exit", kHex, kHex, kHex, kHex, kHex, kHex),                // 1
     MakeEntry("fork", kHex, kHex, kHex, kHex, kHex, kHex),                // 2
@@ -829,7 +829,7 @@ const absl::Span<const SyscallTable::Entry> kSyscallDataX8632 = {
 // http://lxr.free-electrons.com/source/arch/powerpc/include/uapi/asm/unistd.h
 // Note: PPC64 syscalls can have up to 7 register arguments, but nobody is
 // using the 7th argument - probably for x64 compatibility reasons.
-const absl::Span<const SyscallTable::Entry> kSyscallDataPPC64 = {
+constexpr SyscallTable::Entry kSyscallDataPPC64[] = {
     MakeEntry("restart_syscall", kGen, kGen, kGen, kGen, kGen, kGen),     // 0
     MakeEntry("exit", kInt, kGen, kGen, kGen, kGen, kGen),                // 1
     MakeEntry("fork", kGen, kGen, kGen, kGen, kGen, kGen),                // 2
