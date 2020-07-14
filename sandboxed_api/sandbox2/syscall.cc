@@ -82,7 +82,7 @@ std::vector<std::string> Syscall::GetArgumentsDescription() const {
 }
 
 std::string Syscall::GetDescription() const {
-  const auto& arch = GetArchDescription(arch_);
+  const std::string arch = GetArchDescription(arch_);
   const std::string args = absl::StrJoin(GetArgumentsDescription(), ", ");
   return absl::StrFormat("%s %s [%d](%s) IP: %#x, STACK: %#x", arch, GetName(),
                          nr_, args, ip_, sp_);
