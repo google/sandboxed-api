@@ -578,6 +578,13 @@ class _TranslationUnit(object):
       # TODO(szwl): for d in translation_unit.diagnostics:, handle that
 
       for i, cursor in enumerate(self._walk_preorder()):
+        # Workaround for issue#32
+        try:
+          cursor.kind
+        except ValueError:
+          if cursor._kind_id >= 440:  # pylint: disable=protected-access
+            continue
+          raise
         # naive way to order types: they should be ordered when walking the tree
         if cursor.kind.is_declaration():
           self.order[cursor.hash] = i
