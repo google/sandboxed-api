@@ -40,8 +40,12 @@ set(WITH_UNWIND OFF CACHE BOOL "" FORCE)
 set(UNWIND_LIBRARY FALSE)
 set(HAVE_PWD_H FALSE)
 
+set(_glog_BUILD_TESTING ${BUILD_TESTING})
+set(BUILD_TESTING FALSE)
 add_subdirectory("${CMAKE_BINARY_DIR}/glog-src"
                  "${CMAKE_BINARY_DIR}/glog-build" EXCLUDE_FROM_ALL)
+set(BUILD_TESTING ${_glog_BUILD_TESTING})
+set(_glog_BUILD_TESTING)
 target_include_directories(glog PUBLIC
   $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/gflags-build/include>
 )

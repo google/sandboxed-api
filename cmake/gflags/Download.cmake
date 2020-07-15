@@ -34,6 +34,7 @@ endif()
 
 set(GFLAGS_IS_SUBPROJECT TRUE)
 set(GFLAGS_INSTALL_SHARED_LIBS FALSE)
+set(GFLAGS_BUILD_TESTING FALSE)
 
 add_subdirectory("${CMAKE_BINARY_DIR}/gflags-src"
                  "${CMAKE_BINARY_DIR}/gflags-build" EXCLUDE_FROM_ALL)
