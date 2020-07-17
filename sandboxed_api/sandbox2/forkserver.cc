@@ -50,7 +50,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/unwind/ptrace_hook.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util.h"
@@ -346,18 +345,8 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
 
     c.EnableSandbox();
     if (request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
-      UnwindSetup pb_setup;
-      if (!client_comms.RecvProtoBuf(&pb_setup)) {
-        exit(1);
-      }
-
-      std::string data = pb_setup.regs();
-      InstallUserRegs(data.c_str(), data.length());
-      ArmPtraceEmulation();
-      RunLibUnwindAndSymbolizer(pb_setup.pid(), &client_comms,
-                                pb_setup.default_max_frames(),
-                                pb_setup.delim());
-      exit(0);
+      exit(RunLibUnwindAndSymbolizer(&client_comms) ? EXIT_SUCCESS
+                                                    : EXIT_FAILURE);
     } else {
       ExecuteProcess(execve_fd, argv, envp);
     }

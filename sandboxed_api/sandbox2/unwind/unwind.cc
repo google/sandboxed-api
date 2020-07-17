@@ -27,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "libunwind-ptrace.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/unwind/ptrace_hook.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
@@ -116,18 +117,27 @@ void GetIPList(pid_t pid, std::vector<uintptr_t>* ips, int max_frames) {
   _UPT_destroy(ui);
 }
 
-void RunLibUnwindAndSymbolizer(pid_t pid, Comms* comms, int max_frames,
-                               const std::string& delim) {
+bool RunLibUnwindAndSymbolizer(Comms* comms) {
+  UnwindSetup pb_setup;
+  if (!comms->RecvProtoBuf(&pb_setup)) {
+    return false;
+  }
+
+  std::string data = pb_setup.regs();
+  InstallUserRegs(data.c_str(), data.length());
+  ArmPtraceEmulation();
+
   UnwindResult msg;
   std::string stack_trace;
   std::vector<uintptr_t> ips;
 
-  RunLibUnwindAndSymbolizer(pid, &stack_trace, &ips, max_frames, delim);
+  RunLibUnwindAndSymbolizer(pb_setup.pid(), &stack_trace, &ips,
+                            pb_setup.default_max_frames(), pb_setup.delim());
   for (const auto& i : ips) {
     msg.add_ip(i);
   }
   msg.set_stacktrace(stack_trace.c_str(), stack_trace.size());
-  comms->SendProtoBuf(msg);
+  return comms->SendProtoBuf(msg);
 }
 
 void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,

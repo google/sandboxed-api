@@ -26,8 +26,7 @@
 namespace sandbox2 {
 
 void GetIPList(pid_t pid, std::vector<uintptr_t>* ips, int max_frames);
-void RunLibUnwindAndSymbolizer(pid_t pid, Comms* comms, int max_frames,
-                               const std::string& delim);
+bool RunLibUnwindAndSymbolizer(Comms* comms);
 
 void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
                                std::vector<uintptr_t>* ips, int max_frames,

@@ -136,6 +136,7 @@ foreach(wrapped _wrapped "")
   )
   target_link_libraries(unwind_ptrace${wrapped} PRIVATE
     sapi::base
+    sandbox2::ptrace_hook
   )
 endforeach()
 target_compile_definitions(unwind_ptrace_wrapped PUBLIC

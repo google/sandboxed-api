@@ -291,7 +291,6 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::network_proxy_client
           sandbox2::notify
           sandbox2::policy
-          sandbox2::ptrace_hook
           sandbox2::regs
           sandbox2::result
           sandbox2::sanitizer
@@ -363,12 +362,10 @@ target_link_libraries(sandbox2_forkserver PRIVATE
   sandbox2::forkserver_proto
   sandbox2::namespace
   sandbox2::policy
-  sandbox2::ptrace_hook
   sandbox2::strerror
   sandbox2::sanitizer
   sandbox2::syscall
   sandbox2::unwind
-  sandbox2::unwind_proto
   sandbox2::util
   sapi::base
   sapi::raw_logging

@@ -27,7 +27,6 @@
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
-#include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 
 namespace sandbox2 {
 

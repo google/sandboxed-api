@@ -155,7 +155,9 @@ filegroup(
         ]] if do_wrap else []
     ),
     visibility = ["//visibility:public"],
-    deps = [":included_sources"],
+    deps = [":included_sources"] + (
+      ["@com_google_sandboxed_api//sandboxed_api/sandbox2/unwind:ptrace_hook"] if do_wrap else []
+    ),
     # This forces a link failure in any target that depends on both
     # unwind-ptrace and unwind-ptrace-wrapped.
     alwayslink = 1,
