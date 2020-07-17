@@ -18,7 +18,9 @@
 #ifndef SANDBOXED_API_SANDBOX2_GLOBAL_FORKCLIENT_H_
 #define SANDBOXED_API_SANDBOX2_GLOBAL_FORKCLIENT_H_
 
-#include "sandboxed_api/sandbox2/forkserver.h"
+#include <sys/types.h>
+
+#include "sandboxed_api/sandbox2/fork_client.h"
 
 namespace sandbox2 {
 

@@ -17,13 +17,14 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+
 #include <memory>
 #include <string>
 #include <vector>
 
 #include <glog/logging.h>
 #include "absl/base/macros.h"
-#include "sandboxed_api/sandbox2/forkserver.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/namespace.h"

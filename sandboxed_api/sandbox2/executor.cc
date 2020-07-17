@@ -26,7 +26,7 @@
 
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/forkserver.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/ipc.h"

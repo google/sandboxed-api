@@ -24,33 +24,11 @@
 #include <vector>
 
 #include <glog/logging.h>
-#include "absl/synchronization/mutex.h"
 
 namespace sandbox2 {
 
 class Comms;
 class ForkRequest;
-
-// Envvar indicating that this process should not start the fork-server.
-static constexpr const char* kForkServerDisableEnv = "SANDBOX2_NOFORKSERVER";
-
-class ForkClient {
- public:
-  ForkClient(const ForkClient&) = delete;
-  ForkClient& operator=(const ForkClient&) = delete;
-
-  explicit ForkClient(Comms* comms) : comms_(comms) {}
-
-  // Sends the fork request over the supplied Comms channel.
-  pid_t SendRequest(const ForkRequest& request, int exec_fd, int comms_fd,
-                    int user_ns_fd = -1, pid_t* init_pid = nullptr);
-
- private:
-  // Comms channel connecting with the ForkServer. Not owned by the object.
-  Comms* comms_;
-  // Mutex locking transactions (requests) over the Comms channel.
-  absl::Mutex comms_mutex_;
-};
 
 class ForkServer {
  public:

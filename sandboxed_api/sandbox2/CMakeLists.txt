@@ -221,7 +221,7 @@ target_link_libraries(sandbox2_global_forkserver PRIVATE
   absl::strings
   sandbox2::client
   sandbox2::comms
-  sandbox2::forkserver
+  sandbox2::fork_client
   sandbox2::forkserver_bin_embed
   sandbox2::sanitizer
   sandbox2::strerror
@@ -242,7 +242,7 @@ target_link_libraries(sandbox2_executor PRIVATE
   absl::strings
   glog::glog
   sandbox2::fileops
-  sandbox2::forkserver
+  sandbox2::fork_client
   sandbox2::forkserver_proto
   sandbox2::global_forkserver
   sandbox2::ipc
@@ -281,7 +281,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::executor
           sandbox2::file_base
           sandbox2::fileops
-          sandbox2::forkserver
+          sandbox2::fork_client
           sandbox2::forkserver_proto
           sandbox2::global_forkserver
           sandbox2::ipc
@@ -353,12 +353,12 @@ target_link_libraries(sandbox2_forkserver PRIVATE
   absl::memory
   absl::str_format
   absl::strings
-  absl::synchronization
   libcap::libcap
   sandbox2::bpf_helper
   sandbox2::client
   sandbox2::comms
   sandbox2::fileops
+  sandbox2::fork_client
   sandbox2::forkserver_proto
   sandbox2::namespace
   sandbox2::policy
@@ -370,6 +370,21 @@ target_link_libraries(sandbox2_forkserver PRIVATE
   sapi::base
   sapi::raw_logging
   sapi::statusor
+)
+
+# sandboxed_api/sandbox2:fork_client
+add_library(sandbox2_fork_client STATIC
+        fork_client.cc
+        fork_client.h
+)
+add_library(sandbox2::fork_client ALIAS sandbox2_fork_client)
+target_link_libraries(sandbox2_fork_client PRIVATE
+  absl::core_headers
+  absl::synchronization
+  sandbox2::comms
+  sandbox2::forkserver_proto
+  sapi::base
+  sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2:mounts

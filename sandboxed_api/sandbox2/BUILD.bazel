@@ -211,7 +211,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":comms",
-        ":forkserver",
+        ":fork_client",
         ":forkserver_bin_embed",
         ":sanitizer",
         "//sandboxed_api:embed_file",
@@ -228,7 +228,7 @@ cc_library(
     hdrs = ["executor.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":forkserver",
+        ":fork_client",
         ":forkserver_cc_proto",
         ":global_forkserver",
         ":ipc",
@@ -273,7 +273,7 @@ cc_library(
         ":client",
         ":comms",
         ":executor",
-        ":forkserver",
+        ":fork_client",
         ":forkserver_cc_proto",
         ":global_forkserver",
         ":ipc",
@@ -362,6 +362,7 @@ cc_library(
     deps = [
         ":client",
         ":comms",
+        ":fork_client",
         ":forkserver_cc_proto",
         ":namespace",
         ":policy",
@@ -369,7 +370,6 @@ cc_library(
         ":syscall",
         ":util",
         "//sandboxed_api/sandbox2/unwind",
-        "//sandboxed_api/sandbox2/unwind:unwind_cc_proto",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:strerror",
@@ -379,8 +379,22 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
         "@org_kernel_libcap//:libcap",
+    ],
+)
+
+cc_library(
+    name = "fork_client",
+    srcs = ["fork_client.cc"],
+    hdrs = ["fork_client.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":comms",
+        ":forkserver_cc_proto",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/synchronization",
     ],
 )
 
@@ -593,16 +607,14 @@ cc_test(
 
 cc_test(
     name = "forkserver_test",
-    srcs = [
-        "forkserver_test.cc",
-        "global_forkclient.h",
-    ],
+    srcs = ["forkserver_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:minimal"],
     deps = [
         ":comms",
         ":forkserver",
         ":forkserver_cc_proto",
+        ":global_forkserver",
         ":sandbox2",
         ":testing",
         "@com_google_absl//absl/strings",
