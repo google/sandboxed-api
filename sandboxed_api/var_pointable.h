@@ -33,17 +33,17 @@ class Pointable {
  public:
   enum SyncType {
     // Do not synchronize the underlying object after/before calls.
-    SYNC_NONE = 0x0,
+    kSyncNone = 0x0,
     // Synchronize the underlying object (send the data to the sandboxee)
     // before the call takes place.
-    SYNC_BEFORE = 0x1,
+    kSyncBefore = 0x1,
     // Synchronize the underlying object (retrieve data from the sandboxee)
     // after the call has finished.
-    SYNC_AFTER = 0x2,
+    kSyncAfter = 0x2,
     // Synchronize the underlying object with the remote object, by sending the
     // data to the sandboxee before the call, and retrieving it from the
     // sandboxee after the call has finished.
-    SYNC_BOTH = SYNC_BEFORE | SYNC_AFTER,
+    kSyncBoth = kSyncBefore | kSyncAfter,
   };
 
   // Necessary to implement creation of Ptr in inheriting class as it is
@@ -53,7 +53,7 @@ class Pointable {
   // Functions to get pointers with certain type of synchronization scheme.
   Ptr* PtrNone() {
     if (ptr_none_ == nullptr) {
-      ptr_none_.reset(CreatePtr(SYNC_NONE));
+      ptr_none_.reset(CreatePtr(kSyncNone));
     }
 
     return ptr_none_.get();
@@ -61,25 +61,22 @@ class Pointable {
 
   Ptr* PtrBoth() {
     if (ptr_both_ == nullptr) {
-      ptr_both_.reset(CreatePtr(SYNC_BOTH));
+      ptr_both_.reset(CreatePtr(kSyncBoth));
     }
-
     return ptr_both_.get();
   }
 
   Ptr* PtrBefore() {
     if (ptr_before_ == nullptr) {
-      ptr_before_.reset(CreatePtr(SYNC_BEFORE));
+      ptr_before_.reset(CreatePtr(kSyncBefore));
     }
-
     return ptr_before_.get();
   }
 
   Ptr* PtrAfter() {
     if (ptr_after_ == nullptr) {
-      ptr_after_.reset(CreatePtr(SYNC_AFTER));
+      ptr_after_.reset(CreatePtr(kSyncAfter));
     }
-
     return ptr_after_.get();
   }
 

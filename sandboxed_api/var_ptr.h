@@ -38,6 +38,7 @@ class Ptr : public Reg<Var*>, public Pointable {
   Var* GetPointedVar() const { return Reg<Var*>::GetValue(); }
 
   void SetValue(Var* ptr) final { val_->SetRemote(ptr); }
+
   Var* GetValue() const final {
     return reinterpret_cast<Var*>(val_->GetRemote());
   }
@@ -46,6 +47,7 @@ class Ptr : public Reg<Var*>, public Pointable {
     remote_ptr_cache_ = GetValue();
     return &remote_ptr_cache_;
   }
+
   void SetDataFromPtr(const void* ptr, size_t max_sz) final {
     void* tmp;
     memcpy(&tmp, ptr, std::min(sizeof(tmp), max_sz));
@@ -57,14 +59,14 @@ class Ptr : public Reg<Var*>, public Pointable {
   void SetSyncType(SyncType sync_type) { sync_type_ = sync_type; }
 
   std::string ToString() const final {
+    Var* var = GetPointedVar();
     return absl::StrFormat(
         "Ptr to obj:%p (type:'%s' val:'%s'), local:%p, remote:%p, size:%tx",
-        GetPointedVar(), GetPointedVar()->GetTypeString(),
-        GetPointedVar()->ToString(), GetPointedVar()->GetLocal(),
-        GetPointedVar()->GetRemote(), GetPointedVar()->GetSize());
+        var, var->GetTypeString(), var->ToString(), var->GetLocal(),
+        var->GetRemote(), var->GetSize());
   }
 
-  Ptr* CreatePtr(Pointable::SyncType type = Pointable::SYNC_NONE) override {
+  Ptr* CreatePtr(Pointable::SyncType type = Pointable::kSyncNone) override {
     return new Ptr(this, type);
   }
 
@@ -81,7 +83,7 @@ class Ptr : public Reg<Var*>, public Pointable {
 // Good, old nullptr
 class NullPtr : public Ptr {
  public:
-  NullPtr() : Ptr(&void_obj_, SyncType::SYNC_NONE) {}
+  NullPtr() : Ptr(&void_obj_, SyncType::kSyncNone) {}
 
  private:
   Reg<void*> void_obj_;
@@ -91,7 +93,7 @@ class NullPtr : public Ptr {
 class RemotePtr : public Ptr {
  public:
   explicit RemotePtr(void* remote_addr)
-      : Ptr(&pointed_obj_, SyncType::SYNC_NONE) {
+      : Ptr(&pointed_obj_, SyncType::kSyncNone) {
     pointed_obj_.SetRemote(remote_addr);
   }
 

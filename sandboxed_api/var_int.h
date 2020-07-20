@@ -32,7 +32,7 @@ class IntBase : public Reg<T>, public Pointable {
   IntBase() : IntBase(static_cast<T>(0)) {}
   explicit IntBase(T value) { this->SetValue(value); }
 
-  Ptr* CreatePtr(Pointable::SyncType type = Pointable::SYNC_NONE) override {
+  Ptr* CreatePtr(Pointable::SyncType type = Pointable::kSyncNone) override {
     return new Ptr(this, type);
   }
 };
