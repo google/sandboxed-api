@@ -67,9 +67,7 @@ class GenericPtr : public IntBase<uintptr_t> {
 class Fd : public Int {
  public:
   Type GetType() const override { return Type::kFd; }
-  explicit Fd(int val) : remote_fd_(-1), own_local_(true), own_remote_(true) {
-    SetValue(val);
-  }
+  explicit Fd(int val) { SetValue(val); }
   ~Fd() override;
 
   // Getter and setter of remote file descriptor.
@@ -95,9 +93,9 @@ class Fd : public Int {
   absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
 
  private:
-  int remote_fd_;
-  bool own_local_;
-  bool own_remote_;
+  int remote_fd_ = -1;
+  bool own_local_ = true;
+  bool own_remote_ = true;
 };
 
 }  // namespace sapi::v

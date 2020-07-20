@@ -66,7 +66,7 @@ class Var {
   virtual ~Var();
 
  protected:
-  Var() : local_(nullptr), remote_(nullptr), free_rpc_channel_(nullptr) {}
+  Var() = default;
 
   // Set pointer to local storage class.
   void SetLocal(void* local) { local_ = local; }
@@ -96,17 +96,17 @@ class Var {
                                              pid_t pid);
 
  private:
+  // Invokes Allocate()/Free()/Transfer*Sandboxee().
+  friend class ::sapi::Sandbox;
+
   // Pointer to local storage of the variable.
-  void* local_;
+  void* local_ = nullptr;
   // Pointer to remote storage of the variable.
-  void* remote_;
+  void* remote_ = nullptr;
 
   // Comms which can be used to free resources allocated in the sandboxer upon
   // this process' end of lifetime.
-  RPCChannel* free_rpc_channel_;
-
-  // Invokes Allocate()/Free()/Transfer*Sandboxee().
-  friend class ::sapi::Sandbox;
+  RPCChannel* free_rpc_channel_ = nullptr;
 };
 
 }  // namespace sapi::v

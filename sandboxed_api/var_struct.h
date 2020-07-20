@@ -34,7 +34,7 @@ class Struct : public Var, public Pointable {
     SetLocal(&struct_);
   }
 
-  size_t GetSize() const final { return sizeof(struct_); }
+  size_t GetSize() const final { return sizeof(T); }
   Type GetType() const final { return Type::kStruct; }
   std::string GetTypeString() const final { return "Structure"; }
   std::string ToString() const final {

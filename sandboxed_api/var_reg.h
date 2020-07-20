@@ -47,12 +47,12 @@ class Callable : public Var {
 // class Reg represents register-sized variables.
 template <typename T>
 class Reg : public Callable {
+ public:
   static_assert(std::is_integral<T>() || std::is_floating_point<T>() ||
                     std::is_pointer<T>() || std::is_enum<T>(),
                 "Only register-sized types are allowed as template argument "
                 "for class Reg.");
 
- public:
   Reg() : Reg(static_cast<T>(0)) {}
 
   explicit Reg(const T val) {
@@ -74,29 +74,29 @@ class Reg : public Callable {
   size_t GetSize() const override { return sizeof(T); }
 
   Type GetType() const override {
-    if (std::is_integral<T>() || std::is_enum<T>()) {
+    if constexpr (std::is_integral<T>() || std::is_enum<T>()) {
       return Type::kInt;
     }
-    if (std::is_floating_point<T>()) {
+    if constexpr (std::is_floating_point<T>()) {
       return Type::kFloat;
     }
-    if (std::is_pointer<T>()) {
+    if constexpr (std::is_pointer<T>()) {
       return Type::kPointer;
     }
-    LOG(FATAL) << "Incorrect type";
+    // Not reached
   }
 
   std::string GetTypeString() const override {
-    if (std::is_integral<T>() || std::is_enum<T>()) {
+    if constexpr (std::is_integral<T>() || std::is_enum<T>()) {
       return "Integer";
     }
-    if (std::is_floating_point<T>()) {
+    if constexpr (std::is_floating_point<T>()) {
       return "Floating-point";
     }
-    if (std::is_pointer<T>()) {
+    if constexpr (std::is_pointer<T>()) {
       return "Pointer";
     }
-    LOG(FATAL) << "Incorrect type";
+    // Not reached
   }
 
   std::string ToString() const override { return ValToString(); }

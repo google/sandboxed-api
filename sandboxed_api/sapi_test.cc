@@ -147,7 +147,7 @@ TEST(SAPITest, HasStackTraces) {
 // Various tests:
 
 // Leaks a file descriptor inside the sandboxee.
-int leak_file_descriptor(sapi::Sandbox* sandbox, const char* path) {
+int LeakFileDescriptor(sapi::Sandbox* sandbox, const char* path) {
   int raw_fd = open(path, O_RDONLY);
   sapi::v::Fd fd(raw_fd);  // Takes ownership of the raw fd.
   EXPECT_THAT(sandbox->TransferToSandboxee(&fd), IsOk());
@@ -162,12 +162,12 @@ TEST(SandboxTest, RestartSandboxFD) {
 
   auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
     // Open some FDs and check their value.
-    EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
-    EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(4));
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(4));
     SAPI_RETURN_IF_ERROR(sandbox->Restart(false));
     // We should have a fresh sandbox now = FDs open previously should be
     // closed now.
-    EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
     return absl::OkStatus();
   };
 
@@ -178,13 +178,13 @@ TEST(SandboxTest, RestartTransactionSandboxFD) {
   sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
 
   EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
-    EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
     return absl::OkStatus();
   }),
               IsOk());
 
   EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
-    EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(4));
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(4));
     return absl::OkStatus();
   }),
               IsOk());
@@ -192,7 +192,7 @@ TEST(SandboxTest, RestartTransactionSandboxFD) {
   EXPECT_THAT(st.Restart(), IsOk());
 
   EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
-    EXPECT_THAT(leak_file_descriptor(sandbox, "/proc/self/exe"), Eq(3));
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
     return absl::OkStatus();
   }),
               IsOk());
