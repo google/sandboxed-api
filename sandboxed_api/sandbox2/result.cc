@@ -17,6 +17,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 
@@ -40,6 +41,10 @@ Result& Result::operator=(const Result& other) {
   proc_maps_ = other.proc_maps_;
   rusage_monitor_ = other.rusage_monitor_;
   return *this;
+}
+
+std::string Result::GetStackTrace() const {
+  return absl::StrJoin(stack_trace_, " ");
 }
 
 absl::Status Result::ToStatus() const {

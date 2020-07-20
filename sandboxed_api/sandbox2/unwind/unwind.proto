@@ -18,22 +18,18 @@ syntax = "proto3";
 package sandbox2;
 
 message UnwindSetup {
-  // Required
-  // Process ID of the process to unwind
+  // Process ID of the process to unwind. Required.
   uint64 pid = 1;
   // Register content for the process to unwind
   bytes regs = 2;
   // Optional
   // Maximum number of stack frames to unwind
   uint64 default_max_frames = 3;
-  // Delimiter used in the result to separate the stack frames
-  bytes delim = 4;
 }
 
 message UnwindResult {
-  // Readable stacktrace, symbolized, each framed separated by the delim
-  // specified in the UnwindSetup message
-  bytes stacktrace = 1;
+  // Readable stacktrace, symbolized, one frame per line
+  repeated string stacktrace = 1;
   // Stack frames
   repeated uint64 ip = 2;
 }

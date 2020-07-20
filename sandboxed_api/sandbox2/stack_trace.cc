@@ -62,8 +62,7 @@ class StackTracePeer {
                                            const Mounts& mounts);
 
   static bool LaunchLibunwindSandbox(const Regs* regs, const Mounts& mounts,
-                                     UnwindResult* result,
-                                     const std::string& delim);
+                                     UnwindResult* result);
 };
 
 std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
@@ -106,9 +105,8 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
       .AddPolicyOnSyscall(
           __NR_process_vm_readv,
           {
-              // The pid technically is a 64bit int, however
-              // Linux usually uses max 16 bit, so we are fine
-              // with comparing only 32 bits here.
+              // The pid technically is a 64bit int, however Linux usually uses
+              // max 16 bit, so we are fine with comparing only 32 bits here.
               ARG_32(0),
               JEQ32(static_cast<unsigned int>(target_pid), ALLOW),
               JEQ32(static_cast<unsigned int>(1), ALLOW),
@@ -139,25 +137,23 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
     }
   }
 
-  auto policy_or = builder.TryBuild();
-  if (!policy_or.ok()) {
+  auto policy = builder.TryBuild();
+  if (!policy.ok()) {
     LOG(ERROR) << "Creating stack unwinder sandbox policy failed";
     return nullptr;
   }
-  std::unique_ptr<Policy> policy = std::move(policy_or).value();
   auto keep_capabilities = absl::make_unique<std::vector<int>>();
   keep_capabilities->push_back(CAP_SYS_PTRACE);
-  policy->AllowUnsafeKeepCapabilities(std::move(keep_capabilities));
+  (*policy)->AllowUnsafeKeepCapabilities(std::move(keep_capabilities));
   // Use no special namespace flags when cloning. We will join an existing
   // user namespace and will unshare() afterwards (See forkserver.cc).
-  policy->GetNamespace()->clone_flags_ = 0;
-  return policy;
+  (*policy)->GetNamespace()->clone_flags_ = 0;
+  return std::move(*policy);
 }
 
 bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
                                             const Mounts& mounts,
-                                            sandbox2::UnwindResult* result,
-                                            const std::string& delim) {
+                                            sandbox2::UnwindResult* result) {
   const pid_t pid = regs->pid();
 
   // Tell executor to use this special internal mode.
@@ -240,17 +236,17 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
   if (!policy) {
     return false;
   }
-  auto comms = executor->ipc()->comms();
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  auto* comms = executor->ipc()->comms();
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   VLOG(1) << "Running libunwind sandbox";
-  s2.RunAsync();
+  sandbox.RunAsync();
+
   UnwindSetup msg;
   msg.set_pid(pid);
   msg.set_regs(reinterpret_cast<const char*>(&regs->user_regs_),
                sizeof(regs->user_regs_));
   msg.set_default_max_frames(kDefaultMaxFrames);
-  msg.set_delim(delim.c_str(), delim.size());
 
   bool success = true;
   if (!comms->SendProtoBuf(msg)) {
@@ -264,23 +260,22 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
   }
 
   if (!success) {
-    s2.Kill();
+    sandbox.Kill();
   }
-  auto s2_result = s2.AwaitResult();
+  auto sandbox_result = sandbox.AwaitResult();
 
-  LOG(INFO) << "Libunwind execution status: " << s2_result.ToString();
+  LOG(INFO) << "Libunwind execution status: " << sandbox_result.ToString();
 
-  return success && s2_result.final_status() == Result::OK;
+  return success && sandbox_result.final_status() == Result::OK;
 }
 
-std::string GetStackTrace(const Regs* regs, const Mounts& mounts,
-                          const std::string& delim) {
+std::vector<std::string> GetStackTrace(const Regs* regs, const Mounts& mounts) {
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
-    return "[Stacktraces disabled]";
+    return {"[Stacktraces disabled]"};
   }
   if (!regs) {
     LOG(WARNING) << "Could not obtain stacktrace, regs == nullptr";
-    return "[ERROR (noregs)]";
+    return {"[ERROR (noregs)]"};
   }
 
 #if defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER) || \
@@ -301,26 +296,50 @@ std::string GetStackTrace(const Regs* regs, const Mounts& mounts,
         << "Sanitizer build, using non-sandboxed libunwind";
     LOG_IF(WARNING, coverage_enabled)
         << "Coverage build, using non-sandboxed libunwind";
-    return UnsafeGetStackTrace(regs->pid(), delim);
+    return UnsafeGetStackTrace(regs->pid());
   }
 
   if (!absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler)) {
-    return UnsafeGetStackTrace(regs->pid(), delim);
+    return UnsafeGetStackTrace(regs->pid());
   }
-  UnwindResult res;
 
-  if (!StackTracePeer::LaunchLibunwindSandbox(regs, mounts, &res, delim)) {
-    return "";
+  UnwindResult res;
+  if (!StackTracePeer::LaunchLibunwindSandbox(regs, mounts, &res)) {
+    return {};
   }
-  return res.stacktrace();
+  return {res.stacktrace().begin(), res.stacktrace().end()};
 }
 
-std::string UnsafeGetStackTrace(pid_t pid, const std::string& delim) {
+std::vector<std::string> UnsafeGetStackTrace(pid_t pid) {
   LOG(WARNING) << "Using non-sandboxed libunwind";
-  std::string stack_trace;
   std::vector<uintptr_t> ips;
-  RunLibUnwindAndSymbolizer(pid, &stack_trace, &ips, kDefaultMaxFrames, delim);
-  return stack_trace;
+  return RunLibUnwindAndSymbolizer(pid, &ips, kDefaultMaxFrames);
+}
+
+std::vector<std::string> CompactStackTrace(
+    const std::vector<std::string>& stack_trace) {
+  std::vector<std::string> compact_trace;
+  compact_trace.reserve(stack_trace.size() / 2);
+  const std::string* prev = nullptr;
+  int seen = 0;
+  auto add_repeats = [&compact_trace](int seen) {
+    if (seen != 0) {
+      compact_trace.push_back(
+          absl::StrCat("(previous frame repeated ", seen, " times)"));
+    }
+  };
+  for (const auto& frame : stack_trace) {
+    if (prev && frame == *prev) {
+      ++seen;
+    } else {
+      prev = &frame;
+      add_repeats(seen);
+      seen = 0;
+      compact_trace.push_back(frame);
+    }
+  }
+  add_repeats(seen);
+  return compact_trace;
 }
 
 }  // namespace sandbox2

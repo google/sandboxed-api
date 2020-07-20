@@ -42,8 +42,10 @@ ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 namespace sandbox2 {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Not;
 
 // Temporarily overrides a flag, restores the original flag value when it goes
@@ -188,6 +190,31 @@ TEST(StackTraceTest, SymbolizationTrustedFilesOnly) {
 
   ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
   ASSERT_THAT(result.GetStackTrace(), Not(HasSubstr("CrashMe")));
+}
+
+TEST(StackTraceTest, CompactStackTrace) {
+  EXPECT_THAT(CompactStackTrace({}), IsEmpty());
+  EXPECT_THAT(CompactStackTrace({"_start"}), ElementsAre("_start"));
+  EXPECT_THAT(CompactStackTrace({
+                  "_start",
+                  "main",
+                  "recursive_call",
+                  "recursive_call",
+                  "recursive_call",
+                  "tail_call",
+              }),
+              ElementsAre("_start", "main", "recursive_call",
+                          "(previous frame repeated 2 times)", "tail_call"));
+  EXPECT_THAT(CompactStackTrace({
+                  "_start",
+                  "main",
+                  "recursive_call",
+                  "recursive_call",
+                  "recursive_call",
+                  "recursive_call",
+              }),
+              ElementsAre("_start", "main", "recursive_call",
+                          "(previous frame repeated 3 times)"));
 }
 
 }  // namespace

@@ -20,9 +20,11 @@
 #define SANDBOXED_API_SANDBOX2_STACK_TRACE_H_
 
 #include <sys/types.h>
+
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -33,13 +35,24 @@ namespace sandbox2 {
 // Maximum depth of analyzed call stack.
 constexpr size_t kDefaultMaxFrames = 200;
 
-// Returns the stack-trace of the PID=pid, delimited by the delim argument.
-std::string GetStackTrace(const Regs* regs, const Mounts& mounts,
-                          const std::string& delim = " ");
+// Returns the stack-trace of the PID=pid, one line per frame.
+std::vector<std::string> GetStackTrace(const Regs* regs, const Mounts& mounts);
 
 // Similar to GetStackTrace() but without using the sandbox to isolate
 // libunwind.
-std::string UnsafeGetStackTrace(pid_t pid, const std::string& delim = " ");
+std::vector<std::string> UnsafeGetStackTrace(pid_t pid);
+
+// Returns a stack trace that collapses duplicate stack frames and annotates
+// them with a repetition count.
+// Example:
+//   _start              _start
+//   main                main
+//   recursive_call      recursive_call
+//   recursive_call      (previous frame repeated 2 times)
+//   recursive_call      tail_call
+//   tail_call
+std::vector<std::string> CompactStackTrace(
+    const std::vector<std::string>& stack_trace);
 
 }  // namespace sandbox2
 

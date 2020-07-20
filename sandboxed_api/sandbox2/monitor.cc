@@ -314,15 +314,20 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   result_.SetRegs(std::move(regs));
   result_.SetProgName(util::GetProgName(pid));
   result_.SetProcMaps(ReadProcMaps(pid_));
-  if (ShouldCollectStackTrace()) {
-    auto* ns = policy_->GetNamespace();
-    const Mounts empty_mounts;
-    result_.SetStackTrace(
-        GetStackTrace(result_.GetRegs(), ns ? ns->mounts() : empty_mounts));
-    LOG(INFO) << "Stack trace: " << result_.GetStackTrace();
-  } else {
+  if (!ShouldCollectStackTrace()) {
     LOG(INFO) << "Stack traces have been disabled";
+    return;
   }
+  auto* ns = policy_->GetNamespace();
+  const Mounts empty_mounts;
+  result_.set_stack_trace(
+      GetStackTrace(result_.GetRegs(), ns ? ns->mounts() : empty_mounts));
+
+  LOG(INFO) << "Stack trace: [";
+  for (const auto& frame : CompactStackTrace(result_.stack_trace())) {
+    LOG(INFO) << "  " << frame;
+  }
+  LOG(INFO) << "]";
 }
 
 void Monitor::KillSandboxee() {
@@ -873,12 +878,15 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
                          executor_->libunwind_sbox_for_pid_ == 0 &&
                          policy_->GetNamespace())) {
     Regs regs(pid);
-    auto status = regs.Fetch();
-    if (status.ok()) {
-      VLOG(0) << "SANDBOX STACK : PID: " << pid << ", ["
-              << GetStackTrace(&regs, policy_->GetNamespace()->mounts()) << "]";
-    } else {
+    if (auto status = regs.Fetch(); !status.ok()) {
       LOG(WARNING) << "FAILED TO GET SANDBOX STACK : " << status;
+    } else if (SAPI_VLOG_IS_ON(0)) {
+      VLOG(0) << "SANDBOX STACK: PID: " << pid << ", [";
+      for (const auto& frame :
+           GetStackTrace(&regs, policy_->GetNamespace()->mounts())) {
+        VLOG(0) << "  " << frame;
+      }
+      VLOG(0) << "]";
     }
     should_dump_stack_ = false;
   }

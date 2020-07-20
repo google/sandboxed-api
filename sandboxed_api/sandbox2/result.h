@@ -111,8 +111,8 @@ class Result {
   // The stacktrace must be sometimes fetched before SetExitStatusCode is
   // called, because after WIFEXITED() or WIFSIGNALED() the process is just a
   // zombie.
-  void SetStackTrace(const std::string& stack_trace) {
-    stack_trace_ = stack_trace;
+  void set_stack_trace(std::vector<std::string> value) {
+    stack_trace_ = std::move(value);
   }
 
   void SetRegs(std::unique_ptr<Regs> regs) { regs_ = std::move(regs); }
@@ -135,7 +135,10 @@ class Result {
     return syscall_ ? syscall_->arch() : Syscall::kUnknown;
   }
 
-  const std::string& GetStackTrace() const { return stack_trace_; }
+  const std::vector<std::string> stack_trace() { return stack_trace_; }
+
+  // Returns the stack trace as a space-delimited string.
+  std::string GetStackTrace() const;
 
   const Regs* GetRegs() const { return regs_.get(); }
 
@@ -177,7 +180,7 @@ class Result {
   uintptr_t reason_code_ = 0;
   // Might contain stack-trace of the process, especially if it failed with
   // syscall violation, or was terminated by a signal.
-  std::string stack_trace_;
+  std::vector<std::string> stack_trace_;
   // Might contain the register values of the process, similar to the stack.
   // trace
   std::unique_ptr<Regs> regs_;

@@ -71,80 +71,76 @@ std::string GetSymbolAt(const std::map<uint64_t, std::string>& addr_to_symbol,
 
 }  // namespace
 
-void GetIPList(pid_t pid, std::vector<uintptr_t>* ips, int max_frames) {
-  ips->clear();
-
+std::vector<uintptr_t> GetIPList(pid_t pid, int max_frames) {
   unw_cursor_t cursor;
   static unw_addr_space_t as =
       unw_create_addr_space(&_UPT_accessors, 0 /* byte order */);
   if (as == nullptr) {
     SAPI_RAW_LOG(WARNING, "unw_create_addr_space() failed");
-    return;
+    return {};
   }
 
-  auto* ui = reinterpret_cast<struct UPT_info*>(_UPT_create(pid));
+  std::unique_ptr<struct UPT_info, void (*)(void*)> ui(
+      reinterpret_cast<struct UPT_info*>(_UPT_create(pid)), _UPT_destroy);
   if (ui == nullptr) {
     SAPI_RAW_LOG(WARNING, "_UPT_create() failed");
-    return;
+    return {};
   }
 
-  int rc = unw_init_remote(&cursor, as, ui);
+  int rc = unw_init_remote(&cursor, as, ui.get());
   if (rc < 0) {
     // Could be UNW_EINVAL (8), UNW_EUNSPEC (1) or UNW_EBADREG (3).
     SAPI_RAW_LOG(WARNING, "unw_init_remote() failed with error %d", rc);
-  } else {
-    for (int i = 0; i < max_frames; i++) {
-      unw_word_t ip;
-      rc = unw_get_reg(&cursor, UNW_REG_IP, &ip);
-      if (rc < 0) {
-        // Could be UNW_EUNSPEC or UNW_EBADREG.
-        SAPI_RAW_LOG(WARNING, "unw_get_reg() failed with error %d", rc);
-        break;
-      }
-      ips->push_back(ip);
-      rc = unw_step(&cursor);
-      // Non-error condition: UNW_ESUCCESS (0).
-      if (rc < 0) {
-        // If anything but UNW_ESTOPUNWIND (-5), there has been an error.
-        // However since we can't do anything about it and it appears that
-        // this happens every time we don't log this.
-        break;
-      }
-    }
+    return {};
   }
 
-  // This is only needed if _UPT_create() has been successful.
-  _UPT_destroy(ui);
+  std::vector<uintptr_t> ips;
+  for (int i = 0; i < max_frames; i++) {
+    unw_word_t ip;
+    rc = unw_get_reg(&cursor, UNW_REG_IP, &ip);
+    if (rc < 0) {
+      // Could be UNW_EUNSPEC or UNW_EBADREG.
+      SAPI_RAW_LOG(WARNING, "unw_get_reg() failed with error %d", rc);
+      break;
+    }
+    ips.push_back(ip);
+    rc = unw_step(&cursor);
+    // Non-error condition: UNW_ESUCCESS (0).
+    if (rc < 0) {
+      // If anything but UNW_ESTOPUNWIND (-5), there has been an error.
+      // However since we can't do anything about it and it appears that
+      // this happens every time we don't log this.
+      break;
+    }
+  }
+  return ips;
 }
 
 bool RunLibUnwindAndSymbolizer(Comms* comms) {
-  UnwindSetup pb_setup;
-  if (!comms->RecvProtoBuf(&pb_setup)) {
+  UnwindSetup setup;
+  if (!comms->RecvProtoBuf(&setup)) {
     return false;
   }
 
-  std::string data = pb_setup.regs();
+  const std::string& data = setup.regs();
   InstallUserRegs(data.c_str(), data.length());
   ArmPtraceEmulation();
 
-  UnwindResult msg;
-  std::string stack_trace;
   std::vector<uintptr_t> ips;
+  std::vector<std::string> stack_trace =
+      RunLibUnwindAndSymbolizer(setup.pid(), &ips, setup.default_max_frames());
 
-  RunLibUnwindAndSymbolizer(pb_setup.pid(), &stack_trace, &ips,
-                            pb_setup.default_max_frames(), pb_setup.delim());
-  for (const auto& i : ips) {
-    msg.add_ip(i);
-  }
-  msg.set_stacktrace(stack_trace.c_str(), stack_trace.size());
+  UnwindResult msg;
+  *msg.mutable_stacktrace() = {stack_trace.begin(), stack_trace.end()};
+  *msg.mutable_ip() = {ips.begin(), ips.end()};
   return comms->SendProtoBuf(msg);
 }
 
-void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
-                               std::vector<uintptr_t>* ips, int max_frames,
-                               const std::string& delim) {
+std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
+                                                   std::vector<uintptr_t>* ips,
+                                                   int max_frames) {
   // Run libunwind.
-  GetIPList(pid, ips, max_frames);
+  *ips = GetIPList(pid, max_frames);
 
   // Open /proc/pid/maps.
   std::string path_maps = absl::StrCat("/proc/", pid, "/maps");
@@ -157,7 +153,7 @@ void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
   if (!f) {
     // Could not open maps file.
     SAPI_RAW_LOG(ERROR, "Could not open %s", path_maps);
-    return;
+    return {};
   }
 
   constexpr static size_t kBufferSize = 10 * 1024 * 1024;
@@ -166,21 +162,20 @@ void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
   if (bytes_read == 0) {
     // Could not read the whole maps file.
     SAPI_RAW_PLOG(ERROR, "Could not read maps file");
-    return;
+    return {};
   }
   maps_content.resize(bytes_read);
 
-  auto maps_or = ParseProcMaps(maps_content);
-  if (!maps_or.ok()) {
+  auto maps = ParseProcMaps(maps_content);
+  if (!maps.ok()) {
     SAPI_RAW_LOG(ERROR, "Could not parse /proc/%d/maps", pid);
-    return;
+    return {};
   }
-  auto maps = std::move(maps_or).value();
 
   // Get symbols for each file entry in the maps entry.
   // This is not a very efficient way, so we might want to optimize it.
   std::map<uint64_t, std::string> addr_to_symbol;
-  for (const auto& entry : maps) {
+  for (const auto& entry : *maps) {
     if (!entry.path.empty()) {
       // Store details about start + end of this map.
       // The maps entries are ordered and thus sorted with increasing adresses.
@@ -216,17 +211,15 @@ void RunLibUnwindAndSymbolizer(pid_t pid, std::string* stack_trace_out,
     }
   }
 
-  std::string stack_trace;
+  std::vector<std::string> stack_trace;
+  stack_trace.reserve(ips->size());
   // Symbolize stacktrace.
-  for (auto i = ips->begin(); i != ips->end(); ++i) {
-    if (i != ips->begin()) {
-      stack_trace += delim;
-    }
-    std::string symbol = GetSymbolAt(addr_to_symbol, static_cast<uint64_t>(*i));
-    absl::StrAppend(&stack_trace, symbol, "(0x", absl::Hex(*i), ")");
+  for (const auto& ip : *ips) {
+    const std::string symbol =
+        GetSymbolAt(addr_to_symbol, static_cast<uint64_t>(ip));
+    stack_trace.push_back(absl::StrCat(symbol, "(0x", absl::Hex(ip), ")"));
   }
-
-  *stack_trace_out = stack_trace;
+  return stack_trace;
 }
 
 }  // namespace sandbox2
