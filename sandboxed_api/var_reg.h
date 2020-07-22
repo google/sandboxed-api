@@ -15,10 +15,12 @@
 #ifndef SANDBOXED_API_VAR_REG_H_
 #define SANDBOXED_API_VAR_REG_H_
 
-#include <inttypes.h>
 #include <iostream>
+#include <type_traits>
 
 #include <glog/logging.h>
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
 
 namespace sapi::v {
@@ -32,9 +34,11 @@ class Callable : public Var {
 
   // Get pointer to the stored data.
   virtual const void* GetDataPtr() = 0;
+
   // Set internal data from ptr.
   virtual void SetDataFromPtr(const void* ptr, size_t max_sz) = 0;
-  // Get data from inernal ptr.
+
+  // Get data from internal ptr.
   void GetDataFromPtr(void* ptr, size_t max_sz) {
     size_t min_sz = std::min<size_t>(GetSize(), max_sz);
     memcpy(ptr, GetDataPtr(), min_sz);
@@ -48,8 +52,8 @@ class Callable : public Var {
 template <typename T>
 class Reg : public Callable {
  public:
-  static_assert(std::is_integral<T>() || std::is_floating_point<T>() ||
-                    std::is_pointer<T>() || std::is_enum<T>(),
+  static_assert(std::is_integral_v<T> || std::is_floating_point_v<T> ||
+                    std::is_pointer_v<T> || std::is_enum_v<T>,
                 "Only register-sized types are allowed as template argument "
                 "for class Reg.");
 
@@ -73,108 +77,58 @@ class Reg : public Callable {
 
   size_t GetSize() const override { return sizeof(T); }
 
-  Type GetType() const override {
-    if constexpr (std::is_integral<T>() || std::is_enum<T>()) {
-      return Type::kInt;
-    }
-    if constexpr (std::is_floating_point<T>()) {
-      return Type::kFloat;
-    }
-    if constexpr (std::is_pointer<T>()) {
-      return Type::kPointer;
-    }
-    // Not reached
-  }
+  Type GetType() const override;
 
-  std::string GetTypeString() const override {
-    if constexpr (std::is_integral<T>() || std::is_enum<T>()) {
-      return "Integer";
-    }
-    if constexpr (std::is_floating_point<T>()) {
-      return "Floating-point";
-    }
-    if constexpr (std::is_pointer<T>()) {
-      return "Pointer";
-    }
-    // Not reached
-  }
+  std::string GetTypeString() const override;
 
-  std::string ToString() const override { return ValToString(); }
+  std::string ToString() const override;
 
  protected:
   // The stored value.
   T val_;
-
- private:
-  std::string ValToString() const {
-    char buf[32];
-    bool signd = true;
-    if (std::is_integral<T>::value || std::is_enum<T>::value) {
-      if (std::is_integral<T>::value) {
-        signd = std::is_signed<T>::value;
-      }
-
-      switch (sizeof(T)) {
-        case 1:
-          if (signd) {
-            snprintf(buf, sizeof(buf), "%" PRId8,
-                     *(reinterpret_cast<const uint8_t*>(&val_)));
-          } else {
-            snprintf(buf, sizeof(buf), "%" PRIu8,
-                     *(reinterpret_cast<const uint8_t*>(&val_)));
-          }
-          break;
-        case 2:
-          if (signd) {
-            snprintf(buf, sizeof(buf), "%" PRId16,
-                     *(reinterpret_cast<const uint16_t*>(&val_)));
-          } else {
-            snprintf(buf, sizeof(buf), "%" PRIu16,
-                     *(reinterpret_cast<const uint16_t*>(&val_)));
-          }
-          break;
-        case 4:
-          if (signd) {
-            snprintf(buf, sizeof(buf), "%" PRId32,
-                     *(reinterpret_cast<const uint32_t*>(&val_)));
-          } else {
-            snprintf(buf, sizeof(buf), "%" PRIu32,
-                     *(reinterpret_cast<const uint32_t*>(&val_)));
-          }
-          break;
-        case 8:
-          if (signd) {
-            snprintf(buf, sizeof(buf), "%" PRId64,
-                     *(reinterpret_cast<const uint64_t*>(&val_)));
-          } else {
-            snprintf(buf, sizeof(buf), "%" PRIu64,
-                     *(reinterpret_cast<const uint64_t*>(&val_)));
-          }
-          break;
-        default:
-          LOG(FATAL) << "Incorrect type";
-          break;
-      }
-    } else if (std::is_floating_point<T>::value) {
-      if (std::is_same<T, float>::value) {
-        snprintf(buf, sizeof(buf), "%.10f",
-                 *(reinterpret_cast<const float*>(&val_)));
-      } else if (std::is_same<T, double>::value) {
-        snprintf(buf, sizeof(buf), "%.10lf",
-                 *(reinterpret_cast<const double*>(&val_)));
-      } else if (std::is_same<T, long double>::value) {
-        snprintf(buf, sizeof(buf), "%.10Lf",
-                 *(reinterpret_cast<const long double*>(&val_)));
-      }
-    } else if (std::is_pointer<T>::value) {
-      snprintf(buf, sizeof(buf), "%p", *reinterpret_cast<void* const*>(&val_));
-    } else {
-      LOG(FATAL) << "Incorrect type";
-    }
-
-    return std::string(buf);
-  }
 };
+
+template <typename T>
+Type Reg<T>::GetType() const {
+  if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
+    return Type::kInt;
+  }
+  if constexpr (std::is_floating_point_v<T>) {
+    return Type::kFloat;
+  }
+  if constexpr (std::is_pointer_v<T>) {
+    return Type::kPointer;
+  }
+  // Not reached
+}
+
+template <typename T>
+std::string Reg<T>::GetTypeString() const {
+  if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
+    return "Integer";
+  }
+  if constexpr (std::is_floating_point_v<T>) {
+    return "Floating-point";
+  }
+  if constexpr (std::is_pointer_v<T>) {
+    return "Pointer";
+  }
+  // Not reached
+}
+
+template <typename T>
+std::string Reg<T>::ToString() const {
+  if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
+    return absl::StrCat(val_);
+  }
+  if constexpr (std::is_floating_point_v<T>) {
+    return absl::StrFormat("%.10f", val_);
+  }
+  if constexpr (std::is_pointer<T>::value) {
+    return absl::StrFormat("%p", val_);
+  }
+  // Not reached.
+}
 
 }  // namespace sapi::v
 
