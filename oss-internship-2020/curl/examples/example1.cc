@@ -75,4 +75,3 @@ int main(int argc, char* argv[]) {
   assert(status_cleanup.ok());
 
 }
-
