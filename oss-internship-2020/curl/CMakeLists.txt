@@ -37,7 +37,7 @@ add_subdirectory(
 
 # generate and include generated sapi header
 
-add_sapi_library(curl_sapi SHARED
+add_sapi_library(curl_sapi
 
   FUNCTIONS curl_easy_cleanup
             curl_easy_duphandle
