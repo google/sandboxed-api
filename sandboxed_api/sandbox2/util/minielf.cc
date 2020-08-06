@@ -87,10 +87,10 @@ class ElfParser {
   // Arbitrary cut-off values, so we can parse safely.
   static constexpr int kMaxProgramHeaderEntries = 500;
   static constexpr int kMaxSectionHeaderEntries = 500;
-  static constexpr size_t kMaxSectionSize = 100 * 1024 * 1024;
+  static constexpr size_t kMaxSectionSize = 200 * 1024 * 1024;
   static constexpr size_t kMaxStrtabSize = 500 * 1024 * 1024;
   static constexpr size_t kMaxLibPathSize = 1024;
-  static constexpr int kMaxSymbolEntries = 1 * 1000 * 1000;
+  static constexpr int kMaxSymbolEntries = 2 * 1000 * 1000;
   static constexpr int kMaxDynamicEntries = 10000;
   static constexpr size_t kMaxInterpreterSize = 1000;
 
