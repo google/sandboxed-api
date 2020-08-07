@@ -15,53 +15,51 @@
 #include <iostream>
 
 #include "curl_sapi.sapi.h"
+#include "sandboxed_api/util/flag.h"
 
 class CurlApiSandboxEx1 : public CurlSandbox {
-
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder*) override {
-
-    return sandbox2::PolicyBuilder()
-        .DangerDefaultAllowAll()
-        .AllowUnrestrictedNetworking()
-        .AddDirectory("/lib")
-        .BuildOrDie();
-  }
-
+  private:
+    std::unique_ptr<sandbox2::Policy> ModifyPolicy( 
+        sandbox2::PolicyBuilder*) override {
+      // Return a new policy
+      return sandbox2::PolicyBuilder()
+          .DangerDefaultAllowAll()
+          .AllowUnrestrictedNetworking()
+          .AddDirectory("/lib")
+          .BuildOrDie();
+    }
 };
 
+// GET http://example.com
 int main(int argc, char* argv[]) {
 
-  // GET http://example.com
-
-  CurlApiSandboxEx1 sandbox;
-  
-  auto status_sandbox_init = sandbox.Init();
-  assert(status_sandbox_init.ok());
-
+  CurlApiSandboxEx1 sandbox; 
+  absl::Status status = sandbox.Init();
+  assert(status.ok());
   CurlApi api(&sandbox);
 
-  auto status_init = api.curl_easy_init();
-  assert(status_init.ok());
+  sapi::StatusOr<CURL*> status_or_culrptr = api.curl_easy_init();
+  assert(status.ok());
 
-  ::sapi::v::RemotePtr curl(status_init.value());
-  assert(curl.GetValue());
+  sapi::v::RemotePtr curl(status_or_culrptr.value());
+  assert(curl.GetValue()); // checking curl != NULL
 
-  auto status_setopt_verbose = api.curl_easy_setopt_long(&curl, CURLOPT_VERBOSE, 1l);
-  assert(status_setopt_verbose.ok());
-  assert(status_setopt_verbose.value() == CURLE_OK);
+  sapi::StatusOr<int> status_or_int = 
+    api.curl_easy_setopt_long(&curl, CURLOPT_VERBOSE, 1l);
+  assert(status_or_int.ok());
+  assert(status_or_int.value() == CURLE_OK);
 
-  sapi::v::ConstCStr url("http://example.com");
-  
-  auto status_setopt_url = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
-  assert(status_setopt_url.ok());
-  assert(status_setopt_url.value() == CURLE_OK);
+  sapi::v::ConstCStr url("http://example.com");  
+  status_or_int = 
+    api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
+  assert(status_or_int.ok());
+  assert(status_or_int.value() == CURLE_OK);
 
-  auto status_perform = api.curl_easy_perform(&curl);
-  assert(status_perform.ok());
-  assert(status_perform.value() == CURLE_OK);
+  status_or_int = api.curl_easy_perform(&curl);
+  assert(status_or_int.ok());
+  assert(status_or_int.value() == CURLE_OK);
 
-  auto status_cleanup = api.curl_easy_cleanup(&curl);
-  assert(status_cleanup.ok());
+  status = api.curl_easy_cleanup(&curl);
+  assert(status.ok());
 
 }

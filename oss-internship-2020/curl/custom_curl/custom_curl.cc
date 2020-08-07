@@ -17,18 +17,22 @@
 
 #include "custom_curl.h"
 
-CURLcode curl_easy_setopt_ptr(CURL* handle, CURLoption option, void* parameter) {
-    return curl_easy_setopt(handle, option, parameter);
+CURLcode curl_easy_setopt_ptr(CURL* handle, CURLoption option, 
+                              void* parameter) {
+  return curl_easy_setopt(handle, option, parameter);
 }
 
-CURLcode curl_easy_setopt_long(CURL* handle, CURLoption option, long parameter) {
-    return curl_easy_setopt(handle, option, parameter);
+CURLcode curl_easy_setopt_long(CURL* handle, CURLoption option, 
+                               long parameter) {
+  return curl_easy_setopt(handle, option, parameter);
 }
 
-CURLcode curl_easy_setopt_curl_off_t(CURL* handle, CURLoption option, curl_off_t parameter) {
-    return curl_easy_setopt(handle, option, parameter);
+CURLcode curl_easy_setopt_curl_off_t(CURL* handle, CURLoption option, 
+                                     curl_off_t parameter) {
+  return curl_easy_setopt(handle, option, parameter);
 }
 
-CURLcode curl_easy_getinfo_ptr(CURL* handle, CURLINFO option, void* parameter) {
-    return curl_easy_getinfo(handle, option, parameter);
+CURLcode curl_easy_getinfo_ptr(CURL* handle, CURLINFO option, 
+                               void* parameter) {
+  return curl_easy_getinfo(handle, option, parameter);
 }

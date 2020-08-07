@@ -21,12 +21,12 @@ add_subdirectory(curl)
 # Wrapper library including curl,
 # adds the explicit versions of the variadic methods
 add_library(custom_curl STATIC 
-    custom_curl.h 
-    custom_curl.cc
+  custom_curl.h 
+  custom_curl.cc
 )
 set_target_properties(custom_curl 
-    PROPERTIES LINKER_LANGUAGE C
+  PROPERTIES LINKER_LANGUAGE C
 )
 target_link_libraries(custom_curl 
-    CURL::libcurl
+  CURL::libcurl
 )
