@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <filesystem>
 #include <iostream>
 
 #include "lodepng_sapi.sapi.h"
@@ -23,6 +24,8 @@
 
 ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all);
 ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
+ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
+          "path to the folder containing test images");
 
 // takes a png image (f1), decodes it and ecodes it into f2.
 // can be viewed as copying f1 into f2. This function has a basic usage
@@ -132,6 +135,7 @@ bool cmp_images32(SapiLodepngSandbox &sandbox, LodepngApi &api,
       return false;
     }
   }
+
   return true;
 }
 
@@ -167,13 +171,9 @@ int main(int argc, char *argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   absl::Status ret;
 
-  if (argc != 2) {
-    std::cout << "usage: " << basename(argv[0]) << " images_folder_path"
-              << std::endl;
-    return 1;
-  }
+  std::string images_path(absl::GetFlag(FLAGS_images_path));
 
-  std::string images_path(argv[1]);
+  std::cout << "flag = " << images_path << std::endl;
 
   SapiLodepngSandbox sandbox(images_path);
   ret = sandbox.Init();
