@@ -44,16 +44,15 @@ int main(int argc, char* argv[]) {
   assert(status_or_curl.ok());
 
   sapi::v::RemotePtr curl(status_or_curl.value());
-  assert(curl.GetValue());  // Checking curl != NULL
+  assert(curl.GetValue());  // Checking curl != nullptr
 
   sapi::v::ConstCStr url("http://example.com");  
-  status_or_int = 
+  sapi::StatusOr<int> status_or_int = 
     api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
-  sapi::StatusOr<int> status_or_int = 
-    api.curl_easy_setopt_long(&curl, CURLOPT_FOLLOWLOCATION, 1l);
+  status_or_int = api.curl_easy_setopt_long(&curl, CURLOPT_FOLLOWLOCATION, 1l);
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
