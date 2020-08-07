@@ -19,24 +19,20 @@ project(curl_sandboxed)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# add folder containing the non-sandboxed custom curl library
-  
+# Add folder containing the non-sandboxed custom curl library
 add_subdirectory(custom_curl)
 
-# setup sandboxed api
-
+# Setup Sandboxed API
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
 set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
-
 add_subdirectory(
   "${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
   EXCLUDE_FROM_ALL
 )
 
-# generate and include generated sapi header
-
+# Generate SAPI header
 add_sapi_library(curl_sapi
 
   FUNCTIONS curl_easy_cleanup
@@ -71,10 +67,10 @@ add_sapi_library(curl_sapi
   NAMESPACE ""
 )
 
+# Include generated SAPI header
 target_include_directories(curl_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
 )
 
-# add examples
-
+# Add examples
 add_subdirectory(examples)

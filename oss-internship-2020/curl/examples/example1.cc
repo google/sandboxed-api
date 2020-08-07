@@ -12,21 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <libgen.h>
-#include <syscall.h>
 #include <iostream>
 
 #include "curl_sapi.sapi.h"
-
-/*
-int main() {
-    CURL *curl = curl_easy_init();
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1l);
-    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-    curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
-}
-*/
 
 class CurlApiSandboxEx1 : public CurlSandbox {
 
@@ -43,6 +31,8 @@ class CurlApiSandboxEx1 : public CurlSandbox {
 };
 
 int main(int argc, char* argv[]) {
+
+  // GET http://example.com
 
   CurlApiSandboxEx1 sandbox;
   

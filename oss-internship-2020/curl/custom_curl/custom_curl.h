@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// wrapper for curl library used to implement variadic functions explicitly
+// Wrapper for curl library used to implement variadic methods explicitly
 
 #ifndef CUSTOM_CURL_H
 #define CUSTOM_CURL_H

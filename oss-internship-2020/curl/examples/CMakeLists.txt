@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# example 1: GET request, verbose
-
+# Example 1: GET request, verbose
 add_executable(example1 
     example1.cc
 )
-
 target_link_libraries(example1 PRIVATE
     curl_sapi 
     sapi::sapi
