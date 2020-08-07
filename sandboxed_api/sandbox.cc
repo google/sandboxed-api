@@ -100,7 +100,7 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
 }
 
 void Sandbox::Terminate(bool attempt_graceful_exit) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return;
   }
 
@@ -129,7 +129,7 @@ static std::string PathToSAPILib(const std::string& lib_path) {
 
 absl::Status Sandbox::Init() {
   // It's already initialized
-  if (IsActive()) {
+  if (is_active()) {
     return absl::OkStatus();
   }
 
@@ -156,7 +156,7 @@ absl::Status Sandbox::Init() {
       }
     }
 
-    std::vector<std::string> args{lib_path};
+    std::vector<std::string> args = {lib_path};
     // Additional arguments, if needed.
     GetArgs(&args);
     std::vector<std::string> envs{};
@@ -214,24 +214,24 @@ absl::Status Sandbox::Init() {
   return absl::OkStatus();
 }
 
-bool Sandbox::IsActive() const { return s2_ && !s2_->IsTerminated(); }
+bool Sandbox::is_active() const { return s2_ && !s2_->IsTerminated(); }
 
 absl::Status Sandbox::Allocate(v::Var* var, bool automatic_free) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
   return var->Allocate(GetRpcChannel(), automatic_free);
 }
 
 absl::Status Sandbox::Free(v::Var* var) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
   return var->Free(GetRpcChannel());
 }
 
 absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
   if (ptr->GetType() != v::Type::kPointer) {
@@ -259,11 +259,11 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   VLOG(3) << "Synchronization (TO), ptr " << p << ", Type: " << p->GetSyncType()
           << " for var: " << p->GetPointedVar()->ToString();
 
-  return p->GetPointedVar()->TransferToSandboxee(GetRpcChannel(), GetPid());
+  return p->GetPointedVar()->TransferToSandboxee(GetRpcChannel(), pid());
 }
 
 absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
   if (ptr->GetType() != v::Type::kPointer) {
@@ -287,12 +287,12 @@ absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
         p->ToString()));
   }
 
-  return p->GetPointedVar()->TransferFromSandboxee(GetRpcChannel(), GetPid());
+  return p->GetPointedVar()->TransferFromSandboxee(GetRpcChannel(), pid());
 }
 
 absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
                            std::initializer_list<v::Callable*> args) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
   // Send data.
@@ -371,29 +371,29 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
 }
 
 absl::Status Sandbox::Symbol(const char* symname, void** addr) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
   return rpc_channel_->Symbol(symname, addr);
 }
 
 absl::Status Sandbox::TransferToSandboxee(v::Var* var) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->TransferToSandboxee(GetRpcChannel(), GetPid());
+  return var->TransferToSandboxee(GetRpcChannel(), pid());
 }
 
 absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->TransferFromSandboxee(GetRpcChannel(), GetPid());
+  return var->TransferFromSandboxee(GetRpcChannel(), pid());
 }
 
 sapi::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
                                                   uint64_t max_length) {
-  if (!IsActive()) {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
 
@@ -436,22 +436,25 @@ const sandbox2::Result& Sandbox::AwaitResult() {
   return result_;
 }
 
-absl::Status Sandbox::SetWallTimeLimit(time_t limit) const {
-  if (!IsActive()) {
+absl::Status Sandbox::SetWallTimeLimit(absl::Duration limit) const {
+  if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  s2_->SetWallTimeLimit(limit);
+  s2_->set_walltime_limit(limit);
   return absl::OkStatus();
 }
 
+absl::Status Sandbox::SetWallTimeLimit(time_t limit) const {
+  return SetWallTimeLimit(absl::Seconds(limit));
+}
+
 void Sandbox::Exit() const {
-  if (!IsActive()) {
+  if (!is_active()) {
     return;
   }
-  // Give it 1 second
-  s2_->SetWallTimeLimit(1);
+  s2_->set_walltime_limit(absl::Seconds(1));
   if (!rpc_channel_->Exit().ok()) {
-    LOG(WARNING) << "rpc_channel->Exit() failed, killing PID: " << GetPid();
+    LOG(WARNING) << "rpc_channel->Exit() failed, killing PID: " << pid();
     s2_->Kill();
   }
 }

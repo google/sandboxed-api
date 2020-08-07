@@ -26,12 +26,10 @@ absl::Status TransactionBase::RunTransactionFunctionInSandbox(
 
   // Set the wall-time limit for this transaction run, and clean it up
   // afterwards, no matter what the result.
-  SAPI_RETURN_IF_ERROR(sandbox_->SetWallTimeLimit(GetTimeLimit()));
+  SAPI_RETURN_IF_ERROR(sandbox_->SetWallTimeLimit(absl::Seconds(GetTimeLimit())));
   struct TimeCleanup {
     ~TimeCleanup() {
-      if (capture->sandbox_->IsActive()) {
-        capture->sandbox_->SetWallTimeLimit(0).IgnoreError();
-      }
+      capture->sandbox_->SetWallTimeLimit(absl::ZeroDuration()).IgnoreError();
     }
     TransactionBase* capture;
   } sandbox_cleanup = {this};
@@ -66,8 +64,11 @@ absl::Status TransactionBase::RunTransactionLoop(
 }
 
 TransactionBase::~TransactionBase() {
-  if (initialized_) {
-    Finish().IgnoreError();
+  if (!initialized_) {
+    return;
+  }
+  if (absl::Status status = Finish(); !status.ok()) {
+    LOG(ERROR) << "Transaction finalizer returned an error: " << status;
   }
 }
 

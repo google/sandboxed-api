@@ -113,7 +113,7 @@ TEST(StringopTest, RawStringReversal) {
   {
     // Let's call it again with different data as argument, reusing the
     // existing LenVal object.
-    EXPECT_THAT(param.ResizeData(sandbox.GetRpcChannel(), 16), IsOk());
+    EXPECT_THAT(param.ResizeData(sandbox.rpc_channel(), 16), IsOk());
     memcpy(param.GetData() + 10, "ABCDEF", 6);
     absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
                            param.GetDataSize());
@@ -135,7 +135,7 @@ TEST(StringopTest, RawStringLength) {
   StringopApi api(&sandbox);
   SAPI_ASSERT_OK_AND_ASSIGN(void* target_mem_ptr, api.get_raw_c_string());
   SAPI_ASSERT_OK_AND_ASSIGN(uint64_t len,
-                       sandbox.GetRpcChannel()->Strlen(target_mem_ptr));
+                       sandbox.rpc_channel()->Strlen(target_mem_ptr));
   EXPECT_THAT(len, Eq(10));
 }
 
@@ -145,7 +145,7 @@ TEST(StringopTest, RawStringReading) {
   StringopApi api(&sandbox);
   SAPI_ASSERT_OK_AND_ASSIGN(void* target_mem_ptr, api.get_raw_c_string());
   SAPI_ASSERT_OK_AND_ASSIGN(uint64_t len,
-                       sandbox.GetRpcChannel()->Strlen(target_mem_ptr));
+                       sandbox.rpc_channel()->Strlen(target_mem_ptr));
   EXPECT_THAT(len, Eq(10));
 
   SAPI_ASSERT_OK_AND_ASSIGN(std::string data,

@@ -35,18 +35,21 @@ namespace sapi {
 // means to communicate with it (make function calls, transfer memory).
 class Sandbox {
  public:
+  explicit Sandbox(const FileToc* embed_lib_toc)
+      : embed_lib_toc_(embed_lib_toc) {}
+
   Sandbox(const Sandbox&) = delete;
   Sandbox& operator=(const Sandbox&) = delete;
 
-  explicit Sandbox(const FileToc* embed_lib_toc)
-      : comms_(nullptr), pid_(0), embed_lib_toc_(embed_lib_toc) {}
   virtual ~Sandbox();
 
   // Initializes a new sandboxing session.
   absl::Status Init();
 
-  // Is the current sandboxing session alive?
-  bool IsActive() const;
+  ABSL_DEPRECATED("Use sapi::Sandbox::is_active() instead")
+  bool IsActive() const { return is_active(); }
+  // Returns whether the current sandboxing session is active.
+  bool is_active() const;
 
   // Terminates the current sandboxing session (if it exists).
   void Terminate(bool attempt_graceful_exit = true);
@@ -60,9 +63,13 @@ class Sandbox {
   // Getters for common fields.
   sandbox2::Comms* comms() const { return comms_; }
 
+  ABSL_DEPRECATED("Use sapi::Sandbox::rpc_channel() instead")
   RPCChannel* GetRpcChannel() const { return rpc_channel_.get(); }
+  RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
 
+  ABSL_DEPRECATED("Use sapi::Sandbox::pid() instead")
   int GetPid() const { return pid_; }
+  int pid() const { return pid_; }
 
   // Synchronizes the underlying memory for the pointer before the call.
   absl::Status SynchronizePtrBefore(v::Callable* ptr);
@@ -87,7 +94,7 @@ class Sandbox {
   // Frees memory in the sandboxee.
   absl::Status Free(v::Var* var);
 
-  // Finds address of a symbol in the sandboxee.
+  // Finds the address of a symbol in the sandboxee.
   absl::Status Symbol(const char* symname, void** addr);
 
   // Transfers memory (both directions). Status is returned (memory transfer
@@ -95,14 +102,17 @@ class Sandbox {
   absl::Status TransferToSandboxee(v::Var* var);
   absl::Status TransferFromSandboxee(v::Var* var);
 
-  sapi::StatusOr<std::string> GetCString(const v::RemotePtr& str,
-                                           uint64_t max_length = 10 * 1024 *
-                                                                 1024);
+  sapi::StatusOr<std::string> GetCString(
+      const v::RemotePtr& str, uint64_t max_length = 10ULL << 20 /* 10 MiB*/
+  );
 
   // Waits until the sandbox terminated and returns the result.
   const sandbox2::Result& AwaitResult();
   const sandbox2::Result& result() const { return result_; }
 
+  absl::Status SetWallTimeLimit(absl::Duration limit) const;
+  ABSL_DEPRECATED(
+      "Use sapi::Sandbox::SetWallTimeLimit(absl::Duration) overload instead")
   absl::Status SetWallTimeLimit(time_t limit) const;
 
  protected:
@@ -144,11 +154,11 @@ class Sandbox {
   sandbox2::Result result_;
 
   // Comms with the sandboxee.
-  sandbox2::Comms* comms_;
+  sandbox2::Comms* comms_ = nullptr;
   // RPCChannel object.
   std::unique_ptr<RPCChannel> rpc_channel_;
   // The main pid of the sandboxee.
-  pid_t pid_;
+  pid_t pid_ = 0;
 
   // FileTOC with the embedded library, takes precedence over GetLibPath if
   // present (not nullptr).
