@@ -5,7 +5,7 @@ TODO
 - add more functions
 - this readme
 - remove path from CMakeLists.txt
-- include abseil flags for unit testing
+- include abseil flags for unit testing (done, should be changed in main.cc also)
 - improve tests (images, generating images etc.)
 - clear redundant includes
 - check if security policy can be stricter
