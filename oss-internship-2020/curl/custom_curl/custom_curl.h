@@ -17,8 +17,6 @@
 #ifndef CUSTOM_CURL_H
 #define CUSTOM_CURL_H
 
-#include <curl/curlver.h>
-#include <curl/system.h>
 #include <curl/curl.h>
 
 extern "C" CURLcode curl_easy_setopt_ptr(CURL *handle, CURLoption option, void* parameter);

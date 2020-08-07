@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
 #include <iostream>
+
 #include "custom_curl.h"
-#include <stdlib.h>
 
 CURLcode curl_easy_setopt_ptr(CURL* handle, CURLoption option, void* parameter) {
     return curl_easy_setopt(handle, option, parameter);
