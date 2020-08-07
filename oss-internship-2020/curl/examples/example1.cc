@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Sandboxed version of simple.c
+
+#include <cstdlib>
 #include <iostream>
 
 #include "curl_sapi.sapi.h"
@@ -30,7 +33,6 @@ class CurlApiSandboxEx1 : public CurlSandbox {
     }
 };
 
-// GET http://example.com
 int main(int argc, char* argv[]) {
 
   CurlApiSandboxEx1 sandbox; 
@@ -38,20 +40,20 @@ int main(int argc, char* argv[]) {
   assert(status.ok());
   CurlApi api(&sandbox);
 
-  sapi::StatusOr<CURL*> status_or_culrptr = api.curl_easy_init();
-  assert(status.ok());
+  sapi::StatusOr<CURL*> status_or_curl = api.curl_easy_init();
+  assert(status_or_curl.ok());
 
-  sapi::v::RemotePtr curl(status_or_culrptr.value());
-  assert(curl.GetValue()); // checking curl != NULL
-
-  sapi::StatusOr<int> status_or_int = 
-    api.curl_easy_setopt_long(&curl, CURLOPT_VERBOSE, 1l);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  sapi::v::RemotePtr curl(status_or_curl.value());
+  assert(curl.GetValue());  // Checking curl != NULL
 
   sapi::v::ConstCStr url("http://example.com");  
   status_or_int = 
     api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
+  assert(status_or_int.ok());
+  assert(status_or_int.value() == CURLE_OK);
+
+  sapi::StatusOr<int> status_or_int = 
+    api.curl_easy_setopt_long(&curl, CURLOPT_FOLLOWLOCATION, 1l);
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
@@ -61,5 +63,7 @@ int main(int argc, char* argv[]) {
 
   status = api.curl_easy_cleanup(&curl);
   assert(status.ok());
+
+  return EXIT_SUCCESS;
 
 }

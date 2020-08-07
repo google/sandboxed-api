@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Example 1: GET request, verbose
+# All the examples are sandboxed versions of curl's examples
+# (https://curl.haxx.se/libcurl/c/example.html)
+
+# Example 1: simple.c
 add_executable(example1 
   example1.cc
 )

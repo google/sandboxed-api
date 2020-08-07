@@ -19,16 +19,16 @@
 
 #include <curl/curl.h>
 
-extern "C" CURLcode curl_easy_setopt_ptr(CURL *handle, CURLoption option, 
+extern "C" CURLcode curl_easy_setopt_ptr(CURL* handle, CURLoption option, 
                                          void* parameter);
 
-extern "C" CURLcode curl_easy_setopt_long(CURL *handle, CURLoption option, 
+extern "C" CURLcode curl_easy_setopt_long(CURL* handle, CURLoption option, 
                                           long parameter);
 
-extern "C" CURLcode curl_easy_setopt_curl_off_t(CURL *handle, CURLoption option,
+extern "C" CURLcode curl_easy_setopt_curl_off_t(CURL* handle, CURLoption option,
                                                 curl_off_t parameter);
 
-extern "C" CURLcode curl_easy_getinfo_ptr(CURL *handle, CURLINFO option, 
+extern "C" CURLcode curl_easy_getinfo_ptr(CURL* handle, CURLINFO option, 
                                           void* parameter);
 
 #endif // CUSTOM_CURL_H
