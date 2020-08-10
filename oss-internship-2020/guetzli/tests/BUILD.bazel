@@ -1,0 +1,22 @@
+# cc_test(
+#     name = "transaction_tests",
+#     srcs = ["guetzli_transaction_test.cc"],
+#     visibility=["//visibility:public"],
+#     includes = ["."],
+#     deps = [
+#       "//:guetzli_sapi",
+#       "@googletest//:gtest_main"
+#     ],
+# )
+
+# cc_test(
+#     name = "sapi_lib_tests",
+#     srcs = ["guetzli_sapi_test.cc"],
+#     visibility=["//visibility:public"],
+#     includes=[".."],
+#     deps = [
+#       "//:guetzli_sapi",
+#       "@googletest//:gtest_main"
+#     ],
+#     data = glob(["testdata/*"])
+# )
