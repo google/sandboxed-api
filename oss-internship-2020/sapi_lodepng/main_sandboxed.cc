@@ -51,7 +51,7 @@ void decode_and_encode32(SapiLodepngSandbox &sandbox, LodepngApi &api,
   // address to which the previous variable points. To do that, we have to
   // transfer the data from the sandbox memory to this process's memory.
   sapi::v::RemotePtr remote_out_ptr(reinterpret_cast<void *>(image.GetValue()));
-  sapi::v::Array<char> out_img(width.GetValue() * height.GetValue());
+  sapi::v::Array<unsigned char> out_img(width.GetValue() * height.GetValue());
   out_img.SetRemote(remote_out_ptr.GetValue());
 
   if (!sandbox.TransferFromSandboxee(&out_img).ok()) {
@@ -59,7 +59,7 @@ void decode_and_encode32(SapiLodepngSandbox &sandbox, LodepngApi &api,
     exit(1);
   }
 
-  // now the pixels are available at out_img.GetData()
+  // now the values are available at out_img.GetData()
 
   // when calling the encoding function, we need only an unsigned char *
   // (instead of **) so we can simply use the sapi::v::Array defined before
@@ -76,6 +76,37 @@ void decode_and_encode32(SapiLodepngSandbox &sandbox, LodepngApi &api,
   // since the memory has already been allocated on the sandboxed process).
   // However, most of the use cases of this library require accessing the pixels
   // which is why the solution in which data is transferred around is used.
+}
+
+void test2(SapiLodepngSandbox &sandbox, LodepngApi &api, const std::string &images_path) {
+
+    srand(time(NULL)); // maybe use something else
+    // int width = 1024, height = 1024;
+    unsigned int width = 512, height = 512;
+    unsigned char *image = (unsigned char*)malloc(width * height * 4);
+    // for (int i = 0; i < width * height; ++i) {
+    //     image[i] = rand() % 256;
+    // }
+
+    for(int y = 0; y < height; y++)
+    for(int x = 0; x < width; x++) {
+    image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
+    image[4 * width * y + 4 * x + 1] = x ^ y;
+    image[4 * width * y + 4 * x + 2] = x | y;
+    image[4 * width * y + 4 * x + 3] = 255;
+  }
+
+    sapi::v::Array<unsigned char> image_(image, width * height);
+    sapi::v::UInt width_(width), height_(height);
+    std::string filename = images_path + "/out/generate_and_encode_one_step1.png";
+    sapi::v::ConstCStr filename_(filename.c_str());
+
+    sandbox.Allocate(&image_).IgnoreError();
+    sandbox.TransferToSandboxee(&image_).IgnoreError();
+
+    auto res = api.lodepng_encode32_file(filename_.PtrBefore(), image_.PtrBefore(), width_.GetValue(), height_.GetValue()).value();
+    std::cout << "res = " << res << std::endl;
+    free(image);
 }
 
 // compares the pixels of the f1 and f2 png files.
@@ -144,8 +175,6 @@ bool cmp_images32(SapiLodepngSandbox &sandbox, LodepngApi &api,
 // equal, then encoding and decoding worked.
 void test1(SapiLodepngSandbox &sandbox, LodepngApi &api,
            const std::string &images_path) {
-  std::cout << "test1" << std::endl;
-
   std::string filename1 = images_path + "/test1.png";
   std::string filename2 = images_path + "/out/test1_1out.png";
   std::string filename3 = images_path + "/out/test1_2out.png";
@@ -186,6 +215,6 @@ int main(int argc, char *argv[]) {
   LodepngApi api(&sandbox);
 
   test1(sandbox, api, images_path);
-
+  test2(sandbox, api, images_path);
   return 0;
 }

@@ -50,6 +50,8 @@ bool cmp_images32(const std::string &f1, const std::string &f2) {
     return false;
   }
 
+  std::cout << "width height = " << width1 << " " << height1 << std::endl;
+
   for (int i = 0; i < width1 * height1; ++i) {
     if (image1[i] != image2[i]) {
       std::cerr << "PIXELS DIFFER AT i = " << i << std::endl;
