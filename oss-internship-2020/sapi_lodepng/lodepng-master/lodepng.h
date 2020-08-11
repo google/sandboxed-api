@@ -957,6 +957,8 @@ unsigned lodepng_deflate(unsigned char** out, size_t* outsize,
 #endif /*LODEPNG_COMPILE_ZLIB*/
 
 #ifdef LODEPNG_COMPILE_DISK
+
+extern "C" {
 /*
 Load a file from disk into buffer. The function allocates the out buffer, and
 after usage you should free it.
@@ -976,6 +978,7 @@ filename: the path to the file to save to
 return value: error code (0 means ok)
 */
 unsigned lodepng_save_file(const unsigned char* buffer, size_t buffersize, const char* filename);
+}
 #endif /*LODEPNG_COMPILE_DISK*/
 
 #ifdef LODEPNG_COMPILE_CPP
