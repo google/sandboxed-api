@@ -3,18 +3,25 @@
 #include "guetzli_entry_points.h"
 #include "png.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/statusor.h"
 
 #include <algorithm>
 #include <iostream>
+#include <string>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <vector>
 
 namespace {
 
-inline uint8_t BlendOnBlack(const uint8_t val, const uint8_t alpha) {
-  return (static_cast<int>(val) * static_cast<int>(alpha) + 128) / 255;
-}
+constexpr int kBytesPerPixel = 350;
+constexpr int kLowestMemusageMB = 100; // in MB
+
+struct GuetzliInitData {
+  std::string in_data;
+  guetzli::Params params;
+  guetzli::ProcessStats stats;
+};
 
 template<typename T>
 void CopyMemoryToLenVal(const T* data, size_t size, 
@@ -26,68 +33,63 @@ void CopyMemoryToLenVal(const T* data, size_t size,
   out_data->data = new_out;
 }
 
-} // namespace
-
-extern "C" bool ProcessJPEGString(const guetzli::Params* params,
-                                  int verbose,
-                                  sapi::LenValStruct* in_data, 
-                                  sapi::LenValStruct* out_data)
-{
-  std::string in_data_temp(static_cast<const char*>(in_data->data), 
-      in_data->size);
-
-  guetzli::ProcessStats stats;
-  if (verbose > 0) {
-    stats.debug_output_file = stderr;
-  }
-
-  std::string temp_out = "";
-  auto result = guetzli::Process(*params, &stats, in_data_temp, &temp_out);
-
-  if (result) {
-    CopyMemoryToLenVal(temp_out.data(), temp_out.size(), out_data);
-  }
-
-  return result;
-}
-
-extern "C" bool ProcessRGBData(const guetzli::Params* params,
-                                int verbose,
-                                sapi::LenValStruct* rgb, 
-                                int w, int h,
-                                sapi::LenValStruct* out_data)
-{
-  std::vector<uint8_t> in_data_temp;
-  in_data_temp.reserve(rgb->size);
-
-  auto* rgb_data = static_cast<uint8_t*>(rgb->data);
-  std::copy(rgb_data, rgb_data + rgb->size, std::back_inserter(in_data_temp));
-
-  guetzli::ProcessStats stats;
-  if (verbose > 0) {
-    stats.debug_output_file = stderr;
-  }
-
-  std::string temp_out = "";
-  auto result = 
-      guetzli::Process(*params, &stats, in_data_temp, w, h, &temp_out);
-
-  //TODO: Move shared part of the code to another function
-  if (result) {
-    CopyMemoryToLenVal(temp_out.data(), temp_out.size(), out_data);
-  }
-
-  return result;
-}
-
-extern "C" bool ReadPng(sapi::LenValStruct* in_data, 
-                        int* xsize, int* ysize,
-                        sapi::LenValStruct* rgb_out)
-{
-  std::string data(static_cast<const char*>(in_data->data), in_data->size);
-  std::vector<uint8_t> rgb;
+sapi::StatusOr<std::string> ReadFromFd(int fd) {
+  struct stat file_data;
+  auto status = fstat(fd, &file_data);
   
-   png_structp png_ptr =
+  if (status < 0) {
+    return absl::FailedPreconditionError(
+      "Error reading input from fd"
+    );
+  }
+  
+  auto fsize = file_data.st_size;
+
+  std::unique_ptr<char[]> buf(new char[fsize]);
+  status = read(fd, buf.get(), fsize);
+
+  if (status < 0) {
+    lseek(fd, 0, SEEK_SET);  
+    return absl::FailedPreconditionError(
+      "Error reading input from fd"
+    );
+  }
+
+  return std::string(buf.get(), fsize);
+}
+
+sapi::StatusOr<GuetzliInitData> PrepareDataForProcessing(
+                                const ProcessingParams* processing_params) {
+  auto input_status = ReadFromFd(processing_params->remote_fd);
+
+  if (!input_status.ok()) {
+    return input_status.status();
+  }
+
+  guetzli::Params guetzli_params;
+  guetzli_params.butteraugli_target = static_cast<float>(
+    guetzli::ButteraugliScoreForQuality(processing_params->quality));
+  
+  guetzli::ProcessStats stats;
+
+  if (processing_params->verbose) {
+    stats.debug_output_file = stderr;
+  }
+
+  return GuetzliInitData{
+    std::move(input_status.value()),
+    guetzli_params,
+    stats
+  };
+}
+
+inline uint8_t BlendOnBlack(const uint8_t val, const uint8_t alpha) {
+  return (static_cast<int>(val) * static_cast<int>(alpha) + 128) / 255;
+}
+
+bool ReadPNG(const std::string& data, int* xsize, int* ysize,
+             std::vector<uint8_t>* rgb) {
+  png_structp png_ptr =
       png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
   if (!png_ptr) {
     return false;
@@ -129,7 +131,7 @@ extern "C" bool ReadPng(sapi::LenValStruct* in_data,
 
   *xsize = png_get_image_width(png_ptr, info_ptr);
   *ysize = png_get_image_height(png_ptr, info_ptr);
-  rgb.resize(3 * (*xsize) * (*ysize));
+  rgb->resize(3 * (*xsize) * (*ysize));
 
   const int components = png_get_channels(png_ptr, info_ptr);
   switch (components) {
@@ -137,7 +139,7 @@ extern "C" bool ReadPng(sapi::LenValStruct* in_data,
       // GRAYSCALE
       for (int y = 0; y < *ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (*xsize)];
+        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
         for (int x = 0; x < *xsize; ++x) {
           const uint8_t gray = row_in[x];
           row_out[3 * x + 0] = gray;
@@ -151,7 +153,7 @@ extern "C" bool ReadPng(sapi::LenValStruct* in_data,
       // GRAYSCALE + ALPHA
       for (int y = 0; y < *ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (*xsize)];
+        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
         for (int x = 0; x < *xsize; ++x) {
           const uint8_t gray = BlendOnBlack(row_in[2 * x], row_in[2 * x + 1]);
           row_out[3 * x + 0] = gray;
@@ -165,7 +167,7 @@ extern "C" bool ReadPng(sapi::LenValStruct* in_data,
       // RGB
       for (int y = 0; y < *ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (*xsize)];
+        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
         memcpy(row_out, row_in, 3 * (*xsize));
       }
       break;
@@ -174,7 +176,7 @@ extern "C" bool ReadPng(sapi::LenValStruct* in_data,
       // RGBA
       for (int y = 0; y < *ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (*xsize)];
+        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
         for (int x = 0; x < *xsize; ++x) {
           const uint8_t alpha = row_in[4 * x + 3];
           row_out[3 * x + 0] = BlendOnBlack(row_in[4 * x + 0], alpha);
@@ -189,53 +191,84 @@ extern "C" bool ReadPng(sapi::LenValStruct* in_data,
       return false;
   }
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-
-  CopyMemoryToLenVal(rgb.data(), rgb.size(), rgb_out);
-
   return true;
 }
 
-extern "C" bool ReadJpegData(sapi::LenValStruct* in_data, 
-                              int mode,
-                              int* xsize, int* ysize)
-{
-  std::string data(static_cast<const char*>(in_data->data), in_data->size);
-  guetzli::JPEGData jpg;
-
-  auto result = guetzli::ReadJpeg(data, 
-    static_cast<guetzli::JpegReadMode>(mode), &jpg);
-
-  if (result) {
-    *xsize = jpg.width;
-    *ysize = jpg.height;
-  }
-
-  return result;
+bool CheckMemoryLimitExceeded(int memlimit_mb, int xsize, int ysize) {
+    double pixels = static_cast<double>(xsize) * ysize;
+    return memlimit_mb != -1
+        && (pixels * kBytesPerPixel / (1 << 20) > memlimit_mb
+            || memlimit_mb < kLowestMemusageMB);
 }
 
-extern "C" double ButteraugliScoreQuality(double quality) {
-  return guetzli::ButteraugliScoreForQuality(quality);
+} // namespace
+
+extern "C" bool ProcessJpeg(const ProcessingParams* processing_params, 
+                            sapi::LenValStruct* output) {
+  auto processing_data_status = PrepareDataForProcessing(processing_params);
+
+  if (!processing_data_status.status().ok()) {
+    fprintf(stderr, "%s\n", processing_data_status.status().ToString().c_str());
+    return false;
+  }
+
+  guetzli::JPEGData jpg_header;
+  if (!guetzli::ReadJpeg(processing_data_status.value().in_data,
+      guetzli::JPEG_READ_HEADER, &jpg_header)) {
+    fprintf(stderr, "Error reading JPG data from input file\n");
+    return false;
+  }
+
+  if (CheckMemoryLimitExceeded(processing_params->memlimit_mb, 
+      jpg_header.width, jpg_header.height)) {
+    fprintf(stderr, "Memory limit would be exceeded.\n");
+    return false;
+  }
+
+  std::string out_data;
+  if (!guetzli::Process(processing_data_status.value().params,
+                        &processing_data_status.value().stats,
+                        processing_data_status.value().in_data,
+                        &out_data)) {
+    fprintf(stderr, "Guezli processing failed\n");
+    return false;
+  }
+
+  CopyMemoryToLenVal(out_data.data(), out_data.size(), output);
+  return true;
 }
 
-extern "C" bool ReadDataFromFd(int fd, sapi::LenValStruct* out_data) {
-  struct stat file_data;
-  auto status = fstat(fd, &file_data);
-  
-  if (status < 0) {
+extern "C" bool ProcessRgb(const ProcessingParams* processing_params, 
+                          sapi::LenValStruct* output) {
+  auto processing_data_status = PrepareDataForProcessing(processing_params);
+
+  if (!processing_data_status.status().ok()) {
+    fprintf(stderr, "%s\n", processing_data_status.status().ToString().c_str());
     return false;
   }
-  
-  auto fsize = file_data.st_size;
 
-  std::unique_ptr<char[]> buf(new char[fsize]);
-  status = read(fd, buf.get(), fsize);
+  int xsize, ysize;
+  std::vector<uint8_t> rgb;
 
-  if (status < 0) {
+  if (!ReadPNG(processing_data_status.value().in_data, &xsize, &ysize, &rgb)) {
+    fprintf(stderr, "Error reading PNG data from input file\n");
     return false;
   }
-  
-  CopyMemoryToLenVal(buf.get(), fsize, out_data);
 
+  if (CheckMemoryLimitExceeded(processing_params->memlimit_mb, xsize, ysize)) {
+    fprintf(stderr, "Memory limit would be exceeded.\n");
+    return false;
+  }
+
+  std::string out_data;
+  if (!guetzli::Process(processing_data_status.value().params, 
+                        &processing_data_status.value().stats, 
+                        rgb, xsize, ysize, &out_data)) {
+      fprintf(stderr, "Guetzli processing failed\n");
+      return false;
+  }
+
+  CopyMemoryToLenVal(out_data.data(), out_data.size(), output);
   return true;
 }
 

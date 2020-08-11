@@ -15,6 +15,7 @@
 workspace(name = "guetzli_sandboxed")
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 # Include the Sandboxed API dependency if it does not already exist in this
@@ -46,21 +47,18 @@ load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 
 protobuf_deps()
 
-maybe(
-  git_repository,
+local_repository(
+  name = "butteraugli",
+  path = "third_party/butteraugli/"
+)
+
+http_archive(
   name = "guetzli",
-  remote = "https://github.com/google/guetzli.git",
-  branch = "master"
+  build_file = "guetzli.BUILD",
+  sha256 = "39632357e49db83d9560bf0de560ad833352f36d23b109b0e995b01a37bddb57",
+  strip_prefix = "guetzli-master",
+  url = "https://github.com/google/guetzli/archive/master.zip"
 )
-
-maybe(
-  git_repository,
-  name = "googletest",
-  remote = "https://github.com/google/googletest",
-  tag = "release-1.10.0"
-)
-
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "png_archive",
@@ -76,4 +74,11 @@ http_archive(
     sha256 = "8d7e9f698ce48787b6e1c67e6bff79e487303e66077e25cb9784ac8835978017",
     strip_prefix = "zlib-1.2.10",
     url = "http://zlib.net/fossils/zlib-1.2.10.tar.gz",
+)
+
+maybe(
+  git_repository,
+  name = "googletest",
+  remote = "https://github.com/google/googletest",
+  tag = "release-1.10.0"
 )

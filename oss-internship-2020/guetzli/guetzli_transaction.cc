@@ -1,11 +1,38 @@
 #include "guetzli_transaction.h"
 
 #include <iostream>
+#include <memory>
 
 namespace guetzli {
 namespace sandbox {
 
 absl::Status GuetzliTransaction::Init() {
+  // Close remote fd if transaction is repeated
+  if (in_fd_.GetRemoteFd() != -1) {
+    SAPI_RETURN_IF_ERROR(in_fd_.CloseRemoteFd(sandbox()->GetRpcChannel()));
+  }
+  if (out_fd_.GetRemoteFd() != -1) {
+    SAPI_RETURN_IF_ERROR(out_fd_.CloseRemoteFd(sandbox()->GetRpcChannel()));
+  }
+
+  // Reposition back to the beginning of file
+  if (lseek(in_fd_.GetValue(), 0, SEEK_CUR) != 0) {
+    if (lseek(in_fd_.GetValue(), 0, SEEK_SET) != 0) {
+      return absl::FailedPreconditionError(
+        "Error returnig cursor to the beginning"
+      );
+    }
+  }
+
+  // Choosing between jpg and png modes
+  sapi::StatusOr<ImageType> image_type = GetImageTypeFromFd(in_fd_.GetValue());
+
+  if (!image_type.ok()) {
+    return image_type.status();
+  }
+
+  image_type_ = image_type.value();
+
   SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&in_fd_));
   SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&out_fd_));
 
@@ -18,125 +45,36 @@ absl::Status GuetzliTransaction::Init() {
         "Error receiving remote FD: remote output fd is set to -1");
   }
 
+  in_fd_.OwnLocalFd(false); // FDCloser will close local fd
+  out_fd_.OwnLocalFd(false); // FDCloser will close local fd
+
   return absl::OkStatus();
 }
 
-  absl::Status GuetzliTransaction::ProcessPng(GuetzliAPi* api, 
-                                              sapi::v::Struct<Params>* params, 
-                                              sapi::v::LenVal* input, 
-                                              sapi::v::LenVal* output) const {
-    sapi::v::Int xsize;
-    sapi::v::Int ysize;
-    sapi::v::LenVal rgb_in(0);
-
-    auto read_result = api->ReadPng(input->PtrBefore(), xsize.PtrBoth(), 
-      ysize.PtrBoth(), rgb_in.PtrBoth());
-      
-    if (!read_result.value_or(false)) {
-      return absl::FailedPreconditionError(
-        "Error reading PNG data from input file"
-      );
-    }
-
-    double pixels = static_cast<double>(xsize.GetValue()) * ysize.GetValue();
-    if (params_.memlimit_mb != -1
-        && (pixels * kBytesPerPixel / (1 << 20) > params_.memlimit_mb
-            || params_.memlimit_mb < kLowestMemusageMB)) {
-      return absl::FailedPreconditionError(
-        "Memory limit would be exceeded"
-      );
-    }
-
-    auto result = api->ProcessRGBData(params->PtrBefore(), params_.verbose, 
-                                    rgb_in.PtrBefore(), xsize.GetValue(), 
-                                    ysize.GetValue(), output->PtrBoth());
-    if (!result.value_or(false)) {
-      return absl::FailedPreconditionError(
-        "Guetzli processing failed"
-      );
-    }
-
-    return absl::OkStatus();
-  }
-
-  absl::Status GuetzliTransaction::ProcessJpeg(GuetzliApi* api, 
-                                              sapi::v::Struct<Params>* params, 
-                                              sapi::v::LenVal* input, 
-                                              sapi::v::LenVal* output) const {
-    ::sapi::v::Int xsize;
-    ::sapi::v::Int ysize;
-    auto read_result = api->ReadJpegData(input->PtrBefore(), 0, xsize.PtrBoth(), 
-      ysize.PtrBoth());
-
-    if (!read_result.value_or(false)) {
-      return absl::FailedPreconditionError(
-        "Error reading JPG data from input file"
-      );
-    }
-
-    double pixels = static_cast<double>(xsize.GetValue()) * ysize.GetValue();
-    if (params_.memlimit_mb != -1
-        && (pixels * kBytesPerPixel / (1 << 20) > params_.memlimit_mb
-            || params_.memlimit_mb < kLowestMemusageMB)) {
-      return absl::FailedPreconditionError(
-        "Memory limit would be exceeded"
-      );
-    }
-
-    auto result = api->ProcessJPEGString(params->PtrBefore(), params_.verbose, 
-      input->PtrBefore(), output->PtrBoth());
-
-    if (!result.value_or(false)) {
-      return absl::FailedPreconditionError(
-        "Guetzli processing failed"
-      );
-    }
-
-    return absl::OkStatus();
-  }
-
 absl::Status GuetzliTransaction::Main() {
   GuetzliApi api(sandbox());
-
-  sapi::v::LenVal input(0);
   sapi::v::LenVal output(0);
-  sapi::v::Struct<Params> params;
-  
-  auto read_result = api.ReadDataFromFd(in_fd_.GetRemoteFd(), input.PtrBoth());
 
-  if (!read_result.value_or(false)) {
-    return absl::FailedPreconditionError(
-      "Error reading data inside sandbox"
-    );
-  }
-
-  auto score_quality_result = api.ButteraugliScoreQuality(params_.quality);
-
-  if (!score_quality_result.ok()) {
-    return absl::FailedPreconditionError(
-      "Error calculating butteraugli score"
-    );
-  }
-
-  params.mutable_data()->butteraugli_target = score_quality_result.value();
-
-  static const unsigned char kPNGMagicBytes[] = {
-    0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
+  sapi::v::Struct<ProcessingParams> processing_params;
+  *processing_params.mutable_data() = {in_fd_.GetRemoteFd(), 
+                                      params_.verbose, 
+                                      params_.quality, 
+                                      params_.memlimit_mb
   };
+
+  auto result_status = image_type_ == ImageType::JPEG ? 
+    api.ProcessJpeg(processing_params.PtrBefore(), output.PtrBoth()) : 
+    api.ProcessRgb(processing_params.PtrBefore(), output.PtrBoth());
   
-  if (input.GetDataSize() >= 8 &&
-    memcmp(input.GetData(), kPNGMagicBytes, sizeof(kPNGMagicBytes)) == 0) {
-    auto process_status = ProcessPng(&api, &params, &input, &output);
-
-    if (!process_status.ok()) {
-      return process_status;
-    }
-  } else {
-    auto process_status = ProcessJpeg(&api, &params, &input, &output);
-
-    if (!process_status.ok()) {
-      return process_status;
-    }
+  if (!result_status.value_or(false)) {
+    std::stringstream error_stream;
+    error_stream << "Error processing " 
+      << (image_type_ == ImageType::JPEG ? "jpeg" : "rgb") << " data" 
+      << std::endl; 
+    
+    return absl::FailedPreconditionError(
+      error_stream.str()
+    );
   }
 
   auto write_result = api.WriteDataToFd(out_fd_.GetRemoteFd(), 
@@ -154,6 +92,28 @@ absl::Status GuetzliTransaction::Main() {
 time_t GuetzliTransaction::CalculateTimeLimitFromImageSize(
     uint64_t pixels) const {
   return (pixels / kMpixPixels + 5) * 60;
+}
+
+sapi::StatusOr<ImageType> GuetzliTransaction::GetImageTypeFromFd(int fd) const {
+  static const unsigned char kPNGMagicBytes[] = {
+    0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
+  };
+  char read_buf[8];
+
+  if (read(fd, read_buf, 8) != 8) {
+    return absl::FailedPreconditionError(
+      "Error determining type of the input file"
+    );
+  }
+
+  if (lseek(fd, 0, SEEK_SET) != 0) {
+    return absl::FailedPreconditionError(
+      "Error returnig cursor to the beginning"
+    );
+  }
+
+  return memcmp(read_buf, kPNGMagicBytes, sizeof(kPNGMagicBytes)) == 0 ?
+      ImageType::PNG : ImageType::JPEG;
 }
 
 } // namespace sandbox

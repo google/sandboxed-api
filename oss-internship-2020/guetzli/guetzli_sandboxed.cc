@@ -14,17 +14,6 @@ namespace {
 
 constexpr int kDefaultJPEGQuality = 95;
 constexpr int kDefaultMemlimitMB = 6000; // in MB
-//constexpr absl::string_view kMktempSuffix = "XXXXXX";
-
-// sapi::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
-//     absl::string_view prefix) {
-//   std::string name_template = absl::StrCat(prefix, kMktempSuffix);
-//   int fd = mkstemp(&name_template[0]);
-//   if (fd < 0) {
-//     return absl::UnknownError("Error creating temp file");
-//   }
-//   return std::pair<std::string, int>{std::move(name_template), fd};
-// }
 
 void TerminateHandler() {
   fprintf(stderr, "Unhandled exception. Most likely insufficient memory available.\n"
@@ -96,21 +85,6 @@ int main(int argc, const char** argv) {
     return 1;
   }
 
-  // auto out_temp_file = CreateNamedTempFile("/tmp/" + std::string(argv[opt_idx + 1]));
-  // if (!out_temp_file.ok()) {
-  //   fprintf(stderr, "Can't create temporary output file: %s\n", 
-  //     argv[opt_idx + 1]);
-  //   return 1;
-  // }
-  // sandbox2::file_util::fileops::FDCloser out_fd_closer(
-  //     out_temp_file.value().second);
-
-  // if (unlink(out_temp_file.value().first.c_str()) < 0) {
-  //   fprintf(stderr, "Error unlinking temp out file: %s\n", 
-  //       out_temp_file.value().first.c_str());
-  //   return 1;
-  // }
-
   sandbox2::file_util::fileops::FDCloser out_fd_closer(
     open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
 
@@ -118,14 +92,6 @@ int main(int argc, const char** argv) {
     fprintf(stderr, "Can't create temporary output file: %s\n", argv[opt_idx]);
     return 1;
   }
-
-  // sandbox2::file_util::fileops::FDCloser out_fd_closer(open(argv[opt_idx + 1], 
-  //   O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP));
-  
-  // if (out_fd_closer.get() < 0) {
-  //   fprintf(stderr, "Can't open output file: %s\n", argv[opt_idx + 1]);
-  //   return 1;
-  // }
 
   guetzli::sandbox::TransactionParams params = {
     in_fd_closer.get(),
@@ -143,13 +109,19 @@ int main(int argc, const char** argv) {
       if (remove(argv[opt_idx + 1]) < 0) {
         fprintf(stderr, "Error deleting existing output file: %s\n", 
           argv[opt_idx + 1]);
+        return 1;
       }
     } 
 
     std::stringstream path;
     path << "/proc/self/fd/" << out_fd_closer.get();
-    linkat(AT_FDCWD, path.str().c_str(), AT_FDCWD, argv[opt_idx + 1],
-                                          AT_SYMLINK_FOLLOW);
+    
+    if (linkat(AT_FDCWD, path.str().c_str(), AT_FDCWD, argv[opt_idx + 1],
+                AT_SYMLINK_FOLLOW) < 0) {
+      fprintf(stderr, "Error linking  %s\n", 
+        argv[opt_idx + 1]);
+      return 1;
+    }
   }
   else {
     fprintf(stderr, "%s\n", result.ToString().c_str()); // Use cerr instead ?
