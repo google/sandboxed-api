@@ -98,7 +98,7 @@ void test2(SapiLodepngSandbox &sandbox, LodepngApi &api,
     }
   }
 
-  sapi::v::Array<unsigned char> image_(image, width * height);
+  sapi::v::Array<unsigned char> image_(image, width * height * 4);
   sapi::v::UInt width_(width), height_(height);
   std::string filename = images_path + "/out/ok2.png";
   sapi::v::ConstCStr filename_(filename.c_str());

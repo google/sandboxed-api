@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <glog/logging.h>
+#include <stdlib.h>
 
 #include <filesystem>
 
@@ -21,8 +22,8 @@
 #include "lodepng_sapi.sapi.h"
 #include "sandbox.h"
 #include "sandboxed_api/util/flag.h"
-#include <stdlib.h>
-#include <time.h>
+
+// #include <time.h>
 
 // defining the flag does not work as intended (always has the default value)
 // ignore for now
@@ -31,44 +32,194 @@
 
 namespace {
 
-// TODO change this into pwd/something else
-std::string images_path = "/usr/local/google/home/amedar/internship/sandboxed-api/oss-internship-2020/sapi_lodepng/test_images";
+// use the current path + test_images
+std::string images_path =
+    std::filesystem::current_path().string() + "/test_images";
 
 TEST(initSandbox, basic) {
-    SapiLodepngSandbox sandbox(images_path);
-    ASSERT_TRUE(sandbox.Init().ok());
+  SapiLodepngSandbox sandbox(images_path);
+  ASSERT_TRUE(sandbox.Init().ok());
 }
 
-TEST(encode32, generate_and_encode_one_step) {
-    // randomly generate pixels of an image and encode it into a file
-    SapiLodepngSandbox sandbox(images_path);
-    ASSERT_TRUE(sandbox.Init().ok());
-    LodepngApi api(&sandbox);
+// generate an image, encode it, decode it and compare the pixels with the
+// initial values
+TEST(generate_image, encode_decode_compare_one_step) {
+  SapiLodepngSandbox sandbox(images_path);
+  ASSERT_TRUE(sandbox.Init().ok());
+  LodepngApi api(&sandbox);
+  // std::cout << "path = " << images_path << std::endl;
+  unsigned int width = 512, height = 512;
+  unsigned char *image = (unsigned char *)malloc(width * height * 4);
 
-
-    srand(time(NULL)); // maybe use something else
-    unsigned int width = 512, height = 512;
-    unsigned char *image = (unsigned char*)malloc(width * height * 4);
-
-    for(int y = 0; y < height; ++y) {
-    for(int x = 0; x < width; ++x) {
-    image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
-    image[4 * width * y + 4 * x + 1] = x ^ y;
-    image[4 * width * y + 4 * x + 2] = x | y;
-    image[4 * width * y + 4 * x + 3] = 255;
-  }
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
+      image[4 * width * y + 4 * x + 1] = x ^ y;
+      image[4 * width * y + 4 * x + 2] = x | y;
+      image[4 * width * y + 4 * x + 3] = 255;
     }
+  }
 
-    sapi::v::Array<unsigned char> image_(image, width * height);
-    sapi::v::UInt width_(width), height_(height);
-    std::string filename = images_path + "/out/generate_and_encode_one_step1.png";
-    sapi::v::ConstCStr filename_(filename.c_str());
+  sapi::v::Array<unsigned char> sapi_image(image, width * height * 4);
+  sapi::v::UInt sapi_width(width), sapi_height(height);
+  std::string filename = images_path + "/out_generated1.png";
+  sapi::v::ConstCStr sapi_filename(filename.c_str());
 
-    ASSERT_TRUE(sandbox.Allocate(&image_).ok());
-    ASSERT_TRUE(sandbox.TransferToSandboxee(&image_).ok());
+  //   ASSERT_TRUE(sandbox.Allocate(&image_).ok());
+  //   ASSERT_TRUE(sandbox.TransferToSandboxee(&image_).ok());
 
-    auto res = api.lodepng_encode32_file(filename_.PtrBefore(), image_.PtrBefore(), width_.GetValue(), height_.GetValue()).value();
-    free(image);
+  sapi::StatusOr<unsigned int> result = api.lodepng_encode32_file(
+      sapi_filename.PtrBefore(), sapi_image.PtrBefore(), sapi_width.GetValue(),
+      sapi_height.GetValue());
+
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.value(), 0);
+
+  sapi::v::UInt sapi_width2, sapi_height2;
+  sapi::v::IntBase<unsigned char *> sapi_image_ptr(0);
+
+  result = api.lodepng_decode32_file(
+      sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
+      sapi_filename.PtrBefore());
+
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.value(), 0);
+
+  ASSERT_EQ(sapi_width2.GetValue(), width);
+  ASSERT_EQ(sapi_height2.GetValue(), height);
+
+  sapi::v::RemotePtr sapi_remote_out_ptr(
+      reinterpret_cast<void *>(sapi_image_ptr.GetValue()));
+  sapi::v::Array<unsigned char> sapi_pixels(sapi_width2.GetValue() *
+                                            sapi_height2.GetValue() * 4);
+  sapi_pixels.SetRemote(sapi_remote_out_ptr.GetValue());
+
+  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
+
+  unsigned char *pixels_ptr = sapi_pixels.GetData();
+
+  for (size_t i = 0; i < width * height * 4; ++i) {
+    ASSERT_EQ(pixels_ptr[i], image[i]);
+  }
+
+  free(image);
+}
+
+// similar to the previous test, only that we use encoding by saving the data in
+// memory and then writing it to the file and decoding by first decoding in
+// memory and then getting the pixels.
+TEST(generate_image, encode_decode_compare_two_step) {
+  SapiLodepngSandbox sandbox(images_path);
+  ASSERT_TRUE(sandbox.Init().ok());
+  LodepngApi api(&sandbox);
+
+  // generate the image
+  unsigned int width = 512, height = 512;
+  unsigned char *image = (unsigned char *)malloc(width * height * 4);
+
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
+      image[4 * width * y + 4 * x + 1] = x ^ y;
+      image[4 * width * y + 4 * x + 2] = x | y;
+      image[4 * width * y + 4 * x + 3] = 255;
+    }
+  }
+
+  sapi::v::Array<unsigned char> sapi_image(image, width * height * 4);
+  sapi::v::UInt sapi_width(width), sapi_height(height);
+  std::string filename = images_path + "/out_generated2.png";
+  sapi::v::ConstCStr sapi_filename(filename.c_str());
+
+  sapi::v::ULLong sapi_pngsize;
+  sapi::v::IntBase<unsigned char *> sapi_png_ptr(0);
+
+  // encode it into memory
+
+  sapi::StatusOr<unsigned int> result = api.lodepng_encode32(
+      sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(), sapi_image.PtrBefore(),
+      sapi_width.GetValue(), sapi_height.GetValue());
+
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.value(), 0);
+
+  std::cout << "sapi_pngsize = " << sapi_pngsize.GetValue() << std::endl;
+
+  // transfer the array from the sandboxed process
+
+  sapi::v::RemotePtr sapi_remote_out_ptr(
+      reinterpret_cast<void *>(sapi_png_ptr.GetValue()));
+  sapi::v::Array<unsigned char> sapi_png_array(sapi_pngsize.GetValue());
+
+  sapi_png_array.SetRemote(sapi_remote_out_ptr.GetValue());
+
+  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_png_array).ok());
+
+  // write the image into the file (from memory)
+  result =
+      api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
+                            sapi_filename.PtrBefore());
+
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.value(), 0);
+
+  // now, decode the image using the 2 steps
+
+  sapi::v::UInt sapi_width2, sapi_height2;
+  sapi::v::IntBase<unsigned char *> sapi_png_ptr2(0);
+  sapi::v::ULLong sapi_pngsize2;
+
+  result =
+      api.lodepng_load_file(sapi_png_ptr2.PtrBoth(), sapi_pngsize2.PtrBoth(),
+                            sapi_filename.PtrBefore());
+
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.value(), 0);
+
+  ASSERT_EQ(sapi_pngsize.GetValue(), sapi_pngsize2.GetValue());
+
+  sapi::v::RemotePtr sapi_remote_out_ptr2(
+      reinterpret_cast<void *>(sapi_png_ptr2.GetValue()));
+  sapi::v::Array<unsigned char> sapi_png_array2(sapi_pngsize2.GetValue());
+
+  sapi_png_array2.SetRemote(sapi_remote_out_ptr2.GetValue());
+
+  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_png_array2).ok());
+
+  // after the file is loaded, decode it
+  sapi::v::IntBase<unsigned char *> sapi_png_ptr3(0);
+  //   sapi::v::UInt sapi_width2, sapi_height2;
+  result = api.lodepng_decode32(
+      sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
+      sapi_png_array2.PtrBefore(), sapi_pngsize2.GetValue());
+
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.value(), 0);
+
+  std::cout << "w2 = " << sapi_width2.GetValue()
+            << " h2 = " << sapi_height2.GetValue() << std::endl;
+
+  ASSERT_EQ(sapi_width2.GetValue(), width);
+  ASSERT_EQ(sapi_height2.GetValue(), height);
+
+  // transfer the pixels so they can be used
+  sapi::v::RemotePtr sapi_remote_out_ptr3(
+      reinterpret_cast<void *>(sapi_png_ptr3.GetValue()));
+  sapi::v::Array<unsigned char> sapi_pixels(sapi_width2.GetValue() *
+                                            sapi_height2.GetValue() * 4);
+
+  sapi_pixels.SetRemote(sapi_remote_out_ptr3.GetValue());
+
+  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
+
+  unsigned char *pixels_ptr = sapi_pixels.GetData();
+
+  // compare values
+  for (size_t i = 0; i < width * height * 4; ++i) {
+    ASSERT_EQ(pixels_ptr[i], image[i]);
+  }
+
+  free(image);
 }
 
 }  // namespace

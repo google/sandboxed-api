@@ -40,7 +40,12 @@ add_subdirectory("${SAPI_ROOT}"
 
 add_sapi_library(
     lodepng_sapi
-    FUNCTIONS lodepng_decode32_file lodepng_encode32_file
+    FUNCTIONS lodepng_decode32_file
+    lodepng_encode32_file
+    lodepng_encode32
+    lodepng_save_file
+    lodepng_load_file
+    lodepng_decode32
     INPUTS lodepng-master/lodepng.h
     LIBRARY lodepng
     LIBRARY_NAME Lodepng
