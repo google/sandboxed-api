@@ -26,20 +26,13 @@
 
 // defining the flag does not work as intended (always has the default value)
 // ignore for now
-ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
-          "path to the folder containing test images");
+// ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
+//           "path to the folder containing test images");
 
 namespace {
 
-// TODO find how to not use it like this.
+// TODO change this into pwd/something else
 std::string images_path = "/usr/local/google/home/amedar/internship/sandboxed-api/oss-internship-2020/sapi_lodepng/test_images";
-    
-
-TEST(addition, basic) {
-  EXPECT_EQ(2, 1 + 1);
-//   std::cout << "flag=" << std::string(absl::GetFlag(FLAGS_images_path))
-//             << std::endl;
-}
 
 TEST(initSandbox, basic) {
     SapiLodepngSandbox sandbox(images_path);
@@ -54,18 +47,28 @@ TEST(encode32, generate_and_encode_one_step) {
 
 
     srand(time(NULL)); // maybe use something else
-    int width = 1024, height = 1024;
-    unsigned char *image = (unsigned char*)malloc(width * height);
-    for (int i = 0; i < width * height; ++i) {
-        image[i] = rand() % 256;
+    unsigned int width = 512, height = 512;
+    unsigned char *image = (unsigned char*)malloc(width * height * 4);
+
+    for(int y = 0; y < height; ++y) {
+    for(int x = 0; x < width; ++x) {
+    image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
+    image[4 * width * y + 4 * x + 1] = x ^ y;
+    image[4 * width * y + 4 * x + 2] = x | y;
+    image[4 * width * y + 4 * x + 3] = 255;
+  }
     }
 
     sapi::v::Array<unsigned char> image_(image, width * height);
     sapi::v::UInt width_(width), height_(height);
-    std::string filename = images_path + " /out/generate_and_encode_one_step1.png";
+    std::string filename = images_path + "/out/generate_and_encode_one_step1.png";
     sapi::v::ConstCStr filename_(filename.c_str());
-    ASSERT_TRUE(api.lodepng_encode32_file(filename_.PtrBefore(), image_.PtrBefore(), width_.GetValue(), height_.GetValue()).ok());
 
+    ASSERT_TRUE(sandbox.Allocate(&image_).ok());
+    ASSERT_TRUE(sandbox.TransferToSandboxee(&image_).ok());
+
+    auto res = api.lodepng_encode32_file(filename_.PtrBefore(), image_.PtrBefore(), width_.GetValue(), height_.GetValue()).value();
+    free(image);
 }
 
 }  // namespace

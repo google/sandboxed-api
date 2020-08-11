@@ -78,35 +78,38 @@ void decode_and_encode32(SapiLodepngSandbox &sandbox, LodepngApi &api,
   // which is why the solution in which data is transferred around is used.
 }
 
-void test2(SapiLodepngSandbox &sandbox, LodepngApi &api, const std::string &images_path) {
+// this seems to not work as intended at the moment
+void test2(SapiLodepngSandbox &sandbox, LodepngApi &api,
+           const std::string &images_path) {
+  // srand(time(NULL)); // maybe use something else
+  // int width = 1024, height = 1024;
+  unsigned int width = 512, height = 512;
+  unsigned char *image = (unsigned char *)malloc(width * height * 4);
+  // for (int i = 0; i < width * height; ++i) {
+  //     image[i] = rand() % 256;
+  // }
 
-    srand(time(NULL)); // maybe use something else
-    // int width = 1024, height = 1024;
-    unsigned int width = 512, height = 512;
-    unsigned char *image = (unsigned char*)malloc(width * height * 4);
-    // for (int i = 0; i < width * height; ++i) {
-    //     image[i] = rand() % 256;
-    // }
-
-    for(int y = 0; y < height; y++)
-    for(int x = 0; x < width; x++) {
-    image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
-    image[4 * width * y + 4 * x + 1] = x ^ y;
-    image[4 * width * y + 4 * x + 2] = x | y;
-    image[4 * width * y + 4 * x + 3] = 255;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
+      image[4 * width * y + 4 * x + 1] = x ^ y;
+      image[4 * width * y + 4 * x + 2] = x | y;
+      image[4 * width * y + 4 * x + 3] = 255;
+    }
   }
 
-    sapi::v::Array<unsigned char> image_(image, width * height);
-    sapi::v::UInt width_(width), height_(height);
-    std::string filename = images_path + "/out/generate_and_encode_one_step1.png";
-    sapi::v::ConstCStr filename_(filename.c_str());
+  sapi::v::Array<unsigned char> image_(image, width * height);
+  sapi::v::UInt width_(width), height_(height);
+  std::string filename = images_path + "/out/ok2.png";
+  sapi::v::ConstCStr filename_(filename.c_str());
 
-    sandbox.Allocate(&image_).IgnoreError();
-    sandbox.TransferToSandboxee(&image_).IgnoreError();
+  // sandbox.Allocate(&image_).IgnoreError();
+  // sandbox.TransferToSandboxee(&image_).IgnoreError();
 
-    auto res = api.lodepng_encode32_file(filename_.PtrBefore(), image_.PtrBefore(), width_.GetValue(), height_.GetValue()).value();
-    std::cout << "res = " << res << std::endl;
-    free(image);
+  api.lodepng_encode32_file(filename_.PtrBefore(), image_.PtrBefore(),
+                            width_.GetValue(), height_.GetValue())
+      .IgnoreError();
+  free(image);
 }
 
 // compares the pixels of the f1 and f2 png files.
