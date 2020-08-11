@@ -109,6 +109,34 @@ void test1(const std::string &images_path) {
   }
 }
 
+void encodeOneStep(const char *filename, const unsigned char *image,
+                   unsigned width, unsigned height) {
+  /*Encode the image*/
+  unsigned error = lodepng_encode32_file(filename, image, width, height);
+
+  /*if there's an error, display it*/
+  if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+}
+
+void test2() {
+  const char *filename = "test_images/out/ok.png";
+  unsigned width = 512, height = 512;
+  unsigned char *image = (unsigned char *)malloc(width * height * 4);
+  unsigned x, y;
+  for (y = 0; y < height; y++) {
+    for (x = 0; x < width; x++) {
+      image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
+      image[4 * width * y + 4 * x + 1] = x ^ y;
+      image[4 * width * y + 4 * x + 2] = x | y;
+      image[4 * width * y + 4 * x + 3] = 255;
+    }
+  }
+
+  /*run an example*/
+  // encodeOneStep(filename, image, width, height);
+  lodepng_encode32_file(filename, image, width, height);
+}
+
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     std::cout << "usage: " << basename(argv[0]) << " images_folder_path"
@@ -119,5 +147,6 @@ int main(int argc, char *argv[]) {
   std::string images_path(argv[1]);
 
   test1(images_path);
+  test2();
   return 0;
 }
