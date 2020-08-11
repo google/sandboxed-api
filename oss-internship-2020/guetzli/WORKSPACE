@@ -1,0 +1,79 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+workspace(name = "guetzli_sandboxed")
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+
+# Include the Sandboxed API dependency if it does not already exist in this
+# project. This ensures that this workspace plays well with other external
+# dependencies that might use Sandboxed API.
+maybe(
+    git_repository,
+    name = "com_google_sandboxed_api",
+    # This example depends on the latest master. In an embedding project, it
+    # is advisable to pin Sandboxed API to a specific revision instead.
+    # commit = "ba47adc21d4c9bc316f3c7c32b0faaef952c111e",  # 2020-05-15
+    branch = "master",
+    remote = "https://github.com/google/sandboxed-api.git",
+)
+
+# From here on, Sandboxed API files are available. The statements below setup
+# transitive dependencies such as Abseil. Like above, those will only be
+# included if they don't already exist in the project.
+load(
+    "@com_google_sandboxed_api//sandboxed_api/bazel:sapi_deps.bzl",
+    "sapi_deps",
+)
+
+sapi_deps()
+
+# Need to separately setup Protobuf dependencies in order for the build rules
+# to work.
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+
+protobuf_deps()
+
+maybe(
+  git_repository,
+  name = "guetzli",
+  remote = "https://github.com/google/guetzli.git",
+  branch = "master"
+)
+
+maybe(
+  git_repository,
+  name = "googletest",
+  remote = "https://github.com/google/googletest",
+  tag = "release-1.10.0"
+)
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "png_archive",
+    build_file = "png.BUILD",
+    sha256 = "a941dc09ca00148fe7aaf4ecdd6a67579c293678ed1e1cf633b5ffc02f4f8cf7",
+    strip_prefix = "libpng-1.2.57",
+    url = "http://github.com/glennrp/libpng/archive/v1.2.57.zip",
+)
+
+http_archive(
+    name = "zlib_archive",
+    build_file = "zlib.BUILD",
+    sha256 = "8d7e9f698ce48787b6e1c67e6bff79e487303e66077e25cb9784ac8835978017",
+    strip_prefix = "zlib-1.2.10",
+    url = "http://zlib.net/fossils/zlib-1.2.10.tar.gz",
+)

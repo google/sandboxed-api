@@ -1,0 +1,65 @@
+load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load(
+    "@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl",
+    "sapi_proto_library",
+)
+load(
+    "@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl",
+    "sapi_library",
+)
+
+cc_library(
+    name = "guetzli_wrapper",
+    srcs = ["guetzli_entry_points.cc"],
+    hdrs = ["guetzli_entry_points.h"],
+    deps = [
+        "@guetzli//:guetzli_lib",
+        "@com_google_sandboxed_api//sandboxed_api:lenval_core",
+        "@com_google_sandboxed_api//sandboxed_api:vars",
+        #"@com_google_sandboxed_api//sandboxed_api/sandbox2/util:temp_file", visibility error
+        "@png_archive//:png"
+    ],
+    visibility = ["//visibility:public"]
+)
+
+sapi_library(
+    name = "guetzli_sapi",
+    #srcs = ["guetzli_transaction.cc"], // Error when try to place definitions insde .cc file
+    hdrs = ["guetzli_sandbox.h", "guetzli_transaction.h"],
+    functions = [
+        "ProcessJPEGString",
+        "ProcessRGBData",
+        "ButteraugliScoreQuality",
+        "ReadPng",
+        "ReadJpegData",
+        "ReadDataFromFd",
+        "WriteDataToFd"
+    ],
+    input_files = ["guetzli_entry_points.h"],
+    lib = ":guetzli_wrapper",
+    lib_name = "Guetzli",
+    visibility = ["//visibility:public"],
+    namespace = "guetzli::sandbox"
+)
+
+# cc_library(
+#   name = "guetzli_sapi_transaction",
+#   #srcs = ["guetzli_transaction.cc"],
+#   hdrs = ["guetzli_transaction.h"],
+#   deps = [
+#     ":guetzli_sapi"
+#   ],
+#   visibility = ["//visibility:public"]
+# )
+
+cc_binary(
+    name="guetzli_sandboxed",
+    srcs=["guetzli_sandboxed.cc"],
+    includes = ["."],
+    visibility= [ "//visibility:public" ],
+    deps = [
+        #":guetzli_sapi_transaction"
+        ":guetzli_sapi"
+    ]
+)
