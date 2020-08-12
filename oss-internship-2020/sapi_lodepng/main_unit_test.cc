@@ -23,18 +23,11 @@
 #include "sandbox.h"
 #include "sandboxed_api/util/flag.h"
 
-// #include <time.h>
-
-// defining the flag does not work as intended (always has the default value)
-// ignore for now
-// ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
-//           "path to the folder containing test images");
-
 namespace {
 
-// use the current path + test_images
+// use the current path
 std::string images_path =
-    std::filesystem::current_path().string() + "/test_images";
+    std::filesystem::current_path().string();
 
 TEST(initSandbox, basic) {
   SapiLodepngSandbox sandbox(images_path);
