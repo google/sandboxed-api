@@ -1,21 +1,34 @@
-#pragma once
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef GUETZLI_SANDBOXED_GUETZLI_TRANSACTION_H_
+#define GUETZLI_SANDBOXED_GUETZLI_TRANSACTION_H_
 
 #include <libgen.h>
 #include <syscall.h>
 
-#include "guetzli_sandbox.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/vars.h"
+
+#include "guetzli_sandbox.h"
 
 namespace guetzli {
 namespace sandbox {
 
-constexpr int kDefaultTransactionRetryCount = 0;
-constexpr uint64_t kMpixPixels = 1'000'000;
-
 enum class ImageType {
-  JPEG,
-  PNG
+  kJpeg,
+  kPng
 };
 
 struct TransactionParams {
@@ -55,8 +68,13 @@ class GuetzliTransaction : public sapi::Transaction {
   const TransactionParams params_;
   sapi::v::Fd in_fd_;
   sapi::v::Fd out_fd_;
-  ImageType image_type_ = ImageType::JPEG;
+  ImageType image_type_ = ImageType::kJpeg;
+
+  static const int kDefaultTransactionRetryCount = 0;
+  static const uint64_t kMpixPixels = 1'000'000;
 };
 
-} // namespace sandbox
-} // namespace guetzli
+}  // namespace sandbox
+}  // namespace guetzli
+
+#endif  // GUETZLI_SANDBOXED_GUETZLI_TRANSACTION_H_

@@ -1,16 +1,32 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <syscall.h>
+
+#include <algorithm>
+#include <fstream>
+#include <memory>
+#include <sstream>
+
 #include "gtest/gtest.h"
-#include "guetzli_sandbox.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/vars.h"
 
-#include <fstream>
-#include <memory>
-#include <syscall.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sstream>
-#include <algorithm>
+#include "guetzli_sandbox.h"
 
 namespace guetzli {
 namespace sandbox {
@@ -18,23 +34,23 @@ namespace tests {
 
 namespace {
 
-constexpr const char* IN_PNG_FILENAME = "bees.png";
-constexpr const char* IN_JPG_FILENAME = "nature.jpg";
-constexpr const char* PNG_REFERENCE_FILENAME = "bees_reference.jpg";
-constexpr const char* JPG_REFERENCE_FILENAME = "nature_reference.jpg";
+constexpr const char* kInPngFilename = "bees.png";
+constexpr const char* kInJpegFilename = "nature.jpg";
+constexpr const char* kPngReferenceFilename = "bees_reference.jpg";
+constexpr const char* kJpegReferenceFIlename = "nature_reference.jpg";
 
-constexpr int PNG_EXPECTED_SIZE = 38'625;
-constexpr int JPG_EXPECTED_SIZE = 10'816;
+constexpr int kPngExpectedSize = 38'625;
+constexpr int kJpegExpectedSize = 10'816;
 
-constexpr int DEFAULT_QUALITY_TARGET = 95;
-constexpr int DEFAULT_MEMLIMIT_MB = 6000;
+constexpr int kDefaultQualityTarget = 95;
+constexpr int kDefaultMemlimitMb = 6000;
 
-constexpr const char* RELATIVE_PATH_TO_TESTDATA =
+constexpr const char* kRelativePathToTestdata =
   "/guetzli_sandboxed/tests/testdata/";
 
 std::string GetPathToInputFile(const char* filename) {
   return std::string(getenv("TEST_SRCDIR")) 
-    + std::string(RELATIVE_PATH_TO_TESTDATA)
+    + std::string(kRelativePathToTestdata)
     + std::string(filename);
 }
 
@@ -78,7 +94,7 @@ protected:
 
 // This test can take up to few minutes depending on your hardware
 TEST_F(GuetzliSapiTest, ProcessRGB) {
-  sapi::v::Fd in_fd(open(GetPathToInputFile(IN_PNG_FILENAME).c_str(), 
+  sapi::v::Fd in_fd(open(GetPathToInputFile(kInPngFilename).c_str(), 
     O_RDONLY));
   ASSERT_TRUE(in_fd.GetValue() != -1) << "Error opening input file";
   ASSERT_EQ(api_->sandbox()->TransferToSandboxee(&in_fd), absl::OkStatus())
@@ -87,17 +103,17 @@ TEST_F(GuetzliSapiTest, ProcessRGB) {
   sapi::v::Struct<ProcessingParams> processing_params;
   *processing_params.mutable_data() = {in_fd.GetRemoteFd(), 
                                       0,
-                                      DEFAULT_QUALITY_TARGET,
-                                      DEFAULT_MEMLIMIT_MB
+                                      kDefaultQualityTarget,
+                                      kDefaultMemlimitMb
   };
   sapi::v::LenVal output(0);
   auto processing_result = api_->ProcessRgb(processing_params.PtrBefore(), 
                                             output.PtrBoth());
   ASSERT_TRUE(processing_result.value_or(false)) << "Error processing rgb data";
-  ASSERT_EQ(output.GetDataSize(), PNG_EXPECTED_SIZE) 
+  ASSERT_EQ(output.GetDataSize(), kPngExpectedSize) 
     << "Incorrect result data size";
   std::string reference_data = 
-    ReadFromFile(GetPathToInputFile(PNG_REFERENCE_FILENAME));
+    ReadFromFile(GetPathToInputFile(kPngReferenceFilename));
   ASSERT_EQ(output.GetDataSize(), reference_data.size()) 
     << "Incorrect result data size";
   ASSERT_TRUE(CompareBytesInLenValAndContainer(output, reference_data))
@@ -106,7 +122,7 @@ TEST_F(GuetzliSapiTest, ProcessRGB) {
 
 // This test can take up to few minutes depending on your hardware
 TEST_F(GuetzliSapiTest, ProcessJpeg) {
-  sapi::v::Fd in_fd(open(GetPathToInputFile(IN_JPG_FILENAME).c_str(), 
+  sapi::v::Fd in_fd(open(GetPathToInputFile(kInJpegFilename).c_str(), 
     O_RDONLY));
   ASSERT_TRUE(in_fd.GetValue() != -1) << "Error opening input file";
   ASSERT_EQ(api_->sandbox()->TransferToSandboxee(&in_fd), absl::OkStatus())
@@ -115,27 +131,23 @@ TEST_F(GuetzliSapiTest, ProcessJpeg) {
   sapi::v::Struct<ProcessingParams> processing_params;
   *processing_params.mutable_data() = {in_fd.GetRemoteFd(), 
                                       0,
-                                      DEFAULT_QUALITY_TARGET,
-                                      DEFAULT_MEMLIMIT_MB
+                                      kDefaultQualityTarget,
+                                      kDefaultMemlimitMb
   };
   sapi::v::LenVal output(0);
   auto processing_result = api_->ProcessJpeg(processing_params.PtrBefore(), 
                                             output.PtrBoth());
   ASSERT_TRUE(processing_result.value_or(false)) << "Error processing jpg data";
-  ASSERT_EQ(output.GetDataSize(), JPG_EXPECTED_SIZE) 
+  ASSERT_EQ(output.GetDataSize(), kJpegExpectedSize) 
     << "Incorrect result data size";
   std::string reference_data = 
-    ReadFromFile(GetPathToInputFile(JPG_REFERENCE_FILENAME));
+    ReadFromFile(GetPathToInputFile(kJpegReferenceFIlename));
   ASSERT_EQ(output.GetDataSize(), reference_data.size()) 
     << "Incorrect result data size";
   ASSERT_TRUE(CompareBytesInLenValAndContainer(output, reference_data))
       << "Processed data doesn't match reference output";
 }
 
-// TEST_F(GuetzliSapiTest, WriteDataToFd) {
-//   sapi::v::Fd fd(open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
-// }
-
-} // namespace tests
-} // namespace sandbox
-} // namespace guetzli
+}  // namespace tests
+}  // namespace sandbox
+}  // namespace guetzli

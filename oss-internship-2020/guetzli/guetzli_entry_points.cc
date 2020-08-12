@@ -1,3 +1,25 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <sys/stat.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <iostream>
+#include <string>
+#include <vector>
+
 #include "guetzli/jpeg_data_reader.h"
 #include "guetzli/quality.h"
 #include "guetzli_entry_points.h"
@@ -5,17 +27,10 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/util/statusor.h"
 
-#include <algorithm>
-#include <iostream>
-#include <string>
-#include <stdio.h>
-#include <sys/stat.h>
-#include <vector>
-
 namespace {
 
 constexpr int kBytesPerPixel = 350;
-constexpr int kLowestMemusageMB = 100; // in MB
+constexpr int kLowestMemusageMB = 100;
 
 struct GuetzliInitData {
   std::string in_data;
@@ -26,7 +41,7 @@ struct GuetzliInitData {
 template<typename T>
 void CopyMemoryToLenVal(const T* data, size_t size, 
                         sapi::LenValStruct* out_data) {
-  free(out_data->data); // Not sure about this
+  free(out_data->data);  // Not sure about this
   out_data->size = size;
   T* new_out = static_cast<T*>(malloc(size));
   memcpy(new_out, data, size);
@@ -49,7 +64,6 @@ sapi::StatusOr<std::string> ReadFromFd(int fd) {
   status = read(fd, buf.get(), fsize);
 
   if (status < 0) {
-    lseek(fd, 0, SEEK_SET);  
     return absl::FailedPreconditionError(
       "Error reading input from fd"
     );

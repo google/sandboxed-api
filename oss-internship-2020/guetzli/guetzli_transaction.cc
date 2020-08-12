@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "guetzli_transaction.h"
 
 #include <iostream>
@@ -45,8 +59,8 @@ absl::Status GuetzliTransaction::Init() {
         "Error receiving remote FD: remote output fd is set to -1");
   }
 
-  in_fd_.OwnLocalFd(false); // FDCloser will close local fd
-  out_fd_.OwnLocalFd(false); // FDCloser will close local fd
+  in_fd_.OwnLocalFd(false);  // FDCloser will close local fd
+  out_fd_.OwnLocalFd(false);  // FDCloser will close local fd
 
   return absl::OkStatus();
 }
@@ -62,14 +76,14 @@ absl::Status GuetzliTransaction::Main() {
                                       params_.memlimit_mb
   };
 
-  auto result_status = image_type_ == ImageType::JPEG ? 
+  auto result_status = image_type_ == ImageType::kJpeg ? 
     api.ProcessJpeg(processing_params.PtrBefore(), output.PtrBoth()) : 
     api.ProcessRgb(processing_params.PtrBefore(), output.PtrBoth());
   
   if (!result_status.value_or(false)) {
     std::stringstream error_stream;
     error_stream << "Error processing " 
-      << (image_type_ == ImageType::JPEG ? "jpeg" : "rgb") << " data" 
+      << (image_type_ == ImageType::kJpeg ? "jpeg" : "rgb") << " data" 
       << std::endl; 
     
     return absl::FailedPreconditionError(
@@ -113,8 +127,8 @@ sapi::StatusOr<ImageType> GuetzliTransaction::GetImageTypeFromFd(int fd) const {
   }
 
   return memcmp(read_buf, kPNGMagicBytes, sizeof(kPNGMagicBytes)) == 0 ?
-      ImageType::PNG : ImageType::JPEG;
+      ImageType::kPng : ImageType::kJpeg;
 }
 
-} // namespace sandbox
-} // namespace guetzli
+}  // namespace sandbox
+}  // namespace guetzli

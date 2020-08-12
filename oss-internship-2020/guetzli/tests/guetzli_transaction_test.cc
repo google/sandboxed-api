@@ -1,14 +1,30 @@
-#include "gtest/gtest.h"
-#include "guetzli_transaction.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
 #include <fstream>
-#include <sstream>
 #include <memory>
+#include <sstream>
+
+#include "gtest/gtest.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
+
+#include "guetzli_transaction.h"
 
 namespace guetzli {
 namespace sandbox {
@@ -16,23 +32,23 @@ namespace tests {
 
 namespace {
 
-constexpr const char* IN_PNG_FILENAME = "bees.png";
-constexpr const char* IN_JPG_FILENAME = "nature.jpg";
-constexpr const char* PNG_REFERENCE_FILENAME = "bees_reference.jpg";
-constexpr const char* JPG_REFERENCE_FILENAME = "nature_reference.jpg";
+constexpr const char* kInPngFilename = "bees.png";
+constexpr const char* kInJpegFilename = "nature.jpg";
+constexpr const char* kPngReferenceFilename = "bees_reference.jpg";
+constexpr const char* kJpegReferenceFIlename = "nature_reference.jpg";
 
-constexpr int PNG_EXPECTED_SIZE = 38'625;
-constexpr int JPG_EXPECTED_SIZE = 10'816;
+constexpr int kPngExpectedSize = 38'625;
+constexpr int kJpegExpectedSize = 10'816;
 
-constexpr int DEFAULT_QUALITY_TARGET = 95;
-constexpr int DEFAULT_MEMLIMIT_MB = 6000;
+constexpr int kDefaultQualityTarget = 95;
+constexpr int kDefaultMemlimitMb = 6000;
 
-constexpr const char* RELATIVE_PATH_TO_TESTDATA =
+constexpr const char* kRelativePathToTestdata =
   "/guetzli_sandboxed/tests/testdata/";
 
 std::string GetPathToInputFile(const char* filename) {
   return std::string(getenv("TEST_SRCDIR")) 
-    + std::string(RELATIVE_PATH_TO_TESTDATA)
+    + std::string(kRelativePathToTestdata)
     + std::string(filename);
 }
 
@@ -48,11 +64,11 @@ std::string ReadFromFile(const std::string& filename) {
   return result.str();
 }
 
-} // namespace
+}  // namespace
 
 TEST(GuetzliTransactionTest, TestTransactionJpg) {
   sandbox2::file_util::fileops::FDCloser in_fd_closer(
-    open(GetPathToInputFile(IN_JPG_FILENAME).c_str(), O_RDONLY));
+    open(GetPathToInputFile(kInJpegFilename).c_str(), O_RDONLY));
   ASSERT_TRUE(in_fd_closer.get() != -1) << "Error opening input jpg file";
   sandbox2::file_util::fileops::FDCloser out_fd_closer(
     open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
@@ -61,8 +77,8 @@ TEST(GuetzliTransactionTest, TestTransactionJpg) {
     in_fd_closer.get(),
     out_fd_closer.get(),
     0,
-    DEFAULT_QUALITY_TARGET,
-    DEFAULT_MEMLIMIT_MB
+    kDefaultQualityTarget,
+    kDefaultMemlimitMb
   };
   {
     GuetzliTransaction transaction(std::move(params));
@@ -72,7 +88,7 @@ TEST(GuetzliTransactionTest, TestTransactionJpg) {
   }
   ASSERT_TRUE(fcntl(out_fd_closer.get(), F_GETFD) != -1 || errno != EBADF)
     << "Local output fd closed";
-  auto reference_data = ReadFromFile(GetPathToInputFile(JPG_REFERENCE_FILENAME));
+  auto reference_data = ReadFromFile(GetPathToInputFile(kJpegReferenceFIlename));
   auto output_size = lseek(out_fd_closer.get(), 0, SEEK_END);
   ASSERT_EQ(reference_data.size(), output_size) 
     << "Different sizes of reference and returned data";
@@ -90,7 +106,7 @@ TEST(GuetzliTransactionTest, TestTransactionJpg) {
 
 TEST(GuetzliTransactionTest, TestTransactionPng) {
   sandbox2::file_util::fileops::FDCloser in_fd_closer(
-    open(GetPathToInputFile(IN_PNG_FILENAME).c_str(), O_RDONLY));
+    open(GetPathToInputFile(kInPngFilename).c_str(), O_RDONLY));
   ASSERT_TRUE(in_fd_closer.get() != -1) << "Error opening input png file";
   sandbox2::file_util::fileops::FDCloser out_fd_closer(
     open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
@@ -99,8 +115,8 @@ TEST(GuetzliTransactionTest, TestTransactionPng) {
     in_fd_closer.get(),
     out_fd_closer.get(),
     0,
-    DEFAULT_QUALITY_TARGET,
-    DEFAULT_MEMLIMIT_MB
+    kDefaultQualityTarget,
+    kDefaultMemlimitMb
   };
   {
     GuetzliTransaction transaction(std::move(params));
@@ -110,7 +126,7 @@ TEST(GuetzliTransactionTest, TestTransactionPng) {
   }
   ASSERT_TRUE(fcntl(out_fd_closer.get(), F_GETFD) != -1 || errno != EBADF)
     << "Local output fd closed";
-  auto reference_data = ReadFromFile(GetPathToInputFile(PNG_REFERENCE_FILENAME));
+  auto reference_data = ReadFromFile(GetPathToInputFile(kPngReferenceFilename));
   auto output_size = lseek(out_fd_closer.get(), 0, SEEK_END);
   ASSERT_EQ(reference_data.size(), output_size) 
     << "Different sizes of reference and returned data";
@@ -126,6 +142,6 @@ TEST(GuetzliTransactionTest, TestTransactionPng) {
     << "Returned data doesn't match refernce";
 }
 
-} // namespace tests
-} // namespace sandbox
-} // namespace guetzli
+}  // namespace tests
+}  // namespace sandbox
+}  // namespace guetzli
