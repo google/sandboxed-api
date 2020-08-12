@@ -19,7 +19,9 @@ project(lodepng_sapi CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
 
-add_subdirectory(lodepng-master)
+add_library(lodepng STATIC lodepng-master/lodepng.cpp lodepng-master/lodepng.h)
+
+# add_subdirectory(lodepng-master)
 
 
 # unsandboxed main
