@@ -1,0 +1,3 @@
+[submodule "oss-internship-2020/openjpeg/openjpeg"]
+	path = oss-internship-2020/openjpeg/openjpeg
+	url = https://github.com/uclouvain/openjpeg.git
