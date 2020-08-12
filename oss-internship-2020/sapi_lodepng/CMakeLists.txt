@@ -19,9 +19,7 @@ project(lodepng_sapi CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
 
-add_library(lodepng STATIC lodepng-master/lodepng.cpp lodepng-master/lodepng.h)
-
-# add_subdirectory(lodepng-master)
+add_library(lodepng STATIC lodepng/lodepng.cpp lodepng/lodepng.h)
 
 
 # unsandboxed main
@@ -30,10 +28,6 @@ target_link_libraries(lodepng_normal PRIVATE lodepng)
 
 # sandboxed main
 set(SAPI_ROOT "/usr/local/google/home/amedar/internship/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
-
-#set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
-
-#set(SAPI_ENABLE_TESTS ON CACHE BOOL "")
 
 add_subdirectory("${SAPI_ROOT}"
                  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
@@ -48,7 +42,7 @@ add_sapi_library(
     lodepng_save_file
     lodepng_load_file
     lodepng_decode32
-    INPUTS lodepng-master/lodepng.h
+    INPUTS lodepng/lodepng.h
     LIBRARY lodepng
     LIBRARY_NAME Lodepng
     NAMESPACE ""

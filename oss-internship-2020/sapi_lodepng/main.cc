@@ -17,7 +17,7 @@
 
 #include <iostream>
 
-#include "lodepng-master/lodepng.h"
+#include "lodepng/lodepng.h"
 
 bool cmp_images32(const std::string &f1, const std::string &f2) {
   std::cout << "COMPARING IMAGES " << basename(f1.c_str()) << " -> "
