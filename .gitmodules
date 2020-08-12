@@ -13,3 +13,6 @@
 [submodule "oss-internship-2020/gdal/gdal"]
 	path = oss-internship-2020/gdal/gdal
 	url = https://github.com/OSGeo/gdal/tree/master/gdal
+[submodule "oss-internship-2020/sapi_lodepng/lodepng"]
+	path = oss-internship-2020/sapi_lodepng/lodepng
+	url = https://github.com/andreimedar/lodepng
