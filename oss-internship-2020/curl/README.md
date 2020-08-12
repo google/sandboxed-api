@@ -1,22 +1,56 @@
-# Curl
+# Curl Sandboxed
 
-This library is a sandboxed version of the original [curl](https://curl.haxx.se/libcurl/c/) C library, implemented using sandboxed-api.
-
-## Supported methods
-
-The library currently supports curl's [*Easy interface*](https://curl.haxx.se/libcurl/c/libcurl-easy.html). According to curl's website:
-
-> The easy interface is a synchronous, efficient, quickly used and... yes, easy interface for file transfers. 
-> Numerous applications have been built using this.
-
-However, all of the methods using function pointers, are not yet supported.
-
-## Examples
-
-The `examples` directory contains the sandboxed versions of example source codes taken from [this](https://curl.haxx.se/libcurl/c/example.html) page on curl's website.
+This library is a sandboxed version of curl's C API, [libcurl](https://curl.haxx.se/libcurl/c/), implemented using Sandboxed API.
 
 ## Implementation details
 
-Variadic methods are currently not supported by sandboxed-api. Because of this, the sandboxed header `custom_curl.h` wraps the curl library and explicitly defines the variadic methods.
+All of libcurl's methods are supported by the library. However, a few of these have different signatures defined in the sandboxed header `custom_curl.h`, which wraps and extends libcurl.
 
-For example, instead of using `curl_easy_setopt`, one of these methods can be used: `curl_easy_setopt_ptr`, `curl_easy_setopt_long` or `curl_easy_setopt_curl_off_t`.
+This is necessary because Sandboxed API sandboxes most of libcurl correctly, but encounters some issues when sandboxing a few methods. The simplest solution is wrapping these methods into wrapper methods that accomplish the same tasks but can also be sandboxed.
+
+The next sections describe the issues encountered and contain some information on the signatures of the wrapper methods solving these issues.
+
+#### Variadic methods
+
+Variadic methods are currently not supported by Sandboxed API. To solve this, these methods are defined with an additional explicit parameter in `custom_curl.h`.
+
+The methods are:
+- `curl_easy_setopt`. Use `curl_easy_setopt_ptr`, `curl_easy_setopt_long` or `curl_easy_setopt_curl_off_t` instead.
+- `curl_easy_getinfo`. Use `curl_easy_getinfo_ptr` instead.
+- `curl_multi_setopt`. Use `curl_multi_setopt_ptr`, `curl_multi_setopt_long` or `curl_multi_setopt_curl_off_t` instead.
+- `curl_share_setopt`. Use `curl_share_setopt_ptr` or `curl_share_setopt_long` instead
+
+#### Methods with incomplete array arguments
+
+Incomplete array arguments are currently not supported by Sandboxed API. To solve this, methods taking an incomplete array argument have a wrapper in `custom_curl.h`, and take a pointer as the argument.
+
+The methods are:
+- `curl_multi_poll`. Use `curl_multi_poll_sapi` instead.
+- `curl_multi_wait`. Use `curl_multi_wait_sapi` instead.
+
+#### Methods with conflicts on the generated header
+
+Some methods create conflicts on the generated header because of redefined `#define` directives from  files included by the header. To solve this, the conflicting types and methods are redefined in `custom_curl.h`.
+
+The types are:
+- `time_t`. Use `time_t_sapi` instead.
+- `fd_set`. Use `fd_set_sapi` instead.
+
+The methods are:
+- `curl_getdate`. Use `curl_getdate_sapi` instead.
+- `curl_multi_fdset`. Use `curl_multi_fdset_sapi` instead.
+
+#### Function pointers
+
+The functions whose pointers will be passed to the library's methods (*callbacks*) can't be implemented in the files making use of the library, but must be in other files. These files must be compiled together with the library, and this is done by adding their absolute path to the cmake variable `CURL_SAPI_CALLBACKS`. 
+
+The pointers can then be obtained using an `RPCChannel` object, as shown in `example2.cc`.
+
+## Examples
+
+The `examples` directory contains the sandboxed versions of example source codes taken from [this page](https://curl.haxx.se/libcurl/c/example.html) on curl's website.
+
+To build these examples when building the library, the cmake variable `CURL_SAPI_ENABLE_EXAMPLES` must be set to `ON`.
+
+The `callbacks.h` and `callbacks.cc` files implement all the callbacks used by the examples.
+

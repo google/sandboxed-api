@@ -23,3 +23,39 @@ target_link_libraries(example1 PRIVATE
   curl_sapi 
   sapi::sapi
 )
+
+# Example 2: getinmemory.c
+add_executable(example2
+  example2.cc
+)
+target_link_libraries(example2 PRIVATE
+  curl_sapi
+  sapi::sapi
+)
+
+# Example 3: simplessl.c
+add_executable(example3
+  example3.cc
+)
+target_link_libraries(example3 PRIVATE
+  curl_sapi
+  sapi::sapi
+)
+
+# Example 4: multi-poll.c
+add_executable(example4
+  example4.cc
+)
+target_link_libraries(example4 PRIVATE
+  curl_sapi
+  sapi::sapi
+)
+
+# Example 5: multithread.c
+add_executable(example5
+  example5.cc
+)
+target_link_libraries(example5 PRIVATE
+  curl_sapi
+  sapi::sapi
+)

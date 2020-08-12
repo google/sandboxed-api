@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Sandboxed version of simple.c
-// Simple HTTP GET request
+// Sandboxed version of getinmemory.c
+// HTTP GET request using callbacks
 
 #include <cstdlib>
 #include <iostream>
@@ -21,7 +21,12 @@
 #include "curl_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
 
-class CurlApiSandboxEx1 : public CurlSandbox {
+struct MemoryStruct {
+  char* memory;
+  size_t size;
+};
+
+class CurlApiSandboxEx2 : public CurlSandbox {
   private:
     std::unique_ptr<sandbox2::Policy> ModifyPolicy( 
         sandbox2::PolicyBuilder*) override {
@@ -34,17 +39,24 @@ class CurlApiSandboxEx1 : public CurlSandbox {
     }
 };
 
-int main(int argc, char* argv[]) {
+int main() {
 
   absl::Status status;
   sapi::StatusOr<CURL*> status_or_curl;
   sapi::StatusOr<int> status_or_int;
 
   // Initialize sandbox2 and sapi
-  CurlApiSandboxEx1 sandbox; 
+  CurlApiSandboxEx2 sandbox;
   status = sandbox.Init();
   assert(status.ok());
   CurlApi api(&sandbox);
+
+  // Generate pointer to WriteMemoryCallback function
+  sapi::RPCChannel rpcc(sandbox.comms());
+  size_t (*_function_ptr)(void*, size_t, size_t, void*);
+  status = rpcc.Symbol("WriteMemoryCallback", (void**)&_function_ptr);
+  assert(status.ok());
+  sapi::v::RemotePtr remote_function_ptr((void*)_function_ptr);
 
   // Initialize the curl session
   status_or_curl = api.curl_easy_init();
@@ -53,18 +65,28 @@ int main(int argc, char* argv[]) {
   assert(curl.GetValue());  // Checking curl != nullptr
 
   // Specify URL to get
-  sapi::v::ConstCStr url("http://example.com");  
+  sapi::v::ConstCStr url("http://example.com");
   status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
-  // Set the library to follow a redirection
-  status_or_int = api.curl_easy_setopt_long(&curl, CURLOPT_FOLLOWLOCATION, 1l);
+  // Set WriteMemoryCallback as the write function
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEFUNCTION, 
+                                           &remote_function_ptr);
+  assert(status_or_int.ok());
+  assert(status_or_int.value() == CURLE_OK);
+  
+  // Pass 'chunk' struct to the callback function
+  sapi::v::Struct<MemoryStruct> chunk;
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEDATA, 
+                                           chunk.PtrBoth());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
-  //curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-  status_or_int = api.curl_easy_setopt_long(&curl, CURLOPT_SSL_VERIFYPEER, 0l);
+  // Set a user agent
+  sapi::v::ConstCStr user_agent("libcurl-agent/1.0");
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_USERAGENT, 
+                                           user_agent.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
@@ -72,6 +94,13 @@ int main(int argc, char* argv[]) {
   status_or_int = api.curl_easy_perform(&curl);
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
+
+  // Retrieve memory size
+  sapi::v::Int size;
+  size.SetRemote(&((MemoryStruct*)chunk.GetRemote())->size);
+  status = sandbox.TransferFromSandboxee(&size);
+  assert(status.ok());
+  std::cout << "memory size: " << size.GetValue() << " bytes" << std::endl;
 
   // Cleanup curl
   status = api.curl_easy_cleanup(&curl);
