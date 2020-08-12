@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sstream>
+#include <algorithm>
 
 namespace guetzli {
 namespace sandbox {
@@ -18,15 +19,18 @@ namespace tests {
 namespace {
 
 constexpr const char* IN_PNG_FILENAME = "bees.png";
-constexpr const char* IN_JPG_FILENAME = "landscape.jpg";
+constexpr const char* IN_JPG_FILENAME = "nature.jpg";
+constexpr const char* PNG_REFERENCE_FILENAME = "bees_reference.jpg";
+constexpr const char* JPG_REFERENCE_FILENAME = "nature_reference.jpg";
 
-constexpr int IN_PNG_FILE_SIZE = 177'424;
-constexpr int IN_JPG_FILE_SIZE = 14'418;
+constexpr int PNG_EXPECTED_SIZE = 38'625;
+constexpr int JPG_EXPECTED_SIZE = 10'816;
 
 constexpr int DEFAULT_QUALITY_TARGET = 95;
+constexpr int DEFAULT_MEMLIMIT_MB = 6000;
 
 constexpr const char* RELATIVE_PATH_TO_TESTDATA =
-  "/guetzli/guetzli-sandboxed/tests/testdata/";
+  "/guetzli_sandboxed/tests/testdata/";
 
 std::string GetPathToInputFile(const char* filename) {
   return std::string(getenv("TEST_SRCDIR")) 
@@ -46,6 +50,18 @@ std::string ReadFromFile(const std::string& filename) {
   return result.str();
 }
 
+template<typename Container>
+bool CompareBytesInLenValAndContainer(const sapi::v::LenVal& lenval, 
+                                      const Container& container) {
+  return std::equal(
+    lenval.GetData(), lenval.GetData() + lenval.GetDataSize(),
+    container.begin(),
+    [](const uint8_t lhs, const auto rhs) {
+      return lhs == static_cast<uint8_t>(rhs);
+    }
+  );
+}
+
 } // namespace
 
 class GuetzliSapiTest : public ::testing::Test {
@@ -60,105 +76,65 @@ protected:
   std::unique_ptr<GuetzliApi> api_;
 };
 
-TEST_F(GuetzliSapiTest, ReadDataFromFd) {
-  std::string input_file_path = GetPathToInputFile(IN_PNG_FILENAME);
-  int fd = open(input_file_path.c_str(), O_RDONLY);
-  ASSERT_TRUE(fd != -1) << "Error opening input file";
-  sapi::v::Fd remote_fd(fd);
-  auto send_fd_status = sandbox_->TransferToSandboxee(&remote_fd);
-  ASSERT_TRUE(send_fd_status.ok()) << "Error sending fd to sandboxee";
-  ASSERT_TRUE(remote_fd.GetRemoteFd() != -1) << "Error opening remote fd";
-  sapi::v::LenVal data(0);
-  auto read_status = 
-    api_->ReadDataFromFd(remote_fd.GetRemoteFd(), data.PtrBoth());
-  ASSERT_TRUE(read_status.value_or(false)) << "Error reading data from fd";
-  ASSERT_EQ(data.GetDataSize(), IN_PNG_FILE_SIZE) << "Wrong size of file";
-}
-
-// TEST_F(GuetzliSapiTest, WriteDataToFd) {
-
-// }
-
-TEST_F(GuetzliSapiTest, ReadPng) {
-  std::string data = ReadFromFile(GetPathToInputFile(IN_PNG_FILENAME));
-  ASSERT_EQ(data.size(), IN_PNG_FILE_SIZE) << "Error reading input file";
-  sapi::v::LenVal in_data(data.data(), data.size());
-  sapi::v::Int xsize, ysize;
-  sapi::v::LenVal rgb_out(0);
-
-  auto status = api_->ReadPng(in_data.PtrBefore(), xsize.PtrBoth(), 
-    ysize.PtrBoth(), rgb_out.PtrBoth());
-  ASSERT_TRUE(status.value_or(false)) << "Error processing png data";
-  ASSERT_EQ(xsize.GetValue(), 444) << "Error parsing width";
-  ASSERT_EQ(ysize.GetValue(), 258) << "Error parsing height";
-}
-
-TEST_F(GuetzliSapiTest, ReadJpeg) {
-  std::string data = ReadFromFile(GetPathToInputFile(IN_JPG_FILENAME));
-  ASSERT_EQ(data.size(), IN_JPG_FILE_SIZE) << "Error reading input file";
-  sapi::v::LenVal in_data(data.data(), data.size());
-  sapi::v::Int xsize, ysize;
-
-  auto status = api_->ReadJpegData(in_data.PtrBefore(), 0, 
-    xsize.PtrBoth(), ysize.PtrBoth());
-  ASSERT_TRUE(status.value_or(false)) << "Error processing jpeg data";
-  ASSERT_EQ(xsize.GetValue(), 180) << "Error parsing width";
-  ASSERT_EQ(ysize.GetValue(), 180) << "Error parsing height";
-}
-
 // This test can take up to few minutes depending on your hardware
 TEST_F(GuetzliSapiTest, ProcessRGB) {
-  std::string data = ReadFromFile(GetPathToInputFile(IN_PNG_FILENAME));
-  ASSERT_EQ(data.size(), IN_PNG_FILE_SIZE) << "Error reading input file";
-  sapi::v::LenVal in_data(data.data(), data.size());
-  sapi::v::Int xsize, ysize;
-  sapi::v::LenVal rgb_out(0);
-
-  auto status = api_->ReadPng(in_data.PtrBefore(), xsize.PtrBoth(), 
-    ysize.PtrBoth(), rgb_out.PtrBoth());
-  ASSERT_TRUE(status.value_or(false)) << "Error processing png data";
-  ASSERT_EQ(xsize.GetValue(), 444) << "Error parsing width";
-  ASSERT_EQ(ysize.GetValue(), 258) << "Error parsing height";
-  auto quality = 
-    api_->ButteraugliScoreQuality(static_cast<double>(DEFAULT_QUALITY_TARGET));
-  ASSERT_TRUE(quality.ok()) << "Error calculating butteraugli quality";
-  sapi::v::Struct<Params> params;
-  sapi::v::LenVal out_data(0);
-  params.mutable_data()->butteraugli_target = quality.value();
-
-  status = api_->ProcessRGBData(params.PtrBefore(), 0, rgb_out.PtrBefore(), 
-    xsize.GetValue(), ysize.GetValue(), out_data.PtrBoth());
-  ASSERT_TRUE(status.value_or(false)) << "Error processing png file";
-  ASSERT_EQ(out_data.GetDataSize(), 38'625);
-  //ADD COMPARSION WITH REFERENCE OUTPUT
+  sapi::v::Fd in_fd(open(GetPathToInputFile(IN_PNG_FILENAME).c_str(), 
+    O_RDONLY));
+  ASSERT_TRUE(in_fd.GetValue() != -1) << "Error opening input file";
+  ASSERT_EQ(api_->sandbox()->TransferToSandboxee(&in_fd), absl::OkStatus())
+    << "Error transfering fd to sandbox";
+  ASSERT_TRUE(in_fd.GetRemoteFd() != -1) << "Error opening remote fd";
+  sapi::v::Struct<ProcessingParams> processing_params;
+  *processing_params.mutable_data() = {in_fd.GetRemoteFd(), 
+                                      0,
+                                      DEFAULT_QUALITY_TARGET,
+                                      DEFAULT_MEMLIMIT_MB
+  };
+  sapi::v::LenVal output(0);
+  auto processing_result = api_->ProcessRgb(processing_params.PtrBefore(), 
+                                            output.PtrBoth());
+  ASSERT_TRUE(processing_result.value_or(false)) << "Error processing rgb data";
+  ASSERT_EQ(output.GetDataSize(), PNG_EXPECTED_SIZE) 
+    << "Incorrect result data size";
+  std::string reference_data = 
+    ReadFromFile(GetPathToInputFile(PNG_REFERENCE_FILENAME));
+  ASSERT_EQ(output.GetDataSize(), reference_data.size()) 
+    << "Incorrect result data size";
+  ASSERT_TRUE(CompareBytesInLenValAndContainer(output, reference_data))
+      << "Processed data doesn't match reference output";
 }
 
 // This test can take up to few minutes depending on your hardware
 TEST_F(GuetzliSapiTest, ProcessJpeg) {
-  std::string data = ReadFromFile(GetPathToInputFile(IN_JPG_FILENAME));
-  ASSERT_EQ(data.size(), IN_JPG_FILE_SIZE) << "Error reading input file";
-  sapi::v::LenVal in_data(data.data(), data.size());
-  sapi::v::Int xsize, ysize;
-
-  auto status = api_->ReadJpegData(in_data.PtrBefore(), 0, 
-    xsize.PtrBoth(), ysize.PtrBoth());
-  ASSERT_TRUE(status.value_or(false)) << "Error processing jpeg data";
-  ASSERT_EQ(xsize.GetValue(), 180) << "Error parsing width";
-  ASSERT_EQ(ysize.GetValue(), 180) << "Error parsing height";
-
-  auto quality = 
-    api_->ButteraugliScoreQuality(static_cast<double>(DEFAULT_QUALITY_TARGET));
-  ASSERT_TRUE(quality.ok()) << "Error calculating butteraugli quality";
-  sapi::v::Struct<Params> params;
-  params.mutable_data()->butteraugli_target = quality.value();
-  sapi::v::LenVal out_data(0);
-
-  status = api_->ProcessJPEGString(params.PtrBefore(), 0, in_data.PtrBefore(), 
-    out_data.PtrBoth());
-  ASSERT_TRUE(status.value_or(false)) << "Error processing jpeg file";
-  ASSERT_EQ(out_data.GetDataSize(), 10'816);
-  //ADD COMPARSION WITH REFERENCE OUTPUT
+  sapi::v::Fd in_fd(open(GetPathToInputFile(IN_JPG_FILENAME).c_str(), 
+    O_RDONLY));
+  ASSERT_TRUE(in_fd.GetValue() != -1) << "Error opening input file";
+  ASSERT_EQ(api_->sandbox()->TransferToSandboxee(&in_fd), absl::OkStatus())
+    << "Error transfering fd to sandbox";
+  ASSERT_TRUE(in_fd.GetRemoteFd() != -1) << "Error opening remote fd";
+  sapi::v::Struct<ProcessingParams> processing_params;
+  *processing_params.mutable_data() = {in_fd.GetRemoteFd(), 
+                                      0,
+                                      DEFAULT_QUALITY_TARGET,
+                                      DEFAULT_MEMLIMIT_MB
+  };
+  sapi::v::LenVal output(0);
+  auto processing_result = api_->ProcessJpeg(processing_params.PtrBefore(), 
+                                            output.PtrBoth());
+  ASSERT_TRUE(processing_result.value_or(false)) << "Error processing jpg data";
+  ASSERT_EQ(output.GetDataSize(), JPG_EXPECTED_SIZE) 
+    << "Incorrect result data size";
+  std::string reference_data = 
+    ReadFromFile(GetPathToInputFile(JPG_REFERENCE_FILENAME));
+  ASSERT_EQ(output.GetDataSize(), reference_data.size()) 
+    << "Incorrect result data size";
+  ASSERT_TRUE(CompareBytesInLenValAndContainer(output, reference_data))
+      << "Processed data doesn't match reference output";
 }
+
+// TEST_F(GuetzliSapiTest, WriteDataToFd) {
+//   sapi::v::Fd fd(open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
+// }
 
 } // namespace tests
 } // namespace sandbox
