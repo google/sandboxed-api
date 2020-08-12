@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glog/logging.h>
+// #include <glog/logging.h>
 #include <stdlib.h>
 
 #include <filesystem>
@@ -26,8 +26,7 @@
 namespace {
 
 // use the current path
-std::string images_path =
-    std::filesystem::current_path().string();
+std::string images_path = std::filesystem::current_path().string();
 
 TEST(initSandbox, basic) {
   SapiLodepngSandbox sandbox(images_path);
@@ -166,7 +165,6 @@ TEST(generate_image, encode_decode_compare_two_step) {
   result =
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
                             sapi_filename.PtrBefore());
-
 
   ASSERT_TRUE(result.ok());
   ASSERT_EQ(result.value(), 0);
