@@ -52,6 +52,8 @@ TEST(generate_image, encode_decode_compare_one_step) {
   unsigned int width = 512, height = 512;
   unsigned char *image = (unsigned char *)malloc(width * height * 4);
 
+  ASSERT_TRUE(image);
+
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
@@ -126,6 +128,8 @@ TEST(generate_image, encode_decode_compare_two_step) {
   unsigned int width = 512, height = 512;
   unsigned char *image = (unsigned char *)malloc(width * height * 4);
 
+  ASSERT_TRUE(image);
+
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
@@ -153,8 +157,6 @@ TEST(generate_image, encode_decode_compare_two_step) {
   ASSERT_TRUE(result.ok());
   ASSERT_EQ(result.value(), 0);
 
-  std::cout << "sapi_pngsize = " << sapi_pngsize.GetValue() << std::endl;
-
   // the new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
   // process
@@ -171,6 +173,7 @@ TEST(generate_image, encode_decode_compare_two_step) {
   result =
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
                             sapi_filename.PtrBefore());
+
 
   ASSERT_TRUE(result.ok());
   ASSERT_EQ(result.value(), 0);
