@@ -28,7 +28,6 @@ class SapiLodepngSandbox : public LodepngSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder *) override {
     return sandbox2::PolicyBuilder()
-        .AllowStaticStartup()
         .AllowRead()
         .AllowWrite()
         .AllowOpen()
