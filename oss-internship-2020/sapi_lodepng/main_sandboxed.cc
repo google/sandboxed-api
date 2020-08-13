@@ -47,7 +47,8 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   }
 
   // encode the image
-  sapi::v::Array<unsigned char> sapi_image(image.data(), img_len(width, height));
+  sapi::v::Array<unsigned char> sapi_image(image.data(),
+                                           img_len(width, height));
   sapi::v::UInt sapi_width(width), sapi_height(height);
   std::string filename = "/output/out_generated1.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
@@ -116,7 +117,8 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   }
 
   // encode the image into memory first
-  sapi::v::Array<unsigned char> sapi_image(image.data(), img_len(width, height));
+  sapi::v::Array<unsigned char> sapi_image(image.data(),
+                                           img_len(width, height));
   sapi::v::UInt sapi_width(width), sapi_height(height);
   std::string filename = "/output/out_generated2.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
@@ -135,7 +137,6 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // the new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
   // process
-
   sapi::v::RemotePtr sapi_remote_out_ptr(sapi_png_ptr.GetValue());
   sapi::v::Array<unsigned char> sapi_png_array(sapi_pngsize.GetValue());
 

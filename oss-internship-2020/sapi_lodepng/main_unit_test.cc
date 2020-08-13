@@ -75,9 +75,9 @@ TEST(generate_image, encode_decode_compare_one_step) {
                                 sapi_height.GetValue()));
 
   ASSERT_THAT(result, Eq(0));
+
   // after the image has been encoded, decode it to check that the
   // pixel values are the same
-
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<unsigned char *> sapi_image_ptr(0);
 
@@ -161,7 +161,6 @@ TEST(generate_image, encode_decode_compare_two_steps) {
   // the new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
   // process
-
   sapi::v::RemotePtr sapi_remote_out_ptr(sapi_png_ptr.GetValue());
   sapi::v::Array<unsigned char> sapi_png_array(sapi_pngsize.GetValue());
 
