@@ -258,8 +258,7 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // that will be transferred is located
   // 4) transfer the memory to this process (this step is why we need
   // the pointer and the length)
-  sapi::v::RemotePtr sapi_remote_out_ptr(
-      reinterpret_cast<void *>(sapi_image_ptr.GetValue()));
+  sapi::v::RemotePtr sapi_remote_out_ptr(sapi_image_ptr.GetValue());
   sapi::v::Array<unsigned char> sapi_pixels(sapi_width2.GetValue() *
                                             sapi_height2.GetValue() * 4);
   sapi_pixels.SetRemote(sapi_remote_out_ptr.GetValue());
@@ -315,8 +314,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // inside the sandboxed process so we need to transfer it to this
   // process
 
-  sapi::v::RemotePtr sapi_remote_out_ptr(
-      reinterpret_cast<void *>(sapi_png_ptr.GetValue()));
+  sapi::v::RemotePtr sapi_remote_out_ptr(sapi_png_ptr.GetValue());
   sapi::v::Array<unsigned char> sapi_png_array(sapi_pngsize.GetValue());
 
   sapi_png_array.SetRemote(sapi_remote_out_ptr.GetValue());
@@ -347,8 +345,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   assert(sapi_pngsize.GetValue() == sapi_pngsize2.GetValue());
 
   // transfer the png array
-  sapi::v::RemotePtr sapi_remote_out_ptr2(
-      reinterpret_cast<void *>(sapi_png_ptr2.GetValue()));
+  sapi::v::RemotePtr sapi_remote_out_ptr2(sapi_png_ptr2.GetValue());
   sapi::v::Array<unsigned char> sapi_png_array2(sapi_pngsize2.GetValue());
 
   sapi_png_array2.SetRemote(sapi_remote_out_ptr2.GetValue());
@@ -369,8 +366,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   assert(sapi_height2.GetValue() == height);
 
   // transfer the pixels so they can be used
-  sapi::v::RemotePtr sapi_remote_out_ptr3(
-      reinterpret_cast<void *>(sapi_png_ptr3.GetValue()));
+  sapi::v::RemotePtr sapi_remote_out_ptr3(sapi_png_ptr3.GetValue());
   sapi::v::Array<unsigned char> sapi_pixels(sapi_width2.GetValue() *
                                             sapi_height2.GetValue() * 4);
 
