@@ -141,7 +141,6 @@ TEST(generate_image, encode_decode_compare_two_step) {
   sapi::v::IntBase<unsigned char *> sapi_png_ptr(0);
 
   // encode it into memory
-
   sapi::StatusOr<unsigned int> result = api.lodepng_encode32(
       sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(), sapi_image.PtrBefore(),
       sapi_width.GetValue(), sapi_height.GetValue());
@@ -170,7 +169,6 @@ TEST(generate_image, encode_decode_compare_two_step) {
   ASSERT_EQ(result.value(), 0);
 
   // now, decode the image using the 2 steps in order to compare the values
-
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<unsigned char *> sapi_png_ptr2(0);
   sapi::v::ULLong sapi_pngsize2;
