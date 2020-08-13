@@ -20,11 +20,6 @@
 
 #include "lodepng_sapi.sapi.h"
 
-// TODO change this with the location on your own machine
-#define base_path                                           \
-  "/usr/local/google/home/amedar/internship/sandboxed-api/" \
-  "oss-internship-2020/sapi_lodepng/"
-
 class SapiLodepngSandbox : public LodepngSandbox {
  public:
   SapiLodepngSandbox(const std::string &images_path)

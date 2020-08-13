@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// #include <glog/logging.h>
 #include <stdlib.h>
 
 #include <filesystem>
@@ -22,6 +21,7 @@
 #include "lodepng_sapi.sapi.h"
 #include "sandbox.h"
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/util/status_matchers.h"
 
 namespace {
 
@@ -30,14 +30,14 @@ std::string images_path = std::filesystem::current_path().string();
 
 TEST(initSandbox, basic) {
   SapiLodepngSandbox sandbox(images_path);
-  ASSERT_TRUE(sandbox.Init().ok());
+  ASSERT_THAT(sandbox.Init(), sapi::IsOk());
 }
 
 // generate an image, encode it, decode it and compare the pixels with the
 // initial values
 TEST(generate_image, encode_decode_compare_one_step) {
   SapiLodepngSandbox sandbox(images_path);
-  ASSERT_TRUE(sandbox.Init().ok());
+  ASSERT_THAT(sandbox.Init(), sapi::IsOk());
   LodepngApi api(&sandbox);
 
   // generate the values
@@ -61,40 +61,46 @@ TEST(generate_image, encode_decode_compare_one_step) {
   std::string filename = "/output/out_generated1.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
 
-  sapi::StatusOr<unsigned int> result = api.lodepng_encode32_file(
-      sapi_filename.PtrBefore(), sapi_image.PtrBefore(), sapi_width.GetValue(),
-      sapi_height.GetValue());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      unsigned int result,
+      api.lodepng_encode32_file(sapi_filename.PtrBefore(),
+                                sapi_image.PtrBefore(), sapi_width.GetValue(),
+                                sapi_height.GetValue()));
 
-  ASSERT_TRUE(result.ok());
-  ASSERT_EQ(result.value(), 0);
-
+  ASSERT_THAT(result, testing::Eq(0));
   // after the image has been encoded, decode it to check that the
   // pixel values are the same
 
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<unsigned char *> sapi_image_ptr(0);
 
-  result = api.lodepng_decode32_file(
-      sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
-      sapi_filename.PtrBefore());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      result, api.lodepng_decode32_file(
+                  sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(),
+                  sapi_height2.PtrBoth(), sapi_filename.PtrBefore()));
 
-  ASSERT_TRUE(result.ok());
-  ASSERT_EQ(result.value(), 0);
+  ASSERT_THAT(result, testing::Eq(0));
 
-  ASSERT_EQ(sapi_width2.GetValue(), width);
-  ASSERT_EQ(sapi_height2.GetValue(), height);
+  ASSERT_THAT(sapi_width2.GetValue(), testing::Eq(width));
+  ASSERT_THAT(sapi_height2.GetValue(), testing::Eq(height));
 
   // the pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
   // Transferring the memory has the following steps:
-  // 1) define a RemotePtr variable
+  // 1) define a RemotePtr variable that holds the memory location from
+  // the sandboxed process
+  // 2) define an array with the required length
+  // 3) set the remote pointer for the array to specify where the memory
+  // that will be transferred is located
+  // 4) transfer the memory to this process (this step is why we need
+  // the pointer and the length)
   sapi::v::RemotePtr sapi_remote_out_ptr(
       reinterpret_cast<void *>(sapi_image_ptr.GetValue()));
   sapi::v::Array<unsigned char> sapi_pixels(sapi_width2.GetValue() *
                                             sapi_height2.GetValue() * 4);
   sapi_pixels.SetRemote(sapi_remote_out_ptr.GetValue());
 
-  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_pixels), sapi::IsOk());
 
   // after the memory has been transferred, we can access it
   // using the GetData function
@@ -102,7 +108,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
 
   // now, we can compare the values
   for (size_t i = 0; i < width * height * 4; ++i) {
-    ASSERT_EQ(pixels_ptr[i], image[i]);
+    ASSERT_THAT(pixels_ptr[i], testing::Eq(image[i]));
   }
 
   free(image);
@@ -111,16 +117,16 @@ TEST(generate_image, encode_decode_compare_one_step) {
 // similar to the previous test, only that we use encoding by saving the data in
 // memory and then writing it to the file and decoding by first decoding in
 // memory and then getting the actual pixel values.
-TEST(generate_image, encode_decode_compare_two_step) {
+TEST(generate_image, encode_decode_compare_two_steps) {
   SapiLodepngSandbox sandbox(images_path);
-  ASSERT_TRUE(sandbox.Init().ok());
+  ASSERT_THAT(sandbox.Init(), sapi::IsOk());
   LodepngApi api(&sandbox);
 
   // generate the values
   unsigned int width = 512, height = 512;
   unsigned char *image = (unsigned char *)malloc(width * height * 4);
 
-  ASSERT_TRUE(image);
+  ASSERT_THAT(image, testing::NotNull());
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -141,12 +147,16 @@ TEST(generate_image, encode_decode_compare_two_step) {
   sapi::v::IntBase<unsigned char *> sapi_png_ptr(0);
 
   // encode it into memory
-  sapi::StatusOr<unsigned int> result = api.lodepng_encode32(
-      sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(), sapi_image.PtrBefore(),
-      sapi_width.GetValue(), sapi_height.GetValue());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      unsigned int result,
+      api.lodepng_encode32(sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(),
+                           sapi_image.PtrBefore(), sapi_width.GetValue(),
+                           sapi_height.GetValue()));
 
-  ASSERT_TRUE(result.ok());
-  ASSERT_EQ(result.value(), 0);
+  ASSERT_THAT(result, testing::Eq(0));
+
+  //   ASSERT_TRUE(result.ok());
+  //   ASSERT_EQ(result.value(), 0);
 
   // the new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
@@ -158,15 +168,15 @@ TEST(generate_image, encode_decode_compare_two_step) {
 
   sapi_png_array.SetRemote(sapi_remote_out_ptr.GetValue());
 
-  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_png_array).ok());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_png_array), sapi::IsOk());
 
   // write the image into the file (from memory)
-  result =
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      result,
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
-                            sapi_filename.PtrBefore());
+                            sapi_filename.PtrBefore()));
 
-  ASSERT_TRUE(result.ok());
-  ASSERT_EQ(result.value(), 0);
+  ASSERT_THAT(result, testing::Eq(0));
 
   // now, decode the image using the 2 steps in order to compare the values
   sapi::v::UInt sapi_width2, sapi_height2;
@@ -174,14 +184,14 @@ TEST(generate_image, encode_decode_compare_two_step) {
   sapi::v::ULLong sapi_pngsize2;
 
   // load the file in memory
-  result =
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      result,
       api.lodepng_load_file(sapi_png_ptr2.PtrBoth(), sapi_pngsize2.PtrBoth(),
-                            sapi_filename.PtrBefore());
+                            sapi_filename.PtrBefore()));
 
-  ASSERT_TRUE(result.ok());
-  ASSERT_EQ(result.value(), 0);
+  ASSERT_THAT(result, testing::Eq(0));
 
-  ASSERT_EQ(sapi_pngsize.GetValue(), sapi_pngsize2.GetValue());
+  ASSERT_THAT(sapi_pngsize.GetValue(), testing::Eq(sapi_pngsize2.GetValue()));
 
   // transfer the png array
   sapi::v::RemotePtr sapi_remote_out_ptr2(
@@ -190,20 +200,21 @@ TEST(generate_image, encode_decode_compare_two_step) {
 
   sapi_png_array2.SetRemote(sapi_remote_out_ptr2.GetValue());
 
-  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_png_array2).ok());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_png_array2), sapi::IsOk());
 
   // after the file is loaded, decode it so we have access to the values
   // directly
   sapi::v::IntBase<unsigned char *> sapi_png_ptr3(0);
-  result = api.lodepng_decode32(
-      sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
-      sapi_png_array2.PtrBefore(), sapi_pngsize2.GetValue());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      result,
+      api.lodepng_decode32(sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(),
+                           sapi_height2.PtrBoth(), sapi_png_array2.PtrBefore(),
+                           sapi_pngsize2.GetValue()));
 
-  ASSERT_TRUE(result.ok());
-  ASSERT_EQ(result.value(), 0);
+  ASSERT_THAT(result, testing::Eq(0));
 
-  ASSERT_EQ(sapi_width2.GetValue(), width);
-  ASSERT_EQ(sapi_height2.GetValue(), height);
+  ASSERT_THAT(sapi_width2.GetValue(), testing::Eq(width));
+  ASSERT_THAT(sapi_height2.GetValue(), testing::Eq(height));
 
   // transfer the pixels so they can be used
   sapi::v::RemotePtr sapi_remote_out_ptr3(
@@ -213,13 +224,13 @@ TEST(generate_image, encode_decode_compare_two_step) {
 
   sapi_pixels.SetRemote(sapi_remote_out_ptr3.GetValue());
 
-  ASSERT_TRUE(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_pixels), sapi::IsOk());
 
   unsigned char *pixels_ptr = sapi_pixels.GetData();
 
   // compare values
   for (size_t i = 0; i < width * height * 4; ++i) {
-    ASSERT_EQ(pixels_ptr[i], image[i]);
+    ASSERT_THAT(pixels_ptr[i], testing::Eq(image[i]));
   }
 
   free(image);

@@ -17,7 +17,6 @@
 
 #include <cassert>
 #include <cstdlib>
-
 #include <filesystem>
 #include <iostream>
 
@@ -252,7 +251,13 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // the pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
   // Transferring the memory has the following steps:
-  // 1) define a RemotePtr variable
+  // 1) define a RemotePtr variable that holds the memory location from
+  // the sandboxed process
+  // 2) define an array with the required length
+  // 3) set the remote pointer for the array to specify where the memory
+  // that will be transferred is located
+  // 4) transfer the memory to this process (this step is why we need
+  // the pointer and the length)
   sapi::v::RemotePtr sapi_remote_out_ptr(
       reinterpret_cast<void *>(sapi_image_ptr.GetValue()));
   sapi::v::Array<unsigned char> sapi_pixels(sapi_width2.GetValue() *
@@ -388,8 +393,6 @@ int main(int argc, char *argv[]) {
   absl::Status ret;
 
   std::string images_path(absl::GetFlag(FLAGS_images_path));
-
-  std::cout << "path = " << images_path << std::endl;
 
   SapiLodepngSandbox sandbox(images_path);
   ret = sandbox.Init();
