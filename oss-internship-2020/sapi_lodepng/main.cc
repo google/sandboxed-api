@@ -18,6 +18,7 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+// #include <libgen.h>
 
 #include "lodepng/lodepng.h"
 
@@ -250,7 +251,8 @@ void generate_two_steps(const std::string &images_path) {
 int main(int argc, char *argv[]) {
   std::string images_path = std::filesystem::current_path().string();
 
-  std::cout << "flag = " << images_path << std::endl;
+  std::cout << "path = " << images_path << std::endl;
+//   std::cout << "dirname = " << dirname((char*)images_path.c_str()) << std::endl;
 
   generate_one_step(images_path);
   generate_two_steps(images_path);

@@ -58,7 +58,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
   // encode the image
   sapi::v::Array<unsigned char> sapi_image(image, width * height * 4);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = images_path + "/out_generated1.png";
+  std::string filename = "/output/out_generated1.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
 
   sapi::StatusOr<unsigned int> result = api.lodepng_encode32_file(
@@ -134,7 +134,7 @@ TEST(generate_image, encode_decode_compare_two_step) {
   // encode the image into memory first
   sapi::v::Array<unsigned char> sapi_image(image, width * height * 4);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = images_path + "/out_generated2.png";
+  std::string filename = "/output/out_generated2.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
 
   sapi::v::ULLong sapi_pngsize;
