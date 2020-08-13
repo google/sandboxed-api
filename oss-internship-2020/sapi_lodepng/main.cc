@@ -123,5 +123,5 @@ int main(int argc, char *argv[]) {
   generate_one_step(images_path);
   generate_two_steps(images_path);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
