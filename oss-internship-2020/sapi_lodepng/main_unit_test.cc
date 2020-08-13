@@ -38,14 +38,14 @@ std::string images_path = std::filesystem::current_path().string();
 
 TEST(initSandbox, basic) {
   SapiLodepngSandbox sandbox(images_path);
-  ASSERT_THAT(sandbox.Init(), IsOk());
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
 }
 
 // generate an image, encode it, decode it and compare the pixels with the
 // initial values
 TEST(generate_image, encode_decode_compare_one_step) {
   SapiLodepngSandbox sandbox(images_path);
-  ASSERT_THAT(sandbox.Init(), IsOk());
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
   LodepngApi api(&sandbox);
 
   // generate the values
@@ -74,7 +74,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
                                 sapi_image.PtrBefore(), sapi_width.GetValue(),
                                 sapi_height.GetValue()));
 
-  ASSERT_THAT(result, Eq(0));
+  ASSERT_THAT(result, Eq(0)) << "Result from encode32_file not 0";
 
   // after the image has been encoded, decode it to check that the
   // pixel values are the same
@@ -86,10 +86,10 @@ TEST(generate_image, encode_decode_compare_one_step) {
                   sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(),
                   sapi_height2.PtrBoth(), sapi_filename.PtrBefore()));
 
-  ASSERT_THAT(result, Eq(0));
+  ASSERT_THAT(result, Eq(0)) << "Result from decode32_file not 0";
 
-  EXPECT_THAT(sapi_width2.GetValue(), Eq(width));
-  EXPECT_THAT(sapi_height2.GetValue(), Eq(height));
+  EXPECT_THAT(sapi_width2.GetValue(), Eq(width)) << "Widths differ";
+  EXPECT_THAT(sapi_height2.GetValue(), Eq(height)) << "Heights differ";
 
   // the pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
@@ -106,7 +106,8 @@ TEST(generate_image, encode_decode_compare_one_step) {
       img_len(sapi_width2.GetValue(), sapi_height2.GetValue()));
   sapi_pixels.SetRemote(sapi_remote_out_ptr.GetValue());
 
-  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_pixels), IsOk());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_pixels), IsOk())
+      << "Error during transfer from sandboxee";
 
   // after the memory has been transferred, we can access it
   // using the GetData function
@@ -114,7 +115,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
 
   // now, we can compare the values
   for (size_t i = 0; i < img_len(width, height); ++i) {
-    EXPECT_THAT(pixels_ptr[i], Eq(image[i]));
+    EXPECT_THAT(pixels_ptr[i], Eq(image[i])) << "Pixels values differ";
   }
 }
 
@@ -123,7 +124,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
 // memory and then getting the actual pixel values.
 TEST(generate_image, encode_decode_compare_two_steps) {
   SapiLodepngSandbox sandbox(images_path);
-  ASSERT_THAT(sandbox.Init(), IsOk());
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
   LodepngApi api(&sandbox);
 
   // generate the values
@@ -156,7 +157,7 @@ TEST(generate_image, encode_decode_compare_two_steps) {
                            sapi_image.PtrBefore(), sapi_width.GetValue(),
                            sapi_height.GetValue()));
 
-  ASSERT_THAT(result, Eq(0));
+  ASSERT_THAT(result, Eq(0)) << "Result from encode32 call not 0";
 
   // the new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
@@ -166,7 +167,8 @@ TEST(generate_image, encode_decode_compare_two_steps) {
 
   sapi_png_array.SetRemote(sapi_remote_out_ptr.GetValue());
 
-  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_png_array), IsOk());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_png_array), IsOk())
+      << "Error during transfer from sandboxee";
 
   // write the image into the file (from memory)
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -174,7 +176,7 @@ TEST(generate_image, encode_decode_compare_two_steps) {
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
                             sapi_filename.PtrBefore()));
 
-  ASSERT_THAT(result, Eq(0));
+  ASSERT_THAT(result, Eq(0)) << "Result from save_file call not 0";
 
   // now, decode the image using the 2 steps in order to compare the values
   sapi::v::UInt sapi_width2, sapi_height2;
@@ -187,9 +189,10 @@ TEST(generate_image, encode_decode_compare_two_steps) {
       api.lodepng_load_file(sapi_png_ptr2.PtrBoth(), sapi_pngsize2.PtrBoth(),
                             sapi_filename.PtrBefore()));
 
-  ASSERT_THAT(result, Eq(0));
+  ASSERT_THAT(result, Eq(0)) << "Result from load_file call not 0";
 
-  EXPECT_THAT(sapi_pngsize.GetValue(), Eq(sapi_pngsize2.GetValue()));
+  EXPECT_THAT(sapi_pngsize.GetValue(), Eq(sapi_pngsize2.GetValue()))
+      << "Png sizes differ";
 
   // transfer the png array
   sapi::v::RemotePtr sapi_remote_out_ptr2(sapi_png_ptr2.GetValue());
@@ -197,7 +200,8 @@ TEST(generate_image, encode_decode_compare_two_steps) {
 
   sapi_png_array2.SetRemote(sapi_remote_out_ptr2.GetValue());
 
-  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_png_array2), IsOk());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_png_array2), IsOk())
+      << "Error during transfer from sandboxee";
 
   // after the file is loaded, decode it so we have access to the values
   // directly
@@ -208,10 +212,10 @@ TEST(generate_image, encode_decode_compare_two_steps) {
                            sapi_height2.PtrBoth(), sapi_png_array2.PtrBefore(),
                            sapi_pngsize2.GetValue()));
 
-  ASSERT_THAT(result, Eq(0));
+  ASSERT_THAT(result, Eq(0)) << "Result from decode32 call not 0";
 
-  EXPECT_THAT(sapi_width2.GetValue(), Eq(width));
-  EXPECT_THAT(sapi_height2.GetValue(), Eq(height));
+  EXPECT_THAT(sapi_width2.GetValue(), Eq(width)) << "Widths differ";
+  EXPECT_THAT(sapi_height2.GetValue(), Eq(height)) << "Heights differ";
 
   // transfer the pixels so they can be used
   sapi::v::RemotePtr sapi_remote_out_ptr3(sapi_png_ptr3.GetValue());
@@ -220,13 +224,14 @@ TEST(generate_image, encode_decode_compare_two_steps) {
 
   sapi_pixels.SetRemote(sapi_remote_out_ptr3.GetValue());
 
-  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_pixels), IsOk());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_pixels), IsOk())
+      << "Error during transfer from sandboxee";
 
   unsigned char *pixels_ptr = sapi_pixels.GetData();
 
   // compare values
   for (size_t i = 0; i < img_len(width, height); ++i) {
-    EXPECT_THAT(pixels_ptr[i], Eq(image[i]));
+    EXPECT_THAT(pixels_ptr[i], Eq(image[i])) << "Pixel values differ";
   }
 }
 
