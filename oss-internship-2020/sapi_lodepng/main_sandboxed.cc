@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <cassert>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -205,13 +206,11 @@ ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
 //   }
 // }
 
-bool generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
+void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
                        const std::string &images_path) {
   unsigned int width = 512, height = 512;
   unsigned char *image = (unsigned char *)malloc(width * height * 4);
-  if (image == NULL) {
-    return false;
-  }
+  assert(image);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -232,9 +231,8 @@ bool generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
       sapi_filename.PtrBefore(), sapi_image.PtrBefore(), sapi_width.GetValue(),
       sapi_height.GetValue());
 
-  if (!result.ok() || result.value()) {
-    return false;
-  }
+  assert(result.ok());
+  assert(!result.value());
 
   // after the image has been encoded, decode it to check that the
   // pixel values are the same
@@ -245,14 +243,11 @@ bool generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
   result = api.lodepng_decode32_file(
       sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
       sapi_filename.PtrBefore());
+  assert(result.ok());
+  assert(!result.value());
 
-  if (!result.ok() || result.value()) {
-    return false;
-  }
-
-  if (sapi_width2.GetValue() != width || sapi_height2.GetValue() != height) {
-    return false;
-  }
+  assert(sapi_width2.GetValue() == width);
+  assert(sapi_height2.GetValue() == height);
 
   // the pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
@@ -264,9 +259,7 @@ bool generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
                                             sapi_height2.GetValue() * 4);
   sapi_pixels.SetRemote(sapi_remote_out_ptr.GetValue());
 
-  if (!sandbox.TransferFromSandboxee(&sapi_pixels).ok()) {
-    return false;
-  }
+  assert(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
 
   // after the memory has been transferred, we can access it
   // using the GetData function
@@ -274,24 +267,19 @@ bool generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
 
   // now, we can compare the values
   for (size_t i = 0; i < width * height * 4; ++i) {
-    if (pixels_ptr[i] != image[i]) {
-      return false;
-    }
+    assert(pixels_ptr[i] == image[i]);
   }
 
   free(image);
-  return true;
 }
 
-bool generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
+void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
                         const std::string &images_path) {
   // generate the values
   unsigned int width = 512, height = 512;
   unsigned char *image = (unsigned char *)malloc(width * height * 4);
 
-  if (image == NULL) {
-    return false;
-  }
+  assert(image);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -312,14 +300,13 @@ bool generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
   sapi::v::IntBase<unsigned char *> sapi_png_ptr(0);
 
   // encode it into memory
-
   sapi::StatusOr<unsigned int> result = api.lodepng_encode32(
       sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(), sapi_image.PtrBefore(),
       sapi_width.GetValue(), sapi_height.GetValue());
 
-  if (!result.ok() || result.value()) {
-    return false;
-  }
+  assert(result.ok());
+  assert(!result.value());
+
   // the new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
   // process
@@ -330,20 +317,17 @@ bool generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
 
   sapi_png_array.SetRemote(sapi_remote_out_ptr.GetValue());
 
-  if (!sandbox.TransferFromSandboxee(&sapi_png_array).ok()) {
-    return false;
-  }
+  assert(sandbox.TransferFromSandboxee(&sapi_png_array).ok());
 
   // write the image into the file (from memory)
   result =
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
                             sapi_filename.PtrBefore());
 
-  if (!result.ok() || result.value()) {
-    return false;
-  }
-  // now, decode the image using the 2 steps in order to compare the values
+  assert(result.ok());
+  assert(!result.value());
 
+  // now, decode the image using the 2 steps in order to compare the values
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<unsigned char *> sapi_png_ptr2(0);
   sapi::v::ULLong sapi_pngsize2;
@@ -352,13 +336,11 @@ bool generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
   result =
       api.lodepng_load_file(sapi_png_ptr2.PtrBoth(), sapi_pngsize2.PtrBoth(),
                             sapi_filename.PtrBefore());
-  if (!result.ok() || result.value()) {
-    return false;
-  }
 
-  if (sapi_pngsize.GetValue() != sapi_pngsize2.GetValue()) {
-    return false;
-  }
+  assert(result.ok());
+  assert(!result.value());
+
+  assert(sapi_pngsize.GetValue() == sapi_pngsize2.GetValue());
 
   // transfer the png array
   sapi::v::RemotePtr sapi_remote_out_ptr2(
@@ -367,9 +349,7 @@ bool generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
 
   sapi_png_array2.SetRemote(sapi_remote_out_ptr2.GetValue());
 
-  if (!sandbox.TransferFromSandboxee(&sapi_png_array2).ok()) {
-    return false;
-  }
+  assert(sandbox.TransferFromSandboxee(&sapi_png_array2).ok());
 
   // after the file is loaded, decode it so we have access to the values
   // directly
@@ -378,13 +358,11 @@ bool generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
       sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
       sapi_png_array2.PtrBefore(), sapi_pngsize2.GetValue());
 
-  if (!result.ok() || result.value()) {
-    return false;
-  }
+  assert(result.ok());
+  assert(!result.value());
 
-  if (sapi_width2.GetValue() != width || sapi_height2.GetValue() != height) {
-    return false;
-  }
+  assert(sapi_width2.GetValue() == width);
+  assert(sapi_height2.GetValue() == height);
 
   // transfer the pixels so they can be used
   sapi::v::RemotePtr sapi_remote_out_ptr3(
@@ -394,22 +372,16 @@ bool generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
 
   sapi_pixels.SetRemote(sapi_remote_out_ptr3.GetValue());
 
-  if (!sandbox.TransferFromSandboxee(&sapi_pixels).ok()) {
-    return false;
-  }
+  assert(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
 
   unsigned char *pixels_ptr = sapi_pixels.GetData();
 
   // compare values
   for (size_t i = 0; i < width * height * 4; ++i) {
-    if (pixels_ptr[i] != image[i]) {
-      return false;
-    }
+    assert(pixels_ptr[i] == image[i]);
   }
 
   free(image);
-
-  return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -430,17 +402,8 @@ int main(int argc, char *argv[]) {
 
   LodepngApi api(&sandbox);
 
-  if (generate_one_step(sandbox, api, images_path)) {
-    std::cout << "first example ok" << std::endl;
-  } else {
-    std::cout << "first example did not work properly" << std::endl;
-  }
-
-  if (generate_two_steps(sandbox, api, images_path)) {
-    std::cout << "second example ok" << std::endl;
-  } else {
-    std::cout << "second example did not work properly" << std::endl;
-  }
+  generate_one_step(sandbox, api, images_path);
+  generate_two_steps(sandbox, api, images_path);
 
   return EXIT_SUCCESS;
 }
