@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <cstdlib>
+
 #include <filesystem>
 #include <iostream>
 
@@ -206,8 +207,7 @@ ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
 //   }
 // }
 
-void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
-                       const std::string &images_path) {
+void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   unsigned int width = 512, height = 512;
   unsigned char *image = (unsigned char *)malloc(width * height * 4);
   assert(image);
@@ -224,7 +224,7 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
   // encode the image
   sapi::v::Array<unsigned char> sapi_image(image, width * height * 4);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = images_path + "/out_generated1.png";
+  std::string filename = "/output/out_generated1.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
 
   sapi::StatusOr<unsigned int> result = api.lodepng_encode32_file(
@@ -273,8 +273,7 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api,
   free(image);
 }
 
-void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
-                        const std::string &images_path) {
+void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // generate the values
   unsigned int width = 512, height = 512;
   unsigned char *image = (unsigned char *)malloc(width * height * 4);
@@ -293,7 +292,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api,
   // encode the image into memory first
   sapi::v::Array<unsigned char> sapi_image(image, width * height * 4);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = images_path + "/out_generated2.png";
+  std::string filename = "/output/out_generated2.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
 
   sapi::v::ULLong sapi_pngsize;
@@ -390,7 +389,7 @@ int main(int argc, char *argv[]) {
 
   std::string images_path(absl::GetFlag(FLAGS_images_path));
 
-  std::cout << "flag = " << images_path << std::endl;
+  std::cout << "path = " << images_path << std::endl;
 
   SapiLodepngSandbox sandbox(images_path);
   ret = sandbox.Init();
@@ -402,8 +401,8 @@ int main(int argc, char *argv[]) {
 
   LodepngApi api(&sandbox);
 
-  generate_one_step(sandbox, api, images_path);
-  generate_two_steps(sandbox, api, images_path);
+  generate_one_step(sandbox, api);
+  generate_two_steps(sandbox, api);
 
   return EXIT_SUCCESS;
 }

@@ -40,10 +40,7 @@ class SapiLodepngSandbox : public LodepngSandbox {
         .AllowSystemMalloc()
         .AllowExit()
         .AllowStat()
-        // .AddFile("/usr/local/google/home/amedar/sapi_lodepng/test_images/test1.png")
-        .AddDirectory(images_path_, /*is_ro=*/false)
-        // .AddDirectory("/usr/local/google/home/amedar/sapi_lodepng/test_images/out",
-        // /*is_ro=*/false)
+        .AddDirectoryAt(images_path_, "/output/", /*is_ro=*/false)
         .AllowSyscalls({
             __NR_futex,
             __NR_lseek,
