@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include <cassert>
-#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 
-#include "lodepng_sapi.sapi.h"
 #include "sandbox.h"
 #include "sandboxed_api/util/flag.h"
 
@@ -29,13 +24,10 @@ ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
           "path to the folder containing test images");
 
-constexpr unsigned int img_len(unsigned int width, unsigned int height) {
-  return width * height * 4;
-}
-
 void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
-  unsigned int width = 512, height = 512;
-  std::vector<unsigned char> image(img_len(width, height));
+  constexpr unsigned int width = 512, height = 512,
+                         img_len = width * height * 4;
+  std::vector<unsigned char> image(img_len);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -47,8 +39,7 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   }
 
   // encode the image
-  sapi::v::Array<unsigned char> sapi_image(image.data(),
-                                           img_len(width, height));
+  sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
   std::string filename = "/output/out_generated1.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
@@ -86,8 +77,7 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // 4) transfer the memory to this process (this step is why we need
   // the pointer and the length)
   sapi::v::RemotePtr sapi_remote_out_ptr(sapi_image_ptr.GetValue());
-  sapi::v::Array<unsigned char> sapi_pixels(
-      img_len(sapi_width2.GetValue(), sapi_height2.GetValue()));
+  sapi::v::Array<unsigned char> sapi_pixels(img_len);
   sapi_pixels.SetRemote(sapi_remote_out_ptr.GetValue());
 
   assert(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
@@ -97,15 +87,16 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   unsigned char *pixels_ptr = sapi_pixels.GetData();
 
   // now, we can compare the values
-  for (size_t i = 0; i < img_len(width, height); ++i) {
+  for (size_t i = 0; i < img_len; ++i) {
     assert(pixels_ptr[i] == image[i]);
   }
 }
 
 void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // generate the values
-  unsigned int width = 512, height = 512;
-  std::vector<unsigned char> image(img_len(width, height));
+  constexpr unsigned int width = 512, height = 512,
+                         img_len = width * height * 4;
+  std::vector<unsigned char> image(img_len);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -117,8 +108,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   }
 
   // encode the image into memory first
-  sapi::v::Array<unsigned char> sapi_image(image.data(),
-                                           img_len(width, height));
+  sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
   std::string filename = "/output/out_generated2.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
@@ -190,8 +180,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 
   // transfer the pixels so they can be used
   sapi::v::RemotePtr sapi_remote_out_ptr3(sapi_png_ptr3.GetValue());
-  sapi::v::Array<unsigned char> sapi_pixels(
-      img_len(sapi_width2.GetValue(), sapi_height2.GetValue()));
+  sapi::v::Array<unsigned char> sapi_pixels(img_len);
 
   sapi_pixels.SetRemote(sapi_remote_out_ptr3.GetValue());
 
@@ -200,24 +189,18 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   unsigned char *pixels_ptr = sapi_pixels.GetData();
 
   // compare values
-  for (size_t i = 0; i < img_len(width, height); ++i) {
+  for (size_t i = 0; i < img_len; ++i) {
     assert(pixels_ptr[i] == image[i]);
   }
 }
 
 int main(int argc, char *argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  absl::Status ret;
 
   std::string images_path(absl::GetFlag(FLAGS_images_path));
 
   SapiLodepngSandbox sandbox(images_path);
-  ret = sandbox.Init();
-  if (!ret.ok()) {
-    std::cerr << "error code: " << ret.code() << std::endl
-              << "message: " << ret.message() << std::endl;
-    exit(1);
-  }
+  assert(sandbox.Init().ok());
 
   LodepngApi api(&sandbox);
 

@@ -16,7 +16,6 @@
 #define SAPI_LODEPNG_SANDBOX_H_
 
 #include <syscall.h>
-#include <unistd.h>
 
 #include "lodepng_sapi.sapi.h"
 
