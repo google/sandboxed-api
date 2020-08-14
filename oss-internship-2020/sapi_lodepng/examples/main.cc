@@ -12,22 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include <cassert>
 #include <filesystem>
 #include <iostream>
 
-#include "lodepng/lodepng.h"
-
-constexpr unsigned int img_len(unsigned int width, unsigned int height) {
-  return width * height * 4;
-}
+#include "../lodepng/lodepng.h"
 
 void generate_one_step(const std::string &images_path) {
-  unsigned int width = 512, height = 512;
-  std::vector<unsigned char> image(img_len(width, height));
+  constexpr unsigned int width = 512, height = 512,
+                         img_len = width * height * 4;
+  std::vector<unsigned char> image(img_len);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -59,15 +53,16 @@ void generate_one_step(const std::string &images_path) {
   assert(height2 == height);
 
   // now, we can compare the values
-  for (size_t i = 0; i < img_len(width, height); ++i) {
+  for (size_t i = 0; i < img_len; ++i) {
     assert(image2[i] == image[i]);
   }
 }
 
 void generate_two_steps(const std::string &images_path) {
   // generate the values
-  unsigned int width = 512, height = 512;
-  std::vector<unsigned char> image(img_len(width, height));
+  constexpr unsigned int width = 512, height = 512,
+                         img_len = width * height * 4;
+  std::vector<unsigned char> image(img_len);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -112,7 +107,7 @@ void generate_two_steps(const std::string &images_path) {
   assert(height2 == height);
 
   // compare values
-  for (size_t i = 0; i < img_len(width, height); ++i) {
+  for (size_t i = 0; i < img_len; ++i) {
     assert(image2[i] == image[i]);
   }
 }

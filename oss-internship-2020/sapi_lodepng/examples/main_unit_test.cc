@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stdlib.h>
-
 #include <filesystem>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "lodepng_sapi.sapi.h"
 #include "sandbox.h"
-#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 using sapi::IsOk;
@@ -28,10 +23,6 @@ using testing::Eq;
 using testing::NotNull;
 
 namespace {
-
-constexpr unsigned int img_len(unsigned int width, unsigned int height) {
-  return width * height * 4;
-}
 
 // use the current path
 std::string images_path = std::filesystem::current_path().string();
@@ -49,8 +40,9 @@ TEST(generate_image, encode_decode_compare_one_step) {
   LodepngApi api(&sandbox);
 
   // generate the values
-  unsigned int width = 512, height = 512;
-  std::vector<unsigned char> image(img_len(width, height));
+  constexpr unsigned int width = 512, height = 512,
+                         img_len = width * height * 4;
+  std::vector<unsigned char> image(img_len);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -62,8 +54,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
   }
 
   // encode the image
-  sapi::v::Array<unsigned char> sapi_image(image.data(),
-                                           img_len(width, height));
+  sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
   std::string filename = "/output/out_generated1.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
@@ -102,8 +93,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
   // 4) transfer the memory to this process (this step is why we need
   // the pointer and the length)
   sapi::v::RemotePtr sapi_remote_out_ptr(sapi_image_ptr.GetValue());
-  sapi::v::Array<unsigned char> sapi_pixels(
-      img_len(sapi_width2.GetValue(), sapi_height2.GetValue()));
+  sapi::v::Array<unsigned char> sapi_pixels(img_len);
   sapi_pixels.SetRemote(sapi_remote_out_ptr.GetValue());
 
   ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_pixels), IsOk())
@@ -114,7 +104,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
   unsigned char *pixels_ptr = sapi_pixels.GetData();
 
   // now, we can compare the values
-  for (size_t i = 0; i < img_len(width, height); ++i) {
+  for (size_t i = 0; i < img_len; ++i) {
     EXPECT_THAT(pixels_ptr[i], Eq(image[i])) << "Pixels values differ";
   }
 }
@@ -128,8 +118,9 @@ TEST(generate_image, encode_decode_compare_two_steps) {
   LodepngApi api(&sandbox);
 
   // generate the values
-  unsigned int width = 512, height = 512;
-  std::vector<unsigned char> image(img_len(width, height));
+  constexpr unsigned int width = 512, height = 512,
+                         img_len = width * height * 4;
+  std::vector<unsigned char> image(img_len);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
@@ -141,8 +132,7 @@ TEST(generate_image, encode_decode_compare_two_steps) {
   }
 
   // encode the image into memory first
-  sapi::v::Array<unsigned char> sapi_image(image.data(),
-                                           img_len(width, height));
+  sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
   std::string filename = "/output/out_generated2.png";
   sapi::v::ConstCStr sapi_filename(filename.c_str());
@@ -219,8 +209,7 @@ TEST(generate_image, encode_decode_compare_two_steps) {
 
   // transfer the pixels so they can be used
   sapi::v::RemotePtr sapi_remote_out_ptr3(sapi_png_ptr3.GetValue());
-  sapi::v::Array<unsigned char> sapi_pixels(
-      img_len(sapi_width2.GetValue(), sapi_height2.GetValue()));
+  sapi::v::Array<unsigned char> sapi_pixels(img_len);
 
   sapi_pixels.SetRemote(sapi_remote_out_ptr3.GetValue());
 
@@ -230,7 +219,7 @@ TEST(generate_image, encode_decode_compare_two_steps) {
   unsigned char *pixels_ptr = sapi_pixels.GetData();
 
   // compare values
-  for (size_t i = 0; i < img_len(width, height); ++i) {
+  for (size_t i = 0; i < img_len; ++i) {
     EXPECT_THAT(pixels_ptr[i], Eq(image[i])) << "Pixel values differ";
   }
 }

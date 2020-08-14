@@ -19,69 +19,51 @@ project(lodepng_sapi CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
 
-add_library(lodepng STATIC lodepng/lodepng.cpp lodepng/lodepng.h)
+# Build static library
+add_library(lodepng STATIC
+  lodepng/lodepng.cpp
+  lodepng/lodepng.h
+)
 
-
-# unsandboxed main
-add_executable(lodepng_normal main.cc)
-target_link_libraries(lodepng_normal PRIVATE lodepng)
-
-# sandboxed main
+# Build SAPI library
 set(SAPI_ROOT "/usr/local/google/home/amedar/internship/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
 
 add_subdirectory("${SAPI_ROOT}"
-                 "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-                 # Omit this to have the full Sandboxed API in IDE
-                 EXCLUDE_FROM_ALL)
-
-add_sapi_library(
-    lodepng_sapi
-    FUNCTIONS lodepng_decode32_file
-    lodepng_encode32_file
-    lodepng_encode32
-    lodepng_save_file
-    lodepng_load_file
-    lodepng_decode32
-    INPUTS lodepng/lodepng.h
-    LIBRARY lodepng
-    LIBRARY_NAME Lodepng
-    NAMESPACE ""
+  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+  EXCLUDE_FROM_ALL
 )
 
+add_sapi_library(
+  lodepng_sapi
+  
+  FUNCTIONS
+  lodepng_decode_memory
+  lodepng_decode32
+  lodepng_decode24
+
+  lodepng_decode_file
+  lodepng_decode32_file
+  lodepng_decode24_file
+
+  lodepng_encode_memory
+  lodepng_encode32
+  lodepng_encode24
+
+  lodepng_encode_file
+  lodepng_encode32_file
+  lodepng_encode24_file
+
+  lodepng_save_file
+  lodepng_load_file
+  
+  INPUTS lodepng/lodepng.h
+  LIBRARY lodepng
+  LIBRARY_NAME Lodepng
+  NAMESPACE ""
+)
 
 target_include_directories(lodepng_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-add_executable(lodepng_sandboxed main_sandboxed.cc sandbox.h)
-
-target_link_libraries(lodepng_sandboxed PRIVATE
-  lodepng_sapi
-  sapi::sapi
-  sapi::vars
-  sapi::status
-  glog::glog
-)
-
-# gtest
-
-include(GoogleTest)
-enable_testing()
-
-add_executable(main_unit_test
-  main_unit_test.cc
-  )
-
-target_link_libraries(main_unit_test PRIVATE
-  lodepng_sapi
-  absl::memory
-  absl::strings
-  absl::time
-  glog::glog
-  sapi::flags
-  sapi::sapi
-  sapi::status
-  sapi::test_main
-  sapi::vars
-)
-gtest_discover_tests(main_unit_test)
+add_subdirectory(examples)
