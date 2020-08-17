@@ -30,12 +30,6 @@ namespace {
 constexpr int kDefaultJPEGQuality = 95;
 constexpr int kDefaultMemlimitMB = 6000;
 
-void TerminateHandler() {
-  fprintf(stderr, "Unhandled exception. Most likely insufficient memory available.\n"
-          "Make sure that there is 300MB/MPix of memory available.\n");
-  exit(1);
-}
-
 void Usage() {
   fprintf(stderr,
       "Guetzli JPEG compressor. Usage: \n"
@@ -54,8 +48,6 @@ void Usage() {
 }  // namespace
 
 int main(int argc, const char** argv) {
-  std::set_terminate(TerminateHandler);
-
   int verbose = 0;
   int quality = kDefaultJPEGQuality;
   int memlimit_mb = kDefaultMemlimitMB;   
@@ -92,25 +84,9 @@ int main(int argc, const char** argv) {
     Usage();
   }
 
-  sandbox2::file_util::fileops::FDCloser in_fd_closer(
-    open(argv[opt_idx], O_RDONLY));
-  
-  if (in_fd_closer.get() < 0) {
-    fprintf(stderr, "Can't open input file: %s\n", argv[opt_idx]);
-    return 1;
-  }
-
-  sandbox2::file_util::fileops::FDCloser out_fd_closer(
-    open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
-
-  if (out_fd_closer.get() < 0) {
-    fprintf(stderr, "Can't create temporary output file: %s\n", argv[opt_idx]);
-    return 1;
-  }
-
   guetzli::sandbox::TransactionParams params = {
-    in_fd_closer.get(),
-    out_fd_closer.get(),
+    argv[opt_idx],
+    argv[opt_idx + 1],
     verbose,
     quality,
     memlimit_mb
@@ -119,29 +95,10 @@ int main(int argc, const char** argv) {
   guetzli::sandbox::GuetzliTransaction transaction(std::move(params));
   auto result = transaction.Run();
 
-  if (result.ok()) {
-    if (access(argv[opt_idx + 1], F_OK) != -1) {
-      if (remove(argv[opt_idx + 1]) < 0) {
-        fprintf(stderr, "Error deleting existing output file: %s\n", 
-          argv[opt_idx + 1]);
-        return 1;
-      }
-    } 
-
-    std::stringstream path;
-    path << "/proc/self/fd/" << out_fd_closer.get();
-    
-    if (linkat(AT_FDCWD, path.str().c_str(), AT_FDCWD, argv[opt_idx + 1],
-                AT_SYMLINK_FOLLOW) < 0) {
-      fprintf(stderr, "Error linking  %s\n", 
-        argv[opt_idx + 1]);
-      return 1;
-    }
-  }
-  else {
-    fprintf(stderr, "%s\n", result.ToString().c_str());  // Use cerr instead ?
-    return 1;
+  if (!result.ok()) {
+    std::cerr << result.ToString() << std::endl;
+    return EXIT_FAILURE;
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }

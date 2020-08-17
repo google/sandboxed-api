@@ -14,26 +14,15 @@
 
 licenses(["unencumbered"])  # code authored by Google
 
-cc_test(
-    name = "transaction_tests",
-    srcs = ["guetzli_transaction_test.cc"],
-    visibility=["//visibility:public"],
-    deps = [
-      "//:guetzli_sapi",
-      "@googletest//:gtest_main"
+cc_library(
+    name = "butteraugli_lib",
+    srcs = [
+        "butteraugli/butteraugli.cc",
+        "butteraugli/butteraugli.h",
     ],
-    size = "large",
-    data = glob(["testdata/*"])
-)
-
-cc_test(
-    name = "sapi_lib_tests",
-    srcs = ["guetzli_sapi_test.cc"],
-    visibility=["//visibility:public"],
-    deps = [
-      "//:guetzli_sapi",
-      "@googletest//:gtest_main"
+    hdrs = [
+        "butteraugli/butteraugli.h",
     ],
-    size = "large",
-    data = glob(["testdata/*"])
+    copts = ["-Wno-sign-compare"],
+    visibility = ["//visibility:public"],
 )

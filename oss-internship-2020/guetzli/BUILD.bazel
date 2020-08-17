@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+licenses(["unencumbered"])  # code authored by Google
+
 load(
     "@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl",
     "sapi_library",
@@ -25,7 +27,7 @@ cc_library(
         "@guetzli//:guetzli_lib",
         "@com_google_sandboxed_api//sandboxed_api:lenval_core",
         "@com_google_sandboxed_api//sandboxed_api:vars",
-        "@png_archive//:png"
+        "@png_archive//:png",
     ],
 )
 
@@ -36,19 +38,19 @@ sapi_library(
     functions = [
         "ProcessJpeg",
         "ProcessRgb",
-        "WriteDataToFd"
+        "WriteDataToFd",
     ],
     input_files = ["guetzli_entry_points.h"],
     lib = ":guetzli_wrapper",
     lib_name = "Guetzli",
     visibility = ["//visibility:public"],
-    namespace = "guetzli::sandbox"
+    namespace = "guetzli::sandbox",
 )
 
 cc_binary(
     name="guetzli_sandboxed",
     srcs=["guetzli_sandboxed.cc"],
     deps = [
-        ":guetzli_sapi"
-    ]
+        ":guetzli_sapi",
+    ],
 )

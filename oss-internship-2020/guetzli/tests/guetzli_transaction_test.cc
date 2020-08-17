@@ -34,6 +34,8 @@ namespace {
 
 constexpr const char* kInPngFilename = "bees.png";
 constexpr const char* kInJpegFilename = "nature.jpg";
+constexpr const char* kOutJpegFilename = "out_jpeg.jpg";
+constexpr const char* kOutPngFilename = "out_png.png";
 constexpr const char* kPngReferenceFilename = "bees_reference.jpg";
 constexpr const char* kJpegReferenceFIlename = "nature_reference.jpg";
 
@@ -46,10 +48,8 @@ constexpr int kDefaultMemlimitMb = 6000;
 constexpr const char* kRelativePathToTestdata =
   "/guetzli_sandboxed/tests/testdata/";
 
-std::string GetPathToInputFile(const char* filename) {
-  return std::string(getenv("TEST_SRCDIR")) 
-    + std::string(kRelativePathToTestdata)
-    + std::string(filename);
+std::string GetPathToFile(const char* filename) {
+  return absl::StrCat(getenv("TEST_SRCDIR"), kRelativePathToTestdata, filename);
 }
 
 std::string ReadFromFile(const std::string& filename) {
@@ -64,18 +64,35 @@ std::string ReadFromFile(const std::string& filename) {
   return result.str();
 }
 
+// Helper class to delete file after opening
+class FileRemover {
+ public:
+  explicit FileRemover(const char* path) 
+    : path_(path)
+    , fd_(open(path, O_RDONLY))
+  {}
+
+  ~FileRemover() {
+    close(fd_);
+    remove(path_);
+  }
+
+  int get() const { return fd_; }
+
+ private:
+  const char* path_;
+  int fd_;
+};
+
 }  // namespace
 
 TEST(GuetzliTransactionTest, TestTransactionJpg) {
-  sandbox2::file_util::fileops::FDCloser in_fd_closer(
-    open(GetPathToInputFile(kInJpegFilename).c_str(), O_RDONLY));
-  ASSERT_TRUE(in_fd_closer.get() != -1) << "Error opening input jpg file";
-  sandbox2::file_util::fileops::FDCloser out_fd_closer(
-    open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
-  ASSERT_TRUE(out_fd_closer.get() != -1) << "Error creating temp output file";
+  std::string in_path = GetPathToFile(kInJpegFilename);
+  std::string out_path = GetPathToFile(kOutJpegFilename);
+
   TransactionParams params = {
-    in_fd_closer.get(),
-    out_fd_closer.get(),
+    in_path.c_str(),
+    out_path.c_str(),
     0,
     kDefaultQualityTarget,
     kDefaultMemlimitMb
@@ -86,17 +103,17 @@ TEST(GuetzliTransactionTest, TestTransactionJpg) {
 
     ASSERT_TRUE(result.ok()) << result.ToString();
   }
-  ASSERT_TRUE(fcntl(out_fd_closer.get(), F_GETFD) != -1 || errno != EBADF)
-    << "Local output fd closed";
-  auto reference_data = ReadFromFile(GetPathToInputFile(kJpegReferenceFIlename));
-  auto output_size = lseek(out_fd_closer.get(), 0, SEEK_END);
+  auto reference_data = ReadFromFile(GetPathToFile(kJpegReferenceFIlename));
+  FileRemover file_remover(out_path.c_str());
+  ASSERT_TRUE(file_remover.get() != -1) << "Error opening output file";
+  auto output_size =  lseek(file_remover.get(), 0, SEEK_END);
   ASSERT_EQ(reference_data.size(), output_size) 
     << "Different sizes of reference and returned data";
-  ASSERT_EQ(lseek(out_fd_closer.get(), 0, SEEK_SET), 0) 
+  ASSERT_EQ(lseek(file_remover.get(), 0, SEEK_SET), 0) 
     << "Error repositioning out file";
   
   std::unique_ptr<char[]> buf(new char[output_size]);
-  auto status = read(out_fd_closer.get(), buf.get(), output_size);
+  auto status = read(file_remover.get(), buf.get(), output_size);
   ASSERT_EQ(status, output_size) << "Error reading data from temp output file";
 
   ASSERT_TRUE(
@@ -105,16 +122,13 @@ TEST(GuetzliTransactionTest, TestTransactionJpg) {
 }
 
 TEST(GuetzliTransactionTest, TestTransactionPng) {
-  sandbox2::file_util::fileops::FDCloser in_fd_closer(
-    open(GetPathToInputFile(kInPngFilename).c_str(), O_RDONLY));
-  ASSERT_TRUE(in_fd_closer.get() != -1) << "Error opening input png file";
-  sandbox2::file_util::fileops::FDCloser out_fd_closer(
-    open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
-  ASSERT_TRUE(out_fd_closer.get() != -1) << "Error creating temp output file";
+  std::string in_path = GetPathToFile(kInPngFilename);
+  std::string out_path = GetPathToFile(kOutPngFilename);
+
   TransactionParams params = {
-    in_fd_closer.get(),
-    out_fd_closer.get(),
-    0,
+    in_path.c_str(),
+    out_path.c_str(),
+    0, 
     kDefaultQualityTarget,
     kDefaultMemlimitMb
   };
@@ -124,17 +138,17 @@ TEST(GuetzliTransactionTest, TestTransactionPng) {
 
     ASSERT_TRUE(result.ok()) << result.ToString();
   }
-  ASSERT_TRUE(fcntl(out_fd_closer.get(), F_GETFD) != -1 || errno != EBADF)
-    << "Local output fd closed";
-  auto reference_data = ReadFromFile(GetPathToInputFile(kPngReferenceFilename));
-  auto output_size = lseek(out_fd_closer.get(), 0, SEEK_END);
+  auto reference_data = ReadFromFile(GetPathToFile(kPngReferenceFilename));
+  FileRemover file_remover(out_path.c_str());
+  ASSERT_TRUE(file_remover.get() != -1) << "Error opening output file";
+  auto output_size = lseek(file_remover.get(), 0, SEEK_END);
   ASSERT_EQ(reference_data.size(), output_size) 
     << "Different sizes of reference and returned data";
-  ASSERT_EQ(lseek(out_fd_closer.get(), 0, SEEK_SET), 0) 
+  ASSERT_EQ(lseek(file_remover.get(), 0, SEEK_SET), 0) 
     << "Error repositioning out file";
   
   std::unique_ptr<char[]> buf(new char[output_size]);
-  auto status = read(out_fd_closer.get(), buf.get(), output_size);
+  auto status = read(file_remover.get(), buf.get(), output_size);
   ASSERT_EQ(status, output_size) << "Error reading data from temp output file";
 
   ASSERT_TRUE(

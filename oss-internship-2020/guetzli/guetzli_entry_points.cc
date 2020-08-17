@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "guetzli_entry_points.h"
+
 #include <sys/stat.h>
 
 #include <algorithm>
@@ -22,7 +24,6 @@
 
 #include "guetzli/jpeg_data_reader.h"
 #include "guetzli/quality.h"
-#include "guetzli_entry_points.h"
 #include "png.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/util/statusor.h"
@@ -38,19 +39,21 @@ struct GuetzliInitData {
   guetzli::ProcessStats stats;
 };
 
-template<typename T>
-void CopyMemoryToLenVal(const T* data, size_t size, 
-                        sapi::LenValStruct* out_data) {
-  free(out_data->data);  // Not sure about this
-  out_data->size = size;
-  T* new_out = static_cast<T*>(malloc(size));
-  memcpy(new_out, data, size);
-  out_data->data = new_out;
+struct ImageData {
+  int xsize;
+  int ysize;
+  std::vector<uint8_t> rgb;
+};
+
+sapi::LenValStruct CreateLenValFromData(const void* data, size_t size) {
+  void* new_data = malloc(size);
+  memcpy(new_data, data, size);
+  return { size, new_data };
 }
 
 sapi::StatusOr<std::string> ReadFromFd(int fd) {
   struct stat file_data;
-  auto status = fstat(fd, &file_data);
+  int status = fstat(fd, &file_data);
   
   if (status < 0) {
     return absl::FailedPreconditionError(
@@ -58,10 +61,9 @@ sapi::StatusOr<std::string> ReadFromFd(int fd) {
     );
   }
   
-  auto fsize = file_data.st_size;
-
-  std::unique_ptr<char[]> buf(new char[fsize]);
-  status = read(fd, buf.get(), fsize);
+  std::string result;
+  result.resize(file_data.st_size);
+  status = read(fd, result.data(), result.size());
 
   if (status < 0) {
     return absl::FailedPreconditionError(
@@ -69,15 +71,15 @@ sapi::StatusOr<std::string> ReadFromFd(int fd) {
     );
   }
 
-  return std::string(buf.get(), fsize);
+  return result;
 }
 
 sapi::StatusOr<GuetzliInitData> PrepareDataForProcessing(
                                 const ProcessingParams* processing_params) {
-  auto input_status = ReadFromFd(processing_params->remote_fd);
+  sapi::StatusOr<std::string> input = ReadFromFd(processing_params->remote_fd);
 
-  if (!input_status.ok()) {
-    return input_status.status();
+  if (!input.ok()) {
+    return input.status();
   }
 
   guetzli::Params guetzli_params;
@@ -91,7 +93,7 @@ sapi::StatusOr<GuetzliInitData> PrepareDataForProcessing(
   }
 
   return GuetzliInitData{
-    std::move(input_status.value()),
+    std::move(input.value()),
     guetzli_params,
     stats
   };
@@ -101,29 +103,36 @@ inline uint8_t BlendOnBlack(const uint8_t val, const uint8_t alpha) {
   return (static_cast<int>(val) * static_cast<int>(alpha) + 128) / 255;
 }
 
-bool ReadPNG(const std::string& data, int* xsize, int* ysize,
-             std::vector<uint8_t>* rgb) {
+// Modified version of ReadPNG from original guetzli.cc
+sapi::StatusOr<ImageData> ReadPNG(const std::string& data) {
+  std::vector<uint8_t> rgb;
+  int xsize, ysize;
   png_structp png_ptr =
       png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
   if (!png_ptr) {
-    return false;
+    return absl::FailedPreconditionError(
+      "Error reading PNG data from input file");
   }
 
   png_infop info_ptr = png_create_info_struct(png_ptr);
   if (!info_ptr) {
     png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-    return false;
+    return absl::FailedPreconditionError(
+      "Error reading PNG data from input file");
   }
 
   if (setjmp(png_jmpbuf(png_ptr)) != 0) {
     // Ok we are here because of the setjmp.
     png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    return false;
+    return absl::FailedPreconditionError(
+      "Error reading PNG data from input file");
   }
 
   std::istringstream memstream(data, std::ios::in | std::ios::binary);
-  png_set_read_fn(png_ptr, static_cast<void*>(&memstream), [](png_structp png_ptr, png_bytep outBytes, png_size_t byteCountToRead) {
-    std::istringstream& memstream = *static_cast<std::istringstream*>(png_get_io_ptr(png_ptr));
+  png_set_read_fn(png_ptr, static_cast<void*>(&memstream), 
+      [](png_structp png_ptr, png_bytep outBytes, png_size_t byteCountToRead) {
+    std::istringstream& memstream = 
+      *static_cast<std::istringstream*>(png_get_io_ptr(png_ptr));
     
     memstream.read(reinterpret_cast<char*>(outBytes), byteCountToRead);
 
@@ -143,18 +152,18 @@ bool ReadPNG(const std::string& data, int* xsize, int* ysize,
 
   png_bytep* row_pointers = png_get_rows(png_ptr, info_ptr);
 
-  *xsize = png_get_image_width(png_ptr, info_ptr);
-  *ysize = png_get_image_height(png_ptr, info_ptr);
-  rgb->resize(3 * (*xsize) * (*ysize));
+  xsize = png_get_image_width(png_ptr, info_ptr);
+  ysize = png_get_image_height(png_ptr, info_ptr);
+  rgb.resize(3 * (xsize) * (ysize));
 
   const int components = png_get_channels(png_ptr, info_ptr);
   switch (components) {
     case 1: {
       // GRAYSCALE
-      for (int y = 0; y < *ysize; ++y) {
+      for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
-        for (int x = 0; x < *xsize; ++x) {
+        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
+        for (int x = 0; x < xsize; ++x) {
           const uint8_t gray = row_in[x];
           row_out[3 * x + 0] = gray;
           row_out[3 * x + 1] = gray;
@@ -165,10 +174,10 @@ bool ReadPNG(const std::string& data, int* xsize, int* ysize,
     }
     case 2: {
       // GRAYSCALE + ALPHA
-      for (int y = 0; y < *ysize; ++y) {
+      for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
-        for (int x = 0; x < *xsize; ++x) {
+        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
+        for (int x = 0; x < xsize; ++x) {
           const uint8_t gray = BlendOnBlack(row_in[2 * x], row_in[2 * x + 1]);
           row_out[3 * x + 0] = gray;
           row_out[3 * x + 1] = gray;
@@ -179,19 +188,19 @@ bool ReadPNG(const std::string& data, int* xsize, int* ysize,
     }
     case 3: {
       // RGB
-      for (int y = 0; y < *ysize; ++y) {
+      for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
-        memcpy(row_out, row_in, 3 * (*xsize));
+        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
+        memcpy(row_out, row_in, 3 * (xsize));
       }
       break;
     }
     case 4: {
       // RGBA
-      for (int y = 0; y < *ysize; ++y) {
+      for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
-        for (int x = 0; x < *xsize; ++x) {
+        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
+        for (int x = 0; x < xsize; ++x) {
           const uint8_t alpha = row_in[4 * x + 3];
           row_out[3 * x + 0] = BlendOnBlack(row_in[4 * x + 0], alpha);
           row_out[3 * x + 1] = BlendOnBlack(row_in[4 * x + 1], alpha);
@@ -202,10 +211,16 @@ bool ReadPNG(const std::string& data, int* xsize, int* ysize,
     }
     default:
       png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-      return false;
+      return absl::FailedPreconditionError(
+        "Error reading PNG data from input file");
   }
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-  return true;
+  
+  return ImageData{
+    xsize,
+    ysize,
+    std::move(rgb)
+  };
 }
 
 bool CheckMemoryLimitExceeded(int memlimit_mb, int xsize, int ysize) {
@@ -219,70 +234,72 @@ bool CheckMemoryLimitExceeded(int memlimit_mb, int xsize, int ysize) {
 
 extern "C" bool ProcessJpeg(const ProcessingParams* processing_params, 
                             sapi::LenValStruct* output) {
-  auto processing_data_status = PrepareDataForProcessing(processing_params);
+  auto processing_data = PrepareDataForProcessing(processing_params);
 
-  if (!processing_data_status.status().ok()) {
-    fprintf(stderr, "%s\n", processing_data_status.status().ToString().c_str());
+  if (!processing_data.ok()) {
+    std::cerr << processing_data.status().ToString() << std::endl;
     return false;
   }
 
   guetzli::JPEGData jpg_header;
-  if (!guetzli::ReadJpeg(processing_data_status.value().in_data,
+  if (!guetzli::ReadJpeg(processing_data->in_data,
       guetzli::JPEG_READ_HEADER, &jpg_header)) {
-    fprintf(stderr, "Error reading JPG data from input file\n");
+    std::cerr << "Error reading JPG data from input file" << std::endl;
     return false;
   }
 
   if (CheckMemoryLimitExceeded(processing_params->memlimit_mb, 
       jpg_header.width, jpg_header.height)) {
-    fprintf(stderr, "Memory limit would be exceeded.\n");
+    std::cerr << "Memory limit would be exceeded" << std::endl;
     return false;
   }
 
   std::string out_data;
-  if (!guetzli::Process(processing_data_status.value().params,
-                        &processing_data_status.value().stats,
-                        processing_data_status.value().in_data,
+  if (!guetzli::Process(processing_data->params,
+                        &processing_data->stats,
+                        processing_data->in_data,
                         &out_data)) {
-    fprintf(stderr, "Guezli processing failed\n");
+    std::cerr << "Guezli processing failed" << std::endl;
     return false;
   }
 
-  CopyMemoryToLenVal(out_data.data(), out_data.size(), output);
+  *output = CreateLenValFromData(out_data.data(), out_data.size());
   return true;
 }
 
 extern "C" bool ProcessRgb(const ProcessingParams* processing_params, 
                           sapi::LenValStruct* output) {
-  auto processing_data_status = PrepareDataForProcessing(processing_params);
+  auto processing_data = PrepareDataForProcessing(processing_params);
 
-  if (!processing_data_status.status().ok()) {
-    fprintf(stderr, "%s\n", processing_data_status.status().ToString().c_str());
+  if (!processing_data.ok()) {
+    std::cerr << processing_data.status().ToString() << std::endl;
     return false;
   }
 
-  int xsize, ysize;
-  std::vector<uint8_t> rgb;
-
-  if (!ReadPNG(processing_data_status.value().in_data, &xsize, &ysize, &rgb)) {
-    fprintf(stderr, "Error reading PNG data from input file\n");
+  auto png_data = ReadPNG(processing_data->in_data);
+  if (!png_data.ok()) {
+    std::cerr << "Error reading PNG data from input file" << std::endl;
     return false;
   }
 
-  if (CheckMemoryLimitExceeded(processing_params->memlimit_mb, xsize, ysize)) {
-    fprintf(stderr, "Memory limit would be exceeded.\n");
+  if (CheckMemoryLimitExceeded(processing_params->memlimit_mb, 
+      png_data->xsize, png_data->ysize)) {
+    std::cerr << "Memory limit would be exceeded" << std::endl;
     return false;
   }
 
   std::string out_data;
-  if (!guetzli::Process(processing_data_status.value().params, 
-                        &processing_data_status.value().stats, 
-                        rgb, xsize, ysize, &out_data)) {
-      fprintf(stderr, "Guetzli processing failed\n");
+  if (!guetzli::Process(processing_data->params, 
+                        &processing_data->stats, 
+                        png_data->rgb, 
+                        png_data->xsize, 
+                        png_data->ysize, 
+                        &out_data)) {
+      std::cerr << "Guetzli processing failed" << std::endl;
       return false;
   }
 
-  CopyMemoryToLenVal(out_data.data(), out_data.size(), output);
+  *output = CreateLenValFromData(out_data.data(), out_data.size());
   return true;
 }
 

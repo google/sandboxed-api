@@ -15,12 +15,7 @@
 #ifndef GUETZLI_SANDBOXED_GUETZLI_SANDBOX_H_
 #define GUETZLI_SANDBOXED_GUETZLI_SANDBOX_H_
 
-#include <libgen.h>
 #include <syscall.h>
-
-#include "sandboxed_api/sandbox2/policy.h"
-#include "sandboxed_api/sandbox2/policybuilder.h"
-#include "sandboxed_api/util/flag.h"
 
 #include "guetzli_sapi.sapi.h"
 
@@ -42,7 +37,7 @@ class GuetzliSapiSandbox : public GuetzliSandbox {
         .AllowSyscalls({
           __NR_futex,
           __NR_close,
-          __NR_recvmsg // Seems like this one needed to work with remote file descriptors
+          __NR_recvmsg  // To work with remote fd
         })
         .BuildOrDie();
     }

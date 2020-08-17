@@ -15,7 +15,6 @@
 #ifndef GUETZLI_SANDBOXED_GUETZLI_TRANSACTION_H_
 #define GUETZLI_SANDBOXED_GUETZLI_TRANSACTION_H_
 
-#include <libgen.h>
 #include <syscall.h>
 
 #include "sandboxed_api/transaction.h"
@@ -32,8 +31,8 @@ enum class ImageType {
 };
 
 struct TransactionParams {
-  int in_fd = -1;
-  int out_fd = -1;
+  const char* in_file = nullptr;
+  const char* out_file = nullptr;
   int verbose = 0;
   int quality = 0;
   int memlimit_mb = 0;
@@ -43,35 +42,26 @@ struct TransactionParams {
 // Create a new one for each processing operation
 class GuetzliTransaction : public sapi::Transaction {
  public:
-  GuetzliTransaction(TransactionParams&& params)
+  GuetzliTransaction(TransactionParams params)
       : sapi::Transaction(std::make_unique<GuetzliSapiSandbox>())
       , params_(std::move(params))
-      , in_fd_(params_.in_fd)
-      , out_fd_(params_.out_fd)
   {
     //TODO: Add retry count as a parameter
     sapi::Transaction::set_retry_count(kDefaultTransactionRetryCount);
-    //TODO: Try to use sandbox().set_wall_limit instead of infinite time limit
-    sapi::Transaction::SetTimeLimit(0);
+    sapi::Transaction::SetTimeLimit(0);  // Infinite time limit
   }
 
  private:
-  absl::Status Init() override;
+  //absl::Status Init() override;
   absl::Status Main() final;
 
+  absl::Status LinkOutFile(int out_fd) const;
   sapi::StatusOr<ImageType> GetImageTypeFromFd(int fd) const;
 
-  // As guetzli takes roughly 1 minute of CPU per 1 MPix we need to calculate 
-  // approximate time for transaction to complete
-  time_t CalculateTimeLimitFromImageSize(uint64_t pixels) const;
-
   const TransactionParams params_;
-  sapi::v::Fd in_fd_;
-  sapi::v::Fd out_fd_;
   ImageType image_type_ = ImageType::kJpeg;
 
   static const int kDefaultTransactionRetryCount = 0;
-  static const uint64_t kMpixPixels = 1'000'000;
 };
 
 }  // namespace sandbox
