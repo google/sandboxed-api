@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
   pffftSapiSandbox sandbox;
   sandbox.Init().IgnoreError();
 
-  printf("%s\n", sandbox.Init().ToString().c_str());
+  printf("Initialization: %s\n", sandbox.Init().ToString().c_str());
 
   pffftApi api(&sandbox);
 
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
 
   cplx = 0;
 
-  for (i = 0; i < 5; i++) {
+  for (i = 0; i < 23; i++) {
     N = Nvalues[i];
 
     int Nfloat = N * (cplx ? 2 : 1);
@@ -150,34 +150,29 @@ int main(int argc, char* argv[]) {
       sapi::StatusOr<PFFFT_Setup*> s =
           api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
 
-      printf("%s\n", s.status().ToString().c_str());
+      printf("Setup status is: %s\n", s.status().ToString().c_str());
 
       if (s.ok()) {
-        sapi::v::GenericPtr s_reg(s.value());
+        sapi::v::RemotePtr s_reg(s.value());
 
         t0 = uclock_sec();
         for (iter = 0; iter < max_iter; ++iter) {
-          printf("%s\n",
-                 api.pffft_transform(s_reg.PtrBoth(), X_.PtrBoth(),
-                                     Z_.PtrBoth(), Y_.PtrBoth(), PFFFT_FORWARD)
-                     .ToString()
-                     .c_str());
-          printf("%s\n",
-                 api.pffft_transform(s_reg.PtrBoth(), X_.PtrBoth(),
-                                     Z_.PtrBoth(), Y_.PtrBoth(), PFFFT_FORWARD)
-                     .ToString()
-                     .c_str()); 
+          api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(), Y_.PtrBoth(),
+                              PFFFT_FORWARD)
+              .IgnoreError();
+          api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(), Y_.PtrBoth(),
+                              PFFFT_FORWARD)
+              .IgnoreError();
         }
 
         t1 = uclock_sec();
-        printf("%s\n",
-               api.pffft_destroy_setup(s_reg.PtrBoth()).ToString().c_str());
+        api.pffft_destroy_setup(&s_reg).IgnoreError();
 
         flops =
             (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
         show_output("PFFFT", N, cplx, flops, t0, t1, max_iter);
       }
-      printf("\n\n"); 
+      printf("\n\n");
     }
   }
 

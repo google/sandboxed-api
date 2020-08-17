@@ -16,15 +16,17 @@ CMake observations:
 Sandboxed main observations:
     * containing two testing parts (fft / pffft benchmarks)
         ! current stage: fft - works :)
-                         pffft - implemented
-    * pffft benchmark bug: "Sandbox not active" 
-                            => loop in pffft_transform for N = 64 (why?); 
-                               N = 64, status OK, pffft_transform generates error 
-                               N > 64, status not OK
-                               Problem on initialising sapi::StatusOr<PFFFT_Setup *> s; 
-                               the memory that stays for s is not the same with the address passed
-                               in pffft_transform function. 
-                               (sapi::v::GenericPtr to be changed?)
-                               
-                               Temporary solution (not done): change the generated files to accept
-                               uintptr_t instead of PFFFT_Setup
+                        pffft - implemented
+    * (Solved) pffft benchmark bug: "Sandbox not active"  
+                        N = 64, status OK, pffft_transform generates error 
+                        N > 64, status not OK
+                        Problem on initialising sapi::StatusOr<PFFFT_Setup *> s; 
+                        the memory that stays for s is not the same with the address passed
+                        in pffft_transform function. 
+                        (sapi :: v :: GenericPtr - to be changed)
+
+                        Temporary solution: change the generated files to accept
+                        uintptr_t instead of PFFFT_Setup
+
+                        Solution: using "sapi :: v :: RemotePtr" instead of "sapi :: v :: GenericPtr"
+                                  to access the memory of object s
