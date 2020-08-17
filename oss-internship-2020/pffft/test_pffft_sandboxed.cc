@@ -60,12 +60,6 @@ void show_output(const char* name, int N, int cplx, float flops, float t0,
   fflush(stdout);
 }
 
-/*
-  For debug:
-  SAPI_VLOG_LEVEL=1 ./pffft_sandboxed --v=100
-  --sandbox2_danger_danger_permit_all_and_log my_aux_file
-*/
-
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   int Nvalues[] = {64,    96,     128,        160,         192,     256,
@@ -147,6 +141,41 @@ int main(int argc, char* argv[]) {
 
       flops = (max_iter_ * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
       show_output("FFTPack", N, cplx, flops, t0, t1, max_iter_);
+    }
+
+    // PFFFT benchmark
+    {
+      sapi::StatusOr<PFFFT_Setup*> s =
+          api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
+
+      printf("%s\n", s.status().ToString().c_str());
+
+      if (s.ok()) {
+        sapi::v::GenericPtr s_reg(s.value());
+
+        t0 = uclock_sec();
+        for (iter = 0; iter < max_iter; ++iter) {
+          printf("%s\n",
+                 api.pffft_transform(s_reg.PtrBoth(), X_.PtrBoth(),
+                                     Z_.PtrBoth(), Y_.PtrBoth(), PFFFT_FORWARD)
+                     .ToString()
+                     .c_str());
+          printf("%s\n",
+                 api.pffft_transform(s_reg.PtrBoth(), X_.PtrBoth(),
+                                     Z_.PtrBoth(), Y_.PtrBoth(), PFFFT_FORWARD)
+                     .ToString()
+                     .c_str());
+        }
+
+        t1 = uclock_sec();
+        printf("%s\n",
+               api.pffft_destroy_setup(s_reg.PtrBoth()).ToString().c_str());
+
+        flops =
+            (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
+        show_output("PFFFT", N, cplx, flops, t0, t1, max_iter);
+      }
+      printf("\n\n");
     }
   }
 

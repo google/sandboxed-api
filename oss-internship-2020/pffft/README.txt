@@ -16,4 +16,8 @@ CMake observations:
 Sandboxed main observations:
     * containing two testing parts (fft / pffft benchmarks)
         ! current stage: fft - works :)
-                         pffft - not implemented
+                         pffft - implemented
+    * pffft benchmark bug: "Sandbox not active" 
+                            => loop in pffft_transform for N = 64 (why?); 
+                               N = 64, status OK, pffft_transform generates error 
+                               N > 64, status not OK
