@@ -52,7 +52,6 @@ class GuetzliTransaction : public sapi::Transaction {
   }
 
  private:
-  //absl::Status Init() override;
   absl::Status Main() final;
 
   absl::Status LinkOutFile(int out_fd) const;
