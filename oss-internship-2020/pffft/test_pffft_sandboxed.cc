@@ -73,6 +73,8 @@ int main(int argc, char* argv[]) {
   pffftSapiSandbox sandbox;
   sandbox.Init().IgnoreError();
 
+  printf("%s\n", sandbox.Init().ToString().c_str());
+
   pffftApi api(&sandbox);
 
   int N, cplx;
@@ -164,7 +166,7 @@ int main(int argc, char* argv[]) {
                  api.pffft_transform(s_reg.PtrBoth(), X_.PtrBoth(),
                                      Z_.PtrBoth(), Y_.PtrBoth(), PFFFT_FORWARD)
                      .ToString()
-                     .c_str());
+                     .c_str()); 
         }
 
         t1 = uclock_sec();
@@ -175,7 +177,7 @@ int main(int argc, char* argv[]) {
             (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
         show_output("PFFFT", N, cplx, flops, t0, t1, max_iter);
       }
-      printf("\n\n");
+      printf("\n\n"); 
     }
   }
 
