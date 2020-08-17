@@ -1,1 +1,6 @@
 .hg/
+pffft.o
+test_pffft.o
+fftpack.o
+libpffft.a
+pffft_main
