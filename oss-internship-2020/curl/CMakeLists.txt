@@ -30,7 +30,7 @@ if (CURL_SAPI_ENABLE_EXAMPLES)
 endif()
 
 # Add folder containing the non-sandboxed custom curl library
-add_subdirectory(custom_curl)
+add_subdirectory(curl_wrapper)
 
 # Setup Sandboxed API
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
@@ -47,7 +47,7 @@ add_sapi_library(curl_sapi
 
   # List of all the methods in https://curl.haxx.se/libcurl/c/allfuncs.html
   # Some are added or modified because the original ones are not supported
-  # by Sandboxed API (details can be found in custom_curl.h)
+  # by Sandboxed API (details can be found in curl_wrapper.h)
   FUNCTIONS curl_easy_cleanup
             curl_easy_duphandle
             curl_easy_escape
@@ -117,10 +117,10 @@ add_sapi_library(curl_sapi
             curl_version
             curl_version_info
 
-  INPUTS custom_curl/curl/include/curl/curl.h
-         custom_curl/custom_curl.h
+  INPUTS curl_wrapper/curl/include/curl/curl.h
+         curl_wrapper/curl_wrapper.h
 
-  LIBRARY custom_curl_and_callbacks
+  LIBRARY curl_wrapper_and_callbacks
 
   LIBRARY_NAME Curl
 
