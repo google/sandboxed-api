@@ -17,16 +17,15 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
- 
-// Function taken from curl's getinmemory.c
-size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, 
-                           void* userp) {
 
+// Function taken from curl's getinmemory.c
+size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb,
+                           void* userp) {
   size_t realsize = size * nmemb;
   struct MemoryStruct* mem = (struct MemoryStruct*)userp;
- 
+
   char* ptr = (char*)realloc(mem->memory, mem->size + realsize + 1);
-  if(ptr == NULL) {  // Out of memory
+  if (ptr == NULL) {  // Out of memory
     std::cout << "not enough memory (realloc returned NULL)\n";
     return 0;
   }
@@ -35,7 +34,6 @@ size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb,
   memcpy(&(mem->memory[mem->size]), contents, realsize);
   mem->size += realsize;
   mem->memory[mem->size] = 0;
- 
-  return realsize;
 
+  return realsize;
 }

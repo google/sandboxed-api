@@ -22,38 +22,33 @@
 #include "sandboxed_api/util/flag.h"
 
 class CurlApiSandboxEx3 : public CurlSandbox {
+ public:
+  CurlApiSandboxEx3(std::string ssl_certificate, std::string ssl_key,
+                    std::string ca_certificates)
+      : ssl_certificate(ssl_certificate),
+        ssl_key(ssl_key),
+        ca_certificates(ca_certificates) {}
 
-  public:
+ private:
+  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
+      sandbox2::PolicyBuilder*) override {
+    // Return a new policy
+    return sandbox2::PolicyBuilder()
+        .DangerDefaultAllowAll()
+        .AllowUnrestrictedNetworking()
+        .AddDirectory("/lib")
+        .AddFile(ssl_certificate)
+        .AddFile(ssl_key)
+        .AddFile(ca_certificates)
+        .BuildOrDie();
+  }
 
-    CurlApiSandboxEx3(std::string ssl_certificate, std::string ssl_key, 
-                      std::string ca_certificates)
-        : ssl_certificate(ssl_certificate), 
-          ssl_key(ssl_key),
-          ca_certificates(ca_certificates) {}
-
-  private:
-
-    std::unique_ptr<sandbox2::Policy> ModifyPolicy( 
-        sandbox2::PolicyBuilder*) override {
-      // Return a new policy
-      return sandbox2::PolicyBuilder()
-          .DangerDefaultAllowAll()
-          .AllowUnrestrictedNetworking()
-          .AddDirectory("/lib")
-          .AddFile(ssl_certificate)
-          .AddFile(ssl_key)
-          .AddFile(ca_certificates)
-          .BuildOrDie();
-    }
-
-    std::string ssl_certificate;
-    std::string ssl_key;
-    std::string ca_certificates;
+  std::string ssl_certificate;
+  std::string ssl_key;
+  std::string ca_certificates;
 };
 
-
 int main(int argc, char* argv[]) {
-
   absl::Status status;
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<CURL*> status_or_curl;
@@ -70,7 +65,7 @@ int main(int argc, char* argv[]) {
   status = sandbox.Init();
   assert(status.ok());
   CurlApi api(&sandbox);
- 
+
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
   status_or_int = api.curl_global_init(3l);
   assert(status_or_int.ok());
@@ -84,29 +79,28 @@ int main(int argc, char* argv[]) {
 
   // Specify URL to get (using HTTPS)
   sapi::v::ConstCStr url("https://example.com");
-  status_or_int = 
-    api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
   // Set the SSL certificate type to "PEM"
   sapi::v::ConstCStr ssl_cert_type("PEM");
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERTTYPE, 
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERTTYPE,
                                            ssl_cert_type.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
   // Set the certificate for client authentication
   sapi::v::ConstCStr sapi_ssl_certificate(ssl_certificate.c_str());
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERT, 
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERT,
                                            sapi_ssl_certificate.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
   // Set the private key for client authentication
   sapi::v::ConstCStr sapi_ssl_key(ssl_key.c_str());
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLKEY, 
-                                           sapi_ssl_key.PtrBefore());
+  status_or_int =
+      api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLKEY, sapi_ssl_key.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
@@ -119,7 +113,7 @@ int main(int argc, char* argv[]) {
 
   // Set the file with the certificates vaildating the server
   sapi::v::ConstCStr sapi_ca_certificates(ca_certificates.c_str());
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_CAINFO, 
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_CAINFO,
                                            sapi_ca_certificates.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
@@ -141,7 +135,6 @@ int main(int argc, char* argv[]) {
   // Cleanup curl
   status = api.curl_global_cleanup();
   assert(status.ok());
- 
-  return EXIT_SUCCESS;
 
+  return EXIT_SUCCESS;
 }

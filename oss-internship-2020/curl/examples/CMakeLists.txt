@@ -16,11 +16,11 @@
 # (https://curl.haxx.se/libcurl/c/example.html)
 
 # Example 1: simple.c
-add_executable(example1 
+add_executable(example1
   example1.cc
 )
 target_link_libraries(example1 PRIVATE
-  curl_sapi 
+  curl_sapi
   sapi::sapi
 )
 

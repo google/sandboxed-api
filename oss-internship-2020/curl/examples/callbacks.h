@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CALLBACKS_H
-#define CALLBACKS_H
+#ifndef EXAMPLES_CALLBACKS_H
+#define EXAMPLES_CALLBACKS_H
 
 #include <curl/curl.h>
 
@@ -22,7 +22,7 @@ extern "C" struct MemoryStruct {
   size_t size;
 };
 
-extern "C" size_t WriteMemoryCallback(void* contents, size_t size, 
-                                      size_t nmemb, void* userp);
+extern "C" size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb,
+                                      void* userp);
 
-#endif // CALLBACKS_H
+#endif  // EXAMPLES_CALLBACKS_H

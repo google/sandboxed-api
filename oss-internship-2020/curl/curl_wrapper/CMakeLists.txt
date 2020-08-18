@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Wrapper library including curl,
-# adds the explicit versions of the variadic methods and the callbacks
+# Wrapper library including curl, wrappers for some methods and callbacks
 # The CURL_SAPI_CALLBACKS variable should contain the absolute paths of
 # all the files implementing the callbacks
-add_library(custom_curl_and_callbacks OBJECT 
-  custom_curl.h 
-  custom_curl.cc
+add_library(curl_wrapper_and_callbacks OBJECT 
+  curl_wrapper.h 
+  curl_wrapper.cc
   "${CURL_SAPI_CALLBACKS}"
 )
-set_target_properties(custom_curl_and_callbacks 
+set_target_properties(curl_wrapper_and_callbacks 
   PROPERTIES LINKER_LANGUAGE C
 )
 
@@ -31,6 +30,6 @@ set(BUILD_SHARED_LIBS OFF)
 
 # Link the wrapper to the original curl library
 add_subdirectory(curl)
-target_link_libraries(custom_curl_and_callbacks 
+target_link_libraries(curl_wrapper_and_callbacks 
   CURL::libcurl
 )

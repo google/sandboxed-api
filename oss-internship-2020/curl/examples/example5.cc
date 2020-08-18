@@ -24,27 +24,26 @@
 #include "sandboxed_api/util/flag.h"
 
 class CurlApiSandboxEx5 : public CurlSandbox {
-  private:
-    std::unique_ptr<sandbox2::Policy> ModifyPolicy( 
-        sandbox2::PolicyBuilder*) override {
-      // Return a new policy
-      return sandbox2::PolicyBuilder()
-          .DangerDefaultAllowAll()
-          .AllowUnrestrictedNetworking()
-          .AddDirectory("/lib")
-          .BuildOrDie();
-    }
+ private:
+  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
+      sandbox2::PolicyBuilder*) override {
+    // Return a new policy
+    return sandbox2::PolicyBuilder()
+        .DangerDefaultAllowAll()
+        .AllowUnrestrictedNetworking()
+        .AddDirectory("/lib")
+        .BuildOrDie();
+  }
 };
 
 struct thread_args {
   const char* url;
   CurlApi* api;
 };
- 
+
 constexpr int kThreadsnumber = 4;
 
-void *pull_one_url(void* args) {
-
+void* pull_one_url(void* args) {
   absl::Status status;
   sapi::StatusOr<CURL*> status_or_curl;
   sapi::StatusOr<int> status_or_int;
@@ -58,9 +57,9 @@ void *pull_one_url(void* args) {
   assert(curl.GetValue());  // Checking curl != nullptr
 
   // Specify URL to get
-  sapi::v::ConstCStr sapi_url(((thread_args*)args)->url);  
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, 
-                                           sapi_url.PtrBefore());
+  sapi::v::ConstCStr sapi_url(((thread_args*)args)->url);
+  status_or_int =
+      api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, sapi_url.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
@@ -74,18 +73,13 @@ void *pull_one_url(void* args) {
   assert(status.ok());
 
   return NULL;
-  
 }
 
-const char * const urls[kThreadsnumber] = {
-  "http://example.com",
-  "http://example.edu",
-  "http://example.net",
-  "http://example.org"
-};
- 
-int main(int argc, char **argv) {
+const char* const urls[kThreadsnumber] = {
+    "http://example.com", "http://example.edu", "http://example.net",
+    "http://example.org"};
 
+int main(int argc, char** argv) {
   pthread_t tid[kThreadsnumber];
 
   absl::Status status;
@@ -96,22 +90,22 @@ int main(int argc, char **argv) {
   status = sandbox.Init();
   assert(status.ok());
   CurlApi api(&sandbox);
- 
+
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
   status_or_int = api.curl_global_init(3l);
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
- 
+
   // Create the threads
-  for(int i = 0; i < kThreadsnumber; ++i) {
+  for (int i = 0; i < kThreadsnumber; ++i) {
     thread_args args = {urls[i], &api};
     int error = pthread_create(&tid[i], NULL, pull_one_url, (void*)&args);
     assert(!error);
-    std::cout << "Thread "<< i << " gets " << urls[i] << std::endl;
+    std::cout << "Thread " << i << " gets " << urls[i] << std::endl;
   }
- 
+
   // Join the threads
-  for(int i = 0; i< kThreadsnumber; i++) {
+  for (int i = 0; i < kThreadsnumber; i++) {
     pthread_join(tid[i], NULL);
     std::cout << "Thread " << i << " terminated" << std::endl;
   }
@@ -119,7 +113,6 @@ int main(int argc, char **argv) {
   // Cleanup curl
   status = api.curl_global_cleanup();
   assert(status.ok());
- 
-  return EXIT_SUCCESS;
 
+  return EXIT_SUCCESS;
 }

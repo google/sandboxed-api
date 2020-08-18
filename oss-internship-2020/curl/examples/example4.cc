@@ -22,20 +22,19 @@
 #include "sandboxed_api/util/flag.h"
 
 class CurlApiSandboxEx4 : public CurlSandbox {
-  private:
-    std::unique_ptr<sandbox2::Policy> ModifyPolicy( 
-        sandbox2::PolicyBuilder*) override {
-      // Return a new policy
-      return sandbox2::PolicyBuilder()
-          .DangerDefaultAllowAll()
-          .AllowUnrestrictedNetworking()
-          .AddDirectory("/lib")
-          .BuildOrDie();
-    }
+ private:
+  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
+      sandbox2::PolicyBuilder*) override {
+    // Return a new policy
+    return sandbox2::PolicyBuilder()
+        .DangerDefaultAllowAll()
+        .AllowUnrestrictedNetworking()
+        .AddDirectory("/lib")
+        .BuildOrDie();
+  }
 };
 
 int main() {
-
   absl::Status status;
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<CURL*> status_or_curl;
@@ -60,11 +59,11 @@ int main() {
   assert(status_or_curl.ok());
   sapi::v::RemotePtr http_handle(status_or_curl.value());
   assert(http_handle.GetValue());  // Checking http_handle != nullptr
-  
+
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  status_or_int = 
-    api.curl_easy_setopt_ptr(&http_handle, CURLOPT_URL, url.PtrBefore());
+  status_or_int =
+      api.curl_easy_setopt_ptr(&http_handle, CURLOPT_URL, url.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
@@ -79,20 +78,19 @@ int main() {
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
-  while (still_running.GetValue()) { 
-
+  while (still_running.GetValue()) {
     sapi::v::Int numfds(0);
- 
+
     // Perform the request
-    status_or_int = api.curl_multi_perform(&multi_handle, 
-                                           still_running.PtrBoth());
+    status_or_int =
+        api.curl_multi_perform(&multi_handle, still_running.PtrBoth());
     assert(status_or_int.ok());
     assert(status_or_int.value() == CURLE_OK);
 
     if (still_running.GetValue()) {
       // Wait for an event or timeout
       sapi::v::NullPtr null_ptr;
-      status_or_int = api.curl_multi_poll_sapi(&multi_handle, &null_ptr, 0, 
+      status_or_int = api.curl_multi_poll_sapi(&multi_handle, &null_ptr, 0,
                                                1000, numfds.PtrBoth());
       assert(status_or_int.ok());
       assert(status_or_int.value() == CURLM_OK);
@@ -116,7 +114,6 @@ int main() {
   // Cleanup curl
   status = api.curl_global_cleanup();
   assert(status.ok());
- 
+
   return EXIT_SUCCESS;
-  
 }

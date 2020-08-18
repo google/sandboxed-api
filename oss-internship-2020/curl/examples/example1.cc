@@ -22,26 +22,25 @@
 #include "sandboxed_api/util/flag.h"
 
 class CurlApiSandboxEx1 : public CurlSandbox {
-  private:
-    std::unique_ptr<sandbox2::Policy> ModifyPolicy( 
-        sandbox2::PolicyBuilder*) override {
-      // Return a new policy
-      return sandbox2::PolicyBuilder()
-          .DangerDefaultAllowAll()
-          .AllowUnrestrictedNetworking()
-          .AddDirectory("/lib")
-          .BuildOrDie();
-    }
+ private:
+  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
+      sandbox2::PolicyBuilder*) override {
+    // Return a new policy
+    return sandbox2::PolicyBuilder()
+        .DangerDefaultAllowAll()
+        .AllowUnrestrictedNetworking()
+        .AddDirectory("/lib")
+        .BuildOrDie();
+  }
 };
 
 int main(int argc, char* argv[]) {
-
   absl::Status status;
   sapi::StatusOr<CURL*> status_or_curl;
   sapi::StatusOr<int> status_or_int;
 
   // Initialize sandbox2 and sapi
-  CurlApiSandboxEx1 sandbox; 
+  CurlApiSandboxEx1 sandbox;
   status = sandbox.Init();
   assert(status.ok());
   CurlApi api(&sandbox);
@@ -53,7 +52,7 @@ int main(int argc, char* argv[]) {
   assert(curl.GetValue());  // Checking curl != nullptr
 
   // Specify URL to get
-  sapi::v::ConstCStr url("http://example.com");  
+  sapi::v::ConstCStr url("http://example.com");
   status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
@@ -63,7 +62,7 @@ int main(int argc, char* argv[]) {
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
-  //curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+  // curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
   status_or_int = api.curl_easy_setopt_long(&curl, CURLOPT_SSL_VERIFYPEER, 0l);
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
@@ -78,5 +77,4 @@ int main(int argc, char* argv[]) {
   assert(status.ok());
 
   return EXIT_SUCCESS;
-
 }

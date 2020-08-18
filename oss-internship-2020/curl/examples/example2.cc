@@ -27,20 +27,19 @@ struct MemoryStruct {
 };
 
 class CurlApiSandboxEx2 : public CurlSandbox {
-  private:
-    std::unique_ptr<sandbox2::Policy> ModifyPolicy( 
-        sandbox2::PolicyBuilder*) override {
-      // Return a new policy
-      return sandbox2::PolicyBuilder()
-          .DangerDefaultAllowAll()
-          .AllowUnrestrictedNetworking()
-          .AddDirectory("/lib")
-          .BuildOrDie();
-    }
+ private:
+  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
+      sandbox2::PolicyBuilder*) override {
+    // Return a new policy
+    return sandbox2::PolicyBuilder()
+        .DangerDefaultAllowAll()
+        .AllowUnrestrictedNetworking()
+        .AddDirectory("/lib")
+        .BuildOrDie();
+  }
 };
 
 int main() {
-
   absl::Status status;
   sapi::StatusOr<CURL*> status_or_curl;
   sapi::StatusOr<int> status_or_int;
@@ -71,21 +70,21 @@ int main() {
   assert(status_or_int.value() == CURLE_OK);
 
   // Set WriteMemoryCallback as the write function
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEFUNCTION, 
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEFUNCTION,
                                            &remote_function_ptr);
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
-  
+
   // Pass 'chunk' struct to the callback function
   sapi::v::Struct<MemoryStruct> chunk;
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEDATA, 
-                                           chunk.PtrBoth());
+  status_or_int =
+      api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEDATA, chunk.PtrBoth());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
 
   // Set a user agent
   sapi::v::ConstCStr user_agent("libcurl-agent/1.0");
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_USERAGENT, 
+  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_USERAGENT,
                                            user_agent.PtrBefore());
   assert(status_or_int.ok());
   assert(status_or_int.value() == CURLE_OK);
@@ -107,5 +106,4 @@ int main() {
   assert(status.ok());
 
   return EXIT_SUCCESS;
-
 }

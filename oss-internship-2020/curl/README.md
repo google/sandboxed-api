@@ -48,7 +48,7 @@ The pointers can then be obtained using an `RPCChannel` object, as shown in `exa
 
 ## Examples
 
-The `examples` directory contains the sandboxed versions of example source codes taken from [this page](https://curl.haxx.se/libcurl/c/example.html) on curl's website.
+The `examples` directory contains the sandboxed versions of example source codes taken from [this page](https://curl.haxx.se/libcurl/c/example.html) on curl's website. More information about each example can be found in the examples' [README](examples/README.md).
 
 To build these examples when building the library, the cmake variable `CURL_SAPI_ENABLE_EXAMPLES` must be set to `ON`.
 
