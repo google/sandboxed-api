@@ -107,6 +107,7 @@ absl::Status GuetzliTransaction::LinkOutFile(int out_fd) const {
 
   std::stringstream path;
   path << "/proc/self/fd/" << out_fd;
+  
   if (linkat(AT_FDCWD, path.str().c_str(), AT_FDCWD, params_.out_file,
               AT_SYMLINK_FOLLOW) < 0) {
     std::stringstream error;

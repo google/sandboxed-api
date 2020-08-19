@@ -25,5 +25,8 @@ There are two different sets of unit tests which demonstrate how to use differen
 * `tests/guetzli_sapi_test.cc` - example usage of Guetzli sandboxed API.
 * `tests/guetzli_transaction_test.cc` - example usage of Guetzli transaction.
 
+To run tests use following command:
+`bazel test ...`
+
 Also, there is an example of custom security policy for your sandbox in
 `guetzli_sandbox.h`

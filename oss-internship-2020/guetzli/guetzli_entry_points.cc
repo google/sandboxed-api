@@ -154,7 +154,7 @@ sapi::StatusOr<ImageData> ReadPNG(const std::string& data) {
 
   xsize = png_get_image_width(png_ptr, info_ptr);
   ysize = png_get_image_height(png_ptr, info_ptr);
-  rgb.resize(3 * (xsize) * (ysize));
+  rgb.resize(3 * xsize * ysize);
 
   const int components = png_get_channels(png_ptr, info_ptr);
   switch (components) {
@@ -162,7 +162,7 @@ sapi::StatusOr<ImageData> ReadPNG(const std::string& data) {
       // GRAYSCALE
       for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
+        uint8_t* row_out = &rgb[3 * y * xsize];
         for (int x = 0; x < xsize; ++x) {
           const uint8_t gray = row_in[x];
           row_out[3 * x + 0] = gray;
@@ -176,7 +176,7 @@ sapi::StatusOr<ImageData> ReadPNG(const std::string& data) {
       // GRAYSCALE + ALPHA
       for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
+        uint8_t* row_out = &rgb[3 * y * xsize];
         for (int x = 0; x < xsize; ++x) {
           const uint8_t gray = BlendOnBlack(row_in[2 * x], row_in[2 * x + 1]);
           row_out[3 * x + 0] = gray;
@@ -190,8 +190,8 @@ sapi::StatusOr<ImageData> ReadPNG(const std::string& data) {
       // RGB
       for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
-        memcpy(row_out, row_in, 3 * (xsize));
+        uint8_t* row_out = &rgb[3 * y * xsize];
+        memcpy(row_out, row_in, 3 * xsize);
       }
       break;
     }
@@ -199,7 +199,7 @@ sapi::StatusOr<ImageData> ReadPNG(const std::string& data) {
       // RGBA
       for (int y = 0; y < ysize; ++y) {
         const uint8_t* row_in = row_pointers[y];
-        uint8_t* row_out = &(rgb)[3 * y * (xsize)];
+        uint8_t* row_out = &rgb[3 * y * xsize];
         for (int x = 0; x < xsize; ++x) {
           const uint8_t alpha = row_in[4 * x + 3];
           row_out[3 * x + 0] = BlendOnBlack(row_in[4 * x + 0], alpha);

@@ -42,12 +42,11 @@ struct TransactionParams {
 // Create a new one for each processing operation
 class GuetzliTransaction : public sapi::Transaction {
  public:
-  GuetzliTransaction(TransactionParams params)
+  GuetzliTransaction(TransactionParams params, int retry_count = 0)
       : sapi::Transaction(std::make_unique<GuetzliSapiSandbox>())
       , params_(std::move(params))
   {
-    //TODO: Add retry count as a parameter
-    sapi::Transaction::set_retry_count(kDefaultTransactionRetryCount);
+    sapi::Transaction::set_retry_count(retry_count);
     sapi::Transaction::SetTimeLimit(0);  // Infinite time limit
   }
 
@@ -59,8 +58,6 @@ class GuetzliTransaction : public sapi::Transaction {
 
   const TransactionParams params_;
   ImageType image_type_ = ImageType::kJpeg;
-
-  static const int kDefaultTransactionRetryCount = 0;
 };
 
 }  // namespace sandbox
