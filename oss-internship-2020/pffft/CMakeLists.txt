@@ -13,7 +13,7 @@ add_library(pffft STATIC
 )
 
 add_executable(pffft_main
-    test_pffft.c
+    main_pffft.c
 )
 
 target_link_libraries(pffft_main PRIVATE 
@@ -82,7 +82,7 @@ target_include_directories(pffft_sapi INTERFACE
 )
 
 add_executable(pffft_sandboxed
-    test_pffft_sandboxed.cc
+    main_pffft_sandboxed.cc
 )
 
 target_link_libraries(pffft_sandboxed PRIVATE  
