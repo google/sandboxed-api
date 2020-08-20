@@ -62,6 +62,13 @@ void show_output(const char* name, int N, int cplx, float flops, float t0,
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  /*
+  * Nvalues is a vector keeping the values by which iterates N, its value 
+  * representing the input length. More concrete, N is the number of
+  * data points the caclulus is up to (determinating its accuracy).
+  * To show the performance of Fast-Fourier Transformations the program is 
+  * testing for various values of N.
+  */
   int Nvalues[] = {64,    96,     128,        160,         192,     256,
                    384,   5 * 96, 512,        5 * 128,     3 * 256, 800,
                    1024,  2048,   2400,       4096,        8192,    9 * 1024,
@@ -118,10 +125,16 @@ int main(int argc, char* argv[]) {
       X[k] = 0;
     }
 
-    // FFTPack benchmark
+    /*
+    * FFTPack benchmark
+    */
     {
+      /*
+      * SIMD_SZ == 4 (returning value of pffft_simd_size())
+      */
       int max_iter_ =
-          max_iter / 4;  // SIMD_SZ == 4 (returning value of pffft_simd_size())
+          max_iter / 4; 
+
       if (max_iter_ == 0) max_iter_ = 1;
       if (cplx) {
         api.cffti(N, wrk_.PtrBoth()).IgnoreError();
@@ -145,7 +158,9 @@ int main(int argc, char* argv[]) {
       show_output("FFTPack", N, cplx, flops, t0, t1, max_iter_);
     }
 
-    // PFFFT benchmark
+    /*
+    * PFFFT benchmark
+    */ 
     {
       sapi::StatusOr<PFFFT_Setup*> s =
           api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
