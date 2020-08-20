@@ -58,7 +58,7 @@ In the end, the performance of PFFFT library it is outlined by the output.*
     N > 64, status not OK
     Problem on initialising sapi::StatusOr<PFFFT_Setup *> s; the memory that stays 
     for s is not the same with the address passed in pffft_transform function. 
-    (sapi :: v :: GenericPtr - to be changed)
+    (sapi::v::GenericPtr - to be changed)
 
     Temporary solution: change the generated files to accept 
     uintptr_t instead of PFFFT_Setup
@@ -66,8 +66,8 @@ In the end, the performance of PFFFT library it is outlined by the output.*
     Solution: using "sapi::v::RemotePtr" instead of "sapi::v::GenericPtr" 
     to access the memory of object s
 
-    - [Unresolved] compiling bug: "No spave left on device"
+    - [Unresolved] compiling bug: "No space left on device"
     The building process creates some `embed` files that use lots of 
     memory, trying to write them on /tmp.
-    
+
     Temporary solution: clean /tmp directory by `sudo rm -rf /tmp/*`.
