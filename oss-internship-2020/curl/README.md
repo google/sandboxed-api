@@ -54,3 +54,10 @@ To build these examples when building the library, the cmake variable `CURL_SAPI
 
 The `callbacks.h` and `callbacks.cc` files implement all the callbacks used by the examples.
 
+## Policy
+
+The `sandbox.h` file contains a policy allowing all is necessary for libcurl to perform simple requests. It is used by all the examples, except by example3. This example needs some additional policies and files in its namespace (since it uses HTTPS), and the file `example3.cc` shows how to easily extend an existing policy.
+
+## Testing
+
+The `tests` folder contains some test cases created using Google Test. The class `CurlTestUtils` is used to facilitate some tasks that all test cases need, including the setup of a mock local server on which test requests are performed.
