@@ -18,6 +18,7 @@
 # Example 1: simple.c
 add_executable(example1
   example1.cc
+  ../sandbox.h
 )
 target_link_libraries(example1 PRIVATE
   curl_sapi
@@ -27,6 +28,7 @@ target_link_libraries(example1 PRIVATE
 # Example 2: getinmemory.c
 add_executable(example2
   example2.cc
+  ../sandbox.h
 )
 target_link_libraries(example2 PRIVATE
   curl_sapi
@@ -36,6 +38,7 @@ target_link_libraries(example2 PRIVATE
 # Example 3: simplessl.c
 add_executable(example3
   example3.cc
+  ../sandbox.h
 )
 target_link_libraries(example3 PRIVATE
   curl_sapi
@@ -45,6 +48,7 @@ target_link_libraries(example3 PRIVATE
 # Example 4: multi-poll.c
 add_executable(example4
   example4.cc
+  ../sandbox.h
 )
 target_link_libraries(example4 PRIVATE
   curl_sapi
@@ -54,8 +58,19 @@ target_link_libraries(example4 PRIVATE
 # Example 5: multithread.c
 add_executable(example5
   example5.cc
+  ../sandbox.h
 )
 target_link_libraries(example5 PRIVATE
+  curl_sapi
+  sapi::sapi
+)
+
+# Example 6: simple.c (using transactions)
+add_executable(example6
+  example6.cc
+  ../sandbox.h
+)
+target_link_libraries(example6 PRIVATE
   curl_sapi
   sapi::sapi
 )

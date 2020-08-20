@@ -16,23 +16,8 @@
 // Simple HTTP GET request
 
 #include <cstdlib>
-#include <iostream>
 
-#include "curl_sapi.sapi.h"
-#include "sandboxed_api/util/flag.h"
-
-class CurlApiSandboxEx1 : public CurlSandbox {
- private:
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder*) override {
-    // Return a new policy
-    return sandbox2::PolicyBuilder()
-        .DangerDefaultAllowAll()
-        .AllowUnrestrictedNetworking()
-        .AddDirectory("/lib")
-        .BuildOrDie();
-  }
-};
+#include "../sandbox.h"
 
 int main(int argc, char* argv[]) {
   absl::Status status;
@@ -40,41 +25,61 @@ int main(int argc, char* argv[]) {
   sapi::StatusOr<int> status_or_int;
 
   // Initialize sandbox2 and sapi
-  CurlApiSandboxEx1 sandbox;
+  CurlSapiSandbox sandbox;
   status = sandbox.Init();
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in sandbox Init" << std::endl;
+    return EXIT_FAILURE;
+  }
   CurlApi api(&sandbox);
 
   // Initialize the curl session
   status_or_curl = api.curl_easy_init();
-  assert(status_or_curl.ok());
+  if (!status_or_curl.ok()) {
+    std::cerr << "error in curl_easy_init" << std::endl;
+    return EXIT_FAILURE;
+  }
   sapi::v::RemotePtr curl(status_or_curl.value());
-  assert(curl.GetValue());  // Checking curl != nullptr
+  if (!curl.GetValue()) {
+    std::cerr << "error in curl_easy_init" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
   status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_easy_setopt_ptr" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Set the library to follow a redirection
   status_or_int = api.curl_easy_setopt_long(&curl, CURLOPT_FOLLOWLOCATION, 1l);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_easy_setopt_long" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
   status_or_int = api.curl_easy_setopt_long(&curl, CURLOPT_SSL_VERIFYPEER, 0l);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_easy_setopt_long" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Perform the request
   status_or_int = api.curl_easy_perform(&curl);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_easy_perform" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Cleanup curl
   status = api.curl_easy_cleanup(&curl);
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in curl_easy_cleanup" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }

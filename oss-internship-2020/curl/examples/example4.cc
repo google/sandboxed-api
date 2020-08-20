@@ -16,23 +16,10 @@
 // HTTP GET request with polling
 
 #include <cstdlib>
-#include <iostream>
 
+#include "../sandbox.h"
 #include "curl_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
-
-class CurlApiSandboxEx4 : public CurlSandbox {
- private:
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder*) override {
-    // Return a new policy
-    return sandbox2::PolicyBuilder()
-        .DangerDefaultAllowAll()
-        .AllowUnrestrictedNetworking()
-        .AddDirectory("/lib")
-        .BuildOrDie();
-  }
-};
 
 int main() {
   absl::Status status;
@@ -41,9 +28,12 @@ int main() {
   sapi::StatusOr<CURLM*> status_or_curlm;
 
   // Initialize sandbox2 and sapi
-  CurlApiSandboxEx4 sandbox;
+  CurlSapiSandbox sandbox;
   status = sandbox.Init();
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in sandbox Init" << std::endl;
+    return EXIT_FAILURE;
+  }
   CurlApi api(&sandbox);
 
   // Number of running handles
@@ -51,32 +41,50 @@ int main() {
 
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
   status_or_int = api.curl_global_init(3l);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_global_init" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Initialize http_handle
   status_or_curl = api.curl_easy_init();
-  assert(status_or_curl.ok());
+  if (!status_or_curl.ok()) {
+    std::cerr << "error in curl_easy_init" << std::endl;
+    return EXIT_FAILURE;
+  }
   sapi::v::RemotePtr http_handle(status_or_curl.value());
-  assert(http_handle.GetValue());  // Checking http_handle != nullptr
+  if (!http_handle.GetValue()) {
+    std::cerr << "error in curl_easy_init" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
   status_or_int =
       api.curl_easy_setopt_ptr(&http_handle, CURLOPT_URL, url.PtrBefore());
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_easy_setopt_ptr" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Initialize multi_handle
   status_or_curlm = api.curl_multi_init();
-  assert(status_or_curlm.ok());
+  if (!status_or_curl.ok()) {
+    std::cerr << "error in curl_multi_init" << std::endl;
+    return EXIT_FAILURE;
+  }
   sapi::v::RemotePtr multi_handle(status_or_curlm.value());
-  assert(multi_handle.GetValue());  // Checking multi_handle != nullptr
+  if (!multi_handle.GetValue()) {
+    std::cerr << "error in curl_multi_init" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Add http_handle to the multi stack
   status_or_int = api.curl_multi_add_handle(&multi_handle, &http_handle);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_multi_add_handle" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   while (still_running.GetValue()) {
     sapi::v::Int numfds(0);
@@ -84,36 +92,50 @@ int main() {
     // Perform the request
     status_or_int =
         api.curl_multi_perform(&multi_handle, still_running.PtrBoth());
-    assert(status_or_int.ok());
-    assert(status_or_int.value() == CURLE_OK);
+    if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+      std::cerr << "error in curl_multi_perform" << std::endl;
+      return EXIT_FAILURE;
+    }
 
     if (still_running.GetValue()) {
       // Wait for an event or timeout
       sapi::v::NullPtr null_ptr;
       status_or_int = api.curl_multi_poll_sapi(&multi_handle, &null_ptr, 0,
                                                1000, numfds.PtrBoth());
-      assert(status_or_int.ok());
-      assert(status_or_int.value() == CURLM_OK);
+      if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+        std::cerr << "error in curl_multi_poll_sapi" << std::endl;
+        return EXIT_FAILURE;
+      }
     }
   }
 
   // Remove http_handle from the multi stack
   status_or_int = api.curl_multi_remove_handle(&multi_handle, &http_handle);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_multi_remove_handle" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Cleanup http_handle
   status = api.curl_easy_cleanup(&http_handle);
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in curl_easy_cleanup" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Cleanup multi_handle
   status_or_int = api.curl_multi_cleanup(&multi_handle);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_multi_cleanup" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Cleanup curl
   status = api.curl_global_cleanup();
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in curl_global_cleanup" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }

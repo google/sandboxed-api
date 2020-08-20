@@ -18,23 +18,8 @@
 #include <pthread.h>
 
 #include <cstdlib>
-#include <iostream>
 
-#include "curl_sapi.sapi.h"
-#include "sandboxed_api/util/flag.h"
-
-class CurlApiSandboxEx5 : public CurlSandbox {
- private:
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder*) override {
-    // Return a new policy
-    return sandbox2::PolicyBuilder()
-        .DangerDefaultAllowAll()
-        .AllowUnrestrictedNetworking()
-        .AddDirectory("/lib")
-        .BuildOrDie();
-  }
-};
+#include "../sandbox.h"
 
 struct thread_args {
   const char* url;
@@ -52,25 +37,38 @@ void* pull_one_url(void* args) {
 
   // Initialize the curl session
   status_or_curl = api.curl_easy_init();
-  assert(status_or_curl.ok());
+  if (!status_or_curl.ok()) {
+    std::cerr << "error in curl_easy_init" << std::endl;
+    return NULL;
+  }
   sapi::v::RemotePtr curl(status_or_curl.value());
-  assert(curl.GetValue());  // Checking curl != nullptr
+  if (!curl.GetValue()) {
+    std::cerr << "error in curl_easy_init" << std::endl;
+    return NULL;
+  }
 
   // Specify URL to get
   sapi::v::ConstCStr sapi_url(((thread_args*)args)->url);
   status_or_int =
       api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, sapi_url.PtrBefore());
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_easy_setopt_ptr" << std::endl;
+    return NULL;
+  }
 
   // Perform the request
   status_or_int = api.curl_easy_perform(&curl);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_easy_perform" << std::endl;
+    return NULL;
+  }
 
   // Cleanup curl
   status = api.curl_easy_cleanup(&curl);
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in curl_easy_cleanup" << std::endl;
+    return NULL;
+  }
 
   return NULL;
 }
@@ -86,21 +84,29 @@ int main(int argc, char** argv) {
   sapi::StatusOr<int> status_or_int;
 
   // Initialize sandbox2 and sapi
-  CurlApiSandboxEx5 sandbox;
+  CurlSapiSandbox sandbox;
   status = sandbox.Init();
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in sandbox Init" << std::endl;
+    return EXIT_FAILURE;
+  }
   CurlApi api(&sandbox);
 
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
   status_or_int = api.curl_global_init(3l);
-  assert(status_or_int.ok());
-  assert(status_or_int.value() == CURLE_OK);
+  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
+    std::cerr << "error in curl_global_init" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   // Create the threads
   for (int i = 0; i < kThreadsnumber; ++i) {
     thread_args args = {urls[i], &api};
     int error = pthread_create(&tid[i], NULL, pull_one_url, (void*)&args);
-    assert(!error);
+    if (error) {
+      std::cerr << "error in pthread_create" << std::endl;
+      return EXIT_FAILURE;
+    }
     std::cout << "Thread " << i << " gets " << urls[i] << std::endl;
   }
 
@@ -112,7 +118,10 @@ int main(int argc, char** argv) {
 
   // Cleanup curl
   status = api.curl_global_cleanup();
-  assert(status.ok());
+  if (!status.ok()) {
+    std::cerr << "error in curl_global_cleanup" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }
