@@ -7,3 +7,6 @@
 [submodule "oss-internship-2020/curl/curl_wrapper/curl"]
 	path = oss-internship-2020/curl/curl_wrapper/curl
 	url = https://github.com/curl/curl
+[submodule "oss-internship-2020/curl/tests/googletest"]
+	path = oss-internship-2020/curl/tests/googletest
+	url = git@github.com:google/googletest.git
