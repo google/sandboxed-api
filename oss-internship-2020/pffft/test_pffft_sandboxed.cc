@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <glog/logging.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +62,11 @@ void show_output(const char* name, int N, int cplx, float flops, float t0,
 }
 
 int main(int argc, char* argv[]) {
+  /*
+  * Initialize Google's logging library.
+  */
+  google::InitGoogleLogging(argv[0]);
+
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   /*
   * Nvalues is a vector keeping the values by which iterates N, its value 
@@ -75,12 +81,12 @@ int main(int argc, char* argv[]) {
                    16384, 32768,  256 * 1024, 1024 * 1024, -1};
   int i;
 
-  printf("initializing sandbox...\n");
+  VLOG(1) << "Initializing sandbox...\n";
 
   pffftSapiSandbox sandbox;
   sandbox.Init().IgnoreError();
 
-  printf("Initialization: %s\n", sandbox.Init().ToString().c_str());
+  VLOG(1) << "Initialization: " << sandbox.Init().ToString().c_str() << "\n";
 
   pffftApi api(&sandbox);
 
@@ -88,108 +94,113 @@ int main(int argc, char* argv[]) {
 
   cplx = 0;
 
-  for (i = 0; i < 23; i++) {
-    N = Nvalues[i];
+  do {
+    for (i = 0; i < 23; i++) {
+      N = Nvalues[i];
 
-    int Nfloat = N * (cplx ? 2 : 1);
-    int Nbytes = Nfloat * sizeof(float);
-    int pass;
+      int Nfloat = N * (cplx ? 2 : 1);
+      int Nbytes = Nfloat * sizeof(float);
+      int pass;
 
-    float ref[Nbytes], in[Nbytes], out[Nbytes], tmp[Nbytes], tmp2[Nbytes];
+      float ref[Nbytes], in[Nbytes], out[Nbytes], tmp[Nbytes], tmp2[Nbytes];
 
-    sapi::v::Array<float> ref_(ref, Nbytes);
-    sapi::v::Array<float> in_(in, Nbytes);
-    sapi::v::Array<float> out_(out, Nbytes);
-    sapi::v::Array<float> tmp_(tmp, Nbytes);
-    sapi::v::Array<float> tmp2_(tmp2, Nbytes);
+      sapi::v::Array<float> ref_(ref, Nbytes);
+      sapi::v::Array<float> in_(in, Nbytes);
+      sapi::v::Array<float> out_(out, Nbytes);
+      sapi::v::Array<float> tmp_(tmp, Nbytes);
+      sapi::v::Array<float> tmp2_(tmp2, Nbytes);
 
-    float wrk[2 * Nbytes + 15 * sizeof(float)];
-    sapi::v::Array<float> wrk_(wrk, 2 * Nbytes + 15 * sizeof(float));
+      float wrk[2 * Nbytes + 15 * sizeof(float)];
+      sapi::v::Array<float> wrk_(wrk, 2 * Nbytes + 15 * sizeof(float));
 
-    float ref_max = 0;
-    int k;
+      float ref_max = 0;
+      int k;
 
-    Nfloat = (cplx ? N * 2 : N);
-    float X[Nbytes], Y[Nbytes], Z[Nbytes];
-    sapi::v::Array<float> X_(X, Nbytes), Y_(Y, Nbytes), Z_(Z, Nbytes);
+      Nfloat = (cplx ? N * 2 : N);
+      float X[Nbytes], Y[Nbytes], Z[Nbytes];
+      sapi::v::Array<float> X_(X, Nbytes), Y_(Y, Nbytes), Z_(Z, Nbytes);
 
-    double t0, t1, flops;
+      double t0, t1, flops;
 
-    int max_iter = 5120000 / N * 4;
-#ifdef __arm__
-    max_iter /= 4;
-#endif
-    int iter;
+      int max_iter = 5120000 / N * 4;
+  #ifdef __arm__
+      max_iter /= 4;
+  #endif
+      int iter;
 
-    for (k = 0; k < Nfloat; ++k) {
-      X[k] = 0;
-    }
+      for (k = 0; k < Nfloat; ++k) {
+        X[k] = 0;
+      }
 
-    /*
-    * FFTPack benchmark
-    */
-    {
       /*
-      * SIMD_SZ == 4 (returning value of pffft_simd_size())
+      * FFTPack benchmark
       */
-      int max_iter_ =
-          max_iter / 4; 
+      {
+        /*
+        * SIMD_SZ == 4 (returning value of pffft_simd_size())
+        */
+        int max_iter_ =
+            max_iter / 4; 
 
-      if (max_iter_ == 0) max_iter_ = 1;
-      if (cplx) {
-        api.cffti(N, wrk_.PtrBoth()).IgnoreError();
-      } else {
-        api.rffti(N, wrk_.PtrBoth()).IgnoreError();
-      }
-      t0 = uclock_sec();
-
-      for (iter = 0; iter < max_iter_; ++iter) {
+        if (max_iter_ == 0) max_iter_ = 1;
         if (cplx) {
-          api.cfftf(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
-          api.cfftb(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
+          api.cffti(N, wrk_.PtrBoth()).IgnoreError();
         } else {
-          api.rfftf(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
-          api.rfftb(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
+          api.rffti(N, wrk_.PtrBoth()).IgnoreError();
         }
-      }
-      t1 = uclock_sec();
-
-      flops = (max_iter_ * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
-      show_output("FFTPack", N, cplx, flops, t0, t1, max_iter_);
-    }
-
-    /*
-    * PFFFT benchmark
-    */ 
-    {
-      sapi::StatusOr<PFFFT_Setup*> s =
-          api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
-
-      printf("Setup status is: %s\n", s.status().ToString().c_str());
-
-      if (s.ok()) {
-        sapi::v::RemotePtr s_reg(s.value());
-
         t0 = uclock_sec();
-        for (iter = 0; iter < max_iter; ++iter) {
-          api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(), Y_.PtrBoth(),
-                              PFFFT_FORWARD)
-              .IgnoreError();
-          api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(), Y_.PtrBoth(),
-                              PFFFT_FORWARD)
-              .IgnoreError();
+
+        for (iter = 0; iter < max_iter_; ++iter) {
+          if (cplx) {
+            api.cfftf(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
+            api.cfftb(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
+          } else {
+            api.rfftf(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
+            api.rfftb(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
+          }
+        }
+        t1 = uclock_sec();
+
+        flops = (max_iter_ * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
+        show_output("FFTPack", N, cplx, flops, t0, t1, max_iter_);
+      }
+
+      /*
+      * PFFFT benchmark
+      */ 
+      {
+        sapi::StatusOr<PFFFT_Setup*> s =
+            api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
+
+        VLOG(1) << "Setup status is: " << s.status().ToString().c_str() << "\n";
+
+        if (s.ok()) {
+          sapi::v::RemotePtr s_reg(s.value());
+
+          t0 = uclock_sec();
+          for (iter = 0; iter < max_iter; ++iter) {
+            api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(), Y_.PtrBoth(),
+                                PFFFT_FORWARD)
+                .IgnoreError();
+            api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(), Y_.PtrBoth(),
+                                PFFFT_FORWARD)
+                .IgnoreError();
+          }
+
+          t1 = uclock_sec();
+          api.pffft_destroy_setup(&s_reg).IgnoreError();
+
+          flops =
+              (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
+          show_output("PFFFT", N, cplx, flops, t0, t1, max_iter);
         }
 
-        t1 = uclock_sec();
-        api.pffft_destroy_setup(&s_reg).IgnoreError();
-
-        flops =
-            (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
-        show_output("PFFFT", N, cplx, flops, t0, t1, max_iter);
+        VLOG(1) << "N = " << N << " SUCCESSFULLY\n\n";
       }
-      printf("\n\n");
-    }
-  }
+    } 
+
+    cplx = !cplx;
+  } while (cplx);
 
   return 0;
 }
