@@ -65,3 +65,9 @@ In the end, the performance of PFFFT library it is outlined by the output.*
 
     Solution: using "sapi::v::RemotePtr" instead of "sapi::v::GenericPtr" 
     to access the memory of object s
+
+    - [Unresolved] compiling bug: "No spave left on device"
+    The building process creates some `embed` files that use lots of 
+    memory, trying to write them on /tmp.
+    
+    Temporary solution: clean /tmp directory by `sudo rm -rf /tmp/*`.

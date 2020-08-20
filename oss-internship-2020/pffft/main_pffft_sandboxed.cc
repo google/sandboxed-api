@@ -34,7 +34,6 @@ class pffftSapiSandbox : public pffftSandbox {
             __NR_close,
             __NR_getrusage,
         })
-        .DisableNamespaces()
         .BuildOrDie();
   }
 };
@@ -83,12 +82,12 @@ int main(int argc, char* argv[]) {
                    16384, 32768,  256 * 1024, 1024 * 1024, -1};
   int i;
 
-  VLOG(1) << "Initializing sandbox...\n";
+  LOG(INFO) << "Initializing sandbox...\n";
 
   pffftSapiSandbox sandbox;
   sandbox.Init().IgnoreError();
 
-  VLOG(1) << "Initialization: " << sandbox.Init().ToString().c_str() << "\n";
+  LOG(INFO) << "Initialization: " << sandbox.Init().ToString().c_str() << "\n";
 
   pffftApi api(&sandbox);
 
@@ -174,7 +173,7 @@ int main(int argc, char* argv[]) {
         sapi::StatusOr<PFFFT_Setup*> s =
             api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
 
-        VLOG(1) << "Setup status is: " << s.status().ToString().c_str() << "\n";
+        LOG(INFO) << "Setup status is: " << s.status().ToString().c_str() << "\n";
 
         if (s.ok()) {
           sapi::v::RemotePtr s_reg(s.value());
@@ -197,7 +196,7 @@ int main(int argc, char* argv[]) {
           show_output("PFFFT", N, cplx, flops, t0, t1, max_iter);
         }
 
-        VLOG(1) << "N = " << N << " SUCCESSFULLY\n\n";
+        LOG(INFO) << "N = " << N << " SUCCESSFULLY\n\n";
       }
     }
 
