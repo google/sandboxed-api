@@ -31,7 +31,7 @@ target_link_libraries(pffft PUBLIC ${MATH_LIBS})
 
 
 # Adding dependencies
-set(SAPI_ROOT "/usr/local/google/home/inach/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
+set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
 # Then configure:
 #   mkdir -p build && cd build
 #   cmake .. -G Ninja -DSAPI_ROOT=$HOME/sapi_root
