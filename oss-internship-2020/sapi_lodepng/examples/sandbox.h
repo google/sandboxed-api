@@ -43,7 +43,7 @@ class SapiLodepngSandbox : public LodepngSandbox {
   }
 
  private:
-  std::string images_path_;
+  const std::string images_path_;
 };
 
 #endif  // SAPI_LODEPNG_SANDBOX_H_

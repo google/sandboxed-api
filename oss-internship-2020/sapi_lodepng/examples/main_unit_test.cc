@@ -25,7 +25,7 @@ using testing::NotNull;
 namespace {
 
 // use the current path
-std::string images_path = std::filesystem::current_path().string();
+const std::string images_path = std::filesystem::current_path().string();
 
 TEST(initSandbox, basic) {
   SapiLodepngSandbox sandbox(images_path);
@@ -56,8 +56,7 @@ TEST(generate_image, encode_decode_compare_one_step) {
   // encode the image
   sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = "/output/out_generated1.png";
-  sapi::v::ConstCStr sapi_filename(filename.c_str());
+  sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
   SAPI_ASSERT_OK_AND_ASSIGN(
       unsigned int result,
@@ -134,8 +133,7 @@ TEST(generate_image, encode_decode_compare_two_steps) {
   // encode the image into memory first
   sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = "/output/out_generated2.png";
-  sapi::v::ConstCStr sapi_filename(filename.c_str());
+  sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 
   sapi::v::ULLong sapi_pngsize;
   sapi::v::IntBase<unsigned char *> sapi_png_ptr(0);
