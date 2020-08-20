@@ -19,8 +19,6 @@
 #include "sandbox.h"
 #include "sandboxed_api/util/flag.h"
 
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all);
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 ABSL_FLAG(string, images_path, std::filesystem::current_path().string(),
           "path to the folder containing test images");
 
@@ -41,8 +39,7 @@ void generate_one_step(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // encode the image
   sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = "/output/out_generated1.png";
-  sapi::v::ConstCStr sapi_filename(filename.c_str());
+  sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
   sapi::StatusOr<unsigned int> result = api.lodepng_encode32_file(
       sapi_filename.PtrBefore(), sapi_image.PtrBefore(), sapi_width.GetValue(),
@@ -110,8 +107,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // encode the image into memory first
   sapi::v::Array<unsigned char> sapi_image(image.data(), img_len);
   sapi::v::UInt sapi_width(width), sapi_height(height);
-  std::string filename = "/output/out_generated2.png";
-  sapi::v::ConstCStr sapi_filename(filename.c_str());
+  sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 
   sapi::v::ULLong sapi_pngsize;
   sapi::v::IntBase<unsigned char *> sapi_png_ptr(0);
@@ -197,9 +193,7 @@ void generate_two_steps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 int main(int argc, char *argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-  std::string images_path(absl::GetFlag(FLAGS_images_path));
-
-  SapiLodepngSandbox sandbox(images_path);
+  SapiLodepngSandbox sandbox(absl::GetFlag(FLAGS_images_path));
   assert(sandbox.Init().ok());
 
   LodepngApi api(&sandbox);

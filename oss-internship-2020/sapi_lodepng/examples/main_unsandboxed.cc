@@ -33,7 +33,7 @@ void generate_one_step(const std::string &images_path) {
   }
 
   // encode the image
-  std::string filename = images_path + "/out_generated1.png";
+  const std::string filename = images_path + "/out_generated1.png";
   unsigned int result =
       lodepng_encode32_file(filename.c_str(), image.data(), width, height);
 
@@ -74,7 +74,7 @@ void generate_two_steps(const std::string &images_path) {
   }
 
   // encode the image into memory first
-  std::string filename = images_path + "/out_generated2.png";
+  const std::string filename = images_path + "/out_generated2.png";
   unsigned char *png;
   size_t pngsize;
 
@@ -113,7 +113,7 @@ void generate_two_steps(const std::string &images_path) {
 }
 
 int main(int argc, char *argv[]) {
-  std::string images_path = std::filesystem::current_path().string();
+  const std::string images_path = std::filesystem::current_path().string();
 
   generate_one_step(images_path);
   generate_two_steps(images_path);

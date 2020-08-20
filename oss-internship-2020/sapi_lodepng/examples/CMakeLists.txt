@@ -13,11 +13,11 @@
 # limitations under the License.
 
 # Build the unsandboxed main
-add_executable(lodepng_normal
-  main.cc
+add_executable(lodepng_unsandboxed
+  main_unsandboxed.cc
+)
 
-  )
-target_link_libraries(lodepng_normal PRIVATE
+target_link_libraries(lodepng_unsandboxed PRIVATE
   lodepng
 )
 
