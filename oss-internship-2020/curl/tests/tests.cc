@@ -19,7 +19,7 @@ class Curl_Test : public CurlTestUtils, public ::testing::Test {
   void SetUp() override {
     // Start mock server, also sets port number
     start_mock_server();
-    EXPECT_TRUE(server_future.valid());
+    ASSERT_TRUE(server_future.valid());
 
     curl_test_set_up();
   }
@@ -28,7 +28,7 @@ class Curl_Test : public CurlTestUtils, public ::testing::Test {
     curl_test_tear_down();
 
     // Wait for the mock server to return and check for any error
-    EXPECT_TRUE(server_future.get());
+    ASSERT_TRUE(server_future.get());
   }
 };
 
@@ -42,7 +42,7 @@ TEST_F(Curl_Test, EffectiveUrl) {
       int getinfo_code,
       api->curl_easy_getinfo_ptr(curl.get(), CURLINFO_EFFECTIVE_URL,
                                  effective_url_ptr.PtrBoth()));
-  EXPECT_EQ(getinfo_code, CURLE_OK);
+  ASSERT_EQ(getinfo_code, CURLE_OK);
 
   // Store effective URL in a string
   SAPI_ASSERT_OK_AND_ASSIGN(std::string effective_url,
@@ -50,7 +50,7 @@ TEST_F(Curl_Test, EffectiveUrl) {
                                 effective_url_ptr.GetPointedVar())));
 
   // Compare effective URL with original URL
-  EXPECT_EQ(effective_url, kUrl);
+  ASSERT_EQ(effective_url, kUrl);
 }
 
 TEST_F(Curl_Test, EffectivePort) {
@@ -63,10 +63,10 @@ TEST_F(Curl_Test, EffectivePort) {
       int getinfo_code,
       api->curl_easy_getinfo_ptr(curl.get(), CURLINFO_PRIMARY_PORT,
                                  effective_port.PtrBoth()));
-  EXPECT_EQ(getinfo_code, CURLE_OK);
+  ASSERT_EQ(getinfo_code, CURLE_OK);
 
   // Compare effective port with port set by the mock server
-  EXPECT_EQ(effective_port.GetValue(), port);
+  ASSERT_EQ(effective_port.GetValue(), port);
 }
 
 TEST_F(Curl_Test, ResponseCode) {
@@ -79,10 +79,10 @@ TEST_F(Curl_Test, ResponseCode) {
       int getinfo_code,
       api->curl_easy_getinfo_ptr(curl.get(), CURLINFO_RESPONSE_CODE,
                                  response_code.PtrBoth()));
-  EXPECT_EQ(getinfo_code, CURLE_OK);
+  ASSERT_EQ(getinfo_code, CURLE_OK);
 
   // Check response code
-  EXPECT_EQ(response_code.GetValue(), 200);
+  ASSERT_EQ(response_code.GetValue(), 200);
 }
 
 TEST_F(Curl_Test, ContentType) {
@@ -95,7 +95,7 @@ TEST_F(Curl_Test, ContentType) {
       int getinfo_code,
       api->curl_easy_getinfo_ptr(curl.get(), CURLINFO_CONTENT_TYPE,
                                  content_type_ptr.PtrBoth()));
-  EXPECT_EQ(getinfo_code, CURLE_OK);
+  ASSERT_EQ(getinfo_code, CURLE_OK);
 
   // Store content type in a string
   SAPI_ASSERT_OK_AND_ASSIGN(std::string content_type,
@@ -103,7 +103,7 @@ TEST_F(Curl_Test, ContentType) {
                                 content_type_ptr.GetPointedVar())));
 
   // Compare content type with "text/plain"
-  EXPECT_EQ(content_type, "text/plain");
+  ASSERT_EQ(content_type, "text/plain");
 }
 
 TEST_F(Curl_Test, GETResponse) {
@@ -111,7 +111,7 @@ TEST_F(Curl_Test, GETResponse) {
   perform_request(response);
 
   // Compare response with expected response
-  EXPECT_EQ(response, kSimpleResponse);
+  ASSERT_EQ(response, kSimpleResponse);
 }
 
 TEST_F(Curl_Test, POSTResponse) {
@@ -120,25 +120,25 @@ TEST_F(Curl_Test, POSTResponse) {
   // Set request method to POST
   SAPI_ASSERT_OK_AND_ASSIGN(int setopt_post, api->curl_easy_setopt_long(
                                                  curl.get(), CURLOPT_POST, 1l));
-  EXPECT_EQ(setopt_post, CURLE_OK);
+  ASSERT_EQ(setopt_post, CURLE_OK);
 
   // Set the size of the POST fields
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_post_fields_size,
       api->curl_easy_setopt_long(curl.get(), CURLOPT_POSTFIELDSIZE,
                                  post_fields.GetSize()));
-  EXPECT_EQ(setopt_post_fields_size, CURLE_OK);
+  ASSERT_EQ(setopt_post_fields_size, CURLE_OK);
 
   // Set the POST fields
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_post_fields,
       api->curl_easy_setopt_ptr(curl.get(), CURLOPT_POSTFIELDS,
                                 post_fields.PtrBefore()));
-  EXPECT_EQ(setopt_post_fields, CURLE_OK);
+  ASSERT_EQ(setopt_post_fields, CURLE_OK);
 
   std::string response;
   perform_request(response);
 
   // Compare response with expected response
-  EXPECT_EQ(std::string(post_fields.GetData()), response);
+  ASSERT_EQ(std::string(post_fields.GetData()), response);
 }

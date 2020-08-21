@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <linux/futex.h>
+#include <sys/mman.h>  // For mmap arguments
 #include <syscall.h>
 
 #include <cstdlib>
 
 #include "curl_sapi.sapi.h"
+#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/flag.h"
 
 class CurlSapiSandbox : public CurlSandbox {
@@ -28,7 +31,8 @@ class CurlSapiSandbox : public CurlSandbox {
         .AllowDynamicStartup()
         .AllowExit()
         .AllowFork()
-        .AllowHandleSignals()
+        .AllowFutexOp(FUTEX_WAKE_PRIVATE)
+        .AllowMmap()
         .AllowOpen()
         .AllowRead()
         .AllowSafeFcntl()
@@ -38,14 +42,12 @@ class CurlSapiSandbox : public CurlSandbox {
           __NR_access,
           __NR_bind,
           __NR_connect,
-          __NR_futex,
           __NR_getpeername,
           __NR_getsockname,
           __NR_getsockopt,
           __NR_ioctl,
           __NR_listen,
           __NR_madvise,
-          __NR_mmap,
           __NR_poll,
           __NR_recvfrom,
           __NR_recvmsg,

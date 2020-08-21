@@ -39,26 +39,26 @@ absl::Status CurlTransaction::Main() {
   CurlApi api(sandbox());
 
   // Initialize the curl session
-  SAPI_ASSIGN_OR_RETURN(void* curl_remote, api.curl_easy_init())
+  SAPI_ASSIGN_OR_RETURN(void* curl_remote, api.curl_easy_init());
   sapi::v::RemotePtr curl(curl_remote);
-  TRANSACTION_FAIL_IF_NOT(curl.GetValue(), "error in curl_easy_init");
+  TRANSACTION_FAIL_IF_NOT(curl.GetValue(), "curl_easy_init failed");
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
   SAPI_ASSIGN_OR_RETURN(
       int setopt_url_code,
-      api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore()))
+      api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore()));
   TRANSACTION_FAIL_IF_NOT(setopt_url_code == CURLE_OK,
-                          "error in curl_easy_setopt_ptr");
+                          "curl_easy_setopt_ptr failed");
 
   // Perform the request
-  SAPI_ASSIGN_OR_RETURN(int perform_code, api.curl_easy_perform(&curl))
+  SAPI_ASSIGN_OR_RETURN(int perform_code, api.curl_easy_perform(&curl));
   TRANSACTION_FAIL_IF_NOT(setopt_url_code == CURLE_OK,
-                          "error in curl_easy_perform");
+                          "curl_easy_perform failed");
 
   // Cleanup curl
   TRANSACTION_FAIL_IF_NOT(api.curl_easy_cleanup(&curl).ok(),
-                          "error in curl_easy_cleanup");
+                          "curl_easy_cleanup failed");
 
   return absl::OkStatus();
 }
@@ -66,7 +66,7 @@ absl::Status CurlTransaction::Main() {
 int main(int argc, char* argv[]) {
   CurlTransaction curl{std::make_unique<CurlSapiSandbox>()};
   absl::Status status = curl.Run();
-  CHECK(status.ok());
+  CHECK(status.ok()) << "CurlTransaction failed";
 
   return EXIT_SUCCESS;
 }

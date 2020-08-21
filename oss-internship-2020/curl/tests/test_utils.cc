@@ -24,7 +24,7 @@
 void CurlTestUtils::curl_test_set_up() {
   // Initialize sandbox2 and sapi
   sandbox = std::make_unique<CurlSapiSandbox>();
-  sandbox->Init().IgnoreError();
+  ASSERT_THAT(sandbox->Init(), sapi::IsOk());
   api = std::make_unique<CurlApi>(sandbox.get());
 
   // Initialize curl
@@ -36,18 +36,18 @@ void CurlTestUtils::curl_test_set_up() {
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_url_code,
       api->curl_easy_setopt_ptr(curl.get(), CURLOPT_URL, sapi_url.PtrBefore()));
-  EXPECT_EQ(setopt_url_code, CURLE_OK);
+  ASSERT_EQ(setopt_url_code, CURLE_OK);
 
   // Set port
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_port_code,
       api->curl_easy_setopt_long(curl.get(), CURLOPT_PORT, port));
-  EXPECT_EQ(setopt_port_code, CURLE_OK);
+  ASSERT_EQ(setopt_port_code, CURLE_OK);
 
   // Generate pointer to the write_to_memory callback
   sapi::RPCChannel rpcc(sandbox->comms());
   size_t (*_function_ptr)(char*, size_t, size_t, void*);
-  EXPECT_THAT(rpcc.Symbol("write_to_memory", (void**)&_function_ptr),
+  ASSERT_THAT(rpcc.Symbol("write_to_memory", (void**)&_function_ptr),
               sapi::IsOk());
   sapi::v::RemotePtr remote_function_ptr((void*)_function_ptr);
 
@@ -56,36 +56,36 @@ void CurlTestUtils::curl_test_set_up() {
       int setopt_write_function,
       api->curl_easy_setopt_ptr(curl.get(), CURLOPT_WRITEFUNCTION,
                                 &remote_function_ptr));
-  EXPECT_EQ(setopt_write_function, CURLE_OK);
+  ASSERT_EQ(setopt_write_function, CURLE_OK);
 
   // Pass memory chunk object to the callback
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_write_data,
       api->curl_easy_setopt_ptr(curl.get(), CURLOPT_WRITEDATA,
                                 chunk.PtrBoth()));
-  EXPECT_EQ(setopt_write_data, CURLE_OK);
+  ASSERT_EQ(setopt_write_data, CURLE_OK);
 }
 
 void CurlTestUtils::curl_test_tear_down() {
   // Cleanup curl
-  api->curl_easy_cleanup(curl.get()).IgnoreError();
+  ASSERT_THAT(api->curl_easy_cleanup(curl.get()), sapi::IsOk());
 }
 
 void CurlTestUtils::perform_request(std::string& response) {
   // Perform the request
   SAPI_ASSERT_OK_AND_ASSIGN(int perform_code,
                             api->curl_easy_perform(curl.get()));
-  EXPECT_EQ(perform_code, CURLE_OK);
+  ASSERT_EQ(perform_code, CURLE_OK);
 
   // Get pointer to the memory chunk
   sapi::v::GenericPtr remote_ptr;
   remote_ptr.SetRemote(&((MemoryStruct*)chunk.GetRemote())->memory);
-  sandbox->TransferFromSandboxee(&remote_ptr).IgnoreError();
+  ASSERT_THAT(sandbox->TransferFromSandboxee(&remote_ptr), sapi::IsOk());
   void* chunk_ptr = (void*)remote_ptr.GetValue();
 
   // Get the string and store it in response
-  SAPI_ASSERT_OK_AND_ASSIGN(
-      response, sandbox->GetCString(sapi::v::RemotePtr(chunk_ptr)));
+  SAPI_ASSERT_OK_AND_ASSIGN(response,
+                            sandbox->GetCString(sapi::v::RemotePtr(chunk_ptr)));
 }
 
 void CurlTestUtils::perform_request() {
