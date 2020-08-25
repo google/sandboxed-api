@@ -25,9 +25,9 @@
 
 #include <glog/logging.h>
 #include "absl/memory/memory.h"
-#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {

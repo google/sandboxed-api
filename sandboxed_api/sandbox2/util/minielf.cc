@@ -219,7 +219,8 @@ absl::Status ElfParser::ReadFileHeader() {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<Elf64_Shdr> ElfParser::ReadSectionHeader(absl::string_view src) {
+sapi::StatusOr<Elf64_Shdr> ElfParser::ReadSectionHeader(
+    absl::string_view src) {
   if (src.size() < sizeof(Elf64_Shdr)) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid section header data: got ", src.size(),
@@ -292,7 +293,8 @@ sapi::StatusOr<std::string> ElfParser::ReadSectionContents(
   return rv;
 }
 
-sapi::StatusOr<Elf64_Phdr> ElfParser::ReadProgramHeader(absl::string_view src) {
+sapi::StatusOr<Elf64_Phdr> ElfParser::ReadProgramHeader(
+    absl::string_view src) {
   if (src.size() < sizeof(Elf64_Phdr)) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid program header data: got ", src.size(),
@@ -512,7 +514,7 @@ sapi::StatusOr<ElfFile> ElfParser::Parse(FILE* elf, uint32_t features) {
 }
 
 sapi::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
-                                               uint32_t features) {
+                                                 uint32_t features) {
   std::unique_ptr<FILE, void (*)(FILE*)> elf{fopen(filename.c_str(), "r"),
                                              [](FILE* f) { fclose(f); }};
   if (!elf) {

@@ -26,7 +26,6 @@
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
-#include "sandboxed_api/util/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -34,6 +33,7 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/util/statusor.h"
 
 namespace sandbox2 {
 

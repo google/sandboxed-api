@@ -63,8 +63,8 @@ bool CreateMemFd(int* fd, const char* name = "buffer_file");
 // Executes a the program given by argv and the specified environment and
 // captures any output to stdout/stderr.
 sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
-                                const std::vector<std::string>& envv,
-                                std::string* output);
+                                  const std::vector<std::string>& envv,
+                                  std::string* output);
 
 // Returns signal description.
 std::string GetSignalName(int signo);

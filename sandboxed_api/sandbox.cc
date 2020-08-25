@@ -392,7 +392,7 @@ absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
 }
 
 sapi::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
-                                                uint64_t max_length) {
+                                                  uint64_t max_length) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }

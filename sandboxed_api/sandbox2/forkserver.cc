@@ -36,7 +36,6 @@
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -56,6 +55,7 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/statusor.h"
 
 namespace {
 // "Moves" the old FD to the new FD number.

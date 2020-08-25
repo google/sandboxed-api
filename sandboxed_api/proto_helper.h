@@ -22,8 +22,8 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
 #include "sandboxed_api/proto_arg.pb.h"
+#include "sandboxed_api/util/statusor.h"
 
 namespace sapi {
 

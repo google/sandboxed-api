@@ -34,7 +34,7 @@ class ElfFile {
   };
 
   static sapi::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
-                                               uint32_t features);
+                                                 uint32_t features);
 
   int64_t file_size() const { return file_size_; }
   const std::string& interpreter() const { return interpreter_; }
