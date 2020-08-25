@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+#include <iterator>
 
 #include "absl/algorithm/container.h"
 #include "convert_helper.h"
@@ -160,7 +161,7 @@ int main(int argc, char* argv[]) {
       LOG(FATAL) << "transfer from sandboxee failed";
       return EXIT_FAILURE;
     }
-    for (int j = 0; j < width * height; j++) {
+    for (int j = 0; j < width * height; ++j) {
       data[i][j] = image_components_data[j];
     }
     image_components[i].data = data[i];
