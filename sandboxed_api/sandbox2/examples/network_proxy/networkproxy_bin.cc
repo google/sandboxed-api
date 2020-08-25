@@ -12,15 +12,15 @@
 #include <cstring>
 
 #include "sandboxed_api/util/flag.h"
+#include "absl/status/status.h"
+#include "sandboxed_api/util/statusor.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 

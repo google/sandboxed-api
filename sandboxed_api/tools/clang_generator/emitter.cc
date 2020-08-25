@@ -46,10 +46,10 @@ constexpr absl::string_view kHeaderProlog =
 
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
+#include "sandboxed_api/util/statusor.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/vars.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 )";
 constexpr absl::string_view kHeaderEpilog =

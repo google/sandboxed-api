@@ -19,8 +19,8 @@
 
 #include <memory>
 
-#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/statusor.h"
+#include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
 

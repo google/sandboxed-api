@@ -49,6 +49,7 @@ cc_binary(
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:statusor",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
