@@ -20,7 +20,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
-#include <iterator>
 
 #include "absl/algorithm/container.h"
 #include "convert_helper.h"
@@ -124,8 +123,8 @@ int main(int argc, char* argv[]) {
   }
 
   sapi::v::RemotePtr image_remote_pointer(image.GetRemote());
-  bool_status = api.opj_decode(&codec_pointer, &stream_pointer,
-                              &image_remote_pointer);
+  bool_status =
+      api.opj_decode(&codec_pointer, &stream_pointer, &image_remote_pointer);
   if (!bool_status.ok() || !bool_status.value()) {
     LOG(FATAL) << "decoding failed";
     return EXIT_FAILURE;
@@ -152,7 +151,7 @@ int main(int argc, char* argv[]) {
   int width = (int)image.data().comps[0].w;
   int height = (int)image.data().comps[0].h;
 
-  OPJ_INT32 data[components][width * height];
+  std::vector<std::vector<OPJ_INT32>> data;
   sapi::v::Array<OPJ_INT32> image_components_data(width * height);
 
   for (int i = 0; i < components; ++i) {
@@ -161,10 +160,14 @@ int main(int argc, char* argv[]) {
       LOG(FATAL) << "transfer from sandboxee failed";
       return EXIT_FAILURE;
     }
-    for (int j = 0; j < width * height; ++j) {
-      data[i][j] = image_components_data[j];
-    }
-    image_components[i].data = data[i];
+    std::vector<OPJ_INT32> component_data(
+        image_components_data.GetData(),
+        image_components_data.GetData() + (width * height));
+    data.push_back(component_data);
+  }
+
+  for (int i = 0; i < components; ++i) {
+    image_components[i].data = &data[i][0];
   }
 
   // convert the image to the desired format and save it to the file
