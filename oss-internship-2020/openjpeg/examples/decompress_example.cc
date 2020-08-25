@@ -122,8 +122,9 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
+  sapi::v::RemotePtr image_remote_pointer(image.GetRemote());
   bool_status = api.opj_decode(&codec_pointer, &stream_pointer,
-                               (sapi::v::Ptr*)&image_pointer);
+                              &image_remote_pointer);
   if (!bool_status.ok() || !bool_status.value()) {
     LOG(FATAL) << "decoding failed";
     return EXIT_FAILURE;
