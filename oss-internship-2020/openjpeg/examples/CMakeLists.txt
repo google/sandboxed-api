@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # copy of one of the converting functions
-# put here to omit the library's complex 
+# put here to omit the library's complex build logic
 add_library(convert_helper STATIC
   convert_helper.h
   convert_helper.cc

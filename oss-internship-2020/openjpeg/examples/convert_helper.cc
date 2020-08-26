@@ -40,6 +40,9 @@
 
 #include "convert_helper.h"
 
+#define OPJ_TRUE 1
+#define OPJ_FALSE 0
+
 const char *opj_version(void) { return "2.3.1"; }
 
 static int are_comps_similar(opj_image_t *image) {
