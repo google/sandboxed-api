@@ -20,10 +20,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # To override lib option -- else SAPI won't work
-SET(BUILD_SHARED_LIBS OFF CACHE BOOL "Build OpenJPEG shared library and link executables against it." ) 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build OpenJPEG shared library and link executables against it." FORCE) 
 add_subdirectory(openjpeg)
 
-set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
+set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
 set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
 set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
 set(EXECUTABLE_OUTPUT_PATH "" CACHE PATH "" FORCE)
