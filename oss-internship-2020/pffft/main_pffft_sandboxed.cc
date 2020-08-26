@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <glog/logging.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +31,7 @@
 ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all);
 ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 
-class pffftSapiSandbox : public pffftSandbox {
+class PffftSapiSandbox : public pffftSandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -60,28 +74,26 @@ void ShowOutput(const char* name, int N, int cplx, float flops, float t0,
 }
 
 int main(int argc, char* argv[]) {
-  /*
-   * Initialize Google's logging library.
-   */
+  
+  // Initialize Google's logging library.
   google::InitGoogleLogging(argv[0]);
 
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  /*
-   * Nvalues is a vector keeping the values by which iterates N, its value
-   * representing the input length. More concrete, N is the number of
-   * data points the caclulus is up to (determinating its accuracy).
-   * To show the performance of Fast-Fourier Transformations the program is
-   * testing for various values of N.
-   */
+
+  // Nvalues is a vector keeping the values by which iterates N, its value
+  // representing the input length. More concrete, N is the number of
+  // data points the caclulus is up to (determinating its accuracy).
+  // To show the performance of Fast-Fourier Transformations the program is
+  // testing for various values of N.
   int Nvalues[] = {64,    96,     128,        160,         192,     256,
                    384,   5 * 96, 512,        5 * 128,     3 * 256, 800,
                    1024,  2048,   2400,       4096,        8192,    9 * 1024,
-                   16384, 32768,  256 * 1024, 1024 * 1024, -1};
+                   16384, 32768};
   int i;
 
   LOG(INFO) << "Initializing sandbox...\n";
 
-  pffftSapiSandbox sandbox;
+  PffftSapiSandbox sandbox;
   absl::Status init_status = sandbox.Init();
 
   LOG(INFO) << "Initialization: " << init_status.ToString().c_str() << "\n";
@@ -112,13 +124,9 @@ int main(int argc, char* argv[]) {
         X[k] = 0;
       }
 
-      /*
-       * FFTPack benchmark
-       */
+      // FFTPack benchmark
       {
-        /*
-         * SIMD_SZ == 4 (returning value of pffft_simd_size())
-         */
+        // SIMD_SZ == 4 (returning value of pffft_simd_size())
         int max_iter_ = max_iter / 4;
 
         if (max_iter_ == 0) max_iter_ = 1;
@@ -144,10 +152,8 @@ int main(int argc, char* argv[]) {
             (max_iter_ * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
         ShowOutput("FFTPack", N, cplx, flops, t0, t1, max_iter_);
       }
-
-      /*
-       * PFFFT benchmark
-       */
+      
+      // PFFFT benchmark
       {
         sapi::StatusOr<PFFFT_Setup*> s =
             api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
@@ -155,26 +161,29 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Setup status is: " << s.status().ToString().c_str()
                   << "\n";
 
-        if (s.ok()) {
-          sapi::v::RemotePtr s_reg(s.value());
-
-          t0 = UclockSec();
-          for (iter = 0; iter < max_iter; ++iter) {
-            api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(),
-                                Y_.PtrBoth(), PFFFT_FORWARD)
-                .IgnoreError();
-            api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(),
-                                Y_.PtrBoth(), PFFFT_FORWARD)
-                .IgnoreError();
-          }
-
-          t1 = UclockSec();
-          api.pffft_destroy_setup(&s_reg).IgnoreError();
-
-          flops =
-              (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
-          ShowOutput("PFFFT", N, cplx, flops, t0, t1, max_iter);
+        if (!s.ok()) {
+          printf("Sandbox failed.\n");
+          return 1;
         }
+
+        sapi::v::RemotePtr s_reg(s.value());
+
+        t0 = UclockSec();
+        for (iter = 0; iter < max_iter; ++iter) {
+          api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(),
+                              Y_.PtrBoth(), PFFFT_FORWARD)
+              .IgnoreError();
+          api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(),
+                              Y_.PtrBoth(), PFFFT_FORWARD)
+              .IgnoreError();
+        }
+
+        t1 = UclockSec();
+        api.pffft_destroy_setup(&s_reg).IgnoreError();
+
+        flops =
+            (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
+        ShowOutput("PFFFT", N, cplx, flops, t0, t1, max_iter);
 
         LOG(INFO) << "N = " << N << " SUCCESSFULLY\n\n";
       }

@@ -1,14 +1,23 @@
 # Sandboxing PFFFT library
 
-Builder: CMake  
+Build System: CMake  
 OS: Linux
+
+### Check out the PFFFT library & CMake set up
+`mkdir -p build && cd build`
+
+`git clone https://bitbucket.org/jpommier/pffft.git`
+
+`cmake .. -G Ninja -DPFFFT_ROOT_DIR=$PWD`
+
+`ninja`
 
 ### For testing: 
 `cd build`, then `./pffft_sandboxed`
 
 ### For debug:
-`SAPI_VLOG_LEVEL=1 ./pffft_sandboxed --v=100
---sandbox2_danger_danger_permit_all_and_log <auxiliar file>`
+display custom info with
+`./pffft_sandboxed --logtostderr`
 
 ## ***About the project*** 
 *PFFFT library is concerned with 1D Fast-Fourier Transformations finding a
@@ -38,22 +47,22 @@ it is taken into account while testing.
 In the end, the performance of PFFFT library it is outlined by the output.*
 
 #### CMake observations resume:
-    * linking pffft and fftpack (which contains necessary functions for pffft)
-    * set math library 
+* linking pffft and fftpack (which contains necessary functions for pffft)
+* set math library 
 
 #### Sandboxed main observations resume:
-    * containing two testing parts (fft / pffft benchmarks)
-    * showing the performance of the transformations implies 
+* containing two testing parts (fft / pffft benchmarks)
+* showing the performance of the transformations implies 
     testing them through various FFT dimenstions. 
     Variable N, the input length, will take specific values 
     meaning the number of points to which it is set the calculus 
     (more details of mathematical purpose of N - https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm). 
-    * output shows speed depending on the input length
+* output shows speed depending on the input length
 
     
 
 ### Bugs history
-    - [Solved] pffft benchmark bug: "Sandbox not active"  
+    1. [Solved] pffft benchmark bug: "Sandbox not active"  
     N = 64, status OK, pffft_transform generates error 
     N > 64, status not OK
     Problem on initialising sapi::StatusOr<PFFFT_Setup *> s; the memory that stays 
@@ -66,7 +75,7 @@ In the end, the performance of PFFFT library it is outlined by the output.*
     Solution: using "sapi::v::RemotePtr" instead of "sapi::v::GenericPtr" 
     to access the memory of object s
 
-    - [Unresolved] compiling bug: "No space left on device"
+    2. [Unresolved] compiling bug: "No space left on device"
     The building process creates some `embed` files that use lots of 
     memory, trying to write them on /tmp.
 
