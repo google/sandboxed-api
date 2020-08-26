@@ -19,6 +19,8 @@ project(pffft CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+set(PFFFT_ROOT_DIR https://bitbucket.org/jpommier/pffft.git)
+
 add_library(pffft STATIC 
     master/pffft.c 
     master/pffft.h 
