@@ -20,14 +20,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_library(pffft STATIC 
-    pffft.c 
-    pffft.h 
-    fftpack.c 
-    fftpack.h
+    master/pffft.c 
+    master/pffft.h 
+    master/fftpack.c 
+    master/fftpack.h
 )
 
 add_executable(pffft_main
-    test_pffft.c
+    master/test_pffft.c
 )
 
 target_link_libraries(pffft_main PRIVATE 
@@ -84,7 +84,7 @@ add_sapi_library(pffft_sapi
               sinti 
               sint
 
-    INPUTS pffft.h fftpack.h
+    INPUTS master/pffft.h master/fftpack.h
     LIBRARY pffft
     LIBRARY_NAME pffft
 

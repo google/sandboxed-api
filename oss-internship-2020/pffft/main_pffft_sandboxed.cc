@@ -23,7 +23,6 @@
 #include <cmath>
 #include <cstdio>
 
-#include "fftpack.h"
 #include "pffft_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/vars.h"

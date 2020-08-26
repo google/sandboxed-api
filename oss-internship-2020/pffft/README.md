@@ -4,9 +4,9 @@ Build System: CMake
 OS: Linux
 
 ### Check out the PFFFT library & CMake set up
-`mkdir -p build && cd build`
+`git submodule add https://bitbucket.org/jpommier/pffft.git`
 
-`git clone https://bitbucket.org/jpommier/pffft.git`
+`mkdir -p build && cd build`
 
 `cmake .. -G Ninja -DPFFFT_ROOT_DIR=$PWD`
 
