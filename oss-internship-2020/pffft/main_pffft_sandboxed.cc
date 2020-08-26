@@ -1,14 +1,13 @@
-#define GOOGLE_STRIP_LOG 1
-
-#include <assert.h>
 #include <glog/logging.h>
-#include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/times.h>
 #include <syscall.h>
 #include <time.h>
+
+#include <cassert>
+#include <cmath>
+#include <cstdio>
 
 #include "fftpack.h"
 #include "pffft_sapi.sapi.h"
@@ -38,14 +37,12 @@ class pffftSapiSandbox : public pffftSandbox {
   }
 };
 
-double frand() { return rand() / (double)RAND_MAX; }
-
-double uclock_sec(void) { return (double)clock() / (double)CLOCKS_PER_SEC; }
+double UclockSec(void) { return (double)clock() / (double)CLOCKS_PER_SEC; }
 
 int array_output_format = 0;
 
-void show_output(const char* name, int N, int cplx, float flops, float t0,
-                 float t1, int max_iter) {
+void ShowOutput(const char* name, int N, int cplx, float flops, float t0,
+                float t1, int max_iter) {
   float mflops = flops / 1e6 / (t1 - t0 + 1e-16);
   if (array_output_format) {
     if (flops != -1) {
@@ -85,39 +82,21 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "Initializing sandbox...\n";
 
   pffftSapiSandbox sandbox;
-  sandbox.Init().IgnoreError();
+  absl::Status init_status = sandbox.Init();
 
-  LOG(INFO) << "Initialization: " << sandbox.Init().ToString().c_str() << "\n";
+  LOG(INFO) << "Initialization: " << init_status.ToString().c_str() << "\n";
 
   pffftApi api(&sandbox);
-
-  int N, cplx;
-
-  cplx = 0;
+  int cplx = 0;
 
   do {
-    for (i = 0; i < 23; i++) {
-      N = Nvalues[i];
-
-      int Nfloat = N * (cplx ? 2 : 1);
+    for (int N : Nvalues) {
+      const int Nfloat = N * (cplx ? 2 : 1);
       int Nbytes = Nfloat * sizeof(float);
-      int pass;
 
-      float ref[Nbytes], in[Nbytes], out[Nbytes], tmp[Nbytes], tmp2[Nbytes];
+      float wrk[2 * Nfloat + 15 * sizeof(float)];
+      sapi::v::Array<float> wrk_(wrk, 2 * Nfloat + 15 * sizeof(float));
 
-      sapi::v::Array<float> ref_(ref, Nbytes);
-      sapi::v::Array<float> in_(in, Nbytes);
-      sapi::v::Array<float> out_(out, Nbytes);
-      sapi::v::Array<float> tmp_(tmp, Nbytes);
-      sapi::v::Array<float> tmp2_(tmp2, Nbytes);
-
-      float wrk[2 * Nbytes + 15 * sizeof(float)];
-      sapi::v::Array<float> wrk_(wrk, 2 * Nbytes + 15 * sizeof(float));
-
-      float ref_max = 0;
-      int k;
-
-      Nfloat = (cplx ? N * 2 : N);
       float X[Nbytes], Y[Nbytes], Z[Nbytes];
       sapi::v::Array<float> X_(X, Nbytes), Y_(Y, Nbytes), Z_(Z, Nbytes);
 
@@ -127,7 +106,7 @@ int main(int argc, char* argv[]) {
 #ifdef __arm__
       max_iter /= 4;
 #endif
-      int iter;
+      int iter, k;
 
       for (k = 0; k < Nfloat; ++k) {
         X[k] = 0;
@@ -148,7 +127,7 @@ int main(int argc, char* argv[]) {
         } else {
           api.rffti(N, wrk_.PtrBoth()).IgnoreError();
         }
-        t0 = uclock_sec();
+        t0 = UclockSec();
 
         for (iter = 0; iter < max_iter_; ++iter) {
           if (cplx) {
@@ -159,11 +138,11 @@ int main(int argc, char* argv[]) {
             api.rfftb(N, X_.PtrBoth(), wrk_.PtrBoth()).IgnoreError();
           }
         }
-        t1 = uclock_sec();
+        t1 = UclockSec();
 
         flops =
             (max_iter_ * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
-        show_output("FFTPack", N, cplx, flops, t0, t1, max_iter_);
+        ShowOutput("FFTPack", N, cplx, flops, t0, t1, max_iter_);
       }
 
       /*
@@ -173,12 +152,13 @@ int main(int argc, char* argv[]) {
         sapi::StatusOr<PFFFT_Setup*> s =
             api.pffft_new_setup(N, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
 
-        LOG(INFO) << "Setup status is: " << s.status().ToString().c_str() << "\n";
+        LOG(INFO) << "Setup status is: " << s.status().ToString().c_str()
+                  << "\n";
 
         if (s.ok()) {
           sapi::v::RemotePtr s_reg(s.value());
 
-          t0 = uclock_sec();
+          t0 = UclockSec();
           for (iter = 0; iter < max_iter; ++iter) {
             api.pffft_transform(&s_reg, X_.PtrBoth(), Z_.PtrBoth(),
                                 Y_.PtrBoth(), PFFFT_FORWARD)
@@ -188,12 +168,12 @@ int main(int argc, char* argv[]) {
                 .IgnoreError();
           }
 
-          t1 = uclock_sec();
+          t1 = UclockSec();
           api.pffft_destroy_setup(&s_reg).IgnoreError();
 
           flops =
               (max_iter * 2) * ((cplx ? 5 : 2.5) * N * log((double)N) / M_LN2);
-          show_output("PFFFT", N, cplx, flops, t0, t1, max_iter);
+          ShowOutput("PFFFT", N, cplx, flops, t0, t1, max_iter);
         }
 
         LOG(INFO) << "N = " << N << " SUCCESSFULLY\n\n";
