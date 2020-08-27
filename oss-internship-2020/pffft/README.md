@@ -46,7 +46,11 @@ the series that calculate the result of transformation. It is also
 important to mention that the `cplx` variable stands for a boolean value 
 that tells the type of transformation (0 for REAL and 1 for COMPLEX) and 
 it is taken into account while testing.
-In the end, the performance of PFFFT library it is outlined by the output.*
+In the end, the performance of PFFFT library it is outlined by the output.
+There are two output formats available, from which you can choose through
+from which you can choose through `--output_format=` command-line flag.
+Without using this type of argument when running, the output format is set
+by default.*
 
 #### CMake observations resume:
 * linking pffft and fftpack (which contains necessary functions for pffft)
@@ -60,6 +64,8 @@ In the end, the performance of PFFFT library it is outlined by the output.*
     meaning the number of points to which it is set the calculus 
     (more details of mathematical purpose of N - https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm). 
 * output shows speed depending on the input length
+* use `--output_format=0` or `--output_format=1` arguments to choose between output formats.
+    `0` is for a detailed output, while `1` is only displaying each transformation process speed.
 
     
 

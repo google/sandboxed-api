@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/times.h>
 #include <syscall.h>
-#include <time.h>
 
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 
 #include "pffft_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
@@ -32,8 +33,7 @@ ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 
 class PffftSapiSandbox : public PffftSandbox {
  public:
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder*) {
+  std::unique_ptr<sandbox2::Policy> ModifyPolicy(sandbox2::PolicyBuilder*) {
     return sandbox2::PolicyBuilder()
         .AllowStaticStartup()
         .AllowOpen()
@@ -50,14 +50,27 @@ class PffftSapiSandbox : public PffftSandbox {
   }
 };
 
-double UclockSec() { return static_cast<double>(clock()) / CLOCKS_PER_SEC; }
+// output_format flag determines whether the output shows information in detail
+// or not. By default, the flag is set as 0, meaning an elaborate display
+// (see ShowOutput method).
+static bool ValidateFlag(const char* flagname, int32_t value) {
+  if (value >= 0 && value < 32768) {
+    return true;
+  }
 
-int array_output_format = 0;
+  LOG(ERROR) << "Invalid value for --" << flagname << ".";
+  return false;
+}
+
+DEFINE_int32(output_format, 0, "Value to specific the output format.");
+DEFINE_validator(output_format, &ValidateFlag);
+
+double UclockSec() { return static_cast<double>(clock()) / CLOCKS_PER_SEC; }
 
 void ShowOutput(const char* name, int n, int cplx, float flops, float t0,
                 float t1, int max_iter) {
   float mflops = flops / 1e6 / (t1 - t0 + 1e-16);
-  if (array_output_format) {
+  if (FLAGS_output_format) {
     if (flops != -1) {
       printf("|%9.0f   ", mflops);
     } else
@@ -76,39 +89,17 @@ absl::Status PffftMain() {
   PffftSapiSandbox sandbox;
   SAPI_RETURN_IF_ERROR(sandbox.Init());
 
-  return absl::OkStatus();
-}
-
-int main(int argc, char* argv[]) {
-  // Initialize Google's logging library.
-  google::InitGoogleLogging(argv[0]);
-
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-
-  // kTransformSizes is a vector keeping the values by which iterates n, its value
-  // representing the input length. More concrete, n is the number of
-  // data points the caclulus is up to (determinating its accuracy).
-  // To show the performance of Fast-Fourier Transformations the program is
-  // testing for various values of n.
-  constexpr int kTransformSizes[] = {64,    96,     128,        160,         192,     256,
-                   384,   5 * 96, 512,        5 * 128,     3 * 256, 800,
-                   1024,  2048,   2400,       4096,        8192,    9 * 1024,
-                   16384, 32768};
-
-  LOG(INFO) << "Initializing sandbox...\n";
-
-  PffftSapiSandbox sandbox;
-  absl::Status init_status = sandbox.Init();
-
-  if (absl::Status status = PffftMain(); !status.ok()) {
-    LOG(ERROR) << "Initialization failed: " << status.ToString();
-    return EXIT_FAILURE;
-  }
-
-  LOG(INFO) << "Initialization: " << init_status.ToString();
-
   PffftApi api(&sandbox);
   int cplx = 0;
+
+  // kTransformSizes is a vector keeping the values by which iterates n, its
+  // value representing the input length. More concrete, n is the number of data
+  // points the caclulus is up to (determinating its accuracy). To show the
+  // performance of Fast-Fourier Transformations the program is testing for
+  // various values of n.
+  constexpr int kTransformSizes[] = {
+      64,      96,  128,  160,  192,  256,  384,  5 * 96,   512,   5 * 128,
+      3 * 256, 800, 1024, 2048, 2400, 4096, 8192, 9 * 1024, 16384, 32768};
 
   do {
     for (int n : kTransformSizes) {
@@ -118,26 +109,31 @@ int main(int argc, char* argv[]) {
       std::vector<float> work(2 * n_float + 15, 0.0);
       sapi::v::Array<float> work_array(&work[0], work.size());
 
-      float x[n_bytes], y[n_bytes], z[n_bytes];
-      sapi::v::Array<float> x_array(x, n_bytes), y_array(y, n_bytes), z_array(z, n_bytes);
+      std::vector<float> x(n_bytes, 0.0);
+      sapi::v::Array<float> x_array(&x[0], x.size());
+
+      std::vector<float> y(n_bytes, 0.0);
+      sapi::v::Array<float> y_array(&y[0], y.size());
+
+      std::vector<float> z(n_bytes, 0.0);
+      sapi::v::Array<float> z_array(&z[0], z.size());
 
       double t0;
       double t1;
       double flops;
 
-      int k;
       int max_iter = 5120000 / n * 4;
 
-      for (k = 0; k < n_float; ++k) {
+      for (int k = 0; k < n_float; ++k) {
         x[k] = 0;
       }
 
       // FFTPack benchmark
       {
         // SIMD_SZ == 4 (returning value of pffft_simd_size())
-        int max_iter_ = max_iter / 4;
+        int simd_size_iter = max_iter / 4;
 
-        if (max_iter_ == 0) max_iter_ = 1;
+        if (simd_size_iter == 0) simd_size_iter = 1;
         if (cplx) {
           api.cffti(n, work_array.PtrBoth()).IgnoreError();
         } else {
@@ -145,7 +141,7 @@ int main(int argc, char* argv[]) {
         }
         t0 = UclockSec();
 
-        for (int iter = 0; iter < max_iter_; ++iter) {
+        for (int iter = 0; iter < simd_size_iter; ++iter) {
           if (cplx) {
             api.cfftf(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
             api.cfftb(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
@@ -156,11 +152,11 @@ int main(int argc, char* argv[]) {
         }
         t1 = UclockSec();
 
-        flops =
-            (max_iter_ * 2) * ((cplx ? 5 : 2.5) * n * log((double)n) / M_LN2);
-        ShowOutput("FFTPack", n, cplx, flops, t0, t1, max_iter_);
+        flops = (simd_size_iter * 2) *
+                ((cplx ? 5 : 2.5) * n * log((double)n) / M_LN2);
+        ShowOutput("FFTPack", n, cplx, flops, t0, t1, simd_size_iter);
       }
-      
+
       // PFFFT benchmark
       {
         sapi::StatusOr<PFFFT_Setup*> s =
@@ -170,7 +166,7 @@ int main(int argc, char* argv[]) {
 
         if (!s.ok()) {
           printf("Sandbox failed.\n");
-          return EXIT_FAILURE;
+          return s.status();
         }
 
         sapi::v::RemotePtr s_reg(s.value());
@@ -188,8 +184,8 @@ int main(int argc, char* argv[]) {
         t1 = UclockSec();
         api.pffft_destroy_setup(&s_reg).IgnoreError();
 
-        flops =
-            (max_iter * 2) * ((cplx ? 5 : 2.5) * n * log((double)n) / M_LN2);
+        flops = (max_iter * 2) * ((cplx ? 5 : 2.5) * static_cast<double>(n) *
+                                  log((double)n) / M_LN2);
         ShowOutput("PFFFT", n, cplx, flops, t0, t1, max_iter);
 
         LOG(INFO) << "n = " << n << " SUCCESSFULLY";
@@ -198,6 +194,22 @@ int main(int argc, char* argv[]) {
 
     cplx = !cplx;
   } while (cplx);
+
+  return absl::OkStatus();
+}
+
+int main(int argc, char* argv[]) {
+  // Initialize Google's logging library.
+  google::InitGoogleLogging(argv[0]);
+
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+  LOG(INFO) << "Initializing sandbox...\n";
+
+  if (absl::Status status = PffftMain(); !status.ok()) {
+    LOG(ERROR) << "Initialization failed: " << status.ToString();
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }
