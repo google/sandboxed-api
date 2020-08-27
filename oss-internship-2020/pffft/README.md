@@ -4,7 +4,9 @@ Build System: CMake
 OS: Linux
 
 ### Check out the PFFFT library & CMake set up
-`git submodule add https://bitbucket.org/jpommier/pffft.git`
+`git clone https://github.com/doinachiroiu/sandboxed-api/tree/master/oss-internship-2020/pffft`
+
+`git submodule update --init --recursive`
 
 `mkdir -p build && cd build`
 
@@ -22,7 +24,7 @@ display custom info with
 ## ***About the project*** 
 *PFFFT library is concerned with 1D Fast-Fourier Transformations finding a
 compromise between accuracy and speed. It deals with real and complex
-vectors, both cases being illustrated in the testing part (`main_pffft.c` 
+vectors, both cases being illustrated in the testing part (`test_pffft.c` 
 for initially and original version, `main_pffft_sandboxed.cc` for our 
 currently implemented sandboxed version).
 The original files can be found at: https://bitbucket.org/jpommier/pffft/src.*
@@ -62,21 +64,23 @@ In the end, the performance of PFFFT library it is outlined by the output.*
     
 
 ### Bugs history
-    1. [Solved] pffft benchmark bug: "Sandbox not active"  
-    N = 64, status OK, pffft_transform generates error 
-    N > 64, status not OK
-    Problem on initialising sapi::StatusOr<PFFFT_Setup *> s; the memory that stays 
-    for s is not the same with the address passed in pffft_transform function. 
-    (sapi::v::GenericPtr - to be changed)
+1. [Solved] pffft benchmark bug: "Sandbox not active"  
+        
+        N = 64, status OK, pffft_transform generates error 
+        N > 64, status not OK
+        Problem on initialising sapi::StatusOr<PFFFT_Setup *> s; the memory that stays 
+        for s is not the same with the address passed in pffft_transform function. 
+        (sapi::v::GenericPtr - to be changed)
 
-    Temporary solution: change the generated files to accept 
-    uintptr_t instead of PFFFT_Setup
+        Temporary solution: change the generated files to accept 
+        uintptr_t instead of PFFFT_Setup
 
-    Solution: using "sapi::v::RemotePtr" instead of "sapi::v::GenericPtr" 
-    to access the memory of object s
+        Solution: using "sapi::v::RemotePtr" instead of "sapi::v::GenericPtr" 
+        to access the memory of object s
 
-    2. [Unresolved] compiling bug: "No space left on device"
-    The building process creates some `embed` files that use lots of 
-    memory, trying to write them on /tmp.
+2. [Unresolved] compiling bug: "No space left on device"
+    
+        The building process creates some `embed` files that use lots of 
+        memory, trying to write them on /tmp.
 
-    Temporary solution: clean /tmp directory by `sudo rm -rf /tmp/*`.
+        Temporary solution: clean /tmp directory by `sudo rm -rf /tmp/*`.

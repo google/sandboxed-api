@@ -88,7 +88,7 @@ add_sapi_library(pffft_sapi
 
     INPUTS master/pffft.h master/fftpack.h
     LIBRARY pffft
-    LIBRARY_NAME pffft
+    LIBRARY_NAME Pffft
 
     NAMESPACE ""
 )
