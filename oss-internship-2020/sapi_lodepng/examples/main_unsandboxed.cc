@@ -12,111 +12,96 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cassert>
-#include <filesystem>
+#include <glog/logging.h>
+
 #include <iostream>
 
 #include "../lodepng/lodepng.h"
+#include "helpers.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
 
-void generate_one_step(const std::string &images_path) {
-  constexpr unsigned int width = 512, height = 512,
-                         img_len = width * height * 4;
-  std::vector<unsigned char> image(img_len);
-
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
-      image[4 * width * y + 4 * x + 1] = x ^ y;
-      image[4 * width * y + 4 * x + 2] = x | y;
-      image[4 * width * y + 4 * x + 3] = 255;
-    }
-  }
+void EncodeDecodeOneStep(const std::string &images_path) {
+  // generate the values
+  std::vector<uint8_t> image(GenerateValues());
 
   // encode the image
   const std::string filename = images_path + "/out_generated1.png";
   unsigned int result =
-      lodepng_encode32_file(filename.c_str(), image.data(), width, height);
+      lodepng_encode32_file(filename.c_str(), image.data(), kWidth, kHeight);
 
-  assert(!result);
+  CHECK(!result);
 
   // after the image has been encoded, decode it to check that the
   // pixel values are the same
 
   unsigned int width2, height2;
-  unsigned char *image2 = 0;
+  uint8_t *image2 = 0;
 
   result = lodepng_decode32_file(&image2, &width2, &height2, filename.c_str());
 
-  assert(!result);
+  CHECK(!result);
 
-  assert(width2 == width);
-  assert(height2 == height);
+  CHECK(width2 == kWidth);
+  CHECK(height2 == kHeight);
 
   // now, we can compare the values
-  for (size_t i = 0; i < img_len; ++i) {
-    assert(image2[i] == image[i]);
-  }
+  CHECK(std::equal(image.begin(), image.end(), image2));
+  free(image2);
 }
 
-void generate_two_steps(const std::string &images_path) {
+void EncodeDecodeTwoSteps(const std::string &images_path) {
   // generate the values
-  constexpr unsigned int width = 512, height = 512,
-                         img_len = width * height * 4;
-  std::vector<unsigned char> image(img_len);
-
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      image[4 * width * y + 4 * x + 0] = 255 * !(x & y);
-      image[4 * width * y + 4 * x + 1] = x ^ y;
-      image[4 * width * y + 4 * x + 2] = x | y;
-      image[4 * width * y + 4 * x + 3] = 255;
-    }
-  }
+  std::vector<uint8_t> image(GenerateValues());
 
   // encode the image into memory first
   const std::string filename = images_path + "/out_generated2.png";
-  unsigned char *png;
+  uint8_t *png;
   size_t pngsize;
 
   unsigned int result =
-      lodepng_encode32(&png, &pngsize, image.data(), width, height);
+      lodepng_encode32(&png, &pngsize, image.data(), kWidth, kHeight);
 
-  assert(!result);
+  CHECK(!result);
 
   // write the image into the file (from memory)
   result = lodepng_save_file(png, pngsize, filename.c_str());
 
-  assert(!result);
+  CHECK(!result);
 
   // now, decode the image using the 2 steps in order to compare the values
   unsigned int width2, height2;
-  unsigned char *png2;
+  uint8_t *png2;
   size_t pngsize2;
 
   // load the file in memory
   result = lodepng_load_file(&png2, &pngsize2, filename.c_str());
 
-  assert(!result);
-  assert(pngsize == pngsize2);
+  CHECK(!result);
+  CHECK(pngsize == pngsize2);
 
-  unsigned char *image2;
+  uint8_t *image2;
   result = lodepng_decode32(&image2, &width2, &height2, png2, pngsize2);
 
-  assert(!result);
-  assert(width2 == width);
-  assert(height2 == height);
+  CHECK(!result);
+  CHECK(width2 == kWidth);
+  CHECK(height2 == kHeight);
 
   // compare values
-  for (size_t i = 0; i < img_len; ++i) {
-    assert(image2[i] == image[i]);
-  }
+  CHECK(std::equal(image.begin(), image.end(), image2));
+  free(png);
+  free(png2);
+  free(image2);
 }
 
 int main(int argc, char *argv[]) {
-  const std::string images_path = std::filesystem::current_path().string();
+  google::InitGoogleLogging(argv[0]);
 
-  generate_one_step(images_path);
-  generate_two_steps(images_path);
+  const std::string images_path = CreateTempDirAtCWD();
+
+  EncodeDecodeOneStep(images_path);
+  EncodeDecodeTwoSteps(images_path);
+
+  CHECK(sandbox2::file_util::fileops::DeleteRecursively(images_path));
 
   return EXIT_SUCCESS;
 }
