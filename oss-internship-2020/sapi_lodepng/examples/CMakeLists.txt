@@ -15,21 +15,29 @@
 # Build the unsandboxed main
 add_executable(lodepng_unsandboxed
   main_unsandboxed.cc
+  helpers.cc
 )
 
 target_link_libraries(lodepng_unsandboxed PRIVATE
   lodepng
+  sapi::sapi
+  sandbox2::temp_file
+  sandbox2::fileops
+  glog::glog
 )
 
 # Build the sandboxed main
 add_executable(lodepng_sandboxed
   main_sandboxed.cc
   sandbox.h
+  helpers.cc
 )
 
 target_link_libraries(lodepng_sandboxed PRIVATE
   lodepng_sapi
   sapi::sapi
+  sandbox2::temp_file
+  sandbox2::fileops
   sapi::vars
   sapi::status
   glog::glog
@@ -41,6 +49,7 @@ enable_testing()
 
 add_executable(main_unit_test
   main_unit_test.cc
+  helpers.cc
 )
 
 target_link_libraries(main_unit_test PRIVATE
@@ -51,8 +60,11 @@ target_link_libraries(main_unit_test PRIVATE
   glog::glog
   sapi::flags
   sapi::sapi
+  sandbox2::temp_file
+  sandbox2::fileops
   sapi::status
   sapi::test_main
   sapi::vars
 )
 gtest_discover_tests(main_unit_test)
+
