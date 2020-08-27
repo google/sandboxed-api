@@ -27,7 +27,7 @@
 
 class Openjp2SapiSandbox : public Openjp2Sandbox {
  public:
-  Openjp2SapiSandbox(std::string in_file) : in_file_(std::move(in_file)) {}
+  explicit Openjp2SapiSandbox(std::string in_file) : in_file_(std::move(in_file)) {}
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {

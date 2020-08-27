@@ -1,4 +1,4 @@
-# OpenJPEG
+# OpenJPEG Sandboxed API
 
 This library provides sandboxed version of the [OpenJPEG](https://github.com/uclouvain/openjpeg) library. 
 
