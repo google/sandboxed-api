@@ -67,7 +67,7 @@ DEFINE_validator(output_format, &ValidateFlag);
 
 double UclockSec() { return static_cast<double>(clock()) / CLOCKS_PER_SEC; }
 
-void ShowOutput(const char* name, int n, int cplx, float flops, float t0,
+void ShowOutput(const char* name, int n, int complex, float flops, float t0,
                 float t1, int max_iter) {
   float mflops = flops / 1e6 / (t1 - t0 + 1e-16);
   if (FLAGS_output_format) {
@@ -78,7 +78,7 @@ void ShowOutput(const char* name, int n, int cplx, float flops, float t0,
   } else {
     if (flops != -1) {
       printf("n=%5d, %s %16s : %6.0f MFlops [t=%6.0f ns, %d runs]\n", n,
-             (cplx ? "CPLX" : "REAL"), name, mflops,
+             (complex ? "CPLX" : "REAL"), name, mflops,
              (t1 - t0) / 2 / max_iter * 1e9, max_iter);
     }
   }
@@ -90,7 +90,6 @@ absl::Status PffftMain() {
   SAPI_RETURN_IF_ERROR(sandbox.Init());
 
   PffftApi api(&sandbox);
-  int cplx = 0;
 
   // kTransformSizes is a vector keeping the values by which iterates n, its
   // value representing the input length. More concrete, n is the number of data
@@ -101,9 +100,9 @@ absl::Status PffftMain() {
       64,      96,  128,  160,  192,  256,  384,  5 * 96,   512,   5 * 128,
       3 * 256, 800, 1024, 2048, 2400, 4096, 8192, 9 * 1024, 16384, 32768};
 
-  do {
+  for (int complex : {0, 1}) {
     for (int n : kTransformSizes) {
-      const int n_float = n * (cplx ? 2 : 1);
+      const int n_float = n * (complex ? 2 : 1);
       int n_bytes = n_float * sizeof(float);
 
       std::vector<float> work(2 * n_float + 15, 0.0);
@@ -134,7 +133,7 @@ absl::Status PffftMain() {
         int simd_size_iter = max_iter / 4;
 
         if (simd_size_iter == 0) simd_size_iter = 1;
-        if (cplx) {
+        if (complex) {
           api.cffti(n, work_array.PtrBoth()).IgnoreError();
         } else {
           api.rffti(n, work_array.PtrBoth()).IgnoreError();
@@ -142,7 +141,7 @@ absl::Status PffftMain() {
         t0 = UclockSec();
 
         for (int iter = 0; iter < simd_size_iter; ++iter) {
-          if (cplx) {
+          if (complex) {
             api.cfftf(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
             api.cfftb(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
           } else {
@@ -153,14 +152,14 @@ absl::Status PffftMain() {
         t1 = UclockSec();
 
         flops = (simd_size_iter * 2) *
-                ((cplx ? 5 : 2.5) * n * log((double)n) / M_LN2);
-        ShowOutput("FFTPack", n, cplx, flops, t0, t1, simd_size_iter);
+                ((complex ? 5 : 2.5) * n * log((double)n) / M_LN2);
+        ShowOutput("FFTPack", n, complex, flops, t0, t1, simd_size_iter);
       }
 
       // PFFFT benchmark
       {
         sapi::StatusOr<PFFFT_Setup*> s =
-            api.pffft_new_setup(n, cplx ? PFFFT_COMPLEX : PFFFT_REAL);
+            api.pffft_new_setup(n, complex ? PFFFT_COMPLEX : PFFFT_REAL);
 
         LOG(INFO) << "Setup status is: " << s.status().ToString();
 
@@ -184,16 +183,14 @@ absl::Status PffftMain() {
         t1 = UclockSec();
         api.pffft_destroy_setup(&s_reg).IgnoreError();
 
-        flops = (max_iter * 2) * ((cplx ? 5 : 2.5) * static_cast<double>(n) *
+        flops = (max_iter * 2) * ((complex ? 5 : 2.5) * static_cast<double>(n) *
                                   log((double)n) / M_LN2);
-        ShowOutput("PFFFT", n, cplx, flops, t0, t1, max_iter);
+        ShowOutput("PFFFT", n, complex, flops, t0, t1, max_iter);
 
         LOG(INFO) << "n = " << n << " SUCCESSFULLY";
       }
     }
-
-    cplx = !cplx;
-  } while (cplx);
+  } 
 
   return absl::OkStatus();
 }

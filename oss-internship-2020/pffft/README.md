@@ -43,7 +43,7 @@ transformations and print the speed for each value and type of
 transformation. More specifically, the input length is the target for 
 accuracy (named as `N`) and it stands for the number of data points from 
 the series that calculate the result of transformation. It is also 
-important to mention that the `cplx` variable stands for a boolean value 
+important to mention that the `complex` variable stands for a boolean value 
 that tells the type of transformation (0 for REAL and 1 for COMPLEX) and 
 it is taken into account while testing.
 In the end, the performance of PFFFT library it is outlined by the output.
