@@ -47,8 +47,8 @@ important to mention that the `cplx` variable stands for a boolean value
 that tells the type of transformation (0 for REAL and 1 for COMPLEX) and 
 it is taken into account while testing.
 In the end, the performance of PFFFT library it is outlined by the output.
-There are two output formats available, from which you can choose through
-from which you can choose through `--output_format=` command-line flag.
+There are two output formats available, from which you can choose through 
+`--output_format=` command-line flag.
 Without using this type of argument when running, the output format is set
 by default.*
 
