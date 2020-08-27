@@ -22,7 +22,7 @@
 
 class CurlTransaction : public sapi::Transaction {
  public:
-  CurlTransaction(std::unique_ptr<sapi::Sandbox> sandbox)
+  explicit CurlTransaction(std::unique_ptr<sapi::Sandbox> sandbox)
       : sapi::Transaction(std::move(sandbox)) {
     sapi::Transaction::SetTimeLimit(kTimeOutVal);
   }

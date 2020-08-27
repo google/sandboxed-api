@@ -23,7 +23,7 @@ extern "C" struct MemoryStruct {
 };
 
 // Append contents to the string stored by userp (userp is a MemoryStruct*)
-extern "C" size_t write_to_memory(char* contents, size_t size, size_t nmemb,
-                                  void* userp);
+extern "C" size_t WriteToMemory(char* contents, size_t size, size_t num_bytes,
+                                void* userp);
 
 #endif  // TESTS_CALLBACKS_H

@@ -15,8 +15,6 @@
 #ifndef TESTS_H
 #define TESTS_H
 
-#include <future>
-
 #include "../sandbox.h"
 #include "curl_sapi.sapi.h"
 #include "gtest/gtest.h"
@@ -32,36 +30,35 @@ class CurlTestUtils {
   };
 
   // Initialize and set up the curl handle
-  void curl_test_set_up();
+  void CurlTestSetUp();
   // Clean up the curl handle
-  void curl_test_tear_down();
+  void CurlTestTearDown();
 
   // Perform a request to the mock server
   // Optionally, store the response in a string
-  void perform_request(std::string& response);
-  void perform_request();
+  void PerformRequest(std::string& response);
+  void PerformRequest();
 
-  // Start a mock server that will manage connections for the tests
-  // The server listens on a port asynchronously by creating a future
-  // server_future.valid() is false if an error occured in the original thread
-  // server_future.get() is false if an error occured in the server thread
-  // The port number is stored in port
+  // Start a mock server (only once) that will manage connections for the tests
+  // The server listens on a port asynchronously by creating a thread
+  // The port number is stored in port_
   // Responds with kSimpleResponse to a GET request
   // Responds with the POST request fields to a POST request
-  void start_mock_server();
+  static void StartMockServer();
 
-  std::unique_ptr<CurlSapiSandbox> sandbox;
-  std::unique_ptr<CurlApi> api;
-  std::unique_ptr<sapi::v::RemotePtr> curl;
+  std::unique_ptr<CurlSapiSandbox> sandbox_;
+  std::unique_ptr<CurlApi> api_;
+  std::unique_ptr<sapi::v::RemotePtr> curl_;
 
-  std::future<bool> server_future;
+  static std::thread server_thread_;
 
-  const std::string kUrl = "http://127.0.0.1/";
-  long port;
+  static constexpr absl::string_view kUrl = "http://127.0.0.1/";
+  static long port_;
 
-  const std::string kSimpleResponse = "OK";
+  static constexpr absl::string_view kSimpleResponse = "OK";
 
-  sapi::v::Struct<MemoryStruct> chunk;
+ private:
+  sapi::v::Struct<MemoryStruct> chunk_;
 };
 
 #endif  // TESTS_H

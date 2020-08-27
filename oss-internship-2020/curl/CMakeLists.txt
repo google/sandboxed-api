@@ -43,8 +43,8 @@ add_subdirectory(curl_wrapper)
 
 # Setup Sandboxed API
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
-set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
-set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
+set(SAPI_ENABLE_EXAMPLES ${CURL_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
+set(SAPI_ENABLE_TESTS ${CURL_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
 add_subdirectory(
   "${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"

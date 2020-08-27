@@ -28,7 +28,8 @@ set_target_properties(curl_wrapper_and_callbacks
 set(CURL_HIDDEN_SYMBOLS OFF)
 set(BUILD_SHARED_LIBS OFF)
 
-# Link the wrapper to the original curl library
+# Link the wrapper to the original curl library (testing is disabled in curl)
+set(BUILD_TESTING OFF)
 add_subdirectory(curl)
 target_link_libraries(curl_wrapper_and_callbacks 
   CURL::libcurl

@@ -14,152 +14,225 @@
 
 #include "test_utils.h"
 
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <memory>
 #include <thread>
 
-void CurlTestUtils::curl_test_set_up() {
+long int CurlTestUtils::port_;
+std::thread CurlTestUtils::server_thread_;
+
+void CurlTestUtils::CurlTestSetUp() {
   // Initialize sandbox2 and sapi
-  sandbox = std::make_unique<CurlSapiSandbox>();
-  ASSERT_THAT(sandbox->Init(), sapi::IsOk());
-  api = std::make_unique<CurlApi>(sandbox.get());
+  sandbox_ = std::make_unique<CurlSapiSandbox>();
+  ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+  api_ = std::make_unique<CurlApi>(sandbox_.get());
 
   // Initialize curl
-  SAPI_ASSERT_OK_AND_ASSIGN(void* curl_raw_ptr, api->curl_easy_init());
-  curl = std::make_unique<sapi::v::RemotePtr>(curl_raw_ptr);
+  SAPI_ASSERT_OK_AND_ASSIGN(void* curl_raw_ptr, api_->curl_easy_init());
+  curl_ = std::make_unique<sapi::v::RemotePtr>(curl_raw_ptr);
 
   // Specify request URL
-  sapi::v::ConstCStr sapi_url(kUrl.c_str());
-  SAPI_ASSERT_OK_AND_ASSIGN(
-      int setopt_url_code,
-      api->curl_easy_setopt_ptr(curl.get(), CURLOPT_URL, sapi_url.PtrBefore()));
+  sapi::v::ConstCStr sapi_url(kUrl.data());
+  SAPI_ASSERT_OK_AND_ASSIGN(int setopt_url_code,
+                            api_->curl_easy_setopt_ptr(curl_.get(), CURLOPT_URL,
+                                                       sapi_url.PtrBefore()));
   ASSERT_EQ(setopt_url_code, CURLE_OK);
 
   // Set port
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_port_code,
-      api->curl_easy_setopt_long(curl.get(), CURLOPT_PORT, port));
+      api_->curl_easy_setopt_long(curl_.get(), CURLOPT_PORT, port_));
   ASSERT_EQ(setopt_port_code, CURLE_OK);
 
-  // Generate pointer to the write_to_memory callback
-  sapi::RPCChannel rpcc(sandbox->comms());
+  // Generate pointer to the WriteToMemory callback
+  sapi::RPCChannel rpcc(sandbox_->comms());
   size_t (*_function_ptr)(char*, size_t, size_t, void*);
-  ASSERT_THAT(rpcc.Symbol("write_to_memory", (void**)&_function_ptr),
+  ASSERT_THAT(rpcc.Symbol("WriteToMemory", (void**)&_function_ptr),
               sapi::IsOk());
   sapi::v::RemotePtr remote_function_ptr((void*)_function_ptr);
 
-  // Set write_to_memory as the write function
+  // Set WriteToMemory as the write function
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_write_function,
-      api->curl_easy_setopt_ptr(curl.get(), CURLOPT_WRITEFUNCTION,
-                                &remote_function_ptr));
+      api_->curl_easy_setopt_ptr(curl_.get(), CURLOPT_WRITEFUNCTION,
+                                 &remote_function_ptr));
   ASSERT_EQ(setopt_write_function, CURLE_OK);
 
   // Pass memory chunk object to the callback
   SAPI_ASSERT_OK_AND_ASSIGN(
       int setopt_write_data,
-      api->curl_easy_setopt_ptr(curl.get(), CURLOPT_WRITEDATA,
-                                chunk.PtrBoth()));
+      api_->curl_easy_setopt_ptr(curl_.get(), CURLOPT_WRITEDATA,
+                                 chunk_.PtrBoth()));
   ASSERT_EQ(setopt_write_data, CURLE_OK);
 }
 
-void CurlTestUtils::curl_test_tear_down() {
+void CurlTestUtils::CurlTestTearDown() {
   // Cleanup curl
-  ASSERT_THAT(api->curl_easy_cleanup(curl.get()), sapi::IsOk());
+  ASSERT_THAT(api_->curl_easy_cleanup(curl_.get()), sapi::IsOk());
 }
 
-void CurlTestUtils::perform_request(std::string& response) {
+void CurlTestUtils::PerformRequest(std::string& response) {
   // Perform the request
   SAPI_ASSERT_OK_AND_ASSIGN(int perform_code,
-                            api->curl_easy_perform(curl.get()));
+                            api_->curl_easy_perform(curl_.get()));
   ASSERT_EQ(perform_code, CURLE_OK);
 
   // Get pointer to the memory chunk
   sapi::v::GenericPtr remote_ptr;
-  remote_ptr.SetRemote(&((MemoryStruct*)chunk.GetRemote())->memory);
-  ASSERT_THAT(sandbox->TransferFromSandboxee(&remote_ptr), sapi::IsOk());
+  remote_ptr.SetRemote(&((MemoryStruct*)chunk_.GetRemote())->memory);
+  ASSERT_THAT(sandbox_->TransferFromSandboxee(&remote_ptr), sapi::IsOk());
   void* chunk_ptr = (void*)remote_ptr.GetValue();
 
   // Get the string and store it in response
-  SAPI_ASSERT_OK_AND_ASSIGN(response,
-                            sandbox->GetCString(sapi::v::RemotePtr(chunk_ptr)));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      response, sandbox_->GetCString(sapi::v::RemotePtr(chunk_ptr)));
 }
 
-void CurlTestUtils::perform_request() {
+void CurlTestUtils::PerformRequest() {
   // If the response is not needed, pass a string that will be discarded
   std::string discarded_response;
-  perform_request(discarded_response);
+  PerformRequest(discarded_response);
 }
 
-void CurlTestUtils::start_mock_server() {
-  // Get the socket file descriptor
-  int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+void CurlTestUtils::StartMockServer() {
+  // Get ai_list, a list of addrinfo structures, the port will be set later
+  addrinfo hints{AI_PASSIVE, AF_INET, SOCK_STREAM};
+  addrinfo* ai_list;
+  if (getaddrinfo("127.0.0.1", NULL, &hints, &ai_list) < 0) {
+    return;
+  }
 
-  // Create the socket address object
-  // The port is set to 0, meaning that it will be auto assigned
-  // Only local connections can access this socket
-  sockaddr_in socket_address{AF_INET, 0, htonl(INADDR_LOOPBACK)};
-  socklen_t socket_address_size = sizeof(socket_address);
-  if (socket_fd == -1) return;  // future.valid() is false
-
-  // Bind the file descriptor to the socket address object
-  if (bind(socket_fd, (sockaddr*)&socket_address, socket_address_size) == -1)
-    return;  // future.valid() is false
-
-  // Assign an available port to the socket address object
-  if (getsockname(socket_fd, (sockaddr*)&socket_address,
-                  &socket_address_size) == -1)
-    return;  // future.valid() is false
-
-  // Get the port number
-  port = ntohs(socket_address.sin_port);
-
-  // Set server_future operation to socket listening
-  server_future = std::async(std::launch::async, [=] {
-    // Listen on the socket (maximum 1 connection)
-    if (listen(socket_fd, 1) == -1) return false;
-
-    // File descriptor to the connection socket
-    // This blocks the thread until a connection is established
-    int accepted_socket_fd = accept(socket_fd, (sockaddr*)&socket_address,
-                                    (socklen_t*)&socket_address_size);
-    if (accepted_socket_fd == -1) return false;
-
-    // Read the request from the socket
-    constexpr int kMaxRequestSize = 4096;
-    char request[kMaxRequestSize] = {};
-    if (read(accepted_socket_fd, request, kMaxRequestSize) == -1) return false;
-
-    // Stop any other reading operation on the socket
-    if (shutdown(accepted_socket_fd, SHUT_RD) == -1) return false;
-
-    // Generate response depending on the HTTP method used
-    std::string http_response =
-        "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: ";
-    if (strncmp(request, "GET", 3) == 0) {
-      http_response +=
-          std::to_string(kSimpleResponse.size()) + "\n\n" + kSimpleResponse;
-    } else if (strncmp(request, "POST", 4) == 0) {
-      char* post_fields = strstr(request, "\r\n\r\n");
-      post_fields += 4;  // Points to the first char after the HTTP header
-      http_response += std::to_string(strlen(post_fields)) + "\n\n" +
-                       std::string(post_fields);
-    } else {
-      return false;
+  // Loop over ai_list, until a socket is created
+  int listening_socket;
+  for (addrinfo* p = ai_list;; p = p->ai_next) {
+    if (p == nullptr) {
+      return;
     }
 
-    // Write the response on the socket
-    if (write(accepted_socket_fd, http_response.c_str(),
-              http_response.size()) == -1)
-      return false;
+    // Try creating a socket
+    listening_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (listening_socket >= 0) {
+      // Try binding the socket to the address
+      if (bind(listening_socket, p->ai_addr, p->ai_addrlen) >= 0) {
+        // Assign an arbitrary available port to the socket address object
+        if (getsockname(listening_socket, p->ai_addr, &p->ai_addrlen) == -1) {
+          return;
+        }
+        port_ = ntohs(((struct sockaddr_in*)p->ai_addr)->sin_port);
 
-    // Close the socket
-    if (close(accepted_socket_fd) == -1) return false;
+        break;
 
-    // No error was encountered, can return true
-    return true;
+      } else {
+        close(listening_socket);
+      }
+    }
+  }
+
+  freeaddrinfo(ai_list);
+
+  // Listen on the socket
+  if (listen(listening_socket, 256) == -1) {
+    return;
+  }
+
+  // Set server_thread_ operation to socket listening
+  server_thread_ = std::thread([=] {
+    // Create the master fd_set containing listening_socket
+    fd_set master_fd_set;
+    FD_ZERO(&master_fd_set);
+    FD_SET(listening_socket, &master_fd_set);
+
+    // Create an empty fd_set, will be used for making copies of master_fd_set
+    fd_set copy_fd_set;
+    FD_ZERO(&copy_fd_set);
+
+    int max_fd = listening_socket;
+
+    // Keep calling select and block after a new event happens
+    // Doesn't stop until the process doing tests is terminated
+    for (;;) {
+      copy_fd_set = master_fd_set;
+
+      // Block and wait for a file descriptor to be ready
+      if (select(max_fd + 1, &copy_fd_set, nullptr, nullptr, nullptr) == -1) {
+        close(listening_socket);
+        return;
+      }
+
+      // A file descriptor is ready, loop over all the fds to find it
+      for (int i = 0; i <= max_fd; ++i) {
+        // i is not a file desciptor in the set, skip it
+        if (!FD_ISSET(i, &copy_fd_set)) {
+          continue;
+        }
+
+        if (i == listening_socket) {  // CASE 1: a new connection
+
+          sockaddr_storage remote_address;
+          socklen_t remote_address_size = sizeof(remote_address);
+
+          // Accept the connection
+          int accepted_socket =
+              accept(listening_socket, (sockaddr*)&remote_address,
+                     &remote_address_size);
+          if (accepted_socket == -1) {
+            close(listening_socket);
+            return;
+          }
+
+          // Add the new socket to the fd_set and update max_fd
+          FD_SET(accepted_socket, &master_fd_set);
+          max_fd = std::max(max_fd, accepted_socket);
+
+        } else {  // CASE 2: a request from an existing connection
+
+          constexpr int kMaxRequestSize = 4096;
+          char buf[kMaxRequestSize] = {};
+
+          // Receive message from socket
+          int num_bytes = recv(i, buf, sizeof(buf), 0);
+          if (num_bytes == -1) {
+            close(listening_socket);
+            return;
+
+          } else if (num_bytes == 0) {
+            // Close the connection and remove it from fd_set
+            close(i);
+            FD_CLR(i, &master_fd_set);
+
+          } else {
+            // Prepare a response for the request
+            std::string http_response =
+                "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: ";
+
+            if (strncmp(buf, "GET", 3) == 0) {
+              http_response += std::to_string(kSimpleResponse.size()) + "\n\n" +
+                               std::string{kSimpleResponse};
+
+            } else if (strncmp(buf, "POST", 4) == 0) {
+              char* post_fields = strstr(buf, "\r\n\r\n");
+              post_fields += 4;  // Points to the first char after HTTP header
+              http_response += std::to_string(strlen(post_fields)) + "\n\n" +
+                               std::string(post_fields);
+
+            } else {
+              close(listening_socket);
+              return;
+            }
+
+            // Write the response to the request
+            if (write(i, http_response.c_str(), http_response.size()) == -1) {
+              close(listening_socket);
+              return;
+            }
+          }
+        }
+      }
+    }
   });
 }
