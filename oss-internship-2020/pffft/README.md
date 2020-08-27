@@ -41,7 +41,7 @@ Regarding the testing of the methods, one main is doing this job by
 iterating through a set of values, that represents the accuracy of 
 transformations and print the speed for each value and type of 
 transformation. More specifically, the input length is the target for 
-accuracy (named as `N`) and it stands for the number of data points from 
+accuracy (named as `n`) and it stands for the number of data points from 
 the series that calculate the result of transformation. It is also 
 important to mention that the `complex` variable stands for a boolean value 
 that tells the type of transformation (0 for REAL and 1 for COMPLEX) and 
@@ -60,9 +60,9 @@ by default.*
 * containing two testing parts (fft / pffft benchmarks)
 * showing the performance of the transformations implies 
     testing them through various FFT dimenstions. 
-    Variable N, the input length, will take specific values 
+    Variable n, the input length, will take specific values 
     meaning the number of points to which it is set the calculus 
-    (more details of mathematical purpose of N - https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm). 
+    (more details of mathematical purpose of n - https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm). 
 * output shows speed depending on the input length
 * use `--output_format=0` or `--output_format=1` arguments to choose between output formats.
     `0` is for a detailed output, while `1` is only displaying each transformation process speed.
@@ -72,8 +72,8 @@ by default.*
 ### Bugs history
 1. [Solved] pffft benchmark bug: "Sandbox not active"  
         
-        N = 64, status OK, pffft_transform generates error 
-        N > 64, status not OK
+        n = 64, status OK, pffft_transform generates error 
+        n > 64, status not OK
         Problem on initialising sapi::StatusOr<PFFFT_Setup *> s; the memory that stays 
         for s is not the same with the address passed in pffft_transform function. 
         (sapi::v::GenericPtr - to be changed)
