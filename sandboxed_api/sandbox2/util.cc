@@ -183,8 +183,8 @@ bool CreateMemFd(int* fd, const char* name) {
 }
 
 sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
-                                  const std::vector<std::string>& envv,
-                                  std::string* output) {
+                                const std::vector<std::string>& envv,
+                                std::string* output) {
   int cout_pipe[2];
   posix_spawn_file_actions_t action;
 

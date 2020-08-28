@@ -208,7 +208,7 @@ std::string MapQualTypeReturn(const clang::ASTContext& context,
     return "absl::Status";
   }
   // Remove const qualifier like in MapQualType().
-  return absl::StrCat("::sapi::StatusOr<",
+  return absl::StrCat("sapi::StatusOr<",
                       MaybeRemoveConst(context, qual).getAsString(), ">");
 }
 

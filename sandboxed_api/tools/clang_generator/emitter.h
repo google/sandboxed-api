@@ -18,12 +18,12 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "sandboxed_api/util/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace sapi {
 

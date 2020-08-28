@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file and it's implementation provide a custom fork of
-// util/task/status.h. This will become obsolete and will be replaced once
-// Abseil releases absl::Status.
-
 #ifndef THIRD_PARTY_SAPI_UTIL_STATUS_H_
 #define THIRD_PARTY_SAPI_UTIL_STATUS_H_
 

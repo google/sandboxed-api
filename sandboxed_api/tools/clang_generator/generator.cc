@@ -18,12 +18,12 @@
 #include <iostream>
 
 #include "absl/status/status.h"
+#include "sandboxed_api/util/statusor.h"
 #include "clang/Format/Format.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace sapi {
 namespace {
@@ -68,7 +68,7 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
 namespace internal {
 
 sapi::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
-                                                  const std::string& code) {
+                                                const std::string& code) {
   // Configure code style based on Google style, but enforce pointer alignment
   clang::format::FormatStyle style =
       clang::format::getGoogleStyle(clang::format::FormatStyle::LK_Cpp);
