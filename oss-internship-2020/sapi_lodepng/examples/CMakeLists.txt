@@ -67,4 +67,3 @@ target_link_libraries(main_unit_test PRIVATE
   sapi::vars
 )
 gtest_discover_tests(main_unit_test)
-

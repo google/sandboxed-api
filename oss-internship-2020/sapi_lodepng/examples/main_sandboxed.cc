@@ -23,7 +23,7 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // Generate the values.
   std::vector<uint8_t> image(GenerateValues());
 
-  // Encode the image
+  // Encode the image.
   sapi::v::Array<uint8_t> sapi_image(image.data(), kImgLen);
   sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
@@ -51,13 +51,11 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // The pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
   // Transferring the memory has the following steps:
-  // 1) define a RemotePtr variable that holds the memory location from
-  // the sandboxed process
-  // 2) define an array with the required length
-  // 3) set the remote pointer for the array to specify where the memory
-  // that will be transferred is located
-  // 4) transfer the memory to this process (this step is why we need
-  // the pointer and the length)
+  // 1) define an array with the required length.
+  // 2) set the remote pointer for the array to specify where the memory
+  // that will be transferred is located.
+  // 3) transfer the memory to this process (this step is why we need
+  // the pointer and the length).
   sapi::v::Array<uint8_t> sapi_pixels(kImgLen);
   sapi_pixels.SetRemote(sapi_image_ptr.GetValue());
 
