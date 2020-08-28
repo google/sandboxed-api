@@ -1,1 +1,3 @@
 build/
+examples/convert_lib.cc
+examples/convert_lib.h

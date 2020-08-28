@@ -21,8 +21,7 @@
 #include <iostream>
 #include <vector>
 
-#include "absl/algorithm/container.h"
-#include "convert_helper.h"
+#include "convert_lib.h"
 #include "openjp2_sapi.sapi.h"
 
 class Openjp2SapiSandbox : public Openjp2Sandbox {
