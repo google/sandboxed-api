@@ -21,12 +21,12 @@
 
 class SapiLodepngSandbox : public LodepngSandbox {
  public:
-  SapiLodepngSandbox(const std::string &images_path)
+  explicit SapiLodepngSandbox(const std::string& images_path)
       : images_path_(images_path) {}
 
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder *) override {
+      sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
         .AllowRead()
         .AllowWrite()

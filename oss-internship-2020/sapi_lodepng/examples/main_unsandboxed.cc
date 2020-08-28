@@ -21,19 +21,18 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
 void EncodeDecodeOneStep(const std::string &images_path) {
-  // generate the values
+  // Generate the values.
   std::vector<uint8_t> image(GenerateValues());
 
-  // encode the image
+  // Encode the image.
   const std::string filename = images_path + "/out_generated1.png";
   unsigned int result =
       lodepng_encode32_file(filename.c_str(), image.data(), kWidth, kHeight);
 
   CHECK(!result);
 
-  // after the image has been encoded, decode it to check that the
-  // pixel values are the same
-
+  // After the image has been encoded, decode it to check that the
+  // pixel values are the same.
   unsigned int width2, height2;
   uint8_t *image2 = 0;
 
@@ -44,16 +43,17 @@ void EncodeDecodeOneStep(const std::string &images_path) {
   CHECK(width2 == kWidth);
   CHECK(height2 == kHeight);
 
-  // now, we can compare the values
-  CHECK(std::equal(image.begin(), image.end(), image2));
+  // Now, we can compare the values.
+  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen));
+
   free(image2);
 }
 
 void EncodeDecodeTwoSteps(const std::string &images_path) {
-  // generate the values
+  // Generate the values.
   std::vector<uint8_t> image(GenerateValues());
 
-  // encode the image into memory first
+  // Encode the image into memory first.
   const std::string filename = images_path + "/out_generated2.png";
   uint8_t *png;
   size_t pngsize;
@@ -63,17 +63,17 @@ void EncodeDecodeTwoSteps(const std::string &images_path) {
 
   CHECK(!result);
 
-  // write the image into the file (from memory)
+  // Write the image into the file (from memory).
   result = lodepng_save_file(png, pngsize, filename.c_str());
 
   CHECK(!result);
 
-  // now, decode the image using the 2 steps in order to compare the values
+  // Now, decode the image using the 2 steps in order to compare the values.
   unsigned int width2, height2;
   uint8_t *png2;
   size_t pngsize2;
 
-  // load the file in memory
+  // Load the file in memory.
   result = lodepng_load_file(&png2, &pngsize2, filename.c_str());
 
   CHECK(!result);
@@ -86,8 +86,9 @@ void EncodeDecodeTwoSteps(const std::string &images_path) {
   CHECK(width2 == kWidth);
   CHECK(height2 == kHeight);
 
-  // compare values
-  CHECK(std::equal(image.begin(), image.end(), image2));
+  // Compare the values.
+  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen));
+
   free(png);
   free(png2);
   free(image2);
