@@ -14,16 +14,16 @@
 
 #include <glog/logging.h>
 
-#include <filesystem>
 #include <iostream>
 
 #include "helpers.h"
 #include "sandbox.h"
 
 void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
-  // encode the image
+  // Generate the values.
   std::vector<uint8_t> image(GenerateValues());
 
+  // Encode the image
   sapi::v::Array<uint8_t> sapi_image(image.data(), kImgLen);
   sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
@@ -33,22 +33,22 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   CHECK(result.ok());
   CHECK(!result.value());
 
-  // after the image has been encoded, decode it to check that the
-  // pixel values are the same
-
+  // After the image has been encoded, decode it to check that the
+  // pixel values are the same.
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<uint8_t *> sapi_image_ptr(0);
 
   result = api.lodepng_decode32_file(
       sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
       sapi_filename.PtrBefore());
+
   CHECK(result.ok());
   CHECK(!result.value());
 
   CHECK(sapi_width2.GetValue() == kWidth);
   CHECK(sapi_height2.GetValue() == kHeight);
 
-  // the pixels have been allocated inside the sandboxed process
+  // The pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
   // Transferring the memory has the following steps:
   // 1) define a RemotePtr variable that holds the memory location from
@@ -63,23 +63,26 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 
   CHECK(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
 
-  // now, we can compare the values
-  CHECK(std::equal(image.begin(), image.end(), sapi_pixels.GetData()));
+  // Now, we can compare the values.
+  CHECK(absl::equal(image.begin(), image.end(), sapi_pixels.GetData(),
+                    sapi_pixels.GetData() + kImgLen));
+
+  // Free the memory allocated inside the sandbox.
   CHECK(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()).ok());
 }
 
 void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
-  // generate the values
+  // Generate the values.
   std::vector<uint8_t> image(GenerateValues());
 
-  // encode the image into memory first
+  // Encode the image into memory first.
   sapi::v::Array<uint8_t> sapi_image(image.data(), kImgLen);
   sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 
   sapi::v::ULLong sapi_pngsize;
   sapi::v::IntBase<uint8_t *> sapi_png_ptr(0);
 
-  // encode it into memory
+  // Encode it into memory.
   sapi::StatusOr<unsigned int> result =
       api.lodepng_encode32(sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(),
                            sapi_image.PtrBefore(), kWidth, kHeight);
@@ -87,15 +90,15 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   CHECK(result.ok());
   CHECK(!result.value());
 
-  // the new array (pointed to by sapi_png_ptr) is allocated
+  // The new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
-  // process
+  // process.
   sapi::v::Array<uint8_t> sapi_png_array(sapi_pngsize.GetValue());
   sapi_png_array.SetRemote(sapi_png_ptr.GetValue());
 
   CHECK(sandbox.TransferFromSandboxee(&sapi_png_array).ok());
 
-  // write the image into the file (from memory)
+  // Write the image into the file (from memory).
   result =
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
                             sapi_filename.PtrBefore());
@@ -103,12 +106,12 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   CHECK(result.ok());
   CHECK(!result.value());
 
-  // now, decode the image using the 2 steps in order to compare the values
+  // Now, decode the image using the 2 steps in order to compare the values.
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<uint8_t *> sapi_png_ptr2(0);
   sapi::v::ULLong sapi_pngsize2;
 
-  // load the file in memory
+  // Load the file in memory.
   result =
       api.lodepng_load_file(sapi_png_ptr2.PtrBoth(), sapi_pngsize2.PtrBoth(),
                             sapi_filename.PtrBefore());
@@ -118,14 +121,14 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 
   CHECK(sapi_pngsize.GetValue() == sapi_pngsize2.GetValue());
 
-  // transfer the png array
+  // Transfer the png array.
   sapi::v::Array<uint8_t> sapi_png_array2(sapi_pngsize2.GetValue());
   sapi_png_array2.SetRemote(sapi_png_ptr2.GetValue());
 
   CHECK(sandbox.TransferFromSandboxee(&sapi_png_array2).ok());
 
-  // after the file is loaded, decode it so we have access to the values
-  // directly
+  // After the file is loaded, decode it so we have access to the values
+  // directly.
   sapi::v::IntBase<uint8_t *> sapi_png_ptr3(0);
   result = api.lodepng_decode32(
       sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
@@ -137,15 +140,17 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   CHECK(sapi_width2.GetValue() == kWidth);
   CHECK(sapi_height2.GetValue() == kHeight);
 
-  // transfer the pixels so they can be used
+  // Transfer the pixels so they can be used here.
   sapi::v::Array<uint8_t> sapi_pixels(kImgLen);
   sapi_pixels.SetRemote(sapi_png_ptr3.GetValue());
 
   CHECK(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
 
-  // compare values
-  CHECK(std::equal(image.begin(), image.end(), sapi_pixels.GetData()));
+  // Compare the values.
+  CHECK(absl::equal(image.begin(), image.end(), sapi_pixels.GetData(),
+                    sapi_pixels.GetData() + kImgLen));
 
+  // Free the memory allocated inside the sandbox.
   CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr.GetValue()).ok());
   CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr2.GetValue()).ok());
   CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr3.GetValue()).ok());
