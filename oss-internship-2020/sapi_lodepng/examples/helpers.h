@@ -22,7 +22,9 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 
-constexpr uint32_t kWidth = 512, kHeight = 512, kImgLen = kWidth * kHeight * 4;
+constexpr uint32_t kWidth = 512;
+constexpr uint32_t kHeight = 512;
+constexpr uint32_t kImgLen = kWidth * kHeight * 4;
 
 // Returns a vector that contains values used for testing.
 // This part of code is taken from

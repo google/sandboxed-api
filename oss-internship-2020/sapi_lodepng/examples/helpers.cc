@@ -29,10 +29,10 @@ std::vector<uint8_t> GenerateValues() {
 
 std::string CreateTempDirAtCWD() {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
-  CHECK(!cwd.empty());
+  CHECK(!cwd.empty()) << "Could not get current working directory";
   cwd.append("/");
 
   sapi::StatusOr<std::string> result = sandbox2::CreateTempDir(cwd);
-  CHECK(result.ok());
+  CHECK(result.ok()) << "Could not create temporary directory";
   return result.value();
 }

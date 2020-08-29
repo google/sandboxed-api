@@ -30,8 +30,8 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   sapi::StatusOr<unsigned int> result = api.lodepng_encode32_file(
       sapi_filename.PtrBefore(), sapi_image.PtrBefore(), kWidth, kHeight);
 
-  CHECK(result.ok());
-  CHECK(!result.value());
+  CHECK(result.ok()) << "encode32_file call failed";
+  CHECK(!result.value()) << "Unexpected result from encode32_file call";
 
   // After the image has been encoded, decode it to check that the
   // pixel values are the same.
@@ -42,11 +42,11 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
       sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
       sapi_filename.PtrBefore());
 
-  CHECK(result.ok());
-  CHECK(!result.value());
+  CHECK(result.ok()) << "decode32_file call failes";
+  CHECK(!result.value()) << "Unexpected result from decode32_file call";
 
-  CHECK(sapi_width2.GetValue() == kWidth);
-  CHECK(sapi_height2.GetValue() == kHeight);
+  CHECK(sapi_width2.GetValue() == kWidth) << "Widths differ";
+  CHECK(sapi_height2.GetValue() == kHeight) << "Heights differ";
 
   // The pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
@@ -59,14 +59,14 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   sapi::v::Array<uint8_t> sapi_pixels(kImgLen);
   sapi_pixels.SetRemote(sapi_image_ptr.GetValue());
 
-  CHECK(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
+  CHECK(sandbox.TransferFromSandboxee(&sapi_pixels).ok()) << "Error during transfer from sandboxee";
 
   // Now, we can compare the values.
   CHECK(absl::equal(image.begin(), image.end(), sapi_pixels.GetData(),
-                    sapi_pixels.GetData() + kImgLen));
+                    sapi_pixels.GetData() + kImgLen)) << "Values differ";
 
   // Free the memory allocated inside the sandbox.
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()).ok());
+  CHECK(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()).ok()) << "Could not free memory inside sandboxed process";
 }
 
 void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
@@ -85,8 +85,8 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
       api.lodepng_encode32(sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(),
                            sapi_image.PtrBefore(), kWidth, kHeight);
 
-  CHECK(result.ok());
-  CHECK(!result.value());
+  CHECK(result.ok()) << "encode32 call failed";
+  CHECK(!result.value()) << "Unexpected result from encode32 call";
 
   // The new array (pointed to by sapi_png_ptr) is allocated
   // inside the sandboxed process so we need to transfer it to this
@@ -94,15 +94,15 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   sapi::v::Array<uint8_t> sapi_png_array(sapi_pngsize.GetValue());
   sapi_png_array.SetRemote(sapi_png_ptr.GetValue());
 
-  CHECK(sandbox.TransferFromSandboxee(&sapi_png_array).ok());
+  CHECK(sandbox.TransferFromSandboxee(&sapi_png_array).ok()) << "Error during transfer from sandboxee";
 
   // Write the image into the file (from memory).
   result =
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
                             sapi_filename.PtrBefore());
 
-  CHECK(result.ok());
-  CHECK(!result.value());
+  CHECK(result.ok()) << "save_file call failed";
+  CHECK(!result.value()) << "Unexpected result from save_file call";
 
   // Now, decode the image using the 2 steps in order to compare the values.
   sapi::v::UInt sapi_width2, sapi_height2;
@@ -114,16 +114,16 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
       api.lodepng_load_file(sapi_png_ptr2.PtrBoth(), sapi_pngsize2.PtrBoth(),
                             sapi_filename.PtrBefore());
 
-  CHECK(result.ok());
-  CHECK(!result.value());
+  CHECK(result.ok()) << "load_file call failed";
+  CHECK(!result.value()) << "Unexpected result from load_file call";
 
-  CHECK(sapi_pngsize.GetValue() == sapi_pngsize2.GetValue());
+  CHECK(sapi_pngsize.GetValue() == sapi_pngsize2.GetValue()) << "Png sizes differ";
 
   // Transfer the png array.
   sapi::v::Array<uint8_t> sapi_png_array2(sapi_pngsize2.GetValue());
   sapi_png_array2.SetRemote(sapi_png_ptr2.GetValue());
 
-  CHECK(sandbox.TransferFromSandboxee(&sapi_png_array2).ok());
+  CHECK(sandbox.TransferFromSandboxee(&sapi_png_array2).ok()) << "Error during transfer from sandboxee";
 
   // After the file is loaded, decode it so we have access to the values
   // directly.
@@ -132,42 +132,46 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
       sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
       sapi_png_array2.PtrBefore(), sapi_pngsize2.GetValue());
 
-  CHECK(result.ok());
-  CHECK(!result.value());
+  CHECK(result.ok()) << "decode32 call failed";
+  CHECK(!result.value()) << "Unexpected result from decode32 call";
 
-  CHECK(sapi_width2.GetValue() == kWidth);
-  CHECK(sapi_height2.GetValue() == kHeight);
+  CHECK(sapi_width2.GetValue() == kWidth) << "Widths differ";
+  CHECK(sapi_height2.GetValue() == kHeight) << "Heights differ";
 
   // Transfer the pixels so they can be used here.
   sapi::v::Array<uint8_t> sapi_pixels(kImgLen);
   sapi_pixels.SetRemote(sapi_png_ptr3.GetValue());
 
-  CHECK(sandbox.TransferFromSandboxee(&sapi_pixels).ok());
+  CHECK(sandbox.TransferFromSandboxee(&sapi_pixels).ok()) << "Error during transfer from sandboxee";
 
   // Compare the values.
   CHECK(absl::equal(image.begin(), image.end(), sapi_pixels.GetData(),
-                    sapi_pixels.GetData() + kImgLen));
+                    sapi_pixels.GetData() + kImgLen)) << "Values differ";
 
   // Free the memory allocated inside the sandbox.
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr.GetValue()).ok());
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr2.GetValue()).ok());
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr3.GetValue()).ok());
+  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr.GetValue()).ok()) << "Could not free memory inside sandboxed process";
+  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr2.GetValue()).ok()) << "Could not free memory inside sandboxed process";
+  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr3.GetValue()).ok()) << "Could not free memory inside sandboxed process";
 }
 
 int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   const std::string images_path = CreateTempDirAtCWD();
+  CHECK(sandbox2::file_util::fileops::Exists(images_path, false))
+      << "Temporary directory does not exist";
 
   SapiLodepngSandbox sandbox(images_path);
-  CHECK(sandbox.Init().ok());
+  CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
 
   LodepngApi api(&sandbox);
 
   EncodeDecodeOneStep(sandbox, api);
   EncodeDecodeTwoSteps(sandbox, api);
 
-  CHECK(sandbox2::file_util::fileops::DeleteRecursively(images_path));
+  if (sandbox2::file_util::fileops::DeleteRecursively(images_path)) {
+    LOG(WARNING) << "Temporary folder could not be deleted";
+  }
 
   return EXIT_SUCCESS;
 }
