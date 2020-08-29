@@ -29,7 +29,7 @@ void EncodeDecodeOneStep(const std::string &images_path) {
   unsigned int result =
       lodepng_encode32_file(filename.c_str(), image.data(), kWidth, kHeight);
 
-  CHECK(!result);
+  CHECK(!result) << "Unexpected result from encode32_file call";
 
   // After the image has been encoded, decode it to check that the
   // pixel values are the same.
@@ -38,13 +38,13 @@ void EncodeDecodeOneStep(const std::string &images_path) {
 
   result = lodepng_decode32_file(&image2, &width2, &height2, filename.c_str());
 
-  CHECK(!result);
+  CHECK(!result) << "Unexpected result from decode32_file call";
 
-  CHECK(width2 == kWidth);
-  CHECK(height2 == kHeight);
+  CHECK(width2 == kWidth) << "Widths differ";
+  CHECK(height2 == kHeight) << "Heights differ";
 
   // Now, we can compare the values.
-  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen));
+  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen)) << "Values differ";
 
   free(image2);
 }
@@ -61,12 +61,12 @@ void EncodeDecodeTwoSteps(const std::string &images_path) {
   unsigned int result =
       lodepng_encode32(&png, &pngsize, image.data(), kWidth, kHeight);
 
-  CHECK(!result);
+  CHECK(!result) << "Unexpected result from encode32 call";
 
   // Write the image into the file (from memory).
   result = lodepng_save_file(png, pngsize, filename.c_str());
 
-  CHECK(!result);
+  CHECK(!result) << "Unexpected result from save_file call";
 
   // Now, decode the image using the 2 steps in order to compare the values.
   unsigned int width2, height2;
@@ -76,18 +76,18 @@ void EncodeDecodeTwoSteps(const std::string &images_path) {
   // Load the file in memory.
   result = lodepng_load_file(&png2, &pngsize2, filename.c_str());
 
-  CHECK(!result);
-  CHECK(pngsize == pngsize2);
+  CHECK(!result) << "Unexpected result from load_file call";
+  CHECK(pngsize == pngsize2) << "Png sizes differ";
 
   uint8_t *image2;
   result = lodepng_decode32(&image2, &width2, &height2, png2, pngsize2);
 
-  CHECK(!result);
-  CHECK(width2 == kWidth);
-  CHECK(height2 == kHeight);
+  CHECK(!result) << "Unexpected result from decode32 call";
+  CHECK(width2 == kWidth) << "Widths differ";
+  CHECK(height2 == kHeight) << "Heights differ";
 
   // Compare the values.
-  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen));
+  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen)) << "Values differ";
 
   free(png);
   free(png2);
@@ -98,11 +98,15 @@ int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   const std::string images_path = CreateTempDirAtCWD();
+  CHECK(sandbox2::file_util::fileops::Exists(images_path, false))
+      << "Temporary directory does not exist";
 
   EncodeDecodeOneStep(images_path);
   EncodeDecodeTwoSteps(images_path);
 
-  CHECK(sandbox2::file_util::fileops::DeleteRecursively(images_path));
+  if (sandbox2::file_util::fileops::DeleteRecursively(images_path)) {
+    LOG(WARNING) << "Temporary folder could not be deleted";
+  }
 
   return EXIT_SUCCESS;
 }

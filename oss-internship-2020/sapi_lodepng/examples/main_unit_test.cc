@@ -26,11 +26,13 @@ namespace {
 
 TEST(HelpersTest, CreateTempDirAtCWD) {
   const std::string images_path = CreateTempDirAtCWD();
-  EXPECT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
-              IsTrue());
+  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
+              IsTrue())
+      << "Temporary directory does not exist";
 
-  ASSERT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
-              IsTrue());
+  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+              IsTrue())
+      << "Temporary directory could not be deleted";
 }
 
 TEST(HelpersTest, GenerateValues) {
@@ -39,20 +41,28 @@ TEST(HelpersTest, GenerateValues) {
 
 TEST(LodePngTest, Init) {
   const std::string images_path = CreateTempDirAtCWD();
+  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
+              IsTrue())
+      << "Temporary directory does not exist";
+
   SapiLodepngSandbox sandbox(images_path);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
 
-  ASSERT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
-              IsTrue());
+  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+              IsTrue())
+      << "Temporary directory could not be deleted";
 }
 
 // Generate an image, encode it, decode it and compare the pixels with the
 // initial values.
 TEST(LodePngTest, EncodeDecodeOneStep) {
   const std::string images_path = CreateTempDirAtCWD();
+  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
+              IsTrue())
+      << "Temporary directory does not exist";
 
   SapiLodepngSandbox sandbox(images_path);
-  ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox initialization";
   LodepngApi api(&sandbox);
 
   std::vector<uint8_t> image(GenerateValues());
@@ -65,7 +75,7 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
       api.lodepng_encode32_file(sapi_filename.PtrBefore(),
                                 sapi_image.PtrBefore(), kWidth, kHeight));
 
-  ASSERT_THAT(result, Eq(0)) << "Result from encode32_file not 0";
+  ASSERT_THAT(result, Eq(0)) << "Unexpected result from encode32_file call";
 
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<uint8_t *> sapi_image_ptr(0);
@@ -75,7 +85,7 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
                   sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(),
                   sapi_height2.PtrBoth(), sapi_filename.PtrBefore()));
 
-  ASSERT_THAT(result, Eq(0)) << "Result from decode32_file not 0";
+  ASSERT_THAT(result, Eq(0)) << "Unexpected result from decode32_file call";
 
   EXPECT_THAT(sapi_width2.GetValue(), Eq(kWidth)) << "Widths differ";
   EXPECT_THAT(sapi_height2.GetValue(), Eq(kHeight)) << "Heights differ";
@@ -89,12 +99,13 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
   EXPECT_THAT(absl::equal(image.begin(), image.end(), sapi_pixels.GetData(),
                           sapi_pixels.GetData() + kImgLen),
               IsTrue())
-      << "values differ";
+      << "Values differ";
 
-  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()), IsOk());
+  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()), IsOk()) << "Could not free memory inside sandboxed process";
 
-  ASSERT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
-              IsTrue());
+  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+              IsTrue())
+      << "Temporary directory could not be deleted";
 }
 
 // Similar to the previous test, only that we use encoding by saving the data in
@@ -102,6 +113,9 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
 // memory and then getting the actual pixel values.
 TEST(LodePngTest, EncodeDecodeTwoSteps) {
   const std::string images_path = CreateTempDirAtCWD();
+  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
+              IsTrue())
+      << "Temporary directory does not exist";
 
   SapiLodepngSandbox sandbox(images_path);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
@@ -120,7 +134,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
       api.lodepng_encode32(sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(),
                            sapi_image.PtrBefore(), kWidth, kHeight));
 
-  ASSERT_THAT(result, Eq(0)) << "Result from encode32 call not 0";
+  ASSERT_THAT(result, Eq(0)) << "Unexpected result from encode32 call";
 
   sapi::v::Array<uint8_t> sapi_png_array(sapi_pngsize.GetValue());
   sapi_png_array.SetRemote(sapi_png_ptr.GetValue());
@@ -133,7 +147,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
       api.lodepng_save_file(sapi_png_array.PtrBefore(), sapi_pngsize.GetValue(),
                             sapi_filename.PtrBefore()));
 
-  ASSERT_THAT(result, Eq(0)) << "Result from save_file call not 0";
+  ASSERT_THAT(result, Eq(0)) << "Unexpected result from save_file call";
 
   sapi::v::UInt sapi_width2, sapi_height2;
   sapi::v::IntBase<uint8_t *> sapi_png_ptr2(0);
@@ -144,7 +158,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
       api.lodepng_load_file(sapi_png_ptr2.PtrBoth(), sapi_pngsize2.PtrBoth(),
                             sapi_filename.PtrBefore()));
 
-  ASSERT_THAT(result, Eq(0)) << "Result from load_file call not 0";
+  ASSERT_THAT(result, Eq(0)) << "Unexpected result from load_file call";
 
   EXPECT_THAT(sapi_pngsize.GetValue(), Eq(sapi_pngsize2.GetValue()))
       << "Png sizes differ";
@@ -162,7 +176,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
                            sapi_height2.PtrBoth(), sapi_png_array2.PtrBefore(),
                            sapi_pngsize2.GetValue()));
 
-  ASSERT_THAT(result, Eq(0)) << "Result from decode32 call not 0";
+  ASSERT_THAT(result, Eq(0)) << "Unexpected result from decode32 call";
 
   EXPECT_THAT(sapi_width2.GetValue(), Eq(kWidth)) << "Widths differ";
   EXPECT_THAT(sapi_height2.GetValue(), Eq(kHeight)) << "Heights differ";
@@ -176,14 +190,15 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
   EXPECT_THAT(absl::equal(image.begin(), image.end(), sapi_pixels.GetData(),
                           sapi_pixels.GetData() + kImgLen),
               IsTrue())
-      << "values differ";
+      << "Values differ";
 
   EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_png_ptr.GetValue()), IsOk());
   EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_png_ptr2.GetValue()), IsOk());
   EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_png_ptr3.GetValue()), IsOk());
 
-  ASSERT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
-              IsTrue());
+  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+              IsTrue())
+      << "Temporary directory could not be deleted";
 }
 
 }  // namespace
