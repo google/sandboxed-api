@@ -86,6 +86,8 @@ void ShowOutput(const char* name, int n, int complex, float flops, float t0,
 }
 
 absl::Status PffftMain() {
+  LOG(INFO) << "Initializing sandbox...\n";
+
   PffftSapiSandbox sandbox;
   SAPI_RETURN_IF_ERROR(sandbox.Init());
 
@@ -200,8 +202,6 @@ int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-
-  LOG(INFO) << "Initializing sandbox...\n";
 
   if (absl::Status status = PffftMain(); !status.ok()) {
     LOG(ERROR) << "Initialization failed: " << status.ToString();

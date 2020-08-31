@@ -4,7 +4,7 @@ Build System: CMake
 OS: Linux
 
 ### Check out the PFFFT library & CMake set up
-`git clone https://github.com/doinachiroiu/sandboxed-api/tree/master/oss-internship-2020/pffft`
+`git checkout -b master`
 
 `git submodule update --init --recursive`
 
