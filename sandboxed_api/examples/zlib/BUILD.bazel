@@ -14,10 +14,10 @@
 
 # Description: Sandboxed API reimplementation of zlib's zpipe.c example.
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+
+licenses(["notice"])
 
 sapi_library(
     name = "zlib-sapi",
@@ -42,6 +42,7 @@ cc_binary(
         ":zlib-sapi_embed",
         "//sandboxed_api:vars",
         "//sandboxed_api/util:flags",
+        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:core_headers",
     ],
 )

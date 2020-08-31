@@ -15,6 +15,7 @@
 #include "sandboxed_api/rpcchannel.h"
 
 #include <glog/logging.h>
+#include "sandboxed_api/util/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/call.h"

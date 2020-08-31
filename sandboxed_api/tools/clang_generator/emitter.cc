@@ -15,6 +15,7 @@
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 
 #include "absl/random/random.h"
+#include "sandboxed_api/util/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"

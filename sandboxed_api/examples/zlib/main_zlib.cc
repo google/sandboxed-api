@@ -20,6 +20,7 @@
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/util/statusor.h"
 #include "sandboxed_api/examples/zlib/zlib-sapi.sapi.h"
 #include "sandboxed_api/examples/zlib/zlib-sapi_embed.h"
 #include "sandboxed_api/vars.h"
