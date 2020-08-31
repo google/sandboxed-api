@@ -26,6 +26,7 @@
 
 #include <glog/logging.h>
 #include "absl/memory/memory.h"
+#include "sandboxed_api/util/statusor.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
 namespace sandbox2 {

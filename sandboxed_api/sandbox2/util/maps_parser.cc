@@ -15,6 +15,7 @@
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 
 #include "absl/status/status.h"
+#include "sandboxed_api/util/statusor.h"
 #include "absl/strings/str_split.h"
 
 namespace sandbox2 {

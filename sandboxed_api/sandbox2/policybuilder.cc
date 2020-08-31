@@ -15,6 +15,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
 #include <asm/ioctls.h>  // For TCGETS
+
 #if defined(__x86_64__)
 #include <asm/prctl.h>
 #endif
@@ -34,6 +35,7 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
+#include "sandboxed_api/util/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "sandboxed_api/sandbox2/namespace.h"

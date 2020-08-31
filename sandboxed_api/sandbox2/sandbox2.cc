@@ -21,6 +21,7 @@
 #include <string>
 
 #include "absl/memory/memory.h"
+#include "sandboxed_api/util/statusor.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/monitor.h"
 #include "sandboxed_api/sandbox2/result.h"

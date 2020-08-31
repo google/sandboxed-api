@@ -803,6 +803,7 @@ cc_test(
         ":testing",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:status_matchers",
+        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
