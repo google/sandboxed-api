@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["unencumbered"])  # code authored by Google
+licenses(["notice"])
 
 cc_test(
     name = "transaction_tests",
@@ -20,10 +20,10 @@ cc_test(
     visibility=["//visibility:public"],
     deps = [
       "//:guetzli_sapi",
-      "@googletest//:gtest_main"
+      "@com_google_googletest//:gtest_main",
     ],
     size = "large",
-    data = glob(["testdata/*"])
+    data = glob(["testdata/*"]),
 )
 
 cc_test(
@@ -32,8 +32,8 @@ cc_test(
     visibility=["//visibility:public"],
     deps = [
       "//:guetzli_sapi",
-      "@googletest//:gtest_main"
+      "@com_google_googletest//:gtest_main",
     ],
     size = "large",
-    data = glob(["testdata/*"])
+    data = glob(["testdata/*"]),
 )

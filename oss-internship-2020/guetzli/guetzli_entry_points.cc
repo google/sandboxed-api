@@ -75,8 +75,8 @@ sapi::StatusOr<std::string> ReadFromFd(int fd) {
 }
 
 sapi::StatusOr<GuetzliInitData> PrepareDataForProcessing(
-                                const ProcessingParams* processing_params) {
-  sapi::StatusOr<std::string> input = ReadFromFd(processing_params->remote_fd);
+                                const ProcessingParams& processing_params) {
+  sapi::StatusOr<std::string> input = ReadFromFd(processing_params.remote_fd);
 
   if (!input.ok()) {
     return input.status();
@@ -84,11 +84,11 @@ sapi::StatusOr<GuetzliInitData> PrepareDataForProcessing(
 
   guetzli::Params guetzli_params;
   guetzli_params.butteraugli_target = static_cast<float>(
-    guetzli::ButteraugliScoreForQuality(processing_params->quality));
+    guetzli::ButteraugliScoreForQuality(processing_params.quality));
   
   guetzli::ProcessStats stats;
 
-  if (processing_params->verbose) {
+  if (processing_params.verbose) {
     stats.debug_output_file = stderr;
   }
 
@@ -234,7 +234,7 @@ bool CheckMemoryLimitExceeded(int memlimit_mb, int xsize, int ysize) {
 
 extern "C" bool ProcessJpeg(const ProcessingParams* processing_params, 
                             sapi::LenValStruct* output) {
-  auto processing_data = PrepareDataForProcessing(processing_params);
+  auto processing_data = PrepareDataForProcessing(*processing_params);
 
   if (!processing_data.ok()) {
     std::cerr << processing_data.status().ToString() << std::endl;
@@ -269,7 +269,7 @@ extern "C" bool ProcessJpeg(const ProcessingParams* processing_params,
 
 extern "C" bool ProcessRgb(const ProcessingParams* processing_params, 
                           sapi::LenValStruct* output) {
-  auto processing_data = PrepareDataForProcessing(processing_params);
+  auto processing_data = PrepareDataForProcessing(*processing_params);
 
   if (!processing_data.ok()) {
     std::cerr << processing_data.status().ToString() << std::endl;

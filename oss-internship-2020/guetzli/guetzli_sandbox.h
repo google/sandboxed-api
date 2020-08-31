@@ -19,8 +19,7 @@
 
 #include "guetzli_sapi.sapi.h"
 
-namespace guetzli {
-namespace sandbox {
+namespace guetzli::sandbox {
 
 class GuetzliSapiSandbox : public GuetzliSandbox {
   public:
@@ -43,7 +42,6 @@ class GuetzliSapiSandbox : public GuetzliSandbox {
     }
 };
 
-}  // namespace sandbox
-}  // namespace guetzli
+}  // namespace guetzli::sandbox
 
 #endif  // GUETZLI_SANDBOXED_GUETZLI_SANDBOX_H_

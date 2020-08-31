@@ -28,24 +28,22 @@
 
 #include "guetzli_sandbox.h"
 
-namespace guetzli {
-namespace sandbox {
-namespace tests {
+namespace guetzli::sandbox::tests {
 
 namespace {
 
-constexpr const char* kInPngFilename = "bees.png";
-constexpr const char* kInJpegFilename = "nature.jpg";
-constexpr const char* kPngReferenceFilename = "bees_reference.jpg";
-constexpr const char* kJpegReferenceFIlename = "nature_reference.jpg";
+constexpr absl::string_view kInPngFilename = "bees.png";
+constexpr absl::string_view kInJpegFilename = "nature.jpg";
+constexpr absl::string_view kPngReferenceFilename = "bees_reference.jpg";
+constexpr absl::string_view kJpegReferenceFIlename = "nature_reference.jpg";
 
 constexpr int kDefaultQualityTarget = 95;
 constexpr int kDefaultMemlimitMb = 6000;
 
-constexpr const char* kRelativePathToTestdata =
+constexpr absl::string_view kRelativePathToTestdata =
   "/guetzli_sandboxed/tests/testdata/";
 
-std::string GetPathToInputFile(const char* filename) {
+std::string GetPathToInputFile(absl::string_view filename) {
   return absl::StrCat(getenv("TEST_SRCDIR"), kRelativePathToTestdata, filename);
 }
 
@@ -67,7 +65,7 @@ class GuetzliSapiTest : public ::testing::Test {
 protected:
   void SetUp() override {
     sandbox_ = std::make_unique<GuetzliSapiSandbox>();
-    sandbox_->Init().IgnoreError();
+    ASSERT_EQ(sandbox_->Init(), absl::OkStatus());
     api_ = std::make_unique<GuetzliApi>(sandbox_.get());
   }
   
@@ -129,6 +127,4 @@ TEST_F(GuetzliSapiTest, ProcessJpeg) {
     << "Processed data doesn't match reference output";
 }
 
-}  // namespace tests
-}  // namespace sandbox
-}  // namespace guetzli
+}  // namespace guetzli::sandbox::tests

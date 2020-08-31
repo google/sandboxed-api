@@ -26,18 +26,16 @@
 
 #include "guetzli_transaction.h"
 
-namespace guetzli {
-namespace sandbox {
-namespace tests {
+namespace guetzli::sandbox::tests {
 
 namespace {
 
-constexpr const char* kInPngFilename = "bees.png";
-constexpr const char* kInJpegFilename = "nature.jpg";
-constexpr const char* kOutJpegFilename = "out_jpeg.jpg";
-constexpr const char* kOutPngFilename = "out_png.png";
-constexpr const char* kPngReferenceFilename = "bees_reference.jpg";
-constexpr const char* kJpegReferenceFIlename = "nature_reference.jpg";
+constexpr absl::string_view kInPngFilename = "bees.png";
+constexpr absl::string_view kInJpegFilename = "nature.jpg";
+constexpr absl::string_view kOutJpegFilename = "out_jpeg.jpg";
+constexpr absl::string_view kOutPngFilename = "out_png.png";
+constexpr absl::string_view kPngReferenceFilename = "bees_reference.jpg";
+constexpr absl::string_view kJpegReferenceFIlename = "nature_reference.jpg";
 
 constexpr int kPngExpectedSize = 38'625;
 constexpr int kJpegExpectedSize = 10'816;
@@ -45,10 +43,10 @@ constexpr int kJpegExpectedSize = 10'816;
 constexpr int kDefaultQualityTarget = 95;
 constexpr int kDefaultMemlimitMb = 6000;
 
-constexpr const char* kRelativePathToTestdata =
+constexpr absl::string_view kRelativePathToTestdata =
   "/guetzli_sandboxed/tests/testdata/";
 
-std::string GetPathToFile(const char* filename) {
+std::string GetPathToFile(absl::string_view filename) {
   return absl::StrCat(getenv("TEST_SRCDIR"), kRelativePathToTestdata, filename);
 }
 
@@ -99,26 +97,26 @@ TEST(GuetzliTransactionTest, TestTransactionJpg) {
   };
   {
     GuetzliTransaction transaction(std::move(params));
-    auto result = transaction.Run();
+    absl::Status result = transaction.Run();
 
     ASSERT_TRUE(result.ok()) << result.ToString();
   }
-  auto reference_data = ReadFromFile(GetPathToFile(kJpegReferenceFIlename));
+  std::string reference_data = ReadFromFile(
+      GetPathToFile(kJpegReferenceFIlename));
   FileRemover file_remover(out_path.c_str());
   ASSERT_TRUE(file_remover.get() != -1) << "Error opening output file";
-  auto output_size =  lseek(file_remover.get(), 0, SEEK_END);
+  off_t output_size =  lseek(file_remover.get(), 0, SEEK_END);
   ASSERT_EQ(reference_data.size(), output_size) 
     << "Different sizes of reference and returned data";
   ASSERT_EQ(lseek(file_remover.get(), 0, SEEK_SET), 0) 
     << "Error repositioning out file";
   
-  std::unique_ptr<char[]> buf(new char[output_size]);
-  auto status = read(file_remover.get(), buf.get(), output_size);
+  std::string output;
+  output.resize(output_size);
+  ssize_t status = read(file_remover.get(), output.data(), output_size);
   ASSERT_EQ(status, output_size) << "Error reading data from temp output file";
 
-  ASSERT_TRUE(
-    std::equal(buf.get(), buf.get() + output_size, reference_data.begin()))
-    << "Returned data doesn't match reference";
+  ASSERT_EQ(output, reference_data) << "Returned data doesn't match reference";
 }
 
 TEST(GuetzliTransactionTest, TestTransactionPng) {
@@ -134,28 +132,26 @@ TEST(GuetzliTransactionTest, TestTransactionPng) {
   };
   {
     GuetzliTransaction transaction(std::move(params));
-    auto result = transaction.Run();
+    absl::Status result = transaction.Run();
 
     ASSERT_TRUE(result.ok()) << result.ToString();
   }
-  auto reference_data = ReadFromFile(GetPathToFile(kPngReferenceFilename));
+  std::string reference_data = ReadFromFile(
+      GetPathToFile(kPngReferenceFilename));
   FileRemover file_remover(out_path.c_str());
   ASSERT_TRUE(file_remover.get() != -1) << "Error opening output file";
-  auto output_size = lseek(file_remover.get(), 0, SEEK_END);
+  off_t output_size = lseek(file_remover.get(), 0, SEEK_END);
   ASSERT_EQ(reference_data.size(), output_size) 
     << "Different sizes of reference and returned data";
   ASSERT_EQ(lseek(file_remover.get(), 0, SEEK_SET), 0) 
     << "Error repositioning out file";
-  
-  std::unique_ptr<char[]> buf(new char[output_size]);
-  auto status = read(file_remover.get(), buf.get(), output_size);
+
+  std::string output;
+  output.resize(output_size);
+  ssize_t status = read(file_remover.get(), output.data(), output_size);
   ASSERT_EQ(status, output_size) << "Error reading data from temp output file";
 
-  ASSERT_TRUE(
-    std::equal(buf.get(), buf.get() + output_size, reference_data.begin()))
-    << "Returned data doesn't match refernce";
+  ASSERT_EQ(output, reference_data) << "Returned data doesn't match refernce";
 }
 
-}  // namespace tests
-}  // namespace sandbox
-}  // namespace guetzli
+}  // namespace guetzli::sandbox::tests

@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <iostream>
+#include <cstdio>
 
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/util/statusor.h"

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["unencumbered"])  # code authored by Google
+licenses(["notice"])
 
 cc_library(
-    name = "butteraugli_lib",
+    name = "butteraugli",
     srcs = [
         "butteraugli/butteraugli.cc",
         "butteraugli/butteraugli.h",

@@ -29,5 +29,5 @@ cc_library(
     includes = ["."],
     linkopts = ["-lm"],
     visibility = ["//visibility:public"],
-    deps = ["@zlib_archive//:zlib"],
+    deps = ["@net_zlib//:zlib"],
 )

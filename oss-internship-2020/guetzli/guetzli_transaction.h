@@ -22,8 +22,7 @@
 
 #include "guetzli_sandbox.h"
 
-namespace guetzli {
-namespace sandbox {
+namespace guetzli::sandbox {
 
 enum class ImageType {
   kJpeg,
@@ -42,12 +41,12 @@ struct TransactionParams {
 // Create a new one for each processing operation
 class GuetzliTransaction : public sapi::Transaction {
  public:
-  GuetzliTransaction(TransactionParams params, int retry_count = 0)
-      : sapi::Transaction(std::make_unique<GuetzliSapiSandbox>())
-      , params_(std::move(params))
+  explicit GuetzliTransaction(TransactionParams params, int retry_count = 0)
+      : sapi::Transaction(std::make_unique<GuetzliSapiSandbox>()),
+        params_(std::move(params))
   {
-    sapi::Transaction::set_retry_count(retry_count);
-    sapi::Transaction::SetTimeLimit(0);  // Infinite time limit
+    set_retry_count(retry_count);
+    SetTimeLimit(absl::InfiniteDuration());
   }
 
  private:
@@ -60,7 +59,6 @@ class GuetzliTransaction : public sapi::Transaction {
   ImageType image_type_ = ImageType::kJpeg;
 };
 
-}  // namespace sandbox
-}  // namespace guetzli
+}  // namespace guetzli::sandbox
 
 #endif  // GUETZLI_SANDBOXED_GUETZLI_TRANSACTION_H_

@@ -22,8 +22,7 @@
 #include <iostream>
 #include <memory>
 
-namespace guetzli {
-namespace sandbox {
+namespace guetzli::sandbox {
 
 absl::Status GuetzliTransaction::Main() {
   sapi::v::Fd in_fd(open(params_.in_file, O_RDONLY));
@@ -53,22 +52,17 @@ absl::Status GuetzliTransaction::Main() {
   };
 
   auto result = image_type_ == ImageType::kJpeg ? 
-    api.ProcessJpeg(processing_params.PtrBefore(), output.PtrBoth()) : 
-    api.ProcessRgb(processing_params.PtrBefore(), output.PtrBoth());
+    api.ProcessJpeg(processing_params.PtrBefore(), output.PtrBefore()) : 
+    api.ProcessRgb(processing_params.PtrBefore(), output.PtrBefore());
   
   if (!result.value_or(false)) {
-    std::stringstream error_stream;
-    error_stream << "Error processing " 
-      << (image_type_ == ImageType::kJpeg ? "jpeg" : "rgb") << " data" 
-      << std::endl; 
-    
     return absl::FailedPreconditionError(
-      error_stream.str()
+      absl::StrCat("Error processing ", 
+          (image_type_ == ImageType::kJpeg ? "jpeg" : "rgb"), " data")
     );
   }
 
   sapi::v::Fd out_fd(open(".", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR));
-  
   if (out_fd.GetValue() < 0) {
     return absl::FailedPreconditionError(
       "Error creating temp output file"
@@ -83,7 +77,7 @@ absl::Status GuetzliTransaction::Main() {
   }
 
   auto write_result = api.WriteDataToFd(out_fd.GetRemoteFd(), 
-    output.PtrBefore());
+    output.PtrNone());
 
   if (!write_result.value_or(false)) {
     return absl::FailedPreconditionError(
@@ -99,20 +93,19 @@ absl::Status GuetzliTransaction::Main() {
 absl::Status GuetzliTransaction::LinkOutFile(int out_fd) const {
   if (access(params_.out_file, F_OK) != -1) {
     if (remove(params_.out_file) < 0) {
-      std::stringstream error;
-      error << "Error deleting existing output file: " << params_.out_file;
-      return absl::FailedPreconditionError(error.str());
+      return absl::FailedPreconditionError(
+        absl::StrCat("Error deleting existing output file: ", params_.out_file)
+      );
     }
-  } 
+  }
 
-  std::stringstream path;
-  path << "/proc/self/fd/" << out_fd;
+  std::string path = absl::StrCat("/proc/self/fd/", out_fd);
   
-  if (linkat(AT_FDCWD, path.str().c_str(), AT_FDCWD, params_.out_file,
+  if (linkat(AT_FDCWD, path.c_str(), AT_FDCWD, params_.out_file,
               AT_SYMLINK_FOLLOW) < 0) {
-    std::stringstream error;
-    error << "Error linking: " << params_.out_file;
-    return absl::FailedPreconditionError(error.str());
+    return absl::FailedPreconditionError(
+      absl::StrCat("Error linking: ", params_.out_file)
+    );
   }
 
   return absl::OkStatus();
@@ -140,5 +133,4 @@ sapi::StatusOr<ImageType> GuetzliTransaction::GetImageTypeFromFd(int fd) const {
       ImageType::kPng : ImageType::kJpeg;
 }
 
-}  // namespace sandbox
-}  // namespace guetzli
+}  // namespace guetzli::sandbox

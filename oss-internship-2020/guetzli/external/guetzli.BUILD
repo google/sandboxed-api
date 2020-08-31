@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["unencumbered"])  # code authored by Google
+licenses(["notice"])
 
 cc_library(
     name = "guetzli_lib",
@@ -27,6 +27,6 @@ cc_library(
     copts = [ "-Wno-sign-compare" ],
     visibility= [ "//visibility:public" ],
     deps = [
-        "@butteraugli//:butteraugli_lib",
+        "@butteraugli//:butteraugli",
     ],
 )

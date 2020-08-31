@@ -1,4 +1,3 @@
-  
 # Description:
 #   The Independent JPEG Group's JPEG runtime library.
 
