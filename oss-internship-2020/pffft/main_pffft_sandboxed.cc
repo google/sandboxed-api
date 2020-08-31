@@ -160,17 +160,11 @@ absl::Status PffftMain() {
 
       // PFFFT benchmark
       {
-        sapi::StatusOr<PFFFT_Setup*> s =
-            api.pffft_new_setup(n, complex ? PFFFT_COMPLEX : PFFFT_REAL);
+        SAPI_ASSIGN_OR_RETURN(
+            PFFFT_Setup *s,
+            api.pffft_new_setup(n, complex ? PFFFT_COMPLEX : PFFFT_REAL));
 
-        LOG(INFO) << "Setup status is: " << s.status().ToString();
-
-        if (!s.ok()) {
-          printf("Sandbox failed.\n");
-          return s.status();
-        }
-
-        sapi::v::RemotePtr s_reg(s.value());
+        sapi::v::RemotePtr s_reg(s);
 
         t0 = UclockSec();
         for (int iter = 0; iter < max_iter; ++iter) {
@@ -192,7 +186,7 @@ absl::Status PffftMain() {
         LOG(INFO) << "n = " << n << " SUCCESSFULLY";
       }
     }
-  } 
+  }
 
   return absl::OkStatus();
 }
