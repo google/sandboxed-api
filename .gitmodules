@@ -10,3 +10,6 @@
 [submodule "oss-internship-2020/libtiff/wrapper/libtiff"]
 	path = oss-internship-2020/libtiff/wrapper/libtiff
 	url = https://gitlab.com/libtiff/libtiff
+[submodule "oss-internship-2020/sapi_libarchive/libarchive"]
+	path = oss-internship-2020/sapi_libarchive/libarchive
+	url = https://github.com/libarchive/libarchive
