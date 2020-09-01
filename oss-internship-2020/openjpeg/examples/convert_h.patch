@@ -1,5 +1,5 @@
 --- convert.h	2020-08-27 15:46:45.028628305 +0000
-+++ ../../../../examples/convert_helper.h	2020-08-27 14:26:02.155455250 +0000
++++ convert_helper.h	2020-08-27 14:26:02.155455250 +0000
 @@ -1,126 +1,8 @@
 -/*
 - * The copyright in this software is being made available under the 2-clauses
@@ -39,8 +39,8 @@
 - */
 -#ifndef __J2K_CONVERT_H
 -#define __J2K_CONVERT_H
-+// imagetopnm and the two functions it calls internaly are copied from the
-+// library's tools; from openjpeg/src/bin/jp2/convert.c
++// imagetopnm and the two functions it calls internaly are patched
++// versions of the library's tools; from openjpeg/src/bin/jp2/convert.c
  
 -/**@name RAW component encoding parameters */
 -/*@{*/

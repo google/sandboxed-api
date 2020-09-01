@@ -21,7 +21,7 @@
 #include <iostream>
 #include <vector>
 
-#include "convert_lib.h"
+#include "gen_files/convert.h"
 #include "openjp2_sapi.sapi.h"
 
 class Openjp2SapiSandbox : public Openjp2Sandbox {

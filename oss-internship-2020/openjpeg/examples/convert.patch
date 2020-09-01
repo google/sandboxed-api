@@ -1,5 +1,5 @@
 --- convert.c	2020-08-27 15:46:32.911584344 +0000
-+++ ../../../../examples/convert_helper.cc	2020-08-27 15:10:52.695231032 +0000
++++ convert_helper.cc	2020-08-27 15:10:52.695231032 +0000
 @@ -35,2605 +35,311 @@
   * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
   * POSSIBILITY OF SUCH DAMAGE.
@@ -62,7 +62,7 @@
 -    }
 -    component->prec = precision;
 -}
-+// copies of a few library tools
++// patched versions of a few library tools
  
 -/* Component precision scaling */
 -static void scale_component_up(opj_image_comp_t* component,
@@ -181,7 +181,7 @@
 -{
 -    OPJ_SIZE_T i;
 -    const OPJ_INT32* pSrc0 = pSrc[0];
-+#include "convert_lib.h"
++#include "convert.h"
  
 -    for (i = 0; i < length; i++) {
 -        pDst[i] = pSrc0[i] + adjust;
