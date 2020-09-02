@@ -182,7 +182,7 @@ bool CreateMemFd(int* fd, const char* name) {
   return true;
 }
 
-sapi::StatusOr<int> Communicate(const std::vector<std::string>& argv,
+absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
                                 const std::vector<std::string>& envv,
                                 std::string* output) {
   int cout_pipe[2];
@@ -280,7 +280,7 @@ std::string GetRlimitName(int resource) {
   }
 }
 
-sapi::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
+absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
   std::string path(PATH_MAX, '\0');
   iovec local_iov[] = {{&path[0], path.size()}};
 

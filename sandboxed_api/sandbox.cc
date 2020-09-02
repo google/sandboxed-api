@@ -391,7 +391,7 @@ absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
   return var->TransferFromSandboxee(GetRpcChannel(), pid());
 }
 
-sapi::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
+absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
                                                 uint64_t max_length) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");

@@ -21,7 +21,7 @@
 #include <cerrno>
 
 #include "absl/memory/memory.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
@@ -29,7 +29,7 @@
 namespace sandbox2 {
 
 // Creates a new Buffer that is backed by the specified file descriptor.
-sapi::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
+absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
   auto buffer = absl::WrapUnique(new Buffer{});
 
   struct stat stat_buf;
@@ -54,7 +54,7 @@ sapi::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
 
 // Creates a new Buffer of the specified size, backed by a temporary file that
 // will be immediately deleted.
-sapi::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(int64_t size) {
+absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(int64_t size) {
   int fd;
   if (!util::CreateMemFd(&fd)) {
     return absl::InternalError("Could not create buffer temp file");

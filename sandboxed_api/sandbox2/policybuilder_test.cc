@@ -24,7 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -58,7 +58,7 @@ class PolicyBuilderPeer {
 
   int policy_size() const { return builder_->user_policy_.size(); }
 
-  static sapi::StatusOr<std::string> ValidateAbsolutePath(
+  static absl::StatusOr<std::string> ValidateAbsolutePath(
       absl::string_view path) {
     return PolicyBuilder::ValidateAbsolutePath(path);
   }

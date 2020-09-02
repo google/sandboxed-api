@@ -18,7 +18,7 @@
 #include <cstddef>
 
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -61,13 +61,13 @@ class RPCChannel {
   absl::Status Close(int remote_fd);
 
   // Returns length of a null-terminated c-style string (invokes strlen).
-  sapi::StatusOr<uint64_t> Strlen(void* str);
+  absl::StatusOr<uint64_t> Strlen(void* str);
 
   sandbox2::Comms* comms() const { return comms_; }
 
  private:
   // Receives the result after a call.
-  sapi::StatusOr<FuncRet> Return(v::Type exp_type);
+  absl::StatusOr<FuncRet> Return(v::Type exp_type);
 
   sandbox2::Comms* comms_;  // Owned by sandbox2;
   absl::Mutex mutex_;

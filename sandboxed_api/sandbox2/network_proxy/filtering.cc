@@ -18,7 +18,7 @@
 
 #include <glog/logging.h>
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -27,7 +27,7 @@
 
 namespace sandbox2 {
 
-static sapi::StatusOr<std::string> Addr6ToString(
+static absl::StatusOr<std::string> Addr6ToString(
     const struct sockaddr_in6* saddr) {
   char addr[INET6_ADDRSTRLEN];
   int port = htons(saddr->sin6_port);
@@ -39,7 +39,7 @@ static sapi::StatusOr<std::string> Addr6ToString(
 }
 
 // Converts sockaddr_in structure into a string IPv4 representation.
-static sapi::StatusOr<std::string> Addr4ToString(
+static absl::StatusOr<std::string> Addr4ToString(
     const struct sockaddr_in* saddr) {
   char addr[INET_ADDRSTRLEN];
   int port = htons(saddr->sin_port);
@@ -51,7 +51,7 @@ static sapi::StatusOr<std::string> Addr4ToString(
 }
 
 // Converts sockaddr_in6 structure into a string IPv6 representation.
-sapi::StatusOr<std::string> AddrToString(const struct sockaddr* saddr) {
+absl::StatusOr<std::string> AddrToString(const struct sockaddr* saddr) {
   switch (saddr->sa_family) {
     case AF_INET:
       return Addr4ToString(reinterpret_cast<const struct sockaddr_in*>(saddr));

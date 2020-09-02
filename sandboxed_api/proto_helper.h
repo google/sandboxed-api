@@ -22,13 +22,13 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/proto_arg.pb.h"
 
 namespace sapi {
 
 template <typename T>
-sapi::StatusOr<std::vector<uint8_t>> SerializeProto(const T& proto) {
+absl::StatusOr<std::vector<uint8_t>> SerializeProto(const T& proto) {
   static_assert(std::is_base_of<google::protobuf::Message, T>::value,
                 "Template argument must be a proto message");
   // Wrap protobuf in a envelope so that we know the name of the protobuf
@@ -46,7 +46,7 @@ sapi::StatusOr<std::vector<uint8_t>> SerializeProto(const T& proto) {
 }
 
 template <typename T>
-sapi::StatusOr<T> DeserializeProto(const char* data, size_t len) {
+absl::StatusOr<T> DeserializeProto(const char* data, size_t len) {
   static_assert(std::is_base_of<google::protobuf::Message, T>::value,
                 "Template argument must be a proto message");
   ProtoArg envelope;

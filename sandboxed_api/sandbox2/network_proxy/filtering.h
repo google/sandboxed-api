@@ -19,14 +19,14 @@
 
 #include <memory>
 
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
 
 // Converts sockaddr_in or sockaddr_in6 structure into a string
 // representation.
-sapi::StatusOr<std::string> AddrToString(const struct sockaddr* saddr);
+absl::StatusOr<std::string> AddrToString(const struct sockaddr* saddr);
 
 struct IPv4 {
   in_addr_t ip;

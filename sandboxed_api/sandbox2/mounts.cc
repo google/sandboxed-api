@@ -27,7 +27,7 @@
 
 #include "google/protobuf/util/message_differencer.h"
 #include "absl/container/flat_hash_set.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -97,7 +97,7 @@ absl::string_view GetOutsidePath(const MountTree::Node& node) {
   }
 }
 
-sapi::StatusOr<std::string> ExistingPathInsideDir(
+absl::StatusOr<std::string> ExistingPathInsideDir(
     absl::string_view dir_path, absl::string_view relative_path) {
   auto path = file::CleanPath(file::JoinPath(dir_path, relative_path));
   if (file_util::fileops::StripBasename(path) != dir_path) {

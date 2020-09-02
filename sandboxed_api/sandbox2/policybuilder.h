@@ -29,7 +29,7 @@
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
@@ -390,7 +390,7 @@ class PolicyBuilder final {
 
   // Builds the policy returning a unique_ptr to it. This should only be called
   // once.
-  sapi::StatusOr<std::unique_ptr<Policy>> TryBuild();
+  absl::StatusOr<std::unique_ptr<Policy>> TryBuild();
 
   // Builds the policy returning a unique_ptr to it. This should only be called
   // once.
@@ -532,9 +532,9 @@ class PolicyBuilder final {
 
   std::vector<sock_filter> ResolveBpfFunc(BpfFunc f);
 
-  static sapi::StatusOr<std::string> ValidateAbsolutePath(
+  static absl::StatusOr<std::string> ValidateAbsolutePath(
       absl::string_view path);
-  static sapi::StatusOr<std::string> ValidatePath(absl::string_view path);
+  static absl::StatusOr<std::string> ValidatePath(absl::string_view path);
 
   void StoreDescription(PolicyBuilderDescription* pb_description);
 

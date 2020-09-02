@@ -95,7 +95,7 @@ class ElfParser {
   static constexpr size_t kMaxInterpreterSize = 1000;
 
   ElfParser() = default;
-  sapi::StatusOr<ElfFile> Parse(FILE* elf, uint32_t features);
+  absl::StatusOr<ElfFile> Parse(FILE* elf, uint32_t features);
 
  private:
   // Endianess support functions
@@ -133,16 +133,16 @@ class ElfParser {
   // Reads elf header.
   absl::Status ReadFileHeader();
   // Reads a single elf program header.
-  sapi::StatusOr<Elf64_Phdr> ReadProgramHeader(absl::string_view src);
+  absl::StatusOr<Elf64_Phdr> ReadProgramHeader(absl::string_view src);
   // Reads all elf program headers.
   absl::Status ReadProgramHeaders();
   // Reads a single elf section header.
-  sapi::StatusOr<Elf64_Shdr> ReadSectionHeader(absl::string_view src);
+  absl::StatusOr<Elf64_Shdr> ReadSectionHeader(absl::string_view src);
   // Reads all elf section headers.
   absl::Status ReadSectionHeaders();
   // Reads contents of an elf section.
-  sapi::StatusOr<std::string> ReadSectionContents(int idx);
-  sapi::StatusOr<std::string> ReadSectionContents(
+  absl::StatusOr<std::string> ReadSectionContents(int idx);
+  absl::StatusOr<std::string> ReadSectionContents(
       const Elf64_Shdr& section_header);
   // Reads all symbols from symtab section.
   absl::Status ReadSymbolsFromSymtab(const Elf64_Shdr& symtab);
@@ -219,7 +219,7 @@ absl::Status ElfParser::ReadFileHeader() {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<Elf64_Shdr> ElfParser::ReadSectionHeader(absl::string_view src) {
+absl::StatusOr<Elf64_Shdr> ElfParser::ReadSectionHeader(absl::string_view src) {
   if (src.size() < sizeof(Elf64_Shdr)) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid section header data: got ", src.size(),
@@ -266,7 +266,7 @@ absl::Status ElfParser::ReadSectionHeaders() {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<std::string> ElfParser::ReadSectionContents(int idx) {
+absl::StatusOr<std::string> ElfParser::ReadSectionContents(int idx) {
   if (idx < 0 || idx >= section_headers_.size()) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid section header index: ", idx));
@@ -274,7 +274,7 @@ sapi::StatusOr<std::string> ElfParser::ReadSectionContents(int idx) {
   return ReadSectionContents(section_headers_.at(idx));
 }
 
-sapi::StatusOr<std::string> ElfParser::ReadSectionContents(
+absl::StatusOr<std::string> ElfParser::ReadSectionContents(
     const Elf64_Shdr& section_header) {
   auto offset = section_header.sh_offset;
   if (offset > file_size_) {
@@ -292,7 +292,7 @@ sapi::StatusOr<std::string> ElfParser::ReadSectionContents(
   return rv;
 }
 
-sapi::StatusOr<Elf64_Phdr> ElfParser::ReadProgramHeader(absl::string_view src) {
+absl::StatusOr<Elf64_Phdr> ElfParser::ReadProgramHeader(absl::string_view src) {
   if (src.size() < sizeof(Elf64_Phdr)) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid program header data: got ", src.size(),
@@ -454,7 +454,7 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
   return absl::OkStatus();
 }
 
-sapi::StatusOr<ElfFile> ElfParser::Parse(FILE* elf, uint32_t features) {
+absl::StatusOr<ElfFile> ElfParser::Parse(FILE* elf, uint32_t features) {
   elf_ = elf;
   // Basic sanity check.
   if (features & ~(ElfFile::kAll)) {
@@ -511,7 +511,7 @@ sapi::StatusOr<ElfFile> ElfParser::Parse(FILE* elf, uint32_t features) {
   return std::move(result_);
 }
 
-sapi::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
+absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
                                                uint32_t features) {
   std::unique_ptr<FILE, void (*)(FILE*)> elf{fopen(filename.c_str(), "r"),
                                              [](FILE* f) { fclose(f); }};

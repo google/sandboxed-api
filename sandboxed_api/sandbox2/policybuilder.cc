@@ -35,7 +35,7 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "sandboxed_api/sandbox2/namespace.h"
@@ -658,7 +658,7 @@ PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
   return *this;
 }
 
-sapi::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
+absl::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
     absl::string_view path) {
   if (!file::IsAbsolutePath(path)) {
     return absl::InvalidArgumentError(
@@ -667,7 +667,7 @@ sapi::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
   return ValidatePath(path);
 }
 
-sapi::StatusOr<std::string> PolicyBuilder::ValidatePath(
+absl::StatusOr<std::string> PolicyBuilder::ValidatePath(
     absl::string_view path) {
   std::string fixed_path = file::CleanPath(path);
   if (fixed_path != path) {
@@ -688,7 +688,7 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
   return policy;
 }
 
-sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
+absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   auto output = absl::WrapUnique(new Policy());
 
   if (!last_status_.ok()) {

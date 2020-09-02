@@ -102,7 +102,7 @@ class Sandbox {
   absl::Status TransferToSandboxee(v::Var* var);
   absl::Status TransferFromSandboxee(v::Var* var);
 
-  sapi::StatusOr<std::string> GetCString(const v::RemotePtr& str,
+  absl::StatusOr<std::string> GetCString(const v::RemotePtr& str,
                                          uint64_t max_length = 10ULL
                                                                << 20 /* 10 MiB*/
   );

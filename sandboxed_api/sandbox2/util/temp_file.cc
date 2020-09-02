@@ -22,7 +22,7 @@
 #include <cstdlib>
 #include <vector>
 
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
@@ -33,7 +33,7 @@ namespace {
 constexpr absl::string_view kMktempSuffix = "XXXXXX";
 }  // namespace
 
-sapi::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
+absl::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
     absl::string_view prefix) {
   std::string name_template = absl::StrCat(prefix, kMktempSuffix);
   int fd = mkstemp(&name_template[0]);
@@ -43,7 +43,7 @@ sapi::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
   return std::pair<std::string, int>{std::move(name_template), fd};
 }
 
-sapi::StatusOr<std::string> CreateNamedTempFileAndClose(
+absl::StatusOr<std::string> CreateNamedTempFileAndClose(
     absl::string_view prefix) {
   auto result_or = CreateNamedTempFile(prefix);
   if (result_or.ok()) {
@@ -56,7 +56,7 @@ sapi::StatusOr<std::string> CreateNamedTempFileAndClose(
   return result_or.status();
 }
 
-sapi::StatusOr<std::string> CreateTempDir(absl::string_view prefix) {
+absl::StatusOr<std::string> CreateTempDir(absl::string_view prefix) {
   std::string name_template = absl::StrCat(prefix, kMktempSuffix);
   if (mkdtemp(&name_template[0]) == nullptr) {
     return absl::UnknownError(absl::StrCat("mkdtemp():", StrError(errno)));

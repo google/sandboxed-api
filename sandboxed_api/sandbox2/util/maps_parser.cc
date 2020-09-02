@@ -15,12 +15,12 @@
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 
 namespace sandbox2 {
 
-sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
+absl::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
     const std::string& contents) {
   // Note: The format string
   //       https://github.com/torvalds/linux/blob/v4.14/fs/proc/task_mmu.c#L289

@@ -18,7 +18,7 @@
 #include <string>
 
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
@@ -36,7 +36,7 @@ namespace sapi {
 std::string GetIncludeGuard(absl::string_view filename);
 
 // Outputs a formatted header for a list of functions and their related types.
-sapi::StatusOr<std::string> EmitHeader(
+absl::StatusOr<std::string> EmitHeader(
     std::vector<clang::FunctionDecl*> functions, const QualTypeSet& types,
     const GeneratorOptions& options);
 

@@ -15,7 +15,7 @@
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 
 #include "absl/random/random.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
@@ -47,7 +47,7 @@ constexpr absl::string_view kHeaderProlog =
 
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/vars.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -197,7 +197,7 @@ std::string PrintFunctionPrototype(const clang::FunctionDecl* decl) {
   return out;
 }
 
-sapi::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
+absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   std::string out;
   absl::StrAppend(&out, "\n// ", PrintFunctionPrototype(decl), "\n");
   const std::string function_name = decl->getNameAsString();
@@ -249,7 +249,7 @@ sapi::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   return out;
 }
 
-sapi::StatusOr<std::string> EmitHeader(
+absl::StatusOr<std::string> EmitHeader(
     std::vector<clang::FunctionDecl*> functions, const QualTypeSet& types,
     const GeneratorOptions& options) {
   std::string out;

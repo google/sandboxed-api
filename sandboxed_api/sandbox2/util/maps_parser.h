@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 
 namespace sandbox2 {
 
@@ -37,7 +37,7 @@ struct MapsEntry {
   std::string path;
 };
 
-sapi::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
+absl::StatusOr<std::vector<MapsEntry>> ParseProcMaps(
     const std::string& contents);
 
 }  // namespace sandbox2
