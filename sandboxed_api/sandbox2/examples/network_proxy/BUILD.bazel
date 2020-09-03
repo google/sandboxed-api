@@ -27,7 +27,6 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2/network_proxy:filtering",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:runfiles",
@@ -50,6 +49,7 @@ cc_binary(
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )

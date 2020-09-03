@@ -48,11 +48,10 @@ add_library(sapi_util_statusor STATIC
 )
 add_library(sapi::statusor ALIAS sapi_util_statusor)
 target_link_libraries(sapi_util_statusor PRIVATE
-  absl::base
   absl::core_headers
-  absl::variant
-  sapi::raw_logging
-  sapi::status
+  absl::status
+  absl::statusor
+  sapi::base
 )
 
 # sandboxed_api/util:flag
@@ -90,7 +89,6 @@ if(SAPI_ENABLE_TESTS)
             sapi::base
     PUBLIC absl::status
            sapi::status
-           sapi::statusor
   )
 
   # sandboxed_api/util:status_test
@@ -98,20 +96,24 @@ if(SAPI_ENABLE_TESTS)
     status_test.cc
   )
   target_link_libraries(status_test PRIVATE
+    sapi::status
     sapi::status_matchers
     sapi::test_main
+    absl::status
     absl::type_traits
   )
   gtest_discover_tests(status_test)
 
-  # sandboxed_api/util:statusor_test
-  add_executable(statusor_test
-    statusor_test.cc
+  # sandboxed_api/util:status_macros_test
+  add_executable(status_macros_test
+    status_macros_test.cc
   )
-  target_link_libraries(statusor_test PRIVATE
+  target_link_libraries(status_macros_test PRIVATE
     sapi::status_matchers
     sapi::test_main
+    absl::status
+    absl::statusor
     absl::type_traits
   )
-  gtest_discover_tests(statusor_test)
+  gtest_discover_tests(status_macros_test)
 endif()
