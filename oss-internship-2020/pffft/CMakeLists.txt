@@ -19,8 +19,6 @@ project(pffft CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-set(PFFFT_ROOT_DIR https://bitbucket.org/jpommier/pffft.git)
-
 add_library(pffft STATIC 
     master/pffft.c 
     master/pffft.h 
@@ -44,7 +42,6 @@ if(LIBM)
 endif()
 
 target_link_libraries(pffft PUBLIC ${MATH_LIBS})
-
 
 # Adding dependencies
 set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")

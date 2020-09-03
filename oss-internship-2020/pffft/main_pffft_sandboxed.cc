@@ -136,51 +136,55 @@ absl::Status PffftMain() {
 
         if (simd_size_iter == 0) simd_size_iter = 1;
         if (complex) {
-          api.cffti(n, work_array.PtrBoth()).IgnoreError();
+          SAPI_RETURN_IF_ERROR(api.cffti(n, work_array.PtrBoth()))
         } else {
-          api.rffti(n, work_array.PtrBoth()).IgnoreError();
+          SAPI_RETURN_IF_ERROR(api.rffti(n, work_array.PtrBoth()));
         }
         t0 = UclockSec();
 
         for (int iter = 0; iter < simd_size_iter; ++iter) {
           if (complex) {
-            api.cfftf(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
-            api.cfftb(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
+            SAPI_RETURN_IF_ERROR(
+                api.cfftf(n, x_array.PtrBoth(), work_array.PtrBoth()));
+            SAPI_RETURN_IF_ERROR(
+                api.cfftb(n, x_array.PtrBoth(), work_array.PtrBoth()));
           } else {
-            api.rfftf(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
-            api.rfftb(n, x_array.PtrBoth(), work_array.PtrBoth()).IgnoreError();
+            SAPI_RETURN_IF_ERROR(
+                api.rfftf(n, x_array.PtrBoth(), work_array.PtrBoth()));
+            SAPI_RETURN_IF_ERROR(
+                api.rfftb(n, x_array.PtrBoth(), work_array.PtrBoth()));
           }
         }
         t1 = UclockSec();
 
         flops = (simd_size_iter * 2) *
-                ((complex ? 5 : 2.5) * n * log((double)n) / M_LN2);
+                ((complex ? 5 : 2.5) * static_cast<double>(n) * log(static_cast<double>(n)) / M_LN2);
         ShowOutput("FFTPack", n, complex, flops, t0, t1, simd_size_iter);
       }
 
       // PFFFT benchmark
       {
         SAPI_ASSIGN_OR_RETURN(
-            PFFFT_Setup *s,
+            PFFFT_Setup * s,
             api.pffft_new_setup(n, complex ? PFFFT_COMPLEX : PFFFT_REAL));
 
         sapi::v::RemotePtr s_reg(s);
 
         t0 = UclockSec();
         for (int iter = 0; iter < max_iter; ++iter) {
-          api.pffft_transform(&s_reg, x_array.PtrBoth(), z_array.PtrBoth(),
-                              y_array.PtrBoth(), PFFFT_FORWARD)
-              .IgnoreError();
-          api.pffft_transform(&s_reg, x_array.PtrBoth(), z_array.PtrBoth(),
-                              y_array.PtrBoth(), PFFFT_FORWARD)
-              .IgnoreError();
+          SAPI_RETURN_IF_ERROR(
+              api.pffft_transform(&s_reg, x_array.PtrBoth(), z_array.PtrBoth(),
+                                  y_array.PtrBoth(), PFFFT_FORWARD));
+          SAPI_RETURN_IF_ERROR(
+              api.pffft_transform(&s_reg, x_array.PtrBoth(), z_array.PtrBoth(),
+                                  y_array.PtrBoth(), PFFFT_FORWARD));
         }
 
         t1 = UclockSec();
-        api.pffft_destroy_setup(&s_reg).IgnoreError();
+        SAPI_RETURN_IF_ERROR(api.pffft_destroy_setup(&s_reg));
 
         flops = (max_iter * 2) * ((complex ? 5 : 2.5) * static_cast<double>(n) *
-                                  log((double)n) / M_LN2);
+                                  log(static_cast<double>(n)) / M_LN2);
         ShowOutput("PFFFT", n, complex, flops, t0, t1, max_iter);
 
         LOG(INFO) << "n = " << n << " SUCCESSFULLY";

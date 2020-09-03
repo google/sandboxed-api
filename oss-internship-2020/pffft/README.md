@@ -4,16 +4,13 @@ Build System: CMake
 OS: Linux
 
 ### Check out the PFFFT library & CMake set up
-`git checkout -b master`
+```
+git submodule update --init --recursive
 
-`git submodule update --init --recursive`
-
-`mkdir -p build && cd build`
-
-`cmake .. -G Ninja -DPFFFT_ROOT_DIR=$PWD`
-
-`ninja`
-
+mkdir -p build && cd build
+cmake .. -G Ninja -DPFFFT_ROOT_DIR=$PWD
+ninjas
+```
 ### For testing: 
 `cd build`, then `./pffft_sandboxed`
 
