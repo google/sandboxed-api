@@ -38,3 +38,35 @@ add_executable(untar
 target_link_libraries(untar PRIVATE
     archive
 )
+
+
+
+add_executable(tarfilter
+    tarfilter.cc
+)
+
+target_link_libraries(tarfilter PRIVATE
+    tarfilter
+)
+
+
+
+
+add_executable(tarfilter
+    tarfilter.cc
+)
+
+target_link_libraries(tarfilter PRIVATE
+    tarfilter
+)
+
+
+
+
+add_executable(minitar
+    minitar.cc
+)
+
+target_link_libraries(minitar PRIVATE
+    minitar
+)
