@@ -22,12 +22,15 @@ extern "C" struct JsonnetVm* c_jsonnet_make(void);
 
 extern "C" void c_jsonnet_destroy(struct JsonnetVm* vm);
 
-extern "C" char* c_jsonnet_evaluate_snippet(struct JsonnetVm* vm, const char* filename, char* snippet, int* error);
+extern "C" char* c_jsonnet_evaluate_snippet(struct JsonnetVm* vm,
+                                            const char* filename, char* snippet,
+                                            int* error);
 
 extern "C" char* c_read_input(bool filename_is_code, const char* filename);
 
 extern "C" void c_free_input(char* input);
 
-extern "C" bool c_write_output_file(const char* output, const char* output_file);
+extern "C" bool c_write_output_file(const char* output,
+                                    const char* output_file);
 
 extern "C" char* c_jsonnet_realloc(JsonnetVm* vm, char* str, size_t sz);
