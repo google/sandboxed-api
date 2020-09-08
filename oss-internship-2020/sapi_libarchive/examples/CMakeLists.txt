@@ -46,7 +46,7 @@ add_executable(tarfilter
 )
 
 target_link_libraries(tarfilter PRIVATE
-    tarfilter
+    archive
 )
 
 
@@ -59,5 +59,5 @@ add_executable(minitar
 )
 
 target_link_libraries(minitar PRIVATE
-    minitar
+    archive
 )
