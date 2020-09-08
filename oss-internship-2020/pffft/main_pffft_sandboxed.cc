@@ -14,10 +14,7 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <sys/times.h>
-#include <syscall.h>
 
-#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
