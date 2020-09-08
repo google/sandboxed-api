@@ -32,7 +32,7 @@ target_link_libraries(jsonnet_helper
   libjsonnet_for_binaries
 )
 
-set(SAPI_ROOT "/usr/local/google/home/kasiamm/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
+set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
 set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
 set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
 
