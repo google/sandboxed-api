@@ -25,7 +25,6 @@ class JsonnetSapiSandbox : public JsonnetSandbox {
  public:
   explicit JsonnetSapiSandbox(std::string in_file, std::string out_file)
       : in_file_(std::move(in_file)), out_file_(std::move(out_file)) {}
-    // explicit JsonnetSapiSandbox() {};
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
