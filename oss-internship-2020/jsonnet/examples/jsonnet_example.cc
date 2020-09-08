@@ -44,7 +44,6 @@ class JsonnetSapiSandbox : public JsonnetSandbox {
         })
         .AddDirectoryAt(dirname(&out_file_[0]), "/output", /*is_ro=*/false)
         .AddDirectoryAt(dirname(&in_file_[0]), "/input", true)
-        // .AddFileAt(in_file_, std::string("/input/"), true)
         .BuildOrDie();
   }
 
