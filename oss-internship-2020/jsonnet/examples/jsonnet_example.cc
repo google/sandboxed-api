@@ -21,6 +21,8 @@
 #include "jsonnet_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
 
+ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
+
 class JsonnetSapiSandbox : public JsonnetSandbox {
  public:
   explicit JsonnetSapiSandbox(std::string in_file, std::string out_file)
@@ -40,8 +42,9 @@ class JsonnetSapiSandbox : public JsonnetSandbox {
             __NR_futex,
             __NR_close,
         })
-        .AddFile(in_file_)
         .AddDirectoryAt(dirname(&out_file_[0]), "/output", /*is_ro=*/false)
+        .AddDirectoryAt(dirname(&in_file_[0]), "/input", true)
+        // .AddFileAt(in_file_, std::string("/input/"), true)
         .BuildOrDie();
   }
 
@@ -78,7 +81,9 @@ int main(int argc, char *argv[]) {
                          << jsonnet_vm.status();
 
   // Read input file.
-  sapi::v::ConstCStr in_file_var(in_file.c_str());
+  std::string in_file_in_sandboxee(std::string("/input/") +
+                                   basename(&in_file[0]));
+  sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
   sapi::StatusOr<char *> input =
       api.c_read_input(false, in_file_var.PtrBefore());
   CHECK(input.ok()) << "Reading input file failed " << input.status();
@@ -89,8 +94,10 @@ int main(int argc, char *argv[]) {
   sapi::StatusOr<char *> output = api.c_jsonnet_evaluate_snippet(
       &vm_pointer, in_file_var.PtrBefore(), &input_pointer, error.PtrAfter());
   CHECK(output.ok() && !error.GetValue())
-      << "Jsonnet code evaluation failed" << output.status() << " "
-      << error.GetValue();
+      << "Jsonnet code evaluation failed: " << output.status() << " "
+      << error.GetValue() << "\n"
+      << "Make sure all files used by your jsonnet file are in the same "
+         "directory as your file";
 
   // Write data to file.
   std::string out_file_in_sandboxee(std::string("/output/") +
@@ -106,13 +113,13 @@ int main(int argc, char *argv[]) {
   // Clean up.
   sapi::StatusOr<char *> result =
       api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
-  CHECK(result.ok()) << "JsonnetVm realloc failed " << result.status();
+  CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
 
   status = api.c_jsonnet_destroy(&vm_pointer);
-  CHECK(status.ok()) << "JsonnetVm destroy failed " << status;
+  CHECK(status.ok()) << "JsonnetVm destroy failed: " << status;
 
   status = api.c_free_input(&input_pointer);
-  CHECK(status.ok()) << "Input freeing failed " << status;
+  CHECK(status.ok()) << "Input freeing failed: " << status;
 
   return EXIT_SUCCESS;
 }
