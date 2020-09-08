@@ -67,7 +67,11 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
 
   std::vector<uint8_t> image(GenerateValues());
 
-  sapi::v::Array<uint8_t> sapi_image(image.data(), kImgLen);
+  sapi::v::Array<uint8_t> sapi_image(kImgLen);
+  EXPECT_THAT(std::copy(image.begin(), image.end(), sapi_image.GetData()),
+              IsTrue())
+      << "could not copy values";
+
   sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -101,7 +105,8 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
               IsTrue())
       << "Values differ";
 
-  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()), IsOk()) << "Could not free memory inside sandboxed process";
+  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()), IsOk())
+      << "Could not free memory inside sandboxed process";
 
   EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
               IsTrue())
@@ -123,7 +128,11 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
 
   std::vector<uint8_t> image(GenerateValues());
 
-  sapi::v::Array<uint8_t> sapi_image(image.data(), kImgLen);
+  sapi::v::Array<uint8_t> sapi_image(kImgLen);
+  EXPECT_THAT(std::copy(image.begin(), image.end(), sapi_image.GetData()),
+              IsTrue())
+      << "could not copy values";
+
   sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 
   sapi::v::ULLong sapi_pngsize;
