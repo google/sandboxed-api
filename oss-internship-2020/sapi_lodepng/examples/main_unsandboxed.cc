@@ -44,7 +44,8 @@ void EncodeDecodeOneStep(const std::string &images_path) {
   CHECK(height2 == kHeight) << "Heights differ";
 
   // Now, we can compare the values.
-  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen)) << "Values differ";
+  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen))
+      << "Values differ";
 
   free(image2);
 }
@@ -87,7 +88,8 @@ void EncodeDecodeTwoSteps(const std::string &images_path) {
   CHECK(height2 == kHeight) << "Heights differ";
 
   // Compare the values.
-  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen)) << "Values differ";
+  CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen))
+      << "Values differ";
 
   free(png);
   free(png2);
