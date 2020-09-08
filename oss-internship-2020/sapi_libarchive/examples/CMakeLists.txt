@@ -52,15 +52,6 @@ target_link_libraries(tarfilter PRIVATE
 
 
 
-add_executable(tarfilter
-    tarfilter.cc
-)
-
-target_link_libraries(tarfilter PRIVATE
-    tarfilter
-)
-
-
 
 
 add_executable(minitar
