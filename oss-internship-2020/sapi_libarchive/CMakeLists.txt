@@ -32,6 +32,18 @@ add_sapi_library(
   
   FUNCTIONS
   archive_read_new
+  archive_write_disk_new
+  archive_write_disk_set_options
+  archive_read_support_filter_bzip2
+  archive_read_support_filter_gzip
+  archive_read_support_filter_compress
+  archive_read_support_format_tar
+  archive_read_support_format_cpio
+  archive_write_disk_set_standard_lookup
+  archive_read_open_filename
+  archive_error_string
+  archive_read_next_header
+  archive_entry_pathname
   
   INPUTS libarchive/libarchive/archive.h
   LIBRARY archive

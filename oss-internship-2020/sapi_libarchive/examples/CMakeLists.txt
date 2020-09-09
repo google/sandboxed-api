@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+add_library(helpers STATIC
+    helpers.h
+    helpers.cc
+)
+
+target_link_libraries(helpers PUBLIC
+    sapi::sapi
+    sandbox2::fileops
+    sandbox2::util
+)
+
 # small example - todo delete later
 add_executable(small_example
     small_example.cc
@@ -19,6 +31,7 @@ add_executable(small_example
 
 target_link_libraries(small_example PRIVATE
     archive
+    helpers
 )
 
 add_executable(sapi_example
