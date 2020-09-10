@@ -54,6 +54,7 @@ target_link_libraries(sandbox2_network_proxy_client PRIVATE
   absl::synchronization
   glog::glog
   sandbox2::comms
+  sandbox2::config
   sandbox2::strerror
   sapi::base
   sapi::status

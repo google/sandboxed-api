@@ -7,6 +7,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util.h"
 
 namespace sandbox2 {
@@ -128,7 +129,6 @@ std::vector<std::string> SyscallTable::GetArgumentsDescription(
 #define SYSCALLS_UNUSED00_99(prefix) \
   SYSCALLS_UNUSED00_49(prefix), SYSCALLS_UNUSED50_99(prefix)
 
-#if defined(__x86_64__)
 // Syscall description table for Linux x86_64
 constexpr SyscallTable::Entry kSyscallDataX8664[] = {
     MakeEntry("read", kInt, kHex, kInt),                                 // 0
@@ -824,12 +824,10 @@ constexpr SyscallTable::Entry kSyscallDataX8632[] = {
     MakeEntry("bpf", kHex, kHex, kHex, kHex, kHex, kHex),                // 357
 };
 
-#elif defined(__powerpc64__)
-
 // http://lxr.free-electrons.com/source/arch/powerpc/include/uapi/asm/unistd.h
 // Note: PPC64 syscalls can have up to 7 register arguments, but nobody is
 // using the 7th argument - probably for x64 compatibility reasons.
-constexpr SyscallTable::Entry kSyscallDataPPC64[] = {
+constexpr SyscallTable::Entry kSyscallDataPPC64LE[] = {
     MakeEntry("restart_syscall", kGen, kGen, kGen, kGen, kGen, kGen),     // 0
     MakeEntry("exit", kInt, kGen, kGen, kGen, kGen, kGen),                // 1
     MakeEntry("fork", kGen, kGen, kGen, kGen, kGen, kGen),                // 2
@@ -1218,25 +1216,20 @@ constexpr SyscallTable::Entry kSyscallDataPPC64[] = {
     MakeEntry("pwritev2", kHex, kHex, kHex, kHex, kHex, kHex),           // 381
 };
 
-#endif
-
 #undef SYSCALLS_UNUSED00_99
 #undef SYSCALLS_UNUSED50_99
 #undef SYSCALLS_UNUSED00_49
 #undef SYSCALLS_UNUSED0_9
 #undef SYSCALLS_UNUSED
 
-SyscallTable SyscallTable::get(Syscall::CpuArch arch) {
-  switch (arch) {
-#if defined(__x86_64__)
-    case Syscall::kX86_64:
+SyscallTable SyscallTable::get(cpu::Architecture arch) {
+  switch (host_cpu::Architecture()) {
+    case cpu::kX8664:
       return SyscallTable(kSyscallDataX8664);
-    case Syscall::kX86_32:
+    case cpu::kX86:
       return SyscallTable(kSyscallDataX8632);
-#elif defined(__powerpc64__)
-    case Syscall::kPPC_64:
-      return SyscallTable(kSyscallDataPPC64);
-#endif
+    case cpu::kPPC64LE:
+      return SyscallTable(kSyscallDataPPC64LE);
     default:
       return SyscallTable();
   }

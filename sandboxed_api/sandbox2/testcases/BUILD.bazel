@@ -178,6 +178,7 @@ cc_binary(
         "fully_static_link",  # link libc statically
     ],
     linkstatic = 1,  # prefer static libraries
+    deps = ["//sandboxed_api/sandbox2:config"],
 )
 
 # security: disable=cc-static-no-pie

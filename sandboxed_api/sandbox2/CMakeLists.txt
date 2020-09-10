@@ -17,6 +17,16 @@ add_subdirectory(unwind)
 add_subdirectory(util)
 add_subdirectory(network_proxy)
 
+# sandboxed_api/sandbox2:config
+add_library(sandbox2_config STATIC
+  config.h
+)
+add_library(sandbox2::config ALIAS sandbox2_config)
+target_link_libraries(sandbox2_config PRIVATE
+  absl::config
+  sapi::base
+)
+
 # sandboxed_api/sandbox2:bpfdisassembler
 add_library(sandbox2_bpfdisassembler STATIC
   bpfdisassembler.cc
@@ -37,6 +47,7 @@ add_library(sandbox2::regs ALIAS sandbox2_regs)
 target_link_libraries(sandbox2_regs PRIVATE
   absl::core_headers
   absl::strings
+  sandbox2::config
   sandbox2::strerror
   sandbox2::syscall
   sandbox2::violation_proto
@@ -72,6 +83,7 @@ target_link_libraries(sandbox2_result PRIVATE
   absl::base
   absl::memory
   absl::strings
+  sandbox2::config
   sandbox2::regs
   sandbox2::syscall
   sandbox2::util
@@ -280,6 +292,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::bpf_helper
           sandbox2::client
           sandbox2::comms
+          sandbox2::config
           sandbox2::executor
           sandbox2::file_base
           sandbox2::fileops
@@ -403,6 +416,7 @@ target_link_libraries(sandbox2_mounts PRIVATE
   absl::str_format
   absl::strings
   protobuf::libprotobuf
+  sandbox2::config
   sandbox2::file_base
   sandbox2::fileops
   sandbox2::minielf
@@ -460,6 +474,7 @@ target_link_libraries(sandbox2_util
   PRIVATE absl::core_headers
           absl::str_format
           absl::strings
+          sandbox2::config
           sandbox2::file_base
           sandbox2::fileops
           sandbox2::strerror
@@ -570,6 +585,7 @@ if(SAPI_ENABLE_TESTS)
   )
   target_link_libraries(syscall_test PRIVATE
     absl::strings
+    sandbox2::config
     sandbox2::syscall
     sapi::test_main
   )
@@ -608,6 +624,7 @@ if(SAPI_ENABLE_TESTS)
     absl::memory
     absl::strings
     sandbox2::comms
+    sandbox2::config
     sandbox2::fileops
     sandbox2::namespace
     sandbox2::sandbox2
@@ -632,6 +649,7 @@ if(SAPI_ENABLE_TESTS)
     absl::memory
     sandbox2::buffer
     sandbox2::comms
+    sandbox2::config
     sandbox2::sandbox2
     sandbox2::testing
     sapi::status_matchers
@@ -706,6 +724,7 @@ if(SAPI_ENABLE_TESTS)
   target_link_libraries(limits_test PRIVATE
     absl::memory
     sandbox2::bpf_helper
+    sandbox2::config
     sandbox2::limits
     sandbox2::sandbox2
     sandbox2::testing
@@ -755,6 +774,7 @@ if(SAPI_ENABLE_TESTS)
     absl::memory
     absl::strings
     sandbox2::bpf_helper
+    sandbox2::config
     sandbox2::limits
     sandbox2::regs
     sandbox2::sandbox2
@@ -780,6 +800,7 @@ if(SAPI_ENABLE_TESTS)
     absl::memory
     absl::strings
     sandbox2::bpf_helper
+    sandbox2::config
     sandbox2::sandbox2
     sandbox2::testing
     sapi::status_matchers

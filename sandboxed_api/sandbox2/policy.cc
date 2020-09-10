@@ -85,10 +85,10 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
       // If compiled arch is different than the runtime one, inform the Monitor.
       LOAD_ARCH,
       JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
-      JEQ32(AUDIT_ARCH_X86_64, TRACE(Syscall::kX86_64)),
-      JEQ32(AUDIT_ARCH_I386, TRACE(Syscall::kX86_32)),
-      JEQ32(AUDIT_ARCH_PPC64LE, TRACE(Syscall::kPPC_64)),
-      TRACE(Syscall::kUnknown),
+      JEQ32(AUDIT_ARCH_X86_64, TRACE(cpu::kX8664)),
+      JEQ32(AUDIT_ARCH_I386, TRACE(cpu::kX86)),
+      JEQ32(AUDIT_ARCH_PPC64LE, TRACE(cpu::kPPC64LE)),
+      TRACE(cpu::kUnknown),
       LABEL(&l, past_arch_check_l),
 
       // After the policy is uploaded, forkserver will execve the sandboxee. We
@@ -130,10 +130,10 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
 std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   return {
       LOAD_ARCH,
-      JEQ32(AUDIT_ARCH_X86_64, TRACE(Syscall::kX86_64)),
-      JEQ32(AUDIT_ARCH_I386, TRACE(Syscall::kX86_32)),
-      JEQ32(AUDIT_ARCH_PPC64LE, TRACE(Syscall::kPPC_64)),
-      TRACE(Syscall::kUnknown),
+      JEQ32(AUDIT_ARCH_X86_64, TRACE(cpu::kX8664)),
+      JEQ32(AUDIT_ARCH_I386, TRACE(cpu::kX86)),
+      JEQ32(AUDIT_ARCH_PPC64LE, TRACE(cpu::kPPC64LE)),
+      TRACE(cpu::kUnknown),
   };
 }
 

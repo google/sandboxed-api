@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -89,12 +90,6 @@ std::unique_ptr<Policy> BufferTestcasePolicy() {
                  // /etc/ld.so.nohwcap.
                  .BlockSyscallWithErrno(__NR_access, ENOENT)
                  .BuildOrDie();
-
-#if defined(__powerpc64__)
-
-  s2p->AllowUnsafeMmapFiles();
-  s2p->AllowUnsafeMmapShared();
-#endif /* defined(__powerpc64__) */
 
   return s2p;
 }

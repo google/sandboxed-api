@@ -34,6 +34,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/sandbox2/util/path.h"
@@ -132,15 +133,19 @@ std::string ResolveLibraryPath(absl::string_view lib_name,
   return "";
 }
 
+constexpr absl::string_view GetPlatformCPUName() {
+  switch (host_cpu::Architecture()) {
+    case cpu::kX8664:
+      return "x86_64";
+    case cpu::kPPC64LE:
+      return "ppc64";
+    default:
+      return "unknown";
+  }
+}
+
 std::string GetPlatform(absl::string_view interpreter) {
-#if defined(__x86_64__)
-  constexpr absl::string_view kCpuPlatform = "x86_64";
-#elif defined(__powerpc64__)
-  constexpr absl::string_view kCpuPlatform = "ppc64";
-#else
-  constexpr absl::string_view kCpuPlatform = "unknown";
-#endif
-  return absl::StrCat(kCpuPlatform, "-linux-gnu");
+  return absl::StrCat(GetPlatformCPUName(), "-linux-gnu");
 }
 
 }  // namespace

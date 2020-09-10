@@ -49,6 +49,7 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/mounts.h"
@@ -761,7 +762,7 @@ void Monitor::LogSyscallViolation(const Syscall& syscall) const {
 void Monitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
   // If the seccomp-policy is using RET_TRACE, we request that it returns the
   // syscall architecture identifier in the SECCOMP_RET_DATA.
-  const auto syscall_arch = static_cast<Syscall::CpuArch>(event_msg);
+  const auto syscall_arch = static_cast<cpu::Architecture>(event_msg);
   Regs regs(pid);
   auto status = regs.Fetch();
   if (!status.ok()) {

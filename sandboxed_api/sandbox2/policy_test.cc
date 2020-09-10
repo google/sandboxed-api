@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -56,7 +57,7 @@ std::unique_ptr<Policy> PolicyTestcasePolicy() {
       .BuildOrDie();
 }
 
-#if defined(__x86_64__)
+#ifdef SAPI_X86_64
 // Test that 32-bit syscalls from 64-bit are disallowed.
 TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
   SKIP_SANITIZERS_AND_COVERAGE;
@@ -72,7 +73,7 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
 
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
     EXPECT_THAT(result.reason_code(), Eq(1));  // __NR_exit in 32-bit
-    EXPECT_THAT(result.GetSyscallArch(), Eq(Syscall::kX86_32));
+    EXPECT_THAT(result.GetSyscallArch(), Eq(cpu::kX86));
 }
 
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
@@ -90,9 +91,9 @@ TEST(PolicyTest, AMD64Syscall32FsAllowed) {
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
     EXPECT_THAT(result.reason_code(),
                 Eq(33));  // __NR_access in 32-bit
-    EXPECT_THAT(result.GetSyscallArch(), Eq(Syscall::kX86_32));
+    EXPECT_THAT(result.GetSyscallArch(), Eq(cpu::kX86));
 }
-#endif  // defined(__x86_64__)
+#endif
 
 // Test that ptrace(2) is disallowed.
 TEST(PolicyTest, PtraceDisallowed) {

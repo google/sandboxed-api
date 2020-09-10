@@ -44,6 +44,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:config",
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/memory",

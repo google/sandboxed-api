@@ -15,14 +15,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
 #include <asm/ioctls.h>  // For TCGETS
-
-#if defined(__x86_64__)
-#include <asm/prctl.h>
-#endif
-#if defined(__powerpc64__)
-#include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
-#endif
-#include <fcntl.h>  // For the fcntl flags
+#include <fcntl.h>       // For the fcntl flags
 #include <linux/futex.h>
 #include <linux/net.h>     // For SYS_CONNECT
 #include <linux/random.h>  // For GRND_NONBLOCK
@@ -38,10 +31,17 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
+
+#if defined(SAPI_X86_64)
+#include <asm/prctl.h>
+#elif defined(SAPI_PPC64_LE)
+#include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
+#endif
 
 namespace sandbox2 {
 namespace {
@@ -512,7 +512,7 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                                               JEQ32(SIG_UNBLOCK, ALLOW),
                                           });
 
-#if defined(__x86_64__)
+#ifdef SAPI_X86_64
   // The second argument is a pointer.
   AddPolicyOnSyscall(__NR_arch_prctl, {
                                           ARG_32(0),
@@ -901,7 +901,7 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
                            LABEL(&labels, getsockopt_end),
                        };
                      });
-#if defined(__powerpc64__)
+#ifdef SAPI_PPC64_LE
   AddPolicyOnSyscall(__NR_socketcall, {
                                           ARG_32(0),
                                           JEQ32(SYS_SOCKET, ALLOW),
@@ -927,7 +927,7 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
                                           });
 
   AddPolicyOnSyscall(__NR_connect, {TRAP(0)});
-#if defined(__powerpc64__)
+#ifdef SAPI_PPC64_LE
   AddPolicyOnSyscall(__NR_socketcall, {
                                           ARG_32(0),
                                           JEQ32(SYS_CONNECT, TRAP(0)),

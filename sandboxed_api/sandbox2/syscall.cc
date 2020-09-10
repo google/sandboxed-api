@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Implementation of the sandbox2::Syscall class.
-
 #include "sandboxed_api/sandbox2/syscall.h"
 
 #include <linux/audit.h>
 #include <linux/elf-em.h>
+
 #include <climits>
 #include <csignal>
 #include <cstring>
@@ -26,6 +25,7 @@
 #include <glog/logging.h>
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/syscall_defs.h"
 
 #ifndef AUDIT_ARCH_PPC64LE
@@ -34,13 +34,13 @@
 
 namespace sandbox2 {
 
-std::string Syscall::GetArchDescription(CpuArch arch) {
+std::string Syscall::GetArchDescription(cpu::Architecture arch) {
   switch (arch) {
-    case kX86_64:
+    case cpu::kX8664:
       return "[X86-64]";
-    case kX86_32:
+    case cpu::kX86:
       return "[X86-32]";
-    case kPPC_64:
+    case cpu::kPPC64LE:
       return "[PPC-64]";
     default:
       LOG(ERROR) << "Unknown CPU architecture: " << arch;
@@ -48,32 +48,25 @@ std::string Syscall::GetArchDescription(CpuArch arch) {
   }
 }
 
-Syscall::CpuArch Syscall::GetHostArch() {
-#if defined(__x86_64__)
-  return kX86_64;
-#elif defined(__i386__)
-  return kX86_32;
-#elif defined(__powerpc64__)
-  return kPPC_64;
-#endif
-}
-
 uint32_t Syscall::GetHostAuditArch() {
-#if defined(__x86_64__)
-  return AUDIT_ARCH_X86_64;
-#elif defined(__i386__)
-  return AUDIT_ARCH_I386;
-#elif defined(__powerpc64__)
-  return AUDIT_ARCH_PPC64LE;
-#endif
+  switch (host_cpu::Architecture()) {
+    case cpu::kX8664:
+      return AUDIT_ARCH_X86_64;
+    case cpu::kPPC64LE:
+      return AUDIT_ARCH_PPC64LE;
+    default:
+      // The static_assert() in config.h should prevent us from ever getting
+      // here.
+      return 0;  // Not reached
+  }
 }
 
 std::string Syscall::GetName() const {
-  absl::string_view name = SyscallTable::get(arch_).GetName(nr_);
-  if (name.empty()) {
-    return absl::StrFormat("UNKNOWN[%d/0x%x]", nr_, nr_);
+  if (absl::string_view name = SyscallTable::get(arch_).GetName(nr_);
+      !name.empty()) {
+    return std::string(name);
   }
-  return std::string(name);
+  return absl::StrFormat("UNKNOWN[%d/0x%x]", nr_, nr_);
 }
 
 std::vector<std::string> Syscall::GetArgumentsDescription() const {

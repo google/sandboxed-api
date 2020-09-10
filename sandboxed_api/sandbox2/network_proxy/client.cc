@@ -27,6 +27,7 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
 
@@ -36,14 +37,13 @@ namespace sandbox2 {
 constexpr int SYS_SECCOMP = 1;
 #endif
 
-#if defined(__x86_64__)
+#if defined(SAPI_X86_64)
 constexpr int kRegResult = REG_RAX;
 constexpr int kRegSyscall = REG_RAX;
 constexpr int kRegArg0 = REG_RDI;
 constexpr int kRegArg1 = REG_RSI;
 constexpr int kRegArg2 = REG_RDX;
-#endif
-#if defined(__powerpc64__)
+#elif defined(SAPI_PPC64_LE)
 constexpr int kRegResult = 3;
 constexpr int kRegSyscall = 0;
 constexpr int kRegArg0 = 3;
@@ -161,9 +161,9 @@ void NetworkProxyHandler::ProcessSeccompTrap(int nr, siginfo_t* info,
   }
   if (!ctx) return;
 
-#if defined(__x86_64__)
+#if defined(SAPI_X86_64)
   auto* registers = ctx->uc_mcontext.gregs;
-#elif defined(__powerpc64__)
+#elif defined(SAPI_PPC64_LE)
   auto* registers = ctx->uc_mcontext.gp_regs;
   using ppc_gpreg_t = std::decay<decltype(registers[0])>::type;
 #endif
@@ -178,7 +178,7 @@ void NetworkProxyHandler::ProcessSeccompTrap(int nr, siginfo_t* info,
     sockfd = static_cast<int>(registers[kRegArg0]);
     addr = reinterpret_cast<const struct sockaddr*>(registers[kRegArg1]);
     addrlen = static_cast<socklen_t>(registers[kRegArg2]);
-#if defined(__powerpc64__)
+#if defined(SAPI_PPC64_LE)
   } else if (syscall == __NR_socketcall &&
              static_cast<int>(registers[kRegArg0]) == SYS_CONNECT) {
     ppc_gpreg_t* args = reinterpret_cast<ppc_gpreg_t*>(registers[kRegArg1]);

@@ -24,64 +24,69 @@
 #include <cerrno>
 
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 
 namespace sandbox2 {
 
 absl::Status Regs::Fetch() {
-#if defined(__powerpc64__)
-  iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
-
-  if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
-    return absl::InternalError(absl::StrCat(
-        "ptrace(PTRACE_GETREGSET, pid=", pid_, ") failed: ", StrError(errno)));
-  }
-  if (pt_iov.iov_len != sizeof(user_regs_)) {
-    return absl::InternalError(absl::StrCat(
-        "ptrace(PTRACE_GETREGSET, pid=", pid_,
-        ") size returned: ", pt_iov.iov_len,
-        " different than sizeof(user_regs_): ", sizeof(user_regs_)));
-  }
-#else
+#ifdef SAPI_X86_64
   if (ptrace(PTRACE_GETREGS, pid_, 0, &user_regs_) == -1L) {
     return absl::InternalError(absl::StrCat("ptrace(PTRACE_GETREGS, pid=", pid_,
                                             ") failed: ", StrError(errno)));
   }
 #endif
+  if constexpr (host_cpu::IsPPC64LE()) {
+    iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
+
+    if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
+      return absl::InternalError(
+          absl::StrCat("ptrace(PTRACE_GETREGSET, pid=", pid_,
+                       ") failed: ", StrError(errno)));
+    }
+    if (pt_iov.iov_len != sizeof(user_regs_)) {
+      return absl::InternalError(absl::StrCat(
+          "ptrace(PTRACE_GETREGSET, pid=", pid_,
+          ") size returned: ", pt_iov.iov_len,
+          " different than sizeof(user_regs_): ", sizeof(user_regs_)));
+    }
+  }
   return absl::OkStatus();
 }
 
 absl::Status Regs::Store() {
-#if defined(__powerpc64__)
-  iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
-
-  if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
-    return absl::InternalError(absl::StrCat(
-        "ptrace(PTRACE_SETREGSET, pid=", pid_, ") failed: ", StrError(errno)));
-  }
-#else
+#ifdef SAPI_X86_64
   if (ptrace(PTRACE_SETREGS, pid_, 0, &user_regs_) == -1) {
     return absl::InternalError(absl::StrCat("ptrace(PTRACE_SETREGS, pid=", pid_,
                                             ") failed: ", StrError(errno)));
   }
 #endif
+  if constexpr (host_cpu::IsPPC64LE()) {
+    iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
+
+    if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
+      return absl::InternalError(
+          absl::StrCat("ptrace(PTRACE_SETREGSET, pid=", pid_,
+                       ") failed: ", StrError(errno)));
+    }
+  }
   return absl::OkStatus();
 }
 
 absl::Status Regs::SkipSyscallReturnValue(uint64_t value) {
-#if defined(__x86_64__)
+#if defined(SAPI_X86_64)
   user_regs_.orig_rax = -1;
   user_regs_.rax = value;
-#elif defined(__powerpc64__)
+#elif defined(SAPI_PPC64_LE)
   user_regs_.gpr[0] = -1;
   user_regs_.gpr[3] = value;
 #endif
   return Store();
 }
 
-Syscall Regs::ToSyscall(Syscall::CpuArch syscall_arch) const {
-#if defined(__x86_64__)
-  if (ABSL_PREDICT_TRUE(syscall_arch == Syscall::kX86_64)) {
+Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
+#if defined(SAPI_X86_64)
+  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kX8664)) {
     auto syscall = user_regs_.orig_rax;
     Syscall::Args args = {user_regs_.rdi, user_regs_.rsi, user_regs_.rdx,
                           user_regs_.r10, user_regs_.r8,  user_regs_.r9};
@@ -89,7 +94,7 @@ Syscall Regs::ToSyscall(Syscall::CpuArch syscall_arch) const {
     auto ip = user_regs_.rip;
     return Syscall(syscall_arch, syscall, args, pid_, sp, ip);
   }
-  if (syscall_arch == Syscall::kX86_32) {
+  if (syscall_arch == cpu::kX86) {
     auto syscall = user_regs_.orig_rax & 0xFFFFFFFF;
     Syscall::Args args = {
         user_regs_.rbx & 0xFFFFFFFF, user_regs_.rcx & 0xFFFFFFFF,
@@ -99,8 +104,8 @@ Syscall Regs::ToSyscall(Syscall::CpuArch syscall_arch) const {
     auto ip = user_regs_.rip & 0xFFFFFFFF;
     return Syscall(syscall_arch, syscall, args, pid_, sp, ip);
   }
-#elif defined(__powerpc64__)
-  if (ABSL_PREDICT_TRUE(syscall_arch == Syscall::kPPC_64)) {
+#elif defined(SAPI_PPC64_LE)
+  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kPPC64LE)) {
     auto syscall = user_regs_.gpr[0];
     Syscall::Args args = {user_regs_.orig_gpr3, user_regs_.gpr[4],
                           user_regs_.gpr[5],    user_regs_.gpr[6],
@@ -114,7 +119,7 @@ Syscall Regs::ToSyscall(Syscall::CpuArch syscall_arch) const {
 }
 
 void Regs::StoreRegisterValuesInProtobuf(RegisterValues* values) const {
-#if defined(__x86_64__)
+#if defined(SAPI_X86_64)
   RegisterX8664* regs = values->mutable_register_x86_64();
   regs->set_r15(user_regs_.r15);
   regs->set_r14(user_regs_.r14);
@@ -143,7 +148,7 @@ void Regs::StoreRegisterValuesInProtobuf(RegisterValues* values) const {
   regs->set_es(user_regs_.es);
   regs->set_fs(user_regs_.fs);
   regs->set_gs(user_regs_.gs);
-#elif defined(__powerpc64__)
+#elif defined(SAPI_PPC64_LE)
   RegisterPowerpc64* regs = values->mutable_register_powerpc64();
   for (int i = 0; i < ABSL_ARRAYSIZE(user_regs_.gpr); ++i) {
     regs->add_gpr(user_regs_.gpr[i]);

@@ -39,8 +39,6 @@ struct bpf_labels;
 
 namespace sandbox2 {
 
-constexpr char kDefaultHostname[] = "sandbox2";
-
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
 //
@@ -91,6 +89,8 @@ constexpr char kDefaultHostname[] = "sandbox2";
 // For a more complicated example, see examples/persistent/persistent_sandbox.cc
 class PolicyBuilder final {
  public:
+  static constexpr absl::string_view kDefaultHostname = "sandbox2";
+
   using BpfInitializer = std::initializer_list<sock_filter>;
   using BpfFunc = const std::function<std::vector<sock_filter>(bpf_labels&)>&;
   using SyscallInitializer = std::initializer_list<unsigned int>;
@@ -542,7 +542,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   bool allow_unrestricted_networking_ = false;
-  std::string hostname_ = kDefaultHostname;
+  std::string hostname_ = std::string(kDefaultHostname);
 
   bool collect_stacktrace_on_violation_ = true;
   bool collect_stacktrace_on_signal_ = true;
