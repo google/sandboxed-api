@@ -39,7 +39,7 @@ target_link_libraries(jsonnet_helper
   libjsonnet_for_binaries
 )
 
-foreach(exe base multiple_files yaml_stream)
+foreach(exe base multiple_files yaml_stream formatter)
   add_executable(jsonnet_${exe}_sandboxed
     jsonnet_${exe}_example.cc
   )

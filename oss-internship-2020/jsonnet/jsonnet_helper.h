@@ -16,6 +16,7 @@
 
 extern "C" {
 #include <libjsonnet.h>
+#include <libjsonnet_fmt.h>
 }
 
 extern "C" struct JsonnetVm* c_jsonnet_make(void);
@@ -43,14 +44,20 @@ extern "C" void c_free_input(char* input);
 extern "C" bool c_write_output_file(const char* output,
                                     const char* output_file);
 
-extern "C" char* c_jsonnet_realloc(JsonnetVm* vm, char* str, size_t sz);
+extern "C" char* c_jsonnet_realloc(struct JsonnetVm* vm, char* str, size_t sz);
 
-extern "C" bool c_write_multi_output_files(JsonnetVm* vm, char* output,
+extern "C" bool c_write_multi_output_files(struct JsonnetVm* vm, char* output,
                                            char* output_dir);
 
-bool write_multi_output_files(JsonnetVm* vm, char* output,
+bool write_multi_output_files(struct JsonnetVm* vm, char* output,
                               const std::string& output_dir);
 
-extern "C" bool c_write_output_stream(JsonnetVm* vm, char* output, char* output_file);
+extern "C" bool c_write_output_stream(struct JsonnetVm* vm, char* output,
+                                      char* output_file);
 
-bool write_output_stream(JsonnetVm* vm, char* output, const std::string& output_file);
+bool write_output_stream(struct JsonnetVm* vm, char* output,
+                         const std::string& output_file);
+
+extern "C" char* c_jsonnet_fmt_snippet(struct JsonnetVm* vm,
+                                       const char* filename,
+                                       const char* snippet, int* error);
