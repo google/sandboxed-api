@@ -44,23 +44,23 @@ target_link_libraries(sapi_example PRIVATE
     glog::glog
 )
 
-add_executable(untar
-    untar.cc
-)
-
-target_link_libraries(untar PRIVATE
-    archive
-)
-
-
-
-add_executable(tarfilter
-    tarfilter.cc
-)
-
-target_link_libraries(tarfilter PRIVATE
-    archive
-)
+#add_executable(untar
+#    untar.cc
+#)
+#
+#target_link_libraries(untar PRIVATE
+#    archive
+#)
+#
+#
+#
+#add_executable(tarfilter
+#    tarfilter.cc
+#)
+#
+#target_link_libraries(tarfilter PRIVATE
+#    archive
+#)
 
 
 
