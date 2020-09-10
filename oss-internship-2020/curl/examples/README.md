@@ -1,6 +1,6 @@
-# Curl Sandbox Examples
+# LibCurl Sandbox Examples
 
-Each example in this folder is the sandboxed version of a code snippet from [this page](https://curl.haxx.se/libcurl/c/example.html) on curl's website. These examples perform some basic tasks using libcurl, and can be useful both to understand how to use Curl Sandboxed, but also to get an idea of how regular and sandboxed code compare to each other.
+Each example in this folder is the sandboxed version of a code snippet from [this page](https://curl.haxx.se/libcurl/c/example.html) on curl's website. These examples perform some basic tasks using libcurl, and can be useful both to understand how to use LibCurl Sandbox, but also to get an idea of how regular and sandboxed code compare to each other.
 
 This is the list of the examples:
 

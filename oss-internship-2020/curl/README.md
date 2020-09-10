@@ -1,4 +1,4 @@
-# Curl Sandbox
+# LibCurl Sandbox
 
 This library is a sandboxed version of curl's C API, [libcurl](https://curl.haxx.se/libcurl/c/), implemented using Sandboxed API.
 
