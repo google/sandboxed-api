@@ -2,10 +2,10 @@
 local
   first_object = {
     name: 'First object\'s name.',
-    age: 'Just created!,
+    age: 'Just created!',
   },
   second_object = {
-    name: `Hi, my name is <second_object>.`,
+    name: 'Hi, my name is <second_object>.',
     sibling: first_object.name
   };
 

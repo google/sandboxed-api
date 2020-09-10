@@ -39,24 +39,14 @@ target_link_libraries(jsonnet_helper
   libjsonnet_for_binaries
 )
 
-add_executable(jsonnet_sandboxed
-    jsonnet_example.cc
-)
-
-add_executable(jsonnet_mutiple_files_sandboxed
-    jsonnet_multiple_files_example.cc
-)
-
-target_link_libraries(jsonnet_sandboxed PRIVATE
-  libjsonnet
-  jsonnet_helper
-  jsonnet_sapi
-  sapi::sapi
-)
-
-target_link_libraries(jsonnet_mutiple_files_sandboxed PRIVATE
-  libjsonnet
-  jsonnet_helper
-  jsonnet_sapi
-  sapi::sapi
-)
+foreach(exe base multiple_files yaml_stream)
+  add_executable(jsonnet_${exe}_sandboxed
+    jsonnet_${exe}_example.cc
+  )
+  target_link_libraries(jsonnet_${exe}_sandboxed PRIVATE
+    libjsonnet
+    jsonnet_helper
+    jsonnet_sapi
+    sapi::sapi
+  )
+endforeach()
