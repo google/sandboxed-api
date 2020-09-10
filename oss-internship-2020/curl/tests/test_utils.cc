@@ -14,6 +14,7 @@
 
 #include "test_utils.h"
 
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -181,9 +182,17 @@ void CurlTestUtils::StartMockServer() {
               accept(listening_socket, (sockaddr*)&remote_address,
                      &remote_address_size);
           if (accepted_socket == -1) {
-            close(listening_socket);
-            return;
+            if (errno == ECONNABORTED)
+              continue;
+            else {
+              close(listening_socket);
+              return;
+            }
           }
+
+          // Set the socket's nonblocking flag to true
+          int flag = fcntl(accepted_socket, F_GETFL, nullptr);
+          fcntl(accepted_socket, F_SETFL, flag | O_NONBLOCK);
 
           // Add the new socket to the fd_set and update max_fd
           FD_SET(accepted_socket, &master_fd_set);
@@ -194,43 +203,65 @@ void CurlTestUtils::StartMockServer() {
           constexpr int kMaxRequestSize = 4096;
           char buf[kMaxRequestSize] = {};
 
-          // Receive message from socket
-          int num_bytes = recv(i, buf, sizeof(buf), 0);
-          if (num_bytes == -1) {
-            close(listening_socket);
-            return;
+          ssize_t num_bytes = 0;
+          size_t read_bytes = 0;
+          bool close_socket = false;
 
-          } else if (num_bytes == 0) {
+          // Read from the nonblocking socket until recv returns -1 and
+          // errno is EAGAIN or EWOULDBLOCK (busy wait)
+          do {
+            num_bytes = recv(i, buf + read_bytes, sizeof(buf) - read_bytes, 0);
+
+            // An error happened, close the socket
+            if (num_bytes == -1 and errno != EAGAIN and errno != EWOULDBLOCK) {
+              close_socket = true;
+              break;
+            }
+
+            // The connection was closed, close the socket
+            if (num_bytes == 0) {
+              close_socket = true;
+              break;
+            }
+
+            read_bytes += num_bytes;
+
+          } while (num_bytes > 0);
+
+          if (close_socket) {
             // Close the connection and remove it from fd_set
             close(i);
             FD_CLR(i, &master_fd_set);
+            continue;
+          }
+
+          // Prepare a response for the request
+          std::string http_response =
+              "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: ";
+
+          if (strncmp(buf, "GET", 3) == 0) {
+            http_response += std::to_string(kSimpleResponse.size()) + "\n\n" +
+                             std::string{kSimpleResponse};
+
+          } else if (strncmp(buf, "POST", 4) == 0) {
+            char* post_fields = strstr(buf, "\r\n\r\n");
+            post_fields += 4;  // Points to the first char after HTTP header
+            http_response += std::to_string(strlen(post_fields)) + "\n\n" +
+                             std::string(post_fields);
 
           } else {
-            // Prepare a response for the request
-            std::string http_response =
-                "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: ";
-
-            if (strncmp(buf, "GET", 3) == 0) {
-              http_response += std::to_string(kSimpleResponse.size()) + "\n\n" +
-                               std::string{kSimpleResponse};
-
-            } else if (strncmp(buf, "POST", 4) == 0) {
-              char* post_fields = strstr(buf, "\r\n\r\n");
-              post_fields += 4;  // Points to the first char after HTTP header
-              http_response += std::to_string(strlen(post_fields)) + "\n\n" +
-                               std::string(post_fields);
-
-            } else {
-              close(listening_socket);
-              return;
-            }
-
-            // Write the response to the request
-            if (write(i, http_response.c_str(), http_response.size()) == -1) {
-              close(listening_socket);
-              return;
-            }
+            // Close the connection and remove it from fd_set
+            close(i);
+            FD_CLR(i, &master_fd_set);
+            continue;
           }
+
+          // Ignore any errors, the connection will be closed anyway
+          write(i, http_response.c_str(), http_response.size());
+
+          // Close the connection and remove it from fd_set
+          close(i);
+          FD_CLR(i, &master_fd_set);
         }
       }
     }
