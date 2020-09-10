@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
   // Process jsonnet data.
   sapi::v::RemotePtr input_pointer(input.value());
   sapi::v::Int error;
-  sapi::StatusOr<char *> output = api.c_jsonnet_evaluate_snippet(
+  sapi::StatusOr<char *> output = api.c_jsonnet_evaluate_snippet_stream(
       &vm_pointer, in_file_var.PtrBefore(), &input_pointer, error.PtrAfter());
   CHECK(output.ok() && !error.GetValue())
       << "Jsonnet code evaluation failed: " << output.status() << " "
@@ -102,17 +102,13 @@ int main(int argc, char *argv[]) {
   sapi::v::RemotePtr output_pointer(output.value());
   sapi::StatusOr<bool> success;
 
-  success = api.c_write_output_file(&output_pointer, out_file_var.PtrBefore());
-
+  success = api.c_write_output_stream(&vm_pointer, &output_pointer,
+                                      out_file_var.PtrBefore());
   CHECK(success.ok() && success.value())
       << "Writing to output file failed " << success.status() << " "
       << success.value();
 
   // Clean up.
-  sapi::StatusOr<char *> result =
-      api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
-  CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
-
   status = api.c_jsonnet_destroy(&vm_pointer);
   CHECK(status.ok()) << "JsonnetVm destroy failed: " << status;
 

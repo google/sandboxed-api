@@ -19,12 +19,11 @@
 #include <iostream>
 
 #include "jsonnet_sapi.sapi.h"
-#include "sandboxed_api/sandbox2/util/path.h"
 
 class JsonnetSapiSandbox : public JsonnetSandbox {
  public:
-  explicit JsonnetSapiSandbox(std::string in_file, std::string out_directory)
-      : in_file_(std::move(in_file)), out_directory_(std::move(out_directory)) {}
+  explicit JsonnetSapiSandbox(std::string in_file, std::string out_file)
+      : in_file_(std::move(in_file)), out_file_(std::move(out_file)) {}
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder *) override {
@@ -40,15 +39,14 @@ class JsonnetSapiSandbox : public JsonnetSandbox {
             __NR_futex,
             __NR_close,
         })
-        .AddDirectoryAt(sandbox2::file::CleanPath(&out_directory_[0]), "/output",
-                        /*is_ro=*/false)
+        .AddDirectoryAt(dirname(&out_file_[0]), "/output", /*is_ro=*/false)
         .AddDirectoryAt(dirname(&in_file_[0]), "/input", true)
         .BuildOrDie();
   }
 
  private:
   std::string in_file_;
-  std::string out_directory_;
+  std::string out_file_;
 };
 
 int main(int argc, char *argv[]) {
@@ -58,15 +56,15 @@ int main(int argc, char *argv[]) {
   if (!(argc == 3)) {
     std::cerr << "Usage:\n"
               << basename(argv[0]) << " absolute/path/to/INPUT.jsonnet"
-              << " absolute/path/to/OUTPUT_DIRECTORY\n";
+              << " absolute/path/to/OUTPUT\n";
     return EXIT_FAILURE;
   }
 
   std::string in_file(argv[1]);
-  std::string out_directory(argv[2]);
+  std::string out_file(argv[2]);
 
   // Initialize sandbox.
-  JsonnetSapiSandbox sandbox(in_file, out_directory);
+  JsonnetSapiSandbox sandbox(in_file, out_file);
   absl::Status status = sandbox.Init();
   CHECK(status.ok()) << "Sandbox initialization failed " << status;
 
@@ -89,7 +87,7 @@ int main(int argc, char *argv[]) {
   // Process jsonnet data.
   sapi::v::RemotePtr input_pointer(input.value());
   sapi::v::Int error;
-  sapi::StatusOr<char *> output = api.c_jsonnet_evaluate_snippet_multi(
+  sapi::StatusOr<char *> output = api.c_jsonnet_evaluate_snippet(
       &vm_pointer, in_file_var.PtrBefore(), &input_pointer, error.PtrAfter());
   CHECK(output.ok() && !error.GetValue())
       << "Jsonnet code evaluation failed: " << output.status() << " "
@@ -98,17 +96,23 @@ int main(int argc, char *argv[]) {
          "directory as your file";
 
   // Write data to file.
-  std::string out_file_in_sandboxee(std::string("/output/"));
+  std::string out_file_in_sandboxee(std::string("/output/") +
+                                    basename(&out_file[0]));
   sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
   sapi::v::RemotePtr output_pointer(output.value());
-  sapi::StatusOr<bool> success = api.c_write_multi_output_files(
-      &vm_pointer, &output_pointer, out_file_var.PtrBefore());
+  sapi::StatusOr<bool> success;
+
+  success = api.c_write_output_file(&output_pointer, out_file_var.PtrBefore());
 
   CHECK(success.ok() && success.value())
       << "Writing to output file failed " << success.status() << " "
       << success.value();
 
   // Clean up.
+  sapi::StatusOr<char *> result =
+      api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
+  CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
+
   status = api.c_jsonnet_destroy(&vm_pointer);
   CHECK(status.ok()) << "JsonnetVm destroy failed: " << status;
 

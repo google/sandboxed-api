@@ -41,6 +41,8 @@ add_sapi_library(jsonnet_sapi
             c_jsonnet_realloc
             c_jsonnet_evaluate_snippet_multi
             c_write_multi_output_files
+            c_write_output_stream
+            c_jsonnet_evaluate_snippet_stream
   INPUTS jsonnet_helper.h
   LIBRARY jsonnet_helper
   LIBRARY_NAME Jsonnet

@@ -4,8 +4,8 @@ This library provides sandboxed version of the [Jsonnet](https://github.com/goog
 
 ## Examples
 
-The `examples/` directory contains code to produce two command-line tools -- `jsonnet_sandboxed` and `jsonnet_multiple_files_sandboxed`. The first one enables the user to evaluate jsonnet code held in one file and writing to one output file. The other one is for evaluating one jsonnet file into multiple output files.
-Both tools are based on what can be found [here](https://github.com/google/jsonnet/blob/master/cmd/jsonnet.cpp).
+The `examples/` directory contains code to produce three command-line tools -- `jsonnet_sandboxed`, `jsonnet_yaml_stream_sandboxed` and `jsonnet_multiple_files_sandboxed`. The first one enables the user to evaluate jsonnet code held in one file and writing to one output file. The second evaluates one jsonnet file into one file, which can be interepreted as YAML stream. The third one is for evaluating one jsonnet file into multiple output files.
+All three tools are based on what can be found [here](https://github.com/google/jsonnet/blob/master/cmd/jsonnet.cpp).
 
 ## Build
 
@@ -21,7 +21,7 @@ mkdir build && cd build
 cmake -G Ninja
 ninja
 ```
-To run `jsonnet_sandboxed`:
+To run `jsonnet_sandboxed` (or `jsonnet_yaml_stream_sandboxed` in a similar way):
 ```
 cd examples
 ./jsonnet_sandboxed absolute/path/to/the/input_file.jsonnet \ 
@@ -33,4 +33,4 @@ cd examples
 ./jsonnet_mutiple_files_sandboxed absolute/path/to/the/input_file.jsonnet \ 
     absolute/path/to/the/output_directory
 ```
-Both tools support evaluating one input file (possibly relying on multiple other files, e.x. by jsonnet `import` command; the files must be held in the same directory as input file) into one or more output files. Example jsonnet codes to evaluate in a one-in-one-out manner can be found [here](https://github.com/google/jsonnet/tree/master/examples). Example code producing multiple output files can be found in the `examples` directory, in a file called `multiple_files_example.jsonnet`.
+All three tools support evaluating one input file (possibly relying on multiple other files, e.x. by jsonnet `import` command; the files must be held in the same directory as input file) into one or more output files. Example jsonnet codes to evaluate in a one-in-one-out manner can be found [here](https://github.com/google/jsonnet/tree/master/examples). Example code producing multiple output files or YAML stream files can be found in the `examples/jsonnet_codes` directory, in files called `multiple_files_example.jsonnet` and `yaml_stream_example.jsonnet`, respectively.
