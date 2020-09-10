@@ -27,6 +27,10 @@ char* c_jsonnet_evaluate_snippet(struct JsonnetVm* vm, const char* filename,
   return jsonnet_evaluate_snippet(vm, filename, snippet, error);
 }
 
+char* c_jsonnet_evaluate_snippet_multi(struct JsonnetVm *vm, const char *filename, const char *snippet, int *error) {
+  return jsonnet_evaluate_snippet_multi(vm, filename, snippet, error);
+}
+
 char* c_read_input(bool filename_is_code, const char* filename) {
   std::string s_filename(filename);
   std::string s_input;
@@ -44,6 +48,11 @@ void c_free_input(char* input) {
 bool c_write_output_file(const char* output, const char* output_file) {
   std::string s_output_file(output_file);
   return write_output_file(output, s_output_file);
+}
+
+bool c_write_multi_output_files(JsonnetVm *vm, char *output, char* output_dir) {
+  std::string s_output_dir(output_dir);
+  return write_multi_output_files(vm, output, s_output_dir);
 }
 
 char* c_jsonnet_realloc(JsonnetVm* vm, char* str, size_t sz) {
