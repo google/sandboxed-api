@@ -26,6 +26,8 @@ extern "C" char* c_jsonnet_evaluate_snippet(struct JsonnetVm* vm,
                                             const char* filename, char* snippet,
                                             int* error);
 
+extern "C" char* c_jsonnet_evaluate_snippet_multi(struct JsonnetVm *vm, const char *filename, const char *snippet, int *error);
+
 extern "C" char* c_read_input(bool filename_is_code, const char* filename);
 
 extern "C" void c_free_input(char* input);
@@ -34,3 +36,7 @@ extern "C" bool c_write_output_file(const char* output,
                                     const char* output_file);
 
 extern "C" char* c_jsonnet_realloc(JsonnetVm* vm, char* str, size_t sz);
+
+extern "C" bool c_write_multi_output_files(JsonnetVm *vm, char *output, char* output_dir);
+
+bool write_multi_output_files(JsonnetVm *vm, char *output, const std::string &output_dir);

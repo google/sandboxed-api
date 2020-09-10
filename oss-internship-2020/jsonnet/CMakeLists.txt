@@ -21,16 +21,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(jsonnet)
 
-add_library(jsonnet_helper STATIC
-  jsonnet_helper.cc
-  jsonnet_helper.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/jsonnet/cmd/utils.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/jsonnet/cmd/utils.cpp
-)
-
-target_link_libraries(jsonnet_helper
-  libjsonnet_for_binaries
-)
+add_subdirectory(examples)
 
 set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
 set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
@@ -48,6 +39,8 @@ add_sapi_library(jsonnet_sapi
             c_free_input
             c_write_output_file
             c_jsonnet_realloc
+            c_jsonnet_evaluate_snippet_multi
+            c_write_multi_output_files
   INPUTS jsonnet_helper.h
   LIBRARY jsonnet_helper
   LIBRARY_NAME Jsonnet
@@ -59,5 +52,3 @@ target_include_directories(jsonnet_sapi INTERFACE
 )
 
 target_link_libraries(jsonnet_sapi PUBLIC jsonnet_helper)
-
-add_subdirectory(examples)

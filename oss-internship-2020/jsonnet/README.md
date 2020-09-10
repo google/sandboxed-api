@@ -4,7 +4,8 @@ This library provides sandboxed version of the [Jsonnet](https://github.com/goog
 
 ## Examples
 
-For now the only example command-line tool `jsonnet_sandboxed` enables the user to evaluate jsonnet code held in one file and writing to one output file. The tool is based on what can be found [here](https://github.com/google/jsonnet/blob/master/cmd/jsonnet.cpp) -- .
+The `examples/` directory contains code to produce two command-line tools -- `jsonnet_sandboxed` and `jsonnet_multiple_files_sandboxed`. The first one enables the user to evaluate jsonnet code held in one file and writing to one output file. The other one is for evaluating one jsonnet file into multiple output files.
+Both tools are based on what can be found [here](https://github.com/google/jsonnet/blob/master/cmd/jsonnet.cpp).
 
 ## Build
 
@@ -26,4 +27,10 @@ cd examples
 ./jsonnet_sandboxed absolute/path/to/the/input_file.jsonnet \ 
     absolute/path/to/the/output_file
 ```
-For now it supports evaluating one input file (possibly relying on multiple other files, e.x. by jsonnet `import` command; the files must be held in the same directory as input file) into one output file. Example jsonnet codes to evaluate can be found [here](https://github.com/google/jsonnet/tree/master/examples).
+To run `jsonnet_mutiple_files_sandboxed`:
+```
+cd examples
+./jsonnet_mutiple_files_sandboxed absolute/path/to/the/input_file.jsonnet \ 
+    absolute/path/to/the/output_directory
+```
+Both tools support evaluating one input file (possibly relying on multiple other files, e.x. by jsonnet `import` command; the files must be held in the same directory as input file) into one or more output files. Example jsonnet codes to evaluate in a one-in-one-out manner can be found [here](https://github.com/google/jsonnet/tree/master/examples). Example code producing multiple output files can be found in the `examples` directory, in a file called `multiple_files_example.jsonnet`.

@@ -12,11 +12,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/gen_files")
+file(COPY "${PROJECT_SOURCE_DIR}/jsonnet/cmd/jsonnet.cpp" DESTINATION "${PROJECT_BINARY_DIR}/gen_files/")
+file(COPY "${PROJECT_SOURCE_DIR}/jsonnet.patch" DESTINATION "${PROJECT_BINARY_DIR}/gen_files/")
+
+add_custom_command(
+  OUTPUT ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
+  COMMAND cd ${PROJECT_BINARY_DIR}/gen_files && patch < ${PROJECT_SOURCE_DIR}/jsonnet.patch > /dev/null
+  COMMAND mv ${PROJECT_BINARY_DIR}/gen_files/jsonnet.cpp ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
+)
+
+include_directories(
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_BINARY_DIR}/gen_files
+)
+
+add_library(jsonnet_helper STATIC
+  ${PROJECT_SOURCE_DIR}/jsonnet_helper.cc
+  ${PROJECT_SOURCE_DIR}/jsonnet_helper.h
+  ${PROJECT_SOURCE_DIR}/jsonnet/cmd/utils.h
+  ${PROJECT_SOURCE_DIR}/jsonnet/cmd/utils.cpp
+  ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
+)
+
+target_link_libraries(jsonnet_helper
+  libjsonnet_for_binaries
+)
+
 add_executable(jsonnet_sandboxed
     jsonnet_example.cc
 )
 
+add_executable(jsonnet_mutiple_files_sandboxed
+    jsonnet_multiple_files_example.cc
+)
+
 target_link_libraries(jsonnet_sandboxed PRIVATE
+  libjsonnet
+  jsonnet_helper
+  jsonnet_sapi
+  sapi::sapi
+)
+
+target_link_libraries(jsonnet_mutiple_files_sandboxed PRIVATE
   libjsonnet
   jsonnet_helper
   jsonnet_sapi
