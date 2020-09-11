@@ -1,0 +1,86 @@
+--- lodepng.h	2020-09-11 08:41:22.280259945 +0000
++++ lodepng2.h	2020-09-11 08:45:17.134266042 +0000
+@@ -89,6 +89,8 @@
+ #endif
+ #endif
+ 
++
++
+ #ifdef LODEPNG_COMPILE_CPP
+ #include <vector>
+ #include <string>
+@@ -126,6 +128,9 @@
+ bitdepth: the desired bit depth for the raw output image. See explanation on PNG color types.
+ Return value: LodePNG error code (0 means no error).
+ */
++
++extern "C" {
++
+ unsigned lodepng_decode_memory(unsigned char** out, unsigned* w, unsigned* h,
+                                const unsigned char* in, size_t insize,
+                                LodePNGColorType colortype, unsigned bitdepth);
+@@ -154,10 +159,12 @@
+ /*Same as lodepng_decode_file, but always decodes to 24-bit RGB raw image.*/
+ unsigned lodepng_decode24_file(unsigned char** out, unsigned* w, unsigned* h,
+                                const char* filename);
++
+ #endif /*LODEPNG_COMPILE_DISK*/
+ #endif /*LODEPNG_COMPILE_DECODER*/
+ 
+ 
++
+ #ifdef LODEPNG_COMPILE_ENCODER
+ /*
+ Converts raw pixel data into a PNG image in memory. The colortype and bitdepth
+@@ -204,6 +211,9 @@
+ /*Same as lodepng_encode_file, but always encodes from 24-bit RGB raw image.*/
+ unsigned lodepng_encode24_file(const char* filename,
+                                const unsigned char* image, unsigned w, unsigned h);
++
++}
++
+ #endif /*LODEPNG_COMPILE_DISK*/
+ #endif /*LODEPNG_COMPILE_ENCODER*/
+ 
+@@ -219,6 +229,8 @@
+ unsigned decode(std::vector<unsigned char>& out, unsigned& w, unsigned& h,
+                 const std::vector<unsigned char>& in,
+                 LodePNGColorType colortype = LCT_RGBA, unsigned bitdepth = 8);
++
++
+ #ifdef LODEPNG_COMPILE_DISK
+ /*
+ Converts PNG file from disk to raw pixel data in memory.
+@@ -251,6 +263,7 @@
+ unsigned encode(const std::string& filename,
+                 const std::vector<unsigned char>& in, unsigned w, unsigned h,
+                 LodePNGColorType colortype = LCT_RGBA, unsigned bitdepth = 8);
++
+ #endif /* LODEPNG_COMPILE_DISK */
+ #endif /* LODEPNG_COMPILE_ENCODER */
+ } /* namespace lodepng */
+@@ -318,6 +331,7 @@
+ 
+ extern const LodePNGCompressSettings lodepng_default_compress_settings;
+ void lodepng_compress_settings_init(LodePNGCompressSettings* settings);
++
+ #endif /*LODEPNG_COMPILE_ENCODER*/
+ 
+ #ifdef LODEPNG_COMPILE_PNG
+@@ -943,6 +957,8 @@
+ #endif /*LODEPNG_COMPILE_ZLIB*/
+ 
+ #ifdef LODEPNG_COMPILE_DISK
++
++extern "C" {
+ /*
+ Load a file from disk into buffer. The function allocates the out buffer, and
+ after usage you should free it.
+@@ -962,6 +978,7 @@
+ return value: error code (0 means ok)
+ */
+ unsigned lodepng_save_file(const unsigned char* buffer, size_t buffersize, const char* filename);
++}
+ #endif /*LODEPNG_COMPILE_DISK*/
+ 
+ #ifdef LODEPNG_COMPILE_CPP
