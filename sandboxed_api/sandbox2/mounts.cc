@@ -501,7 +501,7 @@ std::string MountFlagsToString(uint64_t flags) {
       SAPI_MAP(MS_POSIXACL),
       SAPI_MAP(MS_UNBINDABLE),
       SAPI_MAP(MS_PRIVATE),
-      SAPI_MAP(MS_SLAVE),
+      SAPI_MAP(MS_SLAVE),  // Inclusive language: system constant
       SAPI_MAP(MS_SHARED),
       SAPI_MAP(MS_RELATIME),
       SAPI_MAP(MS_KERNMOUNT),

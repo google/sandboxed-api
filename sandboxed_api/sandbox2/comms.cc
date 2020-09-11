@@ -347,7 +347,7 @@ bool Comms::RecvFD(int* fd) {
 
   const auto op = [&msg](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;
-    // Use syscall, otherwise we would need to whitelist socketcall() on PPC.
+    // Use syscall, otherwise we would need to allow socketcall() on PPC.
     return TEMP_FAILURE_RETRY(
         util::Syscall(__NR_recvmsg, fd, reinterpret_cast<uintptr_t>(&msg), 0));
   };

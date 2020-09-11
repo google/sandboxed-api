@@ -105,10 +105,10 @@ message SyscallDescription {
 }
 
 message FsDescription {
-  repeated string file_whitelist = 1;
-  repeated string symlink_whitelist = 2;
+  repeated string file_allowlist = 1;
+  repeated string symlink_allowlist = 2;
   repeated string file_greylist = 3;
-  repeated string file_blacklist = 4;
+  repeated string file_denylist = 4;
 }
 
 message PolicyBuilderDescription {
@@ -125,7 +125,7 @@ message NamespaceDescription {
 message PolicyDescription {
   bytes user_bpf_policy = 1;
   reserved 2 to 5;
-  // This requires additional fields. (e.g. whitelisted syscall #s)
+  // This requires additional fields. (e.g. allowed syscall numbers)
   PolicyBuilderDescription policy_builder_description = 6;
 
   // namespace
