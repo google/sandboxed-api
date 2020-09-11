@@ -84,11 +84,18 @@ std::unique_ptr<Policy> BufferTestcasePolicy() {
                  .AllowSyscall(__NR_lseek)
                  .AllowSyscall(__NR_close)
                  .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+#ifdef __NR_open
                  .BlockSyscallWithErrno(__NR_open, ENOENT)
+#endif
                  .BlockSyscallWithErrno(__NR_openat, ENOENT)
+#ifdef __NR_access
                  // On Debian, even static binaries check existence of
                  // /etc/ld.so.nohwcap.
                  .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
+#ifdef __NR_faccessat
+                 .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
+#endif
                  .BuildOrDie();
 
   return s2p;

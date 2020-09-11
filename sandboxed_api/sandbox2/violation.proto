@@ -25,7 +25,6 @@ enum PBViolationType {
   SYSCALL_ARCHITECTURE_MISMATCH = 3;
 }
 
-// X86_64 not allowed (naming convention...)
 message RegisterX8664 {
   uint64 r15 = 1;
   uint64 r14 = 2;
@@ -77,7 +76,6 @@ message RegisterPowerpc64 {
   uint64 zero3 = 17;
 }
 
-// Deprecated.
 message RegisterAarch64 {
   repeated uint64 regs = 1;
   uint64 sp = 2;
@@ -90,7 +88,7 @@ message RegisterValues {
   oneof register_values {
     RegisterX8664 register_x86_64 = 2;
     RegisterPowerpc64 register_powerpc64 = 3;
-    RegisterAarch64 register_aarch64 = 4;  // Deprecated.
+    RegisterAarch64 register_aarch64 = 4;
   }
 }
 

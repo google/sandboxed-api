@@ -42,6 +42,8 @@ std::string Syscall::GetArchDescription(cpu::Architecture arch) {
       return "[X86-32]";
     case cpu::kPPC64LE:
       return "[PPC-64]";
+    case cpu::kArm64:
+      return "[Arm-64]";
     default:
       LOG(ERROR) << "Unknown CPU architecture: " << arch;
       return absl::StrFormat("[UNKNOWN_ARCH:%d]", arch);
@@ -54,6 +56,8 @@ uint32_t Syscall::GetHostAuditArch() {
       return AUDIT_ARCH_X86_64;
     case cpu::kPPC64LE:
       return AUDIT_ARCH_PPC64LE;
+    case cpu::kArm64:
+      return AUDIT_ARCH_AARCH64;
     default:
       // The static_assert() in config.h should prevent us from ever getting
       // here.

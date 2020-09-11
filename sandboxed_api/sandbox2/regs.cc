@@ -23,11 +23,17 @@
 
 #include <cerrno>
 
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 
 namespace sandbox2 {
+
+#ifndef NT_ARM_SYSTEM_CALL
+#define NT_ARM_SYSTEM_CALL 0x404
+#endif
 
 absl::Status Regs::Fetch() {
 #ifdef SAPI_X86_64
@@ -36,7 +42,7 @@ absl::Status Regs::Fetch() {
                                             ") failed: ", StrError(errno)));
   }
 #endif
-  if constexpr (host_cpu::IsPPC64LE()) {
+  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
@@ -50,6 +56,24 @@ absl::Status Regs::Fetch() {
           ") size returned: ", pt_iov.iov_len,
           " different than sizeof(user_regs_): ", sizeof(user_regs_)));
     }
+
+    // On AArch64, we are not done yet. Read the syscall number.
+    if constexpr (host_cpu::IsArm64()) {
+      iovec sys_iov = {&syscall_number_, sizeof(syscall_number_)};
+
+      if (ptrace(PTRACE_GETREGSET, pid_, NT_ARM_SYSTEM_CALL, &sys_iov) == -1L) {
+        return absl::InternalError(
+            absl::StrCat("ptrace(PTRACE_GETREGSET, pid=", pid_,
+                         ", NT_ARM_SYSTEM_CALL) failed: ", StrError(errno)));
+      }
+      if (sys_iov.iov_len != sizeof(syscall_number_)) {
+        return absl::InternalError(absl::StrCat(
+            "ptrace(PTRACE_GETREGSET, pid=", pid_,
+            ", NT_ARM_SYSTEM_CALL) size returned: ", sys_iov.iov_len,
+            " different than sizeof(syscall_number_): ",
+            sizeof(syscall_number_)));
+      }
+    }
   }
   return absl::OkStatus();
 }
@@ -61,13 +85,24 @@ absl::Status Regs::Store() {
                                             ") failed: ", StrError(errno)));
   }
 #endif
-  if constexpr (host_cpu::IsPPC64LE()) {
+  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
       return absl::InternalError(
           absl::StrCat("ptrace(PTRACE_SETREGSET, pid=", pid_,
                        ") failed: ", StrError(errno)));
+    }
+
+    // Store syscall number on AArch64.
+    if constexpr (host_cpu::IsArm64()) {
+      iovec sys_iov = {&syscall_number_, sizeof(syscall_number_)};
+
+      if (ptrace(PTRACE_SETREGSET, pid_, NT_ARM_SYSTEM_CALL, &sys_iov) == -1L) {
+        return absl::InternalError(
+            absl::StrCat("ptrace(PTRACE_SETREGSET, pid=", pid_,
+                         ", NT_ARM_SYSTEM_CALL) failed: ", StrError(errno)));
+      }
     }
   }
   return absl::OkStatus();
@@ -80,6 +115,9 @@ absl::Status Regs::SkipSyscallReturnValue(uint64_t value) {
 #elif defined(SAPI_PPC64_LE)
   user_regs_.gpr[0] = -1;
   user_regs_.gpr[3] = value;
+#elif defined(SAPI_ARM64)
+  user_regs_.regs[0] = -1;
+  syscall_number_ = value;
 #endif
   return Store();
 }
@@ -113,6 +151,22 @@ Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
     auto sp = user_regs_.gpr[1];
     auto ip = user_regs_.nip;
     return Syscall(syscall_arch, syscall, args, pid_, sp, ip);
+  }
+#elif defined(SAPI_ARM64)
+  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kArm64)) {
+    Syscall::Args args = {
+        // First argument should be orig_x0, which is not available to ptrace on
+        // AArch64 (see
+        // https://undo.io/resources/arm64-vs-arm32-whats-different-linux-programmers/),
+        // as it will have been overwritten. For our use case, though, using
+        // regs[0] is fine, as we are always called on syscall entry and never
+        // on exit.
+        user_regs_.regs[0], user_regs_.regs[1], user_regs_.regs[2],
+        user_regs_.regs[3], user_regs_.regs[4], user_regs_.regs[5],
+    };
+    auto sp = user_regs_.sp;
+    auto ip = user_regs_.pc;
+    return Syscall(syscall_arch, syscall_number_, args, pid_, sp, ip);
   }
 #endif
   return Syscall(pid_);
@@ -169,6 +223,14 @@ void Regs::StoreRegisterValuesInProtobuf(RegisterValues* values) const {
   regs->set_zero1(user_regs_.zero1);
   regs->set_zero2(user_regs_.zero2);
   regs->set_zero3(user_regs_.zero3);
+#elif defined(SAPI_ARM64)
+  RegisterAarch64* regs = values->mutable_register_aarch64();
+  for (int i = 0; i < ABSL_ARRAYSIZE(user_regs_.regs); ++i) {
+    regs->add_regs(user_regs_.regs[i]);
+  }
+  regs->set_sp(user_regs_.sp);
+  regs->set_pc(user_regs_.pc);
+  regs->set_pstate(user_regs_.pstate);
 #endif
 }
 

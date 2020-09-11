@@ -1216,6 +1216,291 @@ constexpr SyscallTable::Entry kSyscallDataPPC64LE[] = {
     MakeEntry("pwritev2", kHex, kHex, kHex, kHex, kHex, kHex),           // 381
 };
 
+// TODO(cblichmann): Confirm the entries in this list.
+// https://github.com/torvalds/linux/blob/v5.8/include/uapi/asm-generic/unistd.h
+constexpr SyscallTable::Entry kSyscallDataArm64[] = {
+    MakeEntry("io_setup", UnknownArguments()),                           // 0
+    MakeEntry("io_destroy", UnknownArguments()),                         // 1
+    MakeEntry("io_submit", UnknownArguments()),                          // 2
+    MakeEntry("io_cancel", UnknownArguments()),                          // 3
+    MakeEntry("io_getevents", UnknownArguments()),                       // 4
+    MakeEntry("setxattr", kPath, kString, kGen, kInt, kHex, kGen),       // 5
+    MakeEntry("lsetxattr", kPath, kString, kGen, kInt, kHex, kGen),      // 6
+    MakeEntry("fsetxattr", UnknownArguments()),                          // 7
+    MakeEntry("getxattr", kPath, kString, kGen, kInt, kGen, kGen),       // 8
+    MakeEntry("lgetxattr", kPath, kString, kGen, kInt, kGen, kGen),      // 9
+    MakeEntry("fgetxattr", UnknownArguments()),                          // 10
+    MakeEntry("listxattr", kPath, kGen, kInt, kGen, kGen, kGen),         // 11
+    MakeEntry("llistxattr", kPath, kGen, kInt, kGen, kGen, kGen),        // 12
+    MakeEntry("flistxattr", UnknownArguments()),                         // 13
+    MakeEntry("removexattr", kPath, kString, kGen, kGen, kGen, kGen),    // 14
+    MakeEntry("lremovexattr", UnknownArguments()),                       // 15
+    MakeEntry("fremovexattr", UnknownArguments()),                       // 16
+    MakeEntry("getcwd", UnknownArguments()),                             // 17
+    MakeEntry("lookup_dcookie", UnknownArguments()),                     // 18
+    MakeEntry("eventfd2", UnknownArguments()),                           // 19
+    MakeEntry("epoll_create1", UnknownArguments()),                      // 20
+    MakeEntry("epoll_ctl", UnknownArguments()),                          // 21
+    MakeEntry("epoll_pwait", UnknownArguments()),                        // 22
+    MakeEntry("dup", UnknownArguments()),                                // 23
+    MakeEntry("dup3", UnknownArguments()),                               // 24
+    MakeEntry("fcntl", UnknownArguments()),                              // 25
+    MakeEntry("inotify_init1", UnknownArguments()),                      // 26
+    MakeEntry("inotify_add_watch", UnknownArguments()),                  // 27
+    MakeEntry("inotify_rm_watch", UnknownArguments()),                   // 28
+    MakeEntry("ioctl", UnknownArguments()),                              // 29
+    MakeEntry("ioprio_set", UnknownArguments()),                         // 30
+    MakeEntry("ioprio_get", UnknownArguments()),                         // 31
+    MakeEntry("flock", UnknownArguments()),                              // 32
+    MakeEntry("mknodat", kGen, kPath, kGen, kGen, kGen, kGen),           // 33
+    MakeEntry("mkdirat", kGen, kPath, kGen, kGen, kGen, kGen),           // 34
+    MakeEntry("unlinkat", kGen, kPath, kGen, kGen, kGen, kGen),          // 35
+    MakeEntry("symlinkat", kPath, kGen, kPath, kGen, kGen, kGen),        // 36
+    MakeEntry("linkat", kGen, kPath, kGen, kPath, kGen, kGen),           // 37
+    MakeEntry("renameat", kGen, kPath, kGen, kPath, kGen, kGen),         // 38
+    MakeEntry("umount2", kPath, kHex, kGen, kGen, kGen, kGen),           // 39
+    MakeEntry("mount", kPath, kPath, kString, kHex, kGen, kGen),         // 40
+    MakeEntry("pivot_root", kPath, kPath, kGen, kGen, kGen, kGen),       // 41
+    MakeEntry("nfsservctl", UnknownArguments()),                         // 42
+    MakeEntry("statfs", kPath, kGen, kGen, kGen, kGen, kGen),            // 43
+    MakeEntry("fstatfs", UnknownArguments()),                            // 44
+    MakeEntry("truncate", kPath, kInt, kGen, kGen, kGen, kGen),          // 45
+    MakeEntry("ftruncate", UnknownArguments()),                          // 46
+    MakeEntry("fallocate", UnknownArguments()),                          // 47
+    MakeEntry("faccessat", kGen, kPath, kGen, kGen, kGen, kGen),         // 48
+    MakeEntry("chdir", kPath, kGen, kGen, kGen, kGen, kGen),             // 49
+    MakeEntry("fchdir", UnknownArguments()),                             // 50
+    MakeEntry("chroot", kPath, kGen, kGen, kGen, kGen, kGen),            // 51
+    MakeEntry("fchmod", UnknownArguments()),                             // 52
+    MakeEntry("fchmodat", kGen, kPath, kGen, kGen, kGen, kGen),          // 53
+    MakeEntry("fchownat", kGen, kPath, kGen, kGen, kGen, kGen),          // 54
+    MakeEntry("fchown", UnknownArguments()),                             // 55
+    MakeEntry("openat", kGen, kPath, kOct, kHex, kGen, kGen),            // 56
+    MakeEntry("close", kInt, kGen, kGen, kGen, kGen, kGen),              // 57
+    MakeEntry("vhangup", UnknownArguments()),                            // 58
+    MakeEntry("pipe2", UnknownArguments()),                              // 59
+    MakeEntry("quotactl", kInt, kPath, kInt, kGen, kGen, kGen),          // 60
+    MakeEntry("getdents64", UnknownArguments()),                         // 61
+    MakeEntry("lseek", UnknownArguments()),                              // 62
+    MakeEntry("read", kInt, kHex, kInt, kGen, kGen, kGen),               // 63
+    MakeEntry("write", kInt, kHex, kInt, kGen, kGen, kGen),              // 64
+    MakeEntry("readv", UnknownArguments()),                              // 65
+    MakeEntry("writev", UnknownArguments()),                             // 66
+    MakeEntry("pread64", UnknownArguments()),                            // 67
+    MakeEntry("pwrite64", UnknownArguments()),                           // 68
+    MakeEntry("preadv", UnknownArguments()),                             // 69
+    MakeEntry("pwritev", UnknownArguments()),                            // 70
+    MakeEntry("sendfile", UnknownArguments()),                           // 71
+    MakeEntry("pselect6", UnknownArguments()),                           // 72
+    MakeEntry("ppoll", UnknownArguments()),                              // 73
+    MakeEntry("signalfd4", UnknownArguments()),                          // 74
+    MakeEntry("vmsplice", UnknownArguments()),                           // 75
+    MakeEntry("splice", UnknownArguments()),                             // 76
+    MakeEntry("tee", UnknownArguments()),                                // 77
+    MakeEntry("readlinkat", kGen, kPath, kGen, kGen, kGen, kGen),        // 78
+    MakeEntry("newfstatat", kGen, kPath, kGen, kGen, kGen, kGen),        // 79
+    MakeEntry("fstat", kInt, kHex, kGen, kGen, kGen, kGen),              // 80
+    MakeEntry("sync", UnknownArguments()),                               // 81
+    MakeEntry("fsync", UnknownArguments()),                              // 82
+    MakeEntry("fdatasync", UnknownArguments()),                          // 83
+    MakeEntry("sync_file_range", UnknownArguments()),                    // 84
+    MakeEntry("timerfd_create", UnknownArguments()),                     // 85
+    MakeEntry("timerfd_settime", UnknownArguments()),                    // 86
+    MakeEntry("timerfd_gettime", UnknownArguments()),                    // 87
+    MakeEntry("utimensat", UnknownArguments()),                          // 88
+    MakeEntry("acct", kPath, kGen, kGen, kGen, kGen, kGen),              // 89
+    MakeEntry("capget", UnknownArguments()),                             // 90
+    MakeEntry("capset", UnknownArguments()),                             // 91
+    MakeEntry("personality", UnknownArguments()),                        // 92
+    MakeEntry("exit", kInt, kGen, kGen, kGen, kGen, kGen),               // 93
+    MakeEntry("exit_group", kInt, kGen, kGen, kGen, kGen, kGen),         // 94
+    MakeEntry("waitid", UnknownArguments()),                             // 95
+    MakeEntry("set_tid_address", kHex, kGen, kGen, kGen, kGen, kGen),    // 96
+    MakeEntry("unshare", UnknownArguments()),                            // 97
+    MakeEntry("futex", UnknownArguments()),                              // 98
+    MakeEntry("set_robust_list", UnknownArguments()),                    // 99
+    MakeEntry("get_robust_list", UnknownArguments()),                    // 100
+    MakeEntry("nanosleep", kHex, kHex, kGen, kGen, kGen, kGen),          // 101
+    MakeEntry("getitimer", UnknownArguments()),                          // 102
+    MakeEntry("setitimer", UnknownArguments()),                          // 103
+    MakeEntry("kexec_load", UnknownArguments()),                         // 104
+    MakeEntry("init_module", UnknownArguments()),                        // 105
+    MakeEntry("delete_module", UnknownArguments()),                      // 106
+    MakeEntry("timer_create", UnknownArguments()),                       // 107
+    MakeEntry("timer_gettime", UnknownArguments()),                      // 108
+    MakeEntry("timer_getoverrun", UnknownArguments()),                   // 109
+    MakeEntry("timer_settime", UnknownArguments()),                      // 110
+    MakeEntry("timer_delete", UnknownArguments()),                       // 111
+    MakeEntry("clock_settime", UnknownArguments()),                      // 112
+    MakeEntry("clock_gettime", UnknownArguments()),                      // 113
+    MakeEntry("clock_getres", UnknownArguments()),                       // 114
+    MakeEntry("clock_nanosleep", UnknownArguments()),                    // 115
+    MakeEntry("syslog", UnknownArguments()),                             // 116
+    MakeEntry("ptrace", UnknownArguments()),                             // 117
+    MakeEntry("sched_setparam", UnknownArguments()),                     // 118
+    MakeEntry("sched_setscheduler", UnknownArguments()),                 // 119
+    MakeEntry("sched_getscheduler", UnknownArguments()),                 // 120
+    MakeEntry("sched_getparam", UnknownArguments()),                     // 121
+    MakeEntry("sched_setaffinity", UnknownArguments()),                  // 122
+    MakeEntry("sched_getaffinity", UnknownArguments()),                  // 123
+    MakeEntry("sched_yield", UnknownArguments()),                        // 124
+    MakeEntry("sched_get_priority_max", UnknownArguments()),             // 125
+    MakeEntry("sched_get_priority_min", UnknownArguments()),             // 126
+    MakeEntry("sched_rr_get_interval", UnknownArguments()),              // 127
+    MakeEntry("restart_syscall", UnknownArguments()),                    // 128
+    MakeEntry("kill", kInt, kSignal, kGen, kGen, kGen, kGen),            // 129
+    MakeEntry("tkill", kInt, kSignal, kGen, kGen, kGen, kGen),           // 130
+    MakeEntry("tgkill", kInt, kInt, kSignal, kGen, kGen, kGen),          // 131
+    MakeEntry("sigaltstack", UnknownArguments()),                        // 132
+    MakeEntry("rt_sigsuspend", UnknownArguments()),                      // 133
+    MakeEntry("rt_sigaction", kSignal, kHex, kHex, kInt, kGen, kGen),    // 134
+    MakeEntry("rt_sigprocmask", UnknownArguments()),                     // 135
+    MakeEntry("rt_sigpending", UnknownArguments()),                      // 136
+    MakeEntry("rt_sigtimedwait", UnknownArguments()),                    // 137
+    MakeEntry("rt_sigqueueinfo", UnknownArguments()),                    // 138
+    MakeEntry("rt_sigreturn", UnknownArguments()),                       // 139
+    MakeEntry("setpriority", UnknownArguments()),                        // 140
+    MakeEntry("getpriority", UnknownArguments()),                        // 141
+    MakeEntry("reboot", UnknownArguments()),                             // 142
+    MakeEntry("setregid", UnknownArguments()),                           // 143
+    MakeEntry("setgid", UnknownArguments()),                             // 144
+    MakeEntry("setreuid", UnknownArguments()),                           // 145
+    MakeEntry("setuid", UnknownArguments()),                             // 146
+    MakeEntry("setresuid", UnknownArguments()),                          // 147
+    MakeEntry("getresuid", UnknownArguments()),                          // 148
+    MakeEntry("setresgid", UnknownArguments()),                          // 149
+    MakeEntry("getresgid", UnknownArguments()),                          // 150
+    MakeEntry("setfsuid", UnknownArguments()),                           // 151
+    MakeEntry("setfsgid", UnknownArguments()),                           // 152
+    MakeEntry("times", UnknownArguments()),                              // 153
+    MakeEntry("setpgid", UnknownArguments()),                            // 154
+    MakeEntry("getpgid", UnknownArguments()),                            // 155
+    MakeEntry("getsid", UnknownArguments()),                             // 156
+    MakeEntry("setsid", UnknownArguments()),                             // 157
+    MakeEntry("getgroups", UnknownArguments()),                          // 158
+    MakeEntry("setgroups", UnknownArguments()),                          // 159
+    MakeEntry("uname", UnknownArguments()),                              // 160
+    MakeEntry("sethostname", UnknownArguments()),                        // 161
+    MakeEntry("setdomainname", UnknownArguments()),                      // 162
+    MakeEntry("getrlimit", UnknownArguments()),                          // 163
+    MakeEntry("setrlimit", UnknownArguments()),                          // 164
+    MakeEntry("getrusage", UnknownArguments()),                          // 165
+    MakeEntry("umask", kHex, kGen, kGen, kGen, kGen, kGen),              // 166
+    MakeEntry("prctl", kInt, kHex, kHex, kHex, kHex, kGen),              // 167
+    MakeEntry("getcpu", kHex, kHex, kHex, kGen, kGen, kGen),             // 168
+    MakeEntry("gettimeofday", kHex, kHex, kGen, kGen, kGen, kGen),       // 169
+    MakeEntry("settimeofday", kHex, kHex, kGen, kGen, kGen, kGen),       // 170
+    MakeEntry("adjtimex", UnknownArguments()),                           // 171
+    MakeEntry("getpid", UnknownArguments()),                             // 172
+    MakeEntry("getppid", UnknownArguments()),                            // 173
+    MakeEntry("getuid", UnknownArguments()),                             // 174
+    MakeEntry("geteuid", UnknownArguments()),                            // 175
+    MakeEntry("getgid", UnknownArguments()),                             // 176
+    MakeEntry("getegid", UnknownArguments()),                            // 177
+    MakeEntry("gettid", UnknownArguments()),                             // 178
+    MakeEntry("sysinfo", UnknownArguments()),                            // 179
+    MakeEntry("mq_open", UnknownArguments()),                            // 180
+    MakeEntry("mq_unlink", UnknownArguments()),                          // 181
+    MakeEntry("mq_timedsend", UnknownArguments()),                       // 182
+    MakeEntry("mq_timedreceive", UnknownArguments()),                    // 183
+    MakeEntry("mq_notify", UnknownArguments()),                          // 184
+    MakeEntry("mq_getsetattr", UnknownArguments()),                      // 185
+    MakeEntry("msgget", UnknownArguments()),                             // 186
+    MakeEntry("msgctl", UnknownArguments()),                             // 187
+    MakeEntry("msgrcv", UnknownArguments()),                             // 188
+    MakeEntry("msgsnd", UnknownArguments()),                             // 189
+    MakeEntry("semget", UnknownArguments()),                             // 190
+    MakeEntry("semctl", UnknownArguments()),                             // 191
+    MakeEntry("semtimedop", UnknownArguments()),                         // 192
+    MakeEntry("semop", UnknownArguments()),                              // 193
+    MakeEntry("shmget", UnknownArguments()),                             // 194
+    MakeEntry("shmctl", UnknownArguments()),                             // 195
+    MakeEntry("shmat", UnknownArguments()),                              // 196
+    MakeEntry("shmdt", UnknownArguments()),                              // 197
+    MakeEntry("socket", kAddressFamily, kInt, kInt, kGen, kGen, kGen),   // 198
+    MakeEntry("socketpair", UnknownArguments()),                         // 199
+    MakeEntry("bind", UnknownArguments()),                               // 200
+    MakeEntry("listen", UnknownArguments()),                             // 201
+    MakeEntry("accept", UnknownArguments()),                             // 202
+    MakeEntry("connect", kInt, kSockaddr, kInt, kGen, kGen, kGen),       // 203
+    MakeEntry("getsockname", UnknownArguments()),                        // 204
+    MakeEntry("getpeername", UnknownArguments()),                        // 205
+    MakeEntry("sendto", kInt, kGen, kInt, kHex, kSockaddr, kInt),        // 206
+    MakeEntry("recvfrom", UnknownArguments()),                           // 207
+    MakeEntry("setsockopt", UnknownArguments()),                         // 208
+    MakeEntry("getsockopt", UnknownArguments()),                         // 209
+    MakeEntry("shutdown", UnknownArguments()),                           // 210
+    MakeEntry("sendmsg", kInt, kSockmsghdr, kHex, kGen, kGen, kGen),     // 211
+    MakeEntry("recvmsg", UnknownArguments()),                            // 212
+    MakeEntry("readahead", UnknownArguments()),                          // 213
+    MakeEntry("brk", kHex, kGen, kGen, kGen, kGen, kGen),                // 214
+    MakeEntry("munmap", kHex, kHex, kGen, kGen, kGen, kGen),             // 215
+    MakeEntry("mremap", UnknownArguments()),                             // 216
+    MakeEntry("add_key", UnknownArguments()),                            // 217
+    MakeEntry("request_key", UnknownArguments()),                        // 218
+    MakeEntry("keyctl", UnknownArguments()),                             // 219
+    MakeEntry("clone", kCloneFlag, kHex, kHex, kHex, kHex, kGen),        // 220
+    MakeEntry("execve", kPath, kHex, kHex, kGen, kGen, kGen),            // 221
+    MakeEntry("mmap", kHex, kInt, kHex, kHex, kInt, kInt),               // 222
+    MakeEntry("fadvise64", UnknownArguments()),                          // 223
+    MakeEntry("swapon", kPath, kHex, kGen, kGen, kGen, kGen),            // 224
+    MakeEntry("swapoff", kPath, kGen, kGen, kGen, kGen, kGen),           // 225
+    MakeEntry("mprotect", kHex, kHex, kHex, kGen, kGen, kGen),           // 226
+    MakeEntry("msync", UnknownArguments()),                              // 227
+    MakeEntry("mlock", UnknownArguments()),                              // 228
+    MakeEntry("munlock", UnknownArguments()),                            // 229
+    MakeEntry("mlockall", UnknownArguments()),                           // 230
+    MakeEntry("munlockall", UnknownArguments()),                         // 231
+    MakeEntry("mincore", UnknownArguments()),                            // 232
+    MakeEntry("madvise", UnknownArguments()),                            // 233
+    MakeEntry("remap_file_pages", UnknownArguments()),                   // 234
+    MakeEntry("mbind", UnknownArguments()),                              // 235
+    MakeEntry("get_mempolicy", UnknownArguments()),                      // 236
+    MakeEntry("set_mempolicy", UnknownArguments()),                      // 237
+    MakeEntry("migrate_pages", UnknownArguments()),                      // 238
+    MakeEntry("move_pages", UnknownArguments()),                         // 239
+    MakeEntry("rt_tgsigqueueinfo", UnknownArguments()),                  // 240
+    MakeEntry("perf_event_open", UnknownArguments()),                    // 241
+    MakeEntry("accept4", UnknownArguments()),                            // 242
+    MakeEntry("recvmmsg", kInt, kHex, kHex, kHex, kGen, kGen),           // 243
+    SYSCALLS_UNUSED("UNUSED244"),                                        // 244
+    SYSCALLS_UNUSED("UNUSED245"),                                        // 245
+    SYSCALLS_UNUSED("UNUSED246"),                                        // 246
+    SYSCALLS_UNUSED("UNUSED247"),                                        // 247
+    SYSCALLS_UNUSED("UNUSED248"),                                        // 248
+    SYSCALLS_UNUSED("UNUSED249"),                                        // 249
+    SYSCALLS_UNUSED("UNUSED250"),                                        // 250
+    SYSCALLS_UNUSED("UNUSED251"),                                        // 251
+    SYSCALLS_UNUSED("UNUSED252"),                                        // 252
+    SYSCALLS_UNUSED("UNUSED253"),                                        // 253
+    SYSCALLS_UNUSED("UNUSED254"),                                        // 254
+    SYSCALLS_UNUSED("UNUSED255"),                                        // 255
+    SYSCALLS_UNUSED("UNUSED256"),                                        // 256
+    SYSCALLS_UNUSED("UNUSED257"),                                        // 257
+    SYSCALLS_UNUSED("UNUSED258"),                                        // 258
+    SYSCALLS_UNUSED("UNUSED259"),                                        // 259
+    MakeEntry("wait4", kInt, kHex, kHex, kHex, kGen, kGen),              // 260
+    MakeEntry("prlimit64", kInt, kInt, kHex, kHex, kGen, kGen),          // 261
+    MakeEntry("fanotify_init", kHex, kHex, kInt, kGen, kGen, kGen),      // 262
+    MakeEntry("fanotify_mark", kInt, kHex, kInt, kPath, kGen, kGen),     // 263
+    MakeEntry("name_to_handle_at", kInt, kGen, kHex, kHex, kHex, kGen),  // 264
+    MakeEntry("open_by_handle_at", kInt, kHex, kHex, kGen, kGen, kGen),  // 265
+    MakeEntry("clock_adjtime", kInt, kHex, kGen, kGen, kGen, kGen),      // 266
+    MakeEntry("syncfs", kInt, kGen, kGen, kGen, kGen, kGen),             // 267
+    MakeEntry("setns", kInt, kHex, kGen, kGen, kGen, kGen),              // 268
+    MakeEntry("sendmmsg", kInt, kHex, kInt, kHex, kGen, kGen),           // 269
+    MakeEntry("process_vm_readv", kInt, kHex, kInt, kHex, kInt, kInt),   // 270
+    MakeEntry("process_vm_writev", kInt, kHex, kInt, kHex, kInt, kInt),  // 271
+    MakeEntry("kcmp", kInt, kInt, kInt, kHex, kHex, kGen),               // 272
+    MakeEntry("finit_module", kInt, kPath, kHex, kGen, kGen, kGen),      // 273
+    MakeEntry("sched_setattr", UnknownArguments()),                      // 274
+    MakeEntry("sched_getattr", UnknownArguments()),                      // 275
+    MakeEntry("renameat2", kGen, kPath, kGen, kPath, kGen, kGen),        // 276
+    MakeEntry("seccomp", UnknownArguments()),                            // 277
+    MakeEntry("getrandom", UnknownArguments()),                          // 278
+    MakeEntry("memfd_create", UnknownArguments()),                       // 279
+};
+
 #undef SYSCALLS_UNUSED00_99
 #undef SYSCALLS_UNUSED50_99
 #undef SYSCALLS_UNUSED00_49
@@ -1230,6 +1515,8 @@ SyscallTable SyscallTable::get(cpu::Architecture arch) {
       return SyscallTable(kSyscallDataX8632);
     case cpu::kPPC64LE:
       return SyscallTable(kSyscallDataPPC64LE);
+    case cpu::kArm64:
+      return SyscallTable(kSyscallDataArm64);
     default:
       return SyscallTable();
   }

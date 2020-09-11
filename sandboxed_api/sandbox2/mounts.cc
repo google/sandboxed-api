@@ -113,6 +113,8 @@ absl::StatusOr<std::string> ExistingPathInsideDir(
 absl::Status ValidateInterpreter(absl::string_view interpreter) {
   const absl::flat_hash_set<std::string> allowed_interpreters = {
       "/lib64/ld-linux-x86-64.so.2",
+      "/lib64/ld64.so.2",            // PPC64
+      "/lib/ld-linux-aarch64.so.1",  // AArch64
   };
 
   if (!allowed_interpreters.contains(interpreter)) {
@@ -139,6 +141,8 @@ constexpr absl::string_view GetPlatformCPUName() {
       return "x86_64";
     case cpu::kPPC64LE:
       return "ppc64";
+    case cpu::kArm64:
+      return "aarch64";
     default:
       return "unknown";
   }

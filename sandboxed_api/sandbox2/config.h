@@ -61,6 +61,8 @@ constexpr cpu::Architecture Architecture() {
   return cpu::kX8664;
 #elif defined(SAPI_PPC64_LE)
   return cpu::kPPC64LE;
+#elif defined(SAPI_ARM64)
+  return cpu::kArm64;
 #else
   return cpu::kUnknown;
 #endif
@@ -75,8 +77,8 @@ constexpr bool IsArm64() { return Architecture() == cpu::kArm64; }
 }  // namespace host_cpu
 
 static_assert(host_cpu::Architecture() != cpu::kUnknown,
-              "Host CPU architecture is not supported: One of x86-64 or "
-              "POWER64 (little endian) is required.");
+              "Host CPU architecture is not supported: One of x86-64, POWER64 "
+              "(little endian) or AArch64 is required.");
 
 }  // namespace sandbox2
 

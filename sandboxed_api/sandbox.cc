@@ -84,7 +84,9 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
           __NR_kill,
           __NR_tgkill,
           __NR_tkill,
+#ifdef __NR_readlink
           __NR_readlink,
+#endif
 #ifdef __NR_arch_prctl  // x86-64 only
           __NR_arch_prctl,
 #endif

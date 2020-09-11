@@ -50,9 +50,16 @@ std::unique_ptr<Policy> PolicyTestcasePolicy() {
       .AllowSyscall(__NR_close)
       .AllowSyscall(__NR_getppid)
       .AllowTCGETS()
+#ifdef __NR_open
       .BlockSyscallWithErrno(__NR_open, ENOENT)
+#endif
       .BlockSyscallWithErrno(__NR_openat, ENOENT)
+#ifdef __NR_access
       .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
+#ifdef __NR_faccessat
+      .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
+#endif
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
       .BuildOrDie();
 }
@@ -162,7 +169,9 @@ std::unique_ptr<Policy> MinimalTestcasePolicy() {
       .AllowStaticStartup()
       .AllowExit()
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+#ifdef __NR_access
       .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
       .BuildOrDie();
 }
 
@@ -197,8 +206,10 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
                     .AllowOpen()
                     .AllowExit()
                     .AllowMmap()
+#ifdef __NR_access
                     // New glibc accesses /etc/ld.so.preload
                     .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
                     .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
                     .AddLibrariesForBinary(path)
                     .BuildOrDie();
@@ -223,7 +234,9 @@ TEST(MallocTest, SystemMallocWorks) {
                     .AllowSystemMalloc()
                     .AllowExit()
                     .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+#ifdef __NR_access
                     .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
                     .BuildOrDie();
 
   Sandbox2 s2(std::move(executor), std::move(policy));
@@ -247,7 +260,9 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
 
   auto policy =
       PolicyBuilder()
+#ifdef __NR_open
           .BlockSyscallWithErrno(__NR_open, ENOENT)
+#endif
           .BlockSyscallWithErrno(__NR_openat, ENOENT)
           .AllowStaticStartup()
           .AllowTcMalloc()
@@ -258,7 +273,9 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
           .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
           .AddPolicyOnSyscall(__NR_umask, {DENY})
           .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+#ifdef __NR_access
           .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
           .BuildOrDie();
 
   Sandbox2 s2(std::move(executor), std::move(policy));

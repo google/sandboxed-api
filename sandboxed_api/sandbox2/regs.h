@@ -105,6 +105,11 @@ class Regs {
     uint64_t zero1;
     uint64_t zero2;
     uint64_t zero3;
+#elif defined(SAPI_ARM64)
+    uint64_t regs[31];
+    uint64_t sp;
+    uint64_t pc;
+    uint64_t pstate;
 #else
     static_assert(false, "Host CPU architecture not supported, see config.h");
 #endif
@@ -115,6 +120,9 @@ class Regs {
 
   // Registers fetched with ptrace(PR_GETREGS/GETREGSET, pid).
   PtraceRegisters user_regs_ = {};
+
+  // On AArch64, obtaining the syscall number needs a specific call to ptrace()
+  int syscall_number_ = 0;
 };
 
 }  // namespace sandbox2

@@ -520,7 +520,12 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                                       });
 #endif
 
+  if constexpr (host_cpu::IsArm64()) {
+    BlockSyscallWithErrno(__NR_readlinkat, ENOENT);
+  }
+#ifdef __NR_readlink
   BlockSyscallWithErrno(__NR_readlink, ENOENT);
+#endif
 
   return *this;
 }
@@ -881,7 +886,9 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
   AllowFutexOp(FUTEX_WAIT);
   AllowFutexOp(FUTEX_WAIT_BITSET);
   AllowSyscalls({
+#ifdef __NR_dup2
       __NR_dup2,
+#endif
       __NR_recvmsg,
       __NR_close,
       __NR_gettid,
