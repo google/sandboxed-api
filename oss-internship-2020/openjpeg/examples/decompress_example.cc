@@ -117,10 +117,11 @@ int main(int argc, char* argv[]) {
   CHECK(sandbox.TransferFromSandboxee(&image_components).ok())
       << "Transfer from sandboxee failed";
 
-  image.mutable_data()->comps = (opj_image_comp_t*)image_components.GetLocal();
+  image.mutable_data()->comps =
+      static_cast<opj_image_comp_t*>(image_components.GetLocal());
 
-  unsigned int width = reinterpret_cast<unsigned int>(image.data().comps[0].w);
-  unsigned height = reinterpret_cast<unsigned int>(image.data().comps[0].h);
+  unsigned int width = static_cast<unsigned int>(image.data().comps[0].w);
+  unsigned int height = static_cast<unsigned int>(image.data().comps[0].h);
 
   std::vector<std::vector<OPJ_INT32>> data(components);
   sapi::v::Array<OPJ_INT32> image_components_data(width * height);
@@ -139,7 +140,7 @@ int main(int argc, char* argv[]) {
 
   // Convert the image to the desired format and save it to the file.
   int error =
-      imagetopnm(reinterpret_cast<opj_image_t*>(image.GetLocal()), argv[2], 0);
+      imagetopnm(static_cast<opj_image_t*>(image.GetLocal()), argv[2], 0);
   CHECK(!error) << "Image convert failed";
 
   // Clean up.
