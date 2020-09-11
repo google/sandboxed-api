@@ -20,12 +20,26 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
 
 # Apply the patches to the header file.
+file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/patches")
+
+# Move the original header to a new folder to use as target, apply the patch
+# and move it back to build the library.
 add_custom_command(
-    OUTPUT "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
-    COMMAND cp "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h" "${PROJECT_SOURCE_DIR}/patches/"
-    COMMAND cd "${PROJECT_SOURCE_DIR}/patches" && patch < header.patch
-    COMMAND mv "${PROJECT_SOURCE_DIR}/patches/lodepng.h" "${PROJECT_SOURCE_DIR}/lodepng/"
+    OUTPUT "${PROJECT_BINARY_DIR}/patches/lodepng.h"
+    COMMENT "Applying patch to header file."
+    COMMAND cp "${PROJECT_SOURCE_DIR}/patches/header.patch" "${PROJECT_BINARY_DIR}/patches/"
+    COMMAND cp "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h" "${PROJECT_BINARY_DIR}/patches/"
+    COMMAND cd "${PROJECT_BINARY_DIR}/patches" && patch < header.patch
+    COMMAND cp "${PROJECT_BINARY_DIR}/patches/lodepng.h" "${PROJECT_SOURCE_DIR}/lodepng/"
 )
+
+set_property(
+    SOURCE
+    "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
+    APPEND PROPERTY OBJECT_DEPENDS
+    "${PROJECT_BINARY_DIR}/patches/lodepng.h"
+)
+
 
 # Build static library.
 add_library(lodepng STATIC
@@ -35,6 +49,7 @@ add_library(lodepng STATIC
 
 # Build SAPI library
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
+
 
 add_subdirectory("${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
