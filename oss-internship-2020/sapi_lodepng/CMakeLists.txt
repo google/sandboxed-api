@@ -19,14 +19,23 @@ project(lodepng_sapi CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
 
-# Build static library
+# Apply the patches to the header file.
+add_custom_command(
+    OUTPUT "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
+    COMMAND cp "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h" "${PROJECT_SOURCE_DIR}/patches/"
+    COMMAND cd "${PROJECT_SOURCE_DIR}/patches" && patch < header.patch
+    COMMAND mv "${PROJECT_SOURCE_DIR}/patches/lodepng.h" "${PROJECT_SOURCE_DIR}/lodepng/"
+)
+
+# Build static library.
 add_library(lodepng STATIC
-  lodepng/lodepng.cpp
-  lodepng/lodepng.h
+  "${PROJECT_SOURCE_DIR}/lodepng/lodepng.cpp"
+  "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
 )
 
 # Build SAPI library
-set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
+#set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
+set(SAPI_ROOT "/usr/local/google/home/amedar/internship/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
 
 add_subdirectory("${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
@@ -56,7 +65,7 @@ add_sapi_library(
   lodepng_save_file
   lodepng_load_file
   
-  INPUTS lodepng/lodepng.h
+  INPUTS "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
   LIBRARY lodepng
   LIBRARY_NAME Lodepng
   NAMESPACE ""
