@@ -8,6 +8,10 @@ With Sandboxed API, many of the library's functions can be sandboxed. However, t
 
 Even if many of the functions from the library can be sandboxed, there are some that are not supported (those which have `std::vector` parameters, overloaded functions etc.). If you really need these functions, a solution is to implement a custom library that wraps around these functions in order to make them compatible.
 
+## Patches
+
+In the **patches** folder there is a patch file that adds **extern "C"** to the required functions in the header file in order to sandbox them. This patch is applied automatically during the build phase.
+
 ## Build
 
 First, run `git submodule update --init --recursive` to update submodules.
