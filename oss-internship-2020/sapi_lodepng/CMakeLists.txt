@@ -34,8 +34,7 @@ add_library(lodepng STATIC
 )
 
 # Build SAPI library
-#set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
-set(SAPI_ROOT "/usr/local/google/home/amedar/internship/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
+set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 
 add_subdirectory("${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
