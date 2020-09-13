@@ -41,7 +41,7 @@ constexpr int kDefaultQualityTarget = 95;
 constexpr int kDefaultMemlimitMb = 6000;
 
 constexpr absl::string_view kRelativePathToTestdata =
-  "/guetzli_sandboxed/tests/testdata/";
+  "/guetzli_sandboxed/testdata/";
 
 std::string GetPathToInputFile(absl::string_view filename) {
   return absl::StrCat(getenv("TEST_SRCDIR"), kRelativePathToTestdata, filename);
@@ -88,7 +88,7 @@ TEST_F(GuetzliSapiTest, ProcessRGB) {
                                       kDefaultMemlimitMb
   };
   sapi::v::LenVal output(0);
-  auto processing_result = api_->ProcessRgb(processing_params.PtrBefore(), 
+  sapi::StatusOr<bool> processing_result = api_->ProcessRgb(processing_params.PtrBefore(), 
                                             output.PtrBoth());
   ASSERT_TRUE(processing_result.value_or(false)) << "Error processing rgb data";
   std::string reference_data = 
@@ -115,7 +115,7 @@ TEST_F(GuetzliSapiTest, ProcessJpeg) {
                                       kDefaultMemlimitMb
   };
   sapi::v::LenVal output(0);
-  auto processing_result = api_->ProcessJpeg(processing_params.PtrBefore(), 
+  sapi::StatusOr<bool> processing_result = api_->ProcessJpeg(processing_params.PtrBefore(), 
                                             output.PtrBoth());
   ASSERT_TRUE(processing_result.value_or(false)) << "Error processing jpg data";
   std::string reference_data = 

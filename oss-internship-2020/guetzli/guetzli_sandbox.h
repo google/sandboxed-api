@@ -22,7 +22,7 @@
 namespace guetzli::sandbox {
 
 class GuetzliSapiSandbox : public GuetzliSandbox {
-  public:
+ public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
 

@@ -44,7 +44,7 @@ constexpr int kDefaultQualityTarget = 95;
 constexpr int kDefaultMemlimitMb = 6000;
 
 constexpr absl::string_view kRelativePathToTestdata =
-  "/guetzli_sandboxed/tests/testdata/";
+  "/guetzli_sandboxed/testdata/";
 
 std::string GetPathToFile(absl::string_view filename) {
   return absl::StrCat(getenv("TEST_SRCDIR"), kRelativePathToTestdata, filename);

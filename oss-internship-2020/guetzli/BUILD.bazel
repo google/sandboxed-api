@@ -54,3 +54,27 @@ cc_binary(
         ":guetzli_sapi",
     ],
 )
+
+cc_test(
+    name = "transaction_tests",
+    srcs = ["guetzli_transaction_test.cc"],
+    visibility=["//visibility:public"],
+    deps = [
+      "//:guetzli_sapi",
+      "@com_google_googletest//:gtest_main",
+    ],
+    size = "large",
+    data = glob(["testdata/*"]),
+)
+
+cc_test(
+    name = "sapi_lib_tests",
+    srcs = ["guetzli_sapi_test.cc"],
+    visibility=["//visibility:public"],
+    deps = [
+      "//:guetzli_sapi",
+      "@com_google_googletest//:gtest_main",
+    ],
+    size = "large",
+    data = glob(["testdata/*"]),
+)
