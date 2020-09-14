@@ -533,7 +533,11 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
   AllowRead();
   AllowStat();
-  AllowSyscalls({__NR_lseek, __NR_close, __NR_munmap});
+  AllowSyscalls({__NR_lseek,
+#ifdef __NR__llseek
+                 __NR__llseek,  // Newer glibc on PPC
+#endif
+                 __NR_close, __NR_munmap});
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
                                         JEQ32(PROT_READ, ALLOW),
