@@ -22,6 +22,33 @@ set(CMAKE_CXX_STANDARD_REQUIRED 17)
 # Build SAPI library
 set(SAPI_ROOT "/usr/local/google/home/amedar/internship/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
 
+file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/patches")
+
+#add_custom_command(
+#    OUTPUT "${PROJECT_BINARY_DIR}/patches/archive.h"
+#    COMMENT "Applying patches."
+#    COMMAND cp "${PROJECT_SOURCE_DIR}/patches/header.patch" "${PROJECT_BINARY_DIR}/patches/"
+#    COMMAND cp "${PROJECT_SOURCE_DIR}/libarchive/libarchive/archive.h" "${PROJECT_BINARY_DIR}/patches/"
+#    COMMAND cd "${PROJECT_BINARY_DIR}/patches" && patch < header.patch
+#    COMMAND cp "${PROJECT_BINARY_DIR}/patches/archive.h" "${PROJECT_SOURCE_DIR}/libarchive/libarchive/"
+#)
+#
+#set_property(
+#    SOURCE
+#    "${PROJECT_SOURCE_DIR}/libarchive/libarchive/archive.h"
+#    APPEND PROPERTY OBJECT_DEPENDS
+#    "${PROJECT_BINARY_DIR}/patches/archive.h"
+#)
+
+
+add_subdirectory(libarchive)
+
+#set_property(SOURCE
+#    "${PROJECT_SOURCE_DIR}/libarchive/libarchive/archive.h"
+#    APPEND PROPERTY OBJECT_DEPENDS
+#    "${PROJECT_SOURCE_DIR}/patches/archive.h"
+#)
+
 add_subdirectory("${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
   EXCLUDE_FROM_ALL
@@ -34,7 +61,10 @@ add_sapi_library(
 
   FUNCTIONS ${FUNCTIONS_LIST}
 
-  INPUTS libarchive/libarchive/archive.h
+  INPUTS
+    libarchive/libarchive/archive.h
+    libarchive/libarchive/archive_entry.h
+
   LIBRARY archive
   LIBRARY_NAME Libarchive
   NAMESPACE ""
@@ -45,5 +75,4 @@ target_include_directories(libarchive_sapi INTERFACE
 )
 
 
-add_subdirectory(libarchive)
 add_subdirectory(examples)
