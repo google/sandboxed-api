@@ -22,7 +22,7 @@
 
 void EncodeDecodeOneStep(const std::string &images_path) {
   // Generate the values.
-  std::vector<uint8_t> image(GenerateValues());
+  std::vector<uint8_t> image = GenerateValues();
 
   // Encode the image.
   const std::string filename = images_path + "/out_generated1.png";
@@ -33,15 +33,15 @@ void EncodeDecodeOneStep(const std::string &images_path) {
 
   // After the image has been encoded, decode it to check that the
   // pixel values are the same.
-  unsigned int width2, height2;
+  unsigned int width, height;
   uint8_t *image2 = 0;
 
-  result = lodepng_decode32_file(&image2, &width2, &height2, filename.c_str());
+  result = lodepng_decode32_file(&image2, &width, &height, filename.c_str());
 
   CHECK(!result) << "Unexpected result from decode32_file call";
 
-  CHECK(width2 == kWidth) << "Widths differ";
-  CHECK(height2 == kHeight) << "Heights differ";
+  CHECK(width == kWidth) << "Widths differ";
+  CHECK(height == kHeight) << "Heights differ";
 
   // Now, we can compare the values.
   CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen))
@@ -52,7 +52,7 @@ void EncodeDecodeOneStep(const std::string &images_path) {
 
 void EncodeDecodeTwoSteps(const std::string &images_path) {
   // Generate the values.
-  std::vector<uint8_t> image(GenerateValues());
+  std::vector<uint8_t> image = GenerateValues();
 
   // Encode the image into memory first.
   const std::string filename = images_path + "/out_generated2.png";
@@ -70,7 +70,7 @@ void EncodeDecodeTwoSteps(const std::string &images_path) {
   CHECK(!result) << "Unexpected result from save_file call";
 
   // Now, decode the image using the 2 steps in order to compare the values.
-  unsigned int width2, height2;
+  unsigned int width, height;
   uint8_t *png2;
   size_t pngsize2;
 
@@ -81,11 +81,11 @@ void EncodeDecodeTwoSteps(const std::string &images_path) {
   CHECK(pngsize == pngsize2) << "Png sizes differ";
 
   uint8_t *image2;
-  result = lodepng_decode32(&image2, &width2, &height2, png2, pngsize2);
+  result = lodepng_decode32(&image2, &width, &height, png2, pngsize2);
 
   CHECK(!result) << "Unexpected result from decode32 call";
-  CHECK(width2 == kWidth) << "Widths differ";
-  CHECK(height2 == kHeight) << "Heights differ";
+  CHECK(width == kWidth) << "Widths differ";
+  CHECK(height == kHeight) << "Heights differ";
 
   // Compare the values.
   CHECK(absl::equal(image.begin(), image.end(), image2, image2 + kImgLen))

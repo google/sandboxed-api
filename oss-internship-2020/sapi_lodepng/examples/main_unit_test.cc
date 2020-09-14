@@ -65,7 +65,7 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox initialization";
   LodepngApi api(&sandbox);
 
-  std::vector<uint8_t> image(GenerateValues());
+  std::vector<uint8_t> image = GenerateValues();
 
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
   EXPECT_THAT(std::copy(image.begin(), image.end(), sapi_image.GetData()),
@@ -81,18 +81,18 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
 
   ASSERT_THAT(result, Eq(0)) << "Unexpected result from encode32_file call";
 
-  sapi::v::UInt sapi_width2, sapi_height2;
+  sapi::v::UInt sapi_width, sapi_height;
   sapi::v::IntBase<uint8_t *> sapi_image_ptr(0);
 
   SAPI_ASSERT_OK_AND_ASSIGN(
       result, api.lodepng_decode32_file(
-                  sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(),
-                  sapi_height2.PtrBoth(), sapi_filename.PtrBefore()));
+                  sapi_image_ptr.PtrBoth(), sapi_width.PtrBoth(),
+                  sapi_height.PtrBoth(), sapi_filename.PtrBefore()));
 
   ASSERT_THAT(result, Eq(0)) << "Unexpected result from decode32_file call";
 
-  EXPECT_THAT(sapi_width2.GetValue(), Eq(kWidth)) << "Widths differ";
-  EXPECT_THAT(sapi_height2.GetValue(), Eq(kHeight)) << "Heights differ";
+  EXPECT_THAT(sapi_width.GetValue(), Eq(kWidth)) << "Widths differ";
+  EXPECT_THAT(sapi_height.GetValue(), Eq(kHeight)) << "Heights differ";
 
   sapi::v::Array<uint8_t> sapi_pixels(kImgLen);
   sapi_pixels.SetRemote(sapi_image_ptr.GetValue());
@@ -126,7 +126,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
   LodepngApi api(&sandbox);
 
-  std::vector<uint8_t> image(GenerateValues());
+  std::vector<uint8_t> image = GenerateValues();
 
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
   EXPECT_THAT(std::copy(image.begin(), image.end(), sapi_image.GetData()),
@@ -158,7 +158,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
 
   ASSERT_THAT(result, Eq(0)) << "Unexpected result from save_file call";
 
-  sapi::v::UInt sapi_width2, sapi_height2;
+  sapi::v::UInt sapi_width, sapi_height;
   sapi::v::IntBase<uint8_t *> sapi_png_ptr2(0);
   sapi::v::ULLong sapi_pngsize2;
 
@@ -181,14 +181,14 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
   sapi::v::IntBase<uint8_t *> sapi_png_ptr3(0);
   SAPI_ASSERT_OK_AND_ASSIGN(
       result,
-      api.lodepng_decode32(sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(),
-                           sapi_height2.PtrBoth(), sapi_png_array2.PtrBefore(),
+      api.lodepng_decode32(sapi_png_ptr3.PtrBoth(), sapi_width.PtrBoth(),
+                           sapi_height.PtrBoth(), sapi_png_array2.PtrBefore(),
                            sapi_pngsize2.GetValue()));
 
   ASSERT_THAT(result, Eq(0)) << "Unexpected result from decode32 call";
 
-  EXPECT_THAT(sapi_width2.GetValue(), Eq(kWidth)) << "Widths differ";
-  EXPECT_THAT(sapi_height2.GetValue(), Eq(kHeight)) << "Heights differ";
+  EXPECT_THAT(sapi_width.GetValue(), Eq(kWidth)) << "Widths differ";
+  EXPECT_THAT(sapi_height.GetValue(), Eq(kHeight)) << "Heights differ";
 
   sapi::v::Array<uint8_t> sapi_pixels(kImgLen);
   sapi_pixels.SetRemote(sapi_png_ptr3.GetValue());

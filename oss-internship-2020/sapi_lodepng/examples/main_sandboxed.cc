@@ -21,7 +21,7 @@
 
 void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // Generate the values.
-  std::vector<uint8_t> image(GenerateValues());
+  std::vector<uint8_t> image = GenerateValues();
 
   // Encode the image.
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
@@ -38,18 +38,18 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 
   // After the image has been encoded, decode it to check that the
   // pixel values are the same.
-  sapi::v::UInt sapi_width2, sapi_height2;
+  sapi::v::UInt sapi_width, sapi_height;
   sapi::v::IntBase<uint8_t *> sapi_image_ptr(0);
 
   result = api.lodepng_decode32_file(
-      sapi_image_ptr.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
+      sapi_image_ptr.PtrBoth(), sapi_width.PtrBoth(), sapi_height.PtrBoth(),
       sapi_filename.PtrBefore());
 
   CHECK(result.ok()) << "decode32_file call failes";
   CHECK(!result.value()) << "Unexpected result from decode32_file call";
 
-  CHECK(sapi_width2.GetValue() == kWidth) << "Widths differ";
-  CHECK(sapi_height2.GetValue() == kHeight) << "Heights differ";
+  CHECK(sapi_width.GetValue() == kWidth) << "Widths differ";
+  CHECK(sapi_height.GetValue() == kHeight) << "Heights differ";
 
   // The pixels have been allocated inside the sandboxed process
   // memory, so we need to transfer them to this process.
@@ -77,7 +77,7 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 
 void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // Generate the values.
-  std::vector<uint8_t> image(GenerateValues());
+  std::vector<uint8_t> image = GenerateValues();
 
   // Encode the image into memory first.
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
@@ -115,7 +115,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   CHECK(!result.value()) << "Unexpected result from save_file call";
 
   // Now, decode the image using the 2 steps in order to compare the values.
-  sapi::v::UInt sapi_width2, sapi_height2;
+  sapi::v::UInt sapi_width, sapi_height;
   sapi::v::IntBase<uint8_t *> sapi_png_ptr2(0);
   sapi::v::ULLong sapi_pngsize2;
 
@@ -141,14 +141,14 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // directly.
   sapi::v::IntBase<uint8_t *> sapi_png_ptr3(0);
   result = api.lodepng_decode32(
-      sapi_png_ptr3.PtrBoth(), sapi_width2.PtrBoth(), sapi_height2.PtrBoth(),
+      sapi_png_ptr3.PtrBoth(), sapi_width.PtrBoth(), sapi_height.PtrBoth(),
       sapi_png_array2.PtrBefore(), sapi_pngsize2.GetValue());
 
   CHECK(result.ok()) << "decode32 call failed";
   CHECK(!result.value()) << "Unexpected result from decode32 call";
 
-  CHECK(sapi_width2.GetValue() == kWidth) << "Widths differ";
-  CHECK(sapi_height2.GetValue() == kHeight) << "Heights differ";
+  CHECK(sapi_width.GetValue() == kWidth) << "Widths differ";
+  CHECK(sapi_height.GetValue() == kHeight) << "Heights differ";
 
   // Transfer the pixels so they can be used here.
   sapi::v::Array<uint8_t> sapi_pixels(kImgLen);

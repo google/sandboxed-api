@@ -15,15 +15,18 @@
 #include "helpers.h"
 
 std::vector<uint8_t> GenerateValues() {
-  std::vector<uint8_t> image(kImgLen);
+  std::vector<uint8_t> image;
+  image.reserve(kImgLen);
+
   for (int y = 0; y < kHeight; ++y) {
     for (int x = 0; x < kWidth; ++x) {
-      image[4 * kWidth * y + 4 * x + 0] = 255 * !(x & y);
-      image[4 * kWidth * y + 4 * x + 1] = x ^ y;
-      image[4 * kWidth * y + 4 * x + 2] = x | y;
-      image[4 * kWidth * y + 4 * x + 3] = 255;
+      image.push_back(255 * !(x & y));
+      image.push_back(x ^ y);
+      image.push_back(x | y);
+      image.push_back(255);
     }
   }
+  
   return image;
 }
 
