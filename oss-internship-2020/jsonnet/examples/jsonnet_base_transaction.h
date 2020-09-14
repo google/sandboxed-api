@@ -23,7 +23,7 @@
 class JsonnetSapiTransactionSandbox : public JsonnetSandbox {
  public:
   explicit JsonnetSapiTransactionSandbox(std::string in_file, std::string out_file)
-      : in_file_(std::move(in_file)), out_file_(std::move(out_file)) {}
+      : in_file_(in_file), out_file_(out_file) {}
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder *) override {
@@ -49,3 +49,19 @@ class JsonnetSapiTransactionSandbox : public JsonnetSandbox {
   std::string out_file_;
 };
 
+class JsonnetTransaction : public sapi::Transaction {
+ public:
+  JsonnetTransaction(std::string in_file, std::string out_file)
+    : sapi::Transaction(std::make_unique<JsonnetSapiTransactionSandbox>(in_file, out_file)),
+    in_file_(in_file), out_file_(out_file)
+  {
+    sapi::Transaction::set_retry_count(0); // Try once, no retries
+    sapi::Transaction::SetTimeLimit(0);  // Infinite time limit
+  }
+
+ private:
+  absl::Status Main() override;
+  std::string in_file_;
+  std::string out_file_;
+
+};
