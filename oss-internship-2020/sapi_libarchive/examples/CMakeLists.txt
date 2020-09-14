@@ -22,16 +22,9 @@ target_link_libraries(helpers PUBLIC
     sapi::sapi
     sandbox2::fileops
     sandbox2::util
-)
-
-# small example - todo delete later
-add_executable(small_example
-    small_example.cc
-)
-
-target_link_libraries(small_example PRIVATE
-    archive
-    helpers
+    sandbox2::file_base
+    glog::glog
+    libarchive_sapi
 )
 
 add_executable(sapi_example
@@ -42,6 +35,17 @@ target_link_libraries(sapi_example PRIVATE
     libarchive_sapi
     sapi::sapi
     glog::glog
+)
+
+add_executable(sapi_minitar
+    sapi_minitar.cc
+)
+
+target_link_libraries(sapi_minitar PRIVATE
+    helpers
+    libarchive_sapi
+    sapi::sapi
+    #glog::glog
 )
 
 #add_executable(untar
@@ -68,7 +72,7 @@ target_link_libraries(sapi_example PRIVATE
 
 
 add_executable(minitar
-    minitar.cc
+    orig/minitar.cc
 )
 
 target_link_libraries(minitar PRIVATE
