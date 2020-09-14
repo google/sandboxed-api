@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "jsonnet_sapi.sapi.h"
+#include "sandboxed_api/util/flag.h"
 
 class JsonnetSapiSandbox : public JsonnetSandbox {
  public:
@@ -66,12 +67,12 @@ int main(int argc, char *argv[]) {
   // Initialize sandbox.
   JsonnetSapiSandbox sandbox(in_file, out_file);
   absl::Status status = sandbox.Init();
-  CHECK(status.ok()) << "Sandbox initialization failed " << status;
+  CHECK(status.ok()) << "Sandbox initialization failed: " << status;
 
   JsonnetApi api(&sandbox);
 
   // Initialize library's main structure.
-  sapi::StatusOr<JsonnetVm *> jsonnet_vm = api.c_jsonnet_make();
+  sapi::StatusOr<JsonnetVm*> jsonnet_vm = api.c_jsonnet_make();
   sapi::v::RemotePtr vm_pointer(jsonnet_vm.value());
   CHECK(jsonnet_vm.ok()) << "JsonnetVm initialization failed: "
                          << jsonnet_vm.status();
@@ -80,9 +81,9 @@ int main(int argc, char *argv[]) {
   std::string in_file_in_sandboxee(std::string("/input/") +
                                    basename(&in_file[0]));
   sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
-  sapi::StatusOr<char *> input =
+  sapi::StatusOr<char*> input =
       api.c_read_input(false, in_file_var.PtrBefore());
-  CHECK(input.ok()) << "Reading input file failed " << input.status();
+  CHECK(input.ok()) << "Reading input file failed: " << input.status();
 
   // Process jsonnet data.
   sapi::v::RemotePtr input_pointer(input.value());
@@ -105,11 +106,11 @@ int main(int argc, char *argv[]) {
   success = api.c_write_output_file(&output_pointer, out_file_var.PtrBefore());
 
   CHECK(success.ok() && success.value())
-      << "Writing to output file failed " << success.status() << " "
+      << "Writing to output file failed: " << success.status() << " "
       << success.value();
 
   // Clean up.
-  sapi::StatusOr<char *> result =
+  sapi::StatusOr<char*> result =
       api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
   CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
 

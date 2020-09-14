@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "jsonnet_sapi.sapi.h"
+#include "sandboxed_api/util/flag.h"
 
 class JsonnetSapiSandbox : public JsonnetSandbox {
  public:
