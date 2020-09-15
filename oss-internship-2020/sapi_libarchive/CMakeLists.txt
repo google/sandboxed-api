@@ -65,7 +65,7 @@ add_sapi_library(
     libarchive/libarchive/archive.h
     libarchive/libarchive/archive_entry.h
 
-  LIBRARY archive
+  LIBRARY archive_static
   LIBRARY_NAME Libarchive
   NAMESPACE ""
 )

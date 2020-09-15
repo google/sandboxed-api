@@ -25,7 +25,7 @@ std::vector<std::string> MakeAbsolutePathsVec(char *argv[]) {
 
 
 std::string CheckStatusAndGetString(const sapi::StatusOr<char *> &status, LibarchiveSandbox &sandbox) {
-    CHECK(status.ok() && status.value()) << "Could not get error message";
+    CHECK(status.ok() && status.value() != NULL) << "Could not get error message";
 
     sapi::StatusOr<std::string> ret = sandbox.GetCString(sapi::v::RemotePtr(status.value()));
     CHECK(ret.ok()) << "Could not transfer error message";
