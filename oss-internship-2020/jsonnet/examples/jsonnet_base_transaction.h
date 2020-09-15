@@ -17,6 +17,7 @@
 
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/vars.h"
+#include "sandboxed_api/util/flag.h"
 
 #include "jsonnet_sapi.sapi.h"
 
