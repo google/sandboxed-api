@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/config.h"
 
 using ::testing::Eq;
 using ::testing::StartsWith;
@@ -45,7 +46,7 @@ TEST(SyscallTest, Basic) {
   EXPECT_THAT(arg_desc[2], Eq("0x5 [5]"));
   EXPECT_THAT(
       syscall.GetDescription(),
-      Eq(absl::StrCat(Syscall::GetArchDescription(Syscall::GetHostArch()),
+      Eq(absl::StrCat(Syscall::GetArchDescription(host_cpu::Architecture()),
                       " read [", __NR_read,
                       "](0x1 [1], 0xbadbeef, 0x5 [5]) IP: 0, STACK: 0")));
 }
@@ -53,7 +54,7 @@ TEST(SyscallTest, Basic) {
 TEST(SyscallTest, Empty) {
   Syscall syscall;
 
-  EXPECT_THAT(syscall.arch(), Eq(Syscall::kUnknown));
+  EXPECT_THAT(syscall.arch(), Eq(cpu::kUnknown));
   EXPECT_THAT(syscall.GetName(), StartsWith("UNKNOWN"));
   EXPECT_THAT(syscall.GetArgumentsDescription().size(), Eq(Syscall::kMaxArgs));
 }

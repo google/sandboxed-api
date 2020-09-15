@@ -26,6 +26,7 @@
 
 #include <glog/logging.h>
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
 namespace sandbox2 {
@@ -104,7 +105,7 @@ void NetworkProxyServer::NotifySuccess() {
 }
 
 void NetworkProxyServer::NotifyViolation(const struct sockaddr* saddr) {
-  if (sapi::StatusOr<std::string> result = AddrToString(saddr); result.ok()) {
+  if (absl::StatusOr<std::string> result = AddrToString(saddr); result.ok()) {
     violation_msg_ = std::move(result).value();
   } else {
     violation_msg_ = std::string(result.status().message());

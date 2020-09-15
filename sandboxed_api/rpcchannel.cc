@@ -15,6 +15,7 @@
 #include "sandboxed_api/rpcchannel.h"
 
 #include <glog/logging.h>
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/call.h"
@@ -35,7 +36,7 @@ absl::Status RPCChannel::Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
   return absl::OkStatus();
 }
 
-sapi::StatusOr<FuncRet> RPCChannel::Return(v::Type exp_type) {
+absl::StatusOr<FuncRet> RPCChannel::Return(v::Type exp_type) {
   uint32_t tag;
   uint64_t len;
   FuncRet ret;
@@ -202,7 +203,7 @@ absl::Status RPCChannel::Close(int remote_fd) {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<uint64_t> RPCChannel::Strlen(void* str) {
+absl::StatusOr<uint64_t> RPCChannel::Strlen(void* str) {
   absl::MutexLock lock(&mutex_);
   if (!comms_->SendTLV(comms::kMsgStrlen, sizeof(str),
                        reinterpret_cast<uint8_t*>(&str))) {

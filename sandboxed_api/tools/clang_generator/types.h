@@ -68,7 +68,7 @@ std::string MapQualTypeParameter(const clang::ASTContext& context,
 
 // Maps a qualified type used as a function return type to a type name
 // compatible with the generated Sandboxed API. Uses MapQualTypeParameter() and
-// wraps the type in a sapi::StatusOr<> if qual is non-void. Otherwise returns
+// wraps the type in an absl::StatusOr<> if qual is non-void. Otherwise returns
 // absl::Status.
 std::string MapQualTypeReturn(const clang::ASTContext& context,
                               clang::QualType qual);

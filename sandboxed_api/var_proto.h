@@ -41,7 +41,7 @@ class Proto : public Pointable, public Var {
   explicit Proto(const T& proto)
       : wrapped_var_(SerializeProto(proto).value()) {}
 
-  static sapi::StatusOr<Proto<T>> FromMessage(const T& proto) {
+  static absl::StatusOr<Proto<T>> FromMessage(const T& proto) {
     SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> len_val, SerializeProto(proto));
     return Proto(len_val);
   }
@@ -59,7 +59,7 @@ class Proto : public Pointable, public Var {
   void* GetLocal() const override { return wrapped_var_.GetLocal(); }
 
   // Returns a copy of the stored protobuf object.
-  sapi::StatusOr<T> GetMessage() const {
+  absl::StatusOr<T> GetMessage() const {
     return DeserializeProto<T>(
         reinterpret_cast<const char*>(wrapped_var_.GetData()),
         wrapped_var_.GetDataSize());

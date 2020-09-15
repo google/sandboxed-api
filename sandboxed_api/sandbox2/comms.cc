@@ -36,6 +36,7 @@
 #include "google/protobuf/message.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
@@ -44,7 +45,6 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 #ifdef MEMORY_SANITIZER
 #include "base/dynamic_annotations.h"
@@ -347,7 +347,7 @@ bool Comms::RecvFD(int* fd) {
 
   const auto op = [&msg](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;
-    // Use syscall, otherwise we would need to whitelist socketcall() on PPC.
+    // Use syscall, otherwise we would need to allow socketcall() on PPC.
     return TEMP_FAILURE_RETRY(
         util::Syscall(__NR_recvmsg, fd, reinterpret_cast<uintptr_t>(&msg), 0));
   };

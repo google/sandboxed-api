@@ -19,9 +19,9 @@
 
 #include "gmock/gmock.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 #define SAPI_ASSERT_OK_AND_ASSIGN(lhs, rexpr) \
   SAPI_ASSERT_OK_AND_ASSIGN_IMPL(             \

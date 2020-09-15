@@ -461,7 +461,7 @@ class ReturnType(ArgumentType):
   """Class representing function return type.
 
      Attributes:
-       return_type: sapi::StatusOr<T> where T is original return type, or
+       return_type: absl::StatusOr<T> where T is original return type, or
                     absl::Status for functions returning void
   """
 
@@ -474,7 +474,7 @@ class ReturnType(ArgumentType):
     """Returns function return type prepared from the type."""
     # TODO(szwl): const ptrs do not play well with SAPI C++ API...
     spelling = self._clang_type.spelling.replace('const', '')
-    return_type = 'sapi::StatusOr<{}>'.format(spelling)
+    return_type = 'absl::StatusOr<{}>'.format(spelling)
     return_type = 'absl::Status' if self.is_void() else return_type
     return return_type
 
