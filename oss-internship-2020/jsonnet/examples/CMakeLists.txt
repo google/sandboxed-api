@@ -50,3 +50,15 @@ foreach(exe base multiple_files yaml_stream formatter)
     sapi::sapi
   )
 endforeach()
+
+add_executable(jsonnet_base_transaction
+  jsonnet_base_transaction.cc
+  jsonnet_base_transaction.h
+)
+
+target_link_libraries(jsonnet_base_transaction PRIVATE
+    libjsonnet
+    jsonnet_helper
+    jsonnet_sapi
+    sapi::sapi
+  )
