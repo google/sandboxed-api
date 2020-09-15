@@ -41,11 +41,16 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
         .AllowWrite()
         .AllowOpen()
         .AllowSystemMalloc()
+        .AllowGetIDs()
+        .AllowSafeFcntl()
+        .AllowStat()
+        .AllowExit()
         .AllowSyscalls({
             __NR_futex,
             __NR_lseek,
             __NR_close,
             __NR_gettid,
+            __NR_umask,
         })
         .AddFile(archive_path_);
 

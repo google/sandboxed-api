@@ -244,12 +244,13 @@ static void extract(const char *filename, int do_extract, int flags) {
     api.archive_read_new().IgnoreError();
     sapi::StatusOr<archive *> ret = api.archive_read_new();
     CHECK(ret.ok()) << "archive_read_new call failed";
-    CHECK(!ret.value()) << "Failed to create read archive";
+    // std::cout << "RET VALUE = " << ret.value() << std::endl;
+    CHECK(ret.value() != NULL) << "Failed to create read archive";
     a = ret.value();
 
     ret = api.archive_write_disk_new();
     CHECK(ret.ok()) << "write_disk_new call failed";
-    CHECK(!ret.value()) << "Failed to create write disk archive";
+    CHECK(ret.value() != NULL) << "Failed to create write disk archive";
     ext = ret.value();
 
     sapi::v::RemotePtr a_ptr(a);
@@ -296,30 +297,40 @@ static void extract(const char *filename, int do_extract, int flags) {
 		filename = NULL;
 
     sapi::v::ConstCStr sapi_filename(filename_absolute.c_str());
-
+    
+    std::cout << "opening filename" << std::endl;
+    
     ret2 = api.archive_read_open_filename(&a_ptr, sapi_filename.PtrBefore(), 10240);
     CHECK(ret2.ok()) << "read_open_filename call failed";
     // CHECK(!ret2.value()) << GetErrorString(&a_ptr, sandbox, api);
     CHECK(!ret2.value()) << CheckStatusAndGetString(api.archive_error_string(&a_ptr), sandbox);
     // CHECK(!ret2.value()) << CallFunctionAndGetString(&a_ptr, sandbox, &api, &api.archive_error_string);
 
+            sapi::v::IntBase<struct archive_entry *> entry_ptr_tmp(0);
+
+
     for (;;) {
-        sapi::v::IntBase<struct archive_entry *> entry_ptr_tmp(0);
         
+        std::cout << "================reading headers==============" << std::endl;
+
         ret2 = api.archive_read_next_header(&a_ptr, entry_ptr_tmp.PtrBoth());
+        //std::cout << "val = " << ret2.value() << std::endl;
         CHECK(ret2.ok()) << "read_next_header call failed";
         // CHECK(ret2.value() != ARCHIVE_OK) << GetErrorString(&a_ptr, sandbox, api);
-        CHECK(ret2.value() != ARCHIVE_OK) << CheckStatusAndGetString(api.archive_error_string(&a_ptr), sandbox);
 
         if(ret2.value() == ARCHIVE_EOF) {
             break;
         }
-        
+
+                CHECK(ret2.value() == ARCHIVE_OK) << CheckStatusAndGetString(api.archive_error_string(&a_ptr), sandbox);
+
+
         sapi::v::RemotePtr entry_ptr(entry_ptr_tmp.GetValue());
 
         if(verbose && do_extract) {
             std::cout << "x " ;
         }
+        
 
         if (verbose || !do_extract) {
             std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry_ptr), sandbox) << " ";
@@ -331,7 +342,11 @@ static void extract(const char *filename, int do_extract, int flags) {
         // use the needcr stuff here TODO
         std::cout << std::endl;
 
-        ret2 = api.archive_read_close(&a_ptr);
+    }
+
+    std::cout << "out of loop" << std::endl;
+
+            ret2 = api.archive_read_close(&a_ptr);
         CHECK(ret2.ok()) << "read_close call failed";
         CHECK(!ret2.value()) << "Unexpected value from read_close call";
 
@@ -348,8 +363,6 @@ static void extract(const char *filename, int do_extract, int flags) {
         ret2 = api.archive_write_free(&ext_ptr);
         CHECK(ret2.ok()) << "write_free call failed";
         CHECK(!ret2.value()) << "Unexpected result from write_free call";
-
-    }
 
 }
 
