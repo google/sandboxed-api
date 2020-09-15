@@ -1,6 +1,6 @@
 --- jsonnet.cpp	2020-09-09 12:15:33.687539042 +0000
-+++ write_helper.cpp	2020-09-10 11:21:44.273825853 +0000
-@@ -14,559 +14,126 @@
++++ write_helper.cpp	2020-09-15 14:27:01.907774290 +0000
+@@ -14,559 +14,123 @@
  limitations under the License.
  */
  
@@ -102,8 +102,7 @@
 -          evalMulti(false),
 -          evalStream(false)
 +/** Writes output files for multiple file output */
-+bool write_multi_output_files(JsonnetVm *vm, char *output,
-+                              const std::string &output_dir) {
++bool write_multi_output_files(char *output, const std::string &output_dir) {
 +  // If multiple file output is used, then iterate over each string from
 +  // the sequence of strings returned by jsonnet_evaluate_snippet_multi,
 +  // construct pairs of filename and content, and write each output file.
@@ -119,7 +118,6 @@
 +    c = c2;
 +    r[filename] = json;
 +  }
-+  jsonnet_realloc(vm, output, 0);
 +
 +  std::ostream *o;
 +  std::ofstream f;
@@ -496,8 +494,7 @@
 -            return false;
 -        }
 -        o = &f;
-+bool write_output_stream(JsonnetVm *vm, char *output,
-+                         const std::string &output_file) {
++bool write_output_stream(char *output, const std::string &output_file) {
 +  std::ostream *o;
 +  std::ofstream f;
 +
@@ -523,7 +520,7 @@
 +    ++c;
 +    r.emplace_back(json);
 +  }
-+  jsonnet_realloc(vm, output, 0);
++
 +  for (const auto &str : r) {
 +    (*o) << "---\n";
 +    (*o) << str;

@@ -12,27 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "gtest/gtest.h"
 #include "jsonnet_base_sandbox.h"
 #include "jsonnet_sapi.sapi.h"
-#include "gtest/gtest.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 class JsonnetTestHelper {
-  protected:
-    enum Evaluation { BASE, MULTIPLE_FILES, YAML_STREAM };
+ protected:
+  enum Evaluation { BASE, MULTIPLE_FILES, YAML_STREAM };
 
-    void JsonnetTestSetUp();
-    void JsonnetTestTearDown();
+  void TestSetUp();
+  void TestTearDown();
 
-    char* Read_input(const char* filename);
-    char* Evaluate_jsonnet_code(struct JsonnetVm* vm, const char* filename, Evaluation type);
-    bool Write_output(struct JsonnetVm* vm, char* output, char* filename_or_directory, Evaluation type);
+  void Read_input(char* filename);
+  void Evaluate_jsonnet_code(char* filename, Evaluation type);
+  void Write_output(char* filename_or_directory, Evaluation type);
 
-    std::unique_ptr<JsonnetBaseSandbox> sandbox;
-    std::unique_ptr<JsonnetApi> api;
-    std::unique_ptr<sapi::v::RemotePtr> input;
-    
-    JsonnetVm* vm;
+  std::unique_ptr<JsonnetBaseSandbox> sandbox;
+  std::unique_ptr<JsonnetApi> api;
+  std::unique_ptr<sapi::v::RemotePtr> input;
+  std::unique_ptr<sapi::v::RemotePtr> output;
+  std::unique_ptr<sapi::v::RemotePtr> vm;
 
+  std::string input_filename_in_sandboxee;
 };

@@ -58,14 +58,14 @@ bool c_write_output_file(const char* output, const char* output_file) {
   return write_output_file(output, s_output_file);
 }
 
-bool c_write_multi_output_files(struct JsonnetVm* vm, char* output, char* output_dir) {
+bool c_write_multi_output_files(char* output, char* output_dir) {
   std::string s_output_dir(output_dir);
-  return write_multi_output_files(vm, output, s_output_dir);
+  return write_multi_output_files(output, s_output_dir);
 }
 
-bool c_write_output_stream(struct JsonnetVm* vm, char* output, char* output_file) {
+bool c_write_output_stream(char* output, char* output_file) {
   std::string s_output_file(output_file);
-  return write_output_stream(vm, output, s_output_file);
+  return write_output_stream(output, s_output_file);
 }
 
 char* c_jsonnet_realloc(struct JsonnetVm* vm, char* str, size_t sz) {

@@ -16,8 +16,6 @@
 
 class JsonnetTest : public JsonnetTestHelper, public testing::Test {
  protected:
-
-  void SetUp() override { JsonnetTestSetUp(); }
-  void TearDown() override { JsonnetTestTearDown(); }
-
+  void SetUp() override { TestSetUp(); }
+  void TearDown() override { TestTearDown(); }
 };
