@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <syscall.h>
 #include <libgen.h>
-
-#include "sandboxed_api/transaction.h"
-#include "sandboxed_api/vars.h"
-#include "sandboxed_api/util/flag.h"
+#include <syscall.h>
 
 #include "jsonnet_sapi.sapi.h"
+#include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/vars.h"
 
 class JsonnetSapiTransactionSandbox : public JsonnetSandbox {
  public:
-  explicit JsonnetSapiTransactionSandbox(std::string in_file, std::string out_file)
+  explicit JsonnetSapiTransactionSandbox(std::string in_file,
+                                         std::string out_file)
       : in_file_(in_file), out_file_(out_file) {}
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
@@ -53,16 +53,17 @@ class JsonnetSapiTransactionSandbox : public JsonnetSandbox {
 class JsonnetTransaction : public sapi::Transaction {
  public:
   JsonnetTransaction(std::string in_file, std::string out_file)
-    : sapi::Transaction(std::make_unique<JsonnetSapiTransactionSandbox>(in_file, out_file)),
-    in_file_(in_file), out_file_(out_file)
-  {
-    sapi::Transaction::set_retry_count(0); // Try once, no retries
-    sapi::Transaction::SetTimeLimit(0);  // Infinite time limit
+      : sapi::Transaction(
+            std::make_unique<JsonnetSapiTransactionSandbox>(in_file, out_file)),
+        in_file_(in_file),
+        out_file_(out_file) {
+    sapi::Transaction::set_retry_count(0);  // Try once, no retries
+    sapi::Transaction::SetTimeLimit(0);     // Infinite time limit
   }
 
  private:
-  absl::Status Main() override;
   std::string in_file_;
   std::string out_file_;
 
+  absl::Status Main() override;
 };
