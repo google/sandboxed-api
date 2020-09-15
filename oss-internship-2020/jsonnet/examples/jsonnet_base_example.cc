@@ -12,43 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <libgen.h>
-#include <syscall.h>
-
 #include <cstdlib>
 #include <iostream>
 
-#include "jsonnet_sapi.sapi.h"
-#include "sandboxed_api/util/flag.h"
-
-class JsonnetSapiSandbox : public JsonnetSandbox {
- public:
-  explicit JsonnetSapiSandbox(std::string in_file, std::string out_file)
-      : in_file_(std::move(in_file)), out_file_(std::move(out_file)) {}
-
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder *) override {
-    return sandbox2::PolicyBuilder()
-        .AllowStaticStartup()
-        .AllowOpen()
-        .AllowRead()
-        .AllowWrite()
-        .AllowStat()
-        .AllowSystemMalloc()
-        .AllowExit()
-        .AllowSyscalls({
-            __NR_futex,
-            __NR_close,
-        })
-        .AddDirectoryAt(dirname(&out_file_[0]), "/output", /*is_ro=*/false)
-        .AddDirectoryAt(dirname(&in_file_[0]), "/input", true)
-        .BuildOrDie();
-  }
-
- private:
-  std::string in_file_;
-  std::string out_file_;
-};
+#include "jsonnet_base_sandbox.h"
 
 int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
@@ -65,7 +32,7 @@ int main(int argc, char* argv[]) {
   std::string out_file(argv[2]);
 
   // Initialize sandbox.
-  JsonnetSapiSandbox sandbox(in_file, out_file);
+  JsonnetBaseSandbox sandbox(in_file, out_file);
   absl::Status status = sandbox.Init();
   CHECK(status.ok()) << "Sandbox initialization failed: " << status;
 

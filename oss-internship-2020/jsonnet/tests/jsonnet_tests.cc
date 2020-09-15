@@ -12,22 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet_base_sandbox.h"
+#include "jsonnet_tests.h"
 
-class JsonnetTransaction : public sapi::Transaction {
- public:
-  JsonnetTransaction(std::string in_file, std::string out_file)
-      : sapi::Transaction(
-            std::make_unique<JsonnetBaseSandbox>(in_file, out_file)),
-        in_file_(in_file),
-        out_file_(out_file) {
-    sapi::Transaction::set_retry_count(0);  // Try once, no retries
-    sapi::Transaction::SetTimeLimit(0);     // Infinite time limit
-  }
+class JsonnetTest : public JsonnetTestHelper, public testing::Test {
+ protected:
 
- private:
-  std::string in_file_;
-  std::string out_file_;
+  void SetUp() override { JsonnetTestSetUp(); }
+  void TearDown() override { JsonnetTestTearDown(); }
 
-  absl::Status Main() override;
 };
