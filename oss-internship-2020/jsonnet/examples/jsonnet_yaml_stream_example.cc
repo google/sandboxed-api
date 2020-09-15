@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
       << "Jsonnet code evaluation failed: " << output.status() << " "
       << error.GetValue() << "\n"
       << "Make sure all files used by your jsonnet file are in the same "
-         "directory as your file";
+         "directory as your file.";
 
   // Write data to file.
   std::string out_file_in_sandboxee(std::string("/output/") +
@@ -70,13 +70,17 @@ int main(int argc, char* argv[]) {
   sapi::v::RemotePtr output_pointer(output.value());
   sapi::StatusOr<bool> success;
 
-  success = api.c_write_output_stream(&vm_pointer, &output_pointer,
+  success = api.c_write_output_stream(&output_pointer,
                                       out_file_var.PtrBefore());
   CHECK(success.ok() && success.value())
       << "Writing to output file failed " << success.status() << " "
       << success.value();
 
   // Clean up.
+  sapi::StatusOr<char*> result =
+      api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
+  CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
+
   status = api.c_jsonnet_destroy(&vm_pointer);
   CHECK(status.ok()) << "JsonnetVm destroy failed: " << status;
 

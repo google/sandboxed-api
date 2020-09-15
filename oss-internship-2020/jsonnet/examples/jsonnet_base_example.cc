@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
       << "Jsonnet code evaluation failed: " << output.status() << " "
       << error.GetValue() << "\n"
       << "Make sure all files used by your jsonnet file are in the same "
-         "directory as your file";
+         "directory as your file.";
 
   // Write data to file.
   std::string out_file_in_sandboxee(std::string("/output/") +
