@@ -125,14 +125,15 @@ static void create(const char *filename, int compress, const char **argv);
 #endif
 static void errmsg(const char *);
 static void extract(const char *filename, int do_extract, int flags);
-static int copy_data(struct archive *, struct archive *);
+static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
+                     LibarchiveApi &api, SapiLibarchiveSandboxExtract &sandbox);
 static void msg(const char *);
 static void usage(void);
 
 static int verbose = 0;
 
 int main(int argc, const char **argv) {
-google::InitGoogleLogging(argv[0]);
+  google::InitGoogleLogging(argv[0]);
   std::cout << "BEGIN\n";
   const char *filename = NULL;
   int compress, flags, mode, opt;
@@ -228,146 +229,202 @@ static void create(const char *filename, int compress, const char **argv) {
 
 static void extract(const char *filename, int do_extract, int flags) {
   std::cout << "extract" << std::endl;
-    std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
+  std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
 
-    std::cout << "filename = " << filename_absolute << std::endl;
-    
-    SapiLibarchiveSandboxExtract sandbox(filename_absolute, do_extract);
-    CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
+  std::cout << "filename = " << filename_absolute << std::endl;
 
-    LibarchiveApi api(&sandbox);
+  SapiLibarchiveSandboxExtract sandbox(filename_absolute, do_extract);
+  CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
 
-    struct archive *a;
-    struct archive *ext;
-    struct archive_entry *entry;
-    int r;
-    api.archive_read_new().IgnoreError();
-    sapi::StatusOr<archive *> ret = api.archive_read_new();
-    CHECK(ret.ok()) << "archive_read_new call failed";
-    // std::cout << "RET VALUE = " << ret.value() << std::endl;
-    CHECK(ret.value() != NULL) << "Failed to create read archive";
-    a = ret.value();
+  LibarchiveApi api(&sandbox);
 
-    ret = api.archive_write_disk_new();
-    CHECK(ret.ok()) << "write_disk_new call failed";
-    CHECK(ret.value() != NULL) << "Failed to create write disk archive";
-    ext = ret.value();
+  struct archive *a;
+  struct archive *ext;
+  struct archive_entry *entry;
+  int r;
+  api.archive_read_new().IgnoreError();
+  sapi::StatusOr<archive *> ret = api.archive_read_new();
+  CHECK(ret.ok()) << "archive_read_new call failed";
+  // std::cout << "RET VALUE = " << ret.value() << std::endl;
+  CHECK(ret.value() != NULL) << "Failed to create read archive";
+  a = ret.value();
 
-    sapi::v::RemotePtr a_ptr(a);
-    sapi::v::RemotePtr ext_ptr(ext);
+  ret = api.archive_write_disk_new();
+  CHECK(ret.ok()) << "write_disk_new call failed";
+  CHECK(ret.value() != NULL) << "Failed to create write disk archive";
+  ext = ret.value();
 
-    sapi::StatusOr<int> ret2;
-    ret2 = api.archive_write_disk_set_options(&ext_ptr, flags);
-    CHECK(ret2.ok()) << "write_disk_set_options call failed";
-    CHECK(ret2.value() != ARCHIVE_FATAL) << "Unexpected result from write_disk_set_options call";
+  sapi::v::RemotePtr a_ptr(a);
+  sapi::v::RemotePtr ext_ptr(ext);
+
+  sapi::StatusOr<int> ret2;
+  ret2 = api.archive_write_disk_set_options(&ext_ptr, flags);
+  CHECK(ret2.ok()) << "write_disk_set_options call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from write_disk_set_options call";
 
 #ifndef NO_BZIP2_EXTRACT
-	ret2 = api.archive_read_support_filter_bzip2(&a_ptr);
-    CHECK(ret2.ok()) << "read_support_filter_bzip2 call failed";
-    CHECK(ret2.value() != ARCHIVE_FATAL) << "Unexpected result from read_support_filter_bzip2 call";
+  ret2 = api.archive_read_support_filter_bzip2(&a_ptr);
+  CHECK(ret2.ok()) << "read_support_filter_bzip2 call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from read_support_filter_bzip2 call";
 #endif
 #ifndef NO_GZIP_EXTRACT
-	ret2 = api.archive_read_support_filter_gzip(&a_ptr);
-    CHECK(ret2.ok()) << "read_suppport_filter_gzip call failed";
-    CHECK(ret2.value() != ARCHIVE_FATAL) << "Unexpected result from read_suppport_filter_gzip call";
+  ret2 = api.archive_read_support_filter_gzip(&a_ptr);
+  CHECK(ret2.ok()) << "read_suppport_filter_gzip call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from read_suppport_filter_gzip call";
 #endif
 #ifndef NO_COMPRESS_EXTRACT
-	ret2 = api.archive_read_support_filter_compress(&a_ptr);
-    CHECK(ret2.ok()) << "read_support_filter_compress call failed";
-    CHECK(ret2.value() != ARCHIVE_FATAL) << "Unexpected result from read_support_filter_compress call";
+  ret2 = api.archive_read_support_filter_compress(&a_ptr);
+  CHECK(ret2.ok()) << "read_support_filter_compress call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from read_support_filter_compress call";
 #endif
 #ifndef NO_TAR_EXTRACT
-	ret2 = api.archive_read_support_format_tar(&a_ptr);
-    CHECK(ret2.ok()) << "read_support_format_tar call failed";
-    CHECK(ret2.value() != ARCHIVE_FATAL) << "Unexpected result fromread_support_format_tar call";
+  ret2 = api.archive_read_support_format_tar(&a_ptr);
+  CHECK(ret2.ok()) << "read_support_format_tar call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result fromread_support_format_tar call";
 #endif
 #ifndef NO_CPIO_EXTRACT
-	ret2 = api.archive_read_support_format_cpio(&a_ptr);
-    CHECK(ret2.ok()) << "read_support_format_cpio call failed";
-    CHECK(ret2.value() != ARCHIVE_FATAL) << "Unexpected result from read_support_format_tar call";
+  ret2 = api.archive_read_support_format_cpio(&a_ptr);
+  CHECK(ret2.ok()) << "read_support_format_cpio call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from read_support_format_tar call";
 #endif
 #ifndef NO_LOOKUP
-	ret2 = api.archive_write_disk_set_standard_lookup(&ext_ptr); 
-    CHECK(ret2.ok()) << "write_disk_set_standard_lookup call failed";
-    CHECK(ret2.value() != ARCHIVE_FATAL) << "Unexpected result from write_disk_set_standard_lookup call";
+  ret2 = api.archive_write_disk_set_standard_lookup(&ext_ptr);
+  CHECK(ret2.ok()) << "write_disk_set_standard_lookup call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from write_disk_set_standard_lookup call";
 #endif
 
+  if (filename != NULL && strcmp(filename, "-") == 0) filename = NULL;
 
-	if (filename != NULL && strcmp(filename, "-") == 0)
-		filename = NULL;
+  sapi::v::ConstCStr sapi_filename(filename_absolute.c_str());
 
-    sapi::v::ConstCStr sapi_filename(filename_absolute.c_str());
-    
-    std::cout << "opening filename" << std::endl;
-    
-    ret2 = api.archive_read_open_filename(&a_ptr, sapi_filename.PtrBefore(), 10240);
-    CHECK(ret2.ok()) << "read_open_filename call failed";
-    // CHECK(!ret2.value()) << GetErrorString(&a_ptr, sandbox, api);
-    CHECK(!ret2.value()) << CheckStatusAndGetString(api.archive_error_string(&a_ptr), sandbox);
-    // CHECK(!ret2.value()) << CallFunctionAndGetString(&a_ptr, sandbox, &api, &api.archive_error_string);
+  std::cout << "opening filename" << std::endl;
 
-            sapi::v::IntBase<struct archive_entry *> entry_ptr_tmp(0);
+  ret2 =
+      api.archive_read_open_filename(&a_ptr, sapi_filename.PtrBefore(), 10240);
+  CHECK(ret2.ok()) << "read_open_filename call failed";
+  // CHECK(!ret2.value()) << GetErrorString(&a_ptr, sandbox, api);
+  CHECK(!ret2.value()) << CheckStatusAndGetString(
+      api.archive_error_string(&a_ptr), sandbox);
+  // CHECK(!ret2.value()) << CallFunctionAndGetString(&a_ptr, sandbox, &api,
+  // &api.archive_error_string);
 
+  for (;;) {
+    int needcr = 0;
+    std::cout << "================reading headers==============" << std::endl;
+    sapi::v::IntBase<struct archive_entry *> entry_ptr_tmp(0);
 
-    for (;;) {
-        
-        std::cout << "================reading headers==============" << std::endl;
+    ret2 = api.archive_read_next_header(&a_ptr, entry_ptr_tmp.PtrBoth());
+    // std::cout << "val = " << ret2.value() << std::endl;
+    CHECK(ret2.ok()) << "read_next_header call failed";
+    // CHECK(ret2.value() != ARCHIVE_OK) << GetErrorString(&a_ptr, sandbox,
+    // api);
 
-        ret2 = api.archive_read_next_header(&a_ptr, entry_ptr_tmp.PtrBoth());
-        //std::cout << "val = " << ret2.value() << std::endl;
-        CHECK(ret2.ok()) << "read_next_header call failed";
-        // CHECK(ret2.value() != ARCHIVE_OK) << GetErrorString(&a_ptr, sandbox, api);
-
-        if(ret2.value() == ARCHIVE_EOF) {
-            break;
-        }
-
-                CHECK(ret2.value() == ARCHIVE_OK) << CheckStatusAndGetString(api.archive_error_string(&a_ptr), sandbox);
-
-
-        sapi::v::RemotePtr entry_ptr(entry_ptr_tmp.GetValue());
-
-        if(verbose && do_extract) {
-            std::cout << "x " ;
-        }
-        
-
-        if (verbose || !do_extract) {
-            std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry_ptr), sandbox) << " ";
-        }
-
-        if (do_extract) {
-            std::cout << "EXTRACT HERE";
-        }
-        // use the needcr stuff here TODO
-        std::cout << std::endl;
-
+    if (ret2.value() == ARCHIVE_EOF) {
+      break;
     }
 
-    std::cout << "out of loop" << std::endl;
+    CHECK(ret2.value() == ARCHIVE_OK)
+        << CheckStatusAndGetString(api.archive_error_string(&a_ptr), sandbox);
 
-            ret2 = api.archive_read_close(&a_ptr);
-        CHECK(ret2.ok()) << "read_close call failed";
-        CHECK(!ret2.value()) << "Unexpected value from read_close call";
+    sapi::v::RemotePtr entry_ptr(entry_ptr_tmp.GetValue());
 
-        ret2 = api.archive_read_free(&a_ptr);
-        CHECK(ret2.ok()) << "read_free call failed";
-        CHECK(!ret2.value()) << "Unexpected result from read_free call";
+    if (verbose && do_extract) {
+      std::cout << "x ";
+    }
 
+    if (verbose || !do_extract) {
+      std::cout << CheckStatusAndGetString(
+                       api.archive_entry_pathname(&entry_ptr), sandbox)
+                << " ";
+      needcr = 1;
+    }
 
-        ret2 = api.archive_write_close(&ext_ptr);
-        CHECK(ret2.ok()) << "write_close call failed";
-        CHECK(!ret2.value()) << "Unexpected result from write_close call";
+    std::cout << "qqqqq" << std::endl;
 
+    if (do_extract) {
+      std::cout << "EXTRACT HERE" << std::endl;
+      ret2 = api.archive_write_header(&ext_ptr, &entry_ptr);
+      CHECK(ret2.ok()) << "write_header call faield";
 
-        ret2 = api.archive_write_free(&ext_ptr);
-        CHECK(ret2.ok()) << "write_free call failed";
-        CHECK(!ret2.value()) << "Unexpected result from write_free call";
+      std::cout << "val = " << ret2.value() << std::endl;
 
+      if (ret2.value() != ARCHIVE_OK) {
+        std::cout << CheckStatusAndGetString(api.archive_error_string(&a_ptr),
+                                             sandbox);
+        needcr = 1;
+      } else if (copy_data(&a_ptr, &ext_ptr, api, sandbox) != ARCHIVE_OK) {
+        needcr = 1;
+      }
+    }
+    // use the needcr stuff here TODO
+    if (needcr) {
+      std::cout << std::endl;
+    }
+  }
+
+  std::cout << "out of loop" << std::endl;
+
+  ret2 = api.archive_read_close(&a_ptr);
+  CHECK(ret2.ok()) << "read_close call failed";
+  CHECK(!ret2.value()) << "Unexpected value from read_close call";
+
+  ret2 = api.archive_read_free(&a_ptr);
+  CHECK(ret2.ok()) << "read_free call failed";
+  CHECK(!ret2.value()) << "Unexpected result from read_free call";
+
+  ret2 = api.archive_write_close(&ext_ptr);
+  CHECK(ret2.ok()) << "write_close call failed";
+  CHECK(!ret2.value()) << "Unexpected result from write_close call";
+
+  ret2 = api.archive_write_free(&ext_ptr);
+  CHECK(ret2.ok()) << "write_free call failed";
+  CHECK(!ret2.value()) << "Unexpected result from write_free call";
 }
 
-static int copy_data(struct archive *ar, struct archive *aw) {
-    return 0;
+static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
+                     LibarchiveApi &api,
+                     SapiLibarchiveSandboxExtract &sandbox) {
+  std::cout << "CALL COPY_DATA XXXXXXXXXXXX\n";
+  sapi::StatusOr<int> ret;
+
+  sapi::v::IntBase<struct archive_entry *> buff_ptr_tmp(0);
+  sapi::v::ULLong size;
+  sapi::v::SLLong offset;
+
+  for (;;) {
+    ret = api.archive_read_data_block(ar, buff_ptr_tmp.PtrBoth(),
+                                      size.PtrBoth(), offset.PtrBoth());
+    CHECK(ret.ok()) << "read_data_block call failed";
+
+    if (ret.value() == ARCHIVE_EOF) {
+      return ARCHIVE_OK;
+    }
+    if (ret.value() != ARCHIVE_OK) {
+      std::cout << CheckStatusAndGetString(api.archive_error_string(ar),
+                                           sandbox);
+      return ret.value();
+    }
+
+    sapi::v::RemotePtr buff_ptr(buff_ptr_tmp.GetValue());
+
+    ret = api.archive_write_data_block(aw, &buff_ptr, size.GetValue(),
+                                       offset.GetValue());
+
+    CHECK(ret.ok()) << "write_data_block call failed";
+
+    if (ret.value() != ARCHIVE_OK) {
+      std::cout << CheckStatusAndGetString(api.archive_error_string(ar),
+                                           sandbox);
+      return ret.value();
+    }
+  }
 }
 
 static void msg(const char *m) { write(1, m, strlen(m)); }
