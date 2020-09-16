@@ -84,6 +84,7 @@ def _stringify_tokens(tokens, separator='\n'):
 TYPE_MAPPING = {
     cindex.TypeKind.VOID: '::sapi::v::Void',
     cindex.TypeKind.CHAR_S: '::sapi::v::Char',
+    cindex.TypeKind.CHAR_U: '::sapi::v::UChar',
     cindex.TypeKind.INT: '::sapi::v::Int',
     cindex.TypeKind.UINT: '::sapi::v::UInt',
     cindex.TypeKind.LONG: '::sapi::v::Long',
