@@ -55,3 +55,5 @@ target_include_directories(jsonnet_sapi INTERFACE
 )
 
 target_link_libraries(jsonnet_sapi PUBLIC jsonnet_helper)
+
+add_subdirectory(tests)

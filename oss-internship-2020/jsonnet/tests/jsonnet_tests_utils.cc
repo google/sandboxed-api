@@ -14,10 +14,16 @@
 
 #include "jsonnet_tests.h"
 
+
 // Prepare what is needed to perform a test.
 void JsonnetTestHelper::TestSetUp() {
+
+  // Get paths to where input and output is stored.
+  std::filesystem::path input_path = std::filesystem::current_path() / "tests_input";
+  std::filesystem::path output_path = std::filesystem::current_path() / "tests_output";
+
   // Set up sandbox and api.
-  sandbox = std::make_unique<JsonnetBaseSandbox>();
+  sandbox = std::make_unique<JsonnetBaseSandbox>(input_path.string(), output_path.string());
   ASSERT_THAT(sandbox->Init(), sapi::IsOk());
   api = std::make_unique<JsonnetApi>(sandbox.get());
 
@@ -25,15 +31,22 @@ void JsonnetTestHelper::TestSetUp() {
   SAPI_ASSERT_OK_AND_ASSIGN(JsonnetVm * vm_ptr, api->c_jsonnet_make());
   vm = std::make_unique<sapi::v::RemotePtr>(vm_ptr);
 
+  if_jsonnet_vm_was_used = false;
+  if_input_was_read = false;
+
   return;
 }
 
 // Clean up after a test.
 void JsonnetTestHelper::TestTearDown() {
-  SAPI_ASSERT_OK_AND_ASSIGN(char* result,
-                            api->c_jsonnet_realloc(vm.get(), output.get(), 0));
+  if (if_jsonnet_vm_was_used) {
+    SAPI_ASSERT_OK_AND_ASSIGN(char* result,
+                              api->c_jsonnet_realloc(vm.get(), output.get(), 0));
+  }
   ASSERT_THAT(api->c_jsonnet_destroy(vm.get()), sapi::IsOk());
-  ASSERT_THAT(api->c_free_input(input.get()), sapi::IsOk());
+  if (if_input_was_read) {
+    ASSERT_THAT(api->c_free_input(input.get()), sapi::IsOk());
+  }
 
   return;
 }
@@ -117,7 +130,7 @@ void JsonnetTestHelper::Write_output(char* filename_or_directory,
 
     case YAML_STREAM: {
       std::string out_file_in_sandboxee(std::string("/output/") +
-                                        basename(&out_file[0]));
+                                        basename(&filename_or_directory[0]));
       sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
       SAPI_ASSERT_OK_AND_ASSIGN(
           success,
