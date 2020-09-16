@@ -23,6 +23,7 @@ target_link_libraries(helpers PUBLIC
     sandbox2::fileops
     sandbox2::util
     sandbox2::file_base
+    sandbox2::executor
     glog::glog
     libarchive_sapi
 )
