@@ -19,3 +19,7 @@ class JsonnetTest : public JsonnetTestHelper, public testing::Test {
   void SetUp() override { TestSetUp(); }
   void TearDown() override { TestTearDown(); }
 };
+
+TEST_F(JsonnetTest, DummyTest) {
+  std::cout << "Stuff was done.\n";
+}

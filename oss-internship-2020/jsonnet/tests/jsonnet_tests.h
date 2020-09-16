@@ -17,6 +17,9 @@
 #include "jsonnet_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include <filesystem>
+#include <iostream>
+
 
 class JsonnetTestHelper {
  protected:
@@ -36,4 +39,7 @@ class JsonnetTestHelper {
   std::unique_ptr<sapi::v::RemotePtr> vm;
 
   std::string input_filename_in_sandboxee;
+  bool if_jsonnet_vm_was_used;
+  bool if_input_was_read;
+
 };
