@@ -14,28 +14,26 @@
 
 #include "test_utils.h"
 
-class Curl_Test : public CurlTestUtils, public ::testing::Test {
+class CurlTest : public CurlTestUtils, public ::testing::Test {
  protected:
-  static void SetUpTestSuite() {
+  void SetUp() override {
     // Start mock server, get port number and check for any error
     StartMockServer();
     ASSERT_TRUE(server_thread_.joinable());
+    ASSERT_TRUE(CurlTestSetUp().ok());
   }
 
-  void SetUp() override { CurlTestSetUp(); }
-
-  static void TearDownTestSuite() {
+  void TearDown() override {
+    ASSERT_TRUE(CurlTestTearDown().ok());
     // Detach the server thread
     server_thread_.detach();
   }
-
-  void TearDown() override { CurlTestTearDown(); }
 };
 
-TEST_F(Curl_Test, EffectiveUrl) {
+TEST_F(CurlTest, EffectiveUrl) {
   sapi::v::RemotePtr effective_url_ptr(nullptr);
 
-  PerformRequest();
+  ASSERT_TRUE(PerformRequest().ok());
 
   // Get effective URL
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -53,10 +51,10 @@ TEST_F(Curl_Test, EffectiveUrl) {
   ASSERT_EQ(effective_url, kUrl);
 }
 
-TEST_F(Curl_Test, EffectivePort) {
+TEST_F(CurlTest, EffectivePort) {
   sapi::v::Int effective_port;
 
-  PerformRequest();
+  ASSERT_TRUE(PerformRequest().ok());
 
   // Get effective port
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -69,10 +67,10 @@ TEST_F(Curl_Test, EffectivePort) {
   ASSERT_EQ(effective_port.GetValue(), port_);
 }
 
-TEST_F(Curl_Test, ResponseCode) {
+TEST_F(CurlTest, ResponseCode) {
   sapi::v::Int response_code;
 
-  PerformRequest();
+  ASSERT_TRUE(PerformRequest().ok());
 
   // Get response code
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -85,10 +83,10 @@ TEST_F(Curl_Test, ResponseCode) {
   ASSERT_EQ(response_code.GetValue(), 200);
 }
 
-TEST_F(Curl_Test, ContentType) {
+TEST_F(CurlTest, ContentType) {
   sapi::v::RemotePtr content_type_ptr(nullptr);
 
-  PerformRequest();
+  ASSERT_TRUE(PerformRequest().ok());
 
   // Get effective URL
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -106,15 +104,14 @@ TEST_F(Curl_Test, ContentType) {
   ASSERT_EQ(content_type, "text/plain");
 }
 
-TEST_F(Curl_Test, GETResponse) {
-  std::string response;
-  PerformRequest(response);
+TEST_F(CurlTest, GETResponse) {
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string response, PerformRequest());
 
   // Compare response with expected response
   ASSERT_EQ(response, kSimpleResponse);
 }
 
-TEST_F(Curl_Test, POSTResponse) {
+TEST_F(CurlTest, POSTResponse) {
   sapi::v::ConstCStr post_fields("postfields");
 
   // Set request method to POST
@@ -137,8 +134,7 @@ TEST_F(Curl_Test, POSTResponse) {
                                  post_fields.PtrBefore()));
   ASSERT_EQ(setopt_post_fields, CURLE_OK);
 
-  std::string response;
-  PerformRequest(response);
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string response, PerformRequest());
 
   // Compare response with expected response
   ASSERT_EQ(std::string(post_fields.GetData()), response);

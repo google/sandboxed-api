@@ -55,8 +55,6 @@ int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   absl::Status status;
-  sapi::StatusOr<int> status_or_int;
-  sapi::StatusOr<CURL*> status_or_curl;
 
   // Get input parameters (should be absolute paths)
   if (argc != 5) {
@@ -75,79 +73,81 @@ int main(int argc, char* argv[]) {
   }
   CurlApi api(&sandbox);
 
+  absl::StatusOr<int> curl_code;
+
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
-  status_or_int = api.curl_global_init(3l);
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_global_init failed: " << status_or_int.status();
+  curl_code = api.curl_global_init(3l);
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_global_init failed: " << curl_code.status();
   }
 
   // Initialize curl easy handle
-  status_or_curl = api.curl_easy_init();
-  if (!status_or_curl.ok()) {
-    LOG(FATAL) << "curl_easy_init failed: " << status_or_curl.status();
+  absl::StatusOr<CURL*> curl_handle = api.curl_easy_init();
+  if (!curl_handle.ok()) {
+    LOG(FATAL) << "curl_easy_init failed: " << curl_handle.status();
   }
-  sapi::v::RemotePtr curl(status_or_curl.value());
+  sapi::v::RemotePtr curl(curl_handle.value());
   if (!curl.GetValue()) {
     LOG(FATAL) << "curl_easy_init failed: curl is NULL";
   }
 
   // Specify URL to get (using HTTPS)
   sapi::v::ConstCStr url("https://example.com");
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << status_or_int.status();
+  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
   }
 
   // Set the SSL certificate type to "PEM"
   sapi::v::ConstCStr ssl_cert_type("PEM");
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERTTYPE,
-                                           ssl_cert_type.PtrBefore());
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << status_or_int.status();
+  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERTTYPE,
+                                       ssl_cert_type.PtrBefore());
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
   }
 
   // Set the certificate for client authentication
   sapi::v::ConstCStr sapi_ssl_certificate(ssl_certificate.c_str());
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERT,
-                                           sapi_ssl_certificate.PtrBefore());
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << status_or_int.status();
+  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERT,
+                                       sapi_ssl_certificate.PtrBefore());
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
   }
 
   // Set the private key for client authentication
   sapi::v::ConstCStr sapi_ssl_key(ssl_key.c_str());
-  status_or_int =
+  curl_code =
       api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLKEY, sapi_ssl_key.PtrBefore());
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << status_or_int.status();
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
   }
 
   // Set the password used to protect the private key
   sapi::v::ConstCStr sapi_ssl_key_password(ssl_key_password.c_str());
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_KEYPASSWD,
-                                           sapi_ssl_key_password.PtrBefore());
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << status_or_int.status();
+  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_KEYPASSWD,
+                                       sapi_ssl_key_password.PtrBefore());
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
   }
 
   // Set the file with the certificates vaildating the server
   sapi::v::ConstCStr sapi_ca_certificates(ca_certificates.c_str());
-  status_or_int = api.curl_easy_setopt_ptr(&curl, CURLOPT_CAINFO,
-                                           sapi_ca_certificates.PtrBefore());
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << status_or_int.status();
+  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_CAINFO,
+                                       sapi_ca_certificates.PtrBefore());
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
   }
 
   // Verify the authenticity of the server
-  status_or_int = api.curl_easy_setopt_long(&curl, CURLOPT_SSL_VERIFYPEER, 1L);
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_long failed: " << status_or_int.status();
+  curl_code = api.curl_easy_setopt_long(&curl, CURLOPT_SSL_VERIFYPEER, 1L);
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_setopt_long failed: " << curl_code.status();
   }
 
   // Perform the request
-  status_or_int = api.curl_easy_perform(&curl);
-  if (!status_or_int.ok() or status_or_int.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_perform failed: " << status_or_int.status();
+  curl_code = api.curl_easy_perform(&curl);
+  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
+    LOG(FATAL) << "curl_easy_perform failed: " << curl_code.status();
   }
 
   // Cleanup curl easy handle

@@ -30,14 +30,12 @@ class CurlTestUtils {
   };
 
   // Initialize and set up the curl handle
-  void CurlTestSetUp();
+  absl::Status CurlTestSetUp();
   // Clean up the curl handle
-  void CurlTestTearDown();
+  absl::Status CurlTestTearDown();
 
-  // Perform a request to the mock server
-  // Optionally, store the response in a string
-  void PerformRequest(std::string& response);
-  void PerformRequest();
+  // Perform a request to the mock server, return the response
+  absl::StatusOr<std::string> PerformRequest();
 
   // Start a mock server (only once) that will manage connections for the tests
   // The server listens on a port asynchronously by creating a thread
@@ -58,7 +56,7 @@ class CurlTestUtils {
   static constexpr absl::string_view kSimpleResponse = "OK";
 
  private:
-  sapi::v::Struct<MemoryStruct> chunk_;
+  sapi::v::LenVal chunk_{0};
 };
 
 #endif  // TESTS_H

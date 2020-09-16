@@ -33,4 +33,5 @@ set(BUILD_TESTING OFF)
 add_subdirectory(curl)
 target_link_libraries(curl_wrapper_and_callbacks 
   CURL::libcurl
+  sapi::sapi
 )

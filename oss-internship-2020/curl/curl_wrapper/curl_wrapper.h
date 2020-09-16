@@ -19,68 +19,64 @@
 
 #include <curl/curl.h>
 
-// The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLcode curl_easy_setopt_ptr(CURL* handle, CURLoption option,
-                                         void* parameter);
+extern "C" {
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLcode curl_easy_setopt_long(CURL* handle, CURLoption option,
-                                          long parameter);
+CURLcode curl_easy_setopt_ptr(CURL* handle, CURLoption option, void* parameter);
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLcode curl_easy_setopt_curl_off_t(CURL* handle, CURLoption option,
-                                                curl_off_t parameter);
+CURLcode curl_easy_setopt_long(CURL* handle, CURLoption option, long parameter);
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLcode curl_easy_getinfo_ptr(CURL* handle, CURLINFO option,
-                                          void* parameter);
+CURLcode curl_easy_setopt_curl_off_t(CURL* handle, CURLoption option,
+                                     curl_off_t parameter);
+
+// The wrapper method is needed to make the variadic argument explicit
+CURLcode curl_easy_getinfo_ptr(CURL* handle, CURLINFO option, void* parameter);
 
 // The typedef and wrapper method are needed because the original method has
 // some conflicts in curl_sapi.sapi.h
-extern "C" typedef time_t time_t_sapi;
-extern "C" time_t_sapi curl_getdate_sapi(char* datestring, time_t_sapi* now);
+typedef time_t time_t_sapi;
+time_t_sapi curl_getdate_sapi(char* datestring, time_t_sapi* now);
 
 // The typedef and wrapper method are needed because the original method has
 // some conflicts in curl_sapi.sapi.h
-extern "C" typedef fd_set fd_set_sapi;
-extern "C" CURLMcode curl_multi_fdset_sapi(CURLM* multi_handle,
-                                           fd_set_sapi* read_fd_set,
-                                           fd_set_sapi* write_fd_set,
-                                           fd_set_sapi* exc_fd_set,
-                                           int* max_fd);
+typedef fd_set fd_set_sapi;
+CURLMcode curl_multi_fdset_sapi(CURLM* multi_handle, fd_set_sapi* read_fd_set,
+                                fd_set_sapi* write_fd_set,
+                                fd_set_sapi* exc_fd_set, int* max_fd);
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLMcode curl_multi_setopt_ptr(CURLM* handle, CURLMoption option,
-                                           void* parameter);
+CURLMcode curl_multi_setopt_ptr(CURLM* handle, CURLMoption option,
+                                void* parameter);
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLMcode curl_multi_setopt_long(CURLM* handle, CURLMoption option,
-                                            long parameter);
+CURLMcode curl_multi_setopt_long(CURLM* handle, CURLMoption option,
+                                 long parameter);
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLMcode curl_multi_setopt_curl_off_t(CURLM* handle,
-                                                  CURLMoption option,
-                                                  curl_off_t parameter);
+CURLMcode curl_multi_setopt_curl_off_t(CURLM* handle, CURLMoption option,
+                                       curl_off_t parameter);
 
 // The wrapper method is needed because incomplete array type is not supported
-extern "C" CURLMcode curl_multi_poll_sapi(CURLM* multi_handle,
-                                          struct curl_waitfd* extra_fds,
-                                          unsigned int extra_nfds,
-                                          int timeout_ms, int* numfds);
+CURLMcode curl_multi_poll_sapi(CURLM* multi_handle,
+                               struct curl_waitfd* extra_fds,
+                               unsigned int extra_nfds, int timeout_ms,
+                               int* numfds);
 
 // The wrapper method is needed because incomplete array type is not supported
-extern "C" CURLMcode curl_multi_wait_sapi(CURLM* multi_handle,
-                                          struct curl_waitfd* extra_fds,
-                                          unsigned int extra_nfds,
-                                          int timeout_ms, int* numfds);
+CURLMcode curl_multi_wait_sapi(CURLM* multi_handle,
+                               struct curl_waitfd* extra_fds,
+                               unsigned int extra_nfds, int timeout_ms,
+                               int* numfds);
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLSHcode curl_share_setopt_ptr(CURLSH* handle, CURLSHoption option,
-                                            void* parameter);
+CURLSHcode curl_share_setopt_ptr(CURLSH* handle, CURLSHoption option,
+                                 void* parameter);
 
 // The wrapper method is needed to make the variadic argument explicit
-extern "C" CURLSHcode curl_share_setopt_long(CURLSH* handle,
-                                             CURLSHoption option,
-                                             long parameter);
+CURLSHcode curl_share_setopt_long(CURLSH* handle, CURLSHoption option,
+                                  long parameter);
+}
 
 #endif  // CURL_WRAPPER_H

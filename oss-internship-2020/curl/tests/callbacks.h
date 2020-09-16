@@ -17,13 +17,8 @@
 
 #include <curl/curl.h>
 
-extern "C" struct MemoryStruct {
-  char* memory;
-  size_t size;
-};
-
 // Append contents to the string stored by userp (userp is a MemoryStruct*)
-extern "C" size_t WriteToMemory(char* contents, size_t size, size_t num_bytes,
-                                void* userp);
+extern "C" size_t WriteToMemoryTests(char* contents, size_t size,
+                                     size_t num_bytes, void* userp);
 
 #endif  // TESTS_CALLBACKS_H

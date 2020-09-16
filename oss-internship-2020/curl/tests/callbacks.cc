@@ -17,19 +17,21 @@
 #include <cstdlib>
 #include <cstring>
 
-size_t WriteToMemory(char* contents, size_t size, size_t num_bytes,
-                     void* userp) {
-  size_t real_size = size * num_bytes;
-  auto* mem = static_cast<MemoryStruct*>(userp);
+#include "sandboxed_api/vars.h"
 
-  char* ptr =
-      static_cast<char*>(realloc(mem->memory, mem->size + real_size + 1));
+size_t WriteToMemoryTests(char* contents, size_t size, size_t num_bytes,
+                          void* userp) {
+  size_t real_size = size * num_bytes;
+  auto* mem = static_cast<sapi::LenValStruct*>(userp);
+
+  char* ptr = static_cast<char*>(realloc(mem->data, mem->size + real_size + 1));
   if (ptr == nullptr) return 0;
 
-  mem->memory = ptr;
-  memcpy(&(mem->memory[mem->size]), contents, real_size);
+  mem->data = ptr;
+  auto data = static_cast<char*>(mem->data);
+  memcpy(&(data[mem->size]), contents, real_size);
   mem->size += real_size;
-  mem->memory[mem->size] = 0;
+  data[mem->size] = 0;
 
   return real_size;
 }

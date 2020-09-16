@@ -17,11 +17,6 @@
 
 #include <curl/curl.h>
 
-extern "C" struct MemoryStruct {
-  char* memory;
-  size_t size;
-};
-
 extern "C" size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb,
                                       void* userp);
 
