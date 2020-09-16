@@ -147,19 +147,19 @@ std::string ReadUntil(const int socket, const std::string& str,
   // Read one char at a time until str is suffix of buf
   do {
     if (read_bytes >= max_request_size ||
-        read(socket, buf + read_bytes, 1) == -1) {
+        read(socket, buf + read_bytes, 1) < 1) {
       return "";
     }
     ++read_bytes;
-  } while (std::string{buf + std::max(size_t{0}, read_bytes - str.size())} !=
-           str);
+  } while (read_bytes < str.size() ||
+           std::string{buf + read_bytes - str.size()} != str);
 
   buf[read_bytes] = '\0';
   return std::string{buf};
 }
 
 // Parse HTTP headers to return the Content-Length
-size_t GetContentLength(const std::string& headers) {
+ssize_t GetContentLength(const std::string& headers) {
   // Find the Content-Length header
   const char* length_header_start = strstr(headers.c_str(), "Content-Length: ");
 
@@ -172,7 +172,7 @@ size_t GetContentLength(const std::string& headers) {
   const char* length_start = length_header_start + strlen("Content-Length: ");
   size_t length_bytes = strstr(length_start, "\r\n") - length_start;
   if (length_bytes >= 64) {
-    return 0;
+    return -1;
   }
 
   // Convert Content-Length string value to int
@@ -191,14 +191,13 @@ std::string ReadExact(int socket, size_t content_bytes) {
   do {
     int num_bytes;
     if ((num_bytes = read(socket, buf + read_bytes,
-                          sizeof(buf) - read_bytes - 1)) == -1) {
+                          sizeof(buf) - read_bytes - 1)) < 1) {
       return "";
     }
     read_bytes += num_bytes;
   } while (read_bytes < content_bytes);
 
   buf[content_bytes] = '\0';
-
   return std::string{buf};
 }
 
@@ -251,9 +250,15 @@ void CurlTestUtils::StartMockServer() {
     std::string headers =
         ReadUntil(accepted_socket, "\r\n\r\n", kMaxRequestSize);
 
+    if (headers == "") {
+      close(accepted_socket);
+      return;
+    }
+
     // Get the length of the request content
-    size_t content_length = GetContentLength(headers);
-    if (content_length > kMaxRequestSize - headers.size()) {
+    ssize_t content_length = GetContentLength(headers);
+    if (content_length > kMaxRequestSize - headers.size() ||
+        content_length < 0) {
       close(accepted_socket);
       return;
     }
