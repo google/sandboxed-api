@@ -75,8 +75,6 @@ The `examples` directory contains the sandboxed versions of example source codes
 
 To build these examples when building the library, the cmake variable `CURL_SAPI_ENABLE_EXAMPLES` must be set to `ON`. This enables Sandboxed API examples as well.
 
-The `callbacks.h` and `callbacks.cc` files implement all the callbacks used by the examples.
-
 ## Policy
 
 The `sandbox.h` file contains a policy allowing all is necessary for libcurl to perform simple requests. It is used by all the examples, except by example3. This example needs some additional policies and files in its namespace (since it uses HTTPS), and the file `example3.cc` shows how to easily extend an existing policy.
@@ -86,3 +84,7 @@ The `sandbox.h` file contains a policy allowing all is necessary for libcurl to 
 The `tests` folder contains some test cases created using Google Test. The class `CurlTestUtils` is used to facilitate some tasks that all test cases need, including the setup of a mock local server on which test requests are performed.
 
 To build these tests when building the library, the cmake variable `CURL_SAPI_ENABLE_TESTS` must be set to `ON`. This enables Sandboxed API tests as well.
+
+## Callbacks
+
+The `callbacks.h` and `callbacks.cc` files implement all the callbacks used by examples and tests.

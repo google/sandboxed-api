@@ -24,11 +24,6 @@
 // Helper class that can be used to test Curl Sandboxed
 class CurlTestUtils {
  protected:
-  struct MemoryStruct {
-    char* memory;
-    size_t size;
-  };
-
   // Initialize and set up the curl handle
   absl::Status CurlTestSetUp();
   // Clean up the curl handle
@@ -40,7 +35,7 @@ class CurlTestUtils {
   // Start a mock server (only once) that will manage connections for the tests
   // The server listens on a port asynchronously by creating a thread
   // The port number is stored in port_
-  // Responds with kSimpleResponse to a GET request
+  // Responds with "OK" to a GET request
   // Responds with the POST request fields to a POST request
   static void StartMockServer();
 
@@ -53,10 +48,8 @@ class CurlTestUtils {
   static constexpr absl::string_view kUrl = "http://127.0.0.1/";
   static long port_;
 
-  static constexpr absl::string_view kSimpleResponse = "OK";
-
  private:
-  sapi::v::LenVal chunk_{0};
+  std::unique_ptr<sapi::v::LenVal> chunk_;
 };
 
 #endif  // TESTS_H

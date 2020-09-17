@@ -20,11 +20,6 @@
 
 #include "../sandbox.h"
 
-struct MemoryStruct {
-  char* memory;
-  size_t size;
-};
-
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
@@ -41,7 +36,7 @@ int main(int argc, char* argv[]) {
 
   // Generate pointer to WriteMemoryCallback function
   void* function_ptr;
-  status = sandbox.rpc_channel()->Symbol("WriteMemoryCallback", &function_ptr);
+  status = sandbox.rpc_channel()->Symbol("WriteToMemory", &function_ptr);
   if (!status.ok()) {
     LOG(FATAL) << "sapi::Sandbox::rpc_channel().Symbol failed: " << status;
   }
@@ -74,7 +69,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Pass 'chunk' struct to the callback function
-  sapi::v::Struct<MemoryStruct> chunk;
+  sapi::v::LenVal chunk(0);
   curl_code =
       api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEDATA, chunk.PtrBoth());
   if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
@@ -96,13 +91,11 @@ int main(int argc, char* argv[]) {
   }
 
   // Retrieve memory size
-  sapi::v::Int size;
-  size.SetRemote(&(static_cast<sapi::LenValStruct*>(chunk.GetRemote()))->size);
-  status = sandbox.TransferFromSandboxee(&size);
+  status = sandbox.TransferFromSandboxee(&chunk);
   if (!status.ok()) {
     LOG(FATAL) << "sandbox.TransferFromSandboxee failed: " << status;
   }
-  std::cout << "memory size: " << size.GetValue() << " bytes" << std::endl;
+  std::cout << "memory size: " << chunk.GetDataSize() << " bytes" << std::endl;
 
   // Cleanup curl
   status = api.curl_easy_cleanup(&curl);

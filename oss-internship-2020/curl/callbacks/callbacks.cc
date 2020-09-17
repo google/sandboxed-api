@@ -16,21 +16,16 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
 #include "sandboxed_api/vars.h"
 
-// Function taken from curl's getinmemory.c
-size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb,
-                           void* userp) {
-  size_t real_size = size * nmemb;
+size_t WriteToMemory(char* contents, size_t size, size_t num_bytes,
+                     void* userp) {
+  size_t real_size = size * num_bytes;
   auto* mem = static_cast<sapi::LenValStruct*>(userp);
 
   char* ptr = static_cast<char*>(realloc(mem->data, mem->size + real_size + 1));
-  if (ptr == nullptr) {  // Out of memory
-    std::cout << "not enough memory (realloc returned NULL)\n";
-    return 0;
-  }
+  if (ptr == nullptr) return 0;
 
   mem->data = ptr;
   auto data = static_cast<char*>(mem->data);

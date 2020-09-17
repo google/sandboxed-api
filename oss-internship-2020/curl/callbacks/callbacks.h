@@ -17,8 +17,8 @@
 
 #include <curl/curl.h>
 
-// Append contents to the string stored by userp (userp is a MemoryStruct*)
-extern "C" size_t WriteToMemoryTests(char* contents, size_t size,
-                                     size_t num_bytes, void* userp);
+// Append contents to the string stored by userp, which is a sapi::LenValStruct*
+extern "C" size_t WriteToMemory(char* contents, size_t size, size_t num_bytes,
+                                void* userp);
 
 #endif  // TESTS_CALLBACKS_H

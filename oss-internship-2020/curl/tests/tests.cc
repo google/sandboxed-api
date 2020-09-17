@@ -108,7 +108,7 @@ TEST_F(CurlTest, GETResponse) {
   SAPI_ASSERT_OK_AND_ASSIGN(std::string response, PerformRequest());
 
   // Compare response with expected response
-  ASSERT_EQ(response, kSimpleResponse);
+  ASSERT_EQ(response, "OK");
 }
 
 TEST_F(CurlTest, POSTResponse) {

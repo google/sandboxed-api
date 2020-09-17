@@ -14,9 +14,6 @@
 
 #include "curl_wrapper.h"
 
-#include <cstdlib>
-#include <iostream>
-
 CURLcode curl_easy_setopt_ptr(CURL* handle, CURLoption option,
                               void* parameter) {
   return curl_easy_setopt(handle, option, parameter);

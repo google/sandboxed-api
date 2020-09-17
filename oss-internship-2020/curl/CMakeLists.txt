@@ -22,19 +22,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 option(CURL_SAPI_ENABLE_EXAMPLES "" ON)
 option(CURL_SAPI_ENABLE_TESTS "" ON)
 
-# Add callbacks used by examples
-if (CURL_SAPI_ENABLE_EXAMPLES)
+# Add callbacks used by examples and tests
+if (CURL_SAPI_ENABLE_EXAMPLES OR CURL_SAPI_ENABLE_TESTS)
   list(APPEND CURL_SAPI_CALLBACKS 
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/callbacks.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/callbacks.cc"
-  )
-endif()
-
-# Add callbacks used by tests
-if (CURL_SAPI_ENABLE_TESTS)
-  list(APPEND CURL_SAPI_CALLBACKS 
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/callbacks.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/callbacks.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/callbacks/callbacks.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/callbacks/callbacks.cc"
   )
 endif()
 

@@ -14,6 +14,7 @@
 
 #include "test_utils.h"
 
+#include <absl/strings/match.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -40,7 +41,8 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
   absl::StatusOr<CURL*> curl_handle = api_->curl_easy_init();
   if (!curl_handle.ok()) {
     return curl_handle.status();
-  } else if (!curl_handle.value()) {
+  }
+  if (!curl_handle.value()) {
     return absl::UnavailableError("curl_easy_init returned NULL ");
   }
   curl_ = std::make_unique<sapi::v::RemotePtr>(curl_handle.value());
@@ -53,7 +55,8 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
                                          sapi_url.PtrBefore());
   if (!curl_code.ok()) {
     return curl_code.status();
-  } else if (curl_code.value() != CURLE_OK) {
+  }
+  if (curl_code.value() != CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_ptr returned with the error code " +
         curl_code.value());
@@ -63,7 +66,8 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
   curl_code = api_->curl_easy_setopt_long(curl_.get(), CURLOPT_PORT, port_);
   if (!curl_code.ok()) {
     return curl_code.status();
-  } else if (curl_code.value() != CURLE_OK) {
+  }
+  if (curl_code.value() != CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_long returned with the error code " +
         curl_code.value());
@@ -72,7 +76,7 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
   // Generate pointer to the WriteToMemory callback
   void* function_ptr;
   absl::Status symbol =
-      sandbox_->rpc_channel()->Symbol("WriteToMemoryTests", &function_ptr);
+      sandbox_->rpc_channel()->Symbol("WriteToMemory", &function_ptr);
   if (!symbol.ok()) {
     return symbol;
   }
@@ -83,18 +87,21 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
                                          &remote_function_ptr);
   if (!curl_code.ok()) {
     return curl_code.status();
-  } else if (curl_code.value() != CURLE_OK) {
+  }
+  if (curl_code.value() != CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_ptr returned with the error code " +
         curl_code.value());
   }
 
   // Pass memory chunk object to the callback
+  chunk_ = std::make_unique<sapi::v::LenVal>(0);
   curl_code = api_->curl_easy_setopt_ptr(curl_.get(), CURLOPT_WRITEDATA,
-                                         chunk_.PtrBoth());
+                                         chunk_->PtrBoth());
   if (!curl_code.ok()) {
     return curl_code.status();
-  } else if (curl_code.value() != CURLE_OK) {
+  }
+  if (curl_code.value() != CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_ptr returned with the error code " +
         curl_code.value());
@@ -113,133 +120,101 @@ absl::StatusOr<std::string> CurlTestUtils::PerformRequest() {
   absl::StatusOr<int> curl_code = api_->curl_easy_perform(curl_.get());
   if (!curl_code.ok()) {
     return curl_code.status();
-  } else if (curl_code.value() != CURLE_OK) {
+  }
+  if (curl_code.value() != CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_perform returned with the error code " + curl_code.value());
   }
 
   // Get pointer to the memory chunk
-  sapi::v::GenericPtr remote_ptr;
-  remote_ptr.SetRemote(
-      &(static_cast<sapi::LenValStruct*>(chunk_.GetRemote()))->data);
-  absl::Status transfer = sandbox_->TransferFromSandboxee(&remote_ptr);
-  if (!transfer.ok()) {
-    return transfer;
-  }
-  void* chunk_ptr = (void*)remote_ptr.GetValue();
-
-  // Get the string
-  absl::StatusOr<std::string> response =
-      sandbox_->GetCString(sapi::v::RemotePtr(chunk_ptr));
-  if (!response.ok()) {
-    return response.status();
+  absl::Status status = sandbox_->TransferFromSandboxee(chunk_.get());
+  if (!status.ok()) {
+    return status;
   }
 
-  return response.value();
+  return std::string{reinterpret_cast<char*>(chunk_->GetData())};
 }
+
+namespace {
 
 // Read the socket until str is completely read
 std::string ReadUntil(const int socket, const std::string& str,
                       const size_t max_request_size) {
-  char buf[max_request_size] = {};
-  size_t read_bytes = 0;
+  std::string str_read;
+  str_read.reserve(max_request_size);
 
   // Read one char at a time until str is suffix of buf
-  do {
-    if (read_bytes >= max_request_size ||
-        read(socket, buf + read_bytes, 1) < 1) {
+  while (!absl::EndsWith(str_read, str)) {
+    char next_char;
+    if (str_read.size() >= max_request_size ||
+        read(socket, &next_char, 1) < 1) {
       return "";
     }
-    ++read_bytes;
-  } while (read_bytes < str.size() ||
-           std::string{buf + read_bytes - str.size()} != str);
+    str_read += next_char;
+  }
 
-  buf[read_bytes] = '\0';
-  return std::string{buf};
+  return str_read;
 }
 
 // Parse HTTP headers to return the Content-Length
 ssize_t GetContentLength(const std::string& headers) {
   // Find the Content-Length header
-  const char* length_header_start = strstr(headers.c_str(), "Content-Length: ");
+  std::string::size_type length_header_start = headers.find("Content-Length: ");
 
   // There is no Content-Length field
-  if (!length_header_start) {
+  if (length_header_start == std::string::npos) {
     return 0;
   }
 
   // Find Content-Length string
-  const char* length_start = length_header_start + strlen("Content-Length: ");
-  size_t length_bytes = strstr(length_start, "\r\n") - length_start;
+  std::string::size_type length_start =
+      length_header_start + std::string{"Content-Length: "}.size();
+  std::string::size_type length_bytes =
+      headers.find("\r\n", length_start) - length_start;
+
+  // length_bytes exceeds maximum
   if (length_bytes >= 64) {
     return -1;
   }
 
-  // Convert Content-Length string value to int
-  char content_length_string[64];
-  strncpy(content_length_string, length_start, length_bytes);
-
-  return atoi(content_length_string);
+  // Convert string to int and return
+  return std::stoi(headers.substr(length_start, length_bytes));
 }
 
 // Read exactly content_bytes from the socket
 std::string ReadExact(int socket, size_t content_bytes) {
-  char buf[content_bytes + 1] = {};
-  size_t read_bytes = 0;
+  std::string str_read;
+  str_read.reserve(content_bytes);
 
-  // Read until content_bytes chars are read
-  do {
-    int num_bytes;
-    if ((num_bytes = read(socket, buf + read_bytes,
-                          sizeof(buf) - read_bytes - 1)) < 1) {
+  // Read one char at a time until all chars are read
+  while (str_read.size() < content_bytes) {
+    char next_char;
+    if (read(socket, &next_char, 1) < 1) {
       return "";
     }
-    read_bytes += num_bytes;
-  } while (read_bytes < content_bytes);
+    str_read += next_char;
+  }
 
-  buf[content_bytes] = '\0';
-  return std::string{buf};
+  return str_read;
 }
 
-void CurlTestUtils::StartMockServer() {
-  // Get the socket file descriptor
-  int listening_socket = socket(AF_INET, SOCK_STREAM, 0);
-
-  // Create the socket address object
-  // The port is set to 0, meaning that it will be auto assigned
-  // Only local connections can access this socket
-  sockaddr_in socket_address{AF_INET, 0, htonl(INADDR_LOOPBACK)};
+// Listen on the socket and answer back to requests
+void ServerLoop(int listening_socket, sockaddr_in socket_address) {
   socklen_t socket_address_size = sizeof(socket_address);
-  if (listening_socket == -1) {
+
+  // Listen on the socket (maximum 1 connection)
+  if (listen(listening_socket, 1) == -1) {
     return;
   }
 
-  // Bind the file descriptor to the socket address object
-  if (bind(listening_socket, (sockaddr*)&socket_address, socket_address_size) ==
-      -1) {
-    return;
-  }
-
-  // Assign an available port to the socket address object
-  if (getsockname(listening_socket, (sockaddr*)&socket_address,
-                  &socket_address_size) == -1) {
-    return;
-  }
-
-  // Get the port number
-  port_ = ntohs(socket_address.sin_port);
-
-  // Set server_thread_ operation to socket listening
-  server_thread_ = std::thread([=] {
-    // Listen on the socket (maximum 1 connection)
-    if (listen(listening_socket, 1) == -1) {
-      return;
-    }
-
+  // Keep accepting connections until the thread is terminated
+  // (i.e. server_thread_ is assigned to a new thread or destroyed)
+  for (;;) {
     // File descriptor to the connection socket
     // This blocks the thread until a connection is established
-    int accepted_socket = accept(listening_socket, (sockaddr*)&socket_address,
-                                 (socklen_t*)&socket_address_size);
+    int accepted_socket =
+        accept(listening_socket, reinterpret_cast<sockaddr*>(&socket_address),
+               reinterpret_cast<socklen_t*>(&socket_address_size));
     if (accepted_socket == -1) {
       return;
     }
@@ -271,8 +246,7 @@ void CurlTestUtils::StartMockServer() {
         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: ";
 
     if (headers.substr(0, 3) == "GET") {
-      http_response += std::to_string(kSimpleResponse.size()) + "\r\n\r\n" +
-                       std::string{kSimpleResponse};
+      http_response += "2\r\n\r\nOK";
 
     } else if (headers.substr(0, 4) == "POST") {
       http_response +=
@@ -288,5 +262,40 @@ void CurlTestUtils::StartMockServer() {
 
     // Close the socket
     close(accepted_socket);
-  });
+  }
+}
+
+}  // namespace
+
+void CurlTestUtils::StartMockServer() {
+  // Get the socket file descriptor
+  int listening_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+  // Create the socket address object
+  // The port is set to 0, meaning that it will be auto assigned
+  // Only local connections can access this socket
+  sockaddr_in socket_address{AF_INET, 0, htonl(INADDR_LOOPBACK)};
+  socklen_t socket_address_size = sizeof(socket_address);
+  if (listening_socket == -1) {
+    return;
+  }
+
+  // Bind the file descriptor to the socket address object
+  if (bind(listening_socket, reinterpret_cast<sockaddr*>(&socket_address),
+           socket_address_size) == -1) {
+    return;
+  }
+
+  // Assign an available port to the socket address object
+  if (getsockname(listening_socket,
+                  reinterpret_cast<sockaddr*>(&socket_address),
+                  &socket_address_size) == -1) {
+    return;
+  }
+
+  // Get the port number
+  port_ = ntohs(socket_address.sin_port);
+
+  // Set server_thread_ operation to socket listening
+  server_thread_ = std::thread(ServerLoop, listening_socket, socket_address);
 }
