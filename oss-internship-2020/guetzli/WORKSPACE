@@ -1,0 +1,100 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+workspace(name = "guetzli_sandboxed")
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+
+# Include the Sandboxed API dependency if it does not already exist in this
+# project. This ensures that this workspace plays well with other external
+# dependencies that might use Sandboxed API.
+maybe(
+    git_repository,
+    name = "com_google_sandboxed_api",
+    # This example depends on the latest master. In an embedding project, it
+    # is advisable to pin Sandboxed API to a specific revision instead.
+    # commit = "ba47adc21d4c9bc316f3c7c32b0faaef952c111e",  # 2020-05-15
+    branch = "master",
+    remote = "https://github.com/google/sandboxed-api.git",
+)
+
+# From here on, Sandboxed API files are available. The statements below setup
+# transitive dependencies such as Abseil. Like above, those will only be
+# included if they don't already exist in the project.
+load(
+    "@com_google_sandboxed_api//sandboxed_api/bazel:sapi_deps.bzl",
+    "sapi_deps",
+)
+
+sapi_deps()
+
+# Need to separately setup Protobuf dependencies in order for the build rules
+# to work.
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+
+protobuf_deps()
+
+http_archive(
+    name = "guetzli",
+    build_file = "guetzli.BUILD",
+    sha256 = "39632357e49db83d9560bf0de560ad833352f36d23b109b0e995b01a37bddb57",
+    strip_prefix = "guetzli-master",
+    url = "https://github.com/google/guetzli/archive/master.zip",
+)
+
+http_archive(
+    name = "butteraugli",
+    build_file = "butteraugli.BUILD",
+    sha256 = "39632357e49db83d9560bf0de560ad833352f36d23b109b0e995b01a37bddb57",
+    strip_prefix = "guetzli-master/third_party/butteraugli",
+    url = "https://github.com/google/guetzli/archive/master.zip",
+)
+
+http_archive(
+    name = "png_archive",
+    build_file = "png.BUILD",
+    sha256 = "a941dc09ca00148fe7aaf4ecdd6a67579c293678ed1e1cf633b5ffc02f4f8cf7",
+    strip_prefix = "libpng-1.2.57",
+    url = "http://github.com/glennrp/libpng/archive/v1.2.57.zip",
+)
+
+http_archive(
+    name = "jpeg_archive",
+    build_file = "jpeg.BUILD",
+    sha256 = "240fd398da741669bf3c90366f58452ea59041cacc741a489b99f2f6a0bad052",
+    strip_prefix = "jpeg-9b",
+    url = "http://www.ijg.org/files/jpegsrc.v9b.tar.gz",
+)
+
+http_archive(
+    name = "net_zlib",
+    build_file = "zlib.BUILD",
+    sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",  # 2020-04-23
+    strip_prefix = "zlib-1.2.11",
+    urls = [
+        "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
+        "https://www.zlib.net/zlib-1.2.11.tar.gz",
+    ],
+)
+
+# GoogleTest/GoogleMock
+maybe(
+    http_archive,
+    name = "com_google_googletest",
+    sha256 = "a6ab7c7d6fd4dd727f6012b5d85d71a73d3aa1274f529ecd4ad84eb9ec4ff767",  # 2020-04-16
+    strip_prefix = "googletest-dcc92d0ab6c4ce022162a23566d44f673251eee4",
+    urls = ["https://github.com/google/googletest/archive/dcc92d0ab6c4ce022162a23566d44f673251eee4.zip"],
+)
