@@ -54,11 +54,11 @@ foreach(exe base multiple_files yaml_stream formatter)
 
 endforeach()
 
-add_executable(jsonnet_base_transaction
+add_executable(jsonnet_base_transacted
   jsonnet_base_transaction.cc
 )
 
-target_link_libraries(jsonnet_base_transaction PRIVATE
+target_link_libraries(jsonnet_base_transacted PRIVATE
     libjsonnet
     jsonnet_helper
     jsonnet_sapi

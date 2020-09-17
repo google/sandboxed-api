@@ -19,8 +19,11 @@
 void JsonnetTestHelper::TestSetUp() {
 
   // Get paths to where input and output is stored.
-  std::filesystem::path input_path = std::filesystem::current_path() / "tests_input";
-  std::filesystem::path output_path = std::filesystem::current_path() / "tests_output";
+  char buffer[256];
+  int error = readlink("/proc/self/exe", buffer, 256);
+  std::filesystem::path binary_path = dirname(buffer);
+  std::filesystem::path input_path = binary_path / "tests_input" / "dummy_input";
+  std::filesystem::path output_path = binary_path / "tests_output" / "dummy_output";
 
   // Set up sandbox and api.
   sandbox = std::make_unique<JsonnetBaseSandbox>(input_path.string(), output_path.string());
@@ -28,7 +31,7 @@ void JsonnetTestHelper::TestSetUp() {
   api = std::make_unique<JsonnetApi>(sandbox.get());
 
   // Initialize library's main structure.
-  SAPI_ASSERT_OK_AND_ASSIGN(JsonnetVm * vm_ptr, api->c_jsonnet_make());
+  SAPI_ASSERT_OK_AND_ASSIGN(JsonnetVm* vm_ptr, api->c_jsonnet_make());
   vm = std::make_unique<sapi::v::RemotePtr>(vm_ptr);
 
   if_jsonnet_vm_was_used = false;
@@ -124,7 +127,7 @@ void JsonnetTestHelper::Write_output(char* filename_or_directory,
       sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
       SAPI_ASSERT_OK_AND_ASSIGN(
           success, api->c_write_multi_output_files(output.get(),
-                                                   out_file_var.PtrBefore()));
+                                                   out_file_var.PtrBefore(), false));
       break;
     }
 
@@ -142,4 +145,10 @@ void JsonnetTestHelper::Write_output(char* filename_or_directory,
   ASSERT_THAT(success, testing::Eq(true));
 
   return;
+}
+
+std::string JsonnetTestHelper::Read_output(char* filename) {
+  std::ifstream input_stream(filename);
+  std::string contents((std::istreambuf_iterator<char>(input_stream)), std::istreambuf_iterator<char>());
+  return contents;
 }

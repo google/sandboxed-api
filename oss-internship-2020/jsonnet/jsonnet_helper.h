@@ -48,11 +48,11 @@ extern "C" char* c_jsonnet_realloc(struct JsonnetVm* vm, char* str, size_t sz);
 
 extern "C" bool c_write_multi_output_files(//struct JsonnetVm* vm, 
 char* output,
-                                           char* output_dir);
+                                           char* output_dir, bool show_output_file_names);
 
 bool write_multi_output_files(//struct JsonnetVm* vm, 
 char* output,
-                              const std::string& output_dir);
+                              const std::string& output_dir, bool show_output_file_names);
 
 extern "C" bool c_write_output_stream(//struct JsonnetVm* vm, 
 char* output,

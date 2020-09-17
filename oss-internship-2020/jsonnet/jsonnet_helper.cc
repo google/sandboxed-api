@@ -58,9 +58,9 @@ bool c_write_output_file(const char* output, const char* output_file) {
   return write_output_file(output, s_output_file);
 }
 
-bool c_write_multi_output_files(char* output, char* output_dir) {
+bool c_write_multi_output_files(char* output, char* output_dir, bool show_output_file_names) {
   std::string s_output_dir(output_dir);
-  return write_multi_output_files(output, s_output_dir);
+  return write_multi_output_files(output, s_output_dir, show_output_file_names);
 }
 
 bool c_write_output_stream(char* output, char* output_file) {

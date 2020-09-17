@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
   sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
   sapi::v::RemotePtr output_pointer(output.value());
   sapi::StatusOr<bool> success = api.c_write_multi_output_files(
-      &output_pointer, out_file_var.PtrBefore());
+      &output_pointer, out_file_var.PtrBefore(), true);
 
   CHECK(success.ok() && success.value())
       << "Writing to output file failed " << success.status() << " "
