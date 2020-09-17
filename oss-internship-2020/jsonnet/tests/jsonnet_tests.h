@@ -19,7 +19,10 @@
 #include "sandboxed_api/util/status_matchers.h"
 #include <filesystem>
 #include <iostream>
-
+#include <fstream>
+#include <streambuf>
+#include <string>
+#include <unistd.h>
 
 class JsonnetTestHelper {
  protected:
@@ -31,6 +34,7 @@ class JsonnetTestHelper {
   void Read_input(char* filename);
   void Evaluate_jsonnet_code(char* filename, Evaluation type);
   void Write_output(char* filename_or_directory, Evaluation type);
+  std::string Read_output(char* filename);
 
   std::unique_ptr<JsonnetBaseSandbox> sandbox;
   std::unique_ptr<JsonnetApi> api;
