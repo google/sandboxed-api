@@ -254,9 +254,8 @@ def sapi_library(
     native.genrule(
         name = name + ".isystem",
         outs = [name + ".isystem.list"],
-        cmd = """echo |
-                 $(CC) -E -x c++ - -v 2>&1 |
-                 awk '/> search starts here:/{flag=1;next}/End of search/{flag=0}flag' > $@
+        cmd = """$(CC) -E -x c++ -v /dev/null 2>&1 |
+                 awk '/> search starts here:/{f=1;next}/^End of search/{f=0}f{print $$1}' > $@
               """,
         toolchains = ["@bazel_tools//tools/cpp:current_cc_toolchain"],
     )
