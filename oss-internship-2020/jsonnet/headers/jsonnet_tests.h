@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <unistd.h>
+
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <streambuf>
+#include <string>
+
 #include "gtest/gtest.h"
 #include "jsonnet_base_sandbox.h"
 #include "jsonnet_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include <filesystem>
-#include <iostream>
-#include <fstream>
-#include <streambuf>
-#include <string>
-#include <unistd.h>
 
 class JsonnetTestHelper {
  protected:
@@ -32,7 +34,8 @@ class JsonnetTestHelper {
   void TestTearDown();
 
   void Read_input(char* filename);
-  void Evaluate_jsonnet_code(char* filename, Evaluation type, bool expected_correct);
+  void Evaluate_jsonnet_code(char* filename, Evaluation type,
+                             bool expected_correct);
   void Write_output(char* filename_or_directory, Evaluation type);
   std::string Read_output(char* filename);
 
@@ -45,5 +48,4 @@ class JsonnetTestHelper {
   std::string input_filename_in_sandboxee;
   bool if_jsonnet_vm_was_used;
   bool if_input_was_read;
-
 };

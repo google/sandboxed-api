@@ -25,7 +25,8 @@
 class JsonnetSapiSandbox : public JsonnetSandbox {
  public:
   explicit JsonnetSapiSandbox(std::string in_file, std::string out_directory)
-      : in_file_(std::move(in_file)), out_directory_(std::move(out_directory)) {}
+      : in_file_(std::move(in_file)),
+        out_directory_(std::move(out_directory)) {}
 
   // We need a slightly different policy than the default one
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
@@ -42,7 +43,8 @@ class JsonnetSapiSandbox : public JsonnetSandbox {
             __NR_futex,
             __NR_close,
         })
-        .AddDirectoryAt(sandbox2::file::CleanPath(&out_directory_[0]), "/output",
+        .AddDirectoryAt(sandbox2::file::CleanPath(&out_directory_[0]),
+                        "/output",
                         /*is_ro=*/false)
         .AddDirectoryAt(dirname(&in_file_[0]), "/input", true)
         .BuildOrDie();
@@ -53,7 +55,7 @@ class JsonnetSapiSandbox : public JsonnetSandbox {
   std::string out_directory_;
 };
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
@@ -111,7 +113,7 @@ int main(int argc, char* argv[]) {
       << success.value();
 
   // Clean up.
-  sapi::StatusOr<char*> result =
+  sapi::StatusOr<char *> result =
       api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
   CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
 

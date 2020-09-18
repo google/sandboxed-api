@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
   // Process jsonnet data.
   sapi::v::RemotePtr input_pointer(input.value());
   sapi::v::Int error;
-  sapi::StatusOr<char *> output = api.c_jsonnet_evaluate_snippet(
+  sapi::StatusOr<char*> output = api.c_jsonnet_evaluate_snippet(
       &vm_pointer, in_file_var.PtrBefore(), &input_pointer, error.PtrAfter());
   CHECK(output.ok() && !error.GetValue())
       << "Jsonnet code evaluation failed: " << output.status() << " "
