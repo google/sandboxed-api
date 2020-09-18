@@ -139,9 +139,9 @@ cc_library(
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:endian",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -173,8 +173,8 @@ cc_library(
     deps = [
         ":fileops",
         ":strerror",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -199,8 +199,8 @@ cc_library(
     hdrs = ["maps_parser.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )

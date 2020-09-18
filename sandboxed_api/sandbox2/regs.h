@@ -24,6 +24,7 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 
@@ -33,10 +34,6 @@ namespace sandbox2 {
 // assumes the process is already attached.
 class Regs {
  public:
-#if !defined(__x86_64__) && !defined(__powerpc64__)
-  static_assert(false, "No support for the current CPU architecture");
-#endif
-
   explicit Regs(pid_t pid) : pid_(pid) {}
 
   // Copies register values from the process
@@ -49,7 +46,7 @@ class Regs {
   absl::Status SkipSyscallReturnValue(uint64_t value);
 
   // Converts raw register values obtained on syscall entry to syscall info
-  Syscall ToSyscall(Syscall::CpuArch syscall_arch) const;
+  Syscall ToSyscall(cpu::Architecture syscall_arch) const;
 
   pid_t pid() const { return pid_; }
 
@@ -60,7 +57,7 @@ class Regs {
   friend class StackTracePeer;
 
   struct PtraceRegisters {
-#if defined(__x86_64__)
+#if defined(SAPI_X86_64)
     uint64_t r15;
     uint64_t r14;
     uint64_t r13;
@@ -88,7 +85,7 @@ class Regs {
     uint64_t es;
     uint64_t fs;
     uint64_t gs;
-#elif defined(__powerpc64__)
+#elif defined(SAPI_PPC64_LE)
     uint64_t gpr[32];
     uint64_t nip;
     uint64_t msr;
@@ -108,6 +105,13 @@ class Regs {
     uint64_t zero1;
     uint64_t zero2;
     uint64_t zero3;
+#elif defined(SAPI_ARM64)
+    uint64_t regs[31];
+    uint64_t sp;
+    uint64_t pc;
+    uint64_t pstate;
+#else
+    static_assert(false, "Host CPU architecture not supported, see config.h");
 #endif
   };
 
@@ -116,6 +120,9 @@ class Regs {
 
   // Registers fetched with ptrace(PR_GETREGS/GETREGSET, pid).
   PtraceRegisters user_regs_ = {};
+
+  // On AArch64, obtaining the syscall number needs a specific call to ptrace()
+  int syscall_number_ = 0;
 };
 
 }  // namespace sandbox2

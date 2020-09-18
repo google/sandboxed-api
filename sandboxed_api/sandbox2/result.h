@@ -28,6 +28,7 @@
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 
@@ -131,8 +132,8 @@ class Result {
   // Returns the current syscall architecture.
   // Client architecture when final_status_ == VIOLATION, might be different
   // from the host architecture (32-bit vs 64-bit syscalls).
-  Syscall::CpuArch GetSyscallArch() const {
-    return syscall_ ? syscall_->arch() : Syscall::kUnknown;
+  cpu::Architecture GetSyscallArch() const {
+    return syscall_ ? syscall_->arch() : cpu::kUnknown;
   }
 
   const std::vector<std::string> stack_trace() { return stack_trace_; }

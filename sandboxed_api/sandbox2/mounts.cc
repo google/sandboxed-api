@@ -27,19 +27,20 @@
 
 #include "google/protobuf/util/message_differencer.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace sandbox2 {
 namespace {
@@ -97,7 +98,7 @@ absl::string_view GetOutsidePath(const MountTree::Node& node) {
   }
 }
 
-sapi::StatusOr<std::string> ExistingPathInsideDir(
+absl::StatusOr<std::string> ExistingPathInsideDir(
     absl::string_view dir_path, absl::string_view relative_path) {
   auto path = file::CleanPath(file::JoinPath(dir_path, relative_path));
   if (file_util::fileops::StripBasename(path) != dir_path) {
@@ -112,6 +113,8 @@ sapi::StatusOr<std::string> ExistingPathInsideDir(
 absl::Status ValidateInterpreter(absl::string_view interpreter) {
   const absl::flat_hash_set<std::string> allowed_interpreters = {
       "/lib64/ld-linux-x86-64.so.2",
+      "/lib64/ld64.so.2",            // PPC64
+      "/lib/ld-linux-aarch64.so.1",  // AArch64
   };
 
   if (!allowed_interpreters.contains(interpreter)) {
@@ -132,15 +135,21 @@ std::string ResolveLibraryPath(absl::string_view lib_name,
   return "";
 }
 
+constexpr absl::string_view GetPlatformCPUName() {
+  switch (host_cpu::Architecture()) {
+    case cpu::kX8664:
+      return "x86_64";
+    case cpu::kPPC64LE:
+      return "ppc64";
+    case cpu::kArm64:
+      return "aarch64";
+    default:
+      return "unknown";
+  }
+}
+
 std::string GetPlatform(absl::string_view interpreter) {
-#if defined(__x86_64__)
-  constexpr absl::string_view kCpuPlatform = "x86_64";
-#elif defined(__powerpc64__)
-  constexpr absl::string_view kCpuPlatform = "ppc64";
-#else
-  constexpr absl::string_view kCpuPlatform = "unknown";
-#endif
-  return absl::StrCat(kCpuPlatform, "-linux-gnu");
+  return absl::StrCat(GetPlatformCPUName(), "-linux-gnu");
 }
 
 }  // namespace
@@ -496,7 +505,7 @@ std::string MountFlagsToString(uint64_t flags) {
       SAPI_MAP(MS_POSIXACL),
       SAPI_MAP(MS_UNBINDABLE),
       SAPI_MAP(MS_PRIVATE),
-      SAPI_MAP(MS_SLAVE),
+      SAPI_MAP(MS_SLAVE),  // Inclusive language: system constant
       SAPI_MAP(MS_SHARED),
       SAPI_MAP(MS_RELATIME),
       SAPI_MAP(MS_KERNMOUNT),

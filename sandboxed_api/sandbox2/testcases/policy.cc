@@ -23,7 +23,9 @@
 #include <cstdio>
 #include <cstdlib>
 
-#if defined(__x86_64__)
+#include "sandboxed_api/sandbox2/config.h"
+
+#ifdef SAPI_X86_64
 void TestAMD64SyscallMismatch() {
   int64_t result;
 
@@ -53,7 +55,7 @@ void TestAMD64SyscallMismatchFs() {
       : "rax", "rbx", "rcx");
   exit(-result);
 }
-#endif  // defined(__x86_64__)
+#endif
 
 void TestPtrace() {
   ptrace(PTRACE_SEIZE, getppid(), 0, 0);
@@ -97,14 +99,14 @@ int main(int argc, char** argv) {
 
   int testno = atoi(argv[1]);  // NOLINT
   switch (testno) {
-#if defined(__x86_64__)
+#ifdef SAPI_X86_64
     case 1:
       TestAMD64SyscallMismatch();
       break;
     case 2:
       TestAMD64SyscallMismatchFs();
       break;
-#endif  // defined(__x86_64__)
+#endif
     case 3:
       TestPtrace();
       break;

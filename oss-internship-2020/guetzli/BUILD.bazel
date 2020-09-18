@@ -1,0 +1,83 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load(
+    "@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl",
+    "sapi_library",
+)
+
+licenses(["notice"])
+
+cc_library(
+    name = "guetzli_wrapper",
+    srcs = ["guetzli_entry_points.cc"],
+    hdrs = ["guetzli_entry_points.h"],
+    deps = [
+        "@com_google_sandboxed_api//sandboxed_api:lenval_core",
+        "@com_google_sandboxed_api//sandboxed_api:vars",
+        "@guetzli//:guetzli_lib",
+        "@png_archive//:png",
+    ],
+)
+
+sapi_library(
+    name = "guetzli_sapi",
+    srcs = ["guetzli_transaction.cc"],
+    hdrs = [
+        "guetzli_sandbox.h",
+        "guetzli_transaction.h",
+    ],
+    functions = [
+        "ProcessJpeg",
+        "ProcessRgb",
+        "WriteDataToFd",
+    ],
+    input_files = ["guetzli_entry_points.h"],
+    lib = ":guetzli_wrapper",
+    lib_name = "Guetzli",
+    namespace = "guetzli::sandbox",
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "guetzli_sandboxed",
+    srcs = ["guetzli_sandboxed.cc"],
+    deps = [
+        ":guetzli_sapi",
+    ],
+)
+
+cc_test(
+    name = "transaction_tests",
+    size = "large",
+    srcs = ["guetzli_transaction_test.cc"],
+    data = glob(["testdata/*"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:guetzli_sapi",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "sapi_lib_tests",
+    size = "large",
+    srcs = ["guetzli_sapi_test.cc"],
+    data = glob(["testdata/*"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:guetzli_sapi",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

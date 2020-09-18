@@ -41,7 +41,12 @@ STATIC_LINKOPTS = [
 ]
 
 # TODO(https://github.com/bazelbuild/bazel/issues/8672): Remove this workaround
-EXTRA_FULLY_STATIC_LINKOPTS = ["-l:libstdc++.a"]
+#     Change is scheduled for Bazel 4.0. Specifying
+#     `--incompatible_linkopts_to_linklibs` also works
+EXTRA_FULLY_STATIC_LINKOPTS = [
+    "-l:libstdc++.a",
+    "-l:libm.a",
+]
 
 cc_binary(
     name = "abort",
@@ -173,6 +178,7 @@ cc_binary(
         "fully_static_link",  # link libc statically
     ],
     linkstatic = 1,  # prefer static libraries
+    deps = ["//sandboxed_api/sandbox2:config"],
 )
 
 # security: disable=cc-static-no-pie

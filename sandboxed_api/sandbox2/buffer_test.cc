@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -83,18 +84,19 @@ std::unique_ptr<Policy> BufferTestcasePolicy() {
                  .AllowSyscall(__NR_lseek)
                  .AllowSyscall(__NR_close)
                  .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+#ifdef __NR_open
                  .BlockSyscallWithErrno(__NR_open, ENOENT)
+#endif
                  .BlockSyscallWithErrno(__NR_openat, ENOENT)
+#ifdef __NR_access
                  // On Debian, even static binaries check existence of
                  // /etc/ld.so.nohwcap.
                  .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
+#ifdef __NR_faccessat
+                 .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
+#endif
                  .BuildOrDie();
-
-#if defined(__powerpc64__)
-
-  s2p->AllowUnsafeMmapFiles();
-  s2p->AllowUnsafeMmapShared();
-#endif /* defined(__powerpc64__) */
 
   return s2p;
 }

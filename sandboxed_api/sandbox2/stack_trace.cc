@@ -31,6 +31,7 @@
 #include "absl/strings/strip.h"
 #include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -85,6 +86,9 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
       // libunwind
       .AllowSyscall(__NR_fstat)
       .AllowSyscall(__NR_lseek)
+#ifdef __NR__llseek
+      .AllowSyscall(__NR__llseek)  // Newer glibc on PPC
+#endif
       .AllowSyscall(__NR_mincore)
       .AllowSyscall(__NR_mprotect)
       .AllowSyscall(__NR_munmap)
@@ -270,6 +274,9 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
 }
 
 std::vector<std::string> GetStackTrace(const Regs* regs, const Mounts& mounts) {
+  if constexpr (host_cpu::IsArm64()) {
+    return {"[Stack traces unavailable]"};
+  }
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
     return {"[Stacktraces disabled]"};
   }

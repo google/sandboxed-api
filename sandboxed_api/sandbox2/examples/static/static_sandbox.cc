@@ -52,8 +52,10 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       // Allow the getpid() syscall.
       .AllowSyscall(__NR_getpid)
 
+#ifdef __NR_access
       // On Debian, even static binaries check existence of /etc/ld.so.nohwcap.
       .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
 
       // Examples for AddPolicyOnSyscall:
       .AddPolicyOnSyscall(__NR_write,

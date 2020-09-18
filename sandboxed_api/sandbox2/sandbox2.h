@@ -26,6 +26,7 @@
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -33,7 +34,6 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace sandbox2 {
 
@@ -76,7 +76,7 @@ class Sandbox2 final {
   // Waits for sandbox execution to finish within the timeout.
   // Returns execution result or a DeadlineExceededError if the sandboxee does
   // not finish in time.
-  sapi::StatusOr<Result> AwaitResultWithTimeout(absl::Duration timeout);
+  absl::StatusOr<Result> AwaitResultWithTimeout(absl::Duration timeout);
 
   // Requests termination of the sandboxee.
   // Sandbox should still waited with AwaitResult(), as it may finish for other

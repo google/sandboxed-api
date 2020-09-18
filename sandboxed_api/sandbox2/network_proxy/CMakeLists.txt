@@ -33,14 +33,14 @@ add_library(sandbox2_network_proxy_filtering STATIC
   filtering.h
 )
 add_library(sandbox2::network_proxy_filtering ALIAS sandbox2_network_proxy_filtering)
-target_link_libraries(sandbox2_network_proxy_filtering PRIVATE
-  absl::memory
-  glog::glog
-  sandbox2::comms
-  sandbox2::fileops
-  sapi::base
+target_link_libraries(sandbox2_network_proxy_filtering
+  PRIVATE absl::memory
+          absl::status
+          glog::glog
+          sandbox2::comms
+          sandbox2::fileops
+          sapi::base
   PUBLIC sapi::status
-  sapi::statusor
 )
 
 # sandboxed_api/sandbox2/network_proxy:client
@@ -54,6 +54,7 @@ target_link_libraries(sandbox2_network_proxy_client PRIVATE
   absl::synchronization
   glog::glog
   sandbox2::comms
+  sandbox2::config
   sandbox2::strerror
   sapi::base
   sapi::status

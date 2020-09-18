@@ -84,7 +84,9 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
           __NR_kill,
           __NR_tgkill,
           __NR_tkill,
+#ifdef __NR_readlink
           __NR_readlink,
+#endif
 #ifdef __NR_arch_prctl  // x86-64 only
           __NR_arch_prctl,
 #endif
@@ -391,8 +393,8 @@ absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
   return var->TransferFromSandboxee(GetRpcChannel(), pid());
 }
 
-sapi::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
-                                                  uint64_t max_length) {
+absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
+                                                uint64_t max_length) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }

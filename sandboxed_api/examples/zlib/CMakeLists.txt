@@ -32,11 +32,11 @@ add_executable(main_zlib
   main_zlib.cc
 )
 target_link_libraries(main_zlib PRIVATE
+  absl::status
   sapi::base
   glog::glog
   sapi::flags
   sapi::sapi
   sapi::status
-  sapi::statusor
   sapi::zlib_sapi
 )
