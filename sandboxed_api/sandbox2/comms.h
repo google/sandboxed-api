@@ -105,7 +105,7 @@ class Comms {
   // avoid protobuf serialization issues.
   uint64_t GetMaxMsgSize() const { return std::numeric_limits<int32_t>::max(); }
 
-  bool SendTLV(uint32_t tag, uint64_t length, const uint8_t* bytes);
+  bool SendTLV(uint32_t tag, uint64_t length, const void* value);
   // Receive a TLV structure, the memory for the value will be allocated
   // by std::vector.
   bool RecvTLV(uint32_t* tag, std::vector<uint8_t>* value);
@@ -190,8 +190,8 @@ class Comms {
   socklen_t CreateSockaddrUn(sockaddr_un* sun);
 
   // Support for EINTR and size completion.
-  bool Send(const uint8_t* bytes, uint64_t len);
-  bool Recv(uint8_t* bytes, uint64_t len);
+  bool Send(const void* data, uint64_t len);
+  bool Recv(void* data, uint64_t len);
 
   // Receives tag and length. Assumes that the `tlv_transmission_mutex_` mutex
   // is locked.
@@ -212,7 +212,7 @@ class Comms {
 
   template <typename T>
   bool SendGeneric(T value, uint32_t tag) {
-    return SendTLV(tag, sizeof(T), reinterpret_cast<const uint8_t*>(&value));
+    return SendTLV(tag, sizeof(T), &value);
   }
 };
 

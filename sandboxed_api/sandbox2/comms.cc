@@ -228,7 +228,7 @@ void Comms::Terminate() {
   }
 }
 
-bool Comms::SendTLV(uint32_t tag, uint64_t length, const uint8_t* bytes) {
+bool Comms::SendTLV(uint32_t tag, uint64_t length, const void* value) {
   if (length > GetMaxMsgSize()) {
     SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%u > %u)", length,
                  GetMaxMsgSize());
@@ -249,14 +249,14 @@ bool Comms::SendTLV(uint32_t tag, uint64_t length, const uint8_t* bytes) {
                 length);
   {
     absl::MutexLock lock(&tlv_send_transmission_mutex_);
-    if (!Send(reinterpret_cast<uint8_t*>(&tag), sizeof(tag))) {
+    if (!Send(&tag, sizeof(tag))) {
       return false;
     }
-    if (!Send(reinterpret_cast<uint8_t*>(&length), sizeof(length))) {
+    if (!Send(&length, sizeof(length))) {
       return false;
     }
     if (length > 0) {
-      if (!Send(bytes, length)) {
+      if (!Send(value, length)) {
         return false;
       }
     }
@@ -279,8 +279,7 @@ bool Comms::RecvString(std::string* v) {
 }
 
 bool Comms::SendString(const std::string& v) {
-  return SendTLV(kTagString, v.length(),
-                 reinterpret_cast<const uint8_t*>(v.c_str()));
+  return SendTLV(kTagString, v.length(), v.c_str());
 }
 
 bool Comms::RecvBytes(std::vector<uint8_t>* buffer) {
@@ -513,8 +512,9 @@ socklen_t Comms::CreateSockaddrUn(sockaddr_un* sun) {
   return slen;
 }
 
-bool Comms::Send(const uint8_t* bytes, uint64_t len) {
+bool Comms::Send(const void* data, uint64_t len) {
   uint64_t total_sent = 0;
+  const char* bytes = reinterpret_cast<const char*>(data);
   const auto op = [bytes, len, &total_sent](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;
     return TEMP_FAILURE_RETRY(write(fd, &bytes[total_sent], len - total_sent));
@@ -545,8 +545,9 @@ bool Comms::Send(const uint8_t* bytes, uint64_t len) {
   return true;
 }
 
-bool Comms::Recv(uint8_t* bytes, uint64_t len) {
+bool Comms::Recv(void* data, uint64_t len) {
   uint64_t total_recv = 0;
+  char* bytes = reinterpret_cast<char*>(data);
   const auto op = [bytes, len, &total_recv](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;
     return TEMP_FAILURE_RETRY(read(fd, &bytes[total_recv], len - total_recv));
