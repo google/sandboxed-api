@@ -32,7 +32,7 @@ class JsonnetTestHelper {
   void TestTearDown();
 
   void Read_input(char* filename);
-  void Evaluate_jsonnet_code(char* filename, Evaluation type);
+  void Evaluate_jsonnet_code(char* filename, Evaluation type, bool expected_correct);
   void Write_output(char* filename_or_directory, Evaluation type);
   std::string Read_output(char* filename);
 

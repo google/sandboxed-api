@@ -38,6 +38,14 @@ cd examples
     absolute/path/to/the/output_directory
 ```
 
-All three tools support evaluating one input file (possibly relying on multiple other files, e.x. by jsonnet `import` command; the files must be held in the same directory as input file) into one or more output files. Example jsonnet codes to evaluate in a one-in-one-out manner can be found [here](https://github.com/google/jsonnet/tree/master/examples). Example code producing multiple output files or YAML stream files can be found in the `examples/jsonnet_codes` directory, in files called `multiple_files_example.jsonnet` and `yaml_stream_example.jsonnet`, respectively.
+All three tools support evaluating one input file (possibly relying on multiple other files, e.x. by jsonnet `import` command; the files must be held in the same directory as input file) into one or more output files. Example jsonnet codes to evaluate in a one-in-one-out manner can be found [here](https://github.com/google/jsonnet/tree/master/examples). Example code producing multiple output files or YAML stream files can be found in the `examples/jsonnet_codes` directory (along with some other examples copied with minimal changes from the library files), in files called `multiple_files_example.jsonnet` and `yaml_stream_example.jsonnet`, respectively. In the `examples/jsonnet_codes_expected_output` directory one can found outputs the mentioned above files' evaluation should produce.
 
 The formatter reads one input file and produces one output file as a result. Example code for this tool can also be found in `examples/jsonnet_codes` directory, in a file called `formatter_example.jsonnet`.
+
+## Testing
+
+A few tests prepared with a use of [Google Test](https://github.com/google/googletest) framework can be found in the `tests/` directory. To run them type:
+```
+cd tests
+./tests
+```
