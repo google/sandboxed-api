@@ -65,11 +65,13 @@ void JsonnetTestHelper::Read_input(char* filename) {
                             api->c_read_input(0, in_file_var.PtrBefore()));
   input = std::make_unique<sapi::v::RemotePtr>(input_ptr);
 
+  if_input_was_read = true;
+
   return;
 }
 
 // Evaluate jsonnet code.
-void JsonnetTestHelper::Evaluate_jsonnet_code(char* filename, Evaluation type) {
+void JsonnetTestHelper::Evaluate_jsonnet_code(char* filename, Evaluation type, bool expected_correct) {
   sapi::v::ConstCStr in_file_var(input_filename_in_sandboxee.c_str());
   sapi::v::Int error;
   char* output_ptr;
@@ -100,8 +102,15 @@ void JsonnetTestHelper::Evaluate_jsonnet_code(char* filename, Evaluation type) {
     }
   }
 
-  ASSERT_THAT(error.GetValue(), testing::Eq(0));
+  if (expected_correct) {
+    ASSERT_THAT(error.GetValue(), testing::Eq(0));
+  } else {
+    ASSERT_THAT(error.GetValue(), testing::Eq(1));
+  }
+
   output = std::make_unique<sapi::v::RemotePtr>(output_ptr);
+
+  if_jsonnet_vm_was_used = true;
 
   return;
 }
@@ -147,6 +156,7 @@ void JsonnetTestHelper::Write_output(char* filename_or_directory,
   return;
 }
 
+// Reading the output written to a file by library function / expected output
 std::string JsonnetTestHelper::Read_output(char* filename) {
   std::ifstream input_stream(filename);
   std::string contents((std::istreambuf_iterator<char>(input_stream)), std::istreambuf_iterator<char>());

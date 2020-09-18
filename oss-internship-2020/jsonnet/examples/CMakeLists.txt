@@ -24,6 +24,7 @@ add_custom_command(
 
 include_directories(
   ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/headers
   ${PROJECT_BINARY_DIR}/gen_files
 )
 
