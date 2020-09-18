@@ -14,24 +14,25 @@
 
 #include "jsonnet_tests.h"
 
-
 // Prepare what is needed to perform a test.
 void JsonnetTestHelper::TestSetUp() {
-
   // Get paths to where input and output is stored.
   char buffer[256];
   int error = readlink("/proc/self/exe", buffer, 256);
   std::filesystem::path binary_path = dirname(buffer);
-  std::filesystem::path input_path = binary_path / "tests_input" / "dummy_input";
-  std::filesystem::path output_path = binary_path / "tests_output" / "dummy_output";
+  std::filesystem::path input_path =
+      binary_path / "tests_input" / "dummy_input";
+  std::filesystem::path output_path =
+      binary_path / "tests_output" / "dummy_output";
 
   // Set up sandbox and api.
-  sandbox = std::make_unique<JsonnetBaseSandbox>(input_path.string(), output_path.string());
+  sandbox = std::make_unique<JsonnetBaseSandbox>(input_path.string(),
+                                                 output_path.string());
   ASSERT_THAT(sandbox->Init(), sapi::IsOk());
   api = std::make_unique<JsonnetApi>(sandbox.get());
 
   // Initialize library's main structure.
-  SAPI_ASSERT_OK_AND_ASSIGN(JsonnetVm* vm_ptr, api->c_jsonnet_make());
+  SAPI_ASSERT_OK_AND_ASSIGN(JsonnetVm * vm_ptr, api->c_jsonnet_make());
   vm = std::make_unique<sapi::v::RemotePtr>(vm_ptr);
 
   if_jsonnet_vm_was_used = false;
@@ -43,8 +44,8 @@ void JsonnetTestHelper::TestSetUp() {
 // Clean up after a test.
 void JsonnetTestHelper::TestTearDown() {
   if (if_jsonnet_vm_was_used) {
-    SAPI_ASSERT_OK_AND_ASSIGN(char* result,
-                              api->c_jsonnet_realloc(vm.get(), output.get(), 0));
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        char* result, api->c_jsonnet_realloc(vm.get(), output.get(), 0));
   }
   ASSERT_THAT(api->c_jsonnet_destroy(vm.get()), sapi::IsOk());
   if (if_input_was_read) {
@@ -71,7 +72,8 @@ void JsonnetTestHelper::Read_input(char* filename) {
 }
 
 // Evaluate jsonnet code.
-void JsonnetTestHelper::Evaluate_jsonnet_code(char* filename, Evaluation type, bool expected_correct) {
+void JsonnetTestHelper::Evaluate_jsonnet_code(char* filename, Evaluation type,
+                                              bool expected_correct) {
   sapi::v::ConstCStr in_file_var(input_filename_in_sandboxee.c_str());
   sapi::v::Int error;
   char* output_ptr;
@@ -135,8 +137,8 @@ void JsonnetTestHelper::Write_output(char* filename_or_directory,
       std::string out_file_in_sandboxee(std::string("/output/"));
       sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
       SAPI_ASSERT_OK_AND_ASSIGN(
-          success, api->c_write_multi_output_files(output.get(),
-                                                   out_file_var.PtrBefore(), false));
+          success, api->c_write_multi_output_files(
+                       output.get(), out_file_var.PtrBefore(), false));
       break;
     }
 
@@ -159,6 +161,7 @@ void JsonnetTestHelper::Write_output(char* filename_or_directory,
 // Reading the output written to a file by library function / expected output
 std::string JsonnetTestHelper::Read_output(char* filename) {
   std::ifstream input_stream(filename);
-  std::string contents((std::istreambuf_iterator<char>(input_stream)), std::istreambuf_iterator<char>());
+  std::string contents((std::istreambuf_iterator<char>(input_stream)),
+                       std::istreambuf_iterator<char>());
   return contents;
 }
