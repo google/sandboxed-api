@@ -17,7 +17,7 @@
 
 #include "jsonnet_base_sandbox.h"
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
@@ -70,14 +70,14 @@ int main(int argc, char* argv[]) {
   sapi::v::RemotePtr output_pointer(output.value());
   sapi::StatusOr<bool> success;
 
-  success = api.c_write_output_stream(&output_pointer,
-                                      out_file_var.PtrBefore());
+  success =
+      api.c_write_output_stream(&output_pointer, out_file_var.PtrBefore());
   CHECK(success.ok() && success.value())
       << "Writing to output file failed " << success.status() << " "
       << success.value();
 
   // Clean up.
-  sapi::StatusOr<char*> result =
+  sapi::StatusOr<char *> result =
       api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
   CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
 
