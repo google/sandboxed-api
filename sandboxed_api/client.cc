@@ -229,7 +229,7 @@ void HandleCallMsg(const FuncCall& call, FuncRet* ret) {
 }
 
 // Handles requests to allocate memory inside the sandboxee.
-void HandleAllocMsg(const uintptr_t size, FuncRet* ret) {
+void HandleAllocMsg(const size_t size, FuncRet* ret) {
   VLOG(1) << "HandleAllocMsg: size=" << size;
 
   ret->ret_type = v::Type::kPointer;
@@ -237,16 +237,15 @@ void HandleAllocMsg(const uintptr_t size, FuncRet* ret) {
   // Memory is copied to the pointer using an API that the memory sanitizer
   // is blind to (process_vm_writev). Initialize the memory here so that
   // the sandboxed code can still be tested with the memory sanitizer.
-  ret->int_val =
-      reinterpret_cast<uintptr_t>(calloc(1, static_cast<size_t>(size)));
+  ret->int_val = reinterpret_cast<uintptr_t>(calloc(1, size));
 #else
-  ret->int_val = reinterpret_cast<uintptr_t>(malloc(static_cast<size_t>(size)));
+  ret->int_val = reinterpret_cast<uintptr_t>(malloc(size));
 #endif
   ret->success = true;
 }
 
 // Like HandleAllocMsg(), but handles requests to reallocate memory.
-void HandleReallocMsg(uintptr_t ptr, uintptr_t size, FuncRet* ret) {
+void HandleReallocMsg(uintptr_t ptr, size_t size, FuncRet* ret) {
   VLOG(1) << "HandleReallocMsg(" << absl::StrCat(absl::Hex(ptr)) << ", " << size
           << ")";
 #ifdef MEMORY_SANITIZER
@@ -363,14 +362,13 @@ void ServeRequest(sandbox2::Comms* comms) {
       break;
     case comms::kMsgAllocate:
       VLOG(1) << "Client::kMsgAllocate";
-      HandleAllocMsg(BytesAs<uintptr_t>(bytes), &ret);
+      HandleAllocMsg(BytesAs<size_t>(bytes), &ret);
       break;
     case comms::kMsgReallocate:
       VLOG(1) << "Client::kMsgReallocate";
       {
         auto req = BytesAs<comms::ReallocRequest>(bytes);
-        HandleReallocMsg(static_cast<uintptr_t>(req.old_addr),
-                         static_cast<uintptr_t>(req.size), &ret);
+        HandleReallocMsg(req.old_addr, req.size, &ret);
       }
       break;
     case comms::kMsgFree:

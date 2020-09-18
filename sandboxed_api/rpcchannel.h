@@ -61,7 +61,7 @@ class RPCChannel {
   absl::Status Close(int remote_fd);
 
   // Returns length of a null-terminated c-style string (invokes strlen).
-  absl::StatusOr<uint64_t> Strlen(void* str);
+  absl::StatusOr<size_t> Strlen(void* str);
 
   sandbox2::Comms* comms() const { return comms_; }
 

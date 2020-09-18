@@ -134,7 +134,7 @@ TEST(StringopTest, RawStringLength) {
   ASSERT_THAT(sandbox.Init(), IsOk());
   StringopApi api(&sandbox);
   SAPI_ASSERT_OK_AND_ASSIGN(void* target_mem_ptr, api.get_raw_c_string());
-  SAPI_ASSERT_OK_AND_ASSIGN(uint64_t len,
+  SAPI_ASSERT_OK_AND_ASSIGN(size_t len,
                        sandbox.rpc_channel()->Strlen(target_mem_ptr));
   EXPECT_THAT(len, Eq(10));
 }
@@ -144,7 +144,7 @@ TEST(StringopTest, RawStringReading) {
   ASSERT_THAT(sandbox.Init(), IsOk());
   StringopApi api(&sandbox);
   SAPI_ASSERT_OK_AND_ASSIGN(void* target_mem_ptr, api.get_raw_c_string());
-  SAPI_ASSERT_OK_AND_ASSIGN(uint64_t len,
+  SAPI_ASSERT_OK_AND_ASSIGN(size_t len,
                        sandbox.rpc_channel()->Strlen(target_mem_ptr));
   EXPECT_THAT(len, Eq(10));
 

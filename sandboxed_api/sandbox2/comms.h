@@ -60,7 +60,7 @@ class Comms {
   static constexpr uint32_t kTagFd = 0X80000201;
 
   // Any payload size above this limit will LOG(WARNING).
-  static constexpr uint64_t kWarnMsgSize = (256ULL << 20);
+  static constexpr size_t kWarnMsgSize = (256ULL << 20);
 
   // Sandbox2-specific convention where FD=1023 is always passed to the
   // sandboxed process as a communication channel (encapsulated in the
@@ -103,9 +103,9 @@ class Comms {
   // Note: The actual size is "unlimited", although the Buffer API is more
   // efficient for large transfers. There is an arbitrary limit to ~2GiB to
   // avoid protobuf serialization issues.
-  uint64_t GetMaxMsgSize() const { return std::numeric_limits<int32_t>::max(); }
+  size_t GetMaxMsgSize() const { return std::numeric_limits<int32_t>::max(); }
 
-  bool SendTLV(uint32_t tag, uint64_t length, const void* value);
+  bool SendTLV(uint32_t tag, size_t length, const void* value);
   // Receive a TLV structure, the memory for the value will be allocated
   // by std::vector.
   bool RecvTLV(uint32_t* tag, std::vector<uint8_t>* value);
@@ -113,7 +113,7 @@ class Comms {
   // by std::string.
   bool RecvTLV(uint32_t* tag, std::string* value);
   // Receives a TLV value into a specified buffer without allocating memory.
-  bool RecvTLV(uint32_t* tag, uint64_t* length, void* buffer, uint64_t buffer_size);
+  bool RecvTLV(uint32_t* tag, size_t* length, void* buffer, size_t buffer_size);
 
   // Sends/receives various types of data.
   bool RecvUint8(uint8_t* v) { return RecvIntGeneric(v, kTagUint8); }
@@ -138,7 +138,7 @@ class Comms {
   bool SendString(const std::string& v);
 
   bool RecvBytes(std::vector<uint8_t>* buffer);
-  bool SendBytes(const uint8_t* v, uint64_t len);
+  bool SendBytes(const uint8_t* v, size_t len);
   bool SendBytes(const std::vector<uint8_t>& buffer);
 
   // Receives remote process credentials.
@@ -183,19 +183,18 @@ class Comms {
   struct ABSL_ATTRIBUTE_PACKED InternalTLV {
     uint32_t tag;
     uint32_t len;
-    uint64_t val;
   };
 
   // Fills sockaddr_un struct with proper values.
   socklen_t CreateSockaddrUn(sockaddr_un* sun);
 
   // Support for EINTR and size completion.
-  bool Send(const void* data, uint64_t len);
-  bool Recv(void* data, uint64_t len);
+  bool Send(const void* data, size_t len);
+  bool Recv(void* data, size_t len);
 
   // Receives tag and length. Assumes that the `tlv_transmission_mutex_` mutex
   // is locked.
-  bool RecvTL(uint32_t* tag, uint64_t* length)
+  bool RecvTL(uint32_t* tag, size_t* length)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(tlv_recv_transmission_mutex_);
 
   // T has to be a ContiguousContainer
@@ -203,7 +202,7 @@ class Comms {
   bool RecvTLVGeneric(uint32_t* tag, T* value);
 
   // Receives arbitrary integers.
-  bool RecvInt(void* buffer, uint64_t len, uint32_t tag);
+  bool RecvInt(void* buffer, size_t len, uint32_t tag);
 
   template <typename T>
   bool RecvIntGeneric(T* output, uint32_t tag) {
