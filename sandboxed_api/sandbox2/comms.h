@@ -109,6 +109,9 @@ class Comms {
   // Receive a TLV structure, the memory for the value will be allocated
   // by std::vector.
   bool RecvTLV(uint32_t* tag, std::vector<uint8_t>* value);
+  // Receive a TLV structure, the memory for the value will be allocated
+  // by std::string.
+  bool RecvTLV(uint32_t* tag, std::string* value);
   // Receives a TLV value into a specified buffer without allocating memory.
   bool RecvTLV(uint32_t* tag, uint64_t* length, void* buffer, uint64_t buffer_size);
 
@@ -174,12 +177,6 @@ class Comms {
   // State of the channel (enum), socket will have to be connected later on.
   State state_ = State::kUnconnected;
 
-  // TLV structure used to pass messages around.
-  struct TLV {
-    uint32_t tag;
-    std::vector<uint8_t> value;
-  };
-
   // Special struct for passing credentials or FDs. Different from the one above
   // as it inlines the value. This is important as the data is transmitted using
   // sendmsg/recvmsg instead of send/recv.
@@ -201,8 +198,9 @@ class Comms {
   bool RecvTL(uint32_t* tag, uint64_t* length)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(tlv_recv_transmission_mutex_);
 
-  // Receives whole TLV structure, allocates memory for the data.
-  bool RecvTLV(TLV* tlv);
+  // T has to be a ContiguousContainer
+  template <typename T>
+  bool RecvTLVGeneric(uint32_t* tag, T* value);
 
   // Receives arbitrary integers.
   bool RecvInt(void* buffer, uint64_t len, uint32_t tag);

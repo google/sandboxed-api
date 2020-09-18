@@ -265,17 +265,16 @@ bool Comms::SendTLV(uint32_t tag, uint64_t length, const uint8_t* bytes) {
 }
 
 bool Comms::RecvString(std::string* v) {
-  TLV tlv;
-  if (!RecvTLV(&tlv)) {
+  uint32_t tag;
+  if (!RecvTLV(&tag, v)) {
     return false;
   }
 
-  if (tlv.tag != kTagString) {
+  if (tag != kTagString) {
     SAPI_RAW_LOG(ERROR, "Expected (kTagString == 0x%x), got: 0x%x", kTagString,
-                 tlv.tag);
+                 tag);
     return false;
   }
-  v->assign(reinterpret_cast<const char*>(tlv.value.data()), tlv.value.size());
   return true;
 }
 
@@ -285,16 +284,16 @@ bool Comms::SendString(const std::string& v) {
 }
 
 bool Comms::RecvBytes(std::vector<uint8_t>* buffer) {
-  TLV tlv;
-  if (!RecvTLV(&tlv)) {
+  uint32_t tag;
+  if (!RecvTLV(&tag, buffer)) {
     return false;
   }
-  if (tlv.tag != kTagBytes) {
+  if (tag != kTagBytes) {
+    buffer->clear();
     SAPI_RAW_LOG(ERROR, "Expected (kTagBytes == 0x%x), got: 0x%u", kTagBytes,
-                 tlv.tag);
+                 tag);
     return false;
   }
-  buffer->swap(tlv.value);
   return true;
 }
 
@@ -462,8 +461,9 @@ bool Comms::SendFD(int fd) {
 }
 
 bool Comms::RecvProtoBuf(google::protobuf::Message* message) {
-  TLV tlv;
-  if (!RecvTLV(&tlv)) {
+  uint32_t tag;
+  std::vector<uint8_t> bytes;
+  if (!RecvTLV(&tag, &bytes)) {
     if (IsConnected()) {
       SAPI_RAW_PLOG(ERROR, "RecvProtoBuf failed for (%s)", socket_name_);
     } else {
@@ -473,11 +473,11 @@ bool Comms::RecvProtoBuf(google::protobuf::Message* message) {
     return false;
   }
 
-  if (tlv.tag != kTagProto2) {
-    SAPI_RAW_LOG(ERROR, "Expected tag: 0x%x, got: 0x%u", kTagProto2, tlv.tag);
+  if (tag != kTagProto2) {
+    SAPI_RAW_LOG(ERROR, "Expected tag: 0x%x, got: 0x%u", kTagProto2, tag);
     return false;
   }
-  return message->ParseFromArray(tlv.value.data(), tlv.value.size());
+  return message->ParseFromArray(bytes.data(), bytes.size());
 }
 
 bool Comms::SendProtoBuf(const google::protobuf::Message& message) {
@@ -599,18 +599,16 @@ bool Comms::RecvTL(uint32_t* tag, uint64_t* length) {
   return true;
 }
 
-bool Comms::RecvTLV(TLV* tlv) {
-  absl::MutexLock lock(&tlv_recv_transmission_mutex_);
-  uint64_t length;
-  if (!RecvTL(&tlv->tag, &length)) {
-    return false;
-  }
-
-  tlv->value.resize(length);
-  return length == 0 || Recv(tlv->value.data(), length);
+bool Comms::RecvTLV(uint32_t* tag, std::vector<uint8_t>* value) {
+  return RecvTLVGeneric(tag, value);
 }
 
-bool Comms::RecvTLV(uint32_t* tag, std::vector<uint8_t>* value) {
+bool Comms::RecvTLV(uint32_t* tag, std::string* value) {
+  return RecvTLVGeneric(tag, value);
+}
+
+template <typename T>
+bool Comms::RecvTLVGeneric(uint32_t* tag, T* value) {
   absl::MutexLock lock(&tlv_recv_transmission_mutex_);
   uint64_t length;
   if (!RecvTL(tag, &length)) {
@@ -618,7 +616,7 @@ bool Comms::RecvTLV(uint32_t* tag, std::vector<uint8_t>* value) {
   }
 
   value->resize(length);
-  return length == 0 || Recv(value->data(), length);
+  return length == 0 || Recv(reinterpret_cast<uint8_t*>(value->data()), length);
 }
 
 bool Comms::RecvTLV(uint32_t* tag, uint64_t* length, void* buffer,
