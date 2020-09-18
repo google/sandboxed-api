@@ -254,8 +254,8 @@ void HandleReallocMsg(uintptr_t ptr, uintptr_t size, FuncRet* ret) {
       __sanitizer_get_allocated_size(reinterpret_cast<const void*>(ptr));
 #endif
   ret->ret_type = v::Type::kPointer;
-  ret->int_val = reinterpret_cast<uintptr_t>(
-      realloc(const_cast<void*>(reinterpret_cast<const void*>(ptr)), size));
+  ret->int_val =
+      reinterpret_cast<uintptr_t>(realloc(reinterpret_cast<void*>(ptr), size));
   ret->success = true;
 #ifdef MEMORY_SANITIZER
   // Memory is copied to the pointer using an API that the memory sanitizer
@@ -273,7 +273,7 @@ void HandleReallocMsg(uintptr_t ptr, uintptr_t size, FuncRet* ret) {
 void HandleFreeMsg(uintptr_t ptr, FuncRet* ret) {
   VLOG(1) << "HandleFreeMsg: free(0x" << absl::StrCat(absl::Hex(ptr)) << ")";
 
-  free(const_cast<void*>(reinterpret_cast<const void*>(ptr)));
+  free(reinterpret_cast<void*>(ptr));
   ret->ret_type = v::Type::kVoid;
   ret->success = true;
   ret->int_val = 0ULL;
