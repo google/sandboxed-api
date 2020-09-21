@@ -53,6 +53,9 @@
 
 #include "helpers.h"
 #include "sandbox.h"
+#include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/var_array.h"
 
 /*
  * NO_CREATE implies NO_BZIP2_CREATE and NO_GZIP_CREATE and NO_COMPRESS_CREATE.
@@ -220,98 +223,387 @@ int main(int argc, const char **argv) {
 }
 
 #ifndef NO_CREATE
-static char buff[16384];
+// static char buff[16384];
 
-static void create(const char *filename, int compress, const char **argv) {
-  std::cout << "CREATE FILENAME=" << filename << std::endl;
+static void create(const char *initial_filename, int compress,
+                   const char **argv) {
+  // We split the filename path into dirname and filename. To the filename we
+  // prepend /output/ so that it will work with the security policy.
+
+  std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
+  
+  std::cout << "initial_filename = " << initial_filename << std::endl;
+  
+  auto [archive_path, filename_tmp] = sandbox2::file::SplitPath(abs_path);
+  
+
+  std::cout << "filename_tmp = " << filename_tmp << std::endl;
+  std::cout << "archive_path_first = " << archive_path << std::endl;
+
+  
+  std::string filename("/output/");
+  filename.append(filename_tmp);
+  std::cout << "filename = " << filename << std::endl;
+  std::cout << "archive_path = " << archive_path << std::endl;
+
+
+    std::cout << "absolute_paths: " << std::endl;
+  std::vector<std::string> absolute_paths = MakeAbsolutePathsVec(argv);
+  for (const auto &i : absolute_paths) {
+    std::cout << i << std::endl;
+  }
+  std::cout << "=======\n";
+
+  std::vector<std::string> relative_paths;
+  sandbox2::util::CharPtrArrToVecString(const_cast<char *const *>(argv), &relative_paths);
+
+  SapiLibarchiveSandboxCreate sandbox(absolute_paths, archive_path);
+  CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
+  LibarchiveApi api(&sandbox);
+
+  ssize_t len;
+  int fd;
+
+  sapi::StatusOr<archive *> ret = api.archive_write_new();
+  CHECK(ret.ok()) << "write_new call failed";
+  CHECK(ret.value() != NULL) << "Failed to create write archive";
+
+  sapi::v::RemotePtr a(ret.value());
+
+  sapi::StatusOr<int> ret2;
+
+  switch (compress) {
+#ifndef NO_BZIP2_CREATE
+    case 'j':
+    case 'y':
+      ret2 = api.archive_write_add_filter_bzip2(&a);
+      CHECK(ret2.ok()) << "write_add_filter_bzip2 call failed";
+      CHECK(ret2.value() != ARCHIVE_FATAL)
+          << "Unexpected result from write_add_filter_bzip2 call";
+      break;
+#endif
+#ifndef NO_COMPRESS_CREATE
+    case 'Z':
+      ret2 = api.archive_write_add_filter_compress(&a);
+      CHECK(ret2.ok()) << "write_add_filter_compress call failed";
+      CHECK(ret2.value() != ARCHIVE_FATAL)
+          << "Unexpected result from write_add_filter_compress call";
+      break;
+#endif
+#ifndef NO_GZIP_CREATE
+    case 'z':
+      ret2 = api.archive_write_add_filter_gzip(&a);
+      CHECK(ret2.ok()) << "write_add_filter_gzip call failed";
+      CHECK(ret2.value() != ARCHIVE_FATAL)
+          << "Unexpected result from write_add_filter_gzip call";
+      break;
+#endif
+    default:
+      ret2 = api.archive_write_add_filter_none(&a);
+      CHECK(ret2.ok()) << "write_add_filter_none call failed";
+      CHECK(ret2.value() != ARCHIVE_FATAL)
+          << "Unexpected result from write_add_filter_none call";
+      break;
+  }
+
+  ret2 = api.archive_write_set_format_ustar(&a);
+  CHECK(ret2.ok()) << "write_set_format_ustar call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from write_set_format_ustar call";
+
+  const char *filename_ptr = filename.data();
+  if (filename_ptr != NULL && strcmp(filename_ptr, "-") == 0) {
+    filename_ptr = NULL;
+  }
+  ret2 = api.archive_write_open_filename(
+      &a, sapi::v::ConstCStr(filename_ptr).PtrBefore());
+  CHECK(ret2.ok()) << "write_open_filename call failed";
+  CHECK(ret2.value() != ARCHIVE_FATAL)
+      << "Unexpected result from write_open_filename call";
+
+    int file_idx = 0;
+
+//   while (*argv != NULL) {
+for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) { 
+   
+   
+    std::cout << "\n\nhandling file: " << relative_paths[file_idx] << std::endl;
+    ret = api.archive_read_disk_new();
+    CHECK(ret.ok()) << "read_disk_new call failed";
+    CHECK(ret.value() != NULL) << "Failed to create read_disk archive";
+
+    sapi::v::RemotePtr disk(ret.value());
+
+
+
+#ifndef NO_LOOKUP
+    ret2 = api.archive_read_disk_set_standard_lookup(&disk);
+    CHECK(ret2.ok()) << "read_disk_set_standard_lookup call failed";
+    CHECK(ret2.value() != ARCHIVE_FATAL)
+        << "Unexpected result from read_disk_set_standard_lookup call";
+#endif
+
+
+
+    // ret2 = api.archive_read_disk_open(&disk,
+    //                                   sapi::v::ConstCStr(*argv).PtrBefore());
+
+    ret2 = api.archive_read_disk_open(&disk,
+                                      sapi::v::ConstCStr(absolute_paths[file_idx].c_str()).PtrBefore());
+
+    CHECK(ret2.ok()) << "read_disk_open call failed";
+    CHECK(ret2.value() == ARCHIVE_OK)
+        << CheckStatusAndGetString(api.archive_error_string(&disk), sandbox);
+
+
+
+    for (;;) {
+      int needcr = 0;
+
+      sapi::StatusOr<archive_entry *> ret3;
+      ret3 = api.archive_entry_new();
+
+      CHECK(ret3.ok()) << "entry_new call failed";
+      CHECK(ret3.value() != NULL) << "Failed to create archive_entry";
+
+      sapi::v::RemotePtr entry(ret3.value());
+
+      ret2 = api.archive_read_next_header2(&disk, &entry);
+      CHECK(ret2.ok()) << "read_next_header2 call failed";
+
+      if (ret2.value() == ARCHIVE_EOF) {
+        break;
+      }
+
+
+
+
+      CHECK(ret2.value() == ARCHIVE_OK)
+          << CheckStatusAndGetString(api.archive_error_string(&disk), sandbox);
+
+      ret2 = api.archive_read_disk_descend(&disk);
+      CHECK(ret2.ok()) << "read_disk_descend call failed";
+
+
+    // After using the absolute path before, we now need to add the pathname
+    // to the archive entry. This would help store the files by their relative paths.
+    // However, in the case where a directory is added to the archive, all of the files inside
+    // of it are addes as well so we replace the absolute path prefix with the relative one.
+    // Example: we add the folder test_files which becomes /absolute/path/test_files and
+    // the files inside of it will become /absolute/path/test_files/file1 and we change it to
+    // test_files/file1 so that it is relative.
+
+    // std::cout << "relative = " << relative_paths[file_idx] << std::endl;
+    // std::cout << "absolute = " << absolute_paths[file_idx] << std::endl;
+    std::string path_name = CheckStatusAndGetString(api.archive_entry_pathname(&entry), sandbox); 
+
+    std::cout << "path_name initial = " << path_name << std::endl;
+    path_name.replace(path_name.begin(), path_name.begin() + absolute_paths[file_idx].length(), relative_paths[file_idx]);
+
+    // std::cout << "path_name after = " << path_name << std::endl;
+
+    // On top of those changes, we need to remove leading '/' characters
+    // and also remove everything up to the last occurrence of '../'.
+
+    size_t found = path_name.find_first_not_of("/");
+    if (found != std::string::npos) {
+        path_name.erase(path_name.begin(), path_name.begin() + found);
+    }
+
+    std::cout << "path_name 2 = " << path_name << std::endl;
+
+    found = path_name.rfind("../");
+        std::cout << "found = " << found << std::endl;
+    if (found != std::string::npos) {
+        path_name = path_name.substr(found + 3);
+    }
+
+    std::cout << "path_name 3 = " << path_name << std::endl;
+
+
+
+    CHECK(api.archive_entry_set_pathname(&entry, sapi::v::ConstCStr(path_name.c_str()).PtrBefore()).ok()) << "Could not set pathname";
+
+
+      if (verbose) {
+          std::cout << "pathname = ";
+        std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry),
+                                             sandbox);
+        needcr = 1;
+      }
+
+
+
+      ret2 = api.archive_write_header(&a, &entry);
+      CHECK(ret2.ok()) << "write_header call failed";
+
+
+
+      if (ret2.value() < ARCHIVE_OK) {
+        std::cout << CheckStatusAndGetString(api.archive_error_string(&a),
+                                             sandbox);
+        needcr = 1;
+      }
+      CHECK(ret2.value() != ARCHIVE_FATAL)
+          << "Unexpected result from write_header call";
+      
+
+      if (ret2.value() > ARCHIVE_FAILED) {
+        // TODO copy part here
+        int fd = open(CheckStatusAndGetString(
+                          api.archive_entry_sourcepath(&entry), sandbox)
+                          .c_str(),
+                      O_RDONLY);
+
+        CHECK(fd >= 0) << "Could not open file";
+
+        sapi::v::Fd sapi_fd(fd);
+        sapi::v::Int read_ret;
+        sapi::v::Array<char> buff(16384);
+        sapi::v::UInt ssize(16384);
+        // CHECK(sandbox.Allocate(&buff, true).ok()) << "Could not allocate
+        // buffer";
+        CHECK(sandbox.TransferToSandboxee(&sapi_fd).ok())
+            << "Could not transfer file descriptor";
+        // sandbox.Call()
+        CHECK(sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrBoth(), &ssize)
+                  .ok())
+            << "Read call failed";
+        while (read_ret.GetValue() > 0) {
+          CHECK(api.archive_write_data(&a, buff.PtrBoth(), read_ret.GetValue())
+                    .ok())
+              << "write_data call failed";
+          // CHECK(ret.ok());
+          CHECK(
+              sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrBoth(), &ssize)
+                  .ok())
+              << "Read call failed";
+        }
+        // TODO close fds
+        CHECK(sapi_fd.CloseRemoteFd(sandbox.GetRpcChannel()).ok()) << "Could not close remote fd";
+        sapi_fd.CloseLocalFd();
+      }
+
+      CHECK(api.archive_entry_free(&entry).ok()) << "entry_free call failed";
+      if (needcr) {
+        std::cout << std::endl;
+      }
+    }
+
+    ret2 = api.archive_read_close(&disk);
+    CHECK(ret2.ok()) << "read_close call failed";
+    CHECK(!ret2.value()) << "Unexpected result from read_close call";
+
+    ret2 = api.archive_read_free(&disk);
+    CHECK(ret2.ok()) << "read_free call failed";
+    CHECK(!ret2.value()) << "Unexpected result from read_free call";
+
+    // ++argv;
+    // ++file_idx;
+  }
+
+  ret2 = api.archive_write_close(&a);
+  CHECK(ret2.ok()) << "write_close call failed";
+  CHECK(!ret2.value()) << "Unexpected result from write_close call";
+
+  ret2 = api.archive_write_free(&a);
+  CHECK(ret2.ok()) << "write_free call failed";
+  CHECK(!ret2.value()) << "Unexpected result from write_free call";
 }
 #endif
 
 static void extract(const char *filename, int do_extract, int flags) {
+  std::string tmp_dir;
+  if (do_extract) {
+    tmp_dir = CreateTempDirAtCWD();
+  }
   std::cout << "extract" << std::endl;
   std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
 
   std::cout << "filename = " << filename_absolute << std::endl;
 
-  SapiLibarchiveSandboxExtract sandbox(filename_absolute, do_extract);
+  SapiLibarchiveSandboxExtract sandbox(filename_absolute, do_extract, tmp_dir);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
 
   LibarchiveApi api(&sandbox);
 
-  struct archive *a;
-  struct archive *ext;
-  struct archive_entry *entry;
-  int r;
-  api.archive_read_new().IgnoreError();
+  // struct archive *a;
+  // struct archive *ext;
+  // struct archive_entry *entry;
+  // int r;
   sapi::StatusOr<archive *> ret = api.archive_read_new();
   CHECK(ret.ok()) << "archive_read_new call failed";
   // std::cout << "RET VALUE = " << ret.value() << std::endl;
   CHECK(ret.value() != NULL) << "Failed to create read archive";
-  a = ret.value();
+  // a = ret.value();
+
+  sapi::v::RemotePtr a(ret.value());
 
   ret = api.archive_write_disk_new();
   CHECK(ret.ok()) << "write_disk_new call failed";
   CHECK(ret.value() != NULL) << "Failed to create write disk archive";
-  ext = ret.value();
+  // ext = ret.value();
 
-  sapi::v::RemotePtr a_ptr(a);
-  sapi::v::RemotePtr ext_ptr(ext);
+  sapi::v::RemotePtr ext(ret.value());
 
   sapi::StatusOr<int> ret2;
-  ret2 = api.archive_write_disk_set_options(&ext_ptr, flags);
+  ret2 = api.archive_write_disk_set_options(&ext, flags);
   CHECK(ret2.ok()) << "write_disk_set_options call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from write_disk_set_options call";
 
 #ifndef NO_BZIP2_EXTRACT
-  ret2 = api.archive_read_support_filter_bzip2(&a_ptr);
+  ret2 = api.archive_read_support_filter_bzip2(&a);
   CHECK(ret2.ok()) << "read_support_filter_bzip2 call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_support_filter_bzip2 call";
 #endif
 #ifndef NO_GZIP_EXTRACT
-  ret2 = api.archive_read_support_filter_gzip(&a_ptr);
+  ret2 = api.archive_read_support_filter_gzip(&a);
   CHECK(ret2.ok()) << "read_suppport_filter_gzip call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_suppport_filter_gzip call";
 #endif
 #ifndef NO_COMPRESS_EXTRACT
-  ret2 = api.archive_read_support_filter_compress(&a_ptr);
+  ret2 = api.archive_read_support_filter_compress(&a);
   CHECK(ret2.ok()) << "read_support_filter_compress call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_support_filter_compress call";
 #endif
 #ifndef NO_TAR_EXTRACT
-  ret2 = api.archive_read_support_format_tar(&a_ptr);
+  ret2 = api.archive_read_support_format_tar(&a);
   CHECK(ret2.ok()) << "read_support_format_tar call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result fromread_support_format_tar call";
 #endif
 #ifndef NO_CPIO_EXTRACT
-  ret2 = api.archive_read_support_format_cpio(&a_ptr);
+  ret2 = api.archive_read_support_format_cpio(&a);
   CHECK(ret2.ok()) << "read_support_format_cpio call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_support_format_tar call";
 #endif
 #ifndef NO_LOOKUP
-  ret2 = api.archive_write_disk_set_standard_lookup(&ext_ptr);
+  ret2 = api.archive_write_disk_set_standard_lookup(&ext);
   CHECK(ret2.ok()) << "write_disk_set_standard_lookup call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from write_disk_set_standard_lookup call";
 #endif
 
-  if (filename != NULL && strcmp(filename, "-") == 0) filename = NULL;
+  const char *filename_ptr = filename_absolute.c_str();
+  if (filename_ptr != NULL && strcmp(filename_ptr, "-") == 0) {
+    filename_ptr = NULL;
+  }
 
-  sapi::v::ConstCStr sapi_filename(filename_absolute.c_str());
+  // sapi::v::ConstCStr sapi_filename(filename_absolute.c_str());
 
   std::cout << "opening filename" << std::endl;
 
-  ret2 =
-      api.archive_read_open_filename(&a_ptr, sapi_filename.PtrBefore(), 10240);
+  ret2 = api.archive_read_open_filename(
+      &a, sapi::v::ConstCStr(filename_ptr).PtrBefore(), 10240);
   CHECK(ret2.ok()) << "read_open_filename call failed";
   // CHECK(!ret2.value()) << GetErrorString(&a_ptr, sandbox, api);
-  CHECK(!ret2.value()) << CheckStatusAndGetString(
-      api.archive_error_string(&a_ptr), sandbox);
+  CHECK(!ret2.value()) << CheckStatusAndGetString(api.archive_error_string(&a),
+                                                  sandbox);
   // CHECK(!ret2.value()) << CallFunctionAndGetString(&a_ptr, sandbox, &api,
   // &api.archive_error_string);
 
@@ -320,7 +612,7 @@ static void extract(const char *filename, int do_extract, int flags) {
     std::cout << "================reading headers==============" << std::endl;
     sapi::v::IntBase<struct archive_entry *> entry_ptr_tmp(0);
 
-    ret2 = api.archive_read_next_header(&a_ptr, entry_ptr_tmp.PtrBoth());
+    ret2 = api.archive_read_next_header(&a, entry_ptr_tmp.PtrBoth());
     // std::cout << "val = " << ret2.value() << std::endl;
     CHECK(ret2.ok()) << "read_next_header call failed";
     // CHECK(ret2.value() != ARCHIVE_OK) << GetErrorString(&a_ptr, sandbox,
@@ -331,17 +623,17 @@ static void extract(const char *filename, int do_extract, int flags) {
     }
 
     CHECK(ret2.value() == ARCHIVE_OK)
-        << CheckStatusAndGetString(api.archive_error_string(&a_ptr), sandbox);
+        << CheckStatusAndGetString(api.archive_error_string(&a), sandbox);
 
-    sapi::v::RemotePtr entry_ptr(entry_ptr_tmp.GetValue());
+    sapi::v::RemotePtr entry(entry_ptr_tmp.GetValue());
 
     if (verbose && do_extract) {
       std::cout << "x ";
     }
 
     if (verbose || !do_extract) {
-      std::cout << CheckStatusAndGetString(
-                       api.archive_entry_pathname(&entry_ptr), sandbox)
+      std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry),
+                                           sandbox)
                 << " ";
       needcr = 1;
     }
@@ -350,16 +642,16 @@ static void extract(const char *filename, int do_extract, int flags) {
 
     if (do_extract) {
       std::cout << "EXTRACT HERE" << std::endl;
-      ret2 = api.archive_write_header(&ext_ptr, &entry_ptr);
-      CHECK(ret2.ok()) << "write_header call faield";
+      ret2 = api.archive_write_header(&ext, &entry);
+      CHECK(ret2.ok()) << "write_header call failed";
 
       std::cout << "val = " << ret2.value() << std::endl;
 
       if (ret2.value() != ARCHIVE_OK) {
-        std::cout << CheckStatusAndGetString(api.archive_error_string(&a_ptr),
+        std::cout << CheckStatusAndGetString(api.archive_error_string(&a),
                                              sandbox);
         needcr = 1;
-      } else if (copy_data(&a_ptr, &ext_ptr, api, sandbox) != ARCHIVE_OK) {
+      } else if (copy_data(&a, &ext, api, sandbox) != ARCHIVE_OK) {
         needcr = 1;
       }
     }
@@ -371,21 +663,25 @@ static void extract(const char *filename, int do_extract, int flags) {
 
   std::cout << "out of loop" << std::endl;
 
-  ret2 = api.archive_read_close(&a_ptr);
+  ret2 = api.archive_read_close(&a);
   CHECK(ret2.ok()) << "read_close call failed";
   CHECK(!ret2.value()) << "Unexpected value from read_close call";
 
-  ret2 = api.archive_read_free(&a_ptr);
+  ret2 = api.archive_read_free(&a);
   CHECK(ret2.ok()) << "read_free call failed";
   CHECK(!ret2.value()) << "Unexpected result from read_free call";
 
-  ret2 = api.archive_write_close(&ext_ptr);
+  ret2 = api.archive_write_close(&ext);
   CHECK(ret2.ok()) << "write_close call failed";
   CHECK(!ret2.value()) << "Unexpected result from write_close call";
 
-  ret2 = api.archive_write_free(&ext_ptr);
+  ret2 = api.archive_write_free(&ext);
   CHECK(ret2.ok()) << "write_free call failed";
   CHECK(!ret2.value()) << "Unexpected result from write_free call";
+
+  if (do_extract) {
+    sandbox2::file_util::fileops::DeleteRecursively(tmp_dir);
+  }
 }
 
 static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
@@ -412,9 +708,9 @@ static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
       return ret.value();
     }
 
-    sapi::v::RemotePtr buff_ptr(buff_ptr_tmp.GetValue());
+    sapi::v::RemotePtr buff(buff_ptr_tmp.GetValue());
 
-    ret = api.archive_write_data_block(aw, &buff_ptr, size.GetValue(),
+    ret = api.archive_write_data_block(aw, &buff, size.GetValue(),
                                        offset.GetValue());
 
     CHECK(ret.ok()) << "write_data_block call failed";
