@@ -47,14 +47,14 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
             });
 
     for (const auto &i : files_) {
-        std::cout << "ADD FILE -------" << i << std::endl;
-        struct stat s;
-        stat(i.c_str(), &s);
-        if (S_ISDIR(s.st_mode)) {
-            policy = policy.AddDirectory(i);
-        } else {
-      policy = policy.AddFile(i);
-        }
+      std::cout << "ADD FILE -------" << i << std::endl;
+      struct stat s;
+      stat(i.c_str(), &s);
+      if (S_ISDIR(s.st_mode)) {
+        policy = policy.AddDirectory(i);
+      } else {
+        policy = policy.AddFile(i);
+      }
     }
 
     return policy.BuildOrDie();

@@ -231,23 +231,20 @@ static void create(const char *initial_filename, int compress,
   // prepend /output/ so that it will work with the security policy.
 
   std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
-  
+
   std::cout << "initial_filename = " << initial_filename << std::endl;
-  
+
   auto [archive_path, filename_tmp] = sandbox2::file::SplitPath(abs_path);
-  
 
   std::cout << "filename_tmp = " << filename_tmp << std::endl;
   std::cout << "archive_path_first = " << archive_path << std::endl;
 
-  
   std::string filename("/output/");
   filename.append(filename_tmp);
   std::cout << "filename = " << filename << std::endl;
   std::cout << "archive_path = " << archive_path << std::endl;
 
-
-    std::cout << "absolute_paths: " << std::endl;
+  std::cout << "absolute_paths: " << std::endl;
   std::vector<std::string> absolute_paths = MakeAbsolutePathsVec(argv);
   for (const auto &i : absolute_paths) {
     std::cout << i << std::endl;
@@ -255,7 +252,8 @@ static void create(const char *initial_filename, int compress,
   std::cout << "=======\n";
 
   std::vector<std::string> relative_paths;
-  sandbox2::util::CharPtrArrToVecString(const_cast<char *const *>(argv), &relative_paths);
+  sandbox2::util::CharPtrArrToVecString(const_cast<char *const *>(argv),
+                                        &relative_paths);
 
   SapiLibarchiveSandboxCreate sandbox(absolute_paths, archive_path);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
@@ -321,20 +319,16 @@ static void create(const char *initial_filename, int compress,
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from write_open_filename call";
 
-    int file_idx = 0;
+  int file_idx = 0;
 
-//   while (*argv != NULL) {
-for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) { 
-   
-   
+  //   while (*argv != NULL) {
+  for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) {
     std::cout << "\n\nhandling file: " << relative_paths[file_idx] << std::endl;
     ret = api.archive_read_disk_new();
     CHECK(ret.ok()) << "read_disk_new call failed";
     CHECK(ret.value() != NULL) << "Failed to create read_disk archive";
 
     sapi::v::RemotePtr disk(ret.value());
-
-
 
 #ifndef NO_LOOKUP
     ret2 = api.archive_read_disk_set_standard_lookup(&disk);
@@ -343,19 +337,16 @@ for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) {
         << "Unexpected result from read_disk_set_standard_lookup call";
 #endif
 
-
-
     // ret2 = api.archive_read_disk_open(&disk,
     //                                   sapi::v::ConstCStr(*argv).PtrBefore());
 
-    ret2 = api.archive_read_disk_open(&disk,
-                                      sapi::v::ConstCStr(absolute_paths[file_idx].c_str()).PtrBefore());
+    ret2 = api.archive_read_disk_open(
+        &disk,
+        sapi::v::ConstCStr(absolute_paths[file_idx].c_str()).PtrBefore());
 
     CHECK(ret2.ok()) << "read_disk_open call failed";
     CHECK(ret2.value() == ARCHIVE_OK)
         << CheckStatusAndGetString(api.archive_error_string(&disk), sandbox);
-
-
 
     for (;;) {
       int needcr = 0;
@@ -375,69 +366,65 @@ for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) {
         break;
       }
 
-
-
-
       CHECK(ret2.value() == ARCHIVE_OK)
           << CheckStatusAndGetString(api.archive_error_string(&disk), sandbox);
 
       ret2 = api.archive_read_disk_descend(&disk);
       CHECK(ret2.ok()) << "read_disk_descend call failed";
 
+      // After using the absolute path before, we now need to add the pathname
+      // to the archive entry. This would help store the files by their relative
+      // paths. However, in the case where a directory is added to the archive,
+      // all of the files inside of it are addes as well so we replace the
+      // absolute path prefix with the relative one. Example: we add the folder
+      // test_files which becomes /absolute/path/test_files and the files inside
+      // of it will become /absolute/path/test_files/file1 and we change it to
+      // test_files/file1 so that it is relative.
 
-    // After using the absolute path before, we now need to add the pathname
-    // to the archive entry. This would help store the files by their relative paths.
-    // However, in the case where a directory is added to the archive, all of the files inside
-    // of it are addes as well so we replace the absolute path prefix with the relative one.
-    // Example: we add the folder test_files which becomes /absolute/path/test_files and
-    // the files inside of it will become /absolute/path/test_files/file1 and we change it to
-    // test_files/file1 so that it is relative.
+      // std::cout << "relative = " << relative_paths[file_idx] << std::endl;
+      // std::cout << "absolute = " << absolute_paths[file_idx] << std::endl;
+      std::string path_name =
+          CheckStatusAndGetString(api.archive_entry_pathname(&entry), sandbox);
 
-    // std::cout << "relative = " << relative_paths[file_idx] << std::endl;
-    // std::cout << "absolute = " << absolute_paths[file_idx] << std::endl;
-    std::string path_name = CheckStatusAndGetString(api.archive_entry_pathname(&entry), sandbox); 
+      std::cout << "path_name initial = " << path_name << std::endl;
+      path_name.replace(path_name.begin(),
+                        path_name.begin() + absolute_paths[file_idx].length(),
+                        relative_paths[file_idx]);
 
-    std::cout << "path_name initial = " << path_name << std::endl;
-    path_name.replace(path_name.begin(), path_name.begin() + absolute_paths[file_idx].length(), relative_paths[file_idx]);
+      // std::cout << "path_name after = " << path_name << std::endl;
 
-    // std::cout << "path_name after = " << path_name << std::endl;
+      // On top of those changes, we need to remove leading '/' characters
+      // and also remove everything up to the last occurrence of '../'.
 
-    // On top of those changes, we need to remove leading '/' characters
-    // and also remove everything up to the last occurrence of '../'.
-
-    size_t found = path_name.find_first_not_of("/");
-    if (found != std::string::npos) {
+      size_t found = path_name.find_first_not_of("/");
+      if (found != std::string::npos) {
         path_name.erase(path_name.begin(), path_name.begin() + found);
-    }
+      }
 
-    std::cout << "path_name 2 = " << path_name << std::endl;
+      std::cout << "path_name 2 = " << path_name << std::endl;
 
-    found = path_name.rfind("../");
-        std::cout << "found = " << found << std::endl;
-    if (found != std::string::npos) {
+      found = path_name.rfind("../");
+      std::cout << "found = " << found << std::endl;
+      if (found != std::string::npos) {
         path_name = path_name.substr(found + 3);
-    }
+      }
 
-    std::cout << "path_name 3 = " << path_name << std::endl;
+      std::cout << "path_name 3 = " << path_name << std::endl;
 
-
-
-    CHECK(api.archive_entry_set_pathname(&entry, sapi::v::ConstCStr(path_name.c_str()).PtrBefore()).ok()) << "Could not set pathname";
-
+      CHECK(api.archive_entry_set_pathname(
+                   &entry, sapi::v::ConstCStr(path_name.c_str()).PtrBefore())
+                .ok())
+          << "Could not set pathname";
 
       if (verbose) {
-          std::cout << "pathname = ";
+        std::cout << "pathname = ";
         std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry),
                                              sandbox);
         needcr = 1;
       }
 
-
-
       ret2 = api.archive_write_header(&a, &entry);
       CHECK(ret2.ok()) << "write_header call failed";
-
-
 
       if (ret2.value() < ARCHIVE_OK) {
         std::cout << CheckStatusAndGetString(api.archive_error_string(&a),
@@ -446,7 +433,6 @@ for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) {
       }
       CHECK(ret2.value() != ARCHIVE_FATAL)
           << "Unexpected result from write_header call";
-      
 
       if (ret2.value() > ARCHIVE_FAILED) {
         // TODO copy part here
@@ -461,27 +447,30 @@ for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) {
         sapi::v::Int read_ret;
         sapi::v::Array<char> buff(16384);
         sapi::v::UInt ssize(16384);
+
+        CHECK(sandbox.Allocate(&buff, true).ok()) << "Could not allocate remote buffer";
         // CHECK(sandbox.Allocate(&buff, true).ok()) << "Could not allocate
         // buffer";
         CHECK(sandbox.TransferToSandboxee(&sapi_fd).ok())
             << "Could not transfer file descriptor";
         // sandbox.Call()
-        CHECK(sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrBoth(), &ssize)
+        CHECK(sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrNone(), &ssize)
                   .ok())
             << "Read call failed";
         while (read_ret.GetValue() > 0) {
-          CHECK(api.archive_write_data(&a, buff.PtrBoth(), read_ret.GetValue())
+          CHECK(api.archive_write_data(&a, buff.PtrNone(), read_ret.GetValue())
                     .ok())
               << "write_data call failed";
           // CHECK(ret.ok());
           CHECK(
-              sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrBoth(), &ssize)
+              sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrNone(), &ssize)
                   .ok())
               << "Read call failed";
         }
         // TODO close fds
-        CHECK(sapi_fd.CloseRemoteFd(sandbox.GetRpcChannel()).ok()) << "Could not close remote fd";
-        sapi_fd.CloseLocalFd();
+        // CHECK(sapi_fd.CloseRemoteFd(sandbox.GetRpcChannel()).ok())
+        //     << "Could not close remote fd";
+        // sapi_fd.CloseLocalFd();
       }
 
       CHECK(api.archive_entry_free(&entry).ok()) << "entry_free call failed";
@@ -517,6 +506,14 @@ static void extract(const char *filename, int do_extract, int flags) {
   if (do_extract) {
     tmp_dir = CreateTempDirAtCWD();
   }
+
+  struct ExtractTempDirectoryCleanup {
+    ~ExtractTempDirectoryCleanup() {
+      sandbox2::file_util::fileops::DeleteRecursively(capture);
+    }
+    const std::string capture;
+  } cleanup{tmp_dir};
+
   std::cout << "extract" << std::endl;
   std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
 
@@ -679,9 +676,9 @@ static void extract(const char *filename, int do_extract, int flags) {
   CHECK(ret2.ok()) << "write_free call failed";
   CHECK(!ret2.value()) << "Unexpected result from write_free call";
 
-  if (do_extract) {
-    sandbox2::file_util::fileops::DeleteRecursively(tmp_dir);
-  }
+//   if (do_extract) {
+//     sandbox2::file_util::fileops::DeleteRecursively(tmp_dir);
+//   }
 }
 
 static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
