@@ -34,3 +34,4 @@ archive_write_header
 archive_write_new
 archive_write_open_filename
 archive_write_set_format_ustar
+archive_entry_set_pathname
