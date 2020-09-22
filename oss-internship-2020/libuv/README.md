@@ -60,15 +60,3 @@ Each example and test has an ad-hoc policy implemented on its own file. These po
 ## Callbacks
 
 The `callbacks.h` and `callbacks.cc` files in the `callbacks` folder implement all the callbacks used by examples and tests.
-
-## Performance
-
-A LibUV program looks like this:
-- Setup the loop
-- Run the loop
-- Close the loop
-
-And the second step (running the loop) is the only performance critical part, because this is were actual I/0 and events handling happens. But since this only involves a single call (to `sapi_uv_run`), the overhead from Sandboxed API is constant with respect to the number of handles and requests. 
-In other words, after Sandboxed API has called the `uv_run` method on the sandboxed process, whatever happens there is the same as what would have happened in a regular process running LibUV with no sandbox.
-
-This means that, because of LibUV's nature, Sandboxed API has a totally negligible impact on performance. However, there is and overhead caused by `seccomp-bpf` for each syscall.
