@@ -29,16 +29,6 @@ target_link_libraries(helpers PUBLIC
     libarchive_sapi
 )
 
-add_executable(sapi_example
-    sapi_example.cc
-)
-
-target_link_libraries(sapi_example PRIVATE
-    libarchive_sapi
-    sapi::sapi
-    glog::glog
-)
-
 add_executable(sapi_minitar
     sapi_minitar.cc
 )
@@ -49,29 +39,6 @@ target_link_libraries(sapi_minitar PRIVATE
     sapi::sapi
     #glog::glog
 )
-
-#add_executable(untar
-#    untar.cc
-#)
-#
-#target_link_libraries(untar PRIVATE
-#    archive
-#)
-#
-#
-#
-#add_executable(tarfilter
-#    tarfilter.cc
-#)
-#
-#target_link_libraries(tarfilter PRIVATE
-#    archive
-#)
-
-
-
-
-
 
 add_executable(minitar
     orig/minitar.cc

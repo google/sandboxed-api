@@ -49,7 +49,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 
 #include "helpers.h"
 #include "sandbox.h"
@@ -124,21 +126,18 @@
 #endif
 
 #ifndef NO_CREATE
-static void create(const char *filename, int compress, const char **argv);
+static void create(const char* filename, int compress, const char** argv);
 #endif
-static void errmsg(const char *);
-static void extract(const char *filename, int do_extract, int flags);
-static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
-                     LibarchiveApi &api, SapiLibarchiveSandboxExtract &sandbox);
-static void msg(const char *);
+static void extract(const char* filename, int do_extract, int flags);
+static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
+                     LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox);
 static void usage(void);
 
 static int verbose = 0;
 
-int main(int argc, const char **argv) {
+int main(int argc, const char** argv) {
   google::InitGoogleLogging(argv[0]);
-  std::cout << "BEGIN\n";
-  const char *filename = NULL;
+  const char* filename = NULL;
   int compress, flags, mode, opt;
 
   (void)argc;
@@ -149,7 +148,7 @@ int main(int argc, const char **argv) {
 
   /* Among other sins, getopt(3) pulls in printf(3). */
   while (*++argv != NULL && **argv == '-') {
-    const char *p = *argv + 1;
+    const char* p = *argv + 1;
 
     while ((opt = *p++) != '\0') {
       switch (opt) {
@@ -219,50 +218,33 @@ int main(int argc, const char **argv) {
       break;
   }
 
-  return (0);
+  return EXIT_SUCCESS;
 }
 
 #ifndef NO_CREATE
-// static char buff[16384];
 
-static void create(const char *initial_filename, int compress,
-                   const char **argv) {
+static void create(const char* initial_filename, int compress,
+                   const char** argv) {
   // We split the filename path into dirname and filename. To the filename we
   // prepend /output/ so that it will work with the security policy.
 
   std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
-
-  std::cout << "initial_filename = " << initial_filename << std::endl;
-
   auto [archive_path, filename_tmp] = sandbox2::file::SplitPath(abs_path);
-
-  std::cout << "filename_tmp = " << filename_tmp << std::endl;
-  std::cout << "archive_path_first = " << archive_path << std::endl;
 
   std::string filename("/output/");
   filename.append(filename_tmp);
-  std::cout << "filename = " << filename << std::endl;
-  std::cout << "archive_path = " << archive_path << std::endl;
 
-  std::cout << "absolute_paths: " << std::endl;
   std::vector<std::string> absolute_paths = MakeAbsolutePathsVec(argv);
-  for (const auto &i : absolute_paths) {
-    std::cout << i << std::endl;
-  }
-  std::cout << "=======\n";
 
   std::vector<std::string> relative_paths;
-  sandbox2::util::CharPtrArrToVecString(const_cast<char *const *>(argv),
+  sandbox2::util::CharPtrArrToVecString(const_cast<char* const*>(argv),
                                         &relative_paths);
 
   SapiLibarchiveSandboxCreate sandbox(absolute_paths, archive_path);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
   LibarchiveApi api(&sandbox);
 
-  ssize_t len;
-  int fd;
-
-  sapi::StatusOr<archive *> ret = api.archive_write_new();
+  sapi::StatusOr<archive*> ret = api.archive_write_new();
   CHECK(ret.ok()) << "write_new call failed";
   CHECK(ret.value() != NULL) << "Failed to create write archive";
 
@@ -309,10 +291,11 @@ static void create(const char *initial_filename, int compress,
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from write_set_format_ustar call";
 
-  const char *filename_ptr = filename.data();
+  const char* filename_ptr = filename.data();
   if (filename_ptr != NULL && strcmp(filename_ptr, "-") == 0) {
     filename_ptr = NULL;
   }
+
   ret2 = api.archive_write_open_filename(
       &a, sapi::v::ConstCStr(filename_ptr).PtrBefore());
   CHECK(ret2.ok()) << "write_open_filename call failed";
@@ -321,9 +304,7 @@ static void create(const char *initial_filename, int compress,
 
   int file_idx = 0;
 
-  //   while (*argv != NULL) {
   for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) {
-    std::cout << "\n\nhandling file: " << relative_paths[file_idx] << std::endl;
     ret = api.archive_read_disk_new();
     CHECK(ret.ok()) << "read_disk_new call failed";
     CHECK(ret.value() != NULL) << "Failed to create read_disk archive";
@@ -337,13 +318,9 @@ static void create(const char *initial_filename, int compress,
         << "Unexpected result from read_disk_set_standard_lookup call";
 #endif
 
-    // ret2 = api.archive_read_disk_open(&disk,
-    //                                   sapi::v::ConstCStr(*argv).PtrBefore());
-
     ret2 = api.archive_read_disk_open(
         &disk,
         sapi::v::ConstCStr(absolute_paths[file_idx].c_str()).PtrBefore());
-
     CHECK(ret2.ok()) << "read_disk_open call failed";
     CHECK(ret2.value() == ARCHIVE_OK)
         << CheckStatusAndGetString(api.archive_error_string(&disk), sandbox);
@@ -351,7 +328,7 @@ static void create(const char *initial_filename, int compress,
     for (;;) {
       int needcr = 0;
 
-      sapi::StatusOr<archive_entry *> ret3;
+      sapi::StatusOr<archive_entry*> ret3;
       ret3 = api.archive_entry_new();
 
       CHECK(ret3.ok()) << "entry_new call failed";
@@ -381,17 +358,12 @@ static void create(const char *initial_filename, int compress,
       // of it will become /absolute/path/test_files/file1 and we change it to
       // test_files/file1 so that it is relative.
 
-      // std::cout << "relative = " << relative_paths[file_idx] << std::endl;
-      // std::cout << "absolute = " << absolute_paths[file_idx] << std::endl;
       std::string path_name =
           CheckStatusAndGetString(api.archive_entry_pathname(&entry), sandbox);
 
-      std::cout << "path_name initial = " << path_name << std::endl;
       path_name.replace(path_name.begin(),
                         path_name.begin() + absolute_paths[file_idx].length(),
                         relative_paths[file_idx]);
-
-      // std::cout << "path_name after = " << path_name << std::endl;
 
       // On top of those changes, we need to remove leading '/' characters
       // and also remove everything up to the last occurrence of '../'.
@@ -401,15 +373,10 @@ static void create(const char *initial_filename, int compress,
         path_name.erase(path_name.begin(), path_name.begin() + found);
       }
 
-      std::cout << "path_name 2 = " << path_name << std::endl;
-
       found = path_name.rfind("../");
-      std::cout << "found = " << found << std::endl;
       if (found != std::string::npos) {
         path_name = path_name.substr(found + 3);
       }
-
-      std::cout << "path_name 3 = " << path_name << std::endl;
 
       CHECK(api.archive_entry_set_pathname(
                    &entry, sapi::v::ConstCStr(path_name.c_str()).PtrBefore())
@@ -417,7 +384,6 @@ static void create(const char *initial_filename, int compress,
           << "Could not set pathname";
 
       if (verbose) {
-        std::cout << "pathname = ";
         std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry),
                                              sandbox);
         needcr = 1;
@@ -435,45 +401,44 @@ static void create(const char *initial_filename, int compress,
           << "Unexpected result from write_header call";
 
       if (ret2.value() > ARCHIVE_FAILED) {
-        // TODO copy part here
-        int fd = open(CheckStatusAndGetString(
-                          api.archive_entry_sourcepath(&entry), sandbox)
-                          .c_str(),
-                      O_RDONLY);
-
+        // int fd = open(CheckStatusAndGetString(
+        //                   api.archive_entry_sourcepath(&entry), sandbox)
+        //                   .c_str(),
+        //               O_RDONLY);
+        int fd = open(path_name.c_str(), O_RDONLY);
         CHECK(fd >= 0) << "Could not open file";
 
         sapi::v::Fd sapi_fd(fd);
         sapi::v::Int read_ret;
-        sapi::v::Array<char> buff(16384);
-        sapi::v::UInt ssize(16384);
+        sapi::v::Array<char> buff(kBuffSize);
+        sapi::v::UInt ssize(kBuffSize);
 
-        CHECK(sandbox.Allocate(&buff, true).ok()) << "Could not allocate remote buffer";
-        // CHECK(sandbox.Allocate(&buff, true).ok()) << "Could not allocate
-        // buffer";
+        CHECK(sandbox.Allocate(&buff, true).ok())
+            << "Could not allocate remote buffer";
+
         CHECK(sandbox.TransferToSandboxee(&sapi_fd).ok())
             << "Could not transfer file descriptor";
-        // sandbox.Call()
+
         CHECK(sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrNone(), &ssize)
                   .ok())
             << "Read call failed";
+
         while (read_ret.GetValue() > 0) {
           CHECK(api.archive_write_data(&a, buff.PtrNone(), read_ret.GetValue())
                     .ok())
               << "write_data call failed";
-          // CHECK(ret.ok());
+
           CHECK(
               sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrNone(), &ssize)
                   .ok())
               << "Read call failed";
         }
-        // TODO close fds
-        // CHECK(sapi_fd.CloseRemoteFd(sandbox.GetRpcChannel()).ok())
-        //     << "Could not close remote fd";
-        // sapi_fd.CloseLocalFd();
+        // sapi_fd variable goes out of scope here so both the local and the
+        // remote file descriptors are closed.
       }
 
       CHECK(api.archive_entry_free(&entry).ok()) << "entry_free call failed";
+
       if (needcr) {
         std::cout << std::endl;
       }
@@ -486,9 +451,6 @@ static void create(const char *initial_filename, int compress,
     ret2 = api.archive_read_free(&disk);
     CHECK(ret2.ok()) << "read_free call failed";
     CHECK(!ret2.value()) << "Unexpected result from read_free call";
-
-    // ++argv;
-    // ++file_idx;
   }
 
   ret2 = api.archive_write_close(&a);
@@ -501,45 +463,45 @@ static void create(const char *initial_filename, int compress,
 }
 #endif
 
-static void extract(const char *filename, int do_extract, int flags) {
+static void extract(const char* filename, int do_extract, int flags) {
   std::string tmp_dir;
   if (do_extract) {
     tmp_dir = CreateTempDirAtCWD();
   }
 
+  // We can use a struct like this in order to delete the temporary
+  // directory that was created earlier whenever the function ends.
   struct ExtractTempDirectoryCleanup {
     ~ExtractTempDirectoryCleanup() {
-      sandbox2::file_util::fileops::DeleteRecursively(capture);
+      sandbox2::file_util::fileops::DeleteRecursively(dir);
     }
-    const std::string capture;
-  } cleanup{tmp_dir};
+    std::string dir;
+  };
 
-  std::cout << "extract" << std::endl;
+  // We should only delete it if the do_extract flag is true which
+  // means that this struct is instantiated only in that case.
+  std::shared_ptr<ExtractTempDirectoryCleanup> cleanup_ptr;
+  if (do_extract) {
+    cleanup_ptr = std::make_unique<ExtractTempDirectoryCleanup>();
+    cleanup_ptr->dir = tmp_dir;
+  }
+
   std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
-
-  std::cout << "filename = " << filename_absolute << std::endl;
 
   SapiLibarchiveSandboxExtract sandbox(filename_absolute, do_extract, tmp_dir);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
 
   LibarchiveApi api(&sandbox);
 
-  // struct archive *a;
-  // struct archive *ext;
-  // struct archive_entry *entry;
-  // int r;
-  sapi::StatusOr<archive *> ret = api.archive_read_new();
+  sapi::StatusOr<archive*> ret = api.archive_read_new();
   CHECK(ret.ok()) << "archive_read_new call failed";
-  // std::cout << "RET VALUE = " << ret.value() << std::endl;
   CHECK(ret.value() != NULL) << "Failed to create read archive";
-  // a = ret.value();
 
   sapi::v::RemotePtr a(ret.value());
 
   ret = api.archive_write_disk_new();
   CHECK(ret.ok()) << "write_disk_new call failed";
   CHECK(ret.value() != NULL) << "Failed to create write disk archive";
-  // ext = ret.value();
 
   sapi::v::RemotePtr ext(ret.value());
 
@@ -586,34 +548,23 @@ static void extract(const char *filename, int do_extract, int flags) {
       << "Unexpected result from write_disk_set_standard_lookup call";
 #endif
 
-  const char *filename_ptr = filename_absolute.c_str();
+  const char* filename_ptr = filename_absolute.c_str();
   if (filename_ptr != NULL && strcmp(filename_ptr, "-") == 0) {
     filename_ptr = NULL;
   }
 
-  // sapi::v::ConstCStr sapi_filename(filename_absolute.c_str());
-
-  std::cout << "opening filename" << std::endl;
-
   ret2 = api.archive_read_open_filename(
-      &a, sapi::v::ConstCStr(filename_ptr).PtrBefore(), 10240);
+      &a, sapi::v::ConstCStr(filename_ptr).PtrBefore(), kBlockSize);
   CHECK(ret2.ok()) << "read_open_filename call failed";
-  // CHECK(!ret2.value()) << GetErrorString(&a_ptr, sandbox, api);
   CHECK(!ret2.value()) << CheckStatusAndGetString(api.archive_error_string(&a),
                                                   sandbox);
-  // CHECK(!ret2.value()) << CallFunctionAndGetString(&a_ptr, sandbox, &api,
-  // &api.archive_error_string);
 
   for (;;) {
     int needcr = 0;
-    std::cout << "================reading headers==============" << std::endl;
-    sapi::v::IntBase<struct archive_entry *> entry_ptr_tmp(0);
+    sapi::v::IntBase<struct archive_entry*> entry_ptr_tmp(0);
 
-    ret2 = api.archive_read_next_header(&a, entry_ptr_tmp.PtrBoth());
-    // std::cout << "val = " << ret2.value() << std::endl;
+    ret2 = api.archive_read_next_header(&a, entry_ptr_tmp.PtrAfter());
     CHECK(ret2.ok()) << "read_next_header call failed";
-    // CHECK(ret2.value() != ARCHIVE_OK) << GetErrorString(&a_ptr, sandbox,
-    // api);
 
     if (ret2.value() == ARCHIVE_EOF) {
       break;
@@ -635,14 +586,9 @@ static void extract(const char *filename, int do_extract, int flags) {
       needcr = 1;
     }
 
-    std::cout << "qqqqq" << std::endl;
-
     if (do_extract) {
-      std::cout << "EXTRACT HERE" << std::endl;
       ret2 = api.archive_write_header(&ext, &entry);
       CHECK(ret2.ok()) << "write_header call failed";
-
-      std::cout << "val = " << ret2.value() << std::endl;
 
       if (ret2.value() != ARCHIVE_OK) {
         std::cout << CheckStatusAndGetString(api.archive_error_string(&a),
@@ -657,8 +603,6 @@ static void extract(const char *filename, int do_extract, int flags) {
       std::cout << std::endl;
     }
   }
-
-  std::cout << "out of loop" << std::endl;
 
   ret2 = api.archive_read_close(&a);
   CHECK(ret2.ok()) << "read_close call failed";
@@ -675,25 +619,20 @@ static void extract(const char *filename, int do_extract, int flags) {
   ret2 = api.archive_write_free(&ext);
   CHECK(ret2.ok()) << "write_free call failed";
   CHECK(!ret2.value()) << "Unexpected result from write_free call";
-
-//   if (do_extract) {
-//     sandbox2::file_util::fileops::DeleteRecursively(tmp_dir);
-//   }
 }
 
-static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
-                     LibarchiveApi &api,
-                     SapiLibarchiveSandboxExtract &sandbox) {
-  std::cout << "CALL COPY_DATA XXXXXXXXXXXX\n";
+static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
+                     LibarchiveApi& api,
+                     SapiLibarchiveSandboxExtract& sandbox) {
   sapi::StatusOr<int> ret;
 
-  sapi::v::IntBase<struct archive_entry *> buff_ptr_tmp(0);
+  sapi::v::IntBase<struct archive_entry*> buff_ptr_tmp(0);
   sapi::v::ULLong size;
   sapi::v::SLLong offset;
 
   for (;;) {
-    ret = api.archive_read_data_block(ar, buff_ptr_tmp.PtrBoth(),
-                                      size.PtrBoth(), offset.PtrBoth());
+    ret = api.archive_read_data_block(ar, buff_ptr_tmp.PtrAfter(),
+                                      size.PtrAfter(), offset.PtrAfter());
     CHECK(ret.ok()) << "read_data_block call failed";
 
     if (ret.value() == ARCHIVE_EOF) {
@@ -720,18 +659,18 @@ static int copy_data(sapi::v::RemotePtr *ar, sapi::v::RemotePtr *aw,
   }
 }
 
-static void msg(const char *m) { write(1, m, strlen(m)); }
+// static void msg(const char* m) { write(1, m, strlen(m)); }
 
-static void errmsg(const char *m) {
-  if (m == NULL) {
-    m = "Error: No error description provided.\n";
-  }
-  write(2, m, strlen(m));
-}
+// static void errmsg(const char* m) {
+//   if (m == NULL) {
+//     m = "Error: No error description provided.\n";
+//   }
+//   write(2, m, strlen(m));
+// }
 
 static void usage(void) {
   /* Many program options depend on compile options. */
-  const char *m =
+  const char* m =
       "Usage: minitar [-"
 #ifndef NO_CREATE
       "c"
@@ -751,6 +690,6 @@ static void usage(void) {
 #endif
       "] [-f file] [file]\n";
 
-  errmsg(m);
-  exit(1);
+  std::cout << m << std::endl;
+  exit(EXIT_FAILURE);
 }

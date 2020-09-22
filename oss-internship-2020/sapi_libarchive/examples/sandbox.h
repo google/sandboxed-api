@@ -10,13 +10,13 @@
 class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
  public:
   // TODO
-  explicit SapiLibarchiveSandboxCreate(const std::vector<std::string> &files,
+  explicit SapiLibarchiveSandboxCreate(const std::vector<std::string>& files,
                                        absl::string_view archive_path)
       : files_(files), archive_path_(archive_path) {}
 
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder *) override {
+      sandbox2::PolicyBuilder*) override {
     sandbox2::PolicyBuilder policy =
         sandbox2::PolicyBuilder()
             .AddDirectoryAt(archive_path_, "/output", false)
@@ -46,7 +46,7 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
                 __NR_getdents64,
             });
 
-    for (const auto &i : files_) {
+    for (const auto& i : files_) {
       std::cout << "ADD FILE -------" << i << std::endl;
       struct stat s;
       stat(i.c_str(), &s);
@@ -75,14 +75,14 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
         tmp_dir_(tmp_dir) {}
 
  private:
-  virtual void ModifyExecutor(sandbox2::Executor *executor) override {
+  virtual void ModifyExecutor(sandbox2::Executor* executor) override {
     if (do_extract_) {
       executor = &executor->set_cwd(std::string(tmp_dir_));
     }
   }
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder *) override {
+      sandbox2::PolicyBuilder*) override {
     sandbox2::PolicyBuilder policy = sandbox2::PolicyBuilder()
                                          .AllowRead()
                                          .AllowWrite()
