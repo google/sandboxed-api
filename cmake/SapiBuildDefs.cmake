@@ -123,7 +123,7 @@ function(add_sapi_library)
   endif()
 
   # Interface
-  list_join(_sapi_FUNCTIONS "," _sapi_funcs)
+  list(JOIN _sapi_FUNCTIONS "," _sapi_funcs)
   foreach(src IN LISTS _sapi_INPUTS)
     get_filename_component(src "${src}" ABSOLUTE)
     list(APPEND _sapi_full_inputs "${src}")
@@ -149,7 +149,7 @@ function(add_sapi_library)
     )
   else()
     set(_sapi_isystem "${_sapi_NAME}.isystem")
-    list_join(_sapi_full_inputs "," _sapi_full_inputs)
+    list(JOIN _sapi_full_inputs "," _sapi_full_inputs)
     add_custom_command(
       OUTPUT "${_sapi_gen_header}" "${_sapi_isystem}"
       COMMAND sh -c
