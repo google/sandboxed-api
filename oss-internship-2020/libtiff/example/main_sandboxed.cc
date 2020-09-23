@@ -38,7 +38,7 @@ static const std::vector<unsigned char> cluster_128 = {44, 40, 63, 59, 230, 95};
 static int CheckCluster(int cluster,
                         const sapi::v::Array<unsigned char> &buffer,
                         const std::vector<unsigned char> &expected_cluster) {
-  unsigned char *target = buffer.GetData() + cluster * 6;
+  unsigned char* target = buffer.GetData() + cluster * 6;
 
   if (!std::memcmp(target, expected_cluster.data(), 6)) {
     return 0;
@@ -59,7 +59,7 @@ static int CheckCluster(int cluster,
 static int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
                          int max_green, int min_blue, int max_blue,
                          const sapi::v::Array<unsigned char> &buffer) {
-  unsigned char *rgb = buffer.GetData() + 3 * pixel;
+  unsigned char* rgb = buffer.GetData() + 3 * pixel;
 
   if (rgb[0] >= min_red && rgb[0] <= max_red && rgb[1] >= min_green &&
       rgb[1] <= max_green && rgb[2] >= min_blue && rgb[2] <= max_blue) {
@@ -128,7 +128,7 @@ std::string GetFilePath(const std::string filename) {
   return sandbox2::file::JoinPath(project_path, "test", "images", filename);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   std::string srcfile;
@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 
   // initialize sapi vars after constructing TiffSapiSandbox
   sapi::v::UShort h, v;
-  sapi::StatusOr<TIFF *> status_or_tif;
+  sapi::StatusOr<TIFF*> status_or_tif;
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<tmsize_t> status_or_long;
 
