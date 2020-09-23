@@ -82,7 +82,7 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
   ASSERT_THAT(result, Eq(0)) << "Unexpected result from encode32_file call";
 
   sapi::v::UInt sapi_width, sapi_height;
-  sapi::v::IntBase<uint8_t *> sapi_image_ptr(0);
+  sapi::v::IntBase<uint8_t*> sapi_image_ptr(0);
 
   SAPI_ASSERT_OK_AND_ASSIGN(
       result, api.lodepng_decode32_file(
@@ -136,7 +136,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
   sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 
   sapi::v::ULLong sapi_pngsize;
-  sapi::v::IntBase<uint8_t *> sapi_png_ptr(0);
+  sapi::v::IntBase<uint8_t*> sapi_png_ptr(0);
 
   SAPI_ASSERT_OK_AND_ASSIGN(
       unsigned int result,
@@ -159,7 +159,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
   ASSERT_THAT(result, Eq(0)) << "Unexpected result from save_file call";
 
   sapi::v::UInt sapi_width, sapi_height;
-  sapi::v::IntBase<uint8_t *> sapi_png_ptr2(0);
+  sapi::v::IntBase<uint8_t*> sapi_png_ptr2(0);
   sapi::v::ULLong sapi_pngsize2;
 
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -178,7 +178,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
   ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_png_array2), IsOk())
       << "Error during transfer from sandboxee";
 
-  sapi::v::IntBase<uint8_t *> sapi_png_ptr3(0);
+  sapi::v::IntBase<uint8_t*> sapi_png_ptr3(0);
   SAPI_ASSERT_OK_AND_ASSIGN(
       result,
       api.lodepng_decode32(sapi_png_ptr3.PtrBoth(), sapi_width.PtrBoth(),
@@ -211,3 +211,4 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
 }
 
 }  // namespace
+

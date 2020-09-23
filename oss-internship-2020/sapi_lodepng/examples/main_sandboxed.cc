@@ -19,7 +19,7 @@
 #include "helpers.h"
 #include "sandbox.h"
 
-void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
+void EncodeDecodeOneStep(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   // Generate the values.
   std::vector<uint8_t> image = GenerateValues();
 
@@ -39,7 +39,7 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   // After the image has been encoded, decode it to check that the
   // pixel values are the same.
   sapi::v::UInt sapi_width, sapi_height;
-  sapi::v::IntBase<uint8_t *> sapi_image_ptr(0);
+  sapi::v::IntBase<uint8_t*> sapi_image_ptr(0);
 
   result = api.lodepng_decode32_file(
       sapi_image_ptr.PtrBoth(), sapi_width.PtrBoth(), sapi_height.PtrBoth(),
@@ -75,7 +75,7 @@ void EncodeDecodeOneStep(SapiLodepngSandbox &sandbox, LodepngApi &api) {
       << "Could not free memory inside sandboxed process";
 }
 
-void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
+void EncodeDecodeTwoSteps(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   // Generate the values.
   std::vector<uint8_t> image = GenerateValues();
 
@@ -87,7 +87,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
   sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 
   sapi::v::ULLong sapi_pngsize;
-  sapi::v::IntBase<uint8_t *> sapi_png_ptr(0);
+  sapi::v::IntBase<uint8_t*> sapi_png_ptr(0);
 
   // Encode it into memory.
   sapi::StatusOr<unsigned int> result =
@@ -116,7 +116,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 
   // Now, decode the image using the 2 steps in order to compare the values.
   sapi::v::UInt sapi_width, sapi_height;
-  sapi::v::IntBase<uint8_t *> sapi_png_ptr2(0);
+  sapi::v::IntBase<uint8_t*> sapi_png_ptr2(0);
   sapi::v::ULLong sapi_pngsize2;
 
   // Load the file in memory.
@@ -139,7 +139,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
 
   // After the file is loaded, decode it so we have access to the values
   // directly.
-  sapi::v::IntBase<uint8_t *> sapi_png_ptr3(0);
+  sapi::v::IntBase<uint8_t*> sapi_png_ptr3(0);
   result = api.lodepng_decode32(
       sapi_png_ptr3.PtrBoth(), sapi_width.PtrBoth(), sapi_height.PtrBoth(),
       sapi_png_array2.PtrBefore(), sapi_pngsize2.GetValue());
@@ -171,7 +171,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox &sandbox, LodepngApi &api) {
       << "Could not free memory inside sandboxed process";
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   const std::string images_path = CreateTempDirAtCWD();
@@ -192,3 +192,4 @@ int main(int argc, char *argv[]) {
 
   return EXIT_SUCCESS;
 }
+

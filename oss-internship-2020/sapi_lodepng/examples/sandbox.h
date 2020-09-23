@@ -47,3 +47,4 @@ class SapiLodepngSandbox : public LodepngSandbox {
 };
 
 #endif  // SAPI_LODEPNG_SANDBOX_H_
+
