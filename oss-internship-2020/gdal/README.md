@@ -24,6 +24,16 @@ PROJ: `sudo apt-get install libproj-dev`
 ### Initializing GDAL submodule:
 `git submodule add https://github.com/OSGeo/gdal/tree/master/gdal`
 
+### Building GDAL statically 
+GNUmakefile from gdal/gdal can handle building the static library.
+
+`cd gdal/gdal && make static-lib`
+
+`cd ../.. && mkdir lib`
+
+`cp gdal/gdal/libgdal.a lib/`
+
+OBS: The file is huge! It may take a while.
 
 ### For testing: 
 `mkdir build && cd build`
