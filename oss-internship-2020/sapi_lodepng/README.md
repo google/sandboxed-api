@@ -10,16 +10,21 @@ Even if many of the functions from the library can be sandboxed, there are some 
 
 ## Patches
 
-In the **patches** folder there is a patch file that adds **extern "C"** to the required functions in the header file in order to sandbox them. This patch is applied automatically during the build phase.
+In the **patches** folder there is a patch file that adds `extern "C"` to the required functions in the header file in order to sandbox them. This patch is applied automatically during the build phase.
 
 ## Build
 
 First, run `git submodule update --init --recursive` to update submodules.
 After this, run the following commands:
+
 `mkdir -p build && cd build`
+
 `cmake .. -G Ninja`
-`ninja`
-The example binary files can be found in `build/examples`
+
+`cmake --build .`
+
+
+The example binary files can be found in `build/examples`.
 
 ## Examples
 
