@@ -20,36 +20,24 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
 
 # Apply the patches to the header file.
-file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/patches")
-
-# Move the original header to a new folder to use as target, apply the patch
-# and move it back to build the library.
 add_custom_command(
-    OUTPUT "${PROJECT_BINARY_DIR}/patches/lodepng.h"
-    COMMENT "Applying patch to header file."
-    COMMAND cp "${PROJECT_SOURCE_DIR}/patches/header.patch" "${PROJECT_BINARY_DIR}/patches/"
-    COMMAND cp "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h" "${PROJECT_BINARY_DIR}/patches/"
-    COMMAND cd "${PROJECT_BINARY_DIR}/patches" && patch < header.patch
-    COMMAND cp "${PROJECT_BINARY_DIR}/patches/lodepng.h" "${PROJECT_SOURCE_DIR}/lodepng/"
+  OUTPUT "${PROJECT_BINARY_DIR}/lodepng/lodepng.h" "${PROJECT_BINARY_DIR}/lodepng/lodepng.cpp"
+  COMMENT "Applying patch to header file."
+  COMMAND cp -r "${PROJECT_SOURCE_DIR}/lodepng" "${PROJECT_BINARY_DIR}/"
+  COMMAND cp "${PROJECT_SOURCE_DIR}/patches/header.patch" "${PROJECT_BINARY_DIR}/lodepng/"
+  COMMAND cd "${PROJECT_BINARY_DIR}/lodepng" && patch < header.patch
 )
-
-set_property(
-    SOURCE
-    "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
-    APPEND PROPERTY OBJECT_DEPENDS
-    "${PROJECT_BINARY_DIR}/patches/lodepng.h"
-)
-
 
 # Build static library.
 add_library(lodepng STATIC
-  "${PROJECT_SOURCE_DIR}/lodepng/lodepng.cpp"
-  "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
+  "${PROJECT_BINARY_DIR}/lodepng/lodepng.cpp"
+  "${PROJECT_BINARY_DIR}/lodepng/lodepng.h"
 )
 
-# Build SAPI library
-set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
+target_include_directories(lodepng PUBLIC "${PROJECT_BINARY_DIR}/lodepng")
 
+# Build SAPI library
+set(SAPI_ROOT "${PROJECT_SOURCE_DIR}/../.." CACHE PATH "Path to the Sandboxed API source tree")
 
 add_subdirectory("${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
@@ -58,7 +46,7 @@ add_subdirectory("${SAPI_ROOT}"
 
 add_sapi_library(
   lodepng_sapi
-  
+
   FUNCTIONS
   lodepng_decode_memory
   lodepng_decode32
@@ -78,8 +66,8 @@ add_sapi_library(
 
   lodepng_save_file
   lodepng_load_file
-  
-  INPUTS "${PROJECT_SOURCE_DIR}/lodepng/lodepng.h"
+
+  INPUTS "${PROJECT_BINARY_DIR}/lodepng/lodepng.h"
   LIBRARY lodepng
   LIBRARY_NAME Lodepng
   NAMESPACE ""

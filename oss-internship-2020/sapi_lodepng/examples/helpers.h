@@ -22,9 +22,9 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 
-constexpr size_t kWidth = 512;
-constexpr size_t kHeight = 512;
-constexpr size_t kImgLen = kWidth * kHeight * 4;
+inline constexpr size_t kWidth = 512;
+inline constexpr size_t kHeight = 512;
+inline constexpr size_t kImgLen = kWidth * kHeight * 4;
 
 // Returns a vector that contains values used for testing.
 // This part of code is taken from
@@ -37,3 +37,4 @@ std::vector<uint8_t> GenerateValues();
 std::string CreateTempDirAtCWD();
 
 #endif  // SAPI_LODEPNG_HELPERS_H
+

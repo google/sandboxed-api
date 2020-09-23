@@ -26,7 +26,7 @@ std::vector<uint8_t> GenerateValues() {
       image.push_back(255);
     }
   }
-  
+
   return image;
 }
 
@@ -39,3 +39,4 @@ std::string CreateTempDirAtCWD() {
   CHECK(result.ok()) << "Could not create temporary directory";
   return result.value();
 }
+
