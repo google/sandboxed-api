@@ -4,3 +4,6 @@
 [submodule "oss-internship-2020/pffft/master"]
 	path = oss-internship-2020/pffft/master
 	url = https://bitbucket.org/jpommier/pffft/src/master/
+[submodule "oss-internship-2020/curl/curl_wrapper/curl"]
+	path = oss-internship-2020/curl/curl_wrapper/curl
+	url = https://github.com/curl/curl
