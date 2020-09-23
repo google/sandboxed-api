@@ -40,7 +40,7 @@ static const unsigned short kBps = 8;
 static const unsigned short kRowsPerStrip = 1;
 static const unsigned short kSamplePerPixel = 1;
 
-void test_writing(const char* mode, int tiled, int height) {
+void TestWriting(const char* mode, int tiled, int height) {
   sapi::StatusOr<std::string> status_or_path =
       sandbox2::CreateNamedTempFileAndClose("defer_strile_writing.tif");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp file";
@@ -314,9 +314,9 @@ void test_writing(const char* mode, int tiled, int height) {
 
 TEST(SandboxTest, DeferStrileWriting) {
   for (int tiled = 0; tiled <= 1; ++tiled) {
-    test_writing("w", tiled, 1);
-    test_writing("w", tiled, 10);
-    test_writing("w8", tiled, 1);
-    test_writing("wD", tiled, 1);
+    TestWriting("w", tiled, 1);
+    TestWriting("w", tiled, 10);
+    TestWriting("w8", tiled, 1);
+    TestWriting("wD", tiled, 1);
   }
 }

@@ -34,17 +34,17 @@ static const unsigned short kPhotometric = PHOTOMETRIC_RGB;
 static const unsigned short kRowsPerStrip = 1;
 static const unsigned short kPlanarConfig = PLANARCONFIG_CONTIG;
 
-struct single_tag {
+struct SingleTag {
   const ttag_t tag;
   const unsigned short value;
 };
 
-struct paired_tag {
+struct PairedTag {
   const ttag_t tag;
   const std::array<unsigned short, 2> values;
 };
 
-static const std::vector<single_tag> short_single_tags = {
+static const std::vector<SingleTag> short_single_tags = {
     {TIFFTAG_COMPRESSION, COMPRESSION_NONE},
     {TIFFTAG_FILLORDER, FILLORDER_MSB2LSB},
     {TIFFTAG_ORIENTATION, ORIENTATION_BOTRIGHT},
@@ -55,7 +55,7 @@ static const std::vector<single_tag> short_single_tags = {
     {TIFFTAG_NUMBEROFINKS, SPP},
     {TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}};
 
-static const std::vector<paired_tag> short_paired_tags = {
+static const std::vector<PairedTag> short_paired_tags = {
     {TIFFTAG_PAGENUMBER, {1, 1}},
     {TIFFTAG_HALFTONEHINTS, {0, 255}},
     {TIFFTAG_DOTRANGE, {8, 16}},

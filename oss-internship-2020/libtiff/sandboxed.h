@@ -14,6 +14,7 @@
 
 #include <linux/futex.h>
 #include <syscall.h>
+
 #include <utility>
 
 #include "sandboxed_api/util/flag.h"

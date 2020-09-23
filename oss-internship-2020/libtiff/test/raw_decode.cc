@@ -32,9 +32,9 @@ static const std::vector<unsigned char> cluster_0 = {0, 0, 2, 0, 138, 139};
 static const std::vector<unsigned char> cluster_64 = {0, 0, 9, 6, 134, 119};
 static const std::vector<unsigned char> cluster_128 = {44, 40, 63, 59, 230, 95};
 
-static int check_cluster(int cluster,
-                         const sapi::v::Array<unsigned char> &buffer,
-                         const std::vector<unsigned char> &expected_cluster) {
+static int CheckCluster(int cluster,
+                        const sapi::v::Array<unsigned char> &buffer,
+                        const std::vector<unsigned char> &expected_cluster) {
   unsigned char *target = buffer.GetData() + cluster * 6;
 
   bool comp = !(std::memcmp(target, expected_cluster.data(), 6) == 0);
@@ -50,9 +50,9 @@ static int check_cluster(int cluster,
   return comp;
 }
 
-static int check_rgb_pixel(int pixel, int min_red, int max_red, int min_green,
-                           int max_green, int min_blue, int max_blue,
-                           const sapi::v::Array<unsigned char> &buffer) {
+static int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
+                         int max_green, int min_blue, int max_blue,
+                         const sapi::v::Array<unsigned char> &buffer) {
   unsigned char *rgb = buffer.GetData() + 3 * pixel;
 
   bool comp =
@@ -68,10 +68,10 @@ static int check_rgb_pixel(int pixel, int min_red, int max_red, int min_green,
   return comp;
 }
 
-static int check_rgba_pixel(int pixel, int min_red, int max_red, int min_green,
-                            int max_green, int min_blue, int max_blue,
-                            int min_alpha, int max_alpha,
-                            const sapi::v::Array<unsigned> &buffer) {
+static int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
+                          int max_green, int min_blue, int max_blue,
+                          int min_alpha, int max_alpha,
+                          const sapi::v::Array<unsigned> &buffer) {
   /* RGBA images are upside down - adjust for normal ordering */
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
   unsigned rgba = buffer[adjusted_pixel];
@@ -140,9 +140,9 @@ TEST(SandboxTest, RawDecode) {
       << "Did not get expected result code from TIFFReadEncodedTile()("
       << (int)status_or_long.value() << " instead of " << (int)sz << ")";
 
-  ASSERT_FALSE(check_cluster(0, buffer_, cluster_0) ||
-               check_cluster(64, buffer_, cluster_64) ||
-               check_cluster(128, buffer_, cluster_128))
+  ASSERT_FALSE(CheckCluster(0, buffer_, cluster_0) ||
+               CheckCluster(64, buffer_, cluster_64) ||
+               CheckCluster(128, buffer_, cluster_128))
       << "Clusters did not match expected results";
 
   status_or_int =
@@ -164,9 +164,9 @@ TEST(SandboxTest, RawDecode) {
       << "Did not get expected result code from TIFFReadEncodedTile()("
       << status_or_long.value() << " instead of " << sz;
 
-  pixel_status |= check_rgb_pixel(0, 15, 18, 0, 0, 18, 41, buffer2_);
-  pixel_status |= check_rgb_pixel(64, 0, 0, 0, 0, 0, 2, buffer2_);
-  pixel_status |= check_rgb_pixel(512, 5, 6, 34, 36, 182, 196, buffer2_);
+  pixel_status |= CheckRgbPixel(0, 15, 18, 0, 0, 18, 41, buffer2_);
+  pixel_status |= CheckRgbPixel(64, 0, 0, 0, 0, 0, 2, buffer2_);
+  pixel_status |= CheckRgbPixel(512, 5, 6, 34, 36, 182, 196, buffer2_);
 
   ASSERT_THAT(api.TIFFClose(&tif), IsOk()) << "TIFFClose fatal error";
 
@@ -186,11 +186,10 @@ TEST(SandboxTest, RawDecode) {
       << "TIFFReadRGBATile() returned failure code";
 
   pixel_status |=
-      check_rgba_pixel(0, 15, 18, 0, 0, 18, 41, 255, 255, rgba_buffer_);
+      CheckRgbaPixel(0, 15, 18, 0, 0, 18, 41, 255, 255, rgba_buffer_);
+  pixel_status |= CheckRgbaPixel(64, 0, 0, 0, 0, 0, 2, 255, 255, rgba_buffer_);
   pixel_status |=
-      check_rgba_pixel(64, 0, 0, 0, 0, 0, 2, 255, 255, rgba_buffer_);
-  pixel_status |=
-      check_rgba_pixel(512, 5, 6, 34, 36, 182, 196, 255, 255, rgba_buffer_);
+      CheckRgbaPixel(512, 5, 6, 34, 36, 182, 196, 255, 255, rgba_buffer_);
 
   EXPECT_THAT(api.TIFFClose(&tif2), IsOk()) << "TIFFClose fatal error";
 

@@ -26,13 +26,13 @@
  * TIFFSetField
  */
 
-struct long_tag {
+struct LongTag {
   ttag_t tag;
   short count;
   unsigned value;
 };
 
-const std::vector<long_tag> long_tags = {
+const std::vector<LongTag> long_tags = {
     {TIFFTAG_SUBFILETYPE, 1,
      FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
 #define SPP 3  // kSamplePerPixel
