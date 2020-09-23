@@ -35,7 +35,7 @@ static const std::vector<unsigned char> cluster_128 = {44, 40, 63, 59, 230, 95};
 static int CheckCluster(int cluster,
                         const sapi::v::Array<unsigned char> &buffer,
                         const std::vector<unsigned char> &expected_cluster) {
-  unsigned char *target = buffer.GetData() + cluster * 6;
+  unsigned char* target = buffer.GetData() + cluster * 6;
 
   bool comp = !(std::memcmp(target, expected_cluster.data(), 6) == 0);
 
@@ -53,7 +53,7 @@ static int CheckCluster(int cluster,
 static int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
                          int max_green, int min_blue, int max_blue,
                          const sapi::v::Array<unsigned char> &buffer) {
-  unsigned char *rgb = buffer.GetData() + 3 * pixel;
+  unsigned char* rgb = buffer.GetData() + 3 * pixel;
 
   bool comp =
       !(rgb[0] >= min_red && rgb[0] <= max_red && rgb[1] >= min_green &&
@@ -72,7 +72,7 @@ static int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
                           int max_green, int min_blue, int max_blue,
                           int min_alpha, int max_alpha,
                           const sapi::v::Array<unsigned> &buffer) {
-  /* RGBA images are upside down - adjust for normal ordering */
+  // RGBA images are upside down - adjust for normal ordering
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
   unsigned rgba = buffer[adjusted_pixel];
 
@@ -104,7 +104,7 @@ TEST(SandboxTest, RawDecode) {
   tsize_t sz;
   unsigned int pixel_status = 0;
   sapi::v::UShort h, v;
-  sapi::StatusOr<TIFF *> status_or_tif;
+  sapi::StatusOr<TIFF*> status_or_tif;
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<tmsize_t> status_or_long;
 

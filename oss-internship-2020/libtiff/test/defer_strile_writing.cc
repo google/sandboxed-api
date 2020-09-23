@@ -131,7 +131,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFDeferStrileArrayWriting return unexpected value";
 
-  /* Create other directory */
+  // Create other directory
   ASSERT_THAT(api.TIFFFreeDirectory(&tif), IsOk())
       << "TIFFFreeDirectory fatal error";
   ASSERT_THAT(api.TIFFCreateDirectory(&tif), IsOk())
@@ -191,7 +191,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFWriteDirectory return unexpected value";
 
-  /* Force writing of strile arrays */
+  // Force writing of strile arrays
   status_or_int = api.TIFFSetDirectory(&tif, 0);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetDirectory fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
@@ -214,7 +214,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFForceStrileArrayWriting return unexpected value";
 
-  /* Now write data on frist directory */
+  // Now write data on frist directory
   status_or_int = api.TIFFSetDirectory(&tif, 0);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetDirectory fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
