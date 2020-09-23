@@ -5,6 +5,26 @@ Build Tools: CMake/Ninja
 OS: Linux
 ```
 
+### For installing GDAL:
+`sudo apt-get install python3.6-dev`
+
+`sudo add-apt-repository ppa:ubuntugis/ppa && sudo apt update`
+
+`sudo apt-get install gdal-bin`
+
+`sudo apt-get install libgdal-dev`
+
+### Dependencies:
+PNG: `sudo apt-get install libpng-dev`
+
+PCRE: `sudo apt-get install libpcre3 libpcre3-dev`
+
+PROJ: `sudo apt-get install libproj-dev`
+
+### Initializing GDAL submodule:
+`git submodule add https://github.com/OSGeo/gdal/tree/master/gdal`
+
+
 ### For testing: 
 `mkdir build && cd build`
 
@@ -12,13 +32,13 @@ OS: Linux
 
 `ninja`
 
-`./raster` 
+`./raster <your_absolute_tiff_file_path>` 
 
 ## About the project
-    GDAL is a translator library for raster and vector 
-    geospatial data format. 
-    The project consist in rastering a GeoTIFF file format 
-    using GDAL functionalities and sandboxed methods. 
+GDAL is a translator library for raster and vector 
+geospatial data format. 
+The project consist in rastering a GeoTIFF file format 
+using GDAL functionalities and sandboxed methods.
 
 ## Implementation
     

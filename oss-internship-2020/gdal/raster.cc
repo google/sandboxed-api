@@ -20,15 +20,13 @@
 #include <fstream>
 #include <iostream>
 
-#include "gdal_sapi.sapi.h"
+#include "gdal_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
-class GdalSapiSandbox : public gdalSandbox {
+class GdalSapiSandbox : public GDALSandbox {
  public:
-  std::string filePath;
-
   GdalSapiSandbox(std::string path)
-      : gdalSandbox(), filePath(std::move(path)) {}
+      : GDALSandbox(), file_path_(std::move(path)) {}
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -52,16 +50,20 @@ class GdalSapiSandbox : public gdalSandbox {
             __NR_ftruncate,
             __NR_unlink,
         })
-        .AddFile(filePath)
+        .AddFile(file_path_)
         .BuildOrDie();
   }
+
+  private:
+  std::string file_path_;
 };
 
 absl::Status GdalMain(std::string filename) {
   // Reading GDALDataset from a (local, specific) file.
   GdalSapiSandbox sandbox(filename);
+
   SAPI_RETURN_IF_ERROR(sandbox.Init());
-  gdalApi api(&sandbox);
+  GDALApi api(&sandbox);
 
   sapi::v::CStr s(filename.data());
 
