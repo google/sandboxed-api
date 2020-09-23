@@ -7,3 +7,6 @@
 [submodule "oss-internship-2020/curl/curl_wrapper/curl"]
 	path = oss-internship-2020/curl/curl_wrapper/curl
 	url = https://github.com/curl/curl
+[submodule "oss-internship-2020/libtiff/wrapper/libtiff"]
+	path = oss-internship-2020/libtiff/wrapper/libtiff
+	url = https://gitlab.com/libtiff/libtiff
