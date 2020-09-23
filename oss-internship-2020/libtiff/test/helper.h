@@ -21,8 +21,6 @@
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-const std::string kOutDir = "output";
-
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsFalse;
@@ -30,6 +28,4 @@ using ::testing::IsTrue;
 using ::testing::Ne;
 using ::testing::NotNull;
 
-std::string GetOutPath();
 std::string GetFilePath(const std::string& filename);
-std::string GetNewFilePath(const std::string& filename);

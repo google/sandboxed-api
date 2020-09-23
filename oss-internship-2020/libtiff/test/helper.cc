@@ -43,9 +43,3 @@ std::string GetFilePath(const std::string& filename) {
   }
   return sandbox2::file::JoinPath(inDir, filename);
 }
-
-std::string GetOutPath() { return GetImagesDir() + '/' + kOutDir; }
-
-std::string GetNewFilePath(const std::string& filename) {
-  return GetOutPath() + '/' + filename;
-}
