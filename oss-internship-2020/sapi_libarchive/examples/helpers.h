@@ -24,7 +24,7 @@ std::string MakeAbsolutePathAtCWD(const std::string& path);
 // This function takes a status as argument and after checking the status
 // it transfers the string. This is used mostly with archive_error_string
 // and other library functions that return a char *.
-std::string CheckStatusAndGetString(const sapi::StatusOr<char*>& status,
+std::string CheckStatusAndGetString(const absl::StatusOr<char*>& status,
                                     LibarchiveSandbox& sandbox);
 
 // Creates a temporary directory in the current working directory and
