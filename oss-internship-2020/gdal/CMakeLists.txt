@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.10) 
+cmake_minimum_required(VERSION 3.10)
 
 project(test CXX C)
 
@@ -38,19 +38,19 @@ add_library(libgdal STATIC IMPORTED)
 set_property(TARGET libgdal PROPERTY IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/lib/libgdal.a")
                
 target_link_libraries(libgdal INTERFACE
-  crypto expat jpeg 
+  crypto expat jpeg
   PkgConfig::libpcre
   PkgConfig::proj
   sqlite3 tiff z pthread m rt dl curl
   PNG::PNG)
 
 add_sapi_library(gdal_sapi
-  FUNCTIONS GDALOpen GDALAllRegister GDALGetDatasetDriver 
-    GDALGetDriverShortName GDALGetDriverLongName 
+  FUNCTIONS GDALOpen GDALAllRegister GDALGetDatasetDriver
+    GDALGetDriverShortName GDALGetDriverLongName
     GDALGetGeoTransform GDALGetRasterBand GDALGetBlockSize
     GDALGetRasterBandXSize GDALGetRasterBandYSize GDALRasterIO
   
-  INPUTS "/usr/include/gdal/gdal.h" 
+  INPUTS "/usr/include/gdal/gdal.h"
   LIBRARY libgdal
   LIBRARY_NAME GDAL
   
