@@ -24,8 +24,8 @@ PROJ: `sudo apt-get install libproj-dev`
 OBS! You may need to set `export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib`. 
 It is required for libproj.so to be found into 
 /usr/local/lib/. You can also fix this by typing `locate libproj.so`
-which will give you <the_absolute_path_of_libproj.so> and then 
-`cp <the_absolute_path_of_libproj.so> /usr/local/lib/`.
+which will give you <the_absolute_libproj.so_path> and then 
+`cp <the_absolute_libproj.so_path> /usr/local/lib/`.
 
 ### Initializing GDAL submodule:
 `git submodule add https://github.com/OSGeo/gdal/tree/master/gdal`
