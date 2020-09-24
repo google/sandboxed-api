@@ -161,7 +161,7 @@ absl::Status SumTransaction::Main() {
   LOG(INFO) << "Read from /proc/self/comm = [" << buffer << "]";
 
   // Close test.
-  SAPI_RETURN_IF_ERROR(fd2.CloseRemoteFd(sandbox()->GetRpcChannel()));
+  SAPI_RETURN_IF_ERROR(fd2.CloseRemoteFd(sandbox()->rpc_channel()));
   memset(buffer, 0, sizeof(buffer));
   SAPI_RETURN_IF_ERROR(sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
   LOG(INFO) << "Read from closed /proc/self/comm = [" << buffer << "]";

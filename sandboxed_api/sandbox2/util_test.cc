@@ -23,8 +23,8 @@
 #include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 
-using testing::Gt;
-using testing::IsTrue;
+using ::testing::Gt;
+using ::testing::IsTrue;
 
 namespace sandbox2 {
 namespace util {

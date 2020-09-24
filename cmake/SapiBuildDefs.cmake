@@ -123,7 +123,7 @@ function(add_sapi_library)
   endif()
 
   # Interface
-  list_join(_sapi_FUNCTIONS "," _sapi_funcs)
+  list(JOIN _sapi_FUNCTIONS "," _sapi_funcs)
   foreach(src IN LISTS _sapi_INPUTS)
     get_filename_component(src "${src}" ABSOLUTE)
     list(APPEND _sapi_full_inputs "${src}")
@@ -132,7 +132,6 @@ function(add_sapi_library)
     set(_sapi_embed_dir "${CMAKE_CURRENT_BINARY_DIR}")
     set(_sapi_embed_name "${_sapi_NAME}")
   endif()
-  # TODO(cblichmann): Implement sapi_isystem
   if(SAPI_ENABLE_GENERATOR)
     add_custom_command(
       OUTPUT "${_sapi_gen_header}"
@@ -149,9 +148,14 @@ function(add_sapi_library)
       VERBATIM
     )
   else()
-    list_join(_sapi_full_inputs "," _sapi_full_inputs)
+    set(_sapi_isystem "${_sapi_NAME}.isystem")
+    list(JOIN _sapi_full_inputs "," _sapi_full_inputs)
     add_custom_command(
-      OUTPUT "${_sapi_gen_header}"
+      OUTPUT "${_sapi_gen_header}" "${_sapi_isystem}"
+      COMMAND sh -c
+              "${CMAKE_CXX_COMPILER} -E -x c++ -v /dev/null 2>&1 | \
+               awk '/> search starts here:/{f=1;next}/^End of search/{f=0}f{print $1}' \
+               > \"${_sapi_isystem}\""
       COMMAND "${SAPI_PYTHON3_EXECUTABLE}" -B
               "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
               "--sapi_name=${_sapi_LIBRARY_NAME}"
@@ -160,8 +164,10 @@ function(add_sapi_library)
               "--sapi_embed_name=${_sapi_embed_name}"
               "--sapi_functions=${_sapi_funcs}"
               "--sapi_ns=${_sapi_NAMESPACE}"
+              "--sapi_isystem=${_sapi_isystem}"
               "--sapi_in=${_sapi_full_inputs}"
       COMMENT "Generating interface"
+      VERBATIM
     )
   endif()
 

@@ -25,9 +25,10 @@
 
 #include <glog/logging.h>
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
@@ -36,22 +37,25 @@ namespace sandbox2 {
 constexpr int SYS_SECCOMP = 1;
 #endif
 
-#if defined(__x86_64__)
+#if defined(SAPI_X86_64)
 constexpr int kRegResult = REG_RAX;
 constexpr int kRegSyscall = REG_RAX;
 constexpr int kRegArg0 = REG_RDI;
 constexpr int kRegArg1 = REG_RSI;
 constexpr int kRegArg2 = REG_RDX;
-#endif
-#if defined(__powerpc64__)
+#elif defined(SAPI_PPC64_LE)
 constexpr int kRegResult = 3;
 constexpr int kRegSyscall = 0;
 constexpr int kRegArg0 = 3;
 constexpr int kRegArg1 = 4;
 constexpr int kRegArg2 = 5;
+#elif defined(SAPI_ARM64)
+constexpr int kRegResult = 0;
+constexpr int kRegSyscall = 8;
+constexpr int kRegArg0 = 0;
+constexpr int kRegArg1 = 1;
+constexpr int kRegArg2 = 2;
 #endif
-
-constexpr char NetworkProxyClient::kFDName[];
 
 int NetworkProxyClient::ConnectHandler(int sockfd, const struct sockaddr* addr,
                                        socklen_t addrlen) {
@@ -154,20 +158,22 @@ void NetworkProxyHandler::InvokeOldAct(int nr, siginfo_t* info,
 
 void NetworkProxyHandler::ProcessSeccompTrap(int nr, siginfo_t* info,
                                              void* void_context) {
-  ucontext_t* ctx = (ucontext_t*)(void_context);
   if (info->si_code != SYS_SECCOMP) {
     InvokeOldAct(nr, info, void_context);
     return;
   }
-  if (!ctx) return;
+  auto* ctx = static_cast<ucontext_t*>(void_context);
+  if (!ctx) {
+    return;
+  }
 
-#if defined(__x86_64__)
+#if defined(SAPI_X86_64)
   auto* registers = ctx->uc_mcontext.gregs;
-#elif defined(__powerpc64__)
+#elif defined(SAPI_PPC64_LE)
   auto* registers = ctx->uc_mcontext.gp_regs;
-  using ppc_gpreg_t = std::decay<decltype(registers[0])>::type;
+#elif defined(SAPI_ARM64)
+  auto* registers = ctx->uc_mcontext.regs;
 #endif
-
   int syscall = registers[kRegSyscall];
 
   int sockfd;
@@ -178,14 +184,13 @@ void NetworkProxyHandler::ProcessSeccompTrap(int nr, siginfo_t* info,
     sockfd = static_cast<int>(registers[kRegArg0]);
     addr = reinterpret_cast<const struct sockaddr*>(registers[kRegArg1]);
     addrlen = static_cast<socklen_t>(registers[kRegArg2]);
-#if defined(__powerpc64__)
+#if defined(SAPI_PPC64_LE)
   } else if (syscall == __NR_socketcall &&
              static_cast<int>(registers[kRegArg0]) == SYS_CONNECT) {
-    ppc_gpreg_t* args = reinterpret_cast<ppc_gpreg_t*>(registers[kRegArg1]);
-
-    sockfd = static_cast<int>(args[0]);
-    addr = reinterpret_cast<const struct sockaddr*>(args[1]);
-    addrlen = static_cast<socklen_t>(args[2]);
+    auto* connect_args = reinterpret_cast<uint64_t*>(registers[kRegArg1]);
+    sockfd = static_cast<int>(connect_args[0]);
+    addr = reinterpret_cast<const struct sockaddr*>(connect_args[1]);
+    addrlen = static_cast<socklen_t>(connect_args[2]);
 #endif
   } else {
     InvokeOldAct(nr, info, void_context);

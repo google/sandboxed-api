@@ -56,7 +56,7 @@ def sapi_proto_library(
         deps = [],
         alwayslink = False,
         **kwargs):
-    """Generates proto targets in various languages.
+    """Generates proto library and C++ targets.
 
     Args:
       name: Name for proto_library and base for the cc_proto_library name, name +

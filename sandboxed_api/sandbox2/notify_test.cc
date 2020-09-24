@@ -49,8 +49,12 @@ std::unique_ptr<Policy> NotifyTestcasePolicy() {
       .AllowWrite()
       .AllowSyscall(__NR_close)
       .AddPolicyOnSyscall(__NR_personality, {SANDBOX2_TRACE})
+#ifdef __NR_open
       .BlockSyscallWithErrno(__NR_open, ENOENT)
+#endif
+#ifdef __NR_access
       .BlockSyscallWithErrno(__NR_access, ENOENT)
+#endif
       .BlockSyscallWithErrno(__NR_openat, ENOENT)
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
       .BuildOrDie();

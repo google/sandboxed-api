@@ -36,6 +36,7 @@
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -55,7 +56,6 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace {
 // "Moves" the old FD to the new FD number.
@@ -142,7 +142,7 @@ absl::Status SendPid(int signaling_fd) {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<pid_t> ReceivePid(int signaling_fd) {
+absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
   union {
     struct cmsghdr cmh;
     char ctrl[CMSG_SPACE(sizeof(struct ucred))];

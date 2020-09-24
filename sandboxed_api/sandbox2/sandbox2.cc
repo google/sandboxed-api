@@ -21,6 +21,7 @@
 #include <string>
 
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/monitor.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -33,7 +34,7 @@ Sandbox2::~Sandbox2() {
   }
 }
 
-sapi::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
+absl::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
     absl::Duration timeout) {
   CHECK(monitor_ != nullptr) << "Sandbox was not launched yet";
   CHECK(monitor_thread_ != nullptr) << "Sandbox was already waited on";

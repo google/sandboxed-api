@@ -36,6 +36,7 @@
 #include "google/protobuf/message.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
@@ -44,7 +45,6 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 #ifdef MEMORY_SANITIZER
 #include "base/dynamic_annotations.h"
@@ -228,7 +228,7 @@ void Comms::Terminate() {
   }
 }
 
-bool Comms::SendTLV(uint32_t tag, uint64_t length, const uint8_t* bytes) {
+bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
   if (length > GetMaxMsgSize()) {
     SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%u > %u)", length,
                  GetMaxMsgSize());
@@ -249,14 +249,14 @@ bool Comms::SendTLV(uint32_t tag, uint64_t length, const uint8_t* bytes) {
                 length);
   {
     absl::MutexLock lock(&tlv_send_transmission_mutex_);
-    if (!Send(reinterpret_cast<uint8_t*>(&tag), sizeof(tag))) {
+    if (!Send(&tag, sizeof(tag))) {
       return false;
     }
-    if (!Send(reinterpret_cast<uint8_t*>(&length), sizeof(length))) {
+    if (!Send(&length, sizeof(length))) {
       return false;
     }
     if (length > 0) {
-      if (!Send(bytes, length)) {
+      if (!Send(value, length)) {
         return false;
       }
     }
@@ -265,40 +265,38 @@ bool Comms::SendTLV(uint32_t tag, uint64_t length, const uint8_t* bytes) {
 }
 
 bool Comms::RecvString(std::string* v) {
-  TLV tlv;
-  if (!RecvTLV(&tlv)) {
+  uint32_t tag;
+  if (!RecvTLV(&tag, v)) {
     return false;
   }
 
-  if (tlv.tag != kTagString) {
+  if (tag != kTagString) {
     SAPI_RAW_LOG(ERROR, "Expected (kTagString == 0x%x), got: 0x%x", kTagString,
-                 tlv.tag);
+                 tag);
     return false;
   }
-  v->assign(reinterpret_cast<const char*>(tlv.value.data()), tlv.value.size());
   return true;
 }
 
 bool Comms::SendString(const std::string& v) {
-  return SendTLV(kTagString, v.length(),
-                 reinterpret_cast<const uint8_t*>(v.c_str()));
+  return SendTLV(kTagString, v.length(), v.c_str());
 }
 
 bool Comms::RecvBytes(std::vector<uint8_t>* buffer) {
-  TLV tlv;
-  if (!RecvTLV(&tlv)) {
+  uint32_t tag;
+  if (!RecvTLV(&tag, buffer)) {
     return false;
   }
-  if (tlv.tag != kTagBytes) {
+  if (tag != kTagBytes) {
+    buffer->clear();
     SAPI_RAW_LOG(ERROR, "Expected (kTagBytes == 0x%x), got: 0x%u", kTagBytes,
-                 tlv.tag);
+                 tag);
     return false;
   }
-  buffer->swap(tlv.value);
   return true;
 }
 
-bool Comms::SendBytes(const uint8_t* v, uint64_t len) {
+bool Comms::SendBytes(const uint8_t* v, size_t len) {
   return SendTLV(kTagBytes, len, v);
 }
 
@@ -347,7 +345,7 @@ bool Comms::RecvFD(int* fd) {
 
   const auto op = [&msg](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;
-    // Use syscall, otherwise we would need to whitelist socketcall() on PPC.
+    // Use syscall, otherwise we would need to allow socketcall() on PPC.
     return TEMP_FAILURE_RETRY(
         util::Syscall(__NR_recvmsg, fd, reinterpret_cast<uintptr_t>(&msg), 0));
   };
@@ -419,7 +417,7 @@ bool Comms::SendFD(int fd) {
   int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
   fds[0] = fd;
 
-  InternalTLV tlv = {kTagFd, sizeof(tlv.val), 0};
+  InternalTLV tlv = {kTagFd, 0};
 
   iovec iov;
   iov.iov_base = &tlv;
@@ -462,8 +460,9 @@ bool Comms::SendFD(int fd) {
 }
 
 bool Comms::RecvProtoBuf(google::protobuf::Message* message) {
-  TLV tlv;
-  if (!RecvTLV(&tlv)) {
+  uint32_t tag;
+  std::vector<uint8_t> bytes;
+  if (!RecvTLV(&tag, &bytes)) {
     if (IsConnected()) {
       SAPI_RAW_PLOG(ERROR, "RecvProtoBuf failed for (%s)", socket_name_);
     } else {
@@ -473,11 +472,11 @@ bool Comms::RecvProtoBuf(google::protobuf::Message* message) {
     return false;
   }
 
-  if (tlv.tag != kTagProto2) {
-    SAPI_RAW_LOG(ERROR, "Expected tag: 0x%x, got: 0x%u", kTagProto2, tlv.tag);
+  if (tag != kTagProto2) {
+    SAPI_RAW_LOG(ERROR, "Expected tag: 0x%x, got: 0x%u", kTagProto2, tag);
     return false;
   }
-  return message->ParseFromArray(tlv.value.data(), tlv.value.size());
+  return message->ParseFromArray(bytes.data(), bytes.size());
 }
 
 bool Comms::SendProtoBuf(const google::protobuf::Message& message) {
@@ -513,8 +512,9 @@ socklen_t Comms::CreateSockaddrUn(sockaddr_un* sun) {
   return slen;
 }
 
-bool Comms::Send(const uint8_t* bytes, uint64_t len) {
-  uint64_t total_sent = 0;
+bool Comms::Send(const void* data, size_t len) {
+  size_t total_sent = 0;
+  const char* bytes = reinterpret_cast<const char*>(data);
   const auto op = [bytes, len, &total_sent](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;
     return TEMP_FAILURE_RETRY(write(fd, &bytes[total_sent], len - total_sent));
@@ -545,8 +545,9 @@ bool Comms::Send(const uint8_t* bytes, uint64_t len) {
   return true;
 }
 
-bool Comms::Recv(uint8_t* bytes, uint64_t len) {
-  uint64_t total_recv = 0;
+bool Comms::Recv(void* data, size_t len) {
+  size_t total_recv = 0;
+  char* bytes = reinterpret_cast<char*>(data);
   const auto op = [bytes, len, &total_recv](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;
     return TEMP_FAILURE_RETRY(read(fd, &bytes[total_recv], len - total_recv));
@@ -573,7 +574,7 @@ bool Comms::Recv(uint8_t* bytes, uint64_t len) {
 }
 
 // Internal helper method (low level).
-bool Comms::RecvTL(uint32_t* tag, uint64_t* length) {
+bool Comms::RecvTL(uint32_t* tag, size_t* length) {
   if (!Recv(reinterpret_cast<uint8_t*>(tag), sizeof(*tag))) {
     return false;
   }
@@ -599,50 +600,49 @@ bool Comms::RecvTL(uint32_t* tag, uint64_t* length) {
   return true;
 }
 
-bool Comms::RecvTLV(TLV* tlv) {
-  absl::MutexLock lock(&tlv_recv_transmission_mutex_);
-  uint64_t length;
-  if (!RecvTL(&tlv->tag, &length)) {
-    return false;
-  }
-
-  tlv->value.resize(length);
-  return length == 0 || Recv(tlv->value.data(), length);
+bool Comms::RecvTLV(uint32_t* tag, std::vector<uint8_t>* value) {
+  return RecvTLVGeneric(tag, value);
 }
 
-bool Comms::RecvTLV(uint32_t* tag, std::vector<uint8_t>* value) {
+bool Comms::RecvTLV(uint32_t* tag, std::string* value) {
+  return RecvTLVGeneric(tag, value);
+}
+
+template <typename T>
+bool Comms::RecvTLVGeneric(uint32_t* tag, T* value) {
   absl::MutexLock lock(&tlv_recv_transmission_mutex_);
-  uint64_t length;
+  size_t length;
   if (!RecvTL(tag, &length)) {
     return false;
   }
 
   value->resize(length);
-  return length == 0 || Recv(value->data(), length);
+  return length == 0 || Recv(reinterpret_cast<uint8_t*>(value->data()), length);
 }
 
-bool Comms::RecvTLV(uint32_t* tag, uint64_t* length, void* buffer,
-                    uint64_t buffer_size) {
+bool Comms::RecvTLV(uint32_t* tag, size_t* length, void* buffer,
+                    size_t buffer_size) {
   absl::MutexLock lock(&tlv_recv_transmission_mutex_);
   if (!RecvTL(tag, length)) {
     return false;
+  }
+
+  if (*length == 0) {
+    return true;
   }
 
   if (*length > buffer_size) {
     SAPI_RAW_LOG(ERROR, "Buffer size too small (0x%x > 0x%x)", *length,
                  buffer_size);
     return false;
-  } else if (*length > 0) {
-    if (!Recv(reinterpret_cast<uint8_t*>(buffer), *length)) {
-      return false;
-    }
   }
-  return true;
+
+  return Recv(reinterpret_cast<uint8_t*>(buffer), *length);
 }
 
-bool Comms::RecvInt(void* buffer, uint64_t len, uint32_t tag) {
+bool Comms::RecvInt(void* buffer, size_t len, uint32_t tag) {
   uint32_t received_tag;
-  uint64_t received_length;
+  size_t received_length;
   if (!RecvTLV(&received_tag, &received_length, buffer, len)) {
     return false;
   }

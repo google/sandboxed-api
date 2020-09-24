@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 licenses(["notice"])
 
 exports_files([
@@ -19,3 +21,33 @@ exports_files([
     "embed_data.bzl",
     "sapi.bzl",
 ])
+
+bzl_library(
+    name = "build_defs_bzl",
+    srcs = ["build_defs.bzl"],
+    visibility = ["//visibility:private"],
+)
+
+bzl_library(
+    name = "embed_data_bzl",
+    srcs = ["embed_data.bzl"],
+    visibility = ["//visibility:private"],
+)
+
+bzl_library(
+    name = "proto_bzl",
+    srcs = ["proto.bzl"],
+    visibility = ["//visibility:private"],
+)
+
+bzl_library(
+    name = "repositories_bzl",
+    srcs = ["repositories.bzl"],
+    visibility = ["//visibility:private"],
+)
+
+bzl_library(
+    name = "sapi_deps_bzl",
+    srcs = ["sapi_deps.bzl"],
+    visibility = ["//visibility:private"],
+)

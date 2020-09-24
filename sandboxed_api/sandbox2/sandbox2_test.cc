@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"

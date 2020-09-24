@@ -45,20 +45,15 @@ cc_library(
 cc_library(
     name = "statusor",
     hdrs = ["statusor.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
+    deprecation = "Migrate to `absl::StatusOr<T>`",
     deps = [
-        ":raw_logging",
-        ":status",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:variant",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
-# gMock matchers for absl::Status and sapi::StatusOr<T> and a gUnit printer
-# extension for sapi::StatusOr<T>.
+# gMock matchers for absl::Status and absl::StatusOr<T> and a gUnit printer
+# extension. Adapted from the version in Asylo.
 cc_library(
     name = "status_matchers",
     testonly = 1,
@@ -67,8 +62,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":status",
-        ":statusor",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:optional",
         "@com_google_googletest//:gtest",
     ],
@@ -87,19 +82,6 @@ cc_test(
     ],
 )
 
-# Tests for the StatusOr template class.
-cc_test(
-    name = "statusor_test",
-    srcs = ["statusor_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":status",
-        ":status_matchers",
-        ":statusor",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
 # Tests for the Status macros.
 cc_test(
     name = "status_macros_test",
@@ -108,9 +90,9 @@ cc_test(
     deps = [
         ":status",
         ":status_matchers",
-        ":statusor",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
