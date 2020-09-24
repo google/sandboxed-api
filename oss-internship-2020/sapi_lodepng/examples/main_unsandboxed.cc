@@ -19,13 +19,15 @@
 #include "helpers.h"
 #include "lodepng.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
 
 void EncodeDecodeOneStep(const std::string& images_path) {
   // Generate the values.
   std::vector<uint8_t> image = GenerateValues();
 
   // Encode the image.
-  const std::string filename = images_path + "/out_generated1.png";
+  const std::string filename =
+      sandbox2::file::JoinPath(images_path, "/out_generated1.png");
   unsigned int result =
       lodepng_encode32_file(filename.c_str(), image.data(), kWidth, kHeight);
 
@@ -55,7 +57,8 @@ void EncodeDecodeTwoSteps(const std::string& images_path) {
   std::vector<uint8_t> image = GenerateValues();
 
   // Encode the image into memory first.
-  const std::string filename = images_path + "/out_generated2.png";
+  const std::string filename =
+      sandbox2::file::JoinPath(images_path, "/out_generated2.png");
   uint8_t* png;
   size_t pngsize;
 

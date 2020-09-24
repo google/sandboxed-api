@@ -4,7 +4,7 @@ Sandboxed version of the [LodePNG](https://github.com/lvandeve/lodepng) library,
 
 ## Details
 
-With Sandboxed API, many of the library's functions can be sandboxed. However, they need the `extern "C"` keyword defined so that name mangling does not happen, which is why a fork of the **LodePNG** library is used. The only differences are found in the header file. An alternative to this is to define another library that wraps every needed function, specifying the required keyword.
+With Sandboxed API, many of the library's functions can be sandboxed. However, they need the `extern "C"` keyword defined so that name mangling does not happen, which is why a patch that adds it is used. The only differences are found in the header file. An alternative to this is to define another library that wraps every needed function, specifying the required keyword.
 
 Even if many of the functions from the library can be sandboxed, there are some that are not supported (those which have `std::vector` parameters, overloaded functions etc.). If you really need these functions, a solution is to implement a custom library that wraps around these functions in order to make them compatible.
 
