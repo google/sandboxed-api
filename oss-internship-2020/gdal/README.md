@@ -20,6 +20,12 @@ PNG: `sudo apt-get install libpng-dev`
 PCRE: `sudo apt-get install libpcre3 libpcre3-dev`
 
 PROJ: `sudo apt-get install libproj-dev`
+    
+OBS! You may need to set `export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib`. 
+It is required for libproj.so to be found into 
+/usr/local/lib/. You can also fix this by typing `locate libproj.so`
+which will give you <the_absolute_path_of_libproj.so> and then 
+`cp <the_absolute_path_of_libproj.so> /usr/local/lib/`.
 
 ### Initializing GDAL submodule:
 `git submodule add https://github.com/OSGeo/gdal/tree/master/gdal`
@@ -33,7 +39,7 @@ GNUmakefile from gdal/gdal can handle building the static library.
 
 `cp gdal/gdal/libgdal.a lib/`
 
-OBS: The file is huge! It may take a while.
+OBS! The file is huge! It may take a while.
 
 ### For testing: 
 `mkdir build && cd build`
@@ -54,7 +60,7 @@ using GDAL functionalities and sandboxed methods.
     
 *Sandboxing...*
 
-    The purpose of sandboxing is to limit the permissions 
+The purpose of sandboxing is to limit the permissions 
     and capabilities of library’s methods, in order to 
     secure the usage of them. After obtaining the sandbox, 
     the functions will be called through an Sandbox API 
@@ -64,10 +70,10 @@ using GDAL functionalities and sandboxed methods.
 
 *Raster process...*
 
-    From gdal.h header useful methods are added to sapi 
+From gdal.h header useful methods are added to sapi 
     library builded with CMake. 
 
-    One .tiff file is manipulated with GDALOpen 
+One .tiff file is manipulated with GDALOpen 
     functionality, which extracts a pointer to the data set
     containg a list of raster bands, all pertaining to the
     same area. 
@@ -75,7 +81,7 @@ using GDAL functionalities and sandboxed methods.
     transform, size of raster and various other information
     are kept into the data set that corresponds to the image.
 
-    To create an array containing the image information, the
+To create an array containing the image information, the
     dimentions needed are extracted using some specific 
     GDAL(X/Y)Size functions applied to the block.
     GDALRasterBand function takes care of data type conversion, one more step following: placing the

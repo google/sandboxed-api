@@ -22,7 +22,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 find_package(PNG REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(libpcre REQUIRED IMPORTED_TARGET libpcre)
-#pkg_check_modules(libproj REQUIRED IMPORTED_TARGET libproj)
+pkg_check_modules(proj REQUIRED IMPORTED_TARGET proj)
 
 set(SAPI_ROOT "${PROJECT_SOURCE_DIR}/../.." CACHE PATH "Path to the Sandboxed API source tree")
 #   cmake .. -G Ninja -DSAPI_ROOT=$HOME/sapi_root
@@ -40,17 +40,15 @@ set_property(TARGET libgdal PROPERTY IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_D
 target_link_libraries(libgdal INTERFACE
   crypto expat jpeg 
   PkgConfig::libpcre
-  /usr/lib/libproj.so
+  PkgConfig::proj
   sqlite3 tiff z pthread m rt dl curl
   PNG::PNG)
 
 add_sapi_library(gdal_sapi
   FUNCTIONS GDALOpen GDALAllRegister GDALGetDatasetDriver 
-    GDALGetDriverShortName GDALGetDriverLongName GDALGetRasterXSize 
-    GDALGetRasterYSize GDALGetRasterCount GDALGetProjectionRef
-    GDALOpenEx  GDALGetGeoTransform GDALGetRasterBand GDALGetBlockSize
-    GDALGetRasterMinimum GDALGetRasterMaximum GDALGetRasterBandXSize
-    GDALGetRasterBandYSize GDALRasterIO
+    GDALGetDriverShortName GDALGetDriverLongName 
+    GDALGetGeoTransform GDALGetRasterBand GDALGetBlockSize
+    GDALGetRasterBandXSize GDALGetRasterBandYSize GDALRasterIO
   
   INPUTS "/usr/include/gdal/gdal.h" 
   LIBRARY libgdal
