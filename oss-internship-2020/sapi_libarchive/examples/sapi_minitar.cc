@@ -240,17 +240,20 @@ static void create(const char* initial_filename, int compress,
   sandbox2::util::CharPtrArrToVecString(const_cast<char* const*>(argv),
                                         &relative_paths);
 
+  std::transform(relative_paths.begin(), relative_paths.end(),
+                 relative_paths.begin(), sandbox2::file::CleanPath);
+
   SapiLibarchiveSandboxCreate sandbox(absolute_paths, archive_path);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
   LibarchiveApi api(&sandbox);
 
-  sapi::StatusOr<archive*> ret = api.archive_write_new();
+  absl::StatusOr<archive*> ret = api.archive_write_new();
   CHECK(ret.ok()) << "write_new call failed";
   CHECK(ret.value() != NULL) << "Failed to create write archive";
 
   sapi::v::RemotePtr a(ret.value());
 
-  sapi::StatusOr<int> ret2;
+  absl::StatusOr<int> ret2;
 
   switch (compress) {
 #ifndef NO_BZIP2_CREATE
@@ -328,7 +331,7 @@ static void create(const char* initial_filename, int compress,
     for (;;) {
       int needcr = 0;
 
-      sapi::StatusOr<archive_entry*> ret3;
+      absl::StatusOr<archive_entry*> ret3;
       ret3 = api.archive_entry_new();
 
       CHECK(ret3.ok()) << "entry_new call failed";
@@ -401,11 +404,10 @@ static void create(const char* initial_filename, int compress,
           << "Unexpected result from write_header call";
 
       if (ret2.value() > ARCHIVE_FAILED) {
-        // int fd = open(CheckStatusAndGetString(
-        //                   api.archive_entry_sourcepath(&entry), sandbox)
-        //                   .c_str(),
-        //               O_RDONLY);
-        int fd = open(path_name.c_str(), O_RDONLY);
+        int fd = open(CheckStatusAndGetString(
+                          api.archive_entry_sourcepath(&entry), sandbox)
+                          .c_str(),
+                      O_RDONLY);
         CHECK(fd >= 0) << "Could not open file";
 
         sapi::v::Fd sapi_fd(fd);
@@ -493,7 +495,7 @@ static void extract(const char* filename, int do_extract, int flags) {
 
   LibarchiveApi api(&sandbox);
 
-  sapi::StatusOr<archive*> ret = api.archive_read_new();
+  absl::StatusOr<archive*> ret = api.archive_read_new();
   CHECK(ret.ok()) << "archive_read_new call failed";
   CHECK(ret.value() != NULL) << "Failed to create read archive";
 
@@ -505,7 +507,7 @@ static void extract(const char* filename, int do_extract, int flags) {
 
   sapi::v::RemotePtr ext(ret.value());
 
-  sapi::StatusOr<int> ret2;
+  absl::StatusOr<int> ret2;
   ret2 = api.archive_write_disk_set_options(&ext, flags);
   CHECK(ret2.ok()) << "write_disk_set_options call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
@@ -624,7 +626,7 @@ static void extract(const char* filename, int do_extract, int flags) {
 static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
                      LibarchiveApi& api,
                      SapiLibarchiveSandboxExtract& sandbox) {
-  sapi::StatusOr<int> ret;
+  absl::StatusOr<int> ret;
 
   sapi::v::IntBase<struct archive_entry*> buff_ptr_tmp(0);
   sapi::v::ULLong size;

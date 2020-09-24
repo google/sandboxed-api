@@ -15,11 +15,11 @@ std::vector<std::string> MakeAbsolutePathsVec(const char* argv[]) {
   return arr;
 }
 
-std::string CheckStatusAndGetString(const sapi::StatusOr<char*>& status,
+std::string CheckStatusAndGetString(const absl::StatusOr<char*>& status,
                                     LibarchiveSandbox& sandbox) {
   CHECK(status.ok() && status.value() != NULL) << "Could not get error message";
 
-  sapi::StatusOr<std::string> ret =
+  absl::StatusOr<std::string> ret =
       sandbox.GetCString(sapi::v::RemotePtr(status.value()));
   CHECK(ret.ok()) << "Could not transfer error message";
   return ret.value();
@@ -30,7 +30,7 @@ std::string CreateTempDirAtCWD() {
   CHECK(!cwd.empty()) << "Could not get current working directory";
   cwd.append("/");
 
-  sapi::StatusOr<std::string> result = sandbox2::CreateTempDir(cwd);
+  absl::StatusOr<std::string> result = sandbox2::CreateTempDir(cwd);
   CHECK(result.ok()) << "Could not create temporary directory at " << cwd;
   return result.value();
 }
