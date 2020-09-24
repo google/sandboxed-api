@@ -22,6 +22,7 @@ target_link_libraries(lodepng_unsandboxed PRIVATE
   lodepng
   sapi::sapi
   sandbox2::temp_file
+  sandbox2::file_base
   sandbox2::fileops
   glog::glog
 )

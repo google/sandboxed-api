@@ -30,7 +30,7 @@ void EncodeDecodeOneStep(SapiLodepngSandbox& sandbox, LodepngApi& api) {
 
   sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
-  sapi::StatusOr<unsigned int> result = api.lodepng_encode32_file(
+  absl::StatusOr<unsigned int> result = api.lodepng_encode32_file(
       sapi_filename.PtrBefore(), sapi_image.PtrBefore(), kWidth, kHeight);
 
   CHECK(result.ok()) << "encode32_file call failed";
@@ -90,7 +90,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   sapi::v::IntBase<uint8_t*> sapi_png_ptr(0);
 
   // Encode it into memory.
-  sapi::StatusOr<unsigned int> result =
+  absl::StatusOr<unsigned int> result =
       api.lodepng_encode32(sapi_png_ptr.PtrBoth(), sapi_pngsize.PtrBoth(),
                            sapi_image.PtrBefore(), kWidth, kHeight);
 

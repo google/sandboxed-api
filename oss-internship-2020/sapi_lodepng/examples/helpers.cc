@@ -14,6 +14,8 @@
 
 #include "helpers.h"
 
+#include "sandboxed_api/sandbox2/util/temp_file.h"
+
 std::vector<uint8_t> GenerateValues() {
   std::vector<uint8_t> image;
   image.reserve(kImgLen);
@@ -35,7 +37,7 @@ std::string CreateTempDirAtCWD() {
   CHECK(!cwd.empty()) << "Could not get current working directory";
   cwd.append("/");
 
-  sapi::StatusOr<std::string> result = sandbox2::CreateTempDir(cwd);
+  absl::StatusOr<std::string> result = sandbox2::CreateTempDir(cwd);
   CHECK(result.ok()) << "Could not create temporary directory";
   return result.value();
 }
