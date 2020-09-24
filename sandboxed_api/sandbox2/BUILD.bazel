@@ -27,6 +27,13 @@ licenses(["notice"])  # Apache 2.0
 exports_files(["testdata/hostname"])
 
 cc_library(
+    name = "config",
+    hdrs = ["config.h"],
+    copts = sapi_platform_copts(),
+    deps = ["@com_google_absl//absl/base:config"],
+)
+
+cc_library(
     name = "bpfdisassembler",
     srcs = ["bpfdisassembler.cc"],
     hdrs = ["bpfdisassembler.h"],
@@ -40,6 +47,7 @@ cc_library(
     hdrs = ["regs.h"],
     copts = sapi_platform_copts(),
     deps = [
+        ":config",
         ":syscall",
         ":violation_cc_proto",
         "//sandboxed_api/sandbox2/util:strerror",
@@ -60,6 +68,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":config",
         ":util",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -73,6 +82,7 @@ cc_test(
     srcs = ["syscall_test.cc"],
     copts = sapi_platform_copts(),
     deps = [
+        ":config",
         ":syscall",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
@@ -85,12 +95,13 @@ cc_library(
     hdrs = ["result.h"],
     copts = sapi_platform_copts(),
     deps = [
+        ":config",
         ":regs",
         ":syscall",
         ":util",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -272,6 +283,7 @@ cc_library(
     deps = [
         ":client",
         ":comms",
+        ":config",
         ":executor",
         ":fork_client",
         ":forkserver_cc_proto",
@@ -300,12 +312,12 @@ cc_library(
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
@@ -374,9 +386,9 @@ cc_library(
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@org_kernel_libcap//:libcap",
@@ -404,6 +416,7 @@ cc_library(
     hdrs = ["mounts.h"],
     copts = sapi_platform_copts(),
     deps = [
+        ":config",
         ":mounttree_cc_proto",
         "//sandboxed_api/sandbox2/util:file_base",
         "//sandboxed_api/sandbox2/util:fileops",
@@ -411,10 +424,10 @@ cc_library(
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf",
     ],
@@ -468,6 +481,7 @@ cc_test(
     ],
     deps = [
         ":comms",
+        ":config",
         ":namespace",
         ":sandbox2",
         ":testing",
@@ -505,12 +519,13 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":config",
         "//sandboxed_api/sandbox2/util:file_base",
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -526,9 +541,9 @@ cc_library(
         ":util",
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -541,6 +556,7 @@ cc_test(
     deps = [
         ":buffer",
         ":comms",
+        ":config",
         ":sandbox2",
         ":testing",
         "//sandboxed_api/util:status_matchers",
@@ -573,10 +589,10 @@ cc_library(
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_proto",
-        "//sandboxed_api/util:statusor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
@@ -629,6 +645,7 @@ cc_test(
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:limits"],
     deps = [
+        ":config",
         ":limits",
         ":sandbox2",
         ":testing",
@@ -671,6 +688,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:policy",
     ],
     deps = [
+        ":config",
         ":limits",
         ":regs",
         ":sandbox2",
@@ -695,6 +713,7 @@ cc_test(
     ],
     tags = ["local"],
     deps = [
+        ":config",
         ":sandbox2",
         ":testing",
         "//sandboxed_api/sandbox2/util:bpf_helper",
@@ -805,6 +824,7 @@ cc_test(
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_glog//:glog",
         "@com_google_googletest//:gtest_main",

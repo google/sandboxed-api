@@ -16,8 +16,8 @@
 
 _FILEWRAPPER = "//sandboxed_api/tools/filewrapper"
 
-# TODO(cblichmann): Convert this is to use a "_cc_toolchain" once Bazel #4370
-#                   is fixed.
+# TODO(cblichmann): Convert this to use a "_cc_toolchain" once Bazel #4370 is
+#                   fixed.
 def _sapi_cc_embed_data_impl(ctx):
     cc_file_artifact = None
     h_file_artifact = None

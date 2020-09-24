@@ -159,6 +159,7 @@ set_target_properties(policy PROPERTIES
 )
 target_link_libraries(policy PRIVATE
   sapi::base
+  sandbox2::config
   ${_sandbox2_fully_static_linkopts}
 )
 

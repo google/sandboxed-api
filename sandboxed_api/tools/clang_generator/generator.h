@@ -20,13 +20,13 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace sapi {
 
@@ -66,8 +66,8 @@ class GeneratorASTVisitor
 
 namespace internal {
 
-sapi::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
-                                                  const std::string& code);
+absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
+                                                const std::string& code);
 
 }  // namespace internal
 

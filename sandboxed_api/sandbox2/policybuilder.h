@@ -29,17 +29,15 @@
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/policy.h"
-#include "sandboxed_api/util/statusor.h"
 
 struct bpf_labels;
 
 namespace sandbox2 {
-
-constexpr char kDefaultHostname[] = "sandbox2";
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
@@ -91,6 +89,8 @@ constexpr char kDefaultHostname[] = "sandbox2";
 // For a more complicated example, see examples/persistent/persistent_sandbox.cc
 class PolicyBuilder final {
  public:
+  static constexpr absl::string_view kDefaultHostname = "sandbox2";
+
   using BpfInitializer = std::initializer_list<sock_filter>;
   using BpfFunc = const std::function<std::vector<sock_filter>(bpf_labels&)>&;
   using SyscallInitializer = std::initializer_list<unsigned int>;
@@ -390,7 +390,7 @@ class PolicyBuilder final {
 
   // Builds the policy returning a unique_ptr to it. This should only be called
   // once.
-  sapi::StatusOr<std::unique_ptr<Policy>> TryBuild();
+  absl::StatusOr<std::unique_ptr<Policy>> TryBuild();
 
   // Builds the policy returning a unique_ptr to it. This should only be called
   // once.
@@ -532,9 +532,9 @@ class PolicyBuilder final {
 
   std::vector<sock_filter> ResolveBpfFunc(BpfFunc f);
 
-  static sapi::StatusOr<std::string> ValidateAbsolutePath(
+  static absl::StatusOr<std::string> ValidateAbsolutePath(
       absl::string_view path);
-  static sapi::StatusOr<std::string> ValidatePath(absl::string_view path);
+  static absl::StatusOr<std::string> ValidatePath(absl::string_view path);
 
   void StoreDescription(PolicyBuilderDescription* pb_description);
 
@@ -542,7 +542,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   bool allow_unrestricted_networking_ = false;
-  std::string hostname_ = kDefaultHostname;
+  std::string hostname_ = std::string(kDefaultHostname);
 
   bool collect_stacktrace_on_violation_ = true;
   bool collect_stacktrace_on_signal_ = true;

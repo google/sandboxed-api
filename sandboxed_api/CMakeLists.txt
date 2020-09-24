@@ -43,6 +43,8 @@ add_library(sapi_embed_file STATIC
 add_library(sapi::embed_file ALIAS sapi_embed_file)
 target_link_libraries(sapi_embed_file PRIVATE
   absl::flat_hash_map
+  absl::status
+  absl::statusor
   absl::strings
   absl::synchronization
   glog::glog
@@ -65,6 +67,8 @@ add_library(sapi::sapi ALIAS sapi_sapi)
 target_link_libraries(sapi_sapi
   PRIVATE absl::flat_hash_map
           absl::memory
+          absl::status
+          absl::statusor
           absl::str_format
           absl::strings
           absl::synchronization
@@ -76,7 +80,6 @@ target_link_libraries(sapi_sapi
           sandbox2::strerror
           sandbox2::util
           sapi::embed_file
-          sapi::status
           sapi::vars
   PUBLIC absl::core_headers
          sandbox2::client
@@ -137,6 +140,8 @@ add_library(sapi_vars STATIC
 add_library(sapi::vars ALIAS sapi_vars)
 target_link_libraries(sapi_vars PRIVATE
   absl::core_headers
+  absl::status
+  absl::statusor
   absl::str_format
   absl::strings
   absl::synchronization
@@ -147,7 +152,6 @@ target_link_libraries(sapi_vars PRIVATE
   sapi::lenval_core
   sapi::proto_arg_proto
   sapi::status
-  sapi::statusor
   sapi::var_type
 )
 
@@ -178,6 +182,7 @@ if(SAPI_ENABLE_TESTS)
   )
   target_link_libraries(sapi_test PRIVATE
     absl::memory
+    absl::status
     benchmark
     sapi::sapi
     sapi::status

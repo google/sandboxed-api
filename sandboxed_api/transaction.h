@@ -86,9 +86,7 @@ class TransactionBase {
 
  protected:
   explicit TransactionBase(std::unique_ptr<Sandbox> sandbox)
-      : retry_count_(kDefaultRetryCount),
-        time_limit_(absl::ToTimeT(absl::UnixEpoch() + kDefaultTimeLimit)),
-        initialized_(false),
+      : time_limit_(absl::ToTimeT(absl::UnixEpoch() + kDefaultTimeLimit)),
         sandbox_(std::move(sandbox)) {}
 
   // Runs the main (retrying) transaction loop.
@@ -115,14 +113,14 @@ class TransactionBase {
   virtual absl::Status Finish() { return absl::OkStatus(); }
 
   // Number of tries this transaction will be re-executed until it succeeds.
-  int retry_count_;
+  int retry_count_ = kDefaultRetryCount;
 
   // Time (wall-time) limit for a single Run() call (in seconds). 0 means: no
   // wall-time limit.
   time_t time_limit_;
 
   // Has Init() finished with success?
-  bool initialized_;
+  bool initialized_ = false;
 
   // The main sapi::Sandbox object.
   std::unique_ptr<Sandbox> sandbox_;

@@ -1,3 +1,15 @@
 [submodule "oss-internship-2020/sapi_libarchive/libarchive"]
 	path = oss-internship-2020/sapi_libarchive/libarchive
 	url = https://github.com/libarchive/libarchive
+[submodule "oss-internship-2020/openjpeg/openjpeg"]
+	path = oss-internship-2020/openjpeg/openjpeg
+	url = https://github.com/uclouvain/openjpeg.git
+[submodule "oss-internship-2020/pffft/master"]
+	path = oss-internship-2020/pffft/master
+	url = https://bitbucket.org/jpommier/pffft/src/master/
+[submodule "oss-internship-2020/curl/curl_wrapper/curl"]
+	path = oss-internship-2020/curl/curl_wrapper/curl
+	url = https://github.com/curl/curl
+[submodule "oss-internship-2020/gdal/gdal"]
+	path = oss-internship-2020/gdal/gdal
+	url = https://github.com/OSGeo/gdal/tree/master/gdal

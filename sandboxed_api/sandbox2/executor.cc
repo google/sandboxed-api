@@ -86,7 +86,7 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   if (!path_.empty()) {
     exec_fd_ = open(path_.c_str(), O_PATH);
     if (exec_fd_ < 0) {
-      LOG(ERROR) << "Could not open file " << path_;
+      PLOG(ERROR) << "Could not open file " << path_;
       return -1;
     }
   }

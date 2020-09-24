@@ -12,15 +12,16 @@
 #include <cstring>
 
 #include "sandboxed_api/util/flag.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
-#include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/statusor.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 
@@ -58,7 +59,7 @@ absl::Status CommunicationTest(int sock) {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<struct sockaddr_in6> CreateAddres(int port) {
+absl::StatusOr<struct sockaddr_in6> CreateAddres(int port) {
   static struct sockaddr_in6 saddr {};
   saddr.sin6_family = AF_INET6;
   saddr.sin6_port = htons(port);
@@ -86,7 +87,7 @@ absl::Status ConnectWithHandler(int s, const struct sockaddr_in6& saddr) {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<int> ConnectToServer(int port) {
+absl::StatusOr<int> ConnectToServer(int port) {
   SAPI_ASSIGN_OR_RETURN(struct sockaddr_in6 saddr, CreateAddres(port));
 
   sandbox2::file_util::fileops::FDCloser s(socket(AF_INET6, SOCK_STREAM, 0));
@@ -134,7 +135,7 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  sapi::StatusOr<int> sock_s = ConnectToServer(port);
+  absl::StatusOr<int> sock_s = ConnectToServer(port);
   if (!sock_s.ok()) {
     LOG(ERROR) << sock_s.status().message();
     return 3;

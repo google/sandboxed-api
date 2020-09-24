@@ -15,13 +15,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
 #include <asm/ioctls.h>  // For TCGETS
-#if defined(__x86_64__)
-#include <asm/prctl.h>
-#endif
-#if defined(__powerpc64__)
-#include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
-#endif
-#include <fcntl.h>  // For the fcntl flags
+#include <fcntl.h>       // For the fcntl flags
 #include <linux/futex.h>
 #include <linux/net.h>     // For SYS_CONNECT
 #include <linux/random.h>  // For GRND_NONBLOCK
@@ -34,12 +28,20 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
+
+#if defined(SAPI_X86_64)
+#include <asm/prctl.h>
+#elif defined(SAPI_PPC64_LE)
+#include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
+#endif
 
 namespace sandbox2 {
 namespace {
@@ -510,7 +512,7 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                                               JEQ32(SIG_UNBLOCK, ALLOW),
                                           });
 
-#if defined(__x86_64__)
+#ifdef SAPI_X86_64
   // The second argument is a pointer.
   AddPolicyOnSyscall(__NR_arch_prctl, {
                                           ARG_32(0),
@@ -518,7 +520,12 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                                       });
 #endif
 
+  if constexpr (host_cpu::IsArm64()) {
+    BlockSyscallWithErrno(__NR_readlinkat, ENOENT);
+  }
+#ifdef __NR_readlink
   BlockSyscallWithErrno(__NR_readlink, ENOENT);
+#endif
 
   return *this;
 }
@@ -526,7 +533,11 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
   AllowRead();
   AllowStat();
-  AllowSyscalls({__NR_lseek, __NR_close, __NR_munmap});
+  AllowSyscalls({__NR_lseek,
+#ifdef __NR__llseek
+                 __NR__llseek,  // Newer glibc on PPC
+#endif
+                 __NR_close, __NR_munmap});
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
                                         JEQ32(PROT_READ, ALLOW),
@@ -656,7 +667,7 @@ PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
   return *this;
 }
 
-sapi::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
+absl::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
     absl::string_view path) {
   if (!file::IsAbsolutePath(path)) {
     return absl::InvalidArgumentError(
@@ -665,7 +676,7 @@ sapi::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
   return ValidatePath(path);
 }
 
-sapi::StatusOr<std::string> PolicyBuilder::ValidatePath(
+absl::StatusOr<std::string> PolicyBuilder::ValidatePath(
     absl::string_view path) {
   std::string fixed_path = file::CleanPath(path);
   if (fixed_path != path) {
@@ -686,7 +697,7 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
   return policy;
 }
 
-sapi::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
+absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   auto output = absl::WrapUnique(new Policy());
 
   if (!last_status_.ok()) {
@@ -879,7 +890,9 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
   AllowFutexOp(FUTEX_WAIT);
   AllowFutexOp(FUTEX_WAIT_BITSET);
   AllowSyscalls({
+#ifdef __NR_dup2
       __NR_dup2,
+#endif
       __NR_recvmsg,
       __NR_close,
       __NR_gettid,
@@ -899,7 +912,7 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
                            LABEL(&labels, getsockopt_end),
                        };
                      });
-#if defined(__powerpc64__)
+#ifdef SAPI_PPC64_LE
   AddPolicyOnSyscall(__NR_socketcall, {
                                           ARG_32(0),
                                           JEQ32(SYS_SOCKET, ALLOW),
@@ -925,7 +938,7 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
                                           });
 
   AddPolicyOnSyscall(__NR_connect, {TRAP(0)});
-#if defined(__powerpc64__)
+#ifdef SAPI_PPC64_LE
   AddPolicyOnSyscall(__NR_socketcall, {
                                           ARG_32(0),
                                           JEQ32(SYS_CONNECT, TRAP(0)),

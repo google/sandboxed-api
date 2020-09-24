@@ -15,9 +15,11 @@
 #ifndef SANDBOXED_API_VAR_ARRAY_H_
 #define SANDBOXED_API_VAR_ARRAY_H_
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 
+#include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -39,19 +41,19 @@ class Array : public Var, public Pointable {
         nelem_(nelem),
         total_size_(nelem_ * sizeof(T)),
         buffer_owned_(false) {
-    SetLocal(const_cast<void*>(reinterpret_cast<const void*>(arr_)));
+    SetLocal(const_cast<std::remove_const_t<T>*>(arr_));
   }
   // The array is allocated and owned by this object.
   explicit Array(size_t nelem)
-      : arr_(static_cast<T*>(malloc(sizeof(T) * nelem))),
-        nelem_(nelem),
-        total_size_(nelem_ * sizeof(T)),
-        buffer_owned_(true) {
-    SetLocal(const_cast<void*>(reinterpret_cast<const void*>(arr_)));
+      : nelem_(nelem), total_size_(nelem_ * sizeof(T)), buffer_owned_(true) {
+    void* storage = malloc(sizeof(T) * nelem);
+    CHECK(storage != nullptr);
+    SetLocal(storage);
+    arr_ = static_cast<T*>(storage);
   }
   virtual ~Array() {
     if (buffer_owned_) {
-      free(const_cast<void*>(reinterpret_cast<const void*>(arr_)));
+      free(const_cast<std::remove_const_t<T>*>(arr_));
     }
   }
 
@@ -121,7 +123,7 @@ class Array : public Var, public Pointable {
     arr_ = static_cast<T*>(new_addr);
     total_size_ = size;
     nelem_ = size / sizeof(T);
-    SetLocal(arr_);
+    SetLocal(new_addr);
     return absl::OkStatus();
   }
 
@@ -142,7 +144,7 @@ class Array : public Var, public Pointable {
 class CStr : public Array<char> {
  public:
   explicit CStr(char* cstr) : Array<char>(strlen(cstr) + 1) {
-    strcpy(this->GetData(), cstr);  // NOLINT
+    std::copy(cstr, cstr + GetNElem(), GetData());
   }
 
   std::string ToString() const final {
@@ -159,10 +161,7 @@ class ConstCStr : public Array<const char> {
       : Array<const char>(cstr, strlen(cstr) + 1) {}
 
   std::string ToString() const final {
-    if (GetData() == nullptr) {
-      return "CStr: [nullptr]";
-    }
-    return absl::StrCat("CStr: len(w/o NUL):", strlen(GetData()), ", ['",
+    return absl::StrCat("ConstCStr: len(w/o NUL):", strlen(GetData()), ", ['",
                         GetData(), "']");
   }
 };

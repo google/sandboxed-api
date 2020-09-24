@@ -42,6 +42,6 @@
   if (ABSL_PREDICT_FALSE(!statusor.ok())) {              \
     return statusor.status();                            \
   }                                                      \
-  lhs = std::move(statusor).ValueOrDie();
+  lhs = std::move(statusor).value();
 
 #endif  // THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_

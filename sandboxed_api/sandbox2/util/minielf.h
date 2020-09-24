@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-#include "sandboxed_api/util/statusor.h"
+#include "absl/status/statusor.h"
 
 namespace sandbox2 {
 
@@ -33,8 +33,8 @@ class ElfFile {
     std::string name;
   };
 
-  static sapi::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
-                                                 uint32_t features);
+  static absl::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
+                                               uint32_t features);
 
   int64_t file_size() const { return file_size_; }
   const std::string& interpreter() const { return interpreter_; }
