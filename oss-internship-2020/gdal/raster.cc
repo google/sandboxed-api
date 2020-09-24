@@ -106,7 +106,7 @@ absl::Status GdalMain(std::string filename) {
 
   // If GDALGetGeoTransform generates an error.
   if (err != CE_None) {
-    return absl::CancelledError();
+    return absl::InternalError("GDAL rasterisation failed.");
   }
 
   LOG(INFO) << "Origin = (" << adf_geo_transform[0] << ", "
@@ -152,7 +152,7 @@ absl::Status GdalMain(std::string filename) {
 
   // If GDALRasterIO generates an error.
   if (err != CE_None) {
-    return absl::CancelledError();
+    return absl::InternalError("GDAL rasterisation failed.");
   }
 
   std::cout << "Raster data info: " << raster_data_array.ToString()
