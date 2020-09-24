@@ -95,14 +95,14 @@ absl::Status GdalMain(std::string filename) {
 
   // Checking that GetGeoTransform is valid.
   std::vector<double> adf_geo_transform(6);
-  sapi::v::Array<double> adfGeoTransformArray(&adf_geo_transform[0],
+  sapi::v::Array<double> adf_geo_transform_array(&adf_geo_transform[0],
                                               adf_geo_transform.size());
 
   // For this function that returns CPLErr, the error-handling must be done
   // analyzing the returning object. 
   // Same for GDALReturnsIO from below.
   CPLErr err;
-  SAPI_ASSIGN_OR_RETURN(err, api.GDALGetGeoTransform(&ptr_dataset, adfGeoTransformArray.PtrBoth()));
+  SAPI_ASSIGN_OR_RETURN(err, api.GDALGetGeoTransform(&ptr_dataset, adf_geo_transform_array.PtrBoth()));
 
   // If GDALGetGeoTransform generates an error.
   if (err != CE_None) {
