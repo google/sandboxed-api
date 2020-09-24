@@ -54,7 +54,7 @@ class GdalSapiSandbox : public GDALSandbox {
         .BuildOrDie();
   }
 
-  private:
+ private:
   std::string file_path_;
 };
 
@@ -96,13 +96,15 @@ absl::Status GdalMain(std::string filename) {
   // Checking that GetGeoTransform is valid.
   std::vector<double> adf_geo_transform(6);
   sapi::v::Array<double> adf_geo_transform_array(&adf_geo_transform[0],
-                                              adf_geo_transform.size());
+                                                 adf_geo_transform.size());
 
   // For this function that returns CPLErr, the error-handling must be done
-  // analyzing the returning object. 
+  // analyzing the returning object.
   // Same for GDALReturnsIO from below.
   CPLErr err;
-  SAPI_ASSIGN_OR_RETURN(err, api.GDALGetGeoTransform(&ptr_dataset, adf_geo_transform_array.PtrBoth()));
+  SAPI_ASSIGN_OR_RETURN(
+      err,
+      api.GDALGetGeoTransform(&ptr_dataset, adf_geo_transform_array.PtrBoth()));
 
   // If GDALGetGeoTransform generates an error.
   if (err != CE_None) {
@@ -145,10 +147,12 @@ absl::Status GdalMain(std::string filename) {
   std::vector<int8_t> raster_data(nX_size.value() * nY_size.value(), -1);
   sapi::v::Array<int8_t> raster_data_array(&raster_data[0], raster_data.size());
 
-  // We will use CPLErr type of returning value, as before with GDALGetGeoTransorm.
-  SAPI_ASSIGN_OR_RETURN(err, api.GDALRasterIO(&ptr_band, GF_Read, 0, 0, nX_size.value(), nY_size.value(),
-                   raster_data_array.PtrBoth(), nX_size.value(),
-                   nY_size.value(), GDT_Byte, 0, 0));
+  // We will use CPLErr type of returning value, as before with
+  // GDALGetGeoTransorm.
+  SAPI_ASSIGN_OR_RETURN(
+      err, api.GDALRasterIO(&ptr_band, GF_Read, 0, 0, nX_size.value(),
+                            nY_size.value(), raster_data_array.PtrBoth(),
+                            nX_size.value(), nY_size.value(), GDT_Byte, 0, 0));
 
   // If GDALRasterIO generates an error.
   if (err != CE_None) {
