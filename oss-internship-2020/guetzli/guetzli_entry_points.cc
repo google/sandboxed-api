@@ -25,8 +25,8 @@
 #include "guetzli/jpeg_data_reader.h"
 #include "guetzli/quality.h"
 #include "png.h"  // NOLINT(build/include)
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace {
 
@@ -51,7 +51,7 @@ sapi::LenValStruct CreateLenValFromData(const void* data, size_t size) {
   return {size, new_data};
 }
 
-sapi::StatusOr<std::string> ReadFromFd(int fd) {
+absl::StatusOr<std::string> ReadFromFd(int fd) {
   struct stat file_data;
   int status = fstat(fd, &file_data);
 
@@ -70,9 +70,9 @@ sapi::StatusOr<std::string> ReadFromFd(int fd) {
   return result;
 }
 
-sapi::StatusOr<GuetzliInitData> PrepareDataForProcessing(
+absl::StatusOr<GuetzliInitData> PrepareDataForProcessing(
     const ProcessingParams& processing_params) {
-  sapi::StatusOr<std::string> input = ReadFromFd(processing_params.remote_fd);
+  absl::StatusOr<std::string> input = ReadFromFd(processing_params.remote_fd);
 
   if (!input.ok()) {
     return input.status();
@@ -96,7 +96,7 @@ inline uint8_t BlendOnBlack(const uint8_t val, const uint8_t alpha) {
 }
 
 // Modified version of ReadPNG from original guetzli.cc
-sapi::StatusOr<ImageData> ReadPNG(const std::string& data) {
+absl::StatusOr<ImageData> ReadPNG(const std::string& data) {
   std::vector<uint8_t> rgb;
   int xsize, ysize;
   png_structp png_ptr =

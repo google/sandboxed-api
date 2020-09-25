@@ -99,7 +99,7 @@ absl::Status GuetzliTransaction::LinkOutFile(int out_fd) const {
   return absl::OkStatus();
 }
 
-sapi::StatusOr<ImageType> GuetzliTransaction::GetImageTypeFromFd(int fd) const {
+absl::StatusOr<ImageType> GuetzliTransaction::GetImageTypeFromFd(int fd) const {
   static const unsigned char kPNGMagicBytes[] = {
       0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
   };

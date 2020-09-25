@@ -24,6 +24,7 @@ cc_library(
     srcs = ["guetzli_entry_points.cc"],
     hdrs = ["guetzli_entry_points.h"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "@com_google_sandboxed_api//sandboxed_api:lenval_core",
         "@com_google_sandboxed_api//sandboxed_api:vars",
         "@guetzli//:guetzli_lib",
@@ -53,9 +54,7 @@ sapi_library(
 cc_binary(
     name = "guetzli_sandboxed",
     srcs = ["guetzli_sandboxed.cc"],
-    deps = [
-        ":guetzli_sapi",
-    ],
+    deps = [":guetzli_sapi"],
 )
 
 cc_test(
