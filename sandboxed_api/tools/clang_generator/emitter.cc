@@ -23,9 +23,13 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/Type.h"
+#include "clang/Format/Format.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
+#include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
@@ -105,6 +109,30 @@ constexpr absl::string_view kClassFooterTemplate = R"(
   ::sapi::Sandbox* sandbox_;
 };
 )";
+
+namespace internal {
+
+absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
+                                                const std::string& code) {
+  // Configure code style based on Google style, but enforce pointer alignment
+  clang::format::FormatStyle style =
+      clang::format::getGoogleStyle(clang::format::FormatStyle::LK_Cpp);
+  style.DerivePointerAlignment = false;
+  style.PointerAlignment = clang::format::FormatStyle::PAS_Left;
+
+  clang::tooling::Replacements replacements = clang::format::reformat(
+      style, code, llvm::makeArrayRef(clang::tooling::Range(0, code.size())),
+      filename);
+
+  llvm::Expected<std::string> formatted_header =
+      clang::tooling::applyAllReplacements(code, replacements);
+  if (!formatted_header) {
+    return absl::InternalError(llvm::toString(formatted_header.takeError()));
+  }
+  return *formatted_header;
+}
+
+}  // namespace internal
 
 std::string GetIncludeGuard(absl::string_view filename) {
   if (filename.empty()) {
@@ -250,7 +278,8 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
 }
 
 absl::StatusOr<std::string> EmitHeader(
-    std::vector<clang::FunctionDecl*> functions, const QualTypeSet& types,
+    const std::vector<std::string>& functions,
+    const Emitter::RenderedTypesMap& rendered_types,
     const GeneratorOptions& options) {
   std::string out;
   const std::string include_guard = GetIncludeGuard(options.out_file);
@@ -276,45 +305,19 @@ absl::StatusOr<std::string> EmitHeader(
   }
 
   // Emit type dependencies
-  // TODO(cblichmann): Coalesce namespaces
-  std::string out_types = "// Types this API depends on\n";
-  bool added_types = false;
-  for (const clang::QualType& qual : types) {
-    clang::TypeDecl* decl = nullptr;
-    if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
-      decl = typedef_type->getDecl();
-    } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
-      decl = enum_type->getDecl();
-    } else {
-      decl = qual->getAsRecordDecl();
-    }
-    if (!decl) {
-      continue;
-    }
-
-    const std::vector<std::string> ns_path = GetNamespacePath(decl);
-    std::string nested_ns_name;
-    if (!ns_path.empty()) {
-      if (const auto& ns_root = ns_path.front();
-          ns_root == "std" || ns_root == "sapi" || ns_root == "__gnu_cxx") {
-        // Filter out any and all declarations from the C++ standard library,
-        // from SAPI itself and from other well-known namespaces. This avoids
-        // re-declaring things like standard integer types, for example.
-        continue;
+  if (!rendered_types.empty()) {
+    absl::StrAppend(&out, "// Types this API depends on\n");
+    for (const auto& [ns_name, types] : rendered_types) {
+      if (!ns_name.empty()) {
+        absl::StrAppend(&out, "namespace ", ns_name, " {\n");
       }
-      nested_ns_name = absl::StrCat(ns_path[0].empty() ? "" : " ",
-                                    absl::StrJoin(ns_path, "::"));
-      absl::StrAppend(&out_types, "namespace", nested_ns_name, " {\n");
+      for (const auto& type : types) {
+        absl::StrAppend(&out, type, ";\n");
+      }
+      if (!ns_name.empty()) {
+        absl::StrAppend(&out, "}  // namespace ", ns_name, "\n\n");
+      }
     }
-    absl::StrAppend(&out_types, PrintAstDecl(decl), ";");
-    if (!ns_path.empty()) {
-      absl::StrAppend(&out_types, "\n}  // namespace", nested_ns_name);
-    }
-    absl::StrAppend(&out_types, "\n");
-    added_types = true;
-  }
-  if (added_types) {
-    absl::StrAppend(&out, out_types);
   }
 
   // Optionally emit a default sandbox that instantiates an embedded sandboxee
@@ -329,11 +332,7 @@ absl::StatusOr<std::string> EmitHeader(
   // TODO(cblichmann): Make the "Api" suffix configurable or at least optional.
   absl::StrAppendFormat(&out, kClassHeaderTemplate,
                         absl::StrCat(options.name, "Api"));
-  std::string out_func;
-  for (const clang::FunctionDecl* decl : functions) {
-    SAPI_ASSIGN_OR_RETURN(out_func, EmitFunction(decl));
-    absl::StrAppend(&out, out_func);
-  }
+  absl::StrAppend(&out, absl::StrJoin(functions, "\n"));
   absl::StrAppend(&out, kClassFooterTemplate);
 
   // Close out the header: close namespace (if needed) and end include guard
@@ -342,6 +341,47 @@ absl::StatusOr<std::string> EmitHeader(
   }
   absl::StrAppendFormat(&out, kHeaderEpilog, include_guard);
   return out;
+}
+
+void Emitter::CollectType(clang::QualType qual) {
+  clang::TypeDecl* decl = nullptr;
+  if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
+    decl = typedef_type->getDecl();
+  } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
+    decl = enum_type->getDecl();
+  } else {
+    decl = qual->getAsRecordDecl();
+  }
+  if (!decl) {
+    return;
+  }
+
+  const std::vector<std::string> ns_path = GetNamespacePath(decl);
+  std::string ns_name;
+  if (!ns_path.empty()) {
+    if (const auto& ns_root = ns_path.front();
+        ns_root == "std" || ns_root == "sapi" || ns_root == "__gnu_cxx") {
+      // Filter out any and all declarations from the C++ standard library,
+      // from SAPI itself and from other well-known namespaces. This avoids
+      // re-declaring things like standard integer types, for example.
+      return;
+    }
+    ns_name = absl::StrCat(ns_path[0].empty() ? "" : " ",
+                           absl::StrJoin(ns_path, "::"));
+  }
+
+  rendered_types_[ns_name].push_back(PrintAstDecl(decl));
+}
+
+void Emitter::CollectFunction(clang::FunctionDecl* decl) {
+  functions_.push_back(*EmitFunction(decl));  // Cannot currently fail
+}
+
+absl::StatusOr<std::string> Emitter::EmitHeader(
+    const GeneratorOptions& options) {
+  SAPI_ASSIGN_OR_RETURN(const std::string header,
+                   ::sapi::EmitHeader(functions_, rendered_types_, options));
+  return internal::ReformatGoogleStyle(options.out_file, header);
 }
 
 }  // namespace sapi

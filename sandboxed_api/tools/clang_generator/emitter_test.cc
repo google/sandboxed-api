@@ -14,17 +14,47 @@
 
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 
+#include <initializer_list>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
+#include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sapi {
 namespace {
 
 using ::testing::MatchesRegex;
+using ::testing::SizeIs;
 using ::testing::StrEq;
 using ::testing::StrNe;
+
+class EmitterForTesting : public Emitter {
+ public:
+  using Emitter::functions_;
+};
+
+class EmitterTest : public FrontendActionTest {};
+
+TEST_F(EmitterTest, BasicFunctionality) {
+  GeneratorOptions options;
+  options.out_file = "input.h";
+  options.set_function_names<std::initializer_list<std::string>>(
+      {"ExposedFunction"});
+
+  EmitterForTesting emitter;
+  RunFrontendAction(R"(extern "C" void ExposedFunction() {})",
+                    absl::make_unique<GeneratorAction>(emitter, options));
+
+  EXPECT_THAT(emitter.functions_, SizeIs(1));
+
+  absl::StatusOr<std::string> header = emitter.EmitHeader(options);
+  EXPECT_THAT(header, IsOk());
+}
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {
   // Copybara will transform the string. This is intentional.

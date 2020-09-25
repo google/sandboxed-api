@@ -30,9 +30,9 @@ bool IsFunctionReferenceType(clang::QualType qual) {
 
 }  // namespace
 
-void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
+void CollectRelatedTypes(clang::QualType qual, QualTypeSet* types) {
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
-    GatherRelatedTypes(typedef_type->getDecl()->getUnderlyingType(), types);
+    CollectRelatedTypes(typedef_type->getDecl()->getUnderlyingType(), types);
     types->insert(qual);
     return;
   }
@@ -43,9 +43,9 @@ void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
                                         ->getAs<clang::FunctionProtoType>()) {
       // Note: Do not add the function type itself, as this will always be a
       //       pointer argument. We only need to collect all its related types.
-      GatherRelatedTypes(function_type->getReturnType(), types);
+      CollectRelatedTypes(function_type->getReturnType(), types);
       for (const clang::QualType& param : function_type->getParamTypes()) {
-        GatherRelatedTypes(param, types);
+        CollectRelatedTypes(param, types);
       }
       return;
     }
@@ -56,13 +56,13 @@ void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
     while (IsPointerOrReference(pointee)) {
       pointee = pointee->getPointeeType();
     }
-    GatherRelatedTypes(pointee, types);
+    CollectRelatedTypes(pointee, types);
     return;
   }
 
   // C array with specified constant size (i.e. int a[42])?
   if (const clang::ArrayType* array_type = qual->getAsArrayTypeUnsafe()) {
-    GatherRelatedTypes(array_type->getElementType(), types);
+    CollectRelatedTypes(array_type->getElementType(), types);
     return;
   }
 
@@ -71,7 +71,7 @@ void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
       // Collect the underlying integer type of enum classes as well, as it may
       // be a typedef.
       if (const clang::EnumDecl* decl = enum_type->getDecl(); decl->isFixed()) {
-        GatherRelatedTypes(decl->getIntegerType(), types);
+        CollectRelatedTypes(decl->getIntegerType(), types);
       }
     }
     types->insert(qual);
@@ -81,7 +81,7 @@ void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
   if (const auto* record_type = qual->getAs<clang::RecordType>()) {
     const clang::RecordDecl* decl = record_type->getDecl();
     for (const clang::FieldDecl* field : decl->fields()) {
-      GatherRelatedTypes(field->getType(), types);
+      CollectRelatedTypes(field->getType(), types);
     }
     types->insert(qual);
     return;
