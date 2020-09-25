@@ -18,13 +18,14 @@
 #include "check_tag.h"
 #include "tiffio.h"
 
-/* sapi functions:
- * TIFFWriteScanline
- * TIFFOpen
- * TIFFClose
- * TIFFGetField (from check_tag.c)
- * TIFFSetField
- */
+// sapi functions:
+//  TIFFWriteScanline
+//  TIFFOpen
+//  TIFFClose
+//  TIFFGetField (from check_tag.c)
+//  TIFFSetField
+
+namespace {
 
 struct LongTag {
   ttag_t tag;
@@ -32,14 +33,13 @@ struct LongTag {
   unsigned value;
 };
 
-const std::vector<LongTag> long_tags = {
-    {TIFFTAG_SUBFILETYPE, 1,
-     FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
+constexpr std::array<LongTag, 1> kLongTags = {
+	{TIFFTAG_SUBFILETYPE, 1, FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
 #define SPP 3  // kSamplePerPixel
-static const unsigned kWidth = 1;
-static const unsigned kLength = 1;
-static const unsigned kBps = 8;
-static const unsigned kRowsPerStrip = 1;
+constexpr unsigned kWidth = 1;
+constexpr unsigned kLength = 1;
+constexpr unsigned kBps = 8;
+constexpr unsigned kRowsPerStrip = 1;
 
 TEST(SandboxTest, LongTag) {
   sapi::StatusOr<std::string> status_or_path =
@@ -52,8 +52,8 @@ TEST(SandboxTest, LongTag) {
   TiffSapiSandbox sandbox("", srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  std::array<unsigned char, SPP> buffer = {0, 127, 255};
-  sapi::v::Array<unsigned char> buffer_(buffer.data(), SPP);
+  std::array<uint8_t, SPP> buffer = {0, 127, 255};
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), SPP);
 
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<TIFF*> status_or_tif;
@@ -102,7 +102,7 @@ TEST(SandboxTest, LongTag) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set PhotometricInterpretation tag";
 
-  for (auto& tag : long_tags) {
+  for (auto& tag : kLongTags) {
     status_or_int = api.TIFFSetFieldU1(&tif, tag.tag, tag.value);
     ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
     EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set tag " << tag.tag;
@@ -126,10 +126,12 @@ TEST(SandboxTest, LongTag) {
   CheckLongField(api, tif2, TIFFTAG_IMAGELENGTH, kLength);
   CheckLongField(api, tif2, TIFFTAG_ROWSPERSTRIP, kRowsPerStrip);
 
-  for (auto& tag : long_tags) {
+  for (auto& tag : kLongTags) {
     CheckLongField(api, tif2, tag.tag, tag.value);
   }
 
   ASSERT_THAT(api.TIFFClose(&tif2), IsOk()) << "TIFFClose fatal error";
   unlink(srcfile.c_str());
 }
+
+} // namespace

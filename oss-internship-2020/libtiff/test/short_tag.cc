@@ -13,38 +13,40 @@
 // limitations under the License.
 
 #include <array>
+#include <cstdint>
 #include <vector>
 
 #include "check_tag.h"
 #include "tiffio.h"
 
-/* sapi functions:
- * TIFFWriteScanline
- * TIFFOpen
- * TIFFClose
- * TIFFGetField (from check_tag.c)
- * TIFFSetField
- */
+// sapi functions:
+//  TIFFWriteScanline
+//  TIFFOpen
+//  TIFFClose
+//  TIFFGetField (from check_tag.c)
+//  TIFFSetField
+
+namespace {
 
 #define SPP 3  // kSamplePerPixel
-static const unsigned short kWidth = 1;
-static const unsigned short kLength = 1;
-static const unsigned short kBps = 8;
-static const unsigned short kPhotometric = PHOTOMETRIC_RGB;
-static const unsigned short kRowsPerStrip = 1;
-static const unsigned short kPlanarConfig = PLANARCONFIG_CONTIG;
+constexpr uint16_t kWidth = 1;
+constexpr uint16_t kLength = 1;
+constexpr uint16_t kBps = 8;
+constexpr uint16_t kPhotometric = PHOTOMETRIC_RGB;
+constexpr uint16_t kRowsPerStrip = 1;
+constexpr uint16_t kPlanarConfig = PLANARCONFIG_CONTIG;
 
 struct SingleTag {
   const ttag_t tag;
-  const unsigned short value;
+  const uint16_t value;
 };
 
 struct PairedTag {
   const ttag_t tag;
-  const std::array<unsigned short, 2> values;
+  const std::array<uint16_t, 2> values;
 };
 
-static const std::vector<SingleTag> short_single_tags = {
+constexpr std::array<SingleTag, 9> kShortSingleTags = {{
     {TIFFTAG_COMPRESSION, COMPRESSION_NONE},
     {TIFFTAG_FILLORDER, FILLORDER_MSB2LSB},
     {TIFFTAG_ORIENTATION, ORIENTATION_BOTRIGHT},
@@ -53,13 +55,13 @@ static const std::vector<SingleTag> short_single_tags = {
     {TIFFTAG_MAXSAMPLEVALUE, 241},
     {TIFFTAG_INKSET, INKSET_MULTIINK},
     {TIFFTAG_NUMBEROFINKS, SPP},
-    {TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}};
+    {TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}}};
 
-static const std::vector<PairedTag> short_paired_tags = {
+constexpr std::array<PairedTag, 4> kShortPairedTags = {{
     {TIFFTAG_PAGENUMBER, {1, 1}},
     {TIFFTAG_HALFTONEHINTS, {0, 255}},
     {TIFFTAG_DOTRANGE, {8, 16}},
-    {TIFFTAG_YCBCRSUBSAMPLING, {2, 1}}};
+    {TIFFTAG_YCBCRSUBSAMPLING, {2, 1}}}};
 
 TEST(SandboxTest, ShortTag) {
   sapi::StatusOr<std::string> status_or_path =
@@ -72,8 +74,8 @@ TEST(SandboxTest, ShortTag) {
   TiffSapiSandbox sandbox("", srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  std::array<unsigned char, SPP> buffer = {0, 127, 255};
-  sapi::v::Array<unsigned char> buffer_(buffer.data(), SPP);
+  std::array<uint8_t, SPP> buffer = {0, 127, 255};
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), SPP);
 
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<TIFF*> status_or_tif;
@@ -123,13 +125,13 @@ TEST(SandboxTest, ShortTag) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set PhotometricInterpretation tag";
 
-  for (auto& tag : short_single_tags) {
+  for (auto& tag : kShortSingleTags) {
     status_or_int = api.TIFFSetFieldUShort1(&tif, tag.tag, tag.value);
     ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
     EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set tag " << tag.tag;
   }
 
-  for (auto& tag : short_paired_tags) {
+  for (auto& tag : kShortPairedTags) {
     status_or_int =
         api.TIFFSetFieldUShort2(&tif, tag.tag, tag.values[0], tag.values[1]);
     ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort2 fatal error";
@@ -158,13 +160,15 @@ TEST(SandboxTest, ShortTag) {
   CheckLongField(api, tif2, TIFFTAG_ROWSPERSTRIP, kRowsPerStrip);
   CheckShortField(api, tif2, TIFFTAG_PLANARCONFIG, kPlanarConfig);
 
-  for (auto& tag : short_single_tags) {
+  for (auto& tag : kShortSingleTags) {
     CheckShortField(api, tif2, tag.tag, tag.value);
   }
 
-  for (auto& tag : short_paired_tags) {
+  for (auto& tag : kShortPairedTags) {
     CheckShortPairedField(api, tif2, tag.tag, tag.values);
   }
 
   ASSERT_THAT(api.TIFFClose(&tif2), IsOk()) << "TIFFClose fatal error";
 }
+
+} // namespace

@@ -12,30 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
 #include <cstring>
 
 #include "gtest/gtest.h"
 #include "helper.h"
 #include "tiffio.h"
 
-/* sapi functions:
- *    TIFFOpen
- *    TIFFClose
- *    TIFFGetField
- *    TIFFSetField
- *    TIFFTileSize
- *    TIFFReadRGBATile
- *    TIFFReadEncodedTile
- */
+// sapi functions:
+//  TIFFOpen
+//  TIFFClose
+//  TIFFGetField
+//  TIFFSetField
+//  TIFFTileSize
+//  TIFFReadRGBATile
+//  TIFFReadEncodedTile
 
-static const std::vector<unsigned char> cluster_0 = {0, 0, 2, 0, 138, 139};
-static const std::vector<unsigned char> cluster_64 = {0, 0, 9, 6, 134, 119};
-static const std::vector<unsigned char> cluster_128 = {44, 40, 63, 59, 230, 95};
+namespace {
 
-static int CheckCluster(int cluster,
-                        const sapi::v::Array<unsigned char> &buffer,
-                        const std::vector<unsigned char> &expected_cluster) {
-  unsigned char* target = buffer.GetData() + cluster * 6;
+constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
+constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
+constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
+
+int CheckCluster(int cluster, const sapi::v::Array<uint8_t> &buffer,
+                 const std::array<uint8_t, 6> &expected_cluster) {
+  uint8_t* target = buffer.GetData() + cluster * 6;
 
   bool comp = !(std::memcmp(target, expected_cluster.data(), 6) == 0);
 
@@ -50,10 +51,10 @@ static int CheckCluster(int cluster,
   return comp;
 }
 
-static int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
-                         int max_green, int min_blue, int max_blue,
-                         const sapi::v::Array<unsigned char> &buffer) {
-  unsigned char* rgb = buffer.GetData() + 3 * pixel;
+int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
+                  int max_green, int min_blue, int max_blue,
+                  const sapi::v::Array<uint8_t> &buffer) {
+  uint8_t* rgb = buffer.GetData() + 3 * pixel;
 
   bool comp =
       !(rgb[0] >= min_red && rgb[0] <= max_red && rgb[1] >= min_green &&
@@ -68,10 +69,9 @@ static int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
   return comp;
 }
 
-static int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
-                          int max_green, int min_blue, int max_blue,
-                          int min_alpha, int max_alpha,
-                          const sapi::v::Array<unsigned> &buffer) {
+int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
+                   int max_green, int min_blue, int max_blue, int min_alpha,
+                   int max_alpha, const sapi::v::Array<unsigned> &buffer) {
   // RGBA images are upside down - adjust for normal ordering
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
   unsigned rgba = buffer[adjusted_pixel];
@@ -133,16 +133,16 @@ TEST(SandboxTest, RawDecode) {
       << "tiles are " << status_or_long.value() << " bytes";
   sz = status_or_long.value();
 
-  sapi::v::Array<unsigned char> buffer_(sz);
+  sapi::v::Array<uint8_t> buffer_(sz);
   status_or_long = api.TIFFReadEncodedTile(&tif, 9, buffer_.PtrBoth(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
       << (int)status_or_long.value() << " instead of " << (int)sz << ")";
 
-  ASSERT_FALSE(CheckCluster(0, buffer_, cluster_0) ||
-               CheckCluster(64, buffer_, cluster_64) ||
-               CheckCluster(128, buffer_, cluster_128))
+  ASSERT_FALSE(CheckCluster(0, buffer_, kCluster0) ||
+               CheckCluster(64, buffer_, kCluster64) ||
+               CheckCluster(128, buffer_, kCluster128))
       << "Clusters did not match expected results";
 
   status_or_int =
@@ -157,7 +157,7 @@ TEST(SandboxTest, RawDecode) {
       << "tiles are " << status_or_long.value() << " bytes";
   sz = status_or_long.value();
 
-  sapi::v::Array<unsigned char> buffer2_(sz);
+  sapi::v::Array<uint8_t> buffer2_(sz);
   status_or_long = api.TIFFReadEncodedTile(&tif, 9, buffer2_.PtrBoth(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
@@ -195,3 +195,5 @@ TEST(SandboxTest, RawDecode) {
 
   EXPECT_THAT(pixel_status, IsFalse()) << "wrong encoding";
 }
+
+} // namespace

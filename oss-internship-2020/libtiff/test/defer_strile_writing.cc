@@ -12,33 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+
 #include "helper.h"
 #include "tiffio.h"
 
-/* sapi functions:
- * TIFFOpen
- * TIFFClose
- * TIFFGetField
- * TIFFSetField
- * TIFFWriteCheck
- * TIFFSetDirectory
- * TIFFFreeDirectory
- * TIFFWriteScanline
- * TIFFWriteDirectory
- * TIFFCreateDirectory
- * TIFFReadEncodedTile
- * TIFFReadEncodedStrip
- * TIFFWriteEncodedTile
- * TIFFWriteEncodedStrip
- * TIFFDeferStrileArrayWriting
- * TIFFForceStrileArrayWriting
- */
+// sapi functions:
+//  TIFFOpen
+//  TIFFClose
+//  TIFFGetField
+//  TIFFSetField
+//  TIFFWriteCheck
+//  TIFFSetDirectory
+//  TIFFFreeDirectory
+//  TIFFWriteScanline
+//  TIFFWriteDirectory
+//  TIFFCreateDirectory
+//  TIFFReadEncodedTile
+//  TIFFReadEncodedStrip
+//  TIFFWriteEncodedTile
+//  TIFFWriteEncodedStrip
+//  TIFFDeferStrileArrayWriting
+//  TIFFForceStrileArrayWriting
+
+namespace { 
 
 #define TBS 256  // kTileBufferSize
-static const unsigned short kWidth = 1;
-static const unsigned short kBps = 8;
-static const unsigned short kRowsPerStrip = 1;
-static const unsigned short kSamplePerPixel = 1;
+constexpr uint16_t kWidth = 1;
+constexpr uint16_t kBps = 8;
+constexpr uint16_t kRowsPerStrip = 1;
+constexpr uint16_t kSamplePerPixel = 1;
 
 void TestWriting(const char* mode, int tiled, int height) {
   sapi::StatusOr<std::string> status_or_path =
@@ -320,3 +323,5 @@ TEST(SandboxTest, DeferStrileWriting) {
     TestWriting("wD", tiled, 1);
   }
 }
+
+} // namespace

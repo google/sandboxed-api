@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 
 project(sandboxed_libtiff CXX)
 
@@ -120,10 +120,10 @@ target_include_directories(tiff_sapi INTERFACE
     "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-if (TIFF_SAPI_ENABLE_EXAMPLES)
+#if (TIFF_SAPI_ENABLE_EXAMPLES)
   add_subdirectory(example)
-endif()
+#endif()
 
-if (TIFF_SAPI_ENABLE_TESTS)
+#if (TIFF_SAPI_ENABLE_TESTS)
   add_subdirectory(test)
-endif()
+#endif()

@@ -17,10 +17,9 @@
 
 #include "tiffio.h"
 
-/* s - signed
- * u - unsigned
- * wrapper for variadic functions TIFFGetField and TIFFSetField
- */
+// wrapper for variadic functions TIFFGetField and TIFFSetField
+// s - signed
+// u - unsigned
 
 extern "C" {
 int TIFFGetField1(TIFF* tif, unsigned tag, void* param);

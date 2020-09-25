@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstring>
+
 #include "helper.h"
 #include "tiffio.h"
 
 void CheckShortField(TiffApi&, sapi::v::RemotePtr& tif, const ttag_t field,
-                     const unsigned short value);
+                     const uint16_t value);
 void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
                            const ttag_t field,
-                           const std::array<unsigned short, 2>& values);
+                           const std::array<uint16_t, 2>& values);
 void CheckLongField(TiffApi&, sapi::v::RemotePtr& tif, const ttag_t field,
                     const unsigned value);

@@ -19,4 +19,4 @@ You should make sure the libtiff submodule is cloned.
 #### to run tests:
 `./test/tests`
 
-you also can use sandbox flags `sandbox2_danger_danger_permit_all` and `sandbox2_danger_danger_permit_all_and_log`
+You also can use sandbox flags `sandbox2_danger_danger_permit_all` and `sandbox2_danger_danger_permit_all_and_log`.

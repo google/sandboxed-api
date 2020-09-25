@@ -41,6 +41,7 @@ class TiffSapiSandbox : public TiffSandbox {
         .AllowOpen()
         .AllowExit()
         .AllowStat()
+        .AllowMmap()
         .AllowSystemMalloc()
         .AllowSyscalls({
             __NR_futex,
@@ -48,7 +49,6 @@ class TiffSapiSandbox : public TiffSandbox {
             __NR_lseek,
             __NR_gettid,
             __NR_sysinfo,
-            __NR_mmap,
             __NR_munmap,
         });
 
@@ -63,7 +63,8 @@ class TiffSapiSandbox : public TiffSandbox {
     return builder.get()->BuildOrDie();
   }
 
-  std::string dir_, file_;
+  std::string dir_;
+  std::string file_;
 };
 
 }  // namespace

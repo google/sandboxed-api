@@ -14,12 +14,11 @@
 
 #include "check_tag.h"
 
-/* sapi functions:
- * TIFFGetField
- */
+// sapi functions:
+//  TIFFGetField
 
 void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
-                     const unsigned short value) {
+                     const uint16_t value) {
   sapi::v::UShort tmp(123);
   sapi::StatusOr<int> status_or_int;
 
@@ -33,7 +32,7 @@ void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
 
 void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
                            const ttag_t field,
-                           const std::array<unsigned short, 2>& values) {
+                           const std::array<uint16_t, 2>& values) {
   sapi::v::UShort tmp0(123);
   sapi::v::UShort tmp1(456);
   sapi::StatusOr<int> status_or_int;
