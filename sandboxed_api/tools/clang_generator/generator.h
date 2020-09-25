@@ -26,6 +26,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
+#include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
@@ -46,84 +47,85 @@ struct GeneratorOptions {
   std::string work_dir;
   std::string name;            // Name of the Sandboxed API
   std::string namespace_name;  // Namespace to wrap the SAPI in
-  std::string out_file;        // Output path of the generated header
-  std::string embed_dir;       // Directory with embedded includes
-  std::string embed_name;      // Identifier of the embed object
+  // Output path of the generated header. Used to build the header include
+  // guard.
+  std::string out_file;
+  std::string embed_dir;   // Directory with embedded includes
+  std::string embed_name;  // Identifier of the embed object
 };
 
 class GeneratorASTVisitor
     : public clang::RecursiveASTVisitor<GeneratorASTVisitor> {
  public:
+  explicit GeneratorASTVisitor(const GeneratorOptions& options)
+      : options_(options) {}
+
   bool VisitFunctionDecl(clang::FunctionDecl* decl);
 
  private:
   friend class GeneratorASTConsumer;
-  const GeneratorOptions* options_ = nullptr;
 
   std::vector<clang::FunctionDecl*> functions_;
   QualTypeSet types_;
+
+  const GeneratorOptions& options_;
 };
-
-namespace internal {
-
-absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
-                                                const std::string& code);
-
-}  // namespace internal
 
 class GeneratorASTConsumer : public clang::ASTConsumer {
  public:
-  GeneratorASTConsumer(std::string in_file, const GeneratorOptions* options)
-      : in_file_(std::move(in_file)), options_(options) {
-    visitor_.options_ = options_;
-  }
+  GeneratorASTConsumer(std::string in_file, Emitter& emitter,
+                       const GeneratorOptions& options)
+      : in_file_(std::move(in_file)), visitor_(options), emitter_(emitter) {}
 
  private:
   void HandleTranslationUnit(clang::ASTContext& context) override;
 
-  absl::Status GenerateAndSaveHeader();
-
   std::string in_file_;
-  const GeneratorOptions* options_;
-
   GeneratorASTVisitor visitor_;
+
+  Emitter& emitter_;
 };
 
 class GeneratorAction : public clang::ASTFrontendAction {
  public:
-  explicit GeneratorAction(const GeneratorOptions* options)
-      : options_(options) {}
+  GeneratorAction(Emitter& emitter, const GeneratorOptions& options)
+      : emitter_(emitter), options_(options) {}
 
  private:
   std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
       clang::CompilerInstance&, llvm::StringRef in_file) override {
     return absl::make_unique<GeneratorASTConsumer>(std::string(in_file),
-                                                   options_);
+                                                   emitter_, options_);
   }
 
   bool hasCodeCompletionSupport() const override { return false; }
 
-  const GeneratorOptions* options_;
+  Emitter& emitter_;
+  const GeneratorOptions& options_;
 };
 
 class GeneratorFactory : public clang::tooling::FrontendActionFactory {
  public:
-  explicit GeneratorFactory(GeneratorOptions options = {})
-      : options_(std::move(options)) {}
+  // Does not take ownership
+  GeneratorFactory(Emitter& emitter, const GeneratorOptions& options)
+      : emitter_(emitter), options_(options) {}
 
  private:
 #if LLVM_VERSION_MAJOR >= 10
   std::unique_ptr<clang::FrontendAction> create() override {
-    return absl::make_unique<GeneratorAction>(&options_);
+    return absl::make_unique<GeneratorAction>(emitter_, options_);
   }
 #else
   clang::FrontendAction* create() override {
-    return new GeneratorAction(&options_);
+    return new GeneratorAction(emitter_, options_);
   }
 #endif
 
-  GeneratorOptions options_;
+  Emitter& emitter_;
+  const GeneratorOptions& options_;
 };
+
+std::string GetOutputFilename(absl::string_view source_file);
 
 }  // namespace sapi
 

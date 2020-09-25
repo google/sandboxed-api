@@ -54,7 +54,7 @@ inline bool IsPointerOrReference(clang::QualType qual) {
 //   int
 //   SubStruct
 //   bool
-void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types);
+void CollectRelatedTypes(clang::QualType qual, QualTypeSet* types);
 
 // Maps a qualified type to a fully qualified SAPI-compatible type name. This
 // is used for the generated code that invokes the actual function call RPC.
