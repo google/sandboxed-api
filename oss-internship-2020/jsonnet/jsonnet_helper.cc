@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet_helper.h"
+#include "jsonnet_helper.h"  // NOLINT(build/include)
 
 #include <string.h>
 

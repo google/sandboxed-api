@@ -15,9 +15,58 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "jsonnet_base_sandbox.h"
+#include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
 
-int main(int argc, char *argv[]) {
+absl::Status JsonnetMain(std::string in_file, std::string out_file) {
+  // Initialize sandbox.
+  JsonnetBaseSandbox sandbox(in_file, out_file);
+  SAPI_RETURN_IF_ERROR(sandbox.Init())
+
+  JsonnetApi api(&sandbox);
+
+  // Initialize library's main structure.
+  SAPI_ASSIGN_OR_RETURN(JsonnetVm * jsonnet_vm, api.c_jsonnet_make());
+  sapi::v::RemotePtr vm_pointer(jsonnet_vm);
+
+  // Read input file.
+  std::string in_file_in_sandboxee(std::string("/input/") +
+                                   basename(&in_file[0]));
+  sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
+  SAPI_ASSIGN_OR_RETURN(char* input,
+                        api.c_read_input(false, in_file_var.PtrBefore()));
+
+  // Process jsonnet data.
+  sapi::v::RemotePtr input_pointer(input);
+  sapi::v::Int error;
+  SAPI_ASSIGN_OR_RETURN(char* output, api.c_jsonnet_evaluate_snippet_stream(
+                                          &vm_pointer, in_file_var.PtrBefore(),
+                                          &input_pointer, error.PtrAfter()));
+  CHECK(!error.GetValue())
+      << "Jsonnet code evaluation failed: " << error.GetValue() << "\n"
+      << "Make sure all files used by your jsonnet file are in the same "
+         "directory as your file.";
+
+  // Write data to file.
+  std::string out_file_in_sandboxee(std::string("/output/") +
+                                    basename(&out_file[0]));
+  sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
+  sapi::v::RemotePtr output_pointer(output);
+
+  SAPI_ASSIGN_OR_RETURN(
+      bool success,
+      api.c_write_output_file(&output_pointer, out_file_var.PtrBefore()));
+  CHECK(success) << "Writing to output file failed: " << success;
+
+  // Clean up.
+  SAPI_ASSIGN_OR_RETURN(char* result,
+                        api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0));
+  SAPI_RETURN_IF_ERROR(api.c_jsonnet_destroy(&vm_pointer));
+  SAPI_RETURN_IF_ERROR(api.c_free_input(&input_pointer));
+
+  return absl::OkStatus();
+}
+
+int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
@@ -31,61 +80,11 @@ int main(int argc, char *argv[]) {
   std::string in_file(argv[1]);
   std::string out_file(argv[2]);
 
-  // Initialize sandbox.
-  JsonnetBaseSandbox sandbox(in_file, out_file);
-  absl::Status status = sandbox.Init();
-  CHECK(status.ok()) << "Sandbox initialization failed " << status;
-
-  JsonnetApi api(&sandbox);
-
-  // Initialize library's main structure.
-  sapi::StatusOr<JsonnetVm *> jsonnet_vm = api.c_jsonnet_make();
-  sapi::v::RemotePtr vm_pointer(jsonnet_vm.value());
-  CHECK(jsonnet_vm.ok()) << "JsonnetVm initialization failed: "
-                         << jsonnet_vm.status();
-
-  // Read input file.
-  std::string in_file_in_sandboxee(std::string("/input/") +
-                                   basename(&in_file[0]));
-  sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
-  sapi::StatusOr<char *> input =
-      api.c_read_input(false, in_file_var.PtrBefore());
-  CHECK(input.ok()) << "Reading input file failed " << input.status();
-
-  // Process jsonnet data.
-  sapi::v::RemotePtr input_pointer(input.value());
-  sapi::v::Int error;
-  sapi::StatusOr<char *> output = api.c_jsonnet_evaluate_snippet_stream(
-      &vm_pointer, in_file_var.PtrBefore(), &input_pointer, error.PtrAfter());
-  CHECK(output.ok() && !error.GetValue())
-      << "Jsonnet code evaluation failed: " << output.status() << " "
-      << error.GetValue() << "\n"
-      << "Make sure all files used by your jsonnet file are in the same "
-         "directory as your file.";
-
-  // Write data to file.
-  std::string out_file_in_sandboxee(std::string("/output/") +
-                                    basename(&out_file[0]));
-  sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
-  sapi::v::RemotePtr output_pointer(output.value());
-  sapi::StatusOr<bool> success;
-
-  success =
-      api.c_write_output_stream(&output_pointer, out_file_var.PtrBefore());
-  CHECK(success.ok() && success.value())
-      << "Writing to output file failed " << success.status() << " "
-      << success.value();
-
-  // Clean up.
-  sapi::StatusOr<char *> result =
-      api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0);
-  CHECK(result.ok()) << "JsonnetVm realloc failed: " << result.status();
-
-  status = api.c_jsonnet_destroy(&vm_pointer);
-  CHECK(status.ok()) << "JsonnetVm destroy failed: " << status;
-
-  status = api.c_free_input(&input_pointer);
-  CHECK(status.ok()) << "Input freeing failed: " << status;
+  absl::Status status = JsonnetMain(in_file, out_file);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed: " << status.ToString();
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }

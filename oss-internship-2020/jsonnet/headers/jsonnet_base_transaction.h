@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet_base_sandbox.h"
+#include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
 
 class JsonnetTransaction : public sapi::Transaction {
  public:

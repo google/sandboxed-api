@@ -1,5 +1,5 @@
 --- jsonnet.cpp	2020-09-09 12:15:33.687539042 +0000
-+++ write_helper.cpp	2020-09-17 15:35:02.684743876 +0000
++++ write_helper.cpp	2020-09-25 15:38:37.317147682 +0000
 @@ -14,559 +14,125 @@
  limitations under the License.
  */
@@ -20,7 +20,7 @@
  #include <vector>
  
 -#include "utils.h"
-+#include "jsonnet_helper.h"
++#include "jsonnet_helper.h"  // NOLINT(build/include)
  
 -extern "C" {
 -#include <libjsonnet.h>
