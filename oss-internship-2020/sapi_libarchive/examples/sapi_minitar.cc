@@ -39,6 +39,8 @@
  * lzma/xz, etc.  Just fill in the appropriate setup calls.
  */
 
+ // TODO general comments here
+
 #include <archive.h>
 #include <archive_entry.h>
 #include <fcntl.h>
@@ -226,7 +228,7 @@ int main(int argc, const char** argv) {
 static void create(const char* initial_filename, int compress,
                    const char** argv) {
   // We split the filename path into dirname and filename. To the filename we
-  // prepend /output/ so that it will work with the security policy.
+  // prepend "/output/"" so that it will work with the security policy.
 
   std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
   auto [archive_path, filename_tmp] = sandbox2::file::SplitPath(abs_path);
@@ -243,6 +245,10 @@ static void create(const char* initial_filename, int compress,
   std::transform(relative_paths.begin(), relative_paths.end(),
                  relative_paths.begin(), sandbox2::file::CleanPath);
 
+  // At this point, we have the cleaned relative and absolute paths saved
+  // in vectors.
+
+  // Initialize sandbox and api object
   SapiLibarchiveSandboxCreate sandbox(absolute_paths, archive_path);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
   LibarchiveApi api(&sandbox);
@@ -251,6 +257,8 @@ static void create(const char* initial_filename, int compress,
   CHECK(ret.ok()) << "write_new call failed";
   CHECK(ret.value() != NULL) << "Failed to create write archive";
 
+  // Treat the pointer as remote. There is no need to copy the data
+  // to the client process.
   sapi::v::RemotePtr a(ret.value());
 
   absl::StatusOr<int> ret2;
@@ -307,6 +315,7 @@ static void create(const char* initial_filename, int compress,
 
   int file_idx = 0;
 
+  // We can directly use the vectors defined before.
   for (int file_idx = 0; file_idx < absolute_paths.size(); ++file_idx) {
     ret = api.archive_read_disk_new();
     CHECK(ret.ok()) << "read_disk_new call failed";
@@ -320,7 +329,7 @@ static void create(const char* initial_filename, int compress,
     CHECK(ret2.value() != ARCHIVE_FATAL)
         << "Unexpected result from read_disk_set_standard_lookup call";
 #endif
-
+    // We use the absolute path first.
     ret2 = api.archive_read_disk_open(
         &disk,
         sapi::v::ConstCStr(absolute_paths[file_idx].c_str()).PtrBefore());
@@ -359,7 +368,8 @@ static void create(const char* initial_filename, int compress,
       // absolute path prefix with the relative one. Example: we add the folder
       // test_files which becomes /absolute/path/test_files and the files inside
       // of it will become /absolute/path/test_files/file1 and we change it to
-      // test_files/file1 so that it is relative.
+      // test_files/file1 so that it is relative. This only changes the pathname
+      // so that relative paths are preserved.
 
       std::string path_name =
           CheckStatusAndGetString(api.archive_entry_pathname(&entry), sandbox);
@@ -403,6 +413,9 @@ static void create(const char* initial_filename, int compress,
       CHECK(ret2.value() != ARCHIVE_FATAL)
           << "Unexpected result from write_header call";
 
+      // In the following section, the calls (read, archive_write_data) are done on
+      // the sandboxed process since we do not need to transfer the data in the client
+      // process.
       if (ret2.value() > ARCHIVE_FAILED) {
         int fd = open(CheckStatusAndGetString(
                           api.archive_entry_sourcepath(&entry), sandbox)
@@ -415,9 +428,11 @@ static void create(const char* initial_filename, int compress,
         sapi::v::Array<char> buff(kBuffSize);
         sapi::v::UInt ssize(kBuffSize);
 
+        // We allocate the buffer remotely and then we can simply use the remote pointer.
         CHECK(sandbox.Allocate(&buff, true).ok())
             << "Could not allocate remote buffer";
 
+        // We can use sapi objects that help us with file descriptors.
         CHECK(sandbox.TransferToSandboxee(&sapi_fd).ok())
             << "Could not transfer file descriptor";
 
@@ -555,6 +570,8 @@ static void extract(const char* filename, int do_extract, int flags) {
     filename_ptr = NULL;
   }
 
+  // The entries are saved with a relative path so they are all created
+  // relative to the current working directory.
   ret2 = api.archive_read_open_filename(
       &a, sapi::v::ConstCStr(filename_ptr).PtrBefore(), kBlockSize);
   CHECK(ret2.ok()) << "read_open_filename call failed";
@@ -600,7 +617,7 @@ static void extract(const char* filename, int do_extract, int flags) {
         needcr = 1;
       }
     }
-    // use the needcr stuff here TODO
+
     if (needcr) {
       std::cout << std::endl;
     }
@@ -623,6 +640,8 @@ static void extract(const char* filename, int do_extract, int flags) {
   CHECK(!ret2.value()) << "Unexpected result from write_free call";
 }
 
+// This function is only called from the "extract function". It is still isolated
+// in order to not modify the code structure as much.
 static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
                      LibarchiveApi& api,
                      SapiLibarchiveSandboxExtract& sandbox) {
@@ -660,15 +679,6 @@ static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
     }
   }
 }
-
-// static void msg(const char* m) { write(1, m, strlen(m)); }
-
-// static void errmsg(const char* m) {
-//   if (m == NULL) {
-//     m = "Error: No error description provided.\n";
-//   }
-//   write(2, m, strlen(m));
-// }
 
 static void usage(void) {
   /* Many program options depend on compile options. */
