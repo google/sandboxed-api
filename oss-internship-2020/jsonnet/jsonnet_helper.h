@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet/cmd/utils.h"
+#include "jsonnet/cmd/utils.h"  // NOLINT(build/include)
 
 extern "C" {
-#include <libjsonnet.h>
-#include <libjsonnet_fmt.h>
+#include <libjsonnet.h>  // NOLINT(build/include)
+#include <libjsonnet_fmt.h>  // NOLINT(build/include)
 }
 
 extern "C" struct JsonnetVm* c_jsonnet_make(void);

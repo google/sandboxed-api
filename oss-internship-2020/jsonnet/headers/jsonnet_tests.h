@@ -21,7 +21,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "jsonnet_base_sandbox.h"
+#include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
 #include "jsonnet_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
