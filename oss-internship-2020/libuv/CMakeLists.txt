@@ -1,4 +1,3 @@
-
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,12 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.12)
 
 project(libuv_sandbox)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Add SAPI directories
+add_subdirectory(
+  "${SAPI_ROOT}"
+  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+  EXCLUDE_FROM_ALL
+)
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/uv_wrapper")
 add_custom_command(
@@ -28,33 +34,33 @@ add_custom_command(
 
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 
-  COMMAND python3 "generator/wrapper_generator.py"
-                  "libuv/include/uv.h"
-                  "${CMAKE_BINARY_DIR}/uv_wrapper/uv_wrapper.h"
-                  "${CMAKE_BINARY_DIR}/uv_wrapper/uv_wrapper.cc"
+  COMMAND "${SAPI_PYTHON3_EXECUTABLE}"
+          "generator/wrapper_generator.py"
+          "libuv/include/uv.h"
+          "${CMAKE_BINARY_DIR}/uv_wrapper/uv_wrapper.h"
+          "${CMAKE_BINARY_DIR}/uv_wrapper/uv_wrapper.cc"
 
   COMMENT "Generate the wrapper header and source files"
-
 )
 
-option(UV_SAPI_ENABLE_EXAMPLES "" ON)
-option(UV_SAPI_ENABLE_TESTS "" ON)
+option(SAPI_UV_ENABLE_EXAMPLES "" ON)
+option(SAPI_UV_ENABLE_TESTS "" ON)
 
 # Add callbacks used by examples and tests
-if (UV_SAPI_ENABLE_EXAMPLES OR UV_SAPI_ENABLE_TESTS)
-  list(APPEND UV_SAPI_CALLBACKS
+if (SAPI_UV_ENABLE_EXAMPLES OR SAPI_UV_ENABLE_TESTS)
+  list(APPEND SAPI_UV_CALLBACKS
     "${CMAKE_CURRENT_SOURCE_DIR}/callbacks/callbacks.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/callbacks/callbacks.cc"
   )
 endif()
 
 # Wrapper library including wrappers for all libuv methods and callbacks
-# The UV_SAPI_CALLBACKS variable should contain the absolute paths of
+# The SAPI_UV_CALLBACKS variable should contain the absolute paths of
 # all the files implementing the callbacks
 add_library(uv_wrapper_and_callbacks OBJECT
   "${CMAKE_BINARY_DIR}/uv_wrapper/uv_wrapper.h"
   "${CMAKE_BINARY_DIR}/uv_wrapper/uv_wrapper.cc"
-  "${UV_SAPI_CALLBACKS}"
+  "${SAPI_UV_CALLBACKS}"
 )
 set_target_properties(uv_wrapper_and_callbacks
   PROPERTIES LINKER_LANGUAGE C
@@ -66,13 +72,8 @@ target_link_libraries(uv_wrapper_and_callbacks uv_a)
 
 # Setup Sandboxed API
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
-set(SAPI_ENABLE_EXAMPLES ${UV_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
-set(SAPI_ENABLE_TESTS ${UV_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
-add_subdirectory(
-  "${SAPI_ROOT}"
-  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-  EXCLUDE_FROM_ALL
-)
+set(SAPI_ENABLE_EXAMPLES ${SAPI_UV_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
+set(SAPI_ENABLE_TESTS ${SAPI_UV_ENABLE_TESTS} CACHE BOOL "" FORCE)
 
 # Generate SAPI header
 add_sapi_library(uv_sapi
@@ -374,8 +375,7 @@ add_sapi_library(uv_sapi
 
   LIBRARY_NAME UV
 
-  NAMESPACE ""
-
+  NAMESPACE uv
 )
 
 # Include generated SAPI header
@@ -384,11 +384,11 @@ target_include_directories(uv_sapi INTERFACE
 )
 
 # Add examples
-if (UV_SAPI_ENABLE_EXAMPLES)
+if (SAPI_UV_ENABLE_EXAMPLES)
   add_subdirectory(examples)
 endif()
 
 # Add tests
-if (UV_SAPI_ENABLE_TESTS)
+if (SAPI_UV_ENABLE_TESTS)
   add_subdirectory(tests)
 endif()

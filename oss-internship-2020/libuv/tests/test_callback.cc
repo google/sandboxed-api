@@ -21,7 +21,9 @@
 #include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"
 
-class UVTestCallbackSapiSandbox : public UVSandbox {
+namespace {
+
+class UVTestCallbackSapiSandbox : public uv::UVSandbox {
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -40,8 +42,8 @@ class UVTestCallback : public ::testing::Test {
  protected:
   void SetUp() override {
     sandbox_ = std::make_unique<UVTestCallbackSapiSandbox>();
-    ASSERT_THAT(sandbox_->Init(), ::sapi::IsOk());
-    api_ = std::make_unique<UVApi>(sandbox_.get());
+    ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+    api_ = std::make_unique<uv::UVApi>(sandbox_.get());
   }
 
   // Check sapi_uv_timer_init
@@ -87,7 +89,7 @@ class UVTestCallback : public ::testing::Test {
   }
 
   std::unique_ptr<UVTestCallbackSapiSandbox> sandbox_;
-  std::unique_ptr<UVApi> api_;
+  std::unique_ptr<uv::UVApi> api_;
 
   static constexpr int kData = 1729;
 };
@@ -137,3 +139,5 @@ TEST_F(UVTestCallback, TimerCallback) {
   UVDefaultLoop(&loop);
   UVLoopClose(loop.PtrNone());
 }
+
+}  // namespace

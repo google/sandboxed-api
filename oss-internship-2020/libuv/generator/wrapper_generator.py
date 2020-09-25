@@ -11,14 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Script generating a wrapper API for LibUV."""
+
+"""Script generating a wrapper API for LibUV.
+ .. note::
+    This scriptis highly specific to LibUV's source code
+    and does not generalize to any other library
+ """
 
 import sys
+from typing import List
 import re
 import os
 
 
-def get_var_type(string):
+def get_var_type(string : str) -> str:
     """Gets the type from an argument variable
     (e.g. "int x" -> "int")
     """
@@ -32,7 +38,7 @@ def get_var_type(string):
     return " ".join(var.split(" ")[:-1]).strip()
 
 
-def get_var_name(string):
+def get_var_name(string : str) -> str:
     """Gets the name from an argument variable
     (e.g. "int x" -> "x")
     """
@@ -50,7 +56,7 @@ def get_var_name(string):
     return var.split(" ")[-1].strip()
 
 
-def fix_method_type(string):
+def fix_method_type(string : str) -> str:
     """Fixes the method type
     (e.g. "const int*" -> "const void*")
     """
@@ -69,7 +75,7 @@ def fix_method_type(string):
     return method_type
 
 
-def fix_argument(string):
+def fix_argument(string : str) -> str:
     """Fixes an argument
     (e.g. "const int* x" -> "const void* x")
     """
@@ -92,7 +98,7 @@ def fix_argument(string):
     return arg_type + " " + arg_name
 
 
-def fix_call_argument(string):
+def fix_call_argument(string : str) -> str:
     """Fixes an argument in a call the orignal method
     (e.g. "const int* x" -> "reinterpret_cast<const int*>(x)")
     """
@@ -113,14 +119,14 @@ def fix_call_argument(string):
     return arg_name
 
 
-def read_file(filename):
+def read_file(filename : str) -> str:
     """Returns contents of filename as a string"""
 
     file = open(filename, "r")
     return str(file.read())
 
 
-def clean_file(text):
+def clean_file(text : str) -> str:
     """Prepares the file for parsing
     In particular, removes comments and macros from text
     Additionally, moves pointer asterisks next to its type
@@ -134,7 +140,7 @@ def clean_file(text):
     return result
 
 
-def get_signatures(text):
+def get_signatures(text : str) -> str:
     """Gets the signatures of all the methods in the header
     .. note:: This method only works on a certain version of LibUV's header
     """
@@ -148,71 +154,78 @@ def get_signatures(text):
     return zip(method_types, names, arguments_lists)
 
 
-def write_method(method_type, name, arguments_list, header, source):
-    """Writes the method to both the header and the source files"""
+def append_method(method_type : str, name : str, arguments_list : List[str],
+                  header : List[str], source : List[str]) -> None:
+    """Writes the method to the header and the source list of lines"""
 
-    header.write(fix_method_type(method_type) + " sapi_" + name + "(" +
-                 ", ".join(map(fix_argument, arguments_list)) + ");\n\n")
-    source.write(fix_method_type(method_type) + " sapi_" + name + "(" +
-                 ", ".join(map(fix_argument, arguments_list)) + ") {\n")
-    source.write("  return " + name + "(" +
-                 ", ".join(map(fix_call_argument, arguments_list)) + ");\n")
-    source.write("}\n\n")
+    header.append(fix_method_type(method_type) + " sapi_" + name + "(" +
+                  ", ".join(map(fix_argument, arguments_list)) + ");")
+    source.append(fix_method_type(method_type) + " sapi_" + name + "(" +
+                  ", ".join(map(fix_argument, arguments_list)) + ") {\n" +
+                  "  return " + name + "(" +
+                  ", ".join(map(fix_call_argument, arguments_list)) + ");\n" +
+                  "}")
 
 
-def write_text(text, file):
-    """Writes text to file
+def append_text(text : str, file : List[str]) -> None:
+    """Writes text to file list of lines
     Useful for additional methods, includes, extern "C"...
     """
 
-    file.write(text)
+    file.append(text)
 
 
-def generate_wrapper():
+def generate_wrapper() -> None:
     """Generates the wrapper"""
+
+    header_file = open(sys.argv[2], "w")
+    source_file = open(sys.argv[3], "w")
 
     text = read_file(sys.argv[1])
     text = clean_file(text)
     signatures = get_signatures(text)
 
-    header = open(sys.argv[2], "w")
-    source = open(sys.argv[3], "w")
+    header = []
+    source = []
 
-    write_text("#include <uv.h>\n\n", header)
-    write_text("extern \"C\" {\n\n", header)
-    write_text("#include \"" + os.path.abspath(header.name) + "\"\n\n", source)
+    append_text("#include <uv.h>", header)
+    append_text("extern \"C\" {", header)
+    append_text("#include \"" + os.path.abspath(header_file.name) + "\"", source)
 
     for (method_type, name, arguments_list) in signatures:
         # These wrapper methods are manually added at the end
         if name in ("uv_once", "uv_loop_configure"):
             continue
-        write_method(method_type, name, arguments_list, header, source)
+        append_method(method_type, name, arguments_list, header, source)
 
     # Add sapi_uv_once (uv_once uses a differnet kind of callback)
-    write_text("void sapi_uv_once(void* guard, void (*callback)(void));\n\n",
+    append_text("void sapi_uv_once(void* guard, void (*callback)(void));",
                header)
-    write_text("void sapi_uv_once(void* guard, void (*callback)(void)) {\n" +
+    append_text("void sapi_uv_once(void* guard, void (*callback)(void)) {\n" +
                "  return uv_once(reinterpret_cast<uv_once_t*>(guard)," +
-               "callback);\n" + "}\n\n", source)
+               "callback);\n" + "}", source)
 
     # Add sapi_uv_loop_configure (uv_loop_configure is variadic)
-    write_text("int sapi_uv_loop_configure(void* loop, uv_loop_option option)" +
-               ";\n\n", header)
-    write_text("int sapi_uv_loop_configure(void* loop, uv_loop_option option)" +
+    append_text("int sapi_uv_loop_configure(void* loop, uv_loop_option option)" +
+               ";", header)
+    append_text("int sapi_uv_loop_configure(void* loop, uv_loop_option option)" +
                " {\n  return uv_loop_configure(" +
-               "reinterpret_cast<uv_loop_t*>(loop), option);\n" + "}\n\n",
+               "reinterpret_cast<uv_loop_t*>(loop), option);\n" + "}",
                source)
 
     # Add sapi_uv_loop_configure_int (uv_loop_configure is variadic)
-    write_text("int sapi_uv_loop_configure_int(void* loop, " +
-               "uv_loop_option option, int ap);\n\n", header)
-    write_text("int sapi_uv_loop_configure_int(void* loop, " +
+    append_text("int sapi_uv_loop_configure_int(void* loop, " +
+               "uv_loop_option option, int ap);", header)
+    append_text("int sapi_uv_loop_configure_int(void* loop, " +
                "uv_loop_option option, int ap) {\n" +
                "  return uv_loop_configure(" +
-               "reinterpret_cast<uv_loop_t*>(loop), option, ap);\n}\n\n",
+               "reinterpret_cast<uv_loop_t*>(loop), option, ap);\n}",
                source)
 
-    write_text("}  // extern \"C\"\n", header)
+    append_text("}  // extern \"C\"\n", header)
+
+    header_file.write("\n\n".join(header))
+    source_file.write("\n\n".join(source))
 
 
 generate_wrapper()

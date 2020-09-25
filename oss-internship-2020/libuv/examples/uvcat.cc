@@ -21,7 +21,7 @@
 #include "sandboxed_api/util/flag.h"
 #include "uv_sapi.sapi.h"
 
-class UVSapiUVCatSandbox : public UVSandbox {
+class UVSapiUVCatSandbox : public uv::UVSandbox {
  public:
   UVSapiUVCatSandbox(std::string filename) : filename(filename) {}
 
@@ -46,74 +46,62 @@ class UVSapiUVCatSandbox : public UVSandbox {
   std::string filename;
 };
 
+absl::Status UVCat(std::string filearg) {
+  // Initialize sandbox2 and sapi
+  UVSapiUVCatSandbox sandbox(filearg);
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  uv::UVApi api(&sandbox);
+
+  // Get remote pointer to the OnOpen method
+  void* function_ptr;
+  SAPI_RETURN_IF_ERROR(sandbox.rpc_channel()->Symbol("OnOpen", &function_ptr));
+  sapi::v::RemotePtr on_open(function_ptr);
+
+  // Get remote pointer to the open_req variable
+  void* open_req_voidptr;
+  SAPI_RETURN_IF_ERROR(
+      sandbox.rpc_channel()->Symbol("open_req", &open_req_voidptr));
+  sapi::v::RemotePtr open_req(open_req_voidptr);
+
+  // Get default loop
+  SAPI_ASSIGN_OR_RETURN(void* loop_voidptr, api.sapi_uv_default_loop());
+  sapi::v::RemotePtr loop(loop_voidptr);
+
+  int return_code;
+
+  // Open file using the OnOpen callback (which will also read and print it)
+  sapi::v::ConstCStr filename(filearg.c_str());
+  SAPI_ASSIGN_OR_RETURN(
+      return_code, api.sapi_uv_fs_open(&loop, &open_req, filename.PtrBefore(),
+                                       O_RDONLY, 0, &on_open));
+  if (return_code != 0) {
+    return absl::UnavailableError("uv_fs_open returned error " + return_code);
+  }
+
+  // Run loop
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
+  if (return_code != 0) {
+    return absl::UnavailableError("uv_run returned error " + return_code);
+  }
+
+  // Cleanup the request
+  SAPI_RETURN_IF_ERROR(api.sapi_uv_fs_req_cleanup(&open_req));
+
+  return absl::OkStatus();
+}
+
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
   if (argc != 2) {
-    LOG(FATAL) << "wrong number of arguments (1 expected)";
-  }
-  std::string filename_str = argv[1];
-
-  absl::Status status;
-
-  // Initialize sandbox2 and sapi
-  UVSapiUVCatSandbox sandbox(filename_str);
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  UVApi api(&sandbox);
-
-  // Get remote pointer to the OnOpen method
-  void* function_ptr;
-  status = sandbox.rpc_channel()->Symbol("OnOpen", &function_ptr);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi::Sandbox::rpc_channel()->Symbol failed: " << status;
-  }
-  sapi::v::RemotePtr on_open(function_ptr);
-
-  // Get remote pointer to the open_req variable
-  void* open_req_voidptr;
-  status = sandbox.rpc_channel()->Symbol("open_req", &open_req_voidptr);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi::Sandbox::rpc_channel()->Symbol failed: " << status;
-  }
-  sapi::v::RemotePtr open_req(open_req_voidptr);
-
-  // Get default loop
-  absl::StatusOr<void*> loop_voidptr = api.sapi_uv_default_loop();
-  if (!loop_voidptr.ok()) {
-    LOG(FATAL) << "sapi_uv_default_loop failed: " << loop_voidptr.status();
-  }
-  sapi::v::RemotePtr loop(loop_voidptr.value());
-
-  absl::StatusOr<int> return_code;
-
-  // Open file using the OnOpen callback (which will also read and print it)
-  sapi::v::ConstCStr filename(filename_str.c_str());
-  return_code = api.sapi_uv_fs_open(&loop, &open_req, filename.PtrBefore(),
-                                    O_RDONLY, 0, &on_open);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_fs_open failed: " << return_code.status();
-  }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "uv_fs_open returned error " << return_code.value();
+    LOG(ERROR) << "wrong number of arguments (1 expected)";
+    return EXIT_FAILURE;
   }
 
-  // Run loop
-  return_code = api.sapi_uv_run(&loop, UV_RUN_DEFAULT);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_run failed: " << return_code.status();
-  }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "uv_run returned error " << return_code.value();
-  }
-
-  // Cleanup the request
-  status = api.sapi_uv_fs_req_cleanup(&open_req);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi_uv_fs_req_cleanup failed: " << status;
+  if (absl::Status status = UVCat(argv[1]); !status.ok()) {
+    LOG(ERROR) << "UVCat failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

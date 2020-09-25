@@ -12,30 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CALLBACKS_H
-#define CALLBACKS_H
+#ifndef CALLBACKS_H_
+#define CALLBACKS_H_
 
 #include <uv.h>
 
 extern "C" {
 
 // idle-basic
-
-void IdleCallback(uv_idle_t *handle);
+void IdleCallback(uv_idle_t* handle);
 
 // uvcat
-
 uv_fs_t open_req;
 uv_fs_t read_req;
 uv_fs_t write_req;
-
-void OnWrite(uv_fs_t *req);
-void OnRead(uv_fs_t *req);
-void OnOpen(uv_fs_t *req);
+void OnWrite(uv_fs_t* req);
+void OnRead(uv_fs_t* req);
+void OnOpen(uv_fs_t* req);
 
 // test_callback
+void TimerCallback(uv_timer_t* handle);
 
-void TimerCallback(uv_timer_t *handle);
-}
+}  // extern "C"
 
-#endif  // CALLBACKS_H
+#endif  // CALLBACKS_H_

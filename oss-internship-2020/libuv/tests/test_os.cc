@@ -21,7 +21,9 @@
 #include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"
 
-class UVTestOSSapiSandbox : public UVSandbox {
+namespace {
+
+class UVTestOSSapiSandbox : public uv::UVSandbox {
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -43,12 +45,12 @@ class UVTestOS : public ::testing::Test {
  protected:
   void SetUp() override {
     sandbox_ = std::make_unique<UVTestOSSapiSandbox>();
-    ASSERT_THAT(sandbox_->Init(), ::sapi::IsOk());
-    api_ = std::make_unique<UVApi>(sandbox_.get());
+    ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+    api_ = std::make_unique<uv::UVApi>(sandbox_.get());
   }
 
   std::unique_ptr<UVTestOSSapiSandbox> sandbox_;
-  std::unique_ptr<UVApi> api_;
+  std::unique_ptr<uv::UVApi> api_;
 
   static constexpr size_t kBigBufLen = 4096;
   static constexpr size_t kSmallBufLen = 1;
@@ -131,3 +133,5 @@ TEST_F(UVTestOS, TmpDirSmall) {
   // Test error code is as expected
   ASSERT_EQ(error_code, expected_error_code);
 }
+
+}  // namespace

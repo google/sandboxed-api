@@ -20,7 +20,9 @@
 #include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"
 
-class UVTestErrorSapiSandbox : public UVSandbox {
+namespace {
+
+class UVTestErrorSapiSandbox : public uv::UVSandbox {
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -37,8 +39,8 @@ class UVTestError : public ::testing::Test {
  protected:
   void SetUp() override {
     sandbox_ = std::make_unique<UVTestErrorSapiSandbox>();
-    ASSERT_THAT(sandbox_->Init(), ::sapi::IsOk());
-    api_ = std::make_unique<UVApi>(sandbox_.get());
+    ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+    api_ = std::make_unique<uv::UVApi>(sandbox_.get());
   }
 
   // Check sapi_uv_strerror on error
@@ -67,7 +69,7 @@ class UVTestError : public ::testing::Test {
   }
 
   std::unique_ptr<UVTestErrorSapiSandbox> sandbox_;
-  std::unique_ptr<UVApi> api_;
+  std::unique_ptr<uv::UVApi> api_;
 };
 
 TEST_F(UVTestError, ErrorMessage) {
@@ -88,3 +90,5 @@ TEST_F(UVTestError, SystemError) {
   UVTranslateSysError(UV_EACCES);
   UVTranslateSysError(0);
 }
+
+}  // namespace

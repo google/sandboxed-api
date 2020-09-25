@@ -21,7 +21,7 @@
 #include "sandboxed_api/util/flag.h"
 #include "uv_sapi.sapi.h"
 
-class UVSapiHelloworldSandbox : public UVSandbox {
+class UVSapiHelloworldSandbox : public uv::UVSandbox {
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -35,57 +35,51 @@ class UVSapiHelloworldSandbox : public UVSandbox {
   }
 };
 
-int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
-
-  absl::Status status;
-
+absl::Status HelloWorld() {
   // Initialize sandbox2 and sapi
   UVSapiHelloworldSandbox sandbox;
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  UVApi api(&sandbox);
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  uv::UVApi api(&sandbox);
 
   // Allocate memory for the uv_loop_t object
   void* loop_voidptr;
-  status = sandbox.rpc_channel()->Allocate(sizeof(uv_loop_t), &loop_voidptr);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi::Sandbox::rpc_channel()->Allocate failed: " << status;
-  }
+  SAPI_RETURN_IF_ERROR(
+      sandbox.rpc_channel()->Allocate(sizeof(uv_loop_t), &loop_voidptr));
   sapi::v::RemotePtr loop(loop_voidptr);
 
-  absl::StatusOr<int> return_code;
+  int return_code;
 
   // Initialize loop
-  return_code = api.sapi_uv_loop_init(&loop);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_loop_init failed: " << return_code.status();
-  }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "uv_loop_init returned error " << return_code.value();
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_init(&loop));
+  if (return_code != 0) {
+    return absl::UnavailableError("uv_loop_init returned error " + return_code);
   }
 
   std::cout << "The loop is about to quit" << std::endl;
 
   // Run loop
-  return_code = api.sapi_uv_run(&loop, UV_RUN_DEFAULT);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_run failed: " << return_code.status();
-  }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "uv_run returned error " << return_code.value();
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
+  if (return_code != 0) {
+    return absl::UnavailableError("uv_run returned error " + return_code);
   }
 
   // Close loop
-  return_code = api.sapi_uv_loop_close(&loop);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_loop_close failed: " << return_code.status();
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_close(&loop));
+  if (return_code != 0) {
+    return absl::UnavailableError("uv_loop_close returned error " +
+                                  return_code);
   }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "uv_loop_close returned error " << return_code.value();
+
+  return absl::OkStatus();
+}
+
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
+
+  if (absl::Status status = HelloWorld(); !status.ok()) {
+    LOG(ERROR) << "HelloWorld failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

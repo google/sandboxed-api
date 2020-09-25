@@ -21,7 +21,7 @@
 #include "sandboxed_api/util/flag.h"
 #include "uv_sapi.sapi.h"
 
-class UVSapiIdleBasicSandbox : public UVSandbox {
+class UVSapiIdleBasicSandbox : public uv::UVSandbox {
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -36,88 +36,74 @@ class UVSapiIdleBasicSandbox : public UVSandbox {
   }
 };
 
-int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
-
-  absl::Status status;
-
+absl::Status IdleBasic() {
   // Initialize sandbox2 and sapi
   UVSapiIdleBasicSandbox sandbox;
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  UVApi api(&sandbox);
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  uv::UVApi api(&sandbox);
 
   // Get remote pointer to the IdleCallback method
   void* function_ptr;
-  status = sandbox.rpc_channel()->Symbol("IdleCallback", &function_ptr);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi::Sandbox::rpc_channel()->Symbol failed: " << status;
-  }
+  SAPI_RETURN_IF_ERROR(
+      sandbox.rpc_channel()->Symbol("IdleCallback", &function_ptr));
   sapi::v::RemotePtr idle_callback(function_ptr);
 
   // Allocate memory for the uv_idle_t object
   void* idle_voidptr;
-  status = sandbox.rpc_channel()->Allocate(sizeof(uv_idle_t), &idle_voidptr);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi::Sandbox::rpc_channel()->Allocate failed: " << status;
-  }
+  SAPI_RETURN_IF_ERROR(
+      sandbox.rpc_channel()->Allocate(sizeof(uv_idle_t), &idle_voidptr));
   sapi::v::RemotePtr idler(idle_voidptr);
 
-  absl::StatusOr<int> return_code;
+  int return_code;
 
   // Get default loop
-  absl::StatusOr<void*> loop_voidptr = api.sapi_uv_default_loop();
-  if (!loop_voidptr.ok()) {
-    LOG(FATAL) << "sapi_uv_default_loop failed: " << loop_voidptr.status();
-  }
-  sapi::v::RemotePtr loop(loop_voidptr.value());
+  SAPI_ASSIGN_OR_RETURN(void* loop_voidptr, api.sapi_uv_default_loop());
+  sapi::v::RemotePtr loop(loop_voidptr);
 
   // Initialize idler
-  return_code = api.sapi_uv_idle_init(&loop, &idler);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_idle_init failed: " << return_code.status();
-  }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "sapi_uv_idle_init returned error " << return_code.value();
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_idle_init(&loop, &idler));
+  if (return_code != 0) {
+    return absl::UnavailableError("sapi_uv_idle_init returned error " +
+                                  return_code);
   }
 
   // Start idler
-  return_code = api.sapi_uv_idle_start(&idler, &idle_callback);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_idle_start failed: " << return_code.status();
-  }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "sapi_uv_idle_start returned error " << return_code.value();
+  SAPI_ASSIGN_OR_RETURN(return_code,
+                        api.sapi_uv_idle_start(&idler, &idle_callback));
+  if (return_code != 0) {
+    return absl::UnavailableError("sapi_uv_idle_start returned error " +
+                                  return_code);
   }
 
   // Run loop
-  return_code = api.sapi_uv_run(&loop, UV_RUN_DEFAULT);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_run failed: " << return_code.status();
-  }
-  if (return_code.value() != 0) {
-    LOG(FATAL) << "uv_run returned error " << return_code.value();
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
+  if (return_code != 0) {
+    return absl::UnavailableError("uv_run returned error " + return_code);
   }
 
   // Close idler
   sapi::v::NullPtr null_ptr;
-  status = api.sapi_uv_close(&idler, &null_ptr);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi_uv_close failed: " << status;
-  }
+  SAPI_RETURN_IF_ERROR(api.sapi_uv_close(&idler, &null_ptr));
 
   // Close loop
-  return_code = api.sapi_uv_loop_close(&loop);
-  if (!return_code.ok()) {
-    LOG(FATAL) << "sapi_uv_loop_close failed: " << return_code.status();
-  }
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_close(&loop));
   // UV_EBUSY is accepted because it is the return code of uv_loop_close
   // in the original example
-  if (return_code.value() != 0 && return_code.value() != UV_EBUSY) {
-    LOG(FATAL) << "uv_loop_close returned error " << return_code.value();
+  if (return_code != 0 && return_code != UV_EBUSY) {
+    return absl::UnavailableError("uv_loop_close returned error " +
+                                  return_code);
+  }
+
+  return absl::OkStatus();
+}
+
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
+
+  if (absl::Status status = IdleBasic(); !status.ok()) {
+    LOG(ERROR) << "IdleBasic failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;
