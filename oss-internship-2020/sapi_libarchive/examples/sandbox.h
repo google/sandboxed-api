@@ -7,9 +7,11 @@
 #include "helpers.h"
 #include "libarchive_sapi.sapi.h"
 
+// When creating an archive, we need read permissions on each of the file/directory added
+// in the archive. Also, in order to create the archive, we map /output with the basename of
+// the archive. This way, the program can create the file without having access to anything else.
 class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
  public:
-  // TODO
   explicit SapiLibarchiveSandboxCreate(const std::vector<std::string>& files,
                                        absl::string_view archive_path)
       : files_(files), archive_path_(archive_path) {}
@@ -46,8 +48,8 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
                 __NR_getdents64,
             });
 
+    // Here we only check whether the entry is a file or a directory.
     for (const auto& i : files_) {
-      std::cout << "ADD FILE -------" << i << std::endl;
       struct stat s;
       stat(i.c_str(), &s);
       if (S_ISDIR(s.st_mode)) {
@@ -64,9 +66,14 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
   absl::string_view archive_path_;
 };
 
+// When an archive is extracted, the generated files/directories will be placed
+// relative to the current working directory. In order to add permissions to this
+// we create a temporary directory at every extraction. Then, we change the directory of
+// the sandboxed process to that directory and map it to the current "real" working
+// directory. This way the contents of the archived will pe placed correctly without
+// offering additional permission.
 class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
  public:
-  // TODO
   explicit SapiLibarchiveSandboxExtract(absl::string_view archive_path,
                                         const int do_extract,
                                         absl::string_view tmp_dir)
@@ -76,6 +83,8 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
 
  private:
   virtual void ModifyExecutor(sandbox2::Executor* executor) override {
+    // If the user only wants to list the entries in the archive, we do
+    // not need to worry about changing directories;
     if (do_extract_) {
       executor = &executor->set_cwd(std::string(tmp_dir_));
     }
@@ -105,7 +114,6 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
                                          .AddFile(archive_path_);
 
     if (do_extract_) {
-      // map "/output/" to cwd
       std::string cwd = sandbox2::file_util::fileops::GetCWD();
       policy = policy.AddDirectoryAt(cwd, tmp_dir_, false);
     }
