@@ -1,0 +1,4 @@
+# Using CMake or own WORKSPACE
+oss-internship-2020
+# Uses its own WORKSPACE
+sandboxed_api/examples/hello_sapi
