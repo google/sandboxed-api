@@ -580,12 +580,11 @@ class _TranslationUnit(object):
 
       for i, cursor in enumerate(self._walk_preorder()):
         # Workaround for issue#32
+        # ignore all the cursors with kinds not implemented in python bindings
         try:
           cursor.kind
         except ValueError:
-          if cursor._kind_id >= 440:  # pylint: disable=protected-access
-            continue
-          raise
+          continue
         # naive way to order types: they should be ordered when walking the tree
         if cursor.kind.is_declaration():
           self.order[cursor.hash] = i
@@ -911,7 +910,7 @@ class Generator(object):
     result.append('#include "sandboxed_api/sandbox.h"')
     result.append('#include "sandboxed_api/vars.h"')
 
-    if (embed_dir is not None) and (embed_name is not None):
+    if embed_dir and embed_name:
       result.append(
           Generator.EMBED_INCLUDE.format(
               os.path.join(embed_dir, embed_name) + '_embed.h'))
@@ -928,7 +927,7 @@ class Generator(object):
 
     result.append('')
 
-    if (embed_dir is not None) and (embed_name is not None):
+    if embed_dir and embed_name:
       result.append(
           Generator.EMBED_CLASS.format(name, embed_name.replace('-', '_')))
 
