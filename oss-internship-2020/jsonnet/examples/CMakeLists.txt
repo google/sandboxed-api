@@ -41,7 +41,6 @@ target_link_libraries(jsonnet_helper
 )
 
 foreach(exe base multiple_files yaml_stream formatter)
-
   add_executable(jsonnet_${exe}_sandboxed
     jsonnet_${exe}_example.cc
   )
@@ -52,7 +51,6 @@ foreach(exe base multiple_files yaml_stream formatter)
     jsonnet_sapi
     sapi::sapi
   )
-
 endforeach()
 
 add_executable(jsonnet_base_transacted
@@ -60,9 +58,8 @@ add_executable(jsonnet_base_transacted
 )
 
 target_link_libraries(jsonnet_base_transacted PRIVATE
-    libjsonnet
-    jsonnet_helper
-    jsonnet_sapi
-    sapi::sapi
-  )
-  
+  libjsonnet
+  jsonnet_helper
+  jsonnet_sapi
+  sapi::sapi
+)
