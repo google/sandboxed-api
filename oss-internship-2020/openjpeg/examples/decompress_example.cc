@@ -73,12 +73,12 @@ int main(int argc, char* argv[]) {
   sapi::v::ConstCStr in_file_v(in_file.c_str());
 
   // Initialize library's main data-holders.
-  sapi::StatusOr<opj_stream_t*> stream =
+  absl::StatusOr<opj_stream_t*> stream =
       api.opj_stream_create_default_file_stream(in_file_v.PtrBefore(), 1);
   CHECK(stream.ok()) << "Stream initialization failed: " << stream.status();
   sapi::v::RemotePtr stream_pointer(stream.value());
 
-  sapi::StatusOr<opj_codec_t*> codec = api.opj_create_decompress(OPJ_CODEC_JP2);
+  absl::StatusOr<opj_codec_t*> codec = api.opj_create_decompress(OPJ_CODEC_JP2);
   CHECK(codec.ok()) << "Codec initialization failed: " << stream.status();
   sapi::v::RemotePtr codec_pointer(codec.value());
 
@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
   status = api.opj_set_default_decoder_parameters(parameters.PtrBoth());
   CHECK(status.ok()) << "Parameters initialization failed " << status;
 
-  sapi::StatusOr<OPJ_BOOL> bool_status =
+  absl::StatusOr<OPJ_BOOL> bool_status =
       api.opj_setup_decoder(&codec_pointer, parameters.PtrBefore());
   CHECK(bool_status.ok() && bool_status.value()) << "Decoder setup failed";
 
