@@ -14,16 +14,14 @@
 
 #include "helper.h"
 
-#include <iostream>
-
 static auto* g_in_dir = new std::string();
 
 std::string GetImagesDir() {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
   auto find = cwd.rfind("/build");
   if (find == std::string::npos) {
-    std::cerr << "Something went wrong: CWD don't contain build dir. "
-              << "Please run tests from build dir, path might be incorrect\n";
+    LOG(ERROR) << "Something went wrong: CWD don't contain build dir. "
+               << "Please run tests from build dir, path might be incorrect\n";
 
     return cwd + "/test/images";
   }

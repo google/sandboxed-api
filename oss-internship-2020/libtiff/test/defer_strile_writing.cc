@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #include "helper.h"
-#include "tiffio.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 // sapi functions:
 //  TIFFOpen
@@ -35,7 +35,7 @@
 //  TIFFDeferStrileArrayWriting
 //  TIFFForceStrileArrayWriting
 
-namespace { 
+namespace {
 
 #define TBS 256  // kTileBufferSize
 constexpr uint16_t kWidth = 1;
@@ -324,4 +324,4 @@ TEST(SandboxTest, DeferStrileWriting) {
   }
 }
 
-} // namespace
+}  // namespace

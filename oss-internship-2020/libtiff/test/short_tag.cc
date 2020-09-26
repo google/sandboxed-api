@@ -14,10 +14,9 @@
 
 #include <array>
 #include <cstdint>
-#include <vector>
 
 #include "check_tag.h"
-#include "tiffio.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 // sapi functions:
 //  TIFFWriteScanline
@@ -46,22 +45,22 @@ struct PairedTag {
   const std::array<uint16_t, 2> values;
 };
 
-constexpr std::array<SingleTag, 9> kShortSingleTags = {{
-    {TIFFTAG_COMPRESSION, COMPRESSION_NONE},
-    {TIFFTAG_FILLORDER, FILLORDER_MSB2LSB},
-    {TIFFTAG_ORIENTATION, ORIENTATION_BOTRIGHT},
-    {TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH},
-    {TIFFTAG_MINSAMPLEVALUE, 23},
-    {TIFFTAG_MAXSAMPLEVALUE, 241},
-    {TIFFTAG_INKSET, INKSET_MULTIINK},
-    {TIFFTAG_NUMBEROFINKS, SPP},
-    {TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}}};
+constexpr std::array<SingleTag, 9> kShortSingleTags = {
+    {{TIFFTAG_COMPRESSION, COMPRESSION_NONE},
+     {TIFFTAG_FILLORDER, FILLORDER_MSB2LSB},
+     {TIFFTAG_ORIENTATION, ORIENTATION_BOTRIGHT},
+     {TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH},
+     {TIFFTAG_MINSAMPLEVALUE, 23},
+     {TIFFTAG_MAXSAMPLEVALUE, 241},
+     {TIFFTAG_INKSET, INKSET_MULTIINK},
+     {TIFFTAG_NUMBEROFINKS, SPP},
+     {TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}}};
 
-constexpr std::array<PairedTag, 4> kShortPairedTags = {{
-    {TIFFTAG_PAGENUMBER, {1, 1}},
-    {TIFFTAG_HALFTONEHINTS, {0, 255}},
-    {TIFFTAG_DOTRANGE, {8, 16}},
-    {TIFFTAG_YCBCRSUBSAMPLING, {2, 1}}}};
+constexpr std::array<PairedTag, 4> kShortPairedTags = {
+    {{TIFFTAG_PAGENUMBER, {1, 1}},
+     {TIFFTAG_HALFTONEHINTS, {0, 255}},
+     {TIFFTAG_DOTRANGE, {8, 16}},
+     {TIFFTAG_YCBCRSUBSAMPLING, {2, 1}}}};
 
 TEST(SandboxTest, ShortTag) {
   sapi::StatusOr<std::string> status_or_path =
@@ -171,4 +170,4 @@ TEST(SandboxTest, ShortTag) {
   ASSERT_THAT(api.TIFFClose(&tif2), IsOk()) << "TIFFClose fatal error";
 }
 
-} // namespace
+}  // namespace

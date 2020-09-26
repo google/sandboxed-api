@@ -15,7 +15,7 @@
 #ifndef LIBTIFF_WRAPPER_FUNC_H
 #define LIBTIFF_WRAPPER_FUNC_H
 
-#include "tiffio.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 // wrapper for variadic functions TIFFGetField and TIFFSetField
 // s - signed

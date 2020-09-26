@@ -13,10 +13,9 @@
 // limitations under the License.
 
 #include <array>
-#include <vector>
 
 #include "check_tag.h"
-#include "tiffio.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 // sapi functions:
 //  TIFFWriteScanline
@@ -34,7 +33,8 @@ struct LongTag {
 };
 
 constexpr std::array<LongTag, 1> kLongTags = {
-	{TIFFTAG_SUBFILETYPE, 1, FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
+    {TIFFTAG_SUBFILETYPE, 1,
+     FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
 #define SPP 3  // kSamplePerPixel
 constexpr unsigned kWidth = 1;
 constexpr unsigned kLength = 1;
@@ -134,4 +134,4 @@ TEST(SandboxTest, LongTag) {
   unlink(srcfile.c_str());
 }
 
-} // namespace
+}  // namespace

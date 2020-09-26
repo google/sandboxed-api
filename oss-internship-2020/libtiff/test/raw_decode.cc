@@ -17,7 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "helper.h"
-#include "tiffio.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 // sapi functions:
 //  TIFFOpen
@@ -34,8 +34,8 @@ constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
 constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
 constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
 
-int CheckCluster(int cluster, const sapi::v::Array<uint8_t> &buffer,
-                 const std::array<uint8_t, 6> &expected_cluster) {
+int CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
+                 const std::array<uint8_t, 6>& expected_cluster) {
   uint8_t* target = buffer.GetData() + cluster * 6;
 
   bool comp = !(std::memcmp(target, expected_cluster.data(), 6) == 0);
@@ -53,7 +53,7 @@ int CheckCluster(int cluster, const sapi::v::Array<uint8_t> &buffer,
 
 int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
                   int max_green, int min_blue, int max_blue,
-                  const sapi::v::Array<uint8_t> &buffer) {
+                  const sapi::v::Array<uint8_t>& buffer) {
   uint8_t* rgb = buffer.GetData() + 3 * pixel;
 
   bool comp =
@@ -71,7 +71,7 @@ int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
 
 int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
                    int max_green, int min_blue, int max_blue, int min_alpha,
-                   int max_alpha, const sapi::v::Array<unsigned> &buffer) {
+                   int max_alpha, const sapi::v::Array<unsigned>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
   unsigned rgba = buffer[adjusted_pixel];
@@ -196,4 +196,4 @@ TEST(SandboxTest, RawDecode) {
   EXPECT_THAT(pixel_status, IsFalse()) << "wrong encoding";
 }
 
-} // namespace
+}  // namespace
