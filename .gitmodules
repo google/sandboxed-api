@@ -1,3 +1,6 @@
+[submodule "oss-internship-2020/sapi_lodepng/lodepng"]
+	path = oss-internship-2020/lodepng/lodepng
+	url = https://github.com/lvandeve/lodepng
 [submodule "oss-internship-2020/openjpeg/openjpeg"]
 	path = oss-internship-2020/openjpeg/openjpeg
 	url = https://github.com/uclouvain/openjpeg.git
@@ -13,6 +16,3 @@
 [submodule "oss-internship-2020/gdal/gdal"]
 	path = oss-internship-2020/gdal/gdal
 	url = https://github.com/OSGeo/gdal/tree/master/gdal
-[submodule "oss-internship-2020/sapi_lodepng/lodepng"]
-	path = oss-internship-2020/sapi_lodepng/lodepng
-	url = https://github.com/lvandeve/lodepng
