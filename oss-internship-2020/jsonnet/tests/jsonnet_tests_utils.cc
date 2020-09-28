@@ -21,15 +21,17 @@ void JsonnetTestHelper::TestSetUp() {
   int error = readlink("/proc/self/exe", buffer, 256);
   ASSERT_GE(error, 0);
 
-  std::pair<absl::string_view, absl::string_view> parts_of_path = sandbox2::file::SplitPath(buffer);
+  std::pair<absl::string_view, absl::string_view> parts_of_path =
+      sandbox2::file::SplitPath(buffer);
   absl::string_view binary_path = parts_of_path.first;
 
-  std::string input_path = sandbox2::file::JoinPath(binary_path, "tests_input", "dummy_input");
-  std::string output_path = sandbox2::file::JoinPath(binary_path, "tests_output", "dummy_input");
+  std::string input_path =
+      sandbox2::file::JoinPath(binary_path, "tests_input", "dummy_input");
+  std::string output_path =
+      sandbox2::file::JoinPath(binary_path, "tests_output", "dummy_input");
 
   // Set up sandbox and api.
-  sandbox_ = absl::make_unique<JsonnetBaseSandbox>(input_path,
-                                                 output_path);
+  sandbox_ = absl::make_unique<JsonnetBaseSandbox>(input_path, output_path);
   ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
   api_ = absl::make_unique<JsonnetApi>(sandbox_.get());
 
@@ -79,7 +81,7 @@ void JsonnetTestHelper::Evaluate_jsonnet_code(Evaluation type,
       SAPI_ASSERT_OK_AND_ASSIGN(
           output_ptr,
           api_->c_jsonnet_evaluate_snippet(vm_.get(), in_file_var.PtrBefore(),
-                                          input_.get(), error.PtrAfter()));
+                                           input_.get(), error.PtrAfter()));
       break;
     }
 
@@ -118,8 +120,9 @@ void JsonnetTestHelper::Write_output(const char* filename_or_directory,
 
   switch (type) {
     case kBase: {
-      std::string out_file_in_sandboxee(std::string("/output/") +
-                                        basename(const_cast<char*>(&filename_or_directory[0])));
+      std::string out_file_in_sandboxee(
+          std::string("/output/") +
+          basename(const_cast<char*>(&filename_or_directory[0])));
       sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
 
       SAPI_ASSERT_OK_AND_ASSIGN(
@@ -137,8 +140,9 @@ void JsonnetTestHelper::Write_output(const char* filename_or_directory,
     }
 
     case kYamlStream: {
-      std::string out_file_in_sandboxee(std::string("/output/") +
-                                        basename(const_cast<char*>(&filename_or_directory[0])));
+      std::string out_file_in_sandboxee(
+          std::string("/output/") +
+          basename(const_cast<char*>(&filename_or_directory[0])));
       sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
       SAPI_ASSERT_OK_AND_ASSIGN(
           success,
