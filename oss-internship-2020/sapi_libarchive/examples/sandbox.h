@@ -2,14 +2,19 @@
 #define SAPI_LIBARCHIVE_SANDBOX_H
 
 #include <asm/unistd_64.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <syscall.h>
+#include <unistd.h>
 
-#include "helpers.h"
 #include "libarchive_sapi.sapi.h"
+#include "sapi_minitar.h"
+// #include "sandboxed_api/sandbox2/util/fileops.h"
 
-// When creating an archive, we need read permissions on each of the file/directory added
-// in the archive. Also, in order to create the archive, we map /output with the basename of
-// the archive. This way, the program can create the file without having access to anything else.
+// When creating an archive, we need read permissions on each of the
+// file/directory added in the archive. Also, in order to create the archive, we
+// map /output with the basename of the archive. This way, the program can
+// create the file without having access to anything else.
 class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
  public:
   explicit SapiLibarchiveSandboxCreate(const std::vector<std::string>& files,
@@ -67,11 +72,11 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
 };
 
 // When an archive is extracted, the generated files/directories will be placed
-// relative to the current working directory. In order to add permissions to this
-// we create a temporary directory at every extraction. Then, we change the directory of
-// the sandboxed process to that directory and map it to the current "real" working
-// directory. This way the contents of the archived will pe placed correctly without
-// offering additional permission.
+// relative to the current working directory. In order to add permissions to
+// this we create a temporary directory at every extraction. Then, we change the
+// directory of the sandboxed process to that directory and map it to the
+// current "real" working directory. This way the contents of the archived will
+// pe placed correctly without offering additional permission.
 class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
  public:
   explicit SapiLibarchiveSandboxExtract(absl::string_view archive_path,

@@ -12,38 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-add_library(helpers STATIC
-    helpers.h
-    helpers.cc
+add_library(sapi_minitar_lib STATIC
+  sapi_minitar.cc
+  sapi_minitar.h
 )
 
-target_link_libraries(helpers PUBLIC
-    sapi::sapi
-    sandbox2::fileops
-    sandbox2::util
-    sandbox2::file_base
-    sandbox2::executor
-    sandbox2::temp_file
-    glog::glog
-    libarchive_sapi
+target_link_libraries(sapi_minitar_lib PUBLIC
+  libarchive_sapi
+  sapi::sapi
+  sandbox2::fileops
+  sandbox2::util
+  sandbox2::file_base
+  sandbox2::executor
+  sandbox2::temp_file
+  glog::glog
 )
 
 add_executable(sapi_minitar
-    sapi_minitar.cc
+  sapi_minitar_main.cc
 )
 
 target_link_libraries(sapi_minitar PRIVATE
-    helpers
-    libarchive_sapi
-    sapi::sapi
-    #glog::glog
+  #libarchive_sapi
+  #sapi::sapi
+  sapi_minitar_lib
+  #glog::glog
 )
 
 add_executable(minitar
-    orig/minitar.cc
+  orig/minitar.cc
 )
 
 target_link_libraries(minitar PRIVATE
-    archive
+  archive
 )
