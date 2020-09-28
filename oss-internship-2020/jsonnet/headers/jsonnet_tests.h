@@ -23,9 +23,9 @@
 #include "gtest/gtest.h"
 #include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
 #include "jsonnet_sapi.sapi.h"
+#include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include "sandboxed_api/sandbox2/util/path.h"
 
 class JsonnetTestHelper {
  protected:
@@ -35,8 +35,7 @@ class JsonnetTestHelper {
   void TestTearDown();
 
   void Read_input(const char* filename);
-  void Evaluate_jsonnet_code(Evaluation type,
-                             bool expected_correct);
+  void Evaluate_jsonnet_code(Evaluation type, bool expected_correct);
   void Write_output(const char* filename_or_directory, Evaluation type);
   std::string Read_output(const char* filename);
 
