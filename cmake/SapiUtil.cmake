@@ -35,16 +35,6 @@ function(create_directory_symlink SOURCE DESTINATION)
   endif()
 endfunction()
 
-# Implements list(JOIN ...) for CMake < 3.12.
-function(list_join LIST SEP OUTPUT)
-  foreach(item IN LISTS ${LIST})
-    set(_concat "${_concat}${SEP}${item}")
-  endforeach()
-  string(LENGTH "${SEP}" _len)
-  string(SUBSTRING "${_concat}" ${_len} -1 _concat)
-  set(${OUTPUT} "${_concat}" PARENT_SCOPE)
-endfunction()
-
 # Helper function that behaves just like Protobuf's protobuf_generate_cpp(),
 # except that it strips import paths. This is necessary, because CMake's
 # protobuf rules don't work well with imports across different directories.

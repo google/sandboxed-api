@@ -103,8 +103,8 @@ class Sandbox {
   absl::Status TransferFromSandboxee(v::Var* var);
 
   absl::StatusOr<std::string> GetCString(const v::RemotePtr& str,
-                                         uint64_t max_length = 10ULL
-                                                               << 20 /* 10 MiB*/
+                                         size_t max_length = 10ULL
+                                                             << 20 /* 10 MiB*/
   );
 
   // Waits until the sandbox terminated and returns the result.

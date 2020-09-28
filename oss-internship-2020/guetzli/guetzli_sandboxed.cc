@@ -17,7 +17,6 @@
 
 #include "guetzli_transaction.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/util/statusor.h"
 
 namespace {
 

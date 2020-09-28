@@ -23,8 +23,8 @@ namespace sapi {
 namespace comms {
 
 struct ReallocRequest {
-  uint64_t old_addr;
-  uint64_t size;
+  uintptr_t old_addr;
+  size_t size;
 };
 
 // Types of TAGs used with Comms channel.

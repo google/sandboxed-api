@@ -27,8 +27,7 @@ namespace sapi {
 absl::Status RPCChannel::Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
                               v::Type exp_type) {
   absl::MutexLock lock(&mutex_);
-  if (!comms_->SendTLV(tag, sizeof(call),
-                       reinterpret_cast<const uint8_t*>(&call))) {
+  if (!comms_->SendTLV(tag, sizeof(call), &call)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
   SAPI_ASSIGN_OR_RETURN(auto fret, Return(exp_type));
@@ -38,7 +37,7 @@ absl::Status RPCChannel::Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
 
 absl::StatusOr<FuncRet> RPCChannel::Return(v::Type exp_type) {
   uint32_t tag;
-  uint64_t len;
+  size_t len;
   FuncRet ret;
   if (!comms_->RecvTLV(&tag, &len, &ret, sizeof(ret))) {
     return absl::UnavailableError("Receiving TLV value failed");
@@ -67,9 +66,7 @@ absl::StatusOr<FuncRet> RPCChannel::Return(v::Type exp_type) {
 
 absl::Status RPCChannel::Allocate(size_t size, void** addr) {
   absl::MutexLock lock(&mutex_);
-  uint64_t sz = size;
-  if (!comms_->SendTLV(comms::kMsgAllocate, sizeof(sz),
-                       reinterpret_cast<uint8_t*>(&sz))) {
+  if (!comms_->SendTLV(comms::kMsgAllocate, sizeof(size), &size)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
@@ -81,12 +78,13 @@ absl::Status RPCChannel::Allocate(size_t size, void** addr) {
 absl::Status RPCChannel::Reallocate(void* old_addr, size_t size,
                                     void** new_addr) {
   absl::MutexLock lock(&mutex_);
-  comms::ReallocRequest req;
-  req.old_addr = reinterpret_cast<uint64_t>(old_addr);
-  req.size = size;
+  comms::ReallocRequest req = {
+      .old_addr = reinterpret_cast<uintptr_t>(old_addr),
+      .size = size,
+  };
 
   if (!comms_->SendTLV(comms::kMsgReallocate, sizeof(comms::ReallocRequest),
-                       reinterpret_cast<uint8_t*>(&req))) {
+                       &req)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
@@ -103,9 +101,8 @@ absl::Status RPCChannel::Reallocate(void* old_addr, size_t size,
 
 absl::Status RPCChannel::Free(void* addr) {
   absl::MutexLock lock(&mutex_);
-  uint64_t remote = reinterpret_cast<uint64_t>(addr);
-  if (!comms_->SendTLV(comms::kMsgFree, sizeof(remote),
-                       reinterpret_cast<uint8_t*>(&remote))) {
+  uintptr_t remote = reinterpret_cast<uintptr_t>(addr);
+  if (!comms_->SendTLV(comms::kMsgFree, sizeof(remote), &remote)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
@@ -118,8 +115,7 @@ absl::Status RPCChannel::Free(void* addr) {
 
 absl::Status RPCChannel::Symbol(const char* symname, void** addr) {
   absl::MutexLock lock(&mutex_);
-  if (!comms_->SendTLV(comms::kMsgSymbol, strlen(symname) + 1,
-                       reinterpret_cast<const uint8_t*>(symname))) {
+  if (!comms_->SendTLV(comms::kMsgSymbol, strlen(symname) + 1, symname)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
@@ -137,9 +133,8 @@ absl::Status RPCChannel::Exit() {
 
   // Try the RPC exit sequence. But, the only thing that matters as a success
   // indicator is whether the Comms channel had been closed
-  bool unused = true;
-  comms_->SendTLV(comms::kMsgExit, sizeof(unused),
-                  reinterpret_cast<uint8_t*>(&unused));
+  comms_->SendTLV(comms::kMsgExit, 0, nullptr);
+  bool unused;
   comms_->RecvBool(&unused);
 
   if (!comms_->IsTerminated()) {
@@ -154,9 +149,7 @@ absl::Status RPCChannel::Exit() {
 
 absl::Status RPCChannel::SendFD(int local_fd, int* remote_fd) {
   absl::MutexLock lock(&mutex_);
-  bool unused = true;
-  if (!comms_->SendTLV(comms::kMsgSendFd, sizeof(unused),
-                       reinterpret_cast<uint8_t*>(&unused))) {
+  if (!comms_->SendTLV(comms::kMsgSendFd, 0, nullptr)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
   if (!comms_->SendFD(local_fd)) {
@@ -173,8 +166,7 @@ absl::Status RPCChannel::SendFD(int local_fd, int* remote_fd) {
 
 absl::Status RPCChannel::RecvFD(int remote_fd, int* local_fd) {
   absl::MutexLock lock(&mutex_);
-  if (!comms_->SendTLV(comms::kMsgRecvFd, sizeof(remote_fd),
-                       reinterpret_cast<uint8_t*>(&remote_fd))) {
+  if (!comms_->SendTLV(comms::kMsgRecvFd, sizeof(remote_fd), &remote_fd)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
@@ -191,8 +183,7 @@ absl::Status RPCChannel::RecvFD(int remote_fd, int* local_fd) {
 
 absl::Status RPCChannel::Close(int remote_fd) {
   absl::MutexLock lock(&mutex_);
-  if (!comms_->SendTLV(comms::kMsgClose, sizeof(remote_fd),
-                       reinterpret_cast<uint8_t*>(&remote_fd))) {
+  if (!comms_->SendTLV(comms::kMsgClose, sizeof(remote_fd), &remote_fd)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
@@ -203,10 +194,9 @@ absl::Status RPCChannel::Close(int remote_fd) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<uint64_t> RPCChannel::Strlen(void* str) {
+absl::StatusOr<size_t> RPCChannel::Strlen(void* str) {
   absl::MutexLock lock(&mutex_);
-  if (!comms_->SendTLV(comms::kMsgStrlen, sizeof(str),
-                       reinterpret_cast<uint8_t*>(&str))) {
+  if (!comms_->SendTLV(comms::kMsgStrlen, sizeof(str), &str)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 

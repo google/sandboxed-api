@@ -40,7 +40,6 @@ sapi_library(
 cc_binary(
     name = "hello",
     srcs = ["hello_main.cc"],
-    includes = ["."],  # To find the generated header
     deps = [":hello_sapi"],
 )
 
@@ -50,7 +49,6 @@ cc_binary(
 cc_binary(
     name = "hello_transacted",
     srcs = ["hello_transacted.cc"],
-    includes = ["."],  # To find the generated header
     deps = [
         ":hello_sapi",
         "@com_google_absl//absl/memory",

@@ -83,7 +83,7 @@ TEST_F(GuetzliSapiTest, ProcessRGB) {
   *processing_params.mutable_data() = {
       in_fd.GetRemoteFd(), 0, kDefaultQualityTarget, kDefaultMemlimitMb};
   sapi::v::LenVal output(0);
-  sapi::StatusOr<bool> processing_result =
+  absl::StatusOr<bool> processing_result =
       api_->ProcessRgb(processing_params.PtrBefore(), output.PtrBoth());
   ASSERT_TRUE(processing_result.value_or(false)) << "Error processing rgb data";
   std::string reference_data =
@@ -108,7 +108,7 @@ TEST_F(GuetzliSapiTest, ProcessJpeg) {
   *processing_params.mutable_data() = {
       in_fd.GetRemoteFd(), 0, kDefaultQualityTarget, kDefaultMemlimitMb};
   sapi::v::LenVal output(0);
-  sapi::StatusOr<bool> processing_result =
+  absl::StatusOr<bool> processing_result =
       api_->ProcessJpeg(processing_params.PtrBefore(), output.PtrBoth());
   ASSERT_TRUE(processing_result.value_or(false)) << "Error processing jpg data";
   std::string reference_data =
