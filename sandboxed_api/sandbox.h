@@ -141,6 +141,11 @@ class Sandbox {
   // Modifies the Executor object if needed.
   virtual void ModifyExecutor(sandbox2::Executor* executor) {}
 
+  // Provides a custom notifier for sandboxee events. May return nullptr.
+  virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() {
+      return nullptr;
+  }
+
   // Exits the sandboxee.
   void Exit() const;
 

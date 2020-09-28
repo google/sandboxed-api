@@ -201,7 +201,8 @@ absl::Status Sandbox::Init() {
   ModifyExecutor(executor.get());
 
   s2_ = absl::make_unique<sandbox2::Sandbox2>(std::move(executor),
-                                              std::move(s2p));
+                                              std::move(s2p),
+                                              std::move(CreateNotifier()));
   auto res = s2_->RunAsync();
 
   comms_ = s2_->comms();
