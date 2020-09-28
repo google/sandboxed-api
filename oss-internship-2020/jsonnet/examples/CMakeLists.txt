@@ -22,7 +22,7 @@ add_custom_command(
   COMMAND mv ${PROJECT_BINARY_DIR}/gen_files/jsonnet.cpp ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
 )
 
-include_directories(
+list(APPEND JSONNET_SAPI_HEADERS
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/headers
   ${PROJECT_BINARY_DIR}/gen_files
@@ -34,6 +34,10 @@ add_library(jsonnet_helper STATIC
   ${PROJECT_SOURCE_DIR}/jsonnet/cmd/utils.h
   ${PROJECT_SOURCE_DIR}/jsonnet/cmd/utils.cpp
   ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
+)
+
+target_include_directories(jsonnet_helper PUBLIC
+  ${JSONNET_SAPI_HEADERS}
 )
 
 target_link_libraries(jsonnet_helper
@@ -50,6 +54,10 @@ foreach(exe base multiple_files yaml_stream formatter)
     jsonnet_helper
     jsonnet_sapi
     sapi::sapi
+  )
+
+  target_include_directories(jsonnet_${exe}_sandboxed PUBLIC
+    ${JSONNET_SAPI_HEADERS}
   )
 endforeach()
 

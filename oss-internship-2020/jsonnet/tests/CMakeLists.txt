@@ -24,14 +24,14 @@ add_custom_target(test_preparation ALL
   COMMAND cp ${PROJECT_SOURCE_DIR}/examples/jsonnet_codes_expected_output/* ${PROJECT_BINARY_DIR}/tests/tests_expected_output
 )
 
-include_directories(
-  ${PROJECT_SOURCE_DIR}/headers
-)
-
 add_executable(tests
   ${PROJECT_SOURCE_DIR}/headers/jsonnet_tests.h
   jsonnet_tests.cc
   jsonnet_tests_utils.cc
+)
+
+target_include_directories(tests PUBLIC
+  ${PROJECT_SOURCE_DIR}/headers
 )
 
 target_link_libraries(tests 
