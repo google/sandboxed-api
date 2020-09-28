@@ -21,6 +21,8 @@
 #include "sandboxed_api/util/flag.h"
 #include "uv_sapi.sapi.h"
 
+namespace {
+
 class UVSapiIdleBasicSandbox : public uv::UVSandbox {
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
@@ -96,6 +98,8 @@ absl::Status IdleBasic() {
 
   return absl::OkStatus();
 }
+
+}  // namespace
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);

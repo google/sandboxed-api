@@ -21,6 +21,8 @@
 #include "sandboxed_api/util/flag.h"
 #include "uv_sapi.sapi.h"
 
+namespace {
+
 class UVSapiUVCatSandbox : public uv::UVSandbox {
  public:
   UVSapiUVCatSandbox(std::string filename) : filename(filename) {}
@@ -89,6 +91,8 @@ absl::Status UVCat(std::string filearg) {
 
   return absl::OkStatus();
 }
+
+}  // namespace
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
