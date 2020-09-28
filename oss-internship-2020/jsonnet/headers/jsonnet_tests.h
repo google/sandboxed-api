@@ -25,27 +25,28 @@
 #include "jsonnet_sapi.sapi.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/sandbox2/util/path.h"
 
 class JsonnetTestHelper {
  protected:
-  enum Evaluation { BASE, MULTIPLE_FILES, YAML_STREAM };
+  enum Evaluation { kBase, kMultipleFiles, kYamlStream };
 
   void TestSetUp();
   void TestTearDown();
 
-  void Read_input(char* filename);
-  void Evaluate_jsonnet_code(char* filename, Evaluation type,
+  void Read_input(const char* filename);
+  void Evaluate_jsonnet_code(Evaluation type,
                              bool expected_correct);
-  void Write_output(char* filename_or_directory, Evaluation type);
-  std::string Read_output(char* filename);
+  void Write_output(const char* filename_or_directory, Evaluation type);
+  std::string Read_output(const char* filename);
 
-  std::unique_ptr<JsonnetBaseSandbox> sandbox;
-  std::unique_ptr<JsonnetApi> api;
-  std::unique_ptr<sapi::v::RemotePtr> input;
-  std::unique_ptr<sapi::v::RemotePtr> output;
-  std::unique_ptr<sapi::v::RemotePtr> vm;
+  std::unique_ptr<JsonnetBaseSandbox> sandbox_;
+  std::unique_ptr<JsonnetApi> api_;
+  std::unique_ptr<sapi::v::RemotePtr> input_;
+  std::unique_ptr<sapi::v::RemotePtr> output_;
+  std::unique_ptr<sapi::v::RemotePtr> vm_;
 
-  std::string input_filename_in_sandboxee;
-  bool if_jsonnet_vm_was_used;
-  bool if_input_was_read;
+  std::string input_filename_in_sandboxee_;
+  bool if_jsonnet_vm_was_used_;
+  bool if_input_was_read_;
 };

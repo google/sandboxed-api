@@ -14,7 +14,7 @@
 
 #include "jsonnet_helper.h"  // NOLINT(build/include)
 
-#include <string.h>
+#include <cstring>
 
 struct JsonnetVm* c_jsonnet_make(void) {
   return jsonnet_make();
@@ -23,13 +23,13 @@ struct JsonnetVm* c_jsonnet_make(void) {
 void c_jsonnet_destroy(struct JsonnetVm* vm) { return jsonnet_destroy(vm); }
 
 char* c_jsonnet_evaluate_snippet(struct JsonnetVm* vm, const char* filename,
-                                 char* snippet, int* error) {
+                                char* snippet, int* error) {
   return jsonnet_evaluate_snippet(vm, filename, snippet, error);
 }
 
 char* c_jsonnet_evaluate_snippet_multi(struct JsonnetVm* vm,
-                                       const char* filename,
-                                       const char* snippet, int* error) {
+                                      const char* filename,
+                                      const char* snippet, int* error) {
   return jsonnet_evaluate_snippet_multi(vm, filename, snippet, error);
 }
 
