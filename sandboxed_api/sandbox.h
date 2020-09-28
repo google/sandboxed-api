@@ -117,7 +117,6 @@ class Sandbox {
   absl::Status SetWallTimeLimit(time_t limit) const;
 
  protected:
-
   // Gets the arguments passed to the sandboxee.
   virtual void GetArgs(std::vector<std::string>* args) const {
     args->push_back("--logtostderr=true");
@@ -142,9 +141,7 @@ class Sandbox {
   virtual void ModifyExecutor(sandbox2::Executor* executor) {}
 
   // Provides a custom notifier for sandboxee events. May return nullptr.
-  virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() {
-      return nullptr;
-  }
+  virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
 
   // Exits the sandboxee.
   void Exit() const;
