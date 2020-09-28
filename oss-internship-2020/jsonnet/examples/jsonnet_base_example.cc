@@ -25,7 +25,7 @@ absl::Status JsonnetMain(std::string in_file, std::string out_file) {
   JsonnetApi api(&sandbox);
 
   // Initialize library's main structure.
-  SAPI_ASSIGN_OR_RETURN(JsonnetVm* jsonnet_vm, api.c_jsonnet_make());
+  SAPI_ASSIGN_OR_RETURN(JsonnetVm * jsonnet_vm, api.c_jsonnet_make());
   sapi::v::RemotePtr vm_pointer(jsonnet_vm);
 
   // Read input file.
