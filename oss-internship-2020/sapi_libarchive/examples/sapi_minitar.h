@@ -1,21 +1,39 @@
-#ifndef SAPI_LIBARCHIVE_HELPERS_H
-#define SAPI_LIBARCHIVE_HELPERS_H
+#ifndef SAPI_LIBARCHIVE_MINITAR_H
+#define SAPI_LIBARCHIVE_MINITAR_H
 
+#include <archive.h>
+#include <archive_entry.h>
+#include <fcntl.h>
 #include <glog/logging.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <cstdlib>
+#include <iostream>
+#include <memory>
 
 #include "libarchive_sapi.sapi.h"
+#include "sandbox.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/var_array.h"
+
+void create(const char* filename, int compress, const char** argv,
+            int verbose = 1);
+
+void extract(const char* filename, int do_extract, int flags, int verbose = 1);
+
+int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
+              LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox);
 
 inline constexpr size_t kBlockSize = 10240;
 inline constexpr size_t kBuffSize = 16384;
-
-// Used to convert the paths provided as arguments for the program
-// (the paths used) to an array of absolute paths. This allows the user
-// to use either relative or absolute paths
-std::vector<std::string> MakeAbsolutePathsVec(const char* argv[]);
 
 // Converts only one string to an absolute path by prepending the current
 // working directory to the relative path
@@ -32,4 +50,4 @@ std::string CheckStatusAndGetString(const absl::StatusOr<char*>& status,
 // changes the current working directory to this temporary directory.
 std::string CreateTempDirAtCWD();
 
-#endif  // SAPI_LIBARCHIVE_HELPERS_H
+#endif  // SAPI_LIBARCHIVE_MINITAR_H

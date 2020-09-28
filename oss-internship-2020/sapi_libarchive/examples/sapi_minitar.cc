@@ -1,232 +1,7 @@
-/*-
- * This file is in the public domain.
- * Do with it as you will.
- */
+#include "sapi_minitar.h"
 
-/*-
- * This is a compact "tar" program whose primary goal is small size.
- * Statically linked, it can be very small indeed.  This serves a number
- * of goals:
- *   o a testbed for libarchive (to check for link pollution),
- *   o a useful tool for space-constrained systems (boot floppies, etc),
- *   o a place to experiment with new implementation ideas for bsdtar,
- *   o a small program to demonstrate libarchive usage.
- *
- * Use the following macros to suppress features:
- *   NO_BZIP2 - Implies NO_BZIP2_CREATE and NO_BZIP2_EXTRACT
- *   NO_BZIP2_CREATE - Suppress bzip2 compression support.
- *   NO_BZIP2_EXTRACT - Suppress bzip2 auto-detection and decompression.
- *   NO_COMPRESS - Implies NO_COMPRESS_CREATE and NO_COMPRESS_EXTRACT
- *   NO_COMPRESS_CREATE - Suppress compress(1) compression support
- *   NO_COMPRESS_EXTRACT - Suppress compress(1) auto-detect and decompression.
- *   NO_CREATE - Suppress all archive creation support.
- *   NO_CPIO_EXTRACT - Suppress auto-detect and dearchiving of cpio archives.
- *   NO_GZIP - Implies NO_GZIP_CREATE and NO_GZIP_EXTRACT
- *   NO_GZIP_CREATE - Suppress gzip compression support.
- *   NO_GZIP_EXTRACT - Suppress gzip auto-detection and decompression.
- *   NO_LOOKUP - Try to avoid getpw/getgr routines, which can be very large
- *   NO_TAR_EXTRACT - Suppress tar extraction
- *
- * With all of the above macros defined (except NO_TAR_EXTRACT), you
- * get a very small program that can recognize and extract essentially
- * any uncompressed tar archive.  On FreeBSD 5.1, this minimal program
- * is under 64k, statically linked, which compares rather favorably to
- *         main(){printf("hello, world");}
- * which is over 60k statically linked on the same operating system.
- * Without any of the above macros, you get a static executable of
- * about 180k with a lot of very sophisticated modern features.
- * Obviously, it's trivial to add support for ISO, Zip, mtree,
- * lzma/xz, etc.  Just fill in the appropriate setup calls.
- */
-
- // TODO general comments here
-
-#include <archive.h>
-#include <archive_entry.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <cstdlib>
-#include <iostream>
-#include <memory>
-
-#include "helpers.h"
-#include "sandbox.h"
-#include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/var_array.h"
-
-/*
- * NO_CREATE implies NO_BZIP2_CREATE and NO_GZIP_CREATE and NO_COMPRESS_CREATE.
- */
-#ifdef NO_CREATE
-#undef NO_BZIP2_CREATE
-#define NO_BZIP2_CREATE
-#undef NO_COMPRESS_CREATE
-#define NO_COMPRESS_CREATE
-#undef NO_GZIP_CREATE
-#define NO_GZIP_CREATE
-#endif
-
-/*
- * The combination of NO_BZIP2_CREATE and NO_BZIP2_EXTRACT is
- * equivalent to NO_BZIP2.
- */
-#ifdef NO_BZIP2_CREATE
-#ifdef NO_BZIP2_EXTRACT
-#undef NO_BZIP2
-#define NO_BZIP2
-#endif
-#endif
-
-#ifdef NO_BZIP2
-#undef NO_BZIP2_EXTRACT
-#define NO_BZIP2_EXTRACT
-#undef NO_BZIP2_CREATE
-#define NO_BZIP2_CREATE
-#endif
-
-/*
- * The combination of NO_COMPRESS_CREATE and NO_COMPRESS_EXTRACT is
- * equivalent to NO_COMPRESS.
- */
-#ifdef NO_COMPRESS_CREATE
-#ifdef NO_COMPRESS_EXTRACT
-#undef NO_COMPRESS
-#define NO_COMPRESS
-#endif
-#endif
-
-#ifdef NO_COMPRESS
-#undef NO_COMPRESS_EXTRACT
-#define NO_COMPRESS_EXTRACT
-#undef NO_COMPRESS_CREATE
-#define NO_COMPRESS_CREATE
-#endif
-
-/*
- * The combination of NO_GZIP_CREATE and NO_GZIP_EXTRACT is
- * equivalent to NO_GZIP.
- */
-#ifdef NO_GZIP_CREATE
-#ifdef NO_GZIP_EXTRACT
-#undef NO_GZIP
-#define NO_GZIP
-#endif
-#endif
-
-#ifdef NO_GZIP
-#undef NO_GZIP_EXTRACT
-#define NO_GZIP_EXTRACT
-#undef NO_GZIP_CREATE
-#define NO_GZIP_CREATE
-#endif
-
-#ifndef NO_CREATE
-static void create(const char* filename, int compress, const char** argv);
-#endif
-static void extract(const char* filename, int do_extract, int flags);
-static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
-                     LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox);
-static void usage(void);
-
-static int verbose = 0;
-
-int main(int argc, const char** argv) {
-  google::InitGoogleLogging(argv[0]);
-  const char* filename = NULL;
-  int compress, flags, mode, opt;
-
-  (void)argc;
-  mode = 'x';
-  verbose = 0;
-  compress = '\0';
-  flags = ARCHIVE_EXTRACT_TIME;
-
-  /* Among other sins, getopt(3) pulls in printf(3). */
-  while (*++argv != NULL && **argv == '-') {
-    const char* p = *argv + 1;
-
-    while ((opt = *p++) != '\0') {
-      switch (opt) {
-#ifndef NO_CREATE
-        case 'c':
-          mode = opt;
-          break;
-#endif
-        case 'f':
-          if (*p != '\0')
-            filename = p;
-          else
-            filename = *++argv;
-          p += strlen(p);
-          break;
-#ifndef NO_BZIP2_CREATE
-        case 'j':
-          compress = opt;
-          break;
-#endif
-        case 'p':
-          flags |= ARCHIVE_EXTRACT_PERM;
-          flags |= ARCHIVE_EXTRACT_ACL;
-          flags |= ARCHIVE_EXTRACT_FFLAGS;
-          break;
-        case 't':
-          mode = opt;
-          break;
-        case 'v':
-          verbose++;
-          break;
-        case 'x':
-          mode = opt;
-          break;
-#ifndef NO_BZIP2_CREATE
-        case 'y':
-          compress = opt;
-          break;
-#endif
-#ifndef NO_COMPRESS_CREATE
-        case 'Z':
-          compress = opt;
-          break;
-#endif
-#ifndef NO_GZIP_CREATE
-        case 'z':
-          compress = opt;
-          break;
-#endif
-        default:
-          usage();
-      }
-    }
-  }
-
-  switch (mode) {
-#ifndef NO_CREATE
-    case 'c':
-      create(filename, compress, argv);
-      break;
-#endif
-    case 't':
-      extract(filename, 0, flags);
-      break;
-    case 'x':
-      extract(filename, 1, flags);
-      break;
-  }
-
-  return EXIT_SUCCESS;
-}
-
-#ifndef NO_CREATE
-
-static void create(const char* initial_filename, int compress,
-                   const char** argv) {
+void create(const char* initial_filename, int compress, const char** argv,
+            int verbose /* = 1 */) {
   // We split the filename path into dirname and filename. To the filename we
   // prepend "/output/"" so that it will work with the security policy.
 
@@ -236,11 +11,14 @@ static void create(const char* initial_filename, int compress,
   std::string filename("/output/");
   filename.append(filename_tmp);
 
-  std::vector<std::string> absolute_paths = MakeAbsolutePathsVec(argv);
-
-  std::vector<std::string> relative_paths;
+  std::vector<std::string> absolute_paths;
   sandbox2::util::CharPtrArrToVecString(const_cast<char* const*>(argv),
-                                        &relative_paths);
+                                        &absolute_paths);
+
+  std::vector<std::string> relative_paths = absolute_paths;
+
+  std::transform(absolute_paths.begin(), absolute_paths.end(),
+                 absolute_paths.begin(), MakeAbsolutePathAtCWD);
 
   std::transform(relative_paths.begin(), relative_paths.end(),
                  relative_paths.begin(), sandbox2::file::CleanPath);
@@ -264,7 +42,6 @@ static void create(const char* initial_filename, int compress,
   absl::StatusOr<int> ret2;
 
   switch (compress) {
-#ifndef NO_BZIP2_CREATE
     case 'j':
     case 'y':
       ret2 = api.archive_write_add_filter_bzip2(&a);
@@ -272,23 +49,18 @@ static void create(const char* initial_filename, int compress,
       CHECK(ret2.value() != ARCHIVE_FATAL)
           << "Unexpected result from write_add_filter_bzip2 call";
       break;
-#endif
-#ifndef NO_COMPRESS_CREATE
     case 'Z':
       ret2 = api.archive_write_add_filter_compress(&a);
       CHECK(ret2.ok()) << "write_add_filter_compress call failed";
       CHECK(ret2.value() != ARCHIVE_FATAL)
           << "Unexpected result from write_add_filter_compress call";
       break;
-#endif
-#ifndef NO_GZIP_CREATE
     case 'z':
       ret2 = api.archive_write_add_filter_gzip(&a);
       CHECK(ret2.ok()) << "write_add_filter_gzip call failed";
       CHECK(ret2.value() != ARCHIVE_FATAL)
           << "Unexpected result from write_add_filter_gzip call";
       break;
-#endif
     default:
       ret2 = api.archive_write_add_filter_none(&a);
       CHECK(ret2.ok()) << "write_add_filter_none call failed";
@@ -323,12 +95,11 @@ static void create(const char* initial_filename, int compress,
 
     sapi::v::RemotePtr disk(ret.value());
 
-#ifndef NO_LOOKUP
     ret2 = api.archive_read_disk_set_standard_lookup(&disk);
     CHECK(ret2.ok()) << "read_disk_set_standard_lookup call failed";
     CHECK(ret2.value() != ARCHIVE_FATAL)
         << "Unexpected result from read_disk_set_standard_lookup call";
-#endif
+
     // We use the absolute path first.
     ret2 = api.archive_read_disk_open(
         &disk,
@@ -413,9 +184,9 @@ static void create(const char* initial_filename, int compress,
       CHECK(ret2.value() != ARCHIVE_FATAL)
           << "Unexpected result from write_header call";
 
-      // In the following section, the calls (read, archive_write_data) are done on
-      // the sandboxed process since we do not need to transfer the data in the client
-      // process.
+      // In the following section, the calls (read, archive_write_data) are done
+      // on the sandboxed process since we do not need to transfer the data in
+      // the client process.
       if (ret2.value() > ARCHIVE_FAILED) {
         int fd = open(CheckStatusAndGetString(
                           api.archive_entry_sourcepath(&entry), sandbox)
@@ -428,7 +199,8 @@ static void create(const char* initial_filename, int compress,
         sapi::v::Array<char> buff(kBuffSize);
         sapi::v::UInt ssize(kBuffSize);
 
-        // We allocate the buffer remotely and then we can simply use the remote pointer.
+        // We allocate the buffer remotely and then we can simply use the remote
+        // pointer.
         CHECK(sandbox.Allocate(&buff, true).ok())
             << "Could not allocate remote buffer";
 
@@ -478,9 +250,9 @@ static void create(const char* initial_filename, int compress,
   CHECK(ret2.ok()) << "write_free call failed";
   CHECK(!ret2.value()) << "Unexpected result from write_free call";
 }
-#endif
 
-static void extract(const char* filename, int do_extract, int flags) {
+void extract(const char* filename, int do_extract, int flags,
+             int verbose /* = 1 */) {
   std::string tmp_dir;
   if (do_extract) {
     tmp_dir = CreateTempDirAtCWD();
@@ -528,42 +300,35 @@ static void extract(const char* filename, int do_extract, int flags) {
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from write_disk_set_options call";
 
-#ifndef NO_BZIP2_EXTRACT
   ret2 = api.archive_read_support_filter_bzip2(&a);
   CHECK(ret2.ok()) << "read_support_filter_bzip2 call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_support_filter_bzip2 call";
-#endif
-#ifndef NO_GZIP_EXTRACT
+
   ret2 = api.archive_read_support_filter_gzip(&a);
   CHECK(ret2.ok()) << "read_suppport_filter_gzip call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_suppport_filter_gzip call";
-#endif
-#ifndef NO_COMPRESS_EXTRACT
+
   ret2 = api.archive_read_support_filter_compress(&a);
   CHECK(ret2.ok()) << "read_support_filter_compress call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_support_filter_compress call";
-#endif
-#ifndef NO_TAR_EXTRACT
+
   ret2 = api.archive_read_support_format_tar(&a);
   CHECK(ret2.ok()) << "read_support_format_tar call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result fromread_support_format_tar call";
-#endif
-#ifndef NO_CPIO_EXTRACT
+
   ret2 = api.archive_read_support_format_cpio(&a);
   CHECK(ret2.ok()) << "read_support_format_cpio call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from read_support_format_tar call";
-#endif
-#ifndef NO_LOOKUP
+
   ret2 = api.archive_write_disk_set_standard_lookup(&ext);
   CHECK(ret2.ok()) << "write_disk_set_standard_lookup call failed";
   CHECK(ret2.value() != ARCHIVE_FATAL)
       << "Unexpected result from write_disk_set_standard_lookup call";
-#endif
 
   const char* filename_ptr = filename_absolute.c_str();
   if (filename_ptr != NULL && strcmp(filename_ptr, "-") == 0) {
@@ -640,11 +405,10 @@ static void extract(const char* filename, int do_extract, int flags) {
   CHECK(!ret2.value()) << "Unexpected result from write_free call";
 }
 
-// This function is only called from the "extract function". It is still isolated
-// in order to not modify the code structure as much.
-static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
-                     LibarchiveApi& api,
-                     SapiLibarchiveSandboxExtract& sandbox) {
+// This function is only called from the "extract function". It is still
+// isolated in order to not modify the code structure as much.
+int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
+              LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox) {
   absl::StatusOr<int> ret;
 
   sapi::v::IntBase<struct archive_entry*> buff_ptr_tmp(0);
@@ -680,28 +444,29 @@ static int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
   }
 }
 
-static void usage(void) {
-  /* Many program options depend on compile options. */
-  const char* m =
-      "Usage: minitar [-"
-#ifndef NO_CREATE
-      "c"
-#endif
-#ifndef NO_BZIP2
-      "j"
-#endif
-      "tvx"
-#ifndef NO_BZIP2
-      "y"
-#endif
-#ifndef NO_COMPRESS
-      "Z"
-#endif
-#ifndef NO_GZIP
-      "z"
-#endif
-      "] [-f file] [file]\n";
+std::string MakeAbsolutePathAtCWD(const std::string& path) {
+  std::string result = sandbox2::file_util::fileops::MakeAbsolute(
+      path, sandbox2::file_util::fileops::GetCWD());
+  CHECK(result != "") << "Could not create absolute path for: " << path;
+  return sandbox2::file::CleanPath(result);
+}
 
-  std::cout << m << std::endl;
-  exit(EXIT_FAILURE);
+std::string CheckStatusAndGetString(const absl::StatusOr<char*>& status,
+                                    LibarchiveSandbox& sandbox) {
+  CHECK(status.ok() && status.value() != NULL) << "Could not get error message";
+
+  absl::StatusOr<std::string> ret =
+      sandbox.GetCString(sapi::v::RemotePtr(status.value()));
+  CHECK(ret.ok()) << "Could not transfer error message";
+  return ret.value();
+}
+
+std::string CreateTempDirAtCWD() {
+  std::string cwd = sandbox2::file_util::fileops::GetCWD();
+  CHECK(!cwd.empty()) << "Could not get current working directory";
+  cwd.append("/");
+
+  absl::StatusOr<std::string> result = sandbox2::CreateTempDir(cwd);
+  CHECK(result.ok()) << "Could not create temporary directory at " << cwd;
+  return result.value();
 }
