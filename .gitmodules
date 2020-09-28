@@ -1,5 +1,5 @@
 [submodule "oss-internship-2020/sapi_lodepng/lodepng"]
-	path = oss-internship-2020/sapi_lodepng/lodepng
+	path = oss-internship-2020/lodepng/lodepng
 	url = https://github.com/lvandeve/lodepng
 [submodule "oss-internship-2020/openjpeg/openjpeg"]
 	path = oss-internship-2020/openjpeg/openjpeg
