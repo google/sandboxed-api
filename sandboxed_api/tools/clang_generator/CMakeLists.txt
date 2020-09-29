@@ -45,6 +45,7 @@ target_link_libraries(sapi_generator PUBLIC
   absl::memory
   absl::random_random
   absl::status
+  absl::statusor
   absl::strings
   clangFormat
   clangFrontendTool
@@ -59,12 +60,15 @@ add_executable(sapi_generator_tool
 )
 target_link_libraries(sapi_generator_tool PRIVATE
   sapi::base
+  sandbox2::file_helpers
   sandbox2::fileops
   sapi::generator
 )
 
 if(SAPI_ENABLE_TESTS)
   add_executable(sapi_generator_test
+    frontend_action_test_util.cc
+    frontend_action_test_util.h
     emitter_test.cc
   )
   target_link_libraries(sapi_generator_test PRIVATE
