@@ -26,7 +26,7 @@ void EncodeDecodeOneStep(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   // Encode the image.
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
   CHECK(std::copy(image.begin(), image.end(), sapi_image.GetData()))
-      << "could not copy values";
+      << "Could not copy values";
 
   sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
@@ -82,7 +82,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   // Encode the image into memory first.
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
   CHECK(std::copy(image.begin(), image.end(), sapi_image.GetData()))
-      << "could not copy values";
+      << "Could not copy values";
 
   sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 

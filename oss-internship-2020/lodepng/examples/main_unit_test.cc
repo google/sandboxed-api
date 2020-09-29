@@ -70,7 +70,7 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
   EXPECT_THAT(std::copy(image.begin(), image.end(), sapi_image.GetData()),
               IsTrue())
-      << "could not copy values";
+      << "Could not copy values";
 
   sapi::v::ConstCStr sapi_filename("/output/out_generated1.png");
 
@@ -131,7 +131,7 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
   sapi::v::Array<uint8_t> sapi_image(kImgLen);
   EXPECT_THAT(std::copy(image.begin(), image.end(), sapi_image.GetData()),
               IsTrue())
-      << "could not copy values";
+      << "Could not copy values";
 
   sapi::v::ConstCStr sapi_filename("/output/out_generated2.png");
 
