@@ -15,87 +15,91 @@
 // Sandboxed version of multithread.c
 // Multithreaded HTTP GET requests
 
-#include <pthread.h>
-
 #include <cstdlib>
+#include <future>
+#include <thread>
 
 #include "../sandbox.h"  // NOLINT(build/include)
 
-void pull_one_url(const std::string& url, CurlApi& api) {
+namespace {
+
+absl::Status pull_one_url(const std::string& url, curl::CurlApi& api) {
   // Initialize the curl session
-  absl::StatusOr<CURL*> curl_handle = api.curl_easy_init();
-  if (!curl_handle.ok()) {
-    LOG(FATAL) << "curl_easy_init failed: " << curl_handle.status();
-  }
-  sapi::v::RemotePtr curl(curl_handle.value());
-  if (!curl.GetValue()) {
-    LOG(FATAL) << "curl_easy_init failed: curl is NULL";
+  curl::CURL* curl_handle;
+  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  sapi::v::RemotePtr curl(curl_handle);
+  if (!curl_handle) {
+    return absl::UnavailableError("curl_easy_init failed: curl is NULL");
   }
 
-  absl::StatusOr<int> curl_code;
+  int curl_code;
 
   // Specify URL to get
   sapi::v::ConstCStr sapi_url(url.c_str());
-  curl_code =
-      api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, sapi_url.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, sapi_url.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Perform the request
-  curl_code = api.curl_easy_perform(&curl);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_perform failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_perform failed: " + curl_code);
   }
 
-  // Cleanup curl
-  absl::Status status = api.curl_easy_cleanup(&curl);
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_easy_cleanup failed: " << status;
-  }
+  // Cleanup curl easy handle
+  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
+
+  return absl::OkStatus();
 }
 
 const std::vector<std::string> urls = {
     "http://example.com", "http://example.edu", "http://example.net",
     "http://example.org"};
 
+absl::Status Example5() {
+  // Initialize sandbox2 and sapi
+  curl::CurlSapiSandbox sandbox;
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  curl::CurlApi api(&sandbox);
+
+  int curl_code;
+
+  // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_global_init failed: " + curl_code);
+  }
+
+  // Create the threads (by using futures)
+  std::vector<std::future<absl::Status>> futures;
+  for (auto& url : urls) {
+    futures.emplace_back(
+        std::async(pull_one_url, std::ref(url), std::ref(api)));
+  }
+
+  // Join the threads and check for errors
+  for (auto& future : futures) {
+    SAPI_RETURN_IF_ERROR(future.get());
+  }
+
+  // Cleanup curl
+  SAPI_RETURN_IF_ERROR(api.curl_global_cleanup());
+
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
-  absl::Status status;
-
-  // Initialize sandbox2 and sapi
-  CurlSapiSandbox sandbox;
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  CurlApi api(&sandbox);
-
-  absl::StatusOr<int> curl_code;
-
-  // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
-  curl_code = api.curl_global_init(3l);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_global_init failed: " << curl_code.status();
-  }
-
-  // Create the threads
-  std::vector<std::thread> threads;
-  for (auto& url : urls) {
-    threads.emplace_back(pull_one_url, std::ref(url), std::ref(api));
-  }
-
-  // Join the threads
-  for (auto& thread : threads) {
-    thread.join();
-  }
-
-  // Cleanup curl
-  status = api.curl_global_cleanup();
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_global_cleanup failed: " << status;
+  if (absl::Status status = Example5(); !status.ok()) {
+    LOG(ERROR) << "Example5 failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

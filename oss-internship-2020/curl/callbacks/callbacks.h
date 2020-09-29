@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef TESTS_CALLBACKS_H
-#define TESTS_CALLBACKS_H
+#ifndef CALLBACKS_H_
+#define CALLBACKS_H_
 
 #include <curl/curl.h>
 
@@ -21,4 +21,4 @@
 extern "C" size_t WriteToMemory(char* contents, size_t size, size_t num_bytes,
                                 void* userp);
 
-#endif  // TESTS_CALLBACKS_H
+#endif  // CALLBACKS_H_

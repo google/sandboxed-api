@@ -19,59 +19,70 @@
 
 #include "../sandbox.h"  // NOLINT(build/include)
 
+namespace {
+
+absl::Status Example1() {
+  // Initialize sandbox2 and sapi
+  curl::CurlSapiSandbox sandbox;
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  curl::CurlApi api(&sandbox);
+
+  // Initialize the curl session
+  curl::CURL* curl_handle;
+  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  sapi::v::RemotePtr curl(curl_handle);
+  if (!curl_handle) {
+    return absl::UnavailableError("curl_easy_init failed: curl is NULL");
+  }
+
+  int curl_code;
+
+  // Specify URL to get
+  sapi::v::ConstCStr url("http://example.com");
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+  }
+
+  // Set the library to follow a redirection
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_long(&curl, curl::CURLOPT_FOLLOWLOCATION, 1l));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_long failed: " + curl_code);
+  }
+
+  // Disable authentication of peer certificate
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_long(&curl, curl::CURLOPT_SSL_VERIFYPEER, 0l));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_long failed: " + curl_code);
+  }
+
+  // Perform the request
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_perform failed: " + curl_code);
+  }
+
+  // Cleanup curl
+  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
+
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
-  absl::Status status;
-
-  // Initialize sandbox2 and sapi
-  CurlSapiSandbox sandbox;
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  CurlApi api(&sandbox);
-
-  // Initialize the curl session
-  absl::StatusOr<CURL*> curl_handle = api.curl_easy_init();
-  if (!curl_handle.ok()) {
-    LOG(FATAL) << "curl_easy_init failed: " << curl_handle.status();
-  }
-  sapi::v::RemotePtr curl(curl_handle.value());
-  if (!curl.GetValue()) LOG(FATAL) << "curl_easy_init failed: curl is NULL";
-
-  absl::StatusOr<int> curl_code;
-
-  // Specify URL to get
-  sapi::v::ConstCStr url("http://example.com");
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
-  }
-
-  // Set the library to follow a redirection
-  curl_code = api.curl_easy_setopt_long(&curl, CURLOPT_FOLLOWLOCATION, 1l);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_long failed: " << curl_code.status();
-  }
-
-  // Disable authentication of peer certificate
-  curl_code = api.curl_easy_setopt_long(&curl, CURLOPT_SSL_VERIFYPEER, 0l);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_long failed: " << curl_code.status();
-  }
-
-  // Perform the request
-  curl_code = api.curl_easy_perform(&curl);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_perform failed: " << curl_code.status();
-  }
-
-  // Cleanup curl
-  status = api.curl_easy_cleanup(&curl);
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_easy_cleanup failed: " << status;
+  if (absl::Status status = Example1(); !status.ok()) {
+    LOG(ERROR) << "Example1 failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

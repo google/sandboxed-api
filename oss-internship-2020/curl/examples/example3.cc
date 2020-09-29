@@ -19,7 +19,9 @@
 
 #include "../sandbox.h"  // NOLINT(build/include)
 
-class CurlSapiSandboxEx3 : public CurlSapiSandbox {
+namespace {
+
+class CurlSapiSandboxEx3 : public curl::CurlSapiSandbox {
  public:
   CurlSapiSandboxEx3(std::string ssl_certificate, std::string ssl_key,
                      std::string ca_certificates)
@@ -42,7 +44,7 @@ class CurlSapiSandboxEx3 : public CurlSapiSandbox {
         .AddFile(ssl_key)
         .AddFile(ca_certificates);
     // Provide the new PolicyBuilder to ModifyPolicy in CurlSandbox
-    return CurlSapiSandbox::ModifyPolicy(policy_builder.get());
+    return curl::CurlSapiSandbox::ModifyPolicy(policy_builder.get());
   }
 
   std::string ssl_certificate;
@@ -50,116 +52,123 @@ class CurlSapiSandboxEx3 : public CurlSapiSandbox {
   std::string ca_certificates;
 };
 
-int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
-
-  absl::Status status;
-
-  // Get input parameters (should be absolute paths)
-  if (argc != 5) {
-    LOG(FATAL) << "wrong number of arguments (4 expected)";
-  }
-  std::string ssl_certificate = argv[1];
-  std::string ssl_key = argv[2];
-  std::string ssl_key_password = argv[3];
-  std::string ca_certificates = argv[4];
-
+absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
+                      std::string ssl_key_password,
+                      std::string ca_certificates) {
   // Initialize sandbox2 and sapi
   CurlSapiSandboxEx3 sandbox(ssl_certificate, ssl_key, ca_certificates);
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  CurlApi api(&sandbox);
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  curl::CurlApi api(&sandbox);
 
-  absl::StatusOr<int> curl_code;
+  int curl_code;
 
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
-  curl_code = api.curl_global_init(3l);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_global_init failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_global_init failed: " + curl_code);
   }
 
   // Initialize curl easy handle
-  absl::StatusOr<CURL*> curl_handle = api.curl_easy_init();
-  if (!curl_handle.ok()) {
-    LOG(FATAL) << "curl_easy_init failed: " << curl_handle.status();
-  }
-  sapi::v::RemotePtr curl(curl_handle.value());
-  if (!curl.GetValue()) {
-    LOG(FATAL) << "curl_easy_init failed: curl is NULL";
+  curl::CURL* curl_handle;
+  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  sapi::v::RemotePtr curl(curl_handle);
+  if (!curl_handle) {
+    return absl::UnavailableError("curl_easy_init failed: curl is NULL");
   }
 
   // Specify URL to get (using HTTPS)
   sapi::v::ConstCStr url("https://example.com");
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set the SSL certificate type to "PEM"
   sapi::v::ConstCStr ssl_cert_type("PEM");
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERTTYPE,
-                                       ssl_cert_type.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLCERTTYPE,
+                                          ssl_cert_type.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set the certificate for client authentication
   sapi::v::ConstCStr sapi_ssl_certificate(ssl_certificate.c_str());
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLCERT,
-                                       sapi_ssl_certificate.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLCERT,
+                                          sapi_ssl_certificate.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set the private key for client authentication
   sapi::v::ConstCStr sapi_ssl_key(ssl_key.c_str());
-  curl_code =
-      api.curl_easy_setopt_ptr(&curl, CURLOPT_SSLKEY, sapi_ssl_key.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code,
+                        api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLKEY,
+                                                 sapi_ssl_key.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set the password used to protect the private key
   sapi::v::ConstCStr sapi_ssl_key_password(ssl_key_password.c_str());
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_KEYPASSWD,
-                                       sapi_ssl_key_password.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_KEYPASSWD,
+                                          sapi_ssl_key_password.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set the file with the certificates vaildating the server
   sapi::v::ConstCStr sapi_ca_certificates(ca_certificates.c_str());
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_CAINFO,
-                                       sapi_ca_certificates.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_CAINFO,
+                                          sapi_ca_certificates.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Verify the authenticity of the server
-  curl_code = api.curl_easy_setopt_long(&curl, CURLOPT_SSL_VERIFYPEER, 1L);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_long failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_long(&curl, curl::CURLOPT_SSL_VERIFYPEER, 1L));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_long failed: " + curl_code);
   }
 
   // Perform the request
-  curl_code = api.curl_easy_perform(&curl);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_perform failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_perform failed: " + curl_code);
   }
 
   // Cleanup curl easy handle
-  status = api.curl_easy_cleanup(&curl);
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_easy_cleanup failed: " << status;
-  }
+  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
 
   // Cleanup curl
-  status = api.curl_global_cleanup();
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_global_cleanup failed: " << status;
+  SAPI_RETURN_IF_ERROR(api.curl_global_cleanup());
+
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
+
+  // Get input parameters (should be absolute paths)
+  if (argc != 5) {
+    LOG(ERROR) << "wrong number of arguments (4 expected)";
+    return EXIT_FAILURE;
+  }
+
+  if (absl::Status status = Example3(argv[1], argv[2], argv[3], argv[4]);
+      !status.ok()) {
+    LOG(ERROR) << "Example3 failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;
