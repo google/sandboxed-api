@@ -20,87 +20,90 @@
 
 #include "../sandbox.h"  // NOLINT(build/include)
 
-int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+namespace {
 
-  absl::Status status;
-
+absl::Status Example2() {
   // Initialize sandbox2 and sapi
-  CurlSapiSandbox sandbox;
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  CurlApi api(&sandbox);
+  curl::CurlSapiSandbox sandbox;
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  curl::CurlApi api(&sandbox);
 
   // Generate pointer to WriteMemoryCallback function
   void* function_ptr;
-  status = sandbox.rpc_channel()->Symbol("WriteToMemory", &function_ptr);
-  if (!status.ok()) {
-    LOG(FATAL) << "sapi::Sandbox::rpc_channel().Symbol failed: " << status;
-  }
-  sapi::v::RemotePtr remote_function_ptr(function_ptr);
+  SAPI_RETURN_IF_ERROR(
+      sandbox.rpc_channel()->Symbol("WriteToMemory", &function_ptr));
+  sapi::v::RemotePtr write_to_memory(function_ptr);
 
   // Initialize the curl session
-  absl::StatusOr<CURL*> curl_handle = api.curl_easy_init();
-  if (!curl_handle.ok()) {
-    LOG(FATAL) << "curl_easy_init failed: " << curl_handle.status();
-  }
-  sapi::v::RemotePtr curl(curl_handle.value());
-  if (!curl.GetValue()) {
-    LOG(FATAL) << "curl_easy_init failed: curl is NULL";
+  curl::CURL* curl_handle;
+  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  sapi::v::RemotePtr curl(curl_handle);
+  if (!curl_handle) {
+    return absl::UnavailableError("curl_easy_init failed: curl is NULL");
   }
 
-  absl::StatusOr<int> curl_code;
+  int curl_code;
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set WriteMemoryCallback as the write function
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEFUNCTION,
-                                       &remote_function_ptr);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEFUNCTION,
+                                          &write_to_memory));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Pass 'chunk' struct to the callback function
   sapi::v::LenVal chunk(0);
-  curl_code =
-      api.curl_easy_setopt_ptr(&curl, CURLOPT_WRITEDATA, chunk.PtrBoth());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code,
+                        api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEDATA,
+                                                 chunk.PtrBoth()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set a user agent
   sapi::v::ConstCStr user_agent("libcurl-agent/1.0");
-  curl_code = api.curl_easy_setopt_ptr(&curl, CURLOPT_USERAGENT,
-                                       user_agent.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code,
+                        api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_USERAGENT,
+                                                 user_agent.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Perform the request
-  curl_code = api.curl_easy_perform(&curl);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_perform failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_perform failed: " + curl_code);
   }
 
   // Retrieve memory size
-  status = sandbox.TransferFromSandboxee(&chunk);
-  if (!status.ok()) {
-    LOG(FATAL) << "sandbox.TransferFromSandboxee failed: " << status;
-  }
+  SAPI_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&chunk));
   std::cout << "memory size: " << chunk.GetDataSize() << " bytes" << std::endl;
 
   // Cleanup curl
-  status = api.curl_easy_cleanup(&curl);
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_easy_cleanup failed: " << status;
+  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
+
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
+
+  if (absl::Status status = Example2(); !status.ok()) {
+    LOG(ERROR) << "Example2 failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

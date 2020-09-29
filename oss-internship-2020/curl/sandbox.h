@@ -24,7 +24,9 @@
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
-class CurlSapiSandbox : public CurlSandbox {
+namespace curl {
+
+class CurlSapiSandbox : public curl::CurlSandbox {
  protected:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder* policy_builder) override {
