@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "libarchive_sapi.sapi.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sapi_minitar.h"
 // #include "sandboxed_api/sandbox2/util/fileops.h"
 
@@ -119,6 +120,8 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
                                          .AddFile(archive_path_);
 
     if (do_extract_) {
+      // Get the real cwd and map it to the temporary directory in which
+      // the sandboxed process takes place().
       std::string cwd = sandbox2::file_util::fileops::GetCWD();
       policy = policy.AddDirectoryAt(cwd, tmp_dir_, false);
     }

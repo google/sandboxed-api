@@ -1,3 +1,4 @@
 build/
 .clang-format
 .cache
+.vscode

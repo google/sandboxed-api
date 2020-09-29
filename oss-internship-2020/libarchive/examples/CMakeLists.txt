@@ -15,6 +15,7 @@
 add_library(sapi_minitar_lib STATIC
   sapi_minitar.cc
   sapi_minitar.h
+  sandbox.h
 )
 
 target_link_libraries(sapi_minitar_lib PUBLIC
@@ -26,6 +27,10 @@ target_link_libraries(sapi_minitar_lib PUBLIC
   sandbox2::executor
   sandbox2::temp_file
   glog::glog
+)
+
+target_include_directories(sapi_minitar_lib INTERFACE
+"${PROJECT_SOURCE_DIR}/examples"
 )
 
 add_executable(sapi_minitar

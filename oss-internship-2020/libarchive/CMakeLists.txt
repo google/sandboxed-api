@@ -76,4 +76,4 @@ target_include_directories(libarchive_sapi INTERFACE
 
 
 add_subdirectory(examples)
-
+add_subdirectory(test)
