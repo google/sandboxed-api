@@ -25,9 +25,10 @@
 #include "sandboxed_api/var_array.h"
 
 void create(const char* filename, int compress, const char** argv,
-            int verbose = 1);
+            bool verbose = true);
 
-void extract(const char* filename, int do_extract, int flags, int verbose = 1);
+void extract(const char* filename, int do_extract, int flags,
+             bool verbose = true);
 
 int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
               LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox);

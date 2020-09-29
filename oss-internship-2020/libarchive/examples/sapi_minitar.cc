@@ -1,12 +1,13 @@
 #include "sapi_minitar.h"
 
 void create(const char* initial_filename, int compress, const char** argv,
-            int verbose /* = 1 */) {
+            bool verbose /* = true */) {
   // We split the filename path into dirname and filename. To the filename we
   // prepend "/output/"" so that it will work with the security policy.
 
   std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
-  auto [archive_path, filename_tmp] = sandbox2::file::SplitPath(abs_path);
+  auto [archive_path, filename_tmp] =
+      std::move(sandbox2::file::SplitPath(abs_path));
 
   std::string filename("/output/");
   filename.append(filename_tmp);
@@ -31,6 +32,8 @@ void create(const char* initial_filename, int compress, const char** argv,
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
   LibarchiveApi api(&sandbox);
 
+  std::cout << "AJUNGE AICI" << std::endl;
+
   absl::StatusOr<archive*> ret = api.archive_write_new();
   CHECK(ret.ok()) << "write_new call failed";
   CHECK(ret.value() != NULL) << "Failed to create write archive";
@@ -38,6 +41,8 @@ void create(const char* initial_filename, int compress, const char** argv,
   // Treat the pointer as remote. There is no need to copy the data
   // to the client process.
   sapi::v::RemotePtr a(ret.value());
+
+  std::cout << "AJUNGE AICI" << std::endl;
 
   absl::StatusOr<int> ret2;
 
@@ -252,7 +257,8 @@ void create(const char* initial_filename, int compress, const char** argv,
 }
 
 void extract(const char* filename, int do_extract, int flags,
-             int verbose /* = 1 */) {
+             bool verbose /* = true */) {
+  std::cout << "flags = " << flags << std::endl;
   std::string tmp_dir;
   if (do_extract) {
     tmp_dir = CreateTempDirAtCWD();
