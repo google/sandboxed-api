@@ -17,24 +17,6 @@
 #include "helper.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
-// sapi functions:
-//  TIFFOpen
-//  TIFFClose
-//  TIFFGetField
-//  TIFFSetField
-//  TIFFWriteCheck
-//  TIFFSetDirectory
-//  TIFFFreeDirectory
-//  TIFFWriteScanline
-//  TIFFWriteDirectory
-//  TIFFCreateDirectory
-//  TIFFReadEncodedTile
-//  TIFFReadEncodedStrip
-//  TIFFWriteEncodedTile
-//  TIFFWriteEncodedStrip
-//  TIFFDeferStrileArrayWriting
-//  TIFFForceStrileArrayWriting
-
 namespace {
 
 #define TBS 256  // kTileBufferSize

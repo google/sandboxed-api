@@ -19,23 +19,17 @@
 #include "helper.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
-// sapi functions:
-//  TIFFOpen
-//  TIFFClose
-//  TIFFGetField
-//  TIFFSetField
-//  TIFFTileSize
-//  TIFFReadRGBATile
-//  TIFFReadEncodedTile
-
 namespace {
 
 constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
 constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
 constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
 
-int CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
+constexpr unsigned kRawTileNumber = 9;
+
+bool CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
                  const std::array<uint8_t, 6>& expected_cluster) {
+  ASSERT_THAT(buffer.GetSize() > 3 * pixel, IsTrue());
   uint8_t* target = buffer.GetData() + cluster * 6;
 
   bool comp = !(std::memcmp(target, expected_cluster.data(), 6) == 0);
@@ -43,17 +37,18 @@ int CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
   EXPECT_THAT(comp, IsFalse())
       << "Cluster " << cluster << " did not match expected results.\n"
       << "Expect: " << expected_cluster[0] << "\t" << expected_cluster[1]
-      << "\t" << expected_cluster[4] << "\t" << expected_cluster[5] << "\t"
-      << expected_cluster[2] << "\t" << expected_cluster[3] << "\n"
-      << "Got: " << target[0] << "\t" << target[1] << "\t" << target[4] << "\t"
-      << target[5] << "\t" << target[2] << "\t" << target[3];
+      << "\t" << expected_cluster[2] << "\t" << expected_cluster[3] << "\t"
+      << expected_cluster[4] << "\t" << expected_cluster[5] << "\n"
+      << "Got: " << target[0] << "\t" << target[1] << "\t" << target[2] << "\t"
+      << target[3] << "\t" << target[4] << "\t" << target[4];
 
   return comp;
 }
 
-int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
+bool CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
                   int max_green, int min_blue, int max_blue,
                   const sapi::v::Array<uint8_t>& buffer) {
+  ASSERT_THAT(buffer.GetSize() > 3 * pixel, IsTrue());
   uint8_t* rgb = buffer.GetData() + 3 * pixel;
 
   bool comp =
@@ -69,11 +64,13 @@ int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
   return comp;
 }
 
-int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
+bool CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
                    int max_green, int min_blue, int max_blue, int min_alpha,
                    int max_alpha, const sapi::v::Array<unsigned>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
+
+  ASSERT_THAT(buffer.GetSize() > adjusted_pixel, IsTrue());
   unsigned rgba = buffer[adjusted_pixel];
 
   bool comp = !(TIFFGetR(rgba) >= (unsigned)min_red &&
@@ -102,7 +99,7 @@ TEST(SandboxTest, RawDecode) {
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   tsize_t sz;
-  unsigned int pixel_status = 0;
+  bool pixel_status = false;
   sapi::v::UShort h, v;
   sapi::StatusOr<TIFF*> status_or_tif;
   sapi::StatusOr<int> status_or_int;
@@ -134,7 +131,8 @@ TEST(SandboxTest, RawDecode) {
   sz = status_or_long.value();
 
   sapi::v::Array<uint8_t> buffer_(sz);
-  status_or_long = api.TIFFReadEncodedTile(&tif, 9, buffer_.PtrBoth(), sz);
+  // Read a tile in decompressed form, but still YCbCr subsampled
+  status_or_long = api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
@@ -158,7 +156,7 @@ TEST(SandboxTest, RawDecode) {
   sz = status_or_long.value();
 
   sapi::v::Array<uint8_t> buffer2_(sz);
-  status_or_long = api.TIFFReadEncodedTile(&tif, 9, buffer2_.PtrBoth(), sz);
+  status_or_long = api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("

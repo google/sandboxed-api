@@ -22,13 +22,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Set this on the command-line
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 # To obtain a full SAPI_ROOT check out its source separately:
-#   git clone https://github.com/google/sandboxed-api.git $HOME/sapi_root
+#   git clone https://github.com/google/sandboxed-api.git /path/to/sapi_root
 # Then configure:
 #   mkdir -p build && cd build
-#   cmake .. -G Ninja -DSAPI_ROOT=$HOME/sapi_root
+#   cmake .. -G Ninja -DSAPI_ROOT=/path/to/sapi_root
 
-option(TIFF_SAPI_ENABLE_EXAMPLES "" ON)
-option(TIFF_SAPI_ENABLE_TESTS "" ON)
+option(TIFF_SAPI_ENABLE_EXAMPLES "" OFF)
+option(TIFF_SAPI_ENABLE_TESTS "" OFF)
 
 set(SAPI_ENABLE_EXAMPLES ${TIFF_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
 set(SAPI_ENABLE_TESTS ${TIFF_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
@@ -120,10 +120,10 @@ target_include_directories(tiff_sapi INTERFACE
     "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-#if (TIFF_SAPI_ENABLE_EXAMPLES)
+if (TIFF_SAPI_ENABLE_EXAMPLES)
   add_subdirectory(example)
-#endif()
+endif()
 
-#if (TIFF_SAPI_ENABLE_TESTS)
+if (TIFF_SAPI_ENABLE_TESTS)
   add_subdirectory(test)
-#endif()
+endif()

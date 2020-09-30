@@ -23,15 +23,6 @@
 #include "sandboxed_api/vars.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
-// sapi functions:
-//  TIFFTileSize
-//  TIFFOpen
-//  TIFFReadEncodedTile
-//  TIFFSetField
-//  TIFFClose
-//  TIFFReadRGBATile
-//  TIFFGetField
-
 constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
 constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
 constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};

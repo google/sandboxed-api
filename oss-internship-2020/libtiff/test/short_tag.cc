@@ -18,13 +18,6 @@
 #include "check_tag.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
-// sapi functions:
-//  TIFFWriteScanline
-//  TIFFOpen
-//  TIFFClose
-//  TIFFGetField (from check_tag.c)
-//  TIFFSetField
-
 namespace {
 
 #define SPP 3  // kSamplePerPixel
