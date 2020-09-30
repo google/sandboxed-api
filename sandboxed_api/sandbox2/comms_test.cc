@@ -174,13 +174,13 @@ TEST_F(CommsTest, TestSendRecv64) {
     ASSERT_THAT(comms->SendUint64(1099511627776ULL), IsTrue());
 
     // Recv Int64.
-    int64_t tmp64;
+    int64 tmp64;
     ASSERT_THAT(comms->RecvInt64(&tmp64), IsTrue());
     EXPECT_THAT(tmp64, Eq(-1099511627776LL));
   };
   auto b = [](Comms* comms) {
     // Recv Uint64.
-    uint64_t tmpu64;
+    uint64 tmpu64;
     ASSERT_THAT(comms->RecvUint64(&tmpu64), IsTrue());
     EXPECT_THAT(tmpu64, Eq(1099511627776ULL));
 

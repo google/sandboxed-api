@@ -54,7 +54,7 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
 
 // Creates a new Buffer of the specified size, backed by a temporary file that
 // will be immediately deleted.
-absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(int64_t size) {
+absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(int64 size) {
   int fd;
   if (!util::CreateMemFd(&fd)) {
     return absl::InternalError("Could not create buffer temp file");
