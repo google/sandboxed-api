@@ -37,7 +37,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   sapi::StatusOr<signed long> status_or_long;
   sapi::StatusOr<TIFF*> status_or_tif;
 
-  TiffSapiSandbox sandbox("", srcfile);
+  TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   TiffApi api(&sandbox);

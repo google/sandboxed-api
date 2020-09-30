@@ -63,7 +63,7 @@ TEST(SandboxTest, ShortTag) {
   std::string srcfile = sandbox2::file::JoinPath(
       sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
 
-  TiffSapiSandbox sandbox("", srcfile);
+  TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   std::array<uint8_t, SPP> buffer = {0, 127, 255};

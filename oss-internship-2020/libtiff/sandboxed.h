@@ -15,6 +15,7 @@
 #include <linux/futex.h>
 #include <syscall.h>
 
+#include <optional>
 #include <utility>
 
 #include "sandboxed_api/util/flag.h"
@@ -27,8 +28,9 @@ namespace {
 
 class TiffSapiSandbox : public TiffSandbox {
  public:
-  explicit TiffSapiSandbox(std::string dir = "", std::string file = "")
-      : dir_(std::move(dir)), file_(std::move(file)) {}
+  TiffSapiSandbox(std::optional<std::string> file = std::nullopt,
+                  std::optional<std::string> dir = std::nullopt)
+      : file_(std::move(file)), dir_(std::move(dir)) {}
 
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
@@ -52,19 +54,19 @@ class TiffSapiSandbox : public TiffSandbox {
             __NR_munmap,
         });
 
-    if (!dir_.empty()) {
-      builder->AddDirectory(dir_, /*is_ro=*/false);
+    if (file_) {
+      builder->AddFile(file_.value(), /*is_ro=*/false);
     }
 
-    if (!file_.empty()) {
-      builder->AddFile(file_, /*is_ro=*/false);
+    if (dir_) {
+      builder->AddDirectory(dir_.value(), /*is_ro=*/false);
     }
 
     return builder.get()->BuildOrDie();
   }
 
-  std::string dir_;
-  std::string file_;
+  std::optional<std::string> file_;
+  std::optional<std::string> dir_;
 };
 
 }  // namespace

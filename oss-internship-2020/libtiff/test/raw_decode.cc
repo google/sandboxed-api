@@ -28,12 +28,19 @@ constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
 constexpr unsigned kRawTileNumber = 9;
 
 bool CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
-                 const std::array<uint8_t, 6>& expected_cluster) {
-  ASSERT_THAT(buffer.GetSize() > 3 * pixel, IsTrue());
+                  const std::array<uint8_t, 6>& expected_cluster) {
+  bool is_overrun = (buffer.GetSize() <= cluster * 6);
+  EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
+
+  if (is_overrun) {
+    return true;
+  }
+
   uint8_t* target = buffer.GetData() + cluster * 6;
 
   bool comp = !(std::memcmp(target, expected_cluster.data(), 6) == 0);
 
+  // the image is split on 6-bit clusters because it has YCbCr color format
   EXPECT_THAT(comp, IsFalse())
       << "Cluster " << cluster << " did not match expected results.\n"
       << "Expect: " << expected_cluster[0] << "\t" << expected_cluster[1]
@@ -46,10 +53,16 @@ bool CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
 }
 
 bool CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
-                  int max_green, int min_blue, int max_blue,
-                  const sapi::v::Array<uint8_t>& buffer) {
-  ASSERT_THAT(buffer.GetSize() > 3 * pixel, IsTrue());
-  uint8_t* rgb = buffer.GetData() + 3 * pixel;
+                   int max_green, int min_blue, int max_blue,
+                   const sapi::v::Array<uint8_t>& buffer) {
+  bool is_overrun = (buffer.GetSize() <= pixel * 3);
+  EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
+
+  if (is_overrun) {
+    return true;
+  }
+
+  uint8_t* rgb = buffer.GetData() + pixel * 3;
 
   bool comp =
       !(rgb[0] >= min_red && rgb[0] <= max_red && rgb[1] >= min_green &&
@@ -65,12 +78,18 @@ bool CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
 }
 
 bool CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
-                   int max_green, int min_blue, int max_blue, int min_alpha,
-                   int max_alpha, const sapi::v::Array<unsigned>& buffer) {
+                    int max_green, int min_blue, int max_blue, int min_alpha,
+                    int max_alpha, const sapi::v::Array<unsigned>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
 
-  ASSERT_THAT(buffer.GetSize() > adjusted_pixel, IsTrue());
+  bool is_overrun = (buffer.GetSize() <= adjusted_pixel);
+  EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
+
+  if (is_overrun) {
+    return true;
+  }
+
   unsigned rgba = buffer[adjusted_pixel];
 
   bool comp = !(TIFFGetR(rgba) >= (unsigned)min_red &&
@@ -95,7 +114,7 @@ bool CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
 TEST(SandboxTest, RawDecode) {
   std::string srcfile = GetFilePath("quad-tile.jpg.tiff");
 
-  TiffSapiSandbox sandbox("", srcfile);
+  TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   tsize_t sz;
@@ -132,7 +151,8 @@ TEST(SandboxTest, RawDecode) {
 
   sapi::v::Array<uint8_t> buffer_(sz);
   // Read a tile in decompressed form, but still YCbCr subsampled
-  status_or_long = api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz);
+  status_or_long =
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
@@ -156,7 +176,8 @@ TEST(SandboxTest, RawDecode) {
   sz = status_or_long.value();
 
   sapi::v::Array<uint8_t> buffer2_(sz);
-  status_or_long = api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz);
+  status_or_long =
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
