@@ -23,10 +23,10 @@ std::string GetImagesDir() {
     LOG(ERROR) << "Something went wrong: CWD don't contain build dir. "
                << "Please run tests from build dir, path might be incorrect\n";
 
-    return cwd + "/test/images";
+    return sandbox2::file::JoinPath(cwd, "test", "images");
   }
 
-  return cwd.substr(0, find) + "/test/images";
+  return sandbox2::file::JoinPath(cwd.substr(0, find), "test", "images");
 }
 
 std::string GetFilePath(const std::string& filename) {

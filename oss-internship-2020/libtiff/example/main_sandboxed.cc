@@ -115,7 +115,7 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
   // sandbox(absolute_path_to_dir, srcfile) or
   // sandbox(absolute_path_to_dir). file and dir should be exists.
   // srcfile must also be absolute_path_to_file
-  TiffSapiSandbox sandbox("", srcfile);
+  TiffSapiSandbox sandbox(srcfile);
 
   // initialize sapi vars after constructing TiffSapiSandbox
   sapi::v::UShort h, v;

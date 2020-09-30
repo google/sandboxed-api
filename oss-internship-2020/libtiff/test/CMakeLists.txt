@@ -18,20 +18,20 @@ add_executable(tests
   check_tag.h
   check_tag.cc
   defer_strile_writing.cc
+  helper.h
+  helper.cc
   long_tag.cc
   raw_decode.cc
   short_tag.cc
-  helper.h
-  helper.cc
 )
 
 target_link_libraries(tests PRIVATE
-  tiff_sapi
-  sapi::sapi
-  sandbox2::temp_file
-  gtest
   gmock
+  gtest
   gtest_main
+  sandbox2::temp_file
+  sapi::sapi
+  tiff_sapi
 )
 
 gtest_discover_tests(tests)

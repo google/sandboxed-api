@@ -18,7 +18,7 @@ add_executable(sandboxed
 )
 
 target_link_libraries(sandboxed PRIVATE
-  tiff_sapi
-  sapi::sapi
   sandbox2::temp_file
+  sapi::sapi
+  tiff_sapi
 )

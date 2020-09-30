@@ -215,7 +215,8 @@ void TestWriting(const char* mode, int tiled, int height) {
           api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(), TBS);
       ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteEncodedTile fatal error";
       EXPECT_THAT(status_or_int.value(), Eq(TBS))
-          << "line " << i << ": expected 256, got " << status_or_int.value();
+          << "line " << i << ": expected " << TBS << ", got "
+          << status_or_int.value();
     }
   } else {
     for (int i = 0; i < height; ++i) {
@@ -254,7 +255,8 @@ void TestWriting(const char* mode, int tiled, int height) {
         ASSERT_THAT(status_or_long, IsOk())
             << "TIFFReadEncodedTile fatal error";
         EXPECT_THAT(status_or_long.value(), Eq(TBS))
-            << "line " << i << ": expected 256, got " << status_or_long.value();
+            << "line " << i << ": expected " << TBS << ", got "
+            << status_or_long.value();
 
         bool cmp = tilebuffer[0] != expected_c || tilebuffer[255] != expected_c;
 
