@@ -1,10 +1,23 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "sapi_minitar.h"
 
 void create(const char* initial_filename, int compress, const char** argv,
             bool verbose /* = true */) {
   // We split the filename path into dirname and filename. To the filename we
   // prepend "/output/"" so that it will work with the security policy.
-
   std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
   auto [archive_path, filename_tmp] =
       std::move(sandbox2::file::SplitPath(abs_path));
@@ -24,15 +37,13 @@ void create(const char* initial_filename, int compress, const char** argv,
   std::transform(relative_paths.begin(), relative_paths.end(),
                  relative_paths.begin(), sandbox2::file::CleanPath);
 
-  // At this point, we have the cleaned relative and absolute paths saved
+  // At this point, we have the relative and absolute paths (cleaned) saved
   // in vectors.
 
-  // Initialize sandbox and api object
+  // Initialize sandbox and api objects.
   SapiLibarchiveSandboxCreate sandbox(absolute_paths, archive_path);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
   LibarchiveApi api(&sandbox);
-
-  std::cout << "AJUNGE AICI" << std::endl;
 
   absl::StatusOr<archive*> ret = api.archive_write_new();
   CHECK(ret.ok()) << "write_new call failed";
@@ -41,8 +52,6 @@ void create(const char* initial_filename, int compress, const char** argv,
   // Treat the pointer as remote. There is no need to copy the data
   // to the client process.
   sapi::v::RemotePtr a(ret.value());
-
-  std::cout << "AJUNGE AICI" << std::endl;
 
   absl::StatusOr<int> ret2;
 
@@ -114,8 +123,6 @@ void create(const char* initial_filename, int compress, const char** argv,
         << CheckStatusAndGetString(api.archive_error_string(&disk), sandbox);
 
     for (;;) {
-      int needcr = 0;
-
       absl::StatusOr<archive_entry*> ret3;
       ret3 = api.archive_entry_new();
 
@@ -139,14 +146,15 @@ void create(const char* initial_filename, int compress, const char** argv,
 
       // After using the absolute path before, we now need to add the pathname
       // to the archive entry. This would help store the files by their relative
-      // paths. However, in the case where a directory is added to the archive,
-      // all of the files inside of it are addes as well so we replace the
-      // absolute path prefix with the relative one. Example: we add the folder
-      // test_files which becomes /absolute/path/test_files and the files inside
-      // of it will become /absolute/path/test_files/file1 and we change it to
-      // test_files/file1 so that it is relative. This only changes the pathname
-      // so that relative paths are preserved.
-
+      // paths(similar to the usual tar command).
+      // However, in the case where a directory is added to the archive,
+      // all of the files inside of it are added as well so we replace the
+      // absolute path prefix with the relative one.
+      // Example:
+      // we add the folder "test_files" which becomes
+      // "/absolute/path/test_files" and the files inside of it will become
+      // similar to "/absolute/path/test_files/file1"
+      // which we then change to "test_files/file1" so that it is relative.
       std::string path_name =
           CheckStatusAndGetString(api.archive_entry_pathname(&entry), sandbox);
 
@@ -156,7 +164,6 @@ void create(const char* initial_filename, int compress, const char** argv,
 
       // On top of those changes, we need to remove leading '/' characters
       // and also remove everything up to the last occurrence of '../'.
-
       size_t found = path_name.find_first_not_of("/");
       if (found != std::string::npos) {
         path_name.erase(path_name.begin(), path_name.begin() + found);
@@ -174,8 +181,8 @@ void create(const char* initial_filename, int compress, const char** argv,
 
       if (verbose) {
         std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry),
-                                             sandbox);
-        needcr = 1;
+                                             sandbox)
+                  << std::endl;
       }
 
       ret2 = api.archive_write_header(&a, &entry);
@@ -183,8 +190,8 @@ void create(const char* initial_filename, int compress, const char** argv,
 
       if (ret2.value() < ARCHIVE_OK) {
         std::cout << CheckStatusAndGetString(api.archive_error_string(&a),
-                                             sandbox);
-        needcr = 1;
+                                             sandbox)
+                  << std::endl;
       }
       CHECK(ret2.value() != ARCHIVE_FATAL)
           << "Unexpected result from write_header call";
@@ -204,12 +211,12 @@ void create(const char* initial_filename, int compress, const char** argv,
         sapi::v::Array<char> buff(kBuffSize);
         sapi::v::UInt ssize(kBuffSize);
 
-        // We allocate the buffer remotely and then we can simply use the remote
-        // pointer.
+        // We allocate the buffer remotely and then we can simply use the
+        // remote pointer(with PtrNone).
         CHECK(sandbox.Allocate(&buff, true).ok())
             << "Could not allocate remote buffer";
 
-        // We can use sapi objects that help us with file descriptors.
+        // We can use sapi methods that help us with file descriptors.
         CHECK(sandbox.TransferToSandboxee(&sapi_fd).ok())
             << "Could not transfer file descriptor";
 
@@ -230,12 +237,7 @@ void create(const char* initial_filename, int compress, const char** argv,
         // sapi_fd variable goes out of scope here so both the local and the
         // remote file descriptors are closed.
       }
-
       CHECK(api.archive_entry_free(&entry).ok()) << "entry_free call failed";
-
-      if (needcr) {
-        std::cout << std::endl;
-      }
     }
 
     ret2 = api.archive_read_close(&disk);
@@ -258,7 +260,6 @@ void create(const char* initial_filename, int compress, const char** argv,
 
 void extract(const char* filename, int do_extract, int flags,
              bool verbose /* = true */) {
-  std::cout << "flags = " << flags << std::endl;
   std::string tmp_dir;
   if (do_extract) {
     tmp_dir = CreateTempDirAtCWD();
@@ -275,17 +276,17 @@ void extract(const char* filename, int do_extract, int flags,
 
   // We should only delete it if the do_extract flag is true which
   // means that this struct is instantiated only in that case.
-  std::shared_ptr<ExtractTempDirectoryCleanup> cleanup_ptr;
+  std::unique_ptr<ExtractTempDirectoryCleanup> cleanup_ptr;
   if (do_extract) {
-    cleanup_ptr = std::make_unique<ExtractTempDirectoryCleanup>();
+    cleanup_ptr = absl::make_unique<ExtractTempDirectoryCleanup>();
     cleanup_ptr->dir = tmp_dir;
   }
 
   std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
 
+  // Initialize sandbox and api objects.
   SapiLibarchiveSandboxExtract sandbox(filename_absolute, do_extract, tmp_dir);
   CHECK(sandbox.Init().ok()) << "Error during sandbox initialization";
-
   LibarchiveApi api(&sandbox);
 
   absl::StatusOr<archive*> ret = api.archive_read_new();
@@ -350,7 +351,6 @@ void extract(const char* filename, int do_extract, int flags,
                                                   sandbox);
 
   for (;;) {
-    int needcr = 0;
     sapi::v::IntBase<struct archive_entry*> entry_ptr_tmp(0);
 
     ret2 = api.archive_read_next_header(&a, entry_ptr_tmp.PtrAfter());
@@ -372,8 +372,7 @@ void extract(const char* filename, int do_extract, int flags,
     if (verbose || !do_extract) {
       std::cout << CheckStatusAndGetString(api.archive_entry_pathname(&entry),
                                            sandbox)
-                << " ";
-      needcr = 1;
+                << std::endl;
     }
 
     if (do_extract) {
@@ -383,14 +382,9 @@ void extract(const char* filename, int do_extract, int flags,
       if (ret2.value() != ARCHIVE_OK) {
         std::cout << CheckStatusAndGetString(api.archive_error_string(&a),
                                              sandbox);
-        needcr = 1;
-      } else if (copy_data(&a, &ext, api, sandbox) != ARCHIVE_OK) {
-        needcr = 1;
+      } else {
+        copy_data(&a, &ext, api, sandbox);
       }
-    }
-
-    if (needcr) {
-      std::cout << std::endl;
     }
   }
 
@@ -411,8 +405,6 @@ void extract(const char* filename, int do_extract, int flags,
   CHECK(!ret2.value()) << "Unexpected result from write_free call";
 }
 
-// This function is only called from the "extract function". It is still
-// isolated in order to not modify the code structure as much.
 int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
               LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox) {
   absl::StatusOr<int> ret;

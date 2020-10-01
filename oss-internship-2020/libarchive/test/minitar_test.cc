@@ -1,39 +1,63 @@
-// #include <gmock/gmock-more-matchers.h>
-#include <gmock/gmock-more-matchers.h>
-#include <unistd.h>
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #include <fstream>
-#include <string>
 
-#include "absl/strings/string_view.h"
-#include "gmock/gmock.h"
+#include "build/googletest-src/googlemock/include/gmock/gmock-more-matchers.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sapi_minitar.h"
-// #include "testing/base/public/gunit.h"
-// #include "testing/base/public/gunit.h"
 
 using ::sandbox2::file::JoinPath;
 using ::testing::Eq;
 using ::testing::IsTrue;
+using ::testing::StrEq;
 
 using ::sandbox2::file_util::fileops::Exists;
+using ::sandbox2::util::VecStringToCharPtrArr;
 
 namespace {
 
+// We will use a fixture class for testing which allows us to override the
+// SetUp and TearDown functions. Also, data that needs to be initialized
+// or destroyed only once (the test files and directories) will be handled
+// in the SetUpTestSuite and TearDownTestSuite functions which are executed
+// only once.
+// All of the testing data will be placed in a temporary directory and each
+// test will have it's own temporary directory. At the end of each test
+// and all of the tests, the temporary data is deleted.
 class MiniTarTest : public ::testing::Test {
  protected:
+  // Before running the tests, we create a temporary directory which will
+  // store generated files and directories used for testing.
+  // The directory will look as follows:
+  // -file1
+  // -dir1 - file2
+  //       - dir2 - file3
   static void SetUpTestSuite() {
     data_dir_ = CreateTempDirAtCWD();
     init_wd_ = sandbox2::file_util::fileops::GetCWD();
     ASSERT_THAT(Exists(data_dir_, false), IsTrue())
         << "Test data directory was not created";
-    ASSERT_THAT(chdir(data_dir_.c_str()), Eq(0))
+    ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
         << "Could not chdir into test data directory";
 
-    CreateAndWriteToFile("file1");
+    CreateAndWriteToFile(kFile1_);
+    ASSERT_THAT(mkdir(kDir1_.data(), 0755), Eq(0)) << "Could not create dir1";
+    CreateAndWriteToFile(kFile2_);
+    ASSERT_THAT(mkdir(kDir2_.data(), 0755), Eq(0)) << "Could not create dir2";
+    CreateAndWriteToFile(kFile3_);
 
     test_count_ = 0;
   }
@@ -42,7 +66,7 @@ class MiniTarTest : public ::testing::Test {
     // The tests have the data directory as their working directory at the end
     // so we move to the initial working directory in order to not delete the
     // directory that we are inside of.
-    ASSERT_THAT(chdir(init_wd_.c_str()), Eq(0))
+    ASSERT_THAT(chdir(init_wd_.data()), Eq(0))
         << "Could not chdir into initial working directory";
     EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(data_dir_),
                 IsTrue)
@@ -50,17 +74,19 @@ class MiniTarTest : public ::testing::Test {
   }
 
   void SetUp() override {
+    // We use a unique id based on test count to make sure that files created
+    // during tests do not overlap.
     id_ = "test" + std::to_string(test_count_);
     tmp_dir_ = CreateTempDirAtCWD();
     ASSERT_THAT(Exists(tmp_dir_, false), IsTrue)
         << "Could not create test specific temporary directory";
-    ASSERT_THAT(chdir(data_dir_.c_str()), Eq(0))
+    ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
         << "Could not chdir into test data directory";
   }
 
   void TearDown() override {
-    // Move to another directory before deleting the temporary folder
-    ASSERT_THAT(chdir(data_dir_.c_str()), Eq(0))
+    // Move to another directory before deleting the temporary folder.
+    ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
         << "Could not chdir into test data directory";
 
     EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(tmp_dir_),
@@ -70,8 +96,8 @@ class MiniTarTest : public ::testing::Test {
   }
 
   // Creates the file specified and writes the same filename.
-  // This is done in order to not have completely empty files for the archiving
-  // step.
+  // This is done in order to not have completely empty files for the
+  // archiving step.
   static void CreateAndWriteToFile(absl::string_view file) {
     std::ofstream fin(file.data());
     ASSERT_THAT(fin.is_open(), IsTrue()) << "Could not create" << file;
@@ -79,30 +105,158 @@ class MiniTarTest : public ::testing::Test {
     fin.close();
   }
 
+  // Checks if the files exists and if the contents are correct.
+  // In these tests, each file contains the relative path from the test
+  // directory.
+  // Example: dir1/dir2/file3 will contain dir1/dir2/file3.
+  // What the files contain does not matter as much, the only important thing
+  // is that they are not empty so we can check if the contents are preserved.
+  static void CheckFile(const std::string& file) {
+    ASSERT_THAT(Exists(file, false), IsTrue()) << "Could not find " << file;
+    std::ifstream fin(file);
+    ASSERT_THAT(fin.is_open(), IsTrue()) << "Error when opening " << file;
+
+    std::string file_contents((std::istreambuf_iterator<char>(fin)),
+                              std::istreambuf_iterator<char>());
+
+    EXPECT_THAT(file_contents, StrEq(file))
+        << "Contents of " << file << " are different after extraction";
+    fin.close();
+  }
+
   static int test_count_;
   static std::string data_dir_;
   static std::string init_wd_;
   std::string tmp_dir_, id_;
+
+  static constexpr absl::string_view kFile1_ = "file1";
+  static constexpr absl::string_view kFile2_ = "dir1/file2";
+  static constexpr absl::string_view kFile3_ = "dir1/dir2/file3";
+  static constexpr absl::string_view kDir1_ = "dir1";
+  static constexpr absl::string_view kDir2_ = "dir1/dir2";
 };
 
-int MiniTarTest::test_count_ = 0;
+int MiniTarTest::test_count_;
 std::string MiniTarTest::data_dir_;
 std::string MiniTarTest::init_wd_;
 
-TEST_F(MiniTarTest, Test1) {
-  // ASSERT_THAT(true, IsTrue()) << "TEST";
-  const char* args[] = {"file1", nullptr};
-  create(id_.c_str(), 0, args, false);
+// The tests have the following pattern:
+// 1) From inside the test data directory, call the create function with
+// different arguments.
+// 2) Move to the test specific temporary directory created during the
+// set up phase.
+// 3) Extract the archive created at step 1.
+// 4) Check that the files in the archive have been extracted correctly
+// by first checking if they exist and then checking if the content is the
+// same as in the original file.
+TEST_F(MiniTarTest, TestFileSimple) {
+  std::vector<std::string> v = {kFile1_.data()};
 
-  ASSERT_THAT(chdir(tmp_dir_.c_str()), Eq(0))
+  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  extract(JoinPath(data_dir_, id_).c_str(), 1, 0, false);
-  EXPECT_THAT(Exists("file1", false), IsTrue()) << "Could not find file1";
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile1_));
 }
 
-TEST_F(MiniTarTest, Test2) { ASSERT_THAT(true, IsTrue()) << "TEST"; }
+TEST_F(MiniTarTest, TestMultipleFiles) {
+  std::vector<std::string> v = {kFile1_.data(), kFile2_.data(), kFile3_.data()};
+  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(Exists(id_.data(), false), IsTrue())
+      << "Archive file was not created";
 
-TEST(TESTEX1, TESTEX2) { ASSERT_THAT(true, IsTrue()) << "TEST"; }
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile1_));
+  CheckFile(std::string(kFile2_));
+  CheckFile(std::string(kFile3_));
+}
+
+TEST_F(MiniTarTest, TestDirectorySimple) {
+  std::vector<std::string> v = {kDir2_.data()};
+  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile3_));
+}
+
+TEST_F(MiniTarTest, TestDirectoryNested) {
+  std::vector<std::string> v = {kDir1_.data()};
+  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile2_));
+  CheckFile(std::string(kFile3_));
+}
+
+TEST_F(MiniTarTest, TestComplex) {
+  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile1_));
+  CheckFile(std::string(kFile2_));
+  CheckFile(std::string(kFile3_));
+}
+
+TEST_F(MiniTarTest, TestCompress) {
+  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  int compress = 'Z';
+  create(id_.data(), compress, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile1_));
+  CheckFile(std::string(kFile2_));
+  CheckFile(std::string(kFile3_));
+}
+
+TEST_F(MiniTarTest, TestGZIP) {
+  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  int compress = 'z';
+  create(id_.data(), compress, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile1_));
+  CheckFile(std::string(kFile2_));
+  CheckFile(std::string(kFile3_));
+}
+
+TEST_F(MiniTarTest, TestBZIP2) {
+  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  int compress = 'j';
+  create(id_.data(), compress, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile1_));
+  CheckFile(std::string(kFile2_));
+  CheckFile(std::string(kFile3_));
+}
 
 }  // namespace

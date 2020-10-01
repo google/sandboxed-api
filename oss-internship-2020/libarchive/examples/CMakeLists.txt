@@ -30,7 +30,7 @@ target_link_libraries(sapi_minitar_lib PUBLIC
 )
 
 target_include_directories(sapi_minitar_lib INTERFACE
-"${PROJECT_SOURCE_DIR}/examples"
+  "${PROJECT_SOURCE_DIR}/examples"
 )
 
 add_executable(sapi_minitar
@@ -38,16 +38,5 @@ add_executable(sapi_minitar
 )
 
 target_link_libraries(sapi_minitar PRIVATE
-  #libarchive_sapi
-  #sapi::sapi
   sapi_minitar_lib
-  #glog::glog
-)
-
-add_executable(minitar
-  orig/minitar.cc
-)
-
-target_link_libraries(minitar PRIVATE
-  archive
 )
