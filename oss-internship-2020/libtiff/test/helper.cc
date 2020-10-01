@@ -14,7 +14,7 @@
 
 #include "helper.h"
 
-static auto* g_in_dir = new std::string();
+static std::string* g_in_dir = nullptr;
 
 std::string GetImagesDir() {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
@@ -30,8 +30,8 @@ std::string GetImagesDir() {
 }
 
 std::string GetFilePath(const std::string& filename) {
-  if (g_in_dir->empty()) {
-    *g_in_dir = GetImagesDir();
+  if (!g_in_dir) {
+    g_in_dir = new std::string(GetImagesDir());
   }
   return sandbox2::file::JoinPath(*g_in_dir, filename);
 }

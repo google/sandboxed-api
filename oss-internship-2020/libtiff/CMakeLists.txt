@@ -43,6 +43,9 @@ add_subdirectory(
 )
 
 add_sapi_library(tiff_sapi
+    # List of functions that we want to include in the
+    # generated sandboxed API class
+
     FUNCTIONS   TIFFOpen
                 TIFFClose
 
@@ -105,8 +108,7 @@ add_sapi_library(tiff_sapi
 
                 TIFFCreateEXIFDirectory
                 TIFFWriteCustomDirectory
-                            # List of functions that we want to include in the
-                            # generated sandboxed API class
+
     INPUTS wrapper/libtiff/libtiff/tiffio.h
            wrapper/func.h
                             # Header files or .cc files that should be parsed
