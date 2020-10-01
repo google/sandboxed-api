@@ -128,10 +128,10 @@ class Comms {
   bool SendUint32(uint32_t v) { return SendGeneric(v, kTagUint32); }
   bool RecvInt32(int32_t* v) { return RecvIntGeneric(v, kTagInt32); }
   bool SendInt32(int32_t v) { return SendGeneric(v, kTagInt32); }
-  bool RecvUint64(uint64* v) { return RecvIntGeneric(v, kTagUint64); }
-  bool SendUint64(uint64 v) { return SendGeneric(v, kTagUint64); }
-  bool RecvInt64(int64* v) { return RecvIntGeneric(v, kTagInt64); }
-  bool SendInt64(int64 v) { return SendGeneric(v, kTagInt64); }
+  bool RecvUint64(uint64_t* v) { return RecvIntGeneric(v, kTagUint64); }
+  bool SendUint64(uint64_t v) { return SendGeneric(v, kTagUint64); }
+  bool RecvInt64(int64_t* v) { return RecvIntGeneric(v, kTagInt64); }
+  bool SendInt64(int64_t v) { return SendGeneric(v, kTagInt64); }
   bool RecvBool(bool* v) { return RecvIntGeneric(v, kTagBool); }
   bool SendBool(bool v) { return SendGeneric(v, kTagBool); }
   bool RecvString(std::string* v);
