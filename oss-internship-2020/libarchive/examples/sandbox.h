@@ -1,20 +1,28 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef SAPI_LIBARCHIVE_SANDBOX_H
 #define SAPI_LIBARCHIVE_SANDBOX_H
 
 #include <asm/unistd_64.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <syscall.h>
-#include <unistd.h>
 
 #include "libarchive_sapi.sapi.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sapi_minitar.h"
-// #include "sandboxed_api/sandbox2/util/fileops.h"
 
 // When creating an archive, we need read permissions on each of the
 // file/directory added in the archive. Also, in order to create the archive, we
-// map /output with the basename of the archive. This way, the program can
+// map "/output" with the basename of the archive. This way, the program can
 // create the file without having access to anything else.
 class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
  public:
@@ -54,7 +62,7 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
                 __NR_getdents64,
             });
 
-    // Here we only check whether the entry is a file or a directory.
+    // We check whether the entry is a file or a directory.
     for (const auto& i : files_) {
       struct stat s;
       stat(i.c_str(), &s);

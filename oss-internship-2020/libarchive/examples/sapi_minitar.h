@@ -1,54 +1,62 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef SAPI_LIBARCHIVE_MINITAR_H
 #define SAPI_LIBARCHIVE_MINITAR_H
 
 #include <archive.h>
 #include <archive_entry.h>
 #include <fcntl.h>
-#include <glog/logging.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <cstdlib>
-#include <iostream>
-#include <memory>
 
 #include "libarchive_sapi.sapi.h"
 #include "sandbox.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
-#include "sandboxed_api/var_array.h"
 
+// Creates an archive file at the given filename.
 void create(const char* filename, int compress, const char** argv,
             bool verbose = true);
 
+// Extracts an archive file. If do_extract is true, the files will
+// be created relative to the current working directory. If do_extract
+// is false then the function will just print the entries of the archive.
 void extract(const char* filename, int do_extract, int flags,
              bool verbose = true);
 
+// This function is only called from the "extract function". It is still
+// isolated in order to not modify the code structure as much.
 int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
               LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox);
 
 inline constexpr size_t kBlockSize = 10240;
 inline constexpr size_t kBuffSize = 16384;
 
-// Converts only one string to an absolute path by prepending the current
-// working directory to the relative path
+// Converts one string to an absolute path by prepending the current
+// working directory to the relative path.
+// The path is also cleaned at the end.
 std::string MakeAbsolutePathAtCWD(const std::string& path);
 
 // This function takes a status as argument and after checking the status
 // it transfers the string. This is used mostly with archive_error_string
-// and other library functions that return a char *.
+// and other library functions that return a char*.
 std::string CheckStatusAndGetString(const absl::StatusOr<char*>& status,
                                     LibarchiveSandbox& sandbox);
 
 // Creates a temporary directory in the current working directory and
-// returns the path. This is used in the extract function where the sandbox
-// changes the current working directory to this temporary directory.
+// returns the path. This is used in the extract function where the sandboxed
+// process changes the current working directory to this temporary directory.
 std::string CreateTempDirAtCWD();
 
 #endif  // SAPI_LIBARCHIVE_MINITAR_H
