@@ -20,7 +20,7 @@
 
 namespace {
 
-#define SPP 3  // kSamplePerPixel
+constexpr unsigned kSamplePerPixel = 3;
 constexpr uint16_t kWidth = 1;
 constexpr uint16_t kLength = 1;
 constexpr uint16_t kBps = 8;
@@ -46,7 +46,7 @@ constexpr std::array<SingleTag, 9> kShortSingleTags = {
      {TIFFTAG_MINSAMPLEVALUE, 23},
      {TIFFTAG_MAXSAMPLEVALUE, 241},
      {TIFFTAG_INKSET, INKSET_MULTIINK},
-     {TIFFTAG_NUMBEROFINKS, SPP},
+     {TIFFTAG_NUMBEROFINKS, kSamplePerPixel},
      {TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}}};
 
 constexpr std::array<PairedTag, 4> kShortPairedTags = {
@@ -66,8 +66,8 @@ TEST(SandboxTest, ShortTag) {
   TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  std::array<uint8_t, SPP> buffer = {0, 127, 255};
-  sapi::v::Array<uint8_t> buffer_(buffer.data(), SPP);
+  std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), kSamplePerPixel);
 
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<TIFF*> status_or_tif;
@@ -95,7 +95,7 @@ TEST(SandboxTest, ShortTag) {
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set BitsPerSample tag";
 
-  status_or_int = api.TIFFSetFieldUShort1(&tif, TIFFTAG_SAMPLESPERPIXEL, SPP);
+  status_or_int = api.TIFFSetFieldUShort1(&tif, TIFFTAG_SAMPLESPERPIXEL, kSamplePerPixel);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set SamplesPerPixel tag";
@@ -148,7 +148,7 @@ TEST(SandboxTest, ShortTag) {
   CheckLongField(api, tif2, TIFFTAG_IMAGELENGTH, kLength);
   CheckShortField(api, tif2, TIFFTAG_BITSPERSAMPLE, kBps);
   CheckShortField(api, tif2, TIFFTAG_PHOTOMETRIC, kPhotometric);
-  CheckShortField(api, tif2, TIFFTAG_SAMPLESPERPIXEL, SPP);
+  CheckShortField(api, tif2, TIFFTAG_SAMPLESPERPIXEL, kSamplePerPixel);
   CheckLongField(api, tif2, TIFFTAG_ROWSPERSTRIP, kRowsPerStrip);
   CheckShortField(api, tif2, TIFFTAG_PLANARCONFIG, kPlanarConfig);
 

@@ -28,7 +28,7 @@ struct LongTag {
 constexpr std::array<LongTag, 1> kLongTags = {
     {TIFFTAG_SUBFILETYPE, 1,
      FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
-#define SPP 3  // kSamplePerPixel
+constexpr unsigned kSamplePerPixel = 3;
 constexpr unsigned kWidth = 1;
 constexpr unsigned kLength = 1;
 constexpr unsigned kBps = 8;
@@ -45,8 +45,8 @@ TEST(SandboxTest, LongTag) {
   TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  std::array<uint8_t, SPP> buffer = {0, 127, 255};
-  sapi::v::Array<uint8_t> buffer_(buffer.data(), SPP);
+  std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), kSamplePerPixel);
 
   sapi::StatusOr<int> status_or_int;
   sapi::StatusOr<TIFF*> status_or_tif;
@@ -74,7 +74,7 @@ TEST(SandboxTest, LongTag) {
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set BitsPerSample tag";
 
-  status_or_int = api.TIFFSetFieldU1(&tif, TIFFTAG_SAMPLESPERPIXEL, SPP);
+  status_or_int = api.TIFFSetFieldU1(&tif, TIFFTAG_SAMPLESPERPIXEL, kSamplePerPixel);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set SamplesPerPixel tag";

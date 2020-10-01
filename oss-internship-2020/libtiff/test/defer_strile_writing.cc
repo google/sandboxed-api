@@ -19,7 +19,7 @@
 
 namespace {
 
-#define TBS 256  // kTileBufferSize
+constexpr unsigned kTileBufferSize = 256;
 constexpr uint16_t kWidth = 1;
 constexpr uint16_t kBps = 8;
 constexpr uint16_t kRowsPerStrip = 1;
@@ -207,15 +207,15 @@ void TestWriting(const char* mode, int tiled, int height) {
 
   if (tiled) {
     for (int i = 0; i < (height + 15) / 16; ++i) {
-      std::array<unsigned char, TBS> tilebuffer;
+      std::array<unsigned char, kTileBufferSize> tilebuffer;
       tilebuffer.fill(i);
-      sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(), TBS);
+      sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(), kTileBufferSize);
 
       status_or_int =
-          api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(), TBS);
+          api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(), kTileBufferSize);
       ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteEncodedTile fatal error";
-      EXPECT_THAT(status_or_int.value(), Eq(TBS))
-          << "line " << i << ": expected " << TBS << ", got "
+      EXPECT_THAT(status_or_int.value(), Eq(kTileBufferSize))
+          << "line " << i << ": expected " << kTileBufferSize << ", got "
           << status_or_int.value();
     }
   } else {
@@ -245,17 +245,17 @@ void TestWriting(const char* mode, int tiled, int height) {
   if (tiled) {
     for (int i = 0; i < (height + 15) / 16; ++i) {
       for (int retry = 0; retry < 2; ++retry) {
-        std::array<unsigned char, TBS> tilebuffer;
+        std::array<unsigned char, kTileBufferSize> tilebuffer;
         unsigned char expected_c = (unsigned char)i;
         tilebuffer.fill(0);
 
-        sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(), TBS);
+        sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(), kTileBufferSize);
         status_or_long =
-            api.TIFFReadEncodedTile(&tif2, i, tilebuffer_.PtrBoth(), TBS);
+            api.TIFFReadEncodedTile(&tif2, i, tilebuffer_.PtrBoth(), kTileBufferSize);
         ASSERT_THAT(status_or_long, IsOk())
             << "TIFFReadEncodedTile fatal error";
-        EXPECT_THAT(status_or_long.value(), Eq(TBS))
-            << "line " << i << ": expected " << TBS << ", got "
+        EXPECT_THAT(status_or_long.value(), Eq(kTileBufferSize))
+            << "line " << i << ": expected " << kTileBufferSize << ", got "
             << status_or_long.value();
 
         bool cmp = tilebuffer[0] != expected_c || tilebuffer[255] != expected_c;

@@ -27,26 +27,37 @@ constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
 constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
 constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
 
+constexpr unsigned kRawTileNumber = 9;
+
 namespace {
 
 absl::Status CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
                           const std::array<uint8_t, 6>& expected_cluster) {
+  if (buffer.GetSize() <= cluster * 6) {
+    return absl::InternalError("Buffer overrun\n");
+  }
   uint8_t* target = buffer.GetData() + cluster * 6;
 
   if (!std::memcmp(target, expected_cluster.data(), 6)) {
     return absl::OkStatus();
   }
 
+  // the image is split on 6-bit clusters because it has YCbCr color format
   return absl::InternalError(
       absl::StrCat("Cluster ", cluster, " did not match expected results.\n",
                    "Expect: ", expected_cluster[0], "\t", expected_cluster[1],
-                   "\t", expected_cluster[4], "\t", expected_cluster[5], "\t",
-                   expected_cluster[2], "\t", expected_cluster[3], "\n"));
+                   "\t", expected_cluster[2], "\t", expected_cluster[3], "\t",
+                   expected_cluster[4], "\t", expected_cluster[5], "\n",
+                   "Got: ", target[0], "\t", target[1], "\t", target[2], "\t",
+                   target[3], "\t", target[4], "\t", target[5], "\n"));
 }
 
 absl::Status CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
                            int max_green, int min_blue, int max_blue,
                            const sapi::v::Array<uint8_t>& buffer) {
+  if (buffer.GetSize() <= pixel * 3) {
+    return absl::InternalError("Buffer overrun\n");
+  }
   uint8_t* rgb = buffer.GetData() + 3 * pixel;
 
   if (rgb[0] >= min_red && rgb[0] <= max_red && rgb[1] >= min_green &&
@@ -56,9 +67,9 @@ absl::Status CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
 
   return absl::InternalError(absl::StrCat(
       "Pixel ", pixel, " did not match expected results.\n", "Got R=", rgb[0],
-      " (expected ", min_red, "..", max_red, "), G=", rgb[1], " (expected ",
-      min_green, "..", max_green, "), B=", rgb[2], " (expected ", min_blue,
-      "..", max_blue, ")\n"));
+      " (expected ", min_red, "..=", max_red, "), G=", rgb[1], " (expected ",
+      min_green, "..=", max_green, "), B=", rgb[2], " (expected ", min_blue,
+      "..=", max_blue, ")\n"));
 }
 
 absl::Status CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
@@ -67,6 +78,10 @@ absl::Status CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
                             const sapi::v::Array<unsigned>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
+
+  if (buffer.GetSize() <= adjusted_pixel) {
+    return absl::InternalError("Buffer overrun\n");
+  }
   uint32 rgba = buffer[adjusted_pixel];
 
   if (TIFFGetR(rgba) >= (uint32)min_red && TIFFGetR(rgba) <= (uint32)max_red &&
@@ -81,10 +96,10 @@ absl::Status CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
 
   return absl::InternalError(absl::StrCat(
       "Pixel ", pixel, " did not match expected results.\n",
-      "Got R=", TIFFGetR(rgba), " (expected ", min_red, "..", max_red,
-      "), G=", TIFFGetG(rgba), " (expected ", min_green, "..", max_green,
-      "), B=", TIFFGetB(rgba), " (expected ", min_blue, "..", max_blue, "), A=",
-      TIFFGetA(rgba), " (expected ", min_alpha, "..", max_alpha, ")\n"));
+      "Got R=", TIFFGetR(rgba), " (expected ", min_red, "..=", max_red,
+      "), G=", TIFFGetG(rgba), " (expected ", min_green, "..=", max_green,
+      "), B=", TIFFGetB(rgba), " (expected ", min_blue, "..=", max_blue, "), A=",
+      TIFFGetA(rgba), " (expected ", min_alpha, "..=", max_alpha, ")\n"));
 }
 
 }  // namespace
@@ -101,7 +116,8 @@ std::string GetFilePath(const std::string filename) {
   if (find == std::string::npos) {
     LOG(ERROR) << "Something went wrong: CWD don't contain build dir. "
                << "Please run tests from build dir or send project dir as a "
-               << "parameter: ./sandboxed /absolute/path/to/project/dir \n";
+               << "parameter: ./sandboxed /absolute/path/to/project/dir .\n"
+               << "Falling back to using current working directory as root dir.\n";
     project_path = cwd;
   } else {
     project_path = cwd.substr(0, find);
@@ -141,30 +157,30 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     return absl::InternalError(absl::StrCat("Could not open ", srcfile));
   }
 
-  SAPI_ASSIGN_OR_RETURN(status_or_int,
+  SAPI_ASSIGN_OR_RETURN(auto return_value,
                         api.TIFFGetField2(&tif, TIFFTAG_YCBCRSUBSAMPLING,
                                           h.PtrBoth(), v.PtrBoth()));
-  if (status_or_int.value() == 0 || h.GetValue() != 2 || v.GetValue() != 2) {
+  if (return_value == 0 || h.GetValue() != 2 || v.GetValue() != 2) {
     return absl::InternalError("Could not retrieve subsampling tag");
   }
 
-  SAPI_ASSIGN_OR_RETURN(status_or_long, api.TIFFTileSize(&tif));
-  if (status_or_long.value() != 24576) {
+  SAPI_ASSIGN_OR_RETURN(tsize_t sz, api.TIFFTileSize(&tif));
+  if (sz != 24576) {
     return absl::InternalError(
-        absl::StrCat("tiles are ", status_or_long.value(), " bytes\n"));
+        absl::StrCat("tiles are ", sz, " bytes\n"));
   }
-  tsize_t sz = status_or_long.value();
 
   sapi::v::Array<uint8_t> buffer_(sz);
+  // Read a tile in decompressed form, but still YCbCr subsampled
   SAPI_ASSIGN_OR_RETURN(
-      status_or_long, api.TIFFReadEncodedTile(&tif, 9, buffer_.PtrBoth(), sz));
-  if (status_or_long.value() != sz) {
+      tsize_t new_sz, api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz));
+  if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
         "Did not get expected result code from TIFFReadEncodedTile(): ",
         status_or_long.value(), " instead of ", sz));
   }
 
-  unsigned pixel_status = 1;
+  bool pixel_status = true;
   if (status = CheckCluster(0, buffer_, kCluster0); !status.ok()) {
     LOG(ERROR) << "CheckCluster failed:\n" << status.ToString();
   }
@@ -187,28 +203,28 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
   SAPI_ASSIGN_OR_RETURN(
       status_or_int,
       api.TIFFSetFieldU1(&tif, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB));
-  if (!status_or_int.value()) {
+  if (return_value == 0) {
     return absl::InternalError("TIFFSetFieldU1 not available");
   }
 
-  SAPI_ASSIGN_OR_RETURN(status_or_long, api.TIFFTileSize(&tif));
-  if (status_or_long.value() != 128 * 128 * 3) {
+  SAPI_ASSIGN_OR_RETURN(sz, api.TIFFTileSize(&tif));
+  if (sz != 128 * 128 * 3) {
     return absl::InternalError(
-        absl::StrCat("tiles are ", status_or_long.value(), " bytes"));
+        absl::StrCat("tiles are ", sz, " bytes"));
   }
-  sz = status_or_long.value();
 
   sapi::v::Array<uint8_t> buffer2_(sz);
 
   SAPI_ASSIGN_OR_RETURN(
-      status_or_long, api.TIFFReadEncodedTile(&tif, 9, buffer2_.PtrBoth(), sz));
-  if (status_or_long.value() != sz) {
+      new_sz, api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz));
+  if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
         "Did not get expected result code from TIFFReadEncodedTile(): ",
-        status_or_long.value(), " instead of ", sz));
+        new_sz, " instead of ", sz));
   }
 
-  pixel_status = 1;
+  pixel_status = true;
+  // Checking specific pixels from the test data, 0th, 64th and 512th
   if (status = CheckRgbPixel(0, 15, 18, 0, 0, 18, 41, buffer2_); !status.ok()) {
     LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString();
   }
@@ -231,19 +247,21 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
       status_or_tif, api.TIFFOpen(srcfile_var.PtrBefore(), r_var.PtrBefore()));
 
   sapi::v::RemotePtr tif2(status_or_tif.value());
-  if (!tif2.GetValue()) {  // tif is NULL
+  if (!tif2.GetValue()) {
     return absl::InternalError(absl::StrCat("Could not reopen ", srcfile));
   }
 
   sapi::v::Array<uint32> rgba_buffer_(128 * 128);
 
+  // read as rgba
   SAPI_ASSIGN_OR_RETURN(
-      status_or_int,
+      return_value,
       api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer_.PtrBoth()));
-  if (!status_or_int.value()) {
+  if (return_value == 0) {
     return absl::InternalError("TIFFReadRGBATile() returned failure code");
   }
 
+  // Checking specific pixels from the test data, 0th, 64th and 512th
   if (status = CheckRgbaPixel(0, 15, 18, 0, 0, 18, 41, 255, 255, rgba_buffer_);
       !status.ok()) {
     LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString();
@@ -276,7 +294,6 @@ int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   std::string srcfile;
-  // "test/images/quad-tile.jpg.tiff"
   std::string srcfilerel = "quad-tile.jpg.tiff";
 
   if (argc < 2) {

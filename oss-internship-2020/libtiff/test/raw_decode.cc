@@ -47,7 +47,7 @@ bool CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
       << "\t" << expected_cluster[2] << "\t" << expected_cluster[3] << "\t"
       << expected_cluster[4] << "\t" << expected_cluster[5] << "\n"
       << "Got: " << target[0] << "\t" << target[1] << "\t" << target[2] << "\t"
-      << target[3] << "\t" << target[4] << "\t" << target[4];
+      << target[3] << "\t" << target[4] << "\t" << target[5];
 
   return comp;
 }
@@ -70,9 +70,9 @@ bool CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
 
   EXPECT_THAT(comp, IsFalse())
       << "Pixel " << pixel << " did not match expected results.\n"
-      << "Got R=" << rgb[0] << " (expected " << min_red << ".." << max_red
-      << "), G=" << rgb[1] << " (expected " << min_green << ".." << max_green
-      << "), B=" << rgb[2] << " (expected " << min_blue << ".." << max_blue
+      << "Got R=" << rgb[0] << " (expected " << min_red << "..=" << max_red
+      << "), G=" << rgb[1] << " (expected " << min_green << "..=" << max_green
+      << "), B=" << rgb[2] << " (expected " << min_blue << "..=" << max_blue
       << ")";
   return comp;
 }
@@ -103,11 +103,11 @@ bool CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
 
   EXPECT_THAT(comp, IsFalse())
       << "Pixel " << pixel << " did not match expected results.\n"
-      << "Got R=" << TIFFGetR(rgba) << " (expected " << min_red << ".."
+      << "Got R=" << TIFFGetR(rgba) << " (expected " << min_red << "..="
       << max_red << "), G=" << TIFFGetG(rgba) << " (expected " << min_green
-      << ".." << max_green << "), B=" << TIFFGetB(rgba) << " (expected "
-      << min_blue << ".." << max_blue << "), A=" << TIFFGetA(rgba)
-      << " (expected " << min_alpha << ".." << max_alpha << ")";
+      << "..=" << max_green << "), B=" << TIFFGetB(rgba) << " (expected "
+      << min_blue << "..=" << max_blue << "), A=" << TIFFGetA(rgba)
+      << " (expected " << min_alpha << "..=" << max_alpha << ")";
   return comp;
 }
 
