@@ -95,7 +95,8 @@ TEST(SandboxTest, ShortTag) {
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set BitsPerSample tag";
 
-  status_or_int = api.TIFFSetFieldUShort1(&tif, TIFFTAG_SAMPLESPERPIXEL, kSamplePerPixel);
+  status_or_int =
+      api.TIFFSetFieldUShort1(&tif, TIFFTAG_SAMPLESPERPIXEL, kSamplePerPixel);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set SamplesPerPixel tag";

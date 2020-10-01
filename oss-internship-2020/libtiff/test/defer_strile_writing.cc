@@ -209,10 +209,11 @@ void TestWriting(const char* mode, int tiled, int height) {
     for (int i = 0; i < (height + 15) / 16; ++i) {
       std::array<unsigned char, kTileBufferSize> tilebuffer;
       tilebuffer.fill(i);
-      sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(), kTileBufferSize);
+      sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(),
+                                                kTileBufferSize);
 
-      status_or_int =
-          api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(), kTileBufferSize);
+      status_or_int = api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(),
+                                               kTileBufferSize);
       ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteEncodedTile fatal error";
       EXPECT_THAT(status_or_int.value(), Eq(kTileBufferSize))
           << "line " << i << ": expected " << kTileBufferSize << ", got "
@@ -249,9 +250,10 @@ void TestWriting(const char* mode, int tiled, int height) {
         unsigned char expected_c = (unsigned char)i;
         tilebuffer.fill(0);
 
-        sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(), kTileBufferSize);
-        status_or_long =
-            api.TIFFReadEncodedTile(&tif2, i, tilebuffer_.PtrBoth(), kTileBufferSize);
+        sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(),
+                                                  kTileBufferSize);
+        status_or_long = api.TIFFReadEncodedTile(
+            &tif2, i, tilebuffer_.PtrBoth(), kTileBufferSize);
         ASSERT_THAT(status_or_long, IsOk())
             << "TIFFReadEncodedTile fatal error";
         EXPECT_THAT(status_or_long.value(), Eq(kTileBufferSize))

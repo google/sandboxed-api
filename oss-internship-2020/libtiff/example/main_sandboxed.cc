@@ -43,13 +43,12 @@ absl::Status CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
   }
 
   // the image is split on 6-bit clusters because it has YCbCr color format
-  return absl::InternalError(
-      absl::StrCat("Cluster ", cluster, " did not match expected results.\n",
-                   "Expect: ", expected_cluster[0], "\t", expected_cluster[1],
-                   "\t", expected_cluster[2], "\t", expected_cluster[3], "\t",
-                   expected_cluster[4], "\t", expected_cluster[5], "\n",
-                   "Got: ", target[0], "\t", target[1], "\t", target[2], "\t",
-                   target[3], "\t", target[4], "\t", target[5], "\n"));
+  return absl::InternalError(absl::StrCat(
+      "Cluster ", cluster, " did not match expected results.\n", "Expect: ",
+      expected_cluster[0], "\t", expected_cluster[1], "\t", expected_cluster[2],
+      "\t", expected_cluster[3], "\t", expected_cluster[4], "\t",
+      expected_cluster[5], "\n", "Got: ", target[0], "\t", target[1], "\t",
+      target[2], "\t", target[3], "\t", target[4], "\t", target[5], "\n"));
 }
 
 absl::Status CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
@@ -98,8 +97,9 @@ absl::Status CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
       "Pixel ", pixel, " did not match expected results.\n",
       "Got R=", TIFFGetR(rgba), " (expected ", min_red, "..=", max_red,
       "), G=", TIFFGetG(rgba), " (expected ", min_green, "..=", max_green,
-      "), B=", TIFFGetB(rgba), " (expected ", min_blue, "..=", max_blue, "), A=",
-      TIFFGetA(rgba), " (expected ", min_alpha, "..=", max_alpha, ")\n"));
+      "), B=", TIFFGetB(rgba), " (expected ", min_blue, "..=", max_blue,
+      "), A=", TIFFGetA(rgba), " (expected ", min_alpha, "..=", max_alpha,
+      ")\n"));
 }
 
 }  // namespace
@@ -114,10 +114,11 @@ std::string GetFilePath(const std::string filename) {
 
   std::string project_path;
   if (find == std::string::npos) {
-    LOG(ERROR) << "Something went wrong: CWD don't contain build dir. "
-               << "Please run tests from build dir or send project dir as a "
-               << "parameter: ./sandboxed /absolute/path/to/project/dir .\n"
-               << "Falling back to using current working directory as root dir.\n";
+    LOG(ERROR)
+        << "Something went wrong: CWD don't contain build dir. "
+        << "Please run tests from build dir or send project dir as a "
+        << "parameter: ./sandboxed /absolute/path/to/project/dir .\n"
+        << "Falling back to using current working directory as root dir.\n";
     project_path = cwd;
   } else {
     project_path = cwd.substr(0, find);
@@ -166,14 +167,14 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
 
   SAPI_ASSIGN_OR_RETURN(tsize_t sz, api.TIFFTileSize(&tif));
   if (sz != 24576) {
-    return absl::InternalError(
-        absl::StrCat("tiles are ", sz, " bytes\n"));
+    return absl::InternalError(absl::StrCat("tiles are ", sz, " bytes\n"));
   }
 
   sapi::v::Array<uint8_t> buffer_(sz);
   // Read a tile in decompressed form, but still YCbCr subsampled
   SAPI_ASSIGN_OR_RETURN(
-      tsize_t new_sz, api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz));
+      tsize_t new_sz,
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz));
   if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
         "Did not get expected result code from TIFFReadEncodedTile(): ",
@@ -209,18 +210,18 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
 
   SAPI_ASSIGN_OR_RETURN(sz, api.TIFFTileSize(&tif));
   if (sz != 128 * 128 * 3) {
-    return absl::InternalError(
-        absl::StrCat("tiles are ", sz, " bytes"));
+    return absl::InternalError(absl::StrCat("tiles are ", sz, " bytes"));
   }
 
   sapi::v::Array<uint8_t> buffer2_(sz);
 
   SAPI_ASSIGN_OR_RETURN(
-      new_sz, api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz));
+      new_sz,
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz));
   if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
-        "Did not get expected result code from TIFFReadEncodedTile(): ",
-        new_sz, " instead of ", sz));
+        "Did not get expected result code from TIFFReadEncodedTile(): ", new_sz,
+        " instead of ", sz));
   }
 
   pixel_status = true;

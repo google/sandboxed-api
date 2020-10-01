@@ -103,11 +103,12 @@ bool CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
 
   EXPECT_THAT(comp, IsFalse())
       << "Pixel " << pixel << " did not match expected results.\n"
-      << "Got R=" << TIFFGetR(rgba) << " (expected " << min_red << "..="
-      << max_red << "), G=" << TIFFGetG(rgba) << " (expected " << min_green
-      << "..=" << max_green << "), B=" << TIFFGetB(rgba) << " (expected "
-      << min_blue << "..=" << max_blue << "), A=" << TIFFGetA(rgba)
-      << " (expected " << min_alpha << "..=" << max_alpha << ")";
+      << "Got R=" << TIFFGetR(rgba) << " (expected " << min_red
+      << "..=" << max_red << "), G=" << TIFFGetG(rgba) << " (expected "
+      << min_green << "..=" << max_green << "), B=" << TIFFGetB(rgba)
+      << " (expected " << min_blue << "..=" << max_blue
+      << "), A=" << TIFFGetA(rgba) << " (expected " << min_alpha
+      << "..=" << max_alpha << ")";
   return comp;
 }
 
