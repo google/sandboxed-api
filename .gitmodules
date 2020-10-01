@@ -9,4 +9,4 @@
 	url = https://github.com/curl/curl
 [submodule "oss-internship-2020/gdal/gdal"]
 	path = oss-internship-2020/gdal/gdal
-	url = https://github.com/OSGeo/gdal/tree/master/gdal
+	url = https://github.com/OSGeo/gdal/
