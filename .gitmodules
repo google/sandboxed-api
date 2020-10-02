@@ -1,6 +1,9 @@
 [submodule "oss-internship-2020/sapi_lodepng/lodepng"]
 	path = oss-internship-2020/lodepng/lodepng
 	url = https://github.com/lvandeve/lodepng
+[submodule "oss-internship-2020/jsonnet/jsonnet"]
+	path = oss-internship-2020/jsonnet/jsonnet
+	url = https://github.com/google/jsonnet.git
 [submodule "oss-internship-2020/openjpeg/openjpeg"]
 	path = oss-internship-2020/openjpeg/openjpeg
 	url = https://github.com/uclouvain/openjpeg.git
