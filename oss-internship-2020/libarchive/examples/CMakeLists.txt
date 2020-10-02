@@ -19,14 +19,14 @@ add_library(sapi_minitar_lib STATIC
 )
 
 target_link_libraries(sapi_minitar_lib PUBLIC
-  libarchive_sapi
-  sapi::sapi
-  sandbox2::fileops
-  sandbox2::util
-  sandbox2::file_base
-  sandbox2::executor
-  sandbox2::temp_file
   glog::glog
+  libarchive_sapi
+  sandbox2::executor
+  sandbox2::fileops
+  sandbox2::file_base
+  sandbox2::util
+  sandbox2::temp_file
+  sapi::sapi
 )
 
 target_include_directories(sapi_minitar_lib INTERFACE

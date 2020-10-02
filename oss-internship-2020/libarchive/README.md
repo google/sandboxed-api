@@ -4,8 +4,8 @@ Sandboxed version of the [libarchive](https://www.libarchive.org/) minitar [exam
 
 ## Build
 
-First, run `git submodule update --init --recursive` to update submodules.
-After this, run the following commands:
+<!-- First, run `git submodule update --init --recursive` to update submodules.
+After this, run the following commands: -->
 
 `mkdir -p build && cd build`
 
@@ -17,7 +17,8 @@ After this, run the following commands:
 The example binary file can be found at `build/examples/sapi_minitar` and the unit tests at `build/test/sapi_minitar_test`.
 
 ## Patches
-TODO
+
+The original libarchive code required patching since one of the custom types produced errors with libclang Python errors. The patches are applied automatically during the build step and they do not modify the functionality of the library. The repository is also fetched automatically.
 
 ## Examples
 
@@ -49,5 +50,3 @@ The available options are:
 - *z* - Compress with GZIP.
 
 If no compression method is chosen (in the case of archive creation) the files will only be archived.
-
-

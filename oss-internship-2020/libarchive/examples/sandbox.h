@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SAPI_LIBARCHIVE_SANDBOX_H
-#define SAPI_LIBARCHIVE_SANDBOX_H
+#ifndef SAPI_LIBARCHIVE_EXAMPLES_SANDBOX_H
+#define SAPI_LIBARCHIVE_EXAMPLES_SANDBOX_H
 
 #include <asm/unistd_64.h>
 
@@ -65,7 +65,7 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
     // We check whether the entry is a file or a directory.
     for (const auto& i : files_) {
       struct stat s;
-      stat(i.c_str(), &s);
+      CHECK(stat(i.c_str(), &s) == 0) << "Could not stat " << i;
       if (S_ISDIR(s.st_mode)) {
         policy = policy.AddDirectory(i);
       } else {
@@ -100,7 +100,7 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
     // If the user only wants to list the entries in the archive, we do
     // not need to worry about changing directories;
     if (do_extract_) {
-      executor = &executor->set_cwd(std::string(tmp_dir_));
+      executor->set_cwd(std::string(tmp_dir_));
     }
   }
 
@@ -141,4 +141,4 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
   const int do_extract_;
 };
 
-#endif  // SAPI_LIBARCHIVE_SANDBOX_H
+#endif  // SAPI_LIBARCHIVE_EXAMPLES_SANDBOX_H
