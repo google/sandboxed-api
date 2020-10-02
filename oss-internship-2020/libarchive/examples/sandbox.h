@@ -16,8 +16,10 @@
 #define SAPI_LIBARCHIVE_EXAMPLES_SANDBOX_H
 
 #include <asm/unistd_64.h>
+#include <linux/fs.h>
 
 #include "libarchive_sapi.sapi.h"
+#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
 // When creating an archive, we need read permissions on each of the
@@ -56,11 +58,13 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
                 __NR_fstatfs,
                 __NR_socket,
                 __NR_connect,
-                __NR_ioctl,
                 __NR_flistxattr,
                 __NR_recvmsg,
                 __NR_getdents64,
-            });
+            })
+            // Allow ioctl only for FS_IOC_GETFLAGS.
+            .AddPolicyOnSyscall(__NR_ioctl,
+                                {ARG(1), JEQ(FS_IOC_GETFLAGS, ALLOW)});
 
     // We check whether the entry is a file or a directory.
     for (const auto& i : files_) {

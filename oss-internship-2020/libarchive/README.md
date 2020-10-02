@@ -13,8 +13,7 @@ After this, run the following commands: -->
 
 `cmake --build .`
 
-
-The example binary file can be found at `build/examples/sapi_minitar` and the unit tests at `build/test/sapi_minitar_test`.
+The example binary file can be found at **build/examples/sapi_minitar** and the unit tests at **build/test/sapi_minitar_test**.
 
 ## Patches
 
@@ -27,7 +26,6 @@ The code is found in the **examples** directory and is structured as follows:
 - **sapi_minitar_main.cc** - ***main*** function of the minitar tool. This is mostly similar to the original example.
 - **sapi_minitar.h** and **sapi_minitar.cc** - The two main functions (***create*** and ***extract***) and also other helper functions.
 - **sandbox.h** - Custom security policies, depending on the whether the user creates or extracts an archive.
-
 
 On top of that, unit tests can be found in the **test/minitar_test.cc** file.
 
