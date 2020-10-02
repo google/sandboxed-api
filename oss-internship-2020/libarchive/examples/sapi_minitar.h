@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SAPI_LIBARCHIVE_MINITAR_H
-#define SAPI_LIBARCHIVE_MINITAR_H
+#ifndef SAPI_LIBARCHIVE_EXAMPLES_MINITAR_H
+#define SAPI_LIBARCHIVE_EXAMPLES_MINITAR_H
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -59,4 +59,4 @@ std::string CheckStatusAndGetString(const absl::StatusOr<char*>& status,
 // process changes the current working directory to this temporary directory.
 std::string CreateTempDirAtCWD();
 
-#endif  // SAPI_LIBARCHIVE_MINITAR_H
+#endif  // SAPI_LIBARCHIVE_EXAMPLES_MINITAR_H
