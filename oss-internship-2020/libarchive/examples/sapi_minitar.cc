@@ -13,17 +13,17 @@
 // limitations under the License.
 
 #include "sapi_minitar.h"
+#include "sandboxed_api/sandbox2/util/path.h"
 
 void create(const char* initial_filename, int compress, const char** argv,
-            bool verbose /* = true */) {
+            bool verbose) {
   // We split the filename path into dirname and filename. To the filename we
   // prepend "/output/"" so that it will work with the security policy.
   std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
   auto [archive_path, filename_tmp] =
       std::move(sandbox2::file::SplitPath(abs_path));
 
-  std::string filename("/output/");
-  filename.append(filename_tmp);
+  std::string filename = sandbox2::file::JoinPath("/output/", filename_tmp);
 
   std::vector<std::string> absolute_paths;
   sandbox2::util::CharPtrArrToVecString(const_cast<char* const*>(argv),
@@ -259,7 +259,7 @@ void create(const char* initial_filename, int compress, const char** argv,
 }
 
 void extract(const char* filename, int do_extract, int flags,
-             bool verbose /* = true */) {
+             bool verbose) {
   std::string tmp_dir;
   if (do_extract) {
     tmp_dir = CreateTempDirAtCWD();
@@ -268,18 +268,19 @@ void extract(const char* filename, int do_extract, int flags,
   // We can use a struct like this in order to delete the temporary
   // directory that was created earlier whenever the function ends.
   struct ExtractTempDirectoryCleanup {
+    ExtractTempDirectoryCleanup(const std::string& dir): dir_(dir) {}
     ~ExtractTempDirectoryCleanup() {
-      sandbox2::file_util::fileops::DeleteRecursively(dir);
+      sandbox2::file_util::fileops::DeleteRecursively(dir_);
     }
-    std::string dir;
+   private:
+    std::string dir_;
   };
 
   // We should only delete it if the do_extract flag is true which
   // means that this struct is instantiated only in that case.
   std::unique_ptr<ExtractTempDirectoryCleanup> cleanup_ptr;
   if (do_extract) {
-    cleanup_ptr = absl::make_unique<ExtractTempDirectoryCleanup>();
-    cleanup_ptr->dir = tmp_dir;
+    cleanup_ptr = absl::make_unique<ExtractTempDirectoryCleanup>(tmp_dir);
   }
 
   std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
