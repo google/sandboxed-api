@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.12)
 
 project(libcurl_sandbox)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-option(CURL_SAPI_ENABLE_EXAMPLES "" ON)
-option(CURL_SAPI_ENABLE_TESTS "" ON)
+option(SAPI_CURL_ENABLE_EXAMPLES "" ON)
+option(SAPI_CURL_ENABLE_TESTS "" ON)
 
 # Add callbacks used by examples and tests
 if (CURL_SAPI_ENABLE_EXAMPLES OR CURL_SAPI_ENABLE_TESTS)
@@ -35,8 +35,8 @@ add_subdirectory(curl_wrapper)
 
 # Setup Sandboxed API
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
-set(SAPI_ENABLE_EXAMPLES ${CURL_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
-set(SAPI_ENABLE_TESTS ${CURL_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
+set(SAPI_ENABLE_EXAMPLES ${SAPI_CURL_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
+set(SAPI_ENABLE_TESTS ${SAPI_CURL_ENABLE_TESTS} CACHE BOOL "" FORCE)
 add_subdirectory(
   "${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
@@ -125,7 +125,7 @@ add_sapi_library(curl_sapi
 
   LIBRARY_NAME Curl
 
-  NAMESPACE ""
+  NAMESPACE curl
 )
 
 # Include generated SAPI header
@@ -134,11 +134,11 @@ target_include_directories(curl_sapi INTERFACE
 )
 
 # Add examples
-if (CURL_SAPI_ENABLE_EXAMPLES)
+if (SAPI_CURL_ENABLE_EXAMPLES)
   add_subdirectory(examples)
 endif()
 
 # Add tests
-if (CURL_SAPI_ENABLE_TESTS)
+if (SAPI_CURL_ENABLE_TESTS)
   add_subdirectory(tests)
 endif()

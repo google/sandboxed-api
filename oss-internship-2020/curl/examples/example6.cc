@@ -20,6 +20,8 @@
 #include "../sandbox.h"  // NOLINT(build/include)
 #include "sandboxed_api/transaction.h"
 
+namespace {
+
 class CurlTransaction : public sapi::Transaction {
  public:
   explicit CurlTransaction(std::unique_ptr<sapi::Sandbox> sandbox)
@@ -36,7 +38,7 @@ class CurlTransaction : public sapi::Transaction {
 };
 
 absl::Status CurlTransaction::Main() {
-  CurlApi api(sandbox());
+  curl::CurlApi api(sandbox());
 
   // Initialize the curl session
   SAPI_ASSIGN_OR_RETURN(void* curl_remote, api.curl_easy_init());
@@ -47,13 +49,13 @@ absl::Status CurlTransaction::Main() {
   sapi::v::ConstCStr url("http://example.com");
   SAPI_ASSIGN_OR_RETURN(
       int setopt_url_code,
-      api.curl_easy_setopt_ptr(&curl, CURLOPT_URL, url.PtrBefore()));
-  TRANSACTION_FAIL_IF_NOT(setopt_url_code == CURLE_OK,
+      api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
+  TRANSACTION_FAIL_IF_NOT(setopt_url_code == curl::CURLE_OK,
                           "curl_easy_setopt_ptr failed");
 
   // Perform the request
   SAPI_ASSIGN_OR_RETURN(int perform_code, api.curl_easy_perform(&curl));
-  TRANSACTION_FAIL_IF_NOT(setopt_url_code == CURLE_OK,
+  TRANSACTION_FAIL_IF_NOT(setopt_url_code == curl::CURLE_OK,
                           "curl_easy_perform failed");
 
   // Cleanup curl
@@ -63,8 +65,10 @@ absl::Status CurlTransaction::Main() {
   return absl::OkStatus();
 }
 
+}  // namespace
+
 int main(int argc, char* argv[]) {
-  CurlTransaction curl{std::make_unique<CurlSapiSandbox>()};
+  CurlTransaction curl{std::make_unique<curl::CurlSapiSandbox>()};
   absl::Status status = curl.Run();
   CHECK(status.ok()) << "CurlTransaction failed";
 
