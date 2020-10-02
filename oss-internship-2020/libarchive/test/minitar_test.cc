@@ -16,6 +16,7 @@
 
 #include "build/googletest-src/googlemock/include/gmock/gmock-more-matchers.h"
 #include "gtest/gtest.h"
+#include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sapi_minitar.h"
 
@@ -249,6 +250,21 @@ TEST_F(MiniTarTest, TestBZIP2) {
   std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
   int compress = 'j';
   create(id_.data(), compress, VecStringToCharPtrArr(v), false);
+
+  ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
+      << "Could not chdir into test data directory";
+  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+
+  CheckFile(std::string(kFile1_));
+  CheckFile(std::string(kFile2_));
+  CheckFile(std::string(kFile3_));
+}
+
+TEST_F(MiniTarTest, TestPaths) {
+  // These should be equivalent to kFile1_ and kDir1_ after cleaning.
+  std::vector<std::string> v = {JoinPath("a/b/../../c/../", kFile1_).data(),
+                                JoinPath("d/../e/././///../", kDir1_).data()};
+  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
