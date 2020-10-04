@@ -35,7 +35,7 @@ constexpr unsigned kBps = 8;
 constexpr unsigned kRowsPerStrip = 1;
 
 TEST(SandboxTest, LongTag) {
-  sapi::StatusOr<std::string> status_or_path =
+  absl::StatusOr<std::string> status_or_path =
       sandbox2::CreateNamedTempFileAndClose("long_test.tif");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp file";
 
@@ -48,8 +48,8 @@ TEST(SandboxTest, LongTag) {
   std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
   sapi::v::Array<uint8_t> buffer_(buffer.data(), kSamplePerPixel);
 
-  sapi::StatusOr<int> status_or_int;
-  sapi::StatusOr<TIFF*> status_or_tif;
+  absl::StatusOr<int> status_or_int;
+  absl::StatusOr<TIFF*> status_or_tif;
 
   TiffApi api(&sandbox);
   sapi::v::ConstCStr srcfile_var(srcfile.c_str());

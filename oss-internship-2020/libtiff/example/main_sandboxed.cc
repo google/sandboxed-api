@@ -23,22 +23,46 @@
 #include "sandboxed_api/vars.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
-constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
-constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
-constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
-
-constexpr unsigned kRawTileNumber = 9;
-
 namespace {
 
-absl::Status CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
-                          const std::array<uint8_t, 6>& expected_cluster) {
-  if (buffer.GetSize() <= cluster * 6) {
+struct ChannelLimits {
+  uint8_t min_red;
+  uint8_t max_red;
+  uint8_t min_green;
+  uint8_t max_green;
+  uint8_t min_blue;
+  uint8_t max_blue;
+  uint8_t min_alpha;
+  uint8_t max_alpha;
+};
+
+constexpr unsigned kRawTileNumber = 9;
+constexpr unsigned kClusterSize = 6;
+constexpr unsigned kChannelsInPixel = 3;
+constexpr unsigned kTestCount = 3;
+constexpr unsigned kImageSize = 128 * 128;
+constexpr unsigned kClusterImageSize = 64 * 64;
+using ClusterData = std::array<uint8_t, kClusterSize>;
+
+constexpr std::array<std::pair<unsigned, ClusterData>, kTestCount> kClusters = {
+    {{0, {0, 0, 2, 0, 138, 139}},
+     {64, {0, 0, 9, 6, 134, 119}},
+     {128, {44, 40, 63, 59, 230, 95}}}};
+
+constexpr std::array<std::pair<unsigned, ChannelLimits>, kTestCount> kLimits = {
+    {{0, {15, 18, 0, 0, 18, 41, 255, 255}},
+     {64, {0, 0, 0, 0, 0, 2, 255, 255}},
+     {512, {5, 6, 34, 36, 182, 196, 255, 255}}}};
+
+absl::Status CheckCluster(unsigned cluster,
+                          const sapi::v::Array<uint8_t>& buffer,
+                          const ClusterData& expected_cluster) {
+  if (buffer.GetSize() <= cluster * kClusterSize) {
     return absl::InternalError("Buffer overrun\n");
   }
-  uint8_t* target = buffer.GetData() + cluster * 6;
+  auto target = buffer.GetData() + cluster * kClusterSize;
 
-  if (!std::memcmp(target, expected_cluster.data(), 6)) {
+  if (!std::memcmp(target, expected_cluster.data(), kClusterSize)) {
     return absl::OkStatus();
   }
 
@@ -51,55 +75,54 @@ absl::Status CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
       target[2], "\t", target[3], "\t", target[4], "\t", target[5], "\n"));
 }
 
-absl::Status CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
-                           int max_green, int min_blue, int max_blue,
+absl::Status CheckRgbPixel(unsigned pixel, const ChannelLimits& limits,
                            const sapi::v::Array<uint8_t>& buffer) {
-  if (buffer.GetSize() <= pixel * 3) {
+  if (buffer.GetSize() <= pixel * kChannelsInPixel) {
     return absl::InternalError("Buffer overrun\n");
   }
-  uint8_t* rgb = buffer.GetData() + 3 * pixel;
+  auto rgb = buffer.GetData() + kChannelsInPixel * pixel;
 
-  if (rgb[0] >= min_red && rgb[0] <= max_red && rgb[1] >= min_green &&
-      rgb[1] <= max_green && rgb[2] >= min_blue && rgb[2] <= max_blue) {
+  if (rgb[0] >= limits.min_red && rgb[0] <= limits.max_red &&
+      rgb[1] >= limits.min_green && rgb[1] <= limits.max_green &&
+      rgb[2] >= limits.min_blue && rgb[2] <= limits.max_blue) {
     return absl::OkStatus();
   }
 
   return absl::InternalError(absl::StrCat(
       "Pixel ", pixel, " did not match expected results.\n", "Got R=", rgb[0],
-      " (expected ", min_red, "..=", max_red, "), G=", rgb[1], " (expected ",
-      min_green, "..=", max_green, "), B=", rgb[2], " (expected ", min_blue,
-      "..=", max_blue, ")\n"));
+      " (expected ", limits.min_red, "..=", limits.max_red, "), G=", rgb[1],
+      " (expected ", limits.min_green, "..=", limits.max_green, "), B=", rgb[2],
+      " (expected ", limits.min_blue, "..=", limits.max_blue, ")\n"));
 }
 
-absl::Status CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
-                            int max_green, int min_blue, int max_blue,
-                            int min_alpha, int max_alpha,
+absl::Status CheckRgbaPixel(unsigned pixel, const ChannelLimits& limits,
                             const sapi::v::Array<unsigned>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
-  int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
+  unsigned adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
 
   if (buffer.GetSize() <= adjusted_pixel) {
     return absl::InternalError("Buffer overrun\n");
   }
-  uint32 rgba = buffer[adjusted_pixel];
 
-  if (TIFFGetR(rgba) >= (uint32)min_red && TIFFGetR(rgba) <= (uint32)max_red &&
-      TIFFGetG(rgba) >= (uint32)min_green &&
-      TIFFGetG(rgba) <= (uint32)max_green &&
-      TIFFGetB(rgba) >= (uint32)min_blue &&
-      TIFFGetB(rgba) <= (uint32)max_blue &&
-      TIFFGetA(rgba) >= (uint32)min_alpha &&
-      TIFFGetA(rgba) <= (uint32)max_alpha) {
+  auto rgba = buffer[adjusted_pixel];
+  if (TIFFGetR(rgba) >= static_cast<unsigned>(limits.min_red) &&
+      TIFFGetR(rgba) <= static_cast<unsigned>(limits.max_red) &&
+      TIFFGetG(rgba) >= static_cast<unsigned>(limits.min_green) &&
+      TIFFGetG(rgba) <= static_cast<unsigned>(limits.max_green) &&
+      TIFFGetB(rgba) >= static_cast<unsigned>(limits.min_blue) &&
+      TIFFGetB(rgba) <= static_cast<unsigned>(limits.max_blue) &&
+      TIFFGetA(rgba) >= static_cast<unsigned>(limits.min_alpha) &&
+      TIFFGetA(rgba) <= static_cast<unsigned>(limits.max_alpha)) {
     return absl::OkStatus();
   }
 
   return absl::InternalError(absl::StrCat(
-      "Pixel ", pixel, " did not match expected results.\n",
-      "Got R=", TIFFGetR(rgba), " (expected ", min_red, "..=", max_red,
-      "), G=", TIFFGetG(rgba), " (expected ", min_green, "..=", max_green,
-      "), B=", TIFFGetB(rgba), " (expected ", min_blue, "..=", max_blue,
-      "), A=", TIFFGetA(rgba), " (expected ", min_alpha, "..=", max_alpha,
-      ")\n"));
+      "Pixel ", pixel, " did not match expected results.\n", "Got R=",
+      TIFFGetR(rgba), " (expected ", limits.min_red, "..=", limits.max_red,
+      "), G=", TIFFGetG(rgba), " (expected ", limits.min_green,
+      "..=", limits.max_green, "), B=", TIFFGetB(rgba), " (expected ",
+      limits.min_blue, "..=", limits.max_blue, "), A=", TIFFGetA(rgba),
+      " (expected ", limits.min_alpha, "..=", limits.max_alpha, ")\n"));
 }
 
 }  // namespace
@@ -128,17 +151,22 @@ std::string GetFilePath(const std::string filename) {
 }
 
 absl::Status LibTIFFMain(const std::string& srcfile) {
-  // without addDir to sandbox. to add dir use
-  // sandbox(absolute_path_to_dir, srcfile) or
-  // sandbox(absolute_path_to_dir). file and dir should be exists.
-  // srcfile must also be absolute_path_to_file
+  // to use dir and file inside sapi-libtiff, use
+  // sandbox(file) – file only -- or
+  // sandbox(file, dir) -- file and dir -- or
+  // sandbox(nullopt, dir) -- dir only.
+  // file and directory must exist.
+  // all paths must be absolute.
+
   TiffSapiSandbox sandbox(srcfile);
 
+  bool pixel_status = true;
+  bool cluster_status = true;
   // initialize sapi vars after constructing TiffSapiSandbox
   sapi::v::UShort h, v;
-  sapi::StatusOr<TIFF*> status_or_tif;
-  sapi::StatusOr<int> status_or_int;
-  sapi::StatusOr<tmsize_t> status_or_long;
+  absl::StatusOr<TIFF*> status_or_tif;
+  absl::StatusOr<int> status_or_int;
+  absl::StatusOr<tmsize_t> status_or_long;
   absl::Status status;
 
   status = sandbox.Init();
@@ -154,7 +182,6 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
 
   sapi::v::RemotePtr tif(status_or_tif.value());
   if (!tif.GetValue()) {
-    // tif is NULL
     return absl::InternalError(absl::StrCat("Could not open ", srcfile));
   }
 
@@ -166,8 +193,10 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
   }
 
   SAPI_ASSIGN_OR_RETURN(tsize_t sz, api.TIFFTileSize(&tif));
-  if (sz != 24576) {
-    return absl::InternalError(absl::StrCat("tiles are ", sz, " bytes\n"));
+  if (sz != kClusterSize * kClusterImageSize) {
+    return absl::InternalError(
+        absl::StrCat("Unexpected TileSize ", sz, ". Expected ",
+                     kClusterSize * kClusterImageSize, " bytes\n"));
   }
 
   sapi::v::Array<uint8_t> buffer_(sz);
@@ -181,36 +210,29 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
         status_or_long.value(), " instead of ", sz));
   }
 
-  bool pixel_status = true;
-  if (status = CheckCluster(0, buffer_, kCluster0); !status.ok()) {
-    LOG(ERROR) << "CheckCluster failed:\n" << status.ToString();
+  for (const auto& [id, data] : kClusters) {
+    if (status = CheckCluster(id, buffer_, data); !status.ok()) {
+      LOG(ERROR) << "CheckCluster failed:\n" << status.ToString();
+    }
+    cluster_status &= status.ok();
   }
-  pixel_status &= status.ok();
 
-  if (status = CheckCluster(64, buffer_, kCluster64); !status.ok()) {
-    LOG(ERROR) << "CheckCluster failed:\n" << status.ToString();
-  }
-  pixel_status &= status.ok();
-
-  if (status = CheckCluster(128, buffer_, kCluster128); !status.ok()) {
-    LOG(ERROR) << "CheckCluster failed:\n" << status.ToString();
-  }
-  pixel_status &= status.ok();
-
-  if (!pixel_status) {
-    return absl::InternalError("unexpected pixel_status value");
+  if (!cluster_status) {
+    return absl::InternalError("One or more clusters failed the check");
   }
 
   SAPI_ASSIGN_OR_RETURN(
-      status_or_int,
+      return_value,
       api.TIFFSetFieldU1(&tif, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB));
   if (return_value == 0) {
-    return absl::InternalError("TIFFSetFieldU1 not available");
+    return absl::InternalError("The JPEGCOLORMODE tag cannot be changed");
   }
 
   SAPI_ASSIGN_OR_RETURN(sz, api.TIFFTileSize(&tif));
-  if (sz != 128 * 128 * 3) {
-    return absl::InternalError(absl::StrCat("tiles are ", sz, " bytes"));
+  if (sz != kChannelsInPixel * kImageSize) {
+    return absl::InternalError(
+        absl::StrCat("Unexpected TileSize ", sz, ". Expected ",
+                     kChannelsInPixel * kImageSize, " bytes\n"));
   }
 
   sapi::v::Array<uint8_t> buffer2_(sz);
@@ -224,23 +246,12 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
         " instead of ", sz));
   }
 
-  pixel_status = true;
-  // Checking specific pixels from the test data, 0th, 64th and 512th
-  if (status = CheckRgbPixel(0, 15, 18, 0, 0, 18, 41, buffer2_); !status.ok()) {
-    LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString();
+  for (const auto& [id, data] : kLimits) {
+    if (status = CheckRgbPixel(id, data, buffer2_); !status.ok()) {
+      LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString();
+    }
+    pixel_status &= status.ok();
   }
-  pixel_status &= status.ok();
-
-  if (status = CheckRgbPixel(64, 0, 0, 0, 0, 0, 2, buffer2_); !status.ok()) {
-    LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString();
-  }
-  pixel_status &= status.ok();
-
-  if (status = CheckRgbPixel(512, 5, 6, 34, 36, 182, 196, buffer2_);
-      !status.ok()) {
-    LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString();
-  }
-  pixel_status &= status.ok();
 
   SAPI_RETURN_IF_ERROR(api.TIFFClose(&tif));
 
@@ -252,7 +263,7 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     return absl::InternalError(absl::StrCat("Could not reopen ", srcfile));
   }
 
-  sapi::v::Array<uint32> rgba_buffer_(128 * 128);
+  sapi::v::Array<unsigned> rgba_buffer_(kImageSize);
 
   // read as rgba
   SAPI_ASSIGN_OR_RETURN(
@@ -263,29 +274,17 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
   }
 
   // Checking specific pixels from the test data, 0th, 64th and 512th
-  if (status = CheckRgbaPixel(0, 15, 18, 0, 0, 18, 41, 255, 255, rgba_buffer_);
-      !status.ok()) {
-    LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString();
+  for (const auto& [id, data] : kLimits) {
+    if (status = CheckRgbaPixel(id, data, rgba_buffer_); !status.ok()) {
+      LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString();
+    }
+    pixel_status &= status.ok();
   }
-  pixel_status &= status.ok();
-
-  if (status = CheckRgbaPixel(64, 0, 0, 0, 0, 0, 2, 255, 255, rgba_buffer_);
-      !status.ok()) {
-    LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString();
-  }
-  pixel_status &= status.ok();
-
-  if (status =
-          CheckRgbaPixel(512, 5, 6, 34, 36, 182, 196, 255, 255, rgba_buffer_);
-      !status.ok()) {
-    LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString();
-  }
-  pixel_status &= status.ok();
 
   SAPI_RETURN_IF_ERROR(api.TIFFClose(&tif2));
 
   if (!pixel_status) {
-    return absl::InternalError("unexpected pixel_status value");
+    return absl::InternalError("wrong encoding");
   }
 
   return absl::OkStatus();

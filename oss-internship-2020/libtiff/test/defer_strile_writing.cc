@@ -26,16 +26,16 @@ constexpr uint16_t kRowsPerStrip = 1;
 constexpr uint16_t kSamplePerPixel = 1;
 
 void TestWriting(const char* mode, int tiled, int height) {
-  sapi::StatusOr<std::string> status_or_path =
+  absl::StatusOr<std::string> status_or_path =
       sandbox2::CreateNamedTempFileAndClose("defer_strile_writing.tif");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp file";
 
   std::string srcfile = sandbox2::file::JoinPath(
       sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
 
-  sapi::StatusOr<int> status_or_int;
-  sapi::StatusOr<signed long> status_or_long;
-  sapi::StatusOr<TIFF*> status_or_tif;
+  absl::StatusOr<int> status_or_int;
+  absl::StatusOr<signed long> status_or_long;
+  absl::StatusOr<TIFF*> status_or_tif;
 
   TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";

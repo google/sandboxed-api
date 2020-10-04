@@ -14,8 +14,6 @@
 
 #include "helper.h"
 
-static std::string* g_in_dir = nullptr;
-
 std::string GetImagesDir() {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
   auto find = cwd.rfind("/build");
@@ -30,6 +28,7 @@ std::string GetImagesDir() {
 }
 
 std::string GetFilePath(const std::string& filename) {
+  static std::string* g_in_dir = nullptr;
   if (!g_in_dir) {
     g_in_dir = new std::string(GetImagesDir());
   }
