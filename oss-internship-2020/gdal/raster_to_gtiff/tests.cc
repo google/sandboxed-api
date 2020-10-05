@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <optional>
+#include <filesystem>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -29,12 +30,28 @@ namespace {
 
 inline constexpr absl::string_view kDriverName = "GTiff";
 inline constexpr absl::string_view kTempFilePrefix = "temp_data";
+inline constexpr absl::string_view kProjDbEnvVariableName = "PROJ_PATH";
+inline constexpr absl::string_view kDefaultProjDbPath 
+    = "/usr/local/share/proj/proj.db";
 inline constexpr absl::string_view kFirstTestDataPath = 
     "../testdata/map.tif";
 inline constexpr absl::string_view kSecondTestDataPath = 
     "../testdata/map_large.tif";
 inline constexpr absl::string_view kThirdTestDataPath = 
     "../testdata/earth_map.tif";
+
+std::optional<std::string> GetProjDbPath() {
+  const char* proj_db_path_ptr = std::getenv(kProjDbEnvVariableName.data());
+
+  std::string proj_db_path = proj_db_path_ptr == nullptr ? 
+      std::string(kDefaultProjDbPath) : std::string(proj_db_path_ptr);
+
+  if (!std::filesystem::exists(proj_db_path)) {
+    return std::nullopt;
+  }
+
+  return proj_db_path;
+}
 
 // RAII wrapper that creates temporary file and automatically unlinks it
 class TempFile {
@@ -75,9 +92,11 @@ class RasterToGTiffProcessor : public sapi::Transaction {
  public:
   explicit RasterToGTiffProcessor(std::string out_filename, 
                                   std::string out_path,
-                                  parser::RasterDataset data, 
+                                  std::string proj_db_path,
+                                  parser::RasterDataset data,
                                   int retry_count = 0) 
-    : sapi::Transaction(std::make_unique<GdalSapiSandbox>(out_path)),
+    : sapi::Transaction(std::make_unique<GdalSapiSandbox>(out_path, 
+        std::move(proj_db_path))),
       out_filename_(std::move(out_filename)),
       out_path_(std::move(out_path)),
       data_(std::move(data))
@@ -203,8 +222,14 @@ TEST_P(TestGTiffProcessor, TestProcessorOnGTiffData) {
   parser::RasterDataset original_bands_data = 
       parser::GetRasterBandsFromFile(filename);
 
+  std::optional<std::string> proj_db_path = GetProjDbPath();
+  ASSERT_TRUE(proj_db_path != std::nullopt)
+      << "Specified proj.db does not exist";
+
   RasterToGTiffProcessor processor(tempfile_.GetPath(), 
-      sandbox2::file_util::fileops::GetCWD(), original_bands_data);
+      sandbox2::file_util::fileops::GetCWD(), std::move(proj_db_path.value()),
+      original_bands_data);
+  
   ASSERT_EQ(processor.Run(), absl::OkStatus())
       << "Error creating new GTiff dataset inside sandbox";
   

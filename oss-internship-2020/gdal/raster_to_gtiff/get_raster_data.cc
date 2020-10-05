@@ -25,26 +25,6 @@ namespace {
 
 inline constexpr int kGeoTransformSize = 6;
 
-void PrintInformationAboutDataset(GDALDatasetH dataset, GDALDriverH driver) {
-  double adfGeoTransform[6];
-  printf("Driver: %s/%s\n",
-      GDALGetDriverShortName(driver),
-      GDALGetDriverLongName(driver));
-  printf("Size is %dx%dx%d\n",
-        GDALGetRasterXSize(dataset),
-        GDALGetRasterYSize(dataset),
-        GDALGetRasterCount(dataset) );
-  if(GDALGetProjectionRef(dataset) != NULL )
-      printf("Projection is `%s'\n", GDALGetProjectionRef(dataset));
-  if(GDALGetGeoTransform(dataset, adfGeoTransform) == CE_None)
-  {
-      printf("Origin = (%.6f,%.6f)\n",
-            adfGeoTransform[0], adfGeoTransform[3]);
-      printf("Pixel Size = (%.6f,%.6f)\n",
-            adfGeoTransform[1], adfGeoTransform[5]);
-  }
-}
-
 }  // namespace
 
 RasterDataset GetRasterBandsFromFile(const std::string& filename) {
@@ -90,7 +70,7 @@ RasterDataset GetRasterBandsFromFile(const std::string& filename) {
     std::vector<int> band_raster_data;
     band_raster_data.resize(width * height);
 
-    // GDALRasterIO with GF_Read should use the same type (GDT_Int32)
+    // GDALRasterIO with GF_Write should use the same type (GDT_Int32)
     GDALRasterIO(band, GF_Read, 0, 0, width, height, band_raster_data.data(),
         width, height, GDT_Int32, 0, 0);
 

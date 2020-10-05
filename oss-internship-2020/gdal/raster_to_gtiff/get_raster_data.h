@@ -26,7 +26,7 @@ struct RasterBandData {
   int height;
   std::vector<int> data;
   int data_type;  // Corresponds to the GDALDataType enum
-  int color_interp;  // Corresponds to the 
+  int color_interp;  // Corresponds to the GDALColorInterp enum
   std::optional<double> no_data_value;
 };
 
@@ -44,4 +44,4 @@ bool operator==(const RasterDataset& lhs, const RasterDataset& rhs);
 
 }  // namespace gdal::sandbox::tests::parser
 
-#endif  // GET_RASTER_DATA_H
+#endif  // GET_RASTER_DATA_H_

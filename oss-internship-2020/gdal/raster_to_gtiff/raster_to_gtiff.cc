@@ -13,9 +13,11 @@
 // limitations under the License.
 
 #include <iostream>
+#include <cstdlib>
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <optional>
 
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
@@ -30,6 +32,22 @@ namespace {
   }
 
 inline constexpr absl::string_view kDriverName = "GTiff";
+inline constexpr absl::string_view kProjDbEnvVariableName = "PROJ_PATH";
+inline constexpr absl::string_view kDefaultProjDbPath 
+    = "/usr/local/share/proj/proj.db";
+
+std::optional<std::string> GetProjDbPath() {
+  const char* proj_db_path_ptr = std::getenv(kProjDbEnvVariableName.data());
+
+  std::string proj_db_path = proj_db_path_ptr == nullptr ? 
+      std::string(kDefaultProjDbPath) : std::string(proj_db_path_ptr);
+
+  if (!std::filesystem::exists(proj_db_path)) {
+    return std::nullopt;
+  }
+
+  return proj_db_path;
+}
 
 absl::Status SaveToGTiff(gdal::sandbox::tests::parser::RasterDataset bands_data, 
     std::string out_file) {
@@ -42,7 +60,11 @@ absl::Status SaveToGTiff(gdal::sandbox::tests::parser::RasterDataset bands_data,
     return absl::FailedPreconditionError("Error getting output file directory");
   }
 
-  GdalSapiSandbox sandbox(output_data_folder);
+  std::optional<std::string> proj_db_path = GetProjDbPath();
+  SAPI_FAIL_IF_NOT(proj_db_path != std::nullopt,
+      "Specified proj.db does not exist");
+
+  GdalSapiSandbox sandbox(output_data_folder, std::move(proj_db_path.value()));
   SAPI_RETURN_IF_ERROR(sandbox.Init());
   gdalApi api(&sandbox);
   SAPI_RETURN_IF_ERROR(api.GDALAllRegister());
@@ -111,7 +133,7 @@ absl::Status SaveToGTiff(gdal::sandbox::tests::parser::RasterDataset bands_data,
   if (bands_data.wkt_projection.length() > 0) {
     sapi::v::ConstCStr wkt_projection_ptr(bands_data.wkt_projection.data());
     SAPI_ASSIGN_OR_RETURN(sapi::StatusOr<CPLErr> result, 
-        api.GDALSetProjection(&dataset_ptr, wkt_projection_ptr.PtrBefore())); 
+        api.GDALSetProjection(&dataset_ptr, wkt_projection_ptr.PtrBefore()));
     SAPI_FAIL_IF_NOT(result.value() == CPLErr::CE_None,
         "Error setting wkt projection");
   }

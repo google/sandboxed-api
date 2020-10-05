@@ -20,28 +20,44 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
-#   cmake .. -G Ninja -DSAPI_ROOT=$HOME/sapi_root
+set(ENABLE_TESTS OFF CACHE BOOL "Enable GDAL sandbox tests")
+set(GDAL_HEADER_PREFIX "/usr/local/include" CACHE PATH "Prefix of the path to gdal.h")
+set(LIBGDAL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/lib" CACHE PATH "Prefix of the path to libgdal.a")
+set(LIBPROJ_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/lib" CACHE PATH "Prefix of the path to libproj.a")
 
-set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
-set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
 add_subdirectory("${SAPI_ROOT}"
                  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-                 # Omit this to have the full Sandboxed API in IDE
                  EXCLUDE_FROM_ALL)
 
 add_library(libgdal STATIC IMPORTED)
 set_property(TARGET libgdal PROPERTY IMPORTED_LOCATION 
-            "${CMAKE_CURRENT_SOURCE_DIR}/lib/libgdal.a")
+            "${LIBGDAL_PREFIX}/libgdal.a")
 
+add_library(libproj STATIC IMPORTED)
+set_property(TARGET libproj PROPERTY IMPORTED_LOCATION
+            "${LIBPROJ_PREFIX}/libproj.a")
 
-# TODO: Build PROJ statically and link it as gdal
-# TODO: Use environment variables to specify path prefix to libproj and gdal header
-# TODO: Add environment variable to enable tests
+message("${LIBGDAL_PREFIX}/libgdal.a")
+message("${LIBPROJ_PREFIX}/libproj.a")
+
+# TODO: Try using libgdal-dev and libgdal-proj with SAPI inside Docker or other other isolated environment
+# TODO: Document both install from sources and install from package workflow
+# TODO: Use environment variables to distinguish between those workflows on compile time
 
 target_link_libraries(libgdal INTERFACE
-    crypto expat jpeg 
-    /usr/local/lib/libproj.so 
-    sqlite3 tiff z pthread m rt dl curl)
+    crypto 
+    expat 
+    jpeg
+    libproj
+    sqlite3 
+    tiff 
+    z 
+    pthread 
+    m 
+    rt 
+    dl 
+    curl
+)
 
 add_sapi_library(gdal_sapi
     FUNCTIONS 
@@ -58,7 +74,7 @@ add_sapi_library(gdal_sapi
       GDALRasterIO 
       GDALClose
 
-    INPUTS "../gdal/gdal/gcore/gdal.h"
+    INPUTS "${GDAL_HEADER_PREFIX}/gdal.h"
     LIBRARY libgdal
     LIBRARY_NAME gdal
     
@@ -87,17 +103,18 @@ target_link_libraries(raster_to_gtiff
     sapi::sapi
 )
 
-find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIRS})
-
-add_executable(tests tests.cc)
-target_link_libraries(tests 
-  PRIVATE
-  gdal_sapi
-  data_retriever
-  sapi::sapi
-  sandbox2::temp_file
-  sandbox2::fileops
-  ${GTEST_LIBRARIES} 
-  ${GTEST_MAIN_LIBRARIES}
-)
+if (ENABLE_TESTS)
+  find_package(GTest REQUIRED)
+  include_directories(${GTEST_INCLUDE_DIRS})
+  
+  add_executable(tests tests.cc)
+  target_link_libraries(tests PRIVATE
+    gdal_sapi
+    data_retriever
+    sapi::sapi
+    sandbox2::temp_file
+    sandbox2::fileops
+    ${GTEST_LIBRARIES} 
+    ${GTEST_MAIN_LIBRARIES}
+  )
+endif()

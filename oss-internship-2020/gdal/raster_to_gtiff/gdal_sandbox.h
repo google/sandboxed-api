@@ -15,6 +15,7 @@
 #ifndef GDAL_SANDBOX_H_
 #define GDAL_SANDBOX_H_
 
+#include <iostream>
 #include <string>
 
 #include <syscall.h>
@@ -26,11 +27,17 @@ namespace gdal::sandbox {
 
 class GdalSapiSandbox : public gdalSandbox {
  public:
-  GdalSapiSandbox(std::string path) 
+  GdalSapiSandbox(std::string out_directory_path,
+                  std::string proj_db_path, 
+                  time_t time_limit = 0) 
     : gdalSandbox(),
-      path_(std::move(path)) 
-    {}
+      out_directory_path_(std::move(out_directory_path)),
+      proj_db_path_(std::move(proj_db_path))
+    {
+      SetWallTimeLimit(time_limit).IgnoreError();
+    }
 
+ private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
 
@@ -52,14 +59,16 @@ class GdalSapiSandbox : public gdalSandbox {
             __NR_unlink,  // GDALDriver::Delete()
         })
         // TODO: Deal with proj.db so you don't need to specify exact path ih the policy
-        .AddFile("/usr/local/share/proj/proj.db")  // proj.db is required
-        .AddDirectory("/usr/local/lib")  // To add libproj.so.19.1.1
-        .AddDirectory(path_, /*is_ro=*/false)
+        // Add proj path a an environment variable, check it before calling constructor
+        // Use default path if there is no variable
+        // If there is no file on the default path return an error
+        .AddFile(proj_db_path_)  // proj.db is required for some projections
+        .AddDirectory(out_directory_path_, /*is_ro=*/false)
         .BuildOrDie();
-    }
+  }
 
- private:
-  std::string path_;
+  std::string out_directory_path_;
+  std::string proj_db_path_;
 };
 
 }  // namespace gdal::sandbox
