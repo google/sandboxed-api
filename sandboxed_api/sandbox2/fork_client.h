@@ -17,23 +17,23 @@
 
 #include <sys/types.h>
 
-#include "absl/base/attributes.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
 namespace sandbox2 {
 
 // Envvar indicating that this process should not start the fork-server.
-ABSL_CONST_INIT extern const char kForkServerDisableEnv[];
+constexpr inline char kForkServerDisableEnv[] = "SANDBOX2_NOFORKSERVER";
 
 class Comms;
 class ForkRequest;
 
 class ForkClient {
  public:
+  explicit ForkClient(Comms* comms) : comms_(comms) {}
+
   ForkClient(const ForkClient&) = delete;
   ForkClient& operator=(const ForkClient&) = delete;
-
-  explicit ForkClient(Comms* comms) : comms_(comms) {}
 
   // Sends the fork request over the supplied Comms channel.
   pid_t SendRequest(const ForkRequest& request, int exec_fd, int comms_fd,
@@ -41,10 +41,11 @@ class ForkClient {
 
  private:
   // Comms channel connecting with the ForkServer. Not owned by the object.
-  Comms* comms_;
+  Comms* comms_ ABSL_GUARDED_BY(comms_mutex_);
   // Mutex locking transactions (requests) over the Comms channel.
   absl::Mutex comms_mutex_;
 };
+
 }  // namespace sandbox2
 
 #endif  // SANDBOXED_API_SANDBOX2_FORK_CLIENT_H_
