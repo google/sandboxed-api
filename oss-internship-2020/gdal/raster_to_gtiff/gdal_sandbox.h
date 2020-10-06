@@ -58,10 +58,6 @@ class GdalSapiSandbox : public gdalSandbox {
             __NR_ftruncate,  // GTiffDataset::FillEmptyTiles()
             __NR_unlink,  // GDALDriver::Delete()
         })
-        // TODO: Deal with proj.db so you don't need to specify exact path ih the policy
-        // Add proj path a an environment variable, check it before calling constructor
-        // Use default path if there is no variable
-        // If there is no file on the default path return an error
         .AddFile(proj_db_path_)  // proj.db is required for some projections
         .AddDirectory(out_directory_path_, /*is_ro=*/false)
         .BuildOrDie();

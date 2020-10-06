@@ -37,13 +37,6 @@ add_library(libproj STATIC IMPORTED)
 set_property(TARGET libproj PROPERTY IMPORTED_LOCATION
             "${LIBPROJ_PREFIX}/libproj.a")
 
-message("${LIBGDAL_PREFIX}/libgdal.a")
-message("${LIBPROJ_PREFIX}/libproj.a")
-
-# TODO: Try using libgdal-dev and libgdal-proj with SAPI inside Docker or other other isolated environment
-# TODO: Document both install from sources and install from package workflow
-# TODO: Use environment variables to distinguish between those workflows on compile time
-
 target_link_libraries(libgdal INTERFACE
     crypto 
     expat 
