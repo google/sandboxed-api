@@ -65,8 +65,9 @@ class GeneratorASTVisitor
  private:
   friend class GeneratorASTConsumer;
 
+  TypeCollector collector_;
+
   std::vector<clang::FunctionDecl*> functions_;
-  QualTypeSet types_;
 
   const GeneratorOptions& options_;
 };

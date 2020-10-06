@@ -59,9 +59,9 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
        options_.function_names.count(ToStringView(decl->getName())) > 0)) {
     functions_.push_back(decl);
 
-    CollectRelatedTypes(decl->getDeclaredReturnType(), &types_);
+    collector_.CollectRelatedTypes(decl->getDeclaredReturnType());
     for (const clang::ParmVarDecl* param : decl->parameters()) {
-      CollectRelatedTypes(param->getType(), &types_);
+      collector_.CollectRelatedTypes(param->getType());
     }
   }
   return true;
@@ -75,7 +75,7 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
                      "AST traversal exited early");
   }
 
-  for (clang::QualType qual : visitor_.types_) {
+  for (clang::QualType qual : visitor_.collector_.collected()) {
     emitter_.CollectType(qual);
   }
   for (clang::FunctionDecl* func : visitor_.functions_) {
