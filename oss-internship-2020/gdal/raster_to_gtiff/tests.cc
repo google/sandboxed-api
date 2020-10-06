@@ -230,41 +230,6 @@ TEST_P(TestGTiffProcessor, TestProcessorOnGTiffData) {
   
   ASSERT_EQ(processor.Run(), absl::OkStatus())
       << "Error creating new GTiff dataset inside sandbox";
-  
-  if (filename == "../testdata/erdas_spnad83.tif") {
-    auto data = parser::GetRasterBandsFromFile(tempfile_.GetPath());
-    std::cout << "Original:" << std::endl;
-    std::cout << original_bands_data.height << " " << original_bands_data.width << std::endl;
-    for (auto x : original_bands_data.geo_transform) {
-      std::cout << x << " ";
-    }
-    std::cout << std::endl;
-    std::cout << original_bands_data.wkt_projection << std::endl;
-    for (auto x : original_bands_data.bands) {
-      std::cout << x.data.size() << std::endl;
-      std::cout << x.color_interp << std::endl;
-      std::cout << x.data_type << std::endl;
-      std::cout << x.height << std::endl;
-      std::cout << x.width << std::endl;
-      std::cout << (x.no_data_value.has_value() ? x.no_data_value.value() : -1) << std::endl;
-    }
-    std::cout << "New:" << std::endl;
-    std::cout << data.height << " " << data.width << std::endl;
-    for (auto x : data.geo_transform) {
-      std::cout << x << " ";
-    }
-    std::cout << std::endl;
-    std::cout << data.wkt_projection << std::endl;
-    for (auto x : data.bands) {
-      std::cout << x.data.size() << std::endl;
-      std::cout << x.color_interp << std::endl;
-      std::cout << x.data_type << std::endl;
-      std::cout << x.height << std::endl;
-      std::cout << x.width << std::endl;
-      std::cout << (x.no_data_value.has_value() ? x.no_data_value.value() : -1) << std::endl;
-    }
-    std::cout << "Compare:" << std::endl;
-  }
 
   ASSERT_EQ(original_bands_data, 
       parser::GetRasterBandsFromFile(tempfile_.GetPath()))
