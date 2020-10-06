@@ -24,12 +24,16 @@ To get the latest version of both GDAL and PROJ you will need to build them from
 First, you should build PROJ with this [tutorial](https://proj.org/install.html#compilation-and-installation-from-source-code).
 After the installation, you should have a static build of libproj, remember the path as you will need to specify it later in CMake build.
 Then, get gdal sources using git submodules:
-`git submodule add https://github.com/OSGeo/gdal/`
-`git submodule update --init --recursive`
+```
+git submodule add https://github.com/OSGeo/gdal/
+git submodule update --init --recursive
+```
 After that you can go to the GDAL sources and make a static build of libgdal:
-`cd gdal/gdal`
-`./configure --with_proj=/path/to/proj/` 
-`make static-lib`
+```
+cd gdal/gdal
+./configure --with_proj=/path/to/proj/
+make static-lib
+```
 **Note**: On the `./configure` step you should specify the path to your proj library as a `--with-proj=` argument to make everything work correctly.
 ### Build GDAL using dev-packages
 ### Build sandboxed GDAL
