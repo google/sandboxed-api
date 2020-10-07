@@ -4,27 +4,24 @@ Sandboxed version of the [libarchive](https://www.libarchive.org/) minitar [exam
 
 ## Build
 
-<!-- First, run `git submodule update --init --recursive` to update submodules.
-After this, run the following commands: -->
-
-`mkdir -p build && cd build`
-
-`cmake .. -G Ninja`
-
-`cmake --build .`
+```
+mkdir -p build && cd build
+cmake .. -G Ninja
+cmake --build .
+```
 
 The example binary file can be found at **build/examples/sapi_minitar** and the unit tests at **build/test/sapi_minitar_test**.
 
 ## Patches
 
-The original libarchive code required patching since one of the custom types produced errors with libclang Python errors. The patches are applied automatically during the build step and they do not modify the functionality of the library. The repository is also fetched automatically.
+The original libarchive code required patching since one of the custom types produced errors with libclang Python byndings. The patches are applied automatically during the build step and they do not modify the functionality of the library. The repository is also fetched automatically.
 
 ## Examples
 
 In this project, the minitar example is sandboxed.
 The code is found in the **examples** directory and is structured as follows:
 - **sapi_minitar_main.cc** - ***main*** function of the minitar tool. This is mostly similar to the original example.
-- **sapi_minitar.h** and **sapi_minitar.cc** - The two main functions (***create*** and ***extract***) and also other helper functions.
+- **sapi_minitar.h** and **sapi_minitar.cc** - The two main functions (***CreateArchive*** and ***ExtractArchive***) and other helper functions.
 - **sandbox.h** - Custom security policies, depending on the whether the user creates or extracts an archive.
 
 On top of that, unit tests can be found in the **test/minitar_test.cc** file.
@@ -47,4 +44,4 @@ The available options are:
 - *Z* - Default compression.
 - *z* - Compress with GZIP.
 
-If no compression method is chosen (in the case of archive creation) the files will only be archived.
+If no compression method is chosen (in the case of archive creation) the files will only be stored.

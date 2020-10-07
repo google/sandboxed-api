@@ -20,22 +20,38 @@
 
 #include <iostream>
 
-#include "sapi_minitar.h"
+#include "sapi_minitar.h"  // NOLINT(build/include)
 
-static void usage(void);
+static void PrintUsage() {
+  /* Many program options depend on compile options. */
+  const char* m =
+      "Usage: minitar [-"
+      "c"
+      "j"
+      "tvx"
+      "y"
+      "Z"
+      "z"
+      "] [-f file] [file]\n";
 
-int main(int argc, const char** argv) {
+  std::cout << m << std::endl;
+  exit(EXIT_FAILURE);
+}
+
+int main(int unused_argc, const char** argv) {
   google::InitGoogleLogging(argv[0]);
-  const char* filename = NULL;
-  int compress, flags, mode, opt;
+  const char* filename = nullptr;
+  int compress;
+  int flags;
+  int mode;
+  int opt;
 
-  (void)argc;
   mode = 'x';
   int verbose = 0;
   compress = '\0';
   flags = ARCHIVE_EXTRACT_TIME;
 
-  while (*++argv != NULL && **argv == '-') {
+  while (*++argv != nullptr && **argv == '-') {
     const char* p = *argv + 1;
 
     while ((opt = *p++) != '\0') {
@@ -77,38 +93,38 @@ int main(int argc, const char** argv) {
           compress = opt;
           break;
         default:
-          usage();
+          PrintUsage();
       }
     }
   }
 
+  absl::Status status;
   switch (mode) {
     case 'c':
-      create(filename, compress, argv, verbose);
+      status = CreateArchive(filename, compress, argv, verbose);
+      if (!status.ok()) {
+        LOG(ERROR) << "Archive creation failed with message: "
+                   << status.message();
+        return EXIT_FAILURE;
+      }
       break;
     case 't':
-      extract(filename, 0, flags, verbose);
+      status = ExtractArchive(filename, 0, flags, verbose);
+      if (!status.ok()) {
+        LOG(ERROR) << "Archive extraction failed with message: "
+                   << status.message();
+        return EXIT_FAILURE;
+      }
       break;
     case 'x':
-      extract(filename, 1, flags, verbose);
+      status = ExtractArchive(filename, 1, flags, verbose);
+      if (!status.ok()) {
+        LOG(ERROR) << "Archive extraction failed with message: "
+                   << status.message();
+        return EXIT_FAILURE;
+      }
       break;
   }
 
   return EXIT_SUCCESS;
-}
-
-static void usage(void) {
-  /* Many program options depend on compile options. */
-  const char* m =
-      "Usage: minitar [-"
-      "c"
-      "j"
-      "tvx"
-      "y"
-      "Z"
-      "z"
-      "] [-f file] [file]\n";
-
-  std::cout << m << std::endl;
-  exit(EXIT_FAILURE);
 }

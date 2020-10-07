@@ -18,7 +18,7 @@
 #include <asm/unistd_64.h>
 #include <linux/fs.h>
 
-#include "libarchive_sapi.sapi.h"
+#include "libarchive_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
@@ -28,8 +28,8 @@
 // create the file without having access to anything else.
 class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
  public:
-  explicit SapiLibarchiveSandboxCreate(const std::vector<std::string>& files,
-                                       absl::string_view archive_path)
+  SapiLibarchiveSandboxCreate(const std::vector<std::string>& files,
+                              absl::string_view archive_path)
       : files_(files), archive_path_(archive_path) {}
 
  private:
@@ -92,9 +92,8 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
 // pe placed correctly without offering additional permission.
 class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
  public:
-  explicit SapiLibarchiveSandboxExtract(absl::string_view archive_path,
-                                        const int do_extract,
-                                        absl::string_view tmp_dir)
+  SapiLibarchiveSandboxExtract(absl::string_view archive_path, int do_extract,
+                               absl::string_view tmp_dir)
       : archive_path_(archive_path),
         do_extract_(do_extract),
         tmp_dir_(tmp_dir) {}

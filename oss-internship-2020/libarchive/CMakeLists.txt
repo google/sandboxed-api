@@ -20,7 +20,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
 
 # Build SAPI library
-set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
+#set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
+set(SAPI_ROOT "/usr/local/google/home/amedar/internship/sandboxed-api" CACHE PATH "Path to the Sandboxed API source tree")
 
 include(FetchContent)
 FetchContent_Declare(
@@ -28,7 +29,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/libarchive/libarchive
   PATCH_COMMAND cd libarchive && patch < ${CMAKE_SOURCE_DIR}/patches/header.patch && patch < ${CMAKE_SOURCE_DIR}/patches/archive_virtual.patch
 )
-  FetchContent_MakeAvailable(libarchive)
+FetchContent_MakeAvailable(libarchive)
 
 add_subdirectory("${SAPI_ROOT}"
   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
