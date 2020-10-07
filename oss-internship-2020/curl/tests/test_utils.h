@@ -21,6 +21,8 @@
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
 
+namespace curl::tests {
+
 // Helper class that can be used to test Curl Sandboxed
 class CurlTestUtils {
  protected:
@@ -39,8 +41,8 @@ class CurlTestUtils {
   // Responds with the POST request fields to a POST request
   static void StartMockServer();
 
-  std::unique_ptr<CurlSapiSandbox> sandbox_;
-  std::unique_ptr<CurlApi> api_;
+  std::unique_ptr<curl::CurlSapiSandbox> sandbox_;
+  std::unique_ptr<curl::CurlApi> api_;
   std::unique_ptr<sapi::v::RemotePtr> curl_;
 
   static std::thread server_thread_;
@@ -51,5 +53,7 @@ class CurlTestUtils {
  private:
   std::unique_ptr<sapi::v::LenVal> chunk_;
 };
+
+}  // namespace curl::tests
 
 #endif  // TESTS_H_

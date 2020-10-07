@@ -41,7 +41,7 @@ class Buffer final {
 
   // Creates a new Buffer of the specified size, backed by a temporary file that
   // will be immediately deleted.
-  static absl::StatusOr<std::unique_ptr<Buffer>> CreateWithSize(int64_t size);
+  static absl::StatusOr<std::unique_ptr<Buffer>> CreateWithSize(size_t size);
 
   // Returns a pointer to the buffer, which is read/write.
   uint8_t* data() const { return buf_; }

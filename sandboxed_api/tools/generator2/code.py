@@ -492,7 +492,6 @@ class Function(object):
     self._tu = tu
     self.cursor = cursor  # type: cindex.Index
     self.name = cursor.spelling  # type: Text
-    self.mangled_name = cursor.mangled_name  # type: Text
     self.result = ReturnType(self, cursor.result_type)
     self.original_definition = '{} {}'.format(
         cursor.result_type.spelling, self.cursor.displayname)  # type: Text
@@ -542,7 +541,7 @@ class Function(object):
 
   def is_mangled(self):
     # type: () -> bool
-    return self.name != self.mangled_name
+    return self.cursor.mangled_name != self.cursor.spelling
 
   def __hash__(self):
     # type: () -> int
@@ -550,7 +549,7 @@ class Function(object):
 
   def __eq__(self, other):
     # type: (Function) -> bool
-    return self.mangled_name == other.mangled_name
+    return self.cursor.mangled_name == other.cursor.mangled_name
 
 
 class _TranslationUnit(object):
@@ -580,12 +579,11 @@ class _TranslationUnit(object):
 
       for i, cursor in enumerate(self._walk_preorder()):
         # Workaround for issue#32
+        # ignore all the cursors with kinds not implemented in python bindings
         try:
           cursor.kind
         except ValueError:
-          if cursor._kind_id >= 440:  # pylint: disable=protected-access
-            continue
-          raise
+          continue
         # naive way to order types: they should be ordered when walking the tree
         if cursor.kind.is_declaration():
           self.order[cursor.hash] = i
@@ -911,7 +909,7 @@ class Generator(object):
     result.append('#include "sandboxed_api/sandbox.h"')
     result.append('#include "sandboxed_api/vars.h"')
 
-    if (embed_dir is not None) and (embed_name is not None):
+    if embed_dir and embed_name:
       result.append(
           Generator.EMBED_INCLUDE.format(
               os.path.join(embed_dir, embed_name) + '_embed.h'))
@@ -928,7 +926,7 @@ class Generator(object):
 
     result.append('')
 
-    if (embed_dir is not None) and (embed_name is not None):
+    if embed_dir and embed_name:
       result.append(
           Generator.EMBED_CLASS.format(name, embed_name.replace('-', '_')))
 

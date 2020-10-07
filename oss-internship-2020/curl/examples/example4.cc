@@ -21,107 +21,113 @@
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/flag.h"
 
-int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+namespace {
 
-  absl::Status status;
-
+absl::Status Example4() {
   // Initialize sandbox2 and sapi
-  CurlSapiSandbox sandbox;
-  status = sandbox.Init();
-  if (!status.ok()) {
-    LOG(FATAL) << "Couldn't initialize Sandboxed API: " << status;
-  }
-  CurlApi api(&sandbox);
+  curl::CurlSapiSandbox sandbox;
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  curl::CurlApi api(&sandbox);
 
   // Number of running handles
   sapi::v::Int still_running(1);
 
-  absl::StatusOr<int> curl_code;
+  int curl_code;
 
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
-  curl_code = api.curl_global_init(3l);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_global_init failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_global_init failed: " + curl_code);
   }
 
   // Initialize http_handle
-  absl::StatusOr<CURL*> curl_handle = api.curl_easy_init();
-  if (!curl_handle.ok()) {
-    LOG(FATAL) << "curl_easy_init failed: " << curl_handle.status();
-  }
-  sapi::v::RemotePtr http_handle(curl_handle.value());
-  if (!http_handle.GetValue()) {
-    LOG(FATAL) << "curl_easy_init failed: http_handle is NULL";
+  curl::CURL* curl_handle;
+  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  sapi::v::RemotePtr http_handle(curl_handle);
+  if (!curl_handle) {
+    return absl::UnavailableError("curl_easy_init failed: curl is NULL");
   }
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  curl_code =
-      api.curl_easy_setopt_ptr(&http_handle, CURLOPT_URL, url.PtrBefore());
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_easy_setopt_ptr failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code,
+                   api.curl_easy_setopt_ptr(&http_handle, curl::CURLOPT_URL,
+                                            url.PtrBefore()));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Initialize multi_handle
-  absl::StatusOr<CURLM*> curlm_handle = api.curl_multi_init();
-  if (!curlm_handle.ok()) {
-    LOG(FATAL) << "curl_multi_init failed: " << curlm_handle.status();
-  }
-  sapi::v::RemotePtr multi_handle(curlm_handle.value());
-  if (!multi_handle.GetValue()) {
-    LOG(FATAL) << "curl_multi_init failed: multi_handle is NULL";
+  curl::CURLM* curlm_handle;
+  SAPI_ASSIGN_OR_RETURN(curlm_handle, api.curl_multi_init());
+  sapi::v::RemotePtr multi_handle(curlm_handle);
+  if (!curlm_handle) {
+    return absl::UnavailableError(
+        "curl_multi_init failed: multi_handle is NULL");
   }
 
   // Add http_handle to the multi stack
-  curl_code = api.curl_multi_add_handle(&multi_handle, &http_handle);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_multi_add_handle failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code,
+                   api.curl_multi_add_handle(&multi_handle, &http_handle));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_multi_add_handle failed: " + curl_code);
   }
 
   while (still_running.GetValue()) {
     sapi::v::Int numfds(0);
 
     // Perform the request
-    curl_code = api.curl_multi_perform(&multi_handle, still_running.PtrBoth());
-    if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-      LOG(FATAL) << "curl_mutli_perform failed: " << curl_code.status();
+    SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_multi_perform(
+                                    &multi_handle, still_running.PtrBoth()));
+    if (curl_code != 0) {
+      return absl::UnavailableError("curl_mutli_perform failed: " + curl_code);
     }
 
     if (still_running.GetValue()) {
       // Wait for an event or timeout
       sapi::v::NullPtr null_ptr;
-      curl_code = api.curl_multi_poll_sapi(&multi_handle, &null_ptr, 0, 1000,
-                                           numfds.PtrBoth());
-      if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-        LOG(FATAL) << "curl_multi_poll_sapi failed: " << curl_code.status();
+      SAPI_ASSIGN_OR_RETURN(
+          curl_code, api.curl_multi_poll_sapi(&multi_handle, &null_ptr, 0, 1000,
+                                              numfds.PtrBoth()));
+      if (curl_code != 0) {
+        return absl::UnavailableError("curl_multi_poll_sapi failed: " +
+                                      curl_code);
       }
     }
   }
 
   // Remove http_handle from the multi stack
-  curl_code = api.curl_multi_remove_handle(&multi_handle, &http_handle);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_multi_remove_handle failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code,
+                   api.curl_multi_remove_handle(&multi_handle, &http_handle));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_multi_remove_handle failed: " +
+                                  curl_code);
   }
 
   // Cleanup http_handle
-  status = api.curl_easy_cleanup(&http_handle);
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_easy_cleanup failed: " << status;
-  }
+  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&http_handle));
 
   // Cleanup multi_handle
-  curl_code = api.curl_multi_cleanup(&multi_handle);
-  if (!curl_code.ok() || curl_code.value() != CURLE_OK) {
-    LOG(FATAL) << "curl_multi_cleanup failed: " << curl_code.status();
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_multi_cleanup(&multi_handle));
+  if (curl_code != 0) {
+    return absl::UnavailableError("curl_multi_cleanup failed: " + curl_code);
   }
 
   // Cleanup curl
-  status = api.curl_global_cleanup();
-  if (!status.ok()) {
-    LOG(FATAL) << "curl_global_cleanup failed: " << status;
+  SAPI_RETURN_IF_ERROR(api.curl_global_cleanup());
+
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
+
+  if (absl::Status status = Example4(); !status.ok()) {
+    LOG(ERROR) << "Example4 failed: " << status.ToString();
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

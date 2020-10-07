@@ -48,7 +48,7 @@ class GuetzliTransaction : public sapi::Transaction {
   absl::Status Main() final;
 
   absl::Status LinkOutFile(int out_fd) const;
-  sapi::StatusOr<ImageType> GetImageTypeFromFd(int fd) const;
+  absl::StatusOr<ImageType> GetImageTypeFromFd(int fd) const;
 
   const TransactionParams params_;
   ImageType image_type_ = ImageType::kJpeg;

@@ -30,10 +30,15 @@ bool IsFunctionReferenceType(clang::QualType qual) {
 
 }  // namespace
 
-void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
+void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
+  if (seen_.contains(qual)) {
+    return;
+  }
+  seen_.insert(qual);
+
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
-    GatherRelatedTypes(typedef_type->getDecl()->getUnderlyingType(), types);
-    types->insert(qual);
+    CollectRelatedTypes(typedef_type->getDecl()->getUnderlyingType());
+    collected_.insert(qual);
     return;
   }
 
@@ -43,26 +48,26 @@ void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
                                         ->getAs<clang::FunctionProtoType>()) {
       // Note: Do not add the function type itself, as this will always be a
       //       pointer argument. We only need to collect all its related types.
-      GatherRelatedTypes(function_type->getReturnType(), types);
+      CollectRelatedTypes(function_type->getReturnType());
       for (const clang::QualType& param : function_type->getParamTypes()) {
-        GatherRelatedTypes(param, types);
+        CollectRelatedTypes(param);
       }
       return;
     }
   }
 
   if (IsPointerOrReference(qual)) {
-    clang::QualType pointee = qual->getPointeeType();
-    while (IsPointerOrReference(pointee)) {
+    clang::QualType pointee = qual;
+    do {
       pointee = pointee->getPointeeType();
-    }
-    GatherRelatedTypes(pointee, types);
+    } while (IsPointerOrReference(pointee));
+    CollectRelatedTypes(pointee);
     return;
   }
 
   // C array with specified constant size (i.e. int a[42])?
   if (const clang::ArrayType* array_type = qual->getAsArrayTypeUnsafe()) {
-    GatherRelatedTypes(array_type->getElementType(), types);
+    CollectRelatedTypes(array_type->getElementType());
     return;
   }
 
@@ -71,19 +76,19 @@ void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types) {
       // Collect the underlying integer type of enum classes as well, as it may
       // be a typedef.
       if (const clang::EnumDecl* decl = enum_type->getDecl(); decl->isFixed()) {
-        GatherRelatedTypes(decl->getIntegerType(), types);
+        CollectRelatedTypes(decl->getIntegerType());
       }
     }
-    types->insert(qual);
+    collected_.insert(qual);
     return;
   }
 
   if (const auto* record_type = qual->getAs<clang::RecordType>()) {
     const clang::RecordDecl* decl = record_type->getDecl();
     for (const clang::FieldDecl* field : decl->fields()) {
-      GatherRelatedTypes(field->getType(), types);
+      CollectRelatedTypes(field->getType());
     }
-    types->insert(qual);
+    collected_.insert(qual);
     return;
   }
 }

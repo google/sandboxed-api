@@ -14,8 +14,8 @@
 
 // Wrapper for curl library
 
-#ifndef CURL_WRAPPER_H
-#define CURL_WRAPPER_H
+#ifndef CURL_WRAPPER_H_
+#define CURL_WRAPPER_H_
 
 #include <curl/curl.h>
 
@@ -77,6 +77,7 @@ CURLSHcode curl_share_setopt_ptr(CURLSH* handle, CURLSHoption option,
 // The wrapper method is needed to make the variadic argument explicit
 CURLSHcode curl_share_setopt_long(CURLSH* handle, CURLSHoption option,
                                   long parameter);
-}
 
-#endif  // CURL_WRAPPER_H
+}  // extern "C"
+
+#endif  // CURL_WRAPPER_H_

@@ -41,20 +41,29 @@ inline bool IsPointerOrReference(clang::QualType qual) {
          qual->isLValueReferenceType() || qual->isRValueReferenceType();
 }
 
-// Computes the transitive closure of all types that a type depends on. Those
-// are types that need to be declared before a declaration of the type denoted
-// by the qual parameter is valid. For example, given
-//   struct SubStruct { bool truth_value; };
-//   struct AggregateStruct {
-//     int int_member;
-//     SubStruct struct_member;
-//   };
-//
-// calling this function on the type "AggregateStruct" yields these types:
-//   int
-//   SubStruct
-//   bool
-void GatherRelatedTypes(clang::QualType qual, QualTypeSet* types);
+class TypeCollector {
+ public:
+  // Computes the transitive closure of all types that a type depends on. Those
+  // are types that need to be declared before a declaration of the type denoted
+  // by the qual parameter is valid. For example, given
+  //   struct SubStruct { bool truth_value; };
+  //   struct AggregateStruct {
+  //     int int_member;
+  //     SubStruct struct_member;
+  //   };
+  //
+  // calling this function on the type "AggregateStruct" yields these types:
+  //   int
+  //   SubStruct
+  //   bool
+  void CollectRelatedTypes(clang::QualType qual);
+
+  QualTypeSet& collected() { return collected_; }
+
+ private:
+  QualTypeSet collected_;
+  QualTypeSet seen_;
+};
 
 // Maps a qualified type to a fully qualified SAPI-compatible type name. This
 // is used for the generated code that invokes the actual function call RPC.

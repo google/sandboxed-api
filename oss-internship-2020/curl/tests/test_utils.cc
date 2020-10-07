@@ -28,17 +28,17 @@
 int CurlTestUtils::port_;
 std::thread CurlTestUtils::server_thread_;
 
-absl::Status CurlTestUtils::CurlTestSetUp() {
+absl::Status curl::tests::CurlTestUtils::CurlTestSetUp() {
   // Initialize sandbox2 and sapi
-  sandbox_ = std::make_unique<CurlSapiSandbox>();
+  sandbox_ = std::make_unique<curl::CurlSapiSandbox>();
   absl::Status init = sandbox_->Init();
   if (!init.ok()) {
     return init;
   }
-  api_ = std::make_unique<CurlApi>(sandbox_.get());
+  api_ = std::make_unique<curl::CurlApi>(sandbox_.get());
 
   // Initialize curl
-  absl::StatusOr<CURL*> curl_handle = api_->curl_easy_init();
+  absl::StatusOr<curl::CURL*> curl_handle = api_->curl_easy_init();
   if (!curl_handle.ok()) {
     return curl_handle.status();
   }
@@ -51,23 +51,24 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
 
   // Specify request URL
   sapi::v::ConstCStr sapi_url(kUrl.data());
-  curl_code = api_->curl_easy_setopt_ptr(curl_.get(), CURLOPT_URL,
+  curl_code = api_->curl_easy_setopt_ptr(curl_.get(), curl::CURLOPT_URL,
                                          sapi_url.PtrBefore());
   if (!curl_code.ok()) {
     return curl_code.status();
   }
-  if (curl_code.value() != CURLE_OK) {
+  if (curl_code.value() != curl::CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_ptr returned with the error code " +
         curl_code.value());
   }
 
   // Set port
-  curl_code = api_->curl_easy_setopt_long(curl_.get(), CURLOPT_PORT, port_);
+  curl_code =
+      api_->curl_easy_setopt_long(curl_.get(), curl::CURLOPT_PORT, port_);
   if (!curl_code.ok()) {
     return curl_code.status();
   }
-  if (curl_code.value() != CURLE_OK) {
+  if (curl_code.value() != curl::CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_long returned with the error code " +
         curl_code.value());
@@ -83,12 +84,12 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
   sapi::v::RemotePtr remote_function_ptr(function_ptr);
 
   // Set WriteToMemory as the write function
-  curl_code = api_->curl_easy_setopt_ptr(curl_.get(), CURLOPT_WRITEFUNCTION,
-                                         &remote_function_ptr);
+  curl_code = api_->curl_easy_setopt_ptr(
+      curl_.get(), curl::CURLOPT_WRITEFUNCTION, &remote_function_ptr);
   if (!curl_code.ok()) {
     return curl_code.status();
   }
-  if (curl_code.value() != CURLE_OK) {
+  if (curl_code.value() != curl::CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_ptr returned with the error code " +
         curl_code.value());
@@ -96,12 +97,12 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
 
   // Pass memory chunk object to the callback
   chunk_ = std::make_unique<sapi::v::LenVal>(0);
-  curl_code = api_->curl_easy_setopt_ptr(curl_.get(), CURLOPT_WRITEDATA,
+  curl_code = api_->curl_easy_setopt_ptr(curl_.get(), curl::CURLOPT_WRITEDATA,
                                          chunk_->PtrBoth());
   if (!curl_code.ok()) {
     return curl_code.status();
   }
-  if (curl_code.value() != CURLE_OK) {
+  if (curl_code.value() != curl::CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_setopt_ptr returned with the error code " +
         curl_code.value());
@@ -110,18 +111,18 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
   return absl::OkStatus();
 }
 
-absl::Status CurlTestUtils::CurlTestTearDown() {
+absl::Status curl::tests::CurlTestUtils::CurlTestTearDown() {
   // Cleanup curl
   return api_->curl_easy_cleanup(curl_.get());
 }
 
-absl::StatusOr<std::string> CurlTestUtils::PerformRequest() {
+absl::StatusOr<std::string> curl::tests::CurlTestUtils::PerformRequest() {
   // Perform the request
   absl::StatusOr<int> curl_code = api_->curl_easy_perform(curl_.get());
   if (!curl_code.ok()) {
     return curl_code.status();
   }
-  if (curl_code.value() != CURLE_OK) {
+  if (curl_code.value() != curl::CURLE_OK) {
     return absl::UnavailableError(
         "curl_easy_perform returned with the error code " + curl_code.value());
   }
@@ -267,7 +268,7 @@ void ServerLoop(int listening_socket, sockaddr_in socket_address) {
 
 }  // namespace
 
-void CurlTestUtils::StartMockServer() {
+void curl::tests::CurlTestUtils::StartMockServer() {
   // Get the socket file descriptor
   int listening_socket = socket(AF_INET, SOCK_STREAM, 0);
 

@@ -20,8 +20,6 @@
 
 namespace sandbox2 {
 
-const char kForkServerDisableEnv[] = "SANDBOX2_NOFORKSERVER";
-
 pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
                               int comms_fd, int user_ns_fd, pid_t* init_pid) {
   // Acquire the channel ownership for this request (transaction).
