@@ -544,3 +544,4 @@ absl::StatusOr<std::string> CreateTempDirAtCWD() {
   SAPI_ASSIGN_OR_RETURN(std::string result, sandbox2::CreateTempDir(cwd));
   return result;
 }
+

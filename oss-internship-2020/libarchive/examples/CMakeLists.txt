@@ -40,3 +40,4 @@ add_executable(sapi_minitar
 target_link_libraries(sapi_minitar PRIVATE
   sapi_minitar_lib
 )
+

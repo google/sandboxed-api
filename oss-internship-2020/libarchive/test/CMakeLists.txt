@@ -26,3 +26,4 @@ target_link_libraries(sapi_minitar_test PRIVATE
 )
 
 gtest_discover_tests(sapi_minitar_test)
+
