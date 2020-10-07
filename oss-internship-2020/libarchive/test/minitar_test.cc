@@ -57,11 +57,11 @@ class MiniTarTest : public ::testing::Test {
     ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
         << "Could not chdir into test data directory";
 
-    CreateAndWriteToFile(kFile1_);
-    ASSERT_THAT(mkdir(kDir1_.data(), 0755), Eq(0)) << "Could not create dir1";
-    CreateAndWriteToFile(kFile2_);
-    ASSERT_THAT(mkdir(kDir2_.data(), 0755), Eq(0)) << "Could not create dir2";
-    CreateAndWriteToFile(kFile3_);
+    CreateAndWriteToFile(kFile1);
+    ASSERT_THAT(mkdir(kDir1.data(), 0755), Eq(0)) << "Could not create dir1";
+    CreateAndWriteToFile(kFile2);
+    ASSERT_THAT(mkdir(kDir2.data(), 0755), Eq(0)) << "Could not create dir2";
+    CreateAndWriteToFile(kFile3);
 
     test_count_ = 0;
   }
@@ -135,13 +135,14 @@ class MiniTarTest : public ::testing::Test {
   static int test_count_;
   static std::string data_dir_;
   static std::string init_wd_;
-  std::string tmp_dir_, id_;
+  std::string tmp_dir_;
+  std::string id_;
 
-  static constexpr absl::string_view kFile1_ = "file1";
-  static constexpr absl::string_view kFile2_ = "dir1/file2";
-  static constexpr absl::string_view kFile3_ = "dir1/dir2/file3";
-  static constexpr absl::string_view kDir1_ = "dir1";
-  static constexpr absl::string_view kDir2_ = "dir1/dir2";
+  static constexpr absl::string_view kFile1 = "file1";
+  static constexpr absl::string_view kFile2 = "dir1/file2";
+  static constexpr absl::string_view kFile3 = "dir1/dir2/file3";
+  static constexpr absl::string_view kDir1 = "dir1";
+  static constexpr absl::string_view kDir2 = "dir1/dir2";
 };
 
 int MiniTarTest::test_count_;
@@ -158,7 +159,7 @@ std::string MiniTarTest::init_wd_;
 // by first checking if they exist and then checking if the content is the
 // same as in the original file.
 TEST_F(MiniTarTest, TestFileSimple) {
-  std::vector<std::string> v = {kFile1_.data()};
+  std::vector<std::string> v = {kFile1.data()};
 
   ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
               IsOk());
@@ -169,11 +170,11 @@ TEST_F(MiniTarTest, TestFileSimple) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile1_));
+  CheckFile(std::string(kFile1));
 }
 
 TEST_F(MiniTarTest, TestMultipleFiles) {
-  std::vector<std::string> v = {kFile1_.data(), kFile2_.data(), kFile3_.data()};
+  std::vector<std::string> v = {kFile1.data(), kFile2.data(), kFile3.data()};
   ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
               IsOk());
   ASSERT_THAT(Exists(id_.data(), false), IsTrue())
@@ -185,13 +186,13 @@ TEST_F(MiniTarTest, TestMultipleFiles) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile1_));
-  CheckFile(std::string(kFile2_));
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile1));
+  CheckFile(std::string(kFile2));
+  CheckFile(std::string(kFile3));
 }
 
 TEST_F(MiniTarTest, TestDirectorySimple) {
-  std::vector<std::string> v = {kDir2_.data()};
+  std::vector<std::string> v = {kDir2.data()};
   ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
               IsOk());
 
@@ -201,11 +202,11 @@ TEST_F(MiniTarTest, TestDirectorySimple) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile3));
 }
 
 TEST_F(MiniTarTest, TestDirectoryNested) {
-  std::vector<std::string> v = {kDir1_.data()};
+  std::vector<std::string> v = {kDir1.data()};
   ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
               IsOk());
 
@@ -215,12 +216,12 @@ TEST_F(MiniTarTest, TestDirectoryNested) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile2_));
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile2));
+  CheckFile(std::string(kFile3));
 }
 
 TEST_F(MiniTarTest, TestComplex) {
-  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  std::vector<std::string> v = {kFile1.data(), kDir1.data()};
   ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
               IsOk());
 
@@ -230,13 +231,13 @@ TEST_F(MiniTarTest, TestComplex) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile1_));
-  CheckFile(std::string(kFile2_));
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile1));
+  CheckFile(std::string(kFile2));
+  CheckFile(std::string(kFile3));
 }
 
 TEST_F(MiniTarTest, TestCompress) {
-  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  std::vector<std::string> v = {kFile1.data(), kDir1.data()};
   int compress = 'Z';
   ASSERT_THAT(
       CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
@@ -247,13 +248,13 @@ TEST_F(MiniTarTest, TestCompress) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile1_));
-  CheckFile(std::string(kFile2_));
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile1));
+  CheckFile(std::string(kFile2));
+  CheckFile(std::string(kFile3));
 }
 
 TEST_F(MiniTarTest, TestGZIP) {
-  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  std::vector<std::string> v = {kFile1.data(), kDir1.data()};
   int compress = 'z';
   ASSERT_THAT(
       CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
@@ -264,13 +265,13 @@ TEST_F(MiniTarTest, TestGZIP) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile1_));
-  CheckFile(std::string(kFile2_));
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile1));
+  CheckFile(std::string(kFile2));
+  CheckFile(std::string(kFile3));
 }
 
 TEST_F(MiniTarTest, TestBZIP2) {
-  std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
+  std::vector<std::string> v = {kFile1.data(), kDir1.data()};
   int compress = 'j';
   ASSERT_THAT(
       CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
@@ -281,15 +282,15 @@ TEST_F(MiniTarTest, TestBZIP2) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile1_));
-  CheckFile(std::string(kFile2_));
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile1));
+  CheckFile(std::string(kFile2));
+  CheckFile(std::string(kFile3));
 }
 
 TEST_F(MiniTarTest, TestPaths) {
-  // These should be equivalent to kFile1_ and kDir1_ after cleaning.
-  std::vector<std::string> v = {JoinPath("a/b/../../c/../", kFile1_).data(),
-                                JoinPath("d/../e/././///../", kDir1_).data()};
+  // These should be equivalent to kFile1 and kDir1 after cleaning.
+  std::vector<std::string> v = {JoinPath("a/b/../../c/../", kFile1).data(),
+                                JoinPath("d/../e/././///../", kDir1).data()};
   ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
               IsOk());
 
@@ -298,9 +299,9 @@ TEST_F(MiniTarTest, TestPaths) {
   ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
-  CheckFile(std::string(kFile1_));
-  CheckFile(std::string(kFile2_));
-  CheckFile(std::string(kFile3_));
+  CheckFile(std::string(kFile1));
+  CheckFile(std::string(kFile2));
+  CheckFile(std::string(kFile3));
 }
 
 }  // namespace
