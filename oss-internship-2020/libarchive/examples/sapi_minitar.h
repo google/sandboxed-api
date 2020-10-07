@@ -19,26 +19,27 @@
 #include <archive_entry.h>
 #include <fcntl.h>
 
-#include "libarchive_sapi.sapi.h"
-#include "sandbox.h"
+#include "libarchive_sapi.sapi.h"  // NOLINT(build/include)
+#include "sandbox.h"               // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 
 // Creates an archive file at the given filename.
-void create(const char* filename, int compress, const char** argv,
-            bool verbose = true);
+absl::Status CreateArchive(const char* filename, int compress,
+                           const char** argv, bool verbose = true);
 
 // Extracts an archive file. If do_extract is true, the files will
 // be created relative to the current working directory. If do_extract
 // is false then the function will just print the entries of the archive.
-void extract(const char* filename, int do_extract, int flags,
-             bool verbose = true);
+absl::Status ExtractArchive(const char* filename, int do_extract, int flags,
+                            bool verbose = true);
 
 // This function is only called from the "extract function". It is still
 // isolated in order to not modify the code structure as much.
-int copy_data(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
-              LibarchiveApi& api, SapiLibarchiveSandboxExtract& sandbox);
+absl::StatusOr<int> CopyData(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
+                             LibarchiveApi& api,
+                             SapiLibarchiveSandboxExtract& sandbox);
 
 inline constexpr size_t kBlockSize = 10240;
 inline constexpr size_t kBuffSize = 16384;
@@ -51,12 +52,12 @@ std::string MakeAbsolutePathAtCWD(const std::string& path);
 // This function takes a status as argument and after checking the status
 // it transfers the string. This is used mostly with archive_error_string
 // and other library functions that return a char*.
-std::string CheckStatusAndGetString(const absl::StatusOr<char*>& status,
-                                    LibarchiveSandbox& sandbox);
+absl::StatusOr<std::string> CheckStatusAndGetString(
+    const absl::StatusOr<char*>& status, LibarchiveSandbox& sandbox);
 
 // Creates a temporary directory in the current working directory and
 // returns the path. This is used in the extract function where the sandboxed
 // process changes the current working directory to this temporary directory.
-std::string CreateTempDirAtCWD();
+absl::StatusOr<std::string> CreateTempDirAtCWD();
 
 #endif  // SAPI_LIBARCHIVE_EXAMPLES_MINITAR_H

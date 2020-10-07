@@ -14,13 +14,13 @@
 
 #include <fstream>
 
-#include "build/googletest-src/googlemock/include/gmock/gmock-more-matchers.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include "sapi_minitar.h"
+#include "sapi_minitar.h"  // NOLINT(build/include)
 
 using ::sandbox2::file::JoinPath;
+using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::StrEq;
@@ -47,7 +47,10 @@ class MiniTarTest : public ::testing::Test {
   // -dir1 - file2
   //       - dir2 - file3
   static void SetUpTestSuite() {
-    data_dir_ = CreateTempDirAtCWD();
+    absl::StatusOr<std::string> tmp_status = CreateTempDirAtCWD();
+    ASSERT_THAT(tmp_status, IsOk());
+    data_dir_ = tmp_status.value();
+
     init_wd_ = sandbox2::file_util::fileops::GetCWD();
     ASSERT_THAT(Exists(data_dir_, false), IsTrue())
         << "Test data directory was not created";
@@ -78,7 +81,11 @@ class MiniTarTest : public ::testing::Test {
     // We use a unique id based on test count to make sure that files created
     // during tests do not overlap.
     id_ = "test" + std::to_string(test_count_);
-    tmp_dir_ = CreateTempDirAtCWD();
+
+    absl::StatusOr<std::string> tmp_status = CreateTempDirAtCWD();
+    ASSERT_THAT(tmp_status, IsOk());
+    tmp_dir_ = tmp_status.value();
+
     ASSERT_THAT(Exists(tmp_dir_, false), IsTrue)
         << "Could not create test specific temporary directory";
     ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
@@ -153,26 +160,30 @@ std::string MiniTarTest::init_wd_;
 TEST_F(MiniTarTest, TestFileSimple) {
   std::vector<std::string> v = {kFile1_.data()};
 
-  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
+              IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile1_));
 }
 
 TEST_F(MiniTarTest, TestMultipleFiles) {
   std::vector<std::string> v = {kFile1_.data(), kFile2_.data(), kFile3_.data()};
-  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
+              IsOk());
   ASSERT_THAT(Exists(id_.data(), false), IsTrue())
       << "Archive file was not created";
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile1_));
   CheckFile(std::string(kFile2_));
@@ -181,24 +192,28 @@ TEST_F(MiniTarTest, TestMultipleFiles) {
 
 TEST_F(MiniTarTest, TestDirectorySimple) {
   std::vector<std::string> v = {kDir2_.data()};
-  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
+              IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile3_));
 }
 
 TEST_F(MiniTarTest, TestDirectoryNested) {
   std::vector<std::string> v = {kDir1_.data()};
-  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
+              IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile2_));
   CheckFile(std::string(kFile3_));
@@ -206,12 +221,14 @@ TEST_F(MiniTarTest, TestDirectoryNested) {
 
 TEST_F(MiniTarTest, TestComplex) {
   std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
-  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
+              IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile1_));
   CheckFile(std::string(kFile2_));
@@ -221,11 +238,14 @@ TEST_F(MiniTarTest, TestComplex) {
 TEST_F(MiniTarTest, TestCompress) {
   std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
   int compress = 'Z';
-  create(id_.data(), compress, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(
+      CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
+      IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile1_));
   CheckFile(std::string(kFile2_));
@@ -235,11 +255,14 @@ TEST_F(MiniTarTest, TestCompress) {
 TEST_F(MiniTarTest, TestGZIP) {
   std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
   int compress = 'z';
-  create(id_.data(), compress, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(
+      CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
+      IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile1_));
   CheckFile(std::string(kFile2_));
@@ -249,11 +272,14 @@ TEST_F(MiniTarTest, TestGZIP) {
 TEST_F(MiniTarTest, TestBZIP2) {
   std::vector<std::string> v = {kFile1_.data(), kDir1_.data()};
   int compress = 'j';
-  create(id_.data(), compress, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(
+      CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
+      IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile1_));
   CheckFile(std::string(kFile2_));
@@ -264,11 +290,13 @@ TEST_F(MiniTarTest, TestPaths) {
   // These should be equivalent to kFile1_ and kDir1_ after cleaning.
   std::vector<std::string> v = {JoinPath("a/b/../../c/../", kFile1_).data(),
                                 JoinPath("d/../e/././///../", kDir1_).data()};
-  create(id_.data(), 0, VecStringToCharPtrArr(v), false);
+  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
+              IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  extract(JoinPath(data_dir_, id_).data(), 1, 0, false);
+  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+              IsOk());
 
   CheckFile(std::string(kFile1_));
   CheckFile(std::string(kFile2_));
