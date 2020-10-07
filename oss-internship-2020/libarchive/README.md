@@ -45,3 +45,4 @@ The available options are:
 - *z* - Compress with GZIP.
 
 If no compression method is chosen (in the case of archive creation) the files will only be stored.
+
