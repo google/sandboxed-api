@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <iostream>
 #include <cstdlib>
-#include <vector>
-#include <string>
 #include <filesystem>
+#include <iostream>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "sandboxed_api/sandbox2/util/fileops.h"
 
-#include "gdal_sandbox.h"
-#include "get_raster_data.h"
+#include "gdal_sandbox.h"  // NOLINT(build/include)
+#include "get_raster_data.h"  // NOLINT(build/include)
 
 namespace {
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "get_raster_data.h"
+#include "get_raster_data.h"  // NOLINT(build/include)
 
 #include <iostream>
 #include <memory>

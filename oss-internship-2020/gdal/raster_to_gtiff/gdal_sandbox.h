@@ -15,13 +15,14 @@
 #ifndef GDAL_SANDBOX_H_
 #define GDAL_SANDBOX_H_
 
+#include <syscall.h>
+
 #include <iostream>
 #include <string>
 
-#include <syscall.h>
-
-#include "gdal_sapi.sapi.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
+
+#include "gdal_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace gdal::sandbox {
 

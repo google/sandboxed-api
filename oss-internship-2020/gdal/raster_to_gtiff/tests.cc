@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>
 #include <iostream>
 #include <optional>
-#include <filesystem>
 #include <string>
 
 #include "gtest/gtest.h"
-#include "sandboxed_api/transaction.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/transaction.h"
 
-#include "gdal_sandbox.h"
-#include "get_raster_data.h"
+#include "gdal_sandbox.h"  // NOLINT(build/include)
+#include "get_raster_data.h"  // NOLINT(build/include)
 
 namespace gdal::sandbox::tests {
 namespace {
