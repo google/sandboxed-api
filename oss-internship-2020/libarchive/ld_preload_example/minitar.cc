@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// clang-format off
 #include "minitar.h"  // NOLINT(build/include)
 
 /*
@@ -250,7 +251,6 @@ void extract(const char* filename, int do_extract, int flags, int verbose) {
 
   archive_write_close(ext);
   archive_write_free(ext);
-  exit(0);
 }
 
 int copy_data(struct archive* ar, struct archive* aw) {
@@ -308,3 +308,5 @@ void usage(void) {
   errmsg(m);
   exit(1);
 }
+
+// clang-format on

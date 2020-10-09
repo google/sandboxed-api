@@ -24,20 +24,9 @@
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_ptr.h"
 
-std::unique_ptr<SapiLibarchiveSandboxExtract> sandbox_extract;
-std::unique_ptr<LibarchiveApi> api;
-
-struct ExtractTempDirectoryCleanup {
-  ExtractTempDirectoryCleanup(const std::string& dir) : dir_(dir) {}
-  ~ExtractTempDirectoryCleanup() {
-    sandbox2::file_util::fileops::DeleteRecursively(dir_);
-  }
-
- private:
-  std::string dir_;
-};
-
-std::unique_ptr<ExtractTempDirectoryCleanup> cleanup_ptr;
+SapiLibarchiveSandboxExtract* sandbox_extract;
+LibarchiveApi* api;
+char* c_str_tmp = nullptr;
 
 typedef void (*real_extract)(const char*, int, int, int);
 
@@ -46,16 +35,15 @@ void extract(const char* filename, int do_extract, int flags, int verbose) {
   std::string tmp_dir;
   if (do_extract) {
     tmp_dir = CreateTempDirAtCWD().value();
-    cleanup_ptr = absl::make_unique<ExtractTempDirectoryCleanup>(tmp_dir);
   }
 
   std::string filename_absolute = MakeAbsolutePathAtCWD(filename);
 
   // Initialize sandbox and api objects.
-  sandbox_extract = absl::make_unique<SapiLibarchiveSandboxExtract>(
-      filename_absolute, do_extract, tmp_dir);
+  sandbox_extract =
+      new SapiLibarchiveSandboxExtract(filename_absolute, do_extract, tmp_dir);
   CHECK(sandbox_extract->Init().ok()) << "Error during sandbox initialization";
-  api = absl::make_unique<LibarchiveApi>(sandbox_extract.get());
+  api = new LibarchiveApi(sandbox_extract);
 
   // After everything is set up, call the original function (next symbol).
 
@@ -66,6 +54,20 @@ void extract(const char* filename, int do_extract, int flags, int verbose) {
 
   CHECK(x != nullptr) << "dlsym call could not find function symbol";
   ((real_extract)x)(filename_absolute.c_str(), do_extract, flags, verbose);
+
+  // clean up
+  if (c_str_tmp != nullptr) {
+    delete[] c_str_tmp;
+  }
+
+  // This is the last function called so we can delete the temporary directory
+  // here
+  if (do_extract) {
+    sandbox2::file_util::fileops::DeleteRecursively(tmp_dir);
+  }
+
+  delete api;
+  delete sandbox_extract;
 }
 
 archive* archive_read_new() {
@@ -126,13 +128,6 @@ int archive_read_open_filename(archive* a, const char* _filename,
       .value();
 }
 
-const char* archive_error_string(archive* a) {
-  sapi::v::RemotePtr a_ptr(a);
-  char* str = api->archive_error_string(&a_ptr).value();
-  CHECK(str != nullptr) << "Could not get error message";
-  return sandbox_extract->GetCString(sapi::v::RemotePtr(str)).value().c_str();
-}
-
 int archive_read_next_header(archive* a, archive_entry** entry) {
   sapi::v::IntBase<archive_entry*> entry_ptr_tmp(0);
   sapi::v::RemotePtr a_ptr(a);
@@ -142,17 +137,44 @@ int archive_read_next_header(archive* a, archive_entry** entry) {
   return rc;
 }
 
-// Keep a global variable so that it does not go out of scope.
-std::string str_tmp;
+// In the following two functions we need to transfer a string from the
+// sandboxed process to the client process. However, this string would
+// go out of scope after this function so we use a global char * to make
+// sure it does not get automatically deleted before it is used.
+const char* archive_error_string(archive* a) {
+  sapi::v::RemotePtr a_ptr(a);
+  char* str = api->archive_error_string(&a_ptr).value();
+  CHECK(str != nullptr) << "Could not get error message";
+
+  std::string str_tmp =
+      sandbox_extract->GetCString(sapi::v::RemotePtr(str)).value();
+
+  if (c_str_tmp != nullptr) {
+    delete[] c_str_tmp;
+  }
+
+  c_str_tmp = new char[str_tmp.length() + 1];
+  strcpy(c_str_tmp, str_tmp.c_str());
+
+  return c_str_tmp;
+}
 
 const char* archive_entry_pathname(archive_entry* entry) {
   sapi::v::RemotePtr entry_ptr(entry);
   char* str = api->archive_entry_pathname(&entry_ptr).value();
-  CHECK(str != nullptr) << "Could not get error message";
+  CHECK(str != nullptr) << "Could not get pathname";
 
-  str_tmp = sandbox_extract->GetCString(sapi::v::RemotePtr(str)).value();
+  std::string str_tmp =
+      sandbox_extract->GetCString(sapi::v::RemotePtr(str)).value();
 
-  return str_tmp.c_str();
+  if (c_str_tmp != nullptr) {
+    delete[] c_str_tmp;
+  }
+
+  c_str_tmp = new char[str_tmp.length() + 1];
+  strcpy(c_str_tmp, str_tmp.c_str());
+
+  return c_str_tmp;
 }
 
 int archive_read_close(archive* a) {

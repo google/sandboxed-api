@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// clang-format off
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -98,3 +99,5 @@ void extract(const char *filename, int do_extract, int flags, int verbose = 1);
 int	copy_data(struct archive *, struct archive *);
 void msg(const char *);
 void usage(void);
+
+// clang-format on

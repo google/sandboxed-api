@@ -29,9 +29,6 @@ target_link_libraries(minitar_original PRIVATE
     minitar_lib
 )
 
-
-#===========
-
 add_library(sapi_minitar_lib_shared SHARED
   ../examples/sapi_minitar.cc
   ../examples/sapi_minitar.h
@@ -52,8 +49,6 @@ target_link_libraries(sapi_minitar_lib_shared PUBLIC
 target_include_directories(sapi_minitar_lib_shared INTERFACE
   "${PROJECT_SOURCE_DIR}/examples"
 )
-
-#===========
 
 add_library(minitar_preload SHARED
   sapi_minitar.cc
