@@ -36,25 +36,25 @@ struct ChannelLimits {
   uint8_t max_alpha;
 };
 
-constexpr unsigned kRawTileNumber = 9;
-constexpr unsigned kClusterSize = 6;
-constexpr unsigned kChannelsInPixel = 3;
-constexpr unsigned kTestCount = 3;
-constexpr unsigned kImageSize = 128 * 128;
-constexpr unsigned kClusterImageSize = 64 * 64;
+constexpr uint32_t kRawTileNumber = 9;
+constexpr uint32_t kClusterSize = 6;
+constexpr uint32_t kChannelsInPixel = 3;
+constexpr uint32_t kTestCount = 3;
+constexpr uint32_t kImageSize = 128 * 128;
+constexpr uint32_t kClusterImageSize = 64 * 64;
 using ClusterData = std::array<uint8_t, kClusterSize>;
 
-constexpr std::array<std::pair<unsigned, ClusterData>, kTestCount> kClusters = {
+constexpr std::array<std::pair<uint32_t, ClusterData>, kTestCount> kClusters = {
     {{0, {0, 0, 2, 0, 138, 139}},
      {64, {0, 0, 9, 6, 134, 119}},
      {128, {44, 40, 63, 59, 230, 95}}}};
 
-constexpr std::array<std::pair<unsigned, ChannelLimits>, kTestCount> kLimits = {
+constexpr std::array<std::pair<uint32_t, ChannelLimits>, kTestCount> kLimits = {
     {{0, {15, 18, 0, 0, 18, 41, 255, 255}},
      {64, {0, 0, 0, 0, 0, 2, 255, 255}},
      {512, {5, 6, 34, 36, 182, 196, 255, 255}}}};
 
-absl::Status CheckCluster(unsigned cluster,
+absl::Status CheckCluster(uint32_t cluster,
                           const sapi::v::Array<uint8_t>& buffer,
                           const ClusterData& expected_cluster) {
   if (buffer.GetSize() <= cluster * kClusterSize) {
@@ -75,7 +75,7 @@ absl::Status CheckCluster(unsigned cluster,
       target[2], "\t", target[3], "\t", target[4], "\t", target[5], "\n"));
 }
 
-absl::Status CheckRgbPixel(unsigned pixel, const ChannelLimits& limits,
+absl::Status CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
                            const sapi::v::Array<uint8_t>& buffer) {
   if (buffer.GetSize() <= pixel * kChannelsInPixel) {
     return absl::InternalError("Buffer overrun\n");
@@ -95,10 +95,10 @@ absl::Status CheckRgbPixel(unsigned pixel, const ChannelLimits& limits,
       " (expected ", limits.min_blue, "..=", limits.max_blue, ")\n"));
 }
 
-absl::Status CheckRgbaPixel(unsigned pixel, const ChannelLimits& limits,
-                            const sapi::v::Array<unsigned>& buffer) {
+absl::Status CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
+                            const sapi::v::Array<uint32_t>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
-  unsigned adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
+  uint32_t adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
 
   if (buffer.GetSize() <= adjusted_pixel) {
     return absl::InternalError("Buffer overrun\n");
@@ -264,7 +264,7 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     return absl::InternalError(absl::StrCat("Could not reopen ", srcfile));
   }
 
-  sapi::v::Array<unsigned> rgba_buffer_(kImageSize);
+  sapi::v::Array<uint32_t> rgba_buffer_(kImageSize);
 
   // read as rgba
   SAPI_ASSIGN_OR_RETURN(

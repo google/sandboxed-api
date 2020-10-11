@@ -37,25 +37,25 @@ struct ChannelLimits {
   uint8_t max_alpha;
 };
 
-constexpr unsigned kRawTileNumber = 9;
-constexpr unsigned kClusterSize = 6;
-constexpr unsigned kChannelsInPixel = 3;
-constexpr unsigned kTestCount = 3;
-constexpr unsigned kImageSize = 128 * 128;
-constexpr unsigned kClusterImageSize = 64 * 64;
+constexpr uint32_t kRawTileNumber = 9;
+constexpr uint32_t kClusterSize = 6;
+constexpr uint32_t kChannelsInPixel = 3;
+constexpr uint32_t kTestCount = 3;
+constexpr uint32_t kImageSize = 128 * 128;
+constexpr uint32_t kClusterImageSize = 64 * 64;
 using ClusterData = std::array<uint8_t, kClusterSize>;
 
-constexpr std::array<std::pair<unsigned, ClusterData>, kTestCount> kClusters = {
+constexpr std::array<std::pair<uint32_t, ClusterData>, kTestCount> kClusters = {
     {{0, {0, 0, 2, 0, 138, 139}},
      {64, {0, 0, 9, 6, 134, 119}},
      {128, {44, 40, 63, 59, 230, 95}}}};
 
-constexpr std::array<std::pair<unsigned, ChannelLimits>, kTestCount> kLimits = {
+constexpr std::array<std::pair<uint32_t, ChannelLimits>, kTestCount> kLimits = {
     {{0, {15, 18, 0, 0, 18, 41, 255, 255}},
      {64, {0, 0, 0, 0, 0, 2, 255, 255}},
      {512, {5, 6, 34, 36, 182, 196, 255, 255}}}};
 
-bool CheckCluster(unsigned cluster, const sapi::v::Array<uint8_t>& buffer,
+bool CheckCluster(uint32_t cluster, const sapi::v::Array<uint8_t>& buffer,
                   const ClusterData& expected_cluster) {
   bool is_overrun = (buffer.GetSize() <= cluster * kClusterSize);
   EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
@@ -80,7 +80,7 @@ bool CheckCluster(unsigned cluster, const sapi::v::Array<uint8_t>& buffer,
   return comp;
 }
 
-bool CheckRgbPixel(unsigned pixel, const ChannelLimits& limits,
+bool CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
                    const sapi::v::Array<uint8_t>& buffer) {
   bool is_overrun = (buffer.GetSize() <= pixel * kChannelsInPixel);
   EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
@@ -103,10 +103,10 @@ bool CheckRgbPixel(unsigned pixel, const ChannelLimits& limits,
   return comp;
 }
 
-bool CheckRgbaPixel(unsigned pixel, const ChannelLimits& limits,
-                    const sapi::v::Array<unsigned>& buffer) {
+bool CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
+                    const sapi::v::Array<uint32_t>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
-  unsigned adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
+  uint32_t adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
 
   bool is_overrun = (buffer.GetSize() <= adjusted_pixel);
   EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
@@ -225,7 +225,7 @@ TEST(SandboxTest, RawDecode) {
   ASSERT_THAT(tif2.GetValue(), NotNull())
       << "Could not open " << srcfile << ", TIFFOpen return NULL";
 
-  sapi::v::Array<unsigned> rgba_buffer_(kImageSize);
+  sapi::v::Array<uint32_t> rgba_buffer_(kImageSize);
 
   status_or_int =
       api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer_.PtrBoth());

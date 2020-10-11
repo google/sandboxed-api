@@ -24,7 +24,7 @@ using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::NotNull;
 
-constexpr unsigned kTileBufferSize = 256;
+constexpr uint16_t kTileBufferSize = 256;
 constexpr uint16_t kWidth = 1;
 constexpr uint16_t kBps = 8;
 constexpr uint16_t kRowsPerStrip = 1;
@@ -212,9 +212,9 @@ void TestWriting(const char* mode, int tiled, int height) {
 
   if (tiled) {
     for (int i = 0; i < (height + 15) / 16; ++i) {
-      std::array<unsigned char, kTileBufferSize> tilebuffer;
+      std::array<uint8_t, kTileBufferSize> tilebuffer;
       tilebuffer.fill(i);
-      sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(),
+      sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(),
                                                 kTileBufferSize);
 
       status_or_int = api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(),
@@ -251,11 +251,11 @@ void TestWriting(const char* mode, int tiled, int height) {
   if (tiled) {
     for (int i = 0; i < (height + 15) / 16; ++i) {
       for (int retry = 0; retry < 2; ++retry) {
-        std::array<unsigned char, kTileBufferSize> tilebuffer;
-        unsigned char expected_c = (unsigned char)i;
+        std::array<uint8_t, kTileBufferSize> tilebuffer;
+        uint8_t expected_c = static_cast<uint8_t>(i);
         tilebuffer.fill(0);
 
-        sapi::v::Array<unsigned char> tilebuffer_(tilebuffer.data(),
+        sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(),
                                                   kTileBufferSize);
         status_or_long = api.TIFFReadEncodedTile(
             &tif2, i, tilebuffer_.PtrBoth(), kTileBufferSize);
@@ -283,7 +283,7 @@ void TestWriting(const char* mode, int tiled, int height) {
     for (int i = 0; i < height; ++i) {
       for (int retry = 0; retry < 2; ++retry) {
         sapi::v::UChar c(0);
-        unsigned char expected_c = (unsigned char)i;
+        uint8_t expected_c = static_cast<uint8_t>(i);
 
         status_or_long = api.TIFFReadEncodedStrip(&tif2, i, c.PtrBoth(), 1);
         ASSERT_THAT(status_or_long, IsOk())

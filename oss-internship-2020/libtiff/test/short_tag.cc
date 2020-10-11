@@ -25,7 +25,7 @@ using ::testing::Ne;
 using ::testing::IsTrue;
 using ::testing::NotNull;
 
-constexpr unsigned kSamplePerPixel = 3;
+constexpr uint16_t kSamplePerPixel = 3;
 constexpr uint16_t kWidth = 1;
 constexpr uint16_t kLength = 1;
 constexpr uint16_t kBps = 8;

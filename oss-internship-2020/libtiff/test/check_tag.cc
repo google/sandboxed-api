@@ -50,7 +50,7 @@ void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
 }
 
 void CheckLongField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
-                    const unsigned value) {
+                    const uint32_t value) {
   sapi::v::UInt tmp(123);
   absl::StatusOr<int> status_or_int;
 

@@ -23,4 +23,4 @@ void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
                            const ttag_t field,
                            const std::array<uint16_t, 2>& values);
 void CheckLongField(TiffApi&, sapi::v::RemotePtr& tif, const ttag_t field,
-                    const unsigned value);
+                    const uint32_t value);

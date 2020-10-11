@@ -26,18 +26,18 @@ using ::testing::NotNull;
 
 struct LongTag {
   ttag_t tag;
-  short count;
-  unsigned value;
+  int16_t count;
+  uint32_t value;
 };
 
 constexpr std::array<LongTag, 1> kLongTags = {
     {TIFFTAG_SUBFILETYPE, 1,
      FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
-constexpr unsigned kSamplePerPixel = 3;
-constexpr unsigned kWidth = 1;
-constexpr unsigned kLength = 1;
-constexpr unsigned kBps = 8;
-constexpr unsigned kRowsPerStrip = 1;
+constexpr uint32_t kSamplePerPixel = 3;
+constexpr uint32_t kWidth = 1;
+constexpr uint32_t kLength = 1;
+constexpr uint32_t kBps = 8;
+constexpr uint32_t kRowsPerStrip = 1;
 
 TEST(SandboxTest, LongTag) {
   absl::StatusOr<std::string> status_or_path =
