@@ -22,3 +22,6 @@
 [submodule "oss-internship-2020/jsonnet/jsonnet"]
 	path = oss-internship-2020/jsonnet/jsonnet
 	url = https://github.com/google/jsonnet.git
+[submodule "oss-internship-2020/libpng/libtiff"]
+	path = oss-internship-2020/libpng/libtiff
+	url = https://gitlab.com/libtiff/libtiff
