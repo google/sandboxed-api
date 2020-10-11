@@ -145,7 +145,8 @@ TEST(SandboxTest, RawDecode) {
   TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  sapi::v::UShort h, v;
+  sapi::v::UShort h;
+  sapi::v::UShort v;
   absl::StatusOr<TIFF*> status_or_tif;
   absl::StatusOr<int> status_or_int;
   absl::StatusOr<tmsize_t> status_or_long;

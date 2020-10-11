@@ -163,7 +163,8 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
   bool pixel_status = true;
   bool cluster_status = true;
   // initialize sapi vars after constructing TiffSapiSandbox
-  sapi::v::UShort h, v;
+  sapi::v::UShort h;
+  sapi::v::UShort v;
   absl::StatusOr<TIFF*> status_or_tif;
   absl::StatusOr<int> status_or_int;
   absl::StatusOr<tmsize_t> status_or_long;
