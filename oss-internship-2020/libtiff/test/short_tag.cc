@@ -16,13 +16,13 @@
 #include <cstdint>
 
 #include "check_tag.h"  // NOLINT(build/include)
-#include "tiffio.h"  // NOLINT(build/include)
+#include "tiffio.h"     // NOLINT(build/include)
 
 namespace {
 
 using ::sapi::IsOk;
-using ::testing::Ne;
 using ::testing::IsTrue;
+using ::testing::Ne;
 using ::testing::NotNull;
 
 constexpr uint16_t kSamplePerPixel = 3;

@@ -254,7 +254,8 @@ void TestWriting(const char* mode, int tiled, int height) {
         uint8_t expected_c = static_cast<uint8_t>(i);
         tilebuffer.fill(0);
 
-        sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(), tilebuffer.size());
+        sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(),
+                                            tilebuffer.size());
 
         status_or_long = api.TIFFReadEncodedTile(
             &tif2, i, tilebuffer_.PtrBoth(), kTileBufferSize);

@@ -15,13 +15,13 @@
 #include <array>
 
 #include "check_tag.h"  // NOLINT(build/include)
-#include "tiffio.h"  // NOLINT(build/include)
+#include "tiffio.h"     // NOLINT(build/include)
 
 namespace {
 
 using ::sapi::IsOk;
-using ::testing::Ne;
 using ::testing::IsTrue;
+using ::testing::Ne;
 using ::testing::NotNull;
 
 struct LongTag {
