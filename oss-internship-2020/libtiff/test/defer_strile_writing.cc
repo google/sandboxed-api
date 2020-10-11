@@ -214,8 +214,7 @@ void TestWriting(const char* mode, int tiled, int height) {
     for (int i = 0; i < (height + 15) / 16; ++i) {
       std::array<uint8_t, kTileBufferSize> tilebuffer;
       tilebuffer.fill(i);
-      sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(),
-                                                kTileBufferSize);
+      sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(), tilebuffer.size());
 
       status_or_int = api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(),
                                                kTileBufferSize);
@@ -255,8 +254,8 @@ void TestWriting(const char* mode, int tiled, int height) {
         uint8_t expected_c = static_cast<uint8_t>(i);
         tilebuffer.fill(0);
 
-        sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(),
-                                                  kTileBufferSize);
+        sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(), tilebuffer.size());
+
         status_or_long = api.TIFFReadEncodedTile(
             &tif2, i, tilebuffer_.PtrBoth(), kTileBufferSize);
         ASSERT_THAT(status_or_long, IsOk())

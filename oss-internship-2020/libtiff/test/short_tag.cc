@@ -72,7 +72,7 @@ TEST(SandboxTest, ShortTag) {
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
-  sapi::v::Array<uint8_t> buffer_(buffer.data(), kSamplePerPixel);
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), buffer.size());
 
   absl::StatusOr<int> status_or_int;
   absl::StatusOr<TIFF*> status_or_tif;
