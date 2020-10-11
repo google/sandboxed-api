@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "check_tag.h"
+#include "check_tag.h"  // NOLINT(build/include)
 
 void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                      const uint16_t value) {

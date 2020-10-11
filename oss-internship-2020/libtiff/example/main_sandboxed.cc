@@ -17,7 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "../sandboxed.h"
+#include "../sandboxed.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/vars.h"

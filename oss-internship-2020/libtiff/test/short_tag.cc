@@ -15,7 +15,7 @@
 #include <array>
 #include <cstdint>
 
-#include "check_tag.h"
+#include "check_tag.h"  // NOLINT(build/include)
 #include "tiffio.h"  // NOLINT(build/include)
 
 namespace {

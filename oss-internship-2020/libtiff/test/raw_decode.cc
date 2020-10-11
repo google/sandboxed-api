@@ -16,7 +16,7 @@
 #include <cstring>
 
 #include "gtest/gtest.h"
-#include "helper.h"
+#include "helper.h"  // NOLINT(build/include)
 #include "tiffio.h"  // NOLINT(build/include)
 
 namespace {

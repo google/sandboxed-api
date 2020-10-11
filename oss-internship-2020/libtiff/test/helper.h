@@ -15,7 +15,7 @@
 #include <optional>
 #include <string>
 
-#include "../sandboxed.h"
+#include "../sandboxed.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"

@@ -14,7 +14,7 @@
 
 #include <cstring>
 
-#include "helper.h"
+#include "helper.h"  // NOLINT(build/include)
 #include "tiffio.h"  // NOLINT(build/include)
 
 void CheckShortField(TiffApi&, sapi::v::RemotePtr& tif, const ttag_t field,
