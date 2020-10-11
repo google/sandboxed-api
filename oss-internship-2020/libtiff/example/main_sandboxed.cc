@@ -54,6 +54,21 @@ constexpr std::array<std::pair<uint32_t, ChannelLimits>, kTestCount> kLimits = {
      {64, {0, 0, 0, 0, 0, 2, 255, 255}},
      {512, {5, 6, 34, 36, 182, 196, 255, 255}}}};
 
+constexpr absl::string_view kClusterErrorFormatStr =
+    "Cluster %d did not match expected results.\n"
+    "Expect:\t%3d\t%3d\t%3d\t%3d\t%3d\t%3d\n"
+    "Got:\t%3d\t%3d\t%3d\t%3d\t%3d\t%3d\n";
+
+constexpr absl::string_view kRgbPixelErrorFormatStr =
+    "Pixel %d did not match expected results.\n"
+    "Got R=%d (expected %d..%d), G=%d (expected %d..%d), "
+    "B=%d (expected %d..%d)\n";
+
+constexpr absl::string_view kRgbaPixelErrorFormatStr =
+    "Pixel %d did not match expected results.\n"
+    "Got R=%d (expected %d..%d), G=%d (expected %d..%d), "
+    "B=%d (expected %d..%d), A=%d (expected %d..%d)\n";
+
 absl::Status CheckCluster(uint32_t cluster,
                           const sapi::v::Array<uint8_t>& buffer,
                           const ClusterData& expected_cluster) {
@@ -67,12 +82,11 @@ absl::Status CheckCluster(uint32_t cluster,
   }
 
   // the image is split on 6-bit clusters because it has YCbCr color format
-  return absl::InternalError(absl::StrCat(
-      "Cluster ", cluster, " did not match expected results.\n", "Expect: ",
-      expected_cluster[0], "\t", expected_cluster[1], "\t", expected_cluster[2],
-      "\t", expected_cluster[3], "\t", expected_cluster[4], "\t",
-      expected_cluster[5], "\n", "Got: ", target[0], "\t", target[1], "\t",
-      target[2], "\t", target[3], "\t", target[4], "\t", target[5], "\n"));
+  return absl::InternalError(absl::StrFormat(
+      kClusterErrorFormatStr, cluster, expected_cluster[0], expected_cluster[1],
+      expected_cluster[2], expected_cluster[3], expected_cluster[4],
+      expected_cluster[5], target[0], target[1], target[2], target[3],
+      target[4], target[5]));
 }
 
 absl::Status CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
@@ -88,11 +102,10 @@ absl::Status CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
     return absl::OkStatus();
   }
 
-  return absl::InternalError(absl::StrCat(
-      "Pixel ", pixel, " did not match expected results.\n", "Got R=", rgb[0],
-      " (expected ", limits.min_red, "..=", limits.max_red, "), G=", rgb[1],
-      " (expected ", limits.min_green, "..=", limits.max_green, "), B=", rgb[2],
-      " (expected ", limits.min_blue, "..=", limits.max_blue, ")\n"));
+  return absl::InternalError(absl::StrFormat(
+      kRgbPixelErrorFormatStr, pixel, rgb[0], limits.min_red, limits.max_red,
+      rgb[1], limits.min_green, limits.max_green, rgb[2], limits.min_blue,
+      limits.max_blue));
 }
 
 absl::Status CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
@@ -116,13 +129,11 @@ absl::Status CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
     return absl::OkStatus();
   }
 
-  return absl::InternalError(absl::StrCat(
-      "Pixel ", pixel, " did not match expected results.\n", "Got R=",
-      TIFFGetR(rgba), " (expected ", limits.min_red, "..=", limits.max_red,
-      "), G=", TIFFGetG(rgba), " (expected ", limits.min_green,
-      "..=", limits.max_green, "), B=", TIFFGetB(rgba), " (expected ",
-      limits.min_blue, "..=", limits.max_blue, "), A=", TIFFGetA(rgba),
-      " (expected ", limits.min_alpha, "..=", limits.max_alpha, ")\n"));
+  return absl::InternalError(absl::StrFormat(
+      kRgbaPixelErrorFormatStr, pixel, TIFFGetR(rgba), limits.min_red,
+      limits.max_red, TIFFGetG(rgba), limits.min_green, limits.max_green,
+      TIFFGetB(rgba), limits.min_blue, limits.max_blue, TIFFGetA(rgba),
+      limits.min_alpha, limits.max_alpha));
 }
 
 }  // namespace
