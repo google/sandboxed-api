@@ -10,9 +10,9 @@ You should make sure the libtiff submodule is cloned.
 
 #### build:
 ```
-	mkdir -p build && cd build && \
-		cmake .. -DSAPI_ROOT=/path/to/sapi_root -DBUILD_SHARED_LIBS=OFF
-	make -j8
+mkdir -p build && cd build && \
+	cmake .. -DSAPI_ROOT=/path/to/sapi_root -DBUILD_SHARED_LIBS=OFF
+make -j8
 ```
 
 #### to run the sandboxed example:
