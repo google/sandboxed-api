@@ -104,7 +104,7 @@ absl::Status CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
     return absl::InternalError("Buffer overrun\n");
   }
 
-  auto* rgba = buffer[adjusted_pixel];
+  auto rgba = buffer[adjusted_pixel];
   if (TIFFGetR(rgba) >= static_cast<unsigned>(limits.min_red) &&
       TIFFGetR(rgba) <= static_cast<unsigned>(limits.max_red) &&
       TIFFGetG(rgba) >= static_cast<unsigned>(limits.min_green) &&
