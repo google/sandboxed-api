@@ -18,13 +18,13 @@
 #include "helper.h"  // NOLINT(build/include)
 #include "tiffio.h"  // NOLINT(build/include)
 
+namespace {
+
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
 using ::testing::NotNull;
-
-namespace {
 
 struct ChannelLimits {
   uint8_t min_red;
