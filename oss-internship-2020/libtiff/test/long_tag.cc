@@ -19,6 +19,11 @@
 
 namespace {
 
+using ::sapi::IsOk;
+using ::testing::Ne;
+using ::testing::IsTrue;
+using ::testing::NotNull;
+
 struct LongTag {
   ttag_t tag;
   short count;

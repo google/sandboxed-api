@@ -14,6 +14,10 @@
 
 #include "check_tag.h"  // NOLINT(build/include)
 
+using ::sapi::IsOk;
+using ::testing::Eq;
+using ::testing::IsTrue;
+
 void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                      const uint16_t value) {
   sapi::v::UShort tmp(123);

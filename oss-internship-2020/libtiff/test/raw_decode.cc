@@ -15,9 +15,14 @@
 #include <array>
 #include <cstring>
 
-#include "gtest/gtest.h"
 #include "helper.h"  // NOLINT(build/include)
 #include "tiffio.h"  // NOLINT(build/include)
+
+using ::sapi::IsOk;
+using ::testing::Eq;
+using ::testing::IsFalse;
+using ::testing::IsTrue;
+using ::testing::NotNull;
 
 namespace {
 

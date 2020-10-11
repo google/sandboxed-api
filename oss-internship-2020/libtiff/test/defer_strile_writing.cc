@@ -19,6 +19,11 @@
 
 namespace {
 
+using ::sapi::IsOk;
+using ::testing::Eq;
+using ::testing::IsTrue;
+using ::testing::NotNull;
+
 constexpr unsigned kTileBufferSize = 256;
 constexpr uint16_t kWidth = 1;
 constexpr uint16_t kBps = 8;
