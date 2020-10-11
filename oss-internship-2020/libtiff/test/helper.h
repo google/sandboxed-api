@@ -15,18 +15,11 @@
 #include <optional>
 #include <string>
 
-#include "../sandboxed.h"
+#include "../sandboxed.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/util/status_matchers.h"
-
-using ::sapi::IsOk;
-using ::testing::Eq;
-using ::testing::IsFalse;
-using ::testing::IsTrue;
-using ::testing::Ne;
-using ::testing::NotNull;
 
 std::string GetFilePath(const std::string& filename);

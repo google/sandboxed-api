@@ -16,6 +16,7 @@ add_library(wrapped_tiff OBJECT
   func.h 
   func.cc
 )
+
 set_target_properties(wrapped_tiff 
   PROPERTIES LINKER_LANGUAGE C
 )

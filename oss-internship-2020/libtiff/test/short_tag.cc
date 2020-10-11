@@ -15,12 +15,17 @@
 #include <array>
 #include <cstdint>
 
-#include "check_tag.h"
-#include "tiffio.h"  // NOLINT(build/include)
+#include "check_tag.h"  // NOLINT(build/include)
+#include "tiffio.h"     // NOLINT(build/include)
 
 namespace {
 
-constexpr unsigned kSamplePerPixel = 3;
+using ::sapi::IsOk;
+using ::testing::IsTrue;
+using ::testing::Ne;
+using ::testing::NotNull;
+
+constexpr uint16_t kSamplePerPixel = 3;
 constexpr uint16_t kWidth = 1;
 constexpr uint16_t kLength = 1;
 constexpr uint16_t kBps = 8;
@@ -67,7 +72,7 @@ TEST(SandboxTest, ShortTag) {
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
-  sapi::v::Array<uint8_t> buffer_(buffer.data(), kSamplePerPixel);
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), buffer.size());
 
   absl::StatusOr<int> status_or_int;
   absl::StatusOr<TIFF*> status_or_tif;

@@ -14,25 +14,30 @@
 
 #include <array>
 
-#include "check_tag.h"
-#include "tiffio.h"  // NOLINT(build/include)
+#include "check_tag.h"  // NOLINT(build/include)
+#include "tiffio.h"     // NOLINT(build/include)
 
 namespace {
 
+using ::sapi::IsOk;
+using ::testing::IsTrue;
+using ::testing::Ne;
+using ::testing::NotNull;
+
 struct LongTag {
   ttag_t tag;
-  short count;
-  unsigned value;
+  int16_t count;
+  uint32_t value;
 };
 
 constexpr std::array<LongTag, 1> kLongTags = {
     {TIFFTAG_SUBFILETYPE, 1,
      FILETYPE_REDUCEDIMAGE | FILETYPE_PAGE | FILETYPE_MASK}};
-constexpr unsigned kSamplePerPixel = 3;
-constexpr unsigned kWidth = 1;
-constexpr unsigned kLength = 1;
-constexpr unsigned kBps = 8;
-constexpr unsigned kRowsPerStrip = 1;
+constexpr uint32_t kSamplePerPixel = 3;
+constexpr uint32_t kWidth = 1;
+constexpr uint32_t kLength = 1;
+constexpr uint32_t kBps = 8;
+constexpr uint32_t kRowsPerStrip = 1;
 
 TEST(SandboxTest, LongTag) {
   absl::StatusOr<std::string> status_or_path =
@@ -46,7 +51,7 @@ TEST(SandboxTest, LongTag) {
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
-  sapi::v::Array<uint8_t> buffer_(buffer.data(), kSamplePerPixel);
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), buffer.size());
 
   absl::StatusOr<int> status_or_int;
   absl::StatusOr<TIFF*> status_or_tif;

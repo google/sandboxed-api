@@ -18,7 +18,7 @@
 #include <optional>
 #include <utility>
 
-#include "tiff_sapi.sapi.h"
+#include "tiff_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {
 

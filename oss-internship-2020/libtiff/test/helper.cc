@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "helper.h"
+#include "helper.h"  // NOLINT(build/include)
 
 std::string GetImagesFolder() {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();

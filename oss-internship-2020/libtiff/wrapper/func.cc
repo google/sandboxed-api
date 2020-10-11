@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "func.h"
+#include "func.h"  // NOLINT(build/include)
 
 int TIFFGetField1(TIFF* tif, unsigned tag, void* param) {
   return TIFFGetField(tif, tag, param);
