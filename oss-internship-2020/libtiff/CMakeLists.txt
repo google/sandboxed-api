@@ -36,90 +36,90 @@ set(SAPI_ENABLE_TESTS ${TIFF_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
 add_subdirectory(wrapper)
 
 add_subdirectory(
-    "${SAPI_ROOT}"
-    "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-    # Omit this to have the full Sandboxed API in IDE
-    EXCLUDE_FROM_ALL
+  "${SAPI_ROOT}"
+  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+  # Omit this to have the full Sandboxed API in IDE
+  EXCLUDE_FROM_ALL
 )
 
 add_sapi_library(tiff_sapi
-    # List of functions that we want to include in the
-    # generated sandboxed API class
+  # List of functions that we want to include in the
+  # generated sandboxed API class
 
-    FUNCTIONS   TIFFOpen
-                TIFFClose
+  FUNCTIONS TIFFOpen
+            TIFFClose
 
-                TIFFGetField1
-                TIFFGetField2
-                TIFFGetField3
+            TIFFGetField1
+            TIFFGetField2
+            TIFFGetField3
 
-                TIFFSetFieldUChar1
-                TIFFSetFieldUChar2
-                TIFFSetFieldUChar3
-                TIFFSetFieldSChar1
-                TIFFSetFieldSChar2
-                TIFFSetFieldSChar3
-                TIFFSetFieldU1
-                TIFFSetFieldU2
-                TIFFSetFieldU3
-                TIFFSetFieldS1
-                TIFFSetFieldS2
-                TIFFSetFieldS3
-                TIFFSetFieldUShort1
-                TIFFSetFieldUShort2
-                TIFFSetFieldUShort3
-                TIFFSetFieldSShort1
-                TIFFSetFieldSShort2
-                TIFFSetFieldSShort3
-                TIFFSetFieldULLong1
-                TIFFSetFieldULLong2
-                TIFFSetFieldULLong3
-                TIFFSetFieldSLLong1
-                TIFFSetFieldSLLong2
-                TIFFSetFieldSLLong3
-                TIFFSetFieldFloat1
-                TIFFSetFieldFloat2
-                TIFFSetFieldFloat3
-                TIFFSetFieldDouble1
-                TIFFSetFieldDouble2
-                TIFFSetFieldDouble3
+            TIFFSetFieldUChar1
+            TIFFSetFieldUChar2
+            TIFFSetFieldUChar3
+            TIFFSetFieldSChar1
+            TIFFSetFieldSChar2
+            TIFFSetFieldSChar3
+            TIFFSetFieldU1
+            TIFFSetFieldU2
+            TIFFSetFieldU3
+            TIFFSetFieldS1
+            TIFFSetFieldS2
+            TIFFSetFieldS3
+            TIFFSetFieldUShort1
+            TIFFSetFieldUShort2
+            TIFFSetFieldUShort3
+            TIFFSetFieldSShort1
+            TIFFSetFieldSShort2
+            TIFFSetFieldSShort3
+            TIFFSetFieldULLong1
+            TIFFSetFieldULLong2
+            TIFFSetFieldULLong3
+            TIFFSetFieldSLLong1
+            TIFFSetFieldSLLong2
+            TIFFSetFieldSLLong3
+            TIFFSetFieldFloat1
+            TIFFSetFieldFloat2
+            TIFFSetFieldFloat3
+            TIFFSetFieldDouble1
+            TIFFSetFieldDouble2
+            TIFFSetFieldDouble3
 
-                TIFFReadRGBATile
-                TIFFReadEncodedTile
-                TIFFReadEncodedStrip
-                TIFFReadFromUserBuffer
+            TIFFReadRGBATile
+            TIFFReadEncodedTile
+            TIFFReadEncodedStrip
+            TIFFReadFromUserBuffer
 
-                TIFFTileSize
-                TIFFSetDirectory
-                TIFFFreeDirectory
-                TIFFCreateDirectory
+            TIFFTileSize
+            TIFFSetDirectory
+            TIFFFreeDirectory
+            TIFFCreateDirectory
 
-                TIFFForceStrileArrayWriting
-                TIFFDeferStrileArrayWriting
+            TIFFForceStrileArrayWriting
+            TIFFDeferStrileArrayWriting
 
-                TIFFWriteCheck
-                TIFFWriteScanline
-                TIFFWriteDirectory
-                TIFFWriteEncodedTile
-                TIFFWriteEncodedStrip
+            TIFFWriteCheck
+            TIFFWriteScanline
+            TIFFWriteDirectory
+            TIFFWriteEncodedTile
+            TIFFWriteEncodedStrip
 
-                TIFFGetStrileOffsetWithErr
-                TIFFGetStrileByteCountWithErr
+            TIFFGetStrileOffsetWithErr
+            TIFFGetStrileByteCountWithErr
 
-                TIFFCreateEXIFDirectory
-                TIFFWriteCustomDirectory
+            TIFFCreateEXIFDirectory
+            TIFFWriteCustomDirectory
 
-    INPUTS wrapper/libtiff/libtiff/tiffio.h
-           wrapper/func.h
-                            # Header files or .cc files that should be parsed
-    LIBRARY wrapped_tiff    # Library dependency from the add_library() above
-    LIBRARY_NAME Tiff       # Name prefix for the generated header. Will be
-                            # suffixed with "Api" and "Sandbox" as needed.
-    NAMESPACE ""            # Optional C++ namespace to wrap the generated code
+  INPUTS wrapper/libtiff/libtiff/tiffio.h
+         wrapper/func.h
+                          # Header files or .cc files that should be parsed
+  LIBRARY wrapped_tiff    # Library dependency from the add_library() above
+  LIBRARY_NAME Tiff       # Name prefix for the generated header. Will be
+                          # suffixed with "Api" and "Sandbox" as needed.
+  NAMESPACE ""            # Optional C++ namespace to wrap the generated code
 )
 
 target_include_directories(tiff_sapi INTERFACE
-    "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
+  "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
 if (TIFF_SAPI_ENABLE_EXAMPLES)
