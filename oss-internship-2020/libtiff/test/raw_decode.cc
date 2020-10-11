@@ -64,7 +64,7 @@ bool CheckCluster(uint32_t cluster, const sapi::v::Array<uint8_t>& buffer,
     return true;
   }
 
-  auto target = buffer.GetData() + cluster * kClusterSize;
+  auto* target = buffer.GetData() + cluster * kClusterSize;
   bool comp =
       !(std::memcmp(target, expected_cluster.data(), kClusterSize) == 0);
 
@@ -89,7 +89,7 @@ bool CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
     return true;
   }
 
-  auto rgb = buffer.GetData() + pixel * kChannelsInPixel;
+  auto* rgb = buffer.GetData() + pixel * kChannelsInPixel;
   bool comp = !(rgb[0] >= limits.min_red && rgb[0] <= limits.max_red &&
                 rgb[1] >= limits.min_green && rgb[1] <= limits.max_green &&
                 rgb[2] >= limits.min_blue && rgb[2] <= limits.max_blue);
@@ -115,7 +115,7 @@ bool CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
     return true;
   }
 
-  auto rgba = buffer[adjusted_pixel];
+  auto* rgba = buffer[adjusted_pixel];
   bool comp = !(TIFFGetR(rgba) >= static_cast<unsigned>(limits.min_red) &&
                 TIFFGetR(rgba) <= static_cast<unsigned>(limits.max_red) &&
                 TIFFGetG(rgba) >= static_cast<unsigned>(limits.min_green) &&

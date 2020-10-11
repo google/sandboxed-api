@@ -60,7 +60,7 @@ absl::Status CheckCluster(uint32_t cluster,
   if (buffer.GetSize() <= cluster * kClusterSize) {
     return absl::InternalError("Buffer overrun\n");
   }
-  auto target = buffer.GetData() + cluster * kClusterSize;
+  auto* target = buffer.GetData() + cluster * kClusterSize;
 
   if (!std::memcmp(target, expected_cluster.data(), kClusterSize)) {
     return absl::OkStatus();
@@ -80,7 +80,7 @@ absl::Status CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
   if (buffer.GetSize() <= pixel * kChannelsInPixel) {
     return absl::InternalError("Buffer overrun\n");
   }
-  auto rgb = buffer.GetData() + kChannelsInPixel * pixel;
+  auto* rgb = buffer.GetData() + kChannelsInPixel * pixel;
 
   if (rgb[0] >= limits.min_red && rgb[0] <= limits.max_red &&
       rgb[1] >= limits.min_green && rgb[1] <= limits.max_green &&
@@ -104,7 +104,7 @@ absl::Status CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
     return absl::InternalError("Buffer overrun\n");
   }
 
-  auto rgba = buffer[adjusted_pixel];
+  auto* rgba = buffer[adjusted_pixel];
   if (TIFFGetR(rgba) >= static_cast<unsigned>(limits.min_red) &&
       TIFFGetR(rgba) <= static_cast<unsigned>(limits.max_red) &&
       TIFFGetG(rgba) >= static_cast<unsigned>(limits.min_green) &&
