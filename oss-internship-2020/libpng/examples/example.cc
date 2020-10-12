@@ -2,8 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <png.h>
+//#include <png.h>
 #include <zlib.h>
+
+#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/vars.h"
 
 #include "../sandboxed.h"
 
@@ -12,7 +16,6 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   sandbox.AddFile(infile);
   sandbox.AddFile(outfile);
 
-  status = sandbox.Init();
   SAPI_RETURN_IF_ERROR(sandbox.Init());
   LibPNGApi api(&sandbox);
 
@@ -32,7 +35,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
     return absl::InternalError(absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
   }
 
-  image.format = PNG_FORMAT_RGBA;
+  image.mutable_data()->format = PNG_FORMAT_RGBA;
 
   png_bytep buffer;
   buffer = malloc(PNG_IMAGE_SIZE(*image.mutable_data()));
@@ -45,13 +48,13 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   sapi::v::Array<uint8_t> buffer_(PNG_IMAGE_SIZE(*image.mutable_data()));
 
   SAPI_ASSIGN_OR_RETURN(result,
-    api.png_image_finish_read(image.PtrBoth(), NULL, buffer_.PtrBoth(), 0, NULL));
+    api.png_image_finish_read(image.PtrBoth(), sapi::v::NullPtr().PtrBoth(), buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
   if (!result) {
     return absl::InternalError(absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
   }
 
   SAPI_ASSIGN_OR_RETURN(result,
-    api.png_image_write_to_file(image.PtrBoth(), outfile_var.PtrBefore(), buffer_.PtrBoth(), 0, NULL));
+    api.png_image_write_to_file(image.PtrBoth(), outfile_var.PtrBefore(), 0, buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
   if (!result) {
     return absl::InternalError(absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
   }
@@ -65,7 +68,7 @@ int main(int argc, const char **argv) {
     return EXIT_FAILURE;
   }
 
-  auto status = LibPNGMain(srcfile);
+  auto status = LibPNGMain(argv[1], argv[2]);
   if (!status.ok()) {
     LOG(ERROR) << "LibPNGMain failed with error:\n"
                << status.ToString() << '\n';

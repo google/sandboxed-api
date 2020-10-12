@@ -17,9 +17,13 @@ add_executable(sandboxed
   ../sandboxed.h
 )
 
+find_package(PNG REQUIRED)
+include_directories(${PNG_INCLUDE_DIR})
+set(HEADER_FILES ${PNG_INCLUDE_DIR}/png.h)
+
 target_link_libraries(sandboxed PRIVATE
   sapi::sapi
   sandbox2::temp_file
   libpng_sapi
-  libpng
+  ${PNG_INCLUDE_DIR}
 )

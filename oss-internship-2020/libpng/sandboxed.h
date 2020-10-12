@@ -50,7 +50,7 @@ class LibPNGSapiSandbox : public LibPNGSandbox {
         });
 
     for (const auto& file : files_) {
-      builder->AddFile(file.value(), /*is_ro=*/false);
+      builder->AddFile(file, /*is_ro=*/false);
     }
 
     return builder.get()->BuildOrDie();
