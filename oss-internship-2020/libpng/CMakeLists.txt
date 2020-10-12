@@ -33,7 +33,16 @@ option(LIBPNG_SAPI_ENABLE_TESTS "" OFF)
 set(SAPI_ENABLE_EXAMPLES ${LIBPNG_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
 set(SAPI_ENABLE_TESTS ${LIBPNG_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
 
-add_subdirectory(libpng)
+#find_package(PNG REQUIRED)
+#set(PNG_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+
+# To override lib option -- else SAPI won't work
+#set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build OpenJPEG shared library and link executables against it." FORCE)
+#add_subdirectory(libpng)
+
+find_package(PNG REQUIRED)
+include_directories(${PNG_INCLUDE_DIR})
+set(HEADER_FILES ${PNG_INCLUDE_DIR}/png.h)
 
 add_subdirectory(
   "${SAPI_ROOT}"
@@ -53,7 +62,8 @@ add_sapi_library(libpng_sapi
 
   INPUTS libpng/png.h
                           # Header files or .cc files that should be parsed
-  LIBRARY libpng          # Library dependency from the add_library() above
+  LIBRARY ${PNG_INCLUDE_DIR}
+                          # Library dependency from the add_library() above
   LIBRARY_NAME LibPNG     # Name prefix for the generated header. Will be
                           # suffixed with "Api" and "Sandbox" as needed.
   NAMESPACE ""            # Optional C++ namespace to wrap the generated code
@@ -63,9 +73,9 @@ target_include_directories(libpng_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-if (LIBPNG_SAPI_ENABLE_EXAMPLES)
+#if (LIBPNG_SAPI_ENABLE_EXAMPLES)
   add_subdirectory(examples)
-endif()
+#endif()
 
 #if (LIBPNG_SAPI_ENABLE_TESTS)
 #  add_subdirectory(test)
