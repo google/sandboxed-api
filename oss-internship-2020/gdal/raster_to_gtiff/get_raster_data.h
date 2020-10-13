@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GET_RASTER_DATA_H_
-#define GET_RASTER_DATA_H_
+#ifndef RASTER_TO_GTIFF_GET_RASTER_DATA_H_
+#define RASTER_TO_GTIFF_GET_RASTER_DATA_H_
 
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace gdal::sandbox::tests::parser {
+namespace gdal::sandbox::parser {
 
 struct RasterBandData {
   int width;
@@ -42,6 +42,6 @@ RasterDataset GetRasterBandsFromFile(const std::string& filename);
 bool operator==(const RasterBandData& lhs, const RasterBandData& rhs);
 bool operator==(const RasterDataset& lhs, const RasterDataset& rhs);
 
-}  // namespace gdal::sandbox::tests::parser
+}  // namespace gdal::sandbox::parser
 
-#endif  // GET_RASTER_DATA_H_
+#endif  // RASTER_TO_GTIFF_GET_RASTER_DATA_H_

@@ -86,14 +86,35 @@ target_link_libraries(data_retriever
   libgdal
 )
 
+add_library(utils STATIC
+  utils.h utils.cc
+)
+
+target_link_libraries(utils PUBLIC
+  sapi::sapi
+  sandbox2::temp_file
+  sandbox2::fileops
+  sandbox2::util
+)
+
+add_library(gtiff_converter STATIC
+  gtiff_converter.h gtiff_converter.cc
+)
+
+target_link_libraries(gtiff_converter PUBLIC
+  data_retriever
+  gdal_sapi
+  sapi::sapi
+)
+
 add_executable(raster_to_gtiff
     raster_to_gtiff.cc
 )
 
 target_link_libraries(raster_to_gtiff
     data_retriever
-    gdal_sapi
-    sapi::sapi
+    utils
+    gtiff_converter
 )
 
 if (ENABLE_TESTS)
@@ -102,11 +123,9 @@ if (ENABLE_TESTS)
   
   add_executable(tests tests.cc)
   target_link_libraries(tests PRIVATE
-    gdal_sapi
     data_retriever
-    sapi::sapi
-    sandbox2::temp_file
-    sandbox2::fileops
+    gtiff_converter
+    utils
     ${GTEST_LIBRARIES} 
     ${GTEST_MAIN_LIBRARIES}
   )

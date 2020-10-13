@@ -14,12 +14,11 @@
 
 #include "get_raster_data.h"  // NOLINT(build/include)
 
-#include <iostream>
 #include <memory>
 
 #include "gdal.h"
 
-namespace gdal::sandbox::tests::parser {
+namespace gdal::sandbox::parser {
 
 namespace {
 
@@ -66,7 +65,6 @@ RasterDataset GetRasterBandsFromFile(const std::string& filename) {
     int data_type  = static_cast<int>(GDALGetRasterDataType(band));
     int color_interp = static_cast<int>(GDALGetRasterColorInterpretation(band));
 
-    // Use std::variant or void* and reinterpet casts for the runtime template deduction
     std::vector<int> band_raster_data;
     band_raster_data.resize(width * height);
 
@@ -88,6 +86,8 @@ RasterDataset GetRasterBandsFromFile(const std::string& filename) {
   
   result_dataset.bands = std::move(bands_data);
 
+  GDALClose(dataset);
+
   return result_dataset;
 }
 
@@ -105,4 +105,4 @@ bool operator==(const RasterDataset& lhs, const RasterDataset& rhs) {
           && lhs.geo_transform == rhs.geo_transform;
 }
 
-}  // namespace gdal::sandbox::tests:parser
+}  // namespace gdal::sandbox::parser

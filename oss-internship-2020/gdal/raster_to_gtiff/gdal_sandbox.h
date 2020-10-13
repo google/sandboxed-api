@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GDAL_SANDBOX_H_
-#define GDAL_SANDBOX_H_
+#ifndef RASTER_TO_GTIFF_GDAL_SANDBOX_H_
+#define RASTER_TO_GTIFF_GDAL_SANDBOX_H_
 
 #include <syscall.h>
 
-#include <iostream>
 #include <string>
 
 #include "sandboxed_api/sandbox2/util/fileops.h"
@@ -70,4 +69,4 @@ class GdalSapiSandbox : public gdalSandbox {
 
 }  // namespace gdal::sandbox
 
-#endif  // GDAL_SANDBOX_H_
+#endif  // RASTER_TO_GTIFF_GDAL_SANDBOX_H_
