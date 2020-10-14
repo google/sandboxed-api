@@ -23,6 +23,7 @@
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_pointable.h"
@@ -143,8 +144,9 @@ class Array : public Var, public Pointable {
 // buffer is owned by the class, and is mutable.
 class CStr : public Array<char> {
  public:
-  explicit CStr(char* cstr) : Array<char>(strlen(cstr) + 1) {
-    std::copy(cstr, cstr + GetNElem(), GetData());
+  explicit CStr(absl::string_view cstr) : Array<char>(cstr.size() + 1) {
+    std::copy(cstr.begin(), cstr.end(), GetData());
+    GetData()[cstr.size()] = '\0';
   }
 
   std::string ToString() const final {
