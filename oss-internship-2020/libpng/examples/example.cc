@@ -1,8 +1,8 @@
+#include <iostream>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-//#include <png.h>
 #include <zlib.h>
 
 #include "sandboxed_api/sandbox2/util/fileops.h"
@@ -10,6 +10,7 @@
 #include "sandboxed_api/vars.h"
 
 #include "../sandboxed.h"
+#include "libpng.h"
 
 absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   LibPNGSapiSandbox sandbox;
@@ -37,8 +38,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
   image.mutable_data()->format = PNG_FORMAT_RGBA;
 
-  png_bytep buffer;
-  buffer = malloc(PNG_IMAGE_SIZE(*image.mutable_data()));
+  auto buffer = malloc(PNG_IMAGE_SIZE(*image.mutable_data()));
   if (!buffer) {
     SAPI_RETURN_IF_ERROR(api.png_image_free(image.PtrBoth()));
     return absl::OkStatus();
@@ -64,7 +64,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
 int main(int argc, const char **argv) {
   if (argc != 3) {
-    LOG_ERROR("pngtopng: usage: pngtopng input-file output-file");
+    LOG(ERROR) << "pngtopng: usage: pngtopng input-file output-file";
     return EXIT_FAILURE;
   }
 
