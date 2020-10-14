@@ -41,8 +41,7 @@ set(SAPI_ENABLE_TESTS ${LIBPNG_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
 #add_subdirectory(libpng)
 
 find_package(PNG REQUIRED)
-include_directories(${PNG_INCLUDE_DIR})
-set(HEADER_FILES ${PNG_INCLUDE_DIR}/png.h)
+list(GET PNG_INCLUDE_DIRS 0 PNG_INCLUDE_DIR)
 
 add_subdirectory(
   "${SAPI_ROOT}"
@@ -60,9 +59,9 @@ add_sapi_library(libpng_sapi
               png_image_finish_read
               png_image_write_to_file
 
-  INPUTS libpng/png.h
+  INPUTS "${PNG_INCLUDE_DIR}/png.h"
                           # Header files or .cc files that should be parsed
-  LIBRARY ${PNG_INCLUDE_DIR}
+  LIBRARY "${PNG_LIBRARY}"
                           # Library dependency from the add_library() above
   LIBRARY_NAME LibPNG     # Name prefix for the generated header. Will be
                           # suffixed with "Api" and "Sandbox" as needed.
