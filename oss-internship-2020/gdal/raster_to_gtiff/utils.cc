@@ -23,7 +23,7 @@ namespace gdal::sandbox::utils {
 
 namespace {
 
-  inline constexpr absl::string_view kProjDbEnvVariableName = "PROJ_PATH";
+  constexpr char kProjDbEnvVariableName[] = "PROJ_DB_PATH";
   inline constexpr absl::string_view kDefaultProjDbPath 
       = "/usr/local/share/proj/proj.db";
 
@@ -56,20 +56,18 @@ std::string TempFile::GetPath() const {
 }
 
 std::optional<std::string> FindProjDbPath() {
-  const char* proj_db_path_ptr = std::getenv(kProjDbEnvVariableName.data());
-
-  std::string proj_db_path = proj_db_path_ptr == nullptr ? 
-      std::string(kDefaultProjDbPath) : std::string(proj_db_path_ptr);
+  std::string proj_db_path(kDefaultProjDbPath);
+  
+  if (const char* proj_db_env_var = std::getenv(kProjDbEnvVariableName); 
+      proj_db_env_var != nullptr) {
+    proj_db_path = proj_db_env_var;
+  }
 
   if (!sandbox2::file_util::fileops::Exists(proj_db_path, false)) {
     return std::nullopt;
   }
 
   return proj_db_path;
-}
-
-bool IsAbsolute(absl::string_view path) {
-  return path.length() > 0 && path.at(0) == '/';
 }
 
 }  // namespace gdal::sandbox::utils

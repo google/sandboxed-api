@@ -17,6 +17,9 @@
 #include <optional>
 #include <string>
 
+#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
+
 #include "get_raster_data.h"  // NOLINT(build/include)
 #include "gtiff_converter.h"  // NOLINT(build/include)
 #include "utils.h"  // NOLINT(build/include)
@@ -25,23 +28,15 @@ namespace {
 
 absl::Status SaveToGTiff(gdal::sandbox::parser::RasterDataset bands_data, 
     std::string out_file) {
-  using namespace gdal::sandbox;
-
-  std::string output_data_folder = "";
-
-  if (!sandbox2::file_util::fileops::RemoveLastPathComponent(out_file,
-      &output_data_folder)) {
-    return absl::FailedPreconditionError("Error getting output file directory");
-  }
-
-  std::optional<std::string> proj_db_path = utils::FindProjDbPath();
+  std::optional<std::string> proj_db_path = 
+      gdal::sandbox::utils::FindProjDbPath();
 
   if (proj_db_path == std::nullopt) {
     return absl::FailedPreconditionError("Specified proj.db does not exist");
   }
 
-  RasterToGTiffProcessor processor(out_file, output_data_folder, 
-                                    proj_db_path.value(), bands_data);
+  gdal::sandbox::RasterToGTiffProcessor processor(std::move(out_file), 
+      std::move(proj_db_path.value()), std::move(bands_data));
 
   return processor.Run();
 }
@@ -58,7 +53,7 @@ void Usage() {
 int main(int argc, char** argv) {
   using namespace gdal::sandbox;
 
-  if (argc < 3 || !gdal::sandbox::utils::IsAbsolute(argv[2])) {
+  if (argc < 3 || !sandbox2::file::IsAbsolutePath(argv[2])) {
     Usage();
     return EXIT_FAILURE;
   }

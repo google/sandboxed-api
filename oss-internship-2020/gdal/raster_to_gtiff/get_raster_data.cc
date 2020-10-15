@@ -65,8 +65,7 @@ RasterDataset GetRasterBandsFromFile(const std::string& filename) {
     int data_type  = static_cast<int>(GDALGetRasterDataType(band));
     int color_interp = static_cast<int>(GDALGetRasterColorInterpretation(band));
 
-    std::vector<int> band_raster_data;
-    band_raster_data.resize(width * height);
+    std::vector<int32_t> band_raster_data(width * height);
 
     // GDALRasterIO with GF_Write should use the same type (GDT_Int32)
     GDALRasterIO(band, GF_Read, 0, 0, width, height, band_raster_data.data(),

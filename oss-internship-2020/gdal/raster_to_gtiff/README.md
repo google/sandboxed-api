@@ -79,14 +79,16 @@ PROJ uses `proj.db` database to work correctly with different transformations an
 
 You can use environment variables to set path to proj:
 ```
-export PROJ_PATH=/path/to/proj.db
+export PROJ_DB_PATH=/path/to/proj.db
 ```
 The code will check this variable and if it represents a valid file it will be mounted inside the sandbox.
 Alternatively, if there is no such environment variable program will try to use the default path `/usr/local/share/proj/proj.db`.
 There is a simple command-line utility that takes path to the GeoTIFF file and absolute path to the output file as arguments, parses raster data from the input file and, re-creates the same GeoTIFF file (except some metadata) inside the sandbox.
 
 You can run it in the following way:
-`./raster_to_gtiff path/to/input.tif /absolute/path/to/output.tif`
+```
+./raster_to_gtiff path/to/input.tif /absolute/path/to/output.tif
+```
 After that, you can compare both files using the `gdalinfo` utility.
 Also, there are unit tests that automatically convert a few files and then compare input and output raster data to make sure that they are equal.
 To run tests your CMake build must use `-DENABLE_TESTS=ON`, then you can run tests using `./tests`.

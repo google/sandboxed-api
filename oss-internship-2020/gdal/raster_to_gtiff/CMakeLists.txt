@@ -69,7 +69,7 @@ add_sapi_library(gdal_sapi
 
     INPUTS "${GDAL_HEADER_PREFIX}/gdal.h"
     LIBRARY libgdal
-    LIBRARY_NAME gdal
+    LIBRARY_NAME Gdal
     
     NAMESPACE "gdal::sandbox"
 )

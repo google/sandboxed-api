@@ -19,19 +19,16 @@
 
 #include <string>
 
-#include "sandboxed_api/sandbox2/util/fileops.h"
-
 #include "gdal_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace gdal::sandbox {
 
-class GdalSapiSandbox : public gdalSandbox {
+class GdalSapiSandbox : public GdalSandbox {
  public:
   GdalSapiSandbox(std::string out_directory_path,
                   std::string proj_db_path, 
-                  time_t time_limit = 0) 
-    : gdalSandbox(),
-      out_directory_path_(std::move(out_directory_path)),
+                  time_t time_limit = 0)
+    : out_directory_path_(std::move(out_directory_path)),
       proj_db_path_(std::move(proj_db_path))
     {
       SetWallTimeLimit(time_limit).IgnoreError();

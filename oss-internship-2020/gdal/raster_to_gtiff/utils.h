@@ -42,7 +42,6 @@ class TempFile {
 
 // Helper function to retrieve potential proj.db path from environment variable
 std::optional<std::string> FindProjDbPath();
-bool IsAbsolute(absl::string_view path);
 
 }  // namespace gdal::sandbox::utils
 

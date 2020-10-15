@@ -16,13 +16,12 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
 
 #include "gdal_sandbox.h"  // NOLINT(build/include)
 #include "get_raster_data.h"  // NOLINT(build/include)
 #include "gtiff_converter.h" // NOLINT(build/include)
 #include "utils.h"  // NOLINT(build/include)
-
-namespace gdal::sandbox::tests {
 
 namespace {
 
@@ -41,7 +40,7 @@ class TestGTiffProcessor : public testing::TestWithParam<absl::string_view> {
   {}
 
  protected:
-  const utils::TempFile tempfile_;
+  const gdal::sandbox::utils::TempFile tempfile_;
 };
 
 TEST_P(TestGTiffProcessor, TestProcessorOnGTiffData) {
@@ -50,23 +49,23 @@ TEST_P(TestGTiffProcessor, TestProcessorOnGTiffData) {
   ASSERT_TRUE(tempfile_.HasValue()) 
       << "Error creating temporary output file";
 
-  parser::RasterDataset original_bands_data = 
-      parser::GetRasterBandsFromFile(filename);
+  gdal::sandbox::parser::RasterDataset original_bands_data = 
+      gdal::sandbox::parser::GetRasterBandsFromFile(filename);
 
-  std::optional<std::string> proj_db_path = utils::FindProjDbPath();
+  std::optional<std::string> proj_db_path = 
+      gdal::sandbox::utils::FindProjDbPath();
   ASSERT_TRUE(proj_db_path != std::nullopt)
       << "Specified proj.db does not exist";
 
-  RasterToGTiffProcessor processor(absl::StrCat(
+  gdal::sandbox::RasterToGTiffProcessor processor(absl::StrCat(
           sandbox2::file_util::fileops::GetCWD(), "/", tempfile_.GetPath()),
-      sandbox2::file_util::fileops::GetCWD(), std::move(proj_db_path.value()),
-      original_bands_data);
+      std::move(proj_db_path.value()), original_bands_data);
   
   ASSERT_EQ(processor.Run(), absl::OkStatus())
       << "Error creating new GTiff dataset inside sandbox";
 
   ASSERT_EQ(original_bands_data, 
-      parser::GetRasterBandsFromFile(tempfile_.GetPath()))
+      gdal::sandbox::parser::GetRasterBandsFromFile(tempfile_.GetPath()))
       << "New dataset doesn't match the original one";
 }
 
@@ -77,5 +76,3 @@ INSTANTIATE_TEST_CASE_P(
                           kSecondTestDataPath
                           )
 );
-
-}  // namespace gdal::sandbox::tests

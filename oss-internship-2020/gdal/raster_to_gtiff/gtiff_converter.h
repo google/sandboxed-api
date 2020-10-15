@@ -27,7 +27,6 @@ namespace gdal::sandbox {
 class RasterToGTiffProcessor : public sapi::Transaction {
  public:
   RasterToGTiffProcessor(std::string out_file_full_path, 
-                          std::string out_file_folder,
                           std::string proj_db_path,
                           parser::RasterDataset data,
                           int retry_count = 0);
