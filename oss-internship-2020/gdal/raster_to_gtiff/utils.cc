@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 
 namespace gdal::sandbox::utils {
@@ -68,6 +69,13 @@ std::optional<std::string> FindProjDbPath() {
   }
 
   return proj_db_path;
+}
+
+std::string GetTestDataPath(absl::string_view testdata_path) {
+  const char* test_srcdir = std::getenv("TEST_SRCDIR");
+
+  return sandbox2::file::JoinPath(test_srcdir == nullptr ? 
+      sandbox2::file_util::fileops::GetCWD() : test_srcdir, testdata_path);
 }
 
 }  // namespace gdal::sandbox::utils

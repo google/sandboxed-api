@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 
 project(GDALSandbox CXX C)
 
@@ -95,6 +95,7 @@ target_link_libraries(utils PUBLIC
   sandbox2::temp_file
   sandbox2::fileops
   sandbox2::util
+  sandbox2::file_base
 )
 
 add_library(gtiff_converter STATIC
@@ -118,15 +119,23 @@ target_link_libraries(raster_to_gtiff
 )
 
 if (ENABLE_TESTS)
-  find_package(GTest REQUIRED)
-  include_directories(${GTEST_INCLUDE_DIRS})
-  
+  include(GoogleTest)
+  enable_testing()
+
   add_executable(tests tests.cc)
   target_link_libraries(tests PRIVATE
     data_retriever
     gtiff_converter
     utils
-    ${GTEST_LIBRARIES} 
-    ${GTEST_MAIN_LIBRARIES}
+    gtest 
+    gtest_main
+    sandbox2::testing
+    sandbox2::file_base
   )
+
+  gtest_discover_tests(tests PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp/"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_SOURCE_DIR}"
+  )
+
 endif()

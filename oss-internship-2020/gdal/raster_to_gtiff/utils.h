@@ -43,6 +43,10 @@ class TempFile {
 // Helper function to retrieve potential proj.db path from environment variable
 std::optional<std::string> FindProjDbPath();
 
+// Tries to get test folder path from the TEST_SRCDIR environment variable and
+// uses CWD path otherwise to join it with the testdata_path
+std::string GetTestDataPath(absl::string_view testdata_path);
+
 }  // namespace gdal::sandbox::utils
 
 #endif  // RASTER_TO_GTIFF_UTILS_H_

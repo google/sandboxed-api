@@ -91,6 +91,11 @@ You can run it in the following way:
 ```
 After that, you can compare both files using the `gdalinfo` utility.
 Also, there are unit tests that automatically convert a few files and then compare input and output raster data to make sure that they are equal.
-To run tests your CMake build must use `-DENABLE_TESTS=ON`, then you can run tests using `./tests`.
+To run tests your CMake build must use `-DENABLE_TESTS=ON`, then you can run tests using `ctest`.
+Note that it will also run Sandboxed API related tests. To run tests manually you will need to specify a few environmental variables and then run `tests` executable.
+```
+export TEST_TMPDIR=/tmp/
+export TEST_SRCDIR=/path/to/project/source
+```
 
 All test data is from [osgeo samples](http://download.osgeo.org/geotiff/samples/).
