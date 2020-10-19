@@ -1,0 +1,11 @@
+---
+{
+   "age": "Just created!",
+   "name": "First object's name."
+}
+---
+{
+   "name": "Hi, my name is <second_object>.",
+   "sibling": "First object's name."
+}
+...

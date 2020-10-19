@@ -492,7 +492,6 @@ class Function(object):
     self._tu = tu
     self.cursor = cursor  # type: cindex.Index
     self.name = cursor.spelling  # type: Text
-    self.mangled_name = cursor.mangled_name  # type: Text
     self.result = ReturnType(self, cursor.result_type)
     self.original_definition = '{} {}'.format(
         cursor.result_type.spelling, self.cursor.displayname)  # type: Text
@@ -542,7 +541,7 @@ class Function(object):
 
   def is_mangled(self):
     # type: () -> bool
-    return self.name != self.mangled_name
+    return self.cursor.mangled_name != self.cursor.spelling
 
   def __hash__(self):
     # type: () -> int
@@ -550,7 +549,7 @@ class Function(object):
 
   def __eq__(self, other):
     # type: (Function) -> bool
-    return self.mangled_name == other.mangled_name
+    return self.cursor.mangled_name == other.cursor.mangled_name
 
 
 class _TranslationUnit(object):

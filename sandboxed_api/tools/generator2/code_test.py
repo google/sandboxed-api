@@ -832,7 +832,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     functions = tu.get_functions()
     self.assertLen(functions, 2)
 
-    mangled_names = [f.mangled_name for f in functions]
+    mangled_names = [f.cursor.mangled_name for f in functions]
     self.assertSameElements(mangled_names, ['sum', '_Z3sumif'])
 
 
