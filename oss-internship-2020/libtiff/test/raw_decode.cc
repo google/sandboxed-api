@@ -138,8 +138,8 @@ bool CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
 
 TEST(SandboxTest, RawDecode) {
   tsize_t sz;
-  bool pixel_status = false;
-  bool cluster_status = false;
+  bool pixel_status_ok = false;
+  bool cluster_status_ok = false;
   std::string srcfile = GetFilePath("quad-tile.jpg.tiff");
 
   TiffSapiSandbox sandbox(srcfile);
@@ -187,9 +187,9 @@ TEST(SandboxTest, RawDecode) {
       << (int)status_or_long.value() << " instead of " << (int)sz << ")";
 
   for (const auto& [id, data] : kClusters) {
-    cluster_status |= CheckCluster(id, buffer_, data);
+    cluster_status_ok |= CheckCluster(id, buffer_, data);
   }
-  ASSERT_FALSE(cluster_status) << "Clusters did not match expected results";
+  ASSERT_FALSE(cluster_status_ok) << "Clusters did not match expected results";
 
   status_or_int =
       api.TIFFSetFieldU1(&tif, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB);
@@ -213,7 +213,7 @@ TEST(SandboxTest, RawDecode) {
       << status_or_long.value() << " instead of " << sz;
 
   for (const auto& [id, data] : kLimits) {
-    pixel_status |= CheckRgbPixel(id, data, buffer2_);
+    pixel_status_ok |= CheckRgbPixel(id, data, buffer2_);
   }
 
   ASSERT_THAT(api.TIFFClose(&tif), IsOk()) << "TIFFClose fatal error";
@@ -234,11 +234,11 @@ TEST(SandboxTest, RawDecode) {
       << "TIFFReadRGBATile() returned failure code";
 
   for (const auto& [id, data] : kLimits) {
-    pixel_status |= CheckRgbaPixel(id, data, rgba_buffer_);
+    pixel_status_ok |= CheckRgbaPixel(id, data, rgba_buffer_);
   }
 
   EXPECT_THAT(api.TIFFClose(&tif2), IsOk()) << "TIFFClose fatal error";
-  EXPECT_THAT(pixel_status, IsFalse()) << "wrong encoding";
+  EXPECT_THAT(pixel_status_ok, IsFalse()) << "wrong encoding";
 }
 
 }  // namespace
