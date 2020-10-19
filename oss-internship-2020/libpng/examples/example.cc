@@ -1,14 +1,4 @@
 #include <iostream>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <zlib.h>
-
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/vars.h"
-
 #include "../sandboxed.h"
 #include "libpng.h"
 
@@ -23,10 +13,6 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   sapi::v::Struct<png_image> image;
   sapi::v::ConstCStr infile_var(infile.c_str());
   sapi::v::ConstCStr outfile_var(outfile.c_str());
-
-  /* Initialize the 'png_image' structure. */
-  // memset(&image, 0, (sizeof image));
-  // may be it initializing with zeros?
 
   image.mutable_data()->version = PNG_IMAGE_VERSION;
 

@@ -1,3 +1,7 @@
+#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/vars.h"
+
 #define PNG_FORMAT_FLAG_ALPHA    0x01U /* format with an alpha channel */
 #define PNG_FORMAT_FLAG_COLOR    0x02U /* color format: otherwise grayscale */
 #define PNG_FORMAT_FLAG_LINEAR   0x04U /* 2-byte channels else 1-byte */
@@ -13,10 +17,6 @@
 
 #define PNG_FORMAT_FLAG_ASSOCIATED_ALPHA 0x40U /* alpha channel is associated */
 
-/* Commonly used formats have predefined macros.
- *
- * First the single byte (sRGB) formats:
- */
 #define PNG_FORMAT_GRAY 0
 #define PNG_FORMAT_GA   PNG_FORMAT_FLAG_ALPHA
 #define PNG_FORMAT_AG   (PNG_FORMAT_GA|PNG_FORMAT_FLAG_AFIRST)
