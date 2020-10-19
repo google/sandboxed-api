@@ -61,7 +61,8 @@ add_sapi_library(libpng_sapi
 
   INPUTS "${PNG_INCLUDE_DIR}/png.h"
                           # Header files or .cc files that should be parsed
-  LIBRARY "${PNG_LIBRARY}"
+#  LIBRARY "${PNG_LIBRARY}"
+  LIBRARY "/usr/lib/x86_64-linux-gnu/libpng16.a"
                           # Library dependency from the add_library() above
   LIBRARY_NAME LibPNG     # Name prefix for the generated header. Will be
                           # suffixed with "Api" and "Sandbox" as needed.
@@ -70,6 +71,10 @@ add_sapi_library(libpng_sapi
 
 target_include_directories(libpng_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
+)
+
+target_link_libraries(libpng_sapi.bin
+  PRIVATE "/usr/lib/x86_64-linux-gnu/libz.a"
 )
 
 #if (LIBPNG_SAPI_ENABLE_EXAMPLES)
