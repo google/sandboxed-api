@@ -171,8 +171,8 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
 
   TiffSapiSandbox sandbox(srcfile);
 
-  bool pixel_status = true;
-  bool cluster_status = true;
+  bool pixel_status_ok = true;
+  bool cluster_status_ok = true;
   // initialize sapi vars after constructing TiffSapiSandbox
   sapi::v::UShort h;
   sapi::v::UShort v;
@@ -226,10 +226,10 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     if (status = CheckCluster(id, buffer_, data); !status.ok()) {
       LOG(ERROR) << "CheckCluster failed:\n" << status.ToString();
     }
-    cluster_status &= status.ok();
+    cluster_status_ok &= status.ok();
   }
 
-  if (!cluster_status) {
+  if (!cluster_status_ok) {
     return absl::InternalError("One or more clusters failed the check");
   }
 
@@ -262,7 +262,7 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     if (status = CheckRgbPixel(id, data, buffer2_); !status.ok()) {
       LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString();
     }
-    pixel_status &= status.ok();
+    pixel_status_ok &= status.ok();
   }
 
   SAPI_RETURN_IF_ERROR(api.TIFFClose(&tif));
@@ -290,12 +290,12 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     if (status = CheckRgbaPixel(id, data, rgba_buffer_); !status.ok()) {
       LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString();
     }
-    pixel_status &= status.ok();
+    pixel_status_ok &= status.ok();
   }
 
   SAPI_RETURN_IF_ERROR(api.TIFFClose(&tif2));
 
-  if (!pixel_status) {
+  if (!pixel_status_ok) {
     return absl::InternalError("wrong encoding");
   }
 

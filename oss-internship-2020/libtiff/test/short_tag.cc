@@ -123,13 +123,13 @@ TEST(SandboxTest, ShortTag) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set PhotometricInterpretation tag";
 
-  for (auto& tag : kShortSingleTags) {
+  for (const auto& tag : kShortSingleTags) {
     status_or_int = api.TIFFSetFieldUShort1(&tif, tag.tag, tag.value);
     ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
     EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set tag " << tag.tag;
   }
 
-  for (auto& tag : kShortPairedTags) {
+  for (const auto& tag : kShortPairedTags) {
     status_or_int =
         api.TIFFSetFieldUShort2(&tif, tag.tag, tag.values[0], tag.values[1]);
     ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort2 fatal error";
@@ -158,11 +158,11 @@ TEST(SandboxTest, ShortTag) {
   CheckLongField(api, tif2, TIFFTAG_ROWSPERSTRIP, kRowsPerStrip);
   CheckShortField(api, tif2, TIFFTAG_PLANARCONFIG, kPlanarConfig);
 
-  for (auto& tag : kShortSingleTags) {
+  for (const auto& tag : kShortSingleTags) {
     CheckShortField(api, tif2, tag.tag, tag.value);
   }
 
-  for (auto& tag : kShortPairedTags) {
+  for (const auto& tag : kShortPairedTags) {
     CheckShortPairedField(api, tif2, tag.tag, tag.values);
   }
 
