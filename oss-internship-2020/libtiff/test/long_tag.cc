@@ -101,7 +101,7 @@ TEST(SandboxTest, LongTag) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set PhotometricInterpretation tag";
 
-  for (auto& tag : kLongTags) {
+  for (const auto& tag : kLongTags) {
     status_or_int = api.TIFFSetFieldU1(&tif, tag.tag, tag.value);
     ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
     EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set tag " << tag.tag;
@@ -125,7 +125,7 @@ TEST(SandboxTest, LongTag) {
   CheckLongField(api, tif2, TIFFTAG_IMAGELENGTH, kLength);
   CheckLongField(api, tif2, TIFFTAG_ROWSPERSTRIP, kRowsPerStrip);
 
-  for (auto& tag : kLongTags) {
+  for (const auto& tag : kLongTags) {
     CheckLongField(api, tif2, tag.tag, tag.value);
   }
 
