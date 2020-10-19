@@ -12,7 +12,7 @@
 	url = https://bitbucket.org/jpommier/pffft/src/master/
 [submodule "oss-internship-2020/gdal/gdal"]
 	path = oss-internship-2020/gdal/gdal
-	url = https://github.com/OSGeo/gdal/tree/master/gdal
+	url = https://github.com/OSGeo/gdal/
 [submodule "oss-internship-2020/curl/curl_wrapper/curl"]
 	path = oss-internship-2020/curl/curl_wrapper/curl
 	url = git@github.com:curl/curl.git
