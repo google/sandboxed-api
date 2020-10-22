@@ -106,8 +106,8 @@ filegroup(
     srcs = ["src/x86_64/Ginit_remote.c"],
 )
 
-[cc_library(
-    name = "unwind-ptrace" + ("-wrapped" if do_wrap else ""),
+cc_library(
+    name = "unwind-ptrace-wrapped",
     srcs = [
         "src/mi/Gdyn-remote.c",
         "src/ptrace/_UPT_access_fpreg.c",
@@ -138,30 +138,21 @@ filegroup(
         # whether we ourselves do or not.
         "-DNO_FRAME_POINTER",
         "-fno-common",
-        # Ignore warning in src/ptrace/_UPT_get_dyn_info_list_addr.c
-        "-Wno-cpp",
-    ] + (
-        ["-D{symbol}={symbol}_wrapped".format(symbol = symbol) for symbol in [
-            "_UPT_accessors",
-            "_UPT_create",
-            "_UPT_destroy",
-            "_Ux86_64_create_addr_space",
-            "_Ux86_64_destroy_addr_space",
-            "_Ux86_64_get_proc_name",
-            "_Ux86_64_get_reg",
-            "_Ux86_64_init_remote",
-            "_Ux86_64_step",
-            "ptrace",
-        ]] if do_wrap else []
-    ),
+        "-Wno-cpp",  # Warning in src/ptrace/_UPT_get_dyn_info_list_addr.c
+        "-D_UPT_accessors=_UPT_accessors_wrapped",
+        "-D_UPT_create=_UPT_create_wrapped",
+        "-D_UPT_destroy=_UPT_destroy_wrapped",
+        "-D_Ux86_64_create_addr_space=_Ux86_64_create_addr_space_wrapped",
+        "-D_Ux86_64_destroy_addr_space=_Ux86_64_destroy_addr_space_wrapped",
+        "-D_Ux86_64_get_proc_name=_Ux86_64_get_proc_name_wrapped",
+        "-D_Ux86_64_get_reg=_Ux86_64_get_reg_wrapped",
+        "-D_Ux86_64_init_remote=_Ux86_64_init_remote_wrapped",
+        "-D_Ux86_64_step=_Ux86_64_step_wrapped",
+        "-Dptrace=ptrace_wrapped",
+    ],
     visibility = ["//visibility:public"],
-    deps = [":included_sources"] + (
-      ["@com_google_sandboxed_api//sandboxed_api/sandbox2/unwind:ptrace_hook"] if do_wrap else []
-    ),
-    # This forces a link failure in any target that depends on both
-    # unwind-ptrace and unwind-ptrace-wrapped.
-    alwayslink = 1,
-) for do_wrap in [
-    True,
-    False,
-]]
+    deps = [
+        ":included_sources",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/unwind:ptrace_hook",
+    ],
+)

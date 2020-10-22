@@ -59,7 +59,6 @@ endif()
 if(SAPI_DOWNLOAD_LIBUNWIND)
   include(cmake/libunwind/Download.cmake)
 endif()
-check_target(unwind_ptrace)
 check_target(unwind_ptrace_wrapped)
 
 if(SAPI_DOWNLOAD_GFLAGS)
