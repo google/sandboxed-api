@@ -12,21 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(sandboxed
+add_executable(example
   example.cc
   libpng.h
   ../sandboxed.h
 )
 
+#add_executable(example4
+#  example4.cc
+#  libpng.h
+#  ../sandboxed.h
+#)
+
 find_package(PNG REQUIRED)
 
-target_link_libraries(sandboxed PRIVATE
+target_link_libraries(example PRIVATE
   sapi::sapi
   sandbox2::temp_file
   libpng_sapi
   "${PNG_LIBRARY}"
 )
 
-target_include_directories(sandboxed INTERFACE
+target_include_directories(example INTERFACE
   "${PNG_INCLUDE_DIR}"
 )
+
+#target_link_libraries(example4 PRIVATE
+#  sapi::sapi
+#  sandbox2::temp_file
+#  libpng_sapi
+#  "${PNG_LIBRARY}"
+#)
+
+#target_include_directories(example4 INTERFACE
+#  "${PNG_INCLUDE_DIR}"
+#)

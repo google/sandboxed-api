@@ -50,7 +50,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
 int main(int argc, const char **argv) {
   if (argc != 3) {
-    LOG(ERROR) << "pngtopng: usage: pngtopng input-file output-file";
+    LOG(ERROR) << "usage: example input-file output-file";
     return EXIT_FAILURE;
   }
 

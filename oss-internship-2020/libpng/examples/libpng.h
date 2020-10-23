@@ -54,3 +54,11 @@
    PNG_IMAGE_BUFFER_SIZE(image, PNG_IMAGE_ROW_STRIDE(image))
 
 typedef png_byte              * png_bytep;
+
+#if UINT_MAX == 65535
+   typedef unsigned int png_uint_16;
+#elif USHRT_MAX == 65535
+   typedef unsigned short png_uint_16;
+#else
+#  error "libpng requires an unsigned 16-bit type"
+#endif

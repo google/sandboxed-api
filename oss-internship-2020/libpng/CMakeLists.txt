@@ -58,6 +58,10 @@ add_sapi_library(libpng_sapi
               png_image_free
               png_image_finish_read
               png_image_write_to_file
+              png_image_begin_read_from_stdio
+              _rewind_file
+              _open_file
+              _close_file
 
   INPUTS "${PNG_INCLUDE_DIR}/png.h"
                           # Header files or .cc files that should be parsed
