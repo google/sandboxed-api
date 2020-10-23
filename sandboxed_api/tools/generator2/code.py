@@ -19,12 +19,12 @@ from __future__ import print_function
 from ctypes import util
 import itertools
 import os
-from clang import cindex
-
 # pylint: disable=unused-import
 from typing import (Text, List, Optional, Set, Dict, Callable, IO, Generator as
                     Gen, Tuple, Union, Sequence)
 # pylint: enable=unused-import
+from clang import cindex
+
 
 _PARSE_OPTIONS = (
     cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
@@ -909,7 +909,8 @@ class Generator(object):
     result.append('#include "sandboxed_api/sandbox.h"')
     result.append('#include "sandboxed_api/vars.h"')
 
-    if embed_dir and embed_name:
+    if embed_name:
+      embed_dir = embed_dir or ''
       result.append(
           Generator.EMBED_INCLUDE.format(
               os.path.join(embed_dir, embed_name) + '_embed.h'))
@@ -926,7 +927,7 @@ class Generator(object):
 
     result.append('')
 
-    if embed_dir and embed_name:
+    if embed_name:
       result.append(
           Generator.EMBED_CLASS.format(name, embed_name.replace('-', '_')))
 
