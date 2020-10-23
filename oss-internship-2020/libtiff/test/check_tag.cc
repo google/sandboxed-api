@@ -20,7 +20,7 @@ using ::testing::IsTrue;
 
 void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                      const uint16_t value) {
-  sapi::v::UShort tmp(123);
+  sapi::v::UShort tmp(value + 1);
   absl::StatusOr<int> status_or_int;
 
   status_or_int = api.TIFFGetField1(&tif, field, tmp.PtrBoth());
@@ -34,8 +34,8 @@ void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
 void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
                            const ttag_t field,
                            const std::array<uint16_t, 2>& values) {
-  sapi::v::UShort tmp0(123);
-  sapi::v::UShort tmp1(456);
+  sapi::v::UShort tmp0(values[0] + 1);
+  sapi::v::UShort tmp1(values[1] + 1);
   absl::StatusOr<int> status_or_int;
 
   status_or_int =
@@ -51,7 +51,7 @@ void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
 
 void CheckLongField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                     const uint32_t value) {
-  sapi::v::UInt tmp(123);
+  sapi::v::UInt tmp(value + 1);
   absl::StatusOr<int> status_or_int;
 
   status_or_int = api.TIFFGetField1(&tif, field, tmp.PtrBoth());
