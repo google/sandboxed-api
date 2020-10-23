@@ -29,7 +29,7 @@ absl::Status ReadPng(LibPNGApi& api, absl::string_view infile) {
   sapi::v::ConstCStr rb_var("rb");
 
   SAPI_ASSIGN_OR_RETURN(
-      status_or_file, api.fopen(srcfile_var.PtrBefore(), rb_var.PtrBefore()));
+      status_or_file, api.png_fopen(srcfile_var.PtrBefore(), rb_var.PtrBefore()));
 
   sapi::v::RemotePtr file(status_or_file.value());
   if (!file.GetValue()) {
@@ -37,7 +37,7 @@ absl::Status ReadPng(LibPNGApi& api, absl::string_view infile) {
   }
 
   sapi::v::Array<char> header(8);
-  SAPI_RETURN_IF_ERROR(api.fread(header.PtrBoth(), 1, header.GetSize(), &file));
+  SAPI_RETURN_IF_ERROR(api.png_fread(header.PtrBoth(), 1, header.GetSize(), &file));
 
   SAPI_ASSIGN_OR_RETURN(
     int return_value,
@@ -101,7 +101,7 @@ absl::Status ReadPng(LibPNGApi& api, absl::string_view infile) {
 
   SAPI_RETURN_IF_ERROR(api.png_read_update_info(&struct_ptr, &info_ptr));
 
-  /* read file */
+  /// what is it?
   if (setjmp(png_jmpbuf(struct_ptr)))
           abort_("[read_png_file] Error during read_image");
 
@@ -112,6 +112,8 @@ absl::Status ReadPng(LibPNGApi& api, absl::string_view infile) {
   png_read_image(struct_ptr, row_pointers);
 
   fclose(fp);
+
+  return absl::StatusOk();
 }
 
 

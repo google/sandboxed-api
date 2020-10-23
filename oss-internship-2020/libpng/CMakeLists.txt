@@ -33,12 +33,8 @@ option(LIBPNG_SAPI_ENABLE_TESTS "" OFF)
 set(SAPI_ENABLE_EXAMPLES ${LIBPNG_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
 set(SAPI_ENABLE_TESTS ${LIBPNG_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
 
-#find_package(PNG REQUIRED)
-#set(PNG_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+add_subdirectory(wrapper)
 
-# To override lib option -- else SAPI won't work
-#set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build OpenJPEG shared library and link executables against it." FORCE)
-#add_subdirectory(libpng)
 
 find_package(PNG REQUIRED)
 list(GET PNG_INCLUDE_DIRS 0 PNG_INCLUDE_DIR)
@@ -58,15 +54,13 @@ add_sapi_library(libpng_sapi
               png_image_free
               png_image_finish_read
               png_image_write_to_file
-              png_image_begin_read_from_stdio
-              _rewind_file
-              _open_file
-              _close_file
+              png_fopen
 
   INPUTS "${PNG_INCLUDE_DIR}/png.h"
+         wrapper/func.h
                           # Header files or .cc files that should be parsed
 #  LIBRARY "${PNG_LIBRARY}"
-  LIBRARY "/usr/lib/x86_64-linux-gnu/libpng16.a"
+  LIBRARY wrapper
                           # Library dependency from the add_library() above
   LIBRARY_NAME LibPNG     # Name prefix for the generated header. Will be
                           # suffixed with "Api" and "Sandbox" as needed.
@@ -77,9 +71,9 @@ target_include_directories(libpng_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-target_link_libraries(libpng_sapi.bin
-  PRIVATE "/usr/lib/x86_64-linux-gnu/libz.a"
-)
+#target_link_libraries(libpng_sapi.bin
+#  wrapper
+#)
 
 #if (LIBPNG_SAPI_ENABLE_EXAMPLES)
   add_subdirectory(examples)
