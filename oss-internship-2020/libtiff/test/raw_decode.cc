@@ -125,7 +125,7 @@ TEST(SandboxTest, RawDecode) {
   sapi::v::UShort h;
   sapi::v::UShort v;
   absl::StatusOr<int> status_or_int = api.TIFFGetField2(
-      &tif, TIFFTAG_YCBCRSUBSAMPLING, h.PtrBoth(), v.PtrBoth());
+      &tif, TIFFTAG_YCBCRSUBSAMPLING, h.PtrAfter(), v.PtrAfter());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField2 fatal error";
   EXPECT_THAT(
       status_or_int.value() == 0 || h.GetValue() != 2 || v.GetValue() != 2,
@@ -143,7 +143,7 @@ TEST(SandboxTest, RawDecode) {
   sapi::v::Array<uint8_t> buffer(sz);
   // Read a tile in decompressed form, but still YCbCr subsampled
   status_or_long =
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer.PtrBoth(), sz);
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer.PtrAfter(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
@@ -169,7 +169,7 @@ TEST(SandboxTest, RawDecode) {
 
   sapi::v::Array<uint8_t> buffer2(sz);
   status_or_long =
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2.PtrBoth(), sz);
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2.PtrAfter(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
@@ -190,7 +190,7 @@ TEST(SandboxTest, RawDecode) {
 
   sapi::v::Array<uint32_t> rgba_buffer(kImageSize);
   status_or_int =
-      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer.PtrBoth());
+      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer.PtrAfter());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFReadRGBATile fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFReadRGBATile() returned failure code";

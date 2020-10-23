@@ -216,7 +216,7 @@ void TestWriting(const char* mode, int tiled, int height) {
                                               tilebuffer.size());
 
       status_or_int = api.TIFFWriteEncodedTile(
-          &tif, i, tilebuffer_sapi.PtrBoth(), kTileBufferSize);
+          &tif, i, tilebuffer_sapi.PtrBefore(), kTileBufferSize);
       ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteEncodedTile fatal error";
       EXPECT_THAT(status_or_int.value(), Eq(kTileBufferSize))
           << "line " << i << ": expected " << kTileBufferSize << ", got "
@@ -225,7 +225,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   } else {
     for (int i = 0; i < height; ++i) {
       sapi::v::UChar c(i);
-      status_or_long = api.TIFFWriteEncodedStrip(&tif, i, c.PtrBoth(), 1);
+      status_or_long = api.TIFFWriteEncodedStrip(&tif, i, c.PtrBefore(), 1);
       ASSERT_THAT(status_or_long, IsOk())
           << "TIFFWriteEncodedStrip fatal error";
       EXPECT_THAT(status_or_int.value(), Eq(1))

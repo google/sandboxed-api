@@ -196,7 +196,7 @@ absl::Status LibTIFFMain(const absl::string_view srcfile) {
   sapi::v::UShort v;
   SAPI_ASSIGN_OR_RETURN(int return_value,
                         api.TIFFGetField2(&tif, TIFFTAG_YCBCRSUBSAMPLING,
-                                          h.PtrBoth(), v.PtrBoth()));
+                                          h.PtrAfter(), v.PtrAfter()));
   if (return_value == 0 || h.GetValue() != 2 || v.GetValue() != 2) {
     return absl::InternalError("Could not retrieve subsampling tag");
   }
@@ -212,7 +212,7 @@ absl::Status LibTIFFMain(const absl::string_view srcfile) {
   // Read a tile in decompressed form, but still YCbCr subsampled
   SAPI_ASSIGN_OR_RETURN(
       tsize_t new_sz,
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer.PtrBoth(), sz));
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer.PtrAfter(), sz));
   if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
         "Did not get expected result code from TIFFReadEncodedTile(): ", new_sz,
@@ -246,10 +246,10 @@ absl::Status LibTIFFMain(const absl::string_view srcfile) {
                      kChannelsInPixel * kImageSize, " bytes"));
   }
 
-  sapi::v::Array<uint8_t> buffer2_(sz);
+  sapi::v::Array<uint8_t> buffer2(sz);
   SAPI_ASSIGN_OR_RETURN(
       new_sz,
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz));
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2.PtrAfter(), sz));
   if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
         "Did not get expected result code from TIFFReadEncodedTile(): ", new_sz,
@@ -258,7 +258,7 @@ absl::Status LibTIFFMain(const absl::string_view srcfile) {
 
   bool pixel_status_ok = true;
   for (const auto& [id, data] : kLimits) {
-    if (status = CheckRgbPixel(id, data, buffer2_); !status.ok()) {
+    if (status = CheckRgbPixel(id, data, buffer2); !status.ok()) {
       LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString() << '\n';
     }
     pixel_status_ok &= status.ok();
@@ -279,7 +279,7 @@ absl::Status LibTIFFMain(const absl::string_view srcfile) {
   // read as rgba
   SAPI_ASSIGN_OR_RETURN(
       return_value,
-      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer.PtrBoth()));
+      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer.PtrAfter()));
   if (return_value == 0) {
     return absl::InternalError("TIFFReadRGBATile() returned failure code");
   }

@@ -106,7 +106,7 @@ TEST(SandboxTest, LongTag) {
   std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
   sapi::v::Array<uint8_t> buffer_sapi(buffer.data(), buffer.size());
 
-  status_or_int = api.TIFFWriteScanline(&tif, buffer_sapi.PtrBoth(), 0, 0);
+  status_or_int = api.TIFFWriteScanline(&tif, buffer_sapi.PtrBefore(), 0, 0);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteScanline fatal error";
   ASSERT_THAT(status_or_int.value(), Ne(-1)) << "Can't write image data";
 
