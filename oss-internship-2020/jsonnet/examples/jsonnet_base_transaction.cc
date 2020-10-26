@@ -14,7 +14,13 @@
 
 #include "jsonnet_base_transaction.h"  // NOLINT(build/include)
 
+#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
+
 absl::Status JsonnetTransaction::Main() {
+  using sandbox2::file::JoinPath;
+  using sandbox2::file_util::fileops::Basename;
+
   JsonnetApi api(sandbox());
 
   // Initialize library's main structure.
@@ -22,24 +28,22 @@ absl::Status JsonnetTransaction::Main() {
   sapi::v::RemotePtr vm_pointer(jsonnet_vm);
 
   // Read input file.
-  std::string in_file_in_sandboxee(std::string("/input/") +
-                                   basename(&in_file_[0]));
+  std::string in_file_in_sandboxee(JoinPath("/input", Basename(in_file)));
   sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
   SAPI_ASSIGN_OR_RETURN(char* input,
-                        api.c_read_input(false, in_file_var.PtrBefore()));
+                   api.c_read_input(false, in_file_var.PtrBefore()));
 
   // Process jsonnet data.
   sapi::v::RemotePtr input_pointer(input);
   sapi::v::Int error;
   SAPI_ASSIGN_OR_RETURN(char* output, api.c_jsonnet_evaluate_snippet(
-                                          &vm_pointer, in_file_var.PtrBefore(),
-                                          &input_pointer, error.PtrAfter()));
+                                     &vm_pointer, in_file_var.PtrBefore(),
+                                     &input_pointer, error.PtrAfter()));
   TRANSACTION_FAIL_IF_NOT(error.GetValue() == 0,
                           "Jsonnet code evaluation failed.");
 
   // Write data to file.
-  std::string out_file_in_sandboxee(std::string("/output/") +
-                                    basename(&out_file_[0]));
+  std::string out_file_in_sandboxee(JoinPath("/output", Basename(out_file)));
   sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
   sapi::v::RemotePtr output_pointer(output);
   SAPI_ASSIGN_OR_RETURN(
@@ -49,7 +53,7 @@ absl::Status JsonnetTransaction::Main() {
 
   // Clean up.
   SAPI_ASSIGN_OR_RETURN(char* result,
-                        api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0));
+                   api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0));
 
   SAPI_RETURN_IF_ERROR(api.c_jsonnet_destroy(&vm_pointer));
   SAPI_RETURN_IF_ERROR(api.c_free_input(&input_pointer));
@@ -58,13 +62,15 @@ absl::Status JsonnetTransaction::Main() {
 }
 
 int main(int argc, char* argv[]) {
+  using sandbox2::file_util::fileops::Basename;
+
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   if (!(argc == 3)) {
     std::cerr << "Usage:\n"
-              << basename(argv[0]) << " absolute/path/to/INPUT.jsonnet"
-              << " absolute/path/to/OUTPUT\n";
+              << Basename(argv[0])
+              << " /absolute/path/to/INPUT.jsonnet /absolute/path/to/OUTPUT\n";
     return EXIT_FAILURE;
   }
 

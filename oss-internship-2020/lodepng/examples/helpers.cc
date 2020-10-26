@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "helpers.h"
+#include "helpers.h"  // NOLINT(build/include)
 
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 
@@ -41,4 +41,7 @@ std::string CreateTempDirAtCWD() {
   CHECK(result.ok()) << "Could not create temporary directory";
   return result.value();
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa

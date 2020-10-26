@@ -34,7 +34,7 @@ target_include_directories(tests PUBLIC
   ${PROJECT_SOURCE_DIR}/headers
 )
 
-target_link_libraries(tests 
+target_link_libraries(tests
   jsonnet_sapi sapi::sapi
   gtest gmock gtest_main
 )

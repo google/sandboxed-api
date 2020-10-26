@@ -38,15 +38,15 @@ Variadic methods are currently not supported by Sandboxed API. To solve this,
 these methods are defined with an additional explicit parameter in
 `custom_curl.h`.
 
-The methods are: 
-- `curl_easy_setopt`. Use `curl_easy_setopt_ptr`,
-`curl_easy_setopt_long` or `curl_easy_setopt_curl_off_t` instead. 
-- `curl_easy_getinfo`. Use `curl_easy_getinfo_ptr` instead. 
-- `curl_multi_setopt`.
-Use `curl_multi_setopt_ptr`, `curl_multi_setopt_long` or
-`curl_multi_setopt_curl_off_t` instead. 
-- `curl_share_setopt`. Use
-`curl_share_setopt_ptr` or `curl_share_setopt_long` instead
+The methods are:
+
+-   `curl_easy_setopt`. Use `curl_easy_setopt_ptr`, `curl_easy_setopt_long` or
+    `curl_easy_setopt_curl_off_t` instead.
+-   `curl_easy_getinfo`. Use `curl_easy_getinfo_ptr` instead.
+-   `curl_multi_setopt`. Use `curl_multi_setopt_ptr`, `curl_multi_setopt_long`
+    or `curl_multi_setopt_curl_off_t` instead.
+-   `curl_share_setopt`. Use `curl_share_setopt_ptr` or `curl_share_setopt_long`
+    instead
 
 #### Methods with incomplete array arguments
 
@@ -54,9 +54,10 @@ Incomplete array arguments are currently not supported by Sandboxed API. To
 solve this, methods taking an incomplete array argument have a wrapper in
 `custom_curl.h`, and take a pointer as the argument.
 
-The methods are: 
-- `curl_multi_poll`. Use `curl_multi_poll_sapi` instead. 
-- `curl_multi_wait`. Use `curl_multi_wait_sapi` instead.
+The methods are:
+
+-   `curl_multi_poll`. Use `curl_multi_poll_sapi` instead.
+-   `curl_multi_wait`. Use `curl_multi_wait_sapi` instead.
 
 #### Methods with conflicts on the generated header
 
@@ -64,13 +65,15 @@ Some methods create conflicts on the generated header because of redefined
 `#define` directives from files included by the header. To solve this, the
 conflicting types and methods are redefined in `custom_curl.h`.
 
-The types are: 
-- `time_t`. Use `time_t_sapi` instead. 
-- `fd_set`. Use `fd_set_sapi` instead.
+The types are:
 
-The methods are: 
-- `curl_getdate`. Use `curl_getdate_sapi` instead. 
-- `curl_multi_fdset`. Use `curl_multi_fdset_sapi` instead.
+-   `time_t`. Use `time_t_sapi` instead.
+-   `fd_set`. Use `fd_set_sapi` instead.
+
+The methods are:
+
+-   `curl_getdate`. Use `curl_getdate_sapi` instead.
+-   `curl_multi_fdset`. Use `curl_multi_fdset_sapi` instead.
 
 #### Function pointers
 

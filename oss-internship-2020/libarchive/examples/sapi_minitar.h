@@ -61,4 +61,3 @@ absl::StatusOr<std::string> CheckStatusAndGetString(
 absl::StatusOr<std::string> CreateTempDirAtCWD();
 
 #endif  // SAPI_LIBARCHIVE_EXAMPLES_MINITAR_H
-

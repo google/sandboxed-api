@@ -39,25 +39,22 @@ absl::Status Example1() {
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  SAPI_ASSIGN_OR_RETURN(
-      curl_code,
-      api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL,
+                                                       url.PtrBefore()));
   if (curl_code != 0) {
     return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
 
   // Set the library to follow a redirection
-  SAPI_ASSIGN_OR_RETURN(
-      curl_code,
-      api.curl_easy_setopt_long(&curl, curl::CURLOPT_FOLLOWLOCATION, 1l));
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_setopt_long(
+                                  &curl, curl::CURLOPT_FOLLOWLOCATION, 1l));
   if (curl_code != 0) {
     return absl::UnavailableError("curl_easy_setopt_long failed: " + curl_code);
   }
 
   // Disable authentication of peer certificate
-  SAPI_ASSIGN_OR_RETURN(
-      curl_code,
-      api.curl_easy_setopt_long(&curl, curl::CURLOPT_SSL_VERIFYPEER, 0l));
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_setopt_long(
+                                  &curl, curl::CURLOPT_SSL_VERIFYPEER, 0l));
   if (curl_code != 0) {
     return absl::UnavailableError("curl_easy_setopt_long failed: " + curl_code);
   }

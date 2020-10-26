@@ -54,4 +54,6 @@ class CurlTestUtils {
   std::unique_ptr<sapi::v::LenVal> chunk_;
 };
 
+}  // namespace curl::tests
+
 #endif  // TESTS_H_

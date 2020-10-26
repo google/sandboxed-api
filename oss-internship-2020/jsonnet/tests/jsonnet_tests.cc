@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet_tests.h"
+#include "jsonnet_tests.h"  // NOLINT(build/include)
 
 namespace {
 
@@ -24,8 +24,8 @@ class JsonnetTest : public JsonnetTestHelper, public testing::Test {
 
 // Basic test
 TEST_F(JsonnetTest, SetUp_TearDown) {
-  ASSERT_FALSE(if_jsonnet_vm_was_used_);
-  ASSERT_FALSE(if_input_was_read_);
+  ASSERT_FALSE(jsonnet_vm_was_used_);
+  ASSERT_FALSE(input_was_read_);
 }
 
 // One file evaluation to one file
@@ -36,11 +36,11 @@ TEST_F(JsonnetTest, One_file_no_dependencies) {
   constexpr char kOutputToExpect[] = "tests_expected_output/arith.golden";
 
   Read_input(kInputFile);
-  Evaluate_jsonnet_code(kBase, true);
-  Write_output(kOutputFile, kBase);
+  EvaluateJsonnetCode(kBase, true);
+  WriteOutput(kOutputFile, kBase);
 
-  std::string produced_output = Read_output(kOutputToRead);
-  std::string expected_output = Read_output(kOutputToExpect);
+  std::string produced_output = ReadOutput(kOutputToRead);
+  std::string expected_output = ReadOutput(kOutputToExpect);
 
   ASSERT_STREQ(produced_output.c_str(), expected_output.c_str());
 }
@@ -52,9 +52,9 @@ TEST_F(JsonnetTest, One_file_some_dependencies) {
   constexpr char kOutputToRead[] = "tests_output/negroni_output";
   constexpr char kOutputToExpect[] = "tests_expected_output/negroni.golden";
 
-  Read_input(kInputFile);
-  Evaluate_jsonnet_code(kBase, true);
-  Write_output(kOutputFile, kBase);
+  ReadInput(kInputFile);
+  EvaluateJsonnetCode(kBase, true);
+  WriteOutput(kOutputFile, kBase);
 
   const std::string produced_output = Read_output(kOutputToRead);
   const std::string expected_output = Read_output(kOutputToExpect);
@@ -71,14 +71,14 @@ TEST_F(JsonnetTest, Multiple_files) {
   constexpr char kOutputToExpect1[] = "tests_expected_output/first_file.json";
   constexpr char kOutputToExpect2[] = "tests_expected_output/second_file.json";
 
-  Read_input(kInputFile);
-  Evaluate_jsonnet_code(kMultipleFiles, true);
-  Write_output(kOutputFile, kMultipleFiles);
+  ReadInput(kInputFile);
+  EvaluateJsonnetCode(kMultipleFiles, true);
+  WriteOutput(kOutputFile, kMultipleFiles);
 
-  const std::string produced_output_1 = Read_output(kOutputToRead1);
-  const std::string produced_output_2 = Read_output(kOutputToRead2);
-  const std::string expected_output_1 = Read_output(kOutputToExpect1);
-  const std::string expected_output_2 = Read_output(kOutputToExpect2);
+  const std::string produced_output_1 = ReadOutput(kOutputToRead1);
+  const std::string produced_output_2 = ReadOutput(kOutputToRead2);
+  const std::string expected_output_1 = ReadOutput(kOutputToExpect1);
+  const std::string expected_output_2 = ReadOutput(kOutputToExpect2);
 
   ASSERT_STREQ(produced_output_1.c_str(), expected_output_1.c_str());
   ASSERT_STREQ(produced_output_2.c_str(), expected_output_2.c_str());
@@ -92,12 +92,12 @@ TEST_F(JsonnetTest, Yaml_stream) {
   constexpr char kOutputToExpect[] =
       "tests_expected_output/yaml_stream_example.yaml";
 
-  Read_input(kInputFile);
-  Evaluate_jsonnet_code(kYamlStream, true);
-  Write_output(kOutputFile, kYamlStream);
+  ReadInput(kInputFile);
+  EvaluateJsonnetCode(kYamlStream, true);
+  WriteOutput(kOutputFile, kYamlStream);
 
-  const std::string produced_output = Read_output(kOutputToRead);
-  const std::string expected_output = Read_output(kOutputToExpect);
+  const std::string produced_output = ReadOutput(kOutputToRead);
+  const std::string expected_output = ReadOutput(kOutputToExpect);
 
   ASSERT_STREQ(produced_output.c_str(), expected_output.c_str());
 }
@@ -106,8 +106,8 @@ TEST_F(JsonnetTest, Yaml_stream) {
 TEST_F(JsonnetTest, Bad_evaluation) {
   constexpr char kInputFile[] = "imports.jsonnet";
 
-  Read_input(kInputFile);
-  Evaluate_jsonnet_code(kBase, false);
+  ReadInput(kInputFile);
+  EvaluateJsonnetCode(kBase, false);
 }
 
 }  // namespace

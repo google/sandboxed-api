@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet/cmd/utils.h"  // NOLINT(build/include)
+#ifndef JSONNET_HELPER_H_
+#define JSONNET_HELPER_H_
 
 extern "C" {
 #include <libjsonnet.h>  // NOLINT(build/include)
 #include <libjsonnet_fmt.h>  // NOLINT(build/include)
 }
+
+#include "jsonnet/cmd/utils.h"  // NOLINT(build/include)
 
 extern "C" struct JsonnetVm* c_jsonnet_make(void);
 
@@ -46,18 +49,18 @@ extern "C" bool c_write_output_file(const char* output,
 
 extern "C" char* c_jsonnet_realloc(struct JsonnetVm* vm, char* str, size_t sz);
 
-extern "C" bool c_write_multi_output_files(
-    char* output, char* output_dir, bool show_output_file_names);
+extern "C" bool c_write_multi_output_files(char* output, char* output_dir,
+                                           bool show_output_file_names);
 
-bool write_multi_output_files(
-    char* output, const std::string& output_dir, bool show_output_file_names);
+bool write_multi_output_files(char* output, const std::string& output_dir,
+                              bool show_output_file_names);
 
-extern "C" bool c_write_output_stream(
-    char* output, char* output_file);
+extern "C" bool c_write_output_stream(char* output, char* output_file);
 
-bool write_output_stream(
-    char* output, const std::string& output_file);
+bool write_output_stream(char* output, const std::string& output_file);
 
 extern "C" char* c_jsonnet_fmt_snippet(struct JsonnetVm* vm,
                                        const char* filename,
                                        const char* snippet, int* error);
+
+#endif  // JSONNET_HELPER_H_

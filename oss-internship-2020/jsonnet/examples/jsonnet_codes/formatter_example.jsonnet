@@ -29,4 +29,4 @@ arrArr: [[
   ],
   3, 10,    19
   ]
-} + SomeStuff 
+} + SomeStuff

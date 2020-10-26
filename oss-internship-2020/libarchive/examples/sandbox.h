@@ -99,7 +99,7 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
         tmp_dir_(tmp_dir) {}
 
  private:
-  virtual void ModifyExecutor(sandbox2::Executor* executor) override {
+  void ModifyExecutor(sandbox2::Executor* executor) override {
     // If the user only wants to list the entries in the archive, we do
     // not need to worry about changing directories;
     if (do_extract_) {
@@ -145,4 +145,7 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
 };
 
 #endif  // SAPI_LIBARCHIVE_EXAMPLES_SANDBOX_H
+<<<<<<< HEAD
 
+=======
+>>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa

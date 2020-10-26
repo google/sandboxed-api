@@ -36,7 +36,6 @@ add_sapi_library(jsonnet_sapi
             c_jsonnet_make
             c_jsonnet_destroy
             c_read_input
-            c_free_input
             c_write_output_file
             c_jsonnet_realloc
             c_jsonnet_evaluate_snippet_multi

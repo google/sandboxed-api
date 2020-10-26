@@ -66,4 +66,6 @@ class CurlSapiSandbox : public curl::CurlSandbox {
   }
 };
 
+}  // namespace curl
+
 #endif  // SANDBOX_H_

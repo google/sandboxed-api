@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef JSNONNET_BASE_TRANSACTION_H_
+#define JSNONNET_BASE_TRANSACTION_H_
+
 #include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
 
 class JsonnetTransaction : public sapi::Transaction {
@@ -31,3 +34,5 @@ class JsonnetTransaction : public sapi::Transaction {
 
   absl::Status Main() override;
 };
+
+#endif  // JSNONNET_BASE_TRANSACTION_H_

@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glog/logging.h>
-
 #include <iostream>
 
-#include "helpers.h"
-#include "lodepng.h"
+#include <glog/logging.h>
+#include "helpers.h"  // NOLINT(build/include)
+#include "lodepng.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 
@@ -115,4 +114,3 @@ int main(int argc, char* argv[]) {
 
   return EXIT_SUCCESS;
 }
-

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SAPI_LODEPNG_HELPERS_H
-#define SAPI_LODEPNG_HELPERS_H
+#ifndef LODEPNG_EXAMPLES_HELPERS_H_
+#define LODEPNG_EXAMPLES_HELPERS_H_
 
-#include <glog/logging.h>
-
+#include <cstddef>
 #include <cstdint>
 
+#include <glog/logging.h>
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 
@@ -36,5 +36,4 @@ std::vector<uint8_t> GenerateValues();
 // the path.
 std::string CreateTempDirAtCWD();
 
-#endif  // SAPI_LODEPNG_HELPERS_H
-
+#endif  // LODEPNG_EXAMPLES_HELPERS_H_

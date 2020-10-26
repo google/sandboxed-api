@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glog/logging.h>
-
 #include <iostream>
 
-#include "helpers.h"
-#include "sandbox.h"
+#include <glog/logging.h>
+#include "helpers.h"  // NOLINT(build/include)
+#include "sandbox.h"  // NOLINT(build/include)
 
 void EncodeDecodeOneStep(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   // Generate the values.
@@ -192,4 +191,7 @@ int main(int argc, char* argv[]) {
 
   return EXIT_SUCCESS;
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa

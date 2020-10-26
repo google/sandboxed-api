@@ -36,24 +36,39 @@ add_subdirectory("${SAPI_ROOT}"
 
 add_library(libgdal STATIC IMPORTED)
 set_property(TARGET libgdal PROPERTY IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/lib/libgdal.a")
-               
+
 target_link_libraries(libgdal INTERFACE
-  crypto expat jpeg
+  crypto
+  expat
+  jpeg
   PkgConfig::libpcre
   PkgConfig::proj
-  sqlite3 tiff z pthread m rt dl curl
-  PNG::PNG)
+  sqlite3
+  tiff
+  z
+  pthread
+  m
+  rt
+  dl
+  curl
+  PNG::PNG
+)
 
 add_sapi_library(gdal_sapi
-  FUNCTIONS GDALOpen GDALAllRegister GDALGetDatasetDriver
-    GDALGetDriverShortName GDALGetDriverLongName
-    GDALGetGeoTransform GDALGetRasterBand GDALGetBlockSize
-    GDALGetRasterBandXSize GDALGetRasterBandYSize GDALRasterIO
-  
+  FUNCTIONS GDALOpen
+            GDALAllRegister
+            GDALGetDatasetDriver
+            GDALGetDriverShortName
+            GDALGetDriverLongName
+            GDALGetGeoTransform
+            GDALGetRasterBand
+            GDALGetBlockSize
+            GDALGetRasterBandXSize
+            GDALGetRasterBandYSize
+            GDALRasterIO
   INPUTS "/usr/include/gdal/gdal.h"
   LIBRARY libgdal
   LIBRARY_NAME GDAL
-  
   NAMESPACE ""
 )
 
@@ -67,5 +82,9 @@ add_executable(raster
 
 target_link_libraries(raster
   gdal_sapi
+<<<<<<< HEAD
   sapi::sapi    
+=======
+  sapi::sapi
+>>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa
 )

@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef JSONNET_BASE_SANDBOX_H_
+#define JSONNET_BASE_SANDBOX_H_
+
 #include <libgen.h>
 #include <syscall.h>
 
-#include "jsonnet_sapi.sapi.h"
-#include "sandboxed_api/transaction.h"
+#include "jsonnet_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/transaction.h"
 #include "sandboxed_api/vars.h"
 
 class JsonnetBaseSandbox : public JsonnetSandbox {
@@ -48,3 +51,5 @@ class JsonnetBaseSandbox : public JsonnetSandbox {
   std::string in_file_;
   std::string out_file_;
 };
+
+#endif  // JSONNET_BASE_SANDBOX_H_

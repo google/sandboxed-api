@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet_tests.h"
+#include "jsonnet_tests.h"  // NOLINT(build/include)
 
 // Prepares what is needed to perform a test.
 void JsonnetTestHelper::TestSetUp() {
@@ -39,34 +39,34 @@ void JsonnetTestHelper::TestSetUp() {
   SAPI_ASSERT_OK_AND_ASSIGN(JsonnetVm * vm_ptr, api_->c_jsonnet_make());
   vm_ = absl::make_unique<sapi::v::RemotePtr>(vm_ptr);
 
-  if_jsonnet_vm_was_used_ = false;
-  if_input_was_read_ = false;
+  jsonnet_vm_was_used_ = false;
+  input_was_read_ = false;
 }
 
 // Cleans up after a test.
 void JsonnetTestHelper::TestTearDown() {
-  if (if_jsonnet_vm_was_used_) {
-    SAPI_ASSERT_OK_AND_ASSIGN(
-        char* result, api_->c_jsonnet_realloc(vm_.get(), output_.get(), 0));
+  if (jsonnet_vm_was_used_) {
+    SAPI_ASSERT_OK_AND_ASSIGN(char* result,
+                         api_->c_jsonnet_realloc(vm_.get(), output_.get(), 0));
   }
   ASSERT_THAT(api_->c_jsonnet_destroy(vm_.get()), sapi::IsOk());
-  if (if_input_was_read_) {
+  if (input_was_read_) {
     ASSERT_THAT(api_->c_free_input(input_.get()), sapi::IsOk());
   }
 }
 
 // Reads input from file.
-void JsonnetTestHelper::Read_input(const char* filename) {
+void JsonnetTestHelper::ReadInput(const char* filename) {
   std::string in_file_in_sandboxee(std::string("/input/") +
                                    basename(const_cast<char*>(&filename[0])));
   input_filename_in_sandboxee_ = std::move(in_file_in_sandboxee);
   sapi::v::ConstCStr in_file_var(input_filename_in_sandboxee_.c_str());
 
   SAPI_ASSERT_OK_AND_ASSIGN(char* input_ptr,
-                            api_->c_read_input(0, in_file_var.PtrBefore()));
+                       api_->c_read_input(0, in_file_var.PtrBefore()));
   input_ = absl::make_unique<sapi::v::RemotePtr>(input_ptr);
 
-  if_input_was_read_ = true;
+  input_was_read_ = true;
 }
 
 // Evaluates jsonnet code.
@@ -78,26 +78,23 @@ void JsonnetTestHelper::Evaluate_jsonnet_code(Evaluation type,
 
   switch (type) {
     case kBase: {
-      SAPI_ASSERT_OK_AND_ASSIGN(
-          output_ptr,
-          api_->c_jsonnet_evaluate_snippet(vm_.get(), in_file_var.PtrBefore(),
+      SAPI_ASSERT_OK_AND_ASSIGN(output_ptr, api_->c_jsonnet_evaluate_snippet(
+                                           vm_.get(), in_file_var.PtrBefore(),
                                            input_.get(), error.PtrAfter()));
       break;
     }
 
     case kMultipleFiles: {
-      SAPI_ASSERT_OK_AND_ASSIGN(
-          output_ptr, api_->c_jsonnet_evaluate_snippet_multi(
-                          vm_.get(), in_file_var.PtrBefore(), input_.get(),
-                          error.PtrAfter()));
+      SAPI_ASSERT_OK_AND_ASSIGN(output_ptr, api_->c_jsonnet_evaluate_snippet_multi(
+                                           vm_.get(), in_file_var.PtrBefore(),
+                                           input_.get(), error.PtrAfter()));
       break;
     }
 
     case kYamlStream: {
-      SAPI_ASSERT_OK_AND_ASSIGN(
-          output_ptr, api_->c_jsonnet_evaluate_snippet_stream(
-                          vm_.get(), in_file_var.PtrBefore(), input_.get(),
-                          error.PtrAfter()));
+      SAPI_ASSERT_OK_AND_ASSIGN(output_ptr, api_->c_jsonnet_evaluate_snippet_stream(
+                                           vm_.get(), in_file_var.PtrBefore(),
+                                           input_.get(), error.PtrAfter()));
       break;
     }
   }
@@ -110,12 +107,12 @@ void JsonnetTestHelper::Evaluate_jsonnet_code(Evaluation type,
 
   output_ = absl::make_unique<sapi::v::RemotePtr>(output_ptr);
 
-  if_jsonnet_vm_was_used_ = true;
+  jsonnet_vm_was_used_ = true;
 }
 
 // Writes output to file.
-void JsonnetTestHelper::Write_output(const char* filename_or_directory,
-                                     Evaluation type) {
+void JsonnetTestHelper::WriteOutput(const char* filename_or_directory,
+                                    Evaluation type) {
   bool success;
 
   switch (type) {
@@ -133,9 +130,9 @@ void JsonnetTestHelper::Write_output(const char* filename_or_directory,
     case kMultipleFiles: {
       std::string out_file_in_sandboxee(std::string("/output/"));
       sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
-      SAPI_ASSERT_OK_AND_ASSIGN(
-          success, api_->c_write_multi_output_files(
-                       output_.get(), out_file_var.PtrBefore(), false));
+      SAPI_ASSERT_OK_AND_ASSIGN(success,
+                           api_->c_write_multi_output_files(
+                               output_.get(), out_file_var.PtrBefore(), false));
       break;
     }
 
@@ -155,7 +152,7 @@ void JsonnetTestHelper::Write_output(const char* filename_or_directory,
 }
 
 // Reads the output written to a file by library function / expected output
-std::string JsonnetTestHelper::Read_output(const char* filename) {
+std::string JsonnetTestHelper::ReadOutput(const char* filename) {
   std::ifstream input_stream(filename);
   std::string contents((std::istreambuf_iterator<char>(input_stream)),
                        std::istreambuf_iterator<char>());

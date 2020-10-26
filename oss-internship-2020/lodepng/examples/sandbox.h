@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SAPI_LODEPNG_SANDBOX_H_
-#define SAPI_LODEPNG_SANDBOX_H_
+#ifndef LODEPNG_EXAMPLES_SANDBOX_H_
+#define LODEPNG_EXAMPLES_SANDBOX_H_
 
 #include <syscall.h>
 
-#include "lodepng_sapi.sapi.h"
+#include "lodepng_sapi.sapi.h"  // NOLINT(build/include)
 
 class SapiLodepngSandbox : public LodepngSandbox {
  public:
@@ -46,5 +46,4 @@ class SapiLodepngSandbox : public LodepngSandbox {
   const std::string images_path_;
 };
 
-#endif  // SAPI_LODEPNG_SANDBOX_H_
-
+#endif  // LODEPNG_EXAMPLES_SANDBOX__

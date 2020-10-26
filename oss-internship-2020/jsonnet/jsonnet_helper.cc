@@ -23,13 +23,13 @@ struct JsonnetVm* c_jsonnet_make(void) {
 void c_jsonnet_destroy(struct JsonnetVm* vm) { return jsonnet_destroy(vm); }
 
 char* c_jsonnet_evaluate_snippet(struct JsonnetVm* vm, const char* filename,
-                                char* snippet, int* error) {
+                                 char* snippet, int* error) {
   return jsonnet_evaluate_snippet(vm, filename, snippet, error);
 }
 
 char* c_jsonnet_evaluate_snippet_multi(struct JsonnetVm* vm,
-                                      const char* filename,
-                                      const char* snippet, int* error) {
+                                       const char* filename,
+                                       const char* snippet, int* error) {
   return jsonnet_evaluate_snippet_multi(vm, filename, snippet, error);
 }
 
@@ -48,10 +48,7 @@ char* c_read_input(bool filename_is_code, const char* filename) {
   return nullptr;
 }
 
-void c_free_input(char* input) {
-  free(input);
-  return;
-}
+void c_free_input(char* input) { free(input); }
 
 bool c_write_output_file(const char* output, const char* output_file) {
   std::string s_output_file(output_file);

@@ -12,19 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef JSONNET_TESTS_H_
+#define JSONNET_TESTS_H_
+
 #include <unistd.h>
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <streambuf>
 #include <string>
 
-#include "gtest/gtest.h"
 #include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
-#include "jsonnet_sapi.sapi.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "jsonnet_sapi.sapi.h"     // NOLINT(build/include)
+#include "gtest/gtest.h"
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 class JsonnetTestHelper {
@@ -34,10 +38,10 @@ class JsonnetTestHelper {
   void TestSetUp();
   void TestTearDown();
 
-  void Read_input(const char* filename);
-  void Evaluate_jsonnet_code(Evaluation type, bool expected_correct);
-  void Write_output(const char* filename_or_directory, Evaluation type);
-  std::string Read_output(const char* filename);
+  void ReadInput(const char* filename);
+  void EvaluateJsonnetCode(Evaluation type, bool expected_correct);
+  void WriteOutput(const char* filename_or_directory, Evaluation type);
+  std::string ReadOutput(const char* filename);
 
   std::unique_ptr<JsonnetBaseSandbox> sandbox_;
   std::unique_ptr<JsonnetApi> api_;
@@ -46,6 +50,8 @@ class JsonnetTestHelper {
   std::unique_ptr<sapi::v::RemotePtr> vm_;
 
   std::string input_filename_in_sandboxee_;
-  bool if_jsonnet_vm_was_used_;
-  bool if_input_was_read_;
+  bool jsonnet_vm_was_used_;
+  bool input_was_read_;
 };
+
+#endif  // JSONNET_TESTS_H_

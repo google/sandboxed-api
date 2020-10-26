@@ -14,10 +14,10 @@
 
 #include <fstream>
 
+#include "sapi_minitar.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include "sapi_minitar.h"  // NOLINT(build/include)
 
 using ::sandbox2::file::JoinPath;
 using ::sapi::IsOk;
@@ -49,9 +49,9 @@ class MiniTarTest : public ::testing::Test {
   static void SetUpTestSuite() {
     absl::StatusOr<std::string> tmp_status = CreateTempDirAtCWD();
     ASSERT_THAT(tmp_status, IsOk());
-    data_dir_ = tmp_status.value();
+    data_dir_ = new std::string(std::move(tmp_status).value());
 
-    init_wd_ = sandbox2::file_util::fileops::GetCWD();
+    init_wd_ = new std::string(sandbox2::file_util::fileops::GetCWD());
     ASSERT_THAT(Exists(data_dir_, false), IsTrue())
         << "Test data directory was not created";
     ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
@@ -70,11 +70,13 @@ class MiniTarTest : public ::testing::Test {
     // The tests have the data directory as their working directory at the end
     // so we move to the initial working directory in order to not delete the
     // directory that we are inside of.
-    ASSERT_THAT(chdir(init_wd_.data()), Eq(0))
+    ASSERT_THAT(chdir(init_wd_->data()), Eq(0))
         << "Could not chdir into initial working directory";
-    EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(data_dir_),
+    EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(*data_dir_),
                 IsTrue)
         << "Error during test data deletion";
+    delete init_wd_;
+    delete data_dir_;
   }
 
   void SetUp() override {
@@ -88,13 +90,13 @@ class MiniTarTest : public ::testing::Test {
 
     ASSERT_THAT(Exists(tmp_dir_, false), IsTrue)
         << "Could not create test specific temporary directory";
-    ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
+    ASSERT_THAT(chdir(data_dir_->data()), Eq(0))
         << "Could not chdir into test data directory";
   }
 
   void TearDown() override {
     // Move to another directory before deleting the temporary folder.
-    ASSERT_THAT(chdir(data_dir_.data()), Eq(0))
+    ASSERT_THAT(chdir(data_dir_->data()), Eq(0))
         << "Could not chdir into test data directory";
 
     EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(tmp_dir_),
@@ -133,8 +135,8 @@ class MiniTarTest : public ::testing::Test {
   }
 
   static int test_count_;
-  static std::string data_dir_;
-  static std::string init_wd_;
+  static std::string* data_dir_;
+  static std::string* init_wd_;
   std::string tmp_dir_;
   std::string id_;
 
@@ -146,8 +148,8 @@ class MiniTarTest : public ::testing::Test {
 };
 
 int MiniTarTest::test_count_;
-std::string MiniTarTest::data_dir_;
-std::string MiniTarTest::init_wd_;
+std::string* MiniTarTest::data_dir_;
+std::string* MiniTarTest::init_wd_;
 
 // The tests have the following pattern:
 // 1) From inside the test data directory, call the create function with
@@ -167,7 +169,7 @@ TEST_F(MiniTarTest, TestFileSimple) {
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile1));
@@ -183,7 +185,7 @@ TEST_F(MiniTarTest, TestMultipleFiles) {
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile1));
@@ -199,7 +201,7 @@ TEST_F(MiniTarTest, TestDirectorySimple) {
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile3));
@@ -213,7 +215,7 @@ TEST_F(MiniTarTest, TestDirectoryNested) {
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile2));
@@ -228,7 +230,7 @@ TEST_F(MiniTarTest, TestComplex) {
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
 
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile1));
@@ -245,7 +247,7 @@ TEST_F(MiniTarTest, TestCompress) {
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile1));
@@ -262,7 +264,7 @@ TEST_F(MiniTarTest, TestGZIP) {
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile1));
@@ -279,7 +281,7 @@ TEST_F(MiniTarTest, TestBZIP2) {
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile1));
@@ -296,7 +298,7 @@ TEST_F(MiniTarTest, TestPaths) {
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
-  ASSERT_THAT(ExtractArchive(JoinPath(data_dir_, id_).data(), 1, 0, false),
+  ASSERT_THAT(ExtractArchive(JoinPath(*data_dir_, id_).data(), 1, 0, false),
               IsOk());
 
   CheckFile(std::string(kFile1));
@@ -305,4 +307,3 @@ TEST_F(MiniTarTest, TestPaths) {
 }
 
 }  // namespace
-
