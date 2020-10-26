@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include "../sandboxed.h"
 #include "libpng.h"
 
@@ -16,10 +17,12 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
   image.mutable_data()->version = PNG_IMAGE_VERSION;
 
-  SAPI_ASSIGN_OR_RETURN(int result,
-    api.png_image_begin_read_from_file(image.PtrBoth(), infile_var.PtrBefore()));
+  SAPI_ASSIGN_OR_RETURN(
+      int result, api.png_image_begin_read_from_file(image.PtrBoth(),
+                                                     infile_var.PtrBefore()));
   if (!result) {
-    return absl::InternalError(absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
+    return absl::InternalError(
+        absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
   }
 
   image.mutable_data()->format = PNG_FORMAT_RGBA;
@@ -33,22 +36,28 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   free(buffer);
   sapi::v::Array<uint8_t> buffer_(PNG_IMAGE_SIZE(*image.mutable_data()));
 
-  SAPI_ASSIGN_OR_RETURN(result,
-    api.png_image_finish_read(image.PtrBoth(), sapi::v::NullPtr().PtrBoth(), buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
+  SAPI_ASSIGN_OR_RETURN(
+      result, api.png_image_finish_read(
+                  image.PtrBoth(), sapi::v::NullPtr().PtrBoth(),
+                  buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
   if (!result) {
-    return absl::InternalError(absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
+    return absl::InternalError(
+        absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
   }
 
-  SAPI_ASSIGN_OR_RETURN(result,
-    api.png_image_write_to_file(image.PtrBoth(), outfile_var.PtrBefore(), 0, buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
+  SAPI_ASSIGN_OR_RETURN(
+      result, api.png_image_write_to_file(
+                  image.PtrBoth(), outfile_var.PtrBefore(), 0,
+                  buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
   if (!result) {
-    return absl::InternalError(absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
+    return absl::InternalError(
+        absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
   }
 
   return absl::OkStatus();
 }
 
-int main(int argc, const char **argv) {
+int main(int argc, const char** argv) {
   if (argc != 3) {
     LOG(ERROR) << "usage: example input-file output-file";
     return EXIT_FAILURE;

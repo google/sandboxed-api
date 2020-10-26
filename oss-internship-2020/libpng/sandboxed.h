@@ -15,8 +15,8 @@
 #include <linux/futex.h>
 #include <syscall.h>
 
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "libpng_sapi.sapi.h"
 
@@ -24,9 +24,8 @@ namespace {
 
 class LibPNGSapiSandbox : public LibPNGSandbox {
  public:
-	void AddFile(const std::string& file) {
-		files_.push_back(file);
-	}
+  void AddFile(const std::string& file) { files_.push_back(file); }
+
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
