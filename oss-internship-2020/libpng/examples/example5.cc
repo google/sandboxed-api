@@ -195,12 +195,11 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   // RGB to BGR
   for (size_t i = 0; i != d.height; ++i) {
     for (size_t j = 0; j != d.width; ++j) {
-      uint8_t r = (*d.row_pointers)[i * d.width + j * channel_count];
-      uint8_t g = (*d.row_pointers)[i * d.width + j * channel_count + 1];
-      uint8_t b = (*d.row_pointers)[i * d.width + j * channel_count + 2];
-//      std::cout << size_t(r) << " " << size_t(g) << " " << size_t(b) << "\n";
-      (*d.row_pointers)[i * d.width + j * channel_count] = b;
-      (*d.row_pointers)[i * d.width + j * channel_count + 2] = r;
+      uint8_t r = (*d.row_pointers)[i * d.rowbytes + j * channel_count];
+      uint8_t g = (*d.row_pointers)[i * d.rowbytes + j * channel_count + 1];
+      uint8_t b = (*d.row_pointers)[i * d.rowbytes + j * channel_count + 2];
+      (*d.row_pointers)[i * d.rowbytes + j * channel_count] = b;
+      (*d.row_pointers)[i * d.rowbytes + j * channel_count + 2] = r;
     }
   }
 
