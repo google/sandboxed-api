@@ -1,39 +1,42 @@
+#include <cstdio>
+#include "../sandboxed.h"
+#include "libpng.h"
 #include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-
-#define PNG_DEBUG 3
-#include <png.h>
+#include <fcntl.h>
+#include <iostream>
 
 struct Data {
-//  int x, y;
+  Data() {}
+
   int width;
   int height;
   uint8_t color_type;
   uint8_t bit_depth;
-
-  png_structp png_ptr;
-  png_infop info_ptr;
   int number_of_passes;
-  png_bytep * row_pointers;
-}
+};
 
-absl::Status ReadPng(LibPNGApi& api, absl::string_view infile) {
-  char header[8];    // 8 is the maximum size that can be checked
+absl::Status ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox, absl::string_view infile, Data& d) {
+  sapi::v::Fd fd(open(infile.data(), O_RDONLY));
+  std::cout << "fd created\n";
 
-  /* open file and test for it being a png */
-  absl::StaturOr<FILE*> status_or_file;
-  sapi::v::ConstCStr srcfile_var(infile.c_str());
+  if (fd.GetValue() < 0) {
+    return absl::InternalError("Error opening input file");
+  }
+
+  SAPI_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&fd));
+  std::cout << "transfered\n";
+  if (fd.GetRemoteFd() < 0) {
+    return absl::InternalError("Error receiving remote FD");
+  }
+
+  absl::StatusOr<void*> status_or_file;
   sapi::v::ConstCStr rb_var("rb");
-
   SAPI_ASSIGN_OR_RETURN(
-      status_or_file, api.png_fopen(srcfile_var.PtrBefore(), rb_var.PtrBefore()));
+      status_or_file, api.png_fdopen(fd.GetRemoteFd(), rb_var.PtrBefore()));
 
   sapi::v::RemotePtr file(status_or_file.value());
   if (!file.GetValue()) {
-    return absl::InternalError(absl::StrCat("Could not open ", srcfile));
+    return absl::InternalError(absl::StrCat("Could not open ", infile));
   }
 
   sapi::v::Array<char> header(8);
@@ -50,17 +53,14 @@ absl::Status ReadPng(LibPNGApi& api, absl::string_view infile) {
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
   SAPI_ASSIGN_OR_RETURN(
     status_or_png_structp,
-    api.png_create_read_struct(ver_string_var.PtrBefore(), sapi::v::NullPtr().PtrBoth(),
-      sapi::v::NullPtr().PtrBoth(), sapi::v::NullPtr().PtrBoth()));
+    api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(), sapi::v::NullPtr().PtrBoth()));
 
   sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
   if (!struct_ptr.GetValue()) {
-    return absl::InternalError("png_create_read_struct failed");
+    return absl::InternalError("png_create_read_struct_wrapper failed");
   }
 
-
   absl::StatusOr<png_infop> status_or_png_infop;
-  sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
   SAPI_ASSIGN_OR_RETURN(
     status_or_png_infop,
     api.png_create_info_struct(&struct_ptr));
@@ -70,110 +70,109 @@ absl::Status ReadPng(LibPNGApi& api, absl::string_view infile) {
     return absl::InternalError("png_create_info_struct failed");
   }
 
-  /// what is it?
-  if (setjmp(png_jmpbuf(struct_ptr)))
-          abort_("[read_png_file] Error during init_io");
-
-  SAPI_RETURN_IF_ERROR(api.png_init_io(&struct_ptr, &file));
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_init_io_wrapper(&struct_ptr, &file));
   SAPI_RETURN_IF_ERROR(api.png_set_sig_bytes(&struct_ptr, header.GetSize()));
-
   SAPI_RETURN_IF_ERROR(api.png_read_info(&struct_ptr, &info_ptr));
 
   SAPI_ASSIGN_OR_RETURN(
-    int width,
+    d.width,
     api.png_get_image_width(&struct_ptr, &info_ptr));
 
   SAPI_ASSIGN_OR_RETURN(
-    int height,
+    d.height,
     api.png_get_image_height(&struct_ptr, &info_ptr));
 
   SAPI_ASSIGN_OR_RETURN(
-    uint8_t color_type,
+    d.color_type,
     api.png_get_color_type(&struct_ptr, &info_ptr));
 
   SAPI_ASSIGN_OR_RETURN(
-    uint8_t bit_depth,
+    d.bit_depth,
     api.png_get_bit_depth(&struct_ptr, &info_ptr));
 
   SAPI_ASSIGN_OR_RETURN(
-    int number_of_passes,
+    d.number_of_passes,
     api.png_set_interlace_handling(&struct_ptr));
 
   SAPI_RETURN_IF_ERROR(api.png_read_update_info(&struct_ptr, &info_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
 
-  /// what is it?
-  if (setjmp(png_jmpbuf(struct_ptr)))
-          abort_("[read_png_file] Error during read_image");
+  // d.row_pointers = sapi::v::Array<sapi::v::Array<uint8_t>>(d.height);
+  for (size_t i = 0; i != d.height; ++i) {
+    SAPI_ASSIGN_OR_RETURN(
+        size_t sz, api.png_get_rowbytes(&struct_ptr, &info_ptr));
+        std::cout << sz << '\n';
+    // row_pointers[i] = sapi::v::Array<uint8_t>(sz);
+  }
 
-  row_pointers = (png_bytep*) malloc(sizeof(png_bytep) * height);
-  for (y=0; y<height; y++)
-          row_pointers[y] = (png_byte*) malloc(png_get_rowbytes(struct_ptr,info_ptr));
+  // SAPI_RETURN_IF_ERROR(api.png_read_image(&struct_ptr, d.row_pointers.PtrAfter()));
 
-  png_read_image(struct_ptr, row_pointers);
-
-  fclose(fp);
-
-  return absl::StatusOk();
+  SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
+  return absl::OkStatus();
 }
 
+absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox, absl::string_view outfile, Data& d) {
+  sapi::v::Fd fd(open(outfile.data(), O_WRONLY));
+  SAPI_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&fd));
+  if (fd.GetRemoteFd() < 0) {
+    return absl::InternalError("Error receiving remote FD");
+  }
 
-absl::Status WritePng(LibPNGApi& api, absl::string_view outfile) {
-  /* create file */
-  FILE *fp = fopen(file_name, "wb");
-  if (!fp)
-          abort_("[write_png_file] File %s could not be opened for writing", file_name);
+  absl::StatusOr<void*> status_or_file;
+  sapi::v::ConstCStr wb_var("wb");
+  SAPI_ASSIGN_OR_RETURN(
+      status_or_file, api.png_fdopen(fd.GetRemoteFd(), wb_var.PtrBefore()));
 
+  sapi::v::RemotePtr file(status_or_file.value());
+  if (!file.GetValue()) {
+    return absl::InternalError(absl::StrCat("Could not open ", outfile));
+  }
 
-  /* initialize stuff */
-  png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  absl::StatusOr<png_structp> status_or_png_structp;
+  sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
+  SAPI_ASSIGN_OR_RETURN(
+    status_or_png_structp,
+    api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(), sapi::v::NullPtr().PtrBoth()));
 
-  if (!png_ptr)
-          abort_("[write_png_file] png_create_write_struct failed");
+  sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
+  if (!struct_ptr.GetValue()) {
+    return absl::InternalError("png_create_write_struct_wrapper failed");
+  }
 
-  info_ptr = png_create_info_struct(png_ptr);
-  if (!info_ptr)
-          abort_("[write_png_file] png_create_info_struct failed");
+  absl::StatusOr<png_infop> status_or_png_infop;
+  SAPI_ASSIGN_OR_RETURN(
+    status_or_png_infop,
+    api.png_create_info_struct(&struct_ptr));
 
-  if (setjmp(png_jmpbuf(png_ptr)))
-          abort_("[write_png_file] Error during init_io");
+  sapi::v::RemotePtr info_ptr(status_or_png_infop.value());
+  if (!info_ptr.GetValue()) {
+    return absl::InternalError("png_create_info_struct failed");
+  }
 
-  png_init_io(png_ptr, fp);
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_init_io_wrapper(&struct_ptr, &file));
 
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_set_IHDR(&struct_ptr, &info_ptr,
+    d.width, d.height, d.bit_depth, d.color_type, PNG_INTERLACE_NONE,
+    PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE));
 
-  /* write header */
-  if (setjmp(png_jmpbuf(png_ptr)))
-          abort_("[write_png_file] Error during writing header");
+  SAPI_RETURN_IF_ERROR(api.png_write_info(&struct_ptr, &info_ptr));
 
-  png_set_IHDR(png_ptr, info_ptr, width, height,
-                bit_depth, color_type, PNG_INTERLACE_NONE,
-                PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  // SAPI_RETURN_IF_ERROR(api.png_write_image(&struct_ptr, d.row_pointers.PtrBefore()));
 
-  png_write_info(png_ptr, info_ptr);
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_write_image(&struct_ptr, sapi::v::NullPtr().PtrBoth()));
 
-
-  /* write bytes */
-  if (setjmp(png_jmpbuf(png_ptr)))
-          abort_("[write_png_file] Error during writing bytes");
-
-  png_write_image(png_ptr, row_pointers);
-
-
-  /* end write */
-  if (setjmp(png_jmpbuf(png_ptr)))
-          abort_("[write_png_file] Error during end of write");
-
-  png_write_end(png_ptr, NULL);
-
-  /* cleanup heap allocation */
-  for (y=0; y<height; y++)
-          free(row_pointers[y]);
-  free(row_pointers);
-
-  fclose(fp);
+  SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
+  return absl::OkStatus();
 }
-
 
 absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
+//  sapi::v::Array<sapi::v::Array<uint8_t>> row_pointers;
+
   LibPNGSapiSandbox sandbox;
   sandbox.AddFile(infile);
   sandbox.AddFile(outfile);
@@ -181,38 +180,29 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   SAPI_RETURN_IF_ERROR(sandbox.Init());
   LibPNGApi api(&sandbox);
 
-  int x, y;
-  int width, height;
-  png_byte color_type;
-  png_byte bit_depth;
+  Data d;
+  SAPI_RETURN_IF_ERROR(ReadPng(api, sandbox, infile, d));
 
-  png_structp png_ptr;
-  png_infop info_ptr;
-  int number_of_passes;
-  png_bytep * row_pointers;
-
-  SAPI_RETURN_IF_ERROR(ReadPng(api, infile));
-  if (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGB)
-          abort_("[process_file] input file is PNG_COLOR_TYPE_RGB but must be PNG_COLOR_TYPE_RGBA "
-                  "(lacks the alpha channel)");
-
-  if (png_get_color_type(png_ptr, info_ptr) != PNG_COLOR_TYPE_RGBA)
-          abort_("[process_file] color_type of input file must be PNG_COLOR_TYPE_RGBA (%d) (is %d)",
-                  PNG_COLOR_TYPE_RGBA, png_get_color_type(png_ptr, info_ptr));
-
-  for (y=0; y<height; y++) {
-    png_byte* row = row_pointers[y];
-    for (x=0; x<width; x++) {
-      png_byte* ptr = &(row[x*4]);
-      printf("Pixel at position [ %d - %d ] has RGBA values: %d - %d - %d - %d\n",
-              x, y, ptr[0], ptr[1], ptr[2], ptr[3]);
-
-      /* set red value to 0 and green value to the blue one */
-      ptr[0] = 0;
-      ptr[1] = ptr[2];
-    }
+  if (d.color_type != PNG_COLOR_TYPE_RGBA && d.color_type != PNG_COLOR_TYPE_RGB) {
+    return absl::InternalError(absl::StrCat(infile, " has unexpected color type. Expected RGB or RGBA"));
   }
-  SAPI_RETURN_IF_ERROR(WritePng(api, outfile));
+
+  size_t channel_count = 3;
+  if (d.color_type == PNG_COLOR_TYPE_RGBA) {
+    channel_count = 4;
+  }
+
+  // RGB to BGR
+  // for (size_t i = 0; i != d.height; ++i) {
+  //   for (size_t j = 0; j != d.width; ++j) {
+  //     uint8_t r = d.row_pointers[i][j * channel_count];
+  //     uint8_t b = d.row_pointers[i][j * channel_count + 2];
+  //     d.row_pointers[i][j * channel_count] = b;
+  //     d.row_pointers[i][j * channel_count + 2] = r;
+  //   }
+  // }
+
+  SAPI_RETURN_IF_ERROR(WritePng(api, sandbox, outfile, d));
 }
 
 

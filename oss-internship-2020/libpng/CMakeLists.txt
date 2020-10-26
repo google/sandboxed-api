@@ -50,11 +50,42 @@ add_sapi_library(libpng_sapi
   # List of functions that we want to include in the
   # generated sandboxed API class
 
-  FUNCTIONS   png_image_begin_read_from_file
-              png_image_free
+  FUNCTIONS   png_image_free
               png_image_finish_read
               png_image_write_to_file
-              png_fopen
+              png_image_begin_read_from_file
+
+              png_get_rowbytes
+              png_get_bit_depth
+              png_get_color_type
+              png_get_image_width
+              png_get_image_height
+
+              png_set_IHDR
+              png_set_sig_bytes
+              png_set_interlace_handling
+
+              png_read_info
+              png_read_image
+              png_read_update_info
+
+              png_write_image
+              png_write_info
+              png_write_image
+
+              png_create_info_struct
+              png_create_read_struct_wrapper
+              png_create_write_struct_wrapper
+              png_init_io_wrapper
+
+              png_sig_cmp
+
+              png_fread
+              png_fdopen
+              png_rewind
+              png_fclose
+
+              png_setjmp
 
   INPUTS "${PNG_INCLUDE_DIR}/png.h"
          wrapper/func.h
@@ -70,10 +101,6 @@ add_sapi_library(libpng_sapi
 target_include_directories(libpng_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
-
-#target_link_libraries(libpng_sapi.bin
-#  wrapper
-#)
 
 #if (LIBPNG_SAPI_ENABLE_EXAMPLES)
   add_subdirectory(examples)

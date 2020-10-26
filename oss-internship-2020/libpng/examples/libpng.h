@@ -53,7 +53,7 @@
 #define PNG_IMAGE_SIZE(image)\
    PNG_IMAGE_BUFFER_SIZE(image, PNG_IMAGE_ROW_STRIDE(image))
 
-typedef png_byte              * png_bytep;
+typedef uint8_t *png_bytep;
 
 #if UINT_MAX == 65535
    typedef unsigned int png_uint_16;
@@ -62,3 +62,16 @@ typedef png_byte              * png_bytep;
 #else
 #  error "libpng requires an unsigned 16-bit type"
 #endif
+
+#define PNG_LIBPNG_VER_STRING "1.6.38.git"
+
+#define PNG_COLOR_MASK_COLOR      2
+#define PNG_COLOR_MASK_ALPHA      4
+
+#define PNG_COLOR_TYPE_RGB        (PNG_COLOR_MASK_COLOR)
+#define PNG_COLOR_TYPE_RGB_ALPHA  (PNG_COLOR_MASK_COLOR | PNG_COLOR_MASK_ALPHA)
+#define PNG_COLOR_TYPE_RGBA  PNG_COLOR_TYPE_RGB_ALPHA
+
+#define PNG_FILTER_TYPE_BASE      0
+#define PNG_COMPRESSION_TYPE_BASE      0
+#define PNG_INTERLACE_NONE        0

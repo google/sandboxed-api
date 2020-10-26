@@ -21,16 +21,9 @@ set_target_properties(wrapper
   PROPERTIES LINKER_LANGUAGE C
 )
 
-find_package(PNG REQUIRED)
-#pkg_check_modules(libpng REQUIRED IMPORTED_TARGET libpng)
-add_library(libpng STATIC IMPORTED)
-#set_property(TARGET libgdal PROPERTY IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/lib/libpng.a")
-
-list(GET PNG_INCLUDE_DIRS 0 PNG_INCLUDE_DIR)
-
-target_link_libraries(wrapper 
+target_link_libraries(wrapper
   sandbox2::temp_file
   sapi::sapi
-	PNG::PNG
-#  "/usr/lib/x86_64-linux-gnu/libpng16.a"
+  "/usr/lib/x86_64-linux-gnu/libpng16.a"
+  "/usr/lib/x86_64-linux-gnu/libz.a"
 )

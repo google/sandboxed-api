@@ -18,12 +18,6 @@ add_executable(example
   ../sandboxed.h
 )
 
-#add_executable(example4
-#  example4.cc
-#  libpng.h
-#  ../sandboxed.h
-#)
-
 find_package(PNG REQUIRED)
 
 target_link_libraries(example PRIVATE
@@ -37,13 +31,20 @@ target_include_directories(example INTERFACE
   "${PNG_INCLUDE_DIR}"
 )
 
-#target_link_libraries(example4 PRIVATE
-#  sapi::sapi
-#  sandbox2::temp_file
-#  libpng_sapi
-#  "${PNG_LIBRARY}"
-#)
 
-#target_include_directories(example4 INTERFACE
-#  "${PNG_INCLUDE_DIR}"
-#)
+add_executable(example5
+  example5.cc
+  libpng.h
+  ../sandboxed.h
+)
+
+target_link_libraries(example5 PRIVATE
+  sapi::sapi
+  sandbox2::temp_file
+  libpng_sapi
+  "${PNG_LIBRARY}"
+)
+
+target_include_directories(example5 INTERFACE
+  "${PNG_INCLUDE_DIR}"
+)
