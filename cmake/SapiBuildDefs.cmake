@@ -133,7 +133,7 @@ function(add_sapi_library)
     set(_sapi_embed_name "${_sapi_NAME}")
   endif()
 
-  set(_sapi_isystem "${_sapi_NAME}.isystem}")
+  set(_sapi_isystem "${_sapi_NAME}.isystem")
   list(APPEND _sapi_generator_args
     "--sapi_name=${_sapi_LIBRARY_NAME}"
     "--sapi_out=${_sapi_gen_header}"
@@ -143,7 +143,6 @@ function(add_sapi_library)
     "--sapi_ns=${_sapi_NAMESPACE}"
     "--sapi_isystem=${_sapi_isystem}"
   )
-  list(JOIN _sapi_full_inputs "," _sapi_full_inputs)
   if(SAPI_ENABLE_GENERATOR)
     list(APPEND _sapi_generator_command
       sapi_generator_tool
@@ -152,6 +151,7 @@ function(add_sapi_library)
       ${_sapi_full_inputs}
     )
   else()
+    list(JOIN _sapi_full_inputs "," _sapi_full_inputs)
     list(APPEND _sapi_generator_command
       "${SAPI_PYTHON3_EXECUTABLE}" -B
       "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"

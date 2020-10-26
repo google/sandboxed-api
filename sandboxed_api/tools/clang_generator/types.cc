@@ -31,7 +31,7 @@ bool IsFunctionReferenceType(clang::QualType qual) {
 }  // namespace
 
 void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
-  if (seen_.contains(qual)) {
+  if (seen_.count(qual) > 0) {  // contains() is LLVM_VERSION_MAJOR >= 11
     return;
   }
   seen_.insert(qual);
