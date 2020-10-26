@@ -19,6 +19,7 @@
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "sandboxed_api/util/flag.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace curl::tests {

@@ -22,6 +22,8 @@
 #include <iostream>
 #include <memory>
 
+#include "absl/status/statusor.h"
+
 namespace guetzli::sandbox {
 
 absl::Status GuetzliTransaction::Main() {

@@ -77,6 +77,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::sapi
     sapi::generator
     sapi::status
+    sapi::statusor
     sapi::status_matchers
     sapi::test_main
   )

@@ -18,6 +18,7 @@
 #include <syscall.h>
 
 #include "guetzli_sandbox.h"  // NOLINT(build/include)
+#include "absl/status/statusor.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/vars.h"
 

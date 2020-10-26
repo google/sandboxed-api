@@ -25,6 +25,8 @@
 #include <memory>
 #include <thread>  // NOLINT(build/c++11)
 
+#include "absl/status/statusor.h"
+
 int CurlTestUtils::port_;
 std::thread CurlTestUtils::server_thread_;
 

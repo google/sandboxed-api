@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"

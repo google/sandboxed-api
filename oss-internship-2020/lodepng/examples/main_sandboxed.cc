@@ -17,6 +17,7 @@
 #include <glog/logging.h>
 #include "helpers.h"  // NOLINT(build/include)
 #include "sandbox.h"  // NOLINT(build/include)
+#include "absl/status/statusor.h"
 
 void EncodeDecodeOneStep(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   // Generate the values.

@@ -23,6 +23,7 @@
 
 #include "gen_files/convert.h"  // NOLINT(build/include)
 #include "openjp2_sapi.sapi.h"  // NOLINT(build/include)
+#include "absl/status/statusor.h"
 
 class Openjp2SapiSandbox : public Openjp2Sandbox {
  public:

@@ -24,6 +24,7 @@
 
 #include "guetzli_sandbox.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/vars.h"
 

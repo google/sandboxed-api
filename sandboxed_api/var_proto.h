@@ -23,6 +23,7 @@
 
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/proto_helper.h"
 #include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_pointable.h"
