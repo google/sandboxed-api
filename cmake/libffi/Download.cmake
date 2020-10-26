@@ -36,6 +36,39 @@ set(_ffi_src "${CMAKE_BINARY_DIR}/libffi-src")
 
 set(libffi_INCLUDE_DIR ${_ffi_src}/libffi/include)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  list(APPEND _ffi_platform_srcs
+    ${_ffi_src}/src/x86/asmnames.h
+    ${_ffi_src}/src/x86/ffi.c
+    ${_ffi_src}/src/x86/ffi64.c
+    ${_ffi_src}/src/x86/ffiw64.c
+    ${_ffi_src}/src/x86/internal.h
+    ${_ffi_src}/src/x86/internal64.h
+    ${_ffi_src}/src/x86/sysv.S
+    ${_ffi_src}/src/x86/unix64.S
+    ${_ffi_src}/src/x86/win64.S
+  )
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64")
+  list(APPEND _ffi_platform_srcs
+    ${_ffi_src}/src/powerpc/ffi.c
+    ${_ffi_src}/src/powerpc/ffi_linux64.c
+    ${_ffi_src}/src/powerpc/ffi_sysv.c
+    ${_ffi_src}/src/powerpc/linux64.S
+    ${_ffi_src}/src/powerpc/linux64_closure.S
+    ${_ffi_src}/src/powerpc/ppc_closure.S
+    ${_ffi_src}/src/powerpc/sysv.S
+    # Textual headers
+    ${_ffi_src}/src/powerpc/ffi_powerpc.h
+    ${_ffi_src}/src/powerpc/asm.h
+  )
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+  list(APPEND _ffi_platform_srcs
+    ${_ffi_src}/src/aarch64/ffi.c
+    ${_ffi_src}/src/aarch64/internal.h
+    ${_ffi_src}/src/aarch64/sysv.S
+  )
+endif()
+
 add_library(ffi STATIC
   ${_ffi_src}/fficonfig.h
   ${_ffi_src}/include/ffi.h
@@ -48,15 +81,7 @@ add_library(ffi STATIC
   ${_ffi_src}/src/prep_cif.c
   ${_ffi_src}/src/raw_api.c
   ${_ffi_src}/src/types.c
-  ${_ffi_src}/src/x86/asmnames.h
-  ${_ffi_src}/src/x86/ffi.c
-  ${_ffi_src}/src/x86/ffi64.c
-  ${_ffi_src}/src/x86/ffiw64.c
-  ${_ffi_src}/src/x86/internal.h
-  ${_ffi_src}/src/x86/internal64.h
-  ${_ffi_src}/src/x86/sysv.S
-  ${_ffi_src}/src/x86/unix64.S
-  ${_ffi_src}/src/x86/win64.S
+  ${_ffi_platform_srcs}
 )
 add_library(libffi::libffi ALIAS ffi)
 target_include_directories(ffi PUBLIC

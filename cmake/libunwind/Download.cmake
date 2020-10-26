@@ -33,6 +33,58 @@ if(error)
 endif()
 
 set(_unwind_src "${CMAKE_BINARY_DIR}/libunwind-src")
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  set(_unwind_cpu "x86_64")
+  list(APPEND _unwind_platform_srcs
+    ${_unwind_src}/src/x86_64/Gcreate_addr_space.c
+    ${_unwind_src}/src/x86_64/Gglobal.c
+    ${_unwind_src}/src/x86_64/Ginit.c
+    ${_unwind_src}/src/x86_64/Gos-linux.c
+    ${_unwind_src}/src/x86_64/Gregs.c
+    ${_unwind_src}/src/x86_64/Gresume.c
+    ${_unwind_src}/src/x86_64/Gstash_frame.c
+    ${_unwind_src}/src/x86_64/Gstep.c
+    ${_unwind_src}/src/x86_64/is_fpreg.c
+    ${_unwind_src}/src/x86_64/setcontext.S
+  )
+  list(APPEND _unwind_ptrace_srcs
+    ${_unwind_src}/src/x86_64/Ginit_remote.c
+  )
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64")
+  set(_unwind_cpu "ppc64")
+  list(APPEND _unwind_platform_srcs
+    ${_unwind_src}/src/ppc/Gis_signal_frame.c
+    ${_unwind_src}/src/ppc64/Gcreate_addr_space.c
+    ${_unwind_src}/src/ppc64/Gglobal.c
+    ${_unwind_src}/src/ppc64/Ginit.c
+    ${_unwind_src}/src/ppc64/Gregs.c
+    ${_unwind_src}/src/ppc64/Gresume.c
+    ${_unwind_src}/src/ppc64/Gstep.c
+    ${_unwind_src}/src/ppc64/get_func_addr.c
+    ${_unwind_src}/src/ppc64/is_fpreg.c
+  )
+  list(APPEND _unwind_ptrace_srcs
+    ${_unwind_src}/src/ppc/Ginit_remote.c
+  )
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+  set(_unwind_cpu "aarch64")
+  list(APPEND _unwind_platform_srcs
+    ${_unwind_src}/src/aarch64/Gcreate_addr_space.c
+    ${_unwind_src}/src/aarch64/Gglobal.c
+    ${_unwind_src}/src/aarch64/Ginit.c
+    ${_unwind_src}/src/aarch64/Gis_signal_frame.c
+    ${_unwind_src}/src/aarch64/Gregs.c
+    ${_unwind_src}/src/aarch64/Gresume.c
+    ${_unwind_src}/src/aarch64/Gstash_frame.c
+    ${_unwind_src}/src/aarch64/Gstep.c
+    ${_unwind_src}/src/aarch64/is_fpreg.c
+  )
+  list(APPEND _unwind_ptrace_srcs
+    ${_unwind_src}/src/aarch64/Ginit_remote.c
+  )
+endif()
+
 add_library(unwind_ptrace_wrapped STATIC
   # internal_headers
   ${_unwind_src}/include/compiler.h
@@ -86,16 +138,7 @@ add_library(unwind_ptrace_wrapped STATIC
   ${_unwind_src}/src/mi/init.c
   ${_unwind_src}/src/mi/mempool.c
   ${_unwind_src}/src/os-linux.c
-  ${_unwind_src}/src/x86_64/Gcreate_addr_space.c
-  ${_unwind_src}/src/x86_64/Gglobal.c
-  ${_unwind_src}/src/x86_64/Ginit.c
-  ${_unwind_src}/src/x86_64/Gos-linux.c
-  ${_unwind_src}/src/x86_64/Gregs.c
-  ${_unwind_src}/src/x86_64/Gresume.c
-  ${_unwind_src}/src/x86_64/Gstash_frame.c
-  ${_unwind_src}/src/x86_64/Gstep.c
-  ${_unwind_src}/src/x86_64/is_fpreg.c
-  ${_unwind_src}/src/x86_64/setcontext.S
+  ${_unwind_platform_srcs}
   # srcs
   ${_unwind_src}/src/mi/Gdyn-remote.c
   ${_unwind_src}/src/ptrace/_UPT_access_fpreg.c
@@ -116,7 +159,7 @@ add_library(unwind_ptrace_wrapped STATIC
   ${_unwind_src}/include/config.h
   ${_unwind_src}/include/libunwind.h
   # source_ptrace
-  ${_unwind_src}/src/x86_64/Ginit_remote.c
+  ${_unwind_ptrace_srcs}
 )
 add_library(unwind::unwind_ptrace_wrapped ALIAS unwind_ptrace_wrapped)
 target_include_directories(unwind_ptrace_wrapped PUBLIC
@@ -135,12 +178,14 @@ target_compile_definitions(unwind_ptrace_wrapped
   PUBLIC -D_UPT_accessors=_UPT_accessors_wrapped
          -D_UPT_create=_UPT_create_wrapped
          -D_UPT_destroy=_UPT_destroy_wrapped
-         -D_Ux86_64_create_addr_space=_Ux86_64_create_addr_space_wrapped
-         -D_Ux86_64_destroy_addr_space=_Ux86_64_destroy_addr_space_wrapped
-         -D_Ux86_64_get_proc_name=_Ux86_64_get_proc_name_wrapped
-         -D_Ux86_64_get_reg=_Ux86_64_get_reg_wrapped
-         -D_Ux86_64_init_remote=_Ux86_64_init_remote_wrapped
-         -D_Ux86_64_step=_Ux86_64_step_wrapped
+
+         -D_U${_unwind_cpu}_create_addr_space=_U${_unwind_cpu}_create_addr_space_wrapped
+         -D_U${_unwind_cpu}_destroy_addr_space=_U${_unwind_cpu}_destroy_addr_space_wrapped
+         -D_U${_unwind_cpu}_get_proc_name=_U${_unwind_cpu}_get_proc_name_wrapped
+         -D_U${_unwind_cpu}_get_reg=_U${_unwind_cpu}_get_reg_wrapped
+         -D_U${_unwind_cpu}_init_remote=_U${_unwind_cpu}_init_remote_wrapped
+         -D_U${_unwind_cpu}_step=_U${_unwind_cpu}_step_wrapped
+
          -Dptrace=ptrace_wrapped
 )
 target_link_libraries(unwind_ptrace_wrapped PRIVATE

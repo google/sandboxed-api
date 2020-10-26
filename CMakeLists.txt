@@ -87,10 +87,9 @@ if(UNIX)
                         -Wno-psabi)
     check_cxx_compiler_flag(${flag} _sapi_has_flag)
     if(_sapi_has_flag)
-      target_compile_options(sapi_base INTERFACE
-        ${flag}
-      )
+      target_compile_options(sapi_base INTERFACE ${flag})
     endif()
+    unset(_sapi_has_flag)
   endforeach()
 endif()
 
