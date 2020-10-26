@@ -66,16 +66,17 @@ add_sapi_library(libpng_sapi
               png_set_interlace_handling
 
               png_read_info
-              png_read_image
+              png_read_image_wrapper
               png_read_update_info
 
-              png_write_image
+              png_write_end_wrapper
               png_write_info
-              png_write_image
+              png_write_image_wrapper
 
               png_create_info_struct
               png_create_read_struct_wrapper
               png_create_write_struct_wrapper
+
               png_init_io_wrapper
 
               png_sig_cmp

@@ -13,18 +13,18 @@ struct Data {
   uint8_t color_type;
   uint8_t bit_depth;
   int number_of_passes;
+  size_t rowbytes;
+  std::unique_ptr<sapi::v::Array<uint8_t>> row_pointers;
 };
 
 absl::Status ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox, absl::string_view infile, Data& d) {
   sapi::v::Fd fd(open(infile.data(), O_RDONLY));
-  std::cout << "fd created\n";
 
   if (fd.GetValue() < 0) {
     return absl::InternalError("Error opening input file");
   }
 
   SAPI_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&fd));
-  std::cout << "transfered\n";
   if (fd.GetRemoteFd() < 0) {
     return absl::InternalError("Error receiving remote FD");
   }
@@ -98,15 +98,11 @@ absl::Status ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox, absl::string_vi
   SAPI_RETURN_IF_ERROR(api.png_read_update_info(&struct_ptr, &info_ptr));
   SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
 
-  // d.row_pointers = sapi::v::Array<sapi::v::Array<uint8_t>>(d.height);
-  for (size_t i = 0; i != d.height; ++i) {
-    SAPI_ASSIGN_OR_RETURN(
-        size_t sz, api.png_get_rowbytes(&struct_ptr, &info_ptr));
-        std::cout << sz << '\n';
-    // row_pointers[i] = sapi::v::Array<uint8_t>(sz);
-  }
+  SAPI_ASSIGN_OR_RETURN(
+    d.rowbytes, api.png_get_rowbytes(&struct_ptr, &info_ptr));
+  d.row_pointers = std::make_unique<sapi::v::Array<uint8_t>>(d.height * d.rowbytes);
 
-  // SAPI_RETURN_IF_ERROR(api.png_read_image(&struct_ptr, d.row_pointers.PtrAfter()));
+  SAPI_RETURN_IF_ERROR(api.png_read_image_wrapper(&struct_ptr, d.row_pointers->PtrAfter(), d.height, d.rowbytes));
 
   SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
   return absl::OkStatus();
@@ -114,6 +110,10 @@ absl::Status ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox, absl::string_vi
 
 absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox, absl::string_view outfile, Data& d) {
   sapi::v::Fd fd(open(outfile.data(), O_WRONLY));
+  if (fd.GetValue() < 0) {
+    return absl::InternalError("Error opening output file");
+  }
+
   SAPI_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&fd));
   if (fd.GetRemoteFd() < 0) {
     return absl::InternalError("Error receiving remote FD");
@@ -161,10 +161,10 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox, absl::string_v
   SAPI_RETURN_IF_ERROR(api.png_write_info(&struct_ptr, &info_ptr));
 
   SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  // SAPI_RETURN_IF_ERROR(api.png_write_image(&struct_ptr, d.row_pointers.PtrBefore()));
+  SAPI_RETURN_IF_ERROR(api.png_write_image_wrapper(&struct_ptr, d.row_pointers->PtrBefore(), d.height, d.rowbytes));
 
   SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  SAPI_RETURN_IF_ERROR(api.png_write_image(&struct_ptr, sapi::v::NullPtr().PtrBoth()));
+  SAPI_RETURN_IF_ERROR(api.png_write_end_wrapper(&struct_ptr));
 
   SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
   return absl::OkStatus();
@@ -193,16 +193,17 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   }
 
   // RGB to BGR
-  // for (size_t i = 0; i != d.height; ++i) {
-  //   for (size_t j = 0; j != d.width; ++j) {
-  //     uint8_t r = d.row_pointers[i][j * channel_count];
-  //     uint8_t b = d.row_pointers[i][j * channel_count + 2];
-  //     d.row_pointers[i][j * channel_count] = b;
-  //     d.row_pointers[i][j * channel_count + 2] = r;
-  //   }
-  // }
+  for (size_t i = 0; i != d.height; ++i) {
+    for (size_t j = 0; j != d.width; ++j) {
+      uint8_t r = (*d.row_pointers)[i * d.width + j * channel_count];
+      uint8_t b = (*d.row_pointers)[i * d.width + j * channel_count + 2];
+      (*d.row_pointers)[i * d.width + j * channel_count] = b;
+      (*d.row_pointers)[i * d.width + j * channel_count + 2] = r;
+    }
+  }
 
   SAPI_RETURN_IF_ERROR(WritePng(api, sandbox, outfile, d));
+  return absl::OkStatus();
 }
 
 

@@ -47,6 +47,8 @@ class LibPNGSapiSandbox : public LibPNGSandbox {
             __NR_gettid,
             __NR_sysinfo,
             __NR_munmap,
+            __NR_recvmsg,
+            __NR_fcntl,
         });
 
     for (const auto& file : files_) {
