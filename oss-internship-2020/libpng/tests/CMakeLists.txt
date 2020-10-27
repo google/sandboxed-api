@@ -13,6 +13,7 @@
 # limitations under the License.
 
 include(GoogleTest)
+enable_testing()
 
 add_executable(tests
 	basic_test.cc

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "helper.h"  // NOLINT(build/include)
+#include "../sandboxed.h"  // NOLINT(build/include)
 
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"

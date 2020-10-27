@@ -1,15 +1,22 @@
+#include <cstdio>
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <cstdio>
-#include <iostream>
-
-#include "../sandboxed.h"
-#include "libpng.h"
+#include "../sandboxed.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
-#include "sandboxed_api/vars.h"
+#include "helper.h"        // NOLINT(build/include)
+#include "libpng.h"        // NOLINT(build/include)
+#include "sandboxed_api/util/status_matchers.h"
 
 namespace {
+
+using ::sapi::IsOk;
+using ::testing::Eq;
+using ::testing::Ge;
+using ::testing::Gt;
+using ::testing::IsTrue;
+using ::testing::NotNull;
+using ::testing::ContainerEq;
 
 struct Data {
   Data() {}
@@ -59,7 +66,7 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
       << "png_create_read_struct_wrapper failed";
 
   absl::StatusOr<png_infop> status_or_png_infop =
-      api.png_create_info_struct(&struct_ptr));
+      api.png_create_info_struct(&struct_ptr);
 
   ASSERT_THAT(status_or_png_infop, IsOk());
   sapi::v::RemotePtr info_ptr(status_or_png_infop.value());
@@ -71,8 +78,7 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   ASSERT_THAT(api.png_set_sig_bytes(&struct_ptr, header.GetSize()), IsOk());
   ASSERT_THAT(api.png_read_info(&struct_ptr, &info_ptr), IsOk());
 
-  absl::StatusOr<int> status_or_int =
-      api.png_get_image_width(&struct_ptr, &info_ptr);
+  status_or_int = api.png_get_image_width(&struct_ptr, &info_ptr);
   ASSERT_THAT(status_or_int, IsOk());
   data.width = status_or_int.value();
   EXPECT_THAT(data.width, Gt(0));
@@ -101,6 +107,7 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   absl::StatusOr<uint32_t> status_or_uint =
       api.png_get_rowbytes(&struct_ptr, &info_ptr);
   ASSERT_THAT(status_or_uint, IsOk());
+  data.rowbytes = status_or_uint.value();
   EXPECT_THAT(data.rowbytes, Ge(data.width));
 
   data.row_pointers =
@@ -113,7 +120,7 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   ASSERT_THAT(api.png_fclose(&file), IsOk());
 }
 
-absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
+void WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
                       absl::string_view outfile, Data& data) {
   sapi::v::Fd fd(open(outfile.data(), O_WRONLY));
 
@@ -140,7 +147,7 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
       << "png_create_write_struct_wrapper failed";
 
   absl::StatusOr<png_infop> status_or_png_infop =
-      api.png_create_info_struct(&struct_ptr));
+      api.png_create_info_struct(&struct_ptr);
   ASSERT_THAT(status_or_png_infop, IsOk());
 
   sapi::v::RemotePtr info_ptr(status_or_png_infop.value());
@@ -203,7 +210,7 @@ TEST(SandboxTest, ReadModifyWrite) {
     }
   }
 
-  WritePng(api, sandbox, outfile, d);
+  WritePng(api, sandbox, outfile, data);
 
   Data result;
   ReadPng(api, sandbox, outfile, result);
@@ -214,7 +221,8 @@ TEST(SandboxTest, ReadModifyWrite) {
   EXPECT_THAT(result.rowbytes, Eq(data.rowbytes));
   EXPECT_THAT(result.bit_depth, Eq(data.bit_depth));
   EXPECT_THAT(result.number_of_passes, Eq(data.number_of_passes));
-  EXPECT_THAT(*result.row_pointers, ContainerEq(*data.row_pointers));
+  EXPECT_THAT(absl::MakeSpan(result.row_pointers->GetData(), result.row_pointers->GetSize()),
+      ContainerEq(absl::MakeSpan(data.row_pointers->GetData(), data.row_pointers->GetSize())));
 }
 
 }  // namespace

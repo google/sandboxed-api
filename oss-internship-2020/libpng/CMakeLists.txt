@@ -27,14 +27,13 @@ set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 #   mkdir -p build && cd build
 #   cmake .. -G Ninja -DSAPI_ROOT=/path/to/sapi_root
 
-option(LIBPNG_SAPI_ENABLE_EXAMPLES "" OFF)
-option(LIBPNG_SAPI_ENABLE_TESTS "" OFF)
+option(LIBPNG_SAPI_ENABLE_EXAMPLES "" ON)
+option(LIBPNG_SAPI_ENABLE_TESTS "" ON)
 
 set(SAPI_ENABLE_EXAMPLES ${LIBPNG_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
 set(SAPI_ENABLE_TESTS ${LIBPNG_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
 
 add_subdirectory(wrapper)
-
 
 find_package(PNG REQUIRED)
 list(GET PNG_INCLUDE_DIRS 0 PNG_INCLUDE_DIR)
@@ -103,10 +102,10 @@ target_include_directories(libpng_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-#if (LIBPNG_SAPI_ENABLE_EXAMPLES)
+if (LIBPNG_SAPI_ENABLE_EXAMPLES)
   add_subdirectory(examples)
-#endif()
+endif()
 
-#if (LIBPNG_SAPI_ENABLE_TESTS)
-# add_subdirectory(tests)
-#endif()
+if (LIBPNG_SAPI_ENABLE_TESTS)
+ add_subdirectory(tests)
+endif()
