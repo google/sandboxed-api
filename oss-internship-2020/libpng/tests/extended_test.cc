@@ -1,22 +1,35 @@
-#include <cstdio>
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <fcntl.h>
 #include <unistd.h>
 
 #include "../sandboxed.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
-#include "helper.h"        // NOLINT(build/include)
-#include "libpng.h"        // NOLINT(build/include)
+#include "helper.h"  // NOLINT(build/include)
+#include "libpng.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace {
 
 using ::sapi::IsOk;
+using ::testing::ContainerEq;
 using ::testing::Eq;
 using ::testing::Ge;
 using ::testing::Gt;
 using ::testing::IsTrue;
 using ::testing::NotNull;
-using ::testing::ContainerEq;
 
 struct Data {
   Data() {}
@@ -115,13 +128,14 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
 
   ASSERT_THAT(
       api.png_read_image_wrapper(&struct_ptr, data.row_pointers->PtrAfter(),
-                                 data.height, data.rowbytes), IsOk());
+                                 data.height, data.rowbytes),
+      IsOk());
 
   ASSERT_THAT(api.png_fclose(&file), IsOk());
 }
 
 void WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
-                      absl::string_view outfile, Data& data) {
+              absl::string_view outfile, Data& data) {
   sapi::v::Fd fd(open(outfile.data(), O_WRONLY));
 
   ASSERT_THAT(fd.GetValue(), Ge(0)) << "Error opening output file";
@@ -169,10 +183,12 @@ void WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   ASSERT_THAT(api.png_setjmp(&struct_ptr), IsOk());
   ASSERT_THAT(
       api.png_write_image_wrapper(&struct_ptr, data.row_pointers->PtrBefore(),
-                                  data.height, data.rowbytes), IsOk());
+                                  data.height, data.rowbytes),
+      IsOk());
 
+  auto null = sapi::v::NullPtr();
   ASSERT_THAT(api.png_setjmp(&struct_ptr), IsOk());
-  ASSERT_THAT(api.png_write_end_wrapper(&struct_ptr), IsOk());
+  ASSERT_THAT(api.png_write_end(&struct_ptr, &null), IsOk());
 
   ASSERT_THAT(api.png_fclose(&file), IsOk());
 }
@@ -189,8 +205,9 @@ TEST(SandboxTest, ReadModifyWrite) {
   ReadPng(api, sandbox, infile, data);
 
   ASSERT_THAT(data.color_type == PNG_COLOR_TYPE_RGBA ||
-              data.color_type == PNG_COLOR_TYPE_RGB, IsTrue())
-    << infile << " has unexpected color type. Expected RGB or RGBA";
+                  data.color_type == PNG_COLOR_TYPE_RGB,
+              IsTrue())
+      << infile << " has unexpected color type. Expected RGB or RGBA";
 
   size_t channel_count = 3;
   if (data.color_type == PNG_COLOR_TYPE_RGBA) {
@@ -221,8 +238,10 @@ TEST(SandboxTest, ReadModifyWrite) {
   EXPECT_THAT(result.rowbytes, Eq(data.rowbytes));
   EXPECT_THAT(result.bit_depth, Eq(data.bit_depth));
   EXPECT_THAT(result.number_of_passes, Eq(data.number_of_passes));
-  EXPECT_THAT(absl::MakeSpan(result.row_pointers->GetData(), result.row_pointers->GetSize()),
-      ContainerEq(absl::MakeSpan(data.row_pointers->GetData(), data.row_pointers->GetSize())));
+  EXPECT_THAT(absl::MakeSpan(result.row_pointers->GetData(),
+                             result.row_pointers->GetSize()),
+              ContainerEq(absl::MakeSpan(data.row_pointers->GetData(),
+                                         data.row_pointers->GetSize())));
 }
 
 }  // namespace

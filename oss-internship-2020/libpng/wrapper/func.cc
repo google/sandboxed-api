@@ -2,8 +2,6 @@
 
 #include <stdlib.h>
 
-#include <iostream>
-
 void png_setjmp(png_structrp ptr) { setjmp(png_jmpbuf(ptr)); }
 
 void* png_fdopen(int fd, const char* mode) {

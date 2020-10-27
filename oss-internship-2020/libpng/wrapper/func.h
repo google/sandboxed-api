@@ -1,8 +1,6 @@
 #ifndef LIBPNG_WRAPPER_FUNC_H
 #define LIBPNG_WRAPPER_FUNC_H
 
-#include <cstdio>
-
 #include "png.h"
 
 extern "C" {

@@ -14,8 +14,8 @@
 
 #include "../sandboxed.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
-#include "helper.h"        // NOLINT(build/include)
-#include "libpng.h"        // NOLINT(build/include)
+#include "helper.h"  // NOLINT(build/include)
+#include "libpng.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/sandbox2/util/temp_file.h"
@@ -26,7 +26,6 @@ namespace {
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsTrue;
-
 
 TEST(SandboxTest, ReadWrite) {
   std::string infile = GetTestFilePath("pngtest.png");
@@ -65,29 +64,27 @@ TEST(SandboxTest, ReadWrite) {
       << "image version changed";
 
   sapi::v::Array<uint8_t> buffer_(PNG_IMAGE_SIZE(*image.mutable_data()));
-  status_or_int = api.png_image_finish_read(image.PtrBoth(), sapi::v::NullPtr().PtrBoth(),
-		buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth());
-        ASSERT_THAT(status_or_int, IsOk())
-            << "png_image_finish_read fatal error";
-        ASSERT_THAT(status_or_int.value(), IsTrue())
-            << "png_image_finish_read failed: "
-            << image.mutable_data()->message;
-        ASSERT_THAT(image.mutable_data()->version, Eq(PNG_IMAGE_VERSION))
-            << "image version changed";
-        ASSERT_THAT(image.mutable_data()->format, Eq(PNG_FORMAT_RGBA))
-            << "image format changed";
+  status_or_int = api.png_image_finish_read(
+      image.PtrBoth(), sapi::v::NullPtr().PtrBoth(), buffer_.PtrBoth(), 0,
+      sapi::v::NullPtr().PtrBoth());
+  ASSERT_THAT(status_or_int, IsOk()) << "png_image_finish_read fatal error";
+  ASSERT_THAT(status_or_int.value(), IsTrue())
+      << "png_image_finish_read failed: " << image.mutable_data()->message;
+  ASSERT_THAT(image.mutable_data()->version, Eq(PNG_IMAGE_VERSION))
+      << "image version changed";
+  ASSERT_THAT(image.mutable_data()->format, Eq(PNG_FORMAT_RGBA))
+      << "image format changed";
 
-  status_or_int = api.png_image_write_to_file(image.PtrBoth(), outfile_var.PtrBefore(),
-		0, buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth());
-        ASSERT_THAT(status_or_int, IsOk())
-            << "png_image_write_to_file fatal error";
-        ASSERT_THAT(status_or_int.value(), IsTrue())
-            << "png_image_finish_read failed: "
-            << image.mutable_data()->message;
-        ASSERT_THAT(image.mutable_data()->version, Eq(PNG_IMAGE_VERSION))
-            << "image version changed";
-        ASSERT_THAT(image.mutable_data()->format, Eq(PNG_FORMAT_RGBA))
-            << "image format changed";
+  status_or_int = api.png_image_write_to_file(
+      image.PtrBoth(), outfile_var.PtrBefore(), 0, buffer_.PtrBoth(), 0,
+      sapi::v::NullPtr().PtrBoth());
+  ASSERT_THAT(status_or_int, IsOk()) << "png_image_write_to_file fatal error";
+  ASSERT_THAT(status_or_int.value(), IsTrue())
+      << "png_image_finish_read failed: " << image.mutable_data()->message;
+  ASSERT_THAT(image.mutable_data()->version, Eq(PNG_IMAGE_VERSION))
+      << "image version changed";
+  ASSERT_THAT(image.mutable_data()->format, Eq(PNG_FORMAT_RGBA))
+      << "image format changed";
 }
 
 }  // namespace

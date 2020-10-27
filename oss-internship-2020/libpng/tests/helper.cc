@@ -13,12 +13,12 @@
 // limitations under the License.
 
 #include "helper.h"  // NOLINT(build/include)
-#include "../sandboxed.h"  // NOLINT(build/include)
 
+#include "../sandboxed.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 
-std::string GetImagesFolder() {
+std::string GetImagesFolder() {  // NOLINT(build/include)
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
   auto find = cwd.rfind("/build");
   if (find == std::string::npos) {

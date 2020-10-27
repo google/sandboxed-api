@@ -68,7 +68,7 @@ add_sapi_library(libpng_sapi
               png_read_image_wrapper
               png_read_update_info
 
-              png_write_end_wrapper
+              png_write_end
               png_write_info
               png_write_image_wrapper
 

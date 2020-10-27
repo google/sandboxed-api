@@ -24,9 +24,7 @@ namespace {
 
 class LibPNGSapiSandbox : public LibPNGSandbox {
  public:
-  void AddFile(const std::string& file) {
-    files_.push_back(file);
-  }
+  void AddFile(const std::string& file) { files_.push_back(file); }
 
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(

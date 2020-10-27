@@ -1,11 +1,22 @@
-#include <cstdio>
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <fcntl.h>
-#include <iostream>
 #include <unistd.h>
 
-#include "../sandboxed.h"
-#include "../tests/libpng.h"
-#include "sandboxed_api/vars.h"
+#include "../sandboxed.h"  // NOLINT(build/include)
+#include "../tests/libpng.h"  // NOLINT(build/include)
 
 struct Data {
   Data() {}
@@ -165,8 +176,9 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   SAPI_RETURN_IF_ERROR(api.png_write_image_wrapper(
       &struct_ptr, d.row_pointers->PtrBefore(), d.height, d.rowbytes));
 
+  auto null = sapi::v::NullPtr();
   SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  SAPI_RETURN_IF_ERROR(api.png_write_end_wrapper(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_write_end(&struct_ptr, &null));
 
   SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
   return absl::OkStatus();
