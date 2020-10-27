@@ -15,15 +15,21 @@
 #include <array>
 #include <cstring>
 
+#include "absl/algorithm/container.h"
+#include "absl/strings/str_join.h"
 #include "helper.h"  // NOLINT(build/include)
 #include "tiffio.h"  // NOLINT(build/include)
 
 namespace {
 
 using ::sapi::IsOk;
+using ::testing::ContainerEq;
 using ::testing::Eq;
+using ::testing::Ge;
+using ::testing::Gt;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
+using ::testing::Le;
 using ::testing::NotNull;
 
 struct ChannelLimits {
@@ -55,141 +61,98 @@ constexpr std::array<std::pair<uint32_t, ChannelLimits>, kTestCount> kLimits = {
      {64, {0, 0, 0, 0, 0, 2, 255, 255}},
      {512, {5, 6, 34, 36, 182, 196, 255, 255}}}};
 
-bool CheckCluster(uint32_t cluster, const sapi::v::Array<uint8_t>& buffer,
+void CheckCluster(uint32_t cluster, const sapi::v::Array<uint8_t>& buffer,
                   const ClusterData& expected_cluster) {
-  bool is_overrun = (buffer.GetSize() <= cluster * kClusterSize);
-  EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
-
-  if (is_overrun) {
-    return true;
-  }
-
-  auto* target = buffer.GetData() + cluster * kClusterSize;
-  bool comp =
-      !(std::memcmp(target, expected_cluster.data(), kClusterSize) == 0);
+  ASSERT_THAT(buffer.GetSize(), Ge((cluster + 1) * kClusterSize)) << "Overrun";
 
   // the image is split on 6-bit clusters because it has YCbCr color format
-  EXPECT_THAT(comp, IsFalse())
-      << "Cluster " << cluster << " did not match expected results.\n"
-      << "Expect: " << expected_cluster[0] << "\t" << expected_cluster[1]
-      << "\t" << expected_cluster[2] << "\t" << expected_cluster[3] << "\t"
-      << expected_cluster[4] << "\t" << expected_cluster[5] << "\n"
-      << "Got: " << target[0] << "\t" << target[1] << "\t" << target[2] << "\t"
-      << target[3] << "\t" << target[4] << "\t" << target[5];
-
-  return comp;
+  EXPECT_THAT(
+      absl::MakeSpan(buffer.GetData() + cluster * kClusterSize, kClusterSize),
+      ContainerEq(absl::MakeSpan(expected_cluster)))
+      << "Cluster " << cluster << " did not match expected results.";
 }
 
-bool CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
+void CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
                    const sapi::v::Array<uint8_t>& buffer) {
-  bool is_overrun = (buffer.GetSize() <= pixel * kChannelsInPixel);
-  EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
+  ASSERT_THAT(buffer.GetSize(), Ge((pixel + 1) * kChannelsInPixel))
+      << "Overrun";
 
-  if (is_overrun) {
-    return true;
-  }
-
-  auto* rgb = buffer.GetData() + pixel * kChannelsInPixel;
-  bool comp = !(rgb[0] >= limits.min_red && rgb[0] <= limits.max_red &&
-                rgb[1] >= limits.min_green && rgb[1] <= limits.max_green &&
-                rgb[2] >= limits.min_blue && rgb[2] <= limits.max_blue);
-
-  EXPECT_THAT(comp, IsFalse())
-      << "Pixel " << pixel << " did not match expected results.\n"
-      << "Got R=" << rgb[0] << " (expected " << limits.min_red
-      << "..=" << limits.max_red << "), G=" << rgb[1] << " (expected "
-      << limits.min_green << "..=" << limits.max_green << "), B=" << rgb[2]
-      << " (expected " << limits.min_blue << "..=" << limits.max_blue << ")";
-  return comp;
+  uint8_t* rgb = buffer.GetData() + pixel * kChannelsInPixel;
+  EXPECT_THAT(rgb[0], Ge(limits.min_red));
+  EXPECT_THAT(rgb[0], Le(limits.max_red));
+  EXPECT_THAT(rgb[1], Ge(limits.min_green));
+  EXPECT_THAT(rgb[1], Le(limits.max_green));
+  EXPECT_THAT(rgb[2], Ge(limits.min_blue));
+  EXPECT_THAT(rgb[2], Le(limits.max_blue));
 }
 
-bool CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
+void CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
                     const sapi::v::Array<uint32_t>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
   uint32_t adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
 
-  bool is_overrun = (buffer.GetSize() <= adjusted_pixel);
-  EXPECT_THAT(is_overrun, IsFalse()) << "Overrun";
+  ASSERT_THAT(buffer.GetSize(), Gt(adjusted_pixel)) << "Overrun";
 
-  if (is_overrun) {
-    return true;
-  }
-
-  auto rgba = buffer[adjusted_pixel];
-  bool comp = !(TIFFGetR(rgba) >= static_cast<unsigned>(limits.min_red) &&
-                TIFFGetR(rgba) <= static_cast<unsigned>(limits.max_red) &&
-                TIFFGetG(rgba) >= static_cast<unsigned>(limits.min_green) &&
-                TIFFGetG(rgba) <= static_cast<unsigned>(limits.max_green) &&
-                TIFFGetB(rgba) >= static_cast<unsigned>(limits.min_blue) &&
-                TIFFGetB(rgba) <= static_cast<unsigned>(limits.max_blue) &&
-                TIFFGetA(rgba) >= static_cast<unsigned>(limits.min_alpha) &&
-                TIFFGetA(rgba) <= static_cast<unsigned>(limits.max_alpha));
-
-  EXPECT_THAT(comp, IsFalse())
-      << "Pixel " << pixel << " did not match expected results.\n"
-      << "Got R=" << TIFFGetR(rgba) << " (expected " << limits.min_red
-      << "..=" << limits.max_red << "), G=" << TIFFGetG(rgba) << " (expected "
-      << limits.min_green << "..=" << limits.max_green
-      << "), B=" << TIFFGetB(rgba) << " (expected " << limits.min_blue
-      << "..=" << limits.max_blue << "), A=" << TIFFGetA(rgba) << " (expected "
-      << limits.min_alpha << "..=" << limits.max_alpha << ")";
-  return comp;
+  uint32_t rgba = buffer[adjusted_pixel];
+  EXPECT_THAT(TIFFGetR(rgba), Ge(limits.min_red));
+  EXPECT_THAT(TIFFGetR(rgba), Le(limits.max_red));
+  EXPECT_THAT(TIFFGetG(rgba), Ge(limits.min_green));
+  EXPECT_THAT(TIFFGetG(rgba), Le(limits.max_green));
+  EXPECT_THAT(TIFFGetB(rgba), Ge(limits.min_blue));
+  EXPECT_THAT(TIFFGetB(rgba), Le(limits.max_blue));
+  EXPECT_THAT(TIFFGetA(rgba), Ge(limits.min_alpha));
+  EXPECT_THAT(TIFFGetA(rgba), Le(limits.max_alpha));
 }
 
 TEST(SandboxTest, RawDecode) {
-  tsize_t sz;
-  bool pixel_status_ok = false;
-  bool cluster_status_ok = false;
   std::string srcfile = GetFilePath("quad-tile.jpg.tiff");
 
   TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  sapi::v::UShort h;
-  sapi::v::UShort v;
-  absl::StatusOr<TIFF*> status_or_tif;
-  absl::StatusOr<int> status_or_int;
-  absl::StatusOr<tmsize_t> status_or_long;
-
   TiffApi api(&sandbox);
   sapi::v::ConstCStr srcfile_var(srcfile.c_str());
   sapi::v::ConstCStr r_var("r");
 
-  status_or_tif = api.TIFFOpen(srcfile_var.PtrBefore(), r_var.PtrBefore());
+  absl::StatusOr<TIFF*> status_or_tif =
+      api.TIFFOpen(srcfile_var.PtrBefore(), r_var.PtrBefore());
   ASSERT_THAT(status_or_tif, IsOk()) << "Could not open " << srcfile;
 
   sapi::v::RemotePtr tif(status_or_tif.value());
   ASSERT_THAT(tif.GetValue(), NotNull())
       << "Could not open " << srcfile << ", TIFFOpen return NULL";
 
-  status_or_int = api.TIFFGetField2(&tif, TIFFTAG_YCBCRSUBSAMPLING, h.PtrBoth(),
-                                    v.PtrBoth());
+  sapi::v::UShort h;
+  sapi::v::UShort v;
+  absl::StatusOr<int> status_or_int = api.TIFFGetField2(
+      &tif, TIFFTAG_YCBCRSUBSAMPLING, h.PtrAfter(), v.PtrAfter());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField2 fatal error";
   EXPECT_THAT(
       status_or_int.value() == 0 || h.GetValue() != 2 || v.GetValue() != 2,
       IsFalse())
       << "Could not retrieve subsampling tag";
 
-  status_or_long = api.TIFFTileSize(&tif);
+  tsize_t sz;
+  absl::StatusOr<tmsize_t> status_or_long = api.TIFFTileSize(&tif);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFTileSize fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(kClusterImageSize * kClusterSize))
       << "Unexpected TileSize " << status_or_long.value() << ". Expected "
-      << kClusterImageSize * kClusterSize << " bytes\n";
+      << kClusterImageSize * kClusterSize << " bytes";
   sz = status_or_long.value();
 
-  sapi::v::Array<uint8_t> buffer_(sz);
+  sapi::v::Array<uint8_t> buffer(sz);
   // Read a tile in decompressed form, but still YCbCr subsampled
   status_or_long =
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz);
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer.PtrAfter(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
-      << (int)status_or_long.value() << " instead of " << (int)sz << ")";
+      << static_cast<int>(status_or_long.value()) << " instead of "
+      << static_cast<int>(sz) << ")";
 
   for (const auto& [id, data] : kClusters) {
-    cluster_status_ok |= CheckCluster(id, buffer_, data);
+    CheckCluster(id, buffer, data);
   }
-  ASSERT_FALSE(cluster_status_ok) << "Clusters did not match expected results";
 
   status_or_int =
       api.TIFFSetFieldU1(&tif, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB);
@@ -201,19 +164,19 @@ TEST(SandboxTest, RawDecode) {
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFTileSize fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(kImageSize * kChannelsInPixel))
       << "Unexpected TileSize " << status_or_long.value() << ". Expected "
-      << kImageSize * kChannelsInPixel << " bytes\n";
+      << kImageSize * kChannelsInPixel << " bytes";
   sz = status_or_long.value();
 
-  sapi::v::Array<uint8_t> buffer2_(sz);
+  sapi::v::Array<uint8_t> buffer2(sz);
   status_or_long =
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz);
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2.PtrAfter(), sz);
   ASSERT_THAT(status_or_long, IsOk()) << "TIFFReadEncodedTile fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(sz))
       << "Did not get expected result code from TIFFReadEncodedTile()("
       << status_or_long.value() << " instead of " << sz;
 
   for (const auto& [id, data] : kLimits) {
-    pixel_status_ok |= CheckRgbPixel(id, data, buffer2_);
+    CheckRgbPixel(id, data, buffer2);
   }
 
   ASSERT_THAT(api.TIFFClose(&tif), IsOk()) << "TIFFClose fatal error";
@@ -225,20 +188,18 @@ TEST(SandboxTest, RawDecode) {
   ASSERT_THAT(tif2.GetValue(), NotNull())
       << "Could not open " << srcfile << ", TIFFOpen return NULL";
 
-  sapi::v::Array<uint32_t> rgba_buffer_(kImageSize);
-
+  sapi::v::Array<uint32_t> rgba_buffer(kImageSize);
   status_or_int =
-      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer_.PtrBoth());
+      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer.PtrAfter());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFReadRGBATile fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFReadRGBATile() returned failure code";
 
   for (const auto& [id, data] : kLimits) {
-    pixel_status_ok |= CheckRgbaPixel(id, data, rgba_buffer_);
+    CheckRgbaPixel(id, data, rgba_buffer);
   }
 
   EXPECT_THAT(api.TIFFClose(&tif2), IsOk()) << "TIFFClose fatal error";
-  EXPECT_THAT(pixel_status_ok, IsFalse()) << "wrong encoding";
 }
 
 }  // namespace

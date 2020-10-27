@@ -18,6 +18,8 @@
 #include <cstring>
 
 #include "../sandboxed.h"  // NOLINT(build/include)
+#include "absl/algorithm/container.h"
+#include "absl/strings/str_join.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 #include "sandboxed_api/vars.h"
@@ -56,45 +58,46 @@ constexpr std::array<std::pair<uint32_t, ChannelLimits>, kTestCount> kLimits = {
 
 constexpr absl::string_view kClusterErrorFormatStr =
     "Cluster %d did not match expected results.\n"
-    "Expect:\t%3d\t%3d\t%3d\t%3d\t%3d\t%3d\n"
-    "Got:\t%3d\t%3d\t%3d\t%3d\t%3d\t%3d\n";
+    "Expect:\t%s\n"
+    "Got:\t%s";
 
 constexpr absl::string_view kRgbPixelErrorFormatStr =
     "Pixel %d did not match expected results.\n"
     "Got R=%d (expected %d..%d), G=%d (expected %d..%d), "
-    "B=%d (expected %d..%d)\n";
+    "B=%d (expected %d..%d)";
 
 constexpr absl::string_view kRgbaPixelErrorFormatStr =
     "Pixel %d did not match expected results.\n"
     "Got R=%d (expected %d..%d), G=%d (expected %d..%d), "
-    "B=%d (expected %d..%d), A=%d (expected %d..%d)\n";
+    "B=%d (expected %d..%d), A=%d (expected %d..%d)";
 
 absl::Status CheckCluster(uint32_t cluster,
                           const sapi::v::Array<uint8_t>& buffer,
                           const ClusterData& expected_cluster) {
-  if (buffer.GetSize() <= cluster * kClusterSize) {
-    return absl::InternalError("Buffer overrun\n");
+  if (buffer.GetSize() < (cluster + 1) * kClusterSize) {
+    return absl::InternalError("Buffer overrun");
   }
-  auto* target = buffer.GetData() + cluster * kClusterSize;
 
-  if (!std::memcmp(target, expected_cluster.data(), kClusterSize)) {
+  std::vector<uint8_t> target(buffer.GetData() + cluster * kClusterSize,
+                              buffer.GetData() + (cluster + 1) * kClusterSize);
+
+  if (absl::c_equal(absl::MakeSpan(target), expected_cluster)) {
     return absl::OkStatus();
   }
 
   // the image is split on 6-bit clusters because it has YCbCr color format
   return absl::InternalError(absl::StrFormat(
-      kClusterErrorFormatStr, cluster, expected_cluster[0], expected_cluster[1],
-      expected_cluster[2], expected_cluster[3], expected_cluster[4],
-      expected_cluster[5], target[0], target[1], target[2], target[3],
-      target[4], target[5]));
+      kClusterErrorFormatStr, cluster, absl::StrJoin(expected_cluster, "\t"),
+      absl::StrJoin(target, "\t")));
 }
 
 absl::Status CheckRgbPixel(uint32_t pixel, const ChannelLimits& limits,
                            const sapi::v::Array<uint8_t>& buffer) {
-  if (buffer.GetSize() <= pixel * kChannelsInPixel) {
-    return absl::InternalError("Buffer overrun\n");
+  if (buffer.GetSize() < (pixel + 1) * kChannelsInPixel) {
+    return absl::InternalError("Buffer overrun");
   }
-  auto* rgb = buffer.GetData() + kChannelsInPixel * pixel;
+
+  uint8_t* rgb = buffer.GetData() + pixel * kChannelsInPixel;
 
   if (rgb[0] >= limits.min_red && rgb[0] <= limits.max_red &&
       rgb[1] >= limits.min_green && rgb[1] <= limits.max_green &&
@@ -114,10 +117,10 @@ absl::Status CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
   uint32_t adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
 
   if (buffer.GetSize() <= adjusted_pixel) {
-    return absl::InternalError("Buffer overrun\n");
+    return absl::InternalError("Buffer overrun");
   }
 
-  auto rgba = buffer[adjusted_pixel];
+  uint32_t rgba = buffer[adjusted_pixel];
   if (TIFFGetR(rgba) >= static_cast<unsigned>(limits.min_red) &&
       TIFFGetR(rgba) <= static_cast<unsigned>(limits.max_red) &&
       TIFFGetG(rgba) >= static_cast<unsigned>(limits.min_green) &&
@@ -138,11 +141,12 @@ absl::Status CheckRgbaPixel(uint32_t pixel, const ChannelLimits& limits,
 
 }  // namespace
 
-std::string GetFilePath(const std::string& dir, const std::string& filename) {
+std::string GetFilePath(const absl::string_view dir,
+                        const absl::string_view filename) {
   return sandbox2::file::JoinPath(dir, "test", "images", filename);
 }
 
-std::string GetFilePath(const std::string filename) {
+std::string GetFilePath(const absl::string_view filename) {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
   auto find = cwd.rfind("build");
 
@@ -161,7 +165,7 @@ std::string GetFilePath(const std::string filename) {
   return sandbox2::file::JoinPath(project_path, "test", "images", filename);
 }
 
-absl::Status LibTIFFMain(const std::string& srcfile) {
+absl::Status LibTIFFMain(const absl::string_view srcfile) {
   // to use dir and file inside sapi-libtiff, use
   // sandbox(file) – file only -- or
   // sandbox(file, dir) -- file and dir -- or
@@ -171,24 +175,15 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
 
   TiffSapiSandbox sandbox(srcfile);
 
-  bool pixel_status_ok = true;
-  bool cluster_status_ok = true;
   // initialize sapi vars after constructing TiffSapiSandbox
-  sapi::v::UShort h;
-  sapi::v::UShort v;
-  absl::StatusOr<TIFF*> status_or_tif;
-  absl::StatusOr<int> status_or_int;
-  absl::StatusOr<tmsize_t> status_or_long;
-  absl::Status status;
-
-  status = sandbox.Init();
 
   SAPI_RETURN_IF_ERROR(sandbox.Init());
 
   TiffApi api(&sandbox);
-  sapi::v::ConstCStr srcfile_var(srcfile.c_str());
+  sapi::v::ConstCStr srcfile_var(srcfile.data());
   sapi::v::ConstCStr r_var("r");
 
+  absl::StatusOr<TIFF*> status_or_tif;
   SAPI_ASSIGN_OR_RETURN(
       status_or_tif, api.TIFFOpen(srcfile_var.PtrBefore(), r_var.PtrBefore()));
 
@@ -197,9 +192,11 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     return absl::InternalError(absl::StrCat("Could not open ", srcfile));
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto return_value,
+  sapi::v::UShort h;
+  sapi::v::UShort v;
+  SAPI_ASSIGN_OR_RETURN(int return_value,
                         api.TIFFGetField2(&tif, TIFFTAG_YCBCRSUBSAMPLING,
-                                          h.PtrBoth(), v.PtrBoth()));
+                                          h.PtrAfter(), v.PtrAfter()));
   if (return_value == 0 || h.GetValue() != 2 || v.GetValue() != 2) {
     return absl::InternalError("Could not retrieve subsampling tag");
   }
@@ -208,23 +205,25 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
   if (sz != kClusterSize * kClusterImageSize) {
     return absl::InternalError(
         absl::StrCat("Unexpected TileSize ", sz, ". Expected ",
-                     kClusterSize * kClusterImageSize, " bytes\n"));
+                     kClusterSize * kClusterImageSize, " bytes"));
   }
 
-  sapi::v::Array<uint8_t> buffer_(sz);
+  sapi::v::Array<uint8_t> buffer(sz);
   // Read a tile in decompressed form, but still YCbCr subsampled
   SAPI_ASSIGN_OR_RETURN(
       tsize_t new_sz,
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer_.PtrBoth(), sz));
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer.PtrAfter(), sz));
   if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
-        "Did not get expected result code from TIFFReadEncodedTile(): ",
-        status_or_long.value(), " instead of ", sz));
+        "Did not get expected result code from TIFFReadEncodedTile(): ", new_sz,
+        " instead of ", sz));
   }
 
+  absl::Status status;
+  bool cluster_status_ok = true;
   for (const auto& [id, data] : kClusters) {
-    if (status = CheckCluster(id, buffer_, data); !status.ok()) {
-      LOG(ERROR) << "CheckCluster failed:\n" << status.ToString();
+    if (status = CheckCluster(id, buffer, data); !status.ok()) {
+      LOG(ERROR) << "CheckCluster failed:\n" << status.ToString() << '\n';
     }
     cluster_status_ok &= status.ok();
   }
@@ -244,23 +243,23 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
   if (sz != kChannelsInPixel * kImageSize) {
     return absl::InternalError(
         absl::StrCat("Unexpected TileSize ", sz, ". Expected ",
-                     kChannelsInPixel * kImageSize, " bytes\n"));
+                     kChannelsInPixel * kImageSize, " bytes"));
   }
 
-  sapi::v::Array<uint8_t> buffer2_(sz);
-
+  sapi::v::Array<uint8_t> buffer2(sz);
   SAPI_ASSIGN_OR_RETURN(
       new_sz,
-      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2_.PtrBoth(), sz));
+      api.TIFFReadEncodedTile(&tif, kRawTileNumber, buffer2.PtrAfter(), sz));
   if (new_sz != sz) {
     return absl::InternalError(absl::StrCat(
         "Did not get expected result code from TIFFReadEncodedTile(): ", new_sz,
         " instead of ", sz));
   }
 
+  bool pixel_status_ok = true;
   for (const auto& [id, data] : kLimits) {
-    if (status = CheckRgbPixel(id, data, buffer2_); !status.ok()) {
-      LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString();
+    if (status = CheckRgbPixel(id, data, buffer2); !status.ok()) {
+      LOG(ERROR) << "CheckRgbPixel failed:\n" << status.ToString() << '\n';
     }
     pixel_status_ok &= status.ok();
   }
@@ -275,20 +274,20 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
     return absl::InternalError(absl::StrCat("Could not reopen ", srcfile));
   }
 
-  sapi::v::Array<uint32_t> rgba_buffer_(kImageSize);
+  sapi::v::Array<uint32_t> rgba_buffer(kImageSize);
 
   // read as rgba
   SAPI_ASSIGN_OR_RETURN(
       return_value,
-      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer_.PtrBoth()));
+      api.TIFFReadRGBATile(&tif2, 1 * 128, 2 * 128, rgba_buffer.PtrAfter()));
   if (return_value == 0) {
     return absl::InternalError("TIFFReadRGBATile() returned failure code");
   }
 
   // Checking specific pixels from the test data, 0th, 64th and 512th
   for (const auto& [id, data] : kLimits) {
-    if (status = CheckRgbaPixel(id, data, rgba_buffer_); !status.ok()) {
-      LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString();
+    if (status = CheckRgbaPixel(id, data, rgba_buffer); !status.ok()) {
+      LOG(ERROR) << "CheckRgbaPixel failed:\n" << status.ToString() << '\n';
     }
     pixel_status_ok &= status.ok();
   }
@@ -314,7 +313,7 @@ int main(int argc, char** argv) {
     srcfile = GetFilePath(argv[1], srcfilerel);
   }
 
-  auto status = LibTIFFMain(srcfile);
+  absl::Status status = LibTIFFMain(srcfile);
   if (!status.ok()) {
     LOG(ERROR) << "LibTIFFMain failed with error:\n"
                << status.ToString() << '\n';

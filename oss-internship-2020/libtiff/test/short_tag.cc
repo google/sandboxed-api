@@ -71,24 +71,20 @@ TEST(SandboxTest, ShortTag) {
   TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
-  sapi::v::Array<uint8_t> buffer_(buffer.data(), buffer.size());
-
-  absl::StatusOr<int> status_or_int;
-  absl::StatusOr<TIFF*> status_or_tif;
-
   TiffApi api(&sandbox);
   sapi::v::ConstCStr srcfile_var(srcfile.c_str());
   sapi::v::ConstCStr w_var("w");
 
-  status_or_tif = api.TIFFOpen(srcfile_var.PtrBefore(), w_var.PtrBefore());
+  absl::StatusOr<TIFF*> status_or_tif =
+      api.TIFFOpen(srcfile_var.PtrBefore(), w_var.PtrBefore());
   ASSERT_THAT(status_or_tif, IsOk()) << "Could not open " << srcfile;
 
   sapi::v::RemotePtr tif(status_or_tif.value());
   ASSERT_THAT(tif.GetValue(), NotNull())
       << "Can't create test TIFF file " << srcfile;
 
-  status_or_int = api.TIFFSetFieldUShort1(&tif, TIFFTAG_IMAGEWIDTH, kWidth);
+  absl::StatusOr<int> status_or_int =
+      api.TIFFSetFieldUShort1(&tif, TIFFTAG_IMAGEWIDTH, kWidth);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldUShort1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set ImagekWidth tag";
 
@@ -136,7 +132,10 @@ TEST(SandboxTest, ShortTag) {
     EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set tag " << tag.tag;
   }
 
-  status_or_int = api.TIFFWriteScanline(&tif, buffer_.PtrBoth(), 0, 0);
+  std::array<uint8_t, kSamplePerPixel> buffer = {0, 127, 255};
+  sapi::v::Array<uint8_t> buffer_sapi(buffer.data(), buffer.size());
+
+  status_or_int = api.TIFFWriteScanline(&tif, buffer_sapi.PtrBefore(), 0, 0);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteScanline fatal error";
   ASSERT_THAT(status_or_int.value(), Ne(-1)) << "Can't write image data";
 

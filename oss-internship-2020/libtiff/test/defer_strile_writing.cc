@@ -37,10 +37,7 @@ void TestWriting(const char* mode, int tiled, int height) {
 
   std::string srcfile = sandbox2::file::JoinPath(
       sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
-
-  absl::StatusOr<int> status_or_int;
   absl::StatusOr<signed long> status_or_long;
-  absl::StatusOr<TIFF*> status_or_tif;
 
   TiffSapiSandbox sandbox(srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
@@ -49,14 +46,15 @@ void TestWriting(const char* mode, int tiled, int height) {
   sapi::v::ConstCStr srcfile_var(srcfile.c_str());
   sapi::v::ConstCStr mode_var(mode);
 
-  status_or_tif = api.TIFFOpen(srcfile_var.PtrBefore(), mode_var.PtrBefore());
+  absl::StatusOr<TIFF*> status_or_tif =
+      api.TIFFOpen(srcfile_var.PtrBefore(), mode_var.PtrBefore());
   ASSERT_THAT(status_or_tif, IsOk()) << "Could not open " << srcfile;
 
   sapi::v::RemotePtr tif(status_or_tif.value());
   ASSERT_THAT(tif.GetValue(), NotNull())
       << "Can't create test TIFF file " << srcfile;
 
-  status_or_int =
+  absl::StatusOr<int> status_or_int =
       api.TIFFSetFieldU1(&tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
@@ -214,10 +212,11 @@ void TestWriting(const char* mode, int tiled, int height) {
     for (int i = 0; i < (height + 15) / 16; ++i) {
       std::array<uint8_t, kTileBufferSize> tilebuffer;
       tilebuffer.fill(i);
-      sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(), tilebuffer.size());
+      sapi::v::Array<uint8_t> tilebuffer_sapi(tilebuffer.data(),
+                                              tilebuffer.size());
 
-      status_or_int = api.TIFFWriteEncodedTile(&tif, i, tilebuffer_.PtrBoth(),
-                                               kTileBufferSize);
+      status_or_int = api.TIFFWriteEncodedTile(
+          &tif, i, tilebuffer_sapi.PtrBefore(), kTileBufferSize);
       ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteEncodedTile fatal error";
       EXPECT_THAT(status_or_int.value(), Eq(kTileBufferSize))
           << "line " << i << ": expected " << kTileBufferSize << ", got "
@@ -226,7 +225,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   } else {
     for (int i = 0; i < height; ++i) {
       sapi::v::UChar c(i);
-      status_or_long = api.TIFFWriteEncodedStrip(&tif, i, c.PtrBoth(), 1);
+      status_or_long = api.TIFFWriteEncodedStrip(&tif, i, c.PtrBefore(), 1);
       ASSERT_THAT(status_or_long, IsOk())
           << "TIFFWriteEncodedStrip fatal error";
       EXPECT_THAT(status_or_int.value(), Eq(1))
@@ -254,11 +253,11 @@ void TestWriting(const char* mode, int tiled, int height) {
         uint8_t expected_c = static_cast<uint8_t>(i);
         tilebuffer.fill(0);
 
-        sapi::v::Array<uint8_t> tilebuffer_(tilebuffer.data(),
-                                            tilebuffer.size());
+        sapi::v::Array<uint8_t> tilebuffer_sapi(tilebuffer.data(),
+                                                tilebuffer.size());
 
         status_or_long = api.TIFFReadEncodedTile(
-            &tif2, i, tilebuffer_.PtrBoth(), kTileBufferSize);
+            &tif2, i, tilebuffer_sapi.PtrBoth(), kTileBufferSize);
         ASSERT_THAT(status_or_long, IsOk())
             << "TIFFReadEncodedTile fatal error";
         EXPECT_THAT(status_or_long.value(), Eq(kTileBufferSize))

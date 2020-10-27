@@ -24,8 +24,8 @@ namespace {
 
 class TiffSapiSandbox : public TiffSandbox {
  public:
-  TiffSapiSandbox(std::optional<std::string> file = std::nullopt,
-                  std::optional<std::string> dir = std::nullopt)
+  TiffSapiSandbox(std::optional<absl::string_view> file = std::nullopt,
+                  std::optional<absl::string_view> dir = std::nullopt)
       : file_(std::move(file)), dir_(std::move(dir)) {}
 
  private:
@@ -61,8 +61,8 @@ class TiffSapiSandbox : public TiffSandbox {
     return builder.get()->BuildOrDie();
   }
 
-  std::optional<std::string> file_;
-  std::optional<std::string> dir_;
+  std::optional<absl::string_view> file_;
+  std::optional<absl::string_view> dir_;
 };
 
 }  // namespace
