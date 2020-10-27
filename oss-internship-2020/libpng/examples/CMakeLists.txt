@@ -14,7 +14,7 @@
 
 add_executable(pngtopng
   example1.cc
-  libpng.h
+  ../tests/libpng.h
   ../sandboxed.h
 )
 
@@ -34,7 +34,7 @@ target_include_directories(pngtopng INTERFACE
 
 add_executable(rgbtobgr
   example2.cc
-  libpng.h
+  ../tests/libpng.h
   ../sandboxed.h
 )
 

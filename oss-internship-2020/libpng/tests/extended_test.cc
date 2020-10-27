@@ -6,6 +6,8 @@
 
 #include "../sandboxed.h"
 #include "libpng.h"
+#include "gtest/gtest.h"
+#include "sandboxed_api/vars.h"
 
 namespace {
 
@@ -106,8 +108,7 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
 
   ASSERT_THAT(
       api.png_read_image_wrapper(&struct_ptr, data.row_pointers->PtrAfter(),
-                                 data.height, data.rowbytes),
-      IsOk());
+                                 data.height, data.rowbytes), IsOk());
 
   ASSERT_THAT(api.png_fclose(&file), IsOk());
 }
@@ -161,8 +162,7 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   ASSERT_THAT(api.png_setjmp(&struct_ptr), IsOk());
   ASSERT_THAT(
       api.png_write_image_wrapper(&struct_ptr, data.row_pointers->PtrBefore(),
-                                  data.height, data.rowbytes),
-      IsOk());
+                                  data.height, data.rowbytes), IsOk());
 
   ASSERT_THAT(api.png_setjmp(&struct_ptr), IsOk());
   ASSERT_THAT(api.png_write_end_wrapper(&struct_ptr), IsOk());
@@ -171,11 +171,10 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
 }
 
 TEST(SandboxTest, ReadModifyWrite) {
-  std::string infile, outfile;
-  LibPNGSapiSandbox sandbox;
-  sandbox.AddFile(infile);
-  sandbox.AddFile(outfile);
+  std::string infile = GetTestFilePath("red_ball.png");
+  std::string outfile = GetTestFilePath("test_output.png");
 
+  LibPNGSapiSandbox sandbox;
   ASSERT_THAT(sandbox.Init(), IsOk());
   LibPNGApi api(&sandbox);
 
@@ -183,9 +182,8 @@ TEST(SandboxTest, ReadModifyWrite) {
   ReadPng(api, sandbox, infile, data);
 
   ASSERT_THAT(data.color_type == PNG_COLOR_TYPE_RGBA ||
-                  data.color_type == PNG_COLOR_TYPE_RGB,
-              IsTrue())
-      << infile << " has unexpected color type. Expected RGB or RGBA";
+              data.color_type == PNG_COLOR_TYPE_RGB, IsTrue())
+    << infile << " has unexpected color type. Expected RGB or RGBA";
 
   size_t channel_count = 3;
   if (data.color_type == PNG_COLOR_TYPE_RGBA) {

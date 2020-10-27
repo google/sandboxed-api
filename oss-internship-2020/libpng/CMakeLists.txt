@@ -108,5 +108,5 @@ target_include_directories(libpng_sapi INTERFACE
 #endif()
 
 #if (LIBPNG_SAPI_ENABLE_TESTS)
-#  add_subdirectory(test)
+# add_subdirectory(tests)
 #endif()

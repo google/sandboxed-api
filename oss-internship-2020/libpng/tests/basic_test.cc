@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #include "../sandboxed.h"  // NOLINT(build/include)
+#include "gtest/gtest.h"
 #include "libpng.h"        // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/vars.h"
 
 namespace {
 
@@ -24,11 +27,18 @@ using ::testing::IsTrue;
 using ::testing::NotNull;
 
 TEST(SandboxTest, ReadWrite) {
-  const std::string infile;
-  const std::string outfile = CreateTempFile();
+  std::string infile = GetTestFilePath("pngtest.png");
+
+  absl::StatusOr<std::string> status_or_path =
+      sandbox2::CreateNamedTempFileAndClose("output.png");
+  ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp output file";
+
+  std::string outfile = sandbox2::file::JoinPath(
+      sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
 
   LibPNGSapiSandbox sandbox;
   sandbox.AddFile(infile);
+  sandbox.AddFile(outfile);
 
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 

@@ -1,7 +1,3 @@
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/vars.h"
-
 #define PNG_FORMAT_FLAG_ALPHA 0x01U    /* format with an alpha channel */
 #define PNG_FORMAT_FLAG_COLOR 0x02U    /* color format: otherwise grayscale */
 #define PNG_FORMAT_FLAG_LINEAR 0x04U   /* 2-byte channels else 1-byte */

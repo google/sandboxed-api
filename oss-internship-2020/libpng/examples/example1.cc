@@ -1,7 +1,8 @@
-#include <iostream>
+#include <string>
 
 #include "../sandboxed.h"
-#include "libpng.h"
+#include "../tests/libpng.h"
+#include "sandboxed_api/vars.h"
 
 absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   LibPNGSapiSandbox sandbox;

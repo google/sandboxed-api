@@ -1,11 +1,11 @@
+#include <cstdio>
 #include <fcntl.h>
+#include <iostream>
 #include <unistd.h>
 
-#include <cstdio>
-#include <iostream>
-
 #include "../sandboxed.h"
-#include "libpng.h"
+#include "../tests/libpng.h"
+#include "sandboxed_api/vars.h"
 
 struct Data {
   Data() {}
