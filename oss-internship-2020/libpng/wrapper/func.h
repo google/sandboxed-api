@@ -21,3 +21,4 @@ void png_write_image_wrapper(png_structrp png_ptr, png_bytep image,
 void png_write_end_wrapper(png_structrp png_ptr);
 }
 #endif
+

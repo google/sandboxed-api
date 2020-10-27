@@ -27,3 +27,4 @@ target_link_libraries(wrapper
   "/usr/lib/x86_64-linux-gnu/libpng16.a"
   "/usr/lib/x86_64-linux-gnu/libz.a"
 )
+
