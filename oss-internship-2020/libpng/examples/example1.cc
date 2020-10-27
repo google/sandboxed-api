@@ -37,7 +37,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
                                                      infile_var.PtrBefore()));
   if (!result) {
     return absl::InternalError(
-        absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
+        absl::StrCat("begin read error: ", image.mutable_data()->message));
   }
 
   image.mutable_data()->format = PNG_FORMAT_RGBA;
@@ -57,7 +57,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
                   buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
   if (!result) {
     return absl::InternalError(
-        absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
+        absl::StrCat("finish read error: ", image.mutable_data()->message));
   }
 
   SAPI_ASSIGN_OR_RETURN(
@@ -66,7 +66,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
                   buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
   if (!result) {
     return absl::InternalError(
-        absl::StrCat("pngtopng: error: ", image.mutable_data()->message));
+        absl::StrCat("write error: ", image.mutable_data()->message));
   }
 
   return absl::OkStatus();
@@ -87,3 +87,4 @@ int main(int argc, const char** argv) {
 
   return EXIT_SUCCESS;
 }
+

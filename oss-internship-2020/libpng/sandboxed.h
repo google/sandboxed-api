@@ -61,3 +61,4 @@ class LibPNGSapiSandbox : public LibPNGSandbox {
 };
 
 }  // namespace
+

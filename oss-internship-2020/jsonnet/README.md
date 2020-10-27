@@ -30,6 +30,7 @@ git submodule update --init --recursive
 ```
 anywhere in the project tree in order to clone the `jsonnet` submodule.
 Then in the `sandboxed-api/oss-internship-2020/jsonnet` run
+
 ```
 mkdir build && cd build
 cmake -G Ninja

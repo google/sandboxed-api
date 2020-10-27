@@ -12,22 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define PNG_FORMAT_FLAG_ALPHA 0x01U    /* format with an alpha channel */
-#define PNG_FORMAT_FLAG_COLOR 0x02U    /* color format: otherwise grayscale */
-#define PNG_FORMAT_FLAG_LINEAR 0x04U   /* 2-byte channels else 1-byte */
-#define PNG_FORMAT_FLAG_COLORMAP 0x08U /* image data is color-mapped */
+// Defines from libpng library. The problem is that the build throws the error
+// "Duplicate functions" if #include <png.h> was added.
+
+#define PNG_FORMAT_FLAG_ALPHA 0x01U
+#define PNG_FORMAT_FLAG_COLOR 0x02U
+#define PNG_FORMAT_FLAG_LINEAR 0x04U
+#define PNG_FORMAT_FLAG_COLORMAP 0x08U
 
 #ifdef PNG_FORMAT_BGR_SUPPORTED
-#define PNG_FORMAT_FLAG_BGR 0x10U /* BGR colors, else order is RGB */
+#define PNG_FORMAT_FLAG_BGR 0x10U
 #endif
 
 #ifdef PNG_FORMAT_AFIRST_SUPPORTED
-#define PNG_FORMAT_FLAG_AFIRST 0x20U /* alpha channel comes first */
+#define PNG_FORMAT_FLAG_AFIRST 0x20U
 #endif
 
-#define PNG_FORMAT_FLAG_ASSOCIATED_ALPHA \
-  0x40U /* alpha channel is associated   \
-         */
+#define PNG_FORMAT_FLAG_ASSOCIATED_ALPHA 0x40U
 
 #define PNG_FORMAT_GRAY 0
 #define PNG_FORMAT_GA PNG_FORMAT_FLAG_ALPHA
@@ -88,3 +89,4 @@ typedef unsigned short png_uint_16;
 #define PNG_FILTER_TYPE_BASE 0
 #define PNG_COMPRESSION_TYPE_BASE 0
 #define PNG_INTERLACE_NONE 0
+

@@ -82,9 +82,5 @@ add_executable(raster
 
 target_link_libraries(raster
   gdal_sapi
-<<<<<<< HEAD
   sapi::sapi    
-=======
-  sapi::sapi
->>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa
 )

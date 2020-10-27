@@ -27,8 +27,8 @@ set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 #   mkdir -p build && cd build
 #   cmake .. -G Ninja -DSAPI_ROOT=/path/to/sapi_root
 
-option(LIBPNG_SAPI_ENABLE_EXAMPLES "" ON)
-option(LIBPNG_SAPI_ENABLE_TESTS "" ON)
+option(LIBPNG_SAPI_ENABLE_EXAMPLES "" OFF)
+option(LIBPNG_SAPI_ENABLE_TESTS "" OFF)
 
 set(SAPI_ENABLE_EXAMPLES ${LIBPNG_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
 set(SAPI_ENABLE_TESTS ${LIBPNG_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
@@ -109,3 +109,4 @@ endif()
 if (LIBPNG_SAPI_ENABLE_TESTS)
  add_subdirectory(tests)
 endif()
+

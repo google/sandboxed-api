@@ -41,7 +41,3 @@ std::string CreateTempDirAtCWD() {
   CHECK(result.ok()) << "Could not create temporary directory";
   return result.value();
 }
-<<<<<<< HEAD
-
-=======
->>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa

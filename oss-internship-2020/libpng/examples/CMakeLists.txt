@@ -48,3 +48,4 @@ target_link_libraries(rgbtobgr PRIVATE
 target_include_directories(rgbtobgr INTERFACE
   "${PNG_INCLUDE_DIR}"
 )
+

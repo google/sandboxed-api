@@ -145,7 +145,3 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
 };
 
 #endif  // SAPI_LIBARCHIVE_EXAMPLES_SANDBOX_H
-<<<<<<< HEAD
-
-=======
->>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa

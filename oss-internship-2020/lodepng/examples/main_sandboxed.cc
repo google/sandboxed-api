@@ -191,7 +191,3 @@ int main(int argc, char* argv[]) {
 
   return EXIT_SUCCESS;
 }
-<<<<<<< HEAD
-
-=======
->>>>>>> b2896e3143ca248ea427fcd87f71db62927c1ffa

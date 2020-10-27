@@ -48,6 +48,7 @@ foreach(exe base multiple_files yaml_stream formatter)
   add_executable(jsonnet_${exe}_sandboxed
     jsonnet_${exe}_example.cc
   )
+
   target_link_libraries(jsonnet_${exe}_sandboxed PRIVATE
     libjsonnet
     jsonnet_helper

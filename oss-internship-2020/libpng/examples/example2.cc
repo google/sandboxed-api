@@ -185,8 +185,6 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
 }
 
 absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
-  //  sapi::v::Array<sapi::v::Array<uint8_t>> row_pointers;
-
   LibPNGSapiSandbox sandbox;
   sandbox.AddFile(infile);
   sandbox.AddFile(outfile);
@@ -224,7 +222,6 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 }
 
 int main(int argc, const char** argv) {
-  // RGB to BGR
   if (argc != 3) {
     LOG(ERROR) << "Usage: example5 infile outfile";
     return EXIT_FAILURE;
@@ -239,3 +236,4 @@ int main(int argc, const char** argv) {
 
   return EXIT_SUCCESS;
 }
+
