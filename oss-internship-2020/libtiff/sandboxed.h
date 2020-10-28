@@ -24,8 +24,8 @@ namespace {
 
 class TiffSapiSandbox : public TiffSandbox {
  public:
-  TiffSapiSandbox(std::optional<std::string> file = std::nullopt,
-                  std::optional<std::string> dir = std::nullopt)
+  explicit TiffSapiSandbox(std::optional<std::string> file = std::nullopt,
+                           std::optional<std::string> dir = std::nullopt)
       : file_(std::move(file)), dir_(std::move(dir)) {}
 
  private:

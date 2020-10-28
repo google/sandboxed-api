@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
+
 #include "../sandboxed.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "helper.h"  // NOLINT(build/include)
@@ -20,8 +22,6 @@
 #include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "tiffio.h"  // NOLINT(build/include)
-
-#include <array>
 
 namespace {
 
@@ -39,15 +39,14 @@ constexpr uint16_t kSamplePerPixel = 1;
 using NongeneratedArgs = std::tuple<std::string_view, int>;
 using TestArgsType = std::tuple<NongeneratedArgs, int>;
 
-constexpr std::array<NongeneratedArgs, 4> kTestData = {{
-    {"w", 1}, {"w", 10}, {"w8", 1}, {"wD", 1}
-}};
+constexpr std::array<NongeneratedArgs, 4> kTestData = {
+    {{"w", 1}, {"w", 10}, {"w8", 1}, {"wD", 1}}};
 
 struct TestParams {
   TestParams(const TestArgsType& in)
-    : mode(std::get<0>(std::get<0>(in))), tiled(std::get<1>(in)),
-    height(std::get<1>(std::get<0>(in))) {
-    }
+      : mode(std::get<0>(std::get<0>(in))),
+        tiled(std::get<1>(in)),
+        height(std::get<1>(std::get<0>(in))) {}
 
   std::string mode;
   int tiled;
@@ -141,7 +140,8 @@ TEST_P(TestDeferStrileWriting, TestWriting) {
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteCheck fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFWriteCheck return unexpected value "
-      << "void test(" << args.mode << ", " << args.tiled << ", " << args.height << ")";
+      << "void test(" << args.mode << ", " << args.tiled << ", " << args.height
+      << ")";
 
   status_or_int = api.TIFFWriteDirectory(&tif);
   ASSERT_THAT(status_or_int, IsOk())
@@ -335,10 +335,8 @@ TEST_P(TestDeferStrileWriting, TestWriting) {
   unlink(srcfile.c_str());
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    SandboxTest, TestDeferStrileWriting,
-    testing::Combine(
-        testing::ValuesIn(kTestData),
-        testing::Values(0, 1)));
+INSTANTIATE_TEST_SUITE_P(SandboxTest, TestDeferStrileWriting,
+                         testing::Combine(testing::ValuesIn(kTestData),
+                                          testing::Values(0, 1)));
 
 }  // namespace

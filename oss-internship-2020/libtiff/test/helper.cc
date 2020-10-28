@@ -32,9 +32,6 @@ std::string GetImagesFolder() {
 }
 
 std::string GetFilePath(const std::string& filename) {
-  static std::string* images_folder_path = nullptr;
-  if (!images_folder_path) {
-    images_folder_path = new std::string(GetImagesFolder());
-  }
-  return sandbox2::file::JoinPath(*images_folder_path, filename);
+  std::string images_folder_path = GetImagesFolder();
+  return sandbox2::file::JoinPath(images_folder_path, filename);
 }
