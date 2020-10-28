@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstring>
-
-#include "helper.h"  // NOLINT(build/include)
-#include "tiffio.h"  // NOLINT(build/include)
+#include "../sandboxed.h"  // NOLINT(build/include)
+#include "helper.h"        // NOLINT(build/include)
+#include "tiffio.h"        // NOLINT(build/include)
 
 void CheckShortField(TiffApi&, sapi::v::RemotePtr& tif, const ttag_t field,
                      const uint16_t value);

@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdint>
-
+#include "../sandboxed.h"  // NOLINT(build/include)
+#include "gtest/gtest.h"
 #include "helper.h"  // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/status_matchers.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
 namespace {

@@ -14,9 +14,9 @@
 
 #include "check_tag.h"  // NOLINT(build/include)
 
-using ::sapi::IsOk;
-using ::testing::Eq;
-using ::testing::IsTrue;
+#include "gtest/gtest.h"
+#include "sandboxed_api/util/status_matchers.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                      const uint16_t value) {
@@ -24,10 +24,10 @@ void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
   absl::StatusOr<int> status_or_int;
 
   status_or_int = api.TIFFGetField1(&tif, field, tmp.PtrBoth());
-  ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField1 fatal error";
-  EXPECT_THAT(status_or_int.value(), IsTrue())
+  ASSERT_THAT(status_or_int, ::sapi::IsOk()) << "TIFFGetField1 fatal error";
+  EXPECT_THAT(status_or_int.value(), ::testing::IsTrue())
       << "Problem fetching tag " << field;
-  EXPECT_THAT(tmp.GetValue(), Eq(value))
+  EXPECT_THAT(tmp.GetValue(), ::testing::Eq(value))
       << "Wrong SHORT value fetched for tag " << field;
 }
 
@@ -40,12 +40,12 @@ void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
 
   status_or_int =
       api.TIFFGetField2(&tif, field, tmp0.PtrBoth(), tmp1.PtrBoth());
-  ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField2 fatal error";
-  EXPECT_THAT(status_or_int.value(), IsTrue())
+  ASSERT_THAT(status_or_int, ::sapi::IsOk()) << "TIFFGetField2 fatal error";
+  EXPECT_THAT(status_or_int.value(), ::testing::IsTrue())
       << "Problem fetching tag " << field;
-  EXPECT_THAT(tmp0.GetValue(), Eq(values[0]))
+  EXPECT_THAT(tmp0.GetValue(), ::testing::Eq(values[0]))
       << "Wrong SHORT PAIR[0] fetched for tag " << field;
-  EXPECT_THAT(tmp1.GetValue(), Eq(values[1]))
+  EXPECT_THAT(tmp1.GetValue(), ::testing::Eq(values[1]))
       << "Wrong SHORT PAIR[1] fetched for tag " << field;
 }
 
@@ -55,9 +55,9 @@ void CheckLongField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
   absl::StatusOr<int> status_or_int;
 
   status_or_int = api.TIFFGetField1(&tif, field, tmp.PtrBoth());
-  ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField1 fatal error";
-  EXPECT_THAT(status_or_int.value(), IsTrue())
+  ASSERT_THAT(status_or_int, ::sapi::IsOk()) << "TIFFGetField1 fatal error";
+  EXPECT_THAT(status_or_int.value(), ::testing::IsTrue())
       << "Problem fetching tag " << field;
-  EXPECT_THAT(tmp.GetValue(), Eq(value))
+  EXPECT_THAT(tmp.GetValue(), ::testing::Eq(value))
       << "Wrong LONG value fetched for tag " << field;
 }

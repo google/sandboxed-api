@@ -12,14 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <optional>
 #include <string>
-
-#include "../sandboxed.h"  // NOLINT(build/include)
-#include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 std::string GetFilePath(const std::string& filename);

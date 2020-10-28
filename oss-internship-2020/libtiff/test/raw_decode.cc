@@ -15,9 +15,12 @@
 #include <array>
 #include <cstring>
 
+#include "../sandboxed.h"  // NOLINT(build/include)
 #include "absl/algorithm/container.h"
 #include "absl/strings/str_join.h"
+#include "gtest/gtest.h"
 #include "helper.h"  // NOLINT(build/include)
+#include "sandboxed_api/util/status_matchers.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
 namespace {

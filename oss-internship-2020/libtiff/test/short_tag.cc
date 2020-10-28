@@ -13,10 +13,14 @@
 // limitations under the License.
 
 #include <array>
-#include <cstdint>
 
 #include "check_tag.h"  // NOLINT(build/include)
-#include "tiffio.h"     // NOLINT(build/include)
+#include "gtest/gtest.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/status_matchers.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 namespace {
 
