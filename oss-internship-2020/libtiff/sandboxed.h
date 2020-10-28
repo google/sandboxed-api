@@ -31,8 +31,7 @@ class TiffSapiSandbox : public TiffSandbox {
  private:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
-    auto builder = std::make_unique<sandbox2::PolicyBuilder>();
-    (*builder)
+    sandbox2::PolicyBuilder builder = sandbox2::PolicyBuilder()
         .AllowRead()
         .AllowStaticStartup()
         .AllowWrite()
@@ -51,14 +50,14 @@ class TiffSapiSandbox : public TiffSandbox {
         });
 
     if (file_) {
-      builder->AddFile(file_.value(), /*is_ro=*/false);
+      builder.AddFile(file_.value(), /*is_ro=*/false);
     }
 
     if (dir_) {
-      builder->AddDirectory(dir_.value(), /*is_ro=*/false);
+      builder.AddDirectory(dir_.value(), /*is_ro=*/false);
     }
 
-    return builder.get()->BuildOrDie();
+    return builder.BuildOrDie();
   }
 
   std::optional<std::string> file_;
