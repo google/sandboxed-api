@@ -165,7 +165,7 @@ std::string GetFilePath(const absl::string_view filename) {
   return sandbox2::file::JoinPath(project_path, "test", "images", filename);
 }
 
-absl::Status LibTIFFMain(const absl::string_view srcfile) {
+absl::Status LibTIFFMain(const std::string& srcfile) {
   // to use dir and file inside sapi-libtiff, use
   // sandbox(file) – file only -- or
   // sandbox(file, dir) -- file and dir -- or
@@ -180,7 +180,7 @@ absl::Status LibTIFFMain(const absl::string_view srcfile) {
   SAPI_RETURN_IF_ERROR(sandbox.Init());
 
   TiffApi api(&sandbox);
-  sapi::v::ConstCStr srcfile_var(srcfile.data());
+  sapi::v::ConstCStr srcfile_var(srcfile.c_str());
   sapi::v::ConstCStr r_var("r");
 
   absl::StatusOr<TIFF*> status_or_tif;
