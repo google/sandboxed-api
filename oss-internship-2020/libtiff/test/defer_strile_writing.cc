@@ -21,6 +21,8 @@
 #include "sandboxed_api/util/status_matchers.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
+#include <array>
+
 namespace {
 
 using ::sapi::IsOk;
@@ -34,7 +36,31 @@ constexpr uint16_t kBps = 8;
 constexpr uint16_t kRowsPerStrip = 1;
 constexpr uint16_t kSamplePerPixel = 1;
 
-void TestWriting(const char* mode, int tiled, int height) {
+using NongeneratedArgs = std::tuple<std::string_view, int>;
+using TestArgsType = std::tuple<NongeneratedArgs, int>;
+
+constexpr std::array<NongeneratedArgs, 4> kTestData = {{
+    {"w", 1}, {"w", 10}, {"w8", 1}, {"wD", 1}
+}};
+
+struct TestParams {
+  TestParams(const TestArgsType& in)
+    : mode(std::get<0>(std::get<0>(in))), tiled(std::get<1>(in)),
+    height(std::get<1>(std::get<0>(in))) {
+    }
+
+  std::string mode;
+  int tiled;
+  int height;
+};
+
+class TestDeferStrileWriting : public testing::TestWithParam<TestArgsType> {
+ public:
+  TestDeferStrileWriting() {}
+};
+
+TEST_P(TestDeferStrileWriting, TestWriting) {
+  TestParams args(GetParam());
   absl::StatusOr<std::string> status_or_path =
       sandbox2::CreateNamedTempFileAndClose("defer_strile_writing.tif");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp file";
@@ -48,7 +74,7 @@ void TestWriting(const char* mode, int tiled, int height) {
 
   TiffApi api(&sandbox);
   sapi::v::ConstCStr srcfile_var(srcfile.c_str());
-  sapi::v::ConstCStr mode_var(mode);
+  sapi::v::ConstCStr mode_var(args.mode.c_str());
 
   absl::StatusOr<TIFF*> status_or_tif =
       api.TIFFOpen(srcfile_var.PtrBefore(), mode_var.PtrBefore());
@@ -68,7 +94,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set ImageWidth tag";
 
-  status_or_int = api.TIFFSetFieldU1(&tif, TIFFTAG_IMAGELENGTH, height);
+  status_or_int = api.TIFFSetFieldU1(&tif, TIFFTAG_IMAGELENGTH, args.height);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set ImageLenght tag";
 
@@ -88,7 +114,7 @@ void TestWriting(const char* mode, int tiled, int height) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set PlanarConfiguration tag";
 
-  if (tiled) {
+  if (args.tiled) {
     status_or_int = api.TIFFSetFieldU1(&tif, TIFFTAG_TILEWIDTH, 16);
     ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
     EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set TileWidth tag";
@@ -111,11 +137,11 @@ void TestWriting(const char* mode, int tiled, int height) {
       << "TIFFDeferStrileArrayWriting return unexpected value";
 
   sapi::v::ConstCStr test_var("test");
-  status_or_int = api.TIFFWriteCheck(&tif, tiled, test_var.PtrBefore());
+  status_or_int = api.TIFFWriteCheck(&tif, args.tiled, test_var.PtrBefore());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFWriteCheck fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFWriteCheck return unexpected value "
-      << "void test(" << mode << ", " << tiled << ", " << height << ")";
+      << "void test(" << args.mode << ", " << args.tiled << ", " << args.height << ")";
 
   status_or_int = api.TIFFWriteDirectory(&tif);
   ASSERT_THAT(status_or_int, IsOk())
@@ -212,8 +238,8 @@ void TestWriting(const char* mode, int tiled, int height) {
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "TIFFSetDirectory return unexpected value";
 
-  if (tiled) {
-    for (int i = 0; i < (height + 15) / 16; ++i) {
+  if (args.tiled) {
+    for (int i = 0; i < (args.height + 15) / 16; ++i) {
       std::array<uint8_t, kTileBufferSize> tilebuffer;
       tilebuffer.fill(i);
       sapi::v::Array<uint8_t> tilebuffer_sapi(tilebuffer.data(),
@@ -227,7 +253,7 @@ void TestWriting(const char* mode, int tiled, int height) {
           << status_or_int.value();
     }
   } else {
-    for (int i = 0; i < height; ++i) {
+    for (int i = 0; i < args.height; ++i) {
       sapi::v::UChar c(i);
       status_or_long = api.TIFFWriteEncodedStrip(&tif, i, c.PtrBefore(), 1);
       ASSERT_THAT(status_or_long, IsOk())
@@ -235,8 +261,8 @@ void TestWriting(const char* mode, int tiled, int height) {
       EXPECT_THAT(status_or_int.value(), Eq(1))
           << "line " << i << ": expected 1, got " << status_or_int.value();
 
-      if (i == 1 && height > 100000) {
-        i = height - 2;
+      if (i == 1 && args.height > 100000) {
+        i = args.height - 2;
       }
     }
   }
@@ -250,8 +276,8 @@ void TestWriting(const char* mode, int tiled, int height) {
   sapi::v::RemotePtr tif2(status_or_tif.value());
   ASSERT_THAT(tif2.GetValue(), NotNull()) << "can't open " << srcfile;
 
-  if (tiled) {
-    for (int i = 0; i < (height + 15) / 16; ++i) {
+  if (args.tiled) {
+    for (int i = 0; i < (args.height + 15) / 16; ++i) {
       for (int retry = 0; retry < 2; ++retry) {
         std::array<uint8_t, kTileBufferSize> tilebuffer;
         uint8_t expected_c = static_cast<uint8_t>(i);
@@ -283,7 +309,7 @@ void TestWriting(const char* mode, int tiled, int height) {
       }
     }
   } else {
-    for (int i = 0; i < height; ++i) {
+    for (int i = 0; i < args.height; ++i) {
       for (int retry = 0; retry < 2; ++retry) {
         sapi::v::UChar c(0);
         uint8_t expected_c = static_cast<uint8_t>(i);
@@ -309,13 +335,10 @@ void TestWriting(const char* mode, int tiled, int height) {
   unlink(srcfile.c_str());
 }
 
-TEST(SandboxTest, DeferStrileWriting) {
-  for (int tiled = 0; tiled <= 1; ++tiled) {
-    TestWriting("w", tiled, 1);
-    TestWriting("w", tiled, 10);
-    TestWriting("w8", tiled, 1);
-    TestWriting("wD", tiled, 1);
-  }
-}
+INSTANTIATE_TEST_SUITE_P(
+    SandboxTest, TestDeferStrileWriting,
+    testing::Combine(
+        testing::ValuesIn(kTestData),
+        testing::Values(0, 1)));
 
 }  // namespace
