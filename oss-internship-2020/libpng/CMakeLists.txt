@@ -33,10 +33,11 @@ option(LIBPNG_SAPI_ENABLE_TESTS "" OFF)
 set(SAPI_ENABLE_EXAMPLES ${LIBPNG_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
 set(SAPI_ENABLE_TESTS ${LIBPNG_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
 
-add_subdirectory(wrapper)
-
+set (CMAKE_FIND_LIBRARY_SUFFIXES .a $ {CMAKE_FIND_LIBRARY_SUFFIXES})
 find_package(PNG REQUIRED)
 list(GET PNG_INCLUDE_DIRS 0 PNG_INCLUDE_DIR)
+
+add_subdirectory(wrapper)
 
 add_subdirectory(
   "${SAPI_ROOT}"
@@ -90,7 +91,6 @@ add_sapi_library(libpng_sapi
   INPUTS "${PNG_INCLUDE_DIR}/png.h"
          wrapper/func.h
                           # Header files or .cc files that should be parsed
-#  LIBRARY "${PNG_LIBRARY}"
   LIBRARY wrapper
                           # Library dependency from the add_library() above
   LIBRARY_NAME LibPNG     # Name prefix for the generated header. Will be

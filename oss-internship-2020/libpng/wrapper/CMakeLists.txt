@@ -24,7 +24,5 @@ set_target_properties(wrapper
 target_link_libraries(wrapper
   sandbox2::temp_file
   sapi::sapi
-  "/usr/lib/x86_64-linux-gnu/libpng16.a"
-  "/usr/lib/x86_64-linux-gnu/libz.a"
+  PNG::PNG
 )
-
