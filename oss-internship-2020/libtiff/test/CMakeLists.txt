@@ -15,6 +15,7 @@
 include(GoogleTest)
 
 add_executable(tests
+  ../test/data.h
   check_tag.h
   check_tag.cc
   defer_strile_writing.cc

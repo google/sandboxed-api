@@ -14,4 +14,8 @@
 
 #include <string>
 
-std::string GetFilePath(const std::string& filename);
+#include "absl/strings/str_join.h"
+
+std::string GetFilePath(const absl::string_view filename);
+std::string GetFilePath(const absl::string_view dir,
+                        const absl::string_view filename);

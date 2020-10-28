@@ -15,6 +15,9 @@
 add_executable(sandboxed
   main_sandboxed.cc
   ../sandboxed.h
+  ../test/data.h
+  ../test/helper.h
+  ../test/helper.cc
 )
 
 target_link_libraries(sandboxed PRIVATE

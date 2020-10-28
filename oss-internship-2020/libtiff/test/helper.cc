@@ -18,20 +18,24 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 
-std::string GetImagesFolder() {
+std::string GetFilePath(const absl::string_view filename) {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
   auto find = cwd.rfind("/build");
   if (find == std::string::npos) {
-    LOG(ERROR) << "Something went wrong: CWD don't contain build dir. "
-               << "Please run tests from build dir, path might be incorrect\n";
+    LOG(ERROR)
+        << "Something went wrong: CWD don't contain build dir. Please run "
+           "tests from build dir. To run example send project dir as a "
+           "parameter: ./sandboxed /absolute/path/to/project/dir .\n"
+           "Falling back to using current working directory as root dir.\n";
 
     return sandbox2::file::JoinPath(cwd, "test", "images");
   }
 
-  return sandbox2::file::JoinPath(cwd.substr(0, find), "test", "images");
+  return sandbox2::file::JoinPath(cwd.substr(0, find), "test", "images",
+                                  filename);
 }
 
-std::string GetFilePath(const std::string& filename) {
-  std::string images_folder_path = GetImagesFolder();
-  return sandbox2::file::JoinPath(images_folder_path, filename);
+std::string GetFilePath(const absl::string_view dir,
+                        const absl::string_view filename) {
+  return sandbox2::file::JoinPath(dir, "test", "images", filename);
 }
