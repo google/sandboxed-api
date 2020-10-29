@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
@@ -180,6 +181,37 @@ std::vector<std::string> GetNamespacePath(const clang::TypeDecl* decl) {
   return comps;
 }
 
+std::string PrintRecordTemplateArguments(const clang::CXXRecordDecl* record) {
+  const auto* template_inst_decl = record->getTemplateInstantiationPattern();
+  if (!template_inst_decl) {
+    return "";
+  }
+  const auto* template_decl = template_inst_decl->getDescribedClassTemplate();
+  if (!template_decl) {
+    return "";
+  }
+  const auto* template_params = template_decl->getTemplateParameters();
+  if (!template_params) {
+    return "";
+  }
+  std::vector<std::string> params;
+  params.reserve(template_params->size());
+  for (const auto& template_param : *template_params) {
+    if (const auto* p =
+            llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(template_param)) {
+      // TODO(cblichmann): These types should be included by
+      //                   CollectRelatedTypes().
+      params.push_back(
+          p->getType().getDesugaredType(record->getASTContext()).getAsString());
+    } else {  // Also covers template template parameters
+      params.push_back("typename");
+    }
+    absl::StrAppend(&params.back(), " /*",
+                    std::string(template_param->getName()), "*/");
+  }
+  return absl::StrCat("template <", absl::StrJoin(params, ", "), ">");
+}
+
 // Serializes the given Clang AST declaration back into compilable source code.
 std::string PrintAstDecl(const clang::Decl* decl) {
   // TODO(cblichmann): Make types nicer
@@ -188,7 +220,8 @@ std::string PrintAstDecl(const clang::Decl* decl) {
 
   if (const auto* record = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
     // For C++ classes/structs, only emit a forward declaration.
-    return absl::StrCat(record->isClass() ? "class " : "struct ",
+    return absl::StrCat(PrintRecordTemplateArguments(record),
+                        record->isClass() ? "class " : "struct ",
                         std::string(record->getName()));
   }
   std::string pretty;
