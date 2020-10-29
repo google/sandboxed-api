@@ -1,11 +1,11 @@
 #include <array>
 
-constexpr uint32_t kRawTileNumber = 9;
-constexpr uint32_t kClusterSize = 6;
-constexpr uint32_t kChannelsInPixel = 3;
-constexpr uint32_t kTestCount = 3;
-constexpr uint32_t kImageSize = 128 * 128;
-constexpr uint32_t kClusterImageSize = 64 * 64;
+inline constexpr uint32_t kRawTileNumber = 9;
+inline constexpr uint32_t kClusterSize = 6;
+inline constexpr uint32_t kChannelsInPixel = 3;
+inline constexpr uint32_t kTestCount = 3;
+inline constexpr uint32_t kImageSize = 128 * 128;
+inline constexpr uint32_t kClusterImageSize = 64 * 64;
 
 using ClusterData = std::array<uint8_t, kClusterSize>;
 
@@ -20,12 +20,12 @@ struct ChannelLimits {
   uint8_t max_alpha;
 };
 
-constexpr std::array<std::pair<uint32_t, ClusterData>, kTestCount> kClusters = {
-    {{0, {0, 0, 2, 0, 138, 139}},
-     {64, {0, 0, 9, 6, 134, 119}},
-     {128, {44, 40, 63, 59, 230, 95}}}};
+inline constexpr std::array<std::pair<uint32_t, ClusterData>, kTestCount>
+    kClusters = {{{0, {0, 0, 2, 0, 138, 139}},
+                  {64, {0, 0, 9, 6, 134, 119}},
+                  {128, {44, 40, 63, 59, 230, 95}}}};
 
-constexpr std::array<std::pair<uint32_t, ChannelLimits>, kTestCount> kLimits = {
-    {{0, {15, 18, 0, 0, 18, 41, 255, 255}},
-     {64, {0, 0, 0, 0, 0, 2, 255, 255}},
-     {512, {5, 6, 34, 36, 182, 196, 255, 255}}}};
+inline constexpr std::array<std::pair<uint32_t, ChannelLimits>, kTestCount>
+    kLimits = {{{0, {15, 18, 0, 0, 18, 41, 255, 255}},
+                {64, {0, 0, 0, 0, 0, 2, 255, 255}},
+                {512, {5, 6, 34, 36, 182, 196, 255, 255}}}};
