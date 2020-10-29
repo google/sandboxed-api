@@ -18,7 +18,7 @@
 #include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 
-std::string GetFilePath(const absl::string_view filename) {
+std::string GetFilePath(absl::string_view filename) {
   std::string cwd = sandbox2::file_util::fileops::GetCWD();
   auto find = cwd.rfind("/build");
   if (find == std::string::npos) {
@@ -35,7 +35,6 @@ std::string GetFilePath(const absl::string_view filename) {
                                   filename);
 }
 
-std::string GetFilePath(const absl::string_view dir,
-                        const absl::string_view filename) {
+std::string GetFilePath(absl::string_view dir, absl::string_view filename) {
   return sandbox2::file::JoinPath(dir, "test", "images", filename);
 }
