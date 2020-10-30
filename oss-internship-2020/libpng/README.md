@@ -38,7 +38,8 @@ output: `images/rgbtobgr_red_ball.png`
 
 
 #### Tests:
-You should add `-DLIBPNG_SAPI_ENABLE_TESTS=ON` to use tests and run:
+You should add `-DLIBPNG_SAPI_ENABLE_TESTS=ON` to use tests and do:
 ```
-./tests/tests
+cd tests
+ctest .
 ```

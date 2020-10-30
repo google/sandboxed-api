@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string>
+#include "absl/strings/str_join.h"
 
-std::string GetTestFilePath(const std::string& filename);
-
+std::string GetFilePath(absl::string_view filename);

@@ -28,7 +28,7 @@ using ::testing::Eq;
 using ::testing::IsTrue;
 
 TEST(SandboxTest, ReadWrite) {
-  std::string infile = GetTestFilePath("pngtest.png");
+  std::string infile = GetFilePath("pngtest.png");
 
   absl::StatusOr<std::string> status_or_path =
       sandbox2::CreateNamedTempFileAndClose("output.png");

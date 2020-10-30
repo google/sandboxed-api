@@ -191,8 +191,8 @@ void WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
 }
 
 TEST(SandboxTest, ReadModifyWrite) {
-  std::string infile = GetTestFilePath("red_ball.png");
-  std::string outfile = GetTestFilePath("test_output.png");
+  std::string infile = GetFilePath("red_ball.png");
+  std::string outfile = GetFilePath("test_output.png");
 
   LibPNGSapiSandbox sandbox;
   ASSERT_THAT(sandbox.Init(), IsOk());

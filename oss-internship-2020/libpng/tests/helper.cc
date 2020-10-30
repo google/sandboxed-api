@@ -13,28 +13,12 @@
 // limitations under the License.
 
 #include "helper.h"  // NOLINT(build/include)
+
 #include "../sandboxed.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 
-std::string GetImagesFolder() {
-  std::string cwd = sandbox2::file_util::fileops::GetCWD();
-  auto find = cwd.rfind("/build");
-  if (find == std::string::npos) {
-    LOG(ERROR) << "Something went wrong: CWD don't contain build dir. "
-               << "Please run tests from build dir, path might be incorrect\n";
+std::string GetSourcePath() { return getenv("TEST_SRCDIR"); }
 
-    return sandbox2::file::JoinPath(cwd, "images");
-  }
-
-  return sandbox2::file::JoinPath(cwd.substr(0, find), "images");
+std::string GetFilePath(absl::string_view filename) {
+  return sandbox2::file::JoinPath(GetSourcePath(), "images", filename);
 }
-
-std::string GetTestFilePath(const std::string& filename) {
-  static std::string* images_folder_path = nullptr;
-  if (!images_folder_path) {
-    images_folder_path = new std::string(GetImagesFolder());
-  }
-  return sandbox2::file::JoinPath(*images_folder_path, filename);
-}
-

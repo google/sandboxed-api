@@ -32,5 +32,4 @@ target_link_libraries(tests PRIVATE
   sapi::sapi
 )
 
-gtest_discover_tests(tests)
-
+gtest_discover_tests(tests PROPERTIES ENVIRONMENT "TEST_SRCDIR=${PROJECT_SOURCE_DIR}")
