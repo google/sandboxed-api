@@ -41,12 +41,12 @@ struct Data {
   std::unique_ptr<sapi::v::Array<uint8_t>> row_pointers;
 };
 
-void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
-             absl::string_view infile, Data& data) {
+void ReadPng(LibPNGApi& api, absl::string_view infile, Data& data) {
   sapi::v::Fd fd(open(infile.data(), O_RDONLY));
 
   ASSERT_THAT(fd.GetValue(), Ge(0)) << "Error opening input file";
-  ASSERT_THAT(sandbox.TransferToSandboxee(&fd), IsOk());
+  ASSERT_THAT((&api)->sandbox()->TransferToSandboxee(&fd), IsOk());
+
   ASSERT_THAT(fd.GetRemoteFd(), Ge(0)) << "Error receiving remote FD";
 
   sapi::v::ConstCStr rb_var("rb");
@@ -132,12 +132,12 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   ASSERT_THAT(api.png_fclose(&file), IsOk());
 }
 
-void WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
-              absl::string_view outfile, Data& data) {
+void WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
   sapi::v::Fd fd(open(outfile.data(), O_WRONLY));
 
   ASSERT_THAT(fd.GetValue(), Ge(0)) << "Error opening output file";
-  ASSERT_THAT(sandbox.TransferToSandboxee(&fd), IsOk());
+  ASSERT_THAT((&api)->sandbox()->TransferToSandboxee(&fd), IsOk());
+
   ASSERT_THAT(fd.GetRemoteFd(), Ge(0)) << "Error receiving remote FD";
 
   sapi::v::ConstCStr wb_var("wb");
@@ -199,7 +199,7 @@ TEST(SandboxTest, ReadModifyWrite) {
   LibPNGApi api(&sandbox);
 
   Data data;
-  ReadPng(api, sandbox, infile, data);
+  ReadPng(api, infile, data);
 
   ASSERT_THAT(data.color_type == PNG_COLOR_TYPE_RGBA ||
                   data.color_type == PNG_COLOR_TYPE_RGB,
@@ -224,10 +224,10 @@ TEST(SandboxTest, ReadModifyWrite) {
     }
   }
 
-  WritePng(api, sandbox, outfile, data);
+  WritePng(api, outfile, data);
 
   Data result;
-  ReadPng(api, sandbox, outfile, result);
+  ReadPng(api, outfile, result);
 
   EXPECT_THAT(result.height, Eq(data.height));
   EXPECT_THAT(result.width, Eq(data.width));

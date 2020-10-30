@@ -28,15 +28,15 @@ struct Data {
   std::unique_ptr<sapi::v::Array<uint8_t>> row_pointers;
 };
 
-absl::StatusOr<Data> ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
-                             absl::string_view infile) {
+absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
   sapi::v::Fd fd(open(infile.data(), O_RDONLY));
 
   if (fd.GetValue() < 0) {
     return absl::InternalError("Error opening input file");
   }
 
-  SAPI_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&fd));
+  SAPI_RETURN_IF_ERROR((&api)->sandbox()->TransferToSandboxee(&fd));
+
   if (fd.GetRemoteFd() < 0) {
     return absl::InternalError("Error receiving remote FD");
   }
@@ -118,14 +118,13 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   return data;
 }
 
-absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
-                      absl::string_view outfile, Data& data) {
+absl::Status WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
   sapi::v::Fd fd(open(outfile.data(), O_WRONLY));
   if (fd.GetValue() < 0) {
     return absl::InternalError("Error opening output file");
   }
 
-  SAPI_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&fd));
+  SAPI_RETURN_IF_ERROR((&api)->sandbox()->TransferToSandboxee(&fd));
   if (fd.GetRemoteFd() < 0) {
     return absl::InternalError("Error receiving remote FD");
   }
@@ -191,7 +190,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   SAPI_RETURN_IF_ERROR(sandbox.Init());
   LibPNGApi api(&sandbox);
 
-  SAPI_ASSIGN_OR_RETURN(Data data, ReadPng(api, sandbox, infile));
+  SAPI_ASSIGN_OR_RETURN(Data data, ReadPng(api, infile));
 
   if (data.color_type != PNG_COLOR_TYPE_RGBA &&
       data.color_type != PNG_COLOR_TYPE_RGB) {
@@ -217,7 +216,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
     }
   }
 
-  SAPI_RETURN_IF_ERROR(WritePng(api, sandbox, outfile, data));
+  SAPI_RETURN_IF_ERROR(WritePng(api, outfile, data));
   return absl::OkStatus();
 }
 
