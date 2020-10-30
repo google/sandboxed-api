@@ -27,9 +27,9 @@ target_link_libraries(tests PRIVATE
   gmock
   gtest
   gtest_main
+  libpng_sapi
   sandbox2::temp_file
   sapi::sapi
-  libpng_sapi
 )
 
 gtest_discover_tests(tests)
