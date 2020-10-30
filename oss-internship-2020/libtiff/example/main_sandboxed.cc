@@ -14,9 +14,8 @@
 
 #include <cstdlib>
 
-#include "../sandboxed.h"    // NOLINT(build/include)
-#include "../test/data.h"    // NOLINT(build/include)
-#include "../test/helper.h"  // NOLINT(build/include)
+#include "../sandboxed.h"  // NOLINT(build/include)
+#include "../test/data.h"  // NOLINT(build/include)
 #include "absl/algorithm/container.h"
 #include "absl/strings/str_join.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
@@ -250,16 +249,12 @@ absl::Status LibTIFFMain(const std::string& srcfile) {
 int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-  std::string srcfile;
-  std::string srcfilerel = "quad-tile.jpg.tiff";
-
-  if (argc < 2) {
-    srcfile = GetFilePath(srcfilerel);
-  } else {
-    srcfile = GetFilePath(argv[1], srcfilerel);
+  if (argc != 2) {
+    LOG(ERROR) << "usage: sandboxed input";
+    return EXIT_FAILURE;
   }
 
-  absl::Status status = LibTIFFMain(srcfile);
+  absl::Status status = LibTIFFMain(argv[1]);
   if (!status.ok()) {
     LOG(ERROR) << "LibTIFFMain failed with error:\n"
                << status.ToString() << '\n';
