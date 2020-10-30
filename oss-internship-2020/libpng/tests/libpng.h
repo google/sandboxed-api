@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Defines from libpng library. The problem is that the build throws the error
-// "Duplicate functions" if #include <png.h> was added.
+// "Duplicate functions" if #include <png.h> is added.
 
 #define PNG_FORMAT_FLAG_ALPHA 0x01U
 #define PNG_FORMAT_FLAG_COLOR 0x02U
