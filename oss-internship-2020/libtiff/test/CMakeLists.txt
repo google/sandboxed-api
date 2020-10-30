@@ -13,6 +13,7 @@
 # limitations under the License.
 
 include(GoogleTest)
+enable_testing()
 
 add_executable(tests
   ../test/data.h
@@ -35,4 +36,4 @@ target_link_libraries(tests PRIVATE
   tiff_sapi
 )
 
-gtest_discover_tests(tests)
+gtest_discover_tests(tests PROPERTIES ENVIRONMENT "TEST_SRCDIR=${PROJECT_SOURCE_DIR}")

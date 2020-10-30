@@ -22,7 +22,8 @@ You should add `-DTIFF_SAPI_ENABLE_EXAMPLES=ON` to use the example and run:
 ```
 
 #### Tests:
-You should add `-DTIFF_SAPI_ENABLE_TESTS=ON` to use tests and run:
+You should add `-DTIFF_SAPI_ENABLE_TESTS=ON` to use tests and do:
 ```
-./test/tests
+cd test
+ctest .
 ```

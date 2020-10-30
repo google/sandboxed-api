@@ -15,24 +15,13 @@
 #include "helper.h"  // NOLINT(build/include)
 
 #include "../sandboxed.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/path.h"
 
+std::string GetSourcePath() { return getenv("TEST_SRCDIR"); }
+
 std::string GetFilePath(absl::string_view filename) {
-  std::string cwd = sandbox2::file_util::fileops::GetCWD();
-  auto find = cwd.rfind("/build");
-  if (find == std::string::npos) {
-    LOG(ERROR)
-        << "Something went wrong: CWD don't contain build dir. Please run "
-           "tests from build dir. To run example send project dir as a "
-           "parameter: ./sandboxed /absolute/path/to/project/dir .\n"
-           "Falling back to using current working directory as root dir.\n";
-
-    return sandbox2::file::JoinPath(cwd, "test", "images");
-  }
-
-  return sandbox2::file::JoinPath(cwd.substr(0, find), "test", "images",
-                                  filename);
+  std::string src = GetSourcePath();
+  return GetFilePath(GetSourcePath(), filename);
 }
 
 std::string GetFilePath(absl::string_view dir, absl::string_view filename) {
