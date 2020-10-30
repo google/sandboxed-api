@@ -19,8 +19,6 @@
 #include "../tests/libpng.h"  // NOLINT(build/include)
 
 struct Data {
-  Data() {}
-
   int width;
   int height;
   uint8_t color_type;

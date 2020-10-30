@@ -32,8 +32,6 @@ using ::testing::IsTrue;
 using ::testing::NotNull;
 
 struct Data {
-  Data() {}
-
   int width;
   int height;
   uint8_t color_type;

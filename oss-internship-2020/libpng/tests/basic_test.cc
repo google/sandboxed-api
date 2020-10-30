@@ -54,7 +54,7 @@ TEST(SandboxTest, ReadWrite) {
   absl::StatusOr<int> status_or_int = api.png_image_begin_read_from_file(
       image.PtrBoth(), infile_var.PtrBefore());
   ASSERT_THAT(status_or_int, IsOk())
-      << "png_image_begin_read_from_file fatal error";
+      << "fatal error when invoking png_image_begin_read_from_file";
   ASSERT_THAT(status_or_int.value(), IsTrue())
       << "png_image_begin_read_from_file failed: "
       << image.mutable_data()->message;
@@ -63,11 +63,12 @@ TEST(SandboxTest, ReadWrite) {
   ASSERT_THAT(image.mutable_data()->version, Eq(PNG_IMAGE_VERSION))
       << "image version changed";
 
-  sapi::v::Array<uint8_t> buffer_(PNG_IMAGE_SIZE(*image.mutable_data()));
+  sapi::v::Array<uint8_t> buffer(PNG_IMAGE_SIZE(*image.mutable_data()));
   sapi::v::NullPtr null = sapi::v::NullPtr();
   status_or_int = api.png_image_finish_read(image.PtrBoth(), &null,
-                                            buffer_.PtrBoth(), 0, &null);
-  ASSERT_THAT(status_or_int, IsOk()) << "png_image_finish_read fatal error";
+                                            buffer.PtrBoth(), 0, &null);
+  ASSERT_THAT(status_or_int, IsOk())
+      << "fatal error when invoking png_image_finish_read";
   ASSERT_THAT(status_or_int.value(), IsTrue())
       << "png_image_finish_read failed: " << image.mutable_data()->message;
   ASSERT_THAT(image.mutable_data()->version, Eq(PNG_IMAGE_VERSION))
@@ -76,8 +77,9 @@ TEST(SandboxTest, ReadWrite) {
       << "image format changed";
 
   status_or_int = api.png_image_write_to_file(
-      image.PtrBoth(), outfile_var.PtrBefore(), 0, buffer_.PtrBoth(), 0, &null);
-  ASSERT_THAT(status_or_int, IsOk()) << "png_image_write_to_file fatal error";
+      image.PtrBoth(), outfile_var.PtrBefore(), 0, buffer.PtrBoth(), 0, &null);
+  ASSERT_THAT(status_or_int, IsOk())
+      << "fatal error when invoking png_image_write_to_file";
   ASSERT_THAT(status_or_int.value(), IsTrue())
       << "png_image_finish_read failed: " << image.mutable_data()->message;
   ASSERT_THAT(image.mutable_data()->version, Eq(PNG_IMAGE_VERSION))
