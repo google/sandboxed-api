@@ -1,10 +1,10 @@
-# sapi-libtiff
+# Sandboxed LibTIFF
 Copyright 2020 Google LLC.
 
 ## Start use
 You should make sure the libtiff submodule is cloned.
 
-`git clone --recursive https://github.com/alexelex/sapi-libtiff`
+`git clone --recursive https://github.com/google/sandboxed-api`
 
 ## Usage
 
@@ -16,9 +16,13 @@ make -j8
 ```
 
 #### Example:
-You should add `-DTIFF_SAPI_ENABLE_EXAMPLES=ON` to use the example.\
-run: `./example/sandboxed /absolute/path/to/project/dir`
+You should add `-DTIFF_SAPI_ENABLE_EXAMPLES=ON` to use the example and run:
+```
+./example/sandboxed /absolute/path/to/input/image.tiff
+```
 
 #### Tests:
-You should add `-DTIFF_SAPI_ENABLE_TESTS=ON` to use tests.\
-run: `./test/tests`
+You should add `-DTIFF_SAPI_ENABLE_TESTS=ON` to use tests and run:
+```
+./test/tests
+```
