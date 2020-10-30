@@ -15,7 +15,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "../sandboxed.h"  // NOLINT(build/include)
+#include "../sandboxed.h"     // NOLINT(build/include)
 #include "../tests/libpng.h"  // NOLINT(build/include)
 
 struct Data {
@@ -65,10 +65,10 @@ absl::Status ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
 
   absl::StatusOr<png_structp> status_or_png_structp;
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
+  sapi::v::NullPtr null = sapi::v::NullPtr();
   SAPI_ASSIGN_OR_RETURN(
       status_or_png_structp,
-      api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(),
-                                         sapi::v::NullPtr().PtrBoth()));
+      api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(), &null));
 
   sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
   if (!struct_ptr.GetValue()) {
@@ -143,10 +143,10 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
 
   absl::StatusOr<png_structp> status_or_png_structp;
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
+  sapi::v::NullPtr null = sapi::v::NullPtr();
   SAPI_ASSIGN_OR_RETURN(
       status_or_png_structp,
-      api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(),
-                                          sapi::v::NullPtr().PtrBoth()));
+      api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(), &null));
 
   sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
   if (!struct_ptr.GetValue()) {
@@ -176,7 +176,6 @@ absl::Status WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   SAPI_RETURN_IF_ERROR(api.png_write_image_wrapper(
       &struct_ptr, d.row_pointers->PtrBefore(), d.height, d.rowbytes));
 
-  auto null = sapi::v::NullPtr();
   SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
   SAPI_RETURN_IF_ERROR(api.png_write_end(&struct_ptr, &null));
 
@@ -236,4 +235,3 @@ int main(int argc, const char** argv) {
 
   return EXIT_SUCCESS;
 }
-

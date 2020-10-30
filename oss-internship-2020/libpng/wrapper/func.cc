@@ -50,8 +50,3 @@ void png_write_image_wrapper(png_structrp png_ptr, png_bytep image,
   png_write_image(png_ptr, ptrs);
   free(ptrs);
 }
-
-void png_write_end_wrapper(png_structrp png_ptr) {
-  png_write_end(png_ptr, NULL);
-}
-

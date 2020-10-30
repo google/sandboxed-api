@@ -69,9 +69,9 @@ void ReadPng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   ASSERT_THAT(status_or_int.value(), Eq(0)) << infile << " is not a PNG file";
 
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
+  sapi::v::NullPtr null = sapi::v::NullPtr();
   absl::StatusOr<png_structp> status_or_png_structp =
-      api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(),
-                                         sapi::v::NullPtr().PtrBoth());
+      api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(), &null);
 
   ASSERT_THAT(status_or_png_structp, IsOk());
   sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
@@ -151,9 +151,9 @@ void WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
   ASSERT_THAT(file.GetValue(), NotNull()) << "Could not open " << outfile;
 
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
+  sapi::v::NullPtr null = sapi::v::NullPtr();
   absl::StatusOr<png_structp> status_or_png_structp =
-      api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(),
-                                          sapi::v::NullPtr().PtrBoth());
+      api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(), &null);
   ASSERT_THAT(status_or_png_structp, IsOk());
 
   sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
@@ -186,7 +186,6 @@ void WritePng(LibPNGApi& api, LibPNGSapiSandbox& sandbox,
                                   data.height, data.rowbytes),
       IsOk());
 
-  auto null = sapi::v::NullPtr();
   ASSERT_THAT(api.png_setjmp(&struct_ptr), IsOk());
   ASSERT_THAT(api.png_write_end(&struct_ptr, &null), IsOk());
 
@@ -245,4 +244,3 @@ TEST(SandboxTest, ReadModifyWrite) {
 }
 
 }  // namespace
-

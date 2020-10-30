@@ -14,7 +14,7 @@
 
 #include <string>
 
-#include "../sandboxed.h"  // NOLINT(build/include)
+#include "../sandboxed.h"     // NOLINT(build/include)
 #include "../tests/libpng.h"  // NOLINT(build/include)
 #include "sandboxed_api/vars.h"
 
@@ -51,19 +51,18 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   free(buffer);
   sapi::v::Array<uint8_t> buffer_(PNG_IMAGE_SIZE(*image.mutable_data()));
 
-  SAPI_ASSIGN_OR_RETURN(
-      result, api.png_image_finish_read(
-                  image.PtrBoth(), sapi::v::NullPtr().PtrBoth(),
-                  buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
+  sapi::v::NullPtr null = sapi::v::NullPtr();
+  SAPI_ASSIGN_OR_RETURN(result,
+                        api.png_image_finish_read(image.PtrBoth(), &null,
+                                                  buffer_.PtrBoth(), 0, &null));
   if (!result) {
     return absl::InternalError(
         absl::StrCat("finish read error: ", image.mutable_data()->message));
   }
 
-  SAPI_ASSIGN_OR_RETURN(
-      result, api.png_image_write_to_file(
-                  image.PtrBoth(), outfile_var.PtrBefore(), 0,
-                  buffer_.PtrBoth(), 0, sapi::v::NullPtr().PtrBoth()));
+  SAPI_ASSIGN_OR_RETURN(result, api.png_image_write_to_file(
+                                    image.PtrBoth(), outfile_var.PtrBefore(), 0,
+                                    buffer_.PtrBoth(), 0, &null));
   if (!result) {
     return absl::InternalError(
         absl::StrCat("write error: ", image.mutable_data()->message));
@@ -87,4 +86,3 @@ int main(int argc, const char** argv) {
 
   return EXIT_SUCCESS;
 }
-
