@@ -20,7 +20,6 @@
 std::string GetSourcePath() { return getenv("TEST_SRCDIR"); }
 
 std::string GetFilePath(absl::string_view filename) {
-  std::string src = GetSourcePath();
   return GetFilePath(GetSourcePath(), filename);
 }
 
