@@ -41,9 +41,9 @@ class CurlSapiSandbox : public curl::CurlSandbox {
         .AllowRead()
         .AllowSafeFcntl()
         .AllowWrite()
+        .AllowAccess()
         .AllowSyscalls({
             __NR_accept,
-            __NR_access,
             __NR_bind,
             __NR_connect,
             __NR_getpeername,

@@ -181,6 +181,12 @@ class PolicyBuilder final {
   // - ustat
   PolicyBuilder& AllowStat();
 
+  // Appends code to allow checking file permissions.
+  // Allows these syscalls:
+  // - access
+  // - faccessat
+  PolicyBuilder& AllowAccess();
+
   // Appends code to the policy to allow reading from file descriptors.
   // Allows these sycalls:
   // - read

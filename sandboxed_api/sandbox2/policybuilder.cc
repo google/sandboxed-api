@@ -269,6 +269,16 @@ PolicyBuilder& PolicyBuilder::AllowStat() {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::AllowAccess() {
+#ifdef __NR_access
+  AllowSyscall(__NR_access);
+#endif
+#ifdef __NR_faccessat
+  AllowSyscall(__NR_faccessat);
+#endif
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AllowRead() {
   return AllowSyscalls({
       __NR_read,
