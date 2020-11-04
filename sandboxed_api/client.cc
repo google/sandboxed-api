@@ -32,6 +32,7 @@
 #include "sandboxed_api/proto_arg.pb.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
+#include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/vars.h"
 
 #ifdef MEMORY_SANITIZER
@@ -450,6 +451,11 @@ extern "C" ABSL_ATTRIBUTE_WEAK int main(int argc, char** argv) {
 
   // Child thread.
   s2client.SandboxMeHere();
+
+  // Enable log forwarding if enabled by the sandboxer.
+  if (s2client.HasMappedFD(sandbox2::LogSink::kLogFDName)) {
+    s2client.SendLogsToSupervisor();
+  }
 
   // Run SAPI stub.
   while (true) {

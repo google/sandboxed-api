@@ -168,6 +168,7 @@ target_link_libraries(sapi_client PRIVATE
   sandbox2::client
   sandbox2::comms
   sandbox2::forkingclient
+  sandbox2::logsink
   sapi::base
   sapi::call
   sapi::flags
