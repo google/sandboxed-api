@@ -328,6 +328,7 @@ add_library(sandbox2_client STATIC
 add_library(sandbox2::client ALIAS sandbox2_client)
 target_link_libraries(sandbox2_client
   PRIVATE absl::core_headers
+          absl::flat_hash_map
           absl::memory
           absl::strings
           sandbox2::logsink

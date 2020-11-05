@@ -19,10 +19,10 @@
 #define SANDBOXED_API_SANDBOX2_CLIENT_H_
 
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <string>
 
+#include "absl/container/flat_hash_map.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
@@ -87,7 +87,7 @@ class Client {
   // In the pre-execve case, the sandboxee has to pass the information about
   // file descriptors to the new process. We set an environment variable for
   // this case that is parsed in the Client constructor if present.
-  std::map<std::string, int> fd_map_;
+  absl::flat_hash_map<std::string, int> fd_map_;
 
   std::string GetFdMapEnvVar() const;
 

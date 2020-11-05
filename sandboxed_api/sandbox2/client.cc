@@ -46,22 +46,18 @@
 
 namespace sandbox2 {
 
-constexpr uint32_t Client::kClient2SandboxReady;
-constexpr uint32_t Client::kSandbox2ClientDone;
-constexpr const char* Client::kFDMapEnvVar;
-
 Client::Client(Comms* comms) : comms_(comms) {
   char* fdmap_envvar = getenv(kFDMapEnvVar);
   if (!fdmap_envvar) {
     return;
   }
-  std::map<absl::string_view, absl::string_view> vars =
+  absl::flat_hash_map<absl::string_view, absl::string_view> vars =
       absl::StrSplit(fdmap_envvar, ',', absl::SkipEmpty());
-  for (const auto& var : vars) {
+  for (const auto& [name, mapped_fd] : vars) {
     int fd;
-    SAPI_RAW_CHECK(absl::SimpleAtoi(var.second, &fd), "failed to parse fd map");
-    SAPI_RAW_CHECK(fd_map_.emplace(std::string{var.first}, fd).second,
-                   "could not insert mapping into fd map  (duplicate)");
+    SAPI_RAW_CHECK(absl::SimpleAtoi(mapped_fd, &fd), "failed to parse fd map");
+    SAPI_RAW_CHECK(fd_map_.emplace(std::string(name), fd).second,
+                   "could not insert mapping into fd map (duplicate)");
   }
   unsetenv(kFDMapEnvVar);
 }

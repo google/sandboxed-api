@@ -343,6 +343,7 @@ cc_library(
         "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
     ],
