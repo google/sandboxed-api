@@ -169,10 +169,7 @@ void Client::SetUpIPC() {
 void Client::ReceivePolicy() {
   std::vector<uint8_t> bytes;
   SAPI_RAW_CHECK(comms_->RecvBytes(&bytes), "receive bytes");
-  policy_len_ = bytes.size();
-
-  policy_ = absl::make_unique<uint8_t[]>(policy_len_);
-  memcpy(policy_.get(), bytes.data(), policy_len_);
+  policy_ = std::move(bytes);
 }
 
 void Client::ApplyPolicyAndBecomeTracee() {
@@ -201,12 +198,12 @@ void Client::ApplyPolicyAndBecomeTracee() {
                  "setting PR_SET_KEEPCAPS flag");
 
   sock_fprog prog;
-  prog.len = static_cast<uint16_t>(policy_len_ / sizeof(sock_filter));
-  prog.filter = reinterpret_cast<sock_filter*>(policy_.get());
+  prog.len = static_cast<uint16_t>(policy_.size() / sizeof(sock_filter));
+  prog.filter = reinterpret_cast<sock_filter*>(&policy_.front());
 
   SAPI_RAW_VLOG(
       1, "Applying policy in PID %d, sock_fprog.len: %hd entries (%d bytes)",
-      syscall(__NR_gettid), prog.len, policy_len_);
+      syscall(__NR_gettid), prog.len, policy_.size());
 
   // Signal executor we are ready to have limits applied on us and be ptraced.
   // We want limits at the last moment to avoid triggering them too early and we

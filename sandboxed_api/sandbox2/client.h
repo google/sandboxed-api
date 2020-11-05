@@ -72,10 +72,7 @@ class Client {
   friend class ForkServer;
 
   // Seccomp-bpf policy received from the monitor.
-  std::unique_ptr<uint8_t[]> policy_;
-
-  // Length of the policy received from the monitor.
-  int policy_len_;
+  std::vector<uint8_t> policy_;
 
   // LogSink that forwards all log messages to the supervisor.
   std::unique_ptr<LogSink> logsink_;
