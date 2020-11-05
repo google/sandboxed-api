@@ -59,7 +59,7 @@ pid_t TestSingleRequest(Mode mode, int exec_fd, int userns_fd) {
   fork_req.add_envs("FOO=1");
 
   pid_t pid =
-      GetGlobalForkClient()->SendRequest(fork_req, exec_fd, sv[0], userns_fd);
+      GlobalForkClient::SendRequest(fork_req, exec_fd, sv[0], userns_fd);
   if (pid != -1) {
     VLOG(1) << "TestSingleRequest: Waiting for pid=" << pid;
     waitpid(pid, nullptr, 0);

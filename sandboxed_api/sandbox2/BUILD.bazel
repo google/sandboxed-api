@@ -220,16 +220,34 @@ cc_library(
     srcs = ["global_forkclient.cc"],
     hdrs = ["global_forkclient.h"],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         ":comms",
         ":fork_client",
         ":forkserver_bin_embed",
-        ":sanitizer",
+        ":forkserver_cc_proto",
+        ":util",
         "//sandboxed_api:embed_file",
+        "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:flags",
         "//sandboxed_api/util:raw_logging",
-        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
+        "@com_google_glog//:glog",
+    ],
+)
+
+# Use only if Sandbox2 global forkserver has to be started very early on.
+# By default the forkserver is started on demand.
+cc_library(
+    name = "start_global_forkserver_lib_constructor",
+    srcs = ["global_forkclient_lib_ctor.cc"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":global_forkserver",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 

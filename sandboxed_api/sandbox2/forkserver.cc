@@ -453,12 +453,6 @@ pid_t ForkServer::ServeRequest() {
 }
 
 bool ForkServer::Initialize() {
-  // If the parent goes down, so should we.
-  if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0) {
-    SAPI_RAW_PLOG(ERROR, "prctl(PR_SET_PDEATHSIG, SIGKILL)");
-    return false;
-  }
-
   // All processes spawned by the fork'd/execute'd process will see this process
   // as /sbin/init. Therefore it will receive (and ignore) their final status
   // (see the next comment as well). PR_SET_CHILD_SUBREAPER is available since

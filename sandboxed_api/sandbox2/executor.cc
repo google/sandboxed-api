@@ -46,14 +46,13 @@ Executor::Executor(int exec_fd, const std::string& path,
       exec_fd_(exec_fd),
       path_(path),
       argv_(argv),
-      envp_(envp) {
-  if (fork_client != nullptr) {
+      envp_(envp),
+      fork_client_(fork_client) {
+  if (fork_client_ != nullptr) {
     CHECK(exec_fd == -1 && path.empty());
-    fork_client_ = fork_client;
   } else {
     CHECK((exec_fd == -1 && (!path.empty() || libunwind_sbox_for_pid > 0)) ||
           (exec_fd >= 0 && path.empty()));
-    fork_client_ = GetGlobalForkClient();
   }
   SetUpServerSideCommsFd();
   SetDefaultCwd();
@@ -76,10 +75,6 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
                                 pid_t* init_pid_out) {
   if (started_) {
     LOG(ERROR) << "This executor has already been started";
-    return -1;
-  }
-  if (fork_client_ == nullptr) {
-    LOG(ERROR) << "The ForkClient object is not instantiated";
     return -1;
   }
 
@@ -155,8 +150,14 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
 
   pid_t init_pid = -1;
 
-  pid_t sandboxee_pid = fork_client_->SendRequest(
-      request, exec_fd_, client_comms_fd_, ns_fd, &init_pid);
+  pid_t sandboxee_pid;
+  if (fork_client_) {
+    sandboxee_pid = fork_client_->SendRequest(
+        request, exec_fd_, client_comms_fd_, ns_fd, &init_pid);
+  } else {
+    sandboxee_pid = GlobalForkClient::SendRequest(
+        request, exec_fd_, client_comms_fd_, ns_fd, &init_pid);
+  }
 
   if (init_pid < 0) {
     LOG(ERROR) << "Could not obtain init PID";
@@ -191,10 +192,11 @@ std::unique_ptr<ForkClient> Executor::StartForkServer() {
   // This flag is set explicitly to 'true' during object instantiation, and
   // custom fork-servers should never be sandboxed.
   set_enable_sandbox_before_exec(false);
-  if (StartSubProcess(0) == -1) {
+  pid_t pid = StartSubProcess(0);
+  if (pid == -1) {
     return nullptr;
   }
-  return absl::make_unique<ForkClient>(ipc_.comms());
+  return absl::make_unique<ForkClient>(pid, ipc_.comms());
 }
 
 void Executor::SetUpServerSideCommsFd() {

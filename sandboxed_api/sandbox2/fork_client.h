@@ -30,8 +30,7 @@ class ForkRequest;
 
 class ForkClient {
  public:
-  explicit ForkClient(Comms* comms) : comms_(comms) {}
-
+  ForkClient(pid_t pid, Comms* comms) : pid_(pid), comms_(comms) {}
   ForkClient(const ForkClient&) = delete;
   ForkClient& operator=(const ForkClient&) = delete;
 
@@ -39,7 +38,11 @@ class ForkClient {
   pid_t SendRequest(const ForkRequest& request, int exec_fd, int comms_fd,
                     int user_ns_fd = -1, pid_t* init_pid = nullptr);
 
+  pid_t pid() { return pid_; }
+
  private:
+  // Pid of the ForkServer.
+  pid_t pid_;
   // Comms channel connecting with the ForkServer. Not owned by the object.
   Comms* comms_ ABSL_GUARDED_BY(comms_mutex_);
   // Mutex locking transactions (requests) over the Comms channel.

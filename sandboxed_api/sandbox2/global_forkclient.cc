@@ -25,92 +25,99 @@
 #include <csignal>
 #include <cstdlib>
 
-#include "absl/base/attributes.h"
-#include "absl/strings/str_cat.h"
+#include <glog/logging.h>
+#include "sandboxed_api/util/flag.h"
+#include "absl/memory/memory.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
-#include "sandboxed_api/sandbox2/sanitizer.h"
+#include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
 
+ABSL_FLAG(bool, sandbox2_start_forkserver, true,
+          "Start Sandbox2 Forkserver process");
+
 namespace sandbox2 {
 
-// Global ForkClient object linking with the global ForkServer.
-static ForkClient* global_fork_client = nullptr;
-static pid_t global_fork_server_pid = -1;
+namespace {
 
-ForkClient* GetGlobalForkClient() {
-  SAPI_RAW_CHECK(global_fork_client != nullptr,
-                 "global fork client not initialized");
-  return global_fork_client;
-}
-
-pid_t GetGlobalForkServerPid() { return global_fork_server_pid; }
-
-static void StartGlobalForkServer() {
-  SAPI_RAW_CHECK(global_fork_client == nullptr,
-                 "global fork server already initialized");
+std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
   if (getenv(kForkServerDisableEnv)) {
     SAPI_RAW_VLOG(1,
                   "Start of the Global Fork-Server prevented by the '%s' "
                   "environment variable present",
                   kForkServerDisableEnv);
-    return;
+    return {};
   }
 
-  sanitizer::WaitForTsan();
-
-  // We should be really single-threaded now, as it's the point of the whole
-  // exercise.
-  int num_threads = sanitizer::GetNumberOfThreads(getpid());
-  if (num_threads != 1) {
-    SAPI_RAW_LOG(ERROR,
-                 "BADNESS MAY HAPPEN. ForkServer::Init() created in a "
-                 "multi-threaded context, %d threads present",
-                 num_threads);
+  if (!absl::GetFlag(FLAGS_sandbox2_start_forkserver)) {
+    SAPI_RAW_VLOG(
+        1, "Start of the Global Fork-Server prevented by commandline flag");
+    return {};
   }
+
+  file_util::fileops::FDCloser exec_fd(
+      sapi::EmbedFile::GetEmbedFileSingleton()->GetFdForFileToc(
+          forkserver_bin_embed_create()));
+  SAPI_RAW_CHECK(exec_fd.get() >= 0, "Getting FD for init binary failed");
+
+  std::string proc_name = "S2-FORK-SERV";
 
   int sv[2];
   SAPI_RAW_CHECK(socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) != -1,
                  "creating socket pair");
 
   // Fork the fork-server, and clean-up the resources (close remote sockets).
-  pid_t pid;
-  {
-    pid = fork();
-  }
+  pid_t pid = util::ForkWithFlags(SIGCHLD);
   SAPI_RAW_PCHECK(pid != -1, "during fork");
 
-  // Parent.
-  if (pid > 0) {
-    close(sv[0]);
-    global_fork_client = new ForkClient{new Comms{sv[1]}};
-    global_fork_server_pid = pid;
-    return;
+  // Child.
+  if (pid == 0) {
+    // Move the comms FD to the proper, expected FD number.
+    // The new FD will not be CLOEXEC, which is what we want.
+    dup2(sv[0], Comms::kSandbox2ClientCommsFD);
+
+    char* const args[] = {proc_name.data(), nullptr};
+    char* const envp[] = {nullptr};
+    syscall(__NR_execveat, exec_fd.get(), "", args, envp, AT_EMPTY_PATH);
+    SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
+    abort();
   }
 
-  // Move the comms FD to the proper, expected FD number.
-  // The new FD will not be CLOEXEC, which is what we want.
-  dup2(sv[0], Comms::kSandbox2ClientCommsFD);
-
-  int exec_fd = sapi::EmbedFile::GetEmbedFileSingleton()->GetFdForFileToc(
-      forkserver_bin_embed_create());
-  SAPI_RAW_CHECK(exec_fd >= 0, "Getting FD for init binary failed");
-
-  char* const args[] = {strdup("S2-FORK-SERV"), nullptr};
-  char* const envp[] = {nullptr};
-  syscall(__NR_execveat, exec_fd, "", args, envp, AT_EMPTY_PATH);
-  SAPI_RAW_PCHECK(false, "Could not launch forkserver binary");
+  close(sv[0]);
+  return absl::make_unique<GlobalForkClient>(sv[1], pid);
 }
 
+GlobalForkClient* GetGlobalForkClient() {
+  static GlobalForkClient* global_fork_client =
+      StartGlobalForkServer().release();
+  return global_fork_client;
+}
+
+}  // namespace
+
+void GlobalForkClient::EnsureStarted() { GetGlobalForkClient(); }
+
+pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
+                                    int comms_fd, int user_ns_fd,
+                                    pid_t* init_pid) {
+  GlobalForkClient* global_fork_client = GetGlobalForkClient();
+  SAPI_RAW_CHECK(global_fork_client != nullptr,
+                 "global fork client not initialized");
+  pid_t pid = global_fork_client->fork_client_.SendRequest(
+      request, exec_fd, comms_fd, user_ns_fd, init_pid);
+  if (global_fork_client->comms_.IsTerminated()) {
+    LOG(ERROR) << "Global forkserver connection terminated";
+  }
+  return pid;
+}
+
+pid_t GlobalForkClient::GetPid() {
+  GlobalForkClient* global_fork_client = GetGlobalForkClient();
+  SAPI_RAW_CHECK(global_fork_client != nullptr,
+                 "global fork client not initialized");
+  return global_fork_client->fork_client_.pid();
+}
 }  // namespace sandbox2
-
-// Run the ForkServer from the constructor, when no other threads are present.
-// Because it's possible to start thread-inducing initializers before
-// RunInitializers() (base/googleinit.h) it's not enough to just register
-// a 0000_<name> initializer instead.
-ABSL_ATTRIBUTE_UNUSED
-__attribute__((constructor)) static void StartSandbox2Forkserver() {
-  sandbox2::StartGlobalForkServer();
-}

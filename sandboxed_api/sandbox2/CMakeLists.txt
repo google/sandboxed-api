@@ -228,18 +228,36 @@ add_library(sandbox2_global_forkserver STATIC
   global_forkclient.h
 )
 add_library(sandbox2::global_forkserver ALIAS sandbox2_global_forkserver)
-target_link_libraries(sandbox2_global_forkserver PRIVATE
+target_link_libraries(sandbox2_global_forkserver
+  PRIVATE absl::memory
+          absl::strings
+          glog::glog
+          sandbox2::client
+          sandbox2::fileops
+          sandbox2::forkserver_bin_embed
+          sandbox2::strerror
+          sandbox2::util
+          sapi::base
+          sapi::embed_file
+          sapi::flags
+          sapi::raw_logging
+  PUBLIC sandbox2::comms
+         sandbox2::fork_client
+         sandbox2::forkserver_proto
+)
+
+# sandboxed_api/sandbox2:start_global_forkserver_lib_constructor
+# Use only if Sandbox2 global forkserver has to be started very early on.
+# By default the forkserver is started on demand.
+add_library(sandbox2_start_global_forkserver_lib_constructor STATIC
+  global_forkclient_lib_ctor.cc
+)
+add_library(sandbox2::start_global_forkserver_lib_constructor ALIAS
+  sandbox2_start_global_forkserver_lib_constructor)
+target_link_libraries(sandbox2_start_global_forkserver_lib_constructor PRIVATE
   absl::core_headers
-  absl::strings
-  sandbox2::client
-  sandbox2::comms
-  sandbox2::fork_client
-  sandbox2::forkserver_bin_embed
-  sandbox2::sanitizer
-  sandbox2::strerror
   sapi::base
-  sapi::embed_file
-  sapi::raw_logging
+  sandbox2::global_forkserver
 )
 
 # sandboxed_api/sandbox2:executor

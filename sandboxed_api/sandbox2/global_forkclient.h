@@ -20,14 +20,28 @@
 
 #include <sys/types.h>
 
+#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/forkserver.pb.h"
 
 namespace sandbox2 {
 
-ForkClient* GetGlobalForkClient();
+class GlobalForkClient {
+ public:
+  GlobalForkClient(int fd, pid_t pid)
+      : comms_(fd), fork_client_(pid, &comms_) {}
 
-// Returns the fork server PID. Used in tests.
-pid_t GetGlobalForkServerPid();
+  static pid_t SendRequest(const ForkRequest& request, int exec_fd,
+                           int comms_fd, int user_ns_fd = -1,
+                           pid_t* init_pid = nullptr);
+  static pid_t GetPid();
+
+  static void EnsureStarted();
+
+ private:
+  Comms comms_;
+  ForkClient fork_client_;
+};
 
 }  // namespace sandbox2
 
