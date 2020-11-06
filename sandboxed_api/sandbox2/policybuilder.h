@@ -141,13 +141,8 @@ class PolicyBuilder final {
   // all binaries.
   PolicyBuilder& AllowLlvmSanitizers();
 
-  // Appends code to allow mmap. Specifically this allows the mmap2 syscall on
-  // architectures where this syscalls exist and the mmap syscall on all other
-  // architectures.
-  //
-  // Note: while this function allows the calls, the default policy is run first
-  // and it has checks for dangerous flags which can create a violation. See
-  // sandbox2/policy.cc for more details.
+  // Appends code to allow mmap. Specifically this allows mmap and mmap2 syscall
+  // on architectures where this syscalls exist.
   PolicyBuilder& AllowMmap();
 
   // Appends code to allow calling futex with the given operation.
@@ -385,13 +380,15 @@ class PolicyBuilder final {
   // This policy may use labels.
   PolicyBuilder& AddPolicyOnSyscalls(SyscallInitializer nums, BpfFunc f);
 
-  // Equivalent to AddPolicyOnSyscall(mmap_syscall_no, policy), where
-  // mmap_syscall_no is either __NR_mmap or __NR_mmap2.
+  // Equivalent to AddPolicyOnSyscalls(mmap_syscalls, policy), where
+  // mmap_syscalls is a subset of {__NR_mmap, __NR_mmap2}, which exists on the
+  // target architecture.
   PolicyBuilder& AddPolicyOnMmap(BpfInitializer policy);
   PolicyBuilder& AddPolicyOnMmap(const std::vector<sock_filter>& policy);
 
-  // Equivalent to AddPolicyOnSyscall(mmap_syscall_no, f), where
-  // mmap_syscall_no is either __NR_mmap or __NR_mmap2.
+  // Equivalent to AddPolicyOnSyscalls(mmap_syscalls, f), where mmap_syscalls is
+  // a subset of {__NR_mmap, __NR_mmap2}, which exists on the target
+  // architecture.
   PolicyBuilder& AddPolicyOnMmap(BpfFunc f);
 
   // Builds the policy returning a unique_ptr to it. This should only be called

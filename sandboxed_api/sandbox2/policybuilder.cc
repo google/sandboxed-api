@@ -46,6 +46,15 @@
 namespace sandbox2 {
 namespace {
 
+constexpr PolicyBuilder::SyscallInitializer kMmapSyscalls = {
+#ifdef __NR_mmap2
+    __NR_mmap2,
+#endif
+#ifdef __NR_mmap
+    __NR_mmap,
+#endif
+};
+
 }  // namespace
 
 PolicyBuilder& PolicyBuilder::AllowSyscall(unsigned int num) {
@@ -204,13 +213,7 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowMmap() {
-  // Consistently with policy.cc, when mmap2 exists then mmap is denied (not
-  // allowed).
-#ifdef __NR_mmap2
-  return AllowSyscall(__NR_mmap2);
-#else
-  return AllowSyscall(__NR_mmap);
-#endif
+  return AllowSyscalls(kMmapSyscalls);
 }
 
 PolicyBuilder& PolicyBuilder::AllowOpen() {
@@ -648,28 +651,16 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(SyscallInitializer nums,
 }
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(BpfInitializer policy) {
-#ifdef __NR_mmap2
-  return AddPolicyOnSyscall(__NR_mmap2, policy);
-#else
-  return AddPolicyOnSyscall(__NR_mmap, policy);
-#endif
+  return AddPolicyOnSyscalls(kMmapSyscalls, policy);
 }
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(
     const std::vector<sock_filter>& policy) {
-#ifdef __NR_mmap2
-  return AddPolicyOnSyscall(__NR_mmap2, policy);
-#else
-  return AddPolicyOnSyscall(__NR_mmap, policy);
-#endif
+  return AddPolicyOnSyscalls(kMmapSyscalls, policy);
 }
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(BpfFunc f) {
-#ifdef __NR_mmap2
-  return AddPolicyOnSyscall(__NR_mmap2, f);
-#else
-  return AddPolicyOnSyscall(__NR_mmap, f);
-#endif
+  return AddPolicyOnSyscalls(kMmapSyscalls, f);
 }
 
 PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
