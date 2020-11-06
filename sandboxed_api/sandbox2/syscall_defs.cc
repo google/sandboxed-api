@@ -130,335 +130,346 @@ std::vector<std::string> SyscallTable::GetArgumentsDescription(
   SYSCALLS_UNUSED00_49(prefix), SYSCALLS_UNUSED50_99(prefix)
 
 // Syscall description table for Linux x86_64
-constexpr SyscallTable::Entry kSyscallDataX8664[] = {
-    MakeEntry("read", kInt, kHex, kInt),                                 // 0
-    MakeEntry("write", kInt, kHex, kInt),                                // 1
-    MakeEntry("open", kPath, kHex, kOct),                                // 2
-    MakeEntry("close", kInt),                                            // 3
-    MakeEntry("stat", kPath, kGen),                                      // 4
-    MakeEntry("fstat", kInt, kHex),                                      // 5
-    MakeEntry("lstat", kPath, kGen),                                     // 6
-    MakeEntry("poll", UnknownArguments()),                               // 7
-    MakeEntry("lseek", UnknownArguments()),                              // 8
-    MakeEntry("mmap", kHex, kInt, kHex, kHex, kInt, kInt),               // 9
-    MakeEntry("mprotect", kHex, kHex, kHex),                             // 10
-    MakeEntry("munmap", kHex, kHex),                                     // 11
-    MakeEntry("brk", kHex),                                              // 12
-    MakeEntry("rt_sigaction", kSignal, kHex, kHex, kInt),                // 13
-    MakeEntry("rt_sigprocmask", UnknownArguments()),                     // 14
-    MakeEntry("rt_sigreturn"),                                           // 15
-    MakeEntry("ioctl", UnknownArguments()),                              // 16
-    MakeEntry("pread64", UnknownArguments()),                            // 17
-    MakeEntry("pwrite64", UnknownArguments()),                           // 18
-    MakeEntry("readv", UnknownArguments()),                              // 19
-    MakeEntry("writev", UnknownArguments()),                             // 20
-    MakeEntry("access", kPath, kHex),                                    // 21
-    MakeEntry("pipe", UnknownArguments()),                               // 22
-    MakeEntry("select", UnknownArguments()),                             // 23
-    MakeEntry("sched_yield", UnknownArguments()),                        // 24
-    MakeEntry("mremap", UnknownArguments()),                             // 25
-    MakeEntry("msync", UnknownArguments()),                              // 26
-    MakeEntry("mincore", UnknownArguments()),                            // 27
-    MakeEntry("madvise", UnknownArguments()),                            // 28
-    MakeEntry("shmget", UnknownArguments()),                             // 29
-    MakeEntry("shmat", UnknownArguments()),                              // 30
-    MakeEntry("shmctl", UnknownArguments()),                             // 31
-    MakeEntry("dup", UnknownArguments()),                                // 32
-    MakeEntry("dup2", kGen, kGen),                                       // 33
-    MakeEntry("pause"),                                                  // 34
-    MakeEntry("nanosleep", kHex, kHex),                                  // 35
-    MakeEntry("getitimer", UnknownArguments()),                          // 36
-    MakeEntry("alarm", kInt),                                            // 37
-    MakeEntry("setitimer", UnknownArguments()),                          // 38
-    MakeEntry("getpid"),                                                 // 39
-    MakeEntry("sendfile", UnknownArguments()),                           // 40
-    MakeEntry("socket", kAddressFamily, kInt, kInt),                     // 41
-    MakeEntry("connect", kInt, kSockaddr, kInt),                         // 42
-    MakeEntry("accept", UnknownArguments()),                             // 43
-    MakeEntry("sendto", kInt, kGen, kInt, kHex, kSockaddr, kInt),        // 44
-    MakeEntry("recvfrom", UnknownArguments()),                           // 45
-    MakeEntry("sendmsg", kInt, kSockmsghdr, kHex),                       // 46
-    MakeEntry("recvmsg", UnknownArguments()),                            // 47
-    MakeEntry("shutdown", UnknownArguments()),                           // 48
-    MakeEntry("bind", UnknownArguments()),                               // 49
-    MakeEntry("listen", UnknownArguments()),                             // 50
-    MakeEntry("getsockname", UnknownArguments()),                        // 51
-    MakeEntry("getpeername", UnknownArguments()),                        // 52
-    MakeEntry("socketpair", UnknownArguments()),                         // 53
-    MakeEntry("setsockopt", UnknownArguments()),                         // 54
-    MakeEntry("getsockopt", UnknownArguments()),                         // 55
-    MakeEntry("clone", kCloneFlag, kHex, kHex, kHex, kHex),              // 56
-    MakeEntry("fork"),                                                   // 57
-    MakeEntry("vfork"),                                                  // 58
-    MakeEntry("execve", kPath, kHex, kHex),                              // 59
-    MakeEntry("exit", kInt),                                             // 60
-    MakeEntry("wait4", kInt, kHex, kHex, kHex),                          // 61
-    MakeEntry("kill", kInt, kSignal),                                    // 62
-    MakeEntry("uname", UnknownArguments()),                              // 63
-    MakeEntry("semget", UnknownArguments()),                             // 64
-    MakeEntry("semop", UnknownArguments()),                              // 65
-    MakeEntry("semctl", UnknownArguments()),                             // 66
-    MakeEntry("shmdt", UnknownArguments()),                              // 67
-    MakeEntry("msgget", UnknownArguments()),                             // 68
-    MakeEntry("msgsnd", UnknownArguments()),                             // 69
-    MakeEntry("msgrcv", UnknownArguments()),                             // 70
-    MakeEntry("msgctl", UnknownArguments()),                             // 71
-    MakeEntry("fcntl", UnknownArguments()),                              // 72
-    MakeEntry("flock", UnknownArguments()),                              // 73
-    MakeEntry("fsync", UnknownArguments()),                              // 74
-    MakeEntry("fdatasync", UnknownArguments()),                          // 75
-    MakeEntry("truncate", kPath, kInt),                                  // 76
-    MakeEntry("ftruncate", UnknownArguments()),                          // 77
-    MakeEntry("getdents", UnknownArguments()),                           // 78
-    MakeEntry("getcwd", UnknownArguments()),                             // 79
-    MakeEntry("chdir", kPath),                                           // 80
-    MakeEntry("fchdir", UnknownArguments()),                             // 81
-    MakeEntry("rename", kPath, kPath),                                   // 82
-    MakeEntry("mkdir", kPath, kOct),                                     // 83
-    MakeEntry("rmdir", kPath),                                           // 84
-    MakeEntry("creat", kPath, kOct),                                     // 85
-    MakeEntry("link", kPath, kPath),                                     // 86
-    MakeEntry("unlink", kPath),                                          // 87
-    MakeEntry("symlink", kPath, kPath),                                  // 88
-    MakeEntry("readlink", kPath, kGen, kInt),                            // 89
-    MakeEntry("chmod", kPath, kOct),                                     // 90
-    MakeEntry("fchmod", UnknownArguments()),                             // 91
-    MakeEntry("chown", kPath, kInt, kInt),                               // 92
-    MakeEntry("fchown", UnknownArguments()),                             // 93
-    MakeEntry("lchown", kPath, kInt, kInt),                              // 94
-    MakeEntry("umask", kHex),                                            // 95
-    MakeEntry("gettimeofday", kHex, kHex),                               // 96
-    MakeEntry("getrlimit", UnknownArguments()),                          // 97
-    MakeEntry("getrusage", UnknownArguments()),                          // 98
-    MakeEntry("sysinfo", UnknownArguments()),                            // 99
-    MakeEntry("times", UnknownArguments()),                              // 100
-    MakeEntry("ptrace", kGen, kGen, kGen),                               // 101
-    MakeEntry("getuid", UnknownArguments()),                             // 102
-    MakeEntry("syslog", UnknownArguments()),                             // 103
-    MakeEntry("getgid", UnknownArguments()),                             // 104
-    MakeEntry("setuid", UnknownArguments()),                             // 105
-    MakeEntry("setgid", UnknownArguments()),                             // 106
-    MakeEntry("geteuid", UnknownArguments()),                            // 107
-    MakeEntry("getegid", UnknownArguments()),                            // 108
-    MakeEntry("setpgid", UnknownArguments()),                            // 109
-    MakeEntry("getppid", UnknownArguments()),                            // 110
-    MakeEntry("getpgrp", UnknownArguments()),                            // 111
-    MakeEntry("setsid", UnknownArguments()),                             // 112
-    MakeEntry("setreuid", UnknownArguments()),                           // 113
-    MakeEntry("setregid", UnknownArguments()),                           // 114
-    MakeEntry("getgroups", UnknownArguments()),                          // 115
-    MakeEntry("setgroups", UnknownArguments()),                          // 116
-    MakeEntry("setresuid", UnknownArguments()),                          // 117
-    MakeEntry("getresuid", UnknownArguments()),                          // 118
-    MakeEntry("setresgid", UnknownArguments()),                          // 119
-    MakeEntry("getresgid", UnknownArguments()),                          // 120
-    MakeEntry("getpgid", UnknownArguments()),                            // 121
-    MakeEntry("setfsuid", UnknownArguments()),                           // 122
-    MakeEntry("setfsgid", UnknownArguments()),                           // 123
-    MakeEntry("getsid", UnknownArguments()),                             // 124
-    MakeEntry("capget", UnknownArguments()),                             // 125
-    MakeEntry("capset", UnknownArguments()),                             // 126
-    MakeEntry("rt_sigpending", UnknownArguments()),                      // 127
-    MakeEntry("rt_sigtimedwait", UnknownArguments()),                    // 128
-    MakeEntry("rt_sigqueueinfo", UnknownArguments()),                    // 129
-    MakeEntry("rt_sigsuspend", UnknownArguments()),                      // 130
-    MakeEntry("sigaltstack", UnknownArguments()),                        // 131
-    MakeEntry("utime", UnknownArguments()),                              // 132
-    MakeEntry("mknod", kPath, kOct, kHex),                               // 133
-    MakeEntry("uselib", kPath),                                          // 134
-    MakeEntry("personality", UnknownArguments()),                        // 135
-    MakeEntry("ustat", UnknownArguments()),                              // 136
-    MakeEntry("statfs", UnknownArguments()),                             // 137
-    MakeEntry("fstatfs", UnknownArguments()),                            // 138
-    MakeEntry("sysfs", UnknownArguments()),                              // 139
-    MakeEntry("getpriority", UnknownArguments()),                        // 140
-    MakeEntry("setpriority", UnknownArguments()),                        // 141
-    MakeEntry("sched_setparam", UnknownArguments()),                     // 142
-    MakeEntry("sched_getparam", UnknownArguments()),                     // 143
-    MakeEntry("sched_setscheduler", UnknownArguments()),                 // 144
-    MakeEntry("sched_getscheduler", UnknownArguments()),                 // 145
-    MakeEntry("sched_get_priority_max", UnknownArguments()),             // 146
-    MakeEntry("sched_get_priority_min", UnknownArguments()),             // 147
-    MakeEntry("sched_rr_get_interval", UnknownArguments()),              // 148
-    MakeEntry("mlock", UnknownArguments()),                              // 149
-    MakeEntry("munlock", UnknownArguments()),                            // 150
-    MakeEntry("mlockall", UnknownArguments()),                           // 151
-    MakeEntry("munlockall", UnknownArguments()),                         // 152
-    MakeEntry("vhangup", UnknownArguments()),                            // 153
-    MakeEntry("modify_ldt", UnknownArguments()),                         // 154
-    MakeEntry("pivot_root", kPath, kPath),                               // 155
-    MakeEntry("_sysctl", UnknownArguments()),                            // 156
-    MakeEntry("prctl", kInt, kHex, kHex, kHex, kHex),                    // 157
-    MakeEntry("arch_prctl", kInt, kHex),                                 // 158
-    MakeEntry("adjtimex", UnknownArguments()),                           // 159
-    MakeEntry("setrlimit", UnknownArguments()),                          // 160
-    MakeEntry("chroot", kPath),                                          // 161
-    MakeEntry("sync", UnknownArguments()),                               // 162
-    MakeEntry("acct", kPath),                                            // 163
-    MakeEntry("settimeofday", kHex, kHex),                               // 164
-    MakeEntry("mount", kPath, kPath, kString, kHex, kGen),               // 165
-    MakeEntry("umount2", kPath, kHex),                                   // 166
-    MakeEntry("swapon", kPath, kHex),                                    // 167
-    MakeEntry("swapoff", kPath),                                         // 168
-    MakeEntry("reboot", UnknownArguments()),                             // 169
-    MakeEntry("sethostname", UnknownArguments()),                        // 170
-    MakeEntry("setdomainname", UnknownArguments()),                      // 171
-    MakeEntry("iopl", UnknownArguments()),                               // 172
-    MakeEntry("ioperm", UnknownArguments()),                             // 173
-    MakeEntry("create_module", UnknownArguments()),                      // 174
-    MakeEntry("init_module", UnknownArguments()),                        // 175
-    MakeEntry("delete_module", UnknownArguments()),                      // 176
-    MakeEntry("get_kernel_syms", UnknownArguments()),                    // 177
-    MakeEntry("query_module", UnknownArguments()),                       // 178
-    MakeEntry("quotactl", kInt, kPath, kInt),                            // 179
-    MakeEntry("nfsservctl", UnknownArguments()),                         // 180
-    MakeEntry("getpmsg", UnknownArguments()),                            // 181
-    MakeEntry("putpmsg", UnknownArguments()),                            // 182
-    MakeEntry("afs_syscall", UnknownArguments()),                        // 183
-    MakeEntry("tuxcall", UnknownArguments()),                            // 184
-    MakeEntry("security", UnknownArguments()),                           // 185
-    MakeEntry("gettid"),                                                 // 186
-    MakeEntry("readahead", UnknownArguments()),                          // 187
-    MakeEntry("setxattr", kPath, kString, kGen, kInt, kHex),             // 188
-    MakeEntry("lsetxattr", kPath, kString, kGen, kInt, kHex),            // 189
-    MakeEntry("fsetxattr", UnknownArguments()),                          // 190
-    MakeEntry("getxattr", kPath, kString, kGen, kInt),                   // 191
-    MakeEntry("lgetxattr", kPath, kString, kGen, kInt),                  // 192
-    MakeEntry("fgetxattr", UnknownArguments()),                          // 193
-    MakeEntry("listxattr", kPath, kGen, kInt),                           // 194
-    MakeEntry("llistxattr", kPath, kGen, kInt),                          // 195
-    MakeEntry("flistxattr", UnknownArguments()),                         // 196
-    MakeEntry("removexattr", kPath, kString),                            // 197
-    MakeEntry("lremovexattr", UnknownArguments()),                       // 198
-    MakeEntry("fremovexattr", UnknownArguments()),                       // 199
-    MakeEntry("tkill", kInt, kSignal),                                   // 200
-    MakeEntry("time", kHex),                                             // 201
-    MakeEntry("futex", kGen, kInt, kInt, kGen, kGen, kInt),              // 202
-    MakeEntry("sched_setaffinity", UnknownArguments()),                  // 203
-    MakeEntry("sched_getaffinity", UnknownArguments()),                  // 204
-    MakeEntry("set_thread_area", kHex),                                  // 205
-    MakeEntry("io_setup", UnknownArguments()),                           // 206
-    MakeEntry("io_destroy", UnknownArguments()),                         // 207
-    MakeEntry("io_getevents", UnknownArguments()),                       // 208
-    MakeEntry("io_submit", UnknownArguments()),                          // 209
-    MakeEntry("io_cancel", UnknownArguments()),                          // 210
-    MakeEntry("get_thread_area", kHex),                                  // 211
-    MakeEntry("lookup_dcookie", UnknownArguments()),                     // 212
-    MakeEntry("epoll_create", UnknownArguments()),                       // 213
-    MakeEntry("epoll_ctl_old", UnknownArguments()),                      // 214
-    MakeEntry("epoll_wait_old", UnknownArguments()),                     // 215
-    MakeEntry("remap_file_pages", UnknownArguments()),                   // 216
-    MakeEntry("getdents64", UnknownArguments()),                         // 217
-    MakeEntry("set_tid_address", kHex),                                  // 218
-    MakeEntry("restart_syscall", UnknownArguments()),                    // 219
-    MakeEntry("semtimedop", UnknownArguments()),                         // 220
-    MakeEntry("fadvise64", UnknownArguments()),                          // 221
-    MakeEntry("timer_create", UnknownArguments()),                       // 222
-    MakeEntry("timer_settime", UnknownArguments()),                      // 223
-    MakeEntry("timer_gettime", UnknownArguments()),                      // 224
-    MakeEntry("timer_getoverrun", UnknownArguments()),                   // 225
-    MakeEntry("timer_delete", UnknownArguments()),                       // 226
-    MakeEntry("clock_settime", UnknownArguments()),                      // 227
-    MakeEntry("clock_gettime", UnknownArguments()),                      // 228
-    MakeEntry("clock_getres", UnknownArguments()),                       // 229
-    MakeEntry("clock_nanosleep", UnknownArguments()),                    // 230
-    MakeEntry("exit_group", kInt),                                       // 231
-    MakeEntry("epoll_wait", UnknownArguments()),                         // 232
-    MakeEntry("epoll_ctl", UnknownArguments()),                          // 233
-    MakeEntry("tgkill", kInt, kInt, kSignal),                            // 234
-    MakeEntry("utimes", UnknownArguments()),                             // 235
-    MakeEntry("vserver", UnknownArguments()),                            // 236
-    MakeEntry("mbind", UnknownArguments()),                              // 237
-    MakeEntry("set_mempolicy", UnknownArguments()),                      // 238
-    MakeEntry("get_mempolicy", UnknownArguments()),                      // 239
-    MakeEntry("mq_open", UnknownArguments()),                            // 240
-    MakeEntry("mq_unlink", UnknownArguments()),                          // 241
-    MakeEntry("mq_timedsend", UnknownArguments()),                       // 242
-    MakeEntry("mq_timedreceive", UnknownArguments()),                    // 243
-    MakeEntry("mq_notify", UnknownArguments()),                          // 244
-    MakeEntry("mq_getsetattr", UnknownArguments()),                      // 245
-    MakeEntry("kexec_load", UnknownArguments()),                         // 246
-    MakeEntry("waitid", UnknownArguments()),                             // 247
-    MakeEntry("add_key", UnknownArguments()),                            // 248
-    MakeEntry("request_key", UnknownArguments()),                        // 249
-    MakeEntry("keyctl", UnknownArguments()),                             // 250
-    MakeEntry("ioprio_set", UnknownArguments()),                         // 251
-    MakeEntry("ioprio_get", UnknownArguments()),                         // 252
-    MakeEntry("inotify_init", UnknownArguments()),                       // 253
-    MakeEntry("inotify_add_watch", UnknownArguments()),                  // 254
-    MakeEntry("inotify_rm_watch", UnknownArguments()),                   // 255
-    MakeEntry("migrate_pages", UnknownArguments()),                      // 256
-    MakeEntry("openat", kGen, kPath, kOct, kHex),                        // 257
-    MakeEntry("mkdirat", kGen, kPath),                                   // 258
-    MakeEntry("mknodat", kGen, kPath),                                   // 259
-    MakeEntry("fchownat", kGen, kPath),                                  // 260
-    MakeEntry("futimesat", kGen, kPath),                                 // 261
-    MakeEntry("newfstatat", kGen, kPath),                                // 262
-    MakeEntry("unlinkat", kGen, kPath),                                  // 263
-    MakeEntry("renameat", kGen, kPath, kGen, kPath),                     // 264
-    MakeEntry("linkat", kGen, kPath, kGen, kPath),                       // 265
-    MakeEntry("symlinkat", kPath, kGen, kPath),                          // 266
-    MakeEntry("readlinkat", kGen, kPath),                                // 267
-    MakeEntry("fchmodat", kGen, kPath),                                  // 268
-    MakeEntry("faccessat", kGen, kPath),                                 // 269
-    MakeEntry("pselect6", UnknownArguments()),                           // 270
-    MakeEntry("ppoll", UnknownArguments()),                              // 271
-    MakeEntry("unshare", UnknownArguments()),                            // 272
-    MakeEntry("set_robust_list", kGen, kGen),                            // 273
-    MakeEntry("get_robust_list", UnknownArguments()),                    // 274
-    MakeEntry("splice", UnknownArguments()),                             // 275
-    MakeEntry("tee", UnknownArguments()),                                // 276
-    MakeEntry("sync_file_range", UnknownArguments()),                    // 277
-    MakeEntry("vmsplice", UnknownArguments()),                           // 278
-    MakeEntry("move_pages", UnknownArguments()),                         // 279
-    MakeEntry("utimensat", UnknownArguments()),                          // 280
-    MakeEntry("epoll_pwait", UnknownArguments()),                        // 281
-    MakeEntry("signalfd", UnknownArguments()),                           // 282
-    MakeEntry("timerfd_create", UnknownArguments()),                     // 283
-    MakeEntry("eventfd", UnknownArguments()),                            // 284
-    MakeEntry("fallocate", UnknownArguments()),                          // 285
-    MakeEntry("timerfd_settime", UnknownArguments()),                    // 286
-    MakeEntry("timerfd_gettime", UnknownArguments()),                    // 287
-    MakeEntry("accept4", UnknownArguments()),                            // 288
-    MakeEntry("signalfd4", UnknownArguments()),                          // 289
-    MakeEntry("eventfd2", UnknownArguments()),                           // 290
-    MakeEntry("epoll_create1", UnknownArguments()),                      // 291
-    MakeEntry("dup3", kGen, kGen, kGen),                                 // 292
-    MakeEntry("pipe2", UnknownArguments()),                              // 293
-    MakeEntry("inotify_init1", UnknownArguments()),                      // 294
-    MakeEntry("preadv", UnknownArguments()),                             // 295
-    MakeEntry("pwritev", UnknownArguments()),                            // 296
-    MakeEntry("rt_tgsigqueueinfo", UnknownArguments()),                  // 297
-    MakeEntry("perf_event_open", UnknownArguments()),                    // 298
-    MakeEntry("recvmmsg", kInt, kHex, kHex, kHex),                       // 299
-    MakeEntry("fanotify_init", kHex, kHex, kInt),                        // 300
-    MakeEntry("fanotify_mark", kInt, kHex, kInt, kPath),                 // 301
-    MakeEntry("prlimit64", kInt, kInt, kHex, kHex),                      // 302
-    MakeEntry("name_to_handle_at", kInt, kGen, kHex, kHex, kHex),        // 303
-    MakeEntry("open_by_handle_at", kInt, kHex, kHex),                    // 304
-    MakeEntry("clock_adjtime", kInt, kHex),                              // 305
-    MakeEntry("syncfs", kInt),                                           // 306
-    MakeEntry("sendmmsg", kInt, kHex, kInt, kHex),                       // 307
-    MakeEntry("setns", kInt, kHex),                                      // 308
-    MakeEntry("getcpu", kHex, kHex, kHex),                               // 309
-    MakeEntry("process_vm_readv", kInt, kHex, kInt, kHex, kInt, kInt),   // 310
-    MakeEntry("process_vm_writev", kInt, kHex, kInt, kHex, kInt, kInt),  // 311
-    MakeEntry("kcmp", kInt, kInt, kInt, kHex, kHex),                     // 312
-    MakeEntry("finit_module", kInt, kPath, kHex),                        // 313
-    MakeEntry("sched_setattr", kGen, kGen, kGen, kGen, kGen, kGen),      // 314
-    MakeEntry("sched_getattr", kGen, kGen, kGen, kGen, kGen, kGen),      // 315
-    MakeEntry("renameat2", kGen, kPath, kGen, kPath, kGen, kGen),        // 316
-    MakeEntry("seccomp", kGen, kGen, kGen, kGen, kGen, kGen),            // 317
-    MakeEntry("getrandom", kGen, kGen, kGen, kGen, kGen, kGen),          // 318
-    MakeEntry("memfd_create", kGen, kGen, kGen, kGen, kGen, kGen),       // 319
-    MakeEntry("kexec_file_load", kGen, kGen, kGen, kGen, kGen, kGen),    // 320
-    MakeEntry("bpf", kHex, kHex, kHex, kHex, kHex, kHex),                // 321
-    MakeEntry("execveat", kHex, kPath, kHex, kHex, kHex),                // 322
-    MakeEntry("userfaultfd", kHex),                                      // 323
-    MakeEntry("membarrier", kHex, kHex),                                 // 324
+constexpr std::array kSyscallDataX8664 = {
+    MakeEntry("read", kInt, kHex, kInt),                             // 0
+    MakeEntry("write", kInt, kHex, kInt),                            // 1
+    MakeEntry("open", kPath, kHex, kOct),                            // 2
+    MakeEntry("close", kInt),                                        // 3
+    MakeEntry("stat", kPath, kGen),                                  // 4
+    MakeEntry("fstat", kInt, kHex),                                  // 5
+    MakeEntry("lstat", kPath, kGen),                                 // 6
+    MakeEntry("poll", kGen, kInt, kInt),                             // 7
+    MakeEntry("lseek", kInt, kInt, kInt),                            // 8
+    MakeEntry("mmap", kHex, kInt, kHex, kHex, kInt, kInt),           // 9
+    MakeEntry("mprotect", kHex, kInt, kHex),                         // 10
+    MakeEntry("munmap", kHex, kInt),                                 // 11
+    MakeEntry("brk", kInt),                                          // 12
+    MakeEntry("rt_sigaction", kSignal, kHex, kHex, kInt),            // 13
+    MakeEntry("rt_sigprocmask", kInt, kHex, kHex, kInt),             // 14
+    MakeEntry("rt_sigreturn"),                                       // 15
+    MakeEntry("ioctl", kInt, kInt, kHex),                            // 16
+    MakeEntry("pread64", kInt, kHex, kInt, kInt),                    // 17
+    MakeEntry("pwrite64", kInt, kHex, kInt, kInt),                   // 18
+    MakeEntry("readv", kInt, kHex, kInt),                            // 19
+    MakeEntry("writev", kInt, kHex, kInt),                           // 20
+    MakeEntry("access", kPath, kOct),                                // 21
+    MakeEntry("pipe", kHex),                                         // 22
+    MakeEntry("select", kInt, kHex, kHex, kHex, kHex),               // 23
+    MakeEntry("sched_yield"),                                        // 24
+    MakeEntry("mremap", kHex, kInt, kInt, kInt, kHex),               // 25
+    MakeEntry("msync", kHex, kInt, kInt),                            // 26
+    MakeEntry("mincore", kHex, kInt, kHex),                          // 27
+    MakeEntry("madvise", kHex, kInt, kInt),                          // 28
+    MakeEntry("shmget", kInt, kInt, kHex),                           // 29
+    MakeEntry("shmat", kInt, kHex, kHex),                            // 30
+    MakeEntry("shmctl", kInt, kInt, kHex),                           // 31
+    MakeEntry("dup", kInt),                                          // 32
+    MakeEntry("dup2", kInt, kInt),                                   // 33
+    MakeEntry("pause"),                                              // 34
+    MakeEntry("nanosleep", kHex, kHex),                              // 35
+    MakeEntry("getitimer", kInt, kHex),                              // 36
+    MakeEntry("alarm", kInt),                                        // 37
+    MakeEntry("setitimer", kInt, kHex, kHex),                        // 38
+    MakeEntry("getpid"),                                             // 39
+    MakeEntry("sendfile", kInt, kInt, kHex, kInt),                   // 40
+    MakeEntry("socket", kAddressFamily, kInt, kInt),                 // 41
+    MakeEntry("connect", kInt, kSockaddr, kInt),                     // 42
+    MakeEntry("accept", kInt, kSockaddr, kHex),                      // 43
+    MakeEntry("sendto", kInt, kHex, kInt, kHex, kSockaddr, kInt),    // 44
+    MakeEntry("recvfrom", kInt, kHex, kInt, kHex, kSockaddr, kHex),  // 45
+    MakeEntry("sendmsg", kInt, kSockmsghdr, kHex),                   // 46
+    MakeEntry("recvmsg", kInt, kHex, kInt),                          // 47
+    MakeEntry("shutdown", kInt, kInt),                               // 48
+    MakeEntry("bind", kInt, kSockaddr, kInt),                        // 49
+    MakeEntry("listen", kInt, kInt),                                 // 50
+    MakeEntry("getsockname", kInt, kSockaddr, kHex),                 // 51
+    MakeEntry("getpeername", kInt, kSockaddr, kHex),                 // 52
+    MakeEntry("socketpair", kAddressFamily, kInt, kInt, kHex),       // 53
+    MakeEntry("setsockopt", kInt, kInt, kInt, kHex, kHex),           // 54
+    MakeEntry("getsockopt", kInt, kInt, kInt, kHex, kInt),           // 55
+    MakeEntry("clone", kCloneFlag, kHex, kHex, kHex, kHex),          // 56
+    MakeEntry("fork"),                                               // 57
+    MakeEntry("vfork"),                                              // 58
+    MakeEntry("execve", kPath, kHex, kHex),                          // 59
+    MakeEntry("exit", kInt),                                         // 60
+    MakeEntry("wait4", kInt, kHex, kHex, kHex),                      // 61
+    MakeEntry("kill", kInt, kSignal),                                // 62
+    MakeEntry("uname", kInt),                                        // 63
+    MakeEntry("semget", kInt, kInt, kHex),                           // 64
+    MakeEntry("semop", kInt, kHex, kInt),                            // 65
+    MakeEntry("semctl", kInt, kInt, kInt, kHex),                     // 66
+    MakeEntry("shmdt", kHex),                                        // 67
+    MakeEntry("msgget", kInt, kHex),                                 // 68
+    MakeEntry("msgsnd", kInt, kHex, kInt, kHex),                     // 69
+    MakeEntry("msgrcv", kInt, kHex, kInt, kInt, kHex),               // 70
+    MakeEntry("msgctl", kInt, kInt, kHex),                           // 71
+    MakeEntry("fcntl", kInt, kInt, kHex),                            // 72
+    MakeEntry("flock", kInt, kInt),                                  // 73
+    MakeEntry("fsync", kInt),                                        // 74
+    MakeEntry("fdatasync", kInt),                                    // 75
+    MakeEntry("truncate", kPath, kInt),                              // 76
+    MakeEntry("ftruncate", kInt, kInt),                              // 77
+    MakeEntry("getdents", kInt, kHex, kInt),                         // 78
+    MakeEntry("getcwd", kHex, kInt),                                 // 79
+    MakeEntry("chdir", kPath),                                       // 80
+    MakeEntry("fchdir", kInt),                                       // 81
+    MakeEntry("rename", kPath, kPath),                               // 82
+    MakeEntry("mkdir", kPath, kOct),                                 // 83
+    MakeEntry("rmdir", kPath),                                       // 84
+    MakeEntry("creat", kPath, kOct),                                 // 85
+    MakeEntry("link", kPath, kPath),                                 // 86
+    MakeEntry("unlink", kPath),                                      // 87
+    MakeEntry("symlink", kPath, kPath),                              // 88
+    MakeEntry("readlink", kPath, kHex, kInt),                        // 89
+    MakeEntry("chmod", kPath, kOct),                                 // 90
+    MakeEntry("fchmod", kInt, kOct),                                 // 91
+    MakeEntry("chown", kPath, kInt, kInt),                           // 92
+    MakeEntry("fchown", kInt, kInt, kInt),                           // 93
+    MakeEntry("lchown", kPath, kInt, kInt),                          // 94
+    MakeEntry("umask", kHex),                                        // 95
+    MakeEntry("gettimeofday", kHex, kHex),                           // 96
+    MakeEntry("getrlimit", kInt, kHex),                              // 97
+    MakeEntry("getrusage", kInt, kHex),                              // 98
+    MakeEntry("sysinfo", kHex),                                      // 99
+    MakeEntry("times", kHex),                                        // 100
+    MakeEntry("ptrace", kInt, kInt, kHex, kHex),                     // 101
+    MakeEntry("getuid"),                                             // 102
+    MakeEntry("syslog", kInt, kHex, kInt),                           // 103
+    MakeEntry("getgid"),                                             // 104
+    MakeEntry("setuid", kInt),                                       // 105
+    MakeEntry("setgid", kInt),                                       // 106
+    MakeEntry("geteuid"),                                            // 107
+    MakeEntry("getegid"),                                            // 108
+    MakeEntry("setpgid", kInt, kInt),                                // 109
+    MakeEntry("getppid"),                                            // 110
+    MakeEntry("getpgrp"),                                            // 111
+    MakeEntry("setsid"),                                             // 112
+    MakeEntry("setreuid", kInt, kInt),                               // 113
+    MakeEntry("setregid", kInt, kInt),                               // 114
+    MakeEntry("getgroups", kInt, kHex),                              // 115
+    MakeEntry("setgroups", kInt, kHex),                              // 116
+    MakeEntry("setresuid", kInt, kInt, kInt),                        // 117
+    MakeEntry("getresuid", kHex, kHex, kHex),                        // 118
+    MakeEntry("setresgid", kInt, kInt, kInt),                        // 119
+    MakeEntry("getresgid", kHex, kHex, kHex),                        // 120
+    MakeEntry("getpgid", kInt),                                      // 121
+    MakeEntry("setfsuid", kInt),                                     // 122
+    MakeEntry("setfsgid", kInt),                                     // 123
+    MakeEntry("getsid", kInt),                                       // 124
+    MakeEntry("capget", kHex, kHex),                                 // 125
+    MakeEntry("capset", kHex, kHex),                                 // 126
+    MakeEntry("rt_sigpending", kHex, kInt),                          // 127
+    MakeEntry("rt_sigtimedwait", kHex, kHex, kHex, kInt),            // 128
+    MakeEntry("rt_sigqueueinfo", kInt, kSignal, kHex),               // 129
+    MakeEntry("rt_sigsuspend", kHex, kInt),                          // 130
+    MakeEntry("sigaltstack", kHex, kHex),                            // 131
+    MakeEntry("utime", kPath, kHex),                                 // 132
+    MakeEntry("mknod", kPath, kOct, kHex),                           // 133
+    MakeEntry("uselib", kPath),                                      // 134
+    MakeEntry("personality", kHex),                                  // 135
+    MakeEntry("ustat", kHex, kHex),                                  // 136
+    MakeEntry("statfs", kPath, kHex),                                // 137
+    MakeEntry("fstatfs", kInt, kHex),                                // 138
+    MakeEntry("sysfs", kInt, kInt, kInt),                            // 139
+    MakeEntry("getpriority", kInt, kInt),                            // 140
+    MakeEntry("setpriority", kInt, kInt, kInt),                      // 141
+    MakeEntry("sched_setparam", kInt, kHex),                         // 142
+    MakeEntry("sched_getparam", kInt, kHex),                         // 143
+    MakeEntry("sched_setscheduler", kInt, kInt, kHex),               // 144
+    MakeEntry("sched_getscheduler", kInt),                           // 145
+    MakeEntry("sched_get_priority_max", kInt),                       // 146
+    MakeEntry("sched_get_priority_min", kInt),                       // 147
+    MakeEntry("sched_rr_get_interval", kInt, kHex),                  // 148
+    MakeEntry("mlock", kInt, kInt),                                  // 149
+    MakeEntry("munlock", kInt, kInt),                                // 150
+    MakeEntry("mlockall", kHex),                                     // 151
+    MakeEntry("munlockall"),                                         // 152
+    MakeEntry("vhangup"),                                            // 153
+    MakeEntry("modify_ldt", kInt, kHex, kInt),                       // 154
+    MakeEntry("pivot_root", kPath, kPath),                           // 155
+    MakeEntry("_sysctl", kHex),                                      // 156
+    MakeEntry("prctl", kInt, kHex, kHex, kHex, kHex),                // 157
+    MakeEntry("arch_prctl", kInt, kHex),                             // 158
+    MakeEntry("adjtimex", kHex),                                     // 159
+    MakeEntry("setrlimit", kInt, kHex),                              // 160
+    MakeEntry("chroot", kPath),                                      // 161
+    MakeEntry("sync"),                                               // 162
+    MakeEntry("acct", kPath),                                        // 163
+    MakeEntry("settimeofday", kHex, kHex),                           // 164
+    MakeEntry("mount", kPath, kPath, kString, kHex, kGen),           // 165
+    MakeEntry("umount2", kPath, kHex),                               // 166
+    MakeEntry("swapon", kPath, kHex),                                // 167
+    MakeEntry("swapoff", kPath),                                     // 168
+    MakeEntry("reboot", kInt, kHex, kHex, kGen),                     // 169
+    MakeEntry("sethostname", kString, kInt),                         // 170
+    MakeEntry("setdomainname", kString, kInt),                       // 171
+    MakeEntry("iopl", kInt),                                         // 172
+    MakeEntry("ioperm", kInt, kInt, kInt),                           // 173
+    MakeEntry("create_module", kString, kInt),                       // 174
+    MakeEntry("init_module", kGen, kInt, kString),                   // 175
+    MakeEntry("delete_module", kString, kHex),                       // 176
+    MakeEntry("get_kernel_syms", kHex),                              // 177
+    MakeEntry("query_module", kString, kInt, kGen, kInt, kGen),      // 178
+    MakeEntry("quotactl", kInt, kPath, kInt, kGen),                  // 179
+    MakeEntry("nfsservctl", kInt, kGen, kGen),                       // 180
+    MakeEntry("getpmsg", UnknownArguments()),                        // 181
+    MakeEntry("putpmsg", UnknownArguments()),                        // 182
+    MakeEntry("afs_syscall", UnknownArguments()),                    // 183
+    MakeEntry("tuxcall", UnknownArguments()),                        // 184
+    MakeEntry("security", UnknownArguments()),                       // 185
+    MakeEntry("gettid"),                                             // 186
+    MakeEntry("readahead", kInt, kInt, kInt),                        // 187
+    MakeEntry("setxattr", kPath, kString, kGen, kInt, kHex),         // 188
+    MakeEntry("lsetxattr", kPath, kString, kGen, kInt, kHex),        // 189
+    MakeEntry("fsetxattr", kInt, kString, kGen, kInt, kHex),         // 190
+    MakeEntry("getxattr", kPath, kString, kGen, kInt),               // 191
+    MakeEntry("lgetxattr", kPath, kString, kGen, kInt),              // 192
+    MakeEntry("fgetxattr", kInt, kString, kGen, kInt),               // 193
+    MakeEntry("listxattr", kPath, kGen, kInt),                       // 194
+    MakeEntry("llistxattr", kPath, kGen, kInt),                      // 195
+    MakeEntry("flistxattr", kInt, kGen, kInt),                       // 196
+    MakeEntry("removexattr", kPath, kString),                        // 197
+    MakeEntry("lremovexattr", kPath, kString),                       // 198
+    MakeEntry("fremovexattr", kInt, kString),                        // 199
+    MakeEntry("tkill", kInt, kSignal),                               // 200
+    MakeEntry("time", kHex),                                         // 201
+    MakeEntry("futex", kGen, kInt, kInt, kGen, kGen, kInt),          // 202
+    MakeEntry("sched_setaffinity", kInt, kInt, kHex),                // 203
+    MakeEntry("sched_getaffinity", kInt, kInt, kHex),                // 204
+    MakeEntry("set_thread_area", kHex),                              // 205
+    MakeEntry("io_setup", kInt, kHex),                               // 206
+    MakeEntry("io_destroy", kInt),                                   // 207
+    MakeEntry("io_getevents", kInt, kInt, kInt, kHex, kHex),         // 208
+    MakeEntry("io_submit", kInt, kInt, kHex),                        // 209
+    MakeEntry("io_cancel", kInt, kHex, kHex),                        // 210
+    MakeEntry("get_thread_area", kHex),                              // 211
+    MakeEntry("lookup_dcookie", kInt, kString, kInt),                // 212
+    MakeEntry("epoll_create", kInt),                                 // 213
+    MakeEntry("epoll_ctl_old", UnknownArguments()),                  // 214
+    MakeEntry("epoll_wait_old", UnknownArguments()),                 // 215
+    MakeEntry("remap_file_pages", kGen, kInt, kInt, kInt, kHex),     // 216
+    MakeEntry("getdents64", kInt, kHex, kInt),                       // 217
+    MakeEntry("set_tid_address", kHex),                              // 218
+    MakeEntry("restart_syscall"),                                    // 219
+    MakeEntry("semtimedop", kInt, kHex, kInt, kHex),                 // 220
+    MakeEntry("fadvise64", kInt, kInt, kInt, kInt),                  // 221
+    MakeEntry("timer_create", kInt, kHex, kHex),                     // 222
+    MakeEntry("timer_settime", kInt, kHex, kHex, kHex),              // 223
+    MakeEntry("timer_gettime", kInt, kHex),                          // 224
+    MakeEntry("timer_getoverrun", kInt),                             // 225
+    MakeEntry("timer_delete", kInt),                                 // 226
+    MakeEntry("clock_settime", kInt, kHex),                          // 227
+    MakeEntry("clock_gettime", kInt, kHex),                          // 228
+    MakeEntry("clock_getres", kInt, kHex),                           // 229
+    MakeEntry("clock_nanosleep", kInt, kHex, kHex, kHex),            // 230
+    MakeEntry("exit_group", kInt),                                   // 231
+    MakeEntry("epoll_wait", kInt, kHex, kInt, kInt),                 // 232
+    MakeEntry("epoll_ctl", kInt, kInt, kInt, kHex),                  // 233
+    MakeEntry("tgkill", kInt, kInt, kSignal),                        // 234
+    MakeEntry("utimes", kPath, kHex),                                // 235
+    MakeEntry("vserver", UnknownArguments()),                        // 236
+    MakeEntry("mbind", kGen, kInt, kInt, kHex, kInt, kHex),          // 237
+    MakeEntry("set_mempolicy", kInt, kHex, kInt),                    // 238
+    MakeEntry("get_mempolicy", kInt, kHex, kInt, kInt, kHex),        // 239
+    MakeEntry("mq_open", kString, kHex, kOct, kHex),                 // 240
+    MakeEntry("mq_unlink", kString),                                 // 241
+    MakeEntry("mq_timedsend", kHex, kHex, kInt, kInt, kHex),         // 242
+    MakeEntry("mq_timedreceive", kHex, kHex, kInt, kHex, kHex),      // 243
+    MakeEntry("mq_notify", kHex, kHex),                              // 244
+    MakeEntry("mq_getsetattr", kHex, kHex, kHex),                    // 245
+    MakeEntry("kexec_load", kHex, kInt, kHex, kHex),                 // 246
+    MakeEntry("waitid", kInt, kInt, kHex, kInt, kHex),               // 247
+    MakeEntry("add_key", kString, kString, kGen, kInt, kInt),        // 248
+    MakeEntry("request_key", kString, kString, kHex, kInt),          // 249
+    MakeEntry("keyctl", kInt, kInt, kInt, kInt, kInt),               // 250
+    MakeEntry("ioprio_set", kInt, kInt, kInt),                       // 251
+    MakeEntry("ioprio_get", kInt, kInt),                             // 252
+    MakeEntry("inotify_init"),                                       // 253
+    MakeEntry("inotify_add_watch", kInt, kPath, kHex),               // 254
+    MakeEntry("inotify_rm_watch", kInt, kInt),                       // 255
+    MakeEntry("migrate_pages", kInt, kInt, kHex, kHex),              // 256
+    MakeEntry("openat", kInt, kPath, kHex, kOct),                    // 257
+    MakeEntry("mkdirat", kInt, kPath, kOct),                         // 258
+    MakeEntry("mknodat", kInt, kPath, kOct, kHex),                   // 259
+    MakeEntry("fchownat", kInt, kPath, kInt, kInt, kHex),            // 260
+    MakeEntry("futimesat", kInt, kPath, kHex),                       // 261
+    MakeEntry("newfstatat", kInt, kPath, kHex, kHex),                // 262
+    MakeEntry("unlinkat", kInt, kPath, kHex),                        // 263
+    MakeEntry("renameat", kInt, kPath, kInt, kPath),                 // 264
+    MakeEntry("linkat", kInt, kPath, kInt, kPath, kHex),             // 265
+    MakeEntry("symlinkat", kPath, kInt, kPath),                      // 266
+    MakeEntry("readlinkat", kInt, kPath, kHex, kInt),                // 267
+    MakeEntry("fchmodat", kInt, kPath, kOct),                        // 268
+    MakeEntry("faccessat", kInt, kPath, kInt, kHex),                 // 269
+    MakeEntry("pselect6", kInt, kHex, kHex, kHex, kHex),             // 270
+    MakeEntry("ppoll", kHex, kInt, kHex, kHex, kInt),                // 271
+    MakeEntry("unshare", kHex),                                      // 272
+    MakeEntry("set_robust_list", kHex, kInt),                        // 273
+    MakeEntry("get_robust_list", kInt, kHex, kHex),                  // 274
+    MakeEntry("splice", kInt, kHex, kInt, kHex, kInt, kHex),         // 275
+    MakeEntry("tee", kInt, kInt, kInt, kHex),                        // 276
+    MakeEntry("sync_file_range", kInt, kInt, kInt, kHex),            // 277
+    MakeEntry("vmsplice", kInt, kHex, kInt, kInt),                   // 278
+    MakeEntry("move_pages", kInt, kInt, kHex, kHex, kHex, kHex),     // 279
+    MakeEntry("utimensat", kInt, kPath, kHex, kHex),                 // 280
+    MakeEntry("epoll_pwait", kInt, kHex, kInt, kInt, kHex, kInt),    // 281
+    MakeEntry("signalfd", kInt, kHex, kHex),                         // 282
+    MakeEntry("timerfd_create", kInt, kHex),                         // 283
+    MakeEntry("eventfd", kInt),                                      // 284
+    MakeEntry("fallocate", kInt, kOct, kInt, kInt),                  // 285
+    MakeEntry("timerfd_settime", kInt, kHex, kHex, kHex),            // 286
+    MakeEntry("timerfd_gettime", kInt, kHex),                        // 287
+    MakeEntry("accept4", kInt, kHex, kHex, kInt),                    // 288
+    MakeEntry("signalfd4", kInt, kHex, kHex, kHex),                  // 289
+    MakeEntry("eventfd2", kInt, kHex),                               // 290
+    MakeEntry("epoll_create1", kHex),                                // 291
+    MakeEntry("dup3", kInt, kInt, kHex),                             // 292
+    MakeEntry("pipe2", kHex, kHex),                                  // 293
+    MakeEntry("inotify_init1", kHex),                                // 294
+    MakeEntry("preadv", kInt, kHex, kInt, kInt, kInt),               // 295
+    MakeEntry("pwritev", kInt, kHex, kInt, kInt, kInt),              // 296
+    MakeEntry("rt_tgsigqueueinfo", kInt, kInt, kInt, kHex),          // 297
+    MakeEntry("perf_event_open", kHex, kInt, kInt, kInt, kHex),      // 298
+    MakeEntry("recvmmsg", kInt, kHex, kInt, kHex, kHex),             // 299
+    MakeEntry("fanotify_init", kHex, kHex),                          // 300
+    MakeEntry("fanotify_mark", kInt, kHex, kHex, kInt, kPath),       // 301
+    MakeEntry("prlimit64", kInt, kInt, kHex, kHex),                  // 302
+    MakeEntry("name_to_handle_at", kInt, kPath, kHex, kHex, kHex),   // 303
+    MakeEntry("open_by_handle_at", kInt, kHex, kHex),                // 304
+    MakeEntry("clock_adjtime", kInt, kHex),                          // 305
+    MakeEntry("syncfs", kInt),                                       // 306
+    MakeEntry("sendmmsg", kInt, kHex, kInt, kHex),                   // 307
+    MakeEntry("setns", kInt, kHex),                                  // 308
+    MakeEntry("getcpu", kHex, kHex, kHex),                           // 309
+    MakeEntry("process_vm_readv", kInt, kHex, kInt, kHex, kInt,
+              kInt),  // 310
+    MakeEntry("process_vm_writev", kInt, kHex, kInt, kHex, kInt,
+              kInt),                                                // 311
+    MakeEntry("kcmp", kInt, kInt, kInt, kInt, kInt),                // 312
+    MakeEntry("finit_module", kInt, kString, kHex),                 // 313
+    MakeEntry("sched_setattr", kInt, kHex, kHex),                   // 314
+    MakeEntry("sched_getattr", kInt, kHex, kInt, kHex),             // 315
+    MakeEntry("renameat2", kInt, kPath, kInt, kPath, kHex),         // 316
+    MakeEntry("seccomp", kInt, kHex, kHex),                         // 317
+    MakeEntry("getrandom", kGen, kInt, kHex),                       // 318
+    MakeEntry("memfd_create", kString, kHex),                       // 319
+    MakeEntry("kexec_file_load", kInt, kInt, kInt, kString, kHex),  // 320
+    MakeEntry("bpf", kInt, kHex, kInt),                             // 321
+    MakeEntry("execveat", kInt, kPath, kHex, kHex, kHex),           // 322
+    MakeEntry("userfaultfd", kHex),                                 // 323
+    MakeEntry("membarrier", kInt, kHex),                            // 324
+    MakeEntry("mlock2", kHex, kInt, kHex),                          // 325
+    MakeEntry("copy_file_range", kInt, kHex, kInt, kHex, kInt,
+              kHex),                                            // 326
+    MakeEntry("preadv2", kInt, kHex, kInt, kInt, kInt, kHex),   // 327
+    MakeEntry("pwritev2", kInt, kHex, kInt, kInt, kInt, kHex),  // 328
+    MakeEntry("pkey_mprotect", kInt, kInt, kHex, kInt),         // 329
+    MakeEntry("pkey_alloc", kInt, kInt),                        // 330
+    MakeEntry("pkey_free", kInt),                               // 331
+    MakeEntry("statx", kInt, kPath, kHex, kHex, kHex),          // 332
 };
 
-constexpr SyscallTable::Entry kSyscallDataX8632[] = {
+constexpr std::array kSyscallDataX8632 = {
     MakeEntry("restart_syscall", kHex, kHex, kHex, kHex, kHex, kHex),     // 0
     MakeEntry("exit", kHex, kHex, kHex, kHex, kHex, kHex),                // 1
     MakeEntry("fork", kHex, kHex, kHex, kHex, kHex, kHex),                // 2
@@ -827,7 +838,7 @@ constexpr SyscallTable::Entry kSyscallDataX8632[] = {
 // http://lxr.free-electrons.com/source/arch/powerpc/include/uapi/asm/unistd.h
 // Note: PPC64 syscalls can have up to 7 register arguments, but nobody is
 // using the 7th argument - probably for x64 compatibility reasons.
-constexpr SyscallTable::Entry kSyscallDataPPC64LE[] = {
+constexpr std::array kSyscallDataPPC64LE = {
     MakeEntry("restart_syscall", kGen, kGen, kGen, kGen, kGen, kGen),     // 0
     MakeEntry("exit", kInt, kGen, kGen, kGen, kGen, kGen),                // 1
     MakeEntry("fork", kGen, kGen, kGen, kGen, kGen, kGen),                // 2
@@ -1218,7 +1229,7 @@ constexpr SyscallTable::Entry kSyscallDataPPC64LE[] = {
 
 // TODO(cblichmann): Confirm the entries in this list.
 // https://github.com/torvalds/linux/blob/v5.8/include/uapi/asm-generic/unistd.h
-constexpr SyscallTable::Entry kSyscallDataArm64[] = {
+constexpr std::array kSyscallDataArm64 = {
     MakeEntry("io_setup", UnknownArguments()),                           // 0
     MakeEntry("io_destroy", UnknownArguments()),                         // 1
     MakeEntry("io_submit", UnknownArguments()),                          // 2
