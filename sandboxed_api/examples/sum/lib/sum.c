@@ -64,7 +64,9 @@ extern void crash(void) {
 }
 
 extern void violate(void) {
-  ptrace(990, 991, 992, 993);
+  // Issue a PTRACE_CONT that will always fail, since we are not in stopped
+  // state. The actual call should be caught by the sandbox policy.
+  ptrace(PTRACE_CONT, 0, NULL, NULL);
 }
 
 extern int sumarr(int* input, size_t nelem) {
