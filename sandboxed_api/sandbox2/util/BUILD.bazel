@@ -16,6 +16,7 @@ load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
     "//sandboxed_api:__subpackages__",
+    "//security/bedebox:__subpackages__",
     "//security/gfence:__subpackages__",
 ])
 
