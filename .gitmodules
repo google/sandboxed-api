@@ -16,3 +16,6 @@
 [submodule "oss-internship-2020/curl/curl_wrapper/curl"]
 	path = oss-internship-2020/curl/curl_wrapper/curl
 	url = git@github.com:curl/curl.git
+[submodule "oss-internship-2020/libuv/libuv"]
+	path = oss-internship-2020/libuv/libuv
+	url = git@github.com:libuv/libuv.git
