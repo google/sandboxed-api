@@ -64,7 +64,8 @@ add_library(sandbox2_syscall STATIC
 )
 add_library(sandbox2::syscall ALIAS sandbox2_syscall)
 target_link_libraries(sandbox2_syscall
-  PRIVATE absl::span
+  PRIVATE absl::algorithm_container
+          absl::span
           absl::str_format
           absl::strings
           sandbox2::util
