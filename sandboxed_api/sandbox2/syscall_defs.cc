@@ -1519,7 +1519,7 @@ constexpr std::array kSyscallDataArm64 = {
 #undef SYSCALLS_UNUSED
 
 SyscallTable SyscallTable::get(cpu::Architecture arch) {
-  switch (host_cpu::Architecture()) {
+  switch (arch) {
     case cpu::kX8664:
       return SyscallTable(kSyscallDataX8664);
     case cpu::kX86:
