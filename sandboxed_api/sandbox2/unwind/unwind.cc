@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "libunwind-ptrace.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -185,27 +186,29 @@ std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
       addr_to_symbol[entry.end] = "";
     }
 
-    const bool should_parse = entry.is_executable && !entry.path.empty() &&
-                              entry.path != "[vdso]" &&
-                              entry.path != "[vsyscall]";
-    if (should_parse) {
-      auto elf_or = ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
-      if (!elf_or.ok()) {
-        SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s", entry.path,
-                     elf_or.status().message());
-        continue;
-      }
-      auto elf = std::move(elf_or).value();
+    if (!entry.is_executable ||
+        entry.inode == 0 ||  // Only parse file-backed entries
+        entry.path.empty() ||
+        absl::EndsWith(entry.path, " (deleted)")  // Skip deleted files
+    ) {
+      continue;
+    }
 
-      for (const auto& symbol : elf.symbols()) {
-        if (elf.position_independent()) {
-          if (symbol.address < entry.end - entry.start) {
-            addr_to_symbol[symbol.address + entry.start] = symbol.name;
-          }
-        } else {
-          if (symbol.address >= entry.start && symbol.address < entry.end) {
-            addr_to_symbol[symbol.address] = symbol.name;
-          }
+    auto elf = ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
+    if (!elf.ok()) {
+      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s", entry.path,
+                   elf.status().message());
+      continue;
+    }
+
+    for (const auto& symbol : elf->symbols()) {
+      if (elf->position_independent()) {
+        if (symbol.address < entry.end - entry.start) {
+          addr_to_symbol[symbol.address + entry.start] = symbol.name;
+        }
+      } else {
+        if (symbol.address >= entry.start && symbol.address < entry.end) {
+          addr_to_symbol[symbol.address] = symbol.name;
         }
       }
     }
@@ -213,7 +216,7 @@ std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
 
   std::vector<std::string> stack_trace;
   stack_trace.reserve(ips->size());
-  // Symbolize stacktrace.
+  // Symbolize stacktrace
   for (const auto& ip : *ips) {
     const std::string symbol =
         GetSymbolAt(addr_to_symbol, static_cast<uint64_t>(ip));
