@@ -82,6 +82,9 @@ PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(unsigned int num,
                                                     int error) {
   if (handled_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ERRNO(error))});
+    if (num == __NR_bpf) {
+      user_policy_handles_bpf_ = true;
+    }
   }
   return *this;
 }
@@ -728,6 +731,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   output->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;
   output->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
   output->user_policy_ = std::move(user_policy_);
+  output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
 
   auto pb_description = absl::make_unique<PolicyBuilderDescription>();
 

@@ -96,6 +96,7 @@ class Policy final {
 
   // The policy set by the user.
   std::vector<sock_filter> user_policy_;
+  bool user_policy_handles_bpf_ = false;
 
   // Get the default policy, which blocks certain dangerous syscalls and
   // mismatched syscall tables.

@@ -106,18 +106,26 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
     SANDBOX2_TRACE,
     LABEL(&l, past_execveat_l),
 
-    // Forbid some syscalls because unsafe or too risky.
+    // Forbid ptrace because it's unsafe or too risky.
     LOAD_SYSCALL_NR,
     JEQ32(__NR_ptrace, DENY),
-    JEQ32(__NR_bpf, DENY),
-
-    // Disallow clone with CLONE_UNTRACED flag.
-    JNE32(__NR_clone, JUMP(&l, past_clone_untraced_l)),
-    // Regardless of arch, we only care about the lower 32-bits of the flags.
-    ARG_32(0),
-    JA32(CLONE_UNTRACED, DENY),
-    LABEL(&l, past_clone_untraced_l),
   };
+  // If user policy doesn't mention it, then forbid bpf because it's unsafe or
+  // too risky.  This uses LOAD_SYSCALL_NR from above.
+  if (!user_policy_handles_bpf_) {
+    policy.insert(policy.end(), {JEQ32(__NR_bpf, DENY)});
+  }
+  policy.insert(policy.end(),
+                {
+                    // Disallow clone with CLONE_UNTRACED flag.  This uses
+                    // LOAD_SYSCALL_NR from above.
+                    JNE32(__NR_clone, JUMP(&l, past_clone_untraced_l)),
+                    // Regardless of arch, we only care about the lower 32-bits
+                    // of the flags.
+                    ARG_32(0),
+                    JA32(CLONE_UNTRACED, DENY),
+                    LABEL(&l, past_clone_untraced_l),
+                });
 
   if (bpf_resolve_jumps(&l, policy.data(), policy.size()) != 0) {
     LOG(FATAL) << "Cannot resolve bpf jumps";

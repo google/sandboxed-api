@@ -554,6 +554,7 @@ class PolicyBuilder final {
 
   // Seccomp fields
   std::vector<sock_filter> user_policy_;
+  bool user_policy_handles_bpf_ = false;
   std::set<unsigned int> handled_syscalls_;
 
   // Error handling

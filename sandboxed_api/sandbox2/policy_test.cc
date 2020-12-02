@@ -40,7 +40,7 @@ using ::testing::Eq;
 namespace sandbox2 {
 namespace {
 
-std::unique_ptr<Policy> PolicyTestcasePolicy() {
+PolicyBuilder CreatePolicyTestPolicyBuilder() {
   return PolicyBuilder()
       .DisableNamespaces()
       .AllowStaticStartup()
@@ -60,8 +60,11 @@ std::unique_ptr<Policy> PolicyTestcasePolicy() {
 #ifdef __NR_faccessat
       .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
 #endif
-      .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-      .BuildOrDie();
+      .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
+}
+
+std::unique_ptr<Policy> PolicyTestcasePolicy() {
+  return CreatePolicyTestPolicyBuilder().BuildOrDie();
 }
 
 #ifdef SAPI_X86_64
@@ -148,6 +151,25 @@ TEST(PolicyTest, BpfDisallowed) {
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
+}
+
+// Test that bpf(2) can return EPERM.
+TEST(PolicyTest, BpfPermissionDenied) {
+  SKIP_SANITIZERS_AND_COVERAGE;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  std::vector<std::string> args = {path, "7"};
+  auto executor = absl::make_unique<Executor>(path, args);
+
+  auto policy = CreatePolicyTestPolicyBuilder()
+                    .BlockSyscallWithErrno(__NR_bpf, EPERM)
+                    .BuildOrDie();
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
+  auto result = s2.Run();
+
+  // bpf(2) is not a violation due to explicit policy.  EPERM is expected.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(EPERM));
 }
 
 TEST(PolicyTest, IsattyAllowed) {

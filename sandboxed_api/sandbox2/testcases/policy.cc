@@ -19,6 +19,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -79,6 +80,10 @@ void TestBpf() {
   exit(EXIT_FAILURE);
 }
 
+void TestBpfError() {
+  exit(syscall(__NR_bpf, 0, nullptr, 0) == -1 ? errno : 0);
+}
+
 void TestIsatty() {
   isatty(0);
 
@@ -118,6 +123,9 @@ int main(int argc, char** argv) {
       break;
     case 6:
       TestIsatty();
+      break;
+    case 7:
+      TestBpfError();
       break;
     default:
       printf("Unknown test: %d\n", testno);
