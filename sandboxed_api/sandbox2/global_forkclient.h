@@ -20,6 +20,8 @@
 
 #include <sys/types.h>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
@@ -33,12 +35,20 @@ class GlobalForkClient {
 
   static pid_t SendRequest(const ForkRequest& request, int exec_fd,
                            int comms_fd, int user_ns_fd = -1,
-                           pid_t* init_pid = nullptr);
-  static pid_t GetPid();
+                           pid_t* init_pid = nullptr)
+      ABSL_LOCKS_EXCLUDED(instance_mutex_);
+  static pid_t GetPid() ABSL_LOCKS_EXCLUDED(instance_mutex_);
 
-  static void EnsureStarted();
+  static void EnsureStarted() ABSL_LOCKS_EXCLUDED(instance_mutex_);
+  static void Shutdown() ABSL_LOCKS_EXCLUDED(instance_mutex_);
 
  private:
+  static absl::Mutex instance_mutex_;
+  static GlobalForkClient* instance_ ABSL_GUARDED_BY(instance_mutex_);
+
+  static void EnsureStartedLocked(bool start_if_needed = true)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(instance_mutex_);
+
   Comms comms_;
   ForkClient fork_client_;
 };
