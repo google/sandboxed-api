@@ -15,7 +15,10 @@
 	url = https://github.com/OSGeo/gdal/
 [submodule "oss-internship-2020/curl/curl_wrapper/curl"]
 	path = oss-internship-2020/curl/curl_wrapper/curl
-	url = git@github.com:curl/curl.git
+	url = https://github.com/curl/curl
 [submodule "oss-internship-2020/libuv/libuv"]
 	path = oss-internship-2020/libuv/libuv
-	url = git@github.com:libuv/libuv.git
+	url = https://github.com/libuv/libuv.git
+[submodule "oss-internship-2020/libtiff/wrapper/libtiff"]
+	path = oss-internship-2020/libtiff/wrapper/libtiff
+	url = https://gitlab.com/libtiff/libtiff
