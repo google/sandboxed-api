@@ -22,7 +22,6 @@
 #include <syscall.h>
 #include <unistd.h>
 
-#include <bitset>
 #include <csignal>
 #include <cstdlib>
 #include <string>
@@ -45,40 +44,6 @@
 #include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
-namespace {
-enum class GlobalForkserverStartMode {
-  kOnDemand,
-  // MUST be the last element
-  kNumGlobalForkserverStartModes,
-};
-
-class GlobalForkserverStartModeSet {
- public:
-  static constexpr size_t kSize = static_cast<size_t>(
-      GlobalForkserverStartMode::kNumGlobalForkserverStartModes);
-
-  GlobalForkserverStartModeSet() {}
-  explicit GlobalForkserverStartModeSet(GlobalForkserverStartMode value) {
-    value_[static_cast<size_t>(value)] = true;
-  }
-  GlobalForkserverStartModeSet& operator|=(GlobalForkserverStartMode value) {
-    value_[static_cast<size_t>(value)] = true;
-    return *this;
-  }
-  GlobalForkserverStartModeSet operator|(
-      GlobalForkserverStartMode value) const {
-    GlobalForkserverStartModeSet rv(*this);
-    rv |= value;
-    return rv;
-  }
-  bool contains(GlobalForkserverStartMode value) const {
-    return value_[static_cast<size_t>(value)];
-  }
-  bool empty() { return value_.none(); }
-
- private:
-  std::bitset<kSize> value_;
-};
 
 bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
                    std::string* error) {
@@ -98,6 +63,7 @@ bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
   return true;
 }
 
+namespace {
 std::string ToString(GlobalForkserverStartMode mode) {
   switch (mode) {
     case GlobalForkserverStartMode::kOnDemand:
@@ -106,6 +72,16 @@ std::string ToString(GlobalForkserverStartMode mode) {
       return "unknown";
   }
 }
+bool ValidateStartMode(const char*, const std::string& flag) {
+  GlobalForkserverStartModeSet unused;
+  std::string error;
+  if (!AbslParseFlag(flag, &unused, &error)) {
+    SAPI_RAW_LOG(ERROR, "%s", error);
+    return false;
+  }
+  return true;
+}
+}  // namespace
 
 std::string AbslUnparseFlag(GlobalForkserverStartModeSet in) {
   std::vector<std::string> str_modes;
@@ -120,16 +96,7 @@ std::string AbslUnparseFlag(GlobalForkserverStartModeSet in) {
   }
   return absl::StrJoin(str_modes, ",");
 }
-bool ValidateStartMode(const char*, const std::string& flag) {
-  GlobalForkserverStartModeSet unused;
-  std::string error;
-  if (!AbslParseFlag(flag, &unused, &error)) {
-    SAPI_RAW_LOG(ERROR, "%s", error);
-    return false;
-  }
-  return true;
-}
-}  // namespace
+
 }  // namespace sandbox2
 
 ABSL_FLAG(string, sandbox2_forkserver_start_mode, "ondemand",

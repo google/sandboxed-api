@@ -240,13 +240,13 @@ target_link_libraries(sandbox2_global_forkserver
           sandbox2::util
           sapi::base
           sapi::embed_file
-          sapi::flags
           sapi::raw_logging
   PUBLIC absl::core_headers
          absl::synchronization
          sandbox2::comms
          sandbox2::fork_client
          sandbox2::forkserver_proto
+         sapi::flags
 )
 
 # sandboxed_api/sandbox2:start_global_forkserver_lib_constructor

@@ -20,7 +20,12 @@
 
 #include <sys/types.h>
 
+#include <bitset>
+#include <string>
+
 #include "absl/base/thread_annotations.h"
+#include "sandboxed_api/util/flag.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
@@ -53,6 +58,46 @@ class GlobalForkClient {
   ForkClient fork_client_;
 };
 
+enum class GlobalForkserverStartMode {
+  kOnDemand,
+  // MUST be the last element
+  kNumGlobalForkserverStartModes,
+};
+
+class GlobalForkserverStartModeSet {
+ public:
+  static constexpr size_t kSize = static_cast<size_t>(
+      GlobalForkserverStartMode::kNumGlobalForkserverStartModes);
+
+  GlobalForkserverStartModeSet() {}
+  explicit GlobalForkserverStartModeSet(GlobalForkserverStartMode value) {
+    value_[static_cast<size_t>(value)] = true;
+  }
+  GlobalForkserverStartModeSet& operator|=(GlobalForkserverStartMode value) {
+    value_[static_cast<size_t>(value)] = true;
+    return *this;
+  }
+  GlobalForkserverStartModeSet operator|(
+      GlobalForkserverStartMode value) const {
+    GlobalForkserverStartModeSet rv(*this);
+    rv |= value;
+    return rv;
+  }
+  bool contains(GlobalForkserverStartMode value) const {
+    return value_[static_cast<size_t>(value)];
+  }
+  bool empty() { return value_.none(); }
+
+ private:
+  std::bitset<kSize> value_;
+};
+
+bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
+                   std::string* error);
+std::string AbslUnparseFlag(GlobalForkserverStartModeSet in);
+
 }  // namespace sandbox2
+
+ABSL_DECLARE_FLAG(string, sandbox2_forkserver_start_mode);
 
 #endif  // SANDBOXED_API_SANDBOX2_GLOBAL_FORKCLIENT_H_
