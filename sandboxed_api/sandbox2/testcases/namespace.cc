@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
 
     case 4:
       for (int i = 2; i < argc; ++i) {
-        if (open(argv[i], O_CREAT | O_WRONLY) == -1) {
+        if (open(argv[i], O_CREAT | O_WRONLY, 0644) == -1) {
           return i - 1;
         }
       }
