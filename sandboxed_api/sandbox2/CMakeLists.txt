@@ -260,6 +260,7 @@ add_library(sandbox2::start_global_forkserver_lib_constructor ALIAS
 target_link_libraries(sandbox2_start_global_forkserver_lib_constructor PRIVATE
   absl::core_headers
   sapi::base
+  sandbox2::fork_client
   sandbox2::global_forkserver
 )
 

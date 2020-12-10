@@ -12,8 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
+
 #include "absl/base/attributes.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
+
+namespace sandbox2 {
+void StartGlobalForkserverFromLibCtor() {
+  if (!getenv(sandbox2::kForkServerDisableEnv)) {
+    GlobalForkClient::ForceStart();
+  }
+}
+}  // namespace sandbox2
 
 // Run the ForkServer from the constructor, when no other threads are present.
 // Because it's possible to start thread-inducing initializers before
@@ -21,5 +32,5 @@
 // a 0000_<name> initializer instead.
 ABSL_ATTRIBUTE_UNUSED
 __attribute__((constructor)) static void StartSandbox2Forkserver() {
-  sandbox2::GlobalForkClient::EnsureStarted();
+  sandbox2::StartGlobalForkserverFromLibCtor();
 }

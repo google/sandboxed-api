@@ -116,20 +116,6 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 }
 
 std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
-  if (getenv(kForkServerDisableEnv)) {
-    SAPI_RAW_VLOG(1,
-                  "Start of the Global Fork-Server prevented by the '%s' "
-                  "environment variable present",
-                  kForkServerDisableEnv);
-    return {};
-  }
-
-  if (GetForkserverStartMode().empty()) {
-    SAPI_RAW_VLOG(
-        1, "Start of the Global Fork-Server prevented by commandline flag");
-    return {};
-  }
-
   file_util::fileops::FDCloser exec_fd(
       sapi::EmbedFile::GetEmbedFileSingleton()->GetFdForFileToc(
           forkserver_bin_embed_create()));
@@ -167,10 +153,31 @@ std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
 absl::Mutex GlobalForkClient::instance_mutex_(absl::kConstInit);
 GlobalForkClient* GlobalForkClient::instance_ = nullptr;
 
-void GlobalForkClient::EnsureStarted() {
+void GlobalForkClient::EnsureStarted(GlobalForkserverStartMode mode) {
+  absl::MutexLock lock(&instance_mutex_);
+  EnsureStartedLocked(mode);
+}
+
+void GlobalForkClient::EnsureStartedLocked(GlobalForkserverStartMode mode) {
+  if (!instance_) {
+    SAPI_RAW_CHECK(!getenv(kForkServerDisableEnv),
+                   "Start of the Global Fork-Server prevented by the '%s' "
+                   "environment variable present",
+                   kForkServerDisableEnv);
+    SAPI_RAW_CHECK(
+        GetForkserverStartMode().contains(mode),
+        "Start of the Global Fork-Server prevented by commandline flag");
+    instance_ = StartGlobalForkServer().release();
+  }
+  SAPI_RAW_CHECK(instance_ != nullptr, "global fork client not initialized");
+}
+
+void GlobalForkClient::ForceStart() {
   absl::MutexLock lock(&GlobalForkClient::instance_mutex_);
-  EnsureStartedLocked(
-      GetForkserverStartMode().contains(GlobalForkserverStartMode::kOnDemand));
+  SAPI_RAW_CHECK(instance_ == nullptr,
+                 "A force start requested when the Global Fork-Server was "
+                 "already running");
+  instance_ = StartGlobalForkServer().release();
 }
 
 void GlobalForkClient::Shutdown() {
@@ -179,19 +186,11 @@ void GlobalForkClient::Shutdown() {
   instance_ = nullptr;
 }
 
-void GlobalForkClient::EnsureStartedLocked(bool start_if_needed) {
-  if (!instance_ && start_if_needed) {
-    instance_ = StartGlobalForkServer().release();
-  }
-  SAPI_RAW_CHECK(instance_ != nullptr, "global fork client not initialized");
-}
-
 pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
                                     int comms_fd, int user_ns_fd,
                                     pid_t* init_pid) {
   absl::MutexLock lock(&GlobalForkClient::instance_mutex_);
-  EnsureStartedLocked(
-      GetForkserverStartMode().contains(GlobalForkserverStartMode::kOnDemand));
+  EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   pid_t pid = instance_->fork_client_.SendRequest(request, exec_fd, comms_fd,
                                                   user_ns_fd, init_pid);
   if (instance_->comms_.IsTerminated()) {
@@ -202,9 +201,7 @@ pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
 
 pid_t GlobalForkClient::GetPid() {
   absl::MutexLock lock(&instance_mutex_);
-  EnsureStartedLocked(
-      GetForkserverStartMode().contains(GlobalForkserverStartMode::kOnDemand));
-  SAPI_RAW_CHECK(instance_ != nullptr, "global fork client not initialized");
+  EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   return instance_->fork_client_.pid();
 }
 }  // namespace sandbox2

@@ -249,6 +249,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":fork_client",
         ":global_forkserver",
         "@com_google_absl//absl/base:core_headers",
     ],

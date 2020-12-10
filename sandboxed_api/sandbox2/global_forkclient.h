@@ -33,6 +33,12 @@
 
 namespace sandbox2 {
 
+enum class GlobalForkserverStartMode {
+  kOnDemand,
+  // MUST be the last element
+  kNumGlobalForkserverStartModes,
+};
+
 class GlobalForkClient {
  public:
   GlobalForkClient(int fd, pid_t pid)
@@ -44,24 +50,25 @@ class GlobalForkClient {
       ABSL_LOCKS_EXCLUDED(instance_mutex_);
   static pid_t GetPid() ABSL_LOCKS_EXCLUDED(instance_mutex_);
 
-  static void EnsureStarted() ABSL_LOCKS_EXCLUDED(instance_mutex_);
+  static void EnsureStarted() ABSL_LOCKS_EXCLUDED(instance_mutex_) {
+    EnsureStarted(GlobalForkserverStartMode::kOnDemand);
+  }
   static void Shutdown() ABSL_LOCKS_EXCLUDED(instance_mutex_);
 
  private:
+  friend void StartGlobalForkserverFromLibCtor();
+
+  static void ForceStart() ABSL_LOCKS_EXCLUDED(instance_mutex_);
+  static void EnsureStarted(GlobalForkserverStartMode mode)
+      ABSL_LOCKS_EXCLUDED(instance_mutex_);
+  static void EnsureStartedLocked(GlobalForkserverStartMode mode)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(instance_mutex_);
+
   static absl::Mutex instance_mutex_;
   static GlobalForkClient* instance_ ABSL_GUARDED_BY(instance_mutex_);
 
-  static void EnsureStartedLocked(bool start_if_needed = true)
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(instance_mutex_);
-
   Comms comms_;
   ForkClient fork_client_;
-};
-
-enum class GlobalForkserverStartMode {
-  kOnDemand,
-  // MUST be the last element
-  kNumGlobalForkserverStartModes,
 };
 
 class GlobalForkserverStartModeSet {
