@@ -436,7 +436,7 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
     }
   }
 
-  SAPI_RETURN_IF_ERROR(AddFile(interpreter));
+  imported_libraries.insert(interpreter);
   for (const auto& lib : imported_libraries) {
     SAPI_RETURN_IF_ERROR(AddFile(lib));
   }
