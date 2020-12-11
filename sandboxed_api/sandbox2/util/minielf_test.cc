@@ -15,11 +15,14 @@
 #include "sandboxed_api/sandbox2/util/minielf.h"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
 #include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/sandbox2/util/file_helpers.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/util/status_matchers.h"
 
@@ -30,9 +33,10 @@ extern "C" void ExportedFunctionName() {
 namespace sandbox2 {
 namespace {
 
+using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsTrue;
-using ::testing::Not;
+using ::testing::Ne;
 using ::testing::StrEq;
 
 TEST(MinielfTest, Chrome70) {
@@ -51,36 +55,27 @@ TEST(MinielfTest, SymbolResolutionWorks) {
   ASSERT_THAT(elf.position_independent(), IsTrue());
 
   // Load /proc/self/maps to take ASLR into account.
-  char maps_buffer[1024 * 1024]{};
-  FILE *f = fopen("/proc/self/maps", "r");
-  ASSERT_THAT(f, Not(Eq(nullptr)));
-  fread(maps_buffer, 1, sizeof(maps_buffer), f);
-  fclose(f);
-
+  std::string maps_buffer;
+  ASSERT_THAT(sandbox2::file::GetContents("/proc/self/maps", &maps_buffer,
+                                          sandbox2::file::Defaults()),
+              IsOk());
   SAPI_ASSERT_OK_AND_ASSIGN(std::vector<MapsEntry> maps, ParseProcMaps(maps_buffer));
 
   // Find maps entry that covers this entry.
   uint64_t function_address = reinterpret_cast<uint64_t>(ExportedFunctionName);
-  bool entry_found = false;
-  for (const auto &entry : maps) {
-    if (entry.start <= function_address && entry.end > function_address) {
-      entry_found = true;
-      function_address -= entry.start;
-      break;
-    }
-  }
-  ASSERT_THAT(entry_found, IsTrue());
+  auto function_entry =
+      absl::c_find_if(maps, [function_address](const MapsEntry& entry) {
+        return entry.start <= function_address && entry.end > function_address;
+      });
+  ASSERT_THAT(function_entry, Ne(maps.end()));
+  function_address -= function_entry->start;
 
-  uint64_t exported_function_name__symbol_value = 0;
-
-  for (const auto &s : elf.symbols()) {
-    if (s.name == "ExportedFunctionName") {
-      exported_function_name__symbol_value = s.address;
-      break;
-    }
-  }
-
-  EXPECT_THAT(exported_function_name__symbol_value, function_address);
+  auto function_symbol =
+      absl::c_find_if(elf.symbols(), [](const ElfFile::Symbol& symbol) {
+        return symbol.name == "ExportedFunctionName";
+      });
+  ASSERT_THAT(function_symbol, Ne(elf.symbols().end()));
+  EXPECT_THAT(function_symbol->address, Eq(function_address));
 }
 
 TEST(MinielfTest, ImportedLibraries) {

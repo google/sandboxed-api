@@ -186,7 +186,9 @@ if(SAPI_ENABLE_TESTS)
   configure_file(testdata/chrome_grte_header
                  testdata/chrome_grte_header COPYONLY)
   target_link_libraries(minielf_test PRIVATE
+    absl::algorithm_container
     absl::strings
+    sandbox2::file_helpers
     sandbox2::maps_parser
     sandbox2::minielf
     sandbox2::testing

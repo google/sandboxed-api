@@ -38,8 +38,8 @@ class ElfFile {
 
   int64_t file_size() const { return file_size_; }
   const std::string& interpreter() const { return interpreter_; }
-  const std::vector<Symbol> symbols() const { return symbols_; }
-  const std::vector<std::string> imported_libraries() const {
+  const std::vector<Symbol>& symbols() const { return symbols_; }
+  const std::vector<std::string>& imported_libraries() const {
     return imported_libraries_;
   }
   bool position_independent() const { return position_independent_; }
