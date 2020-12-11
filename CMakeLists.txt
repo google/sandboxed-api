@@ -47,12 +47,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Allow the header generator to auto-configure include paths
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if (SAPI_FORCE_COLOR_OUTPUT)
+if(SAPI_FORCE_COLOR_OUTPUT)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")  # GCC
     add_compile_options(-fdiagnostics-color=always)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")  # Clang or Apple Clang
     add_compile_options(-fcolor-diagnostics)
   endif()
+endif()
+
+# TODO(cblichmann): Only apply this to SAPI and its dependencies
+add_compile_options(-fno-exceptions)
+
+if(SAPI_HARDENED_SOURCE)
+  add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
 endif()
 
 # Make Bazel-style includes work
