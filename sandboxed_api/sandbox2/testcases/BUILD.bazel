@@ -28,24 +28,11 @@ package(default_visibility = [
     "//sandboxed_api/sandbox2:__subpackages__",
 ])
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
-STATIC_LINKOPTS = [
-    # Necessary for linking pthread statically into the binary. See the
-    # answer to https://stackoverflow.com/questions/35116327/ for context.
-    # The odd '-Wl,' prefix before '-lpthread' is a workaround for Bazel's
-    # behavior when constructing the final linker command line.
-    "-Wl,--whole-archive",
-    "-Wl,-lpthread",
-    "-Wl,--no-whole-archive",
-]
-
-# TODO(https://github.com/bazelbuild/bazel/issues/8672): Remove this workaround
-#     Change is scheduled for Bazel 4.0. Specifying
-#     `--incompatible_linkopts_to_linklibs` also works
-EXTRA_FULLY_STATIC_LINKOPTS = [
-    "-l:libstdc++.a",
-    "-l:libm.a",
+FULLY_STATIC_FEATURES = [
+    "-pie",
+    "fully_static_link",  # link libc statically
 ]
 
 cc_binary(
@@ -62,11 +49,8 @@ cc_binary(
     testonly = 1,
     srcs = ["add_policy_on_syscalls.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 # security: disable=cc-static-no-pie
@@ -75,12 +59,8 @@ cc_binary(
     testonly = 1,
     srcs = ["buffer.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkopts = STATIC_LINKOPTS + EXTRA_FULLY_STATIC_LINKOPTS,
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
     deps = [
         "//sandboxed_api/sandbox2:buffer",
         "//sandboxed_api/sandbox2:comms",
@@ -107,12 +87,8 @@ cc_binary(
     testonly = 1,
     srcs = ["malloc.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkopts = EXTRA_FULLY_STATIC_LINKOPTS,
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 cc_binary(
@@ -128,11 +104,8 @@ cc_binary(
     testonly = 1,
     srcs = ["minimal.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 # security: disable=cc-static-no-pie
@@ -141,11 +114,8 @@ cc_binary(
     testonly = 1,
     srcs = ["personality.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 # security: disable=cc-static-no-pie
@@ -154,12 +124,8 @@ cc_binary(
     testonly = 1,
     srcs = ["pidcomms.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkopts = STATIC_LINKOPTS + EXTRA_FULLY_STATIC_LINKOPTS,
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -173,11 +139,8 @@ cc_binary(
     testonly = 1,
     srcs = ["policy.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
     deps = ["//sandboxed_api/sandbox2:config"],
 )
 
@@ -187,11 +150,8 @@ cc_binary(
     testonly = 1,
     srcs = ["print_fds.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 # security: disable=cc-static-no-pie
@@ -200,11 +160,8 @@ cc_binary(
     testonly = 1,
     srcs = ["sanitizer.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 # security: disable=cc-static-no-pie
@@ -213,11 +170,8 @@ cc_binary(
     testonly = 1,
     srcs = ["sleep.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 # security: disable=cc-static-no-pie
@@ -226,12 +180,8 @@ cc_binary(
     testonly = 1,
     srcs = ["symbolize.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkopts = EXTRA_FULLY_STATIC_LINKOPTS,
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
     deps = [
         "//sandboxed_api/sandbox2/util:temp_file",
         "//sandboxed_api/util:raw_logging",
@@ -263,11 +213,8 @@ cc_binary(
     testonly = 1,
     srcs = ["hostname.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 cc_binary(
@@ -275,11 +222,8 @@ cc_binary(
     testonly = 1,
     srcs = ["limits.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )
 
 cc_binary(
@@ -287,9 +231,6 @@ cc_binary(
     testonly = 1,
     srcs = ["namespace.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
-    ],
-    linkstatic = 1,  # prefer static libraries
+    features = FULLY_STATIC_FEATURES,
+    linkstatic = 1,
 )

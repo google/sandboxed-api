@@ -1,2 +1,6 @@
 # Build in C++17 mode without a custom CROSSTOOL
 build --cxxopt=-std=c++17
+
+# TODO(https://github.com/bazelbuild/bazel/issues/8672): Remove this workaround
+# This will become the default in Bazel 4.0
+build --incompatible_linkopts_to_linklibs
