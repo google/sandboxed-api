@@ -35,6 +35,9 @@ target_link_libraries(sandbox2_networkproxy_sandbox PRIVATE
 add_executable(sandbox2_networkproxy_bin
   networkproxy_bin.cc
 )
+set_target_properties(sandbox2_networkproxy_bin PROPERTIES
+  OUTPUT_NAME networkproxy_bin
+)
 add_executable(sandbox2::networkproxy_bin ALIAS sandbox2_networkproxy_bin)
 target_link_libraries(sandbox2_networkproxy_bin PRIVATE
   absl::status

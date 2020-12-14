@@ -16,6 +16,7 @@
 add_executable(sandbox2_sandbox2tool
   sandbox2tool.cc
 )
+set_target_properties(sandbox2_sandbox2tool PROPERTIES OUTPUT_NAME sandbox2tool)
 add_executable(sandbox2::sandbox2tool ALIAS sandbox2_sandbox2tool)
 target_link_libraries(sandbox2_sandbox2tool PRIVATE
   absl::memory

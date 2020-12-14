@@ -18,6 +18,7 @@ add_subdirectory(lib)
 add_executable(sapi_main_sum
   main_sum.cc
 )
+set_target_properties(sapi_main_sum PROPERTIES OUTPUT_NAME main_sum)
 add_executable(sapi::main_sum ALIAS sapi_main_sum)
 target_link_libraries(sapi_main_sum PRIVATE
   absl::memory

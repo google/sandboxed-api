@@ -28,10 +28,11 @@ target_link_libraries(zlib-sapi PRIVATE
 )
 
 # sandboxed_api/examples/zlib:main_zlib
-add_executable(main_zlib
+add_executable(sapi_main_zlib
   main_zlib.cc
 )
-target_link_libraries(main_zlib PRIVATE
+set_target_properties(sapi_main_zlib PROPERTIES OUTPUT_NAME main_zlib)
+target_link_libraries(sapi_main_zlib PRIVATE
   absl::status
   sapi::base
   glog::glog

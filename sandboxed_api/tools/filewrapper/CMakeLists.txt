@@ -31,12 +31,15 @@ sapi_cc_embed_data(NAME filewrapper_embedded
 
 if(SAPI_ENABLE_TESTS)
   # sandboxed_api/tools/filewrapper:filewrapper_test
-  add_executable(filewrapper_test
+  add_executable(sapi_filewrapper_test
     filewrapper_test.cc
+  )
+  set_target_properties(sapi_filewrapper_test PROPERTIES
+    OUTPUT_NAME filewrapper_test
   )
   configure_file(testdata/filewrapper_embedded.bin
                  testdata/filewrapper_embedded.bin COPYONLY)
-  target_link_libraries(filewrapper_test PRIVATE
+  target_link_libraries(sapi_filewrapper_test PRIVATE
     absl::strings
     filewrapper_embedded
     sandbox2::file_helpers
@@ -45,7 +48,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(filewrapper_test PROPERTIES
+  gtest_discover_tests(sapi_filewrapper_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )

@@ -32,11 +32,12 @@ target_link_libraries(sandbox2_network_sandbox PRIVATE
 )
 
 # sandboxed_api/sandbox2/examples/network_bin:network_bin
-add_executable(network_bin
+add_executable(sandbox2_network_bin
   network_bin.cc
 )
-add_executable(sandbox2::network_bin ALIAS network_bin)
-target_link_libraries(network_bin PRIVATE
+set_target_properties(sandbox2_network_bin PROPERTIES OUTPUT_NAME network_bin)
+add_executable(sandbox2::network_bin ALIAS sandbox2_network_bin)
+target_link_libraries(sandbox2_network_bin PRIVATE
   absl::str_format
   glog::glog
   gflags::gflags

@@ -197,12 +197,13 @@ target_link_libraries(sandbox2_limits PRIVATE
 )
 
 # sandboxed_api/sandbox2:forkserver_bin
-add_executable(forkserver_bin  # Need unprefixed name here
+add_executable(sandbox2_forkserver_bin
   forkserver_bin.cc
 )
-add_executable(sandbox2_forkserver_bin ALIAS forkserver_bin)
-add_executable(sandbox2::forkserver_bin ALIAS forkserver_bin)
-target_link_libraries(forkserver_bin PRIVATE
+set_target_properties(sandbox2_forkserver_bin PROPERTIES
+    OUTPUT_NAME forkserver_bin)
+add_executable(sandbox2::forkserver_bin ALIAS sandbox2_forkserver_bin)
+target_link_libraries(sandbox2_forkserver_bin PRIVATE
   absl::core_headers
   absl::strings
   glog::glog
@@ -216,12 +217,12 @@ target_link_libraries(forkserver_bin PRIVATE
 )
 
 # sandboxed_api/sandbox2:forkserver_bin_embed
-sapi_cc_embed_data(NAME forkserver_bin_embed  # Need unprefixed name here
+sapi_cc_embed_data(NAME sandbox2_forkserver_bin_embed
+  OUTPUT_NAME forkserver_bin_embed
   NAMESPACE ""
-  SOURCES forkserver_bin
+  SOURCES sandbox2::forkserver_bin
 )
-add_library(sandbox2_forkserver_bin_embed ALIAS forkserver_bin_embed)
-add_library(sandbox2::forkserver_bin_embed ALIAS forkserver_bin_embed)
+add_library(sandbox2::forkserver_bin_embed ALIAS sandbox2_forkserver_bin_embed)
 
 # sandboxed_api/sandbox2:global_forkserver
 add_library(sandbox2_global_forkserver STATIC
@@ -603,25 +604,31 @@ if(SAPI_ENABLE_TESTS)
   add_subdirectory(testcases)
 
   # sandboxed_api/sandbox2:syscall_test
-  add_executable(syscall_test
+  add_executable(sandbox2_syscall_test
     syscall_test.cc
   )
-  target_link_libraries(syscall_test PRIVATE
+  set_target_properties(sandbox2_syscall_test PROPERTIES
+    OUTPUT_NAME syscall_test
+  )
+  target_link_libraries(sandbox2_syscall_test PRIVATE
     absl::strings
     sandbox2::config
     sandbox2::syscall
     sapi::test_main
   )
-  gtest_discover_tests(syscall_test)
+  gtest_discover_tests(sandbox2_syscall_test)
 
   # sandboxed_api/sandbox2:mounts_test
-  add_executable(mounts_test
+  add_executable(sandbox2_mounts_test
     mounts_test.cc
   )
-  add_dependencies(mounts_test
+  set_target_properties(sandbox2_mounts_test PROPERTIES
+    OUTPUT_NAME mounts_test
+  )
+  add_dependencies(sandbox2_mounts_test
     sandbox2::testcase_minimal_dynamic
   )
-  target_link_libraries(mounts_test PRIVATE
+  target_link_libraries(sandbox2_mounts_test PRIVATE
     absl::strings
     sandbox2::file_base
     sandbox2::mounts
@@ -630,20 +637,23 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(mounts_test PROPERTIES
+  gtest_discover_tests(sandbox2_mounts_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:namespace_test
-  add_executable(namespace_test
+  add_executable(sandbox2_namespace_test
     namespace_test.cc
   )
-  add_dependencies(mounts_test
+  set_target_properties(sandbox2_namespace_test PROPERTIES
+    OUTPUT_NAME namespace_test
+  )
+  add_dependencies(sandbox2_namespace_test
     sandbox2::testcase_hostname
     sandbox2::testcase_namespace
   )
-  target_link_libraries(namespace_test PRIVATE
+  target_link_libraries(sandbox2_namespace_test PRIVATE
     absl::memory
     absl::strings
     sandbox2::comms
@@ -656,19 +666,22 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(namespace_test PROPERTIES
+  gtest_discover_tests(sandbox2_namespace_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:buffer_test
-  add_executable(buffer_test
+  add_executable(sandbox2_buffer_test
     buffer_test.cc
   )
-  add_dependencies(buffer_test
+  set_target_properties(sandbox2_buffer_test PROPERTIES
+    OUTPUT_NAME buffer_test
+  )
+  add_dependencies(sandbox2_buffer_test
     sandbox2::testcase_buffer
   )
-  target_link_libraries(buffer_test PRIVATE
+  target_link_libraries(sandbox2_buffer_test PRIVATE
     absl::memory
     sandbox2::buffer
     sandbox2::comms
@@ -678,7 +691,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(buffer_test PROPERTIES
+  gtest_discover_tests(sandbox2_buffer_test PROPERTIES
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
@@ -698,10 +711,13 @@ if(SAPI_ENABLE_TESTS)
   )
 
   # sandboxed_api/sandbox2:comms_test
-  add_executable(comms_test
+  add_executable(sandbox2_comms_test
     comms_test.cc
   )
-  target_link_libraries(comms_test PRIVATE
+  set_target_properties(sandbox2_comms_test PROPERTIES
+    OUTPUT_NAME comms_test
+  )
+  target_link_libraries(sandbox2_comms_test PRIVATE
     absl::fixed_array
     absl::strings
     glog::glog
@@ -711,17 +727,20 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(comms_test)
+  gtest_discover_tests(sandbox2_comms_test)
 
   # sandboxed_api/sandbox2:forkserver_test
-  add_executable(forkserver_test
+  add_executable(sandbox2_forkserver_test
     forkserver_test.cc
     global_forkclient.h
   )
-  add_dependencies(forkserver_test
+  set_target_properties(sandbox2_forkserver_test PROPERTIES
+    OUTPUT_NAME forkserver_test
+  )
+  add_dependencies(sandbox2_forkserver_test
     sandbox2::testcase_minimal
   )
-  target_link_libraries(forkserver_test PRIVATE
+  target_link_libraries(sandbox2_forkserver_test PRIVATE
     absl::strings
     glog::glog
     sandbox2::comms
@@ -731,20 +750,23 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::testing
     sapi::test_main
   )
-  gtest_discover_tests(forkserver_test PROPERTIES
+  gtest_discover_tests(sandbox2_forkserver_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:limits_test
-  add_executable(limits_test
+  add_executable(sandbox2_limits_test
     limits_test.cc
   )
-  add_dependencies(limits_test
+  set_target_properties(sandbox2_limits_test PROPERTIES
+    OUTPUT_NAME limits_test
+  )
+  add_dependencies(sandbox2_limits_test
     sandbox2::testcase_limits
     sandbox2::testcase_minimal
   )
-  target_link_libraries(limits_test PRIVATE
+  target_link_libraries(sandbox2_limits_test PRIVATE
     absl::memory
     sandbox2::bpf_helper
     sandbox2::config
@@ -754,20 +776,23 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(limits_test PROPERTIES
+  gtest_discover_tests(sandbox2_limits_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:notify_test
-  add_executable(notify_test
+  add_executable(sandbox2_notify_test
     notify_test.cc
   )
-  add_dependencies(notify_test
+  set_target_properties(sandbox2_notify_test PROPERTIES
+    OUTPUT_NAME notify_test
+  )
+  add_dependencies(sandbox2_notify_test
     sandbox2::testcase_personality
     sandbox2::testcase_pidcomms
   )
-  target_link_libraries(notify_test PRIVATE
+  target_link_libraries(sandbox2_notify_test PRIVATE
     absl::memory
     absl::strings
     sandbox2::bpf_helper
@@ -777,23 +802,26 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::testing
     sapi::test_main
   )
-  gtest_discover_tests(notify_test PROPERTIES
+  gtest_discover_tests(sandbox2_notify_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:policy_test
-  add_executable(policy_test
+  add_executable(sandbox2_policy_test
     policy_test.cc
   )
-  add_dependencies(policy_test
+  set_target_properties(sandbox2_policy_test PROPERTIES
+    OUTPUT_NAME policy_test
+  )
+  add_dependencies(sandbox2_policy_test
     sandbox2::testcase_add_policy_on_syscalls
     sandbox2::testcase_malloc_system
     sandbox2::testcase_minimal
     sandbox2::testcase_minimal_dynamic
     sandbox2::testcase_policy
   )
-  target_link_libraries(policy_test PRIVATE
+  target_link_libraries(sandbox2_policy_test PRIVATE
     absl::memory
     absl::strings
     sandbox2::bpf_helper
@@ -804,22 +832,25 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::testing
     sapi::test_main
   )
-  gtest_discover_tests(policy_test PROPERTIES
+  gtest_discover_tests(sandbox2_policy_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:sandbox2_test
-  add_executable(sandbox2_test
+  add_executable(sandbox2_sandbox2_test
     sandbox2_test.cc
   )
-  add_dependencies(sandbox2_test
+  set_target_properties(sandbox2_sandbox2_test PROPERTIES
+    OUTPUT_NAME sandbox2_test
+  )
+  add_dependencies(sandbox2_sandbox2_test
     sandbox2::testcase_abort
     sandbox2::testcase_minimal
     sandbox2::testcase_sleep
     sandbox2::testcase_tsync
   )
-  target_link_libraries(sandbox2_test PRIVATE
+  target_link_libraries(sandbox2_sandbox2_test PRIVATE
     absl::memory
     absl::strings
     sandbox2::bpf_helper
@@ -829,19 +860,22 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_test PROPERTIES
+  gtest_discover_tests(sandbox2_sandbox2_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:sanitizer_test
-  add_executable(sanitizer_test
+  add_executable(sandbox2_sanitizer_test
     sanitizer_test.cc
   )
-  add_dependencies(sanitizer_test
+  set_target_properties(sandbox2_sanitizer_test PROPERTIES
+    OUTPUT_NAME sanitizer_test
+  )
+  add_dependencies(sandbox2_sanitizer_test
     sandbox2::testcase_sanitizer
   )
-  target_link_libraries(sanitizer_test PRIVATE
+  target_link_libraries(sandbox2_sanitizer_test PRIVATE
     absl::memory
     absl::strings
     sandbox2::bpf_helper
@@ -854,31 +888,37 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sanitizer_test PROPERTIES
+  gtest_discover_tests(sandbox2_sanitizer_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:util_test
-  add_executable(util_test
+  add_executable(sandbox2_util_test
     util_test.cc
   )
-  target_link_libraries(util_test PRIVATE
+  set_target_properties(sandbox2_util_test PROPERTIES
+    OUTPUT_NAME util_test
+  )
+  target_link_libraries(sandbox2_util_test PRIVATE
     sandbox2::file_base
     sandbox2::testing
     sandbox2::util
     sapi::test_main
   )
-  gtest_discover_tests(util_test)
+  gtest_discover_tests(sandbox2_util_test)
 
   # sandboxed_api/sandbox2:stack_trace_test
-  add_executable(stack_trace_test
+  add_executable(sandbox2_stack_trace_test
     stack_trace_test.cc
   )
-  add_dependencies(stack_trace_test
+  set_target_properties(sandbox2_stack_trace_test PROPERTIES
+    OUTPUT_NAME stack_trace_test
+  )
+  add_dependencies(sandbox2_stack_trace_test
     sandbox2::testcase_symbolize
   )
-  target_link_libraries(stack_trace_test PRIVATE
+  target_link_libraries(sandbox2_stack_trace_test PRIVATE
     absl::memory
     absl::status
     absl::strings
@@ -893,19 +933,22 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(stack_trace_test PROPERTIES
+  gtest_discover_tests(sandbox2_stack_trace_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2:ipc_test
-  add_executable(ipc_test
+  add_executable(sandbox2_ipc_test
     ipc_test.cc
   )
-  add_dependencies(ipc_test
+  set_target_properties(sandbox2_ipc_test PROPERTIES
+    OUTPUT_NAME ipc_test
+  )
+  add_dependencies(sandbox2_ipc_test
     sandbox2::testcase_ipc
   )
-  target_link_libraries(ipc_test PRIVATE
+  target_link_libraries(sandbox2_ipc_test PRIVATE
     absl::memory
     sandbox2::bpf_helper
     sandbox2::comms
@@ -915,7 +958,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(ipc_test PROPERTIES
+  gtest_discover_tests(sandbox2_ipc_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
@@ -933,13 +976,16 @@ if(SAPI_ENABLE_TESTS)
   )
 
   # sandboxed_api/sandbox2:policybuilder_test
-  add_executable(policybuilder_test
+  add_executable(sandbox2_policybuilder_test
     policybuilder_test.cc
   )
-  add_dependencies(policybuilder_test
+  set_target_properties(sandbox2_policybuilder_test PROPERTIES
+    OUTPUT_NAME policybuilder_test
+  )
+  add_dependencies(sandbox2_policybuilder_test
     sandbox2::testcase_print_fds
   )
-  target_link_libraries(policybuilder_test PRIVATE
+  target_link_libraries(sandbox2_policybuilder_test PRIVATE
     absl::memory
     absl::strings
     glog::glog
@@ -951,7 +997,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(policybuilder_test PROPERTIES
+  gtest_discover_tests(sandbox2_policybuilder_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )

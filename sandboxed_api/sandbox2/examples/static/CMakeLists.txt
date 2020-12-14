@@ -30,11 +30,12 @@ target_link_libraries(sandbox2_static_sandbox PRIVATE
 )
 
 # sandboxed_api/sandbox2/examples/static:static_bin
-add_executable(static_bin
+add_executable(sandbox2_static_bin
   static_bin.cc
 )
-add_executable(sandbox2::static_bin ALIAS static_bin)
-target_link_libraries(static_bin PRIVATE
+set_target_properties(sandbox2_static_bin PROPERTIES OUTPUT_NAME static_bin)
+add_executable(sandbox2::static_bin ALIAS sandbox2_static_bin)
+target_link_libraries(sandbox2_static_bin PRIVATE
   sapi::base
   -static  # Fully static link
 )

@@ -33,11 +33,14 @@ target_link_libraries(sandbox2_custom_fork_sandbox PRIVATE
 )
 
 # sandboxed_api/sandbox2/examples/custom_fork:custom_fork_bin
-add_executable(custom_fork_bin
+add_executable(sandbox2_custom_fork_bin
   custom_fork_bin.cc
 )
-add_executable(sandbox2::custom_fork_bin ALIAS custom_fork_bin)
-target_link_libraries(custom_fork_bin PRIVATE
+set_target_properties(sandbox2_custom_fork_bin PROPERTIES
+  OUTPUT_NAME custom_fork_bin
+)
+add_executable(sandbox2::custom_fork_bin ALIAS sandbox2_custom_fork_bin)
+target_link_libraries(sandbox2_custom_fork_bin PRIVATE
   sandbox2::comms
   sandbox2::forkingclient
   sandbox2::util

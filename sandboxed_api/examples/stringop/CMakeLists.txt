@@ -16,10 +16,11 @@ add_subdirectory(lib)
 
 if(SAPI_ENABLE_TESTS)
   # sandboxed_api/examples/stringop:main_stringop
-  add_executable(main_stringop
+  add_executable(sapi_main_stringop
     main_stringop.cc
   )
-  target_link_libraries(main_stringop PRIVATE
+  set_target_properties(sapi_main_stringop PROPERTIES OUTPUT_NAME main_stringop)
+  target_link_libraries(sapi_main_stringop PRIVATE
     absl::memory
     absl::strings
     absl::time
@@ -31,5 +32,5 @@ if(SAPI_ENABLE_TESTS)
     sapi::test_main
     sapi::vars
   )
-  gtest_discover_tests(main_stringop)
+  gtest_discover_tests(sapi_main_stringop)
 endif()

@@ -31,10 +31,11 @@ target_link_libraries(sandbox2_zpipe_sandbox PRIVATE
 )
 
 # sandboxed_api/sandbox2/examples/zlib:zpipe
-add_executable(zpipe
+add_executable(sandbox2_zpipe
   zpipe.c
 )
-add_executable(sandbox2::zpipe ALIAS zpipe)
-target_link_libraries(zpipe PRIVATE
+set_target_properties(sandbox2_zpipe PROPERTIES OUTPUT_NAME zpipe)
+add_executable(sandbox2::zpipe ALIAS sandbox2_zpipe)
+target_link_libraries(sandbox2_zpipe PRIVATE
   ZLIB::ZLIB
 )

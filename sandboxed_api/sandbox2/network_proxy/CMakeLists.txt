@@ -62,10 +62,13 @@ target_link_libraries(sandbox2_network_proxy_client PRIVATE
 
 if(SAPI_ENABLE_TESTS)
   # sandboxed_api/sandbox2/network_proxy:filtering_test
-  add_executable(filtering_test
+  add_executable(sandbox2_filtering_test
     filtering_test.cc
   )
-  target_link_libraries(filtering_test PRIVATE
+  set_target_properties(sandbox2_filtering_test PROPERTIES
+    OUTPUT_NAME filtering_test
+  )
+  target_link_libraries(sandbox2_filtering_test PRIVATE
     absl::strings
     glog::glog
     gflags::gflags
@@ -75,5 +78,5 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(filtering_test)
+  gtest_discover_tests(sandbox2_filtering_test)
 endif()

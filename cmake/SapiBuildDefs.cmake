@@ -19,10 +19,15 @@
 # SOURCES is a list of files that should be embedded. If a source names a
 #   target the target binary is embedded instead.
 macro(sapi_cc_embed_data)
-  cmake_parse_arguments(_sapi_embed "" "NAME;NAMESPACE" "SOURCES" ${ARGN})
+  cmake_parse_arguments(_sapi_embed "" "OUTPUT_NAME;NAME;NAMESPACE" "SOURCES" ${ARGN})
   foreach(src IN LISTS _sapi_embed_SOURCES)
     if(TARGET "${src}")
-      list(APPEND _sapi_embed_in "${CMAKE_CURRENT_BINARY_DIR}/${src}")
+      get_target_property(_sapi_embed_src_OUTPUT_NAME ${src} OUTPUT_NAME)
+      if(NOT _sapi_embed_src_OUTPUT_NAME)
+        set(_sapi_embed_src_OUTPUT_NAME "${src}")
+      endif()
+      list(APPEND _sapi_embed_in
+          "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_src_OUTPUT_NAME}")
     else()
       list(APPEND _sapi_embed_in "${src}")
     endif()
@@ -30,22 +35,25 @@ macro(sapi_cc_embed_data)
   file(RELATIVE_PATH _sapi_embed_pkg
                      "${PROJECT_BINARY_DIR}"
                      "${CMAKE_CURRENT_BINARY_DIR}")
+  if(NOT _sapi_embed_OUTPUT_NAME)
+    set(_sapi_embed_OUTPUT_NAME "${_sapi_embed_NAME}")
+  endif()
   add_custom_command(
-    OUTPUT "${_sapi_embed_NAME}.h"
-           "${_sapi_embed_NAME}.cc"
+    OUTPUT "${_sapi_embed_OUTPUT_NAME}.h"
+           "${_sapi_embed_OUTPUT_NAME}.cc"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMAND filewrapper "${_sapi_embed_pkg}"
-                        "${_sapi_embed_NAME}"
+                        "${_sapi_embed_OUTPUT_NAME}"
                         "${_sapi_embed_NAMESPACE}"
-                        "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_NAME}.h"
-                        "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_NAME}.cc"
+                        "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_OUTPUT_NAME}.h"
+                        "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_OUTPUT_NAME}.cc"
                         ${_sapi_embed_in}
     DEPENDS ${_sapi_embed_SOURCES}
     VERBATIM
   )
   add_library("${_sapi_embed_NAME}" STATIC
-    "${_sapi_embed_NAME}.h"
-    "${_sapi_embed_NAME}.cc"
+    "${_sapi_embed_OUTPUT_NAME}.h"
+    "${_sapi_embed_OUTPUT_NAME}.cc"
   )
   target_link_libraries("${_sapi_embed_NAME}" PRIVATE
     sapi::base

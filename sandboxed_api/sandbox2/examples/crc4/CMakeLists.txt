@@ -31,11 +31,12 @@ target_link_libraries(sandbox2_crc4sandbox PRIVATE
 )
 
 # sandboxed_api/sandbox2/examples/crc4:crc4bin
-add_executable(crc4bin
+add_executable(sandbox2_crc4bin
   crc4bin.cc
 )
-add_executable(sandbox2::crc4bin ALIAS crc4bin)
-target_link_libraries(crc4bin PRIVATE
+set_target_properties(sandbox2_crc4bin PROPERTIES OUTPUT_NAME crc4bin)
+add_executable(sandbox2::crc4bin ALIAS sandbox2_crc4bin)
+target_link_libraries(sandbox2_crc4bin PRIVATE
   absl::core_headers
   sandbox2::client
   sandbox2::comms

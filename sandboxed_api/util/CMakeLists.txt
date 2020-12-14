@@ -92,28 +92,32 @@ if(SAPI_ENABLE_TESTS)
   )
 
   # sandboxed_api/util:status_test
-  add_executable(status_test
+  add_executable(sapi_status_test
     status_test.cc
   )
-  target_link_libraries(status_test PRIVATE
+  set_target_properties(sapi_status_test PROPERTIES OUTPUT_NAME status_test)
+  target_link_libraries(sapi_status_test PRIVATE
     sapi::status
     sapi::status_matchers
     sapi::test_main
     absl::status
     absl::type_traits
   )
-  gtest_discover_tests(status_test)
+  gtest_discover_tests(sapi_status_test)
 
   # sandboxed_api/util:status_macros_test
-  add_executable(status_macros_test
+  add_executable(sapi_status_macros_test
     status_macros_test.cc
   )
-  target_link_libraries(status_macros_test PRIVATE
+  set_target_properties(sapi_status_macros_test PROPERTIES
+    OUTPUT_NAME status_macros_test
+  )
+  target_link_libraries(sapi_status_macros_test PRIVATE
     sapi::status_matchers
     sapi::test_main
     absl::status
     absl::statusor
     absl::type_traits
   )
-  gtest_discover_tests(status_macros_test)
+  gtest_discover_tests(sapi_status_macros_test)
 endif()

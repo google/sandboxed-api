@@ -15,31 +15,39 @@
 set(_sandbox2_fully_static_linkopts -static)
 
 # sandboxed_api/sandbox2/testcases:abort
-add_executable(abort
+add_executable(sandbox2_testcase_abort
   abort.cc
 )
-add_executable(sandbox2::testcase_abort ALIAS abort)
-target_link_libraries(abort PRIVATE
+set_target_properties(sandbox2_testcase_abort PROPERTIES
+  OUTPUT_NAME abort)
+add_executable(sandbox2::testcase_abort ALIAS sandbox2_testcase_abort)
+target_link_libraries(sandbox2_testcase_abort PRIVATE
   sapi::base
   sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2/testcases:add_policy_on_syscalls
-add_executable(add_policy_on_syscalls
+add_executable(sandbox2_testcase_add_policy_on_syscalls
   add_policy_on_syscalls.cc
 )
 add_executable(sandbox2::testcase_add_policy_on_syscalls
-  ALIAS add_policy_on_syscalls)
-target_link_libraries(add_policy_on_syscalls PRIVATE
+  ALIAS sandbox2_testcase_add_policy_on_syscalls)
+set_target_properties(sandbox2_testcase_add_policy_on_syscalls PROPERTIES
+  OUTPUT_NAME add_policy_on_syscalls
+)
+target_link_libraries(sandbox2_testcase_add_policy_on_syscalls PRIVATE
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:buffer
-add_executable(buffer
+add_executable(sandbox2_testcase_buffer
   buffer.cc
 )
-add_executable(sandbox2::testcase_buffer ALIAS buffer)
-target_link_libraries(buffer PRIVATE
+add_executable(sandbox2::testcase_buffer ALIAS sandbox2_testcase_buffer)
+set_target_properties(sandbox2_testcase_buffer PROPERTIES
+  OUTPUT_NAME buffer
+)
+target_link_libraries(sandbox2_testcase_buffer PRIVATE
   absl::str_format
   sandbox2::buffer
   sandbox2::comms
@@ -48,11 +56,14 @@ target_link_libraries(buffer PRIVATE
 )
 
 # sandboxed_api/sandbox2/testcases:ipc
-add_executable(ipc
+add_executable(sandbox2_testcase_ipc
   ipc.cc
 )
-add_executable(sandbox2::testcase_ipc ALIAS ipc)
-target_link_libraries(ipc PRIVATE
+set_target_properties(sandbox2_testcase_ipc PROPERTIES
+  OUTPUT_NAME ipc
+)
+add_executable(sandbox2::testcase_ipc ALIAS sandbox2_testcase_ipc)
+target_link_libraries(sandbox2_testcase_ipc PRIVATE
   absl::strings
   -Wl,--whole-archive
   gflags::gflags
@@ -65,50 +76,68 @@ target_link_libraries(ipc PRIVATE
 )
 
 # sandboxed_api/sandbox2/testcases:malloc_system
-add_executable(malloc_system
+add_executable(sandbox2_testcase_malloc_system
   malloc.cc
 )
-add_executable(sandbox2::testcase_malloc_system ALIAS malloc_system)
-target_link_libraries(malloc_system PRIVATE
+add_executable(sandbox2::testcase_malloc_system ALIAS
+  sandbox2_testcase_malloc_system)
+set_target_properties(sandbox2_testcase_malloc_system PROPERTIES
+  OUTPUT_NAME malloc_system
+)
+target_link_libraries(sandbox2_testcase_malloc_system PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:minimal_dynamic
-add_executable(minimal_dynamic
+add_executable(sandbox2_testcase_minimal_dynamic
   minimal.cc
 )
-add_executable(sandbox2::testcase_minimal_dynamic ALIAS minimal_dynamic)
-target_link_libraries(minimal_dynamic PRIVATE
+set_target_properties(sandbox2_testcase_minimal_dynamic PROPERTIES
+  OUTPUT_NAME minimal_dynamic
+)
+add_executable(sandbox2::testcase_minimal_dynamic ALIAS
+  sandbox2_testcase_minimal_dynamic)
+target_link_libraries(sandbox2_testcase_minimal_dynamic PRIVATE
   sapi::base
 )
 
 # sandboxed_api/sandbox2/testcases:minimal
-add_executable(minimal
+add_executable(sandbox2_testcase_minimal
   minimal.cc
 )
-add_executable(sandbox2::testcase_minimal ALIAS minimal)
-target_link_libraries(minimal PRIVATE
+add_executable(sandbox2::testcase_minimal ALIAS sandbox2_testcase_minimal)
+set_target_properties(sandbox2_testcase_minimal PROPERTIES
+  OUTPUT_NAME minimal
+)
+target_link_libraries(sandbox2_testcase_minimal PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:personality
-add_executable(personality
+add_executable(sandbox2_testcase_personality
   personality.cc
 )
-add_executable(sandbox2::testcase_personality ALIAS personality)
-target_link_libraries(personality PRIVATE
+add_executable(sandbox2::testcase_personality ALIAS
+  sandbox2_testcase_personality)
+set_target_properties(sandbox2_testcase_personality PROPERTIES
+  OUTPUT_NAME personality
+)
+target_link_libraries(sandbox2_testcase_personality PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:pidcomms
-add_executable(pidcomms
+add_executable(sandbox2_testcase_pidcomms
   pidcomms.cc
 )
-add_executable(sandbox2::testcase_pidcomms ALIAS pidcomms)
-target_link_libraries(pidcomms PRIVATE
+add_executable(sandbox2::testcase_pidcomms ALIAS sandbox2_testcase_pidcomms)
+set_target_properties(sandbox2_testcase_pidcomms PROPERTIES
+  OUTPUT_NAME pidcomms
+)
+target_link_libraries(sandbox2_testcase_pidcomms PRIVATE
   -Wl,--whole-archive
   gflags::gflags
   -Wl,--no-whole-archive
@@ -121,52 +150,67 @@ target_link_libraries(pidcomms PRIVATE
 )
 
 # sandboxed_api/sandbox2/testcases:policy
-add_executable(policy
+add_executable(sandbox2_testcase_policy
   policy.cc
 )
-add_executable(sandbox2::testcase_policy ALIAS policy)
-target_link_libraries(policy PRIVATE
+add_executable(sandbox2::testcase_policy ALIAS sandbox2_testcase_policy)
+set_target_properties(sandbox2_testcase_policy PROPERTIES
+  OUTPUT_NAME policy
+)
+target_link_libraries(sandbox2_testcase_policy PRIVATE
   sapi::base
   sandbox2::config
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:print_fds
-add_executable(print_fds
+add_executable(sandbox2_testcase_print_fds
   print_fds.cc
 )
-add_executable(sandbox2::testcase_print_fds ALIAS print_fds)
-target_link_libraries(print_fds PRIVATE
+add_executable(sandbox2::testcase_print_fds ALIAS sandbox2_testcase_print_fds)
+set_target_properties(sandbox2_testcase_print_fds PROPERTIES
+  OUTPUT_NAME print_fds
+)
+target_link_libraries(sandbox2_testcase_print_fds PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:sanitizer
-add_executable(sanitizer
+add_executable(sandbox2_testcase_sanitizer
   sanitizer.cc
 )
-add_executable(sandbox2::testcase_sanitizer ALIAS sanitizer)
-target_link_libraries(sanitizer PRIVATE
+add_executable(sandbox2::testcase_sanitizer ALIAS sandbox2_testcase_sanitizer)
+set_target_properties(sandbox2_testcase_sanitizer PROPERTIES
+  OUTPUT_NAME sanitizer
+)
+target_link_libraries(sandbox2_testcase_sanitizer PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:sleep
-add_executable(sleep
+add_executable(sandbox2_testcase_sleep
   sleep.cc
 )
-add_executable(sandbox2::testcase_sleep ALIAS sleep)
-target_link_libraries(sleep PRIVATE
+add_executable(sandbox2::testcase_sleep ALIAS sandbox2_testcase_sleep)
+set_target_properties(sandbox2_testcase_sleep PROPERTIES
+  OUTPUT_NAME sleep
+)
+target_link_libraries(sandbox2_testcase_sleep PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:symbolize
-add_executable(symbolize
+add_executable(sandbox2_testcase_symbolize
   symbolize.cc
 )
-add_executable(sandbox2::testcase_symbolize ALIAS symbolize)
-target_link_libraries(symbolize PRIVATE
+add_executable(sandbox2::testcase_symbolize ALIAS sandbox2_testcase_symbolize)
+set_target_properties(sandbox2_testcase_symbolize PROPERTIES
+  OUTPUT_NAME symbolize
+)
+target_link_libraries(sandbox2_testcase_symbolize PRIVATE
   absl::core_headers
   absl::strings
   sandbox2::temp_file
@@ -176,21 +220,27 @@ target_link_libraries(symbolize PRIVATE
 )
 
 # sandboxed_api/sandbox2/testcases:starve
-add_executable(starve
+add_executable(sandbox2_testcase_starve
   starve.cc
 )
-add_executable(sandbox2::testcase_starve ALIAS starve)
-target_link_libraries(starve PRIVATE
+add_executable(sandbox2::testcase_starve ALIAS sandbox2_testcase_starve)
+set_target_properties(sandbox2_testcase_starve PROPERTIES
+  OUTPUT_NAME starve
+)
+target_link_libraries(sandbox2_testcase_starve PRIVATE
   sapi::base
 )
 
 
 # sandboxed_api/sandbox2/testcases:tsync
-add_executable(tsync
+add_executable(sandbox2_testcase_tsync
   tsync.cc
 )
-add_executable(sandbox2::testcase_tsync ALIAS tsync)
-target_link_libraries(tsync PRIVATE
+add_executable(sandbox2::testcase_tsync ALIAS sandbox2_testcase_tsync)
+set_target_properties(sandbox2_testcase_tsync PROPERTIES
+  OUTPUT_NAME tsync
+)
+target_link_libraries(sandbox2_testcase_tsync PRIVATE
   -Wl,--whole-archive
   gflags::gflags
   -Wl,--no-whole-archive
@@ -202,31 +252,40 @@ target_link_libraries(tsync PRIVATE
 )
 
 # sandboxed_api/sandbox2/testcases:hostname
-add_executable(hostname
+add_executable(sandbox2_testcase_hostname
   hostname.cc
 )
-add_executable(sandbox2::testcase_hostname ALIAS hostname)
-target_link_libraries(hostname PRIVATE
+add_executable(sandbox2::testcase_hostname ALIAS sandbox2_testcase_hostname)
+set_target_properties(sandbox2_testcase_hostname PROPERTIES
+  OUTPUT_NAME hostname
+)
+target_link_libraries(sandbox2_testcase_hostname PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:limits
-add_executable(limits
+add_executable(sandbox2_testcase_limits
   limits.cc
 )
-add_executable(sandbox2::testcase_limits ALIAS limits)
-target_link_libraries(limits PRIVATE
+add_executable(sandbox2::testcase_limits ALIAS sandbox2_testcase_limits)
+set_target_properties(sandbox2_testcase_limits PROPERTIES
+  OUTPUT_NAME limits
+)
+target_link_libraries(sandbox2_testcase_limits PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:namespace
-add_executable(namespace
+add_executable(sandbox2_testcase_namespace
   namespace.cc
 )
-add_executable(sandbox2::testcase_namespace ALIAS namespace)
-target_link_libraries(namespace PRIVATE
+add_executable(sandbox2::testcase_namespace ALIAS sandbox2_testcase_namespace)
+set_target_properties(sandbox2_testcase_namespace PROPERTIES
+  OUTPUT_NAME namespace
+)
+target_link_libraries(sandbox2_testcase_namespace PRIVATE
   sapi::base
   ${_sandbox2_fully_static_linkopts}
 )

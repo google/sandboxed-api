@@ -127,22 +127,28 @@ target_link_libraries(sandbox2_util_runfiles PRIVATE
 
 if(SAPI_ENABLE_TESTS)
   # sandboxed_api/sandbox2/util:file_helpers_test
-  add_executable(file_helpers_test
+  add_executable(sandbox2_file_helpers_test
     file_helpers_test.cc
   )
-  target_link_libraries(file_helpers_test PRIVATE
+  set_target_properties(sandbox2_file_helpers_test PROPERTIES
+    OUTPUT_NAME file_helpers_test
+  )
+  target_link_libraries(sandbox2_file_helpers_test PRIVATE
     absl::strings
     sandbox2::file_helpers
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(file_helpers_test)
+  gtest_discover_tests(sandbox2_file_helpers_test)
 
   # sandboxed_api/sandbox2/util:fileops_test
-  add_executable(fileops_test
+  add_executable(sandbox2_fileops_test
     fileops_test.cc
   )
-  target_link_libraries(fileops_test PRIVATE
+  set_target_properties(sandbox2_fileops_test PROPERTIES
+    OUTPUT_NAME fileops_test
+  )
+  target_link_libraries(sandbox2_fileops_test PRIVATE
     absl::strings
     sandbox2::file_helpers
     sandbox2::fileops
@@ -150,42 +156,51 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(fileops_test PROPERTIES
+  gtest_discover_tests(sandbox2_fileops_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2/util:file_base_test
-  add_executable(file_base_test
+  add_executable(sandbox2_file_base_test
     path_test.cc
   )
-  target_link_libraries(file_base_test PRIVATE
+  set_target_properties(sandbox2_file_base_test PROPERTIES
+    OUTPUT_NAME file_base_test
+  )
+  target_link_libraries(sandbox2_file_base_test PRIVATE
     absl::strings
     sandbox2::file_base
     sapi::test_main
   )
-  gtest_discover_tests(file_base_test)
+  gtest_discover_tests(sandbox2_file_base_test)
 
   # sandboxed_api/sandbox2/util:strerror
-  add_executable(strerror_test
+  add_executable(sandbox2_strerror_test
     strerror_test.cc
   )
-  target_link_libraries(strerror_test PRIVATE
+  set_target_properties(sandbox2_strerror_test PROPERTIES
+    OUTPUT_NAME strerror_test
+  )
+  target_link_libraries(sandbox2_strerror_test PRIVATE
     absl::strings
     sandbox2::strerror
     sapi::test_main
   )
-  gtest_discover_tests(strerror_test)
+  gtest_discover_tests(sandbox2_strerror_test)
 
   # sandboxed_api/sandbox2/util:minielf_test
-  add_executable(minielf_test
+  add_executable(sandbox2_minielf_test
     minielf_test.cc
+  )
+  set_target_properties(sandbox2_minielf_test PROPERTIES
+    OUTPUT_NAME minielf_test
   )
   configure_file(testdata/hello_world
                  testdata/hello_world COPYONLY)
   configure_file(testdata/chrome_grte_header
                  testdata/chrome_grte_header COPYONLY)
-  target_link_libraries(minielf_test PRIVATE
+  target_link_libraries(sandbox2_minielf_test PRIVATE
     absl::algorithm_container
     absl::strings
     sandbox2::file_helpers
@@ -195,16 +210,19 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(minielf_test PROPERTIES
+  gtest_discover_tests(sandbox2_minielf_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 
   # sandboxed_api/sandbox2/util:temp_file_test
-  add_executable(temp_file_test
+  add_executable(sandbox2_temp_file_test
     temp_file_test.cc
   )
-  target_link_libraries(temp_file_test PRIVATE
+  set_target_properties(sandbox2_temp_file_test PROPERTIES
+    OUTPUT_NAME temp_file_test
+  )
+  target_link_libraries(sandbox2_temp_file_test PRIVATE
     sandbox2::file_base
     sandbox2::fileops
     sandbox2::temp_file
@@ -212,16 +230,19 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(temp_file_test)
+  gtest_discover_tests(sandbox2_temp_file_test)
 
   # sandboxed_api/sandbox2/util:maps_parser_test
-  add_executable(maps_parser_test
+  add_executable(sandbox2_maps_parser_test
     maps_parser_test.cc
   )
-  target_link_libraries(maps_parser_test PRIVATE
+  set_target_properties(sandbox2_maps_parser_test PROPERTIES
+    OUTPUT_NAME maps_parser_test
+  )
+  target_link_libraries(sandbox2_maps_parser_test PRIVATE
     sandbox2::maps_parser
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(maps_parser_test)
+  gtest_discover_tests(sandbox2_maps_parser_test)
 endif()
