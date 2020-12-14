@@ -15,7 +15,7 @@
 #ifndef SANDBOXED_API_UTIL_RAW_LOGGING_H_
 #define SANDBOXED_API_UTIL_RAW_LOGGING_H_
 
-#include "absl/base/internal/raw_logging.h"
+#include "sandboxed_api/util/raw_logging.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
