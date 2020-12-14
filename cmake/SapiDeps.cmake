@@ -21,7 +21,20 @@ endfunction()
 
 # Use static libraries
 set(_sapi_saved_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
-set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
+if (SAPI_ENABLE_SHARED_LIBS)
+  set(SAPI_LIB_TYPE SHARED)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_SHARED_LIBRARY_SUFFIX})
+  set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
+  # Imply linking with system-wide libs
+  set(SAPI_DOWNLOAD_LIBCAP OFF CACHE BOOL "" FORCE)
+  set(SAPI_DOWNLOAD_LIBFFI OFF CACHE BOOL "" FORCE)
+  set(SAPI_DOWNLOAD_PROTOBUF OFF CACHE BOOL "" FORCE)
+  set(SAPI_DOWNLOAD_ZLIB OFF CACHE BOOL "" FORCE)
+  add_compile_definitions(SAPI_LIB_IS_SHARED=1)
+else()
+  set(SAPI_LIB_TYPE STATIC)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
+endif()
 
 if(SAPI_ENABLE_TESTS)
   if(SAPI_DOWNLOAD_GOOGLETEST)
@@ -71,6 +84,8 @@ if(SAPI_DOWNLOAD_GLOG)
 endif()
 check_target(glog::glog)
 
+add_dependencies(glog gflags::gflags)
+
 if(SAPI_DOWNLOAD_PROTOBUF)
   include(cmake/protobuf/Download.cmake)
   check_target(protobuf::libprotobuf)
@@ -87,6 +102,8 @@ if(SAPI_ENABLE_EXAMPLES)
     find_package(ZLIB REQUIRED)
   endif()
 endif()
+
+find_package(Threads REQUIRED)
 
 if(NOT SAPI_ENABLE_GENERATOR)
   # Find Python 3 and add its location to the cache so that its available in

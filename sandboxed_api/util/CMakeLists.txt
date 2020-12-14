@@ -16,7 +16,7 @@
 sapi_protobuf_generate_cpp(_sapi_util_status_pb_cc _sapi_util_status_pb_h
   status.proto
 )
-add_library(sapi_util_status_proto STATIC
+add_library(sapi_util_status_proto ${SAPI_LIB_TYPE}
   ${_sapi_util_status_pb_cc}
   ${_sapi_util_status_pb_h}
 )
@@ -27,7 +27,7 @@ target_link_libraries(sapi_util_status_proto
 )
 
 # sandboxed_api/util:status
-add_library(sapi_util_status STATIC
+add_library(sapi_util_status ${SAPI_LIB_TYPE}
   status.cc
   status.h
   status_macros.h
@@ -43,7 +43,7 @@ target_link_libraries(sapi_util_status
 )
 
 # sandboxed_api/util:statusor
-add_library(sapi_util_statusor STATIC
+add_library(sapi_util_statusor ${SAPI_LIB_TYPE}
   statusor.h
 )
 add_library(sapi::statusor ALIAS sapi_util_statusor)
@@ -55,16 +55,19 @@ target_link_libraries(sapi_util_statusor PRIVATE
 )
 
 # sandboxed_api/util:flag
-add_library(sapi_util_flags STATIC
+file(WRITE ${SAPI_BINARY_DIR}/sapi_util_flags_force_cxx_linkage.cc "")
+add_library(sapi_util_flags ${SAPI_LIB_TYPE}
   flag.h
+  "${SAPI_BINARY_DIR}/sapi_util_flags_force_cxx_linkage.cc"
 )
 add_library(sapi::flags ALIAS sapi_util_flags)
 target_link_libraries(sapi_util_flags PUBLIC
-  gflags::gflags
+  glog::glog
+  # gflags::gflags
 )
 
 # sandboxed_api/util:raw_logging
-add_library(sapi_util_raw_logging STATIC
+add_library(sapi_util_raw_logging ${SAPI_LIB_TYPE}
   raw_logging.cc
   raw_logging.h
 )
@@ -78,7 +81,7 @@ target_link_libraries(sapi_util_raw_logging PRIVATE
 
 if(SAPI_ENABLE_TESTS)
   # sandboxed_api/util:status_matchers
-  add_library(sapi_util_status_matchers STATIC
+  add_library(sapi_util_status_matchers ${SAPI_LIB_TYPE}
     status_matchers.h
   )
   add_library(sapi::status_matchers ALIAS sapi_util_status_matchers)
@@ -103,7 +106,7 @@ if(SAPI_ENABLE_TESTS)
     absl::status
     absl::type_traits
   )
-  gtest_discover_tests(sapi_status_test)
+  gtest_discover_tests_xcompile(sapi_status_test)
 
   # sandboxed_api/util:status_macros_test
   add_executable(sapi_status_macros_test
@@ -119,5 +122,5 @@ if(SAPI_ENABLE_TESTS)
     absl::statusor
     absl::type_traits
   )
-  gtest_discover_tests(sapi_status_macros_test)
+  gtest_discover_tests_xcompile(sapi_status_macros_test)
 endif()

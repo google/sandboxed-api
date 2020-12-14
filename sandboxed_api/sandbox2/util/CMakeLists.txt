@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # sandboxed_api/sandbox2/util:bpf_helper
-add_library(sandbox2_util_bpf_helper STATIC
+add_library(sandbox2_util_bpf_helper ${SAPI_LIB_TYPE}
   bpf_helper.c
   bpf_helper.h
 )
@@ -23,7 +23,7 @@ target_link_libraries(sandbox2_util_bpf_helper PRIVATE
 )
 
 # sandboxed_api/sandbox2/util:file_helpers
-add_library(sandbox2_util_file_helpers STATIC
+add_library(sandbox2_util_file_helpers ${SAPI_LIB_TYPE}
   file_helpers.cc
   file_helpers.h
 )
@@ -35,7 +35,7 @@ target_link_libraries(sandbox2_util_file_helpers PRIVATE
 )
 
 # sandboxed_api/sandbox2/util:fileops
-add_library(sandbox2_util_fileops STATIC
+add_library(sandbox2_util_fileops ${SAPI_LIB_TYPE}
   fileops.cc
   fileops.h
 )
@@ -47,7 +47,7 @@ target_link_libraries(sandbox2_util_fileops PRIVATE
 )
 
 # sandboxed_api/sandbox2/util:file_base
-add_library(sandbox2_util_file_base STATIC
+add_library(sandbox2_util_file_base ${SAPI_LIB_TYPE}
   path.cc
   path.h
 )
@@ -58,7 +58,7 @@ target_link_libraries(sandbox2_util_file_base PRIVATE
 )
 
 # sandboxed_api/sandbox2/util:strerror
-add_library(sandbox2_util_strerror STATIC
+add_library(sandbox2_util_strerror ${SAPI_LIB_TYPE}
   strerror.cc
   strerror.h
 )
@@ -69,7 +69,7 @@ target_link_libraries(sandbox2_util_strerror PRIVATE
 )
 
 # sandboxed_api/sandbox2/util:minielf
-add_library(sandbox2_util_minielf STATIC
+add_library(sandbox2_util_minielf ${SAPI_LIB_TYPE}
   minielf.cc
   minielf.h
 )
@@ -77,13 +77,14 @@ add_library(sandbox2::minielf ALIAS sandbox2_util_minielf)
 target_link_libraries(sandbox2_util_minielf PRIVATE
   absl::status
   absl::strings
+  sandbox2::strerror
   sandbox2::util
   sapi::base
   sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2/util:temp_file
-add_library(sandbox2_util_temp_file STATIC
+add_library(sandbox2_util_temp_file ${SAPI_LIB_TYPE}
   temp_file.cc
   temp_file.h
 )
@@ -98,20 +99,20 @@ target_link_libraries(sandbox2_util_temp_file
 )
 
 # sandboxed_api/sandbox2/util:maps_parser
-add_library(sandbox2_util_maps_parser STATIC
+add_library(sandbox2_util_maps_parser ${SAPI_LIB_TYPE}
   maps_parser.cc
   maps_parser.h
 )
 add_library(sandbox2::maps_parser ALIAS sandbox2_util_maps_parser)
-target_link_libraries(sandbox2_util_maps_parser PRIVATE
-  absl::status
-  absl::statusor
-  absl::strings
-  sapi::base
+target_link_libraries(sandbox2_util_maps_parser
+  PRIVATE absl::status
+          absl::strings
+          sapi::base
+  PUBLIC absl::statusor
 )
 
 # sandboxed_api/sandbox2/util:runfiles
-add_library(sandbox2_util_runfiles STATIC
+add_library(sandbox2_util_runfiles ${SAPI_LIB_TYPE}
   runfiles.h
   runfiles_nobazel.cc
 )
@@ -139,7 +140,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_file_helpers_test)
+  gtest_discover_tests_xcompile(sandbox2_file_helpers_test)
 
   # sandboxed_api/sandbox2/util:fileops_test
   add_executable(sandbox2_fileops_test
@@ -156,7 +157,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_fileops_test PROPERTIES
+  gtest_discover_tests_xcompile(sandbox2_fileops_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
@@ -173,7 +174,7 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::file_base
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_file_base_test)
+  gtest_discover_tests_xcompile(sandbox2_file_base_test)
 
   # sandboxed_api/sandbox2/util:strerror
   add_executable(sandbox2_strerror_test
@@ -187,7 +188,7 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::strerror
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_strerror_test)
+  gtest_discover_tests_xcompile(sandbox2_strerror_test)
 
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test
@@ -200,17 +201,18 @@ if(SAPI_ENABLE_TESTS)
                  testdata/hello_world COPYONLY)
   configure_file(testdata/chrome_grte_header
                  testdata/chrome_grte_header COPYONLY)
-  target_link_libraries(sandbox2_minielf_test PRIVATE
-    absl::algorithm_container
-    absl::strings
-    sandbox2::file_helpers
-    sandbox2::maps_parser
-    sandbox2::minielf
-    sandbox2::testing
-    sapi::status_matchers
-    sapi::test_main
+  target_link_libraries(sandbox2_minielf_test
+    PRIVATE absl::algorithm_container
+            absl::strings
+            sandbox2::file_helpers
+            sandbox2::maps_parser
+            sandbox2::minielf
+            sandbox2::testing
+            sapi::status_matchers
+            sapi::test_main
+    PUBLIC absl::statusor
   )
-  gtest_discover_tests(sandbox2_minielf_test PROPERTIES
+  gtest_discover_tests_xcompile(sandbox2_minielf_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
@@ -230,7 +232,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_temp_file_test)
+  gtest_discover_tests_xcompile(sandbox2_temp_file_test)
 
   # sandboxed_api/sandbox2/util:maps_parser_test
   add_executable(sandbox2_maps_parser_test
@@ -244,5 +246,5 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_maps_parser_test)
+  gtest_discover_tests_xcompile(sandbox2_maps_parser_test)
 endif()

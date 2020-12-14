@@ -32,5 +32,5 @@ if(SAPI_ENABLE_TESTS)
     sapi::test_main
     sapi::vars
   )
-  gtest_discover_tests(sapi_main_stringop)
+  gtest_discover_tests_xcompile(sapi_main_stringop)
 endif()

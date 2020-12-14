@@ -81,5 +81,5 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sapi_generator_test)
+  gtest_discover_tests_xcompile(sapi_generator_test)
 endif()

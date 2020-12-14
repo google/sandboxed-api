@@ -23,6 +23,7 @@ ExternalProject_Add(libffi
   CONFIGURE_COMMAND ./configure
                     --disable-dependency-tracking
                     --disable-builddir
+                    ${SAPI_THIRD_PARTY_CONFIGUREOPTS}
   BUILD_COMMAND     ""
   INSTALL_COMMAND   ""
   TEST_COMMAND      ""

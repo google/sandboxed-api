@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(SAPI_ENABLE_EXAMPLES OR SAPI_ENABLE_TESTS)
+if((SAPI_ENABLE_EXAMPLES OR SAPI_ENABLE_TESTS) AND NOT CMAKE_CROSSCOMPILING)
   # TODO(cblichmann): These are depended on by sapi::sapi_test
   add_subdirectory(stringop)
   add_subdirectory(sum)
 endif()
 
-if(SAPI_ENABLE_EXAMPLES)
+if(SAPI_ENABLE_EXAMPLES AND SAPI_DOWNLOAD_ZLIB)
   add_subdirectory(zlib)
 endif()

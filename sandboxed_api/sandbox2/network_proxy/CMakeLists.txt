@@ -13,14 +13,13 @@
 # limitations under the License.
 
 # sandboxed_api/sandbox2/network_proxy:server
-add_library(sandbox2_network_proxy_server STATIC
+add_library(sandbox2_network_proxy_server ${SAPI_LIB_TYPE}
   server.cc
   server.h
 )
 add_library(sandbox2::network_proxy_server ALIAS sandbox2_network_proxy_server)
 target_link_libraries(sandbox2_network_proxy_server PRIVATE
   absl::memory
-  glog::glog
   sandbox2::comms
   sandbox2::fileops
   sandbox2::network_proxy_filtering
@@ -28,7 +27,7 @@ target_link_libraries(sandbox2_network_proxy_server PRIVATE
 )
 
 # sandboxed_api/sandbox2/network_proxy:filtering
-add_library(sandbox2_network_proxy_filtering STATIC
+add_library(sandbox2_network_proxy_filtering ${SAPI_LIB_TYPE}
   filtering.cc
   filtering.h
 )
@@ -36,15 +35,17 @@ add_library(sandbox2::network_proxy_filtering ALIAS sandbox2_network_proxy_filte
 target_link_libraries(sandbox2_network_proxy_filtering
   PRIVATE absl::memory
           absl::status
-          glog::glog
           sandbox2::comms
           sandbox2::fileops
           sapi::base
-  PUBLIC sapi::status
+  PUBLIC absl::statusor
+         glog::glog
+         sandbox2::strerror
+         sapi::status
 )
 
 # sandboxed_api/sandbox2/network_proxy:client
-add_library(sandbox2_network_proxy_client STATIC
+add_library(sandbox2_network_proxy_client ${SAPI_LIB_TYPE}
   client.cc
   client.h
 )
@@ -70,13 +71,11 @@ if(SAPI_ENABLE_TESTS)
   )
   target_link_libraries(sandbox2_filtering_test PRIVATE
     absl::strings
-    glog::glog
-    gflags::gflags
     sandbox2::network_proxy_filtering
     sandbox2::testing
     sapi::base
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sandbox2_filtering_test)
+  gtest_discover_tests_xcompile(sandbox2_filtering_test)
 endif()

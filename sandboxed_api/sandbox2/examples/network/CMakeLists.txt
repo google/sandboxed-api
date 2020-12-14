@@ -21,7 +21,6 @@ add_dependencies(sandbox2_network_sandbox
   sandbox2::network_bin
 )
 target_link_libraries(sandbox2_network_sandbox PRIVATE
-  glog::glog
   sandbox2::bpf_helper
   sandbox2::comms
   sandbox2::fileops
@@ -39,8 +38,6 @@ set_target_properties(sandbox2_network_bin PROPERTIES OUTPUT_NAME network_bin)
 add_executable(sandbox2::network_bin ALIAS sandbox2_network_bin)
 target_link_libraries(sandbox2_network_bin PRIVATE
   absl::str_format
-  glog::glog
-  gflags::gflags
   sandbox2::client
   sandbox2::comms
   sandbox2::fileops

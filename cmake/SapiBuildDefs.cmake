@@ -200,3 +200,10 @@ function(add_sapi_library)
     )
   endif()
 endfunction()
+
+# Wrapper for gtest_discover_tests to exclude tests discover when cross compiling.
+macro(gtest_discover_tests_xcompile)
+  if (NOT CMAKE_CROSSCOMPILING)
+    gtest_discover_tests(${ARGV})
+  endif()
+endmacro()

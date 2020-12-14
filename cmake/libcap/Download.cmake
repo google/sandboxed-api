@@ -44,19 +44,34 @@ add_custom_command(OUTPUT ${_cap_src}/libcap/cap_names.list.h
           tr [:upper:] [:lower:] > ${_cap_src}/libcap/cap_names.list.h
 )
 
-add_executable(libcap_makenames
-  ${_cap_src}/libcap/cap_names.list.h
-  ${_cap_src}/libcap/_makenames.c
-)
-target_include_directories(libcap_makenames PUBLIC
-  ${_cap_src}/libcap
-  ${_cap_src}/libcap/include
-  ${_cap_src}/libcap/include/uapi
-)
+if (CMAKE_CROSSCOMPILING AND BUILD_C_COMPILER)
+  add_custom_command(OUTPUT ${_cap_src}/libcap/libcap_makenames
+    VERBATIM
+    # Use the same logic as libcap/Makefile
+    COMMAND ${BUILD_C_COMPILER} ${BUILD_C_FLAGS} ${_cap_src}/libcap/_makenames.c -o ${_cap_src}/libcap/libcap_makenames
+    DEPENDS ${_cap_src}/libcap/cap_names.list.h ${_cap_src}/libcap/_makenames.c
+  )
 
-add_custom_command(OUTPUT ${_cap_src}/libcap/cap_names.h
-  COMMAND libcap_makenames > ${_cap_src}/libcap/cap_names.h
-)
+  add_custom_command(OUTPUT ${_cap_src}/libcap/cap_names.h
+    COMMAND ${_cap_src}/libcap/libcap_makenames > ${_cap_src}/libcap/cap_names.h
+    DEPENDS ${_cap_src}/libcap/libcap_makenames
+  )
+else()
+  add_executable(libcap_makenames
+    ${_cap_src}/libcap/cap_names.list.h
+    ${_cap_src}/libcap/_makenames.c
+  )
+
+  target_include_directories(libcap_makenames PUBLIC
+    ${_cap_src}/libcap
+    ${_cap_src}/libcap/include
+    ${_cap_src}/libcap/include/uapi
+  )
+
+  add_custom_command(OUTPUT ${_cap_src}/libcap/cap_names.h
+    COMMAND libcap_makenames > ${_cap_src}/libcap/cap_names.h
+  )
+endif()
 
 add_library(cap STATIC
   ${_cap_src}/libcap/cap_alloc.c

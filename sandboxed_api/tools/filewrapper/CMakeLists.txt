@@ -18,6 +18,7 @@ add_executable(filewrapper
 )
 target_link_libraries(filewrapper PRIVATE
   absl::strings
+  absl::str_format
   sandbox2::fileops
   sandbox2::strerror
   sapi::base
@@ -48,7 +49,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests(sapi_filewrapper_test PROPERTIES
+  gtest_discover_tests_xcompile(sapi_filewrapper_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )

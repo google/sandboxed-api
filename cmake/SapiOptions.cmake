@@ -36,6 +36,10 @@ option(SAPI_DOWNLOAD_ZLIB "Download zlib at config time (only if SAPI_ENABLE_EXA
 option(SAPI_ENABLE_TESTS "Build unit tests" ON)
 option(SAPI_ENABLE_GENERATOR "Build Clang based code generator from source" OFF)
 
+# This flag should be only enabled for embedded and resource-constrained
+# environments
+option(SAPI_ENABLE_SHARED_LIBS "Build SAPI shared libs" OFF)
+
 option(SAPI_HARDENED_SOURCE "Build with hardening compiler options" OFF)
 
 option(SAPI_FORCE_COLOR_OUTPUT "Force colored compiler diagnostics when using Ninja" ON)

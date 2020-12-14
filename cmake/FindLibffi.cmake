@@ -16,7 +16,7 @@
 
 find_path(libffi_INCLUDE_DIR ffitarget.h)
 # Look for static library only.
-find_library(libffi_LIBRARY libffi.a)
+find_library(libffi_LIBRARY ffi)
 mark_as_advanced(libffi_INCLUDE_DIR libffi_LIBRARY)
 
 include(FindPackageHandleStandardArgs)

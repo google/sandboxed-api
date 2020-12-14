@@ -16,7 +16,7 @@
 
 find_path(libcap_INCLUDE_DIR sys/capability.h)
 # Look for static library only.
-find_library(libcap_LIBRARY libcap.a)
+find_library(libcap_LIBRARY cap)
 mark_as_advanced(libcap_INCLUDE_DIR libcap_LIBRARY)
 
 include(FindPackageHandleStandardArgs)
