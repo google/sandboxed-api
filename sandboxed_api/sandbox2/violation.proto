@@ -102,13 +102,6 @@ message SyscallDescription {
   // useful when the violation type was a change in syscall architecture.
 }
 
-message FsDescription {
-  repeated string file_allowlist = 1;
-  repeated string symlink_allowlist = 2;
-  repeated string file_greylist = 3;
-  repeated string file_denylist = 4;
-}
-
 message PolicyBuilderDescription {
   repeated int32 handled_syscalls = 1;
   repeated string bind_mounts = 2;
@@ -141,7 +134,7 @@ message Violation {
   string stack_trace = 6;
   SyscallDescription syscall_information = 7;
   RegisterValues register_values = 8;
-  FsDescription fs = 9;
+  reserved 9;
   string proc_maps = 10;
   // Contains the received signal that caused the death if applicable.
   int32 signal = 11;
