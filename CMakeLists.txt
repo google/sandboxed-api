@@ -34,6 +34,14 @@ set(SAPI_SOURCE_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "" FORCE)
 
 include(CheckCXXCompilerFlag)
 
+# TODO(cblichmann): Only apply this to SAPI and its dependencies
+add_compile_options(-fno-exceptions)
+
+if(SAPI_HARDENED_SOURCE)
+  add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
+  add_link_options(-Wl,-z,relro -Wl,-z,now)
+endif()
+
 # Sapi CMake modules, order matters
 list(APPEND CMAKE_MODULE_PATH "${SAPI_SOURCE_DIR}/cmake")
 include(SapiOptions)
@@ -53,14 +61,6 @@ if(SAPI_FORCE_COLOR_OUTPUT)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")  # Clang or Apple Clang
     add_compile_options(-fcolor-diagnostics)
   endif()
-endif()
-
-# TODO(cblichmann): Only apply this to SAPI and its dependencies
-add_compile_options(-fno-exceptions)
-
-if(SAPI_HARDENED_SOURCE)
-  add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
-  add_link_options(-Wl,-z,relro -Wl,-z,now)
 endif()
 
 # Make Bazel-style includes work
