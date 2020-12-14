@@ -300,7 +300,8 @@ absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
       {reinterpret_cast<void*>(ptr + len1), len2},
   };
 
-  SAPI_RAW_VLOG(4, "ReadCPathFromPid (iovec): len1: %d, len2: %d", len1, len2);
+  SAPI_RAW_VLOG(4, "ReadCPathFromPid (iovec): len1: %zu, len2: %zu", len1,
+                len2);
   ssize_t sz = process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
                                 remote_iov, ABSL_ARRAYSIZE(remote_iov), 0);
   if (sz < 0) {

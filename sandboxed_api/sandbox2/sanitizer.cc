@@ -58,13 +58,13 @@ bool ListNumericalDirectoryEntries(const std::string& directory,
   std::string error;
   if (!file_util::fileops::ListDirectoryEntries(directory, &entries, &error)) {
     SAPI_RAW_LOG(WARNING, "List directory entries for '%s' failed: %s",
-                 kProcSelfFd, error);
+                 kProcSelfFd, error.c_str());
     return false;
   }
   for (const auto& entry : entries) {
     int num;
     if (!absl::SimpleAtoi(entry, &num)) {
-      SAPI_RAW_LOG(WARNING, "Cannot convert %s to a number", entry);
+      SAPI_RAW_LOG(WARNING, "Cannot convert %s to a number", entry.c_str());
       return false;
     }
     nums->insert(num);
@@ -78,19 +78,21 @@ std::string GetProcStatusLine(int pid, const std::string& value) {
   std::string procpidstatus;
   auto status = file::GetContents(fname, &procpidstatus, file::Defaults());
   if (!status.ok()) {
-    SAPI_RAW_LOG(WARNING, "%s", status.message());
+    SAPI_RAW_LOG(WARNING, "%s", std::string(status.message()).c_str());
     return "";
   }
 
   for (const auto& line : absl::StrSplit(procpidstatus, '\n')) {
-    std::pair<absl::string_view, absl::string_view> kv =
+    std::pair<std::string, std::string> kv =
         absl::StrSplit(line, absl::MaxSplits(':', 1));
-    SAPI_RAW_VLOG(3, "Key: '%s' Value: '%s'", kv.first, kv.second);
+    SAPI_RAW_VLOG(3, "Key: '%s' Value: '%s'", kv.first.c_str(),
+                  kv.second.c_str());
     if (kv.first == value) {
-      return std::string(kv.second);
+      return std::move(kv.second);
     }
   }
-  SAPI_RAW_LOG(ERROR, "No '%s' field found in '%s'", value, fname);
+  SAPI_RAW_LOG(ERROR, "No '%s' field found in '%s'", value.c_str(),
+               fname.c_str());
   return "";
 }
 
@@ -167,7 +169,8 @@ int GetNumberOfThreads(int pid) {
   }
   int threads;
   if (!absl::SimpleAtoi(thread_str, &threads)) {
-    SAPI_RAW_LOG(ERROR, "Couldn't convert '%s' to a number", thread_str);
+    SAPI_RAW_LOG(ERROR, "Couldn't convert '%s' to a number",
+                 thread_str.c_str());
     return -1;
   }
   SAPI_RAW_VLOG(1, "Found %d threads in pid: %d", threads, pid);
@@ -194,7 +197,7 @@ void WaitForTsan() {
 
 bool SanitizeCurrentProcess(const std::set<int>& fd_exceptions,
                             bool close_fds) {
-  SAPI_RAW_VLOG(1, "Sanitizing PID: %d, close_fds: %d", syscall(__NR_getpid),
+  SAPI_RAW_VLOG(1, "Sanitizing PID: %zu, close_fds: %d", syscall(__NR_getpid),
                 close_fds);
 
   // Put process in a separate session (and a new process group).

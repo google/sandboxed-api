@@ -153,7 +153,7 @@ std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
                                            });
   if (!f) {
     // Could not open maps file.
-    SAPI_RAW_LOG(ERROR, "Could not open %s", path_maps);
+    SAPI_RAW_LOG(ERROR, "Could not open %s", path_maps.c_str());
     return {};
   }
 
@@ -196,8 +196,9 @@ std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
 
     auto elf = ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
     if (!elf.ok()) {
-      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s", entry.path,
-                   elf.status().message());
+      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
+                   entry.path.c_str(),
+                   std::string(elf.status().message()).c_str());
       continue;
     }
 

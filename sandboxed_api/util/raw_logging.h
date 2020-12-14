@@ -12,55 +12,142 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// SAPI raw logging. Forked from Abseil's version.
+
 #ifndef SANDBOXED_API_UTIL_RAW_LOGGING_H_
 #define SANDBOXED_API_UTIL_RAW_LOGGING_H_
 
+#include <string>
+#include <utility>
+
 #include "sandboxed_api/util/raw_logging.h"
+#include "absl/base/attributes.h"
+#include "absl/base/config.h"
+#include "absl/base/log_severity.h"
+#include "absl/base/macros.h"
+#include "absl/base/optimization.h"
+#include "absl/base/port.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 
-namespace sapi {
-namespace internal {
+// `SAPI_INTERNAL_UNREACHABLE` is an unreachable statement.  A program which
+// reaches one has undefined behavior, and the compiler may optimize
+// accordingly.
+#if defined(__GNUC__) || ABSL_HAVE_BUILTIN(__builtin_unreachable)
+#define SAPI_INTERNAL_UNREACHABLE __builtin_unreachable()
+#elif defined(_MSC_VER)
+#define SAPI_INTERNAL_UNREACHABLE __assume(0)
+#else
+#define SAPI_INTERNAL_UNREACHABLE
+#endif
 
-bool VLogIsOn(int verbose_level);
+#ifdef ABSL_RAW_LOG
+#define SAPI_RAW_LOG ABSL_RAW_LOG
+#else
+// This is similar to LOG(severity) << format..., but
+// * it is to be used ONLY by low-level modules that can't use normal LOG()
+// * it is designed to be a low-level logger that does not allocate any
+//   memory and does not need any locks, hence:
+// * it logs straight and ONLY to STDERR w/o buffering
+// * it uses an explicit printf-format and arguments list
+// * it will silently chop off really long message strings
+// Usage example:
+//   SAPI_RAW_LOG(ERROR, "Failed foo with %i: %s", status, error);
+// This will print an almost standard log line like this to stderr only:
+//   E0821 211317 file.cc:123] RAW: Failed foo with 22: bad_file
 
-}  // namespace internal
-}  // namespace sapi
+#define SAPI_RAW_LOG(severity, ...)                                            \
+  do {                                                                         \
+    constexpr const char* absl_raw_logging_internal_basename =                 \
+        ::sapi::raw_logging_internal::Basename(__FILE__,                       \
+                                               sizeof(__FILE__) - 1);          \
+    ::sapi::raw_logging_internal::RawLog(SAPI_RAW_LOGGING_INTERNAL_##severity, \
+                                         absl_raw_logging_internal_basename,   \
+                                         __LINE__, __VA_ARGS__);               \
+  } while (0)
+#endif
+
+#ifdef ABSL_RAW_CHECK
+#define SAPI_RAW_CHECK ABSL_RAW_CHECK
+#else
+// Similar to CHECK(condition) << message, but for low-level modules:
+// we use only SAPI_RAW_LOG that does not allocate memory.
+// We do not want to provide args list here to encourage this usage:
+//   if (!cond)  SAPI_RAW_LOG(FATAL, "foo ...", hard_to_compute_args);
+// so that the args are not computed when not needed.
+#define SAPI_RAW_CHECK(condition, message)                             \
+  do {                                                                 \
+    if (ABSL_PREDICT_FALSE(!(condition))) {                            \
+      SAPI_RAW_LOG(FATAL, "Check %s failed: %s", #condition, message); \
+    }                                                                  \
+  } while (0)
+#endif
+
+#define SAPI_RAW_LOGGING_INTERNAL_INFO ::absl::LogSeverity::kInfo
+#define SAPI_RAW_LOGGING_INTERNAL_WARNING ::absl::LogSeverity::kWarning
+#define SAPI_RAW_LOGGING_INTERNAL_ERROR ::absl::LogSeverity::kError
+#define SAPI_RAW_LOGGING_INTERNAL_FATAL ::absl::LogSeverity::kFatal
 
 // Returns whether SAPI verbose logging is enabled, as determined by the
 // SAPI_VLOG_LEVEL environment variable.
-#define SAPI_VLOG_IS_ON(verbose_level) ::sapi::internal::VLogIsOn(verbose_level)
-
-// This is similar to LOG(severity) << format..., but intended for low-level
-// modules that cannot use regular logging (i.e. in static initializers). It
-// also uses printf-style formatting using absl::StrFormat for type-safety.
-#define SAPI_RAW_LOG(severity, format, ...) \
-  ABSL_INTERNAL_LOG(severity, absl::StrFormat((format), ##__VA_ARGS__))
+#define SAPI_VLOG_IS_ON(verbose_level) \
+  ::sapi::raw_logging_internal::VLogIsOn(verbose_level)
 
 // Like SAPI_RAW_LOG(), but also logs the current value of errno and its
 // corresponding error message.
-#define SAPI_RAW_PLOG(severity, format, ...)                                 \
-  ABSL_INTERNAL_LOG(                                                         \
-      severity, absl::StrCat(absl::StrFormat((format), ##__VA_ARGS__), ": ", \
-                             ::sandbox2::StrError(errno), " [", errno, "]"))
+#define SAPI_RAW_PLOG(severity, format, ...)                       \
+  do {                                                             \
+    const auto message = absl::StrFormat((format), ##__VA_ARGS__); \
+    SAPI_RAW_LOG(severity, "%s: %s [%d]", message.c_str(),         \
+                 ::sandbox2::StrError(errno).c_str(), errno);      \
+  } while (0)
 
 // If verbose logging is enabled, uses SAPI_RAW_LOG() to log.
-#define SAPI_RAW_VLOG(verbose_level, format, ...) \
-  if (sapi::internal::VLogIsOn(verbose_level)) {  \
-    SAPI_RAW_LOG(INFO, (format), ##__VA_ARGS__);  \
+#define SAPI_RAW_VLOG(verbose_level, format, ...)            \
+  if (sapi::raw_logging_internal::VLogIsOn(verbose_level)) { \
+    SAPI_RAW_LOG(INFO, (format), ##__VA_ARGS__);             \
   }
-
-// Like regular CHECK(), but uses raw logging and printf-style formatting.
-#define SAPI_RAW_CHECK(condition, format, ...) \
-  ABSL_INTERNAL_CHECK((condition), absl::StrFormat((format), ##__VA_ARGS__))
 
 // Like SAPI_RAW_CHECK(), but also logs errno and a message (similar to
 // SAPI_RAW_PLOG()).
-#define SAPI_RAW_PCHECK(condition, format, ...)                    \
-  ABSL_INTERNAL_CHECK(                                             \
-      (condition),                                                 \
-      absl::StrCat(absl::StrFormat((format), ##__VA_ARGS__), ": ", \
-                   ::sandbox2::StrError(errno), " [", errno, "]"))
+#define SAPI_RAW_PCHECK(condition, format, ...)                          \
+  do {                                                                   \
+    const auto message = absl::StrFormat((format), ##__VA_ARGS__);       \
+    if (ABSL_PREDICT_FALSE(!(condition))) {                              \
+      SAPI_RAW_LOG(FATAL, "Check %s failed: %s: %s [%d]", #condition,    \
+                   message.c_str(), ::sandbox2::StrError(errno).c_str(), \
+                   errno);                                               \
+    }                                                                    \
+  } while (0)
+
+namespace sapi::raw_logging_internal {
+
+// Helper function to implement ABSL_RAW_LOG
+// Logs format... at "severity" level, reporting it
+// as called from file:line.
+// This does not allocate memory or acquire locks.
+void RawLog(absl::LogSeverity severity, const char* file, int line,
+            const char* format, ...) ABSL_PRINTF_ATTRIBUTE(4, 5);
+
+// Writes the provided buffer directly to stderr, in a safe, low-level manner.
+//
+// In POSIX this means calling write(), which is async-signal safe and does
+// not malloc.  If the platform supports the SYS_write syscall, we invoke that
+// directly to side-step any libc interception.
+void SafeWriteToStderr(const char* s, size_t len);
+
+// compile-time function to get the "base" filename, that is, the part of
+// a filename after the last "/" or "\" path separator.  The search starts at
+// the end of the string; the second parameter is the length of the string.
+constexpr const char* Basename(const char* fname, int offset) {
+  return offset == 0 || fname[offset - 1] == '/' || fname[offset - 1] == '\\'
+             ? fname + offset
+             : Basename(fname, offset - 1);
+}
+
+bool VLogIsOn(int verbose_level);
+
+}  // namespace sapi::raw_logging_internal
 
 #endif  // SANDBOXED_API_UTIL_RAW_LOGGING_H_

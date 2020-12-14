@@ -23,6 +23,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cinttypes>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -116,7 +117,7 @@ void Client::SetUpCwd() {
           1,
           "chdir(%s) failed, falling back to previous cwd or / (with "
           "namespaces). Use Executor::SetCwd() to set a working directory: %s",
-          cwd, StrError(errno));
+          cwd.c_str(), StrError(errno).c_str());
     }
   }
 }
@@ -201,9 +202,10 @@ void Client::ApplyPolicyAndBecomeTracee() {
   prog.len = static_cast<uint16_t>(policy_.size() / sizeof(sock_filter));
   prog.filter = reinterpret_cast<sock_filter*>(&policy_.front());
 
-  SAPI_RAW_VLOG(
-      1, "Applying policy in PID %d, sock_fprog.len: %hd entries (%d bytes)",
-      syscall(__NR_gettid), prog.len, policy_.size());
+  SAPI_RAW_VLOG(1,
+                "Applying policy in PID %zd, sock_fprog.len: %" PRId16
+                " entries (%" PRIuPTR " bytes)",
+                syscall(__NR_gettid), prog.len, policy_.size());
 
   // Signal executor we are ready to have limits applied on us and be ptraced.
   // We want limits at the last moment to avoid triggering them too early and we

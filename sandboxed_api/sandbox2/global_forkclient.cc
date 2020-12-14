@@ -37,6 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/fileops.h"
@@ -160,10 +161,11 @@ void GlobalForkClient::EnsureStarted(GlobalForkserverStartMode mode) {
 
 void GlobalForkClient::EnsureStartedLocked(GlobalForkserverStartMode mode) {
   if (!instance_) {
-    SAPI_RAW_CHECK(!getenv(kForkServerDisableEnv),
-                   "Start of the Global Fork-Server prevented by the '%s' "
-                   "environment variable present",
-                   kForkServerDisableEnv);
+    SAPI_RAW_CHECK(
+        !getenv(kForkServerDisableEnv),
+        absl::StrCat("Start of the Global Fork-Server prevented by the '",
+                     kForkServerDisableEnv, "' environment variable present")
+            .c_str());
     SAPI_RAW_CHECK(
         GetForkserverStartMode().contains(mode),
         "Start of the Global Fork-Server prevented by commandline flag");

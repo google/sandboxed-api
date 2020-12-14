@@ -143,7 +143,7 @@ bool Comms::Listen() {
     return false;
   }
 
-  SAPI_RAW_VLOG(1, "Listening at: %s", socket_name_);
+  SAPI_RAW_VLOG(1, "Listening at: %s", socket_name_.c_str());
   return true;
 }
 
@@ -171,7 +171,7 @@ bool Comms::Accept() {
 
   state_ = State::kConnected;
 
-  SAPI_RAW_VLOG(1, "Accepted connection at: %s, fd: %d", socket_name_,
+  SAPI_RAW_VLOG(1, "Accepted connection at: %s, fd: %d", socket_name_.c_str(),
                 connection_fd_);
   return true;
 }
@@ -207,7 +207,8 @@ bool Comms::Connect() {
 
   state_ = State::kConnected;
 
-  SAPI_RAW_VLOG(1, "Connected to: %s, fd: %d", socket_name_, connection_fd_);
+  SAPI_RAW_VLOG(1, "Connected to: %s, fd: %d", socket_name_.c_str(),
+                connection_fd_);
   return true;
 }
 
@@ -230,22 +231,23 @@ void Comms::Terminate() {
 
 bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
   if (length > GetMaxMsgSize()) {
-    SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%u > %u)", length,
-                 GetMaxMsgSize());
+    SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%zu > %zu)",
+                 length, GetMaxMsgSize());
     return false;
   }
   if (length > kWarnMsgSize) {
     static int times_warned = 0;
     if (times_warned < 10) {
       ++times_warned;
-      SAPI_RAW_LOG(WARNING,
-                   "TLV message of size %u detected. Please consider switching "
-                   "to Buffer API instead.",
-                   length);
+      SAPI_RAW_LOG(
+          WARNING,
+          "TLV message of size %zu detected. Please consider switching "
+          "to Buffer API instead.",
+          length);
     }
   }
 
-  SAPI_RAW_VLOG(3, "Sending a TLV message, tag: 0x%08x, length: %u", tag,
+  SAPI_RAW_VLOG(3, "Sending a TLV message, tag: 0x%08x, length: %zu", tag,
                 length);
   {
     absl::MutexLock lock(&tlv_send_transmission_mutex_);
@@ -364,7 +366,7 @@ bool Comms::RecvFD(int* fd) {
     return false;
   }
   if (len != sizeof(tlv)) {
-    SAPI_RAW_LOG(ERROR, "Expected size: %u, got %d", sizeof(tlv), len);
+    SAPI_RAW_LOG(ERROR, "Expected size: %zu, got %zd", sizeof(tlv), len);
     return false;
   }
   // At this point, we know that op() has been called successfully, therefore
@@ -453,7 +455,8 @@ bool Comms::SendFD(int fd) {
     return false;
   }
   if (len != sizeof(tlv)) {
-    SAPI_RAW_LOG(ERROR, "Expected to send %u bytes, sent %d", sizeof(tlv), len);
+    SAPI_RAW_LOG(ERROR, "Expected to send %zu bytes, sent %zd", sizeof(tlv),
+                 len);
     return false;
   }
   return true;
@@ -467,7 +470,7 @@ bool Comms::RecvProtoBuf(google::protobuf::Message* message) {
       SAPI_RAW_PLOG(ERROR, "RecvProtoBuf failed for (%s)", socket_name_);
     } else {
       Terminate();
-      SAPI_RAW_VLOG(2, "Connection terminated (%s)", socket_name_);
+      SAPI_RAW_VLOG(2, "Connection terminated (%s)", socket_name_.c_str());
     }
     return false;
   }
@@ -536,7 +539,8 @@ bool Comms::Send(const void* data, size_t len) {
       return false;
     }
     if (s == 0) {
-      SAPI_RAW_LOG(ERROR, "Couldn't write more bytes, wrote: %u, requested: %u",
+      SAPI_RAW_LOG(ERROR,
+                   "Couldn't write more bytes, wrote: %zu, requested: %zu",
                    total_sent, len);
       return false;
     }
@@ -582,8 +586,8 @@ bool Comms::RecvTL(uint32_t* tag, size_t* length) {
     return false;
   }
   if (*length > GetMaxMsgSize()) {
-    SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%u > %d)", *length,
-                 GetMaxMsgSize());
+    SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%zu > %zd)",
+                 *length, GetMaxMsgSize());
     return false;
   }
   if (*length > kWarnMsgSize) {
@@ -592,7 +596,7 @@ bool Comms::RecvTL(uint32_t* tag, size_t* length) {
       ++times_warned;
       SAPI_RAW_LOG(
           WARNING,
-          "TLV message of size: (%u detected. Please consider switching to "
+          "TLV message of size: (%zu detected. Please consider switching to "
           "Buffer API instead.",
           *length);
     }
@@ -632,7 +636,7 @@ bool Comms::RecvTLV(uint32_t* tag, size_t* length, void* buffer,
   }
 
   if (*length > buffer_size) {
-    SAPI_RAW_LOG(ERROR, "Buffer size too small (0x%x > 0x%x)", *length,
+    SAPI_RAW_LOG(ERROR, "Buffer size too small (0x%zx > 0x%zx)", *length,
                  buffer_size);
     return false;
   }
@@ -652,7 +656,7 @@ bool Comms::RecvInt(void* buffer, size_t len, uint32_t tag) {
     return false;
   }
   if (received_length != len) {
-    SAPI_RAW_LOG(ERROR, "Expected length: %u, got: %u", len, received_length);
+    SAPI_RAW_LOG(ERROR, "Expected length: %zu, got: %zu", len, received_length);
     return false;
   }
   return true;

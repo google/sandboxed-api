@@ -360,7 +360,7 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(const Elf64_Shdr& symtab) {
     return absl::InternalError(
         absl::StrCat("invalid symtab's strtab reference: ", symtab.sh_link));
   }
-  SAPI_RAW_VLOG(1, "Symbol table with %d entries found", symbol_entries);
+  SAPI_RAW_VLOG(1, "Symbol table with %zu entries found", symbol_entries);
   SAPI_ASSIGN_OR_RETURN(std::string strtab, ReadSectionContents(symtab.sh_link));
   SAPI_ASSIGN_OR_RETURN(std::string symbols, ReadSectionContents(symtab));
   result_.symbols_.reserve(result_.symbols_.size() + symbol_entries);
@@ -418,7 +418,7 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
     return absl::InternalError(
         absl::StrCat("invalid dynamic's strtab reference: ", dynamic.sh_link));
   }
-  SAPI_RAW_VLOG(1, "Dynamic section with %d entries found", entries);
+  SAPI_RAW_VLOG(1, "Dynamic section with %zu entries found", entries);
   // strtab may be shared with symbols and therefore huge
   const auto& strtab_section = section_headers_.at(dynamic.sh_link);
   if (strtab_section.sh_offset > file_size_) {

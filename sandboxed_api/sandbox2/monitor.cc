@@ -153,7 +153,7 @@ namespace {
 
 void LogContainer(const std::vector<std::string>& container) {
   for (size_t i = 0; i < container.size(); ++i) {
-    SAPI_RAW_LOG(INFO, "[%4d]=%s", i, container[i]);
+    SAPI_RAW_LOG(INFO, "[%4zd]=%s", i, container[i].c_str());
   }
 }
 

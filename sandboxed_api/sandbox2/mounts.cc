@@ -226,7 +226,8 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   if (curtree->has_node()) {
     if (IsEquivalentNode(curtree->node(), new_node)) {
-      SAPI_RAW_LOG(INFO, "Inserting %s with the same value twice", path);
+      SAPI_RAW_LOG(INFO, "Inserting %s with the same value twice",
+                   std::string(path).c_str());
       return absl::OkStatus();
     }
     return absl::FailedPreconditionError(absl::StrCat(
@@ -291,7 +292,7 @@ namespace {
 
 void LogContainer(const std::vector<std::string>& container) {
   for (size_t i = 0; i < container.size(); ++i) {
-    SAPI_RAW_LOG(INFO, "[%4d]=%s", i, container[i]);
+    SAPI_RAW_LOG(INFO, "[%4zd]=%s", i, container[i].c_str());
   }
 }
 
@@ -305,11 +306,12 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
   const std::string& interpreter = elf.interpreter();
 
   if (interpreter.empty()) {
-    SAPI_RAW_VLOG(1, "The file %s is not a dynamic executable", path);
+    SAPI_RAW_VLOG(1, "The file %s is not a dynamic executable", path.c_str());
     return absl::OkStatus();
   }
 
-  SAPI_RAW_VLOG(1, "The file %s is using interpreter %s", path, interpreter);
+  SAPI_RAW_VLOG(1, "The file %s is using interpreter %s", path.c_str(),
+                interpreter.c_str());
   SAPI_RETURN_IF_ERROR(ValidateInterpreter(interpreter));
 
   std::vector<std::string> search_paths;
@@ -369,11 +371,11 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
     if (SAPI_VLOG_IS_ON(1)) {
       SAPI_RAW_VLOG(
           1, "Resolving dynamic library dependencies of %s using these dirs:",
-          path);
+          path.c_str());
       LogContainer(full_search_paths);
     }
     if (SAPI_VLOG_IS_ON(2)) {
-      SAPI_RAW_VLOG(2, "Direct dependencies of %s to resolve:", path);
+      SAPI_RAW_VLOG(2, "Direct dependencies of %s to resolve:", path.c_str());
       LogContainer(imported_libs);
     }
   }
@@ -397,14 +399,15 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
     }
     std::string resolved_lib = ResolveLibraryPath(lib, full_search_paths);
     if (resolved_lib.empty()) {
-      SAPI_RAW_LOG(ERROR, "Failed to resolve library: %s", lib);
+      SAPI_RAW_LOG(ERROR, "Failed to resolve library: %s", lib.c_str());
       continue;
     }
     if (imported_libraries.contains(resolved_lib)) {
       continue;
     }
 
-    SAPI_RAW_VLOG(1, "Resolved library: %s ==> %s", lib, resolved_lib);
+    SAPI_RAW_VLOG(1, "Resolved library: %s => %s", lib.c_str(),
+                  resolved_lib.c_str());
 
     imported_libraries.insert(resolved_lib);
     if (imported_libraries.size() > kMaxImportedLibraries) {
@@ -427,7 +430,7 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
     if (SAPI_VLOG_IS_ON(2)) {
       SAPI_RAW_VLOG(2,
                     "Transitive dependencies of %s to resolve (depth = %d): ",
-                    resolved_lib, depth + 1);
+                    resolved_lib.c_str(), depth + 1);
       LogContainer(imported_libs);
     }
 
@@ -538,8 +541,9 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   if (is_ro) {
     flags |= MS_RDONLY;
   }
-  SAPI_RAW_VLOG(1, R"(mount("%s", "%s", "%s", %d, "%s"))", source, target,
-                fs_type, flags, option_str);
+  SAPI_RAW_VLOG(1, R"(mount("%s", "%s", "%s", %s, "%s"))", source.c_str(),
+                target.c_str(), fs_type, MountFlagsToString(flags).c_str(),
+                option_str);
 
   int res = mount(source.c_str(), target.c_str(), fs_type, flags, option_str);
   if (res == -1) {
@@ -547,7 +551,8 @@ void MountWithDefaults(const std::string& source, const std::string& target,
       // File does not exist (anymore). This is e.g. the case when we're trying
       // to gather stack-traces on SAPI crashes. The sandboxee application is a
       // memfd file that is not existing anymore.
-      SAPI_RAW_LOG(WARNING, "Could not mount %s: file does not exist", source);
+      SAPI_RAW_LOG(WARNING, "Could not mount %s: file does not exist",
+                   source.c_str());
       return;
     }
     SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed (flags=%s)", source, target,
@@ -569,7 +574,7 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   if (propagation != 0) {
     res = mount("", target.c_str(), "", propagation, nullptr);
     SAPI_RAW_PCHECK(res != -1, "changing %s mount propagation to %s failed",
-                    target, MountFlagsToString(propagation));
+                    target, MountFlagsToString(propagation).c_str());
   }
 }
 
@@ -580,7 +585,7 @@ void CreateMounts(const MountTree& tree, const std::string& path,
   if (create_backing_files) {
     switch (tree.node().node_case()) {
       case MountTree::Node::kFileNode: {
-        SAPI_RAW_VLOG(2, "Creating backing file at %s", path);
+        SAPI_RAW_VLOG(2, "Creating backing file at %s", path.c_str());
         int fd = open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
         SAPI_RAW_PCHECK(fd != -1, "");
         SAPI_RAW_PCHECK(close(fd) == 0, "");
@@ -590,7 +595,7 @@ void CreateMounts(const MountTree& tree, const std::string& path,
       case MountTree::Node::kTmpfsNode:
       case MountTree::Node::kRootNode:
       case MountTree::Node::NODE_NOT_SET:
-        SAPI_RAW_VLOG(2, "Creating directory at %s", path);
+        SAPI_RAW_VLOG(2, "Creating directory at %s", path.c_str());
         SAPI_RAW_PCHECK(mkdir(path.c_str(), 0700) == 0 || errno == EEXIST, "");
         break;
         // Intentionally no default to make sure we handle all the cases.

@@ -29,7 +29,7 @@ std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   static Runfiles* runfiles = []() {
     std::string error;
     auto* runfiles = Runfiles::Create(gflags::GetArgv0(), &error);
-    SAPI_RAW_CHECK(runfiles != nullptr, "%s", error);
+    SAPI_RAW_CHECK(runfiles != nullptr, error.c_str());
 
     // Setup environment for child processes.
     for (const auto& entry : runfiles->EnvVars()) {

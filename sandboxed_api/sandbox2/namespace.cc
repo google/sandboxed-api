@@ -51,9 +51,8 @@ int MountFallbackToReadOnly(const char* source, const char* target,
                             const void* data) {
   int rv = mount(source, target, filesystem, flags, data);
   if (rv != 0 && (flags & MS_RDONLY) == 0) {
-    SAPI_RAW_LOG(WARNING,
-                 "Mounting %s on %s (fs type %s) read-write failed: %s", source,
-                 target, filesystem, StrError(errno));
+    SAPI_RAW_PLOG(WARNING, "Mounting %s on %s (fs type %s) read-write failed",
+                  source, target, filesystem);
     rv = mount(source, target, filesystem, flags | MS_RDONLY, data);
     if (rv == 0) {
       SAPI_RAW_LOG(INFO, "Mounted %s on %s (fs type %s) as read-only", source,
@@ -183,7 +182,8 @@ void LogFilesystem(const std::string& dir) {
     if (S_ISLNK(st.st_mode)) {
       link = absl::StrCat(" -> ", file_util::fileops::ReadLink(full_path));
     }
-    SAPI_RAW_VLOG(2, "%s %s%s", type_and_mode, full_path, link);
+    SAPI_RAW_VLOG(2, "%s %s%s", type_and_mode.c_str(), full_path.c_str(),
+                  link.c_str());
 
     if (S_ISDIR(st.st_mode)) {
       LogFilesystem(full_path);

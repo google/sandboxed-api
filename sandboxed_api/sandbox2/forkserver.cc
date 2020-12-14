@@ -199,7 +199,8 @@ void ForkServer::PrepareExecveArgs(const ForkRequest& request,
   }
 
   SAPI_RAW_VLOG(1, "Will execute args:['%s'], environment:['%s']",
-                absl::StrJoin(*args, "', '"), absl::StrJoin(*envp, "', '"));
+                absl::StrJoin(*args, "', '").c_str(),
+                absl::StrJoin(*envp, "', '").c_str());
 }
 
 void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
@@ -236,11 +237,11 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   auto caps = cap_init();
   for (auto cap : request.capabilities()) {
     SAPI_RAW_CHECK(cap_set_flag(caps, CAP_PERMITTED, 1, &cap, CAP_SET) == 0,
-                   "setting capability %d", cap);
+                   absl::StrCat("setting capability ", cap).c_str());
     SAPI_RAW_CHECK(cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, CAP_SET) == 0,
-                   "setting capability %d", cap);
+                   absl::StrCat("setting capability ", cap).c_str());
     SAPI_RAW_CHECK(cap_set_flag(caps, CAP_INHERITABLE, 1, &cap, CAP_SET) == 0,
-                   "setting capability %d", cap);
+                   absl::StrCat("setting capability ", cap).c_str());
   }
 
   SAPI_RAW_CHECK(cap_set_proc(caps) == 0, "while dropping capabilities");
@@ -261,7 +262,8 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     }
     // Send sandboxee pid
     auto status = SendPid(signaling_fd);
-    SAPI_RAW_CHECK(status.ok(), "sending pid: %s", status.message());
+    SAPI_RAW_CHECK(status.ok(),
+                   absl::StrCat("sending pid: ", status.message()).c_str());
   }
 
   if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX ||
@@ -395,9 +397,11 @@ pid_t ForkServer::ServeRequest() {
       }
       // Send sandboxee pid
       absl::Status status = SendPid(fd_closer1.get());
-      SAPI_RAW_CHECK(status.ok(), "sending pid: %s", status.message());
+      SAPI_RAW_CHECK(status.ok(),
+                     absl::StrCat("sending pid: ", status.message()).c_str());
     } else if (auto pid_or = ReceivePid(fd_closer0.get()); !pid_or.ok()) {
-      SAPI_RAW_LOG(ERROR, "receiving pid: %s", pid_or.status().message());
+      SAPI_RAW_LOG(ERROR, "receiving pid: %s",
+                   std::string(pid_or.status().message()).c_str());
     } else {
       sandboxee_pid = pid_or.value();
     }
@@ -429,7 +433,7 @@ pid_t ForkServer::ServeRequest() {
     // And the actual sandboxee is forked from the init process, so we need to
     // receive the actual PID.
     if (auto pid_or = ReceivePid(fd_closer0.get()); !pid_or.ok()) {
-      SAPI_RAW_LOG(ERROR, "%s", pid_or.status().message());
+      SAPI_RAW_LOG(ERROR, "%s", std::string(pid_or.status().message()).c_str());
       kill(init_pid, SIGKILL);
       init_pid = -1;
     } else {
@@ -445,10 +449,11 @@ pid_t ForkServer::ServeRequest() {
   if (user_ns_fd >= 0) {
     close(user_ns_fd);
   }
-  SAPI_RAW_CHECK(comms_->SendInt32(init_pid), "Failed to send init PID: %d",
-                 init_pid);
-  SAPI_RAW_CHECK(comms_->SendInt32(sandboxee_pid),
-                 "Failed to send sandboxee PID: %d", sandboxee_pid);
+  SAPI_RAW_CHECK(comms_->SendInt32(init_pid),
+                 absl::StrCat("Failed to send init PID: ", init_pid).c_str());
+  SAPI_RAW_CHECK(
+      comms_->SendInt32(sandboxee_pid),
+      absl::StrCat("Failed to send sandboxee PID: ", sandboxee_pid).c_str());
   return sandboxee_pid;
 }
 
@@ -459,7 +464,7 @@ bool ForkServer::Initialize() {
   // kernel version 3.4, so don't panic if it fails.
   if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) == -1) {
     SAPI_RAW_VLOG(3, "prctl(PR_SET_CHILD_SUBREAPER, 1): %s [%d]",
-                  StrError(errno), errno);
+                  StrError(errno).c_str(), errno);
   }
 
   // Don't convert terminated child processes into zombies. It's up to the
