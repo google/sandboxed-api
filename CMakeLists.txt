@@ -60,6 +60,7 @@ add_compile_options(-fno-exceptions)
 
 if(SAPI_HARDENED_SOURCE)
   add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
+  add_link_options(-Wl,-z,relro -Wl,-z,now)
 endif()
 
 # Make Bazel-style includes work
