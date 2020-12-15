@@ -266,10 +266,10 @@ class Type(object):
       if not skip_self:
         result.add(self)
         self._tu.search_for_macro_name(self._get_declaration())
-
       return result
 
-    raise ValueError('Unhandled kind: {}'.format(self._clang_type.kind))
+    # Ignore all cindex.TypeKind.UNEXPOSED AST nodes
+    return result
 
   def _get_related_types_of_typedef(self, result):
     # type: (Set[Type]) -> Set[Type]

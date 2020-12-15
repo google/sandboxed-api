@@ -49,7 +49,7 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
   }
   buffer->fd_ = fd;
   buffer->size_ = size;
-  return buffer;
+  return std::move(buffer);  // GCC 7 needs the move (C++ DR #1579)
 }
 
 // Creates a new Buffer of the specified size, backed by a temporary file that
