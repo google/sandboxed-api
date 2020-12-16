@@ -999,3 +999,11 @@ if(SAPI_ENABLE_TESTS)
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
 endif()
+
+configure_file(
+  "${PROJECT_SOURCE_DIR}/cmake/sandbox2.pc.in"
+  "${PROJECT_BINARY_DIR}/sandbox2.pc"
+  @ONLY
+)
+
+install(FILES "${PROJECT_BINARY_DIR}/sandbox2.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")

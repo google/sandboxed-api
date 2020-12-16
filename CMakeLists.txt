@@ -50,6 +50,7 @@ include(SapiOptions)
 include(SapiDeps)
 include(SapiUtil)
 include(SapiBuildDefs)
+include(GNUInstallDirs)
 
 # Allow the header generator to auto-configure include paths
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

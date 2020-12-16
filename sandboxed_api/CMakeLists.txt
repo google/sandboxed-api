@@ -216,3 +216,11 @@ foreach(_file ${_sapi_headers})
   string(REPLACE ${CMAKE_CURRENT_LIST_DIR} "" _dir ${_dir})
   install(FILES ${_file} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sandboxed_api/${_dir})
 endforeach()
+
+configure_file(
+  "${PROJECT_SOURCE_DIR}/cmake/sapi.pc.in"
+  "${PROJECT_BINARY_DIR}/sapi.pc"
+  @ONLY
+)
+
+install(FILES "${PROJECT_BINARY_DIR}/sapi.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")

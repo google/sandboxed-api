@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=@CMAKE_INSTALL_FULL_BINDIR@
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+
+Name: sapi
+Description: Sandboxed API makes sandboxing C/C++ libraries easier by auto-generating library API interfaces that call into sandboxed libraries using a custom RPC layer. Sandboxed API uses Sandbox2 as its underlying sandboxing technology.
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lsapi
+Cflags: -I${includedir}
