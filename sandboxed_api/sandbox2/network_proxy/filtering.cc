@@ -98,7 +98,7 @@ static absl::Status ParseIpAndMask(const std::string& ip_and_mask,
   }
   std::string mask_or_cidr = ip_and_mask_split[1];
 
-  const bool has_dot = mask_or_cidr.find(".") == absl::string_view::npos;
+  const bool has_dot = mask_or_cidr.find('.') == absl::string_view::npos;
   if (has_dot) {  // mask_or_cidr is cidr
     bool res = absl::SimpleAtoi<uint32_t>(mask_or_cidr, cidr);
     if (!res || !*cidr) {
