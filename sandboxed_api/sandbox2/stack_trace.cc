@@ -85,6 +85,9 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
 
       // libunwind
       .AllowSyscall(__NR_fstat)
+#ifdef __NR_fstat64
+      .AllowSyscall(__NR_fstat64)
+#endif
       .AllowSyscall(__NR_lseek)
 #ifdef __NR__llseek
       .AllowSyscall(__NR__llseek)  // Newer glibc on PPC

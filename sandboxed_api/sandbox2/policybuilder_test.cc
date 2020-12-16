@@ -93,8 +93,8 @@ TEST_F(PolicyBuilderTest, Testpolicy_size) {
 
   builder.AllowSyscall(__NR_chroot); assert_increased();
   builder.AllowSyscall(__NR_chroot); assert_same();
-  builder.AllowSyscall(__NR_mmap); assert_increased();
-  builder.AllowSyscall(__NR_mmap); assert_same();
+  builder.AllowSyscall(__NR_umask); assert_increased();
+  builder.AllowSyscall(__NR_umask); assert_same();
   builder.AllowSyscall(__NR_chroot); assert_same();
   builder.AllowSyscall(__NR_chroot); assert_same();
 
@@ -120,8 +120,8 @@ TEST_F(PolicyBuilderTest, Testpolicy_size) {
   builder.AddPolicyOnSyscalls({ }, { ALLOW }); assert_increased();
 
   // This might change in the future if we implement an optimization.
-  builder.AddPolicyOnSyscall(__NR_mmap, { ALLOW }); assert_increased();
-  builder.AddPolicyOnSyscall(__NR_mmap, { ALLOW }); assert_increased();
+  builder.AddPolicyOnSyscall(__NR_umask, { ALLOW }); assert_increased();
+  builder.AddPolicyOnSyscall(__NR_umask, { ALLOW }); assert_increased();
 
   // None of the namespace functions should alter the seccomp policy.
   builder.AddFile("/usr/bin/find"); assert_same();

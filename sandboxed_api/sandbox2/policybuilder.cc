@@ -428,7 +428,9 @@ PolicyBuilder& PolicyBuilder::AllowGetPIDs() {
 
 PolicyBuilder& PolicyBuilder::AllowGetRlimit() {
   return AllowSyscalls({
+#ifdef __NR_getrlimit
       __NR_getrlimit,
+#endif
 #ifdef __NR_ugetrlimit
       __NR_ugetrlimit,
 #endif
@@ -437,7 +439,9 @@ PolicyBuilder& PolicyBuilder::AllowGetRlimit() {
 
 PolicyBuilder& PolicyBuilder::AllowSetRlimit() {
   return AllowSyscalls({
+#ifdef __NR_setrlimit
       __NR_setrlimit,
+#endif
 #ifdef __NR_usetrlimit
       __NR_usetrlimit,
 #endif
@@ -504,13 +508,16 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   AllowGetRlimit();
   AllowSyscalls({
       // These syscalls take a pointer, so no restriction.
-      __NR_uname,
-      __NR_brk,
-      __NR_set_tid_address,
+      __NR_uname, __NR_brk, __NR_set_tid_address,
 
-      // This syscall takes a pointer and a length.
-      // We could restrict length, but it might change, so not worth it.
-      __NR_set_robust_list,
+#if defined(__ARM_NR_set_tls)
+          // libc sets the TLS during startup
+          __ARM_NR_set_tls,
+#endif
+
+          // This syscall takes a pointer and a length.
+          // We could restrict length, but it might change, so not worth it.
+          __NR_set_robust_list,
   });
 
   AllowFutexOp(FUTEX_WAIT_BITSET);
@@ -542,6 +549,13 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 #ifdef __NR_readlink
   BlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
+
+  if constexpr (host_cpu::IsArm()) {
+    AddPolicyOnSyscall(__NR_mprotect, {
+                                          ARG_32(2),
+                                          JEQ32(PROT_READ, ALLOW),
+                                      });
+  }
 
   return *this;
 }

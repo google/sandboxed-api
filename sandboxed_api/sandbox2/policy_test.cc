@@ -280,25 +280,53 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
   std::vector<std::string> args = {path};
   auto executor = absl::make_unique<Executor>(path, args);
 
-  auto policy =
-      PolicyBuilder()
+  auto policy = PolicyBuilder()
 #ifdef __NR_open
-          .BlockSyscallWithErrno(__NR_open, ENOENT)
+                    .BlockSyscallWithErrno(__NR_open, ENOENT)
 #endif
-          .BlockSyscallWithErrno(__NR_openat, ENOENT)
-          .AllowStaticStartup()
-          .AllowTcMalloc()
-          .AllowExit()
-          .AddPolicyOnSyscalls(
-              {__NR_getuid, __NR_getgid, __NR_geteuid, __NR_getegid}, {ALLOW})
-          .AddPolicyOnSyscalls({__NR_getresuid, __NR_getresgid}, {ERRNO(42)})
-          .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
-          .AddPolicyOnSyscall(__NR_umask, {DENY})
-          .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+                    .BlockSyscallWithErrno(__NR_openat, ENOENT)
+                    .AllowStaticStartup()
+                    .AllowTcMalloc()
+                    .AllowExit()
+                    .AddPolicyOnSyscalls(
+                        {
+                            __NR_getuid,
+                            __NR_getgid,
+                            __NR_geteuid,
+                            __NR_getegid,
+#ifdef __NR_getuid32
+                            __NR_getuid32,
+#endif
+#ifdef __NR_getgid32
+                            __NR_getgid32,
+#endif
+#ifdef __NR_geteuid32
+                            __NR_geteuid32,
+#endif
+#ifdef __NR_getegid32
+                            __NR_getegid32,
+#endif
+                        },
+                        {ALLOW})
+                    .AddPolicyOnSyscalls(
+                        {
+                            __NR_getresuid,
+                            __NR_getresgid,
+#ifdef __NR_getresuid32
+                            __NR_getresuid32,
+#endif
+#ifdef __NR_getresgid32
+                            __NR_getresgid32,
+#endif
+                        },
+                        {ERRNO(42)})
+                    .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
+                    .AddPolicyOnSyscall(__NR_umask, {DENY})
+                    .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
 #ifdef __NR_access
-          .BlockSyscallWithErrno(__NR_access, ENOENT)
+                    .BlockSyscallWithErrno(__NR_access, ENOENT)
 #endif
-          .BuildOrDie();
+                    .BuildOrDie();
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();

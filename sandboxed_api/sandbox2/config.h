@@ -32,6 +32,11 @@
 // Spellings for AArch64
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #define SAPI_ARM64 1
+
+// 32-bit ARM
+#elif defined(__arm__) || defined(_M_ARM)
+#define SAPI_ARM 1
+
 #endif
 
 namespace sandbox2 {
@@ -48,6 +53,7 @@ enum Architecture : uint16_t {
   kX86,
   kPPC64LE,
   kArm64,
+  kArm,
 };
 
 }  // namespace cpu
@@ -63,6 +69,8 @@ constexpr cpu::Architecture Architecture() {
   return cpu::kPPC64LE;
 #elif defined(SAPI_ARM64)
   return cpu::kArm64;
+#elif defined(SAPI_ARM)
+  return cpu::kArm;
 #else
   return cpu::kUnknown;
 #endif
@@ -74,11 +82,15 @@ constexpr bool IsPPC64LE() { return Architecture() == cpu::kPPC64LE; }
 
 constexpr bool IsArm64() { return Architecture() == cpu::kArm64; }
 
+constexpr bool IsArm() { return Architecture() == cpu::kArm; }
+
+constexpr bool Is64Bit() { return sizeof(uintptr_t) == 8; }
+
 }  // namespace host_cpu
 
 static_assert(host_cpu::Architecture() != cpu::kUnknown,
               "Host CPU architecture is not supported: One of x86-64, POWER64 "
-              "(little endian) or AArch64 is required.");
+              "(little endian), Arm or AArch64 is required.");
 
 }  // namespace sandbox2
 

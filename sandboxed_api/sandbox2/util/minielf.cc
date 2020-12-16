@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -31,15 +32,20 @@
 
 namespace sandbox2 {
 
-constexpr int kElfHeaderSize =
-    sizeof(Elf64_Ehdr);  // Maximum size for 64-bit binaries
+using ElfEhdr = std::conditional_t<host_cpu::Is64Bit(), Elf64_Ehdr, Elf32_Ehdr>;
+using ElfShdr = std::conditional_t<host_cpu::Is64Bit(), Elf64_Shdr, Elf32_Shdr>;
+using ElfPhdr = std::conditional_t<host_cpu::Is64Bit(), Elf64_Phdr, Elf32_Phdr>;
+using ElfDyn = std::conditional_t<host_cpu::Is64Bit(), Elf64_Dyn, Elf32_Dyn>;
+using ElfSym = std::conditional_t<host_cpu::Is64Bit(), Elf64_Sym, Elf32_Sym>;
+
+constexpr int kElfHeaderSize = sizeof(ElfEhdr);  // Maximum size for binaries
 
 constexpr char kElfMagic[] =
     "\x7F"
     "ELF";
 
 constexpr int kEiClassOffset = 0x04;
-constexpr int kEiClass64 = 2;  // 64-bit binary
+constexpr int kEiClass = host_cpu::Is64Bit() ? ELFCLASS64 : ELFCLASS32;
 
 constexpr int kEiDataOffset = 0x05;
 constexpr int kEiDataLittle = 1;  // Little Endian
@@ -134,29 +140,29 @@ class ElfParser {
   // Reads elf header.
   absl::Status ReadFileHeader();
   // Reads a single elf program header.
-  absl::StatusOr<Elf64_Phdr> ReadProgramHeader(absl::string_view src);
+  absl::StatusOr<ElfPhdr> ReadProgramHeader(absl::string_view src);
   // Reads all elf program headers.
   absl::Status ReadProgramHeaders();
   // Reads a single elf section header.
-  absl::StatusOr<Elf64_Shdr> ReadSectionHeader(absl::string_view src);
+  absl::StatusOr<ElfShdr> ReadSectionHeader(absl::string_view src);
   // Reads all elf section headers.
   absl::Status ReadSectionHeaders();
   // Reads contents of an elf section.
   absl::StatusOr<std::string> ReadSectionContents(int idx);
   absl::StatusOr<std::string> ReadSectionContents(
-      const Elf64_Shdr& section_header);
+      const ElfShdr& section_header);
   // Reads all symbols from symtab section.
-  absl::Status ReadSymbolsFromSymtab(const Elf64_Shdr& symtab);
+  absl::Status ReadSymbolsFromSymtab(const ElfShdr& symtab);
   // Reads all imported libraries from dynamic section.
-  absl::Status ReadImportedLibrariesFromDynamic(const Elf64_Shdr& dynamic);
+  absl::Status ReadImportedLibrariesFromDynamic(const ElfShdr& dynamic);
 
   ElfFile result_;
   FILE* elf_ = nullptr;
   size_t file_size_ = 0;
   bool elf_little_ = false;
-  Elf64_Ehdr file_header_;
-  std::vector<Elf64_Phdr> program_headers_;
-  std::vector<Elf64_Shdr> section_headers_;
+  ElfEhdr file_header_;
+  std::vector<ElfPhdr> program_headers_;
+  std::vector<ElfShdr> section_headers_;
 
   int symbol_entries_read = 0;
   int dynamic_entries_read = 0;
@@ -191,7 +197,7 @@ absl::Status ElfParser::ReadFileHeader() {
     return absl::FailedPreconditionError("magic not found, not an ELF");
   }
 
-  if (header[kEiClassOffset] != kEiClass64) {
+  if (header[kEiClassOffset] != kEiClass) {
     return absl::FailedPreconditionError("invalid ELF class");
   }
   const auto elf_data = header[kEiDataOffset];
@@ -220,13 +226,13 @@ absl::Status ElfParser::ReadFileHeader() {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Elf64_Shdr> ElfParser::ReadSectionHeader(absl::string_view src) {
-  if (src.size() < sizeof(Elf64_Shdr)) {
+absl::StatusOr<ElfShdr> ElfParser::ReadSectionHeader(absl::string_view src) {
+  if (src.size() < sizeof(ElfShdr)) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid section header data: got ", src.size(),
-                     " bytes, ", sizeof(Elf64_Shdr), " bytes expected."));
+                     " bytes, ", sizeof(ElfShdr), " bytes expected."));
   }
-  Elf64_Shdr rv;
+  ElfShdr rv;
   LOAD_MEMBER(rv, sh_name, src.data());
   LOAD_MEMBER(rv, sh_type, src.data());
   LOAD_MEMBER(rv, sh_flags, src.data());
@@ -245,10 +251,10 @@ absl::Status ElfParser::ReadSectionHeaders() {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid section header offset: ", file_header_.e_shoff));
   }
-  if (file_header_.e_shentsize != sizeof(Elf64_Shdr)) {
+  if (file_header_.e_shentsize != sizeof(ElfShdr)) {
     return absl::FailedPreconditionError(absl::StrCat(
         "section header entry size incorrect: ", file_header_.e_shentsize,
-        " bytes, ", sizeof(Elf64_Shdr), " expected."));
+        " bytes, ", sizeof(ElfShdr), " expected."));
   }
   if (file_header_.e_shnum > kMaxSectionHeaderEntries) {
     return absl::FailedPreconditionError(
@@ -276,7 +282,7 @@ absl::StatusOr<std::string> ElfParser::ReadSectionContents(int idx) {
 }
 
 absl::StatusOr<std::string> ElfParser::ReadSectionContents(
-    const Elf64_Shdr& section_header) {
+    const ElfShdr& section_header) {
   auto offset = section_header.sh_offset;
   if (offset > file_size_) {
     return absl::FailedPreconditionError(
@@ -293,13 +299,13 @@ absl::StatusOr<std::string> ElfParser::ReadSectionContents(
   return rv;
 }
 
-absl::StatusOr<Elf64_Phdr> ElfParser::ReadProgramHeader(absl::string_view src) {
-  if (src.size() < sizeof(Elf64_Phdr)) {
+absl::StatusOr<ElfPhdr> ElfParser::ReadProgramHeader(absl::string_view src) {
+  if (src.size() < sizeof(ElfPhdr)) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid program header data: got ", src.size(),
-                     " bytes, ", sizeof(Elf64_Phdr), " bytes expected."));
+                     " bytes, ", sizeof(ElfPhdr), " bytes expected."));
   }
-  Elf64_Phdr rv;
+  ElfPhdr rv;
   LOAD_MEMBER(rv, p_type, src.data());
   LOAD_MEMBER(rv, p_flags, src.data());
   LOAD_MEMBER(rv, p_offset, src.data());
@@ -316,10 +322,10 @@ absl::Status ElfParser::ReadProgramHeaders() {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid program header offset: ", file_header_.e_phoff));
   }
-  if (file_header_.e_phentsize != sizeof(Elf64_Phdr)) {
+  if (file_header_.e_phentsize != sizeof(ElfPhdr)) {
     return absl::FailedPreconditionError(absl::StrCat(
         "section header entry size incorrect: ", file_header_.e_phentsize,
-        " bytes, ", sizeof(Elf64_Phdr), " expected."));
+        " bytes, ", sizeof(ElfPhdr), " expected."));
   }
   if (file_header_.e_phnum > kMaxProgramHeaderEntries) {
     return absl::FailedPreconditionError(
@@ -338,11 +344,11 @@ absl::Status ElfParser::ReadProgramHeaders() {
   return absl::OkStatus();
 }
 
-absl::Status ElfParser::ReadSymbolsFromSymtab(const Elf64_Shdr& symtab) {
+absl::Status ElfParser::ReadSymbolsFromSymtab(const ElfShdr& symtab) {
   if (symtab.sh_type != SHT_SYMTAB) {
     return absl::FailedPreconditionError("invalid symtab type");
   }
-  if (symtab.sh_entsize != sizeof(Elf64_Sym)) {
+  if (symtab.sh_entsize != sizeof(ElfSym)) {
     return absl::InternalError(
         absl::StrCat("invalid symbol entry size: ", symtab.sh_entsize));
   }
@@ -366,7 +372,7 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(const Elf64_Shdr& symtab) {
   result_.symbols_.reserve(result_.symbols_.size() + symbol_entries);
   for (absl::string_view src = symbols; !src.empty();
        src = src.substr(symtab.sh_entsize)) {
-    Elf64_Sym symbol;
+    ElfSym symbol;
     LOAD_MEMBER(symbol, st_name, src.data());
     LOAD_MEMBER(symbol, st_info, src.data());
     LOAD_MEMBER(symbol, st_other, src.data());
@@ -396,11 +402,11 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(const Elf64_Shdr& symtab) {
 }
 
 absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
-    const Elf64_Shdr& dynamic) {
+    const ElfShdr& dynamic) {
   if (dynamic.sh_type != SHT_DYNAMIC) {
     return absl::FailedPreconditionError("invalid dynamic type");
   }
-  if (dynamic.sh_entsize != sizeof(Elf64_Dyn)) {
+  if (dynamic.sh_entsize != sizeof(ElfDyn)) {
     return absl::InternalError(
         absl::StrCat("invalid dynamic entry size: ", dynamic.sh_entsize));
   }
@@ -435,7 +441,7 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
   SAPI_ASSIGN_OR_RETURN(std::string dynamic_entries, ReadSectionContents(dynamic));
   for (absl::string_view src = dynamic_entries; !src.empty();
        src = src.substr(dynamic.sh_entsize)) {
-    Elf64_Dyn dyn;
+    ElfDyn dyn;
     LOAD_MEMBER(dyn, d_tag, src.data());
     LOAD_MEMBER(dyn, d_un.d_val, src.data());
     if (dyn.d_tag != DT_NEEDED) {
@@ -478,7 +484,7 @@ absl::StatusOr<ElfFile> ElfParser::Parse(FILE* elf, uint32_t features) {
     std::string interpreter;
     auto it = std::find_if(
         program_headers_.begin(), program_headers_.end(),
-        [](const Elf64_Phdr& hdr) { return hdr.p_type == PT_INTERP; });
+        [](const ElfPhdr& hdr) { return hdr.p_type == PT_INTERP; });
     // No interpreter usually means that the executable was statically linked.
     if (it != program_headers_.end()) {
       if (it->p_filesz > kMaxInterpreterSize) {

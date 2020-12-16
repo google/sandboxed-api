@@ -55,6 +55,12 @@ constexpr int kRegSyscall = 8;
 constexpr int kRegArg0 = 0;
 constexpr int kRegArg1 = 1;
 constexpr int kRegArg2 = 2;
+#elif defined(SAPI_ARM)
+constexpr int kRegResult = 0;
+constexpr int kRegSyscall = 8;
+constexpr int kRegArg0 = 0;
+constexpr int kRegArg1 = 1;
+constexpr int kRegArg2 = 2;
 #endif
 
 int NetworkProxyClient::ConnectHandler(int sockfd, const struct sockaddr* addr,
@@ -173,6 +179,8 @@ void NetworkProxyHandler::ProcessSeccompTrap(int nr, siginfo_t* info,
   auto* registers = ctx->uc_mcontext.gp_regs;
 #elif defined(SAPI_ARM64)
   auto* registers = ctx->uc_mcontext.regs;
+#elif defined(SAPI_ARM)
+  auto* registers = &ctx->uc_mcontext.arm_r0;
 #endif
   int syscall = registers[kRegSyscall];
 

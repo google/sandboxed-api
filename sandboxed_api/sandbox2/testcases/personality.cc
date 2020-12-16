@@ -18,7 +18,10 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cstdint>
+
 int main(int argc, char** argv) {
-  syscall(__NR_personality, 1ULL, 2ULL, 3ULL, 4ULL, 5ULL, 6ULL);
+  syscall(__NR_personality, uintptr_t{1}, uintptr_t{2}, uintptr_t{3},
+          uintptr_t{4}, uintptr_t{5}, uintptr_t{6});
   return 22;
 }

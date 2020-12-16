@@ -137,6 +137,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":strerror",
+        "//sandboxed_api/sandbox2:config",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",

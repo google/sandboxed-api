@@ -83,6 +83,23 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
   list(APPEND _unwind_ptrace_srcs
     ${_unwind_src}/src/aarch64/Ginit_remote.c
   )
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm")
+  set(_unwind_cpu "arm")
+  list(APPEND _unwind_platform_srcs
+    ${_unwind_src}/src/arm/Gcreate_addr_space.c
+    ${_unwind_src}/src/arm/Gex_tables.c
+    ${_unwind_src}/src/arm/Gglobal.c
+    ${_unwind_src}/src/arm/Ginit.c
+    ${_unwind_src}/src/arm/Gis_signal_frame.c
+    ${_unwind_src}/src/arm/Gregs.c
+    ${_unwind_src}/src/arm/Gresume.c
+    ${_unwind_src}/src/arm/Gstash_frame.c
+    ${_unwind_src}/src/arm/Gstep.c
+    ${_unwind_src}/src/arm/is_fpreg.c
+  )
+  list(APPEND _unwind_ptrace_srcs
+    ${_unwind_src}/src/arm/Ginit_remote.c
+  )
 endif()
 
 add_library(unwind_ptrace_wrapped STATIC
@@ -165,6 +182,7 @@ add_library(unwind::unwind_ptrace_wrapped ALIAS unwind_ptrace_wrapped)
 target_include_directories(unwind_ptrace_wrapped PUBLIC
   ${_unwind_src}/include
   ${_unwind_src}/include/tdep
+  ${_unwind_src}/include/tdep-${_unwind_cpu}
   ${_unwind_src}/src
 )
 target_compile_options(unwind_ptrace_wrapped PRIVATE

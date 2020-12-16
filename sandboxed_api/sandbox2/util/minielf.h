@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_UTIL_MINIELF_H_
 #define SANDBOXED_API_SANDBOX2_UTIL_MINIELF_H_
 
+#include <cstdint>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -25,11 +26,10 @@
 namespace sandbox2 {
 
 // Minimal implementation of an ELF file parser to read the program interpreter.
-// Only understands 64-bit ELFs.
 class ElfFile {
  public:
   struct Symbol {
-    uint64_t address;
+    uintptr_t address;
     std::string name;
   };
 

@@ -127,9 +127,9 @@ ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS
 ABSL_ATTRIBUTE_NOINLINE
 pid_t CloneAndJump(int flags, jmp_buf* env_ptr) {
   uint8_t stack_buf[PTHREAD_STACK_MIN] ABSL_CACHELINE_ALIGNED;
-  static_assert(
-      host_cpu::IsX8664() || host_cpu::IsPPC64LE() || host_cpu::IsArm64(),
-      "Host CPU architecture not supported, see config.h");
+  static_assert(host_cpu::IsX8664() || host_cpu::IsPPC64LE() ||
+                    host_cpu::IsArm64() || host_cpu::IsArm(),
+                "Host CPU architecture not supported, see config.h");
   // Stack grows down.
   void* stack = stack_buf + sizeof(stack_buf);
   int r;

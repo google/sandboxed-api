@@ -42,7 +42,8 @@ absl::Status Regs::Fetch() {
                                             ") failed: ", StrError(errno)));
   }
 #endif
-  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64()) {
+  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64() ||
+                host_cpu::IsArm()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
@@ -85,7 +86,8 @@ absl::Status Regs::Store() {
                                             ") failed: ", StrError(errno)));
   }
 #endif
-  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64()) {
+  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64() ||
+                host_cpu::IsArm()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
@@ -108,7 +110,7 @@ absl::Status Regs::Store() {
   return absl::OkStatus();
 }
 
-absl::Status Regs::SkipSyscallReturnValue(uint64_t value) {
+absl::Status Regs::SkipSyscallReturnValue(uintptr_t value) {
 #if defined(SAPI_X86_64)
   user_regs_.orig_rax = -1;
   user_regs_.rax = value;
@@ -118,6 +120,9 @@ absl::Status Regs::SkipSyscallReturnValue(uint64_t value) {
 #elif defined(SAPI_ARM64)
   user_regs_.regs[0] = -1;
   syscall_number_ = value;
+#elif defined(SAPI_ARM)
+  user_regs_.orig_x0 = -1;
+  user_regs_.regs[7] = value;
 #endif
   return Store();
 }
@@ -167,6 +172,16 @@ Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
     auto sp = user_regs_.sp;
     auto ip = user_regs_.pc;
     return Syscall(syscall_arch, syscall_number_, args, pid_, sp, ip);
+  }
+#elif defined(SAPI_ARM)
+  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kArm)) {
+    Syscall::Args args = {
+        user_regs_.orig_x0, user_regs_.regs[1], user_regs_.regs[2],
+        user_regs_.regs[3], user_regs_.regs[4], user_regs_.regs[5],
+    };
+    auto sp = user_regs_.regs[13];
+    auto ip = user_regs_.pc;
+    return Syscall(syscall_arch, user_regs_.regs[7], args, pid_, sp, ip);
   }
 #endif
   return Syscall(pid_);
@@ -231,6 +246,14 @@ void Regs::StoreRegisterValuesInProtobuf(RegisterValues* values) const {
   regs->set_sp(user_regs_.sp);
   regs->set_pc(user_regs_.pc);
   regs->set_pstate(user_regs_.pstate);
+#elif defined(SAPI_ARM)
+  RegisterArm* regs = values->mutable_register_arm();
+  for (int i = 0; i < ABSL_ARRAYSIZE(user_regs_.regs); ++i) {
+    regs->add_regs(user_regs_.regs[i]);
+  }
+  regs->set_pc(user_regs_.pc);
+  regs->set_cpsr(user_regs_.cpsr);
+  regs->set_orig_x0(user_regs_.orig_x0);
 #endif
 }
 

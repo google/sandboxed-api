@@ -83,12 +83,20 @@ message RegisterAarch64 {
   uint64 pstate = 4;
 }
 
+message RegisterArm {
+  repeated uint32 regs = 1;
+  uint32 pc = 2;
+  uint32 cpsr = 3;
+  uint32 orig_x0 = 4;
+}
+
 message RegisterValues {
   // Architecture architecture = 1;
   oneof register_values {
     RegisterX8664 register_x86_64 = 2;
     RegisterPowerpc64 register_powerpc64 = 3;
     RegisterAarch64 register_aarch64 = 4;
+    RegisterArm register_arm = 5;
   }
 }
 

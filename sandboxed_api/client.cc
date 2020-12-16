@@ -55,15 +55,14 @@ ffi_type* GetFFIType(size_t size, v::Type type) {
     case v::Type::kFd:
       return &ffi_type_sint;
     case v::Type::kFloat:
-      switch (size) {
-        case sizeof(float):
-          return &ffi_type_float;
-        case sizeof(double):
-          return &ffi_type_double;
-        case sizeof(long double):
-          return &ffi_type_longdouble;
-        default:
-          LOG(FATAL) << "Unknown floating-point size: " << size;
+      if (size == sizeof(float)) {
+        return &ffi_type_float;
+      } else if (size == sizeof(double)) {
+        return &ffi_type_double;
+      } else if (size == sizeof(long double)) {
+        return &ffi_type_longdouble;
+      } else {
+        LOG(FATAL) << "Unknown floating-point size: " << size;
       }
     case v::Type::kInt:
       switch (size) {

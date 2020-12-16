@@ -43,7 +43,7 @@ class Regs {
   absl::Status Store();
 
   // Causes the process to skip current syscall and return given value instead
-  absl::Status SkipSyscallReturnValue(uint64_t value);
+  absl::Status SkipSyscallReturnValue(uintptr_t value);
 
   // Converts raw register values obtained on syscall entry to syscall info
   Syscall ToSyscall(cpu::Architecture syscall_arch) const;
@@ -110,6 +110,11 @@ class Regs {
     uint64_t sp;
     uint64_t pc;
     uint64_t pstate;
+#elif defined(SAPI_ARM)
+    uint32_t regs[15];
+    uint32_t pc;
+    uint32_t cpsr;
+    uint32_t orig_x0;
 #else
     static_assert(false, "Host CPU architecture not supported, see config.h");
 #endif
