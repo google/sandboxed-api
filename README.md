@@ -2,7 +2,8 @@
 
 Copyright 2019-2020 Google LLC.
 
-[![Build status](https://badge.buildkite.com/2f662d7bddfd1c07d25bf92d243538c8344bc6fbf38fe187f8.svg)](https://buildkite.com/bazel/sandboxed-api)
+[![Bazel build status](https://badge.buildkite.com/2f662d7bddfd1c07d25bf92d243538c8344bc6fbf38fe187f8.svg)](https://buildkite.com/bazel/sandboxed-api)
+[![CMake build status](https://github.com/google/sandboxed-api/workflows/CMake/badge.svg)](https://github.com/google/sandboxed-api/actions?query=workflow%3ACMake)
 
 ## What is Sandboxed API?
 
