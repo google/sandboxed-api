@@ -31,6 +31,7 @@ cc_binary(
         "//sandboxed_api/sandbox2/util:fileops",
         "//sandboxed_api/sandbox2/util:runfiles",
         "//sandboxed_api/util:flags",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 

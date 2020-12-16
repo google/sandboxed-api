@@ -28,6 +28,7 @@
 #include <string>
 
 #include <glog/logging.h>
+#include "absl/base/macros.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -62,13 +63,10 @@ void Server(int port) {
     return;
   }
 
-  {
-    int enable = 1;
-    if (setsockopt(s.get(), SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) <
-        0) {
-      PLOG(ERROR) << "setsockopt(SO_REUSEADDR) failed";
-      return;
-    }
+  if (int enable = 1; setsockopt(s.get(), SOL_SOCKET, SO_REUSEADDR, &enable,
+                                 sizeof(enable)) < 0) {
+    PLOG(ERROR) << "setsockopt(SO_REUSEADDR) failed";
+    return;
   }
 
   // Listen to localhost only.
@@ -80,12 +78,14 @@ void Server(int port) {
   if (err == 0) {
     LOG(ERROR) << "inet_pton() failed";
     return;
-  } else if (err == -1) {
+  }
+  if (err == -1) {
     PLOG(ERROR) << "inet_pton() failed";
     return;
   }
 
-  if (bind(s.get(), (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+  if (bind(s.get(), reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) <
+      0) {
     PLOG(ERROR) << "bind() failed";
     return;
   }
@@ -101,8 +101,10 @@ void Server(int port) {
     return;
   }
 
-  const char msg[] = "Hello World\n";
-  write(client.get(), msg, strlen(msg));
+  constexpr char kMsg[] = "Hello World\n";
+  if (write(client.get(), kMsg, ABSL_ARRAYSIZE(kMsg) - 1) < 0) {
+    PLOG(ERROR) << "write() failed";
+  }
 }
 
 int ConnectToServer(int port) {
@@ -121,7 +123,8 @@ int ConnectToServer(int port) {
     LOG(ERROR) << "inet_pton() failed";
     close(s);
     return -1;
-  } else if (err == -1) {
+  }
+  if (err == -1) {
     PLOG(ERROR) << "inet_pton() failed";
     close(s);
     return -1;

@@ -20,7 +20,7 @@ jobs:
 
     - name: Create Build Environment
       run: |
-        pip3 install absl-py
+        pip3 install absl-py clang
         cmake -E make_directory ${{runner.workspace}}/build
 
     - name: Configure CMake

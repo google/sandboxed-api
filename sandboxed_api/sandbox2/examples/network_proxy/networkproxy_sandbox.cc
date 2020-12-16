@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <glog/logging.h>
+#include "absl/base/macros.h"
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -102,8 +103,10 @@ void Server(int port) {
     return;
   }
 
-  const char kMsg[] = "Hello World\n";
-  write(client.get(), kMsg, ABSL_ARRAYSIZE(kMsg));
+  constexpr char kMsg[] = "Hello World\n";
+  if (write(client.get(), kMsg, ABSL_ARRAYSIZE(kMsg) - 1) < 0) {
+    PLOG(ERROR) << "write() failed";
+  }
 }
 
 }  // namespace

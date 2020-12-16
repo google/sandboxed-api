@@ -77,7 +77,7 @@ bool ValidateStartMode(const char*, const std::string& flag) {
   GlobalForkserverStartModeSet unused;
   std::string error;
   if (!AbslParseFlag(flag, &unused, &error)) {
-    SAPI_RAW_LOG(ERROR, "%s", error);
+    SAPI_RAW_LOG(ERROR, "%s", error.c_str());
     return false;
   }
   return true;
