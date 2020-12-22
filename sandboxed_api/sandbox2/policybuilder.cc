@@ -125,7 +125,8 @@ PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
 
 PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowTime();
-  AllowSyscalls({__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore});
+  AllowSyscalls(
+      {__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore, __NR_membarrier});
   AllowFutexOp(FUTEX_WAKE);
   AllowLimitedMadvise();
 #ifdef __NR_rseq
