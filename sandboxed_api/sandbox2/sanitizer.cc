@@ -35,8 +35,6 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
-#include "sandboxed_api/util/raw_logging.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"

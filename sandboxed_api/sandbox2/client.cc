@@ -32,7 +32,6 @@
 #include <memory>
 #include <utility>
 
-#include "sandboxed_api/util/raw_logging.h"
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
