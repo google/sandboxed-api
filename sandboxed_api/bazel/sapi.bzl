@@ -31,6 +31,7 @@ def get_embed_dir():
     return native.package_name()
 
 def sort_deps(deps):
+    deps = depset(deps).to_list()
     colon_deps = [x for x in deps if x.startswith(":")]
     other_deps = [x for x in deps if not x.startswith(":")]
     return sorted(colon_deps) + sorted(other_deps)
@@ -192,7 +193,10 @@ def sapi_library(
         data = [":" + name + ".bin"],
         deps = sort_deps(
             [
+                "@com_google_absl//absl/status",
+                "@com_google_absl//absl/status:statusor",
                 rprefix + "//sandboxed_api:sapi",
+                rprefix + "//sandboxed_api/util:status",
                 rprefix + "//sandboxed_api:vars",
             ] + deps +
             ([":" + name + "_embed"] if embed else []) +

@@ -906,7 +906,10 @@ class Generator(object):
       result.append(Generator.GUARD_START.format(header_guard))
 
     # Copybara transform results in the paths below.
+    result.append('#include "absl/status/status.h"')
+    result.append('#include "absl/status/statusor.h"')
     result.append('#include "sandboxed_api/sandbox.h"')
+    result.append('#include "sandboxed_api/util/status_macros.h"')
     result.append('#include "sandboxed_api/vars.h"')
 
     if embed_name:

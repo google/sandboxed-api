@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+
+licenses(["notice"])
 
 py_library(
     name = "code",
@@ -81,6 +81,9 @@ cc_binary(
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
         "//sandboxed_api/sandbox2",
+        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
