@@ -127,11 +127,11 @@ add_library(sandbox2_logsink ${SAPI_LIB_TYPE}
 add_library(sandbox2::logsink ALIAS sandbox2_logsink)
 target_link_libraries(sandbox2_logsink
   PRIVATE absl::strings
-          absl::synchronization
           sandbox2::comms
           sandbox2::logserver_proto
           sapi::base
-  PUBLIC glog::glog
+  PUBLIC absl::synchronization
+         glog::glog
 )
 
 # sandboxed_api/sandbox2:ipc
@@ -352,17 +352,16 @@ add_library(sandbox2_client ${SAPI_LIB_TYPE}
 add_library(sandbox2::client ALIAS sandbox2_client)
 target_link_libraries(sandbox2_client
   PRIVATE absl::core_headers
-          absl::flat_hash_map
           absl::memory
           absl::strings
-          sandbox2::logsink
-          sandbox2::network_proxy_client
           sandbox2::sanitizer
           sandbox2::strerror
           sapi::base
           sapi::raw_logging
-  PUBLIC glog::glog
+  PUBLIC absl::flat_hash_map
          sandbox2::comms
+         sandbox2::logsink
+         sandbox2::network_proxy_client
 )
 
 # sandboxed_api/sandbox2:sanitizer
@@ -379,7 +378,6 @@ target_link_libraries(sandbox2_sanitizer
           sandbox2::strerror
           sapi::base
           sapi::raw_logging
-  PUBLIC glog::glog
 )
 
 # sandboxed_api/sandbox2:forkserver
@@ -483,10 +481,12 @@ add_library(sandbox2_forkingclient ${SAPI_LIB_TYPE}
 add_library(sandbox2::forkingclient ALIAS sandbox2_forkingclient)
 target_link_libraries(sandbox2_forkingclient
   PRIVATE absl::memory
-          sandbox2::forkserver
+          glog::glog
           sandbox2::sanitizer
           sapi::base
   PUBLIC sandbox2::client
+         sandbox2::comms
+         sandbox2::forkserver
 )
 
 # sandboxed_api/sandbox2:util
