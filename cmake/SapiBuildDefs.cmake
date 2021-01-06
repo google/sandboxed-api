@@ -190,12 +190,15 @@ function(add_sapi_library)
     "${_sapi_gen_header}"
     ${_sapi_SOURCES}
   )
-  target_link_libraries("${_sapi_NAME}" PRIVATE
+  target_link_libraries("${_sapi_NAME}" PUBLIC
+    absl::status
+    absl::statusor
     sapi::sapi
+    sapi::status
     sapi::vars
   )
   if(NOT _sapi_NOEMBED)
-    target_link_libraries("${_sapi_NAME}" PRIVATE
+    target_link_libraries("${_sapi_NAME}" PUBLIC
       "${_sapi_embed}"
     )
   endif()
