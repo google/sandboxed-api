@@ -59,10 +59,11 @@ TEST_F(CurlTest, EffectivePort) {
   ASSERT_TRUE(PerformRequest().ok());
 
   // Get effective port
-  SAPI_ASSERT_OK_AND_ASSIGN(int getinfo_code, api_->curl_easy_getinfo_ptr(
-                                             curl_.get(), CURLINFO_PRIMARY_PORT,
-                                             effective_port.PtrBoth()));
-  ASSERT_EQ(getinfo_code, CURLE_OK);
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      int getinfo_code,
+      api_->curl_easy_getinfo_ptr(curl_.get(), curl::CURLINFO_PRIMARY_PORT,
+                                  effective_port.PtrBoth()));
+  ASSERT_EQ(getinfo_code, curl::CURLE_OK);
 
   // Compare effective port with port set by the mock server
   ASSERT_EQ(effective_port.GetValue(), port_);
@@ -90,10 +91,11 @@ TEST_F(CurlTest, ContentType) {
   ASSERT_TRUE(PerformRequest().ok());
 
   // Get effective URL
-  SAPI_ASSERT_OK_AND_ASSIGN(int getinfo_code, api_->curl_easy_getinfo_ptr(
-                                             curl_.get(), CURLINFO_CONTENT_TYPE,
-                                             content_type_ptr.PtrBoth()));
-  ASSERT_EQ(getinfo_code, CURLE_OK);
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      int getinfo_code,
+      api_->curl_easy_getinfo_ptr(curl_.get(), curl::CURLINFO_CONTENT_TYPE,
+                                  content_type_ptr.PtrBoth()));
+  ASSERT_EQ(getinfo_code, curl::CURLE_OK);
 
   // Store content type in a string
   SAPI_ASSERT_OK_AND_ASSIGN(std::string content_type,
@@ -115,9 +117,10 @@ TEST_F(CurlTest, POSTResponse) {
   sapi::v::ConstCStr post_fields("postfields");
 
   // Set request method to POST
-  SAPI_ASSERT_OK_AND_ASSIGN(int setopt_post, api_->curl_easy_setopt_long(
-                                            curl_.get(), CURLOPT_POST, 1l));
-  ASSERT_EQ(setopt_post, CURLE_OK);
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      int setopt_post,
+      api_->curl_easy_setopt_long(curl_.get(), curl::CURLOPT_POST, 1l));
+  ASSERT_EQ(setopt_post, curl::CURLE_OK);
 
   // Set the size of the POST fields
   SAPI_ASSERT_OK_AND_ASSIGN(

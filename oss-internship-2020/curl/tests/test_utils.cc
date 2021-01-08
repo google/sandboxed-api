@@ -27,8 +27,8 @@
 
 #include "absl/status/statusor.h"
 
-int CurlTestUtils::port_;
-std::thread CurlTestUtils::server_thread_;
+int curl::tests::CurlTestUtils::port_;
+std::thread curl::tests::CurlTestUtils::server_thread_;
 
 absl::Status curl::tests::CurlTestUtils::CurlTestSetUp() {
   // Initialize sandbox2 and sapi
