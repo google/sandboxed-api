@@ -25,12 +25,16 @@
 #define SAPI_MACROS_IMPL_CONCAT_INNER_(x, y) x##y
 #define SAPI_MACROS_IMPL_CONCAT(x, y) SAPI_MACROS_IMPL_CONCAT_INNER_(x, y)
 
-#define SAPI_RETURN_IF_ERROR(expr)          \
-  do {                                      \
-    const auto status = (expr);             \
-    if (ABSL_PREDICT_FALSE(!status.ok())) { \
-      return status;                        \
-    }                                       \
+#define SAPI_RETURN_IF_ERROR(expr)                                           \
+  SAPI_RETURN_IF_ERROR_IMPL(SAPI_MACROS_IMPL_CONCAT(_sapi_status, __LINE__), \
+                            expr)
+
+#define SAPI_RETURN_IF_ERROR_IMPL(status, expr) \
+  do {                                          \
+    const auto status = (expr);                 \
+    if (ABSL_PREDICT_FALSE(!status.ok())) {     \
+      return status;                            \
+    }                                           \
   } while (0);
 
 #define SAPI_ASSIGN_OR_RETURN(lhs, rexpr) \
