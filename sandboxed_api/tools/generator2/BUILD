@@ -87,7 +87,7 @@ cc_binary(
     ],
 )
 
-# Compilation tests - always passes if dependencies build properly
+# Compilation test - always passes if dependency builds properly
 sh_test(
     name = "build_test",
     srcs = ["build_test.sh"],
