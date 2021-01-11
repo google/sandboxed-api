@@ -54,6 +54,7 @@ class GlobalForkClient {
     EnsureStarted(GlobalForkserverStartMode::kOnDemand);
   }
   static void Shutdown() ABSL_LOCKS_EXCLUDED(instance_mutex_);
+  static bool IsStarted() ABSL_LOCKS_EXCLUDED(instance_mutex_);
 
  private:
   friend void StartGlobalForkserverFromLibCtor();

@@ -35,6 +35,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
@@ -205,5 +206,10 @@ pid_t GlobalForkClient::GetPid() {
   absl::MutexLock lock(&instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   return instance_->fork_client_.pid();
+}
+
+bool GlobalForkClient::IsStarted() {
+  absl::ReaderMutexLock lock(&instance_mutex_);
+  return instance_ != nullptr;
 }
 }  // namespace sandbox2
