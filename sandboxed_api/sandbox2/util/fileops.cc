@@ -34,7 +34,7 @@ FDCloser::~FDCloser() { Close(); }
 
 bool FDCloser::Close() {
   int fd = Release();
-  if (fd == -1) {
+  if (fd == kCanonicalInvalidFd) {
     return false;
   }
   return close(fd) == 0 || errno == EINTR;
@@ -42,7 +42,7 @@ bool FDCloser::Close() {
 
 int FDCloser::Release() {
   int ret = fd_;
-  fd_ = -1;
+  fd_ = kCanonicalInvalidFd;
   return ret;
 }
 

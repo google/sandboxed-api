@@ -43,6 +43,7 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/sandbox2/util/fileops.h"
 
 using std::string;
 
@@ -117,10 +118,11 @@ int main(int argc, char** argv) {
   }
   auto executor = absl::make_unique<sandbox2::Executor>(argv[1], args, envp);
 
-  int recv_fd1 = -1;
+  sandbox2::file_util::fileops::FDCloser recv_fd1;
   if (absl::GetFlag(FLAGS_sandbox2tool_redirect_fd1)) {
     // Make the sandboxed process' fd be available as fd in the current process.
-    recv_fd1 = executor->ipc()->ReceiveFd(STDOUT_FILENO);
+    recv_fd1 = sandbox2::file_util::fileops::FDCloser(
+        executor->ipc()->ReceiveFd(STDOUT_FILENO));
   }
 
   executor
@@ -206,7 +208,7 @@ int main(int argc, char** argv) {
       sleep(1);
       s2.DumpStackTrace();
     } else if (absl::GetFlag(FLAGS_sandbox2tool_redirect_fd1)) {
-      OutputFD(recv_fd1);
+      OutputFD(recv_fd1.get());
       // We couldn't receive more data from the sandboxee's STDOUT_FILENO, but
       // the process could still be running. Kill it unconditionally. A correct
       // final status code will be reported instead of Result::EXTERNAL_KILL.

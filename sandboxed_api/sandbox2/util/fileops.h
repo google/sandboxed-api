@@ -16,6 +16,7 @@
 #define SANDBOXED_API_SANDBOX2_UTIL_FILEOPS_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
@@ -28,17 +29,25 @@ namespace fileops {
 // RAII helper class to automatically close file descriptors.
 class FDCloser {
  public:
-  explicit FDCloser(int fd) : fd_{fd} {}
+  explicit FDCloser(int fd = kCanonicalInvalidFd) : fd_{fd} {}
   FDCloser(const FDCloser&) = delete;
   FDCloser& operator=(const FDCloser&) = delete;
   FDCloser(FDCloser&& other) : fd_(other.Release()) {}
+  FDCloser& operator=(FDCloser&& other) {
+    Swap(other);
+    other.Close();
+    return *this;
+  }
   ~FDCloser();
 
   int get() const { return fd_; }
   bool Close();
+  void Swap(FDCloser& other) { std::swap(fd_, other.fd_); }
   int Release();
 
  private:
+  static constexpr int kCanonicalInvalidFd = -1;
+
   int fd_;
 };
 
