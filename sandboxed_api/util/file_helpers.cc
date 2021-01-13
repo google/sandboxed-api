@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
+#include "sandboxed_api/util/file_helpers.h"
 
 #include <fstream>
 #include <sstream>
@@ -20,8 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-namespace sandbox2 {
-namespace file {
+namespace sapi::file {
 
 const Options& Defaults() {
   static auto* instance = new Options{};
@@ -54,5 +53,4 @@ absl::Status SetContents(absl::string_view path, absl::string_view content,
   return absl::OkStatus();
 }
 
-}  // namespace file
-}  // namespace sandbox2
+}  // namespace sapi::file

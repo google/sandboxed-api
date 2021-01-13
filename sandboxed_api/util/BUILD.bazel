@@ -15,9 +15,127 @@
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
+package(default_visibility = [
+    "//sandboxed_api:__subpackages__",
+    "//security/bedebox:__subpackages__",
+])
 
 licenses(["notice"])
+
+# Another helper library with filesystem and path utility functions.
+cc_library(
+    name = "file_base",
+    srcs = ["path.cc"],
+    hdrs = ["path.h"],
+    copts = sapi_platform_copts(),
+    deps = ["@com_google_absl//absl/strings"],
+)
+
+cc_test(
+    name = "file_base_test",
+    size = "small",
+    srcs = ["path_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":file_base",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# String file routines
+cc_library(
+    name = "file_helpers",
+    srcs = ["file_helpers.cc"],
+    hdrs = ["file_helpers.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "file_helpers_test",
+    size = "small",
+    srcs = ["file_helpers_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":file_helpers",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Portable filesystem and path utility functions
+cc_library(
+    name = "fileops",
+    srcs = ["fileops.cc"],
+    hdrs = ["fileops.h"],
+    copts = sapi_platform_copts([
+        "-Wno-deprecated-declarations",  # readdir64_r
+    ]),
+    deps = [
+        ":strerror",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "fileops_test",
+    size = "small",
+    srcs = ["fileops_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":file_helpers",
+        ":fileops",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# Compatibility layer for Abseil's flags vs. gFlags
+cc_library(
+    name = "flags",
+    hdrs = ["flag.h"],
+    copts = sapi_platform_copts(),
+    deps = ["@com_github_gflags_gflags//:gflags"],
+)
+
+# Small support library emulating verbose logging using Abseil's raw logging
+# facility.
+cc_library(
+    name = "raw_logging",
+    srcs = ["raw_logging.cc"],
+    hdrs = ["raw_logging.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":strerror",
+        "@com_google_absl//absl/base:config",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "runfiles",
+    srcs = ["runfiles.cc"],
+    hdrs = ["runfiles.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":file_base",
+        ":flags",
+        ":raw_logging",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
 
 sapi_proto_library(
     name = "status_proto",
@@ -99,27 +217,54 @@ cc_test(
     ],
 )
 
-# Compatibility layer for Abseil's flags vs. gFlags
+# Internal thread-safe helper to format system error messages. Mostly
+# equivalent to base/strerror.h.
 cc_library(
-    name = "flags",
-    hdrs = ["flag.h"],
-    copts = sapi_platform_copts(),
-    deps = ["@com_github_gflags_gflags//:gflags"],
-)
-
-# Small support library emulating verbose logging using Abseil's raw logging
-# facility.
-cc_library(
-    name = "raw_logging",
-    srcs = ["raw_logging.cc"],
-    hdrs = ["raw_logging.h"],
+    name = "strerror",
+    srcs = ["strerror.cc"],
+    hdrs = ["strerror.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/sandbox2/util:strerror",
-        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "strerror_test",
+    srcs = ["strerror_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":strerror",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "temp_file",
+    srcs = ["temp_file.cc"],
+    hdrs = ["temp_file.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":fileops",
+        ":strerror",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "temp_file_test",
+    srcs = ["temp_file_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":file_base",
+        ":fileops",
+        ":temp_file",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_googletest//:gtest_main",
     ],
 )

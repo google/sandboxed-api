@@ -20,6 +20,16 @@ if(SAPI_ENABLE_GENERATOR)
 endif()
 add_subdirectory(examples)
 
+# sandboxed_api:config
+add_library(sapi_config ${SAPI_LIB_TYPE}
+  config.h
+)
+add_library(sapi::config ALIAS sapi_config)
+target_link_libraries(sapi_config PRIVATE
+  absl::config
+  sapi::base
+)
+
 # sandboxed_api:proto_arg
 sapi_protobuf_generate_cpp(_sapi_proto_arg_pb_cc _sapi_proto_arg_pb_h
   proto_arg.proto
@@ -47,8 +57,8 @@ target_link_libraries(sapi_embed_file
           absl::statusor
           absl::strings
           absl::synchronization
-          sandbox2::fileops
-          sandbox2::strerror
+          sapi::fileops
+          sapi::strerror
           sandbox2::util
           sapi::base
           sapi::raw_logging
@@ -73,10 +83,10 @@ target_link_libraries(sapi_sapi
           absl::strings
           absl::synchronization
           sandbox2::bpf_helper
-          sandbox2::file_base
-          sandbox2::fileops
-          sandbox2::runfiles
-          sandbox2::strerror
+          sapi::file_base
+          sapi::fileops
+          sapi::runfiles
+          sapi::strerror
           sandbox2::util
           sapi::embed_file
           sapi::vars
@@ -198,6 +208,19 @@ if(SAPI_ENABLE_TESTS AND NOT CMAKE_CROSSCOMPILING)
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_test)
+
+  # sandboxed_api:testing
+  add_library(sapi_testing ${SAPI_LIB_TYPE}
+    testing.cc
+    testing.h
+  )
+  add_library(sapi::testing ALIAS sapi_testing)
+  target_link_libraries(sapi_testing PRIVATE
+    absl::strings
+    sapi::file_base
+    sapi::base
+  )
+
 endif()
 
 # Install headers and libraries, excluding tools, tests and examples
@@ -205,7 +228,8 @@ foreach(_dir IN ITEMS . sandbox2 sandbox2/network_proxy sandbox2/util util)
   get_property(_sapi_targets DIRECTORY ${_dir} PROPERTY BUILDSYSTEM_TARGETS)
   list(FILTER _sapi_targets INCLUDE REGEX ^\(sapi|sandbox2\).*)
   list(FILTER _sapi_targets EXCLUDE REGEX _test)
-  install(TARGETS ${_sapi_targets} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  install(TARGETS ${_sapi_targets}
+          DESTINATION ${CMAKE_INSTALL_LIBDIR})
   set_property(TARGET ${_sapi_targets} PROPERTY SOVERSION 1)
 endforeach()
 
@@ -214,7 +238,8 @@ list(FILTER _sapi_headers EXCLUDE REGEX /\(tools|examples\)/)
 foreach(_file ${_sapi_headers})
   get_filename_component(_dir ${_file} DIRECTORY)
   string(REPLACE ${CMAKE_CURRENT_LIST_DIR} "" _dir ${_dir})
-  install(FILES ${_file} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sandboxed_api/${_dir})
+  install(FILES ${_file}
+          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sandboxed_api/${_dir})
 endforeach()
 
 configure_file(
@@ -223,4 +248,5 @@ configure_file(
   @ONLY
 )
 
-install(FILES "${PROJECT_BINARY_DIR}/sapi.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+install(FILES "${PROJECT_BINARY_DIR}/sapi.pc"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")

@@ -53,8 +53,8 @@ foreach(exe base multiple_files yaml_stream formatter)
     libjsonnet
     jsonnet_helper
     jsonnet_sapi
-    sandbox2::file_base
-    sandbox2::fileops
+    sapi::file_base
+    sapi::fileops
     sapi::sapi
   )
 

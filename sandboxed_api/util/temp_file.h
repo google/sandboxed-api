@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_UTIL_TEMP_FILE_H_
-#define SANDBOXED_API_SANDBOX2_UTIL_TEMP_FILE_H_
+#ifndef SANDBOXED_API_UTIL_TEMP_FILE_H_
+#define SANDBOXED_API_UTIL_TEMP_FILE_H_
 
 #include <string>
 
 #include "absl/status/statusor.h"
 
-namespace sandbox2 {
+namespace sapi {
 
 // Creates a temporary file under a path starting with prefix. File is not
 // unlinked and its path is returned together with an open fd.
@@ -36,6 +36,6 @@ absl::StatusOr<std::string> CreateNamedTempFileAndClose(
 // Returns the path of the created directory.
 absl::StatusOr<std::string> CreateTempDir(absl::string_view prefix);
 
-}  // namespace sandbox2
+}  // namespace sapi
 
-#endif  // SANDBOXED_API_SANDBOX2_UTIL_TEMP_FILE_H_
+#endif  // SANDBOXED_API_UTIL_TEMP_FILE_H_

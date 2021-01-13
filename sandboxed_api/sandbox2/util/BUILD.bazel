@@ -17,7 +17,6 @@ load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 package(default_visibility = [
     "//sandboxed_api:__subpackages__",
     "//security/bedebox:__subpackages__",
-    "//security/gfence:__subpackages__",
 ])
 
 licenses(["notice"])  # Apache 2.0
@@ -31,116 +30,17 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-# String file routines
-cc_library(
-    name = "file_helpers",
-    srcs = ["file_helpers.cc"],
-    hdrs = ["file_helpers.h"],
-    copts = sapi_platform_copts(),
-    deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "file_helpers_test",
-    size = "small",
-    srcs = ["file_helpers_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":file_helpers",
-        "//sandboxed_api/util:status_matchers",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-# Portable filesystem and path utility functions
-cc_library(
-    name = "fileops",
-    srcs = ["fileops.cc"],
-    hdrs = ["fileops.h"],
-    copts = sapi_platform_copts([
-        "-Wno-deprecated-declarations",  # readdir64_r
-    ]),
-    deps = [
-        ":strerror",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "fileops_test",
-    size = "small",
-    srcs = ["fileops_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":file_helpers",
-        ":fileops",
-        "//sandboxed_api/sandbox2:testing",
-        "//sandboxed_api/util:status_matchers",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-# Another helper library with filesystem and path utility functions.
-cc_library(
-    name = "file_base",
-    srcs = ["path.cc"],
-    hdrs = ["path.h"],
-    copts = sapi_platform_copts(),
-    deps = ["@com_google_absl//absl/strings"],
-)
-
-cc_test(
-    name = "file_base_test",
-    size = "small",
-    srcs = ["path_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":file_base",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-# Internal thread-safe helper to format system error messages. Mostly
-# equivalent to base/strerror.h.
-cc_library(
-    name = "strerror",
-    srcs = ["strerror.cc"],
-    hdrs = ["strerror.h"],
-    copts = sapi_platform_copts(),
-    deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "strerror_test",
-    srcs = ["strerror_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":strerror",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
 cc_library(
     name = "minielf",
     srcs = ["minielf.cc"],
     hdrs = ["minielf.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":strerror",
-        "//sandboxed_api/sandbox2:config",
+        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
+        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/base:endian",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -158,41 +58,13 @@ cc_test(
     ],
     features = ["-dynamic_link_test_srcs"],  # see go/dynamic_link_test_srcs
     deps = [
-        ":file_helpers",
         ":maps_parser",
         ":minielf",
-        "//sandboxed_api/sandbox2:testing",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "temp_file",
-    srcs = ["temp_file.cc"],
-    hdrs = ["temp_file.h"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":fileops",
-        ":strerror",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "temp_file_test",
-    srcs = ["temp_file_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":file_base",
-        ":fileops",
-        ":temp_file",
-        "//sandboxed_api/sandbox2:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -217,20 +89,5 @@ cc_test(
         ":maps_parser",
         "//sandboxed_api/util:status_matchers",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "runfiles",
-    srcs = ["runfiles.cc"],
-    hdrs = ["runfiles.h"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":file_base",
-        "//sandboxed_api/util:flags",
-        "//sandboxed_api/util:raw_logging",
-        "@bazel_tools//tools/cpp/runfiles",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )

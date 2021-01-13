@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/strerror.h"
 
 #include <string.h>  // For strerror_r
 
@@ -22,7 +22,7 @@
 #include "absl/base/attributes.h"
 #include "absl/strings/str_cat.h"
 
-namespace sandbox2 {
+namespace sapi {
 namespace {
 
 // Only one of these overloads will be used in any given build, as determined by
@@ -59,4 +59,4 @@ std::string StrError(int errnum) {
   return str;
 }
 
-}  // namespace sandbox2
+}  // namespace sapi

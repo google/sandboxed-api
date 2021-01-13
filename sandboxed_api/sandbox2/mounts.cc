@@ -34,16 +34,21 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/config.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 namespace {
+
+namespace cpu = ::sapi::cpu;
+namespace file = ::sapi::file;
+namespace file_util = ::sapi::file_util;
+namespace host_cpu = ::sapi::host_cpu;
 
 bool PathContainsNullByte(absl::string_view path) {
   return path.find('\x00') != absl::string_view::npos;

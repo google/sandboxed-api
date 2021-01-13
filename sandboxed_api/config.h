@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_CONFIG_H_
-#define SANDBOXED_API_SANDBOX2_CONFIG_H_
+#ifndef SANDBOXED_API_CONFIG_H_
+#define SANDBOXED_API_CONFIG_H_
 
 #include <cstdint>
 
@@ -39,7 +39,7 @@
 
 #endif
 
-namespace sandbox2 {
+namespace sapi {
 
 namespace cpu {
 
@@ -92,6 +92,6 @@ static_assert(host_cpu::Architecture() != cpu::kUnknown,
               "Host CPU architecture is not supported: One of x86-64, POWER64 "
               "(little endian), Arm or AArch64 is required.");
 
-}  // namespace sandbox2
+}  // namespace sapi
 
-#endif  // SANDBOXED_API_SANDBOX2_CONFIG_H_
+#endif  // SANDBOXED_API_CONFIG_H_

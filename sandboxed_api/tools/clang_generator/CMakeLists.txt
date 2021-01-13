@@ -50,7 +50,7 @@ target_link_libraries(sapi_generator PUBLIC
   clangFormat
   clangFrontendTool
   clangTooling
-  sandbox2::fileops
+  sapi::fileops
   sapi::status
   ${_sapi_generator_llvm_libs}
 )
@@ -60,8 +60,8 @@ add_executable(sapi_generator_tool
 )
 target_link_libraries(sapi_generator_tool PRIVATE
   sapi::base
-  sandbox2::file_helpers
-  sandbox2::fileops
+  sapi::file_helpers
+  sapi::fileops
   sapi::generator
 )
 

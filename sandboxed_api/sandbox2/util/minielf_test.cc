@@ -21,23 +21,25 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
-#include "sandboxed_api/sandbox2/testing.h"
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
+#include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 extern "C" void ExportedFunctionName() {
   // Don't do anything - used to generate a symbol.
 }
 
-namespace sandbox2 {
-namespace {
-
+namespace file = ::sapi::file;
+using ::sapi::GetTestSourcePath;
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::Ne;
 using ::testing::StrEq;
+
+namespace sandbox2 {
+namespace {
 
 TEST(MinielfTest, Chrome70) {
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -56,9 +58,9 @@ TEST(MinielfTest, SymbolResolutionWorks) {
 
   // Load /proc/self/maps to take ASLR into account.
   std::string maps_buffer;
-  ASSERT_THAT(sandbox2::file::GetContents("/proc/self/maps", &maps_buffer,
-                                          sandbox2::file::Defaults()),
-              IsOk());
+  ASSERT_THAT(
+      file::GetContents("/proc/self/maps", &maps_buffer, file::Defaults()),
+      IsOk());
   SAPI_ASSERT_OK_AND_ASSIGN(std::vector<MapsEntry> maps, ParseProcMaps(maps_buffer));
 
   // Find maps entry that covers this entry.

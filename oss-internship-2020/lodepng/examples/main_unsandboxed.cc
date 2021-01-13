@@ -17,8 +17,8 @@
 #include <glog/logging.h>
 #include "helpers.h"  // NOLINT(build/include)
 #include "lodepng.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 
 void EncodeDecodeOneStep(const std::string& images_path) {
   // Generate the values.

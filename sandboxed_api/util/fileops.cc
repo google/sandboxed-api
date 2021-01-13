@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/fileops.h"
 
 #include <dirent.h>    // DIR
 #include <limits.h>    // PATH_MAX
@@ -24,11 +24,9 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/strerror.h"
 
-namespace sandbox2 {
-namespace file_util {
-namespace fileops {
+namespace sapi::file_util::fileops {
 
 FDCloser::~FDCloser() { Close(); }
 
@@ -300,6 +298,4 @@ bool WriteToFD(int fd, const char* data, size_t size) {
   return true;
 }
 
-}  // namespace fileops
-}  // namespace file_util
-}  // namespace sandbox2
+}  // namespace sapi::file_util::fileops

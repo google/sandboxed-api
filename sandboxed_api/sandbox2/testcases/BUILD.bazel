@@ -141,7 +141,7 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = FULLY_STATIC_FEATURES,
     linkstatic = 1,
-    deps = ["//sandboxed_api/sandbox2:config"],
+    deps = ["//sandboxed_api:config"],
 )
 
 # security: disable=cc-static-no-pie
@@ -183,8 +183,8 @@ cc_binary(
     features = FULLY_STATIC_FEATURES,
     linkstatic = 1,
     deps = [
-        "//sandboxed_api/sandbox2/util:temp_file",
         "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:temp_file",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],

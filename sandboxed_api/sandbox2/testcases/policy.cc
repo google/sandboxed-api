@@ -24,7 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 
 #ifdef SAPI_X86_64
 void TestAMD64SyscallMismatch() {

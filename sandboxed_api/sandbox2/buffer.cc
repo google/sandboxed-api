@@ -24,9 +24,11 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
+
+using ::sapi::StrError;
 
 // Creates a new Buffer that is backed by the specified file descriptor.
 absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {

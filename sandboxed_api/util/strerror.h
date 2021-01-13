@@ -12,29 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
+#ifndef SANDBOXED_API_UTIL_STRERROR_H_
+#define SANDBOXED_API_UTIL_STRERROR_H_
 
 #include <string>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "sandboxed_api/util/status_matchers.h"
+namespace sapi {
 
-using ::sapi::IsOk;
-using ::testing::Not;
+// Returns a human-readable string describing the given POSIX error code. This
+// is a portable and thread-safe alternative to strerror(). If the error code is
+// not translatable, the string will be "Unknown error nnn". errno will not be
+// modified by this call. This function is thread-safe.
+std::string StrError(int errnum);
 
-namespace sandbox2 {
+}  // namespace sapi
 
-TEST(FileHelpersTest, TestGetNonExistent) {
-  std::string output;
-  EXPECT_THAT(file::GetContents("/not/there", &output, file::Defaults()),
-              Not(IsOk()));
-}
-
-TEST(FileHelpersTest, TestGetKnownFile) {
-  std::string output;
-  EXPECT_THAT(file::GetContents("/proc/self/status", &output, file::Defaults()),
-              IsOk());
-}
-
-}  // namespace sandbox2
+#endif  // SANDBOXED_API_STRERROR_H_

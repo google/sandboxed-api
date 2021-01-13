@@ -15,7 +15,7 @@
 #include "helper.h"  // NOLINT(build/include)
 
 #include "../sandboxed.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/path.h"
 
 std::string GetSourcePath() { return getenv("TEST_SRCDIR"); }
 

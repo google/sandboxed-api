@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
+licenses(["notice"])
 
 # Executor
 cc_binary(
@@ -26,8 +26,8 @@ cc_binary(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/sandbox2/util:runfiles",
         "//sandboxed_api/util:flags",
+        "//sandboxed_api/util:runfiles",
         "@com_google_absl//absl/memory",
     ],
 )

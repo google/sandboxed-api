@@ -16,9 +16,9 @@
 
 #include <unistd.h>
 
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/temp_file.h"
 
 namespace gdal::sandbox::utils {
 

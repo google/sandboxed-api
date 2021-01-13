@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/fileops.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -32,8 +32,8 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/testing.h"
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
+#include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 using sapi::IsOk;
@@ -45,8 +45,7 @@ using testing::Ne;
 using testing::SizeIs;
 using testing::StrEq;
 
-namespace sandbox2 {
-namespace file_util {
+namespace sapi::file_util {
 
 // Forward declare functions that are only used in fileops.cc.
 namespace fileops {
@@ -429,5 +428,4 @@ TEST_F(FileOpsTest, CopyFileTest) {
 }
 
 }  // namespace
-}  // namespace file_util
-}  // namespace sandbox2
+}  // namespace sapi::file_util

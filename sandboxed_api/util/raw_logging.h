@@ -28,7 +28,7 @@
 #include "absl/base/port.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/strerror.h"
 
 // `SAPI_INTERNAL_UNREACHABLE` is an unreachable statement.  A program which
 // reaches one has undefined behavior, and the compiler may optimize
@@ -99,7 +99,7 @@
   do {                                                             \
     const auto message = absl::StrFormat((format), ##__VA_ARGS__); \
     SAPI_RAW_LOG(severity, "%s: %s [%d]", message.c_str(),         \
-                 ::sandbox2::StrError(errno).c_str(), errno);      \
+                 ::sapi::StrError(errno).c_str(), errno);          \
   } while (0)
 
 // If verbose logging is enabled, uses SAPI_RAW_LOG() to log.
@@ -110,14 +110,13 @@
 
 // Like SAPI_RAW_CHECK(), but also logs errno and a message (similar to
 // SAPI_RAW_PLOG()).
-#define SAPI_RAW_PCHECK(condition, format, ...)                          \
-  do {                                                                   \
-    const auto message = absl::StrFormat((format), ##__VA_ARGS__);       \
-    if (ABSL_PREDICT_FALSE(!(condition))) {                              \
-      SAPI_RAW_LOG(FATAL, "Check %s failed: %s: %s [%d]", #condition,    \
-                   message.c_str(), ::sandbox2::StrError(errno).c_str(), \
-                   errno);                                               \
-    }                                                                    \
+#define SAPI_RAW_PCHECK(condition, format, ...)                              \
+  do {                                                                       \
+    const auto message = absl::StrFormat((format), ##__VA_ARGS__);           \
+    if (ABSL_PREDICT_FALSE(!(condition))) {                                  \
+      SAPI_RAW_LOG(FATAL, "Check %s failed: %s: %s [%d]", #condition,        \
+                   message.c_str(), ::sapi::StrError(errno).c_str(), errno); \
+    }                                                                        \
   } while (0)
 
 namespace sapi::raw_logging_internal {

@@ -31,17 +31,20 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/util/temp_file.h"
 
 ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 
 namespace sandbox2 {
 namespace {
 
+namespace file_util = ::sapi::file_util;
+using ::sapi::CreateNamedTempFileAndClose;
+using ::sapi::GetTestSourcePath;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;

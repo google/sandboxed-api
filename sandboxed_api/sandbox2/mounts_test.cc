@@ -22,19 +22,24 @@
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/testing.h"
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
-
-using sapi::IsOk;
-using sapi::StatusIs;
-using ::testing::Eq;
-using ::testing::UnorderedElementsAreArray;
+#include "sandboxed_api/util/temp_file.h"
 
 namespace sandbox2 {
 namespace {
+
+namespace file = ::sapi::file;
+using ::sapi::CreateNamedTempFileAndClose;
+using ::sapi::CreateTempDir;
+using ::sapi::GetTestSourcePath;
+using ::sapi::GetTestTempPath;
+using ::sapi::IsOk;
+using ::sapi::StatusIs;
+using ::testing::Eq;
+using ::testing::UnorderedElementsAreArray;
 
 constexpr size_t kTmpfsSize = 1024;
 

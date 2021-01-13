@@ -86,9 +86,9 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
     LOAD_ARCH,
     JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
 #if defined(SAPI_X86_64)
-    JEQ32(AUDIT_ARCH_I386, TRACE(cpu::kX86)),  // 32-bit sandboxee
+    JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),  // 32-bit sandboxee
 #endif
-    TRACE(cpu::kUnknown),
+    TRACE(sapi::cpu::kUnknown),
     LABEL(&l, past_arch_check_l),
 
     // After the policy is uploaded, forkserver will execve the sandboxee. We
@@ -139,16 +139,16 @@ std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   return {
     LOAD_ARCH,
 #if defined(SAPI_X86_64)
-        JEQ32(AUDIT_ARCH_X86_64, TRACE(cpu::kX8664)),
-        JEQ32(AUDIT_ARCH_I386, TRACE(cpu::kX86)),
+        JEQ32(AUDIT_ARCH_X86_64, TRACE(sapi::cpu::kX8664)),
+        JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),
 #elif defined(SAPI_PPC64_LE)
-        JEQ32(AUDIT_ARCH_PPC64LE, TRACE(cpu::kPPC64LE)),
+        JEQ32(AUDIT_ARCH_PPC64LE, TRACE(sapi::cpu::kPPC64LE)),
 #elif defined(SAPI_ARM64)
-        JEQ32(AUDIT_ARCH_AARCH64, TRACE(cpu::kArm64)),
+        JEQ32(AUDIT_ARCH_AARCH64, TRACE(sapi::cpu::kArm64)),
 #elif defined(SAPI_ARM)
-        JEQ32(AUDIT_ARCH_ARM, TRACE(cpu::kArm)),
+        JEQ32(AUDIT_ARCH_ARM, TRACE(sapi::cpu::kArm)),
 #endif
-        TRACE(cpu::kUnknown),
+        TRACE(sapi::cpu::kUnknown),
   };
 }
 

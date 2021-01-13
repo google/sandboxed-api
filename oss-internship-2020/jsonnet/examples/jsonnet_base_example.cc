@@ -16,12 +16,12 @@
 #include <iostream>
 
 #include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 
 absl::Status JsonnetMain(std::string in_file, std::string out_file) {
-  using sandbox2::file::JoinPath;
-  using sandbox2::file_util::fileops::Basename;
+  using sapi::file::JoinPath;
+  using sapi::file_util::fileops::Basename;
 
   // Initialize sandbox.
   JsonnetBaseSandbox sandbox(in_file, out_file);
@@ -70,7 +70,7 @@ absl::Status JsonnetMain(std::string in_file, std::string out_file) {
 }
 
 int main(int argc, char* argv[]) {
-  using sandbox2::file_util::fileops::Basename;
+  using sapi::file_util::fileops::Basename;
 
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);

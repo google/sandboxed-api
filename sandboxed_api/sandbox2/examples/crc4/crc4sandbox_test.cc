@@ -21,15 +21,16 @@
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
-
-using ::testing::Eq;
-using ::testing::StrEq;
 
 namespace sandbox2 {
 namespace {
+
+using ::sapi::GetTestSourcePath;
+using ::testing::Eq;
+using ::testing::StrEq;
 
 class CRC4Test : public ::testing::Test {
  protected:

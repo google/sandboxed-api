@@ -19,8 +19,8 @@
 #include <vector>
 
 #include "../sandboxed.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
 // sapi functions:
@@ -104,7 +104,7 @@ int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
   return 1;
 }
 std::string GetFilePath(const std::string& dir, const std::string& filename) {
-  return sandbox2::file::JoinPath(dir, "test", "images", filename);
+  return sapi::file::JoinPath(dir, "test", "images", filename);
 }
 
 std::string GetCWD() {
@@ -127,7 +127,7 @@ std::string GetFilePath(const std::string filename) {
     project_path = cwd.substr(0, find);
   }
 
-  return sandbox2::file::JoinPath(project_path, "test", "images", filename);
+  return sapi::file::JoinPath(project_path, "test", "images", filename);
 }
 
 }  // namespace

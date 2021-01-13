@@ -19,8 +19,8 @@ add_executable(filewrapper
 target_link_libraries(filewrapper PRIVATE
   absl::strings
   absl::str_format
-  sandbox2::fileops
-  sandbox2::strerror
+  sapi::fileops
+  sapi::strerror
   sapi::base
   sapi::raw_logging
 )
@@ -43,9 +43,9 @@ if(SAPI_ENABLE_TESTS)
   target_link_libraries(sapi_filewrapper_test PRIVATE
     absl::strings
     filewrapper_embedded
-    sandbox2::file_helpers
-    sandbox2::fileops
-    sandbox2::testing
+    sapi::file_helpers
+    sapi::fileops
+    sapi::testing
     sapi::status_matchers
     sapi::test_main
   )

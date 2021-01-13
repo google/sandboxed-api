@@ -12,23 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/temp_file.h"
 
 #include <fcntl.h>
 #include <unistd.h>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/testing.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-namespace sandbox2 {
+namespace sapi {
 namespace {
 
-using ::sapi::IsOk;
-using ::sapi::StatusIs;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::Ne;
@@ -60,4 +58,4 @@ TEST(TempFileTest, MakeTempFileTest) {
 }
 
 }  // namespace
-}  // namespace sandbox2
+}  // namespace sapi

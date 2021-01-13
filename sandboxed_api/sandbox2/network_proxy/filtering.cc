@@ -22,10 +22,12 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
+
+using ::sapi::StrError;
 
 static absl::StatusOr<std::string> Addr6ToString(
     const struct sockaddr_in6* saddr) {

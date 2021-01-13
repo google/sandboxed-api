@@ -25,7 +25,7 @@ target_link_libraries(sandbox2_custom_fork_sandbox PRIVATE
   absl::memory
   sandbox2::comms
   sandbox2::forkserver
-  sandbox2::runfiles
+  sapi::runfiles
   sandbox2::sandbox2
   sapi::base
   sapi::flags

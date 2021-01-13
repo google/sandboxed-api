@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/strerror.h"
 
 #include <atomic>
 #include <cerrno>
@@ -24,11 +24,11 @@
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
 
+namespace sapi {
+namespace {
+
 using ::testing::Eq;
 using ::testing::StrEq;
-
-namespace sandbox2 {
-namespace {
 
 TEST(StrErrorTest, ValidErrorCode) {
   errno = EAGAIN;
@@ -78,4 +78,4 @@ TEST(StrErrorTest, MultipleThreads) {
 }
 
 }  // namespace
-}  // namespace sandbox2
+}  // namespace sapi

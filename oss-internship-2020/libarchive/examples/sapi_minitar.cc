@@ -15,7 +15,7 @@
 #include "sapi_minitar.h"  // NOLINT(build/include)
 
 #include "absl/status/status.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
 
 absl::Status CreateArchive(const char* initial_filename, int compress,

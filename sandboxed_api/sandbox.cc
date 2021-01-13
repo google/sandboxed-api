@@ -38,12 +38,10 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/runfiles.h"
 #include "sandboxed_api/util/status_macros.h"
-
-namespace file = ::sandbox2::file;
 
 namespace sapi {
 
@@ -125,9 +123,8 @@ void Sandbox::Terminate(bool attempt_graceful_exit) {
 }
 
 static std::string PathToSAPILib(const std::string& lib_path) {
-  return file::IsAbsolutePath(lib_path)
-             ? lib_path
-             : sandbox2::GetDataDependencyFilePath(lib_path);
+  return file::IsAbsolutePath(lib_path) ? lib_path
+                                        : GetDataDependencyFilePath(lib_path);
 }
 
 absl::Status Sandbox::Init() {

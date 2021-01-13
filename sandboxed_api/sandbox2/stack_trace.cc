@@ -30,8 +30,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "libcap/include/sys/capability.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -43,8 +43,8 @@
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 
 ABSL_FLAG(bool, sandbox_disable_all_stack_traces, false,
           "Completely disable stack trace collection for sandboxees");
@@ -53,6 +53,9 @@ ABSL_FLAG(bool, sandbox_libunwind_crash_handler, true,
           "Sandbox libunwind when handling violations (preferred)");
 
 namespace sandbox2 {
+
+namespace file = ::sapi::file;
+namespace file_util = ::sapi::file_util;
 
 class StackTracePeer {
  public:
@@ -277,7 +280,7 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
 }
 
 std::vector<std::string> GetStackTrace(const Regs* regs, const Mounts& mounts) {
-  if constexpr (host_cpu::IsArm64()) {
+  if constexpr (sapi::host_cpu::IsArm64()) {
     return {"[Stack traces unavailable]"};
   }
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {

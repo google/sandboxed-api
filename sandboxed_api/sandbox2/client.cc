@@ -41,10 +41,12 @@
 #include "absl/strings/str_split.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
+
+using ::sapi::StrError;
 
 Client::Client(Comms* comms) : comms_(comms) {
   char* fdmap_envvar = getenv(kFDMapEnvVar);

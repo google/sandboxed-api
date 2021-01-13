@@ -34,7 +34,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
+#include "sandboxed_api/util/runfiles.h"
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
   return sandbox2::PolicyBuilder()
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
 #endif
 
   // Start a custom fork-server (via sandbox2::Executor).
-  const std::string path = sandbox2::GetInternalDataDependencyFilePath(
+  const std::string path = sapi::GetInternalDataDependencyFilePath(
       "sandbox2/examples/custom_fork/custom_fork_bin");
   std::vector<std::string> args = {path};
   std::vector<std::string> envs = {};
@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
 
   // Test new sandboxees: send them integers over Comms, and expect they will
   // exit with these specific exit codes.
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; ++i) {
     CHECK_EQ(SandboxIteration(fork_client.get(), i), i);
   }
 

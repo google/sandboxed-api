@@ -37,7 +37,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
+#include "sandboxed_api/util/runfiles.h"
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
   return sandbox2::PolicyBuilder()
@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
-  const std::string path = sandbox2::GetInternalDataDependencyFilePath(
+  const std::string path = sapi::GetInternalDataDependencyFilePath(
       "sandbox2/examples/static/static_bin");
   std::vector<std::string> args = {path};
   auto executor = absl::make_unique<sandbox2::Executor>(path, args);

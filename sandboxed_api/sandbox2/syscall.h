@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 
 namespace sandbox2 {
 
@@ -37,23 +37,23 @@ class Syscall {
   using Args = std::array<uint64_t, kMaxArgs>;
 
   // Returns the host architecture, according to CpuArch.
-  static constexpr cpu::Architecture GetHostArch() {
-    return host_cpu::Architecture();
+  static constexpr sapi::cpu::Architecture GetHostArch() {
+    return sapi::host_cpu::Architecture();
   }
 
   // Returns the host architecture, according to <linux/audit.h>.
   static uint32_t GetHostAuditArch();
 
   // Returns a description of the architecture.
-  static std::string GetArchDescription(cpu::Architecture arch);
+  static std::string GetArchDescription(sapi::cpu::Architecture arch);
 
   Syscall() = default;
-  Syscall(cpu::Architecture arch, uint64_t nr, Args args = {})
+  Syscall(sapi::cpu::Architecture arch, uint64_t nr, Args args = {})
       : arch_(arch), nr_(nr), args_(args) {}
 
   pid_t pid() const { return pid_; }
   uint64_t nr() const { return nr_; }
-  cpu::Architecture arch() const { return arch_; }
+  sapi::cpu::Architecture arch() const { return arch_; }
   const Args& args() const { return args_; }
   uint64_t stack_pointer() const { return sp_; }
   uint64_t instruction_pointer() const { return ip_; }
@@ -67,11 +67,11 @@ class Syscall {
   friend class Regs;
 
   explicit Syscall(pid_t pid) : pid_(pid) {}
-  Syscall(cpu::Architecture arch, uint64_t nr, Args args, pid_t pid,
+  Syscall(sapi::cpu::Architecture arch, uint64_t nr, Args args, pid_t pid,
           uint64_t sp, uint64_t ip)
       : arch_(arch), nr_(nr), args_(args), pid_(pid), sp_(sp), ip_(ip) {}
 
-  cpu::Architecture arch_ = cpu::kUnknown;
+  sapi::cpu::Architecture arch_ = sapi::cpu::kUnknown;
   uint64_t nr_ = -1;
   Args args_ = {};
   pid_t pid_ = -1;

@@ -28,23 +28,24 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
-
-using ::testing::Eq;
-using ::testing::IsTrue;
-using ::testing::Ne;
 
 namespace sandbox2 {
 namespace {
+
+using ::sapi::GetTestSourcePath;
+using ::testing::Eq;
+using ::testing::IsTrue;
+using ::testing::Ne;
 
 // Test all public methods of sandbox2::Buffer.
 TEST(BufferTest, TestImplementation) {

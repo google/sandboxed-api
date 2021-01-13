@@ -15,7 +15,7 @@
 #include "helpers.h"  // NOLINT(build/include)
 
 #include "absl/status/statusor.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/temp_file.h"
 
 std::vector<uint8_t> GenerateValues() {
   std::vector<uint8_t> image;

@@ -14,12 +14,12 @@
 
 #include "jsonnet_base_transaction.h"  // NOLINT(build/include)
 
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 
 absl::Status JsonnetTransaction::Main() {
-  using sandbox2::file::JoinPath;
-  using sandbox2::file_util::fileops::Basename;
+  using sapi::file::JoinPath;
+  using sapi::file_util::fileops::Basename;
 
   JsonnetApi api(sandbox());
 
@@ -62,7 +62,7 @@ absl::Status JsonnetTransaction::Main() {
 }
 
 int main(int argc, char* argv[]) {
-  using sandbox2::file_util::fileops::Basename;
+  using sapi::file_util::fileops::Basename;
 
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);

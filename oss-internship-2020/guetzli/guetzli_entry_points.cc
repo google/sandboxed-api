@@ -26,7 +26,7 @@
 #include "guetzli/quality.h"
 #include "png.h"  // NOLINT(build/include)
 #include "absl/status/statusor.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace {
 

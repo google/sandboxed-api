@@ -16,19 +16,20 @@
 
 #include "sapi_minitar.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-using ::sandbox2::file::JoinPath;
+namespace {
+
+using ::sandbox2::util::VecStringToCharPtrArr;
 using ::sapi::IsOk;
+using ::sapi::file::JoinPath;
+using ::sapi::file_util::fileops::Exists;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::StrEq;
-
-using ::sandbox2::file_util::fileops::Exists;
-using ::sandbox2::util::VecStringToCharPtrArr;
-
-namespace {
 
 // We will use a fixture class for testing which allows us to override the
 // SetUp and TearDown functions. Also, data that needs to be initialized

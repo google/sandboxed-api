@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/temp_file.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -24,10 +24,10 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/strerror.h"
 
-namespace sandbox2 {
+namespace sapi {
 
 namespace {
 constexpr absl::string_view kMktempSuffix = "XXXXXX";
@@ -64,4 +64,4 @@ absl::StatusOr<std::string> CreateTempDir(absl::string_view prefix) {
   return name_template;
 }
 
-}  // namespace sandbox2
+}  // namespace sapi

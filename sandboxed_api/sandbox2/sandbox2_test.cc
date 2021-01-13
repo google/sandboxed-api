@@ -26,23 +26,24 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
+namespace sandbox2 {
+namespace {
+
+using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Lt;
-
-namespace sandbox2 {
-namespace {
 
 // Test that aborting inside a sandbox with all userspace core dumping
 // disabled reports the signal.

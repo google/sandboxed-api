@@ -27,11 +27,13 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/config.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/config.h"
+#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
+
+using ::sapi::StrError;
 
 #ifndef SYS_SECCOMP
 constexpr int SYS_SECCOMP = 1;

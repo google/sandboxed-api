@@ -32,11 +32,13 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/testing.h"
 
 namespace sandbox2 {
 namespace {
+
+using ::sapi::GetTestSourcePath;
 
 // Allow typical syscalls and call SECCOMP_RET_TRACE for personality syscall,
 // chosen because unlikely to be called by a regular program.

@@ -24,8 +24,8 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/runfiles.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 
@@ -57,7 +57,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
 }
 
 void Server(int port) {
-  sandbox2::file_util::fileops::FDCloser s{
+  sapi::file_util::fileops::FDCloser s{
       socket(AF_INET6, SOCK_STREAM | SOCK_CLOEXEC, 0)};
   if (s.get() < 0) {
     PLOG(ERROR) << "socket() failed";
@@ -97,7 +97,7 @@ void Server(int port) {
     return;
   }
 
-  sandbox2::file_util::fileops::FDCloser client{accept(s.get(), 0, 0)};
+  sapi::file_util::fileops::FDCloser client{accept(s.get(), 0, 0)};
   if (client.get() < 0) {
     PLOG(ERROR) << "accept() failed";
     return;
@@ -129,8 +129,8 @@ int main(int argc, char** argv) {
   std::thread server_thread{Server,port};
   server_thread.detach();
 
-  std::string path =
-      sandbox2::GetInternalDataDependencyFilePath(kSandboxeePath);
+  const std::string path =
+      sapi::GetInternalDataDependencyFilePath(kSandboxeePath);
   std::vector<std::string> args = {path};
   if (!absl::GetFlag(FLAGS_connect_with_handler)) {
     args.push_back("--noconnect_with_handler");

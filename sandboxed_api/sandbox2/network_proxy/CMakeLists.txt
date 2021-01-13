@@ -21,7 +21,7 @@ add_library(sandbox2::network_proxy_server ALIAS sandbox2_network_proxy_server)
 target_link_libraries(sandbox2_network_proxy_server PRIVATE
   absl::memory
   sandbox2::comms
-  sandbox2::fileops
+  sapi::fileops
   sandbox2::network_proxy_filtering
   sapi::base
 )
@@ -36,11 +36,11 @@ target_link_libraries(sandbox2_network_proxy_filtering
   PRIVATE absl::memory
           absl::status
           sandbox2::comms
-          sandbox2::fileops
+          sapi::fileops
           sapi::base
   PUBLIC absl::statusor
          glog::glog
-         sandbox2::strerror
+         sapi::strerror
          sapi::status
 )
 
@@ -55,8 +55,8 @@ target_link_libraries(sandbox2_network_proxy_client PRIVATE
   absl::synchronization
   glog::glog
   sandbox2::comms
-  sandbox2::config
-  sandbox2::strerror
+  sapi::config
+  sapi::strerror
   sapi::base
   sapi::status
 )
@@ -72,7 +72,7 @@ if(SAPI_ENABLE_TESTS)
   target_link_libraries(sandbox2_filtering_test PRIVATE
     absl::strings
     sandbox2::network_proxy_filtering
-    sandbox2::testing
+    sapi::testing
     sapi::base
     sapi::status_matchers
     sapi::test_main

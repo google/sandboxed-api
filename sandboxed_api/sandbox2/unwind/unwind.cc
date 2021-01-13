@@ -32,8 +32,8 @@
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
 namespace {

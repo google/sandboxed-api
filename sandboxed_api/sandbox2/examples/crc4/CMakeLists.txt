@@ -24,7 +24,7 @@ target_link_libraries(sandbox2_crc4sandbox PRIVATE
   absl::memory
   sandbox2::bpf_helper
   sandbox2::comms
-  sandbox2::runfiles
+  sapi::runfiles
   sandbox2::sandbox2
   sapi::base
   sapi::flags

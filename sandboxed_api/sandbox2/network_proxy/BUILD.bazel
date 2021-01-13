@@ -28,7 +28,7 @@ cc_library(
     deps = [
         ":filtering",
         "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -43,10 +43,10 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:config",
-        "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:status",
+        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -62,8 +62,8 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2/util:strerror",
         "//sandboxed_api/util:status",
+        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -77,7 +77,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
-        "//sandboxed_api/sandbox2:testing",
+        "//sandboxed_api:testing",
         "//sandboxed_api/util:status_matchers",
         "@com_google_googletest//:gtest_main",
     ],

@@ -33,11 +33,12 @@
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "absl/status/status.h"
 
+using ::sapi::GetTestSourcePath;
 using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Eq;
@@ -47,7 +48,6 @@ using ::testing::Lt;
 using ::testing::NotNull;
 using ::testing::StartsWith;
 using ::testing::StrEq;
-using ::sapi::IsOk;
 using ::sapi::StatusIs;
 
 namespace sandbox2 {

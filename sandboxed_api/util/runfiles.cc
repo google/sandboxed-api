@@ -15,15 +15,15 @@
 #include <cstdlib>
 
 #include "absl/strings/str_format.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/runfiles.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 using bazel::tools::cpp::runfiles::Runfiles;
 
-namespace sandbox2 {
+namespace sapi {
 
 std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   static Runfiles* runfiles = []() {
@@ -45,4 +45,4 @@ std::string GetInternalDataDependencyFilePath(absl::string_view relative_path) {
       file::JoinPath("com_google_sandboxed_api/sandboxed_api", relative_path));
 }
 
-}  // namespace sandbox2
+}  // namespace sapi

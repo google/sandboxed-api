@@ -40,13 +40,17 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
-#include "sandboxed_api/sandbox2/config.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/config.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2::util {
+
+namespace file = ::sapi::file;
+namespace file_util = ::sapi::file_util;
+using ::sapi::StrError;
 
 void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec) {
   for (int i = 0; arr[i]; ++i) {
@@ -127,8 +131,8 @@ ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS
 ABSL_ATTRIBUTE_NOINLINE
 pid_t CloneAndJump(int flags, jmp_buf* env_ptr) {
   uint8_t stack_buf[PTHREAD_STACK_MIN] ABSL_CACHELINE_ALIGNED;
-  static_assert(host_cpu::IsX8664() || host_cpu::IsPPC64LE() ||
-                    host_cpu::IsArm64() || host_cpu::IsArm(),
+  static_assert(sapi::host_cpu::IsX8664() || sapi::host_cpu::IsPPC64LE() ||
+                    sapi::host_cpu::IsArm64() || sapi::host_cpu::IsArm(),
                 "Host CPU architecture not supported, see config.h");
   // Stack grows down.
   void* stack = stack_buf + sizeof(stack_buf);

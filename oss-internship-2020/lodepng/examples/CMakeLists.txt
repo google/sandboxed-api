@@ -21,9 +21,9 @@ add_executable(lodepng_unsandboxed
 target_link_libraries(lodepng_unsandboxed PRIVATE
   lodepng
   sapi::sapi
-  sandbox2::temp_file
-  sandbox2::file_base
-  sandbox2::fileops
+  sapi::temp_file
+  sapi::file_base
+  sapi::fileops
   glog::glog
 )
 
@@ -37,8 +37,8 @@ add_executable(lodepng_sandboxed
 target_link_libraries(lodepng_sandboxed PRIVATE
   lodepng_sapi
   sapi::sapi
-  sandbox2::temp_file
-  sandbox2::fileops
+  sapi::temp_file
+  sapi::fileops
   sapi::vars
   sapi::status
   glog::glog
@@ -61,8 +61,8 @@ target_link_libraries(main_unit_test PRIVATE
   glog::glog
   sapi::flags
   sapi::sapi
-  sandbox2::temp_file
-  sandbox2::fileops
+  sapi::temp_file
+  sapi::fileops
   sapi::status
   sapi::test_main
   sapi::vars

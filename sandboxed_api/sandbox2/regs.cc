@@ -26,10 +26,12 @@
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/config.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/config.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
+
+using ::sapi::StrError;
 
 #ifndef NT_ARM_SYSTEM_CALL
 #define NT_ARM_SYSTEM_CALL 0x404
@@ -42,8 +44,8 @@ absl::Status Regs::Fetch() {
                                             ") failed: ", StrError(errno)));
   }
 #endif
-  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64() ||
-                host_cpu::IsArm()) {
+  if constexpr (sapi::host_cpu::IsPPC64LE() || sapi::host_cpu::IsArm64() ||
+                sapi::host_cpu::IsArm()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
@@ -59,7 +61,7 @@ absl::Status Regs::Fetch() {
     }
 
     // On AArch64, we are not done yet. Read the syscall number.
-    if constexpr (host_cpu::IsArm64()) {
+    if constexpr (sapi::host_cpu::IsArm64()) {
       iovec sys_iov = {&syscall_number_, sizeof(syscall_number_)};
 
       if (ptrace(PTRACE_GETREGSET, pid_, NT_ARM_SYSTEM_CALL, &sys_iov) == -1L) {
@@ -86,8 +88,8 @@ absl::Status Regs::Store() {
                                             ") failed: ", StrError(errno)));
   }
 #endif
-  if constexpr (host_cpu::IsPPC64LE() || host_cpu::IsArm64() ||
-                host_cpu::IsArm()) {
+  if constexpr (sapi::host_cpu::IsPPC64LE() || sapi::host_cpu::IsArm64() ||
+                sapi::host_cpu::IsArm()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
@@ -97,7 +99,7 @@ absl::Status Regs::Store() {
     }
 
     // Store syscall number on AArch64.
-    if constexpr (host_cpu::IsArm64()) {
+    if constexpr (sapi::host_cpu::IsArm64()) {
       iovec sys_iov = {&syscall_number_, sizeof(syscall_number_)};
 
       if (ptrace(PTRACE_SETREGSET, pid_, NT_ARM_SYSTEM_CALL, &sys_iov) == -1L) {
@@ -127,9 +129,9 @@ absl::Status Regs::SkipSyscallReturnValue(uintptr_t value) {
   return Store();
 }
 
-Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
+Syscall Regs::ToSyscall(sapi::cpu::Architecture syscall_arch) const {
 #if defined(SAPI_X86_64)
-  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kX8664)) {
+  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kX8664)) {
     auto syscall = user_regs_.orig_rax;
     Syscall::Args args = {user_regs_.rdi, user_regs_.rsi, user_regs_.rdx,
                           user_regs_.r10, user_regs_.r8,  user_regs_.r9};
@@ -137,7 +139,7 @@ Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
     auto ip = user_regs_.rip;
     return Syscall(syscall_arch, syscall, args, pid_, sp, ip);
   }
-  if (syscall_arch == cpu::kX86) {
+  if (syscall_arch == sapi::cpu::kX86) {
     auto syscall = user_regs_.orig_rax & 0xFFFFFFFF;
     Syscall::Args args = {
         user_regs_.rbx & 0xFFFFFFFF, user_regs_.rcx & 0xFFFFFFFF,
@@ -148,7 +150,7 @@ Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
     return Syscall(syscall_arch, syscall, args, pid_, sp, ip);
   }
 #elif defined(SAPI_PPC64_LE)
-  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kPPC64LE)) {
+  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kPPC64LE)) {
     auto syscall = user_regs_.gpr[0];
     Syscall::Args args = {user_regs_.orig_gpr3, user_regs_.gpr[4],
                           user_regs_.gpr[5],    user_regs_.gpr[6],
@@ -158,7 +160,7 @@ Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
     return Syscall(syscall_arch, syscall, args, pid_, sp, ip);
   }
 #elif defined(SAPI_ARM64)
-  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kArm64)) {
+  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kArm64)) {
     Syscall::Args args = {
         // First argument should be orig_x0, which is not available to ptrace on
         // AArch64 (see
@@ -174,7 +176,7 @@ Syscall Regs::ToSyscall(cpu::Architecture syscall_arch) const {
     return Syscall(syscall_arch, syscall_number_, args, pid_, sp, ip);
   }
 #elif defined(SAPI_ARM)
-  if (ABSL_PREDICT_TRUE(syscall_arch == cpu::kArm)) {
+  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kArm)) {
     Syscall::Args args = {
         user_regs_.orig_x0, user_regs_.regs[1], user_regs_.regs[2],
         user_regs_.regs[3], user_regs_.regs[4], user_regs_.regs[5],

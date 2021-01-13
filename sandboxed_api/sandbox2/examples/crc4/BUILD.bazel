@@ -19,9 +19,9 @@
 # - Using sandbox2::Comms for data exchange (IPC)
 # - Test to ensure sandbox executor runs sandboxee without issue
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
+licenses(["notice"])
 
 # Executor
 cc_binary(
@@ -33,8 +33,8 @@ cc_binary(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/sandbox2/util:runfiles",
         "//sandboxed_api/util:flags",
+        "//sandboxed_api/util:runfiles",
         "@com_google_absl//absl/memory",
     ],
 )
@@ -60,7 +60,7 @@ cc_test(
     data = [":crc4sandbox"],
     tags = ["local"],
     deps = [
-        "//sandboxed_api/sandbox2:testing",
+        "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:status_matchers",
         "@com_google_glog//:glog",

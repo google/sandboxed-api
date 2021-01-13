@@ -25,7 +25,7 @@ target_link_libraries(sandbox2_zpipe_sandbox PRIVATE
   sandbox2::bpf_helper
   sandbox2::comms
   # sandbox2::ipc
-  sandbox2::runfiles
+  sapi::runfiles
   sandbox2::sandbox2
   sapi::base
   sapi::flags

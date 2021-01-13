@@ -19,10 +19,10 @@
 
 #include "../sandboxed.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/util/temp_file.h"
 
 std::string GetFilePath(const std::string& filename);
 

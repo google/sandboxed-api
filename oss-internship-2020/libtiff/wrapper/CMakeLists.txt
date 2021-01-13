@@ -23,7 +23,7 @@ set_target_properties(wrapped_tiff
 add_subdirectory(libtiff)
 
 target_link_libraries(wrapped_tiff
-  sandbox2::temp_file
+  sapi::temp_file
   sapi::sapi
   tiff
 )

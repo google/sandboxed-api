@@ -25,20 +25,21 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-
-using ::testing::Eq;
+#include "sandboxed_api/testing.h"
 
 namespace sandbox2 {
 namespace {
+
+using ::sapi::GetTestSourcePath;
+using ::testing::Eq;
 
 PolicyBuilder CreatePolicyTestPolicyBuilder() {
   return PolicyBuilder()
@@ -83,7 +84,7 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
 
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
     EXPECT_THAT(result.reason_code(), Eq(1));  // __NR_exit in 32-bit
-    EXPECT_THAT(result.GetSyscallArch(), Eq(cpu::kX86));
+    EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
 }
 
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
@@ -101,7 +102,7 @@ TEST(PolicyTest, AMD64Syscall32FsAllowed) {
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
     EXPECT_THAT(result.reason_code(),
                 Eq(33));  // __NR_access in 32-bit
-    EXPECT_THAT(result.GetSyscallArch(), Eq(cpu::kX86));
+    EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
 }
 #endif
 

@@ -27,8 +27,7 @@
 #include "absl/base/macros.h"
 #include "absl/status/statusor.h"
 
-namespace sandbox2 {
-namespace util {
+namespace sandbox2::util {
 
 // Converts an array of char* (terminated by a nullptr, like argv, or environ
 // arrays), to an std::vector<std::string>.
@@ -76,7 +75,6 @@ std::string GetRlimitName(int resource);
 // process memory
 absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);
 
-}  // namespace util
-}  // namespace sandbox2
+}  // namespace sandbox2::util
 
 #endif  // SANDBOXED_API_SANDBOX2_UTIL_H_

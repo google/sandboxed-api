@@ -31,7 +31,9 @@
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/fileops.h"
+
+namespace file_util = ::sapi::file_util;
 
 namespace sandbox2 {
 

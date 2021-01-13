@@ -28,7 +28,7 @@ add_executable(tests
 target_link_libraries(tests PRIVATE
   tiff_sapi
   sapi::sapi
-  sandbox2::temp_file
+  sapi::temp_file
   gtest
   gmock
   gtest_main

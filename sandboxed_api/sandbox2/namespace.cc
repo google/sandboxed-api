@@ -36,12 +36,15 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
+
+namespace file = ::sapi::file;
+namespace file_util = ::sapi::file_util;
 
 static constexpr char kSandbox2ChrootPath[] = "/tmp/.sandbox2chroot";
 

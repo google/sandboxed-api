@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/path.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -20,6 +20,7 @@
 namespace sandbox2 {
 namespace {
 
+namespace file = ::sapi::file;
 using ::testing::Pair;
 using ::testing::StrEq;
 

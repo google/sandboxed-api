@@ -21,9 +21,9 @@
 #include "absl/status/statusor.h"
 #include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {

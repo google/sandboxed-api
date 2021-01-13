@@ -20,7 +20,7 @@
 
 #include "libarchive_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/fileops.h"
 
 // When creating an archive, we need read permissions on each of the
 // file/directory added in the archive. Also, in order to create the archive, we

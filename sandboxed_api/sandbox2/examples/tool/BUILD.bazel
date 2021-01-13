@@ -20,9 +20,9 @@
 # - set limits, wall time, filesystem checks, asynchronous run
 # - test to ensure sandbox executor runs sandboxee without issue
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+
+licenses(["notice"])
 
 # Executor
 cc_binary(
@@ -33,7 +33,7 @@ cc_binary(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/sandbox2/util:fileops",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:flags",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",

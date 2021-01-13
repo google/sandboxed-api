@@ -23,18 +23,20 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/testing.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
+
+using ::sapi::GetTestSourcePath;
 
 TEST(LimitsTest, RLimitASMmapUnderLimit) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/limits");

@@ -27,9 +27,11 @@
 #include <glog/logging.h>
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
+
+namespace file_util = ::sapi::file_util;
 
 NetworkProxyServer::NetworkProxyServer(int fd, AllowedHosts* allowed_hosts,
                                        pthread_t monitor_thread_id)

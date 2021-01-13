@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
+
+licenses(["notice"])
 
 # An implicit dependency of all "sapi_cc_embed_data" rules that builds
 # embedded data into .cc files.
@@ -27,9 +27,9 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//sandboxed_api/sandbox2/util:fileops",
-        "//sandboxed_api/sandbox2/util:strerror",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:strerror",
     ],
 )
 
@@ -47,8 +47,8 @@ cc_test(
         ":filewrapper_embedded",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/strings",
-        "//sandboxed_api/sandbox2:testing",
-        "//sandboxed_api/sandbox2/util:file_helpers",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:status_matchers",
     ],
 )

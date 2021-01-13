@@ -28,7 +28,7 @@
 #include "jsonnet_sapi.sapi.h"     // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "sandboxed_api/util/flag.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 class JsonnetTestHelper {

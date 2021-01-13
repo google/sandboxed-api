@@ -38,14 +38,17 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
-namespace sandbox2 {
-namespace sanitizer {
+namespace sandbox2::sanitizer {
 namespace {
+
+namespace file = ::sapi::file;
+namespace file_util = ::sapi::file_util;
+using ::sapi::StrError;
 
 constexpr char kProcSelfFd[] = "/proc/self/fd";
 
@@ -222,5 +225,4 @@ bool SanitizeCurrentProcess(const std::set<int>& fd_exceptions,
   return true;
 }
 
-}  // namespace sanitizer
-}  // namespace sandbox2
+}  // namespace sandbox2::sanitizer

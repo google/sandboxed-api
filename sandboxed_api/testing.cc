@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/testing.h"
 
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/path.h"
 
-namespace sandbox2 {
+namespace sapi {
 
 std::string GetTestTempPath(absl::string_view name) {
   // When using Bazel, the environment variable TEST_TMPDIR is guaranteed to be
@@ -36,4 +36,4 @@ std::string GetTestSourcePath(absl::string_view name) {
                         "com_google_sandboxed_api/sandboxed_api", name);
 }
 
-}  // namespace sandbox2
+}  // namespace sapi

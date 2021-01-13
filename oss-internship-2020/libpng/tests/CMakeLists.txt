@@ -28,7 +28,7 @@ target_link_libraries(tests PRIVATE
   gtest
   gtest_main
   libpng_sapi
-  sandbox2::temp_file
+  sapi::temp_file
   sapi::sapi
 )
 

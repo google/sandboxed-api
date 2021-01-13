@@ -18,11 +18,11 @@
 
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/runfiles.h"
 
-namespace sandbox2 {
+namespace sapi {
 
 std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   static std::string* base_dir = []() {
@@ -44,4 +44,4 @@ std::string GetInternalDataDependencyFilePath(absl::string_view relative_path) {
       file::JoinPath("sandboxed_api", relative_path));
 }
 
-}  // namespace sandbox2
+}  // namespace sapi

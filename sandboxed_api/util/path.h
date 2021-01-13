@@ -21,8 +21,7 @@
 
 #include "absl/strings/string_view.h"
 
-namespace sandbox2 {
-namespace file {
+namespace sapi::file {
 
 namespace internal {
 // Not part of the public API.
@@ -55,7 +54,6 @@ std::pair<absl::string_view, absl::string_view> SplitPath(
 // independent of process state.
 std::string CleanPath(absl::string_view path);
 
-}  // namespace file
-}  // namespace sandbox2
+}  // namespace sapi::file
 
 #endif  // SANDBOXED_API_SANDBOX2_UTIL_PATH_H_

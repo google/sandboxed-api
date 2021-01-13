@@ -8,7 +8,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
 
 namespace sandbox2 {
@@ -1888,17 +1888,17 @@ static_assert(IsSorted(kSyscallDataArm32, SyscallTable::Entry::BySyscallNr),
 
 }  // namespace
 
-SyscallTable SyscallTable::get(cpu::Architecture arch) {
+SyscallTable SyscallTable::get(sapi::cpu::Architecture arch) {
   switch (arch) {
-    case cpu::kX8664:
+    case sapi::cpu::kX8664:
       return SyscallTable(kSyscallDataX8664);
-    case cpu::kX86:
+    case sapi::cpu::kX86:
       return SyscallTable(kSyscallDataX8632);
-    case cpu::kPPC64LE:
+    case sapi::cpu::kPPC64LE:
       return SyscallTable(kSyscallDataPPC64LE);
-    case cpu::kArm64:
+    case sapi::cpu::kArm64:
       return SyscallTable(kSyscallDataArm64);
-    case cpu::kArm:
+    case sapi::cpu::kArm:
       return SyscallTable(kSyscallDataArm32);
     default:
       return SyscallTable();

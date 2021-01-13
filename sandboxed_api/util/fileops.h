@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_UTIL_FILEOPS_H_
-#define SANDBOXED_API_SANDBOX2_UTIL_FILEOPS_H_
+#ifndef SANDBOXED_API_UTIL_FILEOPS_H_
+#define SANDBOXED_API_UTIL_FILEOPS_H_
 
 #include <string>
 #include <utility>
@@ -21,10 +21,7 @@
 
 #include "absl/strings/string_view.h"
 
-namespace sandbox2 {
-namespace file_util {
-
-namespace fileops {
+namespace sapi::file_util::fileops {
 
 // RAII helper class to automatically close file descriptors.
 class FDCloser {
@@ -109,8 +106,6 @@ std::string MakeAbsolute(const std::string& filename, const std::string& base);
 // Returns true on success.
 bool WriteToFD(int fd, const char* data, size_t size);
 
-}  // namespace fileops
-}  // namespace file_util
-}  // namespace sandbox2
+}  // namespace sapi::file_util::fileops
 
-#endif  // SANDBOXED_API_SANDBOX2_UTIL_FILEOPS_H_
+#endif  // SANDBOXED_API_UTIL_FILEOPS_H_

@@ -37,7 +37,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
+#include "sandboxed_api/util/runfiles.h"
 
 using std::string;
 
@@ -78,8 +78,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  std::string path = sandbox2::GetInternalDataDependencyFilePath(
-      "sandbox2/examples/zlib/zpipe");
+  const std::string path =
+      sapi::GetInternalDataDependencyFilePath("sandbox2/examples/zlib/zpipe");
   std::vector<std::string> args = {path};
   if (absl::GetFlag(FLAGS_decompress)) {
     args.push_back("-d");

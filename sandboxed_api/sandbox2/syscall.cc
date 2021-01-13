@@ -25,7 +25,7 @@
 #include <glog/logging.h>
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall_defs.h"
 
 #ifndef AUDIT_ARCH_PPC64LE
@@ -34,17 +34,17 @@
 
 namespace sandbox2 {
 
-std::string Syscall::GetArchDescription(cpu::Architecture arch) {
+std::string Syscall::GetArchDescription(sapi::cpu::Architecture arch) {
   switch (arch) {
-    case cpu::kX8664:
+    case sapi::cpu::kX8664:
       return "[X86-64]";
-    case cpu::kX86:
+    case sapi::cpu::kX86:
       return "[X86-32]";
-    case cpu::kPPC64LE:
+    case sapi::cpu::kPPC64LE:
       return "[PPC-64]";
-    case cpu::kArm64:
+    case sapi::cpu::kArm64:
       return "[Arm-64]";
-    case cpu::kArm:
+    case sapi::cpu::kArm:
       return "[Arm-32]";
     default:
       LOG(ERROR) << "Unknown CPU architecture: " << arch;
@@ -53,14 +53,14 @@ std::string Syscall::GetArchDescription(cpu::Architecture arch) {
 }
 
 uint32_t Syscall::GetHostAuditArch() {
-  switch (host_cpu::Architecture()) {
-    case cpu::kX8664:
+  switch (sapi::host_cpu::Architecture()) {
+    case sapi::cpu::kX8664:
       return AUDIT_ARCH_X86_64;
-    case cpu::kPPC64LE:
+    case sapi::cpu::kPPC64LE:
       return AUDIT_ARCH_PPC64LE;
-    case cpu::kArm64:
+    case sapi::cpu::kArm64:
       return AUDIT_ARCH_AARCH64;
-    case cpu::kArm:
+    case sapi::cpu::kArm:
       return AUDIT_ARCH_ARM;
     default:
       // The static_assert() in config.h should prevent us from ever getting

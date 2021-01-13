@@ -25,9 +25,9 @@
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "llvm/Support/CommandLine.h"
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
@@ -87,7 +87,7 @@ GeneratorOptions GeneratorOptionsFromFlags(
   GeneratorOptions options;
   options.function_names.insert(g_sapi_functions->begin(),
                                 g_sapi_functions->end());
-  options.work_dir = sandbox2::file_util::fileops::GetCWD();
+  options.work_dir = sapi::file_util::fileops::GetCWD();
   options.name = *g_sapi_name;
   options.namespace_name = *g_sapi_ns;
   options.out_file =
@@ -115,8 +115,8 @@ absl::Status GeneratorMain(int argc, const char** argv) {
   clang::tooling::ClangTool tool(opt_parser.getCompilations(), sources);
   if (!sapi::g_sapi_isystem->empty()) {
     std::string isystem_lines;
-    SAPI_RETURN_IF_ERROR(sandbox2::file::GetContents(
-        *sapi::g_sapi_isystem, &isystem_lines, sandbox2::file::Defaults()));
+    SAPI_RETURN_IF_ERROR(sapi::file::GetContents(
+        *sapi::g_sapi_isystem, &isystem_lines, sapi::file::Defaults()));
     std::vector<std::string> isystem =
         absl::StrSplit(isystem_lines, '\n', absl::SkipWhitespace());
     for (std::string& line : isystem) {
@@ -133,8 +133,8 @@ absl::Status GeneratorMain(int argc, const char** argv) {
 
   SAPI_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader(options));
 
-  SAPI_RETURN_IF_ERROR(sandbox2::file::SetContents(options.out_file, header,
-                                              sandbox2::file::Defaults()));
+  SAPI_RETURN_IF_ERROR(sapi::file::SetContents(options.out_file, header,
+                                          sapi::file::Defaults()));
   return absl::OkStatus();
 }
 

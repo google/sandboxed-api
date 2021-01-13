@@ -21,15 +21,15 @@
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
+
+namespace sandbox2 {
+namespace {
 
 using ::sapi::IsOk;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
-
-namespace sandbox2 {
-namespace {
 
 static struct sockaddr* PrepareIpv6(const std::string& ip, uint32_t port = 80) {
   static struct sockaddr_in6 saddr {};

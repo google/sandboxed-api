@@ -24,11 +24,14 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
+
+namespace host_cpu = ::sapi::host_cpu;
+using ::sapi::StrError;
 
 namespace sandbox2 {
 

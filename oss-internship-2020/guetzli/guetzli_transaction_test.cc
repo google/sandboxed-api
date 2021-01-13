@@ -24,7 +24,6 @@
 #include <sstream>
 
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
 
 namespace guetzli::sandbox::tests {
 

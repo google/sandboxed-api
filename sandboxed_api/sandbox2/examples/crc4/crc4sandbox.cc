@@ -38,7 +38,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/runfiles.h"
+#include "sandboxed_api/util/runfiles.h"
 
 using std::string;
 
@@ -91,8 +91,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  std::string path = sandbox2::GetInternalDataDependencyFilePath(
-      "sandbox2/examples/crc4/crc4bin");
+  const std::string path =
+      sapi::GetInternalDataDependencyFilePath("sandbox2/examples/crc4/crc4bin");
   std::vector<std::string> args = {path};
   if (absl::GetFlag(FLAGS_call_syscall_not_allowed)) {
     args.push_back("-call_syscall_not_allowed");

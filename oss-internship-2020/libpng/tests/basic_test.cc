@@ -16,10 +16,10 @@
 #include "helper.h"        // NOLINT(build/include)
 #include "libpng.h"        // NOLINT(build/include)
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/util/temp_file.h"
 
 namespace {
 
@@ -31,11 +31,11 @@ TEST(SandboxTest, ReadWrite) {
   std::string infile = GetFilePath("pngtest.png");
 
   absl::StatusOr<std::string> status_or_path =
-      sandbox2::CreateNamedTempFileAndClose("output.png");
+      sapi::CreateNamedTempFileAndClose("output.png");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp output file";
 
-  std::string outfile = sandbox2::file::JoinPath(
-      sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
+  std::string outfile = sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(),
+                                             status_or_path.value());
 
   LibPNGSapiSandbox sandbox;
   sandbox.AddFile(infile);

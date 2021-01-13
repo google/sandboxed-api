@@ -23,8 +23,8 @@ add_dependencies(sandbox2_network_sandbox
 target_link_libraries(sandbox2_network_sandbox PRIVATE
   sandbox2::bpf_helper
   sandbox2::comms
-  sandbox2::fileops
-  sandbox2::runfiles
+  sapi::fileops
+  sapi::runfiles
   sandbox2::sandbox2
   sapi::base
   sapi::flags
@@ -40,6 +40,6 @@ target_link_libraries(sandbox2_network_bin PRIVATE
   absl::str_format
   sandbox2::client
   sandbox2::comms
-  sandbox2::fileops
+  sapi::fileops
   sapi::base
 )

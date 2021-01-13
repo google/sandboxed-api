@@ -26,9 +26,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
 // C-escapes a character and writes it to a file stream.
 void FWriteCEscapedC(int c, FILE* out) {
@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
     --argc;
     File in(in_filename, "rb");
 
-    std::string basename = sandbox2::file_util::fileops::Basename(in_filename);
+    std::string basename = sapi::file_util::fileops::Basename(in_filename);
     std::string ident = absl::StrCat("k", basename);
     std::replace_if(
         ident.begin(), ident.end(),

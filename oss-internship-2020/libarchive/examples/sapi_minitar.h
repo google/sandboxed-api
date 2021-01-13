@@ -22,8 +22,8 @@
 #include "libarchive_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandbox.h"               // NOLINT(build/include)
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/path.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/temp_file.h"
 
 // Creates an archive file at the given filename.
 absl::Status CreateArchive(const char* filename, int compress,

@@ -23,7 +23,7 @@ add_dependencies(sandbox2_static_sandbox
 target_link_libraries(sandbox2_static_sandbox PRIVATE
   absl::memory
   sandbox2::bpf_helper
-  sandbox2::runfiles
+  sapi::runfiles
   sandbox2::sandbox2
   sapi::base
   sapi::flags

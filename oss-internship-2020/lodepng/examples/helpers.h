@@ -19,8 +19,8 @@
 #include <cstdint>
 
 #include <glog/logging.h>
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/temp_file.h"
 
 inline constexpr size_t kWidth = 512;
 inline constexpr size_t kHeight = 512;

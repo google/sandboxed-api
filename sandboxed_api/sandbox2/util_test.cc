@@ -20,15 +20,15 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/testing.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/path.h"
 
+namespace sandbox2::util {
+namespace {
+
+using ::sapi::GetTestTempPath;
 using ::testing::Gt;
 using ::testing::IsTrue;
-
-namespace sandbox2 {
-namespace util {
-namespace {
 
 constexpr char kTestDir[] = "a/b/c";
 
@@ -50,5 +50,4 @@ TEST(UtilTest, TestCreateMemFd) {
 }
 
 }  // namespace
-}  // namespace util
-}  // namespace sandbox2
+}  // namespace sandbox2::util

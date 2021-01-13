@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 #include <syscall.h>
 #include <unistd.h>
+
 #include <utility>
 
 #include <glog/logging.h>
@@ -27,9 +28,11 @@
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/ipc.h"
-#include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/testing.h"
 
 namespace sandbox2 {
+
+using ::sapi::GetTestSourcePath;
 
 class IpcPeer {
  public:

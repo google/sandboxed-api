@@ -20,7 +20,7 @@
 
 #include <glog/logging.h>
 #include "gdal_sapi.sapi.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/fileops.h"
+#include "sandboxed_api/util/fileops.h"
 
 class GdalSapiSandbox : public GDALSandbox {
  public:

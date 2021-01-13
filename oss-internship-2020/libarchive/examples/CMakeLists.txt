@@ -22,10 +22,10 @@ target_link_libraries(sapi_minitar_lib PUBLIC
   glog::glog
   libarchive_sapi
   sandbox2::executor
-  sandbox2::fileops
-  sandbox2::file_base
+  sapi::fileops
+  sapi::file_base
   sandbox2::util
-  sandbox2::temp_file
+  sapi::temp_file
   sapi::sapi
 )
 

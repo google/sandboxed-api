@@ -53,11 +53,14 @@
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace {
+
+using ::sapi::StrError;
+
 // "Moves" the old FD to the new FD number.
 // The old FD will be closed, the new one is marked as CLOEXEC.
 void MoveToFdNumber(int* old_fd, int new_fd) {
@@ -137,7 +140,7 @@ absl::Status SendPid(int signaling_fd) {
   char dummy = ' ';
   if (TEMP_FAILURE_RETRY(send(signaling_fd, &dummy, 1, 0)) != 1) {
     return absl::InternalError(
-        absl::StrCat("Sending PID: send: ", sandbox2::StrError(errno)));
+        absl::StrCat("Sending PID: send: ", StrError(errno)));
   }
   return absl::OkStatus();
 }
@@ -161,8 +164,8 @@ absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
   iov.iov_len = sizeof(char);
 
   if (TEMP_FAILURE_RETRY(recvmsg(signaling_fd, &msgh, MSG_WAITALL)) != 1) {
-    return absl::InternalError(absl::StrCat("Receiving pid failed: recvmsg: ",
-                                            sandbox2::StrError(errno)));
+    return absl::InternalError(
+        absl::StrCat("Receiving pid failed: recvmsg: ", StrError(errno)));
   }
   struct cmsghdr* cmsgp = CMSG_FIRSTHDR(&msgh);
   if (cmsgp->cmsg_len != CMSG_LEN(sizeof(struct ucred)) ||
@@ -175,6 +178,8 @@ absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
 }  // namespace
 
 namespace sandbox2 {
+
+namespace file_util = ::sapi::file_util;
 
 void ForkServer::PrepareExecveArgs(const ForkRequest& request,
                                    std::vector<std::string>* args,

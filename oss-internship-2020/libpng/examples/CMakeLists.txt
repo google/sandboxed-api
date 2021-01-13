@@ -22,7 +22,7 @@ find_package(PNG REQUIRED)
 
 target_link_libraries(pngtopng PRIVATE
   sapi::sapi
-  sandbox2::temp_file
+  sapi::temp_file
   libpng_sapi
   "${PNG_LIBRARY}"
 )
@@ -40,7 +40,7 @@ add_executable(rgbtobgr
 
 target_link_libraries(rgbtobgr PRIVATE
   sapi::sapi
-  sandbox2::temp_file
+  sapi::temp_file
   libpng_sapi
   "${PNG_LIBRARY}"
 )

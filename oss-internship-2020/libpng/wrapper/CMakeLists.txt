@@ -23,6 +23,6 @@ set_target_properties(wrapper
 
 target_link_libraries(wrapper
   PNG::PNG
-  sandbox2::temp_file
+  sapi::temp_file
   sapi::sapi
 )

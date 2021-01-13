@@ -21,7 +21,7 @@
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/testing.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/util/status_matchers.h"

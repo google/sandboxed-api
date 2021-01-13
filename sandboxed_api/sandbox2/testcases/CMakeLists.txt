@@ -155,7 +155,7 @@ set_target_properties(sandbox2_testcase_policy PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_policy PRIVATE
   sapi::base
-  sandbox2::config
+  sapi::config
   ${_sandbox2_linkopts}
 )
 
@@ -209,8 +209,8 @@ set_target_properties(sandbox2_testcase_symbolize PROPERTIES
 target_link_libraries(sandbox2_testcase_symbolize PRIVATE
   absl::core_headers
   absl::strings
-  sandbox2::temp_file
-  sandbox2::strerror
+  sapi::temp_file
+  sapi::strerror
   sapi::base
   sapi::raw_logging
   ${_sandbox2_linkopts}

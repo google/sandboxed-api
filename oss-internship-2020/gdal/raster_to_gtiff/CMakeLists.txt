@@ -92,10 +92,10 @@ add_library(utils STATIC
 
 target_link_libraries(utils PUBLIC
   sapi::sapi
-  sandbox2::temp_file
-  sandbox2::fileops
+  sapi::temp_file
+  sapi::fileops
   sandbox2::util
-  sandbox2::file_base
+  sapi::file_base
 )
 
 add_library(gtiff_converter STATIC
@@ -129,8 +129,8 @@ if (ENABLE_TESTS)
     utils
     gtest
     gtest_main
-    sandbox2::testing
-    sandbox2::file_base
+    sapi::testing
+    sapi::file_base
   )
 
   gtest_discover_tests(tests PROPERTIES

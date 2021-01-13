@@ -17,19 +17,19 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/testing.h"
-#include "sandboxed_api/sandbox2/util/file_helpers.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-using ::sandbox2::GetTestSourcePath;
+namespace sapi {
+namespace {
+
+using ::sapi::GetTestSourcePath;
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsNull;
 using ::testing::StrEq;
-
-namespace sapi {
-namespace {
 
 TEST(FilewrapperTest, BasicFunctionality) {
   const FileToc* toc = filewrapper_embedded_create();
@@ -38,10 +38,10 @@ TEST(FilewrapperTest, BasicFunctionality) {
   EXPECT_THAT(toc->size, Eq(256));
 
   std::string contents;
-  ASSERT_THAT(sandbox2::file::GetContents(
+  ASSERT_THAT(file::GetContents(
                   GetTestSourcePath(
                       "tools/filewrapper/testdata/filewrapper_embedded.bin"),
-                  &contents, sandbox2::file::Defaults()),
+                  &contents, file::Defaults()),
               IsOk());
   EXPECT_THAT(std::string(toc->data, toc->size), StrEq(contents));
 

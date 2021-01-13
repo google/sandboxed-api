@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_UTIL_FILE_HELPERS_H_
-#define SANDBOXED_API_SANDBOX2_UTIL_FILE_HELPERS_H_
+#ifndef SANDBOXED_API_UTIL_FILE_HELPERS_H_
+#define SANDBOXED_API_UTIL_FILE_HELPERS_H_
 
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 
-namespace sandbox2 {
-namespace file {
+namespace sapi::file {
 
 // Empty Options struct for compatibility with Google File.
 struct Options {};
@@ -35,7 +34,6 @@ absl::Status GetContents(absl::string_view path, std::string* output,
 absl::Status SetContents(absl::string_view path, absl::string_view content,
                          const file::Options& options);
 
-}  // namespace file
-}  // namespace sandbox2
+}  // namespace sapi::file
 
-#endif  // SANDBOXED_API_SANDBOX2_UTIL_FILE_HELPERS_H_
+#endif  // SANDBOXED_API_UTIL_FILE_HELPERS_H_

@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_UTIL_RUNFILES_H_
-#define SANDBOXED_API_SANDBOX2_UTIL_RUNFILES_H_
+#ifndef SANDBOXED_API_UTIL_RUNFILES_H_
+#define SANDBOXED_API_UTIL_RUNFILES_H_
 
 #include <string>
 
 #include "absl/strings/string_view.h"
 
-namespace sandbox2 {
+namespace sapi {
 
 // Returns the file path pointing to a resource file. The relative_path argument
 // should be relative to the runfiles directory.
 std::string GetDataDependencyFilePath(absl::string_view relative_path);
 
-// Like GetDataDependencyFilePath(), but prepends the location of the Sandbox2
-// root runfiles path.
+// Like GetDataDependencyFilePath(), but prepends the location of the Sandboxed
+// API root runfiles path.
 std::string GetInternalDataDependencyFilePath(absl::string_view relative_path);
 
-}  // namespace sandbox2
+}  // namespace sapi
 
-#endif  // SANDBOXED_API_SANDBOX2_UTIL_RUNFILES_H_
+#endif  // SANDBOXED_API_UTIL_RUNFILES_H_

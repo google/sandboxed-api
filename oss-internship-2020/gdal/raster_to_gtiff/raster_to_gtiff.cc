@@ -19,8 +19,8 @@
 
 #include "get_raster_data.h"  // NOLINT(build/include)
 #include "gtiff_converter.h"  // NOLINT(build/include)
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "utils.h"  // NOLINT(build/include)
 
 namespace {

@@ -41,11 +41,13 @@
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
+
+namespace file_util = ::sapi::file_util;
 
 bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
                    std::string* error) {

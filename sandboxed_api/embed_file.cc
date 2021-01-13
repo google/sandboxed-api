@@ -25,11 +25,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/fileops.h"
-#include "sandboxed_api/sandbox2/util/strerror.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
-
-namespace file_util = ::sandbox2::file_util;
+#include "sandboxed_api/util/strerror.h"
 
 namespace sapi {
 

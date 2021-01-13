@@ -24,7 +24,7 @@
 #include <string>
 
 #include "absl/status/status.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 
@@ -46,7 +46,7 @@ class Regs {
   absl::Status SkipSyscallReturnValue(uintptr_t value);
 
   // Converts raw register values obtained on syscall entry to syscall info
-  Syscall ToSyscall(cpu::Architecture syscall_arch) const;
+  Syscall ToSyscall(sapi::cpu::Architecture syscall_arch) const;
 
   pid_t pid() const { return pid_; }
 

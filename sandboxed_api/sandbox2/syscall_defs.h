@@ -9,7 +9,7 @@
 
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 
 namespace sandbox2 {
@@ -24,7 +24,7 @@ class SyscallTable {
   struct Entry;
 
   // Returns the syscall table for the architecture.
-  static SyscallTable get(cpu::Architecture arch);
+  static SyscallTable get(sapi::cpu::Architecture arch);
 
   int size() { return data_.size(); }
 

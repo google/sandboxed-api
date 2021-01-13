@@ -25,8 +25,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/numbers.h"
-#include "sandboxed_api/sandbox2/util/temp_file.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/temp_file.h"
 
 ABSL_ATTRIBUTE_NOINLINE
 void CrashMe() {
@@ -40,7 +40,7 @@ void RunWritable() {
 
   std::string tmpname;
   int tmp_fd;
-  std::tie(tmpname, tmp_fd) = sandbox2::CreateNamedTempFile("tmp").value();
+  std::tie(tmpname, tmp_fd) = sapi::CreateNamedTempFile("tmp").value();
   SAPI_RAW_PCHECK(fchmod(tmp_fd, S_IRWXU) == 0, "Fchmod on temporary file");
 
   char buf[4096];

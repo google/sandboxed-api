@@ -31,10 +31,10 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
-#include "sandboxed_api/sandbox2/config.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
 
 #if defined(SAPI_X86_64)
@@ -45,6 +45,8 @@
 
 namespace sandbox2 {
 namespace {
+
+namespace file = ::sapi::file;
 
 constexpr PolicyBuilder::SyscallInitializer kMmapSyscalls = {
 #ifdef __NR_mmap2
@@ -544,14 +546,14 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                                       });
 #endif
 
-  if constexpr (host_cpu::IsArm64()) {
+  if constexpr (sapi::host_cpu::IsArm64()) {
     BlockSyscallWithErrno(__NR_readlinkat, ENOENT);
   }
 #ifdef __NR_readlink
   BlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
 
-  if constexpr (host_cpu::IsArm()) {
+  if constexpr (sapi::host_cpu::IsArm()) {
     AddPolicyOnSyscall(__NR_mprotect, {
                                           ARG_32(2),
                                           JEQ32(PROT_READ, ALLOW),

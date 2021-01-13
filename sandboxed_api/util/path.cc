@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/util/path.h"
+#include "sandboxed_api/util/path.h"
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 
-namespace sandbox2 {
-namespace file {
+namespace sapi::file {
 namespace internal {
 
 constexpr char kPathSeparator[] = "/";
@@ -149,5 +148,4 @@ std::string CleanPath(const absl::string_view unclean_path) {
   return path;
 }
 
-}  // namespace file
-}  // namespace sandbox2
+}  // namespace sapi::file
