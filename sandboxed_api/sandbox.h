@@ -131,7 +131,7 @@ class Sandbox {
       sandbox2::PolicyBuilder* builder);
 
   // Path of the sandboxee:
-  //  - relative to runfiles directory: ::sandbox2::GetDataDependencyFilePath()
+  //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
   //    will be applied to it,
   //  - absolute: will be used as is.
   virtual std::string GetLibPath() const { return ""; }

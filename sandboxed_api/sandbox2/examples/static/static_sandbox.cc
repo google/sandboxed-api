@@ -108,7 +108,8 @@ int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
-  const std::string path = sapi::GetInternalDataDependencyFilePath(
+  // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
+  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
       "sandbox2/examples/static/static_bin");
   std::vector<std::string> args = {path};
   auto executor = absl::make_unique<sandbox2::Executor>(path, args);

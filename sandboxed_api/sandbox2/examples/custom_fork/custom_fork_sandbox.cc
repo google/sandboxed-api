@@ -117,7 +117,8 @@ int main(int argc, char** argv) {
 #endif
 
   // Start a custom fork-server (via sandbox2::Executor).
-  const std::string path = sapi::GetInternalDataDependencyFilePath(
+  // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
+  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
       "sandbox2/examples/custom_fork/custom_fork_bin");
   std::vector<std::string> args = {path};
   std::vector<std::string> envs = {};

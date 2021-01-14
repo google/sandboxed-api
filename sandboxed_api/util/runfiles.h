@@ -25,10 +25,13 @@ namespace sapi {
 // should be relative to the runfiles directory.
 std::string GetDataDependencyFilePath(absl::string_view relative_path);
 
-// Like GetDataDependencyFilePath(), but prepends the location of the Sandboxed
-// API root runfiles path.
-std::string GetInternalDataDependencyFilePath(absl::string_view relative_path);
+namespace internal {
 
+// Like ::sapi::GetDataDependencyFilePath(), but prepends the location of the
+// Sandboxed API root runfiles path.
+std::string GetSapiDataDependencyFilePath(absl::string_view relative_path);
+
+}  // namespace internal
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_UTIL_RUNFILES_H_

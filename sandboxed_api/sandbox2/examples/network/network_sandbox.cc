@@ -179,7 +179,8 @@ int main(int argc, char** argv) {
   std::thread server_thread{Server,port};
   server_thread.detach();
 
-  const std::string path = sapi::GetInternalDataDependencyFilePath(
+  // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
+  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
       "sandbox2/examples/network/network_bin");
   std::vector<std::string> args = {path};
   std::vector<std::string> envs = {};

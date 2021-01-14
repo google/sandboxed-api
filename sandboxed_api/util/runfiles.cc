@@ -21,11 +21,11 @@
 #include "sandboxed_api/util/runfiles.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
-using bazel::tools::cpp::runfiles::Runfiles;
-
 namespace sapi {
 
 std::string GetDataDependencyFilePath(absl::string_view relative_path) {
+  using bazel::tools::cpp::runfiles::Runfiles;
+
   static Runfiles* runfiles = []() {
     std::string error;
     auto* runfiles = Runfiles::Create(gflags::GetArgv0(), &error);
@@ -40,9 +40,12 @@ std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   return runfiles->Rlocation(std::string(relative_path));
 }
 
-std::string GetInternalDataDependencyFilePath(absl::string_view relative_path) {
-  return GetDataDependencyFilePath(
-      file::JoinPath("com_google_sandboxed_api/sandboxed_api", relative_path));
+namespace internal {
+
+std::string GetSapiDataDependencyFilePath(absl::string_view relative_path) {
+  return GetDataDependencyFilePath(file::JoinPath(
+      "com_google_sandboxed_api", "sandboxed_api", relative_path));
 }
 
+}  // namespace internal
 }  // namespace sapi

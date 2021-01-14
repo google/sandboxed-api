@@ -37,11 +37,14 @@ std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   return file::JoinPath(resolved, relative_path);
 }
 
-std::string GetInternalDataDependencyFilePath(absl::string_view relative_path) {
+namespace internal {
+
+std::string GetSapiDataDependencyFilePath(absl::string_view relative_path) {
   // The Bazel version has an additional "com_google_sandboxed_api" path
   // component.
   return GetDataDependencyFilePath(
       file::JoinPath("sandboxed_api", relative_path));
 }
 
+}  // namespace internal
 }  // namespace sapi

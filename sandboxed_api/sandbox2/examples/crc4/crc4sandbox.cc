@@ -91,8 +91,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const std::string path =
-      sapi::GetInternalDataDependencyFilePath("sandbox2/examples/crc4/crc4bin");
+  // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
+  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
+      "sandbox2/examples/crc4/crc4bin");
   std::vector<std::string> args = {path};
   if (absl::GetFlag(FLAGS_call_syscall_not_allowed)) {
     args.push_back("-call_syscall_not_allowed");
