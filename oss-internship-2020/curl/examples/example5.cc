@@ -20,6 +20,7 @@
 #include <thread>  // NOLINT(build/c++11)
 
 #include "../sandbox.h"  // NOLINT(build/include)
+#include "absl/strings/str_cat.h"
 
 namespace {
 
@@ -36,16 +37,19 @@ absl::Status pull_one_url(const std::string& url, curl::CurlApi& api) {
 
   // Specify URL to get
   sapi::v::ConstCStr sapi_url(url.c_str());
-  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL,
-                                                       sapi_url.PtrBefore()));
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code,
+      api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, sapi_url.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Perform the request
   SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_perform failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_perform failed: ", curl_code));
   }
 
   // Cleanup curl easy handle
@@ -69,7 +73,8 @@ absl::Status Example5() {
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
   SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_global_init failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_global_init failed: ", curl_code));
   }
 
   // Create the threads (by using futures)

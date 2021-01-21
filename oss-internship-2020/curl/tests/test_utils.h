@@ -24,32 +24,31 @@
 
 namespace curl::tests {
 
-// Helper class that can be used to test Curl Sandboxed
+// Helper class that can be used to test Curl sandbox.
 class CurlTestUtils {
  protected:
-  // Initialize and set up the curl handle
+  static constexpr char kUrl[] = "http://127.0.0.1/";
+
+  // Starts a mock server (only once) that will manage connections for the
+  // tests. The server listens on a port asynchronously by creating a thread.
+  // The port number is stored in port_. Responds with "OK" to a GET request,
+  // responds with the POST request fields to a POST request.
+  static void StartMockServer();
+
+  // Initializes and sets up the curl handle.
   absl::Status CurlTestSetUp();
-  // Clean up the curl handle
+  // Cleans up the curl handle.
   absl::Status CurlTestTearDown();
 
-  // Perform a request to the mock server, return the response
+  // Performs a request to the mock server, returning the response.
   absl::StatusOr<std::string> PerformRequest();
 
-  // Start a mock server (only once) that will manage connections for the tests
-  // The server listens on a port asynchronously by creating a thread
-  // The port number is stored in port_
-  // Responds with "OK" to a GET request
-  // Responds with the POST request fields to a POST request
-  static void StartMockServer();
+  static std::thread server_thread_;
+  static int port_;
 
   std::unique_ptr<curl::CurlSapiSandbox> sandbox_;
   std::unique_ptr<curl::CurlApi> api_;
   std::unique_ptr<sapi::v::RemotePtr> curl_;
-
-  static std::thread server_thread_;
-
-  static constexpr absl::string_view kUrl = "http://127.0.0.1/";
-  static int port_;
 
  private:
   std::unique_ptr<sapi::v::LenVal> chunk_;

@@ -31,7 +31,7 @@ class CurlSapiSandbox : public curl::CurlSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder* policy_builder) override {
     // Return a new policy
-    return (*policy_builder)
+    return sandbox2::PolicyBuilder()
         .AllowDynamicStartup()
         .AllowExit()
         .AllowFork()
@@ -55,13 +55,14 @@ class CurlSapiSandbox : public curl::CurlSandbox {
             __NR_poll,
             __NR_recvfrom,
             __NR_recvmsg,
+            __NR_rt_sigaction,
             __NR_sendmmsg,
             __NR_sendto,
             __NR_setsockopt,
             __NR_socket,
+            __NR_sysinfo,
         })
         .AllowUnrestrictedNetworking()
-        .AddDirectory("/lib")
         .BuildOrDie();
   }
 };
