@@ -26,116 +26,91 @@
 #include <thread>  // NOLINT(build/c++11)
 
 #include "absl/status/statusor.h"
+#include "sandboxed_api/util/status_macros.h"
 
-int curl::tests::CurlTestUtils::port_;
-std::thread curl::tests::CurlTestUtils::server_thread_;
+namespace curl::tests {
 
-absl::Status curl::tests::CurlTestUtils::CurlTestSetUp() {
-  // Initialize sandbox2 and sapi
+int CurlTestUtils::port_;
+
+std::thread CurlTestUtils::server_thread_;
+
+absl::Status CurlTestUtils::CurlTestSetUp() {
+  // Initialize sandbox2 and SAPI
   sandbox_ = std::make_unique<curl::CurlSapiSandbox>();
-  absl::Status init = sandbox_->Init();
-  if (!init.ok()) {
-    return init;
-  }
+  SAPI_RETURN_IF_ERROR(sandbox_->Init());
   api_ = std::make_unique<curl::CurlApi>(sandbox_.get());
 
   // Initialize curl
-  absl::StatusOr<curl::CURL*> curl_handle = api_->curl_easy_init();
-  if (!curl_handle.ok()) {
-    return curl_handle.status();
+  SAPI_ASSIGN_OR_RETURN(curl::CURL* curl_handle, api_->curl_easy_init());
+  if (!curl_handle) {
+    return absl::UnavailableError("curl_easy_init returned nullptr");
   }
-  if (!curl_handle.value()) {
-    return absl::UnavailableError("curl_easy_init returned NULL ");
-  }
-  curl_ = std::make_unique<sapi::v::RemotePtr>(curl_handle.value());
+  curl_ = std::make_unique<sapi::v::RemotePtr>(curl_handle);
 
-  absl::StatusOr<int> curl_code;
+  int curl_code = 0;
 
   // Specify request URL
-  sapi::v::ConstCStr sapi_url(kUrl.data());
-  curl_code = api_->curl_easy_setopt_ptr(curl_.get(), curl::CURLOPT_URL,
-                                         sapi_url.PtrBefore());
-  if (!curl_code.ok()) {
-    return curl_code.status();
-  }
-  if (curl_code.value() != curl::CURLE_OK) {
-    return absl::UnavailableError(
-        "curl_easy_setopt_ptr returned with the error code " +
-        curl_code.value());
+  sapi::v::ConstCStr sapi_url(kUrl);
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api_->curl_easy_setopt_ptr(curl_.get(), curl::CURLOPT_URL,
+                                            sapi_url.PtrBefore()));
+  if (curl_code != curl::CURLE_OK) {
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_ptr returned with the error code ", curl_code));
   }
 
   // Set port
-  curl_code =
-      api_->curl_easy_setopt_long(curl_.get(), curl::CURLOPT_PORT, port_);
-  if (!curl_code.ok()) {
-    return curl_code.status();
-  }
-  if (curl_code.value() != curl::CURLE_OK) {
-    return absl::UnavailableError(
-        "curl_easy_setopt_long returned with the error code " +
-        curl_code.value());
+  SAPI_ASSIGN_OR_RETURN(curl_code, api_->curl_easy_setopt_long(
+                                       curl_.get(), curl::CURLOPT_PORT, port_));
+  if (curl_code != curl::CURLE_OK) {
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_long returned with the error code ", curl_code));
   }
 
   // Generate pointer to the WriteToMemory callback
   void* function_ptr;
-  absl::Status symbol =
-      sandbox_->rpc_channel()->Symbol("WriteToMemory", &function_ptr);
-  if (!symbol.ok()) {
-    return symbol;
-  }
+  SAPI_RETURN_IF_ERROR(
+      sandbox_->rpc_channel()->Symbol("WriteToMemory", &function_ptr));
   sapi::v::RemotePtr remote_function_ptr(function_ptr);
 
   // Set WriteToMemory as the write function
-  curl_code = api_->curl_easy_setopt_ptr(
-      curl_.get(), curl::CURLOPT_WRITEFUNCTION, &remote_function_ptr);
-  if (!curl_code.ok()) {
-    return curl_code.status();
-  }
-  if (curl_code.value() != curl::CURLE_OK) {
-    return absl::UnavailableError(
-        "curl_easy_setopt_ptr returned with the error code " +
-        curl_code.value());
+  SAPI_ASSIGN_OR_RETURN(curl_code, api_->curl_easy_setopt_ptr(
+                                       curl_.get(), curl::CURLOPT_WRITEFUNCTION,
+                                       &remote_function_ptr));
+  if (curl_code != curl::CURLE_OK) {
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_ptr returned with the error code ", curl_code));
   }
 
   // Pass memory chunk object to the callback
   chunk_ = std::make_unique<sapi::v::LenVal>(0);
-  curl_code = api_->curl_easy_setopt_ptr(curl_.get(), curl::CURLOPT_WRITEDATA,
-                                         chunk_->PtrBoth());
-  if (!curl_code.ok()) {
-    return curl_code.status();
-  }
-  if (curl_code.value() != curl::CURLE_OK) {
-    return absl::UnavailableError(
-        "curl_easy_setopt_ptr returned with the error code " +
-        curl_code.value());
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api_->curl_easy_setopt_ptr(
+                     curl_.get(), curl::CURLOPT_WRITEDATA, chunk_->PtrBoth()));
+  if (curl_code != curl::CURLE_OK) {
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_ptr returned with the error code ", curl_code));
   }
 
   return absl::OkStatus();
 }
 
-absl::Status curl::tests::CurlTestUtils::CurlTestTearDown() {
+absl::Status CurlTestUtils::CurlTestTearDown() {
   // Cleanup curl
   return api_->curl_easy_cleanup(curl_.get());
 }
 
-absl::StatusOr<std::string> curl::tests::CurlTestUtils::PerformRequest() {
+absl::StatusOr<std::string> CurlTestUtils::PerformRequest() {
   // Perform the request
-  absl::StatusOr<int> curl_code = api_->curl_easy_perform(curl_.get());
-  if (!curl_code.ok()) {
-    return curl_code.status();
-  }
-  if (curl_code.value() != curl::CURLE_OK) {
-    return absl::UnavailableError(
-        "curl_easy_perform returned with the error code " + curl_code.value());
+  SAPI_ASSIGN_OR_RETURN(int curl_code, api_->curl_easy_perform(curl_.get()));
+  if (curl_code != curl::CURLE_OK) {
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_perform returned with the error code ", curl_code));
   }
 
   // Get pointer to the memory chunk
-  absl::Status status = sandbox_->TransferFromSandboxee(chunk_.get());
-  if (!status.ok()) {
-    return status;
-  }
-
-  return std::string{reinterpret_cast<char*>(chunk_->GetData())};
+  SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(chunk_.get()));
+  return std::string(reinterpret_cast<char*>(chunk_->GetData()));
 }
 
 namespace {
@@ -161,8 +136,9 @@ std::string ReadUntil(const int socket, const std::string& str,
 
 // Parse HTTP headers to return the Content-Length
 ssize_t GetContentLength(const std::string& headers) {
+  constexpr char kContentLength[] = "Content-Length: ";
   // Find the Content-Length header
-  std::string::size_type length_header_start = headers.find("Content-Length: ");
+  const auto length_header_start = headers.find(kContentLength);
 
   // There is no Content-Length field
   if (length_header_start == std::string::npos) {
@@ -170,9 +146,8 @@ ssize_t GetContentLength(const std::string& headers) {
   }
 
   // Find Content-Length string
-  std::string::size_type length_start =
-      length_header_start + std::string{"Content-Length: "}.size();
-  std::string::size_type length_bytes =
+  const auto length_start = length_header_start + strlen(kContentLength);
+  const auto length_bytes =
       headers.find("\r\n", length_start) - length_start;
 
   // length_bytes exceeds maximum
@@ -270,7 +245,7 @@ void ServerLoop(int listening_socket, sockaddr_in socket_address) {
 
 }  // namespace
 
-void curl::tests::CurlTestUtils::StartMockServer() {
+void CurlTestUtils::StartMockServer() {
   // Get the socket file descriptor
   int listening_socket = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -302,3 +277,5 @@ void curl::tests::CurlTestUtils::StartMockServer() {
   // Set server_thread_ operation to socket listening
   server_thread_ = std::thread(ServerLoop, listening_socket, socket_address);
 }
+
+}  // namespace curl::tests

@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "../sandbox.h"  // NOLINT(build/include)
+#include "absl/strings/str_cat.h"
 
 namespace {
 
@@ -50,7 +51,8 @@ absl::Status Example2() {
       curl_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Set WriteMemoryCallback as the write function
@@ -58,7 +60,8 @@ absl::Status Example2() {
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEFUNCTION,
                                           &write_to_memory));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Pass 'chunk' struct to the callback function
@@ -67,7 +70,8 @@ absl::Status Example2() {
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEDATA,
                                                  chunk.PtrBoth()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Set a user agent
@@ -76,13 +80,15 @@ absl::Status Example2() {
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_USERAGENT,
                                                  user_agent.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Perform the request
   SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_perform failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_perform failed: ", curl_code));
   }
 
   // Retrieve memory size
