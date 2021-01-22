@@ -25,10 +25,10 @@
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/proto_helper.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi::v {
 

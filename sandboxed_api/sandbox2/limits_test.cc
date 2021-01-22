@@ -44,11 +44,12 @@ TEST(LimitsTest, RLimitASMmapUnderLimit) {
   auto executor = absl::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, sandbox2::PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            sandbox2::PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
 
@@ -62,11 +63,12 @@ TEST(LimitsTest, RLimitASMmapAboveLimit) {
   auto executor = absl::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, sandbox2::PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            sandbox2::PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
 
@@ -80,11 +82,12 @@ TEST(LimitsTest, RLimitASAllocaSmallUnderLimit) {
   auto executor = absl::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, sandbox2::PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            sandbox2::PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
 
@@ -98,11 +101,12 @@ TEST(LimitsTest, RLimitASAllocaBigUnderLimit) {
   auto executor = absl::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, sandbox2::PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            sandbox2::PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
 
@@ -116,11 +120,12 @@ TEST(LimitsTest, RLimitASAllocaBigAboveLimit) {
   auto executor = absl::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, sandbox2::PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            sandbox2::PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
 

@@ -24,6 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -36,19 +37,6 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include "absl/status/status.h"
-
-using ::sapi::GetTestSourcePath;
-using ::testing::AllOf;
-using ::testing::AnyOf;
-using ::testing::Eq;
-using ::testing::Gt;
-using ::testing::HasSubstr;
-using ::testing::Lt;
-using ::testing::NotNull;
-using ::testing::StartsWith;
-using ::testing::StrEq;
-using ::sapi::StatusIs;
 
 namespace sandbox2 {
 
@@ -68,6 +56,18 @@ class PolicyBuilderPeer {
 };
 
 namespace {
+
+using ::sapi::GetTestSourcePath;
+using ::testing::AllOf;
+using ::testing::AnyOf;
+using ::testing::Eq;
+using ::testing::Gt;
+using ::testing::HasSubstr;
+using ::testing::Lt;
+using ::testing::NotNull;
+using ::testing::StartsWith;
+using ::testing::StrEq;
+using ::sapi::StatusIs;
 
 class PolicyBuilderTest : public testing::Test {
  protected:
@@ -149,8 +149,8 @@ TEST_F(PolicyBuilderTest, TestValidateAbsolutePath) {
 
   for (auto const& good_path :
        {"/", "/a/b/c/d", "/a/b/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}) {
-    SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
-                         PolicyBuilderPeer::ValidateAbsolutePath(good_path));
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        std::string path, PolicyBuilderPeer::ValidateAbsolutePath(good_path));
     EXPECT_THAT(path, StrEq(good_path));
   }
 }

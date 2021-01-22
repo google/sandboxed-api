@@ -84,10 +84,10 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
   sapi::v::UInt sapi_width, sapi_height;
   sapi::v::IntBase<uint8_t*> sapi_image_ptr(0);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(result,
-                       api.lodepng_decode32_file(
-                           sapi_image_ptr.PtrBoth(), sapi_width.PtrBoth(),
-                           sapi_height.PtrBoth(), sapi_filename.PtrBefore()));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      result, api.lodepng_decode32_file(
+                  sapi_image_ptr.PtrBoth(), sapi_width.PtrBoth(),
+                  sapi_height.PtrBoth(), sapi_filename.PtrBefore()));
 
   ASSERT_THAT(result, Eq(0)) << "Unexpected result from decode32_file call";
 

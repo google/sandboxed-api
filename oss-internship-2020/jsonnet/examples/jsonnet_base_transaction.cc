@@ -31,14 +31,14 @@ absl::Status JsonnetTransaction::Main() {
   std::string in_file_in_sandboxee(JoinPath("/input", Basename(in_file)));
   sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
   SAPI_ASSIGN_OR_RETURN(char* input,
-                   api.c_read_input(false, in_file_var.PtrBefore()));
+                        api.c_read_input(false, in_file_var.PtrBefore()));
 
   // Process jsonnet data.
   sapi::v::RemotePtr input_pointer(input);
   sapi::v::Int error;
   SAPI_ASSIGN_OR_RETURN(char* output, api.c_jsonnet_evaluate_snippet(
-                                     &vm_pointer, in_file_var.PtrBefore(),
-                                     &input_pointer, error.PtrAfter()));
+                                          &vm_pointer, in_file_var.PtrBefore(),
+                                          &input_pointer, error.PtrAfter()));
   TRANSACTION_FAIL_IF_NOT(error.GetValue() == 0,
                           "Jsonnet code evaluation failed.");
 
@@ -53,7 +53,7 @@ absl::Status JsonnetTransaction::Main() {
 
   // Clean up.
   SAPI_ASSIGN_OR_RETURN(char* result,
-                   api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0));
+                        api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0));
 
   SAPI_RETURN_IF_ERROR(api.c_jsonnet_destroy(&vm_pointer));
   SAPI_RETURN_IF_ERROR(api.c_free_input(&input_pointer));

@@ -101,8 +101,9 @@ absl::Status GdalMain(std::string filename) {
   // analyzing the returning object.
   // Same for GDALReturnsIO from below.
   CPLErr err;
-  SAPI_ASSIGN_OR_RETURN(err, api.GDALGetGeoTransform(
-                            &ptr_dataset, adf_geo_transform_array.PtrBoth()));
+  SAPI_ASSIGN_OR_RETURN(
+      err,
+      api.GDALGetGeoTransform(&ptr_dataset, adf_geo_transform_array.PtrBoth()));
 
   // If GDALGetGeoTransform generates an error.
   if (err != CE_None) {
@@ -127,8 +128,8 @@ absl::Status GdalMain(std::string filename) {
   }
 
   sapi::v::RemotePtr ptr_band(band.value());
-  SAPI_RETURN_IF_ERROR(api.GDALGetBlockSize(&ptr_band, nBlockXSizeArray.PtrBoth(),
-                                       nBlockYSizeArray.PtrBoth()));
+  SAPI_RETURN_IF_ERROR(api.GDALGetBlockSize(
+      &ptr_band, nBlockXSizeArray.PtrBoth(), nBlockYSizeArray.PtrBoth()));
 
   LOG(INFO) << "Block = " << n_blockX_size[0] << " x " << n_blockY_size[0]
             << std::endl;

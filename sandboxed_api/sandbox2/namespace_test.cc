@@ -53,11 +53,12 @@ TEST(NamespaceTest, FileNamespaceWorks) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
   std::vector<std::string> args = {path, "0", "/binary_path", "/etc/passwd"};
   auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all
-                                        .DangerDefaultAllowAll()
-                                        .AddFileAt(path, "/binary_path")
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all
+                                .DangerDefaultAllowAll()
+                                .AddFileAt(path, "/binary_path")
+                                .TryBuild());
 
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
@@ -76,11 +77,12 @@ TEST(NamespaceTest, ReadOnlyIsRespected) {
     // First check that it is readable
     std::vector<std::string> args = {path, "0", "/temp_file"};
     auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                          // Don't restrict the syscalls at all
-                                          .DangerDefaultAllowAll()
-                                          .AddFileAt(name, "/temp_file")
-                                          .TryBuild());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              PolicyBuilder()
+                                  // Don't restrict the syscalls at all
+                                  .DangerDefaultAllowAll()
+                                  .AddFileAt(name, "/temp_file")
+                                  .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
     auto result = sandbox.Run();
@@ -92,11 +94,12 @@ TEST(NamespaceTest, ReadOnlyIsRespected) {
     // Then check that it is not writeable
     std::vector<std::string> args = {path, "1", "/temp_file"};
     auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                          // Don't restrict the syscalls at all
-                                          .DangerDefaultAllowAll()
-                                          .AddFileAt(name, "/temp_file")
-                                          .TryBuild());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              PolicyBuilder()
+                                  // Don't restrict the syscalls at all
+                                  .DangerDefaultAllowAll()
+                                  .AddFileAt(name, "/temp_file")
+                                  .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
     auto result = sandbox.Run();
@@ -112,10 +115,11 @@ TEST(NamespaceTest, UserNamespaceWorks) {
   std::vector<std::string> args = {path, "2"};
   {
     auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                          // Don't restrict the syscalls at all
-                                          .DangerDefaultAllowAll()
-                                          .TryBuild());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              PolicyBuilder()
+                                  // Don't restrict the syscalls at all
+                                  .DangerDefaultAllowAll()
+                                  .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
     auto result = sandbox.Run();
@@ -127,11 +131,12 @@ TEST(NamespaceTest, UserNamespaceWorks) {
   // Validate that getpid() does not return 2 when outside of an pid NS.
   {
     auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                          .DisableNamespaces()
-                                          // Don't restrict the syscalls at all
-                                          .DangerDefaultAllowAll()
-                                          .TryBuild());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              PolicyBuilder()
+                                  .DisableNamespaces()
+                                  // Don't restrict the syscalls at all
+                                  .DangerDefaultAllowAll()
+                                  .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
     auto result = sandbox.Run();
@@ -148,10 +153,11 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
   {
     std::vector<std::string> args = {path, "3", "1000", "1000"};
     auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                          // Don't restrict the syscalls at all
-                                          .DangerDefaultAllowAll()
-                                          .TryBuild());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              PolicyBuilder()
+                                  // Don't restrict the syscalls at all
+                                  .DangerDefaultAllowAll()
+                                  .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
     auto result = sandbox.Run();
@@ -166,11 +172,12 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
     const std::string gid = absl::StrCat(getgid());
     std::vector<std::string> args = {path, "3", uid, gid};
     auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                          .DisableNamespaces()
-                                          // Don't restrict the syscalls at all
-                                          .DangerDefaultAllowAll()
-                                          .TryBuild());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              PolicyBuilder()
+                                  .DisableNamespaces()
+                                  // Don't restrict the syscalls at all
+                                  .DangerDefaultAllowAll()
+                                  .TryBuild());
 
     Sandbox2 sandbox(std::move(executor), std::move(policy));
     auto result = sandbox.Run();
@@ -186,11 +193,12 @@ TEST(NamespaceTest, RootReadOnly) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
   std::vector<std::string> args = {path, "4", "/tmp/testfile", "/testfile"};
   auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all
-                                        .DangerDefaultAllowAll()
-                                        .AddTmpfs("/tmp")
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all
+                                .DangerDefaultAllowAll()
+                                .AddTmpfs("/tmp")
+                                .TryBuild());
 
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
@@ -204,11 +212,12 @@ TEST(NamespaceTest, RootWritable) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
   std::vector<std::string> args = {path, "4", "/testfile"};
   auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all
-                                        .DangerDefaultAllowAll()
-                                        .SetRootWritable()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all
+                                .DangerDefaultAllowAll()
+                                .SetRootWritable()
+                                .TryBuild());
 
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
@@ -233,30 +242,33 @@ class HostnameTest : public testing::Test {
 };
 
 TEST_F(HostnameTest, None) {
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   Try("sandbox2", std::move(policy));
   EXPECT_EQ(code_, 1);
 }
 
 TEST_F(HostnameTest, Default) {
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   Try("sandbox2", std::move(policy));
   EXPECT_EQ(code_, 0);
 }
 
 TEST_F(HostnameTest, Configured) {
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all
-                                        .DangerDefaultAllowAll()
-                                        .SetHostname("configured")
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all
+                                .DangerDefaultAllowAll()
+                                .SetHostname("configured")
+                                .TryBuild());
   Try("configured", std::move(policy));
   EXPECT_EQ(code_, 0);
 }

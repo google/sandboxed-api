@@ -94,11 +94,11 @@ TEST(MountTreeTest, TestMultipleInsertionFileSymlink) {
   Mounts mounts;
 
   SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
-                       CreateNamedTempFileAndClose(
-                           file::JoinPath(GetTestTempPath(), "testdir_")));
+                            CreateNamedTempFileAndClose(
+                                file::JoinPath(GetTestTempPath(), "testdir_")));
   SAPI_ASSERT_OK_AND_ASSIGN(std::string symlink_path,
-                       CreateNamedTempFileAndClose(
-                           file::JoinPath(GetTestTempPath(), "testdir_")));
+                            CreateNamedTempFileAndClose(
+                                file::JoinPath(GetTestTempPath(), "testdir_")));
 
   ASSERT_THAT(unlink(symlink_path.c_str()), Eq(0));
   ASSERT_THAT(symlink(path.c_str(), symlink_path.c_str()), Eq(0));
@@ -111,11 +111,12 @@ TEST(MountTreeTest, TestMultipleInsertionFileSymlink) {
 TEST(MountTreeTest, TestMultipleInsertionDirSymlink) {
   Mounts mounts;
 
-  SAPI_ASSERT_OK_AND_ASSIGN(std::string path, CreateTempDir(file::JoinPath(
-                                             GetTestTempPath(), "testdir_")));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      std::string path,
+      CreateTempDir(file::JoinPath(GetTestTempPath(), "testdir_")));
   SAPI_ASSERT_OK_AND_ASSIGN(std::string symlink_path,
-                       CreateNamedTempFileAndClose(
-                           file::JoinPath(GetTestTempPath(), "testdir_")));
+                            CreateNamedTempFileAndClose(
+                                file::JoinPath(GetTestTempPath(), "testdir_")));
 
   ASSERT_THAT(unlink(symlink_path.c_str()), Eq(0));
   ASSERT_THAT(symlink(path.c_str(), symlink_path.c_str()), Eq(0));

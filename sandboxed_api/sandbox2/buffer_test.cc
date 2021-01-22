@@ -111,7 +111,7 @@ TEST(BufferTest, TestWithSandboxeeMapFd) {
   auto policy = BufferTestcasePolicy();
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
-                       Buffer::CreateWithSize(1ULL << 20 /* 1MiB */));
+                            Buffer::CreateWithSize(1ULL << 20 /* 1MiB */));
   // buffer() uses the internal fd to mmap the buffer.
   uint8_t* buf = buffer->data();
   // Test that we can write data to the sandboxee.
@@ -149,7 +149,7 @@ TEST(BufferTest, TestWithSandboxeeSendRecv) {
   ASSERT_THAT(s2.RunAsync(), IsTrue());
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
-                       Buffer::CreateWithSize(1ULL << 20 /* 1MiB */));
+                            Buffer::CreateWithSize(1ULL << 20 /* 1MiB */));
   uint8_t* buf = buffer->data();
   // Test that we can write data to the sandboxee.
   buf[0] = 'A';

@@ -45,11 +45,12 @@ TEST(IPCTest, MapFDByNamePreExecve) {
   auto executor = absl::make_unique<Executor>(path, args);
   Comms comms(executor->ipc()->ReceiveFd(kPreferredIpcFd, "ipc_test"));
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   s2.RunAsync();
@@ -76,11 +77,12 @@ TEST(IPCTest, MapFDByNamePostExecve) {
   executor->set_enable_sandbox_before_exec(false);
   Comms comms(executor->ipc()->ReceiveFd(kPreferredIpcFd, "ipc_test"));
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   s2.RunAsync();
@@ -103,11 +105,12 @@ TEST(IPCTest, NoMappedFDsPreExecve) {
   std::vector<std::string> args = {path, "3"};
   auto executor = absl::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();

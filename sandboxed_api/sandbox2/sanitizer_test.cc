@@ -120,11 +120,12 @@ TEST(SanitizerTest, TestSandboxedBinary) {
   };
   auto executor = absl::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();

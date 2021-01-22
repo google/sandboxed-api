@@ -32,8 +32,9 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
   image.mutable_data()->version = PNG_IMAGE_VERSION;
 
-  SAPI_ASSIGN_OR_RETURN(int result, api.png_image_begin_read_from_file(
-                                   image.PtrBoth(), infile_var.PtrBefore()));
+  SAPI_ASSIGN_OR_RETURN(
+      int result, api.png_image_begin_read_from_file(image.PtrBoth(),
+                                                     infile_var.PtrBefore()));
   if (!result) {
     return absl::InternalError(
         absl::StrCat("begin read error: ", image.mutable_data()->message));
@@ -45,16 +46,16 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
   sapi::v::NullPtr null = sapi::v::NullPtr();
   SAPI_ASSIGN_OR_RETURN(result,
-                   api.png_image_finish_read(image.PtrBoth(), &null,
-                                             buffer.PtrBoth(), 0, &null));
+                        api.png_image_finish_read(image.PtrBoth(), &null,
+                                                  buffer.PtrBoth(), 0, &null));
   if (!result) {
     return absl::InternalError(
         absl::StrCat("finish read error: ", image.mutable_data()->message));
   }
 
   SAPI_ASSIGN_OR_RETURN(result, api.png_image_write_to_file(
-                               image.PtrBoth(), outfile_var.PtrBefore(), 0,
-                               buffer.PtrBoth(), 0, &null));
+                                    image.PtrBoth(), outfile_var.PtrBefore(), 0,
+                                    buffer.PtrBoth(), 0, &null));
   if (!result) {
     return absl::InternalError(
         absl::StrCat("write error: ", image.mutable_data()->message));

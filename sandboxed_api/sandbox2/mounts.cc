@@ -39,8 +39,8 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
 namespace {
@@ -306,9 +306,10 @@ void LogContainer(const std::vector<std::string>& container) {
 
 absl::Status Mounts::AddMappingsForBinary(const std::string& path,
                                           absl::string_view ld_library_path) {
-  SAPI_ASSIGN_OR_RETURN(auto elf, ElfFile::ParseFromFile(
-                                 path, ElfFile::kGetInterpreter |
-                                           ElfFile::kLoadImportedLibraries));
+  SAPI_ASSIGN_OR_RETURN(
+      auto elf,
+      ElfFile::ParseFromFile(
+          path, ElfFile::kGetInterpreter | ElfFile::kLoadImportedLibraries));
   const std::string& interpreter = elf.interpreter();
 
   if (interpreter.empty()) {

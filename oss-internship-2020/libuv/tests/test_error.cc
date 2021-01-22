@@ -62,7 +62,7 @@ class UVTestError : public ::testing::Test {
   void UVTranslateSysError(int error) {
     // Call sapi_uv_translate_sys_error and get error code
     SAPI_ASSERT_OK_AND_ASSIGN(int error_code,
-                         api_->sapi_uv_translate_sys_error(error));
+                              api_->sapi_uv_translate_sys_error(error));
 
     // Check that it is equal to expected error code
     ASSERT_EQ(error_code, uv_translate_sys_error(error));

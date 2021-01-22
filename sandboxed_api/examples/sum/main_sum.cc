@@ -157,13 +157,15 @@ absl::Status SumTransaction::Main() {
   char buffer[1024] = {0};
   sapi::v::Array<char> buf(buffer, sizeof(buffer));
   sapi::v::UInt size(128);
-  SAPI_RETURN_IF_ERROR(sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
+  SAPI_RETURN_IF_ERROR(
+      sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
   LOG(INFO) << "Read from /proc/self/comm = [" << buffer << "]";
 
   // Close test.
   SAPI_RETURN_IF_ERROR(fd2.CloseRemoteFd(sandbox()->rpc_channel()));
   memset(buffer, 0, sizeof(buffer));
-  SAPI_RETURN_IF_ERROR(sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
+  SAPI_RETURN_IF_ERROR(
+      sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
   LOG(INFO) << "Read from closed /proc/self/comm = [" << buffer << "]";
 
   // Pass fd as function arg example.

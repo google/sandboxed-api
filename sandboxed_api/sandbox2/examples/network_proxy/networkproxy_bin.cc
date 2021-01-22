@@ -20,8 +20,8 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/strerror.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 

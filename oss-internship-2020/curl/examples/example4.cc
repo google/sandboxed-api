@@ -50,9 +50,9 @@ absl::Status Example4() {
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  SAPI_ASSIGN_OR_RETURN(curl_code,
-                   api.curl_easy_setopt_ptr(&http_handle, curl::CURLOPT_URL,
-                                            url.PtrBefore()));
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api.curl_easy_setopt_ptr(&http_handle, curl::CURLOPT_URL,
+                                          url.PtrBefore()));
   if (curl_code != 0) {
     return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
   }
@@ -68,7 +68,7 @@ absl::Status Example4() {
 
   // Add http_handle to the multi stack
   SAPI_ASSIGN_OR_RETURN(curl_code,
-                   api.curl_multi_add_handle(&multi_handle, &http_handle));
+                        api.curl_multi_add_handle(&multi_handle, &http_handle));
   if (curl_code != 0) {
     return absl::UnavailableError("curl_multi_add_handle failed: " + curl_code);
   }
@@ -77,8 +77,9 @@ absl::Status Example4() {
     sapi::v::Int numfds(0);
 
     // Perform the request
-    SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_multi_perform(
-                                    &multi_handle, still_running.PtrBoth()));
+    SAPI_ASSIGN_OR_RETURN(
+        curl_code,
+        api.curl_multi_perform(&multi_handle, still_running.PtrBoth()));
     if (curl_code != 0) {
       return absl::UnavailableError("curl_mutli_perform failed: " + curl_code);
     }
@@ -97,8 +98,8 @@ absl::Status Example4() {
   }
 
   // Remove http_handle from the multi stack
-  SAPI_ASSIGN_OR_RETURN(curl_code,
-                   api.curl_multi_remove_handle(&multi_handle, &http_handle));
+  SAPI_ASSIGN_OR_RETURN(
+      curl_code, api.curl_multi_remove_handle(&multi_handle, &http_handle));
   if (curl_code != 0) {
     return absl::UnavailableError("curl_multi_remove_handle failed: " +
                                   curl_code);

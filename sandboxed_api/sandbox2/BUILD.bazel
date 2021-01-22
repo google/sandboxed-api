@@ -601,7 +601,7 @@ cc_library(
         ":util",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:status_proto",
+        "//sandboxed_api/util:status_cc_proto",
         "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",

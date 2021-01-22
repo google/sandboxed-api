@@ -106,8 +106,9 @@ absl::Status CreateArchive(const char* initial_filename, int compress,
     filename_ptr = nullptr;
   }
 
-  SAPI_ASSIGN_OR_RETURN(rc, api.archive_write_open_filename(
-                           &a, sapi::v::ConstCStr(filename_ptr).PtrBefore()));
+  SAPI_ASSIGN_OR_RETURN(rc,
+                        api.archive_write_open_filename(
+                            &a, sapi::v::ConstCStr(filename_ptr).PtrBefore()));
   if (rc != ARCHIVE_OK) {
     return absl::FailedPreconditionError(
         "Unexpected result from write_open_filename call");
@@ -139,7 +140,7 @@ absl::Status CreateArchive(const char* initial_filename, int compress,
             sapi::v::ConstCStr(absolute_paths[file_idx].c_str()).PtrBefore()));
     if (rc != ARCHIVE_OK) {
       SAPI_ASSIGN_OR_RETURN(msg, CheckStatusAndGetString(
-                                api.archive_error_string(&disk), sandbox));
+                                     api.archive_error_string(&disk), sandbox));
       return absl::FailedPreconditionError(msg);
     }
 
@@ -160,8 +161,9 @@ absl::Status CreateArchive(const char* initial_filename, int compress,
       }
 
       if (rc != ARCHIVE_OK) {
-        SAPI_ASSIGN_OR_RETURN(msg, CheckStatusAndGetString(
-                                  api.archive_error_string(&disk), sandbox));
+        SAPI_ASSIGN_OR_RETURN(
+            msg,
+            CheckStatusAndGetString(api.archive_error_string(&disk), sandbox));
         return absl::FailedPreconditionError(msg);
       }
 
@@ -209,8 +211,9 @@ absl::Status CreateArchive(const char* initial_filename, int compress,
           &entry, sapi::v::ConstCStr(path_name.c_str()).PtrBefore()));
 
       if (verbose) {
-        SAPI_ASSIGN_OR_RETURN(msg, CheckStatusAndGetString(
-                                  api.archive_entry_pathname(&entry), sandbox));
+        SAPI_ASSIGN_OR_RETURN(
+            msg, CheckStatusAndGetString(api.archive_entry_pathname(&entry),
+                                         sandbox));
         std::cout << msg << std::endl;
       }
 
@@ -218,7 +221,7 @@ absl::Status CreateArchive(const char* initial_filename, int compress,
 
       if (rc < ARCHIVE_OK) {
         SAPI_ASSIGN_OR_RETURN(msg, CheckStatusAndGetString(
-                                  api.archive_error_string(&a), sandbox));
+                                       api.archive_error_string(&a), sandbox));
         std::cout << msg << std::endl;
       }
       if (rc == ARCHIVE_FATAL) {
@@ -256,11 +259,12 @@ absl::Status CreateArchive(const char* initial_filename, int compress,
             sandbox.Call("read", &read_ret, &sapi_fd, buff.PtrNone(), &ssize));
 
         while (read_ret.GetValue() > 0) {
-          SAPI_ASSIGN_OR_RETURN(rc, api.archive_write_data(&a, buff.PtrNone(),
-                                                      read_ret.GetValue()));
+          SAPI_ASSIGN_OR_RETURN(
+              rc,
+              api.archive_write_data(&a, buff.PtrNone(), read_ret.GetValue()));
 
           SAPI_RETURN_IF_ERROR(sandbox.Call("read", &read_ret, &sapi_fd,
-                                       buff.PtrNone(), &ssize));
+                                            buff.PtrNone(), &ssize));
         }
         // sapi_fd variable goes out of scope here so both the local and the
         // remote file descriptors are closed.
@@ -426,8 +430,9 @@ absl::Status ExtractArchive(const char* filename, int do_extract, int flags,
     }
 
     if (verbose || !do_extract) {
-      SAPI_ASSIGN_OR_RETURN(msg, CheckStatusAndGetString(
-                                api.archive_entry_pathname(&entry), sandbox));
+      SAPI_ASSIGN_OR_RETURN(
+          msg,
+          CheckStatusAndGetString(api.archive_entry_pathname(&entry), sandbox));
       std::cout << msg << std::endl;
     }
 
@@ -436,7 +441,7 @@ absl::Status ExtractArchive(const char* filename, int do_extract, int flags,
 
       if (rc != ARCHIVE_OK) {
         SAPI_ASSIGN_OR_RETURN(msg, CheckStatusAndGetString(
-                                  api.archive_error_string(&a), sandbox));
+                                       api.archive_error_string(&a), sandbox));
         std::cout << msg << std::endl;
       } else {
         SAPI_ASSIGN_OR_RETURN(rc, CopyData(&a, &ext, api, sandbox));
@@ -502,8 +507,9 @@ absl::StatusOr<int> CopyData(sapi::v::RemotePtr* ar, sapi::v::RemotePtr* aw,
 
     sapi::v::RemotePtr buff(buff_ptr_tmp.GetValue());
 
-    SAPI_ASSIGN_OR_RETURN(rc, api.archive_write_data_block(
-                             aw, &buff, size.GetValue(), offset.GetValue()));
+    SAPI_ASSIGN_OR_RETURN(
+        rc, api.archive_write_data_block(aw, &buff, size.GetValue(),
+                                         offset.GetValue()));
 
     if (rc != ARCHIVE_OK) {
       SAPI_ASSIGN_OR_RETURN(

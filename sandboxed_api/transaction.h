@@ -22,7 +22,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox.h"
-#include "sandboxed_api/util/status_macros.h"
 
 #define TRANSACTION_FAIL_IF_NOT(x, y)        \
   if (!(x)) {                                \

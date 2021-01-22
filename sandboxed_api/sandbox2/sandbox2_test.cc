@@ -55,11 +55,12 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
   };
   auto executor = absl::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
 
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
@@ -77,11 +78,12 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
   auto executor = absl::make_unique<Executor>(path, args);
   executor->set_enable_sandbox_before_exec(false);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
 
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
@@ -104,11 +106,12 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   std::vector<std::string> envs;
   auto executor = absl::make_unique<Executor>(fd, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        .DisableNamespaces()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DisableNamespaces()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
@@ -124,10 +127,11 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
   std::vector<std::string> envs;
   auto executor = absl::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
   sleep(1);
@@ -146,10 +150,11 @@ TEST(RunAsyncTest, SandboxeeTimeoutWithStacktraces) {
   std::vector<std::string> envs;
   auto executor = absl::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
   sandbox.set_walltime_limit(absl::Seconds(1));
@@ -166,11 +171,12 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
   std::vector<std::string> envs;
   auto executor = absl::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder()
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .CollectStacktracesOnTimeout(false)
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .CollectStacktracesOnTimeout(false)
+                                .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
   sandbox.set_walltime_limit(absl::Seconds(1));
@@ -187,11 +193,11 @@ TEST(RunAsyncTest, SandboxeeViolationDisabledStacktraces) {
   std::vector<std::string> envs;
   auto executor = absl::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                       PolicyBuilder()
-                           // Don't allow anything - Make sure that we'll crash.
-                           .CollectStacktracesOnViolation(false)
-                           .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy, PolicyBuilder()
+                       // Don't allow anything - Make sure that we'll crash.
+                       .CollectStacktracesOnViolation(false)
+                       .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
   auto result = sandbox.AwaitResult();

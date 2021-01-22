@@ -61,7 +61,8 @@ TEST(MinielfTest, SymbolResolutionWorks) {
   ASSERT_THAT(
       file::GetContents("/proc/self/maps", &maps_buffer, file::Defaults()),
       IsOk());
-  SAPI_ASSERT_OK_AND_ASSIGN(std::vector<MapsEntry> maps, ParseProcMaps(maps_buffer));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::vector<MapsEntry> maps,
+                            ParseProcMaps(maps_buffer));
 
   // Find maps entry that covers this entry.
   uint64_t function_address = reinterpret_cast<uint64_t>(ExportedFunctionName);

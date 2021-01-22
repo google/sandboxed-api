@@ -134,7 +134,7 @@ absl::Status GeneratorMain(int argc, const char** argv) {
   SAPI_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader(options));
 
   SAPI_RETURN_IF_ERROR(sapi::file::SetContents(options.out_file, header,
-                                          sapi::file::Defaults()));
+                                               sapi::file::Defaults()));
   return absl::OkStatus();
 }
 

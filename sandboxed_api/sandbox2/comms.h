@@ -38,7 +38,7 @@
 
 namespace proto2 {
 class Message;
-}
+}  // namespace proto2
 
 namespace sandbox2 {
 

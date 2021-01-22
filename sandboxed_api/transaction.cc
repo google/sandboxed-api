@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "sandboxed_api/transaction.h"
+
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
@@ -26,7 +27,8 @@ absl::Status TransactionBase::RunTransactionFunctionInSandbox(
 
   // Set the wall-time limit for this transaction run, and clean it up
   // afterwards, no matter what the result.
-  SAPI_RETURN_IF_ERROR(sandbox_->SetWallTimeLimit(absl::Seconds(GetTimeLimit())));
+  SAPI_RETURN_IF_ERROR(
+      sandbox_->SetWallTimeLimit(absl::Seconds(GetTimeLimit())));
   struct TimeCleanup {
     ~TimeCleanup() {
       capture->sandbox_->SetWallTimeLimit(absl::ZeroDuration()).IgnoreError();

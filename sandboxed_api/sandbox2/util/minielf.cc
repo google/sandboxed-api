@@ -27,8 +27,8 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/strerror.h"
 
 namespace host_cpu = ::sapi::host_cpu;
 using ::sapi::StrError;
@@ -370,7 +370,8 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(const ElfShdr& symtab) {
         absl::StrCat("invalid symtab's strtab reference: ", symtab.sh_link));
   }
   SAPI_RAW_VLOG(1, "Symbol table with %zu entries found", symbol_entries);
-  SAPI_ASSIGN_OR_RETURN(std::string strtab, ReadSectionContents(symtab.sh_link));
+  SAPI_ASSIGN_OR_RETURN(std::string strtab,
+                        ReadSectionContents(symtab.sh_link));
   SAPI_ASSIGN_OR_RETURN(std::string symbols, ReadSectionContents(symtab));
   result_.symbols_.reserve(result_.symbols_.size() + symbol_entries);
   for (absl::string_view src = symbols; !src.empty();
@@ -441,7 +442,8 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
         absl::StrCat("symtab's strtab too big: ", strtab_section.sh_size));
   }
   auto strtab_end = strtab_section.sh_offset + strtab_section.sh_size;
-  SAPI_ASSIGN_OR_RETURN(std::string dynamic_entries, ReadSectionContents(dynamic));
+  SAPI_ASSIGN_OR_RETURN(std::string dynamic_entries,
+                        ReadSectionContents(dynamic));
   for (absl::string_view src = dynamic_entries; !src.empty();
        src = src.substr(dynamic.sh_entsize)) {
     ElfDyn dyn;

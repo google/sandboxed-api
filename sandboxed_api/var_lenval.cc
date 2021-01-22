@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Implementation of sapi::v::LenVal.
-
 #include "sandboxed_api/var_lenval.h"
 
 #include <sys/uio.h>
 
 #include <glog/logging.h>
-#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/rpcchannel.h"
+#include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi::v {
 

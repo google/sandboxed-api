@@ -48,7 +48,8 @@ class UVTestCallback : public ::testing::Test {
 
   // Check sapi_uv_timer_init
   void UVTimerInit(sapi::v::Ptr* loop, sapi::v::Ptr* timer) {
-    SAPI_ASSERT_OK_AND_ASSIGN(int error_code, api_->sapi_uv_timer_init(loop, timer));
+    SAPI_ASSERT_OK_AND_ASSIGN(int error_code,
+                              api_->sapi_uv_timer_init(loop, timer));
     ASSERT_EQ(error_code, 0);
   }
 
@@ -63,15 +64,15 @@ class UVTestCallback : public ::testing::Test {
     sapi::v::RemotePtr timer_cb(timer_cb_voidptr);
 
     // Set the timer's callback, timeout and repeat
-    SAPI_ASSERT_OK_AND_ASSIGN(int error_code,
-                         api_->sapi_uv_timer_start(timer, &timer_cb, 0, 0));
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        int error_code, api_->sapi_uv_timer_start(timer, &timer_cb, 0, 0));
     ASSERT_EQ(error_code, 0);
   }
 
   // Check sapi_uv_run
   void UVRun(sapi::v::Ptr* loop) {
     SAPI_ASSERT_OK_AND_ASSIGN(int error_code,
-                         api_->sapi_uv_run(loop, UV_RUN_DEFAULT));
+                              api_->sapi_uv_run(loop, UV_RUN_DEFAULT));
     ASSERT_EQ(error_code, 0);
   }
 

@@ -62,7 +62,7 @@ TEST(MapsParserTest, ParsesValidFileCorrectly) {
 7ffffffde000-7ffffffff000 rw-p 00000000 00:00 0                          [stack]
 )ValidMapsFile";  // NOLINT
   SAPI_ASSERT_OK_AND_ASSIGN(std::vector<MapsEntry> entries,
-                       ParseProcMaps(kValidMapsFile));
+                            ParseProcMaps(kValidMapsFile));
   EXPECT_THAT(entries.size(), Eq(32));
   EXPECT_THAT(entries[0].start, Eq(0x555555554000));
   EXPECT_THAT(entries[1].start, Eq(0x55555575b000));

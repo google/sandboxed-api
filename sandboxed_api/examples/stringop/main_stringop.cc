@@ -27,9 +27,9 @@
 #include "sandboxed_api/examples/stringop/lib/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/lib/stringop_params.pb.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/vars.h"
-#include "sandboxed_api/util/status_macros.h"
 
 using ::sapi::IsOk;
 using ::testing::Eq;
@@ -48,7 +48,8 @@ TEST(StringopTest, ProtobufStringDuplication) {
     proto.set_input("Hello");
     sapi::v::Proto<stringop::StringDuplication> pp(proto);
     {
-      SAPI_ASSIGN_OR_RETURN(int return_value, api.pb_duplicate_string(pp.PtrBoth()));
+      SAPI_ASSIGN_OR_RETURN(int return_value,
+                            api.pb_duplicate_string(pp.PtrBoth()));
       TRANSACTION_FAIL_IF_NOT(return_value, "pb_duplicate_string() failed");
     }
 
@@ -69,7 +70,8 @@ TEST(StringopTest, ProtobufStringReversal) {
   stringop::StringReverse proto;
   proto.set_input("Hello");
   sapi::v::Proto<stringop::StringReverse> pp(proto);
-  SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.pb_reverse_string(pp.PtrBoth()));
+  SAPI_ASSERT_OK_AND_ASSIGN(int return_value,
+                            api.pb_reverse_string(pp.PtrBoth()));
   EXPECT_THAT(return_value, Ne(0)) << "pb_reverse_string() failed";
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto pb_result, pp.GetMessage());
@@ -83,7 +85,8 @@ TEST(StringopTest, RawStringDuplication) {
   StringopApi api(&sandbox);
 
   sapi::v::LenVal param("0123456789", 10);
-  SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.duplicate_string(param.PtrBoth()));
+  SAPI_ASSERT_OK_AND_ASSIGN(int return_value,
+                            api.duplicate_string(param.PtrBoth()));
   EXPECT_THAT(return_value, Eq(1)) << "duplicate_string() failed";
 
   absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
@@ -100,7 +103,8 @@ TEST(StringopTest, RawStringReversal) {
 
   sapi::v::LenVal param("0123456789", 10);
   {
-    SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.reverse_string(param.PtrBoth()));
+    SAPI_ASSERT_OK_AND_ASSIGN(int return_value,
+                              api.reverse_string(param.PtrBoth()));
     EXPECT_THAT(return_value, Eq(1))
         << "reverse_string() returned incorrect value";
     absl::string_view data(reinterpret_cast<const char*>(param.GetData()),
@@ -120,7 +124,8 @@ TEST(StringopTest, RawStringReversal) {
     EXPECT_THAT(data, SizeIs(16)) << "Resize did not behave correctly";
     EXPECT_THAT(std::string(data), StrEq("9876543210ABCDEF"));
 
-    SAPI_ASSERT_OK_AND_ASSIGN(int return_value, api.reverse_string(param.PtrBoth()));
+    SAPI_ASSERT_OK_AND_ASSIGN(int return_value,
+                              api.reverse_string(param.PtrBoth()));
     EXPECT_THAT(return_value, Eq(1))
         << "reverse_string() returned incorrect value";
     data = absl::string_view(reinterpret_cast<const char*>(param.GetData()),
@@ -135,7 +140,7 @@ TEST(StringopTest, RawStringLength) {
   StringopApi api(&sandbox);
   SAPI_ASSERT_OK_AND_ASSIGN(void* target_mem_ptr, api.get_raw_c_string());
   SAPI_ASSERT_OK_AND_ASSIGN(size_t len,
-                       sandbox.rpc_channel()->Strlen(target_mem_ptr));
+                            sandbox.rpc_channel()->Strlen(target_mem_ptr));
   EXPECT_THAT(len, Eq(10));
 }
 
@@ -145,11 +150,11 @@ TEST(StringopTest, RawStringReading) {
   StringopApi api(&sandbox);
   SAPI_ASSERT_OK_AND_ASSIGN(void* target_mem_ptr, api.get_raw_c_string());
   SAPI_ASSERT_OK_AND_ASSIGN(size_t len,
-                       sandbox.rpc_channel()->Strlen(target_mem_ptr));
+                            sandbox.rpc_channel()->Strlen(target_mem_ptr));
   EXPECT_THAT(len, Eq(10));
 
-  SAPI_ASSERT_OK_AND_ASSIGN(std::string data,
-                       sandbox.GetCString(sapi::v::RemotePtr(target_mem_ptr)));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      std::string data, sandbox.GetCString(sapi::v::RemotePtr(target_mem_ptr)));
   EXPECT_THAT(data, StrEq("Ten chars."));
 }
 

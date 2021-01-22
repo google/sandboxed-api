@@ -54,7 +54,7 @@ class UVTestLoop : public ::testing::Test {
   // Check sapi_uv_run
   void UVRun(sapi::v::Ptr* loop) {
     SAPI_ASSERT_OK_AND_ASSIGN(int error_code,
-                         api_->sapi_uv_run(loop, UV_RUN_DEFAULT));
+                              api_->sapi_uv_run(loop, UV_RUN_DEFAULT));
     ASSERT_EQ(error_code, 0);
   }
 

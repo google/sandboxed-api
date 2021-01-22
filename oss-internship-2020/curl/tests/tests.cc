@@ -46,8 +46,8 @@ TEST_F(CurlTest, EffectiveUrl) {
 
   // Store effective URL in a string
   SAPI_ASSERT_OK_AND_ASSIGN(std::string effective_url,
-                       sandbox_->GetCString(sapi::v::RemotePtr(
-                           effective_url_ptr.GetPointedVar())));
+                            sandbox_->GetCString(sapi::v::RemotePtr(
+                                effective_url_ptr.GetPointedVar())));
 
   // Compare effective URL with original URL
   ASSERT_EQ(effective_url, kUrl);
@@ -99,8 +99,8 @@ TEST_F(CurlTest, ContentType) {
 
   // Store content type in a string
   SAPI_ASSERT_OK_AND_ASSIGN(std::string content_type,
-                       sandbox_->GetCString(sapi::v::RemotePtr(
-                           content_type_ptr.GetPointedVar())));
+                            sandbox_->GetCString(sapi::v::RemotePtr(
+                                content_type_ptr.GetPointedVar())));
 
   // Compare content type with "text/plain"
   ASSERT_EQ(content_type, "text/plain");

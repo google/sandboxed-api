@@ -44,7 +44,6 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/strerror.h"
-#include "sandboxed_api/util/status_macros.h"
 
 #ifdef MEMORY_SANITIZER
 #include "base/dynamic_annotations.h"

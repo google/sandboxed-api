@@ -54,8 +54,8 @@ constexpr absl::string_view kHeaderProlog =
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox.h"
-#include "sandboxed_api/vars.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/vars.h"
 
 )";
 constexpr absl::string_view kHeaderEpilog =
@@ -299,8 +299,8 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
                       ");\n");
     }
   }
-  absl::StrAppend(&out, "\nSAPI_RETURN_IF_ERROR(sandbox_->Call(\"", function_name,
-                  "\", &v_ret_");
+  absl::StrAppend(&out, "\nSAPI_RETURN_IF_ERROR(sandbox_->Call(\"",
+                  function_name, "\", &v_ret_");
   for (const auto& [qual, name] : params) {
     absl::StrAppend(&out, ", ", IsPointerOrReference(qual) ? "" : "&v_", name);
   }
@@ -412,8 +412,9 @@ void Emitter::CollectFunction(clang::FunctionDecl* decl) {
 
 absl::StatusOr<std::string> Emitter::EmitHeader(
     const GeneratorOptions& options) {
-  SAPI_ASSIGN_OR_RETURN(const std::string header,
-                   ::sapi::EmitHeader(functions_, rendered_types_, options));
+  SAPI_ASSIGN_OR_RETURN(
+      const std::string header,
+      ::sapi::EmitHeader(functions_, rendered_types_, options));
   return internal::ReformatGoogleStyle(options.out_file, header);
 }
 

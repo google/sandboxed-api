@@ -46,7 +46,8 @@ absl::Status IdleBasic() {
 
   // Get remote pointer to the IdleCallback method
   void* function_ptr;
-  SAPI_RETURN_IF_ERROR(sandbox.rpc_channel()->Symbol("IdleCallback", &function_ptr));
+  SAPI_RETURN_IF_ERROR(
+      sandbox.rpc_channel()->Symbol("IdleCallback", &function_ptr));
   sapi::v::RemotePtr idle_callback(function_ptr);
 
   // Allocate memory for the uv_idle_t object
@@ -69,7 +70,8 @@ absl::Status IdleBasic() {
   }
 
   // Start idler
-  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_idle_start(&idler, &idle_callback));
+  SAPI_ASSIGN_OR_RETURN(return_code,
+                        api.sapi_uv_idle_start(&idler, &idle_callback));
   if (return_code != 0) {
     return absl::UnavailableError("sapi_uv_idle_start returned error " +
                                   return_code);

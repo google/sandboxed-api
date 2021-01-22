@@ -44,7 +44,7 @@ absl::Status RasterToGTiffProcessor::Main() {
   sapi::v::CStr driver_name_ptr(kDriverName);
 
   SAPI_ASSIGN_OR_RETURN(absl::StatusOr<GDALDriverH> driver,
-                   api.GDALGetDriverByName(driver_name_ptr.PtrBefore()));
+                        api.GDALGetDriverByName(driver_name_ptr.PtrBefore()));
 
   TRANSACTION_FAIL_IF_NOT(driver.value() != nullptr,
                           "Error getting GTiff driver");
@@ -69,7 +69,7 @@ absl::Status RasterToGTiffProcessor::Main() {
   int current_band = 1;
   for (auto& band_data : data_.bands) {
     SAPI_ASSIGN_OR_RETURN(absl::StatusOr<GDALRasterBandH> band,
-                     api.GDALGetRasterBand(&dataset_ptr, current_band));
+                          api.GDALGetRasterBand(&dataset_ptr, current_band));
     TRANSACTION_FAIL_IF_NOT(band.value() != nullptr,
                             "Error getting band from dataset");
     sapi::v::RemotePtr band_ptr(band.value());
@@ -95,8 +95,9 @@ absl::Status RasterToGTiffProcessor::Main() {
                             "Error setting color interpretation");
 
     if (band_data.no_data_value.has_value()) {
-      SAPI_ASSIGN_OR_RETURN(result, api.GDALSetRasterNoDataValue(
-                                   &band_ptr, band_data.no_data_value.value()));
+      SAPI_ASSIGN_OR_RETURN(result,
+                            api.GDALSetRasterNoDataValue(
+                                &band_ptr, band_data.no_data_value.value()));
 
       TRANSACTION_FAIL_IF_NOT(result.value() == CPLErr::CE_None,
                               "Error setting no data value for the band");

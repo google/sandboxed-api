@@ -181,12 +181,12 @@ TEST(StackTraceTest, SymbolizationTrustedFilesOnly) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
   std::vector<std::string> args = {path, "2"};
   auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PolicyBuilder{}
-                                        // Don't restrict the syscalls at all.
-                                        .DangerDefaultAllowAll()
-                                        .AddFile(path)
-                                        .AddLibrariesForBinary(path)
-                                        .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy, PolicyBuilder{}  // Don't restrict the syscalls at all.
+                       .DangerDefaultAllowAll()
+                       .AddFile(path)
+                       .AddLibrariesForBinary(path)
+                       .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();

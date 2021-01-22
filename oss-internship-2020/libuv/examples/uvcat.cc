@@ -61,7 +61,8 @@ absl::Status UVCat(std::string filearg) {
 
   // Get remote pointer to the open_req variable
   void* open_req_voidptr;
-  SAPI_RETURN_IF_ERROR(sandbox.rpc_channel()->Symbol("open_req", &open_req_voidptr));
+  SAPI_RETURN_IF_ERROR(
+      sandbox.rpc_channel()->Symbol("open_req", &open_req_voidptr));
   sapi::v::RemotePtr open_req(open_req_voidptr);
 
   // Get default loop
@@ -72,8 +73,8 @@ absl::Status UVCat(std::string filearg) {
 
   // Open file using the OnOpen callback (which will also read and print it)
   sapi::v::ConstCStr filename(filearg.c_str());
-  SAPI_ASSIGN_OR_RETURN(return_code,
-                   api.sapi_uv_fs_open(&loop, &open_req, filename.PtrBefore(),
+  SAPI_ASSIGN_OR_RETURN(
+      return_code, api.sapi_uv_fs_open(&loop, &open_req, filename.PtrBefore(),
                                        O_RDONLY, 0, &on_open));
   if (return_code != 0) {
     return absl::UnavailableError("uv_fs_open returned error " + return_code);
