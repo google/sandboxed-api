@@ -49,6 +49,8 @@
 #include "base/dynamic_annotations.h"
 #endif
 
+namespace sandbox2 {
+
 // Future extension point used to mark code sections that invoke syscalls that
 // potentially block.
 // Internally at Google, there is an implementation that supports light-weight
@@ -60,8 +62,6 @@ class PotentiallyBlockingRegion {
   }
 };
 
-namespace sandbox2 {
-
 namespace {
 bool IsFatalError(int saved_errno) {
   return saved_errno != EAGAIN && saved_errno != EWOULDBLOCK &&
@@ -69,22 +69,6 @@ bool IsFatalError(int saved_errno) {
          saved_errno != EINVAL && saved_errno != ENOMEM;
 }
 }  // namespace
-
-constexpr uint32_t Comms::kTagBool;
-constexpr uint32_t Comms::kTagInt8;
-constexpr uint32_t Comms::kTagUint8;
-constexpr uint32_t Comms::kTagInt16;
-constexpr uint32_t Comms::kTagUint16;
-constexpr uint32_t Comms::kTagInt32;
-constexpr uint32_t Comms::kTagUint32;
-constexpr uint32_t Comms::kTagInt64;
-constexpr uint32_t Comms::kTagUint64;
-constexpr uint32_t Comms::kTagString;
-constexpr uint32_t Comms::kTagBytes;
-constexpr uint32_t Comms::kTagProto2;
-constexpr uint32_t Comms::kTagFd;
-
-constexpr int Comms::kSandbox2ClientCommsFD;
 
 Comms::Comms(const std::string& socket_name) : socket_name_(socket_name) {}
 
@@ -235,6 +219,7 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
     return false;
   }
   if (length > kWarnMsgSize) {
+    // TODO(cblichmann): Use LOG_FIRST_N once Abseil logging is released.
     static int times_warned = 0;
     if (times_warned < 10) {
       ++times_warned;
@@ -333,16 +318,17 @@ bool Comms::RecvFD(int* fd) {
   cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
 
   InternalTLV tlv;
-  iovec iov = {&tlv, sizeof(tlv)};
+  iovec iov = {.iov_base = &tlv, .iov_len = sizeof(tlv)};
 
-  msghdr msg;
-  msg.msg_name = nullptr;
-  msg.msg_namelen = 0;
-  msg.msg_iov = &iov;
-  msg.msg_iovlen = 1;
-  msg.msg_control = cmsg;
-  msg.msg_controllen = sizeof(fd_msg);
-  msg.msg_flags = 0;
+  msghdr msg = {
+      .msg_name = nullptr,
+      .msg_namelen = 0,
+      .msg_iov = &iov,
+      .msg_iovlen = 1,
+      .msg_control = cmsg,
+      .msg_controllen = sizeof(fd_msg),
+      .msg_flags = 0,
+  };
 
   const auto op = [&msg](int fd) -> ssize_t {
     PotentiallyBlockingRegion region;

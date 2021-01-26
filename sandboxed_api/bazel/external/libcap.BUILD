@@ -18,8 +18,8 @@ genrule(
     outs = ["cap_names.list.h"],
     # Use the same logic as libcap/Makefile
     cmd = """
-        sed -ne '/^#define[ \\t]CAP[_A-Z]\+[ \\t]\+[0-9]\+/{s/^#define \([^ \\t]*\)[ \\t]*\([^ \\t]*\)/\{\"\\1\",\\2\},/p;}' $< | \\
-        tr \"[:upper:]\" \"[:lower:]\" > $@
+        sed -ne '/^#define[ \\t]CAP[_A-Z]\\+[ \\t]\\+[0-9]\\+/{s/^#define \\([^ \\t]*\\)[ \\t]*\\([^ \\t]*\\)/\\{"\\1",\\2\\},/p;}' $< | \\
+        tr "[:upper:]" "[:lower:]" > $@
     """,
     visibility = ["//visibility:private"],
 )
