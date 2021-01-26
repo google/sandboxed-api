@@ -45,6 +45,7 @@ add_subdirectory(
 
 # Generate SAPI header
 add_sapi_library(curl_sapi
+  SOURCES sandbox.h
 
   # List of all the methods in https://curl.haxx.se/libcurl/c/allfuncs.html
   # Some are added or modified because the original ones are not supported
@@ -127,10 +128,16 @@ add_sapi_library(curl_sapi
 
   NAMESPACE curl
 )
-
-# Include generated SAPI header
 target_include_directories(curl_sapi INTERFACE
-  "${PROJECT_BINARY_DIR}"
+  "${PROJECT_BINARY_DIR}" # Include generated SAPI header
+)
+
+add_library(curl_util STATIC
+  curl_util.cc
+  curl_util.h
+)
+target_link_libraries(curl_util PUBLIC
+  curl_sapi
 )
 
 # Add examples

@@ -16,10 +16,11 @@
 // HTTP GET request using callbacks
 
 #include <cstdlib>
-#include <iostream>
 
-#include "../sandbox.h"  // NOLINT(build/include)
+#include "../curl_util.h"  // NOLINT(build/include)
+#include "../sandbox.h"    // NOLINT(build/include)
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
@@ -40,7 +41,7 @@ absl::Status Example2() {
   SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
   sapi::v::RemotePtr curl(curl_handle);
   if (!curl_handle) {
-    return absl::UnavailableError("curl_easy_init failed: curl is NULL");
+    return absl::UnavailableError("curl_easy_init failed: Invalid curl handle");
   }
 
   int curl_code;
@@ -51,8 +52,8 @@ absl::Status Example2() {
       curl_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_ptr failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Set WriteMemoryCallback as the write function
@@ -60,8 +61,8 @@ absl::Status Example2() {
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEFUNCTION,
                                           &write_to_memory));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_ptr failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Pass 'chunk' struct to the callback function
@@ -70,8 +71,8 @@ absl::Status Example2() {
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEDATA,
                                                  chunk.PtrBoth()));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_ptr failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Set a user agent
@@ -80,15 +81,15 @@ absl::Status Example2() {
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_USERAGENT,
                                                  user_agent.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_setopt_ptr failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Perform the request
   SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_perform failed: ", curl_code));
+    return absl::UnavailableError(absl::StrCat(
+        "curl_easy_perform failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Retrieve memory size
