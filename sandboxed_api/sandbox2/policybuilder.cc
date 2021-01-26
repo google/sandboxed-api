@@ -165,6 +165,7 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
 
 PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
   AllowSyscalls({__NR_munmap, __NR_brk});
+  AllowFutexOp(FUTEX_WAKE);
   AddPolicyOnSyscall(__NR_mremap, {
                                       ARG_32(3),
                                       JEQ32(MREMAP_MAYMOVE, ALLOW),
