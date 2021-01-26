@@ -65,7 +65,8 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
   SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_global_init failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_global_init failed: ", curl_code));
   }
 
   // Initialize curl easy handle
@@ -82,7 +83,8 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
       curl_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Set the SSL certificate type to "PEM"
@@ -91,7 +93,8 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLCERTTYPE,
                                           ssl_cert_type.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Set the certificate for client authentication
@@ -100,7 +103,8 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLCERT,
                                           sapi_ssl_certificate.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Set the private key for client authentication
@@ -109,7 +113,8 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLKEY,
                                                  sapi_ssl_key.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Set the password used to protect the private key
@@ -118,7 +123,8 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_KEYPASSWD,
                                           sapi_ssl_key_password.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Set the file with the certificates vaildating the server
@@ -127,7 +133,8 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_CAINFO,
                                           sapi_ca_certificates.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_ptr failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
   }
 
   // Verify the authenticity of the server
@@ -135,13 +142,15 @@ absl::Status Example3(std::string ssl_certificate, std::string ssl_key,
       curl_code,
       api.curl_easy_setopt_long(&curl, curl::CURLOPT_SSL_VERIFYPEER, 1L));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_setopt_long failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_setopt_long failed: ", curl_code));
   }
 
   // Perform the request
   SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
-    return absl::UnavailableError("curl_easy_perform failed: " + curl_code);
+    return absl::UnavailableError(
+        absl::StrCat("curl_easy_perform failed: ", curl_code));
   }
 
   // Cleanup curl easy handle
