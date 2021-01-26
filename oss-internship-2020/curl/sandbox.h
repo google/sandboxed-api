@@ -29,16 +29,17 @@ namespace curl {
 class CurlSapiSandbox : public curl::CurlSandbox {
  protected:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder* policy_builder) override {
+      sandbox2::PolicyBuilder*) override {
     // Return a new policy
     return sandbox2::PolicyBuilder()
         .AllowDynamicStartup()
         .AllowExit()
         .AllowFork()
+        .AllowFutexOp(FUTEX_WAIT_PRIVATE)
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
+        .AllowFutexOp(FUTEX_REQUEUE_PRIVATE)
         .AllowMmap()
         .AllowOpen()
-        .AllowRead()
         .AllowSafeFcntl()
         .AllowWrite()
         .AllowAccess()
@@ -62,6 +63,7 @@ class CurlSapiSandbox : public curl::CurlSandbox {
             __NR_socket,
             __NR_sysinfo,
         })
+        .AddDirectory("/lib")
         .AllowUnrestrictedNetworking()
         .BuildOrDie();
   }

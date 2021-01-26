@@ -17,8 +17,11 @@
 
 #include <cstdlib>
 
-#include "../sandbox.h"  // NOLINT(build/include)
+#include "../curl_util.h"    // NOLINT(build/include)
+#include "../sandbox.h"      // NOLINT(build/include)
+#include "curl_sapi.sapi.h"  // NOLINT(build/include)
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
@@ -33,7 +36,7 @@ absl::Status Example1() {
   SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
   sapi::v::RemotePtr curl(curl_handle);
   if (!curl_handle) {
-    return absl::UnavailableError("curl_easy_init failed: curl is NULL");
+    return absl::UnknownError("curl_easy_init failed: Invalid curl handle");
   }
 
   int curl_code;
@@ -44,8 +47,8 @@ absl::Status Example1() {
       curl_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_setopt_ptr failed: ", curl_code));
+    return absl::UnknownError(absl::StrCat("curl_easy_setopt_ptr failed: ",
+                                           curl::StrError(&api, curl_code)));
   }
 
   // Set the library to follow a redirection
@@ -53,8 +56,8 @@ absl::Status Example1() {
       curl_code,
       api.curl_easy_setopt_long(&curl, curl::CURLOPT_FOLLOWLOCATION, 1l));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_setopt_long failed: ", curl_code));
+    return absl::UnknownError(absl::StrCat("curl_easy_setopt_long failed: ",
+                                           curl::StrError(&api, curl_code)));
   }
 
   // Disable authentication of peer certificate
@@ -62,15 +65,15 @@ absl::Status Example1() {
       curl_code,
       api.curl_easy_setopt_long(&curl, curl::CURLOPT_SSL_VERIFYPEER, 0l));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_setopt_long failed: ", curl_code));
+    return absl::UnknownError(absl::StrCat("curl_easy_setopt_long failed: ",
+                                           curl::StrError(&api, curl_code)));
   }
 
   // Perform the request
   SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
-    return absl::UnavailableError(
-        absl::StrCat("curl_easy_perform failed: ", curl_code));
+    return absl::UnknownError(absl::StrCat("curl_easy_perform failed: ",
+                                           curl::StrError(&api, curl_code)));
   }
 
   // Cleanup curl

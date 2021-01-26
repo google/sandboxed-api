@@ -17,8 +17,12 @@
 
 #include <cstdlib>
 
-#include "../sandbox.h"  // NOLINT(build/include)
+#include "../curl_util.h"    // NOLINT(build/include)
+#include "../sandbox.h"      // NOLINT(build/include)
+#include "curl_sapi.sapi.h"  // NOLINT(build/include)
+#include "absl/strings/str_cat.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 

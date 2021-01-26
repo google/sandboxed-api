@@ -22,6 +22,7 @@ add_executable(example1
 )
 target_link_libraries(example1 PRIVATE
   curl_sapi
+  curl_util
   sapi::sapi
 )
 
@@ -32,6 +33,7 @@ add_executable(example2
 )
 target_link_libraries(example2 PRIVATE
   curl_sapi
+  curl_util
   sapi::sapi
 )
 
@@ -42,6 +44,7 @@ add_executable(example3
 )
 target_link_libraries(example3 PRIVATE
   curl_sapi
+  curl_util
   sapi::sapi
 )
 
@@ -52,6 +55,7 @@ add_executable(example4
 )
 target_link_libraries(example4 PRIVATE
   curl_sapi
+  curl_util
   sapi::sapi
 )
 
@@ -62,6 +66,7 @@ add_executable(example5
 )
 target_link_libraries(example5 PRIVATE
   curl_sapi
+  curl_util
   sapi::sapi
 )
 
@@ -72,5 +77,6 @@ add_executable(example6
 )
 target_link_libraries(example6 PRIVATE
   curl_sapi
+  curl_util
   sapi::sapi
 )
