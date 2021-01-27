@@ -29,14 +29,7 @@ namespace sandbox2 {
 
 class Limits final {
  public:
-  Limits() {
-    set_rlimit_as(kIniRLimAS);
-    set_rlimit_cpu(kIniRLimCPU);
-    set_rlimit_fsize(kIniRLimFSIZE);
-    set_rlimit_nofile(kIniRLimNOFILE);
-    set_rlimit_core(kIniRLimCORE);
-    set_walltime_limit(absl::Seconds(kIniWallTimeLimit));
-  }
+  Limits() = default;
 
   Limits(const Limits&) = delete;
   Limits& operator=(const Limits&) = delete;
@@ -51,8 +44,7 @@ class Limits final {
     return *this;
   }
   Limits& set_rlimit_as(uint64_t value) {
-    rlimit_as_.rlim_cur = value;
-    rlimit_as_.rlim_max = value;
+    rlimit_as_ = MakeRlimit64(value);
     return *this;
   }
 
@@ -62,8 +54,7 @@ class Limits final {
     return *this;
   }
   Limits& set_rlimit_cpu(uint64_t value) {
-    rlimit_cpu_.rlim_cur = value;
-    rlimit_cpu_.rlim_max = value;
+    rlimit_cpu_ = MakeRlimit64(value);
     return *this;
   }
 
@@ -73,8 +64,7 @@ class Limits final {
     return *this;
   }
   Limits& set_rlimit_fsize(uint64_t value) {
-    rlimit_fsize_.rlim_cur = value;
-    rlimit_fsize_.rlim_max = value;
+    rlimit_fsize_ = MakeRlimit64(value);
     return *this;
   }
 
@@ -84,8 +74,7 @@ class Limits final {
     return *this;
   }
   Limits& set_rlimit_nofile(uint64_t value) {
-    rlimit_nofile_.rlim_cur = value;
-    rlimit_nofile_.rlim_max = value;
+    rlimit_nofile_ = MakeRlimit64(value);
     return *this;
   }
 
@@ -95,8 +84,7 @@ class Limits final {
     return *this;
   }
   Limits& set_rlimit_core(uint64_t value) {
-    rlimit_core_.rlim_cur = value;
-    rlimit_core_.rlim_max = value;
+    rlimit_core_ = MakeRlimit64(value);
     return *this;
   }
 
@@ -113,42 +101,36 @@ class Limits final {
   absl::Duration wall_time_limit() const { return wall_time_limit_; }
 
  private:
-  // Initial values for limits. Fields of rlimit64 are defined as __u64,
-  // so we use uint64_t here.
-  static constexpr uint64_t kIniRLimAS = RLIM64_INFINITY;
-  // 1024 seconds of real CPU time for each sandboxed process.
-  static constexpr uint64_t kIniRLimCPU = (1ULL << 10);
-  // 8GiB - Maximum size of individual files that can be created by each
-  // sandboxed process.
-  static constexpr uint64_t kIniRLimFSIZE = (8ULL << 30);
-  // 1024 file descriptors which can be used by each sandboxed process.
-  static constexpr uint64_t kIniRLimNOFILE = (1ULL << 10);
-  // No core files are allowed by default
-  static constexpr uint64_t kIniRLimCORE = (0);
-  // 120s - this is wall-time limit. Depending on the sandboxed load, this one,
-  // or the RLIMIT_CPU limit might be triggered faster
-  // cf. (https://en.wikipedia.org/wiki/Time_(Unix)#Real_time_vs_CPU_time)
-  static constexpr time_t kIniWallTimeLimit = (120ULL);
+  constexpr rlimit64 MakeRlimit64(uint64_t value) {
+    return {.rlim_cur = value, .rlim_max = value};
+  }
 
-  // Address space size of a process, if big enough (say, above 512M), it's a
-  // crude representation of maximum RAM size used by the sandboxed process.
-  rlimit64 rlimit_as_;
-  // CPU time, might be triggered faster than the wall-time limit, if many
-  // threads are used.
-  rlimit64 rlimit_cpu_;
-  // Number of bytes which can be written to the FS by the process (just
-  // creating empty files is always allowed).
-  rlimit64 rlimit_fsize_;
+  // Address space size of a process, if big enough (say, above 512M), this
+  // will be a rough approximation of the maximum RAM usage by the sandboxed
+  // process.
+  rlimit64 rlimit_as_ = MakeRlimit64(RLIM64_INFINITY);
+
+  // CPU time, measured in seconds. This limit might be triggered faster than
+  // the wall-time limit, if many threads are used.
+  rlimit64 rlimit_cpu_ = MakeRlimit64(1024 /* seconds */);
+
+  // Total number of bytes that can be written to the filesystem by the process
+  // (creating empty files is not considered writing).
+  rlimit64 rlimit_fsize_ = MakeRlimit64(8ULL << 30 /* 8GiB */);
+
   // Number of NEW file descriptors which can be obtained by a process. 0
   // means that no new descriptors (files, sockets) can be created.
-  rlimit64 rlimit_nofile_;
-  // Size of a core file which is allowed to be created. Should be 0, unless
-  // you know what you are doing.
-  rlimit64 rlimit_core_;
-  // Getter for the client_limits_ structure.
+  rlimit64 rlimit_nofile_ = MakeRlimit64(1024);
 
-  // Wall-time limit (local to Monitor).
-  absl::Duration wall_time_limit_;
+  // Size of a core file which is allowed to be created. The default value of
+  // zero disables the creation of core files. Unless you have special
+  // requirements, this should not be changed.
+  rlimit64 rlimit_core_ = MakeRlimit64(0);
+
+  // Wall-time limit (local to Monitor). Depending on the sandboxed load, this
+  // one, or RLIMIT_CPU limit might be triggered faster (see
+  // https://en.wikipedia.org/wiki/Time_(Unix)#Real_time_vs_CPU_time).
+  absl::Duration wall_time_limit_ = absl::Seconds(120);
 };
 
 }  // namespace sandbox2
