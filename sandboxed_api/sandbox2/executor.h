@@ -20,14 +20,18 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <glog/logging.h>
 #include "absl/base/macros.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/namespace.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -40,37 +44,45 @@ class Executor final {
 
   // Initialized with a path to the process that the Executor class will
   // execute
-  Executor(const std::string& path, const std::vector<std::string>& argv)
-      : Executor(/*exec_fd=*/-1, path, argv, CopyEnviron(),
-                 /*enable_sandboxing_pre_execve=*/true,
-                 /*libunwind_sbox_for_pid=*/0,
-                 /*fork_client=*/nullptr) {}
+  Executor(
+      absl::string_view path, absl::Span<const std::string> argv,
+      absl::Span<const std::string> envp = absl::MakeConstSpan(CopyEnviron()))
+      : path_(std::string(path)),
+        argv_(argv.begin(), argv.end()),
+        envp_(envp.begin(), envp.end()) {
+    CHECK(!path_.empty());
+    SetUpServerSideCommsFd();
+  }
 
-  // As above, but takes an explicit environment
-  Executor(const std::string& path, const std::vector<std::string>& argv,
-           const std::vector<std::string>& envp)
-      : Executor(/*exec_fd=*/-1, path, argv, envp,
-                 /*enable_sandboxing_pre_execve=*/true,
-                 /*libunwind_sbox_for_pid=*/0,
-                 /*fork_client=*/nullptr) {}
+  // As above, but with `const std::vector<std::string>&`
+  Executor(absl::string_view path, const std::vector<std::string>& argv,
+           const std::vector<std::string>& envp = CopyEnviron())
+      : Executor(path, absl::MakeSpan(argv), absl::MakeSpan(envp)) {}
 
-  // As above, but takes a file-descriptor referring to an executable file.
   // Executor will own this file-descriptor, so if intend to use it, pass here
   // dup(fd) instead
+  Executor(int exec_fd, absl::Span<const std::string> argv,
+           absl::Span<const std::string> envp)
+      : exec_fd_(exec_fd),
+        argv_(argv.begin(), argv.end()),
+        envp_(envp.begin(), envp.end()) {
+    CHECK_GE(exec_fd, 0);
+    SetUpServerSideCommsFd();
+  }
+
+  // As above, but with `const std::vector<std::string>&`
   Executor(int exec_fd, const std::vector<std::string>& argv,
            const std::vector<std::string>& envp)
-      : Executor(exec_fd, /*path=*/"", argv, envp,
-                 /*enable_sandboxing_pre_execve=*/true,
-                 /*libunwind_sbox_for_pid=*/0,
-                 /*fork_client=*/nullptr) {}
+      : Executor(exec_fd, absl::MakeSpan(argv), absl::MakeSpan(envp)) {}
 
   // Uses a custom ForkServer (which the supplied ForkClient can communicate
   // with), which knows how to fork (or even execute) new sandboxed processes
   // (hence, no need to supply path/argv/envp here)
   explicit Executor(ForkClient* fork_client)
-      : Executor(/*exec_fd=*/-1, /*path=*/"", /*argv=*/{}, /*envp=*/{},
-                 /*enable_sandboxing_pre_execve=*/false,
-                 /*libunwind_sbox_for_pid=*/0, fork_client) {}
+      : enable_sandboxing_pre_execve_(false), fork_client_(fork_client) {
+    CHECK(fork_client != nullptr);
+    SetUpServerSideCommsFd();
+  }
 
   ~Executor();
 
@@ -101,17 +113,11 @@ class Executor final {
   // Internal constructor for executing libunwind on the given pid
   // enable_sandboxing_pre_execve=false as we are not going to execve.
   explicit Executor(pid_t libunwind_sbox_for_pid)
-      : Executor(/*exec_fd=*/-1, /*path=*/"", /*argv=*/{}, /*envp=*/{},
-                 /*enable_sandboxing_pre_execve=*/false,
-                 /*libunwind_sbox_for_pid=*/libunwind_sbox_for_pid,
-                 /*fork_client=*/nullptr) {}
-
-  // Delegate constructor that gets called by the public ones.
-  Executor(int exec_fd, const std::string& path,
-           const std::vector<std::string>& argv,
-           const std::vector<std::string>& envp,
-           bool enable_sandboxing_pre_execve, pid_t libunwind_sbox_for_pid,
-           ForkClient* fork_client);
+      : libunwind_sbox_for_pid_(libunwind_sbox_for_pid),
+        enable_sandboxing_pre_execve_(false) {
+    CHECK_GE(libunwind_sbox_for_pid_, 0);
+    SetUpServerSideCommsFd();
+  }
 
   // Creates a copy of the environment
   static std::vector<std::string> CopyEnviron();
@@ -119,14 +125,6 @@ class Executor final {
   // Creates a server-side Comms end-point using a pre-connected file
   // descriptor.
   void SetUpServerSideCommsFd();
-
-  // Sets the default value for cwd_
-  void SetDefaultCwd() {
-    char* cwd = get_current_dir_name();
-    PCHECK(cwd != nullptr);
-    cwd_ = cwd;
-    free(cwd);
-  }
 
   // Starts a new process which is connected with this Executor instance via a
   // Comms channel.
@@ -145,20 +143,24 @@ class Executor final {
 
   // If this executor is running the libunwind sandbox for a process,
   // this variable will hold the PID of the process. Otherwise it is zero.
-  pid_t libunwind_sbox_for_pid_;
+  pid_t libunwind_sbox_for_pid_ = 0;
 
   // Should the sandboxing be enabled before execve() occurs, or the binary will
   // do it by itself, using the Client object's methods
-  bool enable_sandboxing_pre_execve_;
+  bool enable_sandboxing_pre_execve_ = true;
 
   // Alternate (path/fd)/argv/envp to be used the in the __NR_execve call.
-  int exec_fd_;
+  int exec_fd_ = -1;
   std::string path_;
   std::vector<std::string> argv_;
   std::vector<std::string> envp_;
 
-  // chdir to cwd_, if set.
-  std::string cwd_;
+  // chdir to cwd_, if set. Defaults to current working directory.
+  std::string cwd_ = []() {
+    std::string cwd = sapi::file_util::fileops::GetCWD();
+    PCHECK(!cwd.empty());
+    return cwd;
+  }();
 
   // Server (sandbox) end-point of a socket-pair used to create Comms channel
   int server_comms_fd_ = -1;
@@ -166,7 +168,7 @@ class Executor final {
   int client_comms_fd_ = -1;
 
   // ForkClient connecting to the ForkServer - not owned by the object
-  ForkClient* fork_client_;
+  ForkClient* fork_client_ = nullptr;
 
   IPC ipc_;        // Used for communication with the sandboxee
   Limits limits_;  // Defines server- and client-side limits

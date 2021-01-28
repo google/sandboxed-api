@@ -33,32 +33,9 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 
-namespace file_util = ::sapi::file_util;
-
 namespace sandbox2 {
 
-// Delegate constructor that gets called by the public ones.
-Executor::Executor(int exec_fd, const std::string& path,
-                   const std::vector<std::string>& argv,
-                   const std::vector<std::string>& envp,
-                   bool enable_sandboxing_pre_execve,
-                   pid_t libunwind_sbox_for_pid, ForkClient* fork_client)
-    : libunwind_sbox_for_pid_(libunwind_sbox_for_pid),
-      enable_sandboxing_pre_execve_(enable_sandboxing_pre_execve),
-      exec_fd_(exec_fd),
-      path_(path),
-      argv_(argv),
-      envp_(envp),
-      fork_client_(fork_client) {
-  if (fork_client_ != nullptr) {
-    CHECK(exec_fd == -1 && path.empty());
-  } else {
-    CHECK((exec_fd == -1 && (!path.empty() || libunwind_sbox_for_pid > 0)) ||
-          (exec_fd >= 0 && path.empty()));
-  }
-  SetUpServerSideCommsFd();
-  SetDefaultCwd();
-}
+namespace file_util = ::sapi::file_util;
 
 Executor::~Executor() {
   if (client_comms_fd_ != -1) {

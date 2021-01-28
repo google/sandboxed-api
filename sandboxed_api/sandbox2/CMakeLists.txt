@@ -263,8 +263,6 @@ add_library(sandbox2::executor ALIAS sandbox2_executor)
 target_link_libraries(sandbox2_executor
   PRIVATE absl::core_headers
           absl::memory
-          absl::strings
-          sapi::fileops
           sandbox2::forkserver_proto
           sandbox2::ipc
           sandbox2::limits
@@ -272,7 +270,10 @@ target_link_libraries(sandbox2_executor
           sandbox2::util
           sapi::base
           sapi::status_proto
-  PUBLIC glog::glog
+  PUBLIC absl::span
+         absl::strings
+         glog::glog
+         sapi::fileops
          sandbox2::fork_client
          sandbox2::global_forkserver
 )
