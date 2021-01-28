@@ -55,6 +55,9 @@ class Executor final {
   }
 
   // As above, but with `const std::vector<std::string>&`
+  // Templated to avoid ambiguity with the absl::Span overloads when called
+  // with brace-initializers.
+  template <typename = void>
   Executor(absl::string_view path, const std::vector<std::string>& argv,
            const std::vector<std::string>& envp = CopyEnviron())
       : Executor(path, absl::MakeSpan(argv), absl::MakeSpan(envp)) {}
@@ -71,6 +74,9 @@ class Executor final {
   }
 
   // As above, but with `const std::vector<std::string>&`
+  // Templated to avoid ambiguity with the absl::Span overloads when called
+  // with brace-initializers.
+  template <typename = void>
   Executor(int exec_fd, const std::vector<std::string>& argv,
            const std::vector<std::string>& envp)
       : Executor(exec_fd, absl::MakeSpan(argv), absl::MakeSpan(envp)) {}
