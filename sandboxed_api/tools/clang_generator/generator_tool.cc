@@ -98,9 +98,13 @@ GeneratorOptions GeneratorOptionsFromFlags(
 }
 
 absl::Status GeneratorMain(int argc, const char** argv) {
-  clang::tooling::CommonOptionsParser opt_parser(
+  auto expected_opt_parser = clang::tooling::CommonOptionsParser::create(
       argc, argv, *sapi::g_tool_category, llvm::cl::ZeroOrMore,
       "Generates a Sandboxed API header for C/C++ translation units.");
+  if (!expected_opt_parser) {
+    return absl::InternalError(llvm::toString(expected_opt_parser.takeError()));
+  }
+  clang::tooling::CommonOptionsParser& opt_parser = expected_opt_parser.get();
   std::vector<std::string> sources = opt_parser.getSourcePathList();
   for (const auto& sapi_in : *sapi::g_sapi_in) {
     sources.push_back(sapi_in);
