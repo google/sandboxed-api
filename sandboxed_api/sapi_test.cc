@@ -25,16 +25,17 @@
 #include "sandboxed_api/examples/sum/lib/sandbox.h"
 #include "sandboxed_api/examples/sum/lib/sum-sapi.sapi.h"
 #include "sandboxed_api/examples/sum/lib/sum-sapi_embed.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_matchers.h"
+
+namespace sapi {
+namespace {
 
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
 using ::testing::Eq;
 using ::testing::HasSubstr;
-
-namespace sapi {
-namespace {
 
 // Functions that will be used during the benchmarks:
 
@@ -134,7 +135,9 @@ void BenchmarkIntDataSynchronization(benchmark::State& state) {
 BENCHMARK(BenchmarkIntDataSynchronization);
 
 // Test whether stack trace generation works.
-TEST(SAPITest, HasStackTraces) {
+TEST(SapiTest, HasStackTraces) {
+  SKIP_SANITIZERS_AND_COVERAGE;
+
   auto sandbox = absl::make_unique<StringopSandbox>();
   ASSERT_THAT(sandbox->Init(), IsOk());
   StringopApi api(sandbox.get());

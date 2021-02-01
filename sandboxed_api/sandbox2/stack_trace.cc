@@ -291,21 +291,13 @@ std::vector<std::string> GetStackTrace(const Regs* regs, const Mounts& mounts) {
     return {"[ERROR (noregs)]"};
   }
 
-#if defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER) || \
-    defined(MEMORY_SANITIZER)
-  constexpr bool kSanitizerEnabled = true;
-#else
-  constexpr bool kSanitizerEnabled = false;
-#endif
-
-  const bool coverage_enabled =
-      getenv("COVERAGE");
-
   // Show a warning if sandboxed libunwind is requested but we're running in
-  // an ASAN / coverage build (= we can't use sandboxed libunwind).
-  if (absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) &&
-      (kSanitizerEnabled || coverage_enabled)) {
-    LOG_IF(WARNING, kSanitizerEnabled)
+  // an ASAN/coverage build (= we can't use sandboxed libunwind).
+  if (const bool coverage_enabled =
+          getenv("COVERAGE") != nullptr;
+      absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) &&
+      (sapi::sanitizers::IsAny() || coverage_enabled)) {
+    LOG_IF(WARNING, sapi::sanitizers::IsAny())
         << "Sanitizer build, using non-sandboxed libunwind";
     LOG_IF(WARNING, coverage_enabled)
         << "Coverage build, using non-sandboxed libunwind";

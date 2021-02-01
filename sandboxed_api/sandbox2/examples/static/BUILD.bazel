@@ -30,6 +30,7 @@ cc_binary(
     copts = sapi_platform_copts(),
     data = [":static_bin"],
     deps = [
+        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:flags",

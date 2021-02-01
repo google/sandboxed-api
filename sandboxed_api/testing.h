@@ -40,16 +40,17 @@
 //
 // The downside of this approach is that no coverage will be collected.
 // To still have coverage, pre-compile sandboxees and add them as test data,
-// then no need to skip tests.
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
+// then there will be no need to skip tests.
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
 #define SKIP_SANITIZERS_AND_COVERAGE return
 #else
-#define SKIP_SANITIZERS_AND_COVERAGE     \
-  do {                                   \
-    if (getenv("COVERAGE") != nullptr) { \
-      return;                            \
-    }                                    \
+#define SAPI_BUILDDATA_COVERAGE_ENABLED false
+#define SKIP_SANITIZERS_AND_COVERAGE                                        \
+  do {                                                                      \
+    if (SAPI_BUILDDATA_COVERAGE_ENABLED || getenv("COVERAGE") != nullptr) { \
+      return;                                                               \
+    }                                                                       \
   } while (0)
 #endif
 

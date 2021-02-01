@@ -78,14 +78,14 @@ struct FuncCall {
 
 struct FuncRet {
   // Return type:
-  v::Type ret_type;
+  v::Type ret_type = v::Type::kVoid;
   // Return value.
   union {
-    uintptr_t int_val;
+    uintptr_t int_val = 0;
     long double float_val;
   };
   // Status of the operation: success/failure.
-  bool success;
+  bool success = false;
 };
 
 }  // namespace sapi

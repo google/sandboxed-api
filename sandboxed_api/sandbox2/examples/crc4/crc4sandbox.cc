@@ -30,6 +30,7 @@
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -40,7 +41,7 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/runfiles.h"
 
-using std::string;
+using std::string;  // gflags <-> Abseil Flags
 
 ABSL_FLAG(string, input, "", "Input to calculate CRC4 of.");
 ABSL_FLAG(bool, call_syscall_not_allowed, false,
@@ -49,21 +50,21 @@ ABSL_FLAG(bool, call_syscall_not_allowed, false,
 namespace {
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
-  return sandbox2::PolicyBuilder()
-      .DisableNamespaces()
-      .AllowExit()
-      .AddPolicyOnSyscalls(
-          {__NR_read, __NR_write, __NR_close},
-          {ARG_32(0), JEQ32(sandbox2::Comms::kSandbox2ClientCommsFD, ALLOW)})
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-      .AllowSyscall(__NR_mmap)
-#endif
-      .BuildOrDie();
+  sandbox2::PolicyBuilder builder;
+  builder.DisableNamespaces().AllowExit().AddPolicyOnSyscalls(
+      {__NR_read, __NR_write, __NR_close},
+      {
+          ARG_32(0),
+          JEQ32(sandbox2::Comms::kSandbox2ClientCommsFD, ALLOW),
+      });
+  if constexpr (sapi::sanitizers::IsAny()) {
+    builder.AllowSyscall(__NR_mmap);
+  }
+  return builder.BuildOrDie();
 }
 
 bool SandboxedCRC4(sandbox2::Comms* comms, uint32_t* crc4) {
-  std::string input(absl::GetFlag(FLAGS_input));
+  const std::string input = absl::GetFlag(FLAGS_input);
 
   const uint8_t* buf = reinterpret_cast<const uint8_t*>(input.data());
   size_t buf_size = input.size();

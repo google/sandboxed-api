@@ -18,6 +18,7 @@
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -35,8 +36,8 @@ constexpr char kSandboxeePath[] =
     "sandbox2/examples/network_proxy/networkproxy_bin";
 
 std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
-  sandbox2::PolicyBuilder policy;
-  policy.AllowExit()
+  sandbox2::PolicyBuilder builder;
+  builder.AllowExit()
       .AllowMmap()
       .AllowRead()
       .AllowWrite()
@@ -49,11 +50,11 @@ std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
       .AllowTcMalloc()
       .AddLibrariesForBinary(sandboxee_path);
   if (absl::GetFlag(FLAGS_connect_with_handler)) {
-    policy.AddNetworkProxyHandlerPolicy();
+    builder.AddNetworkProxyHandlerPolicy();
   } else {
-    policy.AddNetworkProxyPolicy();
+    builder.AddNetworkProxyPolicy();
   }
-  return policy.AllowIPv6("::1").BuildOrDie();
+  return builder.AllowIPv6("::1").BuildOrDie();
 }
 
 void Server(int port) {
@@ -115,10 +116,9 @@ int main(int argc, char** argv) {
   // This test is incompatible with sanitizers.
   // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
   // need to return something.
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  return EXIT_SUCCESS;
-#endif
+  if constexpr (sapi::sanitizers::IsAny()) {
+    return EXIT_SUCCESS;
+  }
   if (getenv("COVERAGE") != nullptr) {
     return EXIT_SUCCESS;
   }

@@ -25,19 +25,17 @@
 #include <glog/logging.h>
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
+#include "absl/base/dynamic_annotations.h"
 #include "sandboxed_api/util/flag.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/call.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/proto_arg.pb.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/vars.h"
-
-#ifdef MEMORY_SANITIZER
-#include <sanitizer/allocator_interface.h>
-#endif
 
 #include <ffi.h>
 #include <ffitarget.h>
@@ -232,15 +230,14 @@ void HandleCallMsg(const FuncCall& call, FuncRet* ret) {
 void HandleAllocMsg(const size_t size, FuncRet* ret) {
   VLOG(1) << "HandleAllocMsg: size=" << size;
 
-  ret->ret_type = v::Type::kPointer;
-#ifdef MEMORY_SANITIZER
+  const void* allocated = malloc(size);
   // Memory is copied to the pointer using an API that the memory sanitizer
-  // is blind to (process_vm_writev). Initialize the memory here so that
-  // the sandboxed code can still be tested with the memory sanitizer.
-  ret->int_val = reinterpret_cast<uintptr_t>(calloc(1, size));
-#else
-  ret->int_val = reinterpret_cast<uintptr_t>(malloc(size));
-#endif
+  // is blind to (process_vm_writev). Mark the memory as initialized here, so
+  // that the sandboxed code can still be tested using MSAN.
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(allocated, size);
+
+  ret->ret_type = v::Type::kPointer;
+  ret->int_val = reinterpret_cast<uintptr_t>(allocated);
   ret->success = true;
 }
 
@@ -248,23 +245,16 @@ void HandleAllocMsg(const size_t size, FuncRet* ret) {
 void HandleReallocMsg(uintptr_t ptr, size_t size, FuncRet* ret) {
   VLOG(1) << "HandleReallocMsg(" << absl::StrCat(absl::Hex(ptr)) << ", " << size
           << ")";
-#ifdef MEMORY_SANITIZER
-  const size_t orig_size =
-      __sanitizer_get_allocated_size(reinterpret_cast<const void*>(ptr));
-#endif
-  ret->ret_type = v::Type::kPointer;
-  ret->int_val =
-      reinterpret_cast<uintptr_t>(realloc(reinterpret_cast<void*>(ptr), size));
-  ret->success = true;
-#ifdef MEMORY_SANITIZER
+
+  const void* reallocated = realloc(reinterpret_cast<void*>(ptr), size);
   // Memory is copied to the pointer using an API that the memory sanitizer
-  // is blind to (process_vm_writev). Initialize the memory here so that
-  // the sandboxed code can still be tested with the memory sanitizer.
-  if (orig_size < size && ret->int_val != 0) {
-    memset(reinterpret_cast<void*>(ret->int_val + orig_size), 0,
-           size - orig_size);
-  }
-#endif
+  // is blind to (process_vm_writev). Mark the memory as initialized here, so
+  // that the sandboxed code can still be tested using MSAN.
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(reallocated, size);
+
+  ret->ret_type = v::Type::kPointer;
+  ret->int_val = reinterpret_cast<uintptr_t>(reallocated);
+  ret->success = true;
 }
 
 // Handles requests to free memory previously allocated by HandleAllocMsg() and
@@ -350,10 +340,11 @@ void ServeRequest(sandbox2::Comms* comms) {
 
   CHECK(comms->RecvTLV(&tag, &bytes));
 
-  FuncRet ret{};
-  ret.ret_type = v::Type::kVoid;
-  ret.int_val = static_cast<uintptr_t>(Error::kUnset);
-  ret.success = false;
+  FuncRet ret = {
+      .ret_type = v::Type::kVoid,
+      .int_val = static_cast<uintptr_t>(Error::kUnset),
+      .success = false,
+  };
 
   switch (tag) {
     case comms::kMsgCall:

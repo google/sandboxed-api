@@ -18,6 +18,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 
@@ -109,21 +110,20 @@ std::string Result::ToString() const {
       result =
           absl::StrCat("<UNKNOWN>(", final_status(), ") Code: ", reason_code());
   }
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  absl::StrAppend(&result,
-                  " - Warning: this executor is built with ASAN, "
-                  "MSAN or TSAN, chances are the sandboxee too, which is "
-                  "incompatible with sandboxing.");
-#else
-  if (
-      getenv("COVERAGE") != nullptr) {
-    absl::StrAppend(&result,
-                    " - Warning: this executor is built with coverage "
-                    "enabled, chances are the sandboxee too, which is "
-                    "incompatible with sandboxing.");
+  if constexpr (sapi::sanitizers::IsAny()) {
+    absl::StrAppend(
+        &result,
+        " - Warning: this executor is built with ASAN, MSAN or TSAN, chances "
+        "are the sandboxee is too, which is incompatible with sandboxing.");
+  } else {
+    if (
+        getenv("COVERAGE") != nullptr) {
+      absl::StrAppend(
+          &result,
+          " - Warning: this executor is built with coverage enabled, chances "
+          "are the sandboxee too, which is incompatible with sandboxing.");
+    }
   }
-#endif
   return result;
 }
 

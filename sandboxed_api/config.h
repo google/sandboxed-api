@@ -92,6 +92,37 @@ static_assert(host_cpu::Architecture() != cpu::kUnknown,
               "Host CPU architecture is not supported: One of x86-64, POWER64 "
               "(little endian), Arm or AArch64 is required.");
 
+namespace sanitizers {
+
+constexpr bool IsMSan() {
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+  return true;
+#else
+  return false;
+#endif
+}
+
+constexpr bool IsTSan() {
+#ifdef ABSL_HAVE_THREAD_SANITIZER
+  return true;
+#else
+  return false;
+#endif
+}
+
+constexpr bool IsASan() {
+#ifdef ABSL_HAVE_ADDRESS_SANITIZER
+  return true;
+#else
+  return false;
+#endif
+}
+
+// Returns whether any of the sanitizers is enabled.
+constexpr bool IsAny() { return IsMSan() || IsTSan() || IsASan(); }
+
+}  // namespace sanitizers
+
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_CONFIG_H_

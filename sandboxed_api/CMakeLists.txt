@@ -172,6 +172,7 @@ add_library(sapi_client ${SAPI_LIB_TYPE}
 add_library(sapi::client ALIAS sapi_client)
 target_link_libraries(sapi_client
   PRIVATE absl::core_headers
+          absl::dynamic_annotations
           absl::strings
           libffi::libffi
           sandbox2::client
@@ -189,6 +190,18 @@ target_link_libraries(sapi_client
 )
 
 if(SAPI_ENABLE_TESTS AND NOT CMAKE_CROSSCOMPILING)
+  # sandboxed_api:testing
+  add_library(sapi_testing ${SAPI_LIB_TYPE}
+    testing.cc
+    testing.h
+  )
+  add_library(sapi::testing ALIAS sapi_testing)
+  target_link_libraries(sapi_testing PRIVATE
+    absl::strings
+    sapi::file_base
+    sapi::base
+  )
+
   # sandboxed_api:sapi_test
   add_executable(sapi_test
     sapi_test.cc
@@ -206,21 +219,9 @@ if(SAPI_ENABLE_TESTS AND NOT CMAKE_CROSSCOMPILING)
     sapi::stringop_sapi
     sapi::sum_sapi
     sapi::test_main
+    sapi::testing
   )
   gtest_discover_tests_xcompile(sapi_test)
-
-  # sandboxed_api:testing
-  add_library(sapi_testing ${SAPI_LIB_TYPE}
-    testing.cc
-    testing.h
-  )
-  add_library(sapi::testing ALIAS sapi_testing)
-  target_link_libraries(sapi_testing PRIVATE
-    absl::strings
-    sapi::file_base
-    sapi::base
-  )
-
 endif()
 
 # Install headers and libraries, excluding tools, tests and examples

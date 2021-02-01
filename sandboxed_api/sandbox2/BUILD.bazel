@@ -604,7 +604,9 @@ cc_library(
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_cc_proto",
         "//sandboxed_api/util:strerror",
+        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -829,6 +831,7 @@ cc_test(
     deps = [
         ":comms",
         ":sandbox2",
+        "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:status_matchers",

@@ -30,6 +30,7 @@
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -101,10 +102,9 @@ int main(int argc, char** argv) {
   // This test is incompatible with sanitizers.
   // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
   // need to return something.
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  return EXIT_SUCCESS;
-#endif
+  if constexpr (sapi::sanitizers::IsAny()) {
+    return EXIT_SUCCESS;
+  }
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 

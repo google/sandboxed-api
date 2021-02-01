@@ -29,6 +29,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -166,10 +167,9 @@ std::string PolicyBuilderTest::Run(std::vector<std::string> args,
   }
 
   auto executor = absl::make_unique<sandbox2::Executor>(args[0], args);
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  executor->limits()->set_rlimit_as(RLIM64_INFINITY);
-#endif
+  if constexpr (sapi::sanitizers::IsAny()) {
+    executor->limits()->set_rlimit_as(RLIM64_INFINITY);
+  }
   int fd1 = executor->ipc()->ReceiveFd(STDOUT_FILENO);
   sandbox2::Sandbox2 s2(std::move(executor), builder.BuildOrDie());
 

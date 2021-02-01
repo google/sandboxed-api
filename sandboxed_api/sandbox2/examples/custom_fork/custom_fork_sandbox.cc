@@ -26,6 +26,7 @@
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
@@ -37,9 +38,10 @@
 #include "sandboxed_api/util/runfiles.h"
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
-  return sandbox2::PolicyBuilder()
-      // The most frequent syscall should go first in this sequence (to make it
-      // fast).
+  sandbox2::PolicyBuilder builder;
+  builder
+      // The most frequent syscall should go first in this
+      // sequence (to make it fast).
       .AllowRead()
       .AllowWrite()
       .AllowExit()
@@ -47,15 +49,14 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       .AllowSyscalls({
         __NR_close, __NR_getpid,
 #if defined(__NR_arch_prctl)
-            // Not defined with every CPU architecture in Prod.
+            // Not defined with every CPU architecture in prod.
             __NR_arch_prctl,
-#endif  // defined(__NR_arch_prctl)
-      })
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-      .AllowMmap()
 #endif
-      .BuildOrDie();
+      });
+  if constexpr (sapi::sanitizers::IsAny()) {
+    builder.AllowMmap();
+  }
+  return builder.BuildOrDie();
 }
 
 static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
@@ -68,14 +69,9 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
       ->limits()
       // Remove restrictions on the size of address-space of sandboxed
       // processes. Here, it's 1GiB.
-      ->set_rlimit_as(
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-          RLIM64_INFINITY
-#else
-          1ULL << 30  // 1GiB
-#endif
-          )
+      ->set_rlimit_as(sapi::sanitizers::IsAny() ? RLIM64_INFINITY
+                                                : 1ULL << 30  // 1GiB
+                      )
       // Kill sandboxed processes with a signal (SIGXFSZ) if it writes more than
       // these many bytes to the file-system (including logs in prod, which
       // write to files STDOUT and STDERR).
@@ -84,15 +80,12 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
       .set_rlimit_cpu(10 /* CPU-seconds */)
       .set_walltime_limit(absl::Seconds(5));
 
-  auto* comms = executor->ipc()->comms();
-
-  auto policy = GetPolicy();
-  sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
+  sandbox2::Sandbox2 s2(std::move(executor), GetPolicy());
 
   // Let the sandboxee run (asynchronously).
   CHECK(s2.RunAsync());
   // Send integer, which will be returned as the sandboxee's exit code.
-  CHECK(comms->SendInt32(i));
+  CHECK(s2.comms()->SendInt32(i));
   auto result = s2.AwaitResult();
 
   LOG(INFO) << "Final execution status of PID " << s2.GetPid() << ": "
@@ -111,10 +104,9 @@ int main(int argc, char** argv) {
   // This test is incompatible with sanitizers.
   // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
   // need to return something.
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  return EXIT_SUCCESS;
-#endif
+  if constexpr (sapi::sanitizers::IsAny()) {
+    return EXIT_SUCCESS;
+  }
 
   // Start a custom fork-server (via sandbox2::Executor).
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.

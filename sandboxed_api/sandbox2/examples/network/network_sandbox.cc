@@ -30,6 +30,7 @@
 #include <glog/logging.h>
 #include "absl/base/macros.h"
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -143,7 +144,7 @@ int ConnectToServer(int port) {
 }
 
 bool HandleSandboxee(sandbox2::Comms* comms, int port) {
-  // connect to the server and pass the file descriptor to sandboxee.
+  // Connect to the server and pass the file descriptor to sandboxee.
   int client = ConnectToServer(port);
   if (client <= 0) {
     LOG(ERROR) << "connect_to_server() failed";
@@ -165,10 +166,9 @@ int main(int argc, char** argv) {
   // This test is incompatible with sanitizers.
   // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
   // need to return something.
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  return EXIT_SUCCESS;
-#endif
+  if constexpr (sapi::sanitizers::IsAny()) {
+    return EXIT_SUCCESS;
+  }
   if (getenv("COVERAGE") != nullptr) {
     return EXIT_SUCCESS;
   }

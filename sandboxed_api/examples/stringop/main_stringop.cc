@@ -31,13 +31,13 @@
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/vars.h"
 
+namespace {
+
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::SizeIs;
 using ::testing::StrEq;
-
-namespace {
 
 // Tests using a simple transaction (and function pointers):
 TEST(StringopTest, ProtobufStringDuplication) {

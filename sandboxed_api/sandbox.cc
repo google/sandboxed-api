@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -92,12 +93,11 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
       })
       .AddFile("/etc/localtime")
       .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size) */);
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  LOG(WARNING) << "Allowing additional calls to support the LLVM "
-               << "(ASAN/MSAN/TSAN) sanitizer";
-  builder->AllowLlvmSanitizers();
-#endif
+  if constexpr (sanitizers::IsAny()) {
+    LOG(WARNING) << "Allowing additional calls to support the LLVM "
+                 << "(ASAN/MSAN/TSAN) sanitizer";
+    builder->AllowLlvmSanitizers();
+  }
 }
 
 void Sandbox::Terminate(bool attempt_graceful_exit) {

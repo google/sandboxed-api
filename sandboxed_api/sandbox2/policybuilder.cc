@@ -193,20 +193,19 @@ PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  AddPolicyOnSyscall(__NR_madvise, {
-                                       ARG_32(2),
-                                       JEQ32(MADV_DONTDUMP, ALLOW),
-                                       JEQ32(MADV_NOHUGEPAGE, ALLOW),
-                                   });
-  // Sanitizers read from /proc. For example:
-  // https://github.com/llvm-mirror/compiler-rt/blob/69445f095c22aac2388f939bedebf224a6efcdaf/lib/sanitizer_common/sanitizer_linux.cpp#L1101
-  AddDirectory("/proc");
-#endif
-#if defined(ADDRESS_SANITIZER)
-  AllowSyscall(__NR_sigaltstack);
-#endif
+  if constexpr (sapi::sanitizers::IsAny()) {
+    AddPolicyOnSyscall(__NR_madvise, {
+                                         ARG_32(2),
+                                         JEQ32(MADV_DONTDUMP, ALLOW),
+                                         JEQ32(MADV_NOHUGEPAGE, ALLOW),
+                                     });
+    // Sanitizers read from /proc. For example:
+    // https://github.com/llvm-mirror/compiler-rt/blob/69445f095c22aac2388f939bedebf224a6efcdaf/lib/sanitizer_common/sanitizer_linux.cpp#L1101
+    AddDirectory("/proc");
+  }
+  if constexpr (sapi::sanitizers::IsASan()) {
+    AllowSyscall(__NR_sigaltstack);
+  }
   return *this;
 }
 

@@ -34,6 +34,8 @@
 #include <functional>
 
 #include "google/protobuf/message.h"
+#include "absl/base/config.h"
+#include "absl/base/dynamic_annotations.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -44,10 +46,6 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/strerror.h"
-
-#ifdef MEMORY_SANITIZER
-#include "base/dynamic_annotations.h"
-#endif
 
 namespace sandbox2 {
 
@@ -241,13 +239,11 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
     if (!Send(&length, sizeof(length))) {
       return false;
     }
-    if (length > 0) {
-      if (!Send(value, length)) {
-        return false;
-      }
+    if (length > 0 && !Send(value, length)) {
+      return false;
     }
-    return true;
   }
+  return true;
 }
 
 bool Comms::RecvString(std::string* v) {
@@ -358,9 +354,7 @@ bool Comms::RecvFD(int* fd) {
   // msg struct has been fully populated. Apparently MSAN is not aware of
   // syscall(__NR_recvmsg) semantics so we need to suppress the error (here and
   // everywhere below).
-#ifdef MEMORY_SANITIZER
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&tlv, sizeof(tlv));
-#endif
 
   if (tlv.tag != kTagFd) {
     SAPI_RAW_LOG(ERROR, "Expected (kTagFD: 0x%x), got: 0x%u", kTagFd, tlv.tag);
@@ -368,9 +362,7 @@ bool Comms::RecvFD(int* fd) {
   }
 
   cmsg = CMSG_FIRSTHDR(&msg);
-#ifdef MEMORY_SANITIZER
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
-#endif
   while (cmsg) {
     if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
       if (cmsg->cmsg_len != CMSG_LEN(sizeof(int))) {
@@ -381,9 +373,7 @@ bool Comms::RecvFD(int* fd) {
       }
       int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
       *fd = fds[0];
-#ifdef MEMORY_SANITIZER
       ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(fd, sizeof(int));
-#endif
       return true;
     }
     cmsg = CMSG_NXTHDR(&msg, cmsg);
