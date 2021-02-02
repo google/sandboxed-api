@@ -20,7 +20,6 @@
 #include <linux/audit.h>
 #include <linux/ipc.h>
 #include <sched.h>
-#include <sys/mman.h>
 #include <syscall.h>
 
 #include <cstring>
