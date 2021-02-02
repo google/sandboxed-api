@@ -1,25 +1,24 @@
 ![Sandbox](sandboxed_api/docs/images/sapi-lockup-vertical.png)
 
-Copyright 2019-2020 Google LLC.
+Copyright 2019-2021 Google LLC.
 
 [![Bazel build status](https://badge.buildkite.com/2f662d7bddfd1c07d25bf92d243538c8344bc6fbf38fe187f8.svg)](https://buildkite.com/bazel/sandboxed-api)
 [![CMake build status](https://github.com/google/sandboxed-api/workflows/CMake/badge.svg)](https://github.com/google/sandboxed-api/actions?query=workflow%3ACMake)
 
 ## What is Sandboxed API?
 
-The Sandboxed API project (**SAPI**) aims to make sandboxing of C/C++ libraries
-less burdensome: after initial setup of security policies and generation of
-library interfaces, an almost-identical stub API is generated, transparently
-forwarding calls using a custom RPC layer to the real library running inside a
-sandboxed environment.
+The Sandboxed API project (**SAPI**) makes sandboxing of C/C++ libraries less
+burdensome: after initial setup of security policies and generation of library
+interfaces, a stub API is generated, transparently forwarding calls using a
+custom RPC layer to the real library running inside a sandboxed environment.
 
 Additionally, each SAPI library utilizes a tightly defined security policy, in
-contrast to the typical sandboxed project, where security policies must cover the total
-syscall/resource footprint of all utilized libraries.
+contrast to the typical sandboxed project, where security policies must cover
+the total syscall/resource footprint of all its libraries.
 
 ## Documentation
 
-Detailed developer documentation is available on the Google Developers site for
+Developer documentation is available on the Google Developers site for
 [Sandboxed API](https://developers.google.com/sandboxed-api).
 
 There is also a
@@ -33,4 +32,5 @@ send us pull requests. You can also report bugs or file feature requests.
 
 If you'd like to talk to the developers or get notified about major product
 updates, you may want to subscribe to our
-[mailing list](mailto:sandboxed-api-users@googlegroups.com) or sign up with this [link](https://groups.google.com/forum/#!forum/sandboxed-api-users).
+[mailing list](mailto:sandboxed-api-users@googlegroups.com) or sign up with this
+[link](https://groups.google.com/forum/#!forum/sandboxed-api-users).
