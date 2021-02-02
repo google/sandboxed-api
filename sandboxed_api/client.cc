@@ -340,11 +340,7 @@ void ServeRequest(sandbox2::Comms* comms) {
 
   CHECK(comms->RecvTLV(&tag, &bytes));
 
-  FuncRet ret = {
-      .ret_type = v::Type::kVoid,
-      .int_val = static_cast<uintptr_t>(Error::kUnset),
-      .success = false,
-  };
+  FuncRet ret{};  // Brace-init zeroes struct padding
 
   switch (tag) {
     case comms::kMsgCall:
