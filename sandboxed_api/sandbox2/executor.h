@@ -54,14 +54,6 @@ class Executor final {
     SetUpServerSideCommsFd();
   }
 
-  // As above, but with `const std::vector<std::string>&`
-  // Templated to avoid ambiguity with the absl::Span overloads when called
-  // with brace-initializers.
-  template <typename = void>
-  Executor(absl::string_view path, const std::vector<std::string>& argv,
-           const std::vector<std::string>& envp = CopyEnviron())
-      : Executor(path, absl::MakeSpan(argv), absl::MakeSpan(envp)) {}
-
   // Executor will own this file-descriptor, so if intend to use it, pass here
   // dup(fd) instead
   Executor(int exec_fd, absl::Span<const std::string> argv,
@@ -72,14 +64,6 @@ class Executor final {
     CHECK_GE(exec_fd, 0);
     SetUpServerSideCommsFd();
   }
-
-  // As above, but with `const std::vector<std::string>&`
-  // Templated to avoid ambiguity with the absl::Span overloads when called
-  // with brace-initializers.
-  template <typename = void>
-  Executor(int exec_fd, const std::vector<std::string>& argv,
-           const std::vector<std::string>& envp)
-      : Executor(exec_fd, absl::MakeSpan(argv), absl::MakeSpan(envp)) {}
 
   // Uses a custom ForkServer (which the supplied ForkClient can communicate
   // with), which knows how to fork (or even execute) new sandboxed processes
