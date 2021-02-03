@@ -89,8 +89,6 @@ target_include_directories(sapi_base INTERFACE
   "${SAPI_BINARY_DIR}"
   "${SAPI_SOURCE_DIR}"
   "${Protobuf_INCLUDE_DIR}"
-  # Need to reach into Abseil internal headers from a few targets.
-  "${CMAKE_BINARY_DIR}/absl-src"
 )
 if(UNIX)
   foreach(flag IN ITEMS -Wno-deprecated

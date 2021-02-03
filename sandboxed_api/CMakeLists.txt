@@ -25,9 +25,9 @@ add_library(sapi_config ${SAPI_LIB_TYPE}
   config.h
 )
 add_library(sapi::config ALIAS sapi_config)
-target_link_libraries(sapi_config PRIVATE
-  absl::config
-  sapi::base
+target_link_libraries(sapi_config
+  PRIVATE sapi::base
+  INTERFACE absl::config
 )
 
 # sandboxed_api:proto_arg

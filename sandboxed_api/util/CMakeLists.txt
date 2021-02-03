@@ -65,11 +65,13 @@ add_library(sapi_util_raw_logging ${SAPI_LIB_TYPE}
   raw_logging.h
 )
 add_library(sapi::raw_logging ALIAS sapi_util_raw_logging)
-target_link_libraries(sapi_util_raw_logging PRIVATE
-  absl::str_format
-  absl::strings
-  sapi::strerror
-  sapi::base
+target_link_libraries(sapi_util_raw_logging
+  PRIVATE absl::config
+          absl::str_format
+          absl::strings
+          sapi::strerror
+          sapi::base
+  INTERFACE absl::core_headers
 )
 
 # sandboxed_api/util:runfiles
