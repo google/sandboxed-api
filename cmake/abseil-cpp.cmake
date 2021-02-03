@@ -12,12 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Downloads and unpacks Abseil at configure time
+set(workdir "${CMAKE_BINARY_DIR}/_deps/absl-populate")
 
-set(workdir "${CMAKE_BINARY_DIR}/absl-download")
+set(SAPI_ABSL_GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
+                             CACHE STRING "")
+set(SAPI_ABSL_GIT_TAG 4fd9a1ec5077daac14eeee05df931d658ec0b7b8
+                      CACHE STRING "") # 2020-11-19
+set(SAPI_ABSL_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/absl-src" CACHE STRING "")
+set(SAPI_ABSL_BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/absl-build" CACHE STRING "")
 
-configure_file("${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt.in"
-               "${workdir}/CMakeLists.txt")
+file(WRITE "${workdir}/CMakeLists.txt" "\
+cmake_minimum_required(VERSION ${CMAKE_VERSION})
+project(absl-populate NONE)
+include(ExternalProject)
+ExternalProject_Add(absl
+  GIT_REPOSITORY    \"${SAPI_ABSL_GIT_REPOSITORY}\"
+  GIT_TAG           \"${SAPI_ABSL_GIT_TAG}\"
+  SOURCE_DIR        \"${SAPI_ABSL_SOURCE_DIR}\"
+  BINARY_DIR        \"${SAPI_ABSL_BINARY_DIR}\"
+  CONFIGURE_COMMAND \"\"
+  BUILD_COMMAND     \"\"
+  INSTALL_COMMAND   \"\"
+  TEST_COMMAND      \"\"
+)
+")
+
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
                 RESULT_VARIABLE error
                 WORKING_DIRECTORY "${workdir}")
@@ -42,8 +61,8 @@ set(BUILD_TESTING OFF)  # Avoid errors when re-configuring SAPI
 set(ABSL_CXX_STANDARD ${SAPI_CXX_STANDARD} CACHE STRING "" FORCE)
 set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
 
-add_subdirectory("${CMAKE_BINARY_DIR}/absl-src"
-                 "${CMAKE_BINARY_DIR}/absl-build" EXCLUDE_FROM_ALL)
+add_subdirectory("${SAPI_ABSL_SOURCE_DIR}"
+                 "${SAPI_ABSL_BINARY_DIR}" EXCLUDE_FROM_ALL)
 
 if(_sapi_saved_BUILD_TESTING)
   set(BUILD_TESTING "${_sapi_saved_BUILD_TESTING}")
