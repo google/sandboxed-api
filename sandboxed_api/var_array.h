@@ -113,7 +113,7 @@ class Array : public Var, public Pointable {
     } else {
       new_addr = malloc(size);
       if (new_addr) {
-        memcpy(new_addr, arr_, total_size_);
+        memcpy(new_addr, arr_, std::min(size, total_size_));
         buffer_owned_ = true;
       }
     }
