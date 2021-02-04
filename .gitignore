@@ -11,7 +11,8 @@ build/
 *.py[co]
 __py_cache__/
 # IDE files
+.cache/
 .clangd/
+.idea/
 .vscode/
-.idea
 compile_commands.json
