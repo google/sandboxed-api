@@ -129,6 +129,10 @@ class Result {
   StatusEnum final_status() const { return final_status_; }
   uintptr_t reason_code() const { return reason_code_; }
 
+  // If true, indicates that the non-OK status is transient and a retry might
+  // succeed.
+  bool IsRetryable() const { return false; }
+
   // Returns the current syscall architecture.
   // Client architecture when final_status_ == VIOLATION, might be different
   // from the host architecture (32-bit vs 64-bit syscalls).
@@ -136,7 +140,7 @@ class Result {
     return syscall_ ? syscall_->arch() : sapi::cpu::kUnknown;
   }
 
-  const std::vector<std::string> stack_trace() { return stack_trace_; }
+  const std::vector<std::string>& stack_trace() const { return stack_trace_; }
 
   // Returns the stack trace as a space-delimited string.
   std::string GetStackTrace() const;
