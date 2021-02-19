@@ -423,12 +423,8 @@ add_library(sandbox2_mounts ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::mounts ALIAS sandbox2_mounts)
 target_link_libraries(sandbox2_mounts
-  PRIVATE absl::core_headers
-          absl::flat_hash_set
-          absl::status
-          absl::statusor
+  PRIVATE absl::flat_hash_set
           absl::str_format
-          absl::strings
           protobuf::libprotobuf
           sapi::config
           sapi::file_base
@@ -438,7 +434,11 @@ target_link_libraries(sandbox2_mounts
           sapi::base
           sapi::raw_logging
           sapi::status
-  PUBLIC sandbox2::mounttree_proto
+  PUBLIC absl::core_headers
+         absl::status
+         absl::statusor
+         absl::strings
+         sandbox2::mounttree_proto
 )
 
 # sandboxed_api/sandbox2:namespace

@@ -217,13 +217,8 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
 
   // The exe_path will have a mountable path of the application, even if it was
   // removed.
-  std::string exe_path;
-
   // Resolve app_path backing file.
-  const auto* app_node = mounts.GetNode(app_path);
-  if (app_node) {
-    exe_path = app_node->file_node().outside();
-  }
+  std::string exe_path = mounts.ResolvePath(app_path).value_or("");
 
   if (exe_path.empty()) {
     // File was probably removed.

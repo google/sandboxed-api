@@ -34,6 +34,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/fileops.h"
@@ -46,12 +47,11 @@ namespace sandbox2 {
 namespace {
 
 namespace cpu = ::sapi::cpu;
-namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
 namespace host_cpu = ::sapi::host_cpu;
 
 bool PathContainsNullByte(absl::string_view path) {
-  return path.find('\x00') != absl::string_view::npos;
+  return absl::StrContains(path, '\x00');
 }
 
 bool IsSameFile(const std::string& path1, const std::string& path2) {
@@ -105,7 +105,8 @@ absl::string_view GetOutsidePath(const MountTree::Node& node) {
 
 absl::StatusOr<std::string> ExistingPathInsideDir(
     absl::string_view dir_path, absl::string_view relative_path) {
-  auto path = file::CleanPath(file::JoinPath(dir_path, relative_path));
+  auto path =
+      sapi::file::CleanPath(sapi::file::JoinPath(dir_path, relative_path));
   if (file_util::fileops::StripBasename(path) != dir_path) {
     return absl::InvalidArgumentError("Relative path goes above the base dir");
   }
@@ -192,9 +193,9 @@ absl::Status Mounts::Insert(absl::string_view path,
       break;
   }
 
-  std::string fixed_path = file::CleanPath(path);
+  std::string fixed_path = sapi::file::CleanPath(path);
 
-  if (!file::IsAbsolutePath(fixed_path)) {
+  if (!sapi::file::IsAbsolutePath(fixed_path)) {
     return absl::InvalidArgumentError("Only absolute paths are supported");
   }
 
@@ -202,22 +203,15 @@ absl::Status Mounts::Insert(absl::string_view path,
     return absl::InvalidArgumentError("The root already exists");
   }
 
-  std::vector<absl::string_view> parts;
-
-  auto split = file::SplitPath(fixed_path);
-  absl::string_view cur = split.first;
-  auto final_part = std::string(split.second);
-
-  while (cur != "/") {
-    auto split = file::SplitPath(cur);
-    cur = split.first;
-    parts.push_back(split.second);
-  }
+  std::vector<absl::string_view> parts =
+      absl::StrSplit(absl::StripPrefix(fixed_path, "/"), '/');
+  std::string final_part(parts.back());
+  parts.pop_back();
 
   MountTree* curtree = &mount_tree_;
-  for (auto part = parts.rbegin(); part != parts.rend(); ++part) {
+  for (absl::string_view part : parts) {
     curtree = &(curtree->mutable_entries()
-                    ->insert({std::string(*part), MountTree()})
+                    ->insert({std::string(part), MountTree()})
                     .first->second);
     if (curtree->has_node() && curtree->node().has_file_node()) {
       return absl::FailedPreconditionError(
@@ -272,26 +266,38 @@ absl::Status Mounts::AddDirectoryAt(absl::string_view outside,
   return Insert(inside, node);
 }
 
-const MountTree::Node* Mounts::GetNode(const std::string& path) const {
-  std::string fixed_path = file::CleanPath(path);
-  absl::string_view cur = fixed_path;
-  std::vector<std::string> parts;
-
-  while (cur != "/") {
-    auto split = file::SplitPath(cur);
-    cur = split.first;
-    parts.push_back(std::string(split.second));
+absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
+  if (!sapi::file::IsAbsolutePath(path)) {
+    return absl::InvalidArgumentError("Path has to be absolute");
   }
+  std::string fixed_path = sapi::file::CleanPath(path);
+  absl::string_view tail = absl::StripPrefix(fixed_path, "/");
 
   const MountTree* curtree = &mount_tree_;
-  for (auto part = parts.rbegin(); part != parts.rend(); ++part) {
-    const auto& p = curtree->entries().find(*part);
-    if (p == curtree->entries().end()) {
-      return nullptr;
+  while (!tail.empty()) {
+    std::pair<absl::string_view, absl::string_view> parts =
+        absl::StrSplit(tail, absl::MaxSplits('/', 1));
+    absl::string_view cur = parts.first;
+    tail = parts.second;
+    const auto it = curtree->entries().find(cur);
+    if (it == curtree->entries().end()) {
+      if (curtree->node().has_dir_node()) {
+        return sapi::file::JoinPath(curtree->node().dir_node().outside(), tail);
+      }
+      return absl::NotFoundError("Path could not be resolved in the mounts");
     }
-    curtree = &p->second;
+    curtree = &it->second;
   }
-  return &curtree->node();
+  switch (curtree->node().node_case()) {
+    case MountTree::Node::kFileNode:
+    case MountTree::Node::kDirNode:
+      return std::string(GetOutsidePath(curtree->node()));
+    case MountTree::Node::kRootNode:
+    case MountTree::Node::kTmpfsNode:
+    case MountTree::Node::NODE_NOT_SET:
+      break;
+  }
+  return absl::NotFoundError("Path could not be resolved in the mounts");
 }
 
 namespace {
@@ -347,7 +353,7 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
       std::string path = search_path;
       for (int hw_cap = 0; hw_cap < hw_cap_paths.size(); ++hw_cap) {
         if ((hw_caps_set & (1 << hw_cap)) != 0) {
-          path = file::JoinPath(path, hw_cap_paths[hw_cap]);
+          path = sapi::file::JoinPath(path, hw_cap_paths[hw_cap]);
         }
       }
       if (file_util::fileops::Exists(path, /*fully_resolve=*/false)) {
@@ -647,7 +653,7 @@ void CreateMounts(const MountTree& tree, const std::string& path,
 
   // Traverse the subtrees.
   for (const auto& kv : tree.entries()) {
-    std::string new_path = file::JoinPath(path, kv.first);
+    std::string new_path = sapi::file::JoinPath(path, kv.first);
     CreateMounts(kv.second, new_path, create_backing_files);
   }
 }

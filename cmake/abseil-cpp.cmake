@@ -16,7 +16,7 @@ set(workdir "${CMAKE_BINARY_DIR}/_deps/absl-populate")
 
 set(SAPI_ABSL_GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
                              CACHE STRING "")
-set(SAPI_ABSL_GIT_TAG 4fd9a1ec5077daac14eeee05df931d658ec0b7b8
+set(SAPI_ABSL_GIT_TAG b315753c0b8b4aa4e3e1479375eddb518393bab6
                       CACHE STRING "") # 2020-11-19
 set(SAPI_ABSL_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/absl-src" CACHE STRING "")
 set(SAPI_ABSL_BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/absl-build" CACHE STRING "")

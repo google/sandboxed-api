@@ -20,6 +20,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/mounttree.pb.h"
 
@@ -76,7 +77,7 @@ class Mounts {
   void RecursivelyListMounts(std::vector<std::string>* outside_entries,
                              std::vector<std::string>* inside_entries);
 
-  const MountTree::Node* GetNode(const std::string& path) const;
+  absl::StatusOr<std::string> ResolvePath(absl::string_view path) const;
 
  private:
   friend class MountTreeTest;
