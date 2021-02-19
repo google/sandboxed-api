@@ -241,11 +241,11 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
   if (!policy) {
     return false;
   }
-  auto* comms = executor->ipc()->comms();
   Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   VLOG(1) << "Running libunwind sandbox";
   sandbox.RunAsync();
+  Comms* comms = sandbox.comms();
 
   UnwindSetup msg;
   msg.set_pid(pid);

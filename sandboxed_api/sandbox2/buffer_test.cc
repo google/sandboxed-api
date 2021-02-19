@@ -141,12 +141,10 @@ TEST(BufferTest, TestWithSandboxeeSendRecv) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/buffer");
   std::vector<std::string> args = {path, "2"};
   auto executor = absl::make_unique<Executor>(path, args);
-  auto* comms = executor->ipc()->comms();
 
-  auto policy = BufferTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::move(executor), BufferTestcasePolicy());
   ASSERT_THAT(s2.RunAsync(), IsTrue());
+  Comms* comms = s2.comms();
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
                             Buffer::CreateWithSize(1ULL << 20 /* 1MiB */));

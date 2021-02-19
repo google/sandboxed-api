@@ -116,10 +116,7 @@ int main(int argc, char** argv) {
       .set_rlimit_cpu(60)  // The CPU time limit in seconds.
       .set_walltime_limit(absl::Seconds(5));
 
-  auto* comms = executor->ipc()->comms();
-  auto policy = GetPolicy();
-
-  sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
+  sandbox2::Sandbox2 s2(std::move(executor), GetPolicy());
 
   // Let the sandboxee run.
   if (!s2.RunAsync()) {
@@ -127,6 +124,8 @@ int main(int argc, char** argv) {
     LOG(ERROR) << "RunAsync failed: " << result.ToString();
     return 2;
   }
+
+  sandbox2::Comms* comms = s2.comms();
 
   uint32_t crc4;
   if (!SandboxedCRC4(comms, &crc4)) {

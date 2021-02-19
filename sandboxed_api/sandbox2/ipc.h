@@ -37,6 +37,7 @@ class IPC final {
 
   ~IPC() { InternalCleanupFdMap(); }
 
+  ABSL_DEPRECATED("Use Sandbox2::comms() instead")
   Comms* comms() const { return comms_.get(); }
 
   // Marks local_fd so that it should be sent to the remote process (sandboxee),
