@@ -205,6 +205,10 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   }
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
+    // asan uses a custom allocator that runs mmap under the hood.  For example:
+    // https://github.com/llvm/llvm-project/blob/596d534ac3524052df210be8d3c01a33b2260a42/compiler-rt/lib/asan/asan_allocator.cpp#L980
+    // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
+    AllowMmap();
   }
   return *this;
 }
