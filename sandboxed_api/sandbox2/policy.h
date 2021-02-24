@@ -48,7 +48,6 @@ class Comms;
 
 class Policy final {
  public:
-
   // Skips creation of a user namespace and keep capabilities in the global
   // namespace. This only makes sense in some rare cases where the sandbox is
   // started as root, please talk to sandbox-team@ before using this function.
