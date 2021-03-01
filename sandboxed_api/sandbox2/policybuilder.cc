@@ -425,6 +425,31 @@ PolicyBuilder& PolicyBuilder::AllowGetIDs() {
   });
 }
 
+PolicyBuilder& PolicyBuilder::AllowRestartableSequences() {
+  AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
+    return {
+        ARG_32(2),  // prot
+        JEQ32(PROT_READ | PROT_WRITE, ALLOW),
+
+        ARG_32(3),  // flags
+        JEQ32(MAP_PRIVATE | MAP_ANONYMOUS, ALLOW),
+    };
+  });
+
+  AddFile("/proc/self/cpuset");
+#ifdef __NR_rseq
+  AllowSyscall(__NR_rseq);
+#endif
+  AllowFutexOp(FUTEX_WAIT);
+  AllowFutexOp(FUTEX_WAKE);
+  AddPolicyOnSyscall(__NR_rt_sigprocmask, {
+                                              ARG_32(0),
+                                              JEQ32(SIG_SETMASK, ALLOW),
+                                          });
+  return AllowSyscalls({__NR_membarrier, __NR_getcpu, __NR_sched_getaffinity,
+                        __NR_sched_setaffinity});
+}
+
 PolicyBuilder& PolicyBuilder::AllowGetPIDs() {
   return AllowSyscalls({
       __NR_getpid,
@@ -785,11 +810,14 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
   auto fixed_outside = std::move(fixed_outside_or).value();
 
   if (absl::StartsWith(fixed_outside, "/proc/self")) {
-    SetError(absl::InvalidArgumentError(
-        absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
-                     "whole /proc instead. You tried to mount ",
-                     outside)));
-    return *this;
+    // exception: /proc/self/cpuset
+    if (outside != "/proc/self/cpuset") {
+      SetError(absl::InvalidArgumentError(
+          absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
+                       "whole /proc instead. You tried to mount ",
+                       outside)));
+      return *this;
+    }
   }
 
   if (auto status = mounts_.AddFileAt(fixed_outside, inside, is_ro);

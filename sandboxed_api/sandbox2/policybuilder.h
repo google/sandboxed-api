@@ -112,6 +112,20 @@ class PolicyBuilder final {
   // - exit_group
   PolicyBuilder& AllowExit();
 
+  // Appends code to allow restartable sequences.
+  // Allows these syscalls:
+  // - rseq
+  // - mmap(null, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS)
+  // - getcpu,
+  // - membarrier
+  // - sched_getaffinity
+  // - sched_setaffinity
+  // - futex(WAIT) and futex(WAKE)
+  // - sigmask(SET_MASK)
+  // Allows these files (which will enable namespaces):
+  // - "/proc/self/cpuset"
+  PolicyBuilder& AllowRestartableSequences();
+
   // Appends code to allow the scudo version of malloc, free and
   // friends. This should be used in conjunction with namespaces. If scudo
   // options are passed to the sandboxee through an environment variable, access
