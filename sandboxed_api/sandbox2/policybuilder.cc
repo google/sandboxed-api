@@ -127,13 +127,10 @@ PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
 
 PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowTime();
+  AllowRestartableSequences();
   AllowSyscalls(
       {__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore, __NR_membarrier});
-  AllowFutexOp(FUTEX_WAKE);
   AllowLimitedMadvise();
-#ifdef __NR_rseq
-  AllowSyscall(__NR_rseq);
-#endif
 
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
@@ -436,7 +433,6 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences() {
     };
   });
 
-  AddFile("/proc/self/cpuset");
 #ifdef __NR_rseq
   AllowSyscall(__NR_rseq);
 #endif
@@ -446,8 +442,7 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences() {
                                               ARG_32(0),
                                               JEQ32(SIG_SETMASK, ALLOW),
                                           });
-  return AllowSyscalls({__NR_membarrier, __NR_getcpu, __NR_sched_getaffinity,
-                        __NR_sched_setaffinity});
+  return AllowSyscalls({__NR_membarrier, __NR_getcpu});
 }
 
 PolicyBuilder& PolicyBuilder::AllowGetPIDs() {
@@ -810,14 +805,11 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
   auto fixed_outside = std::move(fixed_outside_or).value();
 
   if (absl::StartsWith(fixed_outside, "/proc/self")) {
-    // exception: /proc/self/cpuset
-    if (outside != "/proc/self/cpuset") {
-      SetError(absl::InvalidArgumentError(
-          absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
-                       "whole /proc instead. You tried to mount ",
-                       outside)));
-      return *this;
-    }
+    SetError(absl::InvalidArgumentError(
+        absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
+                     "whole /proc instead. You tried to mount ",
+                     outside)));
+    return *this;
   }
 
   if (auto status = mounts_.AddFileAt(fixed_outside, inside, is_ro);
