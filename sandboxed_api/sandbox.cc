@@ -220,14 +220,14 @@ absl::Status Sandbox::Allocate(v::Var* var, bool automatic_free) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->Allocate(GetRpcChannel(), automatic_free);
+  return var->Allocate(rpc_channel(), automatic_free);
 }
 
 absl::Status Sandbox::Free(v::Var* var) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->Free(GetRpcChannel());
+  return var->Free(rpc_channel());
 }
 
 absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
@@ -259,7 +259,7 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   VLOG(3) << "Synchronization (TO), ptr " << p << ", Type: " << p->GetSyncType()
           << " for var: " << p->GetPointedVar()->ToString();
 
-  return p->GetPointedVar()->TransferToSandboxee(GetRpcChannel(), pid());
+  return p->GetPointedVar()->TransferToSandboxee(rpc_channel(), pid());
 }
 
 absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
@@ -287,7 +287,7 @@ absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
         p->ToString()));
   }
 
-  return p->GetPointedVar()->TransferFromSandboxee(GetRpcChannel(), pid());
+  return p->GetPointedVar()->TransferFromSandboxee(rpc_channel(), pid());
 }
 
 absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
@@ -347,7 +347,7 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
   // Call & receive data.
   FuncRet fret;
   SAPI_RETURN_IF_ERROR(
-      GetRpcChannel()->Call(rfcall, comms::kMsgCall, &fret, rfcall.ret_type));
+      rpc_channel()->Call(rfcall, comms::kMsgCall, &fret, rfcall.ret_type));
 
   if (fret.ret_type == v::Type::kFloat) {
     ret->SetDataFromPtr(&fret.float_val, sizeof(fret.float_val));
@@ -381,14 +381,14 @@ absl::Status Sandbox::TransferToSandboxee(v::Var* var) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->TransferToSandboxee(GetRpcChannel(), pid());
+  return var->TransferToSandboxee(rpc_channel(), pid());
 }
 
 absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->TransferFromSandboxee(GetRpcChannel(), pid());
+  return var->TransferFromSandboxee(rpc_channel(), pid());
 }
 
 absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
@@ -397,7 +397,7 @@ absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
     return absl::UnavailableError("Sandbox not active");
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto len, GetRpcChannel()->Strlen(str.GetValue()));
+  SAPI_ASSIGN_OR_RETURN(auto len, rpc_channel()->Strlen(str.GetValue()));
   if (len > max_length) {
     return absl::InvalidArgumentError(
         absl::StrCat("Target string too large: ", len, " > ", max_length));
