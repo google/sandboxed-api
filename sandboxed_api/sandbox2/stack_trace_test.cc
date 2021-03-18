@@ -160,14 +160,21 @@ static size_t FileCountInDirectory(const std::string& path) {
 
 TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
   SKIP_SANITIZERS_AND_COVERAGE;
+  TemporaryFlagOverride<bool> temp_override(
+      &FLAGS_sandbox_libunwind_crash_handler, true);
+
+  // Very first sanitization might create some fds (e.g. for initial
+  // namespaces).
+  SymbolizationWorksCommon([](PolicyBuilder* builder) {
+    builder->AddFile("/sys/devices/system/cpu/online");
+  });
+
   // Get list of open FDs in the global forkserver.
   pid_t forkserver_pid = GlobalForkClient::GetPid();
   std::string forkserver_fd_path =
       absl::StrCat("/proc/", forkserver_pid, "/fd");
   size_t filecount_before = FileCountInDirectory(forkserver_fd_path);
 
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, true);
   SymbolizationWorksCommon([](PolicyBuilder* builder) {
     builder->AddFile("/sys/devices/system/cpu/online");
   });
