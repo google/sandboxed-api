@@ -77,4 +77,9 @@ extern "C" const void* get_raw_c_string() { return "Ten chars."; }
 
 extern "C" void nop() {}
 
-extern "C" void violate() { ptrace((__ptrace_request)990, 991, 992, 993); }
+extern "C" void violate() {
+  ptrace((__ptrace_request)990, 991, 992, 993);
+  // Once more to avoid tail-call optimization, so that violate is in the
+  // stacktrace.
+  ptrace((__ptrace_request)990, 991, 992, 993);
+}
