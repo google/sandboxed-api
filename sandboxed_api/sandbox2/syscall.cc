@@ -47,7 +47,6 @@ std::string Syscall::GetArchDescription(sapi::cpu::Architecture arch) {
     case sapi::cpu::kArm:
       return "[Arm-32]";
     default:
-      LOG(ERROR) << "Unknown CPU architecture: " << arch;
       return absl::StrFormat("[UNKNOWN_ARCH:%d]", arch);
   }
 }
