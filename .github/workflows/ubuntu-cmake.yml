@@ -7,16 +7,57 @@ env:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-20.04, ubuntu-18.04]
+        include:
+          - os: ubuntu-20.04
+            compiler: clang
+            compiler-version: 11
+            ignore-errors: false
+          - os: ubuntu-20.04
+            compiler: clang
+            compiler-version: 10
+            ignore-errors: false
+          - os: ubuntu-18.04
+            compiler: clang
+            compiler-version: "6.0"
+            # This compiler is supported only on a best-effort basis
+            ignore-errors: true
+          - os: ubuntu-20.04
+            compiler: gcc
+            compiler-version: 10
+            ignore-errors: false
+          - os: ubuntu-20.04
+            compiler: gcc
+            compiler-version: 9
+            ignore-errors: false
+          - os: ubuntu-18.04
+            compiler: gcc
+            compiler-version: 7
+            ignore-errors: false
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.ignore-errors }}
 
     steps:
     - uses: actions/checkout@v2
 
     - name: Install ninja-build tool
       uses: seanmiddleditch/gha-setup-ninja@v3
+
+    - name: Install/configure Clang compiler toolchain
+      if: matrix.compiler == 'clang'
+      run: |
+        sudo apt-get install -qy clang-${{matrix.compiler-version}}
+        echo "CXX=clang++-${{matrix.compiler-version}}" >> $GITHUB_ENV
+        echo "CC=clang-${{matrix.compiler-version}}" >> $GITHUB_ENV
+
+    - name: Install/configure GCC compiler toolchain
+      if: matrix.compiler == 'gcc'
+      run: |
+        sudo apt-get install -qy g++-${{matrix.compiler-version}}
+        echo "CXX=g++-${{matrix.compiler-version}}" >> $GITHUB_ENV
+        echo "CC=gcc-${{matrix.compiler-version}}" >> $GITHUB_ENV
 
     - name: Create Build Environment
       run: |
