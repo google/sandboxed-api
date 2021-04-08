@@ -51,7 +51,7 @@ namespace file_util = ::sapi::file_util;
 namespace host_cpu = ::sapi::host_cpu;
 
 bool PathContainsNullByte(absl::string_view path) {
-  return absl::StrContains(path, '\x00');
+  return absl::StrContains(path, '\0');
 }
 
 bool IsSameFile(const std::string& path1, const std::string& path2) {
@@ -277,7 +277,7 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
   while (!tail.empty()) {
     std::pair<absl::string_view, absl::string_view> parts =
         absl::StrSplit(tail, absl::MaxSplits('/', 1));
-    absl::string_view cur = parts.first;
+    const std::string cur(parts.first);
     tail = parts.second;
     const auto it = curtree->entries().find(cur);
     if (it == curtree->entries().end()) {
