@@ -19,7 +19,6 @@
 #include <type_traits>
 
 #include <glog/logging.h>
-#include "absl/base/dynamic_annotations.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
@@ -58,10 +57,10 @@ class Reg : public Callable {
                 "Only register-sized types are allowed as template argument "
                 "for class Reg.");
 
-  explicit Reg(const T val = {}) {
+  Reg() : Reg(static_cast<T>(0)) {}
+
+  explicit Reg(const T val) {
     val_ = val;
-    // Make MSAN happy with long double.
-    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(val_, sizeof(val_));
     SetLocal(&val_);
   }
 

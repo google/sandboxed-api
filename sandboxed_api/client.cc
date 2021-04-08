@@ -396,8 +396,6 @@ void ServeRequest(sandbox2::Comms* comms) {
   }
 
   if (ret.ret_type == v::Type::kFloat) {
-    // Make MSAN happy with long double.
-    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(ret.float_val, sizeof(ret.float_val));
     VLOG(1) << "Returned value: " << ret.float_val
             << ", Success: " << (ret.success ? "Yes" : "No");
   } else {
