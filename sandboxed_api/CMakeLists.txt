@@ -150,6 +150,7 @@ add_library(sapi_vars ${SAPI_LIB_TYPE}
 add_library(sapi::vars ALIAS sapi_vars)
 target_link_libraries(sapi_vars
   PRIVATE absl::core_headers
+          absl::dynamic_annotations
           absl::status
           absl::statusor
           absl::str_format
