@@ -127,7 +127,7 @@ PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
 
 PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowTime();
-  AllowRestartableSequences();
+  AllowRestartableSequences(kRequireFastFences);
   AllowSyscalls(
       {__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore, __NR_membarrier});
   AllowLimitedMadvise();
@@ -422,7 +422,8 @@ PolicyBuilder& PolicyBuilder::AllowGetIDs() {
   });
 }
 
-PolicyBuilder& PolicyBuilder::AllowRestartableSequences() {
+PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
+    CpuFenceMode cpu_fence_mode) {
   AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
     return {
         ARG_32(2),  // prot
@@ -432,7 +433,10 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences() {
         JEQ32(MAP_PRIVATE | MAP_ANONYMOUS, ALLOW),
     };
   });
-
+  if (cpu_fence_mode == kAllowSlowFences) {
+    AddFile("/proc/self/cpuset");
+    AllowSyscalls({__NR_sched_getaffinity, __NR_sched_setaffinity});
+  }
 #ifdef __NR_rseq
   AllowSyscall(__NR_rseq);
 #endif
@@ -804,7 +808,8 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
   }
   auto fixed_outside = std::move(fixed_outside_or).value();
 
-  if (absl::StartsWith(fixed_outside, "/proc/self")) {
+  if (absl::StartsWith(fixed_outside, "/proc/self") &&
+      fixed_outside != "/proc/self/cpuset") {
     SetError(absl::InvalidArgumentError(
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",

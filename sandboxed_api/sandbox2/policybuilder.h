@@ -89,6 +89,15 @@ namespace sandbox2 {
 // For a more complicated example, see examples/persistent/persistent_sandbox.cc
 class PolicyBuilder final {
  public:
+  // Possible CPU fence modes for `AllowRestartableSequences()`
+  enum CpuFenceMode {
+    // Allow only fast fences for restartable sequences.
+    kRequireFastFences,
+
+    // Allow fast fences as well as slow fences if fast fences are unavailable.
+    kAllowSlowFences,
+  };
+
   static constexpr absl::string_view kDefaultHostname = "sandbox2";
 
   using BpfInitializer = std::initializer_list<sock_filter>;
@@ -120,7 +129,16 @@ class PolicyBuilder final {
   // - membarrier
   // - futex(WAIT) and futex(WAKE)
   // - sigmask(SET_MASK)
-  PolicyBuilder& AllowRestartableSequences();
+  //
+  // If `cpu_fence_mode` is `kAllowSlowFences`, allow for slow cpu fences which
+  // will enable namespaces and these syscalls and files:
+  // - sched_getaffinity
+  // - sched_setaffinity
+  // - "/proc/self/cpuset"
+  //
+  // If `allow_slow_fences` is false, RSEQ functions may not be enabled if
+  // fast CPU fences are not available.
+  PolicyBuilder& AllowRestartableSequences(CpuFenceMode cpu_fence_mode);
 
   // Appends code to allow the scudo version of malloc, free and
   // friends. This should be used in conjunction with namespaces. If scudo
