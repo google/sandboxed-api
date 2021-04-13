@@ -75,7 +75,8 @@ add_library(sapi_sapi ${SAPI_LIB_TYPE}
 )
 add_library(sapi::sapi ALIAS sapi_sapi)
 target_link_libraries(sapi_sapi
-  PRIVATE absl::flat_hash_map
+  PRIVATE absl::dynamic_annotations
+          absl::flat_hash_map
           absl::memory
           absl::status
           absl::statusor

@@ -57,9 +57,7 @@ class Reg : public Callable {
                 "Only register-sized types are allowed as template argument "
                 "for class Reg.");
 
-  Reg() : Reg(static_cast<T>(0)) {}
-
-  explicit Reg(const T val) {
+  explicit Reg(const T val = {}) {
     val_ = val;
     SetLocal(&val_);
   }

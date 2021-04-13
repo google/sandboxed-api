@@ -24,6 +24,7 @@
 
 #include <glog/logging.h>
 #include "absl/base/casts.h"
+#include "absl/base/dynamic_annotations.h"
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
@@ -323,6 +324,9 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
     if (arg->GetType() == v::Type::kFloat) {
       arg->GetDataFromPtr(&rfcall.args[i].arg_float,
                           sizeof(rfcall.args[0].arg_float));
+      // Make MSAN happy with long double.
+      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&rfcall.args[i].arg_float,
+                                          sizeof(rfcall.args[0].arg_float));
     } else {
       arg->GetDataFromPtr(&rfcall.args[i].arg_int,
                           sizeof(rfcall.args[0].arg_int));
