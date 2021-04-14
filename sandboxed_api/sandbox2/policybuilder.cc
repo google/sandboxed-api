@@ -207,6 +207,17 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
     // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
     AllowMmap();
   }
+  if constexpr (sapi::sanitizers::IsTSan()) {
+    AllowMmap();
+    AllowSyscall(__NR_munmap);
+    AddPolicyOnSyscall(__NR_mprotect,
+                       {
+                           ARG_32(2),
+                           BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
+                                    ~uint32_t{PROT_READ | PROT_WRITE}),
+                           JEQ(0, ALLOW),
+                       });
+  }
   return *this;
 }
 
@@ -538,17 +549,17 @@ PolicyBuilder& PolicyBuilder::AllowFutexOp(int op) {
 PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   AllowGetRlimit();
   AllowSyscalls({
-      // These syscalls take a pointer, so no restriction.
-      __NR_uname, __NR_brk, __NR_set_tid_address,
+    // These syscalls take a pointer, so no restriction.
+    __NR_uname, __NR_brk, __NR_set_tid_address,
 
 #if defined(__ARM_NR_set_tls)
-          // libc sets the TLS during startup
-          __ARM_NR_set_tls,
+        // libc sets the TLS during startup
+        __ARM_NR_set_tls,
 #endif
 
-          // This syscall takes a pointer and a length.
-          // We could restrict length, but it might change, so not worth it.
-          __NR_set_robust_list,
+        // This syscall takes a pointer and a length.
+        // We could restrict length, but it might change, so not worth it.
+        __NR_set_robust_list,
   });
 
   AllowFutexOp(FUTEX_WAIT_BITSET);
