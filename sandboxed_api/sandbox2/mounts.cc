@@ -278,7 +278,6 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
     std::pair<absl::string_view, absl::string_view> parts =
         absl::StrSplit(tail, absl::MaxSplits('/', 1));
     const std::string cur(parts.first);
-    tail = parts.second;
     const auto it = curtree->entries().find(cur);
     if (it == curtree->entries().end()) {
       if (curtree->node().has_dir_node()) {
@@ -287,6 +286,7 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
       return absl::NotFoundError("Path could not be resolved in the mounts");
     }
     curtree = &it->second;
+    tail = parts.second;
   }
   switch (curtree->node().node_case()) {
     case MountTree::Node::kFileNode:

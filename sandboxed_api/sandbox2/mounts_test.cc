@@ -39,6 +39,7 @@ using ::sapi::GetTestTempPath;
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
 using ::testing::Eq;
+using ::testing::StrEq;
 using ::testing::UnorderedElementsAreArray;
 
 constexpr size_t kTmpfsSize = 1024;
@@ -241,6 +242,58 @@ TEST(MountTreeTest, TestList) {
           absl::StrCat("tmpfs: size=", 1024*1024),
       }));
   // clang-format on
+}
+
+TEST(MountsResolvePathTest, Files) {
+  Mounts mounts;
+  ASSERT_THAT(mounts.AddFileAt("/A", "/a"), IsOk());
+  ASSERT_THAT(mounts.AddFileAt("/B", "/d/b"), IsOk());
+  ASSERT_THAT(mounts.AddFileAt("/C/D/E", "/d/c/e/f/h"), IsOk());
+  std::string resolved;
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/a"));
+  EXPECT_THAT(resolved, StrEq("/A"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/b"));
+  EXPECT_THAT(resolved, StrEq("/B"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/c/e/f/h"));
+  EXPECT_THAT(resolved, StrEq("/C/D/E"));
+  ASSERT_THAT(mounts.ResolvePath("/f"), StatusIs(absl::StatusCode::kNotFound));
+  ASSERT_THAT(mounts.ResolvePath("/d"), StatusIs(absl::StatusCode::kNotFound));
+  ASSERT_THAT(mounts.ResolvePath("/d/c/e/f"),
+              StatusIs(absl::StatusCode::kNotFound));
+  ASSERT_THAT(mounts.ResolvePath("/d/d"),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST(MountsResolvePathTest, Dirs) {
+  Mounts mounts;
+  ASSERT_THAT(mounts.AddDirectoryAt("/A", "/a"), IsOk());
+  ASSERT_THAT(mounts.AddDirectoryAt("/B", "/d/b"), IsOk());
+  ASSERT_THAT(mounts.AddDirectoryAt("/C/D/E", "/d/c/e/f/h"), IsOk());
+  ASSERT_THAT(mounts.AddFileAt("/J/G/H", "/d/c/e/f/h/j"), IsOk());
+  ASSERT_THAT(mounts.AddDirectoryAt("/K/L/M", "/d/c/e/f/h/k"), IsOk());
+  std::string resolved;
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/a"));
+  EXPECT_THAT(resolved, StrEq("/A"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/a/b/c/d/e"));
+  EXPECT_THAT(resolved, StrEq("/A/b/c/d/e"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/b"));
+  EXPECT_THAT(resolved, StrEq("/B"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/c/e/f/h"));
+  EXPECT_THAT(resolved, StrEq("/C/D/E"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/c/e/f/h/i"));
+  EXPECT_THAT(resolved, StrEq("/C/D/E/i"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/c/e/f/h/j"));
+  EXPECT_THAT(resolved, StrEq("/J/G/H"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/c/e/f/h/k"));
+  EXPECT_THAT(resolved, StrEq("/K/L/M"));
+  SAPI_ASSERT_OK_AND_ASSIGN(resolved, mounts.ResolvePath("/d/c/e/f/h/k/a"));
+  EXPECT_THAT(resolved, StrEq("/K/L/M/a"));
+  ASSERT_THAT(mounts.ResolvePath("/f"), StatusIs(absl::StatusCode::kNotFound));
+  ASSERT_THAT(mounts.ResolvePath("/d"), StatusIs(absl::StatusCode::kNotFound));
+  ASSERT_THAT(mounts.ResolvePath("/d/c/e/f"),
+              StatusIs(absl::StatusCode::kNotFound));
+  ASSERT_THAT(mounts.ResolvePath("/d/d"),
+              StatusIs(absl::StatusCode::kNotFound));
 }
 
 }  // namespace
