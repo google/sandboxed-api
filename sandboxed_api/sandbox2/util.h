@@ -71,6 +71,9 @@ std::string GetSignalName(int signo);
 // Returns rlimit resource name
 std::string GetRlimitName(int resource);
 
+// Returns ptrace event name
+std::string GetPtraceEventName(int event);
+
 // Reads a path string (NUL-terminated, shorter than PATH_MAX) from another
 // process memory
 absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);

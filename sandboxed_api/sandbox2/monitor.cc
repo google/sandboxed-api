@@ -440,7 +440,8 @@ void Monitor::MainLoop(sigset_t* sset) {
     } else if (WIFSTOPPED(status)) {
       VLOG(2) << "PID: " << ret
               << " received signal: " << util::GetSignalName(WSTOPSIG(status))
-              << " with event: " << __WPTRACEEVENT(status);
+              << " with event: "
+              << util::GetPtraceEventName(__WPTRACEEVENT(status));
       StateProcessStopped(ret, status);
     } else if (WIFCONTINUED(status)) {
       VLOG(2) << "PID: " << ret << " is being continued";

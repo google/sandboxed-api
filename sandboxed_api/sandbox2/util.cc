@@ -18,6 +18,7 @@
 #include <bits/local_lim.h>
 #include <sched.h>
 #include <spawn.h>
+#include <sys/ptrace.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
@@ -280,6 +281,33 @@ std::string GetRlimitName(int resource) {
       return "RLIMIT_CORE";
     default:
       return absl::StrCat("UNKNOWN: ", resource);
+  }
+}
+
+std::string GetPtraceEventName(int event) {
+#if !defined(PTRACE_EVENT_STOP)
+#define PTRACE_EVENT_STOP 128
+#endif
+
+  switch (event) {
+    case PTRACE_EVENT_FORK:
+      return "PTRACE_EVENT_FORK";
+    case PTRACE_EVENT_VFORK:
+      return "PTRACE_EVENT_VFORK";
+    case PTRACE_EVENT_CLONE:
+      return "PTRACE_EVENT_CLONE";
+    case PTRACE_EVENT_EXEC:
+      return "PTRACE_EVENT_EXEC";
+    case PTRACE_EVENT_VFORK_DONE:
+      return "PTRACE_EVENT_VFORK_DONE";
+    case PTRACE_EVENT_EXIT:
+      return "PTRACE_EVENT_EXIT";
+    case PTRACE_EVENT_SECCOMP:
+      return "PTRACE_EVENT_SECCOMP";
+    case PTRACE_EVENT_STOP:
+      return "PTRACE_EVENT_STOP";
+    default:
+      return absl::StrCat("UNKNOWN: ", event);
   }
 }
 
