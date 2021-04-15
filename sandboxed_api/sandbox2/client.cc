@@ -219,10 +219,14 @@ void Client::ApplyPolicyAndBecomeTracee() {
   SAPI_RAW_CHECK(ret == kSandbox2ClientDone,
                  "invalid confirmation from executor");
 
-  SAPI_RAW_CHECK(
+  int result =
       syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC,
-              reinterpret_cast<uintptr_t>(&prog)) == 0,
-      "setting SECCOMP_FILTER_FLAG_TSYNC flag");
+              reinterpret_cast<uintptr_t>(&prog));
+  SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
+  SAPI_RAW_PCHECK(result == 0,
+                  "synchronizing threads using SECCOMP_FILTER_FLAG_TSYNC flag "
+                  "for thread=%d",
+                  result);
 }
 
 int Client::GetMappedFD(const std::string& name) {
