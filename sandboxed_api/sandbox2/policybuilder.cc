@@ -207,6 +207,17 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
     // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
     AllowMmap();
   }
+  if constexpr (sapi::sanitizers::IsTSan()) {
+    AllowMmap();
+    AllowSyscall(__NR_munmap);
+    AddPolicyOnSyscall(__NR_mprotect,
+                       {
+                           ARG_32(2),
+                           BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
+                                    ~uint32_t{PROT_READ | PROT_WRITE}),
+                           JEQ32(0, ALLOW),
+                       });
+  }
   return *this;
 }
 
