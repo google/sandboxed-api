@@ -38,6 +38,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -71,30 +72,6 @@ bool ListNumericalDirectoryEntries(const std::string& directory,
     nums->insert(num);
   }
   return true;
-}
-
-// Returns the specified line from /proc/<pid>/status.
-std::string GetProcStatusLine(int pid, const std::string& value) {
-  const std::string fname = absl::StrCat("/proc/", pid, "/status");
-  std::string procpidstatus;
-  auto status = file::GetContents(fname, &procpidstatus, file::Defaults());
-  if (!status.ok()) {
-    SAPI_RAW_LOG(WARNING, "%s", std::string(status.message()).c_str());
-    return "";
-  }
-
-  for (const auto& line : absl::StrSplit(procpidstatus, '\n')) {
-    std::pair<std::string, std::string> kv =
-        absl::StrSplit(line, absl::MaxSplits(':', 1));
-    SAPI_RAW_VLOG(3, "Key: '%s' Value: '%s'", kv.first.c_str(),
-                  kv.second.c_str());
-    if (kv.first == value) {
-      return std::move(kv.second);
-    }
-  }
-  SAPI_RAW_LOG(ERROR, "No '%s' field found in '%s'", value.c_str(),
-               fname.c_str());
-  return "";
 }
 
 }  // namespace
@@ -164,7 +141,7 @@ bool MarkAllFDsAsCOEExcept(const std::set<int>& fd_exceptions) {
 }
 
 int GetNumberOfThreads(int pid) {
-  std::string thread_str = GetProcStatusLine(pid, "Threads");
+  std::string thread_str = util::GetProcStatusLine(pid, "Threads");
   if (thread_str.empty()) {
     return -1;
   }

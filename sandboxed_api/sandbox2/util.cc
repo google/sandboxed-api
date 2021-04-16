@@ -35,13 +35,17 @@
 
 #include "absl/base/attributes.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -75,6 +79,43 @@ std::string GetProgName(pid_t pid) {
   // via memfd_create()) the RealPath will not work, as the destination file
   // doesn't exist on the local file-system.
   return file_util::fileops::Basename(file_util::fileops::ReadLink(fname));
+}
+
+std::string GetCmdLine(pid_t pid) {
+  std::string fname = file::JoinPath("/proc", absl::StrCat(pid), "cmdline");
+  std::string cmdline;
+  auto status =
+      sapi::file::GetContents(fname, &cmdline, sapi::file::Defaults());
+  if (!status.ok()) {
+    SAPI_RAW_LOG(WARNING, "%s", std::string(status.message()).c_str());
+    return "";
+  }
+  return absl::StrReplaceAll(cmdline, {{absl::string_view("\0", 1), " "}});
+}
+
+std::string GetProcStatusLine(int pid, const std::string& value) {
+  const std::string fname = absl::StrCat("/proc/", pid, "/status");
+  std::string procpidstatus;
+  auto status =
+      sapi::file::GetContents(fname, &procpidstatus, sapi::file::Defaults());
+  if (!status.ok()) {
+    SAPI_RAW_LOG(WARNING, "%s", std::string(status.message()).c_str());
+    return "";
+  }
+
+  for (const auto& line : absl::StrSplit(procpidstatus, '\n')) {
+    std::pair<std::string, std::string> kv =
+        absl::StrSplit(line, absl::MaxSplits(':', 1));
+    SAPI_RAW_VLOG(3, "Key: '%s' Value: '%s'", kv.first.c_str(),
+                  kv.second.c_str());
+    if (kv.first == value) {
+      absl::StripLeadingAsciiWhitespace(&kv.second);
+      return std::move(kv.second);
+    }
+  }
+  SAPI_RAW_LOG(ERROR, "No '%s' field found in '%s'", value.c_str(),
+               fname.c_str());
+  return "";
 }
 
 long Syscall(long sys_no,  // NOLINT

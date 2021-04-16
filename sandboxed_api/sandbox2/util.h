@@ -41,6 +41,14 @@ const char** VecStringToCharPtrArr(const std::vector<std::string>& vec);
 // Returns the program name (via /proc/self/comm) for a given PID.
 std::string GetProgName(pid_t pid);
 
+// Returns the command line (via /proc/self/cmdline) for a given PID. The
+// argument separators '\0' are converted to spaces.
+std::string GetCmdLine(pid_t pid);
+
+// Returns the specified line from /proc/<pid>/status for a given PID. 'value'
+// is a field name like "Threads" or "Tgid".
+std::string GetProcStatusLine(int pid, const std::string& value);
+
 // Invokes a syscall, avoiding on-stack argument promotion, as it might happen
 // with vararg syscall() function.
 long Syscall(long sys_no,  // NOLINT

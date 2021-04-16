@@ -492,6 +492,7 @@ target_link_libraries(sandbox2_util
           absl::strings
           sapi::config
           sapi::file_base
+          sapi::file_helpers
           sapi::fileops
           sapi::strerror
           sapi::base

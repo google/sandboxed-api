@@ -371,6 +371,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":util",
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
@@ -537,6 +538,7 @@ cc_library(
     deps = [
         "//sandboxed_api:config",
         "//sandboxed_api/util:file_base",
+        "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:strerror",

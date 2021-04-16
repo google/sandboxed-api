@@ -756,6 +756,11 @@ void Monitor::LogSyscallViolation(const Syscall& syscall) const {
   LOG(ERROR) << "SANDBOX VIOLATION : PID: " << syscall.pid() << ", PROG: '"
              << util::GetProgName(syscall.pid())
              << "' : " << syscall.GetDescription();
+  if (VLOG_IS_ON(1)) {
+    VLOG(1) << "Cmdline: " << util::GetCmdLine(syscall.pid());
+    VLOG(1) << "Task Name: " << util::GetProcStatusLine(syscall.pid(), "Name");
+    VLOG(1) << "Tgid: " << util::GetProcStatusLine(syscall.pid(), "Tgid");
+  }
 
   LogSyscallViolationExplanation(syscall);
 }
