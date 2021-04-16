@@ -234,8 +234,8 @@ def sapi_library(
         embed_name = name
 
         sapi_cc_embed_data(
-            srcs = [name + ".bin"],
             name = name + "_embed",
+            srcs = [name + ".bin"],
             namespace = namespace,
             **common
         )
