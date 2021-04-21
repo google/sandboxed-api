@@ -18,6 +18,8 @@
 #include <string>
 #include <vector>
 
+#include "absl/types/span.h"
+
 struct sock_filter;
 
 namespace sandbox2 {
@@ -28,7 +30,7 @@ std::string DecodeInstruction(const sock_filter& inst, int pc);
 
 // Disassembles a BPF program.
 // Returns a human-readable textual represenation.
-std::string Disasm(const std::vector<sock_filter>& prog);
+std::string Disasm(absl::Span<const sock_filter> prog);
 
 }  // namespace bpf
 }  // namespace sandbox2

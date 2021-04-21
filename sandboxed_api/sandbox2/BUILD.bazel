@@ -29,7 +29,11 @@ cc_library(
     srcs = ["bpfdisassembler.cc"],
     hdrs = ["bpfdisassembler.h"],
     copts = sapi_platform_copts(),
-    deps = ["@com_google_absl//absl/strings"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
 )
 
 cc_library(

@@ -24,6 +24,7 @@ add_library(sandbox2_bpfdisassembler ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::bpfdisassembler ALIAS sandbox2_bpfdisassembler)
 target_link_libraries(sandbox2_bpfdisassembler PRIVATE
+  absl::span
   absl::strings
   sapi::base
 )

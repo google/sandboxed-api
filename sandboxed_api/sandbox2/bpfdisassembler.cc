@@ -234,9 +234,9 @@ std::string DecodeInstruction(const sock_filter& inst, int pc) {
   }
 }
 
-std::string Disasm(const std::vector<sock_filter>& prog) {
+std::string Disasm(absl::Span<const sock_filter> prog) {
   std::string rv;
-  for (size_t i = 0, len = prog.size(); i < len; ++i) {
+  for (size_t i = 0; i < prog.size(); ++i) {
     absl::StrAppend(&rv, absl::Dec(i, absl::kZeroPad3), ": ",
                     DecodeInstruction(prog[i], i), "\n");
   }
