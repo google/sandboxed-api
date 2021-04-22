@@ -15,12 +15,13 @@
 #ifndef SANDBOXED_API_SANDBOX2_UNWIND_PTRACE_HOOK_H_
 #define SANDBOXED_API_SANDBOX2_UNWIND_PTRACE_HOOK_H_
 
-#include <cstddef>
+#include "absl/strings/string_view.h"
+
+namespace sandbox2 {
 
 // Sets the register values that the ptrace emulation will return.
-void InstallUserRegs(const char* ptr, size_t size);
+void EnablePtraceEmulationWithUserRegs(absl::string_view regs);
 
-// Enables the ptrace emulation.
-void ArmPtraceEmulation();
+}  // namespace sandbox2
 
 #endif  // SANDBOXED_API_SANDBOX2_UNWIND_PTRACE_HOOK_H_

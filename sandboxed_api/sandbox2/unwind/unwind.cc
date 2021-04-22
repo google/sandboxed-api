@@ -123,9 +123,7 @@ bool RunLibUnwindAndSymbolizer(Comms* comms) {
     return false;
   }
 
-  const std::string& data = setup.regs();
-  InstallUserRegs(data.c_str(), data.length());
-  ArmPtraceEmulation();
+  EnablePtraceEmulationWithUserRegs(setup.regs());
 
   std::vector<uintptr_t> ips;
   std::vector<std::string> stack_trace =

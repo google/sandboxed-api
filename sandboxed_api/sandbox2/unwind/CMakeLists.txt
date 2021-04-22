@@ -18,8 +18,9 @@ add_library(sandbox2_ptrace_hook STATIC
   ptrace_hook.h
 )
 add_library(sandbox2::ptrace_hook ALIAS sandbox2_ptrace_hook)
-target_link_libraries(sandbox2_ptrace_hook PRIVATE
-  sapi::base
+target_link_libraries(sandbox2_ptrace_hook
+  PRIVATE sapi::base
+  PUBLIC absl::strings
 )
 
 # sandboxed_api/sandbox2/unwind:unwind

@@ -27,6 +27,7 @@ cc_library(
     hdrs = ["ptrace_hook.h"],
     copts = sapi_platform_copts(),
     visibility = ["@org_gnu_libunwind//:__subpackages__"],
+    deps = ["@com_google_absl//absl/strings"],
 )
 
 cc_library(
