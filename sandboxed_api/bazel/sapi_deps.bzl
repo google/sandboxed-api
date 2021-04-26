@@ -25,25 +25,27 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "bazel_skylib",
-        sha256 = "154f4063d96a4e47b17a917108eaabdfeb4ef08383795cf936b3be6f8179c9fc",  # 2020-04-15
-        strip_prefix = "bazel-skylib-560d7b2359aecb066d81041cb532b82d7354561b",
-        url = "https://github.com/bazelbuild/bazel-skylib/archive/560d7b2359aecb066d81041cb532b82d7354561b.zip",
+        urls = [
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+        ],
+        sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",  # 2020-08-27
     )
 
     # Abseil
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "e140988c4d3c22f829a3095f0d34a0783aa2f8829556283f10b8eb63a9428b19",  # 2021-02-19
-        strip_prefix = "abseil-cpp-b315753c0b8b4aa4e3e1479375eddb518393bab6",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/b315753c0b8b4aa4e3e1479375eddb518393bab6.zip"],
+        sha256 = "7192966b3ca413e7f7f141fac24725571d457f608cb3fc1182167006f50f5155",  # 2021-04-23
+        strip_prefix = "abseil-cpp-d96e287417766deddbff2d01b96321288c59491e",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/d96e287417766deddbff2d01b96321288c59491e.zip"],
     )
     maybe(
         http_archive,
         name = "com_google_absl_py",
-        sha256 = "6ace3cd8921804aaabc37970590edce05c6664901cc98d30010d09f2811dc56f",  # 2019-10-25
-        strip_prefix = "abseil-py-06edd9c20592cec39178b94240b5e86f32e19768",
-        urls = ["https://github.com/abseil/abseil-py/archive/06edd9c20592cec39178b94240b5e86f32e19768.zip"],
+        sha256 = "3d0278d88bbd52993f381d1e20887fa30f0556f6263b3f7bfcad62c69f39b38e",  # 2021-03-09
+        strip_prefix = "abseil-py-9954557f9df0b346a57ff82688438c55202d2188",
+        urls = ["https://github.com/abseil/abseil-py/archive/9954557f9df0b346a57ff82688438c55202d2188.zip"],
     )
 
     # Abseil-py dependency for Python 2/3 compatiblity
@@ -51,12 +53,9 @@ def sapi_deps():
         http_archive,
         name = "six_archive",
         build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/six.BUILD",
-        sha256 = "d16a0141ec1a18405cd4ce8b4613101da75da0e9a7aec5bdd4fa804d0e0eba73",  # 2018-12-10
-        strip_prefix = "six-1.12.0",
-        urls = [
-            "https://mirror.bazel.build/pypi.python.org/packages/source/s/six/six-1.12.0.tar.gz",
-            "https://pypi.python.org/packages/source/s/six/six-1.12.0.tar.gz",
-        ],
+        sha256 = "30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259",  # 2020-05-21
+        strip_prefix = "six-1.15.0",
+        urls = ["https://pypi.python.org/packages/source/s/six/six-1.15.0.tar.gz"],
     )
 
     # gflags
@@ -83,9 +82,9 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_protobuf",
-        sha256 = "bf0e5070b4b99240183b29df78155eee335885e53a8af8683964579c214ad301",  # 2020-11-14
-        strip_prefix = "protobuf-3.14.0",
-        urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.14.0.zip"],
+        sha256 = "dd513a79c7d7e45cbaeaf7655289f78fd6b806e52dbbd7018ef4e3cf5cff697a",  # 2021-04-08
+        strip_prefix = "protobuf-3.15.8",
+        urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.15.8.zip"],
     )
 
     # libcap

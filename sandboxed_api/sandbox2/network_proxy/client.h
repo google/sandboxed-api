@@ -16,6 +16,7 @@
 #define SANDBOXED_API_SANDBOX2_NETWORK_PROXY_CLIENT_H_
 
 #include <netinet/in.h>
+#include <signal.h>
 
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
@@ -32,10 +33,9 @@ class NetworkProxyClient {
   NetworkProxyClient(const NetworkProxyClient&) = delete;
   NetworkProxyClient& operator=(const NetworkProxyClient&) = delete;
 
-  // Establishes a new network connection.
-  // Semantic is similar to a regular connect() call.
-  // Arguments are sent to network proxy server, which sends back a connected
-  // socket.
+  // Establishes a new network connection with semantics similar to a regular
+  // connect() call. Arguments are sent to network proxy server, which sends
+  // back a connected socket.
   absl::Status Connect(int sockfd, const struct sockaddr* addr,
                        socklen_t addrlen);
   // Same as Connect, but with same API as regular connect() call.
@@ -53,10 +53,10 @@ class NetworkProxyClient {
 class NetworkProxyHandler {
  public:
   // Installs the handler that redirects connect() syscalls to the trap
-  // function. This function exchange data with NetworkProxyServer that checks
+  // function. This function exchanges data with NetworkProxyServer that checks
   // if this connection is allowed and sends the connected socket to us.
-  // In other words, this function just use NetworkProxyClient class.
   static absl::Status InstallNetworkProxyHandler(NetworkProxyClient* npc);
+
   void ProcessSeccompTrap(int nr, siginfo_t* info, void* void_context);
 
  private:

@@ -17,7 +17,7 @@ set(workdir "${CMAKE_BINARY_DIR}/_deps/protobuf-populate")
 set(SAPI_PROTOBUF_GIT_REPOSITORY
   https://github.com/protocolbuffers/protobuf.git
   CACHE STRING "")
-set(SAPI_PROTOBUF_GIT_TAG v3.14.0 CACHE STRING "") # 2020-11-14
+set(SAPI_PROTOBUF_GIT_TAG v3.15.8 CACHE STRING "") # 2021-04-08
 set(SAPI_PROTOBUF_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/protobuf-src"
                              CACHE STRING "")
 set(SAPI_PROTOBUF_BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/protobuf-build"
