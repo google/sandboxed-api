@@ -33,6 +33,12 @@ class ElfFile {
     std::string name;
   };
 
+  static constexpr uint32_t kGetInterpreter = 1 << 0;
+  static constexpr uint32_t kLoadSymbols = 1 << 1;
+  static constexpr uint32_t kLoadImportedLibraries = 1 << 2;
+  static constexpr uint32_t kAll =
+      kGetInterpreter | kLoadSymbols | kLoadImportedLibraries;
+
   static absl::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
                                                uint32_t features);
 
@@ -43,12 +49,6 @@ class ElfFile {
     return imported_libraries_;
   }
   bool position_independent() const { return position_independent_; }
-
-  static constexpr uint32_t kGetInterpreter = 1 << 0;
-  static constexpr uint32_t kLoadSymbols = 1 << 1;
-  static constexpr uint32_t kLoadImportedLibraries = 1 << 2;
-  static constexpr uint32_t kAll =
-      kGetInterpreter | kLoadSymbols | kLoadImportedLibraries;
 
  private:
   friend class ElfParser;

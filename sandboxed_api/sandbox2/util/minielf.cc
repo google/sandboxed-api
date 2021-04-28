@@ -69,7 +69,7 @@ absl::Status CheckedFSeek(FILE* f, long offset, int whence) {
 }
 
 absl::Status CheckedFRead(void* dst, size_t size, size_t nmemb, FILE* f) {
-  if (fread(dst, size, nmemb, f) == nmemb) {
+  if (std::fread(dst, size, nmemb, f) == nmemb) {
     return absl::OkStatus();
   }
   return absl::FailedPreconditionError(
@@ -104,10 +104,18 @@ class ElfParser {
   static constexpr int kMaxDynamicEntries = 10000;
   static constexpr size_t kMaxInterpreterSize = 1000;
 
-  ElfParser() = default;
-  absl::StatusOr<ElfFile> Parse(FILE* elf, uint32_t features);
+  static absl::StatusOr<ElfFile> Parse(const std::string& filename,
+                                       uint32_t features);
+
+  ~ElfParser() {
+    if (elf_) {
+      std::fclose(elf_);
+    }
+  }
 
  private:
+  ElfParser() = default;
+
   // Endianess support functions
   uint16_t Load16(const void* src) {
     return elf_little_ ? absl::little_endian::Load16(src)
@@ -121,6 +129,7 @@ class ElfParser {
     return elf_little_ ? absl::little_endian::Load64(src)
                        : absl::big_endian::Load64(src);
   }
+
   template <size_t N>
   void Load(unsigned char (*dst)[N], const void* src) {
     memcpy(dst, src, N);
@@ -138,19 +147,19 @@ class ElfParser {
   void Load(int32_t* dst, const void* src) { *dst = Load32(src); }
   void Load(int64_t* dst, const void* src) { *dst = Load64(src); }
 
-  // Reads elf file size.
+  // Reads ELF file size.
   absl::Status ReadFileSize();
-  // Reads elf header.
+  // Reads ELF header.
   absl::Status ReadFileHeader();
-  // Reads a single elf program header.
+  // Reads a single ELF program header.
   absl::StatusOr<ElfPhdr> ReadProgramHeader(absl::string_view src);
-  // Reads all elf program headers.
+  // Reads all ELF program headers.
   absl::Status ReadProgramHeaders();
-  // Reads a single elf section header.
+  // Reads a single ELF section header.
   absl::StatusOr<ElfShdr> ReadSectionHeader(absl::string_view src);
-  // Reads all elf section headers.
+  // Reads all ELF section headers.
   absl::Status ReadSectionHeaders();
-  // Reads contents of an elf section.
+  // Reads contents of an ELF section.
   absl::StatusOr<std::string> ReadSectionContents(int idx);
   absl::StatusOr<std::string> ReadSectionContents(
       const ElfShdr& section_header);
@@ -171,18 +180,9 @@ class ElfParser {
   int dynamic_entries_read = 0;
 };
 
-constexpr int ElfParser::kMaxProgramHeaderEntries;
-constexpr int ElfParser::kMaxSectionHeaderEntries;
-constexpr size_t ElfParser::kMaxSectionSize;
-constexpr size_t ElfParser::kMaxStrtabSize;
-constexpr size_t ElfParser::kMaxLibPathSize;
-constexpr int ElfParser::kMaxSymbolEntries;
-constexpr int ElfParser::kMaxDynamicEntries;
-constexpr size_t ElfParser::kMaxInterpreterSize;
-
 absl::Status ElfParser::ReadFileSize() {
-  fseek(elf_, 0, SEEK_END);
-  file_size_ = ftell(elf_);
+  std::fseek(elf_, 0, SEEK_END);
+  file_size_ = std::ftell(elf_);
   if (file_size_ < kElfHeaderSize) {
     return absl::FailedPreconditionError(
         absl::StrCat("file too small: ", file_size_, " bytes, at least ",
@@ -459,80 +459,79 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
     auto offset = strtab_section.sh_offset + dyn.d_un.d_val;
     SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, offset, SEEK_SET));
     std::string path(std::min(kMaxLibPathSize, strtab_end - offset), '\0');
-    size_t size = fread(&path[0], 1, path.size(), elf_);
+    size_t size = std::fread(&path[0], 1, path.size(), elf_);
     path.resize(size);
     result_.imported_libraries_.push_back(path.substr(0, path.find('\0')));
   }
   return absl::OkStatus();
 }
 
-absl::StatusOr<ElfFile> ElfParser::Parse(FILE* elf, uint32_t features) {
-  elf_ = elf;
+absl::StatusOr<ElfFile> ElfParser::Parse(const std::string& filename,
+                                         uint32_t features) {
+  ElfParser parser;
+  if (parser.elf_ = std::fopen(filename.c_str(), "r"); !parser.elf_) {
+    return absl::UnknownError(
+        absl::StrCat("cannot open file: ", filename, ": ", StrError(errno)));
+  }
+
   // Basic sanity check.
   if (features & ~(ElfFile::kAll)) {
     return absl::InvalidArgumentError("Unknown feature flags specified");
   }
-  SAPI_RETURN_IF_ERROR(ReadFileSize());
-  SAPI_RETURN_IF_ERROR(ReadFileHeader());
-  switch (file_header_.e_type) {
+  SAPI_RETURN_IF_ERROR(parser.ReadFileSize());
+  SAPI_RETURN_IF_ERROR(parser.ReadFileHeader());
+  switch (parser.file_header_.e_type) {
     case ET_EXEC:
-      result_.position_independent_ = false;
+      parser.result_.position_independent_ = false;
       break;
     case ET_DYN:
-      result_.position_independent_ = true;
+      parser.result_.position_independent_ = true;
       break;
     default:
       return absl::FailedPreconditionError("not an executable: ");
   }
   if (features & ElfFile::kGetInterpreter) {
-    SAPI_RETURN_IF_ERROR(ReadProgramHeaders());
+    SAPI_RETURN_IF_ERROR(parser.ReadProgramHeaders());
     std::string interpreter;
     auto it = std::find_if(
-        program_headers_.begin(), program_headers_.end(),
+        parser.program_headers_.begin(), parser.program_headers_.end(),
         [](const ElfPhdr& hdr) { return hdr.p_type == PT_INTERP; });
     // No interpreter usually means that the executable was statically linked.
-    if (it != program_headers_.end()) {
+    if (it != parser.program_headers_.end()) {
       if (it->p_filesz > kMaxInterpreterSize) {
         return absl::FailedPreconditionError(
             absl::StrCat("program interpeter path too long: ", it->p_filesz));
       }
-      SAPI_RETURN_IF_ERROR(CheckedFSeek(elf, it->p_offset, SEEK_SET));
+      SAPI_RETURN_IF_ERROR(CheckedFSeek(parser.elf_, it->p_offset, SEEK_SET));
       interpreter.resize(it->p_filesz, '\0');
-      SAPI_RETURN_IF_ERROR(CheckedRead(&interpreter, elf));
+      SAPI_RETURN_IF_ERROR(CheckedRead(&interpreter, parser.elf_));
       auto first_nul = interpreter.find_first_of('\0');
       if (first_nul != std::string::npos) {
         interpreter.erase(first_nul);
       }
     }
-    result_.interpreter_ = std::move(interpreter);
+    parser.result_.interpreter_ = std::move(interpreter);
   }
 
   if (features & (ElfFile::kLoadSymbols | ElfFile::kLoadImportedLibraries)) {
-    SAPI_RETURN_IF_ERROR(ReadSectionHeaders());
-    for (const auto& hdr : section_headers_) {
+    SAPI_RETURN_IF_ERROR(parser.ReadSectionHeaders());
+    for (const auto& hdr : parser.section_headers_) {
       if (hdr.sh_type == SHT_SYMTAB && features & ElfFile::kLoadSymbols) {
-        SAPI_RETURN_IF_ERROR(ReadSymbolsFromSymtab(hdr));
+        SAPI_RETURN_IF_ERROR(parser.ReadSymbolsFromSymtab(hdr));
       }
       if (hdr.sh_type == SHT_DYNAMIC &&
           features & ElfFile::kLoadImportedLibraries) {
-        SAPI_RETURN_IF_ERROR(ReadImportedLibrariesFromDynamic(hdr));
+        SAPI_RETURN_IF_ERROR(parser.ReadImportedLibrariesFromDynamic(hdr));
       }
     }
   }
 
-  return std::move(result_);
+  return std::move(parser.result_);
 }
 
 absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
                                                uint32_t features) {
-  std::unique_ptr<FILE, void (*)(FILE*)> elf{fopen(filename.c_str(), "r"),
-                                             [](FILE* f) { fclose(f); }};
-  if (!elf) {
-    return absl::UnknownError(
-        absl::StrCat("cannot open file: ", filename, ": ", StrError(errno)));
-  }
-
-  return ElfParser().Parse(elf.get(), features);
+  return ElfParser::Parse(filename, features);
 }
 
 }  // namespace sandbox2

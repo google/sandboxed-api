@@ -32,6 +32,7 @@
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 
@@ -40,11 +41,13 @@ namespace {
 
 std::string DemangleSymbol(const std::string& maybe_mangled) {
   int status;
-  std::unique_ptr<char, std::function<void(char*)>> symbol = {
-      abi::__cxa_demangle(maybe_mangled.c_str(), nullptr, nullptr, &status),
-      free};
+  size_t length;
+  std::unique_ptr<char, decltype(&std::free)> symbol(
+      abi::__cxa_demangle(maybe_mangled.c_str(), /*output_buffer=*/nullptr,
+                          &length, &status),
+      std::free);
   if (symbol && status == 0) {
-    return symbol.get();
+    return std::string(symbol.get(), length);
   }
   return maybe_mangled;
 }
@@ -96,7 +99,7 @@ std::vector<uintptr_t> GetIPList(pid_t pid, int max_frames) {
   }
 
   std::vector<uintptr_t> ips;
-  for (int i = 0; i < max_frames; i++) {
+  for (int i = 0; i < max_frames; ++i) {
     unw_word_t ip;
     rc = unw_get_reg(&cursor, UNW_REG_IP, &ip);
     if (rc < 0) {
@@ -138,36 +141,20 @@ bool RunLibUnwindAndSymbolizer(Comms* comms) {
 std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
                                                    std::vector<uintptr_t>* ips,
                                                    int max_frames) {
-  // Run libunwind.
-  *ips = GetIPList(pid, max_frames);
+  *ips = GetIPList(pid, max_frames);  // Uses libunwind
 
-  // Open /proc/pid/maps.
-  std::string path_maps = absl::StrCat("/proc/", pid, "/maps");
-  std::unique_ptr<FILE, void (*)(FILE*)> f(fopen(path_maps.c_str(), "r"),
-                                           [](FILE* s) {
-                                             if (s) {
-                                               fclose(s);
-                                             }
-                                           });
-  if (!f) {
-    // Could not open maps file.
-    SAPI_RAW_LOG(ERROR, "Could not open %s", path_maps.c_str());
+  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
+  std::string maps_content;
+  if (auto status = sapi::file::GetContents(maps_filename, &maps_content,
+                                            sapi::file::Defaults());
+      !status.ok()) {
+    SAPI_RAW_LOG(ERROR, "%s", status.ToString().c_str());
     return {};
   }
-
-  constexpr static size_t kBufferSize = 10 * 1024 * 1024;
-  std::string maps_content(kBufferSize, '\0');
-  size_t bytes_read = fread(&maps_content[0], 1, kBufferSize, f.get());
-  if (bytes_read == 0) {
-    // Could not read the whole maps file.
-    SAPI_RAW_PLOG(ERROR, "Could not read maps file");
-    return {};
-  }
-  maps_content.resize(bytes_read);
 
   auto maps = ParseProcMaps(maps_content);
   if (!maps.ok()) {
-    SAPI_RAW_LOG(ERROR, "Could not parse /proc/%d/maps", pid);
+    SAPI_RAW_LOG(ERROR, "Could not parse file: %s", maps_filename.c_str());
     return {};
   }
 
