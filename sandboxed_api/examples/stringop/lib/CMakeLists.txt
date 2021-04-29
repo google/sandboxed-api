@@ -39,6 +39,7 @@ add_dependencies(sapi_stringop
 target_link_libraries(sapi_stringop
   PRIVATE $<TARGET_OBJECTS:sapi_stringop_params_proto>
           sapi::base
+          absl::core_headers
           sapi::lenval_core
   PUBLIC protobuf::libprotobuf
 )

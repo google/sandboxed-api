@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <iostream>
 
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "sandboxed_api/examples/stringop/lib/stringop_params.pb.h"
 #include "sandboxed_api/lenval_core.h"
 
@@ -77,9 +79,17 @@ extern "C" const void* get_raw_c_string() { return "Ten chars."; }
 
 extern "C" void nop() {}
 
+// The "no tail-call" annotation and the additional indirection ensure that this
+// function shows up in the violation stack trace. Otherwise, depending on
+// optimization level and optimizer aggressiveness, functions may be inlined,
+// hoisted or omitted (in case of tail calls).
+static ABSL_ATTRIBUTE_NOINLINE ABSL_ATTRIBUTE_NO_TAIL_CALL void
+ViolateIndirect() {
+  ptrace((__ptrace_request)990, 991, 992, 993);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
 extern "C" void violate() {
-  ptrace((__ptrace_request)990, 991, 992, 993);
-  // Once more to avoid tail-call optimization, so that violate is in the
-  // stacktrace.
-  ptrace((__ptrace_request)990, 991, 992, 993);
+  ViolateIndirect();
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
 }

@@ -143,7 +143,7 @@ TEST(SapiTest, HasStackTraces) {
   StringopApi api(sandbox.get());
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
   const auto& result = sandbox->AwaitResult();
-  EXPECT_THAT(result.GetStackTrace(), HasSubstr("violate"));
+  EXPECT_THAT(result.GetStackTrace(), HasSubstr("ViolateIndirect"));
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));
 }
 
