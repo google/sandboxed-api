@@ -143,7 +143,15 @@ TEST(SapiTest, HasStackTraces) {
   StringopApi api(sandbox.get());
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
   const auto& result = sandbox->AwaitResult();
-  EXPECT_THAT(result.GetStackTrace(), HasSubstr("ViolateIndirect"));
+  EXPECT_THAT(
+      result.GetStackTrace(),
+      // Check that at least one expected function is present in the stack
+      // trace.
+      // Note: Typically, in optimized builds, on x86-64, only
+      // "ViolateIndirect()" will be present in the stack trace. On POWER, all
+      // stack frames are generated, but libunwind will be unable to track
+      // "ViolateIndirect()" on the stack and instead show its IP as zero.
+      AnyOf(HasSubstr("ViolateIndirect"), HasSubstr("violate")));
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));
 }
 

@@ -79,17 +79,20 @@ extern "C" const void* get_raw_c_string() { return "Ten chars."; }
 
 extern "C" void nop() {}
 
-// The "no tail-call" annotation and the additional indirection ensure that this
-// function shows up in the violation stack trace. Otherwise, depending on
-// optimization level and optimizer aggressiveness, functions may be inlined,
-// hoisted or omitted (in case of tail calls).
+// The "no tail-call" annotation and the additional indirection ensure that
+// either this function or its calling function shows up in the violation stack
+// trace. Otherwise, depending on optimization level and optimizer
+// aggressiveness, functions may be inlined, hoisted or omitted (in case of tail
+// calls).
 static ABSL_ATTRIBUTE_NOINLINE ABSL_ATTRIBUTE_NO_TAIL_CALL void
 ViolateIndirect() {
   ptrace((__ptrace_request)990, 991, 992, 993);
-  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
 }
 
-extern "C" void violate() {
+// Using block syntax here, because SAPI's libclang based header generator won't
+// parse the attribute annotations otherwise.
+extern "C" {
+ABSL_ATTRIBUTE_NOINLINE ABSL_ATTRIBUTE_NO_TAIL_CALL void violate() {
   ViolateIndirect();
-  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
 }
