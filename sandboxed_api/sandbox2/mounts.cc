@@ -27,6 +27,7 @@
 
 #include "google/protobuf/util/message_differencer.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -194,7 +195,6 @@ absl::Status Mounts::Insert(absl::string_view path,
   }
 
   std::string fixed_path = sapi::file::CleanPath(path);
-
   if (!sapi::file::IsAbsolutePath(fixed_path)) {
     return absl::InvalidArgumentError("Only absolute paths are supported");
   }

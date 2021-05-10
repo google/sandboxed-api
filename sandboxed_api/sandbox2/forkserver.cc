@@ -315,10 +315,6 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
 }
 
 pid_t ForkServer::ServeRequest() {
-  // Keep the low FD numbers clean so that client FD mappings don't interfer
-  // with us.
-  constexpr int kTargetExecFd = 1022;
-
   ForkRequest fork_request;
   if (!comms_->RecvProtoBuf(&fork_request)) {
     if (comms_->IsTerminated()) {
@@ -336,7 +332,7 @@ pid_t ForkServer::ServeRequest() {
       fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
     SAPI_RAW_CHECK(comms_->RecvFD(&exec_fd), "Failed to receive Exec FD");
     // We're duping to a high number here to avoid colliding with the IPC FDs.
-    MoveToFdNumber(&exec_fd, kTargetExecFd);
+    MoveToFdNumber(&exec_fd, Comms::kSandbox2TargetExecFD);
   }
 
   // Make the kernel notify us with SIGCHLD when the process terminates.

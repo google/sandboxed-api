@@ -187,6 +187,10 @@ class Monitor final {
   // --sandbox_danger_danger_permit_all_and_log flag.
   FILE* log_file_ = nullptr;
 
+  // Empty temp file used for mapping the comms fd when the Tomoyo LSM is
+  // active.
+  std::string comms_fd_dev_;
+
   // Handle to the class responsible for proxying and validating connect()
   // requests.
   std::unique_ptr<NetworkProxyServer> network_proxy_server_;

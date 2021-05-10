@@ -62,6 +62,12 @@ class Comms {
   // Any payload size above this limit will LOG(WARNING).
   static constexpr size_t kWarnMsgSize = (256ULL << 20);
 
+  // A high file descriptor number to be used with certain fork server request
+  // modes to map the target executable. This is considered to be an
+  // implementation detail.
+  // This number is chosen so that low FD numbers are not interfered with.
+  static constexpr int kSandbox2TargetExecFD = 1022;
+
   // Sandbox2-specific convention where FD=1023 is always passed to the
   // sandboxed process as a communication channel (encapsulated in the
   // sandbox2::Comms object at the server-side).

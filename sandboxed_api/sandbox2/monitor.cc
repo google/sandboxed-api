@@ -32,6 +32,7 @@
 #include <atomic>
 #include <cerrno>
 #include <csignal>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -42,8 +43,11 @@
 #include <string>
 
 #include <glog/logging.h>
+#include "absl/cleanup/cleanup.h"
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
@@ -62,7 +66,9 @@
 #include "sandboxed_api/sandbox2/stack_trace.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/temp_file.h"
 
 using std::string;
 
@@ -119,12 +125,55 @@ void StopProcess(pid_t pid, int signo) {
   }
 }
 
+void MaybeEnableTomoyoLsmWorkaround(Mounts& mounts, std::string& comms_fd_dev) {
+  static auto tomoyo_active = []() -> bool {
+    std::string lsm_list;
+    if (auto status = sapi::file::GetContents(
+            "/sys/kernel/security/lsm", &lsm_list, sapi::file::Defaults());
+        !status.ok() && !absl::IsNotFound(status)) {
+      SAPI_RAW_PLOG(WARNING, "Checking active LSMs failed: %s",
+                    std::string(status.message()).c_str());
+      return false;
+    }
+    return absl::StrContains(lsm_list, "tomoyo");
+  }();
+
+  if (!tomoyo_active) {
+    return;
+  }
+  SAPI_RAW_VLOG(1, "Tomoyo LSM active, enabling workaround");
+
+  if (mounts.ResolvePath("/dev").ok() || mounts.ResolvePath("/dev/fd").ok()) {
+    // Avoid shadowing /dev/fd/1022 below if /dev or /dev/fd is already mapped.
+    SAPI_RAW_VLOG(1, "Parent dir already mapped, skipping");
+    return;
+  }
+
+  auto temp_file = sapi::CreateNamedTempFileAndClose("/tmp/");
+  if (!temp_file.ok()) {
+    SAPI_RAW_LOG(WARNING, "Failed to create empty temp file: %s",
+                 std::string(temp_file.status().message()).c_str());
+    return;
+  }
+  comms_fd_dev = std::move(*temp_file);
+
+  // Ignore errors here, as the file itself might already be mapped.
+  if (auto status = mounts.AddFileAt(
+          comms_fd_dev, absl::StrCat("/dev/fd/", Comms::kSandbox2TargetExecFD),
+          false);
+      !status.ok()) {
+    SAPI_RAW_VLOG(1, "Mapping comms FD: %s",
+                  std::string(status.message()).c_str());
+  }
+}
+
 }  // namespace
 
 Monitor::Monitor(Executor* executor, Policy* policy, Notify* notify)
     : executor_(executor),
       notify_(notify),
       policy_(policy),
+      // NOLINTNEXTLINE clang-diagnostic-deprecated-declarations
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),
       wait_for_execve_(executor->enable_sandboxing_pre_execve_) {
@@ -138,9 +187,18 @@ Monitor::Monitor(Executor* executor, Policy* policy, Notify* notify)
     log_file_ = std::fopen(path.c_str(), "a+");
     PCHECK(log_file_ != nullptr) << "Failed to open log file '" << path << "'";
   }
+
+  if (auto* ns = policy_->GetNamespace(); ns) {
+    // Check for the Tomoyo LSM, which is active by default in several common
+    // distribution kernels (esp. Debian).
+    MaybeEnableTomoyoLsmWorkaround(ns->mounts(), comms_fd_dev_);
+  }
 }
 
 Monitor::~Monitor() {
+  if (!comms_fd_dev_.empty()) {
+    std::remove(comms_fd_dev_.c_str());
+  }
   if (log_file_) {
     std::fclose(log_file_);
   }
@@ -160,20 +218,14 @@ void LogContainer(const std::vector<std::string>& container) {
 }  // namespace
 
 void Monitor::Run() {
-  std::unique_ptr<absl::Notification, void (*)(absl::Notification*)>
-      setup_notify{&setup_notification_, [](absl::Notification* notification) {
-                     notification->Notify();
-                   }};
+  absl::Cleanup setup_notify = [this] { setup_notification_.Notify(); };
 
-  struct MonitorCleanup {
-    ~MonitorCleanup() {
-      getrusage(RUSAGE_THREAD, capture->result_.GetRUsageMonitor());
-      capture->notify_->EventFinished(capture->result_);
-      capture->ipc_->InternalCleanupFdMap();
-      capture->done_notification_.Notify();
-    }
-    Monitor* capture;
-  } monitor_cleanup{this};
+  absl::Cleanup monitor_cleanup = [this] {
+    getrusage(RUSAGE_THREAD, result_.GetRUsageMonitor());
+    notify_->EventFinished(result_);
+    ipc_->InternalCleanupFdMap();
+    done_notification_.Notify();
+  };
 
   if (executor_->limits()->wall_time_limit() != absl::ZeroDuration()) {
     auto deadline = absl::Now() + executor_->limits()->wall_time_limit();
@@ -189,10 +241,11 @@ void Monitor::Run() {
     return;
   }
 
-  if (SAPI_VLOG_IS_ON(1) && policy_->GetNamespace() != nullptr) {
+  Namespace* ns = policy_->GetNamespace();
+  if (SAPI_VLOG_IS_ON(1) && ns != nullptr) {
     std::vector<std::string> outside_entries;
     std::vector<std::string> inside_entries;
-    policy_->GetNamespace()->mounts().RecursivelyListMounts(
+    ns->mounts().RecursivelyListMounts(
         /*outside_entries=*/&outside_entries,
         /*inside_entries=*/&inside_entries);
     SAPI_RAW_VLOG(1, "Outside entries mapped to chroot:");
@@ -211,7 +264,6 @@ void Monitor::Run() {
 
   // Get PID of the sandboxee.
   pid_t init_pid = 0;
-  Namespace* ns = policy_->GetNamespace();
   bool should_have_init = ns && (ns->GetCloneFlags() & CLONE_NEWPID);
   pid_ = executor_->StartSubProcess(clone_flags, ns, policy_->GetCapabilities(),
                                     &init_pid);
@@ -265,7 +317,7 @@ void Monitor::Run() {
 
   // Tell the parent thread (Sandbox2 object) that we're done with the initial
   // set-up process of the sandboxee.
-  setup_notify.reset();
+  std::move(setup_notify).Invoke();
 
   MainLoop(&sigtimedwait_sset);
 }

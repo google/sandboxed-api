@@ -293,6 +293,7 @@ add_library(sandbox2_sandbox2 ${SAPI_LIB_TYPE}
 add_library(sandbox2::sandbox2 ALIAS sandbox2_sandbox2)
 target_link_libraries(sandbox2_sandbox2
   PRIVATE absl::core_headers
+          absl::cleanup
           absl::flat_hash_map
           absl::flat_hash_set
           absl::memory
@@ -304,15 +305,16 @@ target_link_libraries(sandbox2_sandbox2
   PUBLIC  absl::status
           absl::statusor
           absl::time
-          sapi::flags
-          sapi::status
-          sandbox2::bpf_helper
-          sandbox2::client
           sapi::config
-          sandbox2::comms
-          sandbox2::executor
           sapi::file_base
           sapi::fileops
+          sapi::flags
+          sapi::status
+          sapi::temp_file
+          sandbox2::bpf_helper
+          sandbox2::client
+          sandbox2::comms
+          sandbox2::executor
           sandbox2::fork_client
           sandbox2::forkserver_proto
           sandbox2::global_forkserver

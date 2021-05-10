@@ -81,7 +81,9 @@ class Mounts {
 
  private:
   friend class MountTreeTest;
+
   absl::Status Insert(absl::string_view path, const MountTree::Node& node);
+
   MountTree mount_tree_;
 };
 
