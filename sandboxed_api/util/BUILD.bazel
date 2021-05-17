@@ -249,6 +249,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":fileops",
+        ":status",
         ":strerror",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

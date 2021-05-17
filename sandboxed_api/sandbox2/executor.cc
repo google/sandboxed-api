@@ -84,7 +84,7 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   }
 
   // Add LD_ORIGIN_PATH to envs, as it'll make the amount of syscalls invoked by
-  // ld.so smaller. See http://b/7626303 for more details on this behavior.
+  // ld.so smaller.
   if (!path_.empty()) {
     request.add_envs(absl::StrCat("LD_ORIGIN_PATH=",
                                   file_util::fileops::StripBasename(path_)));

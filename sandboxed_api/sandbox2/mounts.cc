@@ -328,7 +328,7 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
   SAPI_RETURN_IF_ERROR(ValidateInterpreter(interpreter));
 
   std::vector<std::string> search_paths;
-  // 1. LD_LIBRARY_PRELOAD
+  // 1. LD_LIBRARY_PATH
   if (!ld_library_path.empty()) {
     std::vector<std::string> ld_library_paths =
         absl::StrSplit(ld_library_path, absl::ByAnyChar(":;"));
@@ -476,65 +476,52 @@ uint64_t GetMountFlagsFor(const std::string& path) {
     return 0;
   }
 
-  static constexpr struct {
-    const uint64_t mount_flag;
-    const uint64_t vfs_flag;
-  } mount_pairs[] = {
-      {MS_NOSUID, ST_NOSUID},         {MS_NODEV, ST_NODEV},
-      {MS_NOEXEC, ST_NOEXEC},         {MS_SYNCHRONOUS, ST_SYNCHRONOUS},
-      {MS_MANDLOCK, ST_MANDLOCK},     {MS_NOATIME, ST_NOATIME},
-      {MS_NODIRATIME, ST_NODIRATIME}, {MS_RELATIME, ST_RELATIME},
-  };
-
   uint64_t flags = 0;
-  for (const auto& i : mount_pairs) {
-    if (vfs.f_flag & i.vfs_flag) {
-      flags |= i.mount_flag;
+  using MountPair = std::pair<uint64_t, uint64_t>;
+  for (const auto& [mount_flag, vfs_flag] : {
+           MountPair(MS_NOSUID, ST_NOSUID),
+           MountPair(MS_NODEV, ST_NODEV),
+           MountPair(MS_NOEXEC, ST_NOEXEC),
+           MountPair(MS_SYNCHRONOUS, ST_SYNCHRONOUS),
+           MountPair(MS_MANDLOCK, ST_MANDLOCK),
+           MountPair(MS_NOATIME, ST_NOATIME),
+           MountPair(MS_NODIRATIME, ST_NODIRATIME),
+           MountPair(MS_RELATIME, ST_RELATIME),
+       }) {
+    if (vfs.f_flag & vfs_flag) {
+      flags |= mount_flag;
     }
   }
-
   return flags;
 }
 
 std::string MountFlagsToString(uint64_t flags) {
 #define SAPI_MAP(x) \
   { x, #x }
-  static constexpr std::pair<uint64_t, absl::string_view> map[] = {
-      SAPI_MAP(MS_RDONLY),
-      SAPI_MAP(MS_NOSUID),
-      SAPI_MAP(MS_NODEV),
-      SAPI_MAP(MS_NOEXEC),
-      SAPI_MAP(MS_SYNCHRONOUS),
-      SAPI_MAP(MS_REMOUNT),
-      SAPI_MAP(MS_MANDLOCK),
-      SAPI_MAP(MS_DIRSYNC),
-      SAPI_MAP(MS_NOATIME),
-      SAPI_MAP(MS_NODIRATIME),
-      SAPI_MAP(MS_BIND),
-      SAPI_MAP(MS_MOVE),
+  static constexpr std::pair<uint64_t, absl::string_view> kMap[] = {
+      SAPI_MAP(MS_RDONLY),      SAPI_MAP(MS_NOSUID),
+      SAPI_MAP(MS_NODEV),       SAPI_MAP(MS_NOEXEC),
+      SAPI_MAP(MS_SYNCHRONOUS), SAPI_MAP(MS_REMOUNT),
+      SAPI_MAP(MS_MANDLOCK),    SAPI_MAP(MS_DIRSYNC),
+      SAPI_MAP(MS_NOATIME),     SAPI_MAP(MS_NODIRATIME),
+      SAPI_MAP(MS_BIND),        SAPI_MAP(MS_MOVE),
       SAPI_MAP(MS_REC),
 #ifdef MS_VERBOSE
-      // MS_VERBOSE is deprecated
-      SAPI_MAP(MS_VERBOSE),
+      SAPI_MAP(MS_VERBOSE),  // Deprecated
 #endif
-      SAPI_MAP(MS_SILENT),
-      SAPI_MAP(MS_POSIXACL),
-      SAPI_MAP(MS_UNBINDABLE),
-      SAPI_MAP(MS_PRIVATE),
+      SAPI_MAP(MS_SILENT),      SAPI_MAP(MS_POSIXACL),
+      SAPI_MAP(MS_UNBINDABLE),  SAPI_MAP(MS_PRIVATE),
       SAPI_MAP(MS_SLAVE),  // Inclusive language: system constant
-      SAPI_MAP(MS_SHARED),
-      SAPI_MAP(MS_RELATIME),
-      SAPI_MAP(MS_KERNMOUNT),
-      SAPI_MAP(MS_I_VERSION),
+      SAPI_MAP(MS_SHARED),      SAPI_MAP(MS_RELATIME),
+      SAPI_MAP(MS_KERNMOUNT),   SAPI_MAP(MS_I_VERSION),
       SAPI_MAP(MS_STRICTATIME),
 #ifdef MS_LAZYTIME
-      // MS_LAZYTIME was added in Linux 4.0
-      SAPI_MAP(MS_LAZYTIME),
+      SAPI_MAP(MS_LAZYTIME),  // Added in Linux 4.0
 #endif
   };
 #undef SAPI_MAP
   std::vector<absl::string_view> flags_list;
-  for (auto [val, str] : map) {
+  for (const auto& [val, str] : kMap) {
     if ((flags & val) == val) {
       flags &= ~val;
       flags_list.push_back(str);

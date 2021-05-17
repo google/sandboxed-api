@@ -58,6 +58,11 @@ class Policy final {
   void GetPolicyDescription(PolicyDescription* policy) const;
 
  private:
+  friend class Monitor;
+  friend class PolicyBuilder;
+  friend class PolicyBuilderPeer;  // For testing
+  friend class StackTracePeer;
+
   // Private constructor only called by the PolicyBuilder.
   Policy() = default;
 
@@ -105,11 +110,6 @@ class Policy final {
 
   // Contains a list of hosts the sandboxee is allowed to connect to.
   absl::optional<AllowedHosts> allowed_hosts_;
-
-  friend class Monitor;
-  friend class PolicyBuilder;
-  friend class PolicyBuilderPeer;  // For testing
-  friend class StackTracePeer;
 };
 
 }  // namespace sandbox2

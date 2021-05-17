@@ -151,6 +151,7 @@ add_library(sapi::temp_file ALIAS sapi_util_temp_file)
 target_link_libraries(sapi_util_temp_file
   PRIVATE absl::strings
           sapi::fileops
+          sapi::status
           sapi::strerror
           sapi::base
   PUBLIC absl::status

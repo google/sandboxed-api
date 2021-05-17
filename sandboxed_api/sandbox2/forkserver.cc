@@ -237,6 +237,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   if (!sanitizer::GetListOfFDs(&open_fds)) {
     SAPI_RAW_LOG(WARNING, "Could not get list of current open FDs");
   }
+
   InitializeNamespaces(request, uid, gid, avoid_pivot_root);
 
   auto caps = cap_init();
@@ -320,9 +321,8 @@ pid_t ForkServer::ServeRequest() {
     if (comms_->IsTerminated()) {
       SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");
       exit(0);
-    } else {
-      SAPI_RAW_LOG(FATAL, "Failed to receive ForkServer request");
     }
+    SAPI_RAW_LOG(FATAL, "Failed to receive ForkServer request");
   }
   int comms_fd;
   SAPI_RAW_CHECK(comms_->RecvFD(&comms_fd), "Failed to receive Comms FD");
@@ -575,6 +575,7 @@ void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,
     SAPI_RAW_PCHECK(!unshare(clone_flags),
                     "Could not create new namespaces for libunwind");
   }
+
   Namespace::InitializeNamespaces(
       uid, gid, clone_flags, Mounts(request.mount_tree()),
       request.mode() != FORKSERVER_FORK_JOIN_SANDBOX_UNWIND, request.hostname(),
