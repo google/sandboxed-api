@@ -27,6 +27,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cinttypes>
 #include <cstddef>
@@ -218,9 +219,8 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
   }
   if (length > kWarnMsgSize) {
     // TODO(cblichmann): Use LOG_FIRST_N once Abseil logging is released.
-    static int times_warned = 0;
-    if (times_warned < 10) {
-      ++times_warned;
+    static std::atomic<int> times_warned = 0;
+    if (times_warned.fetch_add(1, std::memory_order_relaxed) < 10) {
       SAPI_RAW_LOG(
           WARNING,
           "TLV message of size %zu detected. Please consider switching "
@@ -566,12 +566,11 @@ bool Comms::RecvTL(uint32_t* tag, size_t* length) {
     return false;
   }
   if (*length > kWarnMsgSize) {
-    static int times_warned = 0;
-    if (times_warned < 10) {
-      ++times_warned;
+    static std::atomic<int> times_warned = 0;
+    if (times_warned.fetch_add(1, std::memory_order_relaxed) < 10) {
       SAPI_RAW_LOG(
           WARNING,
-          "TLV message of size: (%zu detected. Please consider switching to "
+          "TLV message of size: %zu detected. Please consider switching to "
           "Buffer API instead.",
           *length);
     }
