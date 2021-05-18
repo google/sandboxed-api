@@ -95,11 +95,17 @@
 
 // Like SAPI_RAW_LOG(), but also logs the current value of errno and its
 // corresponding error message.
-#define SAPI_RAW_PLOG(severity, format, ...)                       \
-  do {                                                             \
-    const auto message = absl::StrFormat((format), ##__VA_ARGS__); \
-    SAPI_RAW_LOG(severity, "%s: %s [%d]", message.c_str(),         \
-                 ::sapi::StrError(errno).c_str(), errno);          \
+#define SAPI_RAW_PLOG(severity, format, ...)                              \
+  do {                                                                    \
+    char sapi_raw_plog_errno_buffer[100];                                 \
+    const char* sapi_raw_plog_errno_str =                                 \
+        ::sapi::RawStrError(errno, sapi_raw_plog_errno_buffer,            \
+                            sizeof(sapi_raw_plog_errno_buffer));          \
+    char sapi_raw_plog_buffer[::sapi::raw_logging_internal::kLogBufSize]; \
+    absl::SNPrintF(sapi_raw_plog_buffer, sizeof(sapi_raw_plog_buffer),    \
+                   (format), ##__VA_ARGS__);                              \
+    SAPI_RAW_LOG(severity, "%s: %s [%d]", sapi_raw_plog_buffer,           \
+                 sapi_raw_plog_errno_str, errno);                         \
   } while (0)
 
 // If verbose logging is enabled, uses SAPI_RAW_LOG() to log.
@@ -110,16 +116,24 @@
 
 // Like SAPI_RAW_CHECK(), but also logs errno and a message (similar to
 // SAPI_RAW_PLOG()).
-#define SAPI_RAW_PCHECK(condition, format, ...)                              \
-  do {                                                                       \
-    const auto message = absl::StrFormat((format), ##__VA_ARGS__);           \
-    if (ABSL_PREDICT_FALSE(!(condition))) {                                  \
-      SAPI_RAW_LOG(FATAL, "Check %s failed: %s: %s [%d]", #condition,        \
-                   message.c_str(), ::sapi::StrError(errno).c_str(), errno); \
-    }                                                                        \
+#define SAPI_RAW_PCHECK(condition, format, ...)                             \
+  do {                                                                      \
+    if (ABSL_PREDICT_FALSE(!(condition))) {                                 \
+      char sapi_raw_plog_errno_buffer[100];                                 \
+      const char* sapi_raw_plog_errno_str =                                 \
+          ::sapi::RawStrError(errno, sapi_raw_plog_errno_buffer,            \
+                              sizeof(sapi_raw_plog_errno_buffer));          \
+      char sapi_raw_plog_buffer[::sapi::raw_logging_internal::kLogBufSize]; \
+      absl::SNPrintF(sapi_raw_plog_buffer, sizeof(sapi_raw_plog_buffer),    \
+                     (format), ##__VA_ARGS__);                              \
+      SAPI_RAW_LOG(FATAL, "Check %s failed: %s: %s [%d]", #condition,       \
+                   sapi_raw_plog_buffer, sapi_raw_plog_errno_str, errno);   \
+    }                                                                       \
   } while (0)
 
 namespace sapi::raw_logging_internal {
+
+constexpr int kLogBufSize = 3000;
 
 // Helper function to implement ABSL_RAW_LOG
 // Logs format... at "severity" level, reporting it

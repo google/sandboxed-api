@@ -138,7 +138,7 @@ add_library(sapi_util_strerror ${SAPI_LIB_TYPE}
 )
 add_library(sapi::strerror ALIAS sapi_util_strerror)
 target_link_libraries(sapi_util_strerror PRIVATE
-  absl::strings
+  absl::str_format
   sapi::base
 )
 

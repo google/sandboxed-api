@@ -56,8 +56,6 @@ inline static bool VADoRawLog(char** buf, int* size, const char* format,
   return result;
 }
 
-static constexpr int kLogBufSize = 3000;
-
 namespace {
 
 // CAVEAT: vsnprintf called from *DoRawLog below has some (exotic) code paths
@@ -83,7 +81,7 @@ void RawLogVA(absl::LogSeverity severity, const char* file, int line,
               const char* format, va_list ap) ABSL_PRINTF_ATTRIBUTE(4, 0);
 void RawLogVA(absl::LogSeverity severity, const char* file, int line,
               const char* format, va_list ap) {
-  char buffer[kLogBufSize];
+  char buffer[sapi::raw_logging_internal::kLogBufSize];
   char* buf = buffer;
   int size = sizeof(buffer);
 

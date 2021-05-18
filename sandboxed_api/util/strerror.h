@@ -25,6 +25,10 @@ namespace sapi {
 // modified by this call. This function is thread-safe.
 std::string StrError(int errnum);
 
+// Same as StrError but uses provided buffer (does not allocate memory).
+// Might use and return a static immutable buffer instead of buf.
+const char* RawStrError(int errnum, char* buf, size_t buflen);
+
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_STRERROR_H_

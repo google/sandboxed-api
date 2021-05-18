@@ -20,7 +20,7 @@
 #include <cstddef>
 
 #include "absl/base/attributes.h"
-#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 
 namespace sapi {
 namespace {
@@ -48,15 +48,20 @@ ABSL_ATTRIBUTE_UNUSED const char* StrErrorR(int (*strerror_r)(int, char*,
 
 }  // namespace
 
-std::string StrError(int errnum) {
+const char* RawStrError(int errnum, char* buf, size_t buflen) {
   const int saved_errno = errno;
-  char buf[100];
-  const char* str = StrErrorR(strerror_r, errnum, buf, sizeof(buf));
+  const char* str = StrErrorR(strerror_r, errnum, buf, buflen);
   if (*str == '\0') {
-    return absl::StrCat("Unknown error ", errnum);
+    absl::SNPrintF(buf, buflen, "Unknown error %d", errnum);
+    str = buf;
   }
   errno = saved_errno;
   return str;
+}
+
+std::string StrError(int errnum) {
+  char buf[100];
+  return RawStrError(errnum, buf, sizeof(buf));
 }
 
 }  // namespace sapi
