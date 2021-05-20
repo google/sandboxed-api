@@ -161,6 +161,7 @@ cc_library(
         ":regs",
         ":syscall",
         ":violation_cc_proto",
+        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/network_proxy:filtering",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:flags",

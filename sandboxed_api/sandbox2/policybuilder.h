@@ -334,10 +334,6 @@ class PolicyBuilder final {
   // - clock_gettime
   // - gettid
   // - close
-  //
-  // If you don't use namespaces you should also add this to your policy:
-  // - policy->GetFs()->EnableSyscall(__NR_open);
-  // - policy->GetFs()->AddRegexpToGreyList("/usr/share/zoneinfo/.*");
   PolicyBuilder& AllowLogForwarding();
 
   // Enables the syscalls necessary to start a statically linked binary

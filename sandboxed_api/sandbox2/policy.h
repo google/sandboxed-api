@@ -29,6 +29,7 @@
 
 #include "absl/base/macros.h"
 #include "absl/types/optional.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/syscall.h"
@@ -82,6 +83,12 @@ class Policy final {
     return capabilities_.get();
   }
 
+  // Returns the default policy, which blocks certain dangerous syscalls and
+  // mismatched syscall tables.
+  std::vector<sock_filter> GetDefaultPolicy() const;
+  // Returns a policy allowing the Monitor module to track all syscalls.
+  std::vector<sock_filter> GetTrackingPolicy() const;
+
   // The Namespace object, defines ways of putting sandboxee into namespaces.
   std::unique_ptr<Namespace> namespace_;
 
@@ -101,12 +108,6 @@ class Policy final {
   // The policy set by the user.
   std::vector<sock_filter> user_policy_;
   bool user_policy_handles_bpf_ = false;
-
-  // Get the default policy, which blocks certain dangerous syscalls and
-  // mismatched syscall tables.
-  std::vector<sock_filter> GetDefaultPolicy() const;
-  // Get a policy which would allow the Monitor module to track all syscalls.
-  std::vector<sock_filter> GetTrackingPolicy() const;
 
   // Contains a list of hosts the sandboxee is allowed to connect to.
   absl::optional<AllowedHosts> allowed_hosts_;

@@ -55,8 +55,8 @@ class Monitor final {
   friend class Sandbox2;
 
   // Timeout used with sigtimedwait (0.5s).
-  static const int kWakeUpPeriodSec = 0L;
-  static const int kWakeUpPeriodNSec = (500L * 1000L * 1000L);
+  static constexpr int kWakeUpPeriodSec = 0L;
+  static constexpr int kWakeUpPeriodNSec = (500L * 1000L * 1000L);
 
   // Starts the Monitor.
   void Run();

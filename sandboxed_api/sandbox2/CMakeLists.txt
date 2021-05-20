@@ -160,6 +160,7 @@ target_link_libraries(sandbox2_policy PRIVATE
   sandbox2::syscall
   sandbox2::violation_proto
   sapi::base
+  sapi::config
   sapi::flags
 )
 

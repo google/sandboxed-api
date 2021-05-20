@@ -90,7 +90,7 @@ constexpr bool Is64Bit() { return sizeof(uintptr_t) == 8; }
 
 static_assert(host_cpu::Architecture() != cpu::kUnknown,
               "Host CPU architecture is not supported: One of x86-64, POWER64 "
-              "(little endian), Arm or AArch64 is required.");
+              "(little endian), ARM or AArch64 is required.");
 
 namespace sanitizers {
 

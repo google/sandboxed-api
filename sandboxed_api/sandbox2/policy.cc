@@ -27,6 +27,7 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/regs.h"
