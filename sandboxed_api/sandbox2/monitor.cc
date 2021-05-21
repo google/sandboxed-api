@@ -950,7 +950,7 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
     should_dump_stack_ = false;
   }
 
-#if !defined(PTRACE_EVENT_STOP)
+#ifndef PTRACE_EVENT_STOP
 #define PTRACE_EVENT_STOP 128
 #endif
 
