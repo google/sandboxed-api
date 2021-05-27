@@ -522,6 +522,11 @@ PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
                  // From comms
                  __NR_gettid, __NR_close});
 
+  // For generating stacktraces in logging (e.g. `LOG(FATAL)`)
+  AddPolicyOnSyscall(__NR_rt_sigprocmask, {
+                                              ARG_32(0),
+                                              JEQ32(SIG_BLOCK, ALLOW),
+                                          });
   // For LOG(FATAL)
   return AddPolicyOnSyscall(__NR_kill,
                             [](bpf_labels& labels) -> std::vector<sock_filter> {
