@@ -121,7 +121,7 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 
 std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
   file_util::fileops::FDCloser exec_fd(
-      sapi::EmbedFile::GetEmbedFileSingleton()->GetFdForFileToc(
+      sapi::EmbedFile::GetEmbedFileSingleton()->GetDupFdForFileToc(
           forkserver_bin_embed_create()));
   SAPI_RAW_CHECK(exec_fd.get() >= 0, "Getting FD for init binary failed");
 
