@@ -490,6 +490,8 @@ constexpr std::array kSyscallDataX8664 = {
     MakeEntry(330, "pkey_alloc", kInt, kInt),
     MakeEntry(331, "pkey_free", kInt),
     MakeEntry(332, "statx", kInt, kPath, kHex, kHex, kHex),
+    MakeEntry(333, "io_pgetevents", kHex, kHex, kHex, kHex, kHex, kHex),
+    MakeEntry(334, "rseq", kHex, kInt, kHex, kHex),
     // clang-format on
 };
 
