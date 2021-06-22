@@ -68,7 +68,6 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/temp_file.h"
 
 using std::string;
@@ -374,15 +373,8 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   }
   auto* ns = policy_->GetNamespace();
   const Mounts empty_mounts;
-  absl::StatusOr<std::vector<std::string>> stack_trace =
-      GetStackTrace(result_.GetRegs(), ns ? ns->mounts() : empty_mounts);
-
-  if (!stack_trace.ok()) {
-    LOG(ERROR) << "Could not obtain stack trace: " << stack_trace.status();
-    return;
-  }
-
-  result_.set_stack_trace(*stack_trace);
+  result_.set_stack_trace(
+      GetStackTrace(result_.GetRegs(), ns ? ns->mounts() : empty_mounts));
 
   LOG(INFO) << "Stack trace: [";
   for (const auto& frame : CompactStackTrace(result_.stack_trace())) {
@@ -944,18 +936,13 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
   if (ABSL_PREDICT_FALSE(pid == pid_ && should_dump_stack_ &&
                          executor_->libunwind_sbox_for_pid_ == 0 &&
                          policy_->GetNamespace())) {
-    auto stack_trace = [this,
-                        pid]() -> absl::StatusOr<std::vector<std::string>> {
-      Regs regs(pid);
-      SAPI_RETURN_IF_ERROR(regs.Fetch());
-      return GetStackTrace(&regs, policy_->GetNamespace()->mounts());
-    }();
-
-    if (!stack_trace.ok()) {
-      LOG(WARNING) << "FAILED TO GET SANDBOX STACK : " << stack_trace.status();
+    Regs regs(pid);
+    if (auto status = regs.Fetch(); !status.ok()) {
+      LOG(WARNING) << "FAILED TO GET SANDBOX STACK : " << status;
     } else if (SAPI_VLOG_IS_ON(0)) {
       VLOG(0) << "SANDBOX STACK: PID: " << pid << ", [";
-      for (const auto& frame : *stack_trace) {
+      for (const auto& frame :
+           GetStackTrace(&regs, policy_->GetNamespace()->mounts())) {
         VLOG(0) << "  " << frame;
       }
       VLOG(0) << "]";

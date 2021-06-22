@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
@@ -29,8 +28,9 @@ namespace sandbox2 {
 // Runs libunwind and the symbolizer and sends the results via comms.
 bool RunLibUnwindAndSymbolizer(Comms* comms);
 
-absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizer(
-    pid_t pid, int max_frames);
+std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
+                                                   std::vector<uintptr_t>* ips,
+                                                   int max_frames);
 
 }  // namespace sandbox2
 

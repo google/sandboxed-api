@@ -30,7 +30,6 @@ add_library(sandbox2_unwind STATIC
 )
 add_library(sandbox2::unwind ALIAS sandbox2_unwind)
 target_link_libraries(sandbox2_unwind PRIVATE
-  absl::statusor
   absl::strings
   sandbox2::comms
   sandbox2::maps_parser
@@ -41,7 +40,6 @@ target_link_libraries(sandbox2_unwind PRIVATE
   sapi::base
   sapi::file_helpers
   sapi::raw_logging
-  sapi::status
   unwind::unwind_ptrace_wrapped
 )
 
