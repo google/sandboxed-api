@@ -41,13 +41,10 @@
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
-
-namespace file_util = ::sapi::file_util;
 
 bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
                    std::string* error) {
@@ -120,10 +117,10 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 }
 
 std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
-  file_util::fileops::FDCloser exec_fd(
-      sapi::EmbedFile::GetEmbedFileSingleton()->GetDupFdForFileToc(
-          forkserver_bin_embed_create()));
-  SAPI_RAW_CHECK(exec_fd.get() >= 0, "Getting FD for init binary failed");
+  // The fd is owned by EmbedFile
+  int exec_fd = sapi::EmbedFile::GetEmbedFileSingleton()->GetFdForFileToc(
+      forkserver_bin_embed_create());
+  SAPI_RAW_CHECK(exec_fd >= 0, "Getting FD for init binary failed");
 
   std::string proc_name = "S2-FORK-SERV";
 
@@ -139,11 +136,20 @@ std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
   if (pid == 0) {
     // Move the comms FD to the proper, expected FD number.
     // The new FD will not be CLOEXEC, which is what we want.
+    // If exec_fd == Comms::kSandbox2ClientCommsFD then it would be replaced by
+    // the comms fd and result in EACCESS at execveat.
+    // So first move exec_fd also making sure it will not clash with sv[0]...
+    int new_exec_fd = Comms::kSandbox2ClientCommsFD + 1;
+    if (sv[0] == new_exec_fd) {
+      ++new_exec_fd;
+    }
+    dup2(exec_fd, new_exec_fd);
+    fcntl(new_exec_fd, F_SETFD, FD_CLOEXEC);
     dup2(sv[0], Comms::kSandbox2ClientCommsFD);
 
     char* const args[] = {proc_name.data(), nullptr};
     char* const envp[] = {nullptr};
-    syscall(__NR_execveat, exec_fd.get(), "", args, envp, AT_EMPTY_PATH);
+    syscall(__NR_execveat, new_exec_fd, "", args, envp, AT_EMPTY_PATH);
     SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
     abort();
   }

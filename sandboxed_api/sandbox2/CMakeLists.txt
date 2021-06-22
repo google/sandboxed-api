@@ -226,7 +226,6 @@ target_link_libraries(sandbox2_global_forkserver
           absl::strings
           glog::glog
           sandbox2::client
-          sapi::fileops
           sandbox2::forkserver_bin_embed
           sapi::strerror
           sandbox2::util

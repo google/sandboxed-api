@@ -225,7 +225,6 @@ cc_library(
         ":forkserver_cc_proto",
         ":util",
         "//sandboxed_api:embed_file",
-        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:strerror",
