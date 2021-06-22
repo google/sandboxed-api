@@ -24,8 +24,10 @@
 #include <vector>
 
 #include <glog/logging.h>
+#include "absl/cleanup/cleanup.h"
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
@@ -45,6 +47,7 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, sandbox_disable_all_stack_traces, false,
           "Completely disable stack trace collection for sandboxees");
@@ -53,27 +56,34 @@ ABSL_FLAG(bool, sandbox_libunwind_crash_handler, true,
           "Sandbox libunwind when handling violations (preferred)");
 
 namespace sandbox2 {
+namespace {
 
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
 
+// Similar to GetStackTrace() but without using the sandbox to isolate
+// libunwind.
+absl::StatusOr<std::vector<std::string>> UnsafeGetStackTrace(pid_t pid) {
+  LOG(WARNING) << "Using non-sandboxed libunwind";
+  return RunLibUnwindAndSymbolizer(pid, kDefaultMaxFrames);
+}
+
+}  // namespace
+
 class StackTracePeer {
  public:
-  static std::unique_ptr<Policy> GetPolicy(pid_t target_pid,
-                                           const std::string& maps_file,
-                                           const std::string& app_path,
-                                           const std::string& exe_path,
-                                           const Mounts& mounts);
+  static absl::StatusOr<std::unique_ptr<Policy>> GetPolicy(
+      pid_t target_pid, const std::string& maps_file,
+      const std::string& app_path, const std::string& exe_path,
+      const Mounts& mounts);
 
-  static bool LaunchLibunwindSandbox(const Regs* regs, const Mounts& mounts,
-                                     UnwindResult* result);
+  static absl::StatusOr<UnwindResult> LaunchLibunwindSandbox(
+      const Regs* regs, const Mounts& mounts);
 };
 
-std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
-                                                  const std::string& maps_file,
-                                                  const std::string& app_path,
-                                                  const std::string& exe_path,
-                                                  const Mounts& mounts) {
+absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
+    pid_t target_pid, const std::string& maps_file, const std::string& app_path,
+    const std::string& exe_path, const Mounts& mounts) {
   PolicyBuilder builder;
   builder
       // Use the mounttree of the original executable as starting point.
@@ -147,23 +157,18 @@ std::unique_ptr<Policy> StackTracePeer::GetPolicy(pid_t target_pid,
     }
   }
 
-  auto policy = builder.TryBuild();
-  if (!policy.ok()) {
-    LOG(ERROR) << "Creating stack unwinder sandbox policy failed";
-    return nullptr;
-  }
+  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy, builder.TryBuild());
   auto keep_capabilities = absl::make_unique<std::vector<int>>();
   keep_capabilities->push_back(CAP_SYS_PTRACE);
-  (*policy)->AllowUnsafeKeepCapabilities(std::move(keep_capabilities));
+  policy->AllowUnsafeKeepCapabilities(std::move(keep_capabilities));
   // Use no special namespace flags when cloning. We will join an existing
   // user namespace and will unshare() afterwards (See forkserver.cc).
-  (*policy)->GetNamespace()->clone_flags_ = 0;
-  return std::move(*policy);
+  policy->GetNamespace()->clone_flags_ = 0;
+  return std::move(policy);
 }
 
-bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
-                                            const Mounts& mounts,
-                                            sandbox2::UnwindResult* result) {
+absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
+    const Regs* regs, const Mounts& mounts) {
   const pid_t pid = regs->pid();
 
   // Tell executor to use this special internal mode.
@@ -183,8 +188,8 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
   char unwind_temp_directory_template[] = "/tmp/.sandbox2_unwind_XXXXXX";
   char* unwind_temp_directory = mkdtemp(unwind_temp_directory_template);
   if (!unwind_temp_directory) {
-    LOG(WARNING) << "Could not create temporary directory for unwinding";
-    return false;
+    return absl::InternalError(
+        "Could not create temporary directory for unwinding");
   }
   struct UnwindTempDirectoryCleanup {
     ~UnwindTempDirectoryCleanup() {
@@ -200,8 +205,7 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
   if (!file_util::fileops::CopyFile(
           file::JoinPath("/proc", absl::StrCat(pid), "maps"),
           unwind_temp_maps_path, 0400)) {
-    LOG(WARNING) << "Could not copy maps file";
-    return false;
+    return absl::InternalError("Could not copy maps file");
   }
 
   // Get path to the binary.
@@ -211,8 +215,7 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
   std::string app_path;
   std::string proc_pid_exe = file::JoinPath("/proc", absl::StrCat(pid), "exe");
   if (!file_util::fileops::ReadLinkAbsolute(proc_pid_exe, &app_path)) {
-    LOG(WARNING) << "Could not obtain absolute path to the binary";
-    return false;
+    return absl::InternalError("Could not obtain absolute path to the binary");
   }
 
   // The exe_path will have a mountable path of the application, even if it was
@@ -227,8 +230,7 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
     // Create a copy of /proc/pid/exe, mount that one.
     exe_path = file::JoinPath(unwind_temp_directory, "exe");
     if (!file_util::fileops::CopyFile(proc_pid_exe, exe_path, 0700)) {
-      LOG(WARNING) << "Could not copy /proc/pid/exe";
-      return false;
+      return absl::InternalError("Could not copy /proc/pid/exe");
     }
   }
 
@@ -236,11 +238,9 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
 
   // Add mappings for the binary (as they might not have been added due to the
   // forkserver).
-  auto policy = StackTracePeer::GetPolicy(pid, unwind_temp_maps_path, app_path,
-                                          exe_path, mounts);
-  if (!policy) {
-    return false;
-  }
+  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy,
+                        StackTracePeer::GetPolicy(pid, unwind_temp_maps_path,
+                                                  app_path, exe_path, mounts));
   Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   VLOG(1) << "Running libunwind sandbox";
@@ -253,37 +253,53 @@ bool StackTracePeer::LaunchLibunwindSandbox(const Regs* regs,
                sizeof(regs->user_regs_));
   msg.set_default_max_frames(kDefaultMaxFrames);
 
-  bool success = true;
-  if (!comms->SendProtoBuf(msg)) {
-    LOG(ERROR) << "Sending libunwind setup message failed";
-    success = false;
-  }
-
-  if (success && !comms->RecvProtoBuf(result)) {
-    LOG(ERROR) << "Receiving libunwind result failed";
-    success = false;
-  }
-
-  if (!success) {
+  absl::Cleanup kill_sandbox = [&sandbox]() {
     sandbox.Kill();
+    sandbox.AwaitResult().IgnoreResult();
+  };
+
+  if (!comms->SendProtoBuf(msg)) {
+    return absl::InternalError("Sending libunwind setup message failed");
   }
+  absl::Status status;
+  if (!comms->RecvStatus(&status)) {
+    return absl::InternalError(
+        "Receiving status from libunwind sandbox failed");
+  }
+  if (!status.ok()) {
+    return status;
+  }
+  UnwindResult result;
+  if (!comms->RecvProtoBuf(&result)) {
+    return absl::InternalError("Receiving libunwind result failed");
+  }
+
+  std::move(kill_sandbox).Cancel();
+
   auto sandbox_result = sandbox.AwaitResult();
 
   LOG(INFO) << "Libunwind execution status: " << sandbox_result.ToString();
 
-  return success && sandbox_result.final_status() == Result::OK;
+  if (sandbox_result.final_status() != Result::OK) {
+    return absl::InternalError(
+        absl::StrCat("libunwind sandbox did not finish properly: ",
+                     sandbox_result.ToString()));
+  }
+
+  return result;
 }
 
-std::vector<std::string> GetStackTrace(const Regs* regs, const Mounts& mounts) {
+absl::StatusOr<std::vector<std::string>> GetStackTrace(const Regs* regs,
+                                                       const Mounts& mounts) {
   if constexpr (sapi::host_cpu::IsArm64()) {
-    return {"[Stack traces unavailable]"};
+    return absl::UnavailableError("Stack traces unavailable on Aarch64");
   }
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
-    return {"[Stacktraces disabled]"};
+    return absl::UnavailableError("Stacktraces disabled");
   }
   if (!regs) {
-    LOG(WARNING) << "Could not obtain stacktrace, regs == nullptr";
-    return {"[ERROR (noregs)]"};
+    return absl::InvalidArgumentError(
+        "Could not obtain stacktrace, regs == nullptr");
   }
 
   // Show a warning if sandboxed libunwind is requested but we're running in
@@ -303,17 +319,10 @@ std::vector<std::string> GetStackTrace(const Regs* regs, const Mounts& mounts) {
     return UnsafeGetStackTrace(regs->pid());
   }
 
-  UnwindResult res;
-  if (!StackTracePeer::LaunchLibunwindSandbox(regs, mounts, &res)) {
-    return {};
-  }
-  return {res.stacktrace().begin(), res.stacktrace().end()};
-}
-
-std::vector<std::string> UnsafeGetStackTrace(pid_t pid) {
-  LOG(WARNING) << "Using non-sandboxed libunwind";
-  std::vector<uintptr_t> ips;
-  return RunLibUnwindAndSymbolizer(pid, &ips, kDefaultMaxFrames);
+  SAPI_ASSIGN_OR_RETURN(UnwindResult res,
+                        StackTracePeer::LaunchLibunwindSandbox(regs, mounts));
+  return std::vector<std::string>(res.stacktrace().begin(),
+                                  res.stacktrace().end());
 }
 
 std::vector<std::string> CompactStackTrace(

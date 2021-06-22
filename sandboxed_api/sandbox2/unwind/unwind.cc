@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "libunwind-ptrace.h"
@@ -34,6 +35,7 @@
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
@@ -73,29 +75,77 @@ std::string GetSymbolAt(const std::map<uint64_t, std::string>& addr_to_symbol,
   return "";
 }
 
-}  // namespace
+absl::StatusOr<std::map<uint64_t, std::string>> LoadSymbolsMap(pid_t pid) {
+  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
+  std::string maps_content;
+  SAPI_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
+                                               sapi::file::Defaults()));
 
-std::vector<uintptr_t> GetIPList(pid_t pid, int max_frames) {
+  SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
+                        ParseProcMaps(maps_content));
+
+  // Get symbols for each file entry in the maps entry.
+  // This is not a very efficient way, so we might want to optimize it.
+  std::map<uint64_t, std::string> addr_to_symbol;
+  for (const MapsEntry& entry : maps) {
+    if (!entry.is_executable ||
+        entry.inode == 0 ||  // Only parse file-backed entries
+        entry.path.empty() ||
+        absl::EndsWith(entry.path, " (deleted)")  // Skip deleted files
+    ) {
+      continue;
+    }
+
+    // Store details about start + end of this map.
+    // The maps entries are ordered and thus sorted with increasing adresses.
+    // This means if there is a symbol @ entry.end, it will be overwritten in
+    // the next iteration.
+    addr_to_symbol[entry.start] = absl::StrCat("map:", entry.path);
+    addr_to_symbol[entry.end] = "";
+
+    absl::StatusOr<ElfFile> elf =
+        ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
+    if (!elf.ok()) {
+      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
+                   entry.path.c_str(),
+                   std::string(elf.status().message()).c_str());
+      continue;
+    }
+
+    for (const ElfFile::Symbol& symbol : elf->symbols()) {
+      if (elf->position_independent()) {
+        if (symbol.address < entry.end - entry.start) {
+          addr_to_symbol[symbol.address + entry.start] = symbol.name;
+        }
+      } else {
+        if (symbol.address >= entry.start && symbol.address < entry.end) {
+          addr_to_symbol[symbol.address] = symbol.name;
+        }
+      }
+    }
+  }
+  return addr_to_symbol;
+}
+
+absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
   unw_cursor_t cursor;
   static unw_addr_space_t as =
       unw_create_addr_space(&_UPT_accessors, 0 /* byte order */);
   if (as == nullptr) {
-    SAPI_RAW_LOG(WARNING, "unw_create_addr_space() failed");
-    return {};
+    return absl::InternalError("unw_create_addr_space() failed");
   }
 
   std::unique_ptr<struct UPT_info, void (*)(void*)> ui(
       reinterpret_cast<struct UPT_info*>(_UPT_create(pid)), _UPT_destroy);
   if (ui == nullptr) {
-    SAPI_RAW_LOG(WARNING, "_UPT_create() failed");
-    return {};
+    return absl::InternalError("_UPT_create() failed");
   }
 
   int rc = unw_init_remote(&cursor, as, ui.get());
   if (rc < 0) {
     // Could be UNW_EINVAL (8), UNW_EUNSPEC (1) or UNW_EBADREG (3).
-    SAPI_RAW_LOG(WARNING, "unw_init_remote() failed with error %d", rc);
-    return {};
+    return absl::InternalError(
+        absl::StrCat("unw_init_remote() failed with error ", rc));
   }
 
   std::vector<uintptr_t> ips;
@@ -120,6 +170,22 @@ std::vector<uintptr_t> GetIPList(pid_t pid, int max_frames) {
   return ips;
 }
 
+absl::StatusOr<std::vector<std::string>> SymbolizeStacktrace(
+    pid_t pid, const std::vector<uintptr_t>& ips) {
+  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(pid));
+  std::vector<std::string> stack_trace;
+  stack_trace.reserve(ips.size());
+  // Symbolize stacktrace
+  for (uintptr_t ip : ips) {
+    const std::string symbol =
+        GetSymbolAt(addr_to_symbol, static_cast<uint64_t>(ip));
+    stack_trace.push_back(absl::StrCat(symbol, "(0x", absl::Hex(ip), ")"));
+  }
+  return stack_trace;
+}
+
+}  // namespace
+
 bool RunLibUnwindAndSymbolizer(Comms* comms) {
   UnwindSetup setup;
   if (!comms->RecvProtoBuf(&setup)) {
@@ -128,87 +194,34 @@ bool RunLibUnwindAndSymbolizer(Comms* comms) {
 
   EnablePtraceEmulationWithUserRegs(setup.regs());
 
-  std::vector<uintptr_t> ips;
-  std::vector<std::string> stack_trace =
-      RunLibUnwindAndSymbolizer(setup.pid(), &ips, setup.default_max_frames());
+  absl::StatusOr<std::vector<uintptr_t>> ips =
+      RunLibUnwind(setup.pid(), setup.default_max_frames());
+  absl::StatusOr<std::vector<std::string>> stack_trace;
+  if (ips.ok()) {
+    stack_trace = SymbolizeStacktrace(setup.pid(), *ips);
+  } else {
+    stack_trace = ips.status();
+  }
+
+  if (!comms->SendStatus(stack_trace.status())) {
+    return false;
+  }
+
+  if (!stack_trace.ok()) {
+    return true;
+  }
 
   UnwindResult msg;
-  *msg.mutable_stacktrace() = {stack_trace.begin(), stack_trace.end()};
-  *msg.mutable_ip() = {ips.begin(), ips.end()};
+  *msg.mutable_stacktrace() = {stack_trace->begin(), stack_trace->end()};
+  *msg.mutable_ip() = {ips->begin(), ips->end()};
   return comms->SendProtoBuf(msg);
 }
 
-std::vector<std::string> RunLibUnwindAndSymbolizer(pid_t pid,
-                                                   std::vector<uintptr_t>* ips,
-                                                   int max_frames) {
-  *ips = GetIPList(pid, max_frames);  // Uses libunwind
-
-  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
-  std::string maps_content;
-  if (auto status = sapi::file::GetContents(maps_filename, &maps_content,
-                                            sapi::file::Defaults());
-      !status.ok()) {
-    SAPI_RAW_LOG(ERROR, "%s", status.ToString().c_str());
-    return {};
-  }
-
-  auto maps = ParseProcMaps(maps_content);
-  if (!maps.ok()) {
-    SAPI_RAW_LOG(ERROR, "Could not parse file: %s", maps_filename.c_str());
-    return {};
-  }
-
-  // Get symbols for each file entry in the maps entry.
-  // This is not a very efficient way, so we might want to optimize it.
-  std::map<uint64_t, std::string> addr_to_symbol;
-  for (const auto& entry : *maps) {
-    if (!entry.path.empty()) {
-      // Store details about start + end of this map.
-      // The maps entries are ordered and thus sorted with increasing adresses.
-      // This means if there is a symbol @ entry.end, it will be overwritten in
-      // the next iteration.
-      addr_to_symbol[entry.start] = absl::StrCat("map:", entry.path);
-      addr_to_symbol[entry.end] = "";
-    }
-
-    if (!entry.is_executable ||
-        entry.inode == 0 ||  // Only parse file-backed entries
-        entry.path.empty() ||
-        absl::EndsWith(entry.path, " (deleted)")  // Skip deleted files
-    ) {
-      continue;
-    }
-
-    auto elf = ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
-    if (!elf.ok()) {
-      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
-                   entry.path.c_str(),
-                   std::string(elf.status().message()).c_str());
-      continue;
-    }
-
-    for (const auto& symbol : elf->symbols()) {
-      if (elf->position_independent()) {
-        if (symbol.address < entry.end - entry.start) {
-          addr_to_symbol[symbol.address + entry.start] = symbol.name;
-        }
-      } else {
-        if (symbol.address >= entry.start && symbol.address < entry.end) {
-          addr_to_symbol[symbol.address] = symbol.name;
-        }
-      }
-    }
-  }
-
-  std::vector<std::string> stack_trace;
-  stack_trace.reserve(ips->size());
-  // Symbolize stacktrace
-  for (const auto& ip : *ips) {
-    const std::string symbol =
-        GetSymbolAt(addr_to_symbol, static_cast<uint64_t>(ip));
-    stack_trace.push_back(absl::StrCat(symbol, "(0x", absl::Hex(ip), ")"));
-  }
-  return stack_trace;
+absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizer(
+    pid_t pid, int max_frames) {
+  SAPI_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
+                        RunLibUnwind(pid, max_frames));
+  return SymbolizeStacktrace(pid, ips);
 }
 
 }  // namespace sandbox2
