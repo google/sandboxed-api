@@ -138,18 +138,18 @@ std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
     // The new FD will not be CLOEXEC, which is what we want.
     // If exec_fd == Comms::kSandbox2ClientCommsFD then it would be replaced by
     // the comms fd and result in EACCESS at execveat.
-    // So first move exec_fd also making sure it will not clash with sv[0]...
-    int new_exec_fd = Comms::kSandbox2ClientCommsFD + 1;
-    if (sv[0] == new_exec_fd) {
-      ++new_exec_fd;
+    // So first move exec_fd to another fd number.
+    if (exec_fd == Comms::kSandbox2ClientCommsFD) {
+      exec_fd = dup(exec_fd);
+      SAPI_RAW_PCHECK(exec_fd != -1, "duping exec fd failed");
+      fcntl(exec_fd, F_SETFD, FD_CLOEXEC);
     }
-    dup2(exec_fd, new_exec_fd);
-    fcntl(new_exec_fd, F_SETFD, FD_CLOEXEC);
-    dup2(sv[0], Comms::kSandbox2ClientCommsFD);
+    SAPI_RAW_PCHECK(dup2(sv[0], Comms::kSandbox2ClientCommsFD) != -1,
+                    "duping comms fd failed");
 
     char* const args[] = {proc_name.data(), nullptr};
     char* const envp[] = {nullptr};
-    syscall(__NR_execveat, new_exec_fd, "", args, envp, AT_EMPTY_PATH);
+    syscall(__NR_execveat, exec_fd, "", args, envp, AT_EMPTY_PATH);
     SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
     abort();
   }
