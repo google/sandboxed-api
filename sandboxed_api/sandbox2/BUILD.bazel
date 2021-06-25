@@ -281,6 +281,7 @@ cc_library(
         "policybuilder.cc",
         "sandbox2.cc",
         "stack_trace.cc",
+        "stack_trace.h",
     ],
     hdrs = [
         "client.h",
@@ -293,7 +294,6 @@ cc_library(
         "regs.h",
         "result.h",
         "sandbox2.h",
-        "stack_trace.h",
         "syscall.h",
     ],
     copts = sapi_platform_copts(),
@@ -784,11 +784,16 @@ cc_test(
 
 cc_test(
     name = "stack_trace_test",
-    srcs = ["stack_trace_test.cc"],
+    srcs = [
+        "stack_trace.h",
+        "stack_trace_test.cc",
+    ],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:symbolize"],
     deps = [
         ":global_forkserver",
+        ":mounts",
+        ":regs",
         ":sandbox2",
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:bpf_helper",

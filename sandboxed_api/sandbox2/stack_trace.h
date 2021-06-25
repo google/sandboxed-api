@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "sandboxed_api/sandbox2/mounts.h"
-#include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
 
 namespace sandbox2 {
