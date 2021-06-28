@@ -802,6 +802,7 @@ cc_test(
         "//sandboxed_api/util:status_matchers",
         "//sandboxed_api/util:temp_file",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
