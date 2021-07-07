@@ -38,29 +38,35 @@ EmbedFile* EmbedFile::GetEmbedFileSingleton() {
 
 int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
   // Create a memfd/temp file and write contents of the SAPI library to it.
-  int embed_fd = -1;
-  if (!sandbox2::util::CreateMemFd(&embed_fd, toc->name)) {
+  int fd = -1;
+  if (!sandbox2::util::CreateMemFd(&fd, toc->name)) {
     SAPI_RAW_LOG(ERROR, "Couldn't create a temporary file for TOC name '%s'",
                  toc->name);
     return -1;
   }
+  file_util::fileops::FDCloser embed_fd(fd);
 
-  if (!file_util::fileops::WriteToFD(embed_fd, toc->data, toc->size)) {
+  if (!file_util::fileops::WriteToFD(embed_fd.get(), toc->data, toc->size)) {
     SAPI_RAW_PLOG(ERROR, "Couldn't write SAPI embed file '%s' to memfd file",
                   toc->name);
-    close(embed_fd);
     return -1;
   }
 
   // Make the underlying file non-writeable.
-  if (fchmod(embed_fd,
+  if (fchmod(embed_fd.get(),
              S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == -1) {
-    SAPI_RAW_PLOG(ERROR, "Could't make FD=%d RX-only", embed_fd);
-    close(embed_fd);
+    SAPI_RAW_PLOG(ERROR, "Could't make FD=%d RX-only", embed_fd.get());
     return -1;
   }
 
-  return embed_fd;
+  // Seal the file
+  if (fcntl(embed_fd.get(), F_ADD_SEALS,
+            F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE) == -1) {
+    SAPI_RAW_PLOG(ERROR, "Couldn't apply file seals to FD=%d", embed_fd.get());
+    return -1;
+  }
+
+  return embed_fd.Release();
 }
 
 int EmbedFile::GetFdForFileToc(const FileToc* toc) {
