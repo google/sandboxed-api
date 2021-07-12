@@ -125,7 +125,7 @@ class Executor final {
   //
   // Returns the same values as fork().
   pid_t StartSubProcess(int clone_flags, const Namespace* ns = nullptr,
-                        const std::vector<int>* caps = nullptr,
+                        const std::vector<int>& caps = {},
                         pid_t* init_pid_out = nullptr);
 
   // Whether the Executor has been started yet

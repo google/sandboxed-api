@@ -42,7 +42,7 @@ namespace sandbox2 {
 namespace internal {
 // Magic values of registers when executing sys_execveat, so we can recognize
 // the pre-sandboxing state and notify the Monitor
-constexpr uintptr_t kExecveMagic = 0x921c2c34;
+inline constexpr uintptr_t kExecveMagic = 0x921c2c34;
 }  // namespace internal
 
 class Comms;
@@ -79,9 +79,7 @@ class Policy final {
     namespace_ = std::move(ns);
   }
 
-  const std::vector<int>* GetCapabilities() const {
-    return capabilities_.get();
-  }
+  const std::vector<int>& capabilities() const { return capabilities_; }
 
   // Returns the default policy, which blocks certain dangerous syscalls and
   // mismatched syscall tables.
@@ -100,7 +98,7 @@ class Policy final {
   bool collect_stacktrace_on_kill_ = true;
 
   // The capabilities to keep in the sandboxee.
-  std::unique_ptr<std::vector<int>> capabilities_;
+  std::vector<int> capabilities_;
 
   // Optional pointer to a PolicyBuilder description pb object.
   std::unique_ptr<PolicyBuilderDescription> policy_builder_description_;

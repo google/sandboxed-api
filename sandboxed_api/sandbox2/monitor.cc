@@ -266,7 +266,7 @@ void Monitor::Run() {
   // Get PID of the sandboxee.
   pid_t init_pid = 0;
   bool should_have_init = ns && (ns->GetCloneFlags() & CLONE_NEWPID);
-  pid_ = executor_->StartSubProcess(clone_flags, ns, policy_->GetCapabilities(),
+  pid_ = executor_->StartSubProcess(clone_flags, ns, policy_->capabilities(),
                                     &init_pid);
 
   if (init_pid > 0) {

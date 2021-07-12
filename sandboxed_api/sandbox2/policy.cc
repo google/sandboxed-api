@@ -169,7 +169,11 @@ void Policy::AllowUnsafeKeepCapabilities(
   if (namespace_) {
     namespace_->DisableUserNamespace();
   }
-  capabilities_ = std::move(caps);
+  if (!caps) {
+    capabilities_.clear();
+  } else {
+    capabilities_ = {caps->begin(), caps->end()};
+  }
 }
 
 void Policy::GetPolicyDescription(PolicyDescription* policy) const {
@@ -185,10 +189,8 @@ void Policy::GetPolicyDescription(PolicyDescription* policy) const {
         policy->mutable_namespace_description());
   }
 
-  if (capabilities_) {
-    for (const auto& cap : *capabilities_) {
-      policy->add_capabilities(cap);
-    }
+  for (const auto& cap : capabilities_) {
+    policy->add_capabilities(cap);
   }
 }
 

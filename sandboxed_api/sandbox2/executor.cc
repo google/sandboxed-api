@@ -50,7 +50,7 @@ std::vector<std::string> Executor::CopyEnviron() {
 }
 
 pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
-                                const std::vector<int>* caps,
+                                const std::vector<int>& caps,
                                 pid_t* init_pid_out) {
   if (started_) {
     LOG(ERROR) << "This executor has already been started";
@@ -76,12 +76,8 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   }
 
   ForkRequest request;
-  for (size_t i = 0; i < argv_.size(); i++) {
-    request.add_args(argv_[i]);
-  }
-  for (size_t i = 0; i < envp_.size(); i++) {
-    request.add_envs(envp_[i]);
-  }
+  *request.mutable_args() = {argv_.begin(), argv_.end()};
+  *request.mutable_envs() = {envp_.begin(), envp_.end()};
 
   // Add LD_ORIGIN_PATH to envs, as it'll make the amount of syscalls invoked by
   // ld.so smaller.
@@ -113,15 +109,13 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
 
   request.set_clone_flags(clone_flags);
 
-  if (caps) {
-    for (auto cap : *caps) {
-      request.add_capabilities(cap);
-    }
+  for (auto cap : caps) {
+    request.add_capabilities(cap);
   }
 
   int ns_fd = -1;
   if (libunwind_sbox_for_pid_ != 0) {
-    std::string ns_path =
+    const std::string ns_path =
         absl::StrCat("/proc/", libunwind_sbox_for_pid_, "/ns/user");
     PCHECK((ns_fd = open(ns_path.c_str(), O_RDONLY)) != -1)
         << "Could not open user ns fd (" << ns_path << ")";
