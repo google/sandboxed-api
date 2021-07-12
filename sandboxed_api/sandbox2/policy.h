@@ -52,7 +52,7 @@ class Policy final {
   // Skips creation of a user namespace and keep capabilities in the global
   // namespace. This only makes sense in some rare cases where the sandbox is
   // started as root, please talk to sandbox-team@ before using this function.
-  void AllowUnsafeKeepCapabilities(std::unique_ptr<std::vector<int>> caps);
+  void AllowUnsafeKeepCapabilities(std::vector<int> caps);
 
   // Stores information about the policy (and the policy builder if existing)
   // in the protobuf structure.

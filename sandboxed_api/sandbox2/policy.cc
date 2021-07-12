@@ -164,16 +164,11 @@ bool Policy::SendPolicy(Comms* comms) const {
   return true;
 }
 
-void Policy::AllowUnsafeKeepCapabilities(
-    std::unique_ptr<std::vector<int>> caps) {
+void Policy::AllowUnsafeKeepCapabilities(std::vector<int> caps) {
   if (namespace_) {
     namespace_->DisableUserNamespace();
   }
-  if (!caps) {
-    capabilities_.clear();
-  } else {
-    capabilities_ = {caps->begin(), caps->end()};
-  }
+  capabilities_ = std::move(caps);
 }
 
 void Policy::GetPolicyDescription(PolicyDescription* policy) const {

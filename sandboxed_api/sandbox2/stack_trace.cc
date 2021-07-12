@@ -158,9 +158,7 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
   }
 
   SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy, builder.TryBuild());
-  auto keep_capabilities = absl::make_unique<std::vector<int>>();
-  keep_capabilities->push_back(CAP_SYS_PTRACE);
-  policy->AllowUnsafeKeepCapabilities(std::move(keep_capabilities));
+  policy->AllowUnsafeKeepCapabilities({CAP_SYS_PTRACE});
   // Use no special namespace flags when cloning. We will join an existing
   // user namespace and will unshare() afterwards (See forkserver.cc).
   policy->GetNamespace()->clone_flags_ = 0;
