@@ -120,7 +120,7 @@ void StopProcess(pid_t pid, int signo) {
       LOG(WARNING) << "Process " << pid
                    << " died while trying to PTRACE_LISTEN it";
     } else {
-      PLOG(ERROR) << "ptrace(PTRACE_CONT, pid=" << pid << ", sig=" << signo
+      PLOG(ERROR) << "ptrace(PTRACE_LISTEN, pid=" << pid << ", sig=" << signo
                   << ")";
     }
   }
