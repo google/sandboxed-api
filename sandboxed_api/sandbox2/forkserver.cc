@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -61,21 +62,48 @@ namespace {
 
 using ::sapi::StrError;
 
-// "Moves" the old FD to the new FD number.
-// The old FD will be closed, the new one is marked as CLOEXEC.
-void MoveToFdNumber(int* old_fd, int new_fd) {
-  if (dup2(*old_fd, new_fd) == -1) {
-    SAPI_RAW_PLOG(FATAL, "Moving temporary to proper FD failed.");
+// "Moves" FDs in move_fds from current to target FD number while keeping FDs
+// in keep_fds open - potentially moving them to another FD number as well in
+// case of colisions.
+// Ignores invalid (-1) fds.
+void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
+             std::initializer_list<int*> keep_fds) {
+  absl::flat_hash_map<int, int*> fd_map;
+  for (int* fd : keep_fds) {
+    if (*fd != -1) {
+      fd_map.emplace(*fd, fd);
+    }
   }
-  close(*old_fd);
 
-  // Try to mark that FD as CLOEXEC.
-  int flags = fcntl(new_fd, F_GETFD);
-  if (flags == -1 || fcntl(new_fd, F_SETFD, flags | O_CLOEXEC) != 0) {
-    SAPI_RAW_PLOG(ERROR, "Marking FD as CLOEXEC failed");
+  for (auto [old_fd, new_fd] : move_fds) {
+    if (*old_fd != -1) {
+      fd_map.emplace(*old_fd, old_fd);
+    }
   }
 
-  *old_fd = new_fd;
+  for (auto [old_fd, new_fd] : move_fds) {
+    if (*old_fd == -1 || *old_fd == new_fd) {
+      continue;
+    }
+
+    // Make sure we won't override another fd
+    auto it = fd_map.find(new_fd);
+    if (it != fd_map.end()) {
+      int fd = dup(new_fd);
+      SAPI_RAW_CHECK(fd != -1, "Duplicating an FD failed.");
+      *it->second = fd;
+      fd_map.emplace(fd, it->second);
+      fd_map.erase(it);
+    }
+
+    if (dup2(*old_fd, new_fd) == -1) {
+      SAPI_RAW_PLOG(FATAL, "Moving temporary to proper FD failed.");
+    }
+
+    close(*old_fd);
+    fd_map.erase(*old_fd);
+    *old_fd = new_fd;
+  }
 }
 
 void RunInitProcess(std::set<int> open_fds) {
@@ -231,7 +259,11 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     PrepareExecveArgs(request, &args, &envs);
   }
 
-  SanitizeEnvironment(client_fd);
+  MoveFDs({{&execve_fd, Comms::kSandbox2TargetExecFD},
+           {&client_fd, Comms::kSandbox2ClientCommsFD}},
+          {&signaling_fd});
+
+  SanitizeEnvironment();
 
   std::set<int> open_fds;
   if (!sanitizer::GetListOfFDs(&open_fds)) {
@@ -331,8 +363,6 @@ pid_t ForkServer::ServeRequest() {
   if (fork_request.mode() == FORKSERVER_FORK_EXECVE ||
       fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
     SAPI_RAW_CHECK(comms_->RecvFD(&exec_fd), "Failed to receive Exec FD");
-    // We're duping to a high number here to avoid colliding with the IPC FDs.
-    MoveToFdNumber(&exec_fd, Comms::kSandbox2TargetExecFD);
   }
 
   // Make the kernel notify us with SIGCHLD when the process terminates.
@@ -519,11 +549,7 @@ void ForkServer::CreateInitialNamespaces() {
   close(fds[1]);
 }
 
-void ForkServer::SanitizeEnvironment(int client_fd) {
-  // Duplicate client's CommsFD onto fd=Comms::kSandbox2ClientCommsFD (1023).
-  SAPI_RAW_CHECK(dup2(client_fd, Comms::kSandbox2ClientCommsFD) != -1,
-                 "while remapping client comms fd");
-  close(client_fd);
+void ForkServer::SanitizeEnvironment() {
   // Mark all file descriptors, except the standard ones (needed
   // for proper sandboxed process operations), as close-on-exec.
   SAPI_RAW_CHECK(sanitizer::SanitizeCurrentProcess(

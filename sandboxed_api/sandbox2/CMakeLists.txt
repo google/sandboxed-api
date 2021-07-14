@@ -381,6 +381,7 @@ add_library(sandbox2_forkserver ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::forkserver ALIAS sandbox2_forkserver)
 target_link_libraries(sandbox2_forkserver PRIVATE
+  absl::flat_hash_map
   absl::memory
   absl::status
   absl::statusor

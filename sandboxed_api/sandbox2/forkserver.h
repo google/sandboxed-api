@@ -69,7 +69,7 @@ class ForkServer {
                                 std::vector<std::string>* envp);
 
   // Ensures that no unnecessary file descriptors are lingering after execve().
-  static void SanitizeEnvironment(int client_fd);
+  static void SanitizeEnvironment();
 
   // Executes the sandboxee, or exit with Executor::kFailedExecve.
   static void ExecuteProcess(int execve_fd, const char** argv,
