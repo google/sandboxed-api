@@ -27,13 +27,11 @@ namespace sapi {
 // executable files.
 class EmbedFile {
  public:
-  EmbedFile() = default;
-
   EmbedFile(const EmbedFile&) = delete;
   EmbedFile& operator=(const EmbedFile&) = delete;
 
   // Returns the pointer to the per-process EmbedFile object.
-  static EmbedFile* GetEmbedFileSingleton();
+  static EmbedFile* instance();
 
   // Returns a file-descriptor for a given FileToc.
   int GetFdForFileToc(const FileToc* toc);
@@ -45,6 +43,8 @@ class EmbedFile {
   // Creates an executable file for a given FileToc, and return its
   // file-descriptors (-1 in case of errors).
   static int CreateFdForFileToc(const FileToc* toc);
+
+  EmbedFile() = default;
 
   // List of File TOCs and corresponding file-descriptors.
   absl::flat_hash_map<const FileToc*, int> file_tocs_

@@ -31,8 +31,8 @@
 
 namespace sapi {
 
-EmbedFile* EmbedFile::GetEmbedFileSingleton() {
-  static auto* embed_file_instance = new EmbedFile{};
+EmbedFile* EmbedFile::instance() {
+  static auto* embed_file_instance = new EmbedFile();
   return embed_file_instance;
 }
 

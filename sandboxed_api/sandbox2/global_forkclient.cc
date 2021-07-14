@@ -118,7 +118,7 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 
 std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
   // The fd is owned by EmbedFile
-  int exec_fd = sapi::EmbedFile::GetEmbedFileSingleton()->GetFdForFileToc(
+  int exec_fd = sapi::EmbedFile::instance()->GetFdForFileToc(
       forkserver_bin_embed_create());
   SAPI_RAW_CHECK(exec_fd >= 0, "Getting FD for init binary failed");
 

@@ -141,8 +141,7 @@ absl::Status Sandbox::Init() {
     std::string lib_path;
     int embed_lib_fd = -1;
     if (embed_lib_toc_) {
-      embed_lib_fd = EmbedFile::GetEmbedFileSingleton()->GetDupFdForFileToc(
-          embed_lib_toc_);
+      embed_lib_fd = EmbedFile::instance()->GetDupFdForFileToc(embed_lib_toc_);
       if (embed_lib_fd == -1) {
         PLOG(ERROR) << "Cannot create executable FD for TOC:'"
                     << embed_lib_toc_->name << "'";
