@@ -59,12 +59,13 @@ int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
     return -1;
   }
 
-  // Seal the file
-  if (fcntl(embed_fd.get(), F_ADD_SEALS,
-            F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE) == -1) {
-    SAPI_RAW_PLOG(ERROR, "Couldn't apply file seals to FD=%d", embed_fd.get());
-    return -1;
-  }
+  // Ideally, we'd seal the file here using fcntl(). However, in rare cases,
+  // adding the file seals F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW |
+  // F_SEAL_WRITE results in EBUSY errors.
+  // This is likely because of an interaction of SEAL_WRITE with pending writes
+  // to the mapped memory region (see memfd_wait_for_pins() in Linux'
+  // mm/memfd.c). Since fsync() is a no-op on memfds, it doesn't help to
+  // ameliorate the problem.
 
   return embed_fd.Release();
 }
