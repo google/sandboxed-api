@@ -433,31 +433,47 @@ PolicyBuilder& PolicyBuilder::AllowGetIDs() {
   });
 }
 
-PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
+PolicyBuilder& PolicyBuilder::AllowRestartableSequencesWithProcFiles(
     CpuFenceMode cpu_fence_mode) {
-  AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
-    return {
-        ARG_32(2),  // prot
-        JEQ32(PROT_READ | PROT_WRITE, ALLOW),
-
-        ARG_32(3),  // flags
-        JEQ32(MAP_PRIVATE | MAP_ANONYMOUS, ALLOW),
-    };
-  });
+  AllowRestartableSequences(cpu_fence_mode);
+  AddFile("/proc/cpuinfo");
+  AddFile("/proc/stat");
   if (cpu_fence_mode == kAllowSlowFences) {
     AddFile("/proc/self/cpuset");
-    AllowSyscalls({__NR_sched_getaffinity, __NR_sched_setaffinity});
   }
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
+    CpuFenceMode cpu_fence_mode) {
 #ifdef __NR_rseq
   AllowSyscall(__NR_rseq);
 #endif
+  AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
+    return {
+        ARG_32(2),  // prot
+        JNE32(PROT_READ | PROT_WRITE, JUMP(&labels, mmap_end)),
+
+        ARG_32(3),  // flags
+        JNE32(MAP_PRIVATE | MAP_ANONYMOUS, JUMP(&labels, mmap_end)),
+
+        ALLOW,
+        LABEL(&labels, mmap_end),
+    };
+  });
+  AllowSyscall(__NR_getcpu);
+  AllowSyscall(__NR_membarrier);
   AllowFutexOp(FUTEX_WAIT);
   AllowFutexOp(FUTEX_WAKE);
   AddPolicyOnSyscall(__NR_rt_sigprocmask, {
                                               ARG_32(0),
                                               JEQ32(SIG_SETMASK, ALLOW),
                                           });
-  return AllowSyscalls({__NR_membarrier, __NR_getcpu});
+  if (cpu_fence_mode == kAllowSlowFences) {
+    AllowSyscall(__NR_sched_getaffinity);
+    AllowSyscall(__NR_sched_setaffinity);
+  }
+  return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AllowGetPIDs() {

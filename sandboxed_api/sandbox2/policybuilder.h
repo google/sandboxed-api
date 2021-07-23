@@ -121,23 +121,38 @@ class PolicyBuilder final {
   // - exit_group
   PolicyBuilder& AllowExit();
 
-  // Appends code to allow restartable sequences.
+  // Appends code to allow restartable sequences and necessary /proc files.
   // Allows these syscalls:
   // - rseq
-  // - mmap(null, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS)
-  // - getcpu,
+  // - mmap(..., PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, ...)
+  // - getcpu
   // - membarrier
-  // - futex(WAIT) and futex(WAKE)
-  // - sigmask(SET_MASK)
+  // - futex(WAIT)
+  // - futex(WAKE)
+  // - rt_sigprocmask(SIG_SETMASK)
+  // Allows these files:
+  // - "/proc/cpuinfo"
+  // - "/proc/stat"
   //
-  // If `cpu_fence_mode` is `kAllowSlowFences`, allow for slow cpu fences which
-  // will enable namespaces and these syscalls and files:
+  // If `cpu_fence_mode` is `kAllowSlowFences`, also permits slow CPU fences.
+  // Allows these syscalls:
   // - sched_getaffinity
   // - sched_setaffinity
+  // Allows these files:
   // - "/proc/self/cpuset"
   //
-  // If `allow_slow_fences` is false, RSEQ functions may not be enabled if
-  // fast CPU fences are not available.
+  // If `cpu_fence_mode` is `kRequireFastFences`, RSEQ functionality may not
+  // be enabled if fast CPU fences are not available.
+  //
+  // This function enables namespaces! If your policy disables namespaces,
+  // the conflict will cause an error when the policy is built. You should
+  // call AllowRestartableSequences() instead; see below for instructions.
+  PolicyBuilder& AllowRestartableSequencesWithProcFiles(
+      CpuFenceMode cpu_fence_mode);
+
+  // Appends code to allow restartable sequences.
+  // See above for the allowed syscalls and, more importantly, for the files
+  // that you are responsible for allowing via the deprecated `Fs` mechanism.
   PolicyBuilder& AllowRestartableSequences(CpuFenceMode cpu_fence_mode);
 
   // Appends code to allow the scudo version of malloc, free and
