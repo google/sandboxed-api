@@ -26,12 +26,11 @@
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace host_cpu = ::sapi::host_cpu;
-using ::sapi::StrError;
 
 namespace sandbox2 {
 
@@ -63,7 +62,7 @@ namespace {
 absl::Status CheckedFSeek(FILE* f, long offset, int whence) {
   if (fseek(f, offset, whence)) {
     return absl::FailedPreconditionError(
-        absl::StrCat("Fseek on ELF failed: ", StrError(errno)));
+        sapi::OsErrorMessage(errno, "Fseek on ELF failed"));
   }
   return absl::OkStatus();
 }
@@ -73,7 +72,7 @@ absl::Status CheckedFRead(void* dst, size_t size, size_t nmemb, FILE* f) {
     return absl::OkStatus();
   }
   return absl::FailedPreconditionError(
-      absl::StrCat("Reading ELF data failed: ", StrError(errno)));
+      sapi::OsErrorMessage(errno, "Reading ELF data failed"));
 }
 
 absl::Status CheckedRead(std::string* s, FILE* f) {
@@ -470,8 +469,8 @@ absl::StatusOr<ElfFile> ElfParser::Parse(const std::string& filename,
                                          uint32_t features) {
   ElfParser parser;
   if (parser.elf_ = std::fopen(filename.c_str(), "r"); !parser.elf_) {
-    return absl::UnknownError(
-        absl::StrCat("cannot open file: ", filename, ": ", StrError(errno)));
+    return absl::UnknownError(sapi::OsErrorMessage(
+        errno, absl::StrCat("cannot open file: ", filename)));
   }
 
   // Basic sanity check.

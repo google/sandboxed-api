@@ -22,12 +22,10 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
-
-using ::sapi::StrError;
 
 static absl::StatusOr<std::string> Addr6ToString(
     const struct sockaddr_in6* saddr) {
@@ -72,8 +70,8 @@ static absl::Status IPStringToAddr(const std::string& ip, int address_family,
     return absl::InvalidArgumentError(absl::StrCat("Invalid address: ", ip));
   }
   if (err == -1) {
-    return absl::InternalError(
-        absl::StrCat("inet_pton() failed for ", ip, ": ", StrError(errno)));
+    return absl::InternalError(sapi::OsErrorMessage(
+        errno, absl::StrCat("inet_pton() failed for ", ip)));
   }
 
   return absl::OkStatus();

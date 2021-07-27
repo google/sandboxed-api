@@ -143,11 +143,12 @@ sapi_proto_library(
     srcs = ["status.proto"],
 )
 
-# Reimplementations of utility functions not released with absl::Status.
+# Implementations of utility functions not released with absl::Status.
 cc_library(
     name = "status",
     srcs = ["status.cc"],
     hdrs = [
+        "os_error.h",
         "status.h",
         "status_macros.h",
     ],
@@ -155,6 +156,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":status_cc_proto",
+        ":strerror",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

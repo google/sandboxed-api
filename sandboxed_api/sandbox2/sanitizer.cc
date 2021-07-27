@@ -47,9 +47,7 @@
 namespace sandbox2::sanitizer {
 namespace {
 
-namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
-using ::sapi::StrError;
 
 constexpr char kProcSelfFd[] = "/proc/self/fd";
 

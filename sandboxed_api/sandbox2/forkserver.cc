@@ -55,6 +55,7 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 
@@ -168,7 +169,7 @@ absl::Status SendPid(int signaling_fd) {
   char dummy = ' ';
   if (TEMP_FAILURE_RETRY(send(signaling_fd, &dummy, 1, 0)) != 1) {
     return absl::InternalError(
-        absl::StrCat("Sending PID: send: ", StrError(errno)));
+        sapi::OsErrorMessage(errno, "Sending PID: send()"));
   }
   return absl::OkStatus();
 }
@@ -193,7 +194,7 @@ absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
 
   if (TEMP_FAILURE_RETRY(recvmsg(signaling_fd, &msgh, MSG_WAITALL)) != 1) {
     return absl::InternalError(
-        absl::StrCat("Receiving pid failed: recvmsg: ", StrError(errno)));
+        sapi::OsErrorMessage(errno, "Receiving pid failed: recvmsg"));
   }
   struct cmsghdr* cmsgp = CMSG_FIRSTHDR(&msgh);
   if (cmsgp->cmsg_len != CMSG_LEN(sizeof(struct ucred)) ||

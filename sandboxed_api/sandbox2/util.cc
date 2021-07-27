@@ -34,6 +34,7 @@
 #include <memory>
 
 #include "absl/base/attributes.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
@@ -47,15 +48,14 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2::util {
 
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
-using ::sapi::StrError;
 
 void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec) {
   for (int i = 0; arr[i]; ++i) {
@@ -235,7 +235,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
   posix_spawn_file_actions_t action;
 
   if (pipe(cout_pipe) == -1) {
-    return absl::UnknownError(absl::StrCat("creating pipe: ", StrError(errno)));
+    return absl::UnknownError(sapi::OsErrorMessage(errno, "creating pipe"));
   }
   file_util::fileops::FDCloser cout_closer{cout_pipe[1]};
 
@@ -264,8 +264,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
 
   pid_t pid;
   if (posix_spawnp(&pid, args[0], &action, nullptr, args, envp) != 0) {
-    return absl::UnknownError(
-        absl::StrCat("posix_spawnp() failed: ", StrError(errno)));
+    return absl::UnknownError(sapi::OsErrorMessage(errno, "posix_spawnp()"));
   }
 
   // Close child end of the pipe.
@@ -277,7 +276,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
         TEMP_FAILURE_RETRY(read(cout_pipe[0], &buffer[0], buffer.length()));
     if (bytes_read < 0) {
       return absl::InternalError(
-          absl::StrCat("reading from cout pipe failed: ", StrError(errno)));
+          sapi::OsErrorMessage(errno, "reading from cout pipe"));
     }
     if (bytes_read == 0) {
       break;  // Nothing left to read
@@ -379,9 +378,10 @@ absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
   ssize_t sz = process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
                                 remote_iov, ABSL_ARRAYSIZE(remote_iov), 0);
   if (sz < 0) {
-    return absl::InternalError(absl::StrFormat(
-        "process_vm_readv() failed for PID: %d at address: %#x: %s", pid,
-        reinterpret_cast<uintptr_t>(ptr), StrError(errno)));
+    return absl::InternalError(sapi::OsErrorMessage(
+        errno,
+        absl::StrFormat("process_vm_readv() failed for PID: %d at address: %#x",
+                        pid, reinterpret_cast<uintptr_t>(ptr))));
   }
 
   // Check for whether there's a NUL byte in the buffer. If not, it's an

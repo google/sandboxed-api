@@ -27,11 +27,9 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
-#include "sandboxed_api/util/strerror.h"
+#include "sandboxed_api/util/os_error.h"
 
 namespace sandbox2 {
-
-using ::sapi::StrError;
 
 #ifndef NT_ARM_SYSTEM_CALL
 #define NT_ARM_SYSTEM_CALL 0x404
@@ -40,8 +38,8 @@ using ::sapi::StrError;
 absl::Status Regs::Fetch() {
 #ifdef SAPI_X86_64
   if (ptrace(PTRACE_GETREGS, pid_, 0, &user_regs_) == -1L) {
-    return absl::InternalError(absl::StrCat("ptrace(PTRACE_GETREGS, pid=", pid_,
-                                            ") failed: ", StrError(errno)));
+    return absl::InternalError(sapi::OsErrorMessage(
+        errno, absl::StrCat("ptrace(PTRACE_GETREGS, pid=", pid_, ") failed")));
   }
 #endif
   if constexpr (sapi::host_cpu::IsPPC64LE() || sapi::host_cpu::IsArm64() ||
@@ -49,9 +47,9 @@ absl::Status Regs::Fetch() {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
-      return absl::InternalError(
-          absl::StrCat("ptrace(PTRACE_GETREGSET, pid=", pid_,
-                       ") failed: ", StrError(errno)));
+      return absl::InternalError(sapi::OsErrorMessage(
+          errno,
+          absl::StrCat("ptrace(PTRACE_GETREGSET, pid=", pid_, ") failed")));
     }
     if (pt_iov.iov_len != sizeof(user_regs_)) {
       return absl::InternalError(absl::StrCat(
@@ -65,9 +63,9 @@ absl::Status Regs::Fetch() {
       iovec sys_iov = {&syscall_number_, sizeof(syscall_number_)};
 
       if (ptrace(PTRACE_GETREGSET, pid_, NT_ARM_SYSTEM_CALL, &sys_iov) == -1L) {
-        return absl::InternalError(
-            absl::StrCat("ptrace(PTRACE_GETREGSET, pid=", pid_,
-                         ", NT_ARM_SYSTEM_CALL) failed: ", StrError(errno)));
+        return absl::InternalError(sapi::OsErrorMessage(
+            errno, absl::StrCat("ptrace(PTRACE_GETREGSET, pid=", pid_,
+                                ", NT_ARM_SYSTEM_CALL)")));
       }
       if (sys_iov.iov_len != sizeof(syscall_number_)) {
         return absl::InternalError(absl::StrCat(
@@ -84,8 +82,8 @@ absl::Status Regs::Fetch() {
 absl::Status Regs::Store() {
 #ifdef SAPI_X86_64
   if (ptrace(PTRACE_SETREGS, pid_, 0, &user_regs_) == -1) {
-    return absl::InternalError(absl::StrCat("ptrace(PTRACE_SETREGS, pid=", pid_,
-                                            ") failed: ", StrError(errno)));
+    return absl::InternalError(sapi::OsErrorMessage(
+        errno, absl::StrCat("ptrace(PTRACE_SETREGS, pid=", pid_, ")")));
   }
 #endif
   if constexpr (sapi::host_cpu::IsPPC64LE() || sapi::host_cpu::IsArm64() ||
@@ -93,9 +91,9 @@ absl::Status Regs::Store() {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
-      return absl::InternalError(
-          absl::StrCat("ptrace(PTRACE_SETREGSET, pid=", pid_,
-                       ") failed: ", StrError(errno)));
+      return absl::InternalError(sapi::OsErrorMessage(
+          errno,
+          absl::StrCat("ptrace(PTRACE_SETREGSET, pid=", pid_, ") failed")));
     }
 
     // Store syscall number on AArch64.
@@ -103,9 +101,9 @@ absl::Status Regs::Store() {
       iovec sys_iov = {&syscall_number_, sizeof(syscall_number_)};
 
       if (ptrace(PTRACE_SETREGSET, pid_, NT_ARM_SYSTEM_CALL, &sys_iov) == -1L) {
-        return absl::InternalError(
-            absl::StrCat("ptrace(PTRACE_SETREGSET, pid=", pid_,
-                         ", NT_ARM_SYSTEM_CALL) failed: ", StrError(errno)));
+        return absl::InternalError(sapi::OsErrorMessage(
+            errno, absl::StrCat("ptrace(PTRACE_SETREGSET, pid=", pid_,
+                                ", NT_ARM_SYSTEM_CALL) failed")));
       }
     }
   }

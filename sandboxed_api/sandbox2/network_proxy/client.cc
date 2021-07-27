@@ -28,12 +28,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
-
-using ::sapi::StrError;
 
 #ifndef SYS_SECCOMP
 constexpr int SYS_SECCOMP = 1;
@@ -123,7 +121,7 @@ absl::Status NetworkProxyClient::ReceiveRemoteResult() {
   if (result != 0) {
     errno = result;
     return absl::InternalError(
-        absl::StrCat("Error in network proxy server: ", StrError(errno)));
+        sapi::OsErrorMessage(errno, "Error in network proxy server"));
   }
   return absl::OkStatus();
 }

@@ -21,14 +21,13 @@
 #include <cerrno>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/util/strerror.h"
+#include "sandboxed_api/util/os_error.h"
 
 namespace sandbox2 {
-
-using ::sapi::StrError;
 
 // Creates a new Buffer that is backed by the specified file descriptor.
 absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
@@ -37,7 +36,7 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
   struct stat stat_buf;
   if (fstat(fd, &stat_buf) != 0) {
     return absl::InternalError(
-        absl::StrCat("Could not stat buffer fd: ", StrError(errno)));
+        sapi::OsErrorMessage(errno, "Could not stat buffer fd"));
   }
   size_t size = stat_buf.st_size;
   int prot = PROT_READ | PROT_WRITE;
@@ -47,7 +46,7 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
       reinterpret_cast<uint8_t*>(mmap(nullptr, size, prot, flags, fd, offset));
   if (buffer->buf_ == MAP_FAILED) {
     return absl::InternalError(
-        absl::StrCat("Could not map buffer fd: ", StrError(errno)));
+        sapi::OsErrorMessage(errno, "Could not map buffer fd"));
   }
   buffer->fd_ = fd;
   buffer->size_ = size;
@@ -63,7 +62,7 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(size_t size) {
   }
   if (ftruncate(fd, size) != 0) {
     return absl::InternalError(
-        absl::StrCat("Could not extend buffer fd: ", StrError(errno)));
+        sapi::OsErrorMessage(errno, "Could not extend buffer fd"));
   }
   return CreateFromFd(fd);
 }

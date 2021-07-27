@@ -498,7 +498,7 @@ target_link_libraries(sandbox2_util
           sapi::file_base
           sapi::file_helpers
           sapi::fileops
-          sapi::strerror
+          sapi::status
           sapi::base
           sapi::raw_logging
   PUBLIC absl::status
