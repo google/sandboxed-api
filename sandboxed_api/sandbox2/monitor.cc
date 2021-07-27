@@ -69,6 +69,7 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/temp_file.h"
 
 using std::string;
@@ -132,8 +133,9 @@ void MaybeEnableTomoyoLsmWorkaround(Mounts& mounts, std::string& comms_fd_dev) {
     if (auto status = sapi::file::GetContents(
             "/sys/kernel/security/lsm", &lsm_list, sapi::file::Defaults());
         !status.ok() && !absl::IsNotFound(status)) {
-      SAPI_RAW_PLOG(WARNING, "Checking active LSMs failed: %s",
-                    std::string(status.message()).c_str());
+      SAPI_RAW_VLOG(1, "Checking active LSMs failed: %s: %s",
+                    std::string(status.message()).c_str(),
+                    sapi::StrError(errno).c_str());
       return false;
     }
     return absl::StrContains(lsm_list, "tomoyo");

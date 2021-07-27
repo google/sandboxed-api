@@ -301,6 +301,7 @@ target_link_libraries(sandbox2_sandbox2
           absl::str_format
           absl::strings
           absl::synchronization
+          sapi::strerror
           sapi::base
   PUBLIC  absl::status
           absl::statusor
