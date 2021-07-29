@@ -447,10 +447,6 @@ absl::Status Sandbox::SetWallTimeLimit(absl::Duration limit) const {
   return absl::OkStatus();
 }
 
-absl::Status Sandbox::SetWallTimeLimit(time_t limit) const {
-  return SetWallTimeLimit(absl::Seconds(limit));
-}
-
 void Sandbox::Exit() const {
   if (!is_active()) {
     return;

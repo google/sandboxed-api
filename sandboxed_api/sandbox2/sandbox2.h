@@ -104,12 +104,7 @@ class Sandbox2 final {
   void set_walltime_limit(absl::Duration limit) const;
 
   // Gets the pid inside the executor.
-  pid_t GetPid() {
-    if (monitor_ != nullptr) {
-      return monitor_->pid_;
-    }
-    return -1;
-  }
+  pid_t GetPid() { return monitor_ != nullptr ? monitor_->pid_ : -1; }
 
   // Gets the comms inside the executor.
   Comms* comms() {

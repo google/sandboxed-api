@@ -19,6 +19,7 @@
 #define SANDBOXED_API_SANDBOX2_LIMITS_H_
 
 #include <sys/resource.h>
+
 #include <cstdint>
 #include <ctime>
 
@@ -34,7 +35,7 @@ class Limits final {
   Limits(const Limits&) = delete;
   Limits& operator=(const Limits&) = delete;
 
-  // Rlimit-s getters/setters.
+  // rlimits getters/setters.
   //
   // Use RLIM64_INFINITY for unlimited values, but remember that some of those
   // cannot exceed system limits (e.g. RLIMIT_NOFILE).

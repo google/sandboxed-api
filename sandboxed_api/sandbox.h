@@ -48,7 +48,7 @@ class Sandbox {
   absl::Status Init();
 
   ABSL_DEPRECATED("Use sapi::Sandbox::is_active() instead")
-  bool IsActive() const { return is_active(); }
+  bool IsActive() const { return this->is_active(); }
   // Returns whether the current sandboxing session is active.
   bool is_active() const;
 
@@ -65,11 +65,11 @@ class Sandbox {
   sandbox2::Comms* comms() const { return comms_; }
 
   ABSL_DEPRECATED("Use sapi::Sandbox::rpc_channel() instead")
-  RPCChannel* GetRpcChannel() const { return rpc_channel_.get(); }
+  RPCChannel* GetRpcChannel() const { return this->rpc_channel(); }
   RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
 
   ABSL_DEPRECATED("Use sapi::Sandbox::pid() instead")
-  int GetPid() const { return pid_; }
+  int GetPid() const { return this->pid(); }
   int pid() const { return pid_; }
 
   // Synchronizes the underlying memory for the pointer before the call.
@@ -115,7 +115,9 @@ class Sandbox {
   absl::Status SetWallTimeLimit(absl::Duration limit) const;
   ABSL_DEPRECATED(
       "Use sapi::Sandbox::SetWallTimeLimit(absl::Duration) overload instead")
-  absl::Status SetWallTimeLimit(time_t limit) const;
+  absl::Status SetWallTimeLimit(time_t limit) const {
+    return this->SetWallTimeLimit(absl::Seconds(limit));
+  }
 
  protected:
 
