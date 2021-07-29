@@ -499,7 +499,7 @@ bool Comms::Send(const void* data, size_t len) {
   };
   while (total_sent < len) {
     ssize_t s;
-    s = op(connection_fd_);
+      s = op(connection_fd_);
     if (s == -1 && errno == EPIPE) {
       Terminate();
       // We do not expect the other end to disappear.
@@ -507,10 +507,10 @@ bool Comms::Send(const void* data, size_t len) {
       return false;
     }
     if (s == -1) {
+      SAPI_RAW_PLOG(ERROR, "write");
       if (IsFatalError(errno)) {
         Terminate();
       }
-      SAPI_RAW_PLOG(ERROR, "write");
       return false;
     }
     if (s == 0) {
@@ -533,12 +533,12 @@ bool Comms::Recv(void* data, size_t len) {
   };
   while (total_recv < len) {
     ssize_t s;
-    s = op(connection_fd_);
+      s = op(connection_fd_);
     if (s == -1) {
+      SAPI_RAW_PLOG(ERROR, "read");
       if (IsFatalError(errno)) {
         Terminate();
       }
-      SAPI_RAW_PLOG(ERROR, "read");
       return false;
     }
     if (s == 0) {
