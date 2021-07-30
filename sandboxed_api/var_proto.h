@@ -24,6 +24,7 @@
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
+#include "absl/utility/utility.h"
 #include "sandboxed_api/proto_helper.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_lenval.h"
@@ -44,7 +45,7 @@ class Proto : public Pointable, public Var {
 
   static absl::StatusOr<Proto<T>> FromMessage(const T& proto) {
     SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> len_val, SerializeProto(proto));
-    return Proto(len_val);
+    return absl::StatusOr<Proto<T>>(absl::in_place, proto);
   }
 
   size_t GetSize() const final { return wrapped_var_.GetSize(); }
@@ -68,8 +69,8 @@ class Proto : public Pointable, public Var {
 
   ABSL_DEPRECATED("Use GetMessage() instead")
   std::unique_ptr<T> GetProtoCopy() const {
-    if (auto result_or = GetMessage(); result_or.ok()) {
-      return absl::make_unique<T>(std::move(result_or).value());
+    if (auto proto = GetMessage(); proto.ok()) {
+      return absl::make_unique<T>(*std::move(proto));
     }
     return nullptr;
   }
@@ -102,7 +103,9 @@ class Proto : public Pointable, public Var {
   }
 
  private:
-  explicit Proto(std::vector<uint8_t> data) : wrapped_var_(data) {}
+  friend class absl::StatusOr<Proto<T>>;
+
+  explicit Proto(std::vector<uint8_t> data) : wrapped_var_(std::move(data)) {}
 
   // The management of reading/writing the data to the sandboxee is handled by
   // the LenVal class.

@@ -156,6 +156,7 @@ target_link_libraries(sapi_vars
           absl::str_format
           absl::strings
           absl::synchronization
+          absl::utility
           sandbox2::comms
           sapi::base
           sapi::call

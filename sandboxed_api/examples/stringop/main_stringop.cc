@@ -69,12 +69,12 @@ TEST(StringopTest, ProtobufStringReversal) {
 
   stringop::StringReverse proto;
   proto.set_input("Hello");
-  sapi::v::Proto<stringop::StringReverse> pp(proto);
+  auto pp = sapi::v::Proto<stringop::StringReverse>::FromMessage(proto);
   SAPI_ASSERT_OK_AND_ASSIGN(int return_value,
-                            api.pb_reverse_string(pp.PtrBoth()));
+                            api.pb_reverse_string(pp->PtrBoth()));
   EXPECT_THAT(return_value, Ne(0)) << "pb_reverse_string() failed";
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto pb_result, pp.GetMessage());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pb_result, pp->GetMessage());
   LOG(INFO) << "Result PB: " << pb_result.DebugString();
   EXPECT_THAT(pb_result.output(), StrEq("olleH"));
 }
