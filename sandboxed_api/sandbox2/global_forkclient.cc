@@ -19,6 +19,8 @@
 #include <fcntl.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
 
@@ -192,9 +194,21 @@ void GlobalForkClient::ForceStart() {
 }
 
 void GlobalForkClient::Shutdown() {
-  absl::MutexLock lock(&GlobalForkClient::instance_mutex_);
-  delete instance_;
-  instance_ = nullptr;
+  pid_t pid = -1;
+  {
+    absl::MutexLock lock(&GlobalForkClient::instance_mutex_);
+    if (instance_) {
+      pid = instance_->fork_client_.pid();
+    }
+    delete instance_;
+    instance_ = nullptr;
+  }
+  if (pid != -1) {
+    pid_t wpid = TEMP_FAILURE_RETRY(waitpid(pid, nullptr, 0));
+    if (wpid != pid) {
+      SAPI_RAW_PLOG(ERROR, "Waiting for %d failed", pid);
+    }
+  }
 }
 
 pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
