@@ -148,7 +148,9 @@ class Executor final {
   // chdir to cwd_, if set. Defaults to current working directory.
   std::string cwd_ = []() {
     std::string cwd = sapi::file_util::fileops::GetCWD();
-    PCHECK(!cwd.empty());
+    if (cwd.empty()) {
+      PLOG(WARNING) << "Getting current working directory";
+    }
     return cwd;
   }();
 
