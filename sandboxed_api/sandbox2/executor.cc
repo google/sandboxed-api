@@ -37,12 +37,6 @@ namespace sandbox2 {
 
 namespace file_util = ::sapi::file_util;
 
-Executor::~Executor() {
-  if (client_comms_fd_ != -1) {
-    close(client_comms_fd_);
-  }
-}
-
 std::vector<std::string> Executor::CopyEnviron() {
   std::vector<std::string> environ_copy;
   util::CharPtrArrToVecString(environ, &environ_copy);
@@ -58,8 +52,8 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   }
 
   if (!path_.empty()) {
-    exec_fd_ = open(path_.c_str(), O_PATH);
-    if (exec_fd_ < 0) {
+    exec_fd_ = file_util::fileops::FDCloser(open(path_.c_str(), O_PATH));
+    if (exec_fd_.get() < 0) {
       PLOG(ERROR) << "Could not open file " << path_;
       return -1;
     }
@@ -67,12 +61,12 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
 
   if (libunwind_sbox_for_pid_ != 0) {
     VLOG(1) << "StartSubProcces, starting libunwind";
-  } else if (exec_fd_ < 0) {
+  } else if (exec_fd_.get() < 0) {
     VLOG(1) << "StartSubProcess, with [Fork-Server]";
   } else if (!path_.empty()) {
     VLOG(1) << "StartSubProcess, with file " << path_;
   } else {
-    VLOG(1) << "StartSubProcess, with fd " << exec_fd_;
+    VLOG(1) << "StartSubProcess, with fd " << exec_fd_.get();
   }
 
   ForkRequest request;
@@ -93,7 +87,7 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   // Fork-Server.
   if (libunwind_sbox_for_pid_ != 0) {
     request.set_mode(FORKSERVER_FORK_JOIN_SANDBOX_UNWIND);
-  } else if (exec_fd_ == -1) {
+  } else if (exec_fd_.get() == -1) {
     request.set_mode(FORKSERVER_FORK);
   } else if (enable_sandboxing_pre_execve_) {
     request.set_mode(FORKSERVER_FORK_EXECVE_SANDBOX);
@@ -113,11 +107,12 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
     request.add_capabilities(cap);
   }
 
-  int ns_fd = -1;
+  file_util::fileops::FDCloser ns_fd;
   if (libunwind_sbox_for_pid_ != 0) {
     const std::string ns_path =
         absl::StrCat("/proc/", libunwind_sbox_for_pid_, "/ns/user");
-    PCHECK((ns_fd = open(ns_path.c_str(), O_RDONLY)) != -1)
+    ns_fd = file_util::fileops::FDCloser(open(ns_path.c_str(), O_RDONLY));
+    PCHECK(ns_fd.get() != -1)
         << "Could not open user ns fd (" << ns_path << ")";
   }
 
@@ -125,11 +120,13 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
 
   pid_t sandboxee_pid;
   if (fork_client_) {
-    sandboxee_pid = fork_client_->SendRequest(
-        request, exec_fd_, client_comms_fd_, ns_fd, &init_pid);
+    sandboxee_pid = fork_client_->SendRequest(request, exec_fd_.get(),
+                                              client_comms_fd_.get(),
+                                              ns_fd.get(), &init_pid);
   } else {
-    sandboxee_pid = GlobalForkClient::SendRequest(
-        request, exec_fd_, client_comms_fd_, ns_fd, &init_pid);
+    sandboxee_pid = GlobalForkClient::SendRequest(request, exec_fd_.get(),
+                                                  client_comms_fd_.get(),
+                                                  ns_fd.get(), &init_pid);
   }
 
   if (init_pid < 0) {
@@ -146,16 +143,8 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
 
   started_ = true;
 
-  close(client_comms_fd_);
-  client_comms_fd_ = -1;
-  if (exec_fd_ >= 0) {
-    close(exec_fd_);
-    exec_fd_ = -1;
-  }
-
-  if (ns_fd >= 0) {
-    close(ns_fd);
-  }
+  client_comms_fd_.Close();
+  exec_fd_.Close();
 
   VLOG(1) << "StartSubProcess returned with: " << sandboxee_pid;
   return sandboxee_pid;
@@ -178,10 +167,8 @@ void Executor::SetUpServerSideCommsFd() {
     PLOG(FATAL) << "socketpair(AF_UNIX, SOCK_STREAM) failed";
   }
 
-  client_comms_fd_ = sv[0];
-  server_comms_fd_ = sv[1];
-
-  ipc_.SetUpServerSideComms(server_comms_fd_);
+  client_comms_fd_ = file_util::fileops::FDCloser(sv[0]);
+  ipc_.SetUpServerSideComms(sv[1]);
 }
 
 }  // namespace sandbox2

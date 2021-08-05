@@ -74,8 +74,6 @@ class Executor final {
     SetUpServerSideCommsFd();
   }
 
-  ~Executor();
-
   // Creates a new process which will act as a custom ForkServer. Should be used
   // with custom fork servers only.
   // This function returns immediately and returns a nullptr on failure.
@@ -140,7 +138,7 @@ class Executor final {
   bool enable_sandboxing_pre_execve_ = true;
 
   // Alternate (path/fd)/argv/envp to be used the in the __NR_execve call.
-  int exec_fd_ = -1;
+  sapi::file_util::fileops::FDCloser exec_fd_;
   std::string path_;
   std::vector<std::string> argv_;
   std::vector<std::string> envp_;
@@ -154,10 +152,8 @@ class Executor final {
     return cwd;
   }();
 
-  // Server (sandbox) end-point of a socket-pair used to create Comms channel
-  int server_comms_fd_ = -1;
   // Client (sandboxee) end-point of a socket-pair used to create Comms channel
-  int client_comms_fd_ = -1;
+  sapi::file_util::fileops::FDCloser client_comms_fd_;
 
   // ForkClient connecting to the ForkServer - not owned by the object
   ForkClient* fork_client_ = nullptr;
