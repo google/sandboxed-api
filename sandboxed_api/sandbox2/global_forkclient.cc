@@ -160,6 +160,13 @@ std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
   return absl::make_unique<GlobalForkClient>(sv[1], pid);
 }
 
+void WaitForForkserver(pid_t pid) {
+  pid_t wpid = TEMP_FAILURE_RETRY(waitpid(pid, nullptr, 0));
+  if (wpid != pid) {
+    SAPI_RAW_PLOG(ERROR, "Waiting for %d failed", pid);
+  }
+}
+
 }  // namespace
 
 absl::Mutex GlobalForkClient::instance_mutex_(absl::kConstInit);
@@ -204,22 +211,26 @@ void GlobalForkClient::Shutdown() {
     instance_ = nullptr;
   }
   if (pid != -1) {
-    pid_t wpid = TEMP_FAILURE_RETRY(waitpid(pid, nullptr, 0));
-    if (wpid != pid) {
-      SAPI_RAW_PLOG(ERROR, "Waiting for %d failed", pid);
-    }
+    WaitForForkserver(pid);
   }
 }
 
 pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
                                     int comms_fd, int user_ns_fd,
                                     pid_t* init_pid) {
-  absl::MutexLock lock(&GlobalForkClient::instance_mutex_);
+  absl::ReleasableMutexLock lock(&GlobalForkClient::instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   pid_t pid = instance_->fork_client_.SendRequest(request, exec_fd, comms_fd,
                                                   user_ns_fd, init_pid);
   if (instance_->comms_.IsTerminated()) {
     LOG(ERROR) << "Global forkserver connection terminated";
+    pid_t server_pid = instance_->fork_client_.pid();
+    delete instance_;
+    instance_ = nullptr;
+    // Don't wait for process exit while still holding the lock and potentially
+    // blocking other threads.
+    lock.Release();
+    WaitForForkserver(server_pid);
   }
   return pid;
 }
