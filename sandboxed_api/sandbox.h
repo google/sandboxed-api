@@ -61,7 +61,6 @@ class Sandbox {
     return Init();
   }
 
-  // Getters for common fields.
   sandbox2::Comms* comms() const { return comms_; }
 
   ABSL_DEPRECATED("Use sapi::Sandbox::rpc_channel() instead")
