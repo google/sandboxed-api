@@ -68,8 +68,6 @@ class Sandbox {
   RPCChannel* GetRpcChannel() const { return this->rpc_channel(); }
   RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
 
-  ABSL_DEPRECATED("Use sapi::Sandbox::pid() instead")
-  int GetPid() const { return this->pid(); }
   int pid() const { return pid_; }
 
   // Synchronizes the underlying memory for the pointer before the call.
