@@ -43,8 +43,8 @@
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
 
@@ -118,21 +118,28 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
   return rv;
 }
 
-std::unique_ptr<GlobalForkClient> StartGlobalForkServer() {
+absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   // The fd is owned by EmbedFile
   int exec_fd = sapi::EmbedFile::instance()->GetFdForFileToc(
       forkserver_bin_embed_create());
-  SAPI_RAW_CHECK(exec_fd >= 0, "Getting FD for init binary failed");
+  if (exec_fd < 0) {
+    return absl::InternalError("Getting FD for init binary failed");
+  }
 
   std::string proc_name = "S2-FORK-SERV";
 
   int sv[2];
-  SAPI_RAW_CHECK(socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) != -1,
-                 "creating socket pair");
+  if (socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == -1) {
+    return absl::InternalError(
+        sapi::OsErrorMessage(errno, "Creating socket pair failed"));
+  }
 
   // Fork the fork-server, and clean-up the resources (close remote sockets).
   pid_t pid = util::ForkWithFlags(SIGCHLD);
-  SAPI_RAW_PCHECK(pid != -1, "during fork");
+  if (pid == -1) {
+    return absl::InternalError(
+        sapi::OsErrorMessage(errno, "Forking forkserver process failed"));
+  }
 
   // Child.
   if (pid == 0) {
@@ -178,18 +185,28 @@ void GlobalForkClient::EnsureStarted(GlobalForkserverStartMode mode) {
 }
 
 void GlobalForkClient::EnsureStartedLocked(GlobalForkserverStartMode mode) {
-  if (!instance_) {
-    SAPI_RAW_CHECK(
-        !getenv(kForkServerDisableEnv),
-        absl::StrCat("Start of the Global Fork-Server prevented by the '",
-                     kForkServerDisableEnv, "' environment variable present")
-            .c_str());
-    SAPI_RAW_CHECK(
-        GetForkserverStartMode().contains(mode),
-        "Start of the Global Fork-Server prevented by commandline flag");
-    instance_ = StartGlobalForkServer().release();
+  if (instance_) {
+    return;
   }
-  SAPI_RAW_CHECK(instance_ != nullptr, "global fork client not initialized");
+  if (getenv(kForkServerDisableEnv)) {
+    SAPI_RAW_LOG(ERROR,
+                 "Start of the Global Fork-Server prevented by the %s "
+                 "environment variable present",
+                 kForkServerDisableEnv);
+    return;
+  }
+  if (!GetForkserverStartMode().contains(mode)) {
+    SAPI_RAW_LOG(
+        ERROR, "Start of the Global Fork-Server prevented by commandline flag");
+    return;
+  }
+  absl::StatusOr<std::unique_ptr<GlobalForkClient>> forkserver =
+      StartGlobalForkServer();
+  if (!forkserver.ok()) {
+    SAPI_RAW_LOG(ERROR, "Starting forkserver failed: %s",
+                 forkserver.status().message().data());
+  }
+  instance_ = forkserver->release();
 }
 
 void GlobalForkClient::ForceStart() {
@@ -197,7 +214,10 @@ void GlobalForkClient::ForceStart() {
   SAPI_RAW_CHECK(instance_ == nullptr,
                  "A force start requested when the Global Fork-Server was "
                  "already running");
-  instance_ = StartGlobalForkServer().release();
+  absl::StatusOr<std::unique_ptr<GlobalForkClient>> forkserver =
+      StartGlobalForkServer();
+  SAPI_RAW_CHECK(forkserver.ok(), forkserver.status().message().data());
+  instance_ = forkserver->release();
 }
 
 void GlobalForkClient::Shutdown() {
@@ -220,6 +240,9 @@ pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
                                     pid_t* init_pid) {
   absl::ReleasableMutexLock lock(&GlobalForkClient::instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
+  if (!instance_) {
+    return -1;
+  }
   pid_t pid = instance_->fork_client_.SendRequest(request, exec_fd, comms_fd,
                                                   user_ns_fd, init_pid);
   if (instance_->comms_.IsTerminated()) {
@@ -238,6 +261,9 @@ pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
 pid_t GlobalForkClient::GetPid() {
   absl::MutexLock lock(&instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
+  if (!instance_) {
+    return -1;
+  }
   return instance_->fork_client_.pid();
 }
 

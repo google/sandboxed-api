@@ -232,6 +232,7 @@ target_link_libraries(sandbox2_global_forkserver
           sapi::base
           sapi::embed_file
           sapi::raw_logging
+          sapi::status
   PUBLIC absl::core_headers
          absl::synchronization
          sandbox2::comms
