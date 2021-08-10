@@ -63,8 +63,6 @@ class Sandbox {
 
   sandbox2::Comms* comms() const { return comms_; }
 
-  ABSL_DEPRECATED("Use sapi::Sandbox::rpc_channel() instead")
-  RPCChannel* GetRpcChannel() const { return this->rpc_channel(); }
   RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
 
   int pid() const { return pid_; }
