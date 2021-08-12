@@ -30,7 +30,7 @@
 
 ABSL_ATTRIBUTE_NOINLINE
 void CrashMe() {
-  char* null = reinterpret_cast<char*>(0);
+  volatile char* null = nullptr;
   *null = 0;
 }
 
