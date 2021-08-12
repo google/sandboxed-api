@@ -47,8 +47,6 @@ class Sandbox {
   // Initializes a new sandboxing session.
   absl::Status Init();
 
-  ABSL_DEPRECATED("Use sapi::Sandbox::is_active() instead")
-  bool IsActive() const { return this->is_active(); }
   // Returns whether the current sandboxing session is active.
   bool is_active() const;
 
