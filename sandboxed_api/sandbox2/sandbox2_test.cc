@@ -118,6 +118,26 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   ASSERT_EQ(result.final_status(), Result::OK);
 }
 
+TEST(StackTraceTest, StackTraceOnExitWorks) {
+  SKIP_SANITIZERS_AND_COVERAGE;
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = absl::make_unique<Executor>(path, args);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .CollectStacktracesOnExit(true)
+                                .TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+
+  ASSERT_EQ(result.final_status(), Result::OK);
+  ASSERT_THAT(result.stack_trace(), Not(IsEmpty()));
+}
+
 // Tests that we return the correct state when the sandboxee was killed by an
 // external signal. Also make sure that we do not have the stack trace.
 TEST(RunAsyncTest, SandboxeeExternalKill) {

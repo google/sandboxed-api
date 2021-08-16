@@ -96,6 +96,7 @@ class Policy final {
   bool collect_stacktrace_on_signal_ = true;
   bool collect_stacktrace_on_timeout_ = true;
   bool collect_stacktrace_on_kill_ = true;
+  bool collect_stacktrace_on_exit_ = false;
 
   // The capabilities to keep in the sandboxee.
   std::vector<int> capabilities_;

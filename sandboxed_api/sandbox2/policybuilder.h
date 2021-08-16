@@ -540,6 +540,9 @@ class PolicyBuilder final {
   // monitor / the user.
   PolicyBuilder& CollectStacktracesOnKill(bool enable);
 
+  // Enables/disables stack trace collection on normal process exit.
+  PolicyBuilder& CollectStacktracesOnExit(bool enable);
+
   // Appends an unconditional ALLOW action for all syscalls.
   // Do not use in environment with untrusted code and/or data, ask
   // sandbox-team@ first if unsure.
@@ -590,6 +593,7 @@ class PolicyBuilder final {
   bool collect_stacktrace_on_signal_ = true;
   bool collect_stacktrace_on_timeout_ = true;
   bool collect_stacktrace_on_kill_ = false;
+  bool collect_stacktrace_on_exit_ = false;
 
   // Seccomp fields
   std::vector<sock_filter> user_policy_;

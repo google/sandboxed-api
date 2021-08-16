@@ -807,6 +807,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   output->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;
   output->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;
   output->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
+  output->collect_stacktrace_on_exit_ = collect_stacktrace_on_exit_;
   output->user_policy_ = std::move(user_policy_);
   output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
 
@@ -956,6 +957,11 @@ PolicyBuilder& PolicyBuilder::CollectStacktracesOnTimeout(bool enable) {
 
 PolicyBuilder& PolicyBuilder::CollectStacktracesOnKill(bool enable) {
   collect_stacktrace_on_kill_ = enable;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::CollectStacktracesOnExit(bool enable) {
+  collect_stacktrace_on_exit_ = enable;
   return *this;
 }
 

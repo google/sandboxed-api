@@ -360,6 +360,8 @@ bool Monitor::ShouldCollectStackTrace() {
       return policy_->collect_stacktrace_on_signal_;
     case Result::VIOLATION:
       return policy_->collect_stacktrace_on_violation_;
+    case Result::OK:
+      return policy_->collect_stacktrace_on_exit_;
     default:
       return false;
   }
@@ -861,7 +863,9 @@ void Monitor::EventPtraceExec(pid_t pid, int event_msg) {
 
 void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
   // A regular exit, let it continue (fast-path).
-  if (WIFEXITED(event_msg)) {
+  if (ABSL_PREDICT_TRUE(
+          WIFEXITED(event_msg) &&
+          (!policy_->collect_stacktrace_on_exit_ || pid != pid_))) {
     ContinueProcess(pid, 0);
     return;
   }
@@ -883,10 +887,11 @@ void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
     return;
   }
 
-  // This can be reached in three cases:
+  // This can be reached in four cases:
   // 1) Process was killed from the sandbox.
   // 2) Process was killed because it hit a timeout.
   // 3) Regular signal/other exit cause.
+  // 4) Normal exit for which we want to obtain stack trace.
   if (pid == pid_) {
     VLOG(1) << "PID: " << pid << " main special exit";
     if (network_violation_) {
@@ -896,6 +901,8 @@ void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
       SetExitStatusCode(Result::EXTERNAL_KILL, 0);
     } else if (timed_out_) {
       SetExitStatusCode(Result::TIMEOUT, 0);
+    } else if (WIFEXITED(event_msg)) {
+      SetExitStatusCode(Result::OK, WEXITSTATUS(event_msg));
     } else {
       SetExitStatusCode(Result::SIGNALED, WTERMSIG(event_msg));
     }
