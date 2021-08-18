@@ -100,7 +100,11 @@ absl::StatusOr<std::map<uint64_t, std::string>> LoadSymbolsMap(pid_t pid) {
     // The maps entries are ordered and thus sorted with increasing adresses.
     // This means if there is a symbol @ entry.end, it will be overwritten in
     // the next iteration.
-    addr_to_symbol[entry.start] = absl::StrCat("map:", entry.path);
+    std::string map = absl::StrCat("map:", entry.path);
+    if (entry.pgoff) {
+      absl::StrAppend(&map, "+0x%x", entry.pgoff);
+    }
+    addr_to_symbol[entry.start] = map;
     addr_to_symbol[entry.end] = "";
 
     absl::StatusOr<ElfFile> elf =
