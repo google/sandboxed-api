@@ -28,9 +28,11 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -824,25 +826,18 @@ PolicyBuilder& PolicyBuilder::AddFile(absl::string_view path, bool is_ro) {
   return AddFileAt(path, path, is_ro);
 }
 
-PolicyBuilder& PolicyBuilder::SetError(const absl::Status& status) {
-  LOG(ERROR) << status;
-  last_status_ = status;
-  return *this;
-}
-
 PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
                                         absl::string_view inside, bool is_ro) {
   EnableNamespaces();
 
-  auto fixed_outside_or = ValidateAbsolutePath(outside);
-  if (!fixed_outside_or.ok()) {
-    SetError(fixed_outside_or.status());
+  auto valid_outside = ValidateAbsolutePath(outside);
+  if (!valid_outside.ok()) {
+    SetError(valid_outside.status());
     return *this;
   }
-  auto fixed_outside = std::move(fixed_outside_or).value();
 
-  if (absl::StartsWith(fixed_outside, "/proc/self") &&
-      fixed_outside != "/proc/self/cpuset") {
+  if (absl::StartsWith(*valid_outside, "/proc/self") &&
+      *valid_outside != "/proc/self/cpuset") {
     SetError(absl::InvalidArgumentError(
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",
@@ -850,7 +845,7 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
     return *this;
   }
 
-  if (auto status = mounts_.AddFileAt(fixed_outside, inside, is_ro);
+  if (auto status = mounts_.AddFileAt(*valid_outside, inside, is_ro);
       !status.ok()) {
     SetError(
         absl::InternalError(absl::StrCat("Could not add file ", outside, " => ",
@@ -863,17 +858,16 @@ PolicyBuilder& PolicyBuilder::AddLibrariesForBinary(
     absl::string_view path, absl::string_view ld_library_path) {
   EnableNamespaces();
 
-  auto fixed_path_or = ValidatePath(path);
-  if (!fixed_path_or.ok()) {
-    SetError(fixed_path_or.status());
+  auto valid_path = ValidatePath(path);
+  if (!valid_path.ok()) {
+    SetError(valid_path.status());
     return *this;
   }
-  auto fixed_path = std::move(fixed_path_or).value();
 
-  if (auto status = mounts_.AddMappingsForBinary(fixed_path, ld_library_path);
+  if (auto status = mounts_.AddMappingsForBinary(*valid_path, ld_library_path);
       !status.ok()) {
     SetError(absl::InternalError(absl::StrCat(
-        "Could not add libraries for ", fixed_path, ": ", status.message())));
+        "Could not add libraries for ", *valid_path, ": ", status.message())));
   }
   return *this;
 }
@@ -893,13 +887,13 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
                                              bool is_ro) {
   EnableNamespaces();
 
-  auto fixed_outside_or = ValidateAbsolutePath(outside);
-  if (!fixed_outside_or.ok()) {
-    SetError(fixed_outside_or.status());
+  auto valid_outside = ValidateAbsolutePath(outside);
+  if (!valid_outside.ok()) {
+    SetError(valid_outside.status());
     return *this;
   }
-  auto fixed_outside = std::move(fixed_outside_or).value();
-  if (absl::StartsWith(fixed_outside, "/proc/self")) {
+
+  if (absl::StartsWith(*valid_outside, "/proc/self")) {
     SetError(absl::InvalidArgumentError(
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",
@@ -907,19 +901,21 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
     return *this;
   }
 
-  if (auto status = mounts_.AddDirectoryAt(fixed_outside, inside, is_ro);
+  if (absl::Status status =
+          mounts_.AddDirectoryAt(*valid_outside, inside, is_ro);
       !status.ok()) {
     SetError(absl::InternalError(absl::StrCat("Could not add directory ",
                                               outside, " => ", inside, ": ",
                                               status.message())));
+    return *this;
   }
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t sz) {
+PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t size) {
   EnableNamespaces();
 
-  if (auto status = mounts_.AddTmpfs(inside, sz); !status.ok()) {
+  if (auto status = mounts_.AddTmpfs(inside, size); !status.ok()) {
     SetError(absl::InternalError(absl::StrCat("Could not mount tmpfs ", inside,
                                               ": ", status.message())));
   }
@@ -1078,6 +1074,12 @@ PolicyBuilder& PolicyBuilder::AllowIPv6(const std::string& ip_and_mask,
   if (!status.ok()) {
     SetError(status);
   }
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::SetError(const absl::Status& status) {
+  LOG(ERROR) << status;
+  last_status_ = status;
   return *this;
 }
 

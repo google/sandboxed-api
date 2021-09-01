@@ -567,6 +567,10 @@ class PolicyBuilder final {
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
 
+  static absl::StatusOr<std::string> ValidateAbsolutePath(
+      absl::string_view path);
+  static absl::StatusOr<std::string> ValidatePath(absl::string_view path);
+
   // Allows a limited version of madvise
   PolicyBuilder& AllowLimitedMadvise();
 
@@ -577,11 +581,11 @@ class PolicyBuilder final {
 
   std::vector<sock_filter> ResolveBpfFunc(BpfFunc f);
 
-  static absl::StatusOr<std::string> ValidateAbsolutePath(
-      absl::string_view path);
-  static absl::StatusOr<std::string> ValidatePath(absl::string_view path);
-
   void StoreDescription(PolicyBuilderDescription* pb_description);
+
+  // This function returns a PolicyBuilder so that we can use it in the status
+  // macros
+  PolicyBuilder& SetError(const absl::Status& status);
 
   Mounts mounts_;
   bool use_namespaces_ = true;
@@ -603,9 +607,6 @@ class PolicyBuilder final {
   // Error handling
   absl::Status last_status_;
   bool already_built_ = false;
-  // This function returns a PolicyBuilder so that we can use it in the status
-  // macros
-  PolicyBuilder& SetError(const absl::Status& status);
 
   // Contains list of allowed hosts.
   absl::optional<AllowedHosts> allowed_hosts_;

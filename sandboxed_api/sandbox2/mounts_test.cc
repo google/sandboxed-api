@@ -182,7 +182,7 @@ TEST(MountTreeTest, TestList) {
     const bool is_ro;
   };
   // clang-format off
-  const TestCase test_cases[] = {
+  constexpr TestCase kTestCases[] = {
       // NOTE: Directories have a trailing '/'; files don't.
       {"/a/b", true},
       {"/a/c/", true},
@@ -196,7 +196,7 @@ TEST(MountTreeTest, TestList) {
   Mounts mounts;
 
   // Create actual directories and files on disk and selectively add
-  for (const auto &test_case : test_cases) {
+  for (const auto &test_case : kTestCases) {
     const auto inside_path = test_case.path;
     const std::string outside_path = absl::StrCat("/some/dir/", inside_path);
     if (absl::EndsWith(outside_path, "/")) {
