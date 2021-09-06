@@ -21,12 +21,14 @@
 #include <set>
 
 #include "absl/base/macros.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 
 namespace sandbox2 {
 namespace sanitizer {
 
 // Reads a list of open file descriptors in the current process.
-bool GetListOfFDs(std::set<int>* fds);
+absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs();
 
 // Closes all file descriptors in the current process except the ones in
 // fd_exceptions.

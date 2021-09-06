@@ -35,6 +35,7 @@
 #include <cstring>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -107,7 +108,7 @@ void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
   }
 }
 
-void RunInitProcess(std::set<int> open_fds) {
+void RunInitProcess(const absl::flat_hash_set<int>& open_fds) {
   if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
   }
@@ -266,9 +267,11 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
 
   SanitizeEnvironment();
 
-  std::set<int> open_fds;
-  if (!sanitizer::GetListOfFDs(&open_fds)) {
-    SAPI_RAW_LOG(WARNING, "Could not get list of current open FDs");
+  absl::StatusOr<absl::flat_hash_set<int>> open_fds = sanitizer::GetListOfFDs();
+  if (!open_fds.ok()) {
+    SAPI_RAW_LOG(WARNING, "Could not get list of current open FDs: %s",
+                 std::string(open_fds.status().message()).c_str());
+    open_fds = absl::flat_hash_set<int>();
   }
 
   InitializeNamespaces(request, uid, gid, avoid_pivot_root);
@@ -297,7 +300,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
       SAPI_RAW_PLOG(FATAL, "Could not spawn init process");
     }
     if (child != 0) {
-      RunInitProcess(open_fds);
+      RunInitProcess(*open_fds);
     }
     // Send sandboxee pid
     auto status = SendPid(signaling_fd);

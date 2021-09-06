@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -42,6 +43,7 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2::sanitizer {
@@ -52,55 +54,62 @@ namespace file_util = ::sapi::file_util;
 constexpr char kProcSelfFd[] = "/proc/self/fd";
 
 // Reads filenames inside the directory and converts them to numerical values.
-bool ListNumericalDirectoryEntries(const std::string& directory,
-                                   std::set<int>* nums) {
+absl::StatusOr<absl::flat_hash_set<int>> ListNumericalDirectoryEntries(
+    const std::string& directory) {
+  absl::flat_hash_set<int> result;
   std::vector<std::string> entries;
   std::string error;
   if (!file_util::fileops::ListDirectoryEntries(directory, &entries, &error)) {
-    SAPI_RAW_LOG(WARNING, "List directory entries for '%s' failed: %s",
-                 kProcSelfFd, error.c_str());
-    return false;
+    return absl::InternalError(absl::StrCat("List directory entries for '",
+                                            directory, "' failed: ", error));
   }
+  result.reserve(entries.size());
   for (const auto& entry : entries) {
     int num;
     if (!absl::SimpleAtoi(entry, &num)) {
-      SAPI_RAW_LOG(WARNING, "Cannot convert %s to a number", entry.c_str());
-      return false;
+      return absl::InternalError(
+          absl::StrCat("Cannot convert ", entry, " to a number"));
     }
-    nums->insert(num);
+    result.insert(num);
   }
-  return true;
+  return result;
 }
 
 }  // namespace
 
-bool GetListOfFDs(std::set<int>* fds) {
-  if (!ListNumericalDirectoryEntries(kProcSelfFd, fds)) {
-    return false;
-  }
-  // Exclude the dirfd which was opened in ListDirectoryEntries.
-  // Most probably will be the highest fd, hence the reverse order.
-  for (auto it = fds->rbegin(), end = fds->rend(); it != end; ++it) {
+absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs() {
+  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds,
+                        ListNumericalDirectoryEntries(kProcSelfFd));
+
+  //  Exclude the dirfd which was opened in ListDirectoryEntries.
+  for (auto it = fds.begin(), end = fds.end(); it != end; ++it) {
     if (access(absl::StrCat(kProcSelfFd, "/", *it).c_str(), F_OK) != 0) {
-      fds->erase(*it);
+      fds.erase(it);
       break;
     }
   }
-  return true;
+  return fds;
 }
 
 bool GetListOfTasks(int pid, std::set<int>* tasks) {
   const std::string task_dir = absl::StrCat("/proc/", pid, "/task");
-  return ListNumericalDirectoryEntries(task_dir, tasks);
-}
-
-bool CloseAllFDsExcept(const std::set<int>& fd_exceptions) {
-  std::set<int> fds;
-  if (!GetListOfFDs(&fds)) {
+  auto task_entries = ListNumericalDirectoryEntries(task_dir);
+  if (!task_entries.ok()) {
     return false;
   }
 
-  for (auto fd : fds) {
+  tasks->clear();
+  tasks->insert(task_entries->begin(), task_entries->end());
+  return true;
+}
+
+bool CloseAllFDsExcept(const std::set<int>& fd_exceptions) {
+  absl::StatusOr<absl::flat_hash_set<int>> fds = GetListOfFDs();
+  if (!fds.ok()) {
+    return false;
+  }
+
+  for (auto fd : *fds) {
     if (fd_exceptions.find(fd) != fd_exceptions.end()) {
       continue;
     }
@@ -111,12 +120,12 @@ bool CloseAllFDsExcept(const std::set<int>& fd_exceptions) {
 }
 
 bool MarkAllFDsAsCOEExcept(const std::set<int>& fd_exceptions) {
-  std::set<int> fds;
-  if (!GetListOfFDs(&fds)) {
+  auto fds = GetListOfFDs();
+  if (!fds.ok()) {
     return false;
   }
 
-  for (auto fd : fds) {
+  for (auto fd : *fds) {
     if (fd_exceptions.find(fd) != fd_exceptions.end()) {
       continue;
     }

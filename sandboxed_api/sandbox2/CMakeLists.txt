@@ -368,6 +368,7 @@ add_library(sandbox2_sanitizer ${SAPI_LIB_TYPE}
 add_library(sandbox2::sanitizer ALIAS sandbox2_sanitizer)
 target_link_libraries(sandbox2_sanitizer
   PRIVATE absl::core_headers
+          absl::flat_hash_set
           absl::strings
           sapi::file_helpers
           sapi::fileops
@@ -384,6 +385,7 @@ add_library(sandbox2_forkserver ${SAPI_LIB_TYPE}
 add_library(sandbox2::forkserver ALIAS sandbox2_forkserver)
 target_link_libraries(sandbox2_forkserver PRIVATE
   absl::flat_hash_map
+  absl::flat_hash_set
   absl::memory
   absl::status
   absl::statusor
