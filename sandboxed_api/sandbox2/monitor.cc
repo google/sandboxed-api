@@ -44,7 +44,6 @@
 
 #include <glog/logging.h>
 #include "absl/cleanup/cleanup.h"
-#include "absl/container/flat_hash_set.h"
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
@@ -642,12 +641,9 @@ bool Monitor::InitPtraceAttach() {
   sanitizer::WaitForTsan();
 
   // Get a list of tasks.
-  absl::flat_hash_set<int> tasks;
-  if (auto task_list = sanitizer::GetListOfTasks(pid_); task_list.ok()) {
-    tasks = *std::move(task_list);
-  } else {
-    LOG(ERROR) << "Could not get list of tasks: "
-               << task_list.status().message();
+  std::set<int> tasks;
+  if (!sanitizer::GetListOfTasks(pid_, &tasks)) {
+    LOG(ERROR) << "Could not get list of tasks";
     return false;
   }
 
@@ -666,13 +662,13 @@ bool Monitor::InitPtraceAttach() {
                  << ".";
   }
 
-  absl::flat_hash_set<int> tasks_attached;
+  std::set<int> tasks_attached;
   int retries = 0;
   absl::Time deadline = absl::Now() + absl::Seconds(2);
 
   // In some situations we allow ptrace to try again when it fails.
   while (!tasks.empty()) {
-    absl::flat_hash_set<int> tasks_left;
+    std::set<int> tasks_left;
     for (int task : tasks) {
       constexpr intptr_t options =
           PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
@@ -723,11 +719,8 @@ bool Monitor::InitPtraceAttach() {
   }
 
   // Get a list of tasks after attaching.
-  if (auto tasks_list = sanitizer::GetListOfTasks(pid_); tasks_list.ok()) {
-    tasks = *std::move(tasks_list);
-  } else {
-    LOG(ERROR) << "Could not get list of tasks: "
-               << tasks_list.status().message();
+  if (!sanitizer::GetListOfTasks(pid_, &tasks)) {
+    LOG(ERROR) << "Could not get list of tasks";
     return false;
   }
 

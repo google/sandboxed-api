@@ -27,7 +27,6 @@
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -90,13 +89,13 @@ TEST(SanitizerTest, TestMarkFDsAsCOE) {
   int null_fd = open("/dev/null", O_RDWR);
   ASSERT_THAT(null_fd, Ne(-1));
 
-  const absl::flat_hash_set<int> keep = {STDIN_FILENO, STDOUT_FILENO,
-                                         STDERR_FILENO, null_fd};
-  ASSERT_THAT(sanitizer::MarkAllFDsAsCOEExcept(keep), sapi::IsOk());
+  const std::set<int> exceptions = {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+                                    null_fd};
+  ASSERT_THAT(sanitizer::MarkAllFDsAsCOEExcept(exceptions), IsTrue());
 
   const std::string path = GetTestSourcePath("sandbox2/testcases/sanitizer");
   std::vector<std::string> args;
-  for (auto fd : keep) {
+  for (auto fd : exceptions) {
     args.push_back(absl::StrCat(fd));
   }
   ASSERT_THAT(RunTestcase(path, args), Eq(0));

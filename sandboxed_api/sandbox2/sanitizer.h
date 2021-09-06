@@ -18,9 +18,10 @@
 #ifndef SANDBOXED_API_SANDBOX2_SANITIZER_H_
 #define SANDBOXED_API_SANDBOX2_SANITIZER_H_
 
+#include <set>
+
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace sandbox2 {
@@ -31,12 +32,11 @@ absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs();
 
 // Closes all file descriptors in the current process except the ones in
 // fd_exceptions.
-absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions);
+bool CloseAllFDsExcept(const std::set<int>& fd_exceptions);
 
 // Marks all file descriptors as close-on-exec, except the ones in
 // fd_exceptions.
-absl::Status MarkAllFDsAsCOEExcept(
-    const absl::flat_hash_set<int>& fd_exceptions);
+bool MarkAllFDsAsCOEExcept(const std::set<int>& fd_exceptions);
 
 // Returns the number of threads in the process 'pid'. Returns -1 in case of
 // errors.
@@ -53,11 +53,10 @@ void WaitForTsan();
 // Sanitizes current process (which will not execve a sandboxed binary).
 // File-descriptors in fd_exceptions will be either closed
 // (close_fds == true), or marked as close-on-exec (close_fds == false).
-absl::Status SanitizeCurrentProcess(
-    const absl::flat_hash_set<int>& fd_exceptions, bool close_fds);
+bool SanitizeCurrentProcess(const std::set<int>& fd_exceptions, bool close_fds);
 
 // Returns a list of tasks for a pid.
-absl::StatusOr<absl::flat_hash_set<int>> GetListOfTasks(int pid);
+bool GetListOfTasks(int pid, std::set<int>* tasks);
 
 }  // namespace sanitizer
 }  // namespace sandbox2

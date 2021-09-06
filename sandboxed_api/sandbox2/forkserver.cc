@@ -556,13 +556,11 @@ void ForkServer::CreateInitialNamespaces() {
 void ForkServer::SanitizeEnvironment() {
   // Mark all file descriptors, except the standard ones (needed
   // for proper sandboxed process operations), as close-on-exec.
-  absl::Status status = sanitizer::SanitizeCurrentProcess(
-      {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
-       Comms::kSandbox2ClientCommsFD},
-      /* close_fds = */ false);
-  SAPI_RAW_CHECK(
-      status.ok(),
-      absl::StrCat("while sanitizing process: ", status.message()).c_str());
+  SAPI_RAW_CHECK(sanitizer::SanitizeCurrentProcess(
+                     {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+                      Comms::kSandbox2ClientCommsFD},
+                     /* close_fds = */ false),
+                 "while sanitizing process");
 }
 
 void ForkServer::ExecuteProcess(int execve_fd, const char** argv,
