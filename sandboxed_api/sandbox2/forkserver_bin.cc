@@ -32,8 +32,12 @@ int main() {
   google::LogToStderr();
 
   // Close all non-essential FDs to keep newly opened FD numbers consistent.
-  sandbox2::sanitizer::CloseAllFDsExcept(
+  absl::Status status = sandbox2::sanitizer::CloseAllFDsExcept(
       {0, 1, 2, sandbox2::Comms::kSandbox2ClientCommsFD});
+
+  if (!status.ok()) {
+    SAPI_RAW_LOG(WARNING, "Closing non-essential FDs failed");
+  }
 
   // Make the process' name easily recognizable with ps/pstree.
   if (prctl(PR_SET_NAME, "S2-FORK-SERV", 0, 0, 0) != 0) {

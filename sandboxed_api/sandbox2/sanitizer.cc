@@ -42,6 +42,7 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/strerror.h"
@@ -91,41 +92,29 @@ absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs() {
   return fds;
 }
 
-bool GetListOfTasks(int pid, std::set<int>* tasks) {
+absl::StatusOr<absl::flat_hash_set<int>> GetListOfTasks(int pid) {
   const std::string task_dir = absl::StrCat("/proc/", pid, "/task");
-  auto task_entries = ListNumericalDirectoryEntries(task_dir);
-  if (!task_entries.ok()) {
-    return false;
-  }
-
-  tasks->clear();
-  tasks->insert(task_entries->begin(), task_entries->end());
-  return true;
+  return ListNumericalDirectoryEntries(task_dir);
 }
 
-bool CloseAllFDsExcept(const std::set<int>& fd_exceptions) {
-  absl::StatusOr<absl::flat_hash_set<int>> fds = GetListOfFDs();
-  if (!fds.ok()) {
-    return false;
-  }
+absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions) {
+  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
 
-  for (auto fd : *fds) {
+  for (const auto& fd : fds) {
     if (fd_exceptions.find(fd) != fd_exceptions.end()) {
       continue;
     }
     SAPI_RAW_VLOG(2, "Closing FD:%d", fd);
     close(fd);
   }
-  return true;
+  return absl::OkStatus();
 }
 
-bool MarkAllFDsAsCOEExcept(const std::set<int>& fd_exceptions) {
-  auto fds = GetListOfFDs();
-  if (!fds.ok()) {
-    return false;
-  }
+absl::Status MarkAllFDsAsCOEExcept(
+    const absl::flat_hash_set<int>& fd_exceptions) {
+  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
 
-  for (auto fd : *fds) {
+  for (const auto& fd : fds) {
     if (fd_exceptions.find(fd) != fd_exceptions.end()) {
       continue;
     }
@@ -134,17 +123,16 @@ bool MarkAllFDsAsCOEExcept(const std::set<int>& fd_exceptions) {
 
     int flags = fcntl(fd, F_GETFD);
     if (flags == -1) {
-      SAPI_RAW_PLOG(ERROR, "fcntl(%d, F_GETFD) failed", fd);
-      return false;
+      return absl::InternalError(
+          sapi::OsErrorMessage(errno, "fcntl(", fd, ", F_GETFD) failed"));
     }
     if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1) {
-      SAPI_RAW_PLOG(ERROR, "fcntl(%d, F_SETFD, %x | FD_CLOEXEC) failed", fd,
-                    flags);
-      return false;
+      return absl::InternalError(sapi::OsErrorMessage(
+          errno, "fcntl(", fd, ", F_SETFD, ", flags, " | FD_CLOEXEC) failed"));
     }
   }
 
-  return true;
+  return absl::OkStatus();
 }
 
 int GetNumberOfThreads(int pid) {
@@ -180,8 +168,8 @@ void WaitForTsan() {
 #endif
 }
 
-bool SanitizeCurrentProcess(const std::set<int>& fd_exceptions,
-                            bool close_fds) {
+absl::Status SanitizeCurrentProcess(
+    const absl::flat_hash_set<int>& fd_exceptions, bool close_fds) {
   SAPI_RAW_VLOG(1, "Sanitizing PID: %zu, close_fds: %d", syscall(__NR_getpid),
                 close_fds);
 
@@ -190,23 +178,13 @@ bool SanitizeCurrentProcess(const std::set<int>& fd_exceptions,
 
   // If the parent goes down, so should we.
   if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0) {
-    SAPI_RAW_PLOG(ERROR, "prctl(PR_SET_PDEATHSIG, SIGKILL) failed");
-    return false;
+    return absl::InternalError(
+        sapi::OsErrorMessage(errno, "prctl(PR_SET_PDEATHSIG, SIGKILL) failed"));
   }
 
   // Close or mark as close-on-exec open file descriptors.
-  if (close_fds) {
-    if (!CloseAllFDsExcept(fd_exceptions)) {
-      SAPI_RAW_LOG(ERROR, "Failed to close all fds");
-      return false;
-    }
-  } else {
-    if (!MarkAllFDsAsCOEExcept(fd_exceptions)) {
-      SAPI_RAW_LOG(ERROR, "Failed to mark all fds as closed");
-      return false;
-    }
-  }
-  return true;
+  return close_fds ? CloseAllFDsExcept(fd_exceptions)
+                   : MarkAllFDsAsCOEExcept(fd_exceptions);
 }
 
 }  // namespace sandbox2::sanitizer
