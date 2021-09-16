@@ -99,10 +99,6 @@ bool Sandbox2::IsTerminated() const {
   return monitor_->IsDone();
 }
 
-void Sandbox2::SetWallTimeLimit(time_t limit) const {
-  set_walltime_limit(absl::Seconds(limit));
-}
-
 void Sandbox2::set_walltime_limit(absl::Duration limit) const {
   if (limit == absl::ZeroDuration()) {
     VLOG(1) << "Disarming walltime timer to ";

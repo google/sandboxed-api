@@ -95,7 +95,9 @@ class Sandbox2 final {
   // for responses after each request and reset the deadline in between.
   // Sandboxed API can be used to implement persistent sandboxes.
   ABSL_DEPRECATED("Use set_walltime_limit() instead")
-  void SetWallTimeLimit(time_t limit) const;
+  void SetWallTimeLimit(time_t limit) const {
+    this->set_walltime_limit(absl::Seconds(limit));
+  }
 
   // Sets a wall time limit on a running sandboxee, absl::ZeroDuration() to
   // disarm. This can be useful in a persistent sandbox scenario, to impose a
@@ -103,8 +105,11 @@ class Sandbox2 final {
   // between. Sandboxed API can be used to implement persistent sandboxes.
   void set_walltime_limit(absl::Duration limit) const;
 
-  // Gets the pid inside the executor.
-  pid_t GetPid() { return monitor_ != nullptr ? monitor_->pid_ : -1; }
+  // Returns the process id inside the executor.
+  ABSL_DEPRECATED("Use pid() instead")
+  pid_t GetPid() { return this->pid(); }
+
+  pid_t pid() const { return monitor_ != nullptr ? monitor_->pid_ : -1; }
 
   // Gets the comms inside the executor.
   Comms* comms() {
