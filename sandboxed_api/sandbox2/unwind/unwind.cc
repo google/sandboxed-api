@@ -102,7 +102,7 @@ absl::StatusOr<std::map<uint64_t, std::string>> LoadSymbolsMap(pid_t pid) {
     // the next iteration.
     std::string map = absl::StrCat("map:", entry.path);
     if (entry.pgoff) {
-      absl::StrAppend(&map, "+0x%x", entry.pgoff);
+      absl::StrAppend(&map, "+0x", absl::Hex(entry.pgoff));
     }
     addr_to_symbol[entry.start] = map;
     addr_to_symbol[entry.end] = "";
