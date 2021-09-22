@@ -119,6 +119,8 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 }
 
 absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
+  SAPI_RAW_LOG(INFO, "Starting global forkserver");
+
   // The fd is owned by EmbedFile
   int exec_fd = sapi::EmbedFile::instance()->GetFdForFileToc(
       forkserver_bin_embed_create());
@@ -168,9 +170,22 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
 }
 
 void WaitForForkserver(pid_t pid) {
-  pid_t wpid = TEMP_FAILURE_RETRY(waitpid(pid, nullptr, 0));
+  int status;
+  pid_t wpid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
   if (wpid != pid) {
     SAPI_RAW_PLOG(ERROR, "Waiting for %d failed", pid);
+  }
+  if (WIFEXITED(status)) {
+    int exit_code = WEXITSTATUS(status);
+    if (exit_code == 0) {
+      SAPI_RAW_LOG(INFO, "forkserver (pid=%d) terminated normally", pid);
+    } else {
+      SAPI_RAW_LOG(WARNING, "forkserver (pid=%d) terminated with exit code %d",
+                   pid, exit_code);
+    }
+  } else if (WIFSIGNALED(status)) {
+    SAPI_RAW_LOG(WARNING, "forkserver (pid=%d) terminated by signal %d", pid,
+                 WTERMSIG(status));
   }
 }
 
