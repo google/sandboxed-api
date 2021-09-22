@@ -173,12 +173,14 @@ TEST(SandboxTest, RestartSandboxFD) {
 
   auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
     // Open some FDs and check their value.
-    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
-    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(4));
+    int first_remote_fd = LeakFileDescriptor(sandbox, "/proc/self/exe");
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"),
+                Eq(first_remote_fd + 1));
     SAPI_RETURN_IF_ERROR(sandbox->Restart(false));
     // We should have a fresh sandbox now = FDs open previously should be
     // closed now.
-    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"),
+                Eq(first_remote_fd));
     return absl::OkStatus();
   };
 
