@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
 
   // Let the sandboxee run (synchronously).
-  auto result = s2.Run();
+  sandbox2::Result result = s2.Run();
 
   LOG(INFO) << "Final execution status: " << result.ToString();
 

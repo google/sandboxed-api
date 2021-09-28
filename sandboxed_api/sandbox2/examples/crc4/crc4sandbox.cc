@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
 
   // Let the sandboxee run.
   if (!s2.RunAsync()) {
-    auto result = s2.AwaitResult();
+    sandbox2::Result result = s2.AwaitResult();
     LOG(ERROR) << "RunAsync failed: " << result.ToString();
     return 2;
   }
@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  auto result = s2.AwaitResult();
+  sandbox2::Result result = s2.AwaitResult();
   if (result.final_status() != sandbox2::Result::OK) {
     LOG(ERROR) << "Sandbox error: " << result.ToString();
     return 3;  // e.g. sandbox violation, signal (sigsegv)

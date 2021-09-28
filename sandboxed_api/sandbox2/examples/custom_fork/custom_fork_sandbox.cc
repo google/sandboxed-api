@@ -86,7 +86,7 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
   CHECK(s2.RunAsync());
   // Send integer, which will be returned as the sandboxee's exit code.
   CHECK(s2.comms()->SendInt32(i));
-  auto result = s2.AwaitResult();
+  sandbox2::Result result = s2.AwaitResult();
 
   LOG(INFO) << "Final execution status of PID " << s2.GetPid() << ": "
             << result.ToString();

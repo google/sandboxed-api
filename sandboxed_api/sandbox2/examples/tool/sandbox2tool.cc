@@ -15,7 +15,8 @@
 // A simple sandbox2 testing tool.
 //
 // Usage:
-// sandbox2tool -v=1 -sandbox2_danger_danger_permit_all -logtostderr -- /bin/ls
+// sandbox2tool -v=1 -sandbox2tool_resolve_and_add_libraries \
+//              -sandbox2_danger_danger_permit_all -logtostderr /bin/ls
 
 #include <sys/resource.h>
 #include <sys/stat.h>
@@ -155,12 +156,13 @@ int main(int argc, char** argv) {
     builder.AddTmpfs("/tmp");
   }
 
-  auto mounts_string = absl::GetFlag(FLAGS_sandbox2tool_additional_bind_mounts);
+  std::string mounts_string =
+      absl::GetFlag(FLAGS_sandbox2tool_additional_bind_mounts);
   if (!mounts_string.empty()) {
-    for (auto mount : absl::StrSplit(mounts_string, ',')) {
+    for (absl::string_view mount : absl::StrSplit(mounts_string, ',')) {
       std::vector<std::string> source_target = absl::StrSplit(mount, "=>");
-      auto source = source_target[0];
-      auto target = source_target[0];
+      std::string source = source_target[0];
+      std::string target = source_target[0];
       if (source_target.size() == 2) {
         target = source_target[1];
       }
@@ -218,7 +220,7 @@ int main(int argc, char** argv) {
     LOG(ERROR) << "Sandbox failed";
   }
 
-  auto result = s2.AwaitResult();
+  sandbox2::Result result = s2.AwaitResult();
 
   if (result.final_status() != sandbox2::Result::OK) {
     LOG(ERROR) << "Sandbox error: " << result.ToString();
