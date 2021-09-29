@@ -153,9 +153,9 @@ int main(int argc, char** argv) {
 
   // initialize sapi vars after constructing TiffSapiSandbox
   sapi::v::UShort h, v;
-  sapi::StatusOr<TIFF*> status_or_tif;
-  sapi::StatusOr<int> status_or_int;
-  sapi::StatusOr<tmsize_t> status_or_long;
+  absl::StatusOr<TIFF*> status_or_tif;
+  absl::StatusOr<int> status_or_int;
+  absl::StatusOr<tmsize_t> status_or_long;
 
   auto status = sandbox.Init();
   if (!status.ok()) {

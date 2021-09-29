@@ -121,18 +121,6 @@ target_link_libraries(sapi_util_status
   PUBLIC sapi::status_proto
 )
 
-# sandboxed_api/util:statusor
-add_library(sapi_util_statusor ${SAPI_LIB_TYPE}
-  statusor.h
-)
-add_library(sapi::statusor ALIAS sapi_util_statusor)
-target_link_libraries(sapi_util_statusor PRIVATE
-  absl::core_headers
-  absl::status
-  absl::statusor
-  sapi::base
-)
-
 # sandboxed_api/util:strerror
 add_library(sapi_util_strerror ${SAPI_LIB_TYPE}
   strerror.cc

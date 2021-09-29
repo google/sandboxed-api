@@ -69,7 +69,7 @@ by default.*
 
    n = 64, status OK, `pffft_transform` generates error
    n > 64, status not OK
-   Problem on initialising `sapi::StatusOr<PFFFT_Setup *> s;` the memory that stays
+   Problem on initialising `absl::StatusOr<PFFFT_Setup *> s;` the memory that stays
    for s is not the same with the address passed in `pffft_transform` function.
    (`sapi::v::GenericPtr` - to be changed)
 

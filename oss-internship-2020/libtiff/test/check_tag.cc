@@ -27,7 +27,7 @@ namespace {
 void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                      const uint16_t value) {
   sapi::v::UShort tmp(123);
-  sapi::StatusOr<int> status_or_int;
+  absl::StatusOr<int> status_or_int;
 
   status_or_int = api.TIFFGetField1(&tif, field, tmp.PtrBoth());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField1 fatal error";
@@ -42,7 +42,7 @@ void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
                            const std::array<uint16_t, 2>& values) {
   sapi::v::UShort tmp0(123);
   sapi::v::UShort tmp1(456);
-  sapi::StatusOr<int> status_or_int;
+  absl::StatusOr<int> status_or_int;
 
   status_or_int =
       api.TIFFGetField2(&tif, field, tmp0.PtrBoth(), tmp1.PtrBoth());
@@ -58,7 +58,7 @@ void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
 void CheckLongField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                     const uint32_t value) {
   sapi::v::UInt tmp(123);
-  sapi::StatusOr<int> status_or_int;
+  absl::StatusOr<int> status_or_int;
 
   status_or_int = api.TIFFGetField1(&tif, field, tmp.PtrBoth());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField1 fatal error";

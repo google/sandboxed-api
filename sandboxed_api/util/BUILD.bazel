@@ -163,17 +163,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "statusor",
-    hdrs = ["statusor.h"],
-    deprecation = "Migrate to `absl::StatusOr<T>`",
-    visibility = ["//visibility:public"],
-    deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
 # gMock matchers for absl::Status and absl::StatusOr<T> and a gUnit printer
 # extension. Adapted from the version in Asylo.
 cc_library(

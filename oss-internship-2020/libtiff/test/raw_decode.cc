@@ -111,9 +111,9 @@ TEST(SandboxTest, RawDecode) {
   tsize_t sz;
   unsigned int pixel_status = 0;
   sapi::v::UShort h, v;
-  sapi::StatusOr<TIFF> status_or_tif;
-  sapi::StatusOr<int> status_or_int;
-  sapi::StatusOr<tmsize_t> status_or_long;
+  absl::StatusOr<TIFF> status_or_tif;
+  absl::StatusOr<int> status_or_int;
+  absl::StatusOr<tmsize_t> status_or_long;
 
   TiffApi api(&sandbox);
   sapi::v::ConstCStr srcfile_var(srcfile.c_str());
