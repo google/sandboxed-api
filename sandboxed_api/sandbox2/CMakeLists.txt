@@ -418,10 +418,10 @@ add_library(sandbox2::fork_client ALIAS sandbox2_fork_client)
 target_link_libraries(sandbox2_fork_client PRIVATE
   absl::core_headers
   absl::synchronization
+  glog::glog
   sandbox2::comms
   sandbox2::forkserver_proto
   sapi::base
-  sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2:mounts

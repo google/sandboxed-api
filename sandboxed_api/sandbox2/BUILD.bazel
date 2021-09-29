@@ -438,9 +438,9 @@ cc_library(
     deps = [
         ":comms",
         ":forkserver_cc_proto",
-        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/synchronization",
+        "@com_google_glog//:glog",
     ],
 )
 
