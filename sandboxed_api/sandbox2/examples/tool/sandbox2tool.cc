@@ -14,9 +14,13 @@
 
 // A simple sandbox2 testing tool.
 //
-// Usage:
-// sandbox2tool -v=1 -sandbox2tool_resolve_and_add_libraries \
-//              -sandbox2_danger_danger_permit_all -logtostderr /bin/ls
+// Example usage:
+//   sandbox2tool
+//     --v=1
+//     --sandbox2tool_resolve_and_add_libraries
+//     --sandbox2_danger_danger_permit_all
+//     --logtostderr
+//     /bin/ls
 
 #include <sys/resource.h>
 #include <sys/stat.h>
