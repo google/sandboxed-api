@@ -856,6 +856,7 @@ cc_test(
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:print_fds"],
+    tags = ["requires-net:external"],
     deps = [
         ":comms",
         ":sandbox2",
