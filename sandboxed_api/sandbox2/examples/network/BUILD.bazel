@@ -52,3 +52,10 @@ cc_binary(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+# Test
+sh_test(
+    name = "network_sandbox_test",
+    srcs = ["network_sandbox_test.sh"],
+    data = [":network_sandbox"],
+)

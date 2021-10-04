@@ -16,6 +16,7 @@
 // Use: static_sandbox --logtostderr
 
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/resource.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -72,6 +73,16 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
                           })
       // write() calls with fd not in (1, 2) will continue evaluating the
       // policy. This means that other rules might still allow them.
+
+      // Allow the dynamic loader to mark pages to never allow read-write-exec.
+      .AddPolicyOnSyscall(__NR_mprotect,
+                          {
+                              ARG_32(2),
+                              JEQ32(PROT_READ, ALLOW),
+                              JEQ32(PROT_NONE, ALLOW),
+                              JEQ32(PROT_READ | PROT_WRITE, ALLOW),
+                              JEQ32(PROT_READ | PROT_EXEC, ALLOW),
+                          })
 
       // Allow exit() only with an exit_code of 0.
       // Explicitly jumping to KILL, thus the following rules can not

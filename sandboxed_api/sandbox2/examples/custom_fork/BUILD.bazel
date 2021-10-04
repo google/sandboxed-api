@@ -49,3 +49,10 @@ cc_binary(
         "//sandboxed_api/util:raw_logging",
     ],
 )
+
+# Test
+sh_test(
+    name = "custom_fork_sandbox_test",
+    srcs = ["custom_fork_sandbox_test.sh"],
+    data = [":custom_fork_sandbox"],
+)

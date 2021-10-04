@@ -32,3 +32,10 @@ cc_binary(
         "@com_google_absl//absl/strings",
     ],
 )
+
+# For now we only test exit status from the binary
+sh_test(
+    name = "main_sum_test",
+    srcs = ["main_sum_test.sh"],
+    data = [":main_sum"],
+)

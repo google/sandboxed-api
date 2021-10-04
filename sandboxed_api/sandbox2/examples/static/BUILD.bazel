@@ -51,3 +51,9 @@ cc_binary(
     ],
     linkstatic = 1,
 )
+
+sh_test(
+    name = "static_sandbox_test",
+    srcs = ["static_sandbox_test.sh"],
+    data = [":static_sandbox"],
+)

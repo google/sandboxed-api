@@ -46,3 +46,13 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+# Tests input/output conversion of zlib and compares with golden files
+sh_test(
+    name = "main_zlib_test",
+    srcs = ["main_zlib_test.sh"],
+    data = [
+        ":main_zlib",
+    ],
+    tags = ["notsan"],
+)

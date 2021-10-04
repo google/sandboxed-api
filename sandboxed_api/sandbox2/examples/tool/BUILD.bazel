@@ -40,3 +40,10 @@ cc_binary(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+# Test
+sh_test(
+    name = "sandbox2tool_test",
+    srcs = ["sandbox2tool_test.sh"],
+    data = [":sandbox2tool"],
+)
