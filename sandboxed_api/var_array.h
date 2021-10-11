@@ -44,6 +44,7 @@ class Array : public Var, public Pointable {
         buffer_owned_(false) {
     SetLocal(const_cast<std::remove_const_t<T>*>(arr_));
   }
+
   // The array is allocated and owned by this object.
   explicit Array(size_t nelem)
       : nelem_(nelem), total_size_(nelem_ * sizeof(T)), buffer_owned_(true) {
@@ -52,6 +53,7 @@ class Array : public Var, public Pointable {
     SetLocal(storage);
     arr_ = static_cast<T*>(storage);
   }
+
   virtual ~Array() {
     if (buffer_owned_) {
       free(const_cast<std::remove_const_t<T>*>(arr_));
@@ -69,10 +71,6 @@ class Array : public Var, public Pointable {
     return absl::StrCat("Array, elem size: ", sizeof(T),
                         " B., total size: ", total_size_,
                         " B., nelems: ", GetNElem());
-  }
-
-  Ptr* CreatePtr(Pointable::SyncType type) override {
-    return new Ptr(this, type);
   }
 
   // Resizes the local and remote buffer using realloc(). Note that this will
@@ -96,6 +94,12 @@ class Array : public Var, public Pointable {
   }
 
  private:
+  friend class LenVal;
+
+  Ptr* CreatePtr(Pointable::SyncType type) override {
+    return new Ptr(this, type);
+  }
+
   // Resizes the internal storage.
   absl::Status EnsureOwnedLocalBuffer(size_t size) {
     if (size % sizeof(T)) {
@@ -130,14 +134,9 @@ class Array : public Var, public Pointable {
 
   // Pointer to the data, owned by the object if buffer_owned_ is 'true'.
   T* arr_;
-  // Number of elements.
-  size_t nelem_;
-  // Total size in bytes.
-  size_t total_size_;
-  // Do we own the buffer?
-  bool buffer_owned_;
-
-  friend class LenVal;
+  size_t nelem_;       // Number of elements
+  size_t total_size_;  // Total size in bytes
+  bool buffer_owned_;  // Whether we own the buffer
 };
 
 // Specialized Array class for representing NUL-terminated C-style strings. The

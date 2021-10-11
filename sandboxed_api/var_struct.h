@@ -44,14 +44,15 @@ class Struct : public Var, public Pointable {
   const T& data() const { return struct_; }
   T* mutable_data() { return &struct_; }
 
+ protected:
+  friend class LenVal;
+
+  T struct_;
+
+ private:
   Ptr* CreatePtr(Pointable::SyncType type) override {
     return new Ptr(this, type);
   }
-
- protected:
-  T struct_;
-
-  friend class LenVal;
 };
 
 }  // namespace sapi::v

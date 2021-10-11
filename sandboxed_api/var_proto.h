@@ -53,10 +53,6 @@ class Proto : public Pointable, public Var {
   std::string GetTypeString() const final { return "Protobuf"; }
   std::string ToString() const final { return "Protobuf"; }
 
-  Ptr* CreatePtr(Pointable::SyncType type) override {
-    return new Ptr(this, type);
-  }
-
   void* GetRemote() const override { return wrapped_var_.GetRemote(); }
   void* GetLocal() const override { return wrapped_var_.GetLocal(); }
 
@@ -106,6 +102,10 @@ class Proto : public Pointable, public Var {
   friend class absl::StatusOr<Proto<T>>;
 
   explicit Proto(std::vector<uint8_t> data) : wrapped_var_(std::move(data)) {}
+
+  Ptr* CreatePtr(Pointable::SyncType type) override {
+    return new Ptr(this, type);
+  }
 
   // The management of reading/writing the data to the sandboxee is handled by
   // the LenVal class.

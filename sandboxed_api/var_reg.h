@@ -57,20 +57,20 @@ class Reg : public Callable {
                 "Only register-sized types are allowed as template argument "
                 "for class Reg.");
 
-  explicit Reg(const T val = {}) {
-    val_ = val;
-    SetLocal(&val_);
+  explicit Reg(const T value = {}) {
+    value_ = value;
+    SetLocal(&value_);
   }
 
   // Getter/Setter for the stored value.
-  virtual T GetValue() const { return val_; }
-  virtual void SetValue(T val) { val_ = val; }
+  virtual T GetValue() const { return value_; }
+  virtual void SetValue(T value) { value_ = value; }
 
   const void* GetDataPtr() override {
-    return reinterpret_cast<const void*>(&val_);
+    return reinterpret_cast<const void*>(&value_);
   }
   void SetDataFromPtr(const void* ptr, size_t max_sz) override {
-    memcpy(&val_, ptr, std::min(GetSize(), max_sz));
+    memcpy(&value_, ptr, std::min(GetSize(), max_sz));
   }
 
   size_t GetSize() const override { return sizeof(T); }
@@ -82,8 +82,7 @@ class Reg : public Callable {
   std::string ToString() const override;
 
  protected:
-  // The stored value.
-  T val_;
+  T value_;  // The stored value.
 };
 
 template <typename T>
@@ -117,13 +116,13 @@ std::string Reg<T>::GetTypeString() const {
 template <typename T>
 std::string Reg<T>::ToString() const {
   if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
-    return absl::StrCat(val_);
+    return absl::StrCat(value_);
   }
   if constexpr (std::is_floating_point_v<T>) {
-    return absl::StrFormat("%.10f", val_);
+    return absl::StrFormat("%.10f", value_);
   }
   if constexpr (std::is_pointer<T>::value) {
-    return absl::StrFormat("%p", val_);
+    return absl::StrFormat("%p", value_);
   }
   // Not reached.
 }

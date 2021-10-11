@@ -23,11 +23,6 @@ namespace sapi::v {
 
 class Ptr;
 
-// Needed so that we can use unique_ptr with incomplete type.
-struct PtrDeleter {
-  void operator()(Ptr* p);
-};
-
 // Class that implements pointer support for different objects.
 class Pointable {
  public:
@@ -46,9 +41,7 @@ class Pointable {
     kSyncBoth = kSyncBefore | kSyncAfter,
   };
 
-  // Necessary to implement creation of Ptr in inheriting class as it is
-  // incomplete type here.
-  virtual Ptr* CreatePtr(SyncType type) = 0;
+  virtual ~Pointable() = default;
 
   // Functions to get pointers with certain type of synchronization scheme.
   Ptr* PtrNone() {
@@ -80,9 +73,16 @@ class Pointable {
     return ptr_after_.get();
   }
 
-  virtual ~Pointable() = default;
-
  private:
+  // Needed so that we can use unique_ptr with incomplete type.
+  struct PtrDeleter {
+    void operator()(Ptr* p);
+  };
+
+  // Necessary to implement creation of Ptr in inheriting class as it is
+  // incomplete type here.
+  virtual Ptr* CreatePtr(SyncType sync_type) = 0;
+
   std::unique_ptr<Ptr, PtrDeleter> ptr_none_;
   std::unique_ptr<Ptr, PtrDeleter> ptr_both_;
   std::unique_ptr<Ptr, PtrDeleter> ptr_before_;

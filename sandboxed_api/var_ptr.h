@@ -30,17 +30,16 @@ class Ptr : public Reg<Var*>, public Pointable {
  public:
   Ptr() = delete;
 
-  explicit Ptr(Var* val, SyncType sync_type)
-      : sync_type_(sync_type) {
-    Reg<Var*>::SetValue(val);
+  explicit Ptr(Var* value, SyncType sync_type) : sync_type_(sync_type) {
+    Reg<Var*>::SetValue(value);
   }
 
   Var* GetPointedVar() const { return Reg<Var*>::GetValue(); }
 
-  void SetValue(Var* ptr) final { val_->SetRemote(ptr); }
+  void SetValue(Var* ptr) final { value_->SetRemote(ptr); }
 
   Var* GetValue() const final {
-    return reinterpret_cast<Var*>(val_->GetRemote());
+    return reinterpret_cast<Var*>(value_->GetRemote());
   }
 
   const void* GetDataPtr() final {
@@ -66,11 +65,11 @@ class Ptr : public Reg<Var*>, public Pointable {
         var->GetRemote(), var->GetSize());
   }
 
-  Ptr* CreatePtr(Pointable::SyncType type = Pointable::kSyncNone) override {
-    return new Ptr(this, type);
+ private:
+  Ptr* CreatePtr(Pointable::SyncType sync_type) override {
+    return new Ptr(this, sync_type);
   }
 
- private:
   // GetDataPtr() interface requires of us to return a pointer to the data
   // (variable) that can be copied. We cannot get pointer to pointer with
   // Var::GetRemote(), hence we cache it, and return pointer to it.

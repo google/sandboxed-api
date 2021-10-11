@@ -38,8 +38,9 @@ class Void : public Callable, public Pointable {
   const void* GetDataPtr() override { return nullptr; }
   void SetDataFromPtr(const void* ptr, size_t max_sz) override {}
 
-  Ptr* CreatePtr(Pointable::SyncType type = Pointable::kSyncNone) override {
-    return new Ptr(this, type);
+ private:
+  Ptr* CreatePtr(Pointable::SyncType sync_type) override {
+    return new Ptr(this, sync_type);
   }
 };
 

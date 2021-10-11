@@ -17,6 +17,6 @@
 
 namespace sapi::v {
 
-void PtrDeleter::operator()(Ptr *p) { delete p; }
+void Pointable::PtrDeleter::operator()(Ptr *p) { delete p; }
 
 }  // namespace sapi::v
