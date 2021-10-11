@@ -50,23 +50,27 @@ ABSL_FLAG(bool, call_syscall_not_allowed, false,
 namespace {
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
-  sandbox2::PolicyBuilder builder;
-  builder.DisableNamespaces().AllowExit().AddPolicyOnSyscalls(
-      {__NR_read, __NR_write, __NR_close},
-      {
-          ARG_32(0),
-          JEQ32(sandbox2::Comms::kSandbox2ClientCommsFD, ALLOW),
-      });
-  if constexpr (sapi::sanitizers::IsAny()) {
-    builder.AllowSyscall(__NR_mmap);
-  }
-  return builder.BuildOrDie();
+  return sandbox2::PolicyBuilder()
+      .DisableNamespaces()  // Safe, as we only allow I/O on existing FDs.
+      .AllowExit()
+      .AddPolicyOnSyscalls(
+          {
+              __NR_read,
+              __NR_write,
+              __NR_close,
+          },
+          {
+              ARG_32(0),
+              JEQ32(sandbox2::Comms::kSandbox2ClientCommsFD, ALLOW),
+          })
+      .AllowLlvmSanitizers()  // Will be a no-op when not using sanitizers.
+      .BuildOrDie();
 }
 
 bool SandboxedCRC4(sandbox2::Comms* comms, uint32_t* crc4) {
   const std::string input = absl::GetFlag(FLAGS_input);
 
-  const uint8_t* buf = reinterpret_cast<const uint8_t*>(input.data());
+  auto* buf = reinterpret_cast<const uint8_t*>(input.data());
   size_t buf_size = input.size();
 
   if (!comms->SendBytes(buf, buf_size)) {

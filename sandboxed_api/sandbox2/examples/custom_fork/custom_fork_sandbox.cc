@@ -38,10 +38,7 @@
 #include "sandboxed_api/util/runfiles.h"
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
-  sandbox2::PolicyBuilder builder;
-  builder
-      // The most frequent syscall should go first in this
-      // sequence (to make it fast).
+  return sandbox2::PolicyBuilder()
       .AllowRead()
       .AllowWrite()
       .AllowExit()
@@ -52,11 +49,9 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
             // Not defined with every CPU architecture in prod.
             __NR_arch_prctl,
 #endif
-      });
-  if constexpr (sapi::sanitizers::IsAny()) {
-    builder.AllowMmap();
-  }
-  return builder.BuildOrDie();
+      })
+      .AllowLlvmSanitizers()  // Will be a no-op when not using sanitizers.
+      .BuildOrDie();
 }
 
 static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
