@@ -113,7 +113,8 @@ PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
 
         // PROT_READ | PROT_WRITE
         ARG_32(3),  // flags
-        JEQ32(MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, ALLOW),
+        BPF_STMT(BPF_ALU | BPF_AND | BPF_K,
+                 ~uint32_t{MAP_FIXED | MAP_NORESERVE}),
         JEQ32(MAP_PRIVATE | MAP_ANONYMOUS, ALLOW),
         JUMP(&labels, mmap_end),
 

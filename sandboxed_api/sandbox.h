@@ -131,7 +131,7 @@ class Sandbox {
   //  - absolute: will be used as is.
   virtual std::string GetLibPath() const { return ""; }
 
-  // Gets the environment varialbes passed to the sandboxee.
+  // Gets the environment variables passed to the sandboxee.
   virtual void GetEnvs(std::vector<std::string>* envs) const {}
 
   // Modifies the Executor object if needed.
