@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_EXAMPLES_SUM_LIB_SANDBOX_H_
-#define SANDBOXED_API_EXAMPLES_SUM_LIB_SANDBOX_H_
+#ifndef SANDBOXED_API_EXAMPLES_STRINGOP_SANDBOX_H_
+#define SANDBOXED_API_EXAMPLES_STRINGOP_SANDBOX_H_
 
 #include <linux/audit.h>
 #include <sys/syscall.h>
 
-#include "sandboxed_api/examples/sum/lib/sum-sapi.sapi.h"
+#include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
-class SumSapiSandbox : public SumSandbox {
+class StringopSapiSandbox : public StringopSandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
@@ -36,15 +36,13 @@ class SumSapiSandbox : public SumSandbox {
         .AllowExit()
         .AllowStat()
         .AllowTime()
-        .AllowGetIDs()
-        .AllowGetPIDs()
         .AllowSyscalls({
-            __NR_tgkill,
             __NR_recvmsg,
             __NR_sendmsg,
             __NR_lseek,
             __NR_nanosleep,
             __NR_futex,
+            __NR_gettid,
             __NR_close,
         })
         .AddFile("/etc/localtime")
@@ -52,4 +50,4 @@ class SumSapiSandbox : public SumSandbox {
   }
 };
 
-#endif  // SANDBOXED_API_EXAMPLES_SUM_LIB_SANDBOX_H_
+#endif  // SANDBOXED_API_EXAMPLES_STRINGOP_SANDBOX_H_

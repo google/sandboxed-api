@@ -13,8 +13,63 @@
 # limitations under the License.
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
 licenses(["notice"])
+
+sapi_proto_library(
+    name = "sum_params_proto",
+    srcs = ["sum_params.proto"],
+    visibility = ["//visibility:public"],
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "sum",
+    srcs = [
+        "sum.c",
+        "sum_cpp.cc",
+    ],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":sum_params_cc_proto",
+        "@com_google_glog//:glog",
+    ],
+    alwayslink = 1,  # All functions are linked into depending binaries
+)
+
+sapi_library(
+    name = "sum-sapi",
+    srcs = [],
+    hdrs = ["sandbox.h"],
+    functions = [
+        "sum",
+        "sums",
+        "addf",
+        "sub",
+        "mul",
+        "divs",
+        "muld",
+        "crash",
+        "violate",
+        "sumarr",
+        "testptr",
+        "read_int",
+        "sleep_for_sec",
+        "sumproto",
+    ],
+    input_files = [
+        "sum.c",
+        "sum_cpp.cc",
+    ],
+    lib = ":sum",
+    lib_name = "Sum",
+    namespace = "",
+    visibility = ["//visibility:public"],
+    deps = [":sum_params_cc_proto"],
+)
 
 # A quick'n'dirty testing binary
 cc_binary(
@@ -22,10 +77,10 @@ cc_binary(
     srcs = ["main_sum.cc"],
     copts = sapi_platform_copts(),
     deps = [
+        ":sum-sapi",
+        ":sum_params_cc_proto",
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
-        "//sandboxed_api/examples/sum/lib:sum-sapi",
-        "//sandboxed_api/examples/sum/lib:sum_params_cc_proto",
         "//sandboxed_api/util:flags",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",

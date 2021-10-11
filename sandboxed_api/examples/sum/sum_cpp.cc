@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <glog/logging.h>
-#include "sandboxed_api/examples/sum/lib/sum_params.pb.h"
+#include "sandboxed_api/examples/sum/sum_params.pb.h"
 
 extern "C" int sumproto(const sumsapi::SumParamsProto* params) {
   LOG(INFO) << "Param is " << params->DebugString();

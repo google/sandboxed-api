@@ -19,7 +19,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "sandboxed_api/examples/stringop/lib/stringop_params.pb.h"
+#include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/lenval_core.h"
 
 // Protobuf examples.

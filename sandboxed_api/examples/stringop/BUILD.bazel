@@ -15,8 +15,50 @@
 # Description: Example using dynamic length structures for Sandboxed API
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
 licenses(["notice"])
+
+sapi_proto_library(
+    name = "stringop_params_proto",
+    srcs = ["stringop_params.proto"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "stringop",
+    srcs = ["stringop.cc"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":stringop_params_cc_proto",
+        "//sandboxed_api:lenval_core",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+    alwayslink = 1,  # All functions are linked into dependent binaries
+)
+
+sapi_library(
+    name = "stringop-sapi",
+    srcs = [],
+    hdrs = ["sandbox.h"],
+    functions = [
+        "duplicate_string",
+        "reverse_string",
+        "pb_duplicate_string",
+        "pb_reverse_string",
+        "nop",
+        "violate",
+        "get_raw_c_string",
+    ],
+    input_files = ["stringop.cc"],
+    lib = ":stringop",
+    lib_name = "Stringop",
+    namespace = "",
+    visibility = ["//visibility:public"],
+    deps = [":stringop_params_cc_proto"],
+)
 
 cc_test(
     name = "main_stringop",
@@ -24,10 +66,10 @@ cc_test(
     copts = sapi_platform_copts(),
     tags = ["local"],
     deps = [
+        ":stringop-sapi",
+        ":stringop_params_cc_proto",
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
-        "//sandboxed_api/examples/stringop/lib:stringop-sapi",
-        "//sandboxed_api/examples/stringop/lib:stringop_params_cc_proto",
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_matchers",

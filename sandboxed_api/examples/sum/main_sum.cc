@@ -21,9 +21,9 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/examples/sum/lib/sandbox.h"
-#include "sandboxed_api/examples/sum/lib/sum-sapi.sapi.h"
-#include "sandboxed_api/examples/sum/lib/sum_params.pb.h"
+#include "sandboxed_api/examples/sum/sandbox.h"
+#include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
+#include "sandboxed_api/examples/sum/sum_params.pb.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/vars.h"
 
