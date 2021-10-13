@@ -19,6 +19,8 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <initializer_list>
+#include <memory>
 #include <utility>
 
 #include <glog/logging.h>
@@ -46,25 +48,36 @@ namespace file_util = ::sapi::file_util;
 using ::sapi::CreateNamedTempFile;
 using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
+using ::testing::Eq;
+using ::testing::Ne;
+
+int RunSandboxeeWithArgsAndPolicy(const std::string& sandboxee,
+                                  std::initializer_list<std::string> args,
+                                  std::unique_ptr<Policy> policy) {
+  Sandbox2 sandbox(absl::make_unique<Executor>(sandboxee, args),
+                   std::move(policy));
+
+  Result result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  return result.reason_code();
+}
+
+constexpr absl::string_view kNamespaceTestBinary =
+    "sandbox2/testcases/namespace";
+constexpr absl::string_view kHostnameTestBinary = "sandbox2/testcases/hostname";
 
 TEST(NamespaceTest, FileNamespaceWorks) {
   // Mount /binary_path RO and check that it exists and is readable.
   // /etc/passwd should not exist.
-  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
-  std::vector<std::string> args = {path, "0", "/binary_path", "/etc/passwd"};
-  auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all
-                                .DangerDefaultAllowAll()
-                                .AddFileAt(path, "/binary_path")
-                                .TryBuild());
 
-  Sandbox2 sandbox(std::move(executor), std::move(policy));
-  auto result = sandbox.Run();
-
-  ASSERT_EQ(result.final_status(), Result::OK);
-  EXPECT_EQ(result.reason_code(), 2);
+  const std::string path = GetTestSourcePath(kNamespaceTestBinary);
+  int reason_code = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "0", "/binary_path", "/etc/passwd"},
+      PolicyBuilder()
+          .DangerDefaultAllowAll()  // Do not restrict syscalls
+          .AddFileAt(path, "/binary_path")
+          .BuildOrDie());
+  EXPECT_THAT(reason_code, Eq(2));
 }
 
 TEST(NamespaceTest, ReadOnlyIsRespected) {
@@ -72,205 +85,134 @@ TEST(NamespaceTest, ReadOnlyIsRespected) {
   auto [name, fd] = CreateNamedTempFile(GetTestTempPath("temp_file")).value();
   file_util::fileops::FDCloser temp_closer(fd);
 
-  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
+  const std::string path = GetTestSourcePath(kNamespaceTestBinary);
   {
-    // First check that it is readable
-    std::vector<std::string> args = {path, "0", "/temp_file"};
-    auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                              PolicyBuilder()
-                                  // Don't restrict the syscalls at all
-                                  .DangerDefaultAllowAll()
-                                  .AddFileAt(name, "/temp_file")
-                                  .TryBuild());
-
-    Sandbox2 sandbox(std::move(executor), std::move(policy));
-    auto result = sandbox.Run();
-
-    ASSERT_EQ(result.final_status(), Result::OK);
-    EXPECT_EQ(result.reason_code(), 0);
+    // Check that it is readable
+    int reason_code = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "0", "/temp_file"},
+        PolicyBuilder()
+            .DangerDefaultAllowAll()  // Do not restrict syscalls
+            .AddFileAt(name, "/temp_file")
+            .BuildOrDie());
+    EXPECT_THAT(reason_code, Eq(0));
   }
   {
-    // Then check that it is not writeable
-    std::vector<std::string> args = {path, "1", "/temp_file"};
-    auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                              PolicyBuilder()
-                                  // Don't restrict the syscalls at all
-                                  .DangerDefaultAllowAll()
-                                  .AddFileAt(name, "/temp_file")
-                                  .TryBuild());
-
-    Sandbox2 sandbox(std::move(executor), std::move(policy));
-    auto result = sandbox.Run();
-
-    ASSERT_EQ(result.final_status(), Result::OK);
-    EXPECT_EQ(result.reason_code(), 1);
+    // Now check that it is not writeable
+    int reason_code = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "1", "/temp_file"},
+        PolicyBuilder()
+            .DangerDefaultAllowAll()  // Do not restrict syscalls
+            .AddFileAt(name, "/temp_file")
+            .BuildOrDie());
+    EXPECT_THAT(reason_code, Eq(1));
   }
 }
 
 TEST(NamespaceTest, UserNamespaceWorks) {
+  const std::string path = GetTestSourcePath(kNamespaceTestBinary);
+
   // Check that getpid() returns 2 (which is the case inside pid NS).
-  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
-  std::vector<std::string> args = {path, "2"};
   {
-    auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                              PolicyBuilder()
-                                  // Don't restrict the syscalls at all
-                                  .DangerDefaultAllowAll()
-                                  .TryBuild());
-
-    Sandbox2 sandbox(std::move(executor), std::move(policy));
-    auto result = sandbox.Run();
-
-    ASSERT_EQ(result.final_status(), Result::OK);
-    EXPECT_EQ(result.reason_code(), 0);
+    int reason_code = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "2"},
+        PolicyBuilder()
+            .DangerDefaultAllowAll()  // Do not restrict syscalls
+            .BuildOrDie());
+    EXPECT_THAT(reason_code, Eq(0));
   }
 
-  // Validate that getpid() does not return 2 when outside of an pid NS.
+  // Validate that getpid() does not return 2 when outside of a pid NS.
   {
-    auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                              PolicyBuilder()
-                                  .DisableNamespaces()
-                                  // Don't restrict the syscalls at all
-                                  .DangerDefaultAllowAll()
-                                  .TryBuild());
-
-    Sandbox2 sandbox(std::move(executor), std::move(policy));
-    auto result = sandbox.Run();
-
-    ASSERT_EQ(result.final_status(), Result::OK);
-    EXPECT_NE(result.reason_code(), 0);
+    int reason_code = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "2"},
+        PolicyBuilder()
+            .DisableNamespaces()
+            .DangerDefaultAllowAll()  // Do not restrict syscalls
+            .BuildOrDie());
+    EXPECT_THAT(reason_code, Ne(0));
   }
 }
 
 TEST(NamespaceTest, UserNamespaceIDMapWritten) {
   // Check that the idmap is initialized before the sandbox application is
   // started.
-  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
+  const std::string path = GetTestSourcePath(kNamespaceTestBinary);
   {
-    std::vector<std::string> args = {path, "3", "1000", "1000"};
-    auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                              PolicyBuilder()
-                                  // Don't restrict the syscalls at all
-                                  .DangerDefaultAllowAll()
-                                  .TryBuild());
-
-    Sandbox2 sandbox(std::move(executor), std::move(policy));
-    auto result = sandbox.Run();
-
-    ASSERT_EQ(result.final_status(), Result::OK);
-    EXPECT_EQ(result.reason_code(), 0);
+    int reason_code = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "3", "1000", "1000"},
+        PolicyBuilder()
+            .DangerDefaultAllowAll()  // Do not restrict syscalls
+            .BuildOrDie());
+    EXPECT_THAT(reason_code, Eq(0));
   }
 
   // Check that the uid/gid is the same when not using namespaces.
   {
-    const std::string uid = absl::StrCat(getuid());
-    const std::string gid = absl::StrCat(getgid());
-    std::vector<std::string> args = {path, "3", uid, gid};
-    auto executor = absl::make_unique<Executor>(path, args);
-    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                              PolicyBuilder()
-                                  .DisableNamespaces()
-                                  // Don't restrict the syscalls at all
-                                  .DangerDefaultAllowAll()
-                                  .TryBuild());
-
-    Sandbox2 sandbox(std::move(executor), std::move(policy));
-    auto result = sandbox.Run();
-
-    ASSERT_EQ(result.final_status(), Result::OK);
-    EXPECT_EQ(result.reason_code(), 0);
+    int reason_code = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "3", absl::StrCat(getuid()), absl::StrCat(getgid())},
+        PolicyBuilder()
+            .DisableNamespaces()
+            .DangerDefaultAllowAll()  // Do not restrict syscalls
+            .BuildOrDie());
+    EXPECT_THAT(reason_code, Eq(0));
   }
 }
 
 TEST(NamespaceTest, RootReadOnly) {
-  // Mount rw tmpfs at /tmp and check it is rw.
-  // Check also that / is ro.
-  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
-  std::vector<std::string> args = {path, "4", "/tmp/testfile", "/testfile"};
-  auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all
-                                .DangerDefaultAllowAll()
-                                .AddTmpfs("/tmp")
-                                .TryBuild());
-
-  Sandbox2 sandbox(std::move(executor), std::move(policy));
-  auto result = sandbox.Run();
-
-  ASSERT_EQ(result.final_status(), Result::OK);
-  EXPECT_EQ(result.reason_code(), 2);
+  // Mount rw tmpfs at /tmp and check it is RW.
+  // Check also that / is RO.
+  const std::string path = GetTestSourcePath(kNamespaceTestBinary);
+  int reason_code = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "4", "/tmp/testfile", "/testfile"},
+      PolicyBuilder()
+          .DangerDefaultAllowAll()  // Do not restrict syscalls
+          .AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */)
+          .BuildOrDie());
+  EXPECT_THAT(reason_code, Eq(2));
 }
 
 TEST(NamespaceTest, RootWritable) {
   // Mount root rw and check it
-  const std::string path = GetTestSourcePath("sandbox2/testcases/namespace");
-  std::vector<std::string> args = {path, "4", "/testfile"};
-  auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all
-                                .DangerDefaultAllowAll()
-                                .SetRootWritable()
-                                .TryBuild());
-
-  Sandbox2 sandbox(std::move(executor), std::move(policy));
-  auto result = sandbox.Run();
-
-  ASSERT_EQ(result.final_status(), Result::OK);
-  EXPECT_EQ(result.reason_code(), 0);
+  const std::string path = GetTestSourcePath(kNamespaceTestBinary);
+  int reason_code = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "4", "/testfile"},
+      PolicyBuilder()
+          .DangerDefaultAllowAll()  // Do not restrict syscalls
+          .SetRootWritable()
+          .BuildOrDie());
+  EXPECT_THAT(reason_code, Eq(0));
 }
 
-class HostnameTest : public testing::Test {
- protected:
-  void Try(std::string arg, std::unique_ptr<Policy> policy) {
-    const std::string path = GetTestSourcePath("sandbox2/testcases/hostname");
-    std::vector<std::string> args = {path, std::move(arg)};
-    auto executor = absl::make_unique<Executor>(path, args);
-    Sandbox2 sandbox(std::move(executor), std::move(policy));
-    auto result = sandbox.Run();
-    ASSERT_EQ(result.final_status(), Result::OK);
-    code_ = result.reason_code();
-  }
-
-  int code_;
-};
-
-TEST_F(HostnameTest, None) {
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                .DisableNamespaces()
-                                // Don't restrict the syscalls at all
-                                .DangerDefaultAllowAll()
-                                .TryBuild());
-  Try("sandbox2", std::move(policy));
-  EXPECT_EQ(code_, 1);
+TEST(HostnameTest, None) {
+  const std::string path = GetTestSourcePath(kHostnameTestBinary);
+  int reason_code = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "sandbox2"},
+      PolicyBuilder()
+          .DisableNamespaces()
+          .DangerDefaultAllowAll()  // Do not restrict syscalls
+          .BuildOrDie());
+  EXPECT_THAT(reason_code, Eq(1));
 }
 
-TEST_F(HostnameTest, Default) {
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all
-                                .DangerDefaultAllowAll()
-                                .TryBuild());
-  Try("sandbox2", std::move(policy));
-  EXPECT_EQ(code_, 0);
+TEST(HostnameTest, Default) {
+  const std::string path = GetTestSourcePath(kHostnameTestBinary);
+  int reason_code = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "sandbox2"},
+      PolicyBuilder()
+          .DangerDefaultAllowAll()  // Do not restrict syscalls
+          .BuildOrDie());
+  EXPECT_THAT(reason_code, Eq(0));
 }
 
-TEST_F(HostnameTest, Configured) {
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all
-                                .DangerDefaultAllowAll()
-                                .SetHostname("configured")
-                                .TryBuild());
-  Try("configured", std::move(policy));
-  EXPECT_EQ(code_, 0);
+TEST(HostnameTest, Configured) {
+  const std::string path = GetTestSourcePath(kHostnameTestBinary);
+  int reason_code = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "configured"},
+      PolicyBuilder()
+          .DangerDefaultAllowAll()  // Do not restrict syscalls
+          .SetHostname("configured")
+          .BuildOrDie());
+  EXPECT_THAT(reason_code, Eq(0));
 }
 
 }  // namespace
