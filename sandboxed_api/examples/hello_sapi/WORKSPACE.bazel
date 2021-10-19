@@ -29,7 +29,7 @@ maybe(
     # This example depends on the latest master. In an embedding project, it
     # is advisable to pin Sandboxed API to a specific revision instead.
     # commit = "ba47adc21d4c9bc316f3c7c32b0faaef952c111e",  # 2020-05-15
-    branch = "master",
+    branch = "main",
     remote = "https://github.com/google/sandboxed-api.git",
 )
 
