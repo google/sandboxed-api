@@ -536,6 +536,8 @@ PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
   AllowSystemMalloc();
   AllowTcMalloc();
 
+  // From comms
+  AllowGetPIDs();
   AllowSyscalls({// from logging code
                  __NR_clock_gettime,
                  // From comms
