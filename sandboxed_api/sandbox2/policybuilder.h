@@ -99,6 +99,9 @@ class PolicyBuilder final {
   };
 
   static constexpr absl::string_view kDefaultHostname = "sandbox2";
+  // Seccomp takes a 16-bit filter length, so the limit would be 64k.
+  // We set it lower so that there is for sure some room for the default policy.
+  static constexpr size_t kMaxUserPolicyLength = 30000;
 
   using BpfInitializer = std::initializer_list<sock_filter>;
   using BpfFunc = const std::function<std::vector<sock_filter>(bpf_labels&)>&;

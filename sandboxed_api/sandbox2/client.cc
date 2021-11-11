@@ -200,6 +200,9 @@ void Client::ApplyPolicyAndBecomeTracee() {
                  "setting PR_SET_KEEPCAPS flag");
 
   sock_fprog prog;
+  SAPI_RAW_CHECK(policy_.size() / sizeof(sock_filter) <=
+                     std::numeric_limits<uint16_t>::max(),
+                 "seccomp policy too long");
   prog.len = static_cast<uint16_t>(policy_.size() / sizeof(sock_filter));
   prog.filter = reinterpret_cast<sock_filter*>(&policy_.front());
 

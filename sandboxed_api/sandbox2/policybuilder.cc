@@ -786,6 +786,12 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
 absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   auto output = absl::WrapUnique(new Policy());
 
+  if (user_policy_.size() > kMaxUserPolicyLength) {
+    return absl::FailedPreconditionError(
+        absl::StrCat("User syscall policy is to long (", user_policy_.size(),
+                     " > ", kMaxUserPolicyLength, ")."));
+  }
+
   if (!last_status_.ok()) {
     return last_status_;
   }
