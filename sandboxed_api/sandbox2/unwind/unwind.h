@@ -26,6 +26,15 @@
 
 namespace sandbox2 {
 
+// Used to map from an address to a human-readable symbol.
+using SymbolMap = std::map<uint64_t, std::string>;
+
+// Returns the symbol at `addr`, possibly with an offset into said symbol.
+std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr);
+
+// Loads and returns a symbol map for a process with the provided `pid`.
+absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid);
+
 // Runs libunwind and the symbolizer and sends the results via comms.
 bool RunLibUnwindAndSymbolizer(Comms* comms);
 

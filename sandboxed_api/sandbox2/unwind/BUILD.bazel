@@ -51,6 +51,7 @@ cc_library(
             "_Ux86_64_step",
         ]
     ]),
+    visibility = ["//visibility:public"],
     deps = [
         ":ptrace_hook",
         ":unwind_cc_proto",

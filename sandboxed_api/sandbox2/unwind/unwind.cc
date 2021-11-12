@@ -54,83 +54,6 @@ std::string DemangleSymbol(const std::string& maybe_mangled) {
   return maybe_mangled;
 }
 
-std::string GetSymbolAt(const std::map<uint64_t, std::string>& addr_to_symbol,
-                        uint64_t addr) {
-  auto entry_for_next_symbol = addr_to_symbol.lower_bound(addr);
-  if (entry_for_next_symbol != addr_to_symbol.end() &&
-      entry_for_next_symbol != addr_to_symbol.begin()) {
-    // Matches the addr exactly:
-    if (entry_for_next_symbol->first == addr) {
-      return DemangleSymbol(entry_for_next_symbol->second);
-    }
-
-    // Might be inside a function, return symbol+offset;
-    const auto entry_for_previous_symbol = --entry_for_next_symbol;
-    if (!entry_for_previous_symbol->second.empty()) {
-      return absl::StrCat(DemangleSymbol(entry_for_previous_symbol->second),
-                          "+0x",
-                          absl::Hex(addr - entry_for_previous_symbol->first));
-    }
-  }
-  return "";
-}
-
-absl::StatusOr<std::map<uint64_t, std::string>> LoadSymbolsMap(pid_t pid) {
-  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
-  std::string maps_content;
-  SAPI_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
-                                               sapi::file::Defaults()));
-
-  SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
-                        ParseProcMaps(maps_content));
-
-  // Get symbols for each file entry in the maps entry.
-  // This is not a very efficient way, so we might want to optimize it.
-  std::map<uint64_t, std::string> addr_to_symbol;
-  for (const MapsEntry& entry : maps) {
-    if (!entry.is_executable ||
-        entry.inode == 0 ||  // Only parse file-backed entries
-        entry.path.empty() ||
-        absl::EndsWith(entry.path, " (deleted)")  // Skip deleted files
-    ) {
-      continue;
-    }
-
-    // Store details about start + end of this map.
-    // The maps entries are ordered and thus sorted with increasing adresses.
-    // This means if there is a symbol @ entry.end, it will be overwritten in
-    // the next iteration.
-    std::string map = absl::StrCat("map:", entry.path);
-    if (entry.pgoff) {
-      absl::StrAppend(&map, "+0x", absl::Hex(entry.pgoff));
-    }
-    addr_to_symbol[entry.start] = map;
-    addr_to_symbol[entry.end] = "";
-
-    absl::StatusOr<ElfFile> elf =
-        ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
-    if (!elf.ok()) {
-      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
-                   entry.path.c_str(),
-                   std::string(elf.status().message()).c_str());
-      continue;
-    }
-
-    for (const ElfFile::Symbol& symbol : elf->symbols()) {
-      if (elf->position_independent()) {
-        if (symbol.address < entry.end - entry.start) {
-          addr_to_symbol[symbol.address + entry.start] = symbol.name;
-        }
-      } else {
-        if (symbol.address >= entry.start && symbol.address < entry.end) {
-          addr_to_symbol[symbol.address] = symbol.name;
-        }
-      }
-    }
-  }
-  return addr_to_symbol;
-}
-
 absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
   unw_cursor_t cursor;
   static unw_addr_space_t as =
@@ -189,6 +112,82 @@ absl::StatusOr<std::vector<std::string>> SymbolizeStacktrace(
 }
 
 }  // namespace
+
+std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr) {
+  auto entry_for_next_symbol = addr_to_symbol.lower_bound(addr);
+  if (entry_for_next_symbol != addr_to_symbol.end() &&
+      entry_for_next_symbol != addr_to_symbol.begin()) {
+    // Matches the addr exactly:
+    if (entry_for_next_symbol->first == addr) {
+      return DemangleSymbol(entry_for_next_symbol->second);
+    }
+
+    // Might be inside a function, return symbol+offset;
+    const auto entry_for_previous_symbol = --entry_for_next_symbol;
+    if (!entry_for_previous_symbol->second.empty()) {
+      return absl::StrCat(DemangleSymbol(entry_for_previous_symbol->second),
+                          "+0x",
+                          absl::Hex(addr - entry_for_previous_symbol->first));
+    }
+  }
+  return "";
+}
+
+absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
+  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
+  std::string maps_content;
+  SAPI_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
+                                               sapi::file::Defaults()));
+
+  SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
+                        ParseProcMaps(maps_content));
+
+  // Get symbols for each file entry in the maps entry.
+  // This is not a very efficient way, so we might want to optimize it.
+  SymbolMap addr_to_symbol;
+  for (const MapsEntry& entry : maps) {
+    if (!entry.is_executable ||
+        entry.inode == 0 ||  // Only parse file-backed entries
+        entry.path.empty() ||
+        absl::EndsWith(entry.path, " (deleted)")  // Skip deleted files
+    ) {
+      continue;
+    }
+
+    // Store details about start + end of this map.
+    // The maps entries are ordered and thus sorted with increasing adresses.
+    // This means if there is a symbol @ entry.end, it will be overwritten in
+    // the next iteration.
+    std::string map = absl::StrCat("map:", entry.path);
+    if (entry.pgoff) {
+      absl::StrAppend(&map, "+0x", absl::Hex(entry.pgoff));
+    }
+    addr_to_symbol[entry.start] = map;
+    addr_to_symbol[entry.end] = "";
+
+    absl::StatusOr<ElfFile> elf =
+        ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
+    if (!elf.ok()) {
+      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
+                   entry.path.c_str(),
+                   std::string(elf.status().message()).c_str());
+      continue;
+    }
+
+    for (const ElfFile::Symbol& symbol : elf->symbols()) {
+      if (elf->position_independent()) {
+        if (symbol.address < entry.end - entry.start) {
+          addr_to_symbol[symbol.address + entry.start] = symbol.name;
+        }
+      } else {
+        if (symbol.address >= entry.start && symbol.address < entry.end) {
+          addr_to_symbol[symbol.address] = symbol.name;
+        }
+      }
+    }
+  }
+  return addr_to_symbol;
+}
 
 bool RunLibUnwindAndSymbolizer(Comms* comms) {
   UnwindSetup setup;
