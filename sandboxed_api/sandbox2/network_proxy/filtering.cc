@@ -19,6 +19,7 @@
 #include <glog/logging.h>
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -98,7 +99,7 @@ static absl::Status ParseIpAndMask(const std::string& ip_and_mask,
   }
   std::string mask_or_cidr = ip_and_mask_split[1];
 
-  const bool has_dot = mask_or_cidr.find('.') == absl::string_view::npos;
+  const bool has_dot = !absl::StrContains(mask_or_cidr, '.');
   if (has_dot) {  // mask_or_cidr is cidr
     bool res = absl::SimpleAtoi<uint32_t>(mask_or_cidr, cidr);
     if (!res || !*cidr) {
@@ -248,11 +249,9 @@ bool AllowedHosts::IsHostAllowed(const struct sockaddr* saddr) const {
 bool AllowedHosts::IsIPv6Allowed(const struct sockaddr_in6* saddr) const {
   auto result = std::find_if(
       allowed_IPv6_.begin(), allowed_IPv6_.end(), [saddr](const IPv6& entry) {
-        for (int i = 0; i < 4; i++) {
-          if ((entry.ip.__in6_u.__u6_addr32[i] &
-               entry.mask.__in6_u.__u6_addr32[i]) !=
-              (saddr->sin6_addr.__in6_u.__u6_addr32[i] &
-               entry.mask.__in6_u.__u6_addr32[i])) {
+        for (int i = 0; i < 16; i++) {
+          if ((entry.ip.s6_addr[i] & entry.mask.s6_addr[i]) !=
+              (saddr->sin6_addr.s6_addr[i] & entry.mask.s6_addr[i])) {
             return false;
           }
         }
