@@ -15,7 +15,6 @@
 #include "sandboxed_api/sandbox2/util.h"
 
 #include <asm/unistd.h>  // __NR_memdfd_create
-#include <bits/local_lim.h>
 #include <sched.h>
 #include <spawn.h>
 #include <sys/ptrace.h>
@@ -27,6 +26,7 @@
 
 #include <array>
 #include <cerrno>
+#include <climits>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
