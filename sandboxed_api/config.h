@@ -16,6 +16,7 @@
 #define SANDBOXED_API_CONFIG_H_
 
 #include <cstdint>
+#include <string>
 
 #include "absl/base/config.h"
 
@@ -46,7 +47,7 @@ namespace cpu {
 // CPU architectures known to Sandbox2
 enum Architecture : uint16_t {
   // Linux: Use a magic value, so it can be easily spotted in the seccomp-bpf
-  // bytecode decompilation stream. Must be < (1<<15), as/ that's the size of
+  // bytecode decompilation stream. Must be < (1<<15), as that is the size of
   // data which can be returned by BPF.
   kUnknown = 0xCAF0,
   kX8664,
@@ -91,6 +92,37 @@ constexpr bool Is64Bit() { return sizeof(uintptr_t) == 8; }
 static_assert(host_cpu::Architecture() != cpu::kUnknown,
               "Host CPU architecture is not supported: One of x86-64, POWER64 "
               "(little endian), ARM or AArch64 is required.");
+
+namespace os {
+
+// Operating Systems known to Sandbox2
+enum Platform : uint16_t {
+  kUnknown,
+  kAndroid,
+  kLinux,
+};
+
+}  // namespace os
+
+namespace host_os {
+
+// Returns the current host OS platform if supported. If not supported,
+// returns platforms::kUnknown.
+constexpr os::Platform Platform() {
+#if defined(__ANDROID__)
+  return os::kAndroid;
+#elif defined(__linux__)
+  return os::kLinux;
+#else
+  return os::kUnknown;
+#endif
+}
+
+constexpr bool IsAndroid() { return Platform() == os::kAndroid; }
+
+constexpr bool IsLinux() { return Platform() == os::kLinux; }
+
+}  // namespace host_os
 
 namespace sanitizers {
 
