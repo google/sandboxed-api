@@ -301,11 +301,11 @@ target_link_libraries(sandbox2_sandbox2
           absl::optional
           absl::str_format
           absl::strings
-          absl::synchronization
           sapi::strerror
           sapi::base
   PUBLIC  absl::status
           absl::statusor
+          absl::synchronization
           absl::time
           sapi::config
           sapi::file_base

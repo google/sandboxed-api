@@ -27,6 +27,7 @@
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -136,6 +137,9 @@ class Sandbox2 final {
 
   // Monitor thread object - owned by Sandbox2.
   std::unique_ptr<std::thread> monitor_thread_;
+
+  // Synchronizes monitor thread deletion and notifying the monitor.
+  absl::Mutex monitor_notify_mutex_;
 };
 
 }  // namespace sandbox2

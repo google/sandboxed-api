@@ -22,6 +22,7 @@
 
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/monitor.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -44,14 +45,17 @@ absl::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
   if (!done) {
     return absl::DeadlineExceededError("Sandbox did not finish within timeout");
   }
-  monitor_thread_->join();
+  {
+    absl::MutexLock lock(&monitor_notify_mutex_);
+    monitor_thread_->join();
 
-  CHECK(IsTerminated()) << "Monitor did not terminate";
+    CHECK(IsTerminated()) << "Monitor did not terminate";
 
-  // Reset the Monitor Thread object to its initial state, as to mark that this
-  // object cannot be used anymore to control behavior of the sandboxee (e.g.
-  // via signals).
-  monitor_thread_.reset(nullptr);
+    // Reset the Monitor Thread object to its initial state, as to mark that
+    // this object cannot be used anymore to control behavior of the sandboxee
+    // (e.g. via signals).
+    monitor_thread_.reset();
+  }
 
   VLOG(1) << "Final execution status: " << monitor_->result_.ToString();
   CHECK(monitor_->result_.final_status() != Result::UNSET);
@@ -74,6 +78,7 @@ bool Sandbox2::RunAsync() {
 }
 
 void Sandbox2::NotifyMonitor() {
+  absl::ReaderMutexLock lock(&monitor_notify_mutex_);
   if (monitor_thread_ != nullptr) {
     pthread_kill(monitor_thread_->native_handle(), SIGCHLD);
   }
