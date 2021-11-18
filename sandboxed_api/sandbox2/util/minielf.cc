@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <type_traits>
 
 #include "absl/base/internal/endian.h"
 #include "absl/status/status.h"
@@ -133,18 +134,25 @@ class ElfParser {
   void Load(unsigned char (*dst)[N], const void* src) {
     memcpy(dst, src, N);
   }
-  void Load(uint8_t* dst, const void* src) {
-    *dst = *reinterpret_cast<const char*>(src);
+
+  template <typename IntT>
+  std::enable_if_t<std::is_integral_v<IntT>, void> Load(IntT* dst,
+                                                        const void* src) {
+    switch (sizeof(IntT)) {
+      case 1:
+        *dst = *reinterpret_cast<const char*>(src);
+        break;
+      case 2:
+        *dst = Load16(src);
+        break;
+      case 4:
+        *dst = Load32(src);
+        break;
+      case 8:
+        *dst = Load64(src);
+        break;
+    }
   }
-  void Load(uint16_t* dst, const void* src) { *dst = Load16(src); }
-  void Load(uint32_t* dst, const void* src) { *dst = Load32(src); }
-  void Load(uint64_t* dst, const void* src) { *dst = Load64(src); }
-  void Load(int8_t* dst, const void* src) {
-    *dst = *reinterpret_cast<const char*>(src);
-  }
-  void Load(int16_t* dst, const void* src) { *dst = Load16(src); }
-  void Load(int32_t* dst, const void* src) { *dst = Load32(src); }
-  void Load(int64_t* dst, const void* src) { *dst = Load64(src); }
 
   // Reads ELF file size.
   absl::Status ReadFileSize();
@@ -457,7 +465,9 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
     }
     auto offset = strtab_section.sh_offset + dyn.d_un.d_val;
     SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, offset, SEEK_SET));
-    std::string path(std::min(kMaxLibPathSize, strtab_end - offset), '\0');
+    std::string path(
+        std::min(kMaxLibPathSize, static_cast<size_t>(strtab_end - offset)),
+        '\0');
     size_t size = std::fread(&path[0], 1, path.size(), elf_);
     path.resize(size);
     result_.imported_libraries_.push_back(path.substr(0, path.find('\0')));
