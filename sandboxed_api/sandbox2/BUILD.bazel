@@ -78,6 +78,7 @@ cc_test(
     name = "syscall_test",
     srcs = ["syscall_test.cc"],
     copts = sapi_platform_copts(),
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":syscall",
         "//sandboxed_api:config",
@@ -589,6 +590,7 @@ cc_test(
     srcs = ["buffer_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:buffer"],
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":buffer",
         ":comms",
@@ -664,6 +666,7 @@ cc_test(
     srcs = ["forkserver_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:minimal"],
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":comms",
         ":forkserver",
@@ -702,6 +705,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:personality",
         "//sandboxed_api/sandbox2/testcases:pidcomms",
     ],
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":comms",
         ":regs",
@@ -725,6 +729,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:minimal_dynamic",
         "//sandboxed_api/sandbox2/testcases:policy",
     ],
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":limits",
         ":regs",
@@ -749,7 +754,10 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:starve",
         "//sandboxed_api/sandbox2/testcases:tsync",
     ],
-    tags = ["local"],
+    tags = [
+        "local",
+        "no_qemu_user_mode",
+    ],
     deps = [
         ":sandbox2",
         "//sandboxed_api:config",
@@ -767,6 +775,7 @@ cc_test(
     srcs = ["sanitizer_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:sanitizer"],
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":comms",
         ":sandbox2",
@@ -802,6 +811,7 @@ cc_test(
     ],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:symbolize"],
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":global_forkserver",
         ":mounts",
@@ -825,6 +835,7 @@ cc_test(
     srcs = ["ipc_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:ipc"],
+    tags = ["no_qemu_user_mode"],
     deps = [
         ":comms",
         ":sandbox2",
@@ -856,7 +867,10 @@ cc_test(
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:print_fds"],
-    tags = ["requires-net:external"],
+    tags = [
+        "no_qemu_user_mode",
+        "requires-net:external",
+    ],
     deps = [
         ":comms",
         ":sandbox2",

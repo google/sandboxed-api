@@ -61,4 +61,5 @@ sh_test(
     name = "networkproxy_sandbox_test",
     srcs = ["networkproxy_sandbox_test.sh"],
     data = [":networkproxy_sandbox"],
+    tags = ["no_qemu_user_mode"],
 )

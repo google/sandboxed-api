@@ -46,4 +46,5 @@ sh_test(
     name = "sandbox2tool_test",
     srcs = ["sandbox2tool_test.sh"],
     data = [":sandbox2tool"],
+    tags = ["no_qemu_user_mode"],
 )

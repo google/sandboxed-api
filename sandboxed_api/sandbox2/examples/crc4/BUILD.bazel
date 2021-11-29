@@ -59,7 +59,10 @@ cc_test(
     srcs = ["crc4sandbox_test.cc"],
     copts = sapi_platform_copts(),
     data = [":crc4sandbox"],
-    tags = ["local"],
+    tags = [
+        "local",
+        "no_qemu_user_mode",
+    ],
     deps = [
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2:util",

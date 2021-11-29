@@ -58,4 +58,5 @@ sh_test(
     name = "network_sandbox_test",
     srcs = ["network_sandbox_test.sh"],
     data = [":network_sandbox"],
+    tags = ["no_qemu_user_mode"],
 )
