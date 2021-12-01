@@ -19,14 +19,14 @@
 
 #include "absl/base/macros.h"
 #include "absl/strings/str_format.h"
-#include "sandboxed_api/var_abstract.h"
+#include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_reg.h"
 
 namespace sapi::v {
 
 // Class representing a pointer. Takes both Var* and regular pointers in the
 // initializers.
-class Ptr : public Reg<Var*> {
+class Ptr : public Reg<Var*>, public Pointable {
  public:
   Ptr() = delete;
 
@@ -66,6 +66,10 @@ class Ptr : public Reg<Var*> {
   }
 
  private:
+  Ptr* CreatePtr(Pointable::SyncType sync_type) override {
+    return new Ptr(this, sync_type);
+  }
+
   // GetDataPtr() interface requires of us to return a pointer to the data
   // (variable) that can be copied. We cannot get pointer to pointer with
   // Var::GetRemote(), hence we cache it, and return pointer to it.

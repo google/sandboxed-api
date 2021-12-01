@@ -19,18 +19,15 @@
 
 #include "absl/base/macros.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
 
 namespace sapi::v {
 
 // Class representing a structure.
 template <class T>
-class Struct : public Var {
+class Struct : public Var, public Pointable {
  public:
-  using Var::PtrAfter;
-  using Var::PtrBefore;
-  using Var::PtrBoth;
-
   // Forwarding constructor to initalize the struct_ field.
   template <typename... Args>
   explicit Struct(Args&&... args) : struct_(std::forward<Args>(args)...) {
@@ -51,6 +48,11 @@ class Struct : public Var {
   friend class LenVal;
 
   T struct_;
+
+ private:
+  Ptr* CreatePtr(Pointable::SyncType type) override {
+    return new Ptr(this, type);
+  }
 };
 
 }  // namespace sapi::v

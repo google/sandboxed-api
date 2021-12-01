@@ -29,6 +29,9 @@ namespace sapi::v {
 // type specifier in methods.
 class Callable : public Var {
  public:
+  Callable(const Callable&) = delete;
+  Callable& operator=(const Callable&) = delete;
+
   // Get pointer to the stored data.
   virtual const void* GetDataPtr() = 0;
 
@@ -79,8 +82,7 @@ class Reg : public Callable {
   std::string ToString() const override;
 
  protected:
-  // The stored value.
-  T value_;
+  T value_;  // The stored value.
 };
 
 template <typename T>

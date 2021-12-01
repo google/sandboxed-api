@@ -139,6 +139,8 @@ add_library(sapi_vars ${SAPI_LIB_TYPE}
   var_int.h
   var_lenval.cc
   var_lenval.h
+  var_pointable.cc
+  var_pointable.h
   var_proto.h
   var_ptr.h
   var_reg.h

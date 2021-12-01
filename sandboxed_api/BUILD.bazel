@@ -131,6 +131,7 @@ cc_library(
         "var_abstract.cc",
         "var_int.cc",
         "var_lenval.cc",
+        "var_pointable.cc",
     ],
     hdrs = [
         "proto_helper.h",
@@ -139,6 +140,7 @@ cc_library(
         "var_array.h",
         "var_int.h",
         "var_lenval.h",
+        "var_pointable.h",
         "var_proto.h",
         "var_ptr.h",
         "var_reg.h",

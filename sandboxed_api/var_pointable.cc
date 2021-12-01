@@ -12,16 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_VARS_H_
-#define SANDBOXED_API_VARS_H_
-
-#include "sandboxed_api/var_array.h"
-#include "sandboxed_api/var_int.h"
-#include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_pointable.h"
-#include "sandboxed_api/var_proto.h"
 #include "sandboxed_api/var_ptr.h"
-#include "sandboxed_api/var_struct.h"
-#include "sandboxed_api/var_void.h"
 
-#endif  // SANDBOXED_API_VARS_H_
+namespace sapi::v {
+
+void Pointable::PtrDeleter::operator()(Ptr *p) { delete p; }
+
+}  // namespace sapi::v

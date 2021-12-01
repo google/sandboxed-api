@@ -18,21 +18,24 @@
 #include <memory>
 
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 
 namespace sapi::v {
 
-// Intermediate class for register sized variables so we don't have to implement
-// ptr() everywhere.
+// Intermediate class for register sized variables
+// so we don't have to implement ptr() everywhere.
 template <class T>
-class IntBase : public Reg<T> {
+class IntBase : public Reg<T>, public Pointable {
  public:
-  using Var::PtrAfter;
-  using Var::PtrBefore;
-  using Var::PtrBoth;
+  IntBase() : IntBase(static_cast<T>(0)) {}
+  explicit IntBase(T value) { this->SetValue(value); }
 
-  explicit IntBase(T value = {}) { this->SetValue(value); }
+ private:
+  Ptr* CreatePtr(Pointable::SyncType type) override {
+    return new Ptr(this, type);
+  }
 };
 
 using Bool = IntBase<bool>;
