@@ -19,6 +19,7 @@
 #include <string>
 #include <type_traits>
 
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "sandboxed_api/var_type.h"
@@ -36,8 +37,29 @@ namespace sapi::v {
 
 class Ptr;
 
+class ABSL_DEPRECATED(
+    "Use the Var::PtrXXX() family of methods instead") Pointable {
+ public:
+  enum SyncType {
+    // Do not synchronize the underlying object after/before calls.
+    kSyncNone = 0x0,
+    // Synchronize the underlying object (send the data to the sandboxee)
+    // before the call takes place.
+    kSyncBefore = 0x1,
+    // Synchronize the underlying object (retrieve data from the sandboxee)
+    // after the call has finished.
+    kSyncAfter = 0x2,
+    // Synchronize the underlying object with the remote object, by sending the
+    // data to the sandboxee before the call, and retrieving it from the
+    // sandboxee after the call has finished.
+    kSyncBoth = kSyncBefore | kSyncAfter,
+  };
+
+  virtual ~Pointable() = default;
+};
+
 // An abstract class representing variables.
-class Var {
+class Var : public Pointable {
  public:
   Var(const Var&) = delete;
   Var& operator=(const Var&) = delete;
@@ -68,6 +90,12 @@ class Var {
  protected:
   Var() = default;
 
+  // Functions to get pointers with certain type of synchronization schemes.
+  Ptr* PtrNone();
+  Ptr* PtrBoth();
+  Ptr* PtrBefore();
+  Ptr* PtrAfter();
+
   // Set pointer to local storage class.
   void SetLocal(void* local) { local_ = local; }
 
@@ -96,8 +124,18 @@ class Var {
                                              pid_t pid);
 
  private:
+  // Needed so that we can use unique_ptr with incomplete type.
+  struct PtrDeleter {
+    void operator()(Ptr* p);
+  };
+
   // Invokes Allocate()/Free()/Transfer*Sandboxee().
   friend class ::sapi::Sandbox;
+
+  std::unique_ptr<Ptr, PtrDeleter> ptr_none_;
+  std::unique_ptr<Ptr, PtrDeleter> ptr_both_;
+  std::unique_ptr<Ptr, PtrDeleter> ptr_before_;
+  std::unique_ptr<Ptr, PtrDeleter> ptr_after_;
 
   // Pointer to local storage of the variable.
   void* local_ = nullptr;

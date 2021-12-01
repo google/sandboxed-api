@@ -23,12 +23,9 @@
 namespace sapi::v {
 
 // Good, old void.
-class Void : public Callable, public Pointable {
+class Void : public Callable {
  public:
   Void() = default;
-
-  Void(const Void&) = delete;
-  Void& operator=(const Void&) = delete;
 
   size_t GetSize() const final { return 0U; }
   Type GetType() const final { return Type::kVoid; }
@@ -37,11 +34,6 @@ class Void : public Callable, public Pointable {
 
   const void* GetDataPtr() override { return nullptr; }
   void SetDataFromPtr(const void* ptr, size_t max_sz) override {}
-
- private:
-  Ptr* CreatePtr(Pointable::SyncType sync_type) override {
-    return new Ptr(this, sync_type);
-  }
 };
 
 }  // namespace sapi::v

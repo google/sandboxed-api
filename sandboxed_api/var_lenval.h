@@ -23,7 +23,6 @@
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_array.h"
-#include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_struct.h"
 
@@ -36,8 +35,12 @@ class Proto;
 // sandboxee which allows the bidirectional synchronization data structures with
 // changing lengths (e.g. protobuf structures). You probably want to directly
 // use protobufs as they are easier to handle.
-class LenVal : public Var, public Pointable {
+class LenVal : public Var {
  public:
+  using Var::PtrAfter;
+  using Var::PtrBefore;
+  using Var::PtrBoth;
+
   explicit LenVal(const char* data, uint64_t size)
       : array_(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(data)),
                size),
@@ -54,10 +57,6 @@ class LenVal : public Var, public Pointable {
   std::string GetTypeString() const final { return "LengthValue"; }
   std::string ToString() const final { return "LenVal"; }
 
-  Ptr* CreatePtr(Pointable::SyncType type) override {
-    return new Ptr(this, type);
-  }
-
   absl::Status ResizeData(RPCChannel* rpc_channel, size_t size);
   size_t GetDataSize() const { return struct_.data().size; }
   uint8_t* GetData() const { return array_.GetData(); }
@@ -65,6 +64,7 @@ class LenVal : public Var, public Pointable {
 
  protected:
   size_t GetSize() const final { return 0; }
+
   absl::Status Allocate(RPCChannel* rpc_channel, bool automatic_free) override;
   absl::Status Free(RPCChannel* rpc_channel) override;
   absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
