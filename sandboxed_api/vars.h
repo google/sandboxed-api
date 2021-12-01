@@ -18,7 +18,6 @@
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
-#include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_proto.h"
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_struct.h"

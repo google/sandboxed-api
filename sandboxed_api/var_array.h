@@ -27,15 +27,18 @@
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_abstract.h"
-#include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
 
 namespace sapi::v {
 
 // Class representing an array.
 template <class T>
-class Array : public Var, public Pointable {
+class Array : public Var {
  public:
+  using Var::PtrAfter;
+  using Var::PtrBefore;
+  using Var::PtrBoth;
+
   // The array is not owned by this object.
   Array(T* arr, size_t nelem)
       : arr_(arr),
@@ -95,10 +98,6 @@ class Array : public Var, public Pointable {
 
  private:
   friend class LenVal;
-
-  Ptr* CreatePtr(Pointable::SyncType type) override {
-    return new Ptr(this, type);
-  }
 
   // Resizes the internal storage.
   absl::Status EnsureOwnedLocalBuffer(size_t size) {

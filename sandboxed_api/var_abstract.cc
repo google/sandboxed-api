@@ -18,11 +18,14 @@
 
 #include <sys/uio.h>
 
+#include <memory>
+
 #include <glog/logging.h>
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/var_ptr.h"
 
 namespace sapi::v {
 
@@ -30,6 +33,36 @@ Var::~Var() {
   if (free_rpc_channel_ && GetRemote()) {
     this->Free(free_rpc_channel_).IgnoreError();
   }
+}
+
+void Var::PtrDeleter::operator()(Ptr* p) { delete p; }
+
+Ptr* Var::PtrNone() {
+  if (!ptr_none_) {
+    ptr_none_.reset(new Ptr(this, kSyncNone));
+  }
+  return ptr_none_.get();
+}
+
+Ptr* Var::PtrBoth() {
+  if (!ptr_both_) {
+    ptr_both_.reset(new Ptr(this, kSyncBoth));
+  }
+  return ptr_both_.get();
+}
+
+Ptr* Var::PtrBefore() {
+  if (!ptr_before_) {
+    ptr_before_.reset(new Ptr(this, kSyncBefore));
+  }
+  return ptr_before_.get();
+}
+
+Ptr* Var::PtrAfter() {
+  if (!ptr_after_) {
+    ptr_after_.reset(new Ptr(this, kSyncAfter));
+  }
+  return ptr_after_.get();
 }
 
 absl::Status Var::Allocate(RPCChannel* rpc_channel, bool automatic_free) {

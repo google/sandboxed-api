@@ -28,16 +28,19 @@
 #include "sandboxed_api/proto_helper.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_lenval.h"
-#include "sandboxed_api/var_pointable.h"
 #include "sandboxed_api/var_ptr.h"
 
 namespace sapi::v {
 
 template <typename T>
-class Proto : public Pointable, public Var {
+class Proto : public Var {
  public:
   static_assert(std::is_base_of<google::protobuf::Message, T>::value,
                 "Template argument must be a proto message");
+
+  using Var::PtrAfter;
+  using Var::PtrBefore;
+  using Var::PtrBoth;
 
   ABSL_DEPRECATED("Use Proto<>::FromMessage() instead")
   explicit Proto(const T& proto)
@@ -102,10 +105,6 @@ class Proto : public Pointable, public Var {
   friend class absl::StatusOr<Proto<T>>;
 
   explicit Proto(std::vector<uint8_t> data) : wrapped_var_(std::move(data)) {}
-
-  Ptr* CreatePtr(Pointable::SyncType type) override {
-    return new Ptr(this, type);
-  }
 
   // The management of reading/writing the data to the sandboxee is handled by
   // the LenVal class.
