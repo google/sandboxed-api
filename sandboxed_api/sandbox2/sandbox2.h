@@ -60,7 +60,6 @@ class Sandbox2 final {
   Sandbox2(const Sandbox2&) = delete;
   Sandbox2& operator=(const Sandbox2&) = delete;
 
-  // Runs the sandbox, blocking until there is a result.
   ABSL_MUST_USE_RESULT Result Run() {
     RunAsync();
     return AwaitResult();
