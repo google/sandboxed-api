@@ -27,10 +27,6 @@ namespace sapi::v {
 template <class T>
 class Struct : public Var {
  public:
-  using Var::PtrAfter;
-  using Var::PtrBefore;
-  using Var::PtrBoth;
-
   // Forwarding constructor to initalize the struct_ field.
   template <typename... Args>
   explicit Struct(Args&&... args) : struct_(std::forward<Args>(args)...) {

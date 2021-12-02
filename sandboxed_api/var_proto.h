@@ -38,10 +38,6 @@ class Proto : public Var {
   static_assert(std::is_base_of<google::protobuf::Message, T>::value,
                 "Template argument must be a proto message");
 
-  using Var::PtrAfter;
-  using Var::PtrBefore;
-  using Var::PtrBoth;
-
   ABSL_DEPRECATED("Use Proto<>::FromMessage() instead")
   explicit Proto(const T& proto)
       : wrapped_var_(SerializeProto(proto).value()) {}

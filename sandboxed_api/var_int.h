@@ -28,10 +28,6 @@ namespace sapi::v {
 template <class T>
 class IntBase : public Reg<T> {
  public:
-  using Var::PtrAfter;
-  using Var::PtrBefore;
-  using Var::PtrBoth;
-
   explicit IntBase(T value = {}) { this->SetValue(value); }
 };
 

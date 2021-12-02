@@ -64,6 +64,8 @@ class Var : public Pointable {
   Var(const Var&) = delete;
   Var& operator=(const Var&) = delete;
 
+  virtual ~Var();
+
   // Returns the address of the storage (remote side).
   virtual void* GetRemote() const { return remote_; }
 
@@ -85,16 +87,14 @@ class Var : public Pointable {
   // Returns a string representation of the variable value.
   virtual std::string ToString() const = 0;
 
-  virtual ~Var();
-
- protected:
-  Var() = default;
-
   // Functions to get pointers with certain type of synchronization schemes.
   Ptr* PtrNone();
   Ptr* PtrBoth();
   Ptr* PtrBefore();
   Ptr* PtrAfter();
+
+ protected:
+  Var() = default;
 
   // Set pointer to local storage class.
   void SetLocal(void* local) { local_ = local; }

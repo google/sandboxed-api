@@ -35,10 +35,6 @@ namespace sapi::v {
 template <class T>
 class Array : public Var {
  public:
-  using Var::PtrAfter;
-  using Var::PtrBefore;
-  using Var::PtrBoth;
-
   // The array is not owned by this object.
   Array(T* arr, size_t nelem)
       : arr_(arr),

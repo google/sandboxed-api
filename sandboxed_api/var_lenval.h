@@ -37,10 +37,6 @@ class Proto;
 // use protobufs as they are easier to handle.
 class LenVal : public Var {
  public:
-  using Var::PtrAfter;
-  using Var::PtrBefore;
-  using Var::PtrBoth;
-
   explicit LenVal(const char* data, uint64_t size)
       : array_(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(data)),
                size),
