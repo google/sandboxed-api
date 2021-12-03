@@ -178,10 +178,7 @@ pid_t CloneAndJump(int flags, jmp_buf* env_ptr) {
                 "Host CPU architecture not supported, see config.h");
   // Stack grows down.
   void* stack = stack_buf + sizeof(stack_buf);
-  int r;
-  {
-    r = clone(&ChildFunc, stack, flags, env_ptr, nullptr, nullptr, nullptr);
-  }
+  int r = clone(&ChildFunc, stack, flags, env_ptr, nullptr, nullptr, nullptr);
   if (r == -1) {
     SAPI_RAW_PLOG(ERROR, "clone()");
   }
