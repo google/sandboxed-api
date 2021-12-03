@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
     builder.AllowUnrestrictedNetworking();
   }
   if (absl::GetFlag(FLAGS_sandbox2tool_mount_tmp)) {
-    builder.AddTmpfs("/tmp");
+    builder.AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */);
   }
 
   std::string mounts_string =

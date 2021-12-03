@@ -127,7 +127,7 @@ TEST_F(PolicyBuilderTest, Testpolicy_size) {
   // None of the namespace functions should alter the seccomp policy.
   builder.AddFile("/usr/bin/find"); assert_same();
   builder.AddDirectory("/bin"); assert_same();
-  builder.AddTmpfs("/tmp"); assert_same();
+  builder.AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */); assert_same();
   builder.AllowUnrestrictedNetworking(); assert_same();
   // clang-format on
 }
