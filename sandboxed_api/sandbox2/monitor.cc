@@ -68,7 +68,6 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
-#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/temp_file.h"
@@ -134,9 +133,8 @@ void MaybeEnableTomoyoLsmWorkaround(Mounts& mounts, std::string& comms_fd_dev) {
     if (auto status = sapi::file::GetContents(
             "/sys/kernel/security/lsm", &lsm_list, sapi::file::Defaults());
         !status.ok() && !absl::IsNotFound(status)) {
-      SAPI_RAW_VLOG(1, "Checking active LSMs failed: %s: %s",
-                    std::string(status.message()).c_str(),
-                    sapi::StrError(errno).c_str());
+      VLOG(1) << "Checking active LSMs failed: " << status.message() << ": "
+              << sapi::StrError(errno);
       return false;
     }
     return absl::StrContains(lsm_list, "tomoyo");
@@ -145,18 +143,17 @@ void MaybeEnableTomoyoLsmWorkaround(Mounts& mounts, std::string& comms_fd_dev) {
   if (!tomoyo_active) {
     return;
   }
-  SAPI_RAW_VLOG(1, "Tomoyo LSM active, enabling workaround");
+  VLOG(1) << "Tomoyo LSM active, enabling workaround";
 
   if (mounts.ResolvePath("/dev").ok() || mounts.ResolvePath("/dev/fd").ok()) {
     // Avoid shadowing /dev/fd/1022 below if /dev or /dev/fd is already mapped.
-    SAPI_RAW_VLOG(1, "Parent dir already mapped, skipping");
+    VLOG(1) << "Parent dir already mapped, skipping";
     return;
   }
 
   auto temp_file = sapi::CreateNamedTempFileAndClose("/tmp/");
   if (!temp_file.ok()) {
-    SAPI_RAW_LOG(WARNING, "Failed to create empty temp file: %s",
-                 std::string(temp_file.status().message()).c_str());
+    LOG(WARNING) << "Failed to create empty temp file: " << temp_file.status();
     return;
   }
   comms_fd_dev = std::move(*temp_file);
@@ -166,8 +163,7 @@ void MaybeEnableTomoyoLsmWorkaround(Mounts& mounts, std::string& comms_fd_dev) {
           comms_fd_dev, absl::StrCat("/dev/fd/", Comms::kSandbox2TargetExecFD),
           false);
       !status.ok()) {
-    SAPI_RAW_VLOG(1, "Mapping comms FD: %s",
-                  std::string(status.message()).c_str());
+    VLOG(1) << "Mapping comms FD: %s" << status.message();
   }
 }
 
@@ -215,7 +211,8 @@ namespace {
 
 void LogContainer(const std::vector<std::string>& container) {
   for (size_t i = 0; i < container.size(); ++i) {
-    SAPI_RAW_LOG(INFO, "[%4zd]=%s", i, container[i].c_str());
+    LOG(INFO) << "[" << std::setfill('0') << std::setw(4) << i
+              << "]=" << container[i];
   }
 }
 
@@ -246,15 +243,15 @@ void Monitor::Run() {
   }
 
   Namespace* ns = policy_->GetNamespace();
-  if (SAPI_VLOG_IS_ON(1) && ns != nullptr) {
+  if (VLOG_IS_ON(1) && ns != nullptr) {
     std::vector<std::string> outside_entries;
     std::vector<std::string> inside_entries;
     ns->mounts().RecursivelyListMounts(
         /*outside_entries=*/&outside_entries,
         /*inside_entries=*/&inside_entries);
-    SAPI_RAW_VLOG(1, "Outside entries mapped to chroot:");
+    VLOG(1) << "Outside entries mapped to chroot:";
     LogContainer(outside_entries);
-    SAPI_RAW_VLOG(1, "Inside entries as they appear in chroot:");
+    VLOG(1) << "Inside entries as they appear in chroot:";
     LogContainer(inside_entries);
   }
 
@@ -969,7 +966,7 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
 
     if (!stack_trace.ok()) {
       LOG(WARNING) << "FAILED TO GET SANDBOX STACK : " << stack_trace.status();
-    } else if (SAPI_VLOG_IS_ON(0)) {
+    } else if (VLOG_IS_ON(0)) {
       VLOG(0) << "SANDBOX STACK: PID: " << pid << ", [";
       for (const auto& frame : *stack_trace) {
         VLOG(0) << "  " << frame;
