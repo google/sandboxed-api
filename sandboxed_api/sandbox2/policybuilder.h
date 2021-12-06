@@ -483,13 +483,6 @@ class PolicyBuilder final {
   // directories inside the namespace if needed.
   //
   // Calling this function will enable use of namespaces.
-  ABSL_DEPRECATED(
-      "Explicitly specify tmpfs size by using AddTmpfs(inside, sz) instead")
-  PolicyBuilder& AddTmpfs(absl::string_view inside) {
-    LOG(WARNING) << "Tmpfs size not specified, defaulting to 4 MiB";
-    return this->AddTmpfs(inside, /*size=*/4ULL << 20 /* 4 MiB */);
-  }
-
   PolicyBuilder& AddTmpfs(absl::string_view inside, size_t size);
 
   // Allows unrestricted access to the network by *not* creating a network
