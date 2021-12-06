@@ -559,6 +559,8 @@ PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
                                               ARG_32(0),
                                               JEQ32(SIG_BLOCK, ALLOW),
                                           });
+  AllowSyscall(__NR_prlimit64);
+
   // For LOG(FATAL)
   return AddPolicyOnSyscall(__NR_kill,
                             [](bpf_labels& labels) -> std::vector<sock_filter> {
