@@ -742,7 +742,8 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
     // over it.
     if (last) {
       if (out.size() > kMaxShortJump) {
-        out.push_front(BPF_STMT(BPF_JMP + BPF_JA, out.size()));
+        out.push_front(
+            BPF_STMT(BPF_JMP + BPF_JA, static_cast<uint32_t>(out.size())));
       } else {
         jf = out.size();
       }
@@ -751,7 +752,8 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
     // Add a helper absolute jump if needed - the policy/last helper jump is
     // out of reach of a short jump.
     if ((out.size() - do_policy_loc) > kMaxShortJump) {
-      out.push_front(BPF_STMT(BPF_JMP + BPF_JA, out.size() - policy.size()));
+      out.push_front(BPF_STMT(
+          BPF_JMP + BPF_JA, static_cast<uint32_t>(out.size() - policy.size())));
       do_policy_loc = out.size();
       ++jf;
     }
