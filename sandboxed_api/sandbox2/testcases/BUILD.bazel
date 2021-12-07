@@ -164,6 +164,19 @@ cc_binary(
     linkstatic = 1,
 )
 
+cc_binary(
+    name = "close_fds",
+    testonly = 1,
+    srcs = ["close_fds.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "//sandboxed_api/sandbox2:sanitizer",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_glog//:glog",
+    ],
+)
+
 # security: disable=cc-static-no-pie
 cc_binary(
     name = "sleep",

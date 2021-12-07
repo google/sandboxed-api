@@ -15,7 +15,6 @@
 #include "sandboxed_api/sandbox2/sanitizer.h"
 
 #include <fcntl.h>
-#include <linux/fs.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -45,8 +44,6 @@
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::Gt;
-using ::testing::IsFalse;
-using ::testing::IsTrue;
 using ::testing::Ne;
 
 namespace sandbox2 {
@@ -59,12 +56,13 @@ int RunTestcase(const std::string& path, const std::vector<std::string>& args) {
     PLOG(ERROR) << "fork()";
     return 1;
   }
+  const char** argv = util::VecStringToCharPtrArr(args);
   if (pid == 0) {
-    const char** argv = util::VecStringToCharPtrArr(args);
     execv(path.c_str(), const_cast<char**>(argv));
     PLOG(ERROR) << "execv('" << path << "')";
     exit(EXIT_FAILURE);
   }
+  delete[] argv;
 
   for (;;) {
     int status;
@@ -133,6 +131,26 @@ TEST(SanitizerTest, TestSandboxedBinary) {
 
   EXPECT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+// Test that sanitizer::CloseAllFDsExcept() closes all file descriptors except
+// the ones listed.
+TEST(SanitizerTest, TestCloseFDs) {
+  // Open a few file descriptors in non-close-on-exec mode.
+  int sock_fd[2];
+  ASSERT_THAT(socketpair(AF_UNIX, SOCK_STREAM, 0, sock_fd), Ne(-1));
+  ASSERT_THAT(open("/dev/full", O_RDONLY), Ne(-1));
+  int null_fd = open("/dev/null", O_RDWR);
+  ASSERT_THAT(null_fd, Ne(-1));
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/close_fds");
+  std::vector<std::string> args;
+  std::vector<int> exceptions = {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+                                 null_fd};
+  for (auto fd : exceptions) {
+    args.push_back(absl::StrCat(fd));
+  }
+  EXPECT_THAT(RunTestcase(path, args), Eq(0));
 }
 
 TEST(SanitizerTest, TestGetProcStatusLine) {

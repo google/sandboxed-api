@@ -774,7 +774,10 @@ cc_test(
     name = "sanitizer_test",
     srcs = ["sanitizer_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:sanitizer"],
+    data = [
+        "//sandboxed_api/sandbox2/testcases:close_fds",
+        "//sandboxed_api/sandbox2/testcases:sanitizer",
+    ],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":comms",

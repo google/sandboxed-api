@@ -185,6 +185,24 @@ target_link_libraries(sandbox2_testcase_sanitizer PRIVATE
   ${_sandbox2_linkopts}
 )
 
+# sandboxed_api/sandbox2/testcases:close_fds
+add_executable(sandbox2_testcase_close_fds
+  close_fds.cc
+)
+add_executable(sandbox2::testcase_close_fds ALIAS sandbox2_testcase_close_fds)
+set_target_properties(sandbox2_testcase_close_fds PROPERTIES
+  OUTPUT_NAME close_fds
+)
+target_link_libraries(sandbox2_testcase_close_fds PRIVATE
+  sapi::base
+  ${_sandbox2_linkopts}
+  absl::strings
+  absl::flat_hash_set
+  glog::glog
+  sandbox2::sanitizer
+)
+
+
 # sandboxed_api/sandbox2/testcases:sleep
 add_executable(sandbox2_testcase_sleep
   sleep.cc

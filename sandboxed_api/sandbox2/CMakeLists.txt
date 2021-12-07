@@ -874,6 +874,7 @@ if(SAPI_ENABLE_TESTS)
   )
   add_dependencies(sandbox2_sanitizer_test
     sandbox2::testcase_sanitizer
+    sandbox2::testcase_close_fds
   )
   target_link_libraries(sandbox2_sanitizer_test PRIVATE
     absl::memory
