@@ -23,6 +23,13 @@
 #include <cstring>
 #include <vector>
 
+// Android doesn't use an enum for __ptrace_request, use int instead.
+#if defined(__ANDROID__)
+using PtraceRequest = int;
+#else
+using PtraceRequest = __ptrace_request;
+#endif
+
 namespace sandbox2 {
 namespace {
 
@@ -53,7 +60,7 @@ void EnablePtraceEmulationWithUserRegs(absl::string_view regs) {
 // issuing ptrace syscalls. Accesses to registers will be emulated, for this the
 // register values should be set via EnablePtraceEmulationWithUserRegs().
 extern "C" long int ptrace_wrapped(  // NOLINT
-    enum __ptrace_request request, pid_t pid, void* addr, void* data) {
+    PtraceRequest request, pid_t pid, void* addr, void* data) {
   if (!g_emulate_ptrace) {
     return ptrace(request, pid, addr, data);
   }
@@ -75,15 +82,15 @@ extern "C" long int ptrace_wrapped(  // NOLINT
       }
       return read_data;
     }
-    case PTRACE_PEEKUSER:
+    case PTRACE_PEEKUSER: {
       // Make sure read is in-bounds and aligned.
-      if (uintptr_t offset = reinterpret_cast<uintptr_t>(addr);
-          offset + kRegSize > g_registers->size() * kRegSize ||
+      auto offset = reinterpret_cast<uintptr_t>(addr);
+      if (offset + kRegSize > g_registers->size() * kRegSize ||
           offset % kRegSize != 0) {
         return -1;
-      } else {
-        return (*g_registers)[offset / kRegSize];
       }
+      return (*g_registers)[offset / kRegSize];
+    }
     default:
       fprintf(stderr, "ptrace_wrapped(): operation not permitted: %d\n",
               request);
