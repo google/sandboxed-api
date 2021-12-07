@@ -611,10 +611,7 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                          JEQ32(__SIGRTMIN + 1, ALLOW),
                      });
 
-  AddPolicyOnSyscall(__NR_rt_sigprocmask, {
-                                              ARG_32(0),
-                                              JEQ32(SIG_UNBLOCK, ALLOW),
-                                          });
+  AllowSyscall(__NR_rt_sigprocmask);
 
 #ifdef SAPI_X86_64
   // The second argument is a pointer.
