@@ -16,8 +16,11 @@
 
 #include "sandboxed_api/sandbox2/sanitizer.h"
 
-#if defined(THREAD_SANITIZER)
-#include <sanitizer/tsan_interface.h>
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
+    defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_LEAK_SANITIZER) ||      \
+    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
+#include <sanitizer/common_interface_defs.h>
 #endif
 
 #include <dirent.h>
@@ -150,9 +153,12 @@ int GetNumberOfThreads(int pid) {
   return threads;
 }
 
-void WaitForTsan() {
-#if defined(THREAD_SANITIZER)
-  static bool ABSL_ATTRIBUTE_UNUSED dummy_tsan_once = []() {
+void WaitForSanitizer() {
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
+    defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_LEAK_SANITIZER) ||      \
+    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
+  static bool ABSL_ATTRIBUTE_UNUSED dummy_once = []() {
     __sanitizer_sandbox_on_notify(nullptr);
     return true;
   }();

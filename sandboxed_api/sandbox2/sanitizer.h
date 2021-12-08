@@ -42,13 +42,16 @@ absl::Status MarkAllFDsAsCOEExcept(
 // errors.
 int GetNumberOfThreads(int pid);
 
-// When running under TSAN, it will spawn a background thread. This is not
-// desirable for sandboxing purposes. We will notify its background thread
-// that we wish for it to finish and then wait for it to be done. It is safe
-// to call this function more than once, since it keeps track of whether it
-// has already notified TSAN.
-// This function does nothing if not running under TSAN.
-void WaitForTsan();
+// When running under a sanitizer, it may spawn a background threads. This is
+// not desirable for sandboxing purposes. We will notify its background thread
+// that we wish for it to finish and then wait for it to be done. It is safe to
+// call this function more than once, since it keeps track of whether it has
+// already notified the sanitizer. This function does nothing if not running
+// under a sanitizer.
+void WaitForSanitizer();
+
+ABSL_DEPRECATED("Use `sandbox2::sanitizer::WaitForSanitizer()`.")
+inline void WaitForTsan() { WaitForSanitizer(); }
 
 // Sanitizes current process (which will not execve a sandboxed binary).
 // File-descriptors in fd_exceptions will be either closed
