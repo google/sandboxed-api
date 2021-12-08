@@ -114,8 +114,12 @@ class PolicyBuilder final {
   PolicyBuilder& AllowSyscalls(const std::vector<uint32_t>& nums);
   PolicyBuilder& AllowSyscalls(SyscallInitializer nums);
 
-  // Appends code to block a specific syscall while setting errno to the error
-  // given
+  // Appends code to block a syscalls while setting errno to the error given.
+  PolicyBuilder& BlockSyscallsWithErrno(const std::vector<uint32_t> nums,
+                                        int error);
+  PolicyBuilder& BlockSyscallsWithErrno(SyscallInitializer nums, int error);
+
+  // Appends code to block a specific syscall and setting errno.
   PolicyBuilder& BlockSyscallWithErrno(unsigned int num, int error);
 
   // Appends code to allow exiting.
@@ -353,6 +357,19 @@ class PolicyBuilder final {
   // - gettid
   // - close
   PolicyBuilder& AllowLogForwarding();
+
+  // Appends code to allow deleting files
+  // Allows these syscalls:
+  // - unlink (if available)
+  // - unlinkat
+  PolicyBuilder& AllowUnlink();
+
+  // Appends code to allow renaming files
+  // Allows these syscalls:
+  // - rename (if available)
+  // - renameat
+  // - renameat2
+  PolicyBuilder& AllowRename();
 
   // Enables the syscalls necessary to start a statically linked binary
   //

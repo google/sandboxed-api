@@ -51,16 +51,20 @@ PolicyBuilder CreatePolicyTestPolicyBuilder() {
       .AllowSyscall(__NR_close)
       .AllowSyscall(__NR_getppid)
       .AllowTCGETS()
+      .BlockSyscallsWithErrno(
+          {
 #ifdef __NR_open
-      .BlockSyscallWithErrno(__NR_open, ENOENT)
+              __NR_open,
 #endif
-      .BlockSyscallWithErrno(__NR_openat, ENOENT)
+              __NR_openat,
 #ifdef __NR_access
-      .BlockSyscallWithErrno(__NR_access, ENOENT)
+              __NR_access,
 #endif
 #ifdef __NR_faccessat
-      .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
+              __NR_faccessat,
 #endif
+          },
+          ENOENT)
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
 }
 
@@ -282,10 +286,6 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
   auto executor = absl::make_unique<Executor>(path, args);
 
   auto policy = PolicyBuilder()
-#ifdef __NR_open
-                    .BlockSyscallWithErrno(__NR_open, ENOENT)
-#endif
-                    .BlockSyscallWithErrno(__NR_openat, ENOENT)
                     .AllowStaticStartup()
                     .AllowTcMalloc()
                     .AllowExit()
@@ -323,10 +323,18 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
                         {ERRNO(42)})
                     .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
                     .AddPolicyOnSyscall(__NR_umask, {DENY})
-                    .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-#ifdef __NR_access
-                    .BlockSyscallWithErrno(__NR_access, ENOENT)
+                    .BlockSyscallsWithErrno(
+                        {
+#ifdef __NR_open
+                            __NR_open,
 #endif
+                            __NR_openat,
+#ifdef __NR_access
+                            __NR_access,
+#endif
+                        },
+                        ENOENT)
+                    .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
                     .BuildOrDie();
 
   Sandbox2 s2(std::move(executor), std::move(policy));

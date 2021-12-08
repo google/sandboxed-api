@@ -93,6 +93,22 @@ PolicyBuilder& PolicyBuilder::AllowSyscalls(SyscallInitializer nums) {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::BlockSyscallsWithErrno(
+    const std::vector<uint32_t> nums, int error) {
+  for (auto num : nums) {
+    AllowSyscall(num);
+  }
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::BlockSyscallsWithErrno(SyscallInitializer nums,
+                                                     int error) {
+  for (auto num : nums) {
+    AllowSyscall(num);
+  }
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(unsigned int num,
                                                     int error) {
   if (handled_syscalls_.insert(num).second) {
@@ -572,6 +588,29 @@ PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
                                   LABEL(&labels, pid_not_null),
                               };
                             });
+}
+
+PolicyBuilder& PolicyBuilder::AllowUnlink() {
+  AllowSyscalls({
+#ifdef __NR_unlink
+      __NR_unlink,
+#endif
+      __NR_unlinkat,
+  });
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowRename() {
+  AllowSyscalls({
+#ifdef __NR_rename
+      __NR_rename,
+#endif
+      __NR_renameat,
+#ifdef __NR_renameat2
+      __NR_renameat2,
+#endif
+  });
+  return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AllowFutexOp(int op) {

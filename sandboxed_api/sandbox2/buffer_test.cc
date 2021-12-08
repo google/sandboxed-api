@@ -70,33 +70,37 @@ std::unique_ptr<Policy> BufferTestcasePolicy() {
                  .AllowExit()
                  .AllowSafeFcntl()
                  .AllowTime()
-                 .AllowSyscall(__NR_dup)
-                 .AllowSyscall(__NR_futex)
-                 .AllowSyscall(__NR_getpid)
-                 .AllowSyscall(__NR_gettid)
                  .AllowSystemMalloc()
                  .AllowRead()
                  .AllowWrite()
-                 .AllowSyscall(__NR_nanosleep)
-                 .AllowSyscall(__NR_rt_sigprocmask)
-                 .AllowSyscall(__NR_recvmsg)
                  .AllowMmap()
                  .AllowStat()
-                 .AllowSyscall(__NR_lseek)
-                 .AllowSyscall(__NR_close)
-                 .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+                 .AllowSyscalls({
+                     __NR_dup,
+                     __NR_futex,
+                     __NR_getpid,
+                     __NR_gettid,
+                     __NR_nanosleep,
+                     __NR_rt_sigprocmask,
+                     __NR_recvmsg,
+                     __NR_lseek,
+                     __NR_close,
+                 })
+                 .BlockSyscallsWithErrno(
+                     {
 #ifdef __NR_open
-                 .BlockSyscallWithErrno(__NR_open, ENOENT)
+                         __NR_open,
 #endif
-                 .BlockSyscallWithErrno(__NR_openat, ENOENT)
+                         __NR_openat,
 #ifdef __NR_access
-                 // On Debian, even static binaries check existence of
-                 // /etc/ld.so.nohwcap.
-                 .BlockSyscallWithErrno(__NR_access, ENOENT)
+                         // On Debian, even static binaries check existence of
+                         // /etc/ld.so.nohwcap.
+                         __NR_access,
 #endif
-#ifdef __NR_faccessat
-                 .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
-#endif
+                         __NR_faccessat,
+                     },
+                     ENOENT)
+                 .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
                  .BuildOrDie();
 
   return s2p;

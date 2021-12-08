@@ -58,12 +58,14 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       .AllowStaticStartup()
       .AllowSystemMalloc()
       .AllowExit()
+      .BlockSyscallsWithErrno(
+          {
 #ifdef __NR_access
-      .BlockSyscallWithErrno(__NR_access, ENOENT)
+              __NR_access,
 #endif
-#ifdef __NR_faccessat
-      .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
-#endif
+              __NR_faccessat,
+          },
+          ENOENT)
       .BuildOrDie();
 }
 

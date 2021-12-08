@@ -53,11 +53,6 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       // Allow the getpid() syscall.
       .AllowSyscall(__NR_getpid)
 
-#ifdef __NR_access
-      // On Debian, even static binaries check existence of /etc/ld.so.nohwcap.
-      .BlockSyscallWithErrno(__NR_access, ENOENT)
-#endif
-
       // Examples for AddPolicyOnSyscall:
       .AddPolicyOnSyscall(__NR_write,
                           {
@@ -89,23 +84,34 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       // override this rule.
       .AddPolicyOnSyscall(
           __NR_exit_group,
-          {// Load first argument (exit_code).
-           ARG_32(0),
-           // Deny every argument except 0.
-           JNE32(0, KILL),
-           // Allow all exit() calls that were not previously forbidden
-           // = exit_code == 0.
-           ALLOW})
+          {
+              // Load first argument (exit_code).
+              ARG_32(0),
+              // Deny every argument except 0.
+              JNE32(0, KILL),
+              // Allow all exit() calls that were not previously forbidden
+              // = exit_code == 0.
+              ALLOW,
+          })
 
       // = This won't have any effect as we handled every case of this syscall
       // in the previous rule.
       .AllowSyscall(__NR_exit_group)
 
-#ifdef __NR_open
-      .BlockSyscallWithErrno(__NR_open, ENOENT)
-#else
-      .BlockSyscallWithErrno(__NR_openat, ENOENT)
+      .BlockSyscallsWithErrno(
+          {
+#ifdef __NR_access
+              // On Debian, even static binaries check existence of
+              // /etc/ld.so.nohwcap.
+              __NR_access,
 #endif
+
+#ifdef __NR_open
+              __NR_open,
+#endif
+              __NR_openat,
+          },
+          ENOENT)
       .BuildOrDie();
 }
 
