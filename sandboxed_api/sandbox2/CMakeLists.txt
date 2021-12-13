@@ -299,6 +299,7 @@ target_link_libraries(sandbox2_sandbox2
           absl::flat_hash_set
           absl::memory
           absl::optional
+          absl::span
           absl::str_format
           absl::strings
           sapi::strerror

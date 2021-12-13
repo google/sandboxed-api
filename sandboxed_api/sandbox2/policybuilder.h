@@ -28,9 +28,11 @@
 
 #include <glog/logging.h>
 #include "absl/base/macros.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -103,24 +105,23 @@ class PolicyBuilder final {
   // We set it lower so that there is for sure some room for the default policy.
   static constexpr size_t kMaxUserPolicyLength = 30000;
 
-  using BpfInitializer = std::initializer_list<sock_filter>;
   using BpfFunc = const std::function<std::vector<sock_filter>(bpf_labels&)>&;
-  using SyscallInitializer = std::initializer_list<unsigned int>;
+
+  using SyscallInitializer = std::initializer_list<unsigned int>
+      ABSL_DEPRECATED("Use absl::Span<const uint32_t> instead");
 
   // Appends code to allow a specific syscall
-  PolicyBuilder& AllowSyscall(unsigned int num);
+  PolicyBuilder& AllowSyscall(uint32_t num);
 
   // Appends code to allow a number of syscalls
-  PolicyBuilder& AllowSyscalls(const std::vector<uint32_t>& nums);
-  PolicyBuilder& AllowSyscalls(SyscallInitializer nums);
+  PolicyBuilder& AllowSyscalls(absl::Span<const uint32_t> nums);
 
   // Appends code to block a syscalls while setting errno to the error given.
-  PolicyBuilder& BlockSyscallsWithErrno(const std::vector<uint32_t> nums,
+  PolicyBuilder& BlockSyscallsWithErrno(absl::Span<const uint32_t> nums,
                                         int error);
-  PolicyBuilder& BlockSyscallsWithErrno(SyscallInitializer nums, int error);
 
   // Appends code to block a specific syscall and setting errno.
-  PolicyBuilder& BlockSyscallWithErrno(unsigned int num, int error);
+  PolicyBuilder& BlockSyscallWithErrno(uint32_t num, int error);
 
   // Appends code to allow exiting.
   // Allows these syscalls:
@@ -401,9 +402,8 @@ class PolicyBuilder final {
   // Appends a policy, which will be run on the specified syscall.
   // This policy must be written without labels. If you need labels, use the
   // next function.
-  PolicyBuilder& AddPolicyOnSyscall(unsigned int num, BpfInitializer policy);
-  PolicyBuilder& AddPolicyOnSyscall(unsigned int num,
-                                    const std::vector<sock_filter>& policy);
+  PolicyBuilder& AddPolicyOnSyscall(uint32_t num,
+                                    absl::Span<const sock_filter> policy);
 
   // Appends a policy, which will be run on the specified syscall.
   // This policy may use labels.
@@ -426,24 +426,22 @@ class PolicyBuilder final {
   //            JEQ(NETLINK_ROUTE, ALLOW),
   //        };
   //      });
-  PolicyBuilder& AddPolicyOnSyscall(unsigned int num, BpfFunc f);
+  PolicyBuilder& AddPolicyOnSyscall(uint32_t num, BpfFunc f);
 
   // Appends a policy, which will be run on the specified syscalls.
   // This policy must be written without labels.
-  PolicyBuilder& AddPolicyOnSyscalls(SyscallInitializer nums,
-                                     BpfInitializer policy);
-  PolicyBuilder& AddPolicyOnSyscalls(SyscallInitializer nums,
-                                     const std::vector<sock_filter>& policy);
+  PolicyBuilder& AddPolicyOnSyscalls(absl::Span<const uint32_t> nums,
+                                     absl::Span<const sock_filter> policy);
 
   // Appends a policy, which will be run on the specified syscalls.
   // This policy may use labels.
-  PolicyBuilder& AddPolicyOnSyscalls(SyscallInitializer nums, BpfFunc f);
+  PolicyBuilder& AddPolicyOnSyscalls(absl::Span<const uint32_t> nums,
+                                     BpfFunc f);
 
   // Equivalent to AddPolicyOnSyscalls(mmap_syscalls, policy), where
   // mmap_syscalls is a subset of {__NR_mmap, __NR_mmap2}, which exists on the
   // target architecture.
-  PolicyBuilder& AddPolicyOnMmap(BpfInitializer policy);
-  PolicyBuilder& AddPolicyOnMmap(const std::vector<sock_filter>& policy);
+  PolicyBuilder& AddPolicyOnMmap(absl::Span<const sock_filter> policy);
 
   // Equivalent to AddPolicyOnSyscalls(mmap_syscalls, f), where mmap_syscalls is
   // a subset of {__NR_mmap, __NR_mmap2}, which exists on the target
@@ -615,7 +613,7 @@ class PolicyBuilder final {
   // Seccomp fields
   std::vector<sock_filter> user_policy_;
   bool user_policy_handles_bpf_ = false;
-  std::set<unsigned int> handled_syscalls_;
+  absl::flat_hash_set<uint32_t> handled_syscalls_;
 
   // Error handling
   absl::Status last_status_;

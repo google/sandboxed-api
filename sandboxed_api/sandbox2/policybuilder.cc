@@ -16,6 +16,7 @@
 
 #include <asm/ioctls.h>  // For TCGETS
 #include <fcntl.h>       // For the fcntl flags
+#include <linux/filter.h>
 #include <linux/futex.h>
 #include <linux/net.h>     // For SYS_CONNECT
 #include <linux/random.h>  // For GRND_NONBLOCK
@@ -23,6 +24,7 @@
 #include <sys/socket.h>
 #include <syscall.h>
 
+#include <array>
 #include <csignal>
 #include <cstdint>
 #include <deque>
@@ -51,7 +53,7 @@ namespace {
 
 namespace file = ::sapi::file;
 
-constexpr PolicyBuilder::SyscallInitializer kMmapSyscalls = {
+constexpr std::array<uint32_t, 2> kMmapSyscalls = {
 #ifdef __NR_mmap2
     __NR_mmap2,
 #endif
@@ -72,21 +74,14 @@ bool CheckBpfBounds(const sock_filter& filter, size_t max_jmp) {
 
 }  // namespace
 
-PolicyBuilder& PolicyBuilder::AllowSyscall(unsigned int num) {
+PolicyBuilder& PolicyBuilder::AllowSyscall(uint32_t num) {
   if (handled_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ALLOW)});
   }
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AllowSyscalls(const std::vector<uint32_t>& nums) {
-  for (auto num : nums) {
-    AllowSyscall(num);
-  }
-  return *this;
-}
-
-PolicyBuilder& PolicyBuilder::AllowSyscalls(SyscallInitializer nums) {
+PolicyBuilder& PolicyBuilder::AllowSyscalls(absl::Span<const uint32_t> nums) {
   for (auto num : nums) {
     AllowSyscall(num);
   }
@@ -94,23 +89,14 @@ PolicyBuilder& PolicyBuilder::AllowSyscalls(SyscallInitializer nums) {
 }
 
 PolicyBuilder& PolicyBuilder::BlockSyscallsWithErrno(
-    const std::vector<uint32_t> nums, int error) {
+    absl::Span<const uint32_t> nums, int error) {
   for (auto num : nums) {
     AllowSyscall(num);
   }
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::BlockSyscallsWithErrno(SyscallInitializer nums,
-                                                     int error) {
-  for (auto num : nums) {
-    AllowSyscall(num);
-  }
-  return *this;
-}
-
-PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(unsigned int num,
-                                                    int error) {
+PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
   if (handled_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ERRNO(error))});
     if (num == __NR_bpf) {
@@ -724,22 +710,17 @@ PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
   });
 }
 
-PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(unsigned int num,
-                                                 BpfInitializer policy) {
-  return AddPolicyOnSyscalls({num}, policy);
-}
-
 PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(
-    unsigned int num, const std::vector<sock_filter>& policy) {
+    uint32_t num, absl::Span<const sock_filter> policy) {
   return AddPolicyOnSyscalls({num}, policy);
 }
 
-PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(unsigned int num, BpfFunc f) {
+PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(uint32_t num, BpfFunc f) {
   return AddPolicyOnSyscalls({num}, f);
 }
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
-    SyscallInitializer nums, const std::vector<sock_filter>& policy) {
+    absl::Span<const uint32_t> nums, absl::Span<const sock_filter> policy) {
   std::deque<sock_filter> out;
   // Insert and verify the policy.
   out.insert(out.end(), policy.begin(), policy.end());
@@ -800,23 +781,13 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(SyscallInitializer nums,
-                                                  BpfInitializer policy) {
-  std::vector<sock_filter> policy_vector(policy);
-  return AddPolicyOnSyscalls(nums, policy_vector);
-}
-
-PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(SyscallInitializer nums,
-                                                  BpfFunc f) {
+PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
+    absl::Span<const uint32_t> nums, BpfFunc f) {
   return AddPolicyOnSyscalls(nums, ResolveBpfFunc(f));
 }
 
-PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(BpfInitializer policy) {
-  return AddPolicyOnSyscalls(kMmapSyscalls, policy);
-}
-
 PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(
-    const std::vector<sock_filter>& policy) {
+    absl::Span<const sock_filter> policy) {
   return AddPolicyOnSyscalls(kMmapSyscalls, policy);
 }
 
