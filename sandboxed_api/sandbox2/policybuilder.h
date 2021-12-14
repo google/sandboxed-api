@@ -107,9 +107,6 @@ class PolicyBuilder final {
 
   using BpfFunc = const std::function<std::vector<sock_filter>(bpf_labels&)>&;
 
-  using SyscallInitializer = std::initializer_list<unsigned int>
-      ABSL_DEPRECATED("Use absl::Span<const uint32_t> instead");
-
   // Appends code to allow a specific syscall
   PolicyBuilder& AllowSyscall(uint32_t num);
 
