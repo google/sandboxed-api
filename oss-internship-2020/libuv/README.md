@@ -18,7 +18,7 @@ git submodule update --init --recursive
 ```
 
 The full list of Sandboxed API dependencies can be found on
-[Sandboxed API Getting Started page](https://developers.google.com/sandboxed-api/docs/getting-started).
+[Sandboxed API Getting Started page](https://developers.google.com/code-sandboxing/sandboxed-api/getting-started).
 
 The following commands, used from the current `libuv/` directory, build the
 library:

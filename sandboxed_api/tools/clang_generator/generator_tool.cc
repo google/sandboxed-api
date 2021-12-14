@@ -39,7 +39,8 @@ static auto* g_tool_category =
 static auto* g_common_help =
     new llvm::cl::extrahelp(clang::tooling::CommonOptionsParser::HelpMessage);
 static auto* g_extra_help = new llvm::cl::extrahelp(
-    "Full documentation at: <https://developers.google.com/sandboxed-api/>\n"
+    "Full documentation at: "
+    "<https://developers.google.com/code-sandboxing/sandboxed-api/>\n"
     "Report bugs to <https://github.com/google/sandboxed-api/issues>\n");
 
 // Command line options

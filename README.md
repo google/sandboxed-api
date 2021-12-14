@@ -19,10 +19,10 @@ the total syscall/resource footprint of all its libraries.
 ## Documentation
 
 Developer documentation is available on the Google Developers site for
-[Sandboxed API](https://developers.google.com/sandboxed-api).
+[Sandboxed API](https://developers.google.com/code-sandboxing/sandboxed-api).
 
 There is also a
-[Getting Started](https://developers.google.com/sandboxed-api/docs/getting-started)
+[Getting Started](https://developers.google.com/code-sandboxing/sandboxed-api/getting-started)
 guide.
 
 ## Getting Involved
