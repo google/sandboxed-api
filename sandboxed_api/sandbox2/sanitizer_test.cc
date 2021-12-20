@@ -51,18 +51,17 @@ namespace {
 
 // Runs a new process and returns 0 if the process terminated with 0.
 int RunTestcase(const std::string& path, const std::vector<std::string>& args) {
+  util::CharPtrArray array = util::CharPtrArray::FromStringVector(args);
   pid_t pid = fork();
   if (pid < 0) {
     PLOG(ERROR) << "fork()";
     return 1;
   }
-  const char** argv = util::VecStringToCharPtrArr(args);
   if (pid == 0) {
-    execv(path.c_str(), const_cast<char**>(argv));
+    execv(path.c_str(), const_cast<char**>(array.data()));
     PLOG(ERROR) << "execv('" << path << "')";
     exit(EXIT_FAILURE);
   }
-  delete[] argv;
 
   for (;;) {
     int status;

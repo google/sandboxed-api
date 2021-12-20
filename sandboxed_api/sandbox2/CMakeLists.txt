@@ -499,7 +499,8 @@ add_library(sandbox2_util ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::util ALIAS sandbox2_util)
 target_link_libraries(sandbox2_util
-  PRIVATE absl::core_headers
+  PRIVATE absl::algorithm_container
+          absl::core_headers
           absl::str_format
           absl::strings
           sapi::config

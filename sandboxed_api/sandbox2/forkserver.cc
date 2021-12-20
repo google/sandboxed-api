@@ -255,8 +255,6 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   // sandoxing can cause syscall violations (e.g. related to memory management).
   std::vector<std::string> args;
   std::vector<std::string> envs;
-  const char** argv = nullptr;
-  const char** envp = nullptr;
   if (will_execve) {
     PrepareExecveArgs(request, &args, &envs);
   }
@@ -328,25 +326,24 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     c.PrepareEnvironment();
 
     envs.push_back(c.GetFdMapEnvVar());
-    // Convert argv and envs to const char **. No need to free it, as the
-    // code will either execve() or exit().
-    argv = util::VecStringToCharPtrArr(args);
-    envp = util::VecStringToCharPtrArr(envs);
+    // Convert args and envs before enabling sandbox (it'll allocate which might
+    // be blocked).
+    util::CharPtrArray argv = util::CharPtrArray::FromStringVector(args);
+    util::CharPtrArray envp = util::CharPtrArray::FromStringVector(envs);
 
     c.EnableSandbox();
     if (request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
       exit(RunLibUnwindAndSymbolizer(&client_comms) ? EXIT_SUCCESS
                                                     : EXIT_FAILURE);
     } else {
-      ExecuteProcess(execve_fd, argv, envp);
+      ExecuteProcess(execve_fd, argv.data(), envp.data());
     }
     abort();
   }
 
   if (will_execve) {
-    argv = util::VecStringToCharPtrArr(args);
-    envp = util::VecStringToCharPtrArr(envs);
-    ExecuteProcess(execve_fd, argv, envp);
+    ExecuteProcess(execve_fd, util::CharPtrArray::FromStringVector(args).data(),
+                   util::CharPtrArray::FromStringVector(envs).data());
     abort();
   }
 }
@@ -565,8 +562,8 @@ void ForkServer::SanitizeEnvironment() {
       absl::StrCat("while sanitizing process: ", status.message()).c_str());
 }
 
-void ForkServer::ExecuteProcess(int execve_fd, const char** argv,
-                                const char** envp) {
+void ForkServer::ExecuteProcess(int execve_fd, const char* const* argv,
+                                const char* const* envp) {
   // Do not add any code before execve(), as it's subject to seccomp policies.
   // Indicate that it's a special execve(), by setting 4th, 5th and 6th syscall
   // argument to magic values.

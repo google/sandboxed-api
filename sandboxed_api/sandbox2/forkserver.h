@@ -72,8 +72,8 @@ class ForkServer {
   static void SanitizeEnvironment();
 
   // Executes the sandboxee, or exit with Executor::kFailedExecve.
-  static void ExecuteProcess(int execve_fd, const char** argv,
-                             const char** envp);
+  static void ExecuteProcess(int execve_fd, const char* const* argv,
+                             const char* const* envp);
 
   // Runs namespace initializers for a sandboxee.
   static void InitializeNamespaces(const ForkRequest& request, uid_t uid,

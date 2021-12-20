@@ -33,6 +33,7 @@
 #include <cstring>
 #include <memory>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -41,6 +42,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
@@ -57,10 +59,21 @@ namespace sandbox2::util {
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
 
-void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec) {
-  for (int i = 0; arr[i]; ++i) {
-    vec->push_back(arr[i]);
+namespace {
+
+std::string ConcatenateAll(char* const* arr) {
+  std::string result;
+  for (; *arr != nullptr; ++arr) {
+    size_t len = strlen(*arr);
+    result.append(*arr, len + 1);
   }
+  return result;
+}
+
+}  // namespace
+
+void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec) {
+  *vec = CharPtrArray(arr).ToStringVector();
 }
 
 const char** VecStringToCharPtrArr(const std::vector<std::string>& vec) {
@@ -71,6 +84,39 @@ const char** VecStringToCharPtrArr(const std::vector<std::string>& vec) {
   }
   arr[vec_size] = nullptr;
   return arr;
+}
+
+CharPtrArray::CharPtrArray(char* const* arr) : content_(ConcatenateAll(arr)) {
+  for (auto it = content_.begin(); it != content_.end();
+       it += strlen(&*it) + 1) {
+    array_.push_back(&*it);
+  }
+  array_.push_back(nullptr);
+}
+
+CharPtrArray::CharPtrArray(const std::vector<std::string>& vec)
+    : content_(absl::StrJoin(vec, absl::string_view("\0", 1))) {
+  size_t len = 0;
+  array_.reserve(vec.size() + 1);
+  for (const std::string& str : vec) {
+    array_.push_back(&content_[len]);
+    len += str.size() + 1;
+  }
+  array_.push_back(nullptr);
+}
+
+CharPtrArray CharPtrArray::FromStringVector(
+    const std::vector<std::string>& vec) {
+  return CharPtrArray(vec);
+}
+
+std::vector<std::string> CharPtrArray::ToStringVector() const {
+  std::vector<std::string> result;
+  result.reserve(array_.size() - 1);
+  for (size_t i = 0; i < array_.size() - 1; ++i) {
+    result.push_back(array_[i]);
+  }
+  return result;
 }
 
 std::string GetProgName(pid_t pid) {
@@ -248,19 +294,13 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
   posix_spawn_file_actions_adddup2(&action, cout_pipe[1], 2);
   posix_spawn_file_actions_addclose(&action, cout_pipe[1]);
 
-  char** args = const_cast<char**>(util::VecStringToCharPtrArr(argv));
-  char** envp = const_cast<char**>(util::VecStringToCharPtrArr(envv));
-  struct ArgumentCleanup {
-    ~ArgumentCleanup() {
-      delete[] args_;
-      delete[] envp_;
-    }
-    char** args_;
-    char** envp_;
-  } args_cleanup{args, envp};
+  CharPtrArray args = CharPtrArray::FromStringVector(argv);
+  CharPtrArray envp = CharPtrArray::FromStringVector(envv);
 
   pid_t pid;
-  if (posix_spawnp(&pid, args[0], &action, nullptr, args, envp) != 0) {
+  if (posix_spawnp(&pid, args.array()[0], &action, nullptr,
+                   const_cast<char**>(args.data()),
+                   const_cast<char**>(envp.data())) != 0) {
     return absl::UnknownError(sapi::OsErrorMessage(errno, "posix_spawnp()"));
   }
 

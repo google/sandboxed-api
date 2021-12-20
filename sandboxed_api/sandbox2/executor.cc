@@ -38,9 +38,7 @@ namespace sandbox2 {
 namespace file_util = ::sapi::file_util;
 
 std::vector<std::string> Executor::CopyEnviron() {
-  std::vector<std::string> environ_copy;
-  util::CharPtrArrToVecString(environ, &environ_copy);
-  return environ_copy;
+  return util::CharPtrArray(environ).ToStringVector();
 }
 
 pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
