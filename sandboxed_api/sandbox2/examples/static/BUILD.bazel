@@ -29,6 +29,7 @@ cc_binary(
     srcs = ["static_sandbox.cc"],
     copts = sapi_platform_copts(),
     data = [":static_bin"],
+    tags = ["no_qemu_user_mode"],
     deps = [
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2",
