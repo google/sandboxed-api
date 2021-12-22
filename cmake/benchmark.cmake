@@ -16,8 +16,8 @@ set(workdir "${CMAKE_BINARY_DIR}/_deps/benchmark-populate")
 
 set(SAPI_BENCHMARK_GIT_REPOSITORY https://github.com/google/benchmark.git
                                   CACHE STRING "")
-set(SAPI_BENCHMARK_GIT_TAG 56898e9a92fba537671d5462df9c5ef2ea6a823a
-                           CACHE STRING "") # 2020-04-23
+set(SAPI_BENCHMARK_GIT_TAG 3b3de69400164013199ea448f051d94d7fc7d81f
+                           CACHE STRING "") # 2021-12-14
 set(SAPI_BENCHMARK_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/benchmark-src"
                               CACHE STRING "")
 set(SAPI_BENCHMARK_BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/benchmark-build"

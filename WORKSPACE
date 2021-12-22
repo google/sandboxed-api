@@ -58,7 +58,7 @@ maybe(
 maybe(
     http_archive,
     name = "com_google_benchmark",
-    sha256 = "7f45be0bff07d787d75c3864212e9ea5ebba57593b2e487c783d11da70ef6857",  # 2020-04-23
-    strip_prefix = "benchmark-56898e9a92fba537671d5462df9c5ef2ea6a823a",
-    urls = ["https://github.com/google/benchmark/archive/56898e9a92fba537671d5462df9c5ef2ea6a823a.zip"],
+    sha256 = "12663580821c69f5a71217433b58e96f061570f0e18d94891b82115fcdb4284d",  # 2021-12-14
+    strip_prefix = "benchmark-3b3de69400164013199ea448f051d94d7fc7d81f",
+    urls = ["https://github.com/google/benchmark/archive/3b3de69400164013199ea448f051d94d7fc7d81f.zip"],
 )
