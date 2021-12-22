@@ -49,9 +49,9 @@ http_archive(
 maybe(
     http_archive,
     name = "com_google_googletest",
-    sha256 = "a6ab7c7d6fd4dd727f6012b5d85d71a73d3aa1274f529ecd4ad84eb9ec4ff767",  # 2020-04-16
-    strip_prefix = "googletest-dcc92d0ab6c4ce022162a23566d44f673251eee4",
-    urls = ["https://github.com/google/googletest/archive/dcc92d0ab6c4ce022162a23566d44f673251eee4.zip"],
+    sha256 = "1009ce4e75a64a4e61bcb2efaa256f9d54e6a859a2985cb6fa57c06d45356866",  # 2021-12-20
+    strip_prefix = "googletest-9a32aee22d771387c494be2d8519fbdf46a713b2",
+    urls = ["https://github.com/google/googletest/archive/9a32aee22d771387c494be2d8519fbdf46a713b2.zip"],
 )
 
 # Google Benchmark

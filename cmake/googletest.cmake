@@ -16,8 +16,8 @@ set(workdir "${CMAKE_BINARY_DIR}/_deps/googletest-populate")
 
 set(SAPI_GOOGLETEST_GIT_REPOSITORY https://github.com/google/googletest.git
                                    CACHE STRING "")
-set(SAPI_GOOGLETEST_GIT_TAG dcc92d0ab6c4ce022162a23566d44f673251eee4
-                            CACHE STRING "") # 2020-04-16
+set(SAPI_GOOGLETEST_GIT_TAG 9a32aee22d771387c494be2d8519fbdf46a713b2
+                            CACHE STRING "") # 2021-12-20
 set(SAPI_GOOGLETEST_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/googletest-src"
                                CACHE STRING "")
 set(SAPI_GOOGLETEST_BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/googletest-build"
