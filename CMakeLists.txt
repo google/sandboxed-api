@@ -89,14 +89,29 @@ target_include_directories(sapi_base INTERFACE
   "${Protobuf_INCLUDE_DIR}"
 )
 if(UNIX)
-  foreach(flag IN ITEMS -Wno-deprecated
-                        -Wno-deprecated-declarations
-                        -Wno-psabi)
-    check_cxx_compiler_flag(${flag} _sapi_has_flag)
-    if(_sapi_has_flag)
-      target_compile_options(sapi_base INTERFACE ${flag})
+  set(_sapi_check_no_deprecated
+    -Wno-deprecated SAPI_HAS_W_NO_DEPRECATED
+  )
+  # For sandbox2/util.cc's CloneAndJump()
+  set(_sapi_check_frame_larger_than
+    -Wframe-larger-than=20480 SAPI_HAS_W_FRAME_LARGER_THAN
+  )
+  set(_sapi_check_no_deprecated_declarations
+    -Wno-deprecated-declarations SAPI_HAS_W_NO_DEPRECATED_DECLARATIONS
+  )
+  set(_sapi_check_no_psabi
+    -Wno-psabi SAPI_HAS_W_NO_PSABI
+  )
+  foreach(check IN ITEMS _sapi_check_no_deprecated
+                         _sapi_check_frame_larger_than
+                         _sapi_check_no_deprecated_declarations
+                         _sapi_check_no_psabi)
+    list(GET ${check} 0 opt_value)
+    list(GET ${check} 1 var_name)
+    check_cxx_compiler_flag(${opt_value} ${var_name})
+    if(${var_name})
+      target_compile_options(sapi_base INTERFACE ${opt_value})
     endif()
-    unset(_sapi_has_flag)
   endforeach()
 endif()
 
