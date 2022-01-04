@@ -97,7 +97,12 @@ class File {
   }
   ~File() { fclose(stream_); }
 
-  void Check() { SAPI_RAW_PCHECK(!ferror(stream_), "I/O on %s", name_); }
+  void Check() {
+    if (ferror(stream_)) {
+      SAPI_RAW_PLOG(ERROR, "I/O on %s", name_);
+      _Exit(EXIT_FAILURE);
+    }
+  }
 
   FILE* get() const { return stream_; }
 
