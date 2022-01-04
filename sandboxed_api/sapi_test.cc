@@ -50,10 +50,12 @@ absl::Status InvokeStringReversal(Sandbox* sandbox) {
   StringopApi api(sandbox);
   stringop::StringReverse proto;
   proto.set_input("Hello");
-  v::Proto<stringop::StringReverse> pp(proto);
-  SAPI_ASSIGN_OR_RETURN(int return_code, api.pb_reverse_string(pp.PtrBoth()));
+  absl::StatusOr<v::Proto<stringop::StringReverse>> pp(
+      v::Proto<stringop::StringReverse>::FromMessage(proto));
+  SAPI_RETURN_IF_ERROR(pp.status());
+  SAPI_ASSIGN_OR_RETURN(int return_code, api.pb_reverse_string(pp->PtrBoth()));
   TRANSACTION_FAIL_IF_NOT(return_code != 0, "pb_reverse_string failed");
-  SAPI_ASSIGN_OR_RETURN(auto pb_result, pp.GetMessage());
+  SAPI_ASSIGN_OR_RETURN(auto pb_result, pp->GetMessage());
   TRANSACTION_FAIL_IF_NOT(pb_result.output() == "olleH", "Incorrect output");
   return absl::OkStatus();
 }
