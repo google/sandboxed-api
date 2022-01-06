@@ -14,12 +14,14 @@
 
 #include "sandboxed_api/sandbox2/unwind/ptrace_hook.h"
 
+#include <elf.h>  // For NT_PRSTATUS
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 #include <unistd.h>
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -68,14 +70,8 @@ extern "C" long int ptrace_wrapped(  // NOLINT
   switch (request) {
     case PTRACE_PEEKDATA: {
       long int read_data;  // NOLINT
-      struct iovec local = {
-          .iov_base = &read_data,
-          .iov_len = sizeof(long int),  // NOLINT
-      };
-      struct iovec remote = {
-          .iov_base = addr,
-          .iov_len = sizeof(long int),  // NOLINT
-      };
+      iovec local = {.iov_base = &read_data, .iov_len = sizeof(read_data)};
+      iovec remote = {.iov_base = addr, .iov_len = sizeof(read_data)};
 
       if (process_vm_readv(pid, &local, 1, &remote, 1, 0) <= 0) {
         return -1;
@@ -91,10 +87,22 @@ extern "C" long int ptrace_wrapped(  // NOLINT
       }
       return (*g_registers)[offset / kRegSize];
     }
+    case PTRACE_GETREGSET: {
+      // Only return general-purpose registers.
+      if (auto kind = reinterpret_cast<uintptr_t>(addr); kind != NT_PRSTATUS) {
+        return -1;
+      }
+      auto reg_set = reinterpret_cast<iovec*>(data);
+      if (reg_set->iov_len > g_registers->size() * kRegSize) {
+        return -1;
+      }
+      memcpy(reg_set->iov_base, g_registers->data(), reg_set->iov_len);
+      break;
+    }
     default:
       fprintf(stderr, "ptrace_wrapped(): operation not permitted: %d\n",
               request);
-      _exit(1);
+      abort();
   }
   return 0;
 }
