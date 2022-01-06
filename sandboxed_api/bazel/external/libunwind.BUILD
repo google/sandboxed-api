@@ -74,7 +74,6 @@ filegroup(
         "src/dwarf/Gfind_unwind_table.c",
         "src/dwarf/Gparser.c",
         "src/dwarf/Gpe.c",
-        "src/dwarf/Gstep.c",
         "src/dwarf/global.c",
         "src/mi/Gdestroy_addr_space.c",
         "src/mi/Gdyn-extract.c",

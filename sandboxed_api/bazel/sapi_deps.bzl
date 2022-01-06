@@ -115,7 +115,7 @@ def sapi_deps():
             "--disable-shared",
             "--enable-ptrace",
         ],
-        sha256 = "3f3ecb90e28cbe53fba7a4a27ccce7aad188d3210bb1964a923a731a27a75acb",  # 2017-06-15
-        strip_prefix = "libunwind-1.2.1",
-        urls = ["https://github.com/libunwind/libunwind/releases/download/v1.2.1/libunwind-1.2.1.tar.gz"],
+        sha256 = "4a6aec666991fb45d0889c44aede8ad6eb108071c3554fcdff671f9c94794976",  # 2021-12-01
+        strip_prefix = "libunwind-1.6.2",
+        urls = ["https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz"],
     )

@@ -15,10 +15,10 @@
 set(workdir "${CMAKE_BINARY_DIR}/_deps/libunwind-populate")
 
 set(SAPI_LIBUNWIND_URL
-  https://github.com/libunwind/libunwind/releases/download/v1.2.1/libunwind-1.2.1.tar.gz
+  https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz
   CACHE STRING "")
 set(SAPI_LIBUNWIND_URL_HASH
-  SHA256=3f3ecb90e28cbe53fba7a4a27ccce7aad188d3210bb1964a923a731a27a75acb
+  SHA256=4a6aec666991fb45d0889c44aede8ad6eb108071c3554fcdff671f9c94794976
   CACHE STRING "")
 set(SAPI_LIBUNWIND_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/libunwind-src"
                               CACHE STRING "")
@@ -169,7 +169,6 @@ add_library(unwind_ptrace_wrapped STATIC
   ${SAPI_LIBUNWIND_SOURCE_DIR}/src/dwarf/Gfind_unwind_table.c
   ${SAPI_LIBUNWIND_SOURCE_DIR}/src/dwarf/Gparser.c
   ${SAPI_LIBUNWIND_SOURCE_DIR}/src/dwarf/Gpe.c
-  ${SAPI_LIBUNWIND_SOURCE_DIR}/src/dwarf/Gstep.c
   ${SAPI_LIBUNWIND_SOURCE_DIR}/src/dwarf/global.c
   ${SAPI_LIBUNWIND_SOURCE_DIR}/src/mi/Gdestroy_addr_space.c
   ${SAPI_LIBUNWIND_SOURCE_DIR}/src/mi/Gdyn-extract.c
