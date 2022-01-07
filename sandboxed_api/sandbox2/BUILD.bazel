@@ -53,6 +53,22 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "regs_test",
+    srcs = ["regs_test.cc"],
+    copts = sapi_platform_copts(),
+    tags = ["no_qemu_user_mode"],
+    deps = [
+        ":regs",
+        ":sanitizer",
+        ":util",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_glog//:glog",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "syscall",
     srcs = [

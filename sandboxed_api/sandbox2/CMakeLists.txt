@@ -35,15 +35,16 @@ add_library(sandbox2_regs ${SAPI_LIB_TYPE}
   regs.h
 )
 add_library(sandbox2::regs ALIAS sandbox2_regs)
-target_link_libraries(sandbox2_regs PRIVATE
-  absl::core_headers
-  absl::strings
-  sapi::config
-  sapi::strerror
-  sandbox2::syscall
-  sandbox2::violation_proto
-  sapi::base
-  sapi::status
+target_link_libraries(sandbox2_regs
+  PUBLIC absl::status
+         sapi::config
+         sandbox2::syscall
+         sandbox2::violation_proto
+  PRIVATE absl::core_headers
+          absl::strings
+          sapi::strerror
+          sapi::base
+          sapi::status
 )
 
 # sandboxed_api/sandbox2:syscall
@@ -608,6 +609,25 @@ target_link_libraries(sandbox2_violation_proto PRIVATE
 
 if(SAPI_ENABLE_TESTS)
   add_subdirectory(testcases)
+
+  # sandboxed_api/sandbox2:regs_test
+  add_executable(sandbox2_regs_test
+    regs_test.cc
+  )
+  set_target_properties(sandbox2_regs_test PROPERTIES
+    OUTPUT_NAME regs_test
+  )
+  target_link_libraries(sandbox2_regs_test PRIVATE
+    glog::glog
+    sapi::config
+    sapi::status_matchers
+    sandbox2::bpf_helper
+    sandbox2::regs
+    sandbox2::sanitizer
+    sandbox2::util
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_regs_test)
 
   # sandboxed_api/sandbox2:syscall_test
   add_executable(sandbox2_syscall_test

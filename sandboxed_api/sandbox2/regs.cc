@@ -118,8 +118,8 @@ absl::Status Regs::SkipSyscallReturnValue(uintptr_t value) {
   user_regs_.gpr[0] = -1;
   user_regs_.gpr[3] = value;
 #elif defined(SAPI_ARM64)
-  user_regs_.regs[0] = -1;
-  syscall_number_ = value;
+  syscall_number_ = -1;
+  user_regs_.regs[0] = value;
 #elif defined(SAPI_ARM)
   user_regs_.orig_x0 = -1;
   user_regs_.regs[7] = value;
