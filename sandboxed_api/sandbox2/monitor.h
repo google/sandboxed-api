@@ -28,7 +28,6 @@
 #include <memory>
 #include <thread>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/notification.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -136,17 +135,11 @@ class Monitor final {
   // Processes exit path.
   void EventPtraceExit(pid_t pid, int event_msg);
 
-  // Processes fork/vfork/clone path.
-  void EventPtraceNewProcess(pid_t pid, int event_msg);
-
-  // Processes execution path.
+  // Processes excution path.
   void EventPtraceExec(pid_t pid, int event_msg);
 
   // Processes stop path.
   void EventPtraceStop(pid_t pid, int stopsig);
-
-  // Processes syscall exit.
-  void EventSyscallExit(pid_t pid);
 
   // Enable network proxy server, this will start a thread in the sandbox
   // that waits for connection requests from the sandboxee.
@@ -203,9 +196,6 @@ class Monitor final {
   std::unique_ptr<NetworkProxyServer> network_proxy_server_;
 
   std::thread network_proxy_thread_;
-
-  // Syscalls that are running, whose result values we want to inspect.
-  absl::flat_hash_map<pid_t, Syscall> syscalls_in_progress_;
 };
 
 }  // namespace sandbox2

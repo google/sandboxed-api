@@ -187,30 +187,6 @@ Syscall Regs::ToSyscall(sapi::cpu::Architecture syscall_arch) const {
   return Syscall(pid_);
 }
 
-int64_t Regs::GetReturnValue(sapi::cpu::Architecture syscall_arch) const {
-#if defined(SAPI_X86_64)
-  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kX8664)) {
-    return static_cast<int64_t>(user_regs_.rax);
-  }
-  if (syscall_arch == sapi::cpu::kX86) {
-    return static_cast<int32_t>(user_regs_.rax & 0xFFFFFFFF);
-  }
-#elif defined(SAPI_PPC64_LE)
-  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kPPC64LE)) {
-    return static_cast<int64_t>(user_regs_.gpr[3]);
-  }
-#elif defined(SAPI_ARM64)
-  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kArm64)) {
-    return static_cast<int64_t>(user_regs_.regs[0]);
-  }
-#elif defined(SAPI_ARM)
-  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kArm)) {
-    return static_cast<int32_t>(user_regs_.regs[0]);
-  }
-#endif
-  return -1;
-}
-
 void Regs::StoreRegisterValuesInProtobuf(RegisterValues* values) const {
 #if defined(SAPI_X86_64)
   RegisterX8664* regs = values->mutable_register_x86_64();

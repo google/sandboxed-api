@@ -80,7 +80,6 @@ class Result {
     FAILED_MONITOR,
     FAILED_KILL,
     FAILED_CHILD,
-    FAILED_INSPECT,
 
     // TODO(wiktorg) not used currently (syscall number stored insted) - need to
     // fix clients first

@@ -127,18 +127,6 @@ void StopProcess(pid_t pid, int signo) {
   }
 }
 
-void CompleteSyscall(pid_t pid, int signo) {
-  if (ptrace(PTRACE_SYSCALL, pid, 0, signo) == -1) {
-    if (errno == ESRCH) {
-      LOG(WARNING) << "Process " << pid
-                   << " died while trying to PTRACE_SYSCALL it";
-    } else {
-      PLOG(ERROR) << "ptrace(PTRACE_SYSCALL, pid=" << pid << ", sig=" << signo
-                  << ")";
-    }
-  }
-}
-
 void MaybeEnableTomoyoLsmWorkaround(Mounts& mounts, std::string& comms_fd_dev) {
   static auto tomoyo_active = []() -> bool {
     std::string lsm_list;
@@ -780,18 +768,12 @@ void Monitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
   // Notify can decide whether we want to allow this syscall. It could be useful
   // for sandbox setups in which some syscalls might still need some logging,
   // but nonetheless be allowed ('permissible syscalls' in sandbox v1).
-  auto trace_response = notify_->EventSyscallTrace(syscall);
-  if (trace_response == Notify::TraceAction::kAllow) {
+  if (notify_->EventSyscallTrap(syscall)) {
+    LOG(WARNING) << "[PERMITTED]: SYSCALL ::: PID: " << regs->pid()
+                 << ", PROG: '" << util::GetProgName(regs->pid())
+                 << "' : " << syscall.GetDescription();
+
     ContinueProcess(regs->pid(), 0);
-    return;
-  }
-  if (trace_response == Notify::TraceAction::kInspectAfterReturn) {
-    // Note that a process might die without an exit-stop before the syscall is
-    // completed (eg. a thread calls execve() and the thread group leader dies),
-    // so this entry might never get removed from the table. This may increase
-    // the monitor's memory usage by O(number-of-sandboxed-pids).
-    syscalls_in_progress_[regs->pid()] = syscall;
-    CompleteSyscall(regs->pid(), 0);
     return;
   }
 
@@ -874,68 +856,11 @@ void Monitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
   ActionProcessSyscall(&regs, syscall);
 }
 
-void Monitor::EventSyscallExit(pid_t pid) {
-  // Check that the monitor wants to inspect the current syscall's return value.
-  auto index = syscalls_in_progress_.find(pid);
-  if (index == syscalls_in_progress_.end()) {
-    LOG(ERROR) << "Expected a syscall in progress in PID " << pid;
-    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_INSPECT);
-    return;
-  }
-  Regs regs(pid);
-  auto status = regs.Fetch();
-  if (!status.ok()) {
-    LOG(ERROR) << status;
-    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
-    return;
-  }
-  int64_t return_value = regs.GetReturnValue(sapi::host_cpu::Architecture());
-  notify_->EventSyscallReturn(index->second, return_value);
-  syscalls_in_progress_.erase(index);
-  ContinueProcess(pid, 0);
-}
-
-void Monitor::EventPtraceNewProcess(pid_t pid, int event_msg) {
-  // ptrace doesn't issue syscall-exit-stops for successful fork/vfork/clone
-  // system calls. Check if the monitor wanted to inspect the syscall's return
-  // value, and call EventSyscallReturn for the parent process if so.
-  auto index = syscalls_in_progress_.find(pid);
-  if (index != syscalls_in_progress_.end()) {
-    auto syscall_nr = index->second.nr();
-    if (syscall_nr != __NR_fork && syscall_nr != __NR_vfork &&
-        syscall_nr != __NR_clone) {
-      LOG(ERROR) << "Expected a fork/vfork/clone syscall in progress in PID "
-                 << pid << "; actual: " << index->second.GetDescription();
-      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_INSPECT);
-      return;
-    }
-    notify_->EventSyscallReturn(index->second, event_msg);
-    syscalls_in_progress_.erase(index);
-  }
-  ContinueProcess(pid, 0);
-}
-
 void Monitor::EventPtraceExec(pid_t pid, int event_msg) {
   if (!IsActivelyMonitoring()) {
     VLOG(1) << "PTRACE_EVENT_EXEC seen from PID: " << event_msg
             << ". SANDBOX ENABLED!";
     SetActivelyMonitoring();
-  } else {
-    // ptrace doesn't issue syscall-exit-stops for successful execve/execveat
-    // system calls. Check if the monitor wanted to inspect the syscall's return
-    // value, and call EventSyscallReturn if so.
-    auto index = syscalls_in_progress_.find(pid);
-    if (index != syscalls_in_progress_.end()) {
-      auto syscall_nr = index->second.nr();
-      if (syscall_nr != __NR_execve && syscall_nr != __NR_execveat) {
-        LOG(ERROR) << "Expected an execve/execveat syscall in progress in PID "
-                   << pid << "; actual: " << index->second.GetDescription();
-        SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_INSPECT);
-        return;
-      }
-      notify_->EventSyscallReturn(index->second, 0);
-      syscalls_in_progress_.erase(index);
-    }
   }
   ContinueProcess(pid, 0);
 }
@@ -1007,10 +932,7 @@ void Monitor::EventPtraceStop(pid_t pid, int stopsig) {
 
 void Monitor::StateProcessStopped(pid_t pid, int status) {
   int stopsig = WSTOPSIG(status);
-  // We use PTRACE_O_TRACESYSGOOD, so we can tell it's a syscall stop without
-  // calling PTRACE_GETSIGINFO by checking the value of the reported signal.
-  bool is_syscall_exit = stopsig == (SIGTRAP | 0x80);
-  if (__WPTRACEEVENT(status) == 0 && !is_syscall_exit) {
+  if (__WPTRACEEVENT(status) == 0) {
     // Must be a regular signal delivery.
     VLOG(2) << "PID: " << pid
             << " received signal: " << util::GetSignalName(stopsig);
@@ -1058,25 +980,13 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
 #define PTRACE_EVENT_STOP 128
 #endif
 
-  if (is_syscall_exit) {
-    VLOG(2) << "PID: " << pid << " syscall-exit-stop: " << event_msg;
-    EventSyscallExit(pid);
-    return;
-  }
-
   switch (__WPTRACEEVENT(status)) {
     case PTRACE_EVENT_FORK:
-      VLOG(2) << "PID: " << pid << " PTRACE_EVENT_FORK, PID: " << event_msg;
-      EventPtraceNewProcess(pid, event_msg);
-      break;
+      /* fall through */
     case PTRACE_EVENT_VFORK:
-      VLOG(2) << "PID: " << pid << " PTRACE_EVENT_VFORK, PID: " << event_msg;
-      EventPtraceNewProcess(pid, event_msg);
-      break;
+      /* fall through */
     case PTRACE_EVENT_CLONE:
-      VLOG(2) << "PID: " << pid << " PTRACE_EVENT_CLONE, PID: " << event_msg;
-      EventPtraceNewProcess(pid, event_msg);
-      break;
+      /* fall through */
     case PTRACE_EVENT_VFORK_DONE:
       ContinueProcess(pid, 0);
       break;
