@@ -170,11 +170,15 @@ add_library(sandbox2_notify ${SAPI_LIB_TYPE}
   notify.h
 )
 add_library(sandbox2::notify ALIAS sandbox2_notify)
-target_link_libraries(sandbox2_notify PRIVATE
-  sandbox2::comms
-  sandbox2::result
-  sandbox2::syscall
-  sapi::base
+target_link_libraries(sandbox2_notify
+  PUBLIC absl::core_headers
+         glog::glog
+         sandbox2::comms
+         sandbox2::result
+         sandbox2::syscall
+         sandbox2::util
+  PRIVATE sapi::base
+          sapi::config
 )
 
 # sandboxed_api/sandbox2:limits
@@ -296,7 +300,6 @@ add_library(sandbox2::sandbox2 ALIAS sandbox2_sandbox2)
 target_link_libraries(sandbox2_sandbox2
   PRIVATE absl::core_headers
           absl::cleanup
-          absl::flat_hash_map
           absl::flat_hash_set
           absl::memory
           absl::optional
@@ -305,7 +308,8 @@ target_link_libraries(sandbox2_sandbox2
           absl::strings
           sapi::strerror
           sapi::base
-  PUBLIC  absl::status
+  PUBLIC  absl::flat_hash_map
+          absl::status
           absl::statusor
           absl::synchronization
           absl::time

@@ -48,6 +48,9 @@ class Regs {
   // Converts raw register values obtained on syscall entry to syscall info
   Syscall ToSyscall(sapi::cpu::Architecture syscall_arch) const;
 
+  // Returns the content of the register that holds a syscall's return value
+  int64_t GetReturnValue(sapi::cpu::Architecture syscall_arch) const;
+
   pid_t pid() const { return pid_; }
 
   // Stores register values in a protobuf structure.
