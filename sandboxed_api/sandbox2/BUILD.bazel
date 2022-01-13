@@ -46,7 +46,6 @@ cc_library(
         ":violation_cc_proto",
         "//sandboxed_api:config",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -197,6 +196,10 @@ cc_library(
         ":comms",
         ":result",
         ":syscall",
+        ":util",
+        "//sandboxed_api:config",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_glog//:glog",
     ],
 )
 
@@ -347,7 +350,6 @@ cc_library(
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:flags",
-        "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:strerror",
         "//sandboxed_api/util:temp_file",
