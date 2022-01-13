@@ -357,7 +357,7 @@ bool Comms::RecvFD(int* fd) {
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&tlv, sizeof(tlv));
 
   if (tlv.tag != kTagFd) {
-    SAPI_RAW_LOG(ERROR, "Expected (kTagFD: 0x%x), got: 0x%u", kTagFd, tlv.tag);
+    SAPI_RAW_LOG(ERROR, "Expected (kTagFD: 0x%x), got: 0x%x", kTagFd, tlv.tag);
     return false;
   }
 
