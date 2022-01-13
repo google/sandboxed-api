@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <cstring>
 
-#include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
