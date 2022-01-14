@@ -34,7 +34,7 @@ TEST(RegsTest, SkipSyscallWorks) {
       ALLOW,
   };
   sock_fprog prog = {
-      .len = policy.size(),
+      .len = static_cast<uint8_t>(policy.size()),
       .filter = policy.data(),
   };
   // Create socketpair for synchronization
