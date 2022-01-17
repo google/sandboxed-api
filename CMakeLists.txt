@@ -26,23 +26,28 @@ endif()
 
 project(SandboxedAPI C CXX ASM)
 
+# TODO(cblichmann): Enable for Android once support lands
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Linux")
+  message(FATAL_ERROR "Sandboxed API is only supported on Linux")
+endif()
+
 # SAPI-wide setting for the language level
 set(SAPI_CXX_STANDARD 17)
+
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD ${SAPI_CXX_STANDARD})
+elseif(CMAKE_CXX_STANDARD LESS ${SAPI_CXX_STANDARD})
+  message(FATAL_ERROR
+    "Sandboxed API requires C++17. To ensure ABI compatibility"
+    " build and link all targets of the project with the same"
+    " version of C++."
+  )
+endif()
 
 set(SAPI_BINARY_DIR "${PROJECT_BINARY_DIR}" CACHE INTERNAL "" FORCE)
 set(SAPI_SOURCE_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "" FORCE)
 
-set(CMAKE_POSITION_INDEPENDENT_CODE TRUE CACHE BOOL "" FORCE)
-
 include(CheckCXXCompilerFlag)
-
-# TODO(cblichmann): Only apply this to SAPI and its dependencies
-add_compile_options(-fno-exceptions)
-
-if(SAPI_HARDENED_SOURCE)
-  add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
-  add_link_options(-Wl,-z,relro -Wl,-z,now)
-endif()
 
 # Sapi CMake modules, order matters
 list(APPEND CMAKE_MODULE_PATH "${SAPI_SOURCE_DIR}/cmake"
@@ -55,6 +60,11 @@ include(GNUInstallDirs)
 
 # Allow the header generator to auto-configure include paths
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(SAPI_HARDENED_SOURCE)
+  add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
+  add_link_options(-Wl,-z,relro -Wl,-z,now)
+endif()
 
 if(SAPI_FORCE_COLOR_OUTPUT)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")  # GCC
@@ -76,44 +86,43 @@ add_library(sapi_base STATIC
   "${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc"
 )
 add_library(sapi::base ALIAS sapi_base)
-set_target_properties(sapi_base PROPERTIES
-  CXX_STANDARD              ${SAPI_CXX_STANDARD}
-  CXX_STANDARD_REQUIRED     TRUE
-  CXX_EXTENSIONS            FALSE
-  SKIP_BUILD_RPATH          TRUE
-  POSITION_INDEPENDENT_CODE TRUE
+target_compile_features(sapi_base PUBLIC
+  cxx_std_${SAPI_CXX_STANDARD}
 )
-target_include_directories(sapi_base INTERFACE
+set_target_properties(sapi_base PROPERTIES
+  SKIP_BUILD_RPATH          ON
+  POSITION_INDEPENDENT_CODE ON
+)
+target_include_directories(sapi_base PUBLIC
   "${SAPI_BINARY_DIR}"
   "${SAPI_SOURCE_DIR}"
   "${Protobuf_INCLUDE_DIR}"
 )
-if(UNIX)
-  set(_sapi_check_no_deprecated
-    -Wno-deprecated SAPI_HAS_W_NO_DEPRECATED
-  )
-  # For sandbox2/util.cc's CloneAndJump()
-  set(_sapi_check_frame_larger_than
-    -Wframe-larger-than=20480 SAPI_HAS_W_FRAME_LARGER_THAN
-  )
-  set(_sapi_check_no_deprecated_declarations
-    -Wno-deprecated-declarations SAPI_HAS_W_NO_DEPRECATED_DECLARATIONS
-  )
-  set(_sapi_check_no_psabi
-    -Wno-psabi SAPI_HAS_W_NO_PSABI
-  )
-  foreach(check IN ITEMS _sapi_check_no_deprecated
-                         _sapi_check_frame_larger_than
-                         _sapi_check_no_deprecated_declarations
-                         _sapi_check_no_psabi)
-    list(GET ${check} 0 opt_value)
-    list(GET ${check} 1 var_name)
-    check_cxx_compiler_flag(${opt_value} ${var_name})
-    if(${var_name})
-      target_compile_options(sapi_base INTERFACE ${opt_value})
-    endif()
-  endforeach()
-endif()
+target_compile_options(sapi_base PUBLIC -fno-exceptions)
+set(_sapi_check_no_deprecated
+  -Wno-deprecated SAPI_HAS_W_NO_DEPRECATED
+)
+# For sandbox2/util.cc's CloneAndJump()
+set(_sapi_check_frame_larger_than
+  -Wframe-larger-than=40960 SAPI_HAS_W_FRAME_LARGER_THAN
+)
+set(_sapi_check_no_deprecated_declarations
+  -Wno-deprecated-declarations SAPI_HAS_W_NO_DEPRECATED_DECLARATIONS
+)
+set(_sapi_check_no_psabi
+  -Wno-psabi SAPI_HAS_W_NO_PSABI
+)
+foreach(check IN ITEMS _sapi_check_no_deprecated
+                       _sapi_check_frame_larger_than
+                       _sapi_check_no_deprecated_declarations
+                       _sapi_check_no_psabi)
+  list(GET ${check} 0 opt_value)
+  list(GET ${check} 1 var_name)
+  check_cxx_compiler_flag(${opt_value} ${var_name})
+  if(${var_name})
+    target_compile_options(sapi_base PUBLIC ${opt_value})
+  endif()
+endforeach()
 
 add_library(sapi_test_main INTERFACE)
 add_library(sapi::test_main ALIAS sapi_test_main)
