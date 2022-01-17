@@ -16,10 +16,10 @@
 #define SANDBOXED_API_VAR_REG_H_
 
 #include <iostream>
+#include <string>
 #include <type_traits>
 
 #include <glog/logging.h>
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
 
@@ -113,8 +113,11 @@ std::string Reg<T>::GetTypeString() const {
 
 template <typename T>
 std::string Reg<T>::ToString() const {
-  if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
-    return absl::StrCat(value_);
+  if constexpr (std::is_integral_v<T>) {
+    return std::to_string(value_);
+  }
+  if constexpr (std::is_enum_v<T>) {
+    return std::to_string(static_cast<std::underlying_type_t<T>>(value_));
   }
   if constexpr (std::is_floating_point_v<T>) {
     return absl::StrFormat("%.10f", value_);
