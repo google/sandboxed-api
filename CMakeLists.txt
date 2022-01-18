@@ -47,6 +47,11 @@ endif()
 set(SAPI_BINARY_DIR "${PROJECT_BINARY_DIR}" CACHE INTERNAL "" FORCE)
 set(SAPI_SOURCE_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "" FORCE)
 
+get_directory_property(_sapi_has_parent PARENT_DIRECTORY)
+if(PROJECT_IS_TOP_LEVEL OR NOT _sapi_has_parent)
+  set(SAPI_PROJECT_IS_TOP_LEVEL ON)
+endif()
+
 include(CheckCXXCompilerFlag)
 
 # Sapi CMake modules, order matters

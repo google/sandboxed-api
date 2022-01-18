@@ -12,6 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# If Sandboxed API is built from a plain checkout, built everything.
+# Otherwise, skip tests and examples.
+if(SAPI_PROJECT_IS_TOP_LEVEL)
+  set(_sapi_enable_tests_examples_default ON)
+else()
+  set(_sapi_enable_tests_examples_default OFF)
+endif()
+
 # These options determine whether CMake should download the libraries that
 # Sandboxed API depends on at configure time.
 # The CMake script SapiDeps.cmake checks for the presence of certain build
@@ -30,16 +38,27 @@ option(SAPI_DOWNLOAD_LIBCAP "Download libcap at config time" ON)
 option(SAPI_DOWNLOAD_LIBFFI "Download libffi at config time" ON)
 
 # Options for building examples
-option(SAPI_ENABLE_EXAMPLES "Build example code" ON)
-option(SAPI_DOWNLOAD_ZLIB "Download zlib at config time (only if SAPI_ENABLE_EXAMPLES is set)" ON)
+option(SAPI_ENABLE_EXAMPLES
+  "Build example code" ${_sapi_enable_tests_examples_default}
+)
+option(SAPI_DOWNLOAD_ZLIB
+  "Download zlib at config time (only if SAPI_ENABLE_EXAMPLES is set)"
+  ${_sapi_enable_tests_examples_default}
+)
 
-option(SAPI_ENABLE_TESTS "Build unit tests" ON)
-option(SAPI_ENABLE_GENERATOR "Build Clang based code generator from source" OFF)
+option(SAPI_ENABLE_TESTS
+  "Build unit tests" ${_sapi_enable_tests_examples_default}
+)
+option(SAPI_ENABLE_GENERATOR
+  "Build Clang based code generator from source" OFF
+)
 
 # This flag should be only enabled for embedded and resource-constrained
-# environments
+# environments.
 option(SAPI_ENABLE_SHARED_LIBS "Build SAPI shared libs" OFF)
 
 option(SAPI_HARDENED_SOURCE "Build with hardening compiler options" OFF)
 
-option(SAPI_FORCE_COLOR_OUTPUT "Force colored compiler diagnostics when using Ninja" ON)
+option(SAPI_FORCE_COLOR_OUTPUT
+  "Force colored compiler diagnostics when using Ninja" ON
+)
