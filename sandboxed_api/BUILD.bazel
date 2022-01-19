@@ -127,6 +127,7 @@ cc_library(
 cc_library(
     name = "vars",
     srcs = [
+        "proto_helper.cc",
         "rpcchannel.cc",
         "var_abstract.cc",
         "var_int.cc",

@@ -24,41 +24,27 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/proto_arg.pb.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
-template <typename T>
-absl::StatusOr<std::vector<uint8_t>> SerializeProto(const T& proto) {
-  static_assert(std::is_base_of<google::protobuf::Message, T>::value,
-                "Template argument must be a proto message");
-  // Wrap protobuf in a envelope so that we know the name of the protobuf
-  // structure when deserializing in the sandboxee.
-  ProtoArg proto_arg;
-  proto_arg.set_protobuf_data(proto.SerializeAsString());
-  proto_arg.set_full_name(proto.GetDescriptor()->full_name());
+namespace internal {
 
-  std::vector<uint8_t> serialized_proto(proto_arg.ByteSizeLong());
-  if (!proto_arg.SerializeToArray(serialized_proto.data(),
-                                  serialized_proto.size())) {
-    return absl::InternalError("Unable to serialize proto to array");
-  }
-  return serialized_proto;
-}
+absl::Status DeserializeProto(const char* data, size_t len,
+                              google::protobuf::Message& output);
+
+}  // namespace internal
+
+absl::StatusOr<std::vector<uint8_t>> SerializeProto(
+    const google::protobuf::Message& proto);
 
 template <typename T>
 absl::StatusOr<T> DeserializeProto(const char* data, size_t len) {
   static_assert(std::is_base_of<google::protobuf::Message, T>::value,
                 "Template argument must be a proto message");
-  ProtoArg envelope;
-  if (!envelope.ParseFromArray(data, len)) {
-    return absl::InternalError("Unable to parse proto from array");
-  }
-
-  auto pb_data = envelope.protobuf_data();
   T result;
-  if (!result.ParseFromArray(pb_data.data(), pb_data.size())) {
-    return absl::InternalError("Unable to parse proto from envelope data");
-  }
+  SAPI_RETURN_IF_ERROR(
+      internal::DeserializeProto(data, len, /*output=*/result));
   return result;
 }
 

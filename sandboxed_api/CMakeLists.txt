@@ -129,6 +129,7 @@ target_link_libraries(sapi_var_type PRIVATE
 
 # sandboxed_api:vars
 add_library(sapi_vars ${SAPI_LIB_TYPE}
+  proto_helper.cc
   proto_helper.h
   rpcchannel.cc
   rpcchannel.h
