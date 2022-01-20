@@ -27,7 +27,7 @@ pid_t ForkingClient::WaitAndFork() {
   // place (in order to conserve resources, and avoid calling Fork-Server
   // initialization routines).
   if (!fork_server_worker_) {
-    sanitizer::WaitForTsan();
+    sanitizer::WaitForSanitizer();
     // Perform that check once only, because it's quite CPU-expensive.
     int n = sanitizer::GetNumberOfThreads(getpid());
     CHECK_NE(n, -1) << "sanitizer::GetNumberOfThreads failed";

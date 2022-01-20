@@ -113,13 +113,13 @@ int main(int argc, char** argv) {
   }
 
   // Pass everything after '--' to the sandbox.
-  std::vector<std::string> args;
-  sandbox2::util::CharPtrArrToVecString(&argv[1], &args);
+  std::vector<std::string> args =
+      sandbox2::util::CharPtrArray(&argv[1]).ToStringVector();
 
   // Pass the current environ pointer, depending on the flag.
   std::vector<std::string> envp;
   if (absl::GetFlag(FLAGS_sandbox2tool_keep_env)) {
-    sandbox2::util::CharPtrArrToVecString(environ, &envp);
+    envp = sandbox2::util::CharPtrArray(environ).ToStringVector();
   }
   auto executor = absl::make_unique<sandbox2::Executor>(argv[1], args, envp);
 
@@ -200,15 +200,15 @@ int main(int argc, char** argv) {
   if (s2.RunAsync()) {
     if (absl::GetFlag(FLAGS_sandbox2tool_pause_resume)) {
       sleep(3);
-      kill(s2.GetPid(), SIGSTOP);
+      kill(s2.pid(), SIGSTOP);
       sleep(3);
       s2.SetWallTimeLimit(3);
-      kill(s2.GetPid(), SIGCONT);
+      kill(s2.pid(), SIGCONT);
     } else if (absl::GetFlag(FLAGS_sandbox2tool_pause_kill)) {
       sleep(3);
-      kill(s2.GetPid(), SIGSTOP);
+      kill(s2.pid(), SIGSTOP);
       sleep(1);
-      kill(s2.GetPid(), SIGKILL);
+      kill(s2.pid(), SIGKILL);
       sleep(1);
     } else if (absl::GetFlag(FLAGS_sandbox2tool_dump_stack)) {
       sleep(1);

@@ -175,10 +175,10 @@ void Client::ReceivePolicy() {
 }
 
 void Client::ApplyPolicyAndBecomeTracee() {
-  // When running under TSAN, we need to notify TSANs background thread that we
-  // want it to exit and wait for it to be done. When not running under TSAN,
+  // When running under *SAN, we need to notify *SANs background thread that we
+  // want it to exit and wait for it to be done. When not running under *SAN,
   // this function does nothing.
-  sanitizer::WaitForTsan();
+  sanitizer::WaitForSanitizer();
 
   // Creds can be received w/o synchronization, once the connection is
   // established.

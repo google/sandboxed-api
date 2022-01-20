@@ -36,7 +36,7 @@ class CRC4Test : public ::testing::Test {
  protected:
   void SetUp() override {
     path_ = GetTestSourcePath("sandbox2/examples/crc4/crc4sandbox");
-    util::CharPtrArrToVecString(environ, &env_);
+    env_ = util::CharPtrArray(environ).ToStringVector();
   }
 
   std::string path_;

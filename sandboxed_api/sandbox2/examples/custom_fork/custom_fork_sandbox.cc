@@ -83,7 +83,7 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
   CHECK(s2.comms()->SendInt32(i));
   sandbox2::Result result = s2.AwaitResult();
 
-  LOG(INFO) << "Final execution status of PID " << s2.GetPid() << ": "
+  LOG(INFO) << "Final execution status of PID " << s2.pid() << ": "
             << result.ToString();
 
   if (result.final_status() != sandbox2::Result::OK) {

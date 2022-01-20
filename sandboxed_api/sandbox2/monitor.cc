@@ -648,7 +648,7 @@ bool Monitor::WaitForSandboxReady() {
 }
 
 bool Monitor::InitPtraceAttach() {
-  sanitizer::WaitForTsan();
+  sanitizer::WaitForSanitizer();
 
   // Get a list of tasks.
   absl::flat_hash_set<int> tasks;
