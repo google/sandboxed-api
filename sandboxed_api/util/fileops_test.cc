@@ -36,15 +36,6 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-using sapi::IsOk;
-using testing::Eq;
-using testing::IsEmpty;
-using testing::IsFalse;
-using testing::IsTrue;
-using testing::Ne;
-using testing::SizeIs;
-using testing::StrEq;
-
 namespace sapi::file_util {
 
 // Forward declare functions that are only used in fileops.cc.
@@ -54,6 +45,15 @@ bool RemoveLastPathComponent(const std::string& file, std::string* output);
 }  // namespace fileops
 
 namespace {
+
+using ::sapi::IsOk;
+using ::testing::Eq;
+using ::testing::IsEmpty;
+using ::testing::IsFalse;
+using ::testing::IsTrue;
+using ::testing::Ne;
+using ::testing::SizeIs;
+using ::testing::StrEq;
 
 class FileOpsTest : public testing::Test {
  protected:
