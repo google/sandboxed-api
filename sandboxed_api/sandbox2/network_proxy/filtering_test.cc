@@ -75,55 +75,48 @@ TEST(FilteringTest, Basic) {
   EXPECT_THAT(allowed_hosts.AllowIPv6("0:5678:0:0:0:0:0:0/46", 70), IsOk());
 
   // IPv4 tests
-  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("130.0.0.3")),
-              testing::IsFalse());
-  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("127.0.0.1")),
-              testing::IsTrue());
-  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("127.0.0.2")),
-              testing::IsFalse());
+  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("130.0.0.3")), IsFalse());
+  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("127.0.0.1")), IsTrue());
+  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("127.0.0.2")), IsFalse());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("127.0.0.2", 33)),
-              testing::IsTrue());
+              IsTrue());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("120.120.120.255")),
-              testing::IsTrue());
+              IsTrue());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("120.120.121.120")),
-              testing::IsFalse());
+              IsFalse());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("130.130.128.130", 1000)),
-              testing::IsTrue());
+              IsTrue());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("130.130.132.134", 1000)),
-              testing::IsFalse());
+              IsFalse());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("130.130.128.130", 1001)),
-              testing::IsFalse());
+              IsFalse());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("140.0.140.140")),
-              testing::IsTrue());
+              IsTrue());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("141.140.140.140")),
-              testing::IsFalse());
+              IsFalse());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("150.182.150.150", 123)),
-              testing::IsTrue());
+              IsTrue());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv4("150.214.150.150", 123)),
-              testing::IsFalse());
+              IsFalse());
 
   // IPv6 tests
-  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::3")),
-              testing::IsFalse());
-  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::2")),
-              testing::IsTrue());
-  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::1")),
-              testing::IsTrue());
-  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::1", 81)),
-              testing::IsFalse());
+  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::3")), IsFalse());
+  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::2")), IsTrue());
+  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::1")), IsTrue());
+  EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("::1", 81)), IsFalse());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("0:1234:ffff:0:0:0:0:0")),
-              testing::IsTrue());
+              IsTrue());
   EXPECT_THAT(allowed_hosts.IsHostAllowed(PrepareIpv6("0:1233:0000:0:0:0:0:0")),
-              testing::IsFalse());
+              IsFalse());
   EXPECT_THAT(
       allowed_hosts.IsHostAllowed(PrepareIpv6("0:5678:0002:0:0:0:0:0", 70)),
-      testing::IsTrue());
+      IsTrue());
   EXPECT_THAT(
       allowed_hosts.IsHostAllowed(PrepareIpv6("0:5678:0004:0:0:0:0:0", 70)),
-      testing::IsFalse());
+      IsFalse());
   EXPECT_THAT(
       allowed_hosts.IsHostAllowed(PrepareIpv6("0:5678:0000:0:0:0:0:0", 2222)),
-      testing::IsFalse());
+      IsFalse());
 }
 
 }  // namespace
