@@ -22,9 +22,8 @@
 
 namespace sapi {
 
-// Returns a
-// `ErrnoToCanonicalCode(error_number)`, and a `message` with the result of
-// `StrError(error_number)` appended.
+// Returns a formatted message with the result of `StrError(error_number)`
+// appended.
 template <typename... Arg>
 std::string OsErrorMessage(int error_number, const Arg&... args) {
   return absl::StrCat(std::forward<const Arg&>(args)..., ": ",
