@@ -205,16 +205,9 @@ bool ListDirectoryEntries(const std::string& directory,
     return false;
   }
 
-  struct dirent64* entry{};
   errno = 0;
-  int bufferlen =
-      std::max<int>(offsetof(struct dirent64, d_name) +
-                        pathconf(directory.c_str(), _PC_NAME_MAX) + 1,
-                    sizeof(struct dirent64));
-  std::unique_ptr<struct dirent64, void (*)(struct dirent64*)> dirent_buffer{
-      static_cast<struct dirent64*>(malloc(bufferlen)),
-      [](struct dirent64* p) { free(p); }};
-  while (readdir64_r(dir.get(), dirent_buffer.get(), &entry) == 0 && entry) {
+  struct dirent* entry;
+  while ((entry = readdir(dir.get())) != nullptr) {
     const std::string name(entry->d_name);
     if (name != "." && name != "..") {
       entries->push_back(name);
