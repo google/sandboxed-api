@@ -49,4 +49,5 @@ target_link_libraries(simple PRIVATE
   libidn2_sapi
   idn2
   sapi::base
+  gtest
 )

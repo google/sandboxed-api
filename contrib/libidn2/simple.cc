@@ -24,8 +24,6 @@
 #include "libidn2_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/fileops.h"
 
-#include "simple.hh"
-
 class Idn2SapiSandbox : public IDN2Sandbox {
  public:
   Idn2SapiSandbox()
@@ -98,14 +96,18 @@ absl::StatusOr<std::string> IDN2Lib::process_errors(absl::StatusOr<int> untruste
 }
 
 absl::StatusOr<std::string> IDN2Lib::idn2_register_u8(const char *ulabel, const char *alabel) {
-  ::sapi::v::ConstCStr alabel_ptr(reinterpret_cast<const char *>(alabel)),
-                       ulabel_ptr(reinterpret_cast<const char *>(ulabel));
+  ::std::optional<::sapi::v::ConstCStr> alabel_ptr, ulabel_ptr;
+  if (ulabel)
+    ulabel_ptr.emplace(reinterpret_cast<const char *>(ulabel));
+  if (alabel)
+    alabel_ptr.emplace(reinterpret_cast<const char *>(alabel));
   ::sapi::v::GenericPtr ptr;
-
+  ::sapi::v::NullPtr null_ptr;
   const auto untrusted_res =
-    api->idn2_register_u8(ulabel_ptr.PtrBefore(), alabel_ptr.PtrBefore(),
-                         ptr.PtrAfter(),
-                         IDN2_NFC_INPUT | IDN2_NONTRANSITIONAL);
+    api->idn2_register_u8(ulabel ? ulabel_ptr->PtrBefore() : &null_ptr,
+                          alabel ? alabel_ptr->PtrBefore() : &null_ptr,
+                          ptr.PtrAfter(),
+                          IDN2_NFC_INPUT | IDN2_NONTRANSITIONAL);
   return this->process_errors(untrusted_res, ptr);
 }
 
@@ -132,22 +134,36 @@ absl::StatusOr<std::string> IDN2Lib::idn2_lookup_u8(const char *data) {
   return IDN2Lib::sapi_generic(data, &IDN2Api::idn2_lookup_u8);
 }
 
-int main(int argc, char **argv) {
-  Idn2SapiSandbox sandbox{};
+#include <gtest/gtest.h>
 
-  auto status = sandbox.Init();
-  if (!status.ok()) {
-    std::cerr << "Failed to initialize sandbox: " << status << std::endl;
-    return 1;
+class Idn2SapiSandboxTest : public testing::Test {
+  std::optional<Idn2SapiSandbox> sandbox;
+  std::optional<IDN2Api> api;
+ protected:
+  std::optional<IDN2Lib> lib;
+  virtual void SetUp() override {
+    auto &sandbox = this->sandbox.emplace();
+    ASSERT_TRUE(sandbox.Init().ok());
+    auto &api = this->api.emplace(&sandbox);
+    lib.emplace(&sandbox, &api);
   }
-  IDN2Api api(&sandbox);
-  IDN2Lib lib(&sandbox, &api);
-  for (int i = 1; i < argc; ++i) {
-    const auto this_status{lib.idn2_lookup_u8(argv[i])};
-    if (!this_status.ok()) {
-      std::cerr << "Failed to process argument " << argv[i] << ": " << this_status.status() << std::endl;
-      return 1;
-    }
-    std::cout << this_status.value() << std::endl;
-  }
+};
+
+TEST_F(Idn2SapiSandboxTest, works_okay) {
+  EXPECT_TRUE(lib->idn2_lookup_u8("β").value() == "xn--nxa");
+  EXPECT_TRUE(lib->idn2_lookup_u8("ß").value() == "xn--zca");
+  EXPECT_TRUE(lib->idn2_lookup_u8("straße.de").value() == "xn--strae-oqa.de");
+  EXPECT_TRUE(lib->idn2_to_unicode_8z8z("xn--strae-oqa.de").value() == "straße.de");
+}
+TEST_F(Idn2SapiSandboxTest, register_conversion) {
+  // I could not get this to succeed except on ASCII-only strings
+  auto value = lib->idn2_register_u8("β.gr", nullptr);
+  EXPECT_FALSE(value.ok());
+  std::cerr << value.status() << std::endl;
+  EXPECT_FALSE(lib->idn2_lookup_u8("--- ").ok());
+}
+
+int main(int argc, char **argv) {
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }
