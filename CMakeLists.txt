@@ -145,4 +145,3 @@ if(SAPI_ENABLE_TESTS)
 endif()
 
 add_subdirectory(sandboxed_api)
-add_subdirectory(contrib/libidn2)
