@@ -46,14 +46,17 @@ TEST(StringopTest, ProtobufStringDuplication) {
     StringopApi api(sandbox);
     stringop::StringDuplication proto;
     proto.set_input("Hello");
-    sapi::v::Proto<stringop::StringDuplication> pp(proto);
+    auto pp = sapi::v::Proto<stringop::StringDuplication>::FromMessage(proto);
+    if (!pp.ok()) {
+      return pp.status();
+    }
     {
       SAPI_ASSIGN_OR_RETURN(int return_value,
-                            api.pb_duplicate_string(pp.PtrBoth()));
+                            api.pb_duplicate_string(pp->PtrBoth()));
       TRANSACTION_FAIL_IF_NOT(return_value, "pb_duplicate_string() failed");
     }
 
-    SAPI_ASSIGN_OR_RETURN(auto pb_result, pp.GetMessage());
+    SAPI_ASSIGN_OR_RETURN(auto pb_result, pp->GetMessage());
     LOG(INFO) << "Result PB: " << pb_result.DebugString();
     TRANSACTION_FAIL_IF_NOT(pb_result.output() == "HelloHello",
                             "Incorrect output");

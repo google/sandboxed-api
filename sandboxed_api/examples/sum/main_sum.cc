@@ -134,8 +134,11 @@ absl::Status SumTransaction::Main() {
   proto.set_a(10);
   proto.set_b(20);
   proto.set_c(30);
-  sapi::v::Proto<sumsapi::SumParamsProto> pp(proto);
-  SAPI_ASSIGN_OR_RETURN(v, f.sumproto(pp.PtrBefore()));
+  auto pp = sapi::v::Proto<sumsapi::SumParamsProto>::FromMessage(proto);
+  if (!pp.ok()) {
+    return pp.status();
+  }
+  SAPI_ASSIGN_OR_RETURN(v, f.sumproto(pp->PtrBefore()));
   LOG(INFO) << "sumproto(proto {a = 10; b = 20; c = 30}) = " << v;
   TRANSACTION_FAIL_IF_NOT(v == 60,
                           "sumproto(proto {a = 10; b = 20; c = 30}) != 60");
