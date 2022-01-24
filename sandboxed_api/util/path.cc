@@ -14,8 +14,12 @@
 
 #include "sandboxed_api/util/path.h"
 
+#include <deque>
+
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 
 namespace sapi::file {
@@ -66,86 +70,34 @@ std::pair<absl::string_view, absl::string_view> SplitPath(
 }
 
 std::string CleanPath(const absl::string_view unclean_path) {
-  auto path = std::string(unclean_path);
-  const char* src = path.c_str();
-  std::string::iterator dst = path.begin();
-
-  // Check for absolute path and determine initial backtrack limit.
-  const bool is_absolute_path = *src == '/';
-  if (is_absolute_path) {
-    *dst++ = *src++;
-    while (*src == '/') {
-      ++src;
+  int dotdot_num = 0;
+  std::deque<absl::string_view> parts;
+  for (absl::string_view part :
+       absl::StrSplit(unclean_path, '/', absl::SkipEmpty())) {
+    if (part == "..") {
+      if (parts.empty()) {
+        ++dotdot_num;
+      } else {
+        parts.pop_back();
+      }
+    } else if (part != ".") {
+      parts.push_back(part);
     }
   }
-  std::string::const_iterator backtrack_limit = dst;
-
-  // Process all parts
-  while (*src) {
-    bool parsed = false;
-
-    if (src[0] == '.') {
-      //  1dot ".<whateverisnext>", check for END or SEP.
-      if (src[1] == '/' || !src[1]) {
-        if (*++src) {
-          ++src;
-        }
-        parsed = true;
-      } else if (src[1] == '.' && (src[2] == '/' || !src[2])) {
-        // 2dot END or SEP (".." | "../<whateverisnext>").
-        src += 2;
-        if (dst != backtrack_limit) {
-          // We can backtrack the previous part
-          for (--dst; dst != backtrack_limit && dst[-1] != '/'; --dst) {
-            // Empty.
-          }
-        } else if (!is_absolute_path) {
-          // Failed to backtrack and we can't skip it either. Rewind and copy.
-          src -= 2;
-          *dst++ = *src++;
-          *dst++ = *src++;
-          if (*src) {
-            *dst++ = *src;
-          }
-          // We can never backtrack over a copied "../" part so set new limit.
-          backtrack_limit = dst;
-        }
-        if (*src) {
-          ++src;
-        }
-        parsed = true;
-      }
+  if (absl::StartsWith(unclean_path, "/")) {
+    if (parts.empty()) {
+      return "/";
     }
-
-    // If not parsed, copy entire part until the next SEP or EOS.
-    if (!parsed) {
-      while (*src && *src != '/') {
-        *dst++ = *src++;
-      }
-      if (*src) {
-        *dst++ = *src++;
-      }
-    }
-
-    // Skip consecutive SEP occurrences.
-    while (*src == '/') {
-      ++src;
-    }
-  }
-
-  // Calculate and check the length of the cleaned path.
-  int path_length = dst - path.begin();
-  if (path_length != 0) {
-    // Remove trailing '/' except if it is root path ("/" ==> path_length := 1).
-    if (path_length > 1 && path[path_length - 1] == '/') {
-      --path_length;
-    }
-    path.resize(path_length);
+    parts.push_front("");
   } else {
-    // The cleaned path is empty; assign "." as per the spec.
-    path.assign(1, '.');
+    for (; dotdot_num; --dotdot_num) {
+      parts.push_front("..");
+    }
+    if (parts.empty()) {
+      return ".";
+    }
   }
-  return path;
+  return absl::StrJoin(parts, "/");
 }
 
 }  // namespace sapi::file
