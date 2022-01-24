@@ -22,13 +22,13 @@ void JsonnetTestHelper::TestSetUp() {
   ASSERT_GE(error, 0);
 
   std::pair<absl::string_view, absl::string_view> parts_of_path =
-      sandbox2::file::SplitPath(buffer);
+      sapi::file::SplitPath(buffer);
   absl::string_view binary_path = parts_of_path.first;
 
   std::string input_path =
-      sandbox2::file::JoinPath(binary_path, "tests_input", "dummy_input");
+      sapi::file::JoinPath(binary_path, "tests_input", "dummy_input");
   std::string output_path =
-      sandbox2::file::JoinPath(binary_path, "tests_output", "dummy_input");
+      sapi::file::JoinPath(binary_path, "tests_output", "dummy_input");
 
   // Set up sandbox and api.
   sandbox_ = absl::make_unique<JsonnetBaseSandbox>(input_path, output_path);
@@ -70,8 +70,8 @@ void JsonnetTestHelper::ReadInput(const char* filename) {
 }
 
 // Evaluates jsonnet code.
-void JsonnetTestHelper::Evaluate_jsonnet_code(Evaluation type,
-                                              bool expected_correct) {
+void JsonnetTestHelper::EvaluateJsonnetCode(Evaluation type,
+                                            bool expected_correct) {
   sapi::v::ConstCStr in_file_var(input_filename_in_sandboxee_.c_str());
   sapi::v::Int error;
   char* output_ptr;

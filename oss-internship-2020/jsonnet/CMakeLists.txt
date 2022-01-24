@@ -32,17 +32,18 @@ add_subdirectory("${SAPI_ROOT}"
                  EXCLUDE_FROM_ALL)
 
 add_sapi_library(jsonnet_sapi
-  FUNCTIONS c_jsonnet_evaluate_snippet
-            c_jsonnet_make
+  FUNCTIONS c_free_input
             c_jsonnet_destroy
-            c_read_input
-            c_write_output_file
-            c_jsonnet_realloc
+            c_jsonnet_evaluate_snippet
             c_jsonnet_evaluate_snippet_multi
-            c_write_multi_output_files
-            c_write_output_stream
             c_jsonnet_evaluate_snippet_stream
             c_jsonnet_fmt_snippet
+            c_jsonnet_make
+            c_jsonnet_realloc
+            c_read_input
+            c_write_multi_output_files
+            c_write_output_file
+            c_write_output_stream
   INPUTS jsonnet_helper.h
   LIBRARY jsonnet_helper
   LIBRARY_NAME Jsonnet

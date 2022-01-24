@@ -35,7 +35,7 @@ TEST_F(JsonnetTest, One_file_no_dependencies) {
   constexpr char kOutputToRead[] = "tests_output/arith_output";
   constexpr char kOutputToExpect[] = "tests_expected_output/arith.golden";
 
-  Read_input(kInputFile);
+  ReadInput(kInputFile);
   EvaluateJsonnetCode(kBase, true);
   WriteOutput(kOutputFile, kBase);
 
@@ -56,8 +56,8 @@ TEST_F(JsonnetTest, One_file_some_dependencies) {
   EvaluateJsonnetCode(kBase, true);
   WriteOutput(kOutputFile, kBase);
 
-  const std::string produced_output = Read_output(kOutputToRead);
-  const std::string expected_output = Read_output(kOutputToExpect);
+  const std::string produced_output = ReadOutput(kOutputToRead);
+  const std::string expected_output = ReadOutput(kOutputToExpect);
 
   ASSERT_STREQ(produced_output.c_str(), expected_output.c_str());
 }

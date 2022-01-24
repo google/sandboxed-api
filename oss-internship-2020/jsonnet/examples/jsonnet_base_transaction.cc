@@ -28,7 +28,7 @@ absl::Status JsonnetTransaction::Main() {
   sapi::v::RemotePtr vm_pointer(jsonnet_vm);
 
   // Read input file.
-  std::string in_file_in_sandboxee(JoinPath("/input", Basename(in_file)));
+  std::string in_file_in_sandboxee(JoinPath("/input", Basename(in_file_)));
   sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
   SAPI_ASSIGN_OR_RETURN(char* input,
                         api.c_read_input(false, in_file_var.PtrBefore()));
@@ -43,7 +43,7 @@ absl::Status JsonnetTransaction::Main() {
                           "Jsonnet code evaluation failed.");
 
   // Write data to file.
-  std::string out_file_in_sandboxee(JoinPath("/output", Basename(out_file)));
+  std::string out_file_in_sandboxee(JoinPath("/output", Basename(out_file_)));
   sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
   sapi::v::RemotePtr output_pointer(output);
   SAPI_ASSIGN_OR_RETURN(

@@ -44,8 +44,7 @@ class JsonnetSapiSandbox : public JsonnetSandbox {
             __NR_futex,
             __NR_close,
         })
-        .AddDirectoryAt(sandbox2::file::CleanPath(&out_directory_[0]),
-                        "/output",
+        .AddDirectoryAt(sapi::file::CleanPath(&out_directory_[0]), "/output",
                         /*is_ro=*/false)
         .AddDirectoryAt(dirname(&in_file_[0]), "/input", true)
         .BuildOrDie();
