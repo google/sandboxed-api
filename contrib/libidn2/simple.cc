@@ -32,21 +32,16 @@ class Idn2SapiSandbox : public IDN2Sandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
         .AllowSystemMalloc()
         .AllowRead()
-        .AllowOpen()
         .AllowStat()
         .AllowWrite()
         .AllowExit()
         .AllowSyscalls({
             __NR_futex,
             __NR_close,
-            __NR_recvmsg,
             __NR_lseek,
             __NR_getpid,
-            __NR_sysinfo,
-            __NR_prlimit64,
         })
         .BuildOrDie();
   }
