@@ -23,7 +23,12 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(libidn2 REQUIRED IMPORTED_TARGET libidn2)
 
 set(SAPI_ROOT "${PROJECT_SOURCE_DIR}/../.." CACHE PATH "Path to the Sandboxed API source tree")
-add_subdirectory("${SAPI_ROOT}" "${PROJECT_BINARY_DIR}/sandboxed-api-build" EXCLUDE_FROM_ALL)
+set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
+set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
+add_subdirectory("${SAPI_ROOT}"
+                 "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+                 # Omit this to have the full Sandboxed API in IDE
+                 EXCLUDE_FROM_ALL)
 
 add_sapi_library(libidn2_sapi
   FUNCTIONS idn2_lookup_u8 idn2_register_u8
