@@ -12,53 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(workdir "${CMAKE_BINARY_DIR}/_deps/protobuf-populate")
-
-set(SAPI_PROTOBUF_GIT_REPOSITORY
-  https://github.com/protocolbuffers/protobuf.git
-  CACHE STRING "")
-set(SAPI_PROTOBUF_GIT_TAG v3.15.8 CACHE STRING "") # 2021-04-08
-set(SAPI_PROTOBUF_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/protobuf-src"
-                             CACHE STRING "")
-set(SAPI_PROTOBUF_BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/protobuf-build"
-                             CACHE STRING "")
-
-file(WRITE "${workdir}/CMakeLists.txt" "\
-cmake_minimum_required(VERSION ${CMAKE_VERSION})
-project(protobuf-populate NONE)
-include(ExternalProject)
-ExternalProject_Add(protobuf
-  GIT_REPOSITORY    \"${SAPI_PROTOBUF_GIT_REPOSITORY}\"
-  GIT_TAG           \"${SAPI_PROTOBUF_GIT_TAG}\"
-  GIT_SUBMODULES    \"cmake\" # Workaround for CMake #20579
-  SOURCE_DIR        \"${SAPI_PROTOBUF_SOURCE_DIR}\"
-  BINARY_DIR        \"${SAPI_PROTOBUF_BINARY_DIR}\"
-  CONFIGURE_COMMAND \"\"
-  BUILD_COMMAND     \"\"
-  INSTALL_COMMAND   \"\"
-  TEST_COMMAND      \"\"
+FetchContent_Declare(protobuf
+  GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
+  GIT_TAG        v3.15.8  # 2021-04-08
+  GIT_SUBMODULES "cmake" # Workaround for CMake #20579
+  SOURCE_SUBDIR  cmake
 )
-")
 
-execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-                RESULT_VARIABLE error
-                WORKING_DIRECTORY "${workdir}")
-if(error)
-  message(FATAL_ERROR "CMake step for ${PROJECT_NAME} failed: ${error}")
+set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
+
+FetchContent_GetProperties(protobuf)
+if(NOT protobuf_POPULATED)
+  FetchContent_Populate(protobuf)
+  add_subdirectory("${protobuf_SOURCE_DIR}/cmake"
+                  "${protobuf_BINARY_DIR}")
 endif()
 
-execute_process(COMMAND ${CMAKE_COMMAND} --build .
-                RESULT_VARIABLE error
-                WORKING_DIRECTORY "${workdir}")
-if(error)
-  message(FATAL_ERROR "Build step for ${PROJECT_NAME} failed: ${error}")
-endif()
-
-set(protobuf_BUILD_TESTS FALSE CACHE BOOL "")
-set(protobuf_BUILD_SHARED_LIBS FALSE CACHE BOOL "")
-set(protobuf_WITH_ZLIB FALSE CACHE BOOL "")
-
-add_subdirectory("${SAPI_PROTOBUF_SOURCE_DIR}/cmake"
-                 "${SAPI_PROTOBUF_BINARY_DIR}" EXCLUDE_FROM_ALL)
-get_property(Protobuf_INCLUDE_DIRS TARGET protobuf::libprotobuf
-                                   PROPERTY INCLUDE_DIRECTORIES)
+sapi_check_target(protobuf::libprotobuf)
+sapi_check_target(protobuf::protoc)
+set(Protobuf_INCLUDE_DIR "${protobuf_SOURCE_DIR}/src" CACHE INTERNAL "")
+set(Protobuf_LIBRARIES protobuf::libprotobuf CACHE INTERNAL "")
