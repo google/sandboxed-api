@@ -451,7 +451,7 @@ class PolicyBuilder final {
 
   // Builds the policy returning a unique_ptr to it. This should only be called
   // once.
-  // This function will abort if an error happened in any off the PolicyBuilder
+  // This function will abort if an error happened in any of the PolicyBuilder
   // methods.
   std::unique_ptr<Policy> BuildOrDie() { return TryBuild().value(); }
 
