@@ -3,6 +3,12 @@
 This directory contains reusable Sandboxed API integrations with external
 libraries.
 
+## Projects Sandboxed
+
+Project                                          | Home Page                                                        | Directory
+------------------------------------------------ | ---------------------------------------------------------------- | -----------
+Zopfli Compression Algorithm                     | [github.com/google/zopfli](https://github.com/google/zopfli)     | zopfli
+
 ## Projects Shipping with Sandboxed API Sandboxes
 
 Project                                 | Home Page                                                        | Integration
