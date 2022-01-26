@@ -20,8 +20,8 @@ from ctypes import util
 import itertools
 import os
 # pylint: disable=unused-import
-from typing import (Text, List, Optional, Set, Dict, Callable, IO, Generator as
-                    Gen, Tuple, Union, Sequence)
+from typing import (Text, List, Optional, Set, Dict, Callable, IO,
+                    Generator as Gen, Tuple, Union, Sequence)  # pyformat: disable
 # pylint: enable=unused-import
 from clang import cindex
 
