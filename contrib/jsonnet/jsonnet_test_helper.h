@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef JSONNET_TESTS_H_
-#define JSONNET_TESTS_H_
+#ifndef CONTRIB_JSONNET_TESTS_H_
+#define CONTRIB_JSONNET_TESTS_H_
 
 #include <unistd.h>
 
@@ -54,4 +54,4 @@ class JsonnetTestHelper {
   bool input_was_read_;
 };
 
-#endif  // JSONNET_TESTS_H_
+#endif  // CONTRIB_JSONNET_TESTS_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef JSONNET_BASE_SANDBOX_H_
-#define JSONNET_BASE_SANDBOX_H_
+#ifndef CONTRIB_JSONNET_BASE_SANDBOX_H_
+#define CONTRIB_JSONNET_BASE_SANDBOX_H_
 
 #include <libgen.h>
 #include <syscall.h>
@@ -52,4 +52,4 @@ class JsonnetBaseSandbox : public JsonnetSandbox {
   std::string out_file_;
 };
 
-#endif  // JSONNET_BASE_SANDBOX_H_
+#endif  // CONTRIB_JSONNET_BASE_SANDBOX_H_

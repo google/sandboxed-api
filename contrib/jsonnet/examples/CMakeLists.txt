@@ -24,7 +24,6 @@ add_custom_command(
 
 list(APPEND JSONNET_SAPI_INCLUDE_DIRS
   ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/headers
   ${PROJECT_BINARY_DIR}
   ${PROJECT_BINARY_DIR}/gen_files
 )

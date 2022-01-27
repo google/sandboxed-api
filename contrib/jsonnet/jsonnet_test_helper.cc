@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet_tests.h"  // NOLINT(build/include)
+#include "jsonnet_test_helper.h"  // NOLINT(build/include)
 
 // Prepares what is needed to perform a test.
 void JsonnetTestHelper::TestSetUp() {
