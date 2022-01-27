@@ -1,6 +1,6 @@
 # Jsonnet Sandboxed API
 
-This library provides sandboxed version of the
+This library provides a sandboxed version of the
 [Jsonnet](https://github.com/google/jsonnet) library.
 
 ## Examples
@@ -22,18 +22,12 @@ canonical form.
 
 ## Build
 
-To build these examples, after cloning the whole Sandbox API project, you also
-need to run
+To build these examples, after cloning the whole Sandbox API project, this
+in the `sandboxed-api/oss-internship-2020/jsonnet`:
 
 ```
-git submodule update --init --recursive
-```
-anywhere in the project tree in order to clone the `jsonnet` submodule.
-Then in the `sandboxed-api/oss-internship-2020/jsonnet` run
-
-```
-mkdir build && cd build
-cmake -G Ninja
+mkdir -p build && cd build
+cmake .. -G Ninja -Wno-dev -DSAPI_ENABLE_TESTS=ON
 ninja
 ```
 
@@ -79,6 +73,5 @@ A few tests prepared with a use of
 the `tests/` directory. To run them type:
 
 ```
-cd tests
-./tests
+ctest ./tests
 ```
