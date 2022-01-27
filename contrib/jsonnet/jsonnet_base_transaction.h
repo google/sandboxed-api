@@ -15,6 +15,9 @@
 #ifndef CONTRIB_JSNONNET_BASE_TRANSACTION_H_
 #define CONTRIB_JSNONNET_BASE_TRANSACTION_H_
 
+#include <memory>
+#include <string>
+
 #include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
 
 class JsonnetTransaction : public sapi::Transaction {

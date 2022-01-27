@@ -18,15 +18,19 @@
 #include <libgen.h>
 #include <syscall.h>
 
+#include <memory>
+#include <string>
+#include <utility>
+
 #include "jsonnet_sapi.sapi.h"  // NOLINT(build/include)
-#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/vars.h"
 
 class JsonnetBaseSandbox : public JsonnetSandbox {
  public:
   explicit JsonnetBaseSandbox(std::string in_file, std::string out_file)
-      : in_file_(in_file), out_file_(out_file) {}
+      : in_file_(std::move(in_file)), out_file_(std::move(out_file)) {}
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder *) override {

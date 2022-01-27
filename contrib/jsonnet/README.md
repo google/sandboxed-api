@@ -69,9 +69,9 @@ directory, in a file called `formatter_example.jsonnet`.
 ## Testing
 
 A few tests prepared with a use of
-[Google Test](https://github.com/google/googletest) framework can be found in
-the `tests/` directory. To run them type:
+[Google Test](https://github.com/google/googletest) framework are included. To
+run them type:
 
 ```
-ctest ./tests
+ctest -R JsonnetTest.
 ```

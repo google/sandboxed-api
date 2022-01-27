@@ -65,20 +65,18 @@ if(SAPI_ENABLE_TESTS)
   enable_testing()
 
   # Create directories so the tests will be able to access them
-  file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tests/tests_input"
-                      "${PROJECT_BINARY_DIR}/tests/tests_output"
-                      "${PROJECT_BINARY_DIR}/tests/tests_expected_output")
+  file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tests_input"
+                      "${PROJECT_BINARY_DIR}/tests_output"
+                      "${PROJECT_BINARY_DIR}/tests_expected_output")
 
   add_custom_target(test_preparation ALL
     COMMAND cp ${PROJECT_SOURCE_DIR}/examples/jsonnet_codes/*
-              ${PROJECT_BINARY_DIR}/tests/tests_input
+              ${PROJECT_BINARY_DIR}/tests_input
     COMMAND cp ${PROJECT_SOURCE_DIR}/examples/jsonnet_codes_expected_output/*
-              ${PROJECT_BINARY_DIR}/tests/tests_expected_output
+              ${PROJECT_BINARY_DIR}/tests_expected_output
   )
 
   add_executable(jsonnet_tests
-    jsonnet_test_helper.cc
-    jsonnet_test_helper.h
     jsonnet_tests.cc
   )
   target_include_directories(jsonnet_tests PUBLIC
