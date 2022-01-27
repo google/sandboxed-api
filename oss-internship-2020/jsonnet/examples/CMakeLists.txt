@@ -13,7 +13,7 @@
 # limitations under the License.
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/gen_files")
-file(COPY "${PROJECT_SOURCE_DIR}/jsonnet/cmd/jsonnet.cpp" DESTINATION "${PROJECT_BINARY_DIR}/gen_files/")
+file(COPY "${jsonnet_SOURCE_DIR}/cmd/jsonnet.cpp" DESTINATION "${PROJECT_BINARY_DIR}/gen_files/")
 file(COPY "${PROJECT_SOURCE_DIR}/jsonnet.patch" DESTINATION "${PROJECT_BINARY_DIR}/gen_files/")
 
 add_custom_command(
@@ -22,34 +22,35 @@ add_custom_command(
   COMMAND mv ${PROJECT_BINARY_DIR}/gen_files/jsonnet.cpp ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
 )
 
-list(APPEND JSONNET_SAPI_HEADERS
+list(APPEND JSONNET_SAPI_INCLUDE_DIRS
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/headers
+  ${PROJECT_BINARY_DIR}
   ${PROJECT_BINARY_DIR}/gen_files
 )
 
 add_library(jsonnet_helper STATIC
   ${PROJECT_SOURCE_DIR}/jsonnet_helper.cc
   ${PROJECT_SOURCE_DIR}/jsonnet_helper.h
-  ${PROJECT_SOURCE_DIR}/jsonnet/cmd/utils.h
-  ${PROJECT_SOURCE_DIR}/jsonnet/cmd/utils.cpp
+  ${jsonnet_SOURCE_DIR}/cmd/utils.h
+  ${jsonnet_SOURCE_DIR}/cmd/utils.cpp
   ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
 )
 
 target_include_directories(jsonnet_helper PUBLIC
-  ${JSONNET_SAPI_HEADERS}
+  ${JSONNET_SAPI_INCLUDE_DIRS}
 )
 
 target_link_libraries(jsonnet_helper
   libjsonnet_for_binaries
 )
 
-foreach(exe base multiple_files yaml_stream formatter)
-  add_executable(jsonnet_${exe}_sandboxed
-    jsonnet_${exe}_example.cc
+foreach(target IN ITEMS base multiple_files yaml_stream formatter)
+  add_executable(jsonnet_${target}_sandboxed
+    jsonnet_${target}_example.cc
   )
 
-  target_link_libraries(jsonnet_${exe}_sandboxed PRIVATE
+  target_link_libraries(jsonnet_${target}_sandboxed PRIVATE
     libjsonnet
     jsonnet_helper
     jsonnet_sapi
@@ -58,8 +59,8 @@ foreach(exe base multiple_files yaml_stream formatter)
     sapi::sapi
   )
 
-  target_include_directories(jsonnet_${exe}_sandboxed PUBLIC
-    ${JSONNET_SAPI_HEADERS}
+  target_include_directories(jsonnet_${target}_sandboxed PUBLIC
+    ${JSONNET_SAPI_INCLUDE_DIRS}
   )
 endforeach()
 

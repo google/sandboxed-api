@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include(GoogleTest)
-
 # We need to prepare convenient directories so the tests will be able to access them
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/tests/tests_input)
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/tests/tests_output)
