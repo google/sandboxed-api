@@ -28,7 +28,7 @@ FetchContent_Declare(jsonnet
   GIT_REPOSITORY https://github.com/google/jsonnet.git
   GIT_TAG        v0.18.0 # 2021-12-21
 )
-set(BUILD_TESTS OFF)
+set(BUILD_TESTS OFF CACHE BOOL "") # Do not build jsonnet tests
 FetchContent_MakeAvailable(jsonnet)
 create_directory_symlink("${jsonnet_SOURCE_DIR}"
                          "${PROJECT_BINARY_DIR}/jsonnet")

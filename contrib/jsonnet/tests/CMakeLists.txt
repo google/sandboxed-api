@@ -23,9 +23,9 @@ add_custom_target(test_preparation ALL
 )
 
 add_executable(tests
-  ${PROJECT_SOURCE_DIR}/headers/jsonnet_tests.h
+  jsonnet_test_helper.cc
+  jsonnet_test_helper.h
   jsonnet_tests.cc
-  jsonnet_tests_utils.cc
 )
 
 target_include_directories(tests PUBLIC
