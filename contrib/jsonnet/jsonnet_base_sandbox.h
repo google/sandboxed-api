@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef JSONNET_BASE_SANDBOX_H_
-#define JSONNET_BASE_SANDBOX_H_
+#ifndef CONTRIB_JSONNET_BASE_SANDBOX_H_
+#define CONTRIB_JSONNET_BASE_SANDBOX_H_
 
 #include <libgen.h>
 #include <syscall.h>
+
+#include <memory>
+#include <string>
+#include <utility>
 
 #include "jsonnet_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/flag.h"
@@ -26,7 +30,7 @@
 class JsonnetBaseSandbox : public JsonnetSandbox {
  public:
   explicit JsonnetBaseSandbox(std::string in_file, std::string out_file)
-      : in_file_(in_file), out_file_(out_file) {}
+      : in_file_(std::move(in_file)), out_file_(std::move(out_file)) {}
 
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder *) override {
@@ -52,4 +56,4 @@ class JsonnetBaseSandbox : public JsonnetSandbox {
   std::string out_file_;
 };
 
-#endif  // JSONNET_BASE_SANDBOX_H_
+#endif  // CONTRIB_JSONNET_BASE_SANDBOX_H_

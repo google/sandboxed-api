@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2015 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This is a poorly written jsonnet file. Given to the formatter executable will be changed into a canonical jsonnet file form.
-local b = import "somefile.libsonnet";  # comment
-local a = import "differentfile.libsonnet";             // another comment in different style
-
-local SomeStuff = {bar: "foo"};
-
-            local funtion_to_do_addition(x,y)=x+y;
-
-            {
-"this": ((3)) ,
-"that that":
-funtion_to_do_addition(4,2),
-arrArr: [[
-  1, 2, 5
-  ],
-  3, 10,    19
-  ]
-} + SomeStuff
+local utils = import 'utils.libsonnet';
+{
+  Negroni: {
+    // Divide 3oz among the 3 ingredients.
+    ingredients: utils.equal_parts(3, [
+      'Farmers Gin',
+      'Sweet Red Vermouth',
+      'Campari',
+    ]),
+    garnish: 'Orange Peel',
+    served: 'On The Rocks',
+  },
+}

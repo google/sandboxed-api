@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/gen_files")
-file(COPY "${jsonnet_SOURCE_DIR}/cmd/jsonnet.cpp" DESTINATION "${PROJECT_BINARY_DIR}/gen_files/")
-file(COPY "${PROJECT_SOURCE_DIR}/jsonnet.patch" DESTINATION "${PROJECT_BINARY_DIR}/gen_files/")
+configure_file("${jsonnet_SOURCE_DIR}/cmd/jsonnet.cpp"
+               "${PROJECT_BINARY_DIR}/gen_files/jsonnet.cpp" COPYONLY)
 
 add_custom_command(
-  OUTPUT ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
-  COMMAND cd ${PROJECT_BINARY_DIR}/gen_files && patch < ${PROJECT_SOURCE_DIR}/jsonnet.patch > /dev/null
-  COMMAND mv ${PROJECT_BINARY_DIR}/gen_files/jsonnet.cpp ${PROJECT_BINARY_DIR}/gen_files/write_helper.cc
+  OUTPUT "${PROJECT_BINARY_DIR}/gen_files/write_helper.cc"
+  WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/gen_files"
+  COMMAND patch -o write_helper.cc
+            < "${PROJECT_SOURCE_DIR}/jsonnet.patch" > /dev/null
 )
 
 list(APPEND JSONNET_SAPI_INCLUDE_DIRS
   ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/headers
   ${PROJECT_BINARY_DIR}
   ${PROJECT_BINARY_DIR}/gen_files
 )

@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2015 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This is a jsonnet code which evaluates to json file, which can be interpreted as YAML stream.
-local
-  first_object = {
-    name: 'First object\'s name.',
-    age: 'Just created!',
-  },
-  second_object = {
-    name: 'Hi, my name is <second_object>.',
-    sibling: first_object.name
-  };
+local martinis = import 'martinis.libsonnet';
 
-[first_object, second_object]
+{
+  'Vodka Martini': martinis['Vodka Martini'],
+  Manhattan: {
+    ingredients: [
+      { kind: 'Rye', qty: 2.5 },
+      { kind: 'Sweet Red Vermouth', qty: 1 },
+      { kind: 'Angostura', qty: 'dash' },
+    ],
+    garnish: importstr 'garnish.txt',
+    served: 'Straight Up',
+  },
+}
