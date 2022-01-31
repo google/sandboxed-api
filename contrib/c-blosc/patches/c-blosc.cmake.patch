@@ -1,0 +1,25 @@
+# This is patch has a pending PR: https://github.com/Blosc/c-blosc/pull/329
+
+--- CMakeLists.txt
++++ CMakeLists.txt
+@@ -13,6 +13,8 @@
+ #       build fuzz test programs and generates the "test" target
+ #   BUILD_BENCHMARKS: default ON
+ #       build the benchmark program
++#   HIDE_SYMBOLS: default ON
++#       hide the symols that aren't specifically exported
+ #   DEACTIVATE_SSE2: default OFF
+ #       do not attempt to build with SSE2 instructions
+ #   DEACTIVATE_AVX2: default OFF
+@@ -98,6 +100,11 @@ option(BUILD_TESTS
+     "Build test programs from the blosc compression library" ON)
+ option(BUILD_FUZZERS
+     "Build fuzzer programs from the blosc compression library" ${BUILD_STATIC})
++# Hide symbols by default unless they're specifically exported.
++# This makes it easier to keep the set of exported symbols the
++# same across all compilers/platforms.
++option(HIDE_SYMBOLS
++    "Build a libraries with hidden symbols unless they're specifically exported" ON)
+ option(BUILD_BENCHMARKS
+     "Build benchmark programs from the blosc compression library" ON)
+ option(DEACTIVATE_SSE2
