@@ -14,16 +14,6 @@
 
 cmake_minimum_required(VERSION 3.13..3.22)
 
-# Fix Ninja generator output to not rebuild entire sub-trees needlessly.
-if(CMAKE_GENERATOR MATCHES "Ninja")
-  file(WRITE "${CMAKE_BINARY_DIR}/UserMakeRulesOverride.cmake"
-    "string(REPLACE \"-MD\" \"-MMD\" CMAKE_DEPFILE_FLAGS_C \"\${CMAKE_DEPFILE_FLAGS_C}\")\n"
-    "string(REPLACE \"-MD\" \"-MMD\" CMAKE_DEPFILE_FLAGS_CXX \"\${CMAKE_DEPFILE_FLAGS_CXX}\")\n"
-  )
-  set(CMAKE_USER_MAKE_RULES_OVERRIDE
-      "${CMAKE_BINARY_DIR}/UserMakeRulesOverride.cmake" CACHE INTERNAL "")
-endif()
-
 project(SandboxedAPI C CXX ASM)
 
 # TODO(cblichmann): Enable for Android once support lands
