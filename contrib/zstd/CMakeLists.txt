@@ -56,7 +56,6 @@ add_sapi_library(
 
     ZSTD_CCtx_setParameter
 
-    ZSTD_compressBound
     ZSTD_compress
     ZSTD_compressStream
     ZSTD_compressStream2
