@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <fstream>
 #include <string>
 
@@ -278,7 +281,238 @@ TEST(SandboxTest, CheckCompressAndDecompressStream) {
   ASSERT_TRUE(outfile.is_open());
 
   status = DecompressStream(api, inmiddle, outfile);
+  ASSERT_THAT(status, IsOk()) << "Unable to decompress";
+
+  ASSERT_TRUE(CompareFiles(infile_s, outfile_s));
+}
+
+TEST(SandboxTest, CheckCompressInMemoryFD) {
+  ZstdSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
+  ZstdApi api = ZstdApi(&sandbox);
+
+  std::string infile_s = GetTestFilePath("text");
+
+  absl::StatusOr<std::string> path =
+      sapi::CreateNamedTempFileAndClose("out.zstd");
+  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  std::string outfile_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+
+  sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
+  ASSERT_GE(infd.GetValue(), 0);
+  sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
+  ASSERT_GE(outfd.GetValue(), 0);
+
+  absl::Status status = CompressInMemoryFD(api, infd, outfd, 0);
+  ASSERT_THAT(status, IsOk()) << "Unable to compress file in memory";
+
+  off_t inpos = lseek(infd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(inpos, 0);
+  off_t outpos = lseek(outfd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(outpos, 0);
+
+  EXPECT_LT(outpos, inpos);
+}
+
+TEST(SandboxTest, CheckDecompressInMemoryFD) {
+  ZstdSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
+  ZstdApi api = ZstdApi(&sandbox);
+
+  std::string infile_s = GetTestFilePath("text.blob.zstd");
+  sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
+  ASSERT_GE(infd.GetValue(), 0);
+
+  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
+  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  std::string outfile_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+  sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
+  ASSERT_GE(outfd.GetValue(), 0);
+
+  absl::Status status = DecompressInMemoryFD(api, infd, outfd);
+  ASSERT_THAT(status, IsOk()) << "Unable to compress file in memory";
+
+  off_t inpos = lseek(infd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(inpos, 0);
+
+  off_t outpos = lseek(outfd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(outpos, 0);
+
+  EXPECT_GT(outpos, inpos);
+
+  ASSERT_TRUE(CompareFiles(GetTestFilePath("text"), outfile_s));
+}
+
+TEST(SandboxTest, CheckCompressAndDecompressInMemoryFD) {
+  ZstdSapiSandbox sandbox;
+  absl::Status status;
+  int ret;
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
+  ZstdApi api = ZstdApi(&sandbox);
+
+  std::string infile_s = GetTestFilePath("text");
+
+  absl::StatusOr<std::string> path_middle =
+      sapi::CreateNamedTempFileAndClose("middle.zstd");
+  ASSERT_THAT(path_middle, IsOk()) << "Could not create temp output file";
+  std::string middle_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path_middle);
+
+  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
+  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  std::string outfile_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+
+  sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
+  ASSERT_GE(infd.GetValue(), 0);
+
+  sapi::v::Fd outmiddlefd(open(middle_s.c_str(), O_WRONLY));
+  ASSERT_GE(outmiddlefd.GetValue(), 0);
+
+  status = CompressInMemoryFD(api, infd, outmiddlefd, 0);
+  ASSERT_THAT(status, IsOk()) << "Unable to compress file in memory";
+
+  off_t inpos = lseek(infd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(inpos, 0);
+
+  off_t outpos = lseek(outmiddlefd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(outpos, 0);
+
+  EXPECT_LT(outpos, inpos);
+
+  infd.CloseLocalFd();
+  outmiddlefd.CloseLocalFd();
+
+  sapi::v::Fd inmiddlefd(open(middle_s.c_str(), O_RDONLY));
+  ASSERT_GE(inmiddlefd.GetValue(), 0);
+
+  sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
+  ASSERT_GE(outfd.GetValue(), 0);
+
+  status = DecompressInMemoryFD(api, inmiddlefd, outfd);
   ASSERT_THAT(status, IsOk()) << "Unable to decompress file in memory";
+
+  outfd.CloseLocalFd();
+  inmiddlefd.CloseLocalFd();
+
+  ASSERT_TRUE(CompareFiles(infile_s, outfile_s));
+}
+
+TEST(SandboxTest, CheckCompressStreamFD) {
+  absl::Status status;
+  ZstdSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
+  ZstdApi api = ZstdApi(&sandbox);
+
+  std::string infile_s = GetTestFilePath("text");
+
+  absl::StatusOr<std::string> path =
+      sapi::CreateNamedTempFileAndClose("out.zstd");
+  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  std::string outfile_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+
+  sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
+  ASSERT_GE(infd.GetValue(), 0);
+
+  sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
+  ASSERT_GE(outfd.GetValue(), 0);
+
+  status = CompressStreamFD(api, infd, outfd, 0);
+  ASSERT_THAT(status, IsOk()) << "Unable to compress stream";
+
+  off_t inpos = lseek(infd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(inpos, 0);
+
+  off_t outpos = lseek(outfd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(outpos, 0);
+
+  EXPECT_LT(outpos, inpos);
+}
+
+TEST(SandboxTest, CheckDecompressStreamFD) {
+  absl::Status status;
+  ZstdSapiSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
+  ZstdApi api = ZstdApi(&sandbox);
+
+  std::string infile_s = GetTestFilePath("text.stream.zstd");
+
+  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
+  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  std::string outfile_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+
+  sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
+  ASSERT_GE(infd.GetValue(), 0);
+
+  sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
+  ASSERT_GE(outfd.GetValue(), 0);
+
+  status = DecompressStreamFD(api, infd, outfd);
+  ASSERT_THAT(status, IsOk()) << "Unable to decompress stream";
+
+  off_t inpos = lseek(infd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(inpos, 0);
+
+  off_t outpos = lseek(outfd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(outpos, 0);
+
+  EXPECT_GT(outpos, inpos);
+
+  ASSERT_TRUE(CompareFiles(GetTestFilePath("text"), outfile_s));
+}
+
+TEST(SandboxTest, CheckCompressAndDecompressStreamFD) {
+  ZstdSapiSandbox sandbox;
+  absl::Status status;
+  int ret;
+  ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
+  ZstdApi api = ZstdApi(&sandbox);
+
+  std::string infile_s = GetTestFilePath("text");
+
+  absl::StatusOr<std::string> path_middle =
+      sapi::CreateNamedTempFileAndClose("middle.zstd");
+  ASSERT_THAT(path_middle, IsOk()) << "Could not create temp output file";
+  std::string middle_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path_middle);
+
+  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
+  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  std::string outfile_s =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+
+  sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
+  ASSERT_GE(infd.GetValue(), 0);
+
+  sapi::v::Fd outmiddlefd(open(middle_s.c_str(), O_WRONLY));
+  ASSERT_GE(outmiddlefd.GetValue(), 0);
+
+  status = CompressStreamFD(api, infd, outmiddlefd, 0);
+  ASSERT_THAT(status, IsOk()) << "Unable to compress stream";
+
+  off_t inpos = lseek(infd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(inpos, 0);
+
+  off_t outmiddlepos = lseek(outmiddlefd.GetValue(), 0, SEEK_END);
+  EXPECT_GE(outmiddlepos, 0);
+
+  EXPECT_LT(outmiddlepos, inpos);
+
+  infd.CloseLocalFd();
+  outmiddlefd.CloseLocalFd();
+
+  sapi::v::Fd inmiddlefd(open(middle_s.c_str(), O_RDONLY));
+  ASSERT_GE(inmiddlefd.GetValue(), 0);
+
+  sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
+  ASSERT_GE(outfd.GetValue(), 0);
+
+  status = DecompressStreamFD(api, inmiddlefd, outfd);
+  ASSERT_THAT(status, IsOk()) << "Unable to decompress stream";
 
   ASSERT_TRUE(CompareFiles(infile_s, outfile_s));
 }
