@@ -135,3 +135,7 @@ if(SAPI_ENABLE_TESTS)
 endif()
 
 add_subdirectory(sandboxed_api)
+
+if(SAPI_ENABLE_TESTS AND SAPI_ENABLE_CONTRIB_TESTS)
+  add_subdirectory(contrib)
+endif()

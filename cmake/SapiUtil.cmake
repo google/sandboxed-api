@@ -195,8 +195,14 @@ endfunction()
 # directories and `EXCLUDE_FROM_ALL`.
 # This is useful in embedding projects to be able to refer to pre-sandboxed
 # libraries easily.
+# In order to be able build everything in one go, this macro also accepts a
+# `INCLUDE_FROM_ALL` option. It is expected that this will only be used from
+# `contrib/CMakeLists.txt`.
 macro(add_sapi_subdirectory)
-  add_subdirectory("${SAPI_SOURCE_DIR}/${ARGV0}"
-                   "${SAPI_BINARY_DIR}/${ARGV0}"
-                   EXCLUDE_FROM_ALL)
+  cmake_parse_arguments(_sd "INCLUDE_FROM_ALL" "" "" ${ARGN})
+  if(NOT ${_sd_INCLUDE_FROM_ALL})
+    set(_sd_exclude_from_all EXCLUDE_FROM_ALL)
+  endif()
+  add_subdirectory("${SAPI_SOURCE_DIR}/${ARGV0}" "${SAPI_BINARY_DIR}/${ARGV0}"
+                   ${_sd_exclude_from_all})
 endmacro()

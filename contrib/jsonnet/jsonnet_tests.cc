@@ -193,7 +193,7 @@ std::string JsonnetTest::ReadOutput(const char* filename) {
 }
 
 // One file evaluation to one file
-TEST_F(JsonnetTest, One_file_no_dependencies) {
+TEST_F(JsonnetTest, OneFileNoDependencies) {
   constexpr char kInputFile[] = "arith.jsonnet";
   constexpr char kOutputFile[] = "arith_output";
   constexpr char kOutputToRead[] = "tests_output/arith_output";
@@ -210,7 +210,7 @@ TEST_F(JsonnetTest, One_file_no_dependencies) {
 }
 
 // One file evaluating to one file, dependent on some other files
-TEST_F(JsonnetTest, One_file_some_dependencies) {
+TEST_F(JsonnetTest, OneFileSomeDependencies) {
   constexpr char kInputFile[] = "negroni.jsonnet";
   constexpr char kOutputFile[] = "negroni_output";
   constexpr char kOutputToRead[] = "tests_output/negroni_output";
@@ -227,7 +227,7 @@ TEST_F(JsonnetTest, One_file_some_dependencies) {
 }
 
 // One file evaluating to two files
-TEST_F(JsonnetTest, Multiple_files) {
+TEST_F(JsonnetTest, MultipleFiles) {
   constexpr char kInputFile[] = "multiple_files_example.jsonnet";
   constexpr char kOutputFile[] = "";
   constexpr char kOutputToRead1[] = "tests_output/first_file.json";
@@ -249,7 +249,7 @@ TEST_F(JsonnetTest, Multiple_files) {
 }
 
 // One file evaluating to yaml stream format
-TEST_F(JsonnetTest, Yaml_stream) {
+TEST_F(JsonnetTest, YamlStream) {
   constexpr char kInputFile[] = "yaml_stream_example.jsonnet";
   constexpr char kOutputFile[] = "yaml_stream_example.yaml";
   constexpr char kOutputToRead[] = "tests_output/yaml_stream_example.yaml";
@@ -267,7 +267,7 @@ TEST_F(JsonnetTest, Yaml_stream) {
 }
 
 // One file depended on some other files not accessible by the sandbox
-TEST_F(JsonnetTest, Bad_evaluation) {
+TEST_F(JsonnetTest, BadEvaluation) {
   constexpr char kInputFile[] = "imports.jsonnet";
 
   ReadInput(kInputFile);
