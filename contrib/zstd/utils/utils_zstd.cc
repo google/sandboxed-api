@@ -28,12 +28,12 @@ std::streamsize GetStreamSize(std::ifstream& stream) {
   return ssize;
 }
 
-absl::Status CompressInMemory(ZstdApi& api, std::ifstream& in_file,
+absl::Status CompressInMemory(ZstdApi& api, std::ifstream& in_stream,
                               std::ofstream& out_stream, int level) {
-  std::streamsize ssize = GetStreamSize(in_file);
+  std::streamsize ssize = GetStreamSize(in_stream);
   sapi::v::Array<uint8_t> inbuf(ssize);
-  in_file.read(reinterpret_cast<char*>(inbuf.GetData()), ssize);
-  if (in_file.gcount() != ssize) {
+  in_stream.read(reinterpret_cast<char*>(inbuf.GetData()), ssize);
+  if (in_stream.gcount() != ssize) {
     return absl::UnavailableError("Unable to read file");
   }
 
@@ -57,13 +57,13 @@ absl::Status CompressInMemory(ZstdApi& api, std::ifstream& in_file,
   return absl::OkStatus();
 }
 
-absl::Status DecompressInMemory(ZstdApi& api, std::ifstream& in_file,
+absl::Status DecompressInMemory(ZstdApi& api, std::ifstream& in_stream,
                                 std::ofstream& out_stream) {
   int iserr;
-  std::streamsize ssize = GetStreamSize(in_file);
+  std::streamsize ssize = GetStreamSize(in_stream);
   sapi::v::Array<uint8_t> inbuf(ssize);
-  in_file.read(reinterpret_cast<char*>(inbuf.GetData()), ssize);
-  if (in_file.gcount() != ssize) {
+  in_stream.read(reinterpret_cast<char*>(inbuf.GetData()), ssize);
+  if (in_stream.gcount() != ssize) {
     return absl::UnavailableError("Unable to read file");
   }
 
@@ -94,7 +94,7 @@ absl::Status DecompressInMemory(ZstdApi& api, std::ifstream& in_file,
   return absl::OkStatus();
 }
 
-absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
+absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
                             std::ofstream& out_stream, int level) {
   int iserr;
 
@@ -127,8 +127,8 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
   }
 
   // Compress.
-  while (in_file) {
-    in_file.read(reinterpret_cast<char*>(inbuf.GetData()), inbuf_size);
+  while (in_stream) {
+    in_stream.read(reinterpret_cast<char*>(inbuf.GetData()), inbuf_size);
 
     if (!api.GetSandbox()->TransferToSandboxee(&inbuf).ok()) {
       return absl::UnavailableError("Unable to transfer data");
@@ -137,10 +137,10 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
     sapi::v::Struct<ZSTD_inBuffer_s> struct_in;
     struct_in.mutable_data()->src = static_cast<uint8_t*>(inbuf.GetRemote());
     struct_in.mutable_data()->pos = 0;
-    struct_in.mutable_data()->size = in_file.gcount();
+    struct_in.mutable_data()->size = in_stream.gcount();
 
     ZSTD_EndDirective mode = ZSTD_e_continue;
-    if (in_file.gcount() < inbuf_size) {
+    if (in_stream.gcount() < inbuf_size) {
       mode = ZSTD_e_end;
     }
 
@@ -170,7 +170,7 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
       }
 
       if (mode == ZSTD_e_continue) {
-        isdone = (struct_in.mutable_data()->pos == in_file.gcount());
+        isdone = (struct_in.mutable_data()->pos == in_stream.gcount());
       } else {
         isdone = (remaining == 0);
       }
@@ -182,7 +182,7 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
   return absl::OkStatus();
 }
 
-absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_file,
+absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_stream,
                               std::ofstream& out_stream) {
   // Create necessary buffers.
   SAPI_ASSIGN_OR_RETURN(size_t inbuf_size, api.ZSTD_CStreamInSize());
@@ -200,8 +200,8 @@ absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_file,
   sapi::v::RemotePtr rdctx(dctx);
 
   // Decompress.
-  while (in_file) {
-    in_file.read(reinterpret_cast<char*>(inbuf.GetData()), inbuf_size);
+  while (in_stream) {
+    in_stream.read(reinterpret_cast<char*>(inbuf.GetData()), inbuf_size);
 
     if (!api.GetSandbox()->TransferToSandboxee(&inbuf).ok()) {
       return absl::UnavailableError("Unable to transfer data");
@@ -209,10 +209,10 @@ absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_file,
 
     sapi::v::Struct<ZSTD_inBuffer_s> struct_in;
     *struct_in.mutable_data() = {static_cast<uint8_t*>(inbuf.GetRemote()),
-                                 (size_t)in_file.gcount(), 0};
+                                 (size_t)in_stream.gcount(), 0};
 
     bool isdone = false;
-    while (struct_in.mutable_data()->pos < in_file.gcount()) {
+    while (struct_in.mutable_data()->pos < in_stream.gcount()) {
       sapi::v::Struct<ZSTD_outBuffer_s> struct_out;
       *struct_out.mutable_data() = {static_cast<uint8_t*>(outbuf.GetRemote()),
                                     (size_t)outbuf.GetSize(), 0};
