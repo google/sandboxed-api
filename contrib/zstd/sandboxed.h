@@ -21,7 +21,7 @@
 #include <memory>
 
 #include "sapi_zstd.sapi.h"  // NOLINT(build/include)
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 
 class ZstdSapiSandbox : public ZstdSandbox {
