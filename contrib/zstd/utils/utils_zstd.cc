@@ -115,12 +115,14 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
 
   SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_CCtx_setParameter(
                                    &rcctx, ZSTD_c_compressionLevel, level));
-  if (!iserr) {
+  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr))
+  if (iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
   SAPI_ASSIGN_OR_RETURN(
       iserr, api.ZSTD_CCtx_setParameter(&rcctx, ZSTD_c_checksumFlag, 1));
-  if (!iserr) {
+  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr))
+  if (iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
 
