@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Append to this list whenever a new sandboxed library is added to `contrib/`.
-set(SAPI_CONTRIB_SANDBOXES
-  jsonnet
-  zstd
+add_executable(
+  sapi_minizstd
+
+  main.cc
+  ../utils/utils_zstd.cc
 )
 
-foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)
-  add_sapi_subdirectory("contrib/${_contrib}" INCLUDE_FROM_ALL)
-endforeach()
+target_link_libraries(
+  sapi_minizstd PRIVATE
+
+  sapi_zstd
+  sapi::sapi
+  absl::flags_parse
+)
