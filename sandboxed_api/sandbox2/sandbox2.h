@@ -107,9 +107,6 @@ class Sandbox2 final {
   void set_walltime_limit(absl::Duration limit) const;
 
   // Returns the process id inside the executor.
-  ABSL_DEPRECATED("Use pid() instead")
-  pid_t GetPid() { return this->pid(); }
-
   pid_t pid() const { return monitor_ != nullptr ? monitor_->pid_ : -1; }
 
   // Gets the comms inside the executor.

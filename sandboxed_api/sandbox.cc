@@ -203,7 +203,7 @@ absl::Status Sandbox::Init() {
   auto res = s2_->RunAsync();
 
   comms_ = s2_->comms();
-  pid_ = s2_->GetPid();
+  pid_ = s2_->pid();
 
   rpc_channel_ = absl::make_unique<RPCChannel>(comms_);
 
