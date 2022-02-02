@@ -21,7 +21,7 @@
 #include <memory>
 
 #include "sapi_zstd.sapi.h"  // NOLINT(build/include)
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 
 class ZstdSapiSandbox : public ZstdSandbox {
@@ -29,10 +29,14 @@ class ZstdSapiSandbox : public ZstdSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
+        .AllowDynamicStartup()
         .AllowRead()
         .AllowWrite()
         .AllowSystemMalloc()
         .AllowExit()
+        .AllowSyscalls({
+          __NR_recvmsg
+        })
         .BuildOrDie();
   }
 };

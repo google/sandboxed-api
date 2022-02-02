@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <cstdlib>
@@ -23,9 +24,57 @@
 #include "contrib/zstd/sandboxed.h"
 #include "contrib/zstd/utils/utils_zstd.h"
 
+ABSL_FLAG(bool, stream, false, "stream data to sandbox");
 ABSL_FLAG(bool, decompress, false, "decompress");
 ABSL_FLAG(bool, memory_mode, false, "in memory operations");
 ABSL_FLAG(uint32_t, level, 0, "compression level");
+
+absl::Status Stream(ZstdApi& api, std::string infile_s, std::string outfile_s) {
+  std::ifstream infile(infile_s, std::ios::binary);
+  if (!infile.is_open()) {
+    return absl::UnavailableError(absl::StrCat("Unable to open ", infile_s));
+  }
+  std::ofstream outfile(outfile_s, std::ios::binary);
+  if (!outfile.is_open()) {
+    return absl::UnavailableError(absl::StrCat("Unable to open ", outfile_s));
+  }
+
+  if (absl::GetFlag(FLAGS_memory_mode) && absl::GetFlag(FLAGS_decompress)) {
+    return DecompressInMemory(api, infile, outfile);
+  } else if (absl::GetFlag(FLAGS_memory_mode) &&
+             !absl::GetFlag(FLAGS_decompress)) {
+    return CompressInMemory(api, infile, outfile, absl::GetFlag(FLAGS_level));
+  } else if (!absl::GetFlag(FLAGS_memory_mode) &&
+             absl::GetFlag(FLAGS_decompress)) {
+    return DecompressStream(api, infile, outfile);
+  }
+
+  return CompressStream(api, infile, outfile, absl::GetFlag(FLAGS_level));
+}
+
+absl::Status FileDescriptor(ZstdApi& api, std::string infile_s,
+                            std::string outfile_s) {
+  sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
+  if (infd.GetValue() < 0) {
+    return absl::UnavailableError(absl::StrCat(("Unable to open ", infile_s)));
+  }
+  sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
+  if (outfd.GetValue() < 0) {
+    return absl::UnavailableError(absl::StrCat(("Unable to open ", outfile_s)));
+  }
+
+  if (absl::GetFlag(FLAGS_memory_mode) && absl::GetFlag(FLAGS_decompress)) {
+    return DecompressInMemoryFD(api, infd, outfd);
+  } else if (absl::GetFlag(FLAGS_memory_mode) &&
+             !absl::GetFlag(FLAGS_decompress)) {
+    return CompressInMemoryFD(api, infd, outfd, absl::GetFlag(FLAGS_level));
+  } else if (!absl::GetFlag(FLAGS_memory_mode) &&
+             absl::GetFlag(FLAGS_decompress)) {
+    return DecompressStreamFD(api, infd, outfd);
+  }
+
+  return CompressStreamFD(api, infd, outfd, absl::GetFlag(FLAGS_level));
+}
 
 int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
@@ -34,17 +83,6 @@ int main(int argc, char* argv[]) {
 
   if (args.size() != 3) {
     std::cerr << "Usage:\n  " << prog_name << " INPUT OUTPUT\n";
-    return EXIT_FAILURE;
-  }
-
-  std::ifstream infile(args[1], std::ios::binary);
-  if (!infile.is_open()) {
-    std::cerr << "Unable to open " << args[1] << std::endl;
-    return EXIT_FAILURE;
-  }
-  std::ofstream outfile(args[2], std::ios::binary);
-  if (!outfile.is_open()) {
-    std::cerr << "Unable to open " << args[2] << std::endl;
     return EXIT_FAILURE;
   }
 
@@ -57,16 +95,10 @@ int main(int argc, char* argv[]) {
   ZstdApi api(&sandbox);
 
   absl::Status status;
-  if (absl::GetFlag(FLAGS_memory_mode) && absl::GetFlag(FLAGS_decompress)) {
-    status = DecompressInMemory(api, infile, outfile);
-  } else if (absl::GetFlag(FLAGS_memory_mode) &&
-             !absl::GetFlag(FLAGS_decompress)) {
-    status = CompressInMemory(api, infile, outfile, absl::GetFlag(FLAGS_level));
-  } else if (!absl::GetFlag(FLAGS_memory_mode) &&
-             absl::GetFlag(FLAGS_decompress)) {
-    status = DecompressStream(api, infile, outfile);
+  if (absl::GetFlag(FLAGS_stream)) {
+    status = Stream(api, argv[1], argv[2]);
   } else {
-    status = CompressStream(api, infile, outfile, absl::GetFlag(FLAGS_level));
+    status = FileDescriptor(api, argv[1], argv[2]);
   }
 
   if (!status.ok()) {
