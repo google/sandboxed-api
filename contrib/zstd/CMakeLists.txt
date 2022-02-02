@@ -34,6 +34,8 @@ FetchContent_Declare(libzstd
 FetchContent_MakeAvailable(libzstd)
 
 set(libzstd_INCLUDE_DIR "${libzstd_SOURCE_DIR}/lib")
+add_subdirectory(wrapper)
+
 add_sapi_library(
   sapi_zstd
 
@@ -70,10 +72,16 @@ add_sapi_library(
 
     ZSTD_getFrameContentSize
 
+    ZSTD_compress_fd
+    ZSTD_compressStream_fd
+
+    ZSTD_decompress_fd
+    ZSTD_decompressStream_fd
   INPUTS
     ${libzstd_INCLUDE_DIR}/zstd.h
+    wrapper/wrapper_zstd.h
 
-  LIBRARY libzstd_static
+  LIBRARY wrapper_zstd
   LIBRARY_NAME Zstd
   NAMESPACE ""
 )
