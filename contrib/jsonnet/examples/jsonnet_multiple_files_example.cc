@@ -19,7 +19,6 @@
 #include <iostream>
 
 #include "jsonnet_sapi.sapi.h"  // NOLINT(build/include)
-#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 

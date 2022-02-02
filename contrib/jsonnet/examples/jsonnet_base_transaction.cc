@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "jsonnet_base_transaction.h"  // NOLINT(build/include)
+#include "contrib/jsonnet/jsonnet_base_transaction.h"
 
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"

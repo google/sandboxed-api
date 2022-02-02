@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CONTRIB_JSONNET_HELPER_H_
-#define CONTRIB_JSONNET_HELPER_H_
+#ifndef CONTRIB_JSONNET_JSONNET_HELPER_H_
+#define CONTRIB_JSONNET_JSONNET_HELPER_H_
 
 extern "C" {
-#include <libjsonnet.h>      // NOLINT(build/include)
-#include <libjsonnet_fmt.h>  // NOLINT(build/include)
+#include <libjsonnet.h>
+#include <libjsonnet_fmt.h>
 }
 
 #include "jsonnet/cmd/utils.h"  // NOLINT(build/include)
 
 extern "C" {
+
 struct JsonnetVm* c_jsonnet_make(void);
 
 void c_jsonnet_destroy(struct JsonnetVm* vm);
@@ -60,4 +61,4 @@ char* c_jsonnet_fmt_snippet(struct JsonnetVm* vm, const char* filename,
                             const char* snippet, int* error);
 }
 
-#endif  // CONTRIB_JSONNET_HELPER_H_
+#endif  // CONTRIB_JSONNET_JSONNET_HELPER_H_

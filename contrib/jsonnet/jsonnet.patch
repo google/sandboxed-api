@@ -20,7 +20,7 @@
  #include <vector>
  
 -#include "utils.h"
-+#include "jsonnet_helper.h"  // NOLINT(build/include)
++#include "contrib/jsonnet/jsonnet_helper.h"
  
 -extern "C" {
 -#include <libjsonnet.h>

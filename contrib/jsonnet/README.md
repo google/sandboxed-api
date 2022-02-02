@@ -3,6 +3,29 @@
 This library provides a sandboxed version of the
 [Jsonnet](https://github.com/google/jsonnet) library.
 
+## How to use from an existing Project
+
+If your project does not include Sandboxed API as a dependency yet, add the
+following lines to the main `CMakeLists.txt`:
+
+```cmake
+include(FetchContent)
+
+FetchContent_Declare(sandboxed-api
+  GIT_REPOSITORY https://github.com/google/sandboxed-api
+  GIT_TAG        main  # Or pin a specific commit/tag
+)
+FetchContent_MakeAvailable(sandboxed-api)  # CMake 3.14 or higher
+
+add_sapi_subdirectory(contrib/jsonnet)
+```
+
+The `add_sapi_subdirectory()` macro sets up the source and binary directories
+for the sandboxed jsonnet targets.
+
+Afterwards your project's code can link to `sapi_contrib::jsonnet` and use the
+corresponding header `contrib/jsonnet/jsonnet_base_sandbox.h`.
+
 ## Examples
 
 The `examples/` directory contains code to produce three command-line tools --
@@ -20,10 +43,10 @@ executable. It is based on a tool found from
 a jsonnet code formatter -- it changes poorly written jsonnet files into their
 canonical form.
 
-## Build
+### Build as part of Sandboxed API
 
-To build these examples, after cloning the whole Sandbox API project, this
-in the `sandboxed-api/oss-internship-2020/jsonnet`:
+To build these examples, after cloning the whole Sandbox API project, run this
+in the `contrib/jsonnet` directory:
 
 ```
 mkdir -p build && cd build
@@ -66,7 +89,7 @@ The formatter reads one input file and produces one output file as a result.
 Example code for this tool can also be found in `examples/jsonnet_codes`
 directory, in a file called `formatter_example.jsonnet`.
 
-## Testing
+### Running the tests
 
 A few tests prepared with a use of
 [Google Test](https://github.com/google/googletest) framework are included. To

@@ -18,11 +18,12 @@ project(jsonnet-sapi C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
-
-add_subdirectory("${SAPI_ROOT}"
-                 "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-                 EXCLUDE_FROM_ALL)
+if(NOT TARGET sapi::sapi)
+  set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
+  add_subdirectory("${SAPI_ROOT}"
+                   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+                   EXCLUDE_FROM_ALL)
+endif()
 
 FetchContent_Declare(jsonnet
   GIT_REPOSITORY https://github.com/google/jsonnet.git
@@ -33,7 +34,32 @@ FetchContent_MakeAvailable(jsonnet)
 create_directory_symlink("${jsonnet_SOURCE_DIR}"
                          "${PROJECT_BINARY_DIR}/jsonnet")
 
-add_subdirectory(examples)
+configure_file("${jsonnet_SOURCE_DIR}/cmd/jsonnet.cpp"
+               "${PROJECT_BINARY_DIR}/gen_files/jsonnet.cpp" COPYONLY)
+
+add_custom_command(
+  OUTPUT "${PROJECT_BINARY_DIR}/gen_files/write_helper.cc"
+  WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/gen_files"
+  COMMAND patch -o write_helper.cc
+            < "${PROJECT_SOURCE_DIR}/jsonnet.patch" > /dev/null
+)
+
+add_library(jsonnet_helper STATIC
+  "${PROJECT_BINARY_DIR}/gen_files/write_helper.cc"
+  "${jsonnet_SOURCE_DIR}/cmd/utils.cpp"
+  "${jsonnet_SOURCE_DIR}/cmd/utils.h"
+  jsonnet_helper.cc
+  jsonnet_helper.h
+)
+add_library(sapi_contrib::jsonnet_helper ALIAS jsonnet_helper)
+target_include_directories(jsonnet_helper PUBLIC
+  "${PROJECT_BINARY_DIR}"
+  "${PROJECT_BINARY_DIR}/gen_files"
+  "${SAPI_SOURCE_DIR}"
+)
+target_link_libraries(jsonnet_helper
+  libjsonnet_for_binaries
+)
 
 add_sapi_library(jsonnet_sapi
   FUNCTIONS c_free_input
@@ -53,12 +79,17 @@ add_sapi_library(jsonnet_sapi
   LIBRARY_NAME Jsonnet
   NAMESPACE ""
 )
-
+add_library(sapi_contrib::jsonnet ALIAS jsonnet_sapi)
 target_include_directories(jsonnet_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
 )
+target_link_libraries(jsonnet_sapi PUBLIC
+  sapi_contrib::jsonnet_helper
+)
 
-target_link_libraries(jsonnet_sapi PUBLIC jsonnet_helper)
+if(SAPI_ENABLE_EXAMPLES)
+  add_subdirectory(examples)
+endif()
 
 if(SAPI_ENABLE_TESTS)
   include(GoogleTest)
@@ -80,10 +111,10 @@ if(SAPI_ENABLE_TESTS)
     jsonnet_tests.cc
   )
   target_include_directories(jsonnet_tests PUBLIC
-    ${PROJECT_SOURCE_DIR}
+    "${PROJECT_SOURCE_DIR}"
   )
   target_link_libraries(jsonnet_tests
-    jsonnet_sapi
+    sapi_contrib::jsonnet
     sapi::test_main
   )
   gtest_discover_tests(jsonnet_tests)

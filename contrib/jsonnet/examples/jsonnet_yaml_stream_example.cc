@@ -15,7 +15,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
+#include "contrib/jsonnet/jsonnet_base_sandbox.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 

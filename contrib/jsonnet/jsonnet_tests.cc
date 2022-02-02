@@ -20,10 +20,8 @@
 #include <streambuf>
 #include <string>
 
-#include "jsonnet_base_sandbox.h"  // NOLINT(build/include)
-#include "jsonnet_sapi.sapi.h"     // NOLINT(build/include)
 #include "gtest/gtest.h"
-#include "sandboxed_api/util/flag.h"
+#include "contrib/jsonnet/jsonnet_base_sandbox.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 

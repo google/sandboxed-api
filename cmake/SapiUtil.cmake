@@ -189,3 +189,14 @@ function(sapi_protobuf_generate)
     target_sources(${_pb_TARGET} PRIVATE ${_generated_srcs_all})
   endif()
 endfunction()
+
+# Adds a sub-directory from Sandboxed API to the build. This is a simple macro
+# that calls `add_subdirectory()` with Sandboxed API's source and binary
+# directories and `EXCLUDE_FROM_ALL`.
+# This is useful in embedding projects to be able to refer to pre-sandboxed
+# libraries easily.
+macro(add_sapi_subdirectory)
+  add_subdirectory("${SAPI_SOURCE_DIR}/${ARGV0}"
+                   "${SAPI_BINARY_DIR}/${ARGV0}"
+                   EXCLUDE_FROM_ALL)
+endmacro()
