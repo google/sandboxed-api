@@ -110,16 +110,16 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
   }
 
   // Create Zstd context.
-  SAPI_ASSIGN_OR_RETURN(ZSTD_DCtx * dctx, api.ZSTD_createDCtx());
-  sapi::v::RemotePtr rdctx(dctx);
+  SAPI_ASSIGN_OR_RETURN(ZSTD_CCtx * cctx, api.ZSTD_createCCtx());
+  sapi::v::RemotePtr rcctx(cctx);
 
   SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_CCtx_setParameter(
-                                   &rdctx, ZSTD_c_compressionLevel, level));
+                                   &rcctx, ZSTD_c_compressionLevel, level));
   if (!iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
   SAPI_ASSIGN_OR_RETURN(
-      iserr, api.ZSTD_CCtx_setParameter(&rdctx, ZSTD_c_checksumFlag, 1));
+      iserr, api.ZSTD_CCtx_setParameter(&rcctx, ZSTD_c_checksumFlag, 1));
   if (!iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
@@ -151,7 +151,7 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
       struct_out.mutable_data()->size = outbuf.GetSize();
 
       SAPI_ASSIGN_OR_RETURN(size_t remaining, api.ZSTD_compressStream2(
-                                                  &rdctx, struct_out.PtrBoth(),
+                                                  &rcctx, struct_out.PtrBoth(),
                                                   struct_in.PtrBoth(), mode));
       SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(remaining))
       if (iserr) {
@@ -175,7 +175,7 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
     }
   }
 
-  api.ZSTD_freeDCtx(&rdctx).IgnoreError();
+  api.ZSTD_freeDCtx(&rcctx).IgnoreError();
 
   return absl::OkStatus();
 }

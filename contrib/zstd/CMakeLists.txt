@@ -51,6 +51,9 @@ add_sapi_library(
     ZSTD_createDCtx
     ZSTD_freeDCtx
 
+    ZSTD_createCCtx
+    ZSTD_freeCCtx
+
     ZSTD_CCtx_setParameter
 
     ZSTD_compressBound
