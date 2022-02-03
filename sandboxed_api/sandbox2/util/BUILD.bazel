@@ -19,7 +19,7 @@ package(default_visibility = [
     "//security/bedebox:__subpackages__",
 ])
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 cc_library(
     name = "bpf_helper",
