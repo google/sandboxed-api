@@ -19,7 +19,8 @@
 # SOURCES is a list of files that should be embedded. If a source names a
 #   target the target binary is embedded instead.
 macro(sapi_cc_embed_data)
-  cmake_parse_arguments(_sapi_embed "" "OUTPUT_NAME;NAME;NAMESPACE" "SOURCES" ${ARGN})
+  cmake_parse_arguments(_sapi_embed "" "OUTPUT_NAME;NAME;NAMESPACE" "SOURCES"
+                        ${ARGN})
   foreach(src IN LISTS _sapi_embed_SOURCES)
     if(TARGET "${src}")
       get_target_property(_sapi_embed_src_OUTPUT_NAME ${src} OUTPUT_NAME)
@@ -90,20 +91,17 @@ function(add_sapi_library)
   set(_sapi_opts NOEMBED)
   set(_sapi_one_value HEADER LIBRARY LIBRARY_NAME NAMESPACE)
   set(_sapi_multi_value SOURCES FUNCTIONS INPUTS)
-  cmake_parse_arguments(_sapi
-                        "${_sapi_opts}"
-                        "${_sapi_one_value}"
-                        "${_sapi_multi_value}"
-                        ${ARGN})
+  cmake_parse_arguments(PARSE_ARGV 0 _sapi "${_sapi_opts}"
+                        "${_sapi_one_value}" "${_sapi_multi_value}")
   set(_sapi_NAME "${ARGV0}")
 
   set(_sapi_gen_header "${_sapi_NAME}.sapi.h")
   foreach(func IN LISTS _sapi_FUNCTIONS)
-    list(APPEND _sapi_exported_funcs "-Wl,--export-dynamic-symbol,${func}")
+    list(APPEND _sapi_exported_funcs "LINKER:--export-dynamic-symbol,${func}")
   endforeach()
   if(NOT _sapi_exported_funcs)
-    set(_sapi_exported_funcs -Wl,--whole-archive
-                             -Wl,--allow-multiple-definition)
+    set(_sapi_exported_funcs LINKER:--whole-archive
+                             LINKER:--allow-multiple-definition)
   endif()
 
   # The sandboxed binary
@@ -112,13 +110,14 @@ function(add_sapi_library)
     "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_bin}_force_cxx_linkage.cc")
   file(WRITE "${_sapi_force_cxx_linkage}" "")
   add_executable("${_sapi_bin}" "${_sapi_force_cxx_linkage}")
-  # TODO(cblichmann): Use target_link_options on CMake >= 3.13
   target_link_libraries("${_sapi_bin}" PRIVATE
     -fuse-ld=gold
     "${_sapi_LIBRARY}"
     sapi::client
     ${CMAKE_DL_LIBS}
-    -Wl,-E
+  )
+  target_link_options("${_sapi_bin}" PRIVATE
+    LINKER:-E
     ${_sapi_exported_funcs}
   )
 

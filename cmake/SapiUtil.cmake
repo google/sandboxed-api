@@ -39,7 +39,7 @@ endfunction()
 # except that it strips import paths. This is necessary, because CMake's
 # protobuf rules don't work well with imports across different directories.
 function(sapi_protobuf_generate_cpp SRCS HDRS)
-  cmake_parse_arguments(_pb "" "EXPORT_MACRO" "" ${ARGN})
+  cmake_parse_arguments(PARSE_ARGV 2 _pb "" "EXPORT_MACRO" "")
   if(NOT _pb_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "sapi_protobuf_generate_cpp() missing proto files")
     return()
