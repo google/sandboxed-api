@@ -50,9 +50,6 @@ int GetNumberOfThreads(int pid);
 // under a sanitizer.
 void WaitForSanitizer();
 
-ABSL_DEPRECATED("Use `sandbox2::sanitizer::WaitForSanitizer()`.")
-inline void WaitForTsan() { WaitForSanitizer(); }
-
 // Sanitizes current process (which will not execve a sandboxed binary).
 // File-descriptors in fd_exceptions will be either closed
 // (close_fds == true), or marked as close-on-exec (close_fds == false).
