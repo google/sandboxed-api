@@ -23,6 +23,9 @@
 #include "contrib/zstd/sandboxed.h"
 #include "contrib/zstd/utils/utils_zstd.h"
 
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+
 ABSL_FLAG(bool, decompress, false, "decompress");
 ABSL_FLAG(bool, memory_mode, false, "in memory operations");
 ABSL_FLAG(uint32_t, level, 0, "compression level");
