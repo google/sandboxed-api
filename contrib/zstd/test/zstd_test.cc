@@ -18,10 +18,10 @@
 #include <fstream>
 #include <string>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "contrib/zstd/sandboxed.h"
 #include "contrib/zstd/utils/utils_zstd.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/temp_file.h"
