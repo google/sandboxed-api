@@ -22,8 +22,6 @@ package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
-exports_files(["testdata/hostname"])
-
 cc_library(
     name = "bpfdisassembler",
     srcs = ["bpfdisassembler.cc"],
