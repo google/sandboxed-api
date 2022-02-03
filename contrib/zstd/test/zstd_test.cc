@@ -104,11 +104,10 @@ TEST(SandboxTest, CheckCompressInMemory) {
 
   std::string infile_s = GetTestFilePath("text");
 
-  absl::StatusOr<std::string> path =
-      sapi::CreateNamedTempFileAndClose("out.zstd");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out.zstd"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   std::ifstream infile(infile_s, std::ios::binary);
   ASSERT_TRUE(infile.is_open());
@@ -129,10 +128,10 @@ TEST(SandboxTest, CheckDecompressInMemory) {
 
   std::string infile_s = GetTestFilePath("text.blob.zstd");
 
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   std::ifstream infile(infile_s, std::ios::binary);
   ASSERT_TRUE(infile.is_open());
@@ -156,16 +155,15 @@ TEST(SandboxTest, CheckCompressAndDecompressInMemory) {
 
   std::string infile_s = GetTestFilePath("text");
 
-  absl::StatusOr<std::string> path_middle =
-      sapi::CreateNamedTempFileAndClose("middle.zstd");
-  ASSERT_THAT(path_middle, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path_middle,
+                            sapi::CreateNamedTempFileAndClose("middle.zstd"));
   std::string middle_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path_middle);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path_middle);
 
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   std::ifstream infile(infile_s, std::ios::binary);
   ASSERT_TRUE(infile.is_open());
@@ -196,12 +194,10 @@ TEST(SandboxTest, CheckCompressStream) {
   ZstdApi api = ZstdApi(&sandbox);
 
   std::string infile_s = GetTestFilePath("text");
-
-  absl::StatusOr<std::string> path =
-      sapi::CreateNamedTempFileAndClose("out.zstd");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out.zstd"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   std::ifstream infile(infile_s, std::ios::binary);
   ASSERT_TRUE(infile.is_open());
@@ -223,11 +219,10 @@ TEST(SandboxTest, CheckDecompressStream) {
   ZstdApi api = ZstdApi(&sandbox);
 
   std::string infile_s = GetTestFilePath("text.stream.zstd");
-
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   std::ifstream infile(infile_s, std::ios::binary);
   ASSERT_TRUE(infile.is_open());
@@ -251,16 +246,15 @@ TEST(SandboxTest, CheckCompressAndDecompressStream) {
 
   std::string infile_s = GetTestFilePath("text");
 
-  absl::StatusOr<std::string> path_middle =
-      sapi::CreateNamedTempFileAndClose("middle.zstd");
-  ASSERT_THAT(path_middle, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path_middle,
+                            sapi::CreateNamedTempFileAndClose("middle.zstd"));
   std::string middle_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path_middle);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path_middle);
 
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   std::ifstream infile(infile_s, std::ios::binary);
   ASSERT_TRUE(infile.is_open());
@@ -293,11 +287,10 @@ TEST(SandboxTest, CheckCompressInMemoryFD) {
 
   std::string infile_s = GetTestFilePath("text");
 
-  absl::StatusOr<std::string> path =
-      sapi::CreateNamedTempFileAndClose("out.zstd");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out.zstd"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
   ASSERT_GE(infd.GetValue(), 0);
@@ -324,10 +317,10 @@ TEST(SandboxTest, CheckDecompressInMemoryFD) {
   sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
   ASSERT_GE(infd.GetValue(), 0);
 
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
   sapi::v::Fd outfd(open(outfile_s.c_str(), O_WRONLY));
   ASSERT_GE(outfd.GetValue(), 0);
 
@@ -354,16 +347,15 @@ TEST(SandboxTest, CheckCompressAndDecompressInMemoryFD) {
 
   std::string infile_s = GetTestFilePath("text");
 
-  absl::StatusOr<std::string> path_middle =
-      sapi::CreateNamedTempFileAndClose("middle.zstd");
-  ASSERT_THAT(path_middle, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path_middle,
+                            sapi::CreateNamedTempFileAndClose("middle.zstd"));
   std::string middle_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path_middle);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path_middle);
 
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
   ASSERT_GE(infd.GetValue(), 0);
@@ -408,11 +400,10 @@ TEST(SandboxTest, CheckCompressStreamFD) {
 
   std::string infile_s = GetTestFilePath("text");
 
-  absl::StatusOr<std::string> path =
-      sapi::CreateNamedTempFileAndClose("out.zstd");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out.zstd"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
   ASSERT_GE(infd.GetValue(), 0);
@@ -440,10 +431,10 @@ TEST(SandboxTest, CheckDecompressStreamFD) {
 
   std::string infile_s = GetTestFilePath("text.stream.zstd");
 
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
   ASSERT_GE(infd.GetValue(), 0);
@@ -474,16 +465,15 @@ TEST(SandboxTest, CheckCompressAndDecompressStreamFD) {
 
   std::string infile_s = GetTestFilePath("text");
 
-  absl::StatusOr<std::string> path_middle =
-      sapi::CreateNamedTempFileAndClose("middle.zstd");
-  ASSERT_THAT(path_middle, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path_middle,
+                            sapi::CreateNamedTempFileAndClose("middle.zstd"));
   std::string middle_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path_middle);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path_middle);
 
-  absl::StatusOr<std::string> path = sapi::CreateNamedTempFileAndClose("out");
-  ASSERT_THAT(path, IsOk()) << "Could not create temp output file";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string path,
+                            sapi::CreateNamedTempFileAndClose("out"));
   std::string outfile_s =
-      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *path);
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), path);
 
   sapi::v::Fd infd(open(infile_s.c_str(), O_RDONLY));
   ASSERT_GE(infd.GetValue(), 0);
