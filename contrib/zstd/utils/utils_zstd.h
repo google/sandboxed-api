@@ -20,14 +20,14 @@
 
 #include "contrib/zstd/sandboxed.h"
 
-absl::Status CompressInMemory(ZstdApi& api, std::ifstream& in_file,
-                              std::ofstream& out_file, int level);
-absl::Status DecompressInMemory(ZstdApi& api, std::ifstream& in_file,
-                                std::ofstream& out_file);
+absl::Status CompressInMemory(ZstdApi& api, std::ifstream& in_stream,
+                              std::ofstream& out_stream, int level);
+absl::Status DecompressInMemory(ZstdApi& api, std::ifstream& in_stream,
+                                std::ofstream& out_stream);
 
-absl::Status CompressStream(ZstdApi& api, std::ifstream& in_file,
-                            std::ofstream& out_file, int level);
-absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_file,
-                              std::ofstream& out_file);
+absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
+                            std::ofstream& out_stream, int level);
+absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_stream,
+                              std::ofstream& out_stream);
 
 #endif  // CONTRIB_ZSTD_UTILS_UTILS_ZSTD_H_

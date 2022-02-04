@@ -207,7 +207,7 @@ TEST(SandboxTest, CheckCompressStream) {
   ASSERT_TRUE(outfile.is_open());
 
   absl::Status status = CompressStream(api, infile, outfile, 0);
-  ASSERT_THAT(status, IsOk()) << "Unable to compress file in memory";
+  ASSERT_THAT(status, IsOk()) << "Unable to compress stream";
 
   infile.clear();
 
@@ -233,7 +233,7 @@ TEST(SandboxTest, CheckDecompressStream) {
   ASSERT_TRUE(outfile.is_open());
 
   absl::Status status = DecompressStream(api, infile, outfile);
-  ASSERT_THAT(status, IsOk()) << "Unable to decompress file in memory";
+  ASSERT_THAT(status, IsOk()) << "Unable to decompress stream";
 
   ASSERT_GT(outfile.tellp(), infile.tellg());
 
@@ -266,7 +266,7 @@ TEST(SandboxTest, CheckCompressAndDecompressStream) {
   ASSERT_TRUE(outmiddle.is_open());
 
   status = CompressStream(api, infile, outmiddle, 0);
-  ASSERT_THAT(status, IsOk()) << "Unable to compress file in memory";
+  ASSERT_THAT(status, IsOk()) << "Unable to compress stream";
 
   infile.clear();
   ASSERT_LT(outmiddle.tellp(), infile.tellg());
