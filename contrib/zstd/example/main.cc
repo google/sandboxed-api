@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "sandboxed_api/util/flag.h"
+#include "absl/flags/parse.h"
 #include "contrib/zstd/sandboxed.h"
 #include "contrib/zstd/utils/utils_zstd.h"
 
