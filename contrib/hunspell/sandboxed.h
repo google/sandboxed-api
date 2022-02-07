@@ -35,6 +35,7 @@ class HunspellSapiSandbox : public HunspellSandbox {
         .AllowOpen()
         .AllowRead()
         .AllowWrite()
+        .AllowGetPIDs()
         .AllowSystemMalloc()
         .AllowExit()
         .AllowSyscalls({

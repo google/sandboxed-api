@@ -21,15 +21,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 
-add_subdirectory(
-  "${SAPI_ROOT}"
-  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-  EXCLUDE_FROM_ALL
-)
+if(NOT TARGET sapi::sapi)
+  set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
+  add_subdirectory("${SAPI_ROOT}"
+                   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+                   EXCLUDE_FROM_ALL)
+endif()
 
-FetchContent_Declare(
-  libhunspell
-
+FetchContent_Declare(libhunspell
   GIT_REPOSITORY https://github.com/hunspell/hunspell.git
   GIT_TAG 31e6d6323026a3bef12c5912ce032d88bfef2091
 )
@@ -44,13 +43,22 @@ if(NOT libhunspell_POPULATED)
   if(NOT _sapi_CONFIG_STATUS STREQUAL "${libhunspell_CONFIG_STATUS}")
     message("-- Configuring libhunspell...")
     execute_process(
-      COMMAND autoreconf -vfi
+      COMMAND autoreconf -i
+      WORKING_DIRECTORY "${libhunspell_SOURCE_DIR}"
+      RESULT_VARIABLE _sapi_libhunspell_autoreconf_result
+    )
+    if(NOT _sapi_libhunspell_autoreconf_result EQUAL "0")
+      message(FATAL_ERROR "Configuration for libhunspell failed: "
+                          "${_sapi_libhunspell_autoreconf_result}")
+    endif()
+    execute_process(
       COMMAND ./configure --disable-dependency-tracking
       WORKING_DIRECTORY "${libhunspell_SOURCE_DIR}"
-      RESULT_VARIABLE libhunspell_config_result
+      RESULT_VARIABLE _sapi_libhunspell_config_result
     )
-    if(NOT libhunspell_config_result EQUAL "0")
-      message(FATAL_ERROR "Configuration for libhunspell failed")
+    if(NOT _sapi_libhunspell_config_result EQUAL "0")
+      message(FATAL_ERROR "Configuration for libhunspell failed: "
+                          "${_sapi_libhunspell_config_result}")
     endif()
     file(SHA256 "${libhunspell_SOURCE_DIR}/config.status" _sapi_CONFIG_STATUS)
     set(libhunspell_CONFIG_STATUS "${_sapi_CONFIG_STATUS}" CACHE INTERNAL "")

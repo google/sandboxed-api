@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Append to this list whenever a new sandboxed library is added to `contrib/`.
-set(SAPI_CONTRIB_SANDBOXES
-  hunspell
-  jsonnet
-  zopfli
-  zstd
-)
+include(GoogleTest)
 
-foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)
-  add_sapi_subdirectory("contrib/${_contrib}" INCLUDE_FROM_ALL)
-endforeach()
+add_executable(sapi_zopfli_test
+  zopfli_test.cc
+  ../utils/utils_zopfli.cc
+)
+target_link_libraries(sapi_zopfli_test PRIVATE
+  sapi_contrib::zopfli
+  sapi::temp_file
+  sapi::test_main
+)
+gtest_discover_tests(sapi_zopfli_test PROPERTIES
+  ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/files"
+)
