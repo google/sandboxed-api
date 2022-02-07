@@ -18,7 +18,7 @@
 #include <iostream>
 #include <string>
 
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "contrib/zopfli/sandboxed.h"
 #include "contrib/zopfli/utils/utils_zopfli.h"
