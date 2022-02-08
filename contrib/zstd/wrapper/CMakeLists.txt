@@ -23,5 +23,6 @@ target_link_libraries(wrapper_zstd PUBLIC
 )
 
 target_include_directories(wrapper_zstd PUBLIC
+  ${SAPI_SOURCE_DIR}
   ${libzstd_INCLUDE_DIR}
 )
