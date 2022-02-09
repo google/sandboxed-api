@@ -22,6 +22,7 @@ set(SAPI_CONTRIB_SANDBOXES
   turbojpeg
   zopfli
   zstd
+  woff2
 )
 
 foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)
