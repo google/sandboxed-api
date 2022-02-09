@@ -53,6 +53,7 @@ if(NOT libhunspell_POPULATED)
     endif()
     execute_process(
       COMMAND ./configure --disable-dependency-tracking
+                          --quiet
       WORKING_DIRECTORY "${libhunspell_SOURCE_DIR}"
       RESULT_VARIABLE _sapi_libhunspell_config_result
     )
@@ -66,37 +67,37 @@ if(NOT libhunspell_POPULATED)
 endif()
 
 add_library(hunspell STATIC
-  ${libhunspell_SOURCE_DIR}/src/hunspell/affentry.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/affentry.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/affixmgr.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/affixmgr.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/atypes.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/baseaffix.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/csutil.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/csutil.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/filemgr.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/filemgr.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/hashmgr.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/hashmgr.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/htypes.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/hunspell.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/hunspell.h
-  ${libhunspell_SOURCE_DIR}/src/hunspell/hunspell.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/hunzip.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/hunzip.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/langnum.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/phonet.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/phonet.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/replist.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/replist.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/suggestmgr.cxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/suggestmgr.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/utf_info.hxx
-  ${libhunspell_SOURCE_DIR}/src/hunspell/w_char.hxx
+  "${libhunspell_SOURCE_DIR}/src/hunspell/affentry.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/affentry.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/affixmgr.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/affixmgr.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/atypes.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/baseaffix.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/csutil.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/csutil.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/filemgr.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/filemgr.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/hashmgr.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/hashmgr.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/htypes.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/hunspell.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/hunspell.h"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/hunspell.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/hunzip.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/hunzip.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/langnum.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/phonet.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/phonet.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/replist.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/replist.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/suggestmgr.cxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/suggestmgr.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/utf_info.hxx"
+  "${libhunspell_SOURCE_DIR}/src/hunspell/w_char.hxx"
 )
 
 target_include_directories(hunspell PUBLIC
-  ${libhunspell_SOURCE_DIR}/src/hunspell
+  "${libhunspell_SOURCE_DIR}/src/hunspell"
 )
 
 set(libhunspell_INCLUDE_DIR "${libhunspell_SOURCE_DIR}/src/hunspell")
@@ -120,7 +121,7 @@ add_sapi_library(
 
     Hunspell_free_list
   INPUTS
-    ${libhunspell_INCLUDE_DIR}/hunspell.h
+    "${libhunspell_INCLUDE_DIR}/hunspell.h"
 
   LIBRARY hunspell
   LIBRARY_NAME Hunspell
