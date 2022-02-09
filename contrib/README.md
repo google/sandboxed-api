@@ -10,6 +10,7 @@ Directory    | Project                                                          
 `c-blosc/`   | c-blosc - A blocking, shuffling and loss-less compression library | [github.com/Blosc/c-blosc](https://github.com/Blosc/c-blosc)                         | CMake
 `hunspell/`  | Hunspell - The most popular spellchecking library                 | [github.com/hunspell/hunspell](https://github.com/hunspell/hunspell)                 | CMake
 `jsonnet/`   | Jsonnet - The Data Templating Language                            | [github.com/google/jsonnet](https://github.com/google/jsonnet)                       | CMake
+`libzip/`    | libzip - operations on zip archives                               | [github.com/nih-at/libzip](https://github.com/nih-at/libzip)                         | CMake
 `pffft/`     | PFFFT - a pretty fast Fourier Transform                           | [bitbucket.org/jpommier/pffft.git](https://bitbucket.org/jpommier/pffft.git)         | CMake
 `zopfli`     | Zopfli - Compression Algorithm                                    | [github.com/google/zopfli](https://github.com/google/zopfli)                         | CMake
 `zstd/`      | Zstandard - Fast real-time compression algorithm                  | [github.com/facebook/zstd](https://github.com/facebook/zstd)                         | CMake

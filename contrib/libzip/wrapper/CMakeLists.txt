@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Append to this list whenever a new sandboxed library is added to `contrib/`.
-set(SAPI_CONTRIB_SANDBOXES
-  c-blosc
-  hunspell
-  jsonnet
-  libidn2
-  libzip
-  pffft
-  turbojpeg
-  zopfli
-  zstd
+add_library(wrapper_zip STATIC
+  wrapper_zip.cc
 )
+target_link_libraries(wrapper_zip PUBLIC
+  libzip::zip
 
-foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)
-  add_sapi_subdirectory("contrib/${_contrib}" INCLUDE_FROM_ALL)
-endforeach()
+  sapi::sapi
+)
+target_include_directories(wrapper_zip PUBLIC
+  "${SAPI_SOURCE_DIR}"
+  "${libzip_SOURCE_DIR}/lib/"
+)
