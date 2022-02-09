@@ -555,9 +555,11 @@ bool Comms::Recv(void* data, size_t len) {
 // Internal helper method (low level).
 bool Comms::RecvTL(uint32_t* tag, size_t* length) {
   if (!Recv(reinterpret_cast<uint8_t*>(tag), sizeof(*tag))) {
+    SAPI_RAW_VLOG(2, "RecvTL: Can't read tag");
     return false;
   }
   if (!Recv(reinterpret_cast<uint8_t*>(length), sizeof(*length))) {
+    SAPI_RAW_VLOG(2, "RecvTL: Can't read length for tag %u", *tag);
     return false;
   }
   if (*length > GetMaxMsgSize()) {
