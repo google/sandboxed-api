@@ -57,4 +57,5 @@ sh_test(
     name = "static_sandbox_test",
     srcs = ["static_sandbox_test.sh"],
     data = [":static_sandbox"],
+    tags = ["no_qemu_user_mode"],
 )
