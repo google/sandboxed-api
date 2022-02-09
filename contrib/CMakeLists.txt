@@ -16,6 +16,7 @@
 set(SAPI_CONTRIB_SANDBOXES
   hunspell
   jsonnet
+  pffft
   zopfli
   zstd
 )
