@@ -1,6 +1,9 @@
 # Jsonnet Sandboxed API
 
-This library provides a sandboxed version of the
+This library was sandboxed as part of Google's summer 2020 internship program
+([blog post](https://security.googleblog.com/2020/12/improving-open-source-security-during.html)).
+
+This directory contains a sandbox for the
 [Jsonnet](https://github.com/google/jsonnet) library.
 
 ## How to use from an existing Project
