@@ -45,9 +45,9 @@ add_sapi_library(
     ZopfliGzipCompress
 
   INPUTS
-    ${zopfli_SOURCE_DIR}/src/zopfli/deflate.h
-    ${zopfli_SOURCE_DIR}/src/zopfli/gzip_container.h
-    ${zopfli_SOURCE_DIR}/src/zopfli/zlib_container.h
+    "${zopfli_SOURCE_DIR}/src/zopfli/deflate.h"
+    "${zopfli_SOURCE_DIR}/src/zopfli/gzip_container.h"
+    "${zopfli_SOURCE_DIR}/src/zopfli/zlib_container.h"
 
   LIBRARY Zopfli::libzopfli
   LIBRARY_NAME Zopfli

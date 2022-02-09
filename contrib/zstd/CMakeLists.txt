@@ -71,7 +71,7 @@ add_sapi_library(
     ZSTD_getFrameContentSize
 
   INPUTS
-    ${libzstd_INCLUDE_DIR}/zstd.h
+    "${libzstd_INCLUDE_DIR}/zstd.h"
 
   LIBRARY libzstd_static
   LIBRARY_NAME Zstd
