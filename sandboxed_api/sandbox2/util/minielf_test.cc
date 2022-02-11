@@ -26,13 +26,14 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-extern "C" void ExportedFunctionName() {
+extern "C" void ExportedFunction() {
   // Don't do anything - used to generate a symbol.
 }
 
 namespace file = ::sapi::file;
 using ::sapi::GetTestSourcePath;
 using ::sapi::IsOk;
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::Ne;
@@ -65,19 +66,20 @@ TEST(MinielfTest, SymbolResolutionWorks) {
                             ParseProcMaps(maps_buffer));
 
   // Find maps entry that covers this entry.
-  uint64_t function_address = reinterpret_cast<uint64_t>(ExportedFunctionName);
-  auto function_entry =
+  uint64_t function_address = reinterpret_cast<uint64_t>(&ExportedFunction);
+  auto entry =
       absl::c_find_if(maps, [function_address](const MapsEntry& entry) {
         return entry.start <= function_address && entry.end > function_address;
       });
-  ASSERT_THAT(function_entry, Ne(maps.end()));
-  function_address -= function_entry->start;
+  ASSERT_THAT(entry, Ne(maps.end()));
 
   auto function_symbol =
       absl::c_find_if(elf.symbols(), [](const ElfFile::Symbol& symbol) {
-        return symbol.name == "ExportedFunctionName";
+        return symbol.name == "ExportedFunction";
       });
   ASSERT_THAT(function_symbol, Ne(elf.symbols().end()));
+
+  function_address -= entry->start - entry->pgoff;
   EXPECT_THAT(function_symbol->address, Eq(function_address));
 }
 
@@ -86,8 +88,7 @@ TEST(MinielfTest, ImportedLibraries) {
       ElfFile elf, ElfFile::ParseFromFile(
                        GetTestSourcePath("sandbox2/util/testdata/hello_world"),
                        ElfFile::kLoadImportedLibraries));
-  std::vector<std::string> imported_libraries = {"libc.so.6"};
-  EXPECT_THAT(elf.imported_libraries(), Eq(imported_libraries));
+  EXPECT_THAT(elf.imported_libraries(), ElementsAre("libc.so.6"));
 }
 
 }  // namespace
