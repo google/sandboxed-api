@@ -23,4 +23,4 @@ target_link_libraries(turbojpeg_sapi_test PRIVATE
   gmock
 )
 
-gtest_discover_tests(turbojpeg_sapi_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/files")
+gtest_discover_tests(turbojpeg_sapi_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/tests")

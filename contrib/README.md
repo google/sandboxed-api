@@ -5,13 +5,15 @@ libraries.
 
 ## Projects Sandboxed
 
-Directory   | Project                                           | Home Page                                                                    | Integration
------------ | ------------------------------------------------- | ---------------------------------------------------------------------------- | -----------
-`hunspell/` | Hunspell - The most popular spellchecking library | [github.com/hunspell/hunspell](https://github.com/hunspell/hunspell)         | CMake
-`jsonnet/`  | Jsonnet - The Data Templating Language            | [github.com/google/jsonnet](https://github.com/google/jsonnet)               | CMake
-`pffft/`    | PFFFT - a pretty fast Fourier Transform           | [bitbucket.org/jpommier/pffft.git](https://bitbucket.org/jpommier/pffft.git) | CMake
-`zopfli`    | Zopfli - Compression Algorithm                    | [github.com/google/zopfli](https://github.com/google/zopfli)                 | CMake
-`zstd/`     | Zstandard - Fast real-time compression algorithm  | [github.com/facebook/zstd](https://github.com/facebook/zstd)                 | CMake
+Directory    | Project                                           | Home Page                                                                            | Integration
+------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------ | -----------
+`hunspell/`  | Hunspell - The most popular spellchecking library | [github.com/hunspell/hunspell](https://github.com/hunspell/hunspell)                 | CMake
+`jsonnet/`   | Jsonnet - The Data Templating Language            | [github.com/google/jsonnet](https://github.com/google/jsonnet)                       | CMake
+`pffft/`     | PFFFT - a pretty fast Fourier Transform           | [bitbucket.org/jpommier/pffft.git](https://bitbucket.org/jpommier/pffft.git)         | CMake
+`zopfli`     | Zopfli - Compression Algorithm                    | [github.com/google/zopfli](https://github.com/google/zopfli)                         | CMake
+`zstd/`      | Zstandard - Fast real-time compression algorithm  | [github.com/facebook/zstd](https://github.com/facebook/zstd)                         | CMake
+`libidn2/`   | libidn2 - GNU IDN library                         | [www.gnu.org/software/libidn/#libidn2](https://www.gnu.org/software/libidn/#libidn2) | CMake
+`turbojpeg/` | High-level JPEG library                           | [libjpeg-turbo.org/About/TurboJPEG](https://libjpeg-turbo.org/About/TurboJPEG)       | CMake
 
 ## Projects Shipping with Sandboxed API Sandboxes
 
