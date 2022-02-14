@@ -64,7 +64,7 @@ absl::Status FileDescriptor(ZstdApi& api, std::string infile_s,
     return absl::UnavailableError(absl::StrCat("Unable to open ", outfile_s));
   }
 
-  if (absl::GetFlag(FLAGS_memory_mode) {
+  if (absl::GetFlag(FLAGS_memory_mode)) {
     if (absl::GetFlag(FLAGS_decompress)) {
       return DecompressInMemoryFD(api, infd, outfd);
     }
