@@ -62,17 +62,17 @@ jobs:
     - name: Create Build Environment
       run: |
         pip3 install absl-py clang
-        cmake -E make_directory ${{runner.workspace}}/build
+        cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake
-      working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -G Ninja -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      run: |
+        cmake $GITHUB_WORKSPACE -G Ninja -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
     - name: Build
-      working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE
+      run: |
+        cmake --build $GITHUB_WORKSPACE --config $BUILD_TYPE
 
-    # TODO(cblichmann): Before enabling this, make sure all OSS tests pass
-    #- name: Test
-    #  working-directory: ${{runner.workspace}}/build
-    #  run: ctest -C $BUILD_TYPE
+    - name: Test
+      run: |
+        ctest $GITHUB_WORKSPACE -C $BUILD_TYPE --output-on-failure \
+          -R SapiTest

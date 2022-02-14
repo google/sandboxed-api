@@ -18,31 +18,49 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.ignore-errors }}
 
-    container:
-      image: ${{ matrix.container }}
+    env:
+      RUN_CMD: docker exec --tty ${{matrix.compiler}}-build-container
 
     steps:
     - uses: actions/checkout@v2
 
+    - name: Prepare container
+      run: |
+        docker run --name ${{matrix.compiler}}-build-container \
+          --tty \
+          --privileged \
+          --cap-add ALL \
+          --security-opt apparmor:unconfined \
+          -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE \
+          -e TERM=dumb \
+          -e BUILD_TYPE \
+          -e GITHUB_WORKSPACE \
+          -d ${{matrix.container}} \
+          sleep infinity
+
     - name: Install build tools
       run: |
-        dnf update -y
-        dnf install -y git make automake patch glibc-static libstdc++-static \
-          cmake ninja-build python3 python3-pip clang-devel libcap-devel
-
-    - name: Install/configure Clang compiler toolchain
-      if: matrix.compiler == 'clang'
-      run: |
-        echo "CXX=clang++" >> $GITHUB_ENV
-        echo "CC=clang" >> $GITHUB_ENV
+        $RUN_CMD dnf update -y --quiet
+        $RUN_CMD dnf install -y --quiet git make automake patch glibc-static \
+          libstdc++-static cmake ninja-build python3 python3-pip clang-devel \
+          libcap-devel
 
     - name: Create Build Environment
       run: |
-        pip3 install absl-py clang
-        cmake -E make_directory $GITHUB_WORKSPACE/build
+        $RUN_CMD pip3 install --progress-bar=off absl-py clang
+        $RUN_CMD cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake
-      run: cmake $GITHUB_WORKSPACE -G Ninja -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      run: |
+        $RUN_CMD cmake -S $GITHUB_WORKSPACE -B $GITHUB_WORKSPACE/build \
+          -G Ninja -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
     - name: Build
-      run: cmake --build $GITHUB_WORKSPACE --config $BUILD_TYPE
+      run: |
+        $RUN_CMD cmake --build $GITHUB_WORKSPACE/build --config $BUILD_TYPE
+
+    - name: Test
+      run: |
+        $RUN_CMD ctest --test-dir $GITHUB_WORKSPACE/build -C $BUILD_TYPE \
+          --output-on-failure \
+          -R SapiTest
