@@ -91,7 +91,7 @@ absl::StatusOr<std::vector<uint8_t>> ReadFile(const std::string& in_file,
   if (expected_size != SIZE_MAX && ssize != expected_size) {
     return absl::UnavailableError("Incorrect size of file");
   }
-  std::vector<uint8_t> inbuf{ssize};
+  std::vector<uint8_t> inbuf(ssize);
   f.read(reinterpret_cast<char*>(inbuf.data()), ssize);
   if (ssize != f.gcount()) {
     return absl::UnavailableError("Premature end of file");
