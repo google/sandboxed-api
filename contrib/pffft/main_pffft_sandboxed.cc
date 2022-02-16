@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gflags/gflags.h>
+#include <syscall.h>
 
 #include <cmath>
 #include <cstdio>
@@ -21,6 +21,7 @@
 #include <ctime>
 
 #include <glog/logging.h>
+#include "gflags/gflags.h"
 #include "pffft_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/vars.h"

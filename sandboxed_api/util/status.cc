@@ -31,8 +31,11 @@ void SaveStatusToProto(const absl::Status& status, StatusProto* out) {
 absl::Status MakeStatusFromProto(const StatusProto& proto) {
   absl::Status status(static_cast<absl::StatusCode>(proto.code()),
                       proto.message());
-  for (const auto& [type_key, payload] : proto.payloads()) {
-    status.SetPayload(type_key, absl::Cord(payload));
+  // Note: Using C++17 structured bindings instead of `entry` crashes Clang 6.0
+  // on Ubuntu 18.04 (bionic).
+  for (const auto& entry : proto.payloads()) {
+    status.SetPayload(/*type_url=*/entry.first,
+                      /*payload=*/absl::Cord(entry.second));
   }
   return status;
 }

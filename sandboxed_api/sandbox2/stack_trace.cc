@@ -286,9 +286,6 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
 
 absl::StatusOr<std::vector<std::string>> GetStackTrace(const Regs* regs,
                                                        const Mounts& mounts) {
-  if constexpr (sapi::host_cpu::IsArm64()) {
-    return absl::UnavailableError("Stack traces unavailable on Aarch64");
-  }
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
     return absl::UnavailableError("Stacktraces disabled");
   }

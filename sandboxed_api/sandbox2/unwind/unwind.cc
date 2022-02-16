@@ -19,11 +19,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -55,21 +57,20 @@ std::string DemangleSymbol(const std::string& maybe_mangled) {
 }
 
 absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
-  unw_cursor_t cursor;
   static unw_addr_space_t as =
       unw_create_addr_space(&_UPT_accessors, 0 /* byte order */);
   if (as == nullptr) {
     return absl::InternalError("unw_create_addr_space() failed");
   }
 
-  std::unique_ptr<struct UPT_info, void (*)(void*)> ui(
-      reinterpret_cast<struct UPT_info*>(_UPT_create(pid)), _UPT_destroy);
-  if (ui == nullptr) {
+  void* context = _UPT_create(pid);
+  if (context == nullptr) {
     return absl::InternalError("_UPT_create() failed");
   }
+  absl::Cleanup context_cleanup = [&context] { _UPT_destroy(context); };
 
-  int rc = unw_init_remote(&cursor, as, ui.get());
-  if (rc < 0) {
+  unw_cursor_t cursor;
+  if (int rc = unw_init_remote(&cursor, as, context); rc < 0) {
     // Could be UNW_EINVAL (8), UNW_EUNSPEC (1) or UNW_EBADREG (3).
     return absl::InternalError(
         absl::StrCat("unw_init_remote() failed with error ", rc));
@@ -78,7 +79,7 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
   std::vector<uintptr_t> ips;
   for (int i = 0; i < max_frames; ++i) {
     unw_word_t ip;
-    rc = unw_get_reg(&cursor, UNW_REG_IP, &ip);
+    int rc = unw_get_reg(&cursor, UNW_REG_IP, &ip);
     if (rc < 0) {
       // Could be UNW_EUNSPEC or UNW_EBADREG.
       SAPI_RAW_LOG(WARNING, "unw_get_reg() failed with error %d", rc);
@@ -176,8 +177,10 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
 
     for (const ElfFile::Symbol& symbol : elf->symbols()) {
       if (elf->position_independent()) {
-        if (symbol.address < entry.end - entry.start) {
-          addr_to_symbol[symbol.address + entry.start] = symbol.name;
+        if (symbol.address >= entry.pgoff &&
+            symbol.address - entry.pgoff < entry.end - entry.start) {
+          addr_to_symbol[symbol.address + entry.start - entry.pgoff] =
+              symbol.name;
         }
       } else {
         if (symbol.address >= entry.start && symbol.address < entry.end) {

@@ -100,8 +100,7 @@ function(add_sapi_library)
     list(APPEND _sapi_exported_funcs "LINKER:--export-dynamic-symbol,${func}")
   endforeach()
   if(NOT _sapi_exported_funcs)
-    set(_sapi_exported_funcs LINKER:--whole-archive
-                             LINKER:--allow-multiple-definition)
+    set(_sapi_exported_funcs LINKER:--allow-multiple-definition)
   endif()
 
   # The sandboxed binary
@@ -112,7 +111,7 @@ function(add_sapi_library)
   add_executable("${_sapi_bin}" "${_sapi_force_cxx_linkage}")
   target_link_libraries("${_sapi_bin}" PRIVATE
     -fuse-ld=gold
-    "${_sapi_LIBRARY}"
+    -Wl,--whole-archive "${_sapi_LIBRARY}" -Wl,--no-whole-archive
     sapi::client
     ${CMAKE_DL_LIBS}
   )

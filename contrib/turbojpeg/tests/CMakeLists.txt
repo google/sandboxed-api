@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Append to this list whenever a new sandboxed library is added to `contrib/`.
-set(SAPI_CONTRIB_SANDBOXES
-  hunspell
-  jsonnet
-  libidn2
-  pffft
-  turbojpeg
-  zopfli
-  zstd
+include(GoogleTest)
+
+add_executable(turbojpeg_sapi_test turbojpeg_sapi_test.cc)
+
+target_link_libraries(turbojpeg_sapi_test PRIVATE
+  turbojpeg_sapi
+  sapi::base
+  gtest
+  gmock
 )
 
-foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)
-  add_sapi_subdirectory("contrib/${_contrib}" INCLUDE_FROM_ALL)
-endforeach()
+gtest_discover_tests(turbojpeg_sapi_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/tests")

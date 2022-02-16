@@ -12,29 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CONTRIB_ZSTD_SANDBOXED_H_
-#define CONTRIB_ZSTD_SANDBOXED_H_
+#ifndef CONTRIB_TURBOJPEG_TURBOJPEG_SAPI_H_
+#define CONTRIB_TURBOJPEG_TURBOJPEG_SAPI_H_
 
-#include <libgen.h>
 #include <syscall.h>
 
-#include <memory>
-
-#include "sapi_zstd.sapi.h"  // NOLINT(build/include)
-
-class ZstdSapiSandbox : public ZstdSandbox {
+#include "sandboxed_api/util/fileops.h"
+#include "turbojpeg_sapi.sapi.h"  // NOLINT(build/include)
+class TurboJpegSapiSandbox : public turbojpeg_sapi::TurboJPEGSandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
-        .AllowRead()
-        .AllowWrite()
         .AllowSystemMalloc()
+        .AllowRead()
+        .AllowStat()
+        .AllowWrite()
         .AllowExit()
-        .AllowSyscalls({__NR_recvmsg})
+        .AllowSyscalls({
+            __NR_futex,
+            __NR_close,
+            __NR_lseek,
+            __NR_getpid,
+            __NR_clock_gettime,
+        })
+        .AllowLlvmSanitizers()
         .BuildOrDie();
   }
 };
 
-#endif  // CONTRIB_ZSTD_SANDBOXED_H_
+#endif  // CONTRIB_TURBOJPEG_TURBOJPEG_SAPI_H_

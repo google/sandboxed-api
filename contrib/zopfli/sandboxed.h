@@ -12,29 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CONTRIB_ZSTD_SANDBOXED_H_
-#define CONTRIB_ZSTD_SANDBOXED_H_
+#ifndef CONTRIB_ZOPFLI_SANDBOXED_
+#define CONTRIB_ZOPFLI_SANDBOXED_
 
 #include <libgen.h>
 #include <syscall.h>
 
+#include <cerrno>
 #include <memory>
 
-#include "sapi_zstd.sapi.h"  // NOLINT(build/include)
+#include "sapi_zopfli.sapi.h"  // NOLINT(build/include)
 
-class ZstdSapiSandbox : public ZstdSandbox {
+class ZopfliSapiSandbox : public ZopfliSandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder*) override {
+      sandbox2::PolicyBuilder *) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
-        .AllowRead()
+        .AllowStaticStartup()
         .AllowWrite()
-        .AllowSystemMalloc()
         .AllowExit()
-        .AllowSyscalls({__NR_recvmsg})
+        .AllowMmap()
+        .AllowSystemMalloc()
+        .AllowSyscalls({
+            __NR_sysinfo,
+        })
+#ifdef __NR_open
+        .BlockSyscallWithErrno(__NR_open, ENOENT)
+#endif
+#ifdef __NR_openat
+        .BlockSyscallWithErrno(__NR_openat, ENOENT)
+#endif
         .BuildOrDie();
   }
 };
 
-#endif  // CONTRIB_ZSTD_SANDBOXED_H_
+#endif  // CONTRIB_ZOPFLI_SANDBOXED_

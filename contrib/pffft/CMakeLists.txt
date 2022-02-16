@@ -12,49 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.10)
-
+cmake_minimum_required(VERSION 3.13..3.22)
 project(pffft CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+if(NOT TARGET sapi::sapi)
+  set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
+  add_subdirectory("${SAPI_ROOT}"
+                   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+                   EXCLUDE_FROM_ALL)
+endif()
+
+include(CheckLibraryExists)
+
+FetchContent_Declare(pffft
+  GIT_REPOSITORY https://bitbucket.org/jpommier/pffft.git
+  GIT_TAG        988259a41d1522047a9420e6265a6ba8289c1654 # 2021-12-02
+)
+FetchContent_MakeAvailable(pffft)
+
 add_library(pffft STATIC
-  master/pffft.c
-  master/pffft.h
-  master/fftpack.c
-  master/fftpack.h
+  "${pffft_SOURCE_DIR}/pffft.c"
+  "${pffft_SOURCE_DIR}/pffft.h"
+  "${pffft_SOURCE_DIR}/fftpack.c"
+  "${pffft_SOURCE_DIR}/fftpack.h"
 )
 
 add_executable(pffft_main
-  master/test_pffft.c
+  "${pffft_SOURCE_DIR}/test_pffft.c"
 )
-
 target_link_libraries(pffft_main PRIVATE
   pffft
 )
 
-set(MATH_LIBS "")
-include(CheckLibraryExists)
-check_library_exists(m sin "" LIBM)
-if(LIBM)
-  list(APPEND MATH_LIBS "m")
+check_library_exists(m sin "" _sapi_HAVE_LIBM)
+if(_sapi_HAVE_LIBM)
+  target_link_libraries(pffft PUBLIC
+    m
+  )
 endif()
-
-target_link_libraries(pffft PUBLIC ${MATH_LIBS})
-
-# Adding dependencies
-set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
-# Then configure:
-#   mkdir -p build && cd build
-#   cmake .. -G Ninja -DSAPI_ROOT=$HOME/sapi_root
-
-set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
-set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
-add_subdirectory("${SAPI_ROOT}"
-                 "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-                 # Omit this to have the full Sandboxed API in IDE
-                 EXCLUDE_FROM_ALL)
 
 add_sapi_library(pffft_sapi
   FUNCTIONS pffft_new_setup
@@ -83,22 +81,23 @@ add_sapi_library(pffft_sapi
             sinti
             sint
 
-  INPUTS master/pffft.h master/fftpack.h
+  INPUTS "${pffft_SOURCE_DIR}/pffft.h"
+         "${pffft_SOURCE_DIR}/fftpack.h"
   LIBRARY pffft
   LIBRARY_NAME Pffft
 
   NAMESPACE ""
 )
-
+add_library(sapi_contrib::pffft ALIAS pffft_sapi)
 target_include_directories(pffft_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
+  "${SAPI_SOURCE_DIR}"
 )
 
 add_executable(pffft_sandboxed
   main_pffft_sandboxed.cc
 )
-
 target_link_libraries(pffft_sandboxed PRIVATE
-  pffft_sapi
+  sapi_contrib::pffft
   sapi::sapi
 )
