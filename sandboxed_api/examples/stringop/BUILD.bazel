@@ -24,19 +24,21 @@ sapi_proto_library(
     name = "stringop_params_proto",
     srcs = ["stringop_params.proto"],
     visibility = ["//visibility:public"],
+    alwayslink = True,
 )
 
 cc_library(
     name = "stringop",
     srcs = ["stringop.cc"],
     copts = sapi_platform_copts(),
+    linkstatic = True,
     visibility = ["//visibility:public"],
     deps = [
         ":stringop_params_cc_proto",
         "//sandboxed_api:lenval_core",
         "@com_google_absl//absl/base:core_headers",
     ],
-    alwayslink = 1,  # All functions are linked into dependent binaries
+    alwayslink = True,
 )
 
 sapi_library(

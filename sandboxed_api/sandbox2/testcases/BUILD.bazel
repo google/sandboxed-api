@@ -14,13 +14,18 @@
 
 # Description: test cases for sandbox2 unit tests.
 #
-# The following cc_binary options avoid dynamic linking which uses a lot of
-# syscalls (open, mmap, etc.):
-#   linkopts = ["-static"]
-#   linkstatic = 1
-#   features = ["-pie"]
-# Bazel adds -pie by default but -static is incompatible with it, so we use
-# the features flag to force it off.
+# Some of the following cc_binary options avoid dynamic linking which uses a
+# lot of syscalls (open, mmap, etc.):
+#   linkstatic = True                 Default for cc_binary
+#   features = ["fully_static_link"]  Adds -static
+#
+# Note that linking fully static with an unmodified glibc is not generally
+# considered safe, due to glibc relying heavily on loading shared objects at
+# runtime.
+# The rule of thumb when it is safe to do so is when the program either only
+# uses plain syscalls (bypassing any libc altogether) or if it does not use
+# any networking and none of the functionality from cstdio/stdio.h (due to
+# auto-loading of locale-specific shared objecs).
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
@@ -30,37 +35,27 @@ package(default_visibility = [
 
 licenses(["notice"])
 
-FULLY_STATIC_FEATURES = [
-    "-pie",
-    "fully_static_link",  # link libc statically
-]
-
 cc_binary(
     name = "abort",
-    testonly = 1,
+    testonly = True,
     srcs = ["abort.cc"],
     copts = sapi_platform_copts(),
     deps = ["//sandboxed_api/util:raw_logging"],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "add_policy_on_syscalls",
-    testonly = 1,
+    testonly = True,
     srcs = ["add_policy_on_syscalls.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "buffer",
-    testonly = 1,
+    testonly = True,
     srcs = ["buffer.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
     deps = [
         "//sandboxed_api/sandbox2:buffer",
         "//sandboxed_api/sandbox2:comms",
@@ -70,7 +65,7 @@ cc_binary(
 
 cc_binary(
     name = "ipc",
-    testonly = 1,
+    testonly = True,
     srcs = ["ipc.cc"],
     copts = sapi_platform_copts(),
     deps = [
@@ -81,51 +76,42 @@ cc_binary(
     ],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "malloc_system",
-    testonly = 1,
+    testonly = True,
     srcs = ["malloc.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
 )
 
 cc_binary(
     name = "minimal_dynamic",
-    testonly = 1,
+    testonly = True,
     srcs = ["minimal.cc"],
     copts = sapi_platform_copts(),
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "minimal",
-    testonly = 1,
+    testonly = True,
     srcs = ["minimal.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "personality",
-    testonly = 1,
+    testonly = True,
     srcs = ["personality.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "pidcomms",
-    testonly = 1,
+    testonly = True,
     srcs = ["pidcomms.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -133,40 +119,32 @@ cc_binary(
     ],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "policy",
-    testonly = 1,
+    testonly = True,
     srcs = ["policy.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
     deps = ["//sandboxed_api:config"],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "print_fds",
-    testonly = 1,
+    testonly = True,
     srcs = ["print_fds.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "sanitizer",
-    testonly = 1,
+    testonly = True,
     srcs = ["sanitizer.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
 )
 
 cc_binary(
     name = "close_fds",
-    testonly = 1,
+    testonly = True,
     srcs = ["close_fds.cc"],
     copts = sapi_platform_copts(),
     deps = [
@@ -177,24 +155,19 @@ cc_binary(
     ],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "sleep",
-    testonly = 1,
+    testonly = True,
     srcs = ["sleep.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
 )
 
-# security: disable=cc-static-no-pie
 cc_binary(
     name = "symbolize",
-    testonly = 1,
+    testonly = True,
     srcs = ["symbolize.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
     deps = [
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:temp_file",
@@ -205,7 +178,7 @@ cc_binary(
 
 cc_binary(
     name = "tsync",
-    testonly = 1,
+    testonly = True,
     srcs = ["tsync.cc"],
     copts = sapi_platform_copts(),
     deps = [
@@ -216,34 +189,30 @@ cc_binary(
 
 cc_binary(
     name = "starve",
-    testonly = 1,
+    testonly = True,
     srcs = ["starve.cc"],
     copts = sapi_platform_copts(),
 )
 
 cc_binary(
     name = "hostname",
-    testonly = 1,
+    testonly = True,
     srcs = ["hostname.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
 )
 
 cc_binary(
     name = "limits",
-    testonly = 1,
+    testonly = True,
     srcs = ["limits.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
 )
 
 cc_binary(
     name = "namespace",
-    testonly = 1,
+    testonly = True,
     srcs = ["namespace.cc"],
     copts = sapi_platform_copts(),
-    features = FULLY_STATIC_FEATURES,
-    linkstatic = 1,
+    features = ["fully_static_link"],
 )

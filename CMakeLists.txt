@@ -59,6 +59,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_SKIP_BUILD_RPATH ON)
 
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.14)
+  cmake_policy(SET CMP0083 NEW)
   include(CheckPIESupported)
   check_pie_supported()
 endif()

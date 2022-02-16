@@ -17,10 +17,13 @@
 #include <dirent.h>
 
 #include <cstdio>
+#include <functional>
+#include <string>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/cleanup/cleanup.h"
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/match.h"
@@ -49,6 +52,7 @@ using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::IsTrue;
 using ::testing::Not;
 
 // Temporarily overrides a flag, restores the original flag value when it goes
@@ -74,27 +78,26 @@ void SymbolizationWorksCommon(
     const std::function<void(PolicyBuilder*)>& modify_policy) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
   std::vector<std::string> args = {path, "1"};
-  auto executor = absl::make_unique<Executor>(path, args);
 
-  std::string temp_filename = CreateNamedTempFileAndClose("/tmp/").value();
-  file_util::fileops::CopyFile("/proc/cpuinfo", temp_filename, 0444);
-  struct TempCleanup {
-    ~TempCleanup() { remove(capture->c_str()); }
-    std::string* capture;
-  } temp_cleanup{&temp_filename};
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string temp_filename,
+                            CreateNamedTempFileAndClose("/tmp/"));
+  absl::Cleanup temp_cleanup = [&temp_filename] {
+    remove(temp_filename.c_str());
+  };
+  ASSERT_THAT(
+      file_util::fileops::CopyFile("/proc/cpuinfo", temp_filename, 0444),
+      IsTrue());
 
-  PolicyBuilder policybuilder;
-  policybuilder
-      // Don't restrict the syscalls at all.
-      .DangerDefaultAllowAll()
-      .AddFile(path)
-      .AddLibrariesForBinary(path)
-      .AddFileAt(temp_filename, "/proc/cpuinfo");
-
+  auto policybuilder = PolicyBuilder()
+                           // Don't restrict the syscalls at all.
+                           .DangerDefaultAllowAll()
+                           .AddFile(path)
+                           .AddLibrariesForBinary(path)
+                           .AddFileAt(temp_filename, "/proc/cpuinfo");
   modify_policy(&policybuilder);
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, policybuilder.TryBuild());
 
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(absl::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
@@ -187,15 +190,15 @@ TEST(StackTraceTest, SymbolizationTrustedFilesOnly) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
   std::vector<std::string> args = {path, "2"};
-  auto executor = absl::make_unique<Executor>(path, args);
-  SAPI_ASSERT_OK_AND_ASSIGN(
-      auto policy, PolicyBuilder{}  // Don't restrict the syscalls at all.
-                       .DangerDefaultAllowAll()
-                       .AddFile(path)
-                       .AddLibrariesForBinary(path)
-                       .TryBuild());
 
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .AddFile(path)
+                                .AddLibrariesForBinary(path)
+                                .TryBuild());
+  Sandbox2 s2(absl::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
