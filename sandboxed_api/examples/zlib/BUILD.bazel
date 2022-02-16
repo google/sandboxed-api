@@ -36,7 +36,7 @@ sapi_library(
 cc_binary(
     name = "main_zlib",
     srcs = ["main_zlib.cc"],
-    copts = sapi_platform_copts(["-Wframe-larger-than=65536"]),
+    copts = sapi_platform_copts(),
     deps = [
         ":zlib-sapi",
         ":zlib-sapi_embed",
