@@ -413,7 +413,7 @@ void ServeRequest(sandbox2::Comms* comms) {
 }  // namespace client
 }  // namespace sapi
 
-extern "C" ABSL_ATTRIBUTE_WEAK int main(int argc, char** argv) {
+ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
   gflags::SetCommandLineOptionWithMode("userspace_coredumper", "false",
                                        gflags::SET_FLAG_IF_DEFAULT);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
