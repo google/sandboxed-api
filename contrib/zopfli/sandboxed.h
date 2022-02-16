@@ -28,12 +28,13 @@ class ZopfliSapiSandbox : public ZopfliSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder *) override {
     return sandbox2::PolicyBuilder()
-        .AllowStaticStartup()
+        .AllowDynamicStartup()
         .AllowWrite()
         .AllowExit()
         .AllowMmap()
         .AllowSystemMalloc()
         .AllowSyscalls({
+            __NR_recvmsg,
             __NR_sysinfo,
         })
 #ifdef __NR_open
