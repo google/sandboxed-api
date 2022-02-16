@@ -44,7 +44,7 @@ endif()
 
 include(CheckCXXCompilerFlag)
 
-# Sapi CMake modules, order matters
+# SAPI CMake modules, order matters
 list(APPEND CMAKE_MODULE_PATH "${SAPI_SOURCE_DIR}/cmake"
                               "${SAPI_SOURCE_DIR}/cmake/modules")
 include(SapiOptions)
@@ -55,6 +55,13 @@ include(GNUInstallDirs)
 
 # Allow the header generator to auto-configure include paths
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_SKIP_BUILD_RPATH ON)
+
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.14)
+  include(CheckPIESupported)
+  check_pie_supported()
+endif()
 
 if(SAPI_HARDENED_SOURCE)
   add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
@@ -76,7 +83,7 @@ configure_file(cmake/libcap_capability.h.in
 
 # Library with basic project settings. The empty file is there to be able to
 # define header-only libraries without cumbersome target_sources() hacks.
-file(WRITE ${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc "")
+file(WRITE "${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc" "")
 add_library(sapi_base STATIC
   "${SAPI_BINARY_DIR}/sapi_base_force_cxx_linkage.cc"
 )
@@ -85,8 +92,7 @@ target_compile_features(sapi_base PUBLIC
   cxx_std_${SAPI_CXX_STANDARD}
 )
 set_target_properties(sapi_base PROPERTIES
-  SKIP_BUILD_RPATH          ON
-  POSITION_INDEPENDENT_CODE ON
+  INTERFACE_POSITION_INDEPENDENT_CODE ON
 )
 target_include_directories(sapi_base PUBLIC
   "${SAPI_BINARY_DIR}"
