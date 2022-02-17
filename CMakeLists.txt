@@ -14,6 +14,10 @@
 
 cmake_minimum_required(VERSION 3.13..3.22)
 
+if(POLICY CMP0083)
+  cmake_policy(SET CMP0083 NEW)
+endif()
+
 project(SandboxedAPI C CXX ASM)
 
 # TODO(cblichmann): Enable for Android once support lands
@@ -44,6 +48,17 @@ endif()
 
 include(CheckCXXCompilerFlag)
 
+# Allow the header generator to auto-configure include paths
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_SKIP_BUILD_RPATH ON)
+
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.14)
+  include(CheckPIESupported)
+  check_pie_supported()
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
+
 # SAPI CMake modules, order matters
 list(APPEND CMAKE_MODULE_PATH "${SAPI_SOURCE_DIR}/cmake"
                               "${SAPI_SOURCE_DIR}/cmake/modules")
@@ -52,17 +67,6 @@ include(SapiDeps)
 include(SapiUtil)
 include(SapiBuildDefs)
 include(GNUInstallDirs)
-
-# Allow the header generator to auto-configure include paths
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-set(CMAKE_SKIP_BUILD_RPATH ON)
-
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.14)
-  cmake_policy(SET CMP0083 NEW)
-  include(CheckPIESupported)
-  check_pie_supported()
-endif()
 
 if(SAPI_HARDENED_SOURCE)
   add_compile_options(-fstack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
@@ -100,12 +104,21 @@ target_include_directories(sapi_base PUBLIC
   "${SAPI_SOURCE_DIR}"
   "${Protobuf_INCLUDE_DIR}"
 )
-target_compile_options(sapi_base PUBLIC -fno-exceptions)
+target_compile_options(sapi_base PUBLIC
+  -fno-exceptions
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  target_compile_options(sapi_base PUBLIC
+    # The syscall tables in sandbox2/syscall_defs.cc are `std::array`s using
+    # CTAD and have more entries than the default limit of 256.
+    -fbracket-depth=768
+  )
+endif()
 set(_sapi_check_no_deprecated
   -Wno-deprecated SAPI_HAS_W_NO_DEPRECATED
 )
-# For sandbox2/util.cc's CloneAndJump()
 set(_sapi_check_frame_larger_than
+  # For sandbox2/util.cc's CloneAndJump()
   -Wframe-larger-than=40960 SAPI_HAS_W_FRAME_LARGER_THAN
 )
 set(_sapi_check_no_deprecated_declarations
