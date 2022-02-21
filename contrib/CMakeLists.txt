@@ -14,11 +14,17 @@
 
 # Append to this list whenever a new sandboxed library is added to `contrib/`.
 set(SAPI_CONTRIB_SANDBOXES
+  c-ares
   c-blosc
+  dav1d
   hunspell
   jsonnet
   libidn2
+  libraw
+  libvmaf
+  miniz
   pffft
+  tesseract-ocr
   turbojpeg
   zopfli
   zstd
