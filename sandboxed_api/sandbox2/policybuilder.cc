@@ -91,7 +91,7 @@ PolicyBuilder& PolicyBuilder::AllowSyscalls(absl::Span<const uint32_t> nums) {
 PolicyBuilder& PolicyBuilder::BlockSyscallsWithErrno(
     absl::Span<const uint32_t> nums, int error) {
   for (auto num : nums) {
-    AllowSyscall(num);
+    BlockSyscallWithErrno(num, error);
   }
   return *this;
 }
