@@ -18,8 +18,11 @@ set(SAPI_CONTRIB_SANDBOXES
   hunspell
   jsonnet
   libidn2
+  libraw
+  libvmaf
   libzip
   pffft
+  tesseract-ocr
   turbojpeg
   uriparser
   zopfli
