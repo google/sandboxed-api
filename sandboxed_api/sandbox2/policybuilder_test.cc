@@ -68,6 +68,7 @@ using ::testing::Lt;
 using ::testing::NotNull;
 using ::testing::StartsWith;
 using ::testing::StrEq;
+using ::sapi::IsOk;
 using ::sapi::StatusIs;
 
 class PolicyBuilderTest : public testing::Test {
@@ -193,8 +194,9 @@ std::string PolicyBuilderTest::Run(std::vector<std::string> args,
 
 TEST_F(PolicyBuilderTest, TestCanOnlyBuildOnce) {
   PolicyBuilder b;
-  ASSERT_THAT(b.BuildOrDie(), NotNull());
-  ASSERT_DEATH(b.BuildOrDie(), "Can only build policy once");
+  ASSERT_THAT(b.TryBuild(), IsOk());
+  EXPECT_THAT(b.TryBuild(), StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     "Can only build policy once."));
 }
 
 TEST_F(PolicyBuilderTest, TestIsCopyable) {

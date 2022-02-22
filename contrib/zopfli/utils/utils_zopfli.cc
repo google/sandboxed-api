@@ -54,3 +54,25 @@ absl::Status Compress(ZopfliApi& api, std::ifstream& instream,
   }
   return absl::OkStatus();
 }
+
+absl::Status CompressFD(ZopfliApi& api, sapi::v::Fd& infd, sapi::v::Fd& outfd,
+                        ZopfliFormat format) {
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
+
+  sapi::v::Struct<ZopfliOptions> options;
+  SAPI_RETURN_IF_ERROR(api.ZopfliInitOptions(options.PtrAfter()));
+
+  SAPI_ASSIGN_OR_RETURN(
+      int ret, api.ZopfliCompressFD(options.PtrBefore(), format,
+                                    infd.GetRemoteFd(), outfd.GetRemoteFd()));
+
+  infd.CloseRemoteFd(api.GetSandbox()->rpc_channel()).IgnoreError();
+  outfd.CloseRemoteFd(api.GetSandbox()->rpc_channel()).IgnoreError();
+
+  if (ret == -1) {
+    return absl::UnavailableError("Unable to compress file");
+  }
+
+  return absl::OkStatus();
+}

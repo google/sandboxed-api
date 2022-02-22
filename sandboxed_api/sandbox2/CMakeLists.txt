@@ -946,6 +946,7 @@ if(SAPI_ENABLE_TESTS)
     sandbox2::testcase_symbolize
   )
   target_link_libraries(sandbox2_stack_trace_test PRIVATE
+    absl::cleanup
     absl::memory
     absl::status
     absl::strings

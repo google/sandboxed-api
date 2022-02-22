@@ -12,12 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(SAPI_LIB_TYPE STREQUAL "STATIC")
-  set(_sandbox2_linkopts -static)
-else()
-  set(_sandbox2_linkopts ${CMAKE_THREAD_LIBS_INIT})
-endif()
-
 # sandboxed_api/sandbox2/testcases:abort
 add_executable(sandbox2_testcase_abort
   abort.cc
@@ -40,7 +34,8 @@ set_target_properties(sandbox2_testcase_add_policy_on_syscalls PROPERTIES
   OUTPUT_NAME add_policy_on_syscalls
 )
 target_link_libraries(sandbox2_testcase_add_policy_on_syscalls PRIVATE
-  ${_sandbox2_linkopts}
+  -static
+  sapi::base
 )
 
 # sandboxed_api/sandbox2/testcases:buffer
@@ -56,7 +51,6 @@ target_link_libraries(sandbox2_testcase_buffer PRIVATE
   sandbox2::buffer
   sandbox2::comms
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:ipc
@@ -85,8 +79,8 @@ set_target_properties(sandbox2_testcase_malloc_system PROPERTIES
   OUTPUT_NAME malloc_system
 )
 target_link_libraries(sandbox2_testcase_malloc_system PRIVATE
+  -static
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:minimal_dynamic
@@ -111,8 +105,8 @@ set_target_properties(sandbox2_testcase_minimal PROPERTIES
   OUTPUT_NAME minimal
 )
 target_link_libraries(sandbox2_testcase_minimal PRIVATE
+  -static
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:personality
@@ -125,8 +119,8 @@ set_target_properties(sandbox2_testcase_personality PROPERTIES
   OUTPUT_NAME personality
 )
 target_link_libraries(sandbox2_testcase_personality PRIVATE
+  -static
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:pidcomms
@@ -142,7 +136,6 @@ target_link_libraries(sandbox2_testcase_pidcomms PRIVATE
   sandbox2::comms
   sapi::base
   sapi::raw_logging
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:policy
@@ -154,9 +147,9 @@ set_target_properties(sandbox2_testcase_policy PROPERTIES
   OUTPUT_NAME policy
 )
 target_link_libraries(sandbox2_testcase_policy PRIVATE
+  -static
   sapi::base
   sapi::config
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:print_fds
@@ -169,7 +162,6 @@ set_target_properties(sandbox2_testcase_print_fds PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_print_fds PRIVATE
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:sanitizer
@@ -182,7 +174,6 @@ set_target_properties(sandbox2_testcase_sanitizer PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_sanitizer PRIVATE
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:close_fds
@@ -195,7 +186,6 @@ set_target_properties(sandbox2_testcase_close_fds PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_close_fds PRIVATE
   sapi::base
-  ${_sandbox2_linkopts}
   absl::strings
   absl::flat_hash_set
   glog::glog
@@ -212,8 +202,8 @@ set_target_properties(sandbox2_testcase_sleep PROPERTIES
   OUTPUT_NAME sleep
 )
 target_link_libraries(sandbox2_testcase_sleep PRIVATE
+  -static
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:symbolize
@@ -231,7 +221,6 @@ target_link_libraries(sandbox2_testcase_symbolize PRIVATE
   sapi::strerror
   sapi::base
   sapi::raw_logging
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:starve
@@ -246,7 +235,6 @@ target_link_libraries(sandbox2_testcase_starve PRIVATE
   sapi::base
 )
 
-
 # sandboxed_api/sandbox2/testcases:tsync
 add_executable(sandbox2_testcase_tsync
   tsync.cc
@@ -259,7 +247,6 @@ target_link_libraries(sandbox2_testcase_tsync PRIVATE
   sandbox2::client
   sandbox2::comms
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:hostname
@@ -271,8 +258,8 @@ set_target_properties(sandbox2_testcase_hostname PROPERTIES
   OUTPUT_NAME hostname
 )
 target_link_libraries(sandbox2_testcase_hostname PRIVATE
+  -static
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:limits
@@ -285,7 +272,6 @@ set_target_properties(sandbox2_testcase_limits PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_limits PRIVATE
   sapi::base
-  ${_sandbox2_linkopts}
 )
 
 # sandboxed_api/sandbox2/testcases:namespace
@@ -297,6 +283,6 @@ set_target_properties(sandbox2_testcase_namespace PROPERTIES
   OUTPUT_NAME namespace
 )
 target_link_libraries(sandbox2_testcase_namespace PRIVATE
+  -static
   sapi::base
-  ${_sandbox2_linkopts}
 )

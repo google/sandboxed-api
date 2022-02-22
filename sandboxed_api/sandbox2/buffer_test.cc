@@ -66,7 +66,7 @@ TEST(BufferTest, TestImplementation) {
 std::unique_ptr<Policy> BufferTestcasePolicy() {
   auto s2p = PolicyBuilder()
                  .DisableNamespaces()
-                 .AllowStaticStartup()
+                 .AllowDynamicStartup()
                  .AllowExit()
                  .AllowSafeFcntl()
                  .AllowTime()
@@ -75,6 +75,7 @@ std::unique_ptr<Policy> BufferTestcasePolicy() {
                  .AllowWrite()
                  .AllowMmap()
                  .AllowStat()
+                 .AllowOpen()
                  .AllowSyscalls({
                      __NR_dup,
                      __NR_futex,
@@ -88,10 +89,6 @@ std::unique_ptr<Policy> BufferTestcasePolicy() {
                  })
                  .BlockSyscallsWithErrno(
                      {
-#ifdef __NR_open
-                         __NR_open,
-#endif
-                         __NR_openat,
 #ifdef __NR_access
                          // On Debian, even static binaries check existence of
                          // /etc/ld.so.nohwcap.

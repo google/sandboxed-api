@@ -24,7 +24,6 @@ target_link_libraries(sandbox2_zpipe_sandbox PRIVATE
   absl::memory
   sandbox2::bpf_helper
   sandbox2::comms
-  # sandbox2::ipc
   sapi::runfiles
   sandbox2::sandbox2
   sapi::base
@@ -38,5 +37,6 @@ add_executable(sandbox2_zpipe
 set_target_properties(sandbox2_zpipe PROPERTIES OUTPUT_NAME zpipe)
 add_executable(sandbox2::zpipe ALIAS sandbox2_zpipe)
 target_link_libraries(sandbox2_zpipe PRIVATE
+  -static
   ZLIB::ZLIB
 )

@@ -61,7 +61,6 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
-
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
@@ -74,8 +73,9 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
 TEST(TsyncTest, TsyncNoMemoryChecks) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/tsync");
-  std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
+
+  auto executor =
+      absl::make_unique<Executor>(path, std::vector<std::string>{path});
   executor->set_enable_sandbox_before_exec(false);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -84,7 +84,6 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
-
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
@@ -93,8 +92,8 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
   ASSERT_EQ(result.reason_code(), 0);
 }
 
-// Tests whether Executor(fd, args, envp) constructor works as
-// expected.
+// Tests whether Executor(fd, std::vector<std::string>{path}, envp) constructor
+// works as expected.
 TEST(ExecutorTest, ExecutorFdConstructor) {
   SKIP_SANITIZERS_AND_COVERAGE;
 
@@ -135,7 +134,7 @@ TEST(StackTraceTest, StackTraceOnExitWorks) {
   auto result = sandbox.Run();
 
   ASSERT_EQ(result.final_status(), Result::OK);
-  ASSERT_THAT(result.stack_trace(), Not(IsEmpty()));
+  EXPECT_THAT(result.stack_trace(), Not(IsEmpty()));
 }
 
 // Tests that we return the correct state when the sandboxee was killed by an
@@ -158,7 +157,6 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
   sandbox.Kill();
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::EXTERNAL_KILL);
-
   EXPECT_THAT(result.GetStackTrace(), IsEmpty());
 }
 
@@ -231,18 +229,19 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
   std::vector<std::string> args = {path};
   std::vector<std::string> envs;
   auto executor = absl::make_unique<Executor>(path, args, envs);
+  executor->limits()->set_walltime_limit(absl::Seconds(5));
 
   SAPI_ASSERT_OK_AND_ASSIGN(
       auto policy,
       PolicyBuilder().DisableNamespaces().DangerDefaultAllowAll().TryBuild());
-  executor->limits()->set_walltime_limit(absl::Seconds(5));
   Sandbox2 sandbox(std::move(executor), std::move(policy));
+
   auto start = absl::Now();
   ASSERT_THAT(sandbox.RunAsync(), IsTrue());
   auto result = sandbox.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(Result::TIMEOUT));
-  auto end = absl::Now();
-  auto elapsed = end - start;
+
+  auto elapsed = absl::Now() - start;
   EXPECT_THAT(elapsed, Lt(absl::Seconds(10)));
 }
 

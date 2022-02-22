@@ -91,7 +91,7 @@ PolicyBuilder& PolicyBuilder::AllowSyscalls(absl::Span<const uint32_t> nums) {
 PolicyBuilder& PolicyBuilder::BlockSyscallsWithErrno(
     absl::Span<const uint32_t> nums, int error) {
   for (auto num : nums) {
-    AllowSyscall(num);
+    BlockSyscallWithErrno(num, error);
   }
   return *this;
 }
@@ -653,12 +653,10 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   BlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
 
-  if constexpr (sapi::host_cpu::IsArm()) {
-    AddPolicyOnSyscall(__NR_mprotect, {
-                                          ARG_32(2),
-                                          JEQ32(PROT_READ, ALLOW),
-                                      });
-  }
+  AddPolicyOnSyscall(__NR_mprotect, {
+                                        ARG_32(2),
+                                        JEQ32(PROT_READ, ALLOW),
+                                    });
 
   return *this;
 }
@@ -884,7 +882,7 @@ PolicyBuilder& PolicyBuilder::AddFile(absl::string_view path, bool is_ro) {
 
 PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
                                         absl::string_view inside, bool is_ro) {
-  EnableNamespaces();
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
 
   auto valid_outside = ValidateAbsolutePath(outside);
   if (!valid_outside.ok()) {
@@ -912,7 +910,7 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
 
 PolicyBuilder& PolicyBuilder::AddLibrariesForBinary(
     absl::string_view path, absl::string_view ld_library_path) {
-  EnableNamespaces();
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
 
   auto valid_path = ValidatePath(path);
   if (!valid_path.ok()) {
@@ -941,7 +939,7 @@ PolicyBuilder& PolicyBuilder::AddDirectory(absl::string_view path, bool is_ro) {
 PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
                                              absl::string_view inside,
                                              bool is_ro) {
-  EnableNamespaces();
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
 
   auto valid_outside = ValidateAbsolutePath(outside);
   if (!valid_outside.ok()) {
@@ -969,7 +967,7 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
 }
 
 PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t size) {
-  EnableNamespaces();
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
 
   if (auto status = mounts_.AddTmpfs(inside, size); !status.ok()) {
     SetError(absl::InternalError(absl::StrCat("Could not mount tmpfs ", inside,
@@ -979,14 +977,14 @@ PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t size) {
 }
 
 PolicyBuilder& PolicyBuilder::AllowUnrestrictedNetworking() {
-  EnableNamespaces();
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
   allow_unrestricted_networking_ = true;
 
   return *this;
 }
 
 PolicyBuilder& PolicyBuilder::SetHostname(absl::string_view hostname) {
-  EnableNamespaces();
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
   hostname_ = std::string(hostname);
 
   return *this;
@@ -1089,7 +1087,7 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
 }
 
 PolicyBuilder& PolicyBuilder::SetRootWritable() {
-  EnableNamespaces();
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
   mounts_.SetRootWritable();
 
   return *this;

@@ -177,8 +177,10 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
 
     for (const ElfFile::Symbol& symbol : elf->symbols()) {
       if (elf->position_independent()) {
-        if (symbol.address < entry.end - entry.start) {
-          addr_to_symbol[symbol.address + entry.start] = symbol.name;
+        if (symbol.address >= entry.pgoff &&
+            symbol.address - entry.pgoff < entry.end - entry.start) {
+          addr_to_symbol[symbol.address + entry.start - entry.pgoff] =
+              symbol.name;
         }
       } else {
         if (symbol.address >= entry.start && symbol.address < entry.end) {

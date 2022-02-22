@@ -79,16 +79,12 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
 
   std::vector<std::string> args = {path, "1"};
-  auto executor = absl::make_unique<Executor>(path, args);
-
-  auto policy = PolicyTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
   auto result = s2.Run();
 
-    ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-    EXPECT_THAT(result.reason_code(), Eq(1));  // __NR_exit in 32-bit
-    EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
+  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(), Eq(1));  // __NR_exit in 32-bit
+  EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
 }
 
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
@@ -96,17 +92,13 @@ TEST(PolicyTest, AMD64Syscall32FsAllowed) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "2"};
-  auto executor = absl::make_unique<Executor>(path, args);
-
-  auto policy = PolicyTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
   auto result = s2.Run();
 
-    ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-    EXPECT_THAT(result.reason_code(),
-                Eq(33));  // __NR_access in 32-bit
-    EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
+  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(),
+              Eq(33));  // __NR_access in 32-bit
+  EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
 }
 #endif
 
@@ -115,11 +107,7 @@ TEST(PolicyTest, PtraceDisallowed) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "3"};
-  auto executor = absl::make_unique<Executor>(path, args);
-
-  auto policy = PolicyTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -131,11 +119,7 @@ TEST(PolicyTest, CloneUntracedDisallowed) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "4"};
-  auto executor = absl::make_unique<Executor>(path, args);
-
-  auto policy = PolicyTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -147,11 +131,7 @@ TEST(PolicyTest, BpfDisallowed) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "5"};
-  auto executor = absl::make_unique<Executor>(path, args);
-
-  auto policy = PolicyTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -163,13 +143,12 @@ TEST(PolicyTest, BpfPermissionDenied) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "7"};
-  auto executor = absl::make_unique<Executor>(path, args);
 
   auto policy = CreatePolicyTestPolicyBuilder()
                     .BlockSyscallWithErrno(__NR_bpf, EPERM)
                     .BuildOrDie();
 
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   // bpf(2) is not a violation due to explicit policy.  EPERM is expected.
@@ -181,11 +160,7 @@ TEST(PolicyTest, IsattyAllowed) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "6"};
-  auto executor = absl::make_unique<Executor>(path, args);
-
-  auto policy = PolicyTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -209,11 +184,7 @@ TEST(MinimalTest, MinimalBinaryWorks) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
-
-  auto policy = MinimalTestcasePolicy();
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), MinimalTestcasePolicy());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -226,7 +197,6 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
 
   auto policy = PolicyBuilder()
                     .AllowDynamicStartup()
@@ -241,7 +211,7 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
                     .AddLibrariesForBinary(path)
                     .BuildOrDie();
 
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -254,7 +224,6 @@ TEST(MallocTest, SystemMallocWorks) {
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/malloc_system");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
 
   auto policy = PolicyBuilder()
                     .AllowStaticStartup()
@@ -266,7 +235,7 @@ TEST(MallocTest, SystemMallocWorks) {
 #endif
                     .BuildOrDie();
 
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -283,7 +252,6 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/add_policy_on_syscalls");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
 
   auto policy = PolicyBuilder()
                     .AllowStaticStartup()
@@ -337,7 +305,7 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
                     .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
                     .BuildOrDie();
 
-  Sandbox2 s2(std::move(executor), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));

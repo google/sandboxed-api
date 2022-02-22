@@ -39,6 +39,7 @@ namespace sandbox2 {
 namespace {
 
 using ::sapi::GetTestSourcePath;
+using ::testing::Eq;
 
 // Allow typical syscalls and call SECCOMP_RET_TRACE for personality syscall,
 // chosen because unlikely to be called by a regular program.
@@ -46,6 +47,7 @@ std::unique_ptr<Policy> NotifyTestcasePolicy() {
   return PolicyBuilder()
       .DisableNamespaces()
       .AllowStaticStartup()
+      .AllowDynamicStartup()  // For PrintPidAndComms
       .AllowExit()
       .AllowRead()
       .AllowWrite()
@@ -106,16 +108,12 @@ TEST(NotifyTest, AllowPersonality) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
-  auto policy = NotifyTestcasePolicy();
-  ASSERT_THAT(policy, testing::Not(testing::IsNull()));
-  auto notify = absl::make_unique<PersonalityNotify>(true);
-
-  Sandbox2 s2(std::move(executor), std::move(policy), std::move(notify));
+  Sandbox2 s2(absl::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
+              absl::make_unique<PersonalityNotify>(/*allow=*/true));
   auto result = s2.Run();
 
-  ASSERT_EQ(result.final_status(), Result::OK);
-  ASSERT_EQ(result.reason_code(), 22);
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(22));
 }
 
 // Test EventSyscallTrap on personality syscall and disallow it.
@@ -123,16 +121,12 @@ TEST(NotifyTest, DisallowPersonality) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
-  auto policy = NotifyTestcasePolicy();
-  ASSERT_THAT(policy, testing::Not(testing::IsNull()));
-  auto notify = absl::make_unique<PersonalityNotify>(false);
-
-  Sandbox2 s2(std::move(executor), std::move(policy), std::move(notify));
+  Sandbox2 s2(absl::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
+              absl::make_unique<PersonalityNotify>(/*allow=*/false));
   auto result = s2.Run();
 
-  ASSERT_EQ(result.final_status(), Result::VIOLATION);
-  ASSERT_EQ(result.reason_code(), __NR_personality);
+  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(), Eq(__NR_personality));
 }
 
 // Test EventStarted by exchanging data after started but before sandboxed.
@@ -142,15 +136,13 @@ TEST(NotifyTest, PrintPidAndComms) {
   std::vector<std::string> args = {path};
   auto executor = absl::make_unique<Executor>(path, args);
   executor->set_enable_sandbox_before_exec(false);
-  auto policy = NotifyTestcasePolicy();
-  ASSERT_THAT(policy, testing::Not(testing::IsNull()));
-  auto notify = absl::make_unique<PidCommsNotify>();
 
-  Sandbox2 s2(std::move(executor), std::move(policy), std::move(notify));
+  Sandbox2 s2(std::move(executor), NotifyTestcasePolicy(),
+              absl::make_unique<PidCommsNotify>());
   auto result = s2.Run();
 
-  ASSERT_EQ(result.final_status(), Result::OK);
-  ASSERT_EQ(result.reason_code(), 33);
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(33));
 }
 
 }  // namespace

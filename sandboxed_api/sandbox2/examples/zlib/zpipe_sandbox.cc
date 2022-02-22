@@ -54,7 +54,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       // Allow write on STDOUT / STDERR.
       .AddPolicyOnSyscall(__NR_write,
                           {ARG_32(0), JEQ32(1, ALLOW), JEQ32(2, ALLOW)})
-      .AllowSyscall(__NR_fstat)
+      .AllowStat()
       .AllowStaticStartup()
       .AllowSystemMalloc()
       .AllowExit()

@@ -23,4 +23,7 @@
 absl::Status Compress(ZopfliApi& api, std::ifstream& instream,
                       std::ofstream& outstream, ZopfliFormat format);
 
+absl::Status CompressFD(ZopfliApi& api, sapi::v::Fd& infd, sapi::v::Fd& outfd,
+                        ZopfliFormat format);
+
 #endif  // CONTRIB_ZOPFLI_UTILS_UTILS_ZOPFLI_H_

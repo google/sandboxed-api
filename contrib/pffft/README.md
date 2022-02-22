@@ -1,16 +1,35 @@
 # Sandboxing PFFFT library
 
+This library was sandboxed as part of Google's summer 2020 internship program
+([blog post](https://security.googleblog.com/2020/12/improving-open-source-security-during.html)).
+
 Build System: CMake
 OS: Linux
 
-### Check out the PFFFT library & CMake set up
-```
-git submodule update --init --recursive
+### How to use from an existing Project
 
-mkdir -p build && cd build
-cmake .. -G Ninja -DPFFFT_ROOT_DIR=$PWD
-ninjas
+If your project does not include Sandboxed API as a dependency yet, add the
+following lines to the main `CMakeLists.txt`:
+
+```cmake
+include(FetchContent)
+
+FetchContent_Declare(sandboxed-api
+  GIT_REPOSITORY https://github.com/google/sandboxed-api
+  GIT_TAG        main  # Or pin a specific commit/tag
+)
+FetchContent_MakeAvailable(sandboxed-api)  # CMake 3.14 or higher
+
+add_sapi_subdirectory(contrib/pffft)
 ```
+
+The `add_sapi_subdirectory()` macro sets up the source and binary directories
+for the sandboxed jsonnet targets.
+
+Afterwards your project's code can link to `sapi_contrib::pffft` and use the
+generated header `pffft_sapi.sapi.h`. An example sandbox policy can be found
+in `main_pffft_sandboxed.cc`.
+
 ### For testing:
 `cd build`, then `./pffft_sandboxed`
 
@@ -19,14 +38,15 @@ display custom info with
 `./pffft_sandboxed --logtostderr`
 
 ## ***About the project***
-*PFFFT library is concerned with 1D Fast-Fourier Transformations finding a
+
+PFFFT library is concerned with 1D Fast-Fourier Transformations finding a
 compromise between accuracy and speed. It deals with real and complex
 vectors, both cases being illustrated in the testing part (`test_pffft.c`
 for initially and original version, `main_pffft_sandboxed.cc` for our
 currently implemented sandboxed version).
 The original files can be found at: https://bitbucket.org/jpommier/pffft/src.*
 
-*The purpose of sandboxing is to limit the permissions and capabilities of
+The purpose of sandboxing is to limit the permissions and capabilities of
 library’s methods, in order to secure the usage of them.
 After obtaining the sandbox, the functions will be called through an
 Sandbox API (being called `api` in the current test) and so, the
@@ -50,10 +70,12 @@ Without using this type of argument when running, the output format is set
 by default.*
 
 #### CMake observations resume:
+
 * linking pffft and fftpack (which contains necessary functions for pffft)
 * set math library
 
 #### Sandboxed main observations resume:
+
 * containing two testing parts (fft / pffft benchmarks)
 * showing the performance of the transformations implies
   testing them through various FFT dimenstions.
