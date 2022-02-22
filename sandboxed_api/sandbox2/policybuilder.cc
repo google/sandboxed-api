@@ -218,8 +218,14 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
                                          JEQ32(MADV_NOHUGEPAGE, ALLOW),
                                      });
     // Sanitizers read from /proc. For example:
-    // https://github.com/llvm-mirror/compiler-rt/blob/69445f095c22aac2388f939bedebf224a6efcdaf/lib/sanitizer_common/sanitizer_linux.cpp#L1101
+    // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L1155
     AddDirectory("/proc");
+    // Sanitizers need pid for reports. For example:
+    // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L740
+    AllowGetPIDs();
+    // Sanitizers may try color output. For example:
+    // https://github.com/llvm/llvm-project/blob/87dd3d350c4ce0115b2cdf91d85ddd05ae2661aa/compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp#L157
+    BlockSyscallWithErrno(__NR_ioctl, EPERM);
   }
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
