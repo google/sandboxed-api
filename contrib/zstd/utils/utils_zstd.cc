@@ -78,9 +78,9 @@ absl::Status DecompressInMemory(ZstdApi& api, std::ifstream& in_stream,
   }
   sapi::v::Array<uint8_t> outbuf(size);
 
-  SAPI_ASSIGN_OR_RETURN(
-      size_t desize, api.ZSTD_decompress(outbuf.PtrAfter(), size,
-                                         inbuf.PtrBefore(), inbuf.GetSize()));
+  SAPI_ASSIGN_OR_RETURN(size_t desize,
+                        api.ZSTD_decompress(outbuf.PtrAfter(), size,
+                                            inbuf.PtrNone(), inbuf.GetSize()));
   SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(desize));
   if (iserr) {
     return absl::UnavailableError("Unable to decompress file");
