@@ -78,7 +78,7 @@ add_sapi_library(
     ZSTD_decompress_fd
     ZSTD_decompressStream_fd
   INPUTS
-    ${libzstd_INCLUDE_DIR}/zstd.h
+    "${libzstd_INCLUDE_DIR}/zstd.h"
     wrapper/wrapper_zstd.h
 
   LIBRARY wrapper_zstd
