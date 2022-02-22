@@ -14,6 +14,7 @@
 
 # Append to this list whenever a new sandboxed library is added to `contrib/`.
 set(SAPI_CONTRIB_SANDBOXES
+  c-blosc
   hunspell
   jsonnet
   libidn2
