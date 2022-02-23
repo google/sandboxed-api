@@ -34,7 +34,7 @@ FetchContent_Declare(
 
   GIT_REPOSITORY https://github.com/Blosc/c-blosc.git
   GIT_TAG a0e5c18d37db8e6f1003254a574c8062c5b45e00
-  PATCH_COMMAND patch < "${CMAKE_SOURCE_DIR}/patches/c-blosc.cmake.patch" && cd blosc && patch < "${CMAKE_SOURCE_DIR}/patches/c-blosc.blosc.cmake.patch"
+  PATCH_COMMAND patch < "${CMAKE_CURRENT_SOURCE_DIR}/patches/c-blosc.cmake.patch" && cd blosc && patch < "${CMAKE_CURRENT_SOURCE_DIR}/patches/c-blosc.blosc.cmake.patch"
 )
 FetchContent_MakeAvailable(libblosc)
 

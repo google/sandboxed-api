@@ -50,20 +50,32 @@ add_sapi_library(cares_sapi
     ares_gethostbyname_file
     ares_gethostbyaddr
     ares_getnameinfo
-    ares_fds
+# crashes code generator
+#   ares_fds
     ares_getsock
     ares_timeout
-    ares_process
+# crashes code generator
+#    ares_process
     ares_process_fd
     ares_create_query
     ares_mkquery
     ares_expand_name
     ares_expand_string
   LIBRARY cares
-  LIBRARY_NAME cares
+  LIBRARY_NAME Ares
   NAMESPACE "c_ares_sapi"
 )
 add_library(sapi_contrib::cares ALIAS cares_sapi)
 target_include_directories(cares_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
 )
+if(SAPI_ENABLE_TESTS)
+  add_executable(cares_sapi_test
+    sapi_c_ares_test.cc
+  )
+  target_link_libraries(cares_sapi_test PRIVATE
+    sapi_contrib::cares
+    sapi::test_main
+  )
+  gtest_discover_tests(cares_sapi_test)
+endif()
