@@ -40,22 +40,28 @@ add_sapi_library(cares_sapi
     ares_set_socket_callback
     ares_set_socket_configure_callback
     ares_set_sortlist
-    ares_getaddrinfo
-    ares_freeaddrinfo
-    ares_set_socket_functions
+# crashes code generator
+#   ares_getaddrinfo
+# crashes code generator
+#   ares_freeaddrinfo
+# crashes code generator
+#   ares_set_socket_functions
     ares_send
     ares_query
     ares_search
     ares_gethostbyname
     ares_gethostbyname_file
     ares_gethostbyaddr
-    ares_getnameinfo
+# crashes code generator
+#   ares_getnameinfo
 # crashes code generator
 #   ares_fds
     ares_getsock
-    ares_timeout
+    ares_init
 # crashes code generator
-#    ares_process
+#   ares_timeout
+# crashes code generator
+#   ares_process
     ares_process_fd
     ares_create_query
     ares_mkquery
