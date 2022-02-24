@@ -93,8 +93,9 @@ add_sapi_library(tesseract_sapi
     TessBaseAPIMeanTextConf
     TessBaseAPINumDawgs
     TessBaseAPIOem
-    TessBaseAPIPrintVariables
-    TessBaseAPIPrintVariablesToFile
+# these crash the code generator
+#   TessBaseAPIPrintVariables
+#   TessBaseAPIPrintVariablesToFile
     TessBaseAPIProcessPage
     TessBaseAPIProcessPages
     TessBaseAPIReadConfigFile
@@ -185,10 +186,20 @@ add_sapi_library(tesseract_sapi
     TessUnlvRendererCreate
     TessVersion
     TessWordStrBoxRendererCreate
-  LIBRARY_NAME Tesseract
-  NAMESPACE "tesseract_sapi"
+  LIBRARY_NAME Tess
+  NAMESPACE "tess_sapi"
 )
 add_library(sapi_contrib::tesseract ALIAS tesseract_sapi)
 target_include_directories(tesseract_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
 )
+if(SAPI_ENABLE_TESTS)
+  add_executable(tesseract_sapi_test
+    sapi_tesseract_test.cc
+  )
+  target_link_libraries(tesseract_sapi_test PRIVATE
+    sapi_contrib::tesseract
+    sapi::test_main
+  )
+  gtest_discover_tests(tesseract_sapi_test)
+endif()
