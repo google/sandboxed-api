@@ -41,7 +41,7 @@ add_sapi_library(dav1d_sapi
     dav1d_data_wrap_user_data
     dav1d_data_unref
     dav1d_version
-    # dav1d_open
+    dav1d_open
     dav1d_parse_sequence_header
     dav1d_send_data
     dav1d_get_picture
