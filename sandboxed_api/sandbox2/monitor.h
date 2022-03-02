@@ -94,8 +94,7 @@ class Monitor final {
   bool InitApplyLimits();
 
   // Applies individual limit on the sandboxee.
-  bool InitApplyLimit(pid_t pid, __rlimit_resource resource,
-                      const rlimit64& rlim) const;
+  bool InitApplyLimit(pid_t pid, int resource, const rlimit64& rlim) const;
 
   // Kills the main traced PID with PTRACE_KILL.
   void KillSandboxee();

@@ -598,10 +598,17 @@ bool Monitor::InitSendCwd() {
   return true;
 }
 
-bool Monitor::InitApplyLimit(pid_t pid, __rlimit_resource resource,
+bool Monitor::InitApplyLimit(pid_t pid, int resource,
                              const rlimit64& rlim) const {
+#if defined(__ANDROID__)
+  using RlimitResource = int;
+#else
+  using RlimitResource = __rlimit_resource;
+#endif
+
   rlimit64 curr_limit;
-  if (prlimit64(pid, resource, nullptr, &curr_limit) == -1) {
+  if (prlimit64(pid, static_cast<RlimitResource>(resource), nullptr,
+                &curr_limit) == -1) {
     PLOG(ERROR) << "prlimit64(" << pid << ", " << util::GetRlimitName(resource)
                 << ")";
   } else if (rlim.rlim_cur > curr_limit.rlim_max) {
@@ -613,7 +620,8 @@ bool Monitor::InitApplyLimit(pid_t pid, __rlimit_resource resource,
     return true;
   }
 
-  if (prlimit64(pid, resource, &rlim, nullptr) == -1) {
+  if (prlimit64(pid, static_cast<RlimitResource>(resource), &rlim, nullptr) ==
+      -1) {
     PLOG(ERROR) << "prlimit64(" << pid << ", " << util::GetRlimitName(resource)
                 << ", " << rlim.rlim_cur << ")";
     return false;
