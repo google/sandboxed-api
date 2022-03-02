@@ -229,13 +229,17 @@ add_library(sandbox2::global_forkserver ALIAS sandbox2_global_forkserver)
 target_link_libraries(sandbox2_global_forkserver
   PRIVATE absl::memory
           absl::strings
+          absl::status
+          absl::statusor
           glog::glog
           sandbox2::client
           sandbox2::forkserver_bin_embed
           sapi::strerror
           sandbox2::util
           sapi::base
+          sapi::config
           sapi::embed_file
+          sapi::fileops
           sapi::raw_logging
           sapi::status
   PUBLIC absl::core_headers

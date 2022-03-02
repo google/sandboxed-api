@@ -107,5 +107,6 @@ std::string AbslUnparseFlag(GlobalForkserverStartModeSet in);
 }  // namespace sandbox2
 
 ABSL_DECLARE_FLAG(string, sandbox2_forkserver_start_mode);
+ABSL_DECLARE_FLAG(string, sandbox2_forkserver_binary_path);
 
 #endif  // SANDBOXED_API_SANDBOX2_GLOBAL_FORKCLIENT_H_
