@@ -42,6 +42,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Cache dependencies
+      uses: actions/cache@v2
+      with:
+        key: ${{matrix.os}}-${{matrix.compiler}}${{matrix.compiler-version}}
+        path: |
+          ${{github.workspace}}/_deps
+
     - name: Install ninja-build tool
       uses: seanmiddleditch/gha-setup-ninja@v3
 
