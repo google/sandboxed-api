@@ -47,9 +47,8 @@ target_link_libraries(sapi_generator PUBLIC
   absl::status
   absl::statusor
   absl::strings
-  clangFormat
-  clangFrontendTool
-  clangTooling
+  clang
+  clang-cpp
   sapi::fileops
   sapi::status
   ${_sapi_generator_llvm_libs}
@@ -77,7 +76,7 @@ if(SAPI_ENABLE_TESTS)
     sapi::sapi
     sapi::generator
     sapi::status
-    sapi::statusor
+    absl::statusor
     sapi::status_matchers
     sapi::test_main
   )
