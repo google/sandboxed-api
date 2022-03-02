@@ -305,7 +305,7 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
     absl::StrAppend(&out, ", ", IsPointerOrReference(qual) ? "" : "&v_", name);
   }
   absl::StrAppend(&out, "));\nreturn ",
-                  (returns_void ? "absl::OkStatus()" : "v_ret_.GetValue()"),
+                  (returns_void ? "::absl::OkStatus()" : "v_ret_.GetValue()"),
                   ";\n}\n");
   return out;
 }
@@ -331,12 +331,6 @@ absl::StatusOr<std::string> EmitHeader(
     absl::StrAppendFormat(&out, kEmbedInclude, include_file);
   }
 
-  // If specified, wrap the generated API in a namespace
-  if (options.has_namespace()) {
-    absl::StrAppendFormat(&out, kNamespaceBeginTemplate,
-                          options.namespace_name);
-  }
-
   // Emit type dependencies
   if (!rendered_types.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
@@ -351,6 +345,12 @@ absl::StatusOr<std::string> EmitHeader(
         absl::StrAppend(&out, "}  // namespace ", ns_name, "\n\n");
       }
     }
+  }
+
+  // If specified, wrap the generated API in a namespace
+  if (options.has_namespace()) {
+    absl::StrAppendFormat(&out, kNamespaceBeginTemplate,
+                          options.namespace_name);
   }
 
   // Optionally emit a default sandbox that instantiates an embedded sandboxee
@@ -392,12 +392,21 @@ void Emitter::CollectType(clang::QualType qual) {
   const std::vector<std::string> ns_path = GetNamespacePath(decl);
   std::string ns_name;
   if (!ns_path.empty()) {
-    if (const auto& ns_root = ns_path.front();
-        ns_root == "std" || ns_root == "sapi" || ns_root == "__gnu_cxx") {
-      // Filter out any and all declarations from the C++ standard library,
-      // from SAPI itself and from other well-known namespaces. This avoids
-      // re-declaring things like standard integer types, for example.
+    const auto& ns_root = ns_path.front();
+    // Filter out any and all declarations from the C++ standard library,
+    // from SAPI itself and from other well-known namespaces. This avoids
+    // re-declaring things like standard integer types, for example.
+    if (ns_root == "std" || ns_root == "__gnu_cxx" || ns_root == "sapi") {
       return;
+    }
+    if (ns_root == "absl") {
+      // Skip types from Abseil that we already include in the generated
+      // header.
+      if (auto name = ToStringView(decl->getName());
+          name == "StatusCode" || name == "StatusToStringMode" ||
+          name == "CordMemoryAccounting") {
+        return;
+      }
     }
     ns_name = absl::StrCat(ns_path[0].empty() ? "" : " ",
                            absl::StrJoin(ns_path, "::"));

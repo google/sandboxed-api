@@ -21,6 +21,7 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -127,6 +128,10 @@ class GeneratorFactory : public clang::tooling::FrontendActionFactory {
 };
 
 std::string GetOutputFilename(absl::string_view source_file);
+
+inline absl::string_view ToStringView(llvm::StringRef ref) {
+  return absl::string_view(ref.data(), ref.size());
+}
 
 }  // namespace sapi
 

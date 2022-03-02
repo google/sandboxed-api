@@ -210,10 +210,10 @@ std::string MapQualTypeParameter(const clang::ASTContext& /*context*/,
 std::string MapQualTypeReturn(const clang::ASTContext& context,
                               clang::QualType qual) {
   if (qual->isVoidType()) {
-    return "absl::Status";
+    return "::absl::Status";
   }
   // Remove const qualifier like in MapQualType().
-  return absl::StrCat("absl::StatusOr<",
+  return absl::StrCat("::absl::StatusOr<",
                       MaybeRemoveConst(context, qual).getAsString(), ">");
 }
 

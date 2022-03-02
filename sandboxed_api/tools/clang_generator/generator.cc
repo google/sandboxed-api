@@ -40,10 +40,6 @@ std::string ReplaceFileExtension(absl::string_view path,
   return absl::StrCat(path.substr(0, pos), new_extension);
 }
 
-inline absl::string_view ToStringView(llvm::StringRef ref) {
-  return absl::string_view(ref.data(), ref.size());
-}
-
 }  // namespace
 
 std::string GetOutputFilename(absl::string_view source_file) {
