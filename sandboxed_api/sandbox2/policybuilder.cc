@@ -207,10 +207,21 @@ PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
 
 PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   if constexpr (sapi::sanitizers::IsAny()) {
-    // *san use a custom allocator that runs mmap under the hood.  For example:
+    // *san use a custom allocator that runs mmap/unmap under the hood.  For
+    // example:
     // https://github.com/llvm/llvm-project/blob/596d534ac3524052df210be8d3c01a33b2260a42/compiler-rt/lib/asan/asan_allocator.cpp#L980
     // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
     AllowMmap();
+    AllowSyscall(__NR_munmap);
+
+    // https://github.com/llvm/llvm-project/blob/4bbc3290a25c0dc26007912a96e0f77b2092ee56/compiler-rt/lib/sanitizer_common/sanitizer_stack_store.cpp#L293
+    AddPolicyOnSyscall(__NR_mprotect,
+                       {
+                           ARG_32(2),
+                           BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
+                                    ~uint32_t{PROT_READ | PROT_WRITE}),
+                           JEQ32(PROT_NONE, ALLOW),
+                       });
 
     AddPolicyOnSyscall(__NR_madvise, {
                                          ARG_32(2),
@@ -229,16 +240,6 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   }
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
-  }
-  if constexpr (sapi::sanitizers::IsTSan()) {
-    AllowSyscall(__NR_munmap);
-    AddPolicyOnSyscall(__NR_mprotect,
-                       {
-                           ARG_32(2),
-                           BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
-                                    ~uint32_t{PROT_READ | PROT_WRITE}),
-                           JEQ32(0, ALLOW),
-                       });
   }
   return *this;
 }
