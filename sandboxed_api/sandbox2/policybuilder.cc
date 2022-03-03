@@ -106,6 +106,13 @@ PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::OverridableBlockSyscallWithErrno(uint32_t num,
+                                                               int error) {
+  overridable_policy_.insert(overridable_policy_.end(),
+                             {SYSCALL(num, ERRNO(error))});
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AllowExit() {
   return AllowSyscalls({__NR_exit, __NR_exit_group});
 }
@@ -236,7 +243,7 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
     AllowGetPIDs();
     // Sanitizers may try color output. For example:
     // https://github.com/llvm/llvm-project/blob/87dd3d350c4ce0115b2cdf91d85ddd05ae2661aa/compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp#L157
-    BlockSyscallWithErrno(__NR_ioctl, EPERM);
+    OverridableBlockSyscallWithErrno(__NR_ioctl, EPERM);
   }
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
@@ -654,10 +661,10 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 #endif
 
   if constexpr (sapi::host_cpu::IsArm64()) {
-    BlockSyscallWithErrno(__NR_readlinkat, ENOENT);
+    OverridableBlockSyscallWithErrno(__NR_readlinkat, ENOENT);
   }
 #ifdef __NR_readlink
-  BlockSyscallWithErrno(__NR_readlink, ENOENT);
+  OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
 
   AddPolicyOnSyscall(__NR_mprotect, {
@@ -872,6 +879,9 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   output->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
   output->collect_stacktrace_on_exit_ = collect_stacktrace_on_exit_;
   output->user_policy_ = std::move(user_policy_);
+  output->user_policy_.insert(output->user_policy_.end(),
+                              overridable_policy_.begin(),
+                              overridable_policy_.end());
   output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
 
   auto pb_description = absl::make_unique<PolicyBuilderDescription>();

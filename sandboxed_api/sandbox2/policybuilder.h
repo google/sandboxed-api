@@ -582,6 +582,10 @@ class PolicyBuilder final {
   // Allows a limited version of madvise
   PolicyBuilder& AllowLimitedMadvise();
 
+  // Appends code to block a specific syscall and setting errno at the end of
+  // the policy - decision taken by user policy take precedence.
+  PolicyBuilder& OverridableBlockSyscallWithErrno(uint32_t num, int error);
+
   PolicyBuilder& SetMounts(Mounts mounts) {
     mounts_ = std::move(mounts);
     return *this;
@@ -609,6 +613,7 @@ class PolicyBuilder final {
 
   // Seccomp fields
   std::vector<sock_filter> user_policy_;
+  std::vector<sock_filter> overridable_policy_;
   bool user_policy_handles_bpf_ = false;
   absl::flat_hash_set<uint32_t> handled_syscalls_;
 
