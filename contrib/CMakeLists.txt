@@ -15,10 +15,10 @@
 # Append to this list whenever a new sandboxed library is added to `contrib/`.
 set(SAPI_CONTRIB_SANDBOXES
   c-ares
-  c-blosc
+  #c-blosc
   dav1d
   hunspell
-  jsonnet
+  #jsonnet
   libidn2
   libraw
   libvmaf
