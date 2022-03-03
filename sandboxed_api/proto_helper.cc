@@ -21,7 +21,7 @@ namespace sapi {
 namespace internal {
 
 absl::Status DeserializeProto(const char* data, size_t len,
-                              google::protobuf::Message& output) {
+                              google::protobuf::MessageLite& output) {
   ProtoArg envelope;
   if (!envelope.ParseFromArray(data, len)) {
     return absl::InternalError("Unable to parse proto from array");
@@ -37,13 +37,12 @@ absl::Status DeserializeProto(const char* data, size_t len,
 }  // namespace internal
 
 absl::StatusOr<std::vector<uint8_t>> SerializeProto(
-    const google::protobuf::Message& proto) {
+    const google::protobuf::MessageLite& proto) {
   // Wrap protobuf in a envelope so that we know the name of the protobuf
   // structure when deserializing in the sandboxee.
   ProtoArg proto_arg;
   proto_arg.set_protobuf_data(proto.SerializeAsString());
-  proto_arg.set_full_name(proto.GetDescriptor()->full_name());
-
+  proto_arg.set_full_name(proto.GetTypeName());
   std::vector<uint8_t> serialized_proto(proto_arg.ByteSizeLong());
   if (!proto_arg.SerializeToArray(serialized_proto.data(),
                                   serialized_proto.size())) {

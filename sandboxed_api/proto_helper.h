@@ -31,16 +31,16 @@ namespace sapi {
 namespace internal {
 
 absl::Status DeserializeProto(const char* data, size_t len,
-                              google::protobuf::Message& output);
+                              google::protobuf::MessageLite& output);
 
 }  // namespace internal
 
 absl::StatusOr<std::vector<uint8_t>> SerializeProto(
-    const google::protobuf::Message& proto);
+    const google::protobuf::MessageLite& proto);
 
 template <typename T>
 absl::StatusOr<T> DeserializeProto(const char* data, size_t len) {
-  static_assert(std::is_base_of<google::protobuf::Message, T>::value,
+  static_assert(std::is_base_of<google::protobuf::MessageLite, T>::value,
                 "Template argument must be a proto message");
   T result;
   SAPI_RETURN_IF_ERROR(
