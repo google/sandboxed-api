@@ -331,6 +331,12 @@ absl::StatusOr<std::string> EmitHeader(
     absl::StrAppendFormat(&out, kEmbedInclude, include_file);
   }
 
+  // If specified, wrap the generated API in a namespace
+  if (options.has_namespace()) {
+    absl::StrAppendFormat(&out, kNamespaceBeginTemplate,
+                          options.namespace_name);
+  }
+
   // Emit type dependencies
   if (!rendered_types.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
@@ -345,12 +351,6 @@ absl::StatusOr<std::string> EmitHeader(
         absl::StrAppend(&out, "}  // namespace ", ns_name, "\n\n");
       }
     }
-  }
-
-  // If specified, wrap the generated API in a namespace
-  if (options.has_namespace()) {
-    absl::StrAppendFormat(&out, kNamespaceBeginTemplate,
-                          options.namespace_name);
   }
 
   // Optionally emit a default sandbox that instantiates an embedded sandboxee
