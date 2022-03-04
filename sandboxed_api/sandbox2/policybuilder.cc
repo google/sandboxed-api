@@ -113,19 +113,6 @@ PolicyBuilder& PolicyBuilder::OverridableBlockSyscallWithErrno(uint32_t num,
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AllowEpoll() {
-  return AllowSyscalls({
-      __NR_epoll_create,
-      __NR_epoll_create1,
-      __NR_epoll_ctl,
-      __NR_epoll_wait,
-      __NR_epoll_pwait,
-#ifdef __NR_epoll_pwait2
-      __NR_epoll_pwait2,
-#endif
-  });
-}
-
 PolicyBuilder& PolicyBuilder::AllowExit() {
   return AllowSyscalls({__NR_exit, __NR_exit_group});
 }
