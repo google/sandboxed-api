@@ -28,7 +28,7 @@ if(NOT TARGET sapi::sapi)
   )
 endif()
 
-set(HIDE_SYMBOLS off)
+set(HIDE_SYMBOLS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   libblosc
 
