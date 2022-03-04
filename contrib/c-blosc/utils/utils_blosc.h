@@ -20,6 +20,8 @@
 
 #include "absl/status/status.h"
 
+#include "contrib/c-blosc/sandboxed.h"
+
 absl::Status Compress(CbloscApi& api, std::ifstream& in_stream,
                       std::ofstream& out_stream, int clevel,
                       std::string& compress, int nthreads);
