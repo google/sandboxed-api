@@ -30,7 +30,7 @@
 ABSL_FLAG(bool, decompress, false, "decompress");
 ABSL_FLAG(uint32_t, level, 0, "compression level");
 
-absl::Status Stream(miniz_sapi::MinizApi& api, std::string infile_s, std::string outfile_s) {
+static absl::Status Stream(miniz_sapi::MinizApi& api, std::string infile_s, std::string outfile_s) {
   std::ifstream infile(infile_s, std::ios::binary);
   if (!infile.is_open()) {
     return absl::UnavailableError(absl::StrCat("Unable to open ", infile_s));
@@ -40,10 +40,19 @@ absl::Status Stream(miniz_sapi::MinizApi& api, std::string infile_s, std::string
     return absl::UnavailableError(absl::StrCat("Unable to open ", outfile_s));
   }
 
-  if (absl::GetFlag(FLAGS_decompress)) {
-    return DecompressInMemory(api, infile, outfile);
+  std::cerr << "Testing!" << std::endl;
+  auto v = (absl::GetFlag(FLAGS_decompress) ?
+    sapi::util::DecompressInMemory(api, infile) :
+    sapi::util::CompressInMemory(api, infile, absl::GetFlag(FLAGS_level)));
+  std::cerr << "Testing 2!" << std::endl;
+  SAPI_ASSIGN_OR_RETURN(const std::vector<uint8_t> out, v);
+  std::cerr << "Testing 3!" << std::endl;
+  outfile.write(reinterpret_cast<const char*>(out.data()), out.size());
+  if (!outfile.good()) {
+    return absl::UnavailableError("Unable to write file");
   }
-  return CompressInMemory(api, infile, outfile, absl::GetFlag(FLAGS_level));
+
+  return absl::OkStatus();
 }
 
 int main(int argc, char* argv[]) {
@@ -78,4 +87,3 @@ int main(int argc, char* argv[]) {
 
   return EXIT_SUCCESS;
 }
-

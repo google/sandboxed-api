@@ -15,17 +15,22 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include <miniz.h>
 #include "contrib/miniz/miniz_sapi.sapi.h"
+#pragma GCC diagnostic error "-Wmissing-prototypes"
 
+namespace sapi {
+namespace util {
 static constexpr size_t kFileMaxSize = 1024 * 1024 * 1024;  // 1GB
 
 std::streamsize GetStreamSize(std::ifstream& stream);
 
-absl::Status CompressInMemory(miniz_sapi::MinizApi& api,
+absl::StatusOr<std::vector<uint8_t>> CompressInMemory(miniz_sapi::MinizApi& api,
                               std::ifstream& in_stream,
-                              std::ofstream& out_stream, int level);
+                              int level);
 
-absl::Status DecompressInMemory(miniz_sapi::MinizApi& api, std::ifstream& in_stream,
-                                std::ofstream& out_stream);
+absl::StatusOr<std::vector<uint8_t>> DecompressInMemory(miniz_sapi::MinizApi& api, std::ifstream& in_stream);
+}
+}

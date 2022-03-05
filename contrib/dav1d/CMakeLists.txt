@@ -29,11 +29,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(dav1d REQUIRED IMPORTED_TARGET dav1d)
 
 add_sapi_library(dav1d_sapi
-  INPUTS
-    "${dav1d_INCLUDEDIR}/dav1d/common.h"
-    "${dav1d_INCLUDEDIR}/dav1d/picture.h"
-    "${dav1d_INCLUDEDIR}/dav1d/dav1d.h"
-    "${dav1d_INCLUDEDIR}/dav1d/data.h"
+  INPUTS "${CMAKE_CURRENT_SOURCE_DIR}/sapi_dav1d.h"
   LIBRARY dav1d
   FUNCTIONS
     dav1d_data_create

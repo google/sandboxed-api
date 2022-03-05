@@ -23,6 +23,7 @@ target_link_libraries(
   sapi_miniminiz PRIVATE
 
   sapi_contrib::miniz
+  miniz_sapi
   sapi::sapi
   absl::flags_parse
 )

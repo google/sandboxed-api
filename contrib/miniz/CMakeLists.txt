@@ -25,33 +25,39 @@ if(NOT TARGET sapi::sapi)
                    EXCLUDE_FROM_ALL)
 endif()
 
+FetchContent_Declare(libminiz
+  GIT_REPOSITORY https://github.com/richgel999/miniz
+  GIT_TAG 5a38f5564a092462817b97014f4477c8f0783f8f
+)
+FetchContent_MakeAvailable(libminiz)
+
 add_sapi_library(miniz_sapi
-  INPUTS "/usr/include/miniz.h" "/usr/include/stdlib.h"
+  INPUTS "${libminiz_SOURCE_DIR}/miniz.h" "/usr/include/stdlib.h"
   LIBRARY miniz
   FUNCTIONS
-    #miniz_def_alloc_func
-    #miniz_def_free_func
-    #miniz_def_realloc_func
-#   mz_adler32
-    #mz_compress
-    #mz_compress2
-    #mz_compressBound
-    #mz_crc32
-    #mz_deflate
-    #mz_deflateBound
-    #mz_deflateEnd
-    #mz_deflateInit
-    #mz_deflateInit2
-    #mz_deflateReset
-    #mz_error
+    miniz_def_alloc_func
+    miniz_def_free_func
+    miniz_def_realloc_func
+    mz_adler32
+    mz_compress
+    mz_compress2
+    mz_compressBound
+    mz_crc32
+    mz_deflate
+    mz_deflateBound
+    mz_deflateEnd
+    mz_deflateInit
+    mz_deflateInit2
+    mz_deflateReset
+    mz_error
     mz_free
-#   mz_inflate
-#   mz_inflateEnd
-#   mz_inflateInit
-#   mz_inflateInit2
-#   mz_inflateReset
-#   mz_uncompress
-#   mz_version
+    mz_inflate
+    mz_inflateEnd
+    mz_inflateInit
+    mz_inflateInit2
+    mz_inflateReset
+    mz_uncompress
+    mz_version
 #   mz_zip_add_mem_to_archive_file_in_place
 #   mz_zip_add_mem_to_archive_file_in_place_v2
 #   mz_zip_clear_last_error
@@ -124,19 +130,19 @@ add_sapi_library(miniz_sapi
 #   mz_zip_writer_init_heap_v2
 #   mz_zip_writer_init_v2
 #   mz_zip_zero_struct
-#   tdefl_compress
-#   tdefl_compress_buffer
+    tdefl_compress
+    tdefl_compress_buffer
     tdefl_compress_mem_to_heap
-#   tdefl_compress_mem_to_mem
-#   tdefl_compress_mem_to_output
-#   tdefl_compressor_alloc
-#   tdefl_compressor_free
-#   tdefl_create_comp_flags_from_zip_params
-#   tdefl_get_adler32
-#   tdefl_get_prev_return_status
-#   tdefl_init
-#   tdefl_write_image_to_png_file_in_memory
-#   tdefl_write_image_to_png_file_in_memory_ex
+    tdefl_compress_mem_to_mem
+    tdefl_compress_mem_to_output
+    tdefl_compressor_alloc
+    tdefl_compressor_free
+    tdefl_create_comp_flags_from_zip_params
+    tdefl_get_adler32
+    tdefl_get_prev_return_status
+    tdefl_init
+    tdefl_write_image_to_png_file_in_memory
+    tdefl_write_image_to_png_file_in_memory_ex
     tinfl_decompress
     tinfl_decompress_mem_to_callback
     tinfl_decompress_mem_to_heap
@@ -147,6 +153,7 @@ add_sapi_library(miniz_sapi
   NAMESPACE "miniz_sapi"
 )
 add_library(sapi_contrib::miniz ALIAS miniz_sapi)
+target_link_directories(miniz_sapi PRIVATE "${libminiz_BUILD_DIR}")
 
 target_include_directories(miniz_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
@@ -156,6 +163,17 @@ if(SAPI_ENABLE_EXAMPLES)
   add_subdirectory(example)
 endif()
 
-if(SAPI_ENABLE_TESTS AND FALSE)
-  add_subdirectory(test)
+if(SAPI_ENABLE_TESTS)
+  include(GoogleTest)
+
+  add_executable(sapi_miniz_test sapi_miniz_test.cc utils/utils_miniz.cc)
+
+  target_link_libraries(sapi_miniz_test PRIVATE
+    miniz_sapi
+    sapi::base
+    gtest
+    gmock
+  )
+
+  gtest_discover_tests(sapi_miniz_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/testdata")
 endif()
