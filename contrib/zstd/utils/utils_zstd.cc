@@ -18,7 +18,7 @@
 
 #include "contrib/zstd/sandboxed.h"
 
-static const size_t kFileMaxSize = 1024 * 1024 * 1024;  // 1GB
+constexpr size_t kFileMaxSize = 1024 * 1024 * 1024;  // 1GB
 
 std::streamsize GetStreamSize(std::ifstream& stream) {
   stream.seekg(0, std::ios_base::end);
