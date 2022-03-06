@@ -15,7 +15,7 @@ Directory    | Project                                                          
 `pffft/`     | PFFFT - a pretty fast Fourier Transform                           | [bitbucket.org/jpommier/pffft.git](https://bitbucket.org/jpommier/pffft.git)         | CMake
 `turbojpeg/` | High-level JPEG library                                           | [libjpeg-turbo.org/About/TurboJPEG](https://libjpeg-turbo.org/About/TurboJPEG)       | CMake
 `uriparser/` | uriparser - Strictly RFC 3986 compliant URI parsing and handling library | [github.com/uriparser/uriparser](https://github.com/uriparser/uriparser.git)         | CMake
-`zopfli`     | Zopfli - Compression Algorithm                                    | [github.com/google/zopfli](https://github.com/google/zopfli)                         | CMake
+`zopfli/`    | Zopfli - Compression Algorithm                                    | [github.com/google/zopfli](https://github.com/google/zopfli)                         | CMake
 `zstd/`      | Zstandard - Fast real-time compression algorithm                  | [github.com/facebook/zstd](https://github.com/facebook/zstd)                         | CMake
 
 ## Projects Shipping with Sandboxed API Sandboxes
