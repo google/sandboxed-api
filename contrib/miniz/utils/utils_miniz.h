@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <miniz.h>
+
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
-#include <miniz.h>
 #include "contrib/miniz/miniz_sapi.sapi.h"
 #pragma GCC diagnostic error "-Wmissing-prototypes"
 
@@ -28,9 +29,11 @@ static constexpr size_t kFileMaxSize = 1024 * 1024 * 1024;  // 1GB
 std::streamsize GetStreamSize(std::ifstream& stream);
 
 absl::StatusOr<std::vector<uint8_t>> CompressInMemory(miniz_sapi::MinizApi& api,
-                              std::ifstream& in_stream,
-                              int level);
+                                                      uint8_t* ptr, size_t len,
+                                                      int level);
+absl::StatusOr<std::vector<uint8_t>> ReadFile(std::ifstream& in_stream);
 
-absl::StatusOr<std::vector<uint8_t>> DecompressInMemory(miniz_sapi::MinizApi& api, std::ifstream& in_stream);
-}
-}
+absl::StatusOr<std::vector<uint8_t>> DecompressInMemory(
+    miniz_sapi::MinizApi& api, uint8_t* ptr, size_t len);
+}  // namespace util
+}  // namespace sapi

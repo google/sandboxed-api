@@ -30,7 +30,8 @@
 ABSL_FLAG(bool, decompress, false, "decompress");
 ABSL_FLAG(uint32_t, level, 0, "compression level");
 
-static absl::Status Stream(miniz_sapi::MinizApi& api, std::string infile_s, std::string outfile_s) {
+static absl::Status Stream(miniz_sapi::MinizApi& api, std::string infile_s,
+                           std::string outfile_s) {
   std::ifstream infile(infile_s, std::ios::binary);
   if (!infile.is_open()) {
     return absl::UnavailableError(absl::StrCat("Unable to open ", infile_s));
@@ -40,10 +41,13 @@ static absl::Status Stream(miniz_sapi::MinizApi& api, std::string infile_s, std:
     return absl::UnavailableError(absl::StrCat("Unable to open ", outfile_s));
   }
 
+  SAPI_ASSIGN_OR_RETURN(auto vec, sapi::util::ReadFile(infile));
+
   std::cerr << "Testing!" << std::endl;
-  auto v = (absl::GetFlag(FLAGS_decompress) ?
-    sapi::util::DecompressInMemory(api, infile) :
-    sapi::util::CompressInMemory(api, infile, absl::GetFlag(FLAGS_level)));
+  auto v = (absl::GetFlag(FLAGS_decompress)
+                ? sapi::util::DecompressInMemory(api, vec.data(), vec.size())
+                : sapi::util::CompressInMemory(api, vec.data(), vec.size(),
+                                               absl::GetFlag(FLAGS_level)));
   std::cerr << "Testing 2!" << std::endl;
   SAPI_ASSIGN_OR_RETURN(const std::vector<uint8_t> out, v);
   std::cerr << "Testing 3!" << std::endl;
@@ -56,7 +60,7 @@ static absl::Status Stream(miniz_sapi::MinizApi& api, std::string infile_s, std:
 }
 
 int main(int argc, char* argv[]) {
-  if (argc == 0 || argv[0][0] == 0) return 1; // caller bug
+  if (argc == 0 || argv[0][0] == 0) return 1;  // caller bug
   std::string prog_name(argv[0]);
   google::InitGoogleLogging(argv[0]);
   absl::SetProgramUsageMessage("Trivial example using SAPI and miniz");
@@ -76,7 +80,7 @@ int main(int argc, char* argv[]) {
   miniz_sapi::MinizApi api(&sandbox);
 
   absl::Status status;
-  status = Stream(api, argv[1], argv[2]);
+  status = Stream(api, args[1], args[2]);
 
   if (!status.ok()) {
     std::cerr << "Unable to ";

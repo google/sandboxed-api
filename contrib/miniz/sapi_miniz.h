@@ -17,8 +17,8 @@
 
 #include <syscall.h>
 
-#include "sandboxed_api/util/fileops.h"
 #include "miniz_sapi.sapi.h"  // NOLINT(build/include)
+#include "sandboxed_api/util/fileops.h"
 class MinizSapiSandbox : public miniz_sapi::MinizSandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
@@ -42,4 +42,3 @@ class MinizSapiSandbox : public miniz_sapi::MinizSandbox {
 };
 
 #endif  // CONTRIB_MINIZ_MINIZ_SAPI_H_
-
