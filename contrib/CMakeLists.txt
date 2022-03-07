@@ -16,7 +16,6 @@
 set(SAPI_CONTRIB_SANDBOXES
   c-ares
   #c-blosc
-  dav1d
   hunspell
   #jsonnet
   libidn2
