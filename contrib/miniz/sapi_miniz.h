@@ -16,6 +16,7 @@
 #define CONTRIB_MINIZ_MINIZ_SAPI_H_
 
 #include <syscall.h>
+#include <miniz.h>
 
 #include "miniz_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/fileops.h"
