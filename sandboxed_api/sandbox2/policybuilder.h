@@ -120,6 +120,16 @@ class PolicyBuilder final {
   // Appends code to block a specific syscall and setting errno.
   PolicyBuilder& BlockSyscallWithErrno(uint32_t num, int error);
 
+  // Appends code to allow using epoll.
+  // Allows these syscalls:
+  // - epoll_create
+  // - epoll_create1
+  // - epoll_ctl
+  // - epoll_wait
+  // - epoll_pwait
+  // - epoll_pwait2
+  PolicyBuilder& AllowEpoll();
+
   // Appends code to allow exiting.
   // Allows these syscalls:
   // - exit
