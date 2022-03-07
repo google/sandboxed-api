@@ -284,6 +284,7 @@ target_link_libraries(sandbox2_executor
   PUBLIC absl::span
          absl::strings
          glog::glog
+         sapi::config
          sapi::fileops
          sandbox2::fork_client
          sandbox2::global_forkserver

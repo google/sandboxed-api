@@ -286,6 +286,7 @@ cc_library(
         ":limits",
         ":namespace",
         ":util",
+        "//sandboxed_api:config",
         "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
