@@ -29,7 +29,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(ARES REQUIRED IMPORTED_TARGET libcares)
 
 add_sapi_library(cares_sapi
-  INPUTS "${ARES_INCLUDEDIR}/ares.h"
+  INPUTS ./sapi-ares.h
   FUNCTIONS
     ares_init_options
     ares_dup
