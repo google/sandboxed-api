@@ -479,6 +479,7 @@ uint64_t GetMountFlagsFor(const std::string& path) {
   uint64_t flags = 0;
   using MountPair = std::pair<uint64_t, uint64_t>;
   for (const auto& [mount_flag, vfs_flag] : {
+           MountPair(MS_RDONLY, ST_RDONLY),
            MountPair(MS_NOSUID, ST_NOSUID),
            MountPair(MS_NODEV, ST_NODEV),
            MountPair(MS_NOEXEC, ST_NOEXEC),
@@ -562,8 +563,14 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   // Flags are ignored for a bind mount, a remount is needed to set the flags.
   if (extra_flags & MS_BIND) {
     // Get actual mount flags.
-    flags |= GetMountFlagsFor(target);
-    res = mount("", target.c_str(), "", flags | MS_REMOUNT, nullptr);
+    uint64_t target_flags = GetMountFlagsFor(target);
+    if ((target_flags & MS_RDONLY) != 0 && (flags & MS_RDONLY) == 0) {
+      SAPI_RAW_LOG(FATAL,
+                   "cannot remount %s as read-write as it's on read-only dev",
+                   target.c_str());
+    }
+    res = mount("", target.c_str(), "", flags | target_flags | MS_REMOUNT,
+                nullptr);
     SAPI_RAW_PCHECK(res != -1, "remounting %s with flags=%s failed", target,
                     MountFlagsToString(flags));
   }

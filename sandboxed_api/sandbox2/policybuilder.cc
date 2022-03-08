@@ -22,6 +22,7 @@
 #include <linux/random.h>  // For GRND_NONBLOCK
 #include <sys/mman.h>      // For mmap arguments
 #include <sys/socket.h>
+#include <sys/statvfs.h>
 #include <syscall.h>
 
 #include <array>
@@ -70,6 +71,15 @@ bool CheckBpfBounds(const sock_filter& filter, size_t max_jmp) {
     return filter.jt <= max_jmp && filter.jf <= max_jmp;
   }
   return true;
+}
+
+bool IsOnReadOnlyDev(const std::string& path) {
+  struct statvfs vfs;
+  if (TEMP_FAILURE_RETRY(statvfs(path.c_str(), &vfs)) == -1) {
+    PLOG(ERROR) << "Could not statvfs: " << path.c_str();
+    return false;
+  }
+  return vfs.f_flag & ST_RDONLY;
 }
 
 }  // namespace
@@ -939,6 +949,13 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
     return *this;
   }
 
+  if (!is_ro && IsOnReadOnlyDev(*valid_outside)) {
+    SetError(absl::FailedPreconditionError(
+        absl::StrCat("Cannot add ", outside,
+                     " as read-write as it's on a read-only device")));
+    return *this;
+  }
+
   if (auto status = mounts_.AddFileAt(*valid_outside, inside, is_ro);
       !status.ok()) {
     SetError(
@@ -992,6 +1009,13 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",
                      outside)));
+    return *this;
+  }
+
+  if (!is_ro && IsOnReadOnlyDev(*valid_outside)) {
+    SetError(absl::FailedPreconditionError(
+        absl::StrCat("Cannot add ", outside,
+                     " as read-write as it's on a read-only device")));
     return *this;
   }
 
