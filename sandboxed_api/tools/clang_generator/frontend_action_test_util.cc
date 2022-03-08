@@ -17,6 +17,8 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/str_replace.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/FileSystemOptions.h"
 #include "clang/Frontend/FrontendAction.h"
@@ -65,6 +67,12 @@ std::vector<std::string> FrontendActionTest::GetCommandLineFlagsForTesting(
     absl::string_view input_file) {
   return {"tool", "-fsyntax-only", "--std=c++17",
           "-I.",  "-Wno-error",    std::string(input_file)};
+}
+
+std::string Uglify(absl::string_view code) {
+  std::string result = absl::StrReplaceAll(code, {{"\n", " "}});
+  absl::RemoveExtraAsciiWhitespace(&result);
+  return result;
 }
 
 }  // namespace sapi

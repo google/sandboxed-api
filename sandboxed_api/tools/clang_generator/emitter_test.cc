@@ -29,6 +29,8 @@
 namespace sapi {
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::MatchesRegex;
 using ::testing::SizeIs;
 using ::testing::StrEq;
@@ -37,6 +39,7 @@ using ::testing::StrNe;
 class EmitterForTesting : public Emitter {
  public:
   using Emitter::functions_;
+  using Emitter::rendered_types_;
 };
 
 class EmitterTest : public FrontendActionTest {};
@@ -55,6 +58,43 @@ TEST_F(EmitterTest, BasicFunctionality) {
 
   absl::StatusOr<std::string> header = emitter.EmitHeader(options);
   EXPECT_THAT(header, IsOk());
+}
+
+TEST_F(EmitterTest, RelatedTypes) {
+  EmitterForTesting emitter;
+  RunFrontendAction(
+      R"(
+    namespace std {
+    using size_t = unsigned long;
+    }  // namespace std
+    using std::size_t;
+    typedef enum { kRed, kGreen, kBlue } Color;
+    struct Channel {
+      Color color;
+      size_t width;
+      size_t height;
+    };
+    struct ByValue {
+      int value;
+    };
+    extern "C" void Colorize(Channel* chan, ByValue v) {}
+
+    typedef struct { int member; } MyStruct;
+    extern "C" void Structize(MyStruct* s);
+  )",
+      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+
+  // Types from "std" should be skipped
+  EXPECT_THAT(emitter.rendered_types_["std"], IsEmpty());
+
+  std::vector<std::string> ugly_types;
+  for (const auto& type : emitter.rendered_types_[""]) {
+    ugly_types.push_back(Uglify(type));
+  }
+  EXPECT_THAT(ugly_types,
+              ElementsAre("typedef enum { kRed, kGreen, kBlue } Color",
+                          "struct Channel", "struct ByValue",
+                          "typedef struct { int member; } MyStruct"));
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {
