@@ -667,6 +667,7 @@ if(SAPI_ENABLE_TESTS)
     absl::strings
     sapi::file_base
     sandbox2::mounts
+    sandbox2::mounttree_proto
     sapi::temp_file
     sapi::testing
     sapi::status_matchers

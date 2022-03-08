@@ -55,43 +55,6 @@ bool PathContainsNullByte(absl::string_view path) {
   return absl::StrContains(path, '\0');
 }
 
-bool IsSameFile(const std::string& path1, const std::string& path2) {
-  struct stat stat1, stat2;
-  if (stat(path1.c_str(), &stat1) == -1) {
-    return false;
-  }
-
-  if (stat(path2.c_str(), &stat2) == -1) {
-    return false;
-  }
-
-  return stat1.st_dev == stat2.st_dev && stat1.st_ino == stat2.st_ino;
-}
-
-bool IsEquivalentNode(const sandbox2::MountTree::Node& n1,
-                      const sandbox2::MountTree::Node& n2) {
-  // Node equals 1:1
-  if (google::protobuf::util::MessageDifferencer::Equals(n1, n2)) {
-    return true;
-  }
-
-  if (n1.node_case() != n2.node_case()) {
-    return false;
-  }
-
-  // Check whether files/dirs are the same (e.g symlinks / hardlinks)
-  switch (n1.node_case()) {
-    case sandbox2::MountTree::Node::kFileNode:
-      return n1.file_node().is_ro() == n2.file_node().is_ro() &&
-             IsSameFile(n1.file_node().outside(), n2.file_node().outside());
-    case sandbox2::MountTree::Node::kDirNode:
-      return n1.dir_node().is_ro() == n2.dir_node().is_ro() &&
-             IsSameFile(n1.dir_node().outside(), n2.dir_node().outside());
-    default:
-      return false;
-  }
-}
-
 absl::string_view GetOutsidePath(const MountTree::Node& node) {
   switch (node.node_case()) {
     case MountTree::Node::kFileNode:
@@ -162,6 +125,47 @@ std::string GetPlatform(absl::string_view interpreter) {
 
 }  // namespace
 
+namespace internal {
+
+bool IsSameFile(const std::string& path1, const std::string& path2) {
+  struct stat stat1, stat2;
+  if (stat(path1.c_str(), &stat1) == -1) {
+    return false;
+  }
+
+  if (stat(path2.c_str(), &stat2) == -1) {
+    return false;
+  }
+
+  return stat1.st_dev == stat2.st_dev && stat1.st_ino == stat2.st_ino;
+}
+
+bool IsEquivalentNode(const sandbox2::MountTree::Node& n1,
+                      const sandbox2::MountTree::Node& n2) {
+  // Node equals 1:1
+  if (google::protobuf::util::MessageDifferencer::Equals(n1, n2)) {
+    return true;
+  }
+
+  if (n1.node_case() != n2.node_case()) {
+    return false;
+  }
+
+  // Check whether files/dirs are the same (e.g symlinks / hardlinks)
+  switch (n1.node_case()) {
+    case sandbox2::MountTree::Node::kFileNode:
+      return n1.file_node().is_ro() == n2.file_node().is_ro() &&
+             IsSameFile(n1.file_node().outside(), n2.file_node().outside());
+    case sandbox2::MountTree::Node::kDirNode:
+      return n1.dir_node().is_ro() == n2.dir_node().is_ro() &&
+             IsSameFile(n1.dir_node().outside(), n2.dir_node().outside());
+    default:
+      return false;
+  }
+}
+
+}  // namespace internal
+
 absl::Status Mounts::Insert(absl::string_view path,
                             const MountTree::Node& new_node) {
   // Some sandboxes allow the inside/outside paths to be partially
@@ -225,7 +229,7 @@ absl::Status Mounts::Insert(absl::string_view path,
                   .first->second);
 
   if (curtree->has_node()) {
-    if (IsEquivalentNode(curtree->node(), new_node)) {
+    if (internal::IsEquivalentNode(curtree->node(), new_node)) {
       SAPI_RAW_LOG(INFO, "Inserting %s with the same value twice",
                    std::string(path).c_str());
       return absl::OkStatus();

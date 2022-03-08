@@ -26,6 +26,12 @@
 
 namespace sandbox2 {
 
+namespace internal {
+
+bool IsSameFile(const std::string& path1, const std::string& path2);
+bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2);
+}  // namespace internal
+
 class Mounts {
  public:
   Mounts() {
