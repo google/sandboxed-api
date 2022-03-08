@@ -577,6 +577,12 @@ class PolicyBuilder final {
   // Not recommended
   PolicyBuilder& SetRootWritable();
 
+  // Changes mounts propagation from MS_PRIVATE to MS_SLAVE.
+  PolicyBuilder& DangerAllowMountPropagation() {
+    allow_mount_propagation_ = true;
+    return *this;
+  }
+
   // Allows connections to this IP.
   PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
   PolicyBuilder& AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
@@ -613,6 +619,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   bool allow_unrestricted_networking_ = false;
+  bool allow_mount_propagation_ = false;
   std::string hostname_ = std::string(kDefaultHostname);
 
   bool collect_stacktrace_on_violation_ = true;

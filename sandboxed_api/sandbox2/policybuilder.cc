@@ -898,7 +898,8 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
           "Cannot set hostname without network namespaces.");
     }
     output->SetNamespace(absl::make_unique<Namespace>(
-        allow_unrestricted_networking_, std::move(mounts_), hostname_));
+        allow_unrestricted_networking_, std::move(mounts_), hostname_,
+        allow_mount_propagation_));
   } else {
     // Not explicitly disabling them here as this is a technical limitation in
     // our stack trace collection functionality.

@@ -605,7 +605,7 @@ void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,
   Namespace::InitializeNamespaces(
       uid, gid, clone_flags, Mounts(request.mount_tree()),
       request.mode() != FORKSERVER_FORK_JOIN_SANDBOX_UNWIND, request.hostname(),
-      avoid_pivot_root);
+      avoid_pivot_root, request.allow_mount_propagation());
 }
 
 }  // namespace sandbox2

@@ -36,7 +36,8 @@ class Namespace final {
   static void InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                    const Mounts& mounts, bool mount_proc,
                                    const std::string& hostname,
-                                   bool avoid_pivot_root);
+                                   bool avoid_pivot_root,
+                                   bool allow_mount_propagation);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
 
   Namespace() = delete;
@@ -44,7 +45,7 @@ class Namespace final {
   Namespace& operator=(const Namespace&) = delete;
 
   Namespace(bool allow_unrestricted_networking, Mounts mounts,
-            std::string hostname);
+            std::string hostname, bool allow_mount_propagation);
 
   void DisableUserNamespace();
 
@@ -59,12 +60,15 @@ class Namespace final {
 
   const std::string& hostname() const { return hostname_; }
 
+  bool allow_mount_propagation() const { return allow_mount_propagation_; }
+
  private:
   friend class StackTracePeer;
 
   int32_t clone_flags_;
   Mounts mounts_;
   std::string hostname_;
+  bool allow_mount_propagation_;
 };
 
 }  // namespace sandbox2

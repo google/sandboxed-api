@@ -51,4 +51,7 @@ message ForkRequest {
 
   // Hostname in the network namespace
   optional bytes hostname = 7;
+
+  // Changes mount propagation from MS_PRIVATE to MS_SLAVE if set
+  optional bool allow_mount_propagation = 8;
 }
