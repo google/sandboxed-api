@@ -37,6 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/mounttree.pb.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -128,6 +129,10 @@ std::string GetPlatform(absl::string_view interpreter) {
 namespace internal {
 
 bool IsSameFile(const std::string& path1, const std::string& path2) {
+  if (path1 == path2) {
+    return true;
+  }
+
   struct stat stat1, stat2;
   if (stat(path1.c_str(), &stat1) == -1) {
     return false;
@@ -140,25 +145,26 @@ bool IsSameFile(const std::string& path1, const std::string& path2) {
   return stat1.st_dev == stat2.st_dev && stat1.st_ino == stat2.st_ino;
 }
 
-bool IsEquivalentNode(const sandbox2::MountTree::Node& n1,
-                      const sandbox2::MountTree::Node& n2) {
-  // Node equals 1:1
-  if (google::protobuf::util::MessageDifferencer::Equals(n1, n2)) {
-    return true;
-  }
-
+bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
+  // Return early when node types are different
   if (n1.node_case() != n2.node_case()) {
     return false;
   }
 
-  // Check whether files/dirs are the same (e.g symlinks / hardlinks)
+  // Compare proto fileds
   switch (n1.node_case()) {
-    case sandbox2::MountTree::Node::kFileNode:
+    case MountTree::Node::kFileNode:
+      // Check whether files are the same (e.g. symlinks / hardlinks)
       return n1.file_node().is_ro() == n2.file_node().is_ro() &&
              IsSameFile(n1.file_node().outside(), n2.file_node().outside());
-    case sandbox2::MountTree::Node::kDirNode:
+    case MountTree::Node::kDirNode:
+      // Check whether dirs are the same (e.g. symlinks / hardlinks)
       return n1.dir_node().is_ro() == n2.dir_node().is_ro() &&
              IsSameFile(n1.dir_node().outside(), n2.dir_node().outside());
+    case MountTree::Node::kTmpfsNode:
+      return n1.tmpfs_node().tmpfs_options() == n2.tmpfs_node().tmpfs_options();
+    case MountTree::Node::kRootNode:
+      return n1.root_node().is_ro() == n2.root_node().is_ro();
     default:
       return false;
   }
