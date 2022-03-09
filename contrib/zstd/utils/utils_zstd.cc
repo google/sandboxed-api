@@ -44,7 +44,7 @@ absl::Status CompressInMemory(ZstdApi& api, std::ifstream& in_stream,
       size_t outsize,
       api.ZSTD_compress(outbuf.PtrAfter(), size, inbuf.PtrBefore(),
                         inbuf.GetSize(), level));
-  SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(outsize))
+  SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(outsize));
   if (iserr) {
     return absl::UnavailableError("Unable to compress file");
   }
@@ -115,13 +115,13 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
 
   SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_CCtx_setParameter(
                                    &rcctx, ZSTD_c_compressionLevel, level));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr))
+  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
   SAPI_ASSIGN_OR_RETURN(
       iserr, api.ZSTD_CCtx_setParameter(&rcctx, ZSTD_c_checksumFlag, 1));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr))
+  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
@@ -155,7 +155,7 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
       SAPI_ASSIGN_OR_RETURN(size_t remaining, api.ZSTD_compressStream2(
                                                   &rcctx, struct_out.PtrBoth(),
                                                   struct_in.PtrBoth(), mode));
-      SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(remaining))
+      SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(remaining));
       if (iserr) {
         return absl::UnavailableError("Unable to decompress file");
       }
@@ -220,7 +220,7 @@ absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_stream,
       SAPI_ASSIGN_OR_RETURN(
           size_t ret, api.ZSTD_decompressStream(&rdctx, struct_out.PtrBoth(),
                                                 struct_in.PtrBoth()));
-      SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(ret))
+      SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(ret));
       if (iserr) {
         return absl::UnavailableError("Unable to decompress file");
       }
@@ -250,7 +250,7 @@ absl::Status CompressInMemoryFD(ZstdApi& api, sapi::v::Fd& infd,
   SAPI_ASSIGN_OR_RETURN(
       int iserr,
       api.ZSTD_compress_fd(infd.GetRemoteFd(), outfd.GetRemoteFd(), 0));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr))
+  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to compress file");
   }
@@ -268,7 +268,7 @@ absl::Status DecompressInMemoryFD(ZstdApi& api, sapi::v::Fd& infd,
 
   SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_decompress_fd(infd.GetRemoteFd(),
                                                           outfd.GetRemoteFd()));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr))
+  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to compress file");
   }
