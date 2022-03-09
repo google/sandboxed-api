@@ -288,6 +288,7 @@ cc_library(
         ":util",
         "//sandboxed_api:config",
         "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",

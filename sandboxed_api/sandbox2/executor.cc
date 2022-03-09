@@ -36,6 +36,7 @@
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/os_error.h"
 
 namespace sandbox2 {
 
@@ -80,19 +81,21 @@ std::vector<std::string> Executor::CopyEnviron() {
   return util::CharPtrArray(environ).ToStringVector();
 }
 
-pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
-                                const std::vector<int>& caps,
-                                pid_t* init_pid_out) {
+absl::StatusOr<Executor::Process> Executor::StartSubProcess(
+    int32_t clone_flags, const Namespace* ns, const std::vector<int>& caps) {
   if (started_) {
-    LOG(ERROR) << "This executor has already been started";
-    return -1;
+    return absl::FailedPreconditionError(
+        "This executor has already been started");
   }
 
   if (!path_.empty()) {
     exec_fd_ = file_util::fileops::FDCloser(open(path_.c_str(), O_PATH));
     if (exec_fd_.get() < 0) {
-      PLOG(ERROR) << "Could not open file " << path_;
-      return -1;
+      if (errno == ENOENT) {
+        return absl::NotFoundError(sapi::OsErrorMessage(errno, path_));
+      }
+      return absl::InternalError(
+          sapi::OsErrorMessage(errno, "Could not open file ", path_));
     }
   }
 
@@ -155,33 +158,22 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
     const std::string ns_path =
         absl::StrCat("/proc/", libunwind_sbox_for_pid_, "/ns/user");
     ns_fd = file_util::fileops::FDCloser(open(ns_path.c_str(), O_RDONLY));
-    PCHECK(ns_fd.get() != -1)
-        << "Could not open user ns fd (" << ns_path << ")";
+    if (ns_fd.get() == -1) {
+      return absl::InternalError(sapi::OsErrorMessage(
+          errno, "Could not open user ns fd (", ns_path, ")"));
+    }
   }
 
-  pid_t init_pid = -1;
+  Process process;
 
-  pid_t sandboxee_pid;
   if (fork_client_) {
-    sandboxee_pid = fork_client_->SendRequest(request, exec_fd_.get(),
-                                              client_comms_fd_.get(),
-                                              ns_fd.get(), &init_pid);
+    process.main_pid = fork_client_->SendRequest(
+        request, exec_fd_.get(), client_comms_fd_.get(), ns_fd.get(),
+        &process.init_pid);
   } else {
-    sandboxee_pid = GlobalForkClient::SendRequest(request, exec_fd_.get(),
-                                                  client_comms_fd_.get(),
-                                                  ns_fd.get(), &init_pid);
-  }
-
-  if (init_pid < 0) {
-    LOG(ERROR) << "Could not obtain init PID";
-  } else if (init_pid == 0 && request.clone_flags() & CLONE_NEWPID) {
-    LOG(FATAL)
-        << "No init process was spawned even though a PID NS was created, "
-        << "potential logic bug";
-  }
-
-  if (init_pid_out) {
-    *init_pid_out = init_pid;
+    process.main_pid = GlobalForkClient::SendRequest(
+        request, exec_fd_.get(), client_comms_fd_.get(), ns_fd.get(),
+        &process.init_pid);
   }
 
   started_ = true;
@@ -189,19 +181,19 @@ pid_t Executor::StartSubProcess(int32_t clone_flags, const Namespace* ns,
   client_comms_fd_.Close();
   exec_fd_.Close();
 
-  VLOG(1) << "StartSubProcess returned with: " << sandboxee_pid;
-  return sandboxee_pid;
+  VLOG(1) << "StartSubProcess returned with: " << process.main_pid;
+  return process;
 }
 
 std::unique_ptr<ForkClient> Executor::StartForkServer() {
   // This flag is set explicitly to 'true' during object instantiation, and
   // custom fork-servers should never be sandboxed.
   set_enable_sandbox_before_exec(false);
-  pid_t pid = StartSubProcess(0);
-  if (pid == -1) {
+  absl::StatusOr<Process> process = StartSubProcess(0);
+  if (!process.ok()) {
     return nullptr;
   }
-  return absl::make_unique<ForkClient>(pid, ipc_.comms());
+  return absl::make_unique<ForkClient>(process->main_pid, ipc_.comms());
 }
 
 void Executor::SetUpServerSideCommsFd() {

@@ -276,13 +276,20 @@ void Monitor::Run() {
   }
 
   // Get PID of the sandboxee.
-  pid_t init_pid = 0;
   bool should_have_init = ns && (ns->GetCloneFlags() & CLONE_NEWPID);
-  pid_ = executor_->StartSubProcess(clone_flags, ns, policy_->capabilities(),
-                                    &init_pid);
+  absl::StatusOr<Executor::Process> process =
+      executor_->StartSubProcess(clone_flags, ns, policy_->capabilities());
 
-  if (init_pid > 0) {
-    if (ptrace(PTRACE_SEIZE, init_pid, 0, PTRACE_O_EXITKILL) != 0) {
+  if (!process.ok()) {
+    LOG(ERROR) << "Starting sandboxed subprocess failed: " << process.status();
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SUBPROCESS);
+    return;
+  }
+
+  pid_ = process->main_pid;
+
+  if (process->init_pid > 0) {
+    if (ptrace(PTRACE_SEIZE, process->init_pid, 0, PTRACE_O_EXITKILL) != 0) {
       if (errno == ESRCH) {
         SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_PTRACE);
         return;
@@ -291,7 +298,7 @@ void Monitor::Run() {
     }
   }
 
-  if (pid_ <= 0 || (should_have_init && init_pid <= 0)) {
+  if (pid_ <= 0 || (should_have_init && process->init_pid <= 0)) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SUBPROCESS);
     return;
   }

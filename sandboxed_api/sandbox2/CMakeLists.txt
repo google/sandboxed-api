@@ -286,6 +286,7 @@ target_link_libraries(sandbox2_executor
          glog::glog
          sapi::config
          sapi::fileops
+         sapi::status
          sandbox2::fork_client
          sandbox2::global_forkserver
 )
