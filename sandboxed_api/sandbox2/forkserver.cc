@@ -33,6 +33,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <string>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -43,6 +45,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -205,6 +208,35 @@ absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
   struct ucred* ucredp = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsgp));
   return ucredp->pid;
 }
+
+absl::StatusOr<std::string> GetRootMountId(const std::string& proc_id) {
+  std::ifstream mounts(absl::StrCat("/proc/", proc_id, "/mountinfo"));
+  if (!mounts.good()) {
+    return absl::InternalError("Failed to open mountinfo");
+  }
+  std::string line;
+  while (std::getline(mounts, line)) {
+    std::vector<absl::string_view> parts =
+        absl::StrSplit(line, absl::MaxSplits(' ', 4));
+    if (parts.size() >= 4 && parts[3] == "/") {
+      return std::string(parts[0]);
+    }
+  }
+  return absl::NotFoundError("Root entry not found in mountinfo");
+}
+
+bool IsLikelyChrooted() {
+  absl::StatusOr<std::string> self_root_id = GetRootMountId("self");
+  if (!self_root_id.ok()) {
+    return absl::IsNotFound(self_root_id.status());
+  }
+  absl::StatusOr<std::string> init_root_id = GetRootMountId("1");
+  if (!init_root_id.ok()) {
+    return false;
+  }
+  return *self_root_id != *init_root_id;
+}
+
 }  // namespace
 
 namespace sandbox2 {
@@ -522,6 +554,11 @@ void ForkServer::CreateInitialNamespaces() {
   SAPI_RAW_PCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != -1,
                   "creating socket");
   pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | SIGCHLD);
+  if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
+    SAPI_RAW_LOG(FATAL,
+                 "failed to fork initial namespaces process: parent process is "
+                 "likely chrooted");
+  }
   SAPI_RAW_PCHECK(pid != -1, "failed to fork initial namespaces process");
   char unused = '\0';
   if (pid == 0) {
