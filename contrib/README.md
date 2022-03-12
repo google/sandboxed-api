@@ -10,6 +10,7 @@ Directory    | Project                                                          
 `c-blosc/`   | c-blosc - A blocking, shuffling and loss-less compression library | [github.com/Blosc/c-blosc](https://github.com/Blosc/c-blosc)                         | CMake
 `hunspell/`  | Hunspell - The most popular spellchecking library                 | [github.com/hunspell/hunspell](https://github.com/hunspell/hunspell)                 | CMake
 `jsonnet/`   | Jsonnet - The Data Templating Language                            | [github.com/google/jsonnet](https://github.com/google/jsonnet)                       | CMake
+`libspng/`   | libspng - Simple, modern libpng alternative                       | [github.com/randy408/libspng/][https://github.com/randy408/libspng/]                 | CMake
 `libidn2/`   | libidn2 - GNU IDN library                                         | [www.gnu.org/software/libidn/#libidn2](https://www.gnu.org/software/libidn/#libidn2) | CMake
 `pffft/`     | PFFFT - a pretty fast Fourier Transform                           | [bitbucket.org/jpommier/pffft.git](https://bitbucket.org/jpommier/pffft.git)         | CMake
 `turbojpeg/` | High-level JPEG library                                           | [libjpeg-turbo.org/About/TurboJPEG](https://libjpeg-turbo.org/About/TurboJPEG)       | CMake
