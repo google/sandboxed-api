@@ -274,6 +274,9 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
                              int client_fd, uid_t uid, gid_t gid,
                              int user_ns_fd, int signaling_fd,
                              bool avoid_pivot_root) const {
+  SAPI_RAW_CHECK(request.mode() != FORKSERVER_FORK_UNSPECIFIED,
+                 "Forkserver mode is unspecified");
+
   bool will_execve = (request.mode() == FORKSERVER_FORK_EXECVE ||
                       request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX);
 
@@ -388,6 +391,9 @@ pid_t ForkServer::ServeRequest() {
   }
   int comms_fd;
   SAPI_RAW_CHECK(comms_->RecvFD(&comms_fd), "Failed to receive Comms FD");
+
+  SAPI_RAW_CHECK(fork_request.mode() != FORKSERVER_FORK_UNSPECIFIED,
+                 "Forkserver mode is unspecified");
 
   int exec_fd = -1;
   if (fork_request.mode() == FORKSERVER_FORK_EXECVE ||
