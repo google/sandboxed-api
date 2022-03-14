@@ -37,7 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "sandboxed_api/config.h"
-#include "sandboxed_api/sandbox2/mounttree.pb.h"
+#include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -155,16 +155,16 @@ bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
   switch (n1.node_case()) {
     case MountTree::Node::kFileNode:
       // Check whether files are the same (e.g. symlinks / hardlinks)
-      return n1.file_node().is_ro() == n2.file_node().is_ro() &&
+      return n1.file_node().writable() == n2.file_node().writable() &&
              IsSameFile(n1.file_node().outside(), n2.file_node().outside());
     case MountTree::Node::kDirNode:
       // Check whether dirs are the same (e.g. symlinks / hardlinks)
-      return n1.dir_node().is_ro() == n2.dir_node().is_ro() &&
+      return n1.dir_node().writable() == n2.dir_node().writable() &&
              IsSameFile(n1.dir_node().outside(), n2.dir_node().outside());
     case MountTree::Node::kTmpfsNode:
       return n1.tmpfs_node().tmpfs_options() == n2.tmpfs_node().tmpfs_options();
     case MountTree::Node::kRootNode:
-      return n1.root_node().is_ro() == n2.root_node().is_ro();
+      return n1.root_node().writable() == n2.root_node().writable();
     default:
       return false;
   }
@@ -263,7 +263,7 @@ absl::Status Mounts::AddFileAt(absl::string_view outside,
   MountTree::Node node;
   auto* file_node = node.mutable_file_node();
   file_node->set_outside(std::string(outside));
-  file_node->set_is_ro(is_ro);
+  file_node->set_writable(!is_ro);
   return Insert(inside, node);
 }
 
@@ -272,7 +272,7 @@ absl::Status Mounts::AddDirectoryAt(absl::string_view outside,
   MountTree::Node node;
   auto dir_node = node.mutable_dir_node();
   dir_node->set_outside(std::string(outside));
-  dir_node->set_is_ro(is_ro);
+  dir_node->set_writable(!is_ro);
   return Insert(inside, node);
 }
 
@@ -628,7 +628,7 @@ void CreateMounts(const MountTree& tree, const std::string& path,
 
       auto node = tree.node().dir_node();
       MountWithDefaults(node.outside(), path, "", MS_BIND, nullptr,
-                        node.is_ro());
+                        !node.writable());
       break;
     }
     case MountTree::Node::kTmpfsNode: {
@@ -643,7 +643,7 @@ void CreateMounts(const MountTree& tree, const std::string& path,
     case MountTree::Node::kFileNode: {
       auto node = tree.node().file_node();
       MountWithDefaults(node.outside(), path, "", MS_BIND, nullptr,
-                        node.is_ro());
+                        !node.writable());
 
       // A file node has to be a leaf so we can skip traversing here.
       return;
@@ -676,11 +676,11 @@ void RecursivelyListMountsImpl(const MountTree& tree,
                                std::vector<std::string>* inside_entries) {
   const MountTree::Node& node = tree.node();
   if (node.has_dir_node()) {
-    const char* rw_str = node.dir_node().is_ro() ? "R " : "W ";
+    const char* rw_str = node.dir_node().writable() ? "W " : "R ";
     inside_entries->emplace_back(absl::StrCat(rw_str, tree_path, "/"));
     outside_entries->emplace_back(absl::StrCat(node.dir_node().outside(), "/"));
   } else if (node.has_file_node()) {
-    const char* rw_str = node.file_node().is_ro() ? "R " : "W ";
+    const char* rw_str = node.file_node().writable() ? "W " : "R ";
     inside_entries->emplace_back(absl::StrCat(rw_str, tree_path));
     outside_entries->emplace_back(absl::StrCat(node.file_node().outside()));
   } else if (node.has_tmpfs_node()) {

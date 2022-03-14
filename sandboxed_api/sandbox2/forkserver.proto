@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package sandbox2;
 
-import "sandboxed_api/sandbox2/mounttree.proto";
+import "sandboxed_api/sandbox2/mount_tree.proto";
 
 enum Mode {
   // Fork, execve and sandbox

@@ -22,7 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/mounttree.pb.h"
+#include "sandboxed_api/sandbox2/mount_tree.pb.h"
 
 namespace sandbox2 {
 
@@ -36,7 +36,7 @@ class Mounts {
  public:
   Mounts() {
     MountTree::Node root;
-    root.mutable_root_node()->set_is_ro(true);
+    root.mutable_root_node()->set_writable(false);
     *mount_tree_.mutable_node() = root;
   }
 
@@ -65,12 +65,12 @@ class Mounts {
   MountTree GetMountTree() const { return mount_tree_; }
 
   void SetRootWritable() {
-    mount_tree_.mutable_node()->mutable_root_node()->set_is_ro(false);
+    mount_tree_.mutable_node()->mutable_root_node()->set_writable(true);
   }
 
   bool IsRootReadOnly() const {
     return mount_tree_.has_node() && mount_tree_.node().has_root_node() &&
-           mount_tree_.node().root_node().is_ro();
+           !mount_tree_.node().root_node().writable();
   }
 
   // Lists the outside and inside entries of the input tree in the output

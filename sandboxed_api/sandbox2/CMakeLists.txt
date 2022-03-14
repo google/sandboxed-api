@@ -336,7 +336,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::limits
           sandbox2::logsink
           sandbox2::mounts
-          sandbox2::mounttree_proto
+          sandbox2::mount_tree_proto
           sandbox2::namespace
           sandbox2::network_proxy_client
           sandbox2::network_proxy_server
@@ -461,7 +461,7 @@ target_link_libraries(sandbox2_mounts
          absl::status
          absl::statusor
          absl::strings
-         sandbox2::mounttree_proto
+         sandbox2::mount_tree_proto
 )
 
 # sandboxed_api/sandbox2:namespace
@@ -479,7 +479,7 @@ target_link_libraries(sandbox2_namespace PRIVATE
   sapi::file_base
   sapi::fileops
   sandbox2::mounts
-  sandbox2::mounttree_proto
+  sandbox2::mount_tree_proto
   sapi::strerror
   sandbox2::util
   sandbox2::violation_proto
@@ -560,20 +560,20 @@ add_library(sandbox2_forkserver_proto ${SAPI_LIB_TYPE}
 add_library(sandbox2::forkserver_proto ALIAS sandbox2_forkserver_proto)
 target_link_libraries(sandbox2_forkserver_proto PRIVATE
   protobuf::libprotobuf
-  sandbox2::mounttree_proto
+  sandbox2::mount_tree_proto
   sapi::base
 )
 
-# sandboxed_api/sandbox2:mounttree_proto
-sapi_protobuf_generate_cpp(_sandbox2_mounttree_pb_h _sandbox2_mounttree_pb_cc
-  mounttree.proto
+# sandboxed_api/sandbox2:mount_tree_proto
+sapi_protobuf_generate_cpp(_sandbox2_mount_tree_pb_h _sandbox2_mount_tree_pb_cc
+  mount_tree.proto
 )
-add_library(sandbox2_mounttree_proto ${SAPI_LIB_TYPE}
-  ${_sandbox2_mounttree_pb_cc}
-  ${_sandbox2_mounttree_pb_h}
+add_library(sandbox2_mount_tree_proto ${SAPI_LIB_TYPE}
+  ${_sandbox2_mount_tree_pb_cc}
+  ${_sandbox2_mount_tree_pb_h}
 )
-add_library(sandbox2::mounttree_proto ALIAS sandbox2_mounttree_proto)
-target_link_libraries(sandbox2_mounttree_proto PRIVATE
+add_library(sandbox2::mount_tree_proto ALIAS sandbox2_mount_tree_proto)
+target_link_libraries(sandbox2_mount_tree_proto PRIVATE
   protobuf::libprotobuf
   sapi::base
 )
@@ -613,7 +613,7 @@ add_library(sandbox2_violation_proto ${SAPI_LIB_TYPE}
 add_library(sandbox2::violation_proto ALIAS sandbox2_violation_proto)
 target_link_libraries(sandbox2_violation_proto PRIVATE
   protobuf::libprotobuf
-  sandbox2::mounttree_proto
+  sandbox2::mount_tree_proto
   sapi::base
 )
 
@@ -668,7 +668,7 @@ if(SAPI_ENABLE_TESTS)
     absl::strings
     sapi::file_base
     sandbox2::mounts
-    sandbox2::mounttree_proto
+    sandbox2::mount_tree_proto
     sapi::temp_file
     sapi::testing
     sapi::status_matchers

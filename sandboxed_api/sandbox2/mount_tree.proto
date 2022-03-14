@@ -14,7 +14,7 @@
 
 // A proto for serializing the sandbox2::MountTree class
 
-syntax = "proto2";
+syntax = "proto3";
 
 package sandbox2;
 
@@ -26,24 +26,24 @@ message MountTree {
   // FileNode represents a bind mount for a regular file using "outside" as the
   // source.
   message FileNode {
-    required string outside = 2;
-    required bool is_ro = 3;
+    optional string outside = 2;
+    optional bool writable = 3;
   }
 
   // DirNode is like FileNode but for directories.
   message DirNode {
-    required string outside = 2;
-    required bool is_ro = 3;
+    optional string outside = 2;
+    optional bool writable = 3;
   }
 
   // TmpfsNode mounts a tmpfs with given options.
   message TmpfsNode {
-    required string tmpfs_options = 1;
+    optional string tmpfs_options = 1;
   }
 
   // RootNode is as special node for root of the MountTree
   message RootNode {
-    required bool is_ro = 3;
+    optional bool writable = 3;
   }
 
   message Node {

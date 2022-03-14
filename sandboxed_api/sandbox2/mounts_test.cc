@@ -247,25 +247,25 @@ TEST(MountTreeTest, TestList) {
 TEST(MountTreeTest, TestNodeEquivalence) {
   MountTree::Node nodes[8];
   MountTree::FileNode* fn0 = nodes[0].mutable_file_node();
-  fn0->set_is_ro(true);
+  fn0->set_writable(false);
   fn0->set_outside("foo");
   MountTree::FileNode* fn1 = nodes[1].mutable_file_node();
-  fn1->set_is_ro(true);
+  fn1->set_writable(false);
   fn1->set_outside("bar");
   MountTree::DirNode* dn0 = nodes[2].mutable_dir_node();
-  dn0->set_is_ro(true);
+  dn0->set_writable(false);
   dn0->set_outside("foo");
   MountTree::DirNode* dn1 = nodes[3].mutable_dir_node();
-  dn1->set_is_ro(true);
+  dn1->set_writable(false);
   dn1->set_outside("bar");
   MountTree::TmpfsNode* tn0 = nodes[4].mutable_tmpfs_node();
   tn0->set_tmpfs_options("option1");
   MountTree::TmpfsNode* tn1 = nodes[5].mutable_tmpfs_node();
   tn1->set_tmpfs_options("option2");
   MountTree::RootNode* rn0 = nodes[6].mutable_root_node();
-  rn0->set_is_ro(true);
+  rn0->set_writable(false);
   MountTree::RootNode* rn1 = nodes[7].mutable_root_node();
-  rn1->set_is_ro(false);
+  rn1->set_writable(true);
 
   for (const MountTree::Node n : nodes) {
     ASSERT_TRUE(n.IsInitialized());

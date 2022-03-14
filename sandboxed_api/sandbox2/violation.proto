@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package sandbox2;
 
-import "sandboxed_api/sandbox2/mounttree.proto";
+import "sandboxed_api/sandbox2/mount_tree.proto";
 
 enum PBViolationType {
   VIOLATION_TYPE_UNSPECIFIED = 0;
