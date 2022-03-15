@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Append to this list whenever a new sandboxed library is added to `contrib/`.
-set(SAPI_CONTRIB_SANDBOXES
-  c-blosc
-  hunspell
-  jsonnet
-  libidn2
-  pffft
-  turbojpeg
-  uriparser
-  zopfli
-  zstd
+include(GoogleTest)
+
+add_executable(
+  sapi_uriparser_test
+
+  test_uriparser.cc
+  ../utils/utils_uriparser.cc
 )
 
-foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)
-  add_sapi_subdirectory("contrib/${_contrib}" INCLUDE_FROM_ALL)
-endforeach()
+
+target_link_libraries(
+  sapi_uriparser_test PRIVATE
+
+  sapi_uriparser
+  sapi::test_main
+)
+
+gtest_discover_tests(sapi_uriparser_test)
