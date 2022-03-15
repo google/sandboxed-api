@@ -120,6 +120,16 @@ class PolicyBuilder final {
   // Appends code to block a specific syscall and setting errno.
   PolicyBuilder& BlockSyscallWithErrno(uint32_t num, int error);
 
+  // Appends code to allow using epoll.
+  // Allows these syscalls:
+  // - epoll_create
+  // - epoll_create1
+  // - epoll_ctl
+  // - epoll_wait
+  // - epoll_pwait
+  // - epoll_pwait2
+  PolicyBuilder& AllowEpoll();
+
   // Appends code to allow exiting.
   // Allows these syscalls:
   // - exit
@@ -567,6 +577,12 @@ class PolicyBuilder final {
   // Not recommended
   PolicyBuilder& SetRootWritable();
 
+  // Changes mounts propagation from MS_PRIVATE to MS_SLAVE.
+  PolicyBuilder& DangerAllowMountPropagation() {
+    allow_mount_propagation_ = true;
+    return *this;
+  }
+
   // Allows connections to this IP.
   PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
   PolicyBuilder& AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
@@ -581,6 +597,10 @@ class PolicyBuilder final {
 
   // Allows a limited version of madvise
   PolicyBuilder& AllowLimitedMadvise();
+
+  // Appends code to block a specific syscall and setting errno at the end of
+  // the policy - decision taken by user policy take precedence.
+  PolicyBuilder& OverridableBlockSyscallWithErrno(uint32_t num, int error);
 
   PolicyBuilder& SetMounts(Mounts mounts) {
     mounts_ = std::move(mounts);
@@ -599,6 +619,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   bool allow_unrestricted_networking_ = false;
+  bool allow_mount_propagation_ = false;
   std::string hostname_ = std::string(kDefaultHostname);
 
   bool collect_stacktrace_on_violation_ = true;
@@ -609,6 +630,7 @@ class PolicyBuilder final {
 
   // Seccomp fields
   std::vector<sock_filter> user_policy_;
+  std::vector<sock_filter> overridable_policy_;
   bool user_policy_handles_bpf_ = false;
   absl::flat_hash_set<uint32_t> handled_syscalls_;
 

@@ -55,12 +55,13 @@ def sapi_interface_impl(ctx):
         append_arg(args, "--sapi_isystem", isystem.path)
         input_files += [isystem]
 
+    if ctx.attr.limit_scan_depth:
+        args.append("--sapi_limit_scan_depth")
+
     # Parse provided files.
 
     # The parser doesn't need the entire set of transitive headers
-    # here, just the top-level cc_library headers. It would be nice
-    # if Skylark or Bazel provided this, but it is surprisingly hard
-    # to get.
+    # here, just the top-level cc_library headers.
     #
     # Allow all headers through that contain the dependency's
     # package path. Including extra headers is harmless except that
@@ -68,43 +69,36 @@ def sapi_interface_impl(ctx):
     # pass a lot through that we don't strictly need.
 
     extra_flags = []
-    if ctx.attr.lib[CcInfo]:
-        cc_ctx = ctx.attr.lib[CcInfo].compilation_context
+    cc_ctx = ctx.attr.lib[CcInfo].compilation_context
 
-        # Append system headers as dependencies
-        input_files += cc_ctx.headers.to_list()
-        append_all(extra_flags, "-D", cc_ctx.defines.to_list())
-        append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
-        append_all(extra_flags, "-iquote", cc_ctx.quote_includes.to_list())
+    # Append all headers as dependencies
+    input_files += cc_ctx.headers.to_list()
 
-        if ctx.attr.input_files:
-            for h in cc_ctx.headers.to_list():
-                # Collect all headers as dependency in case libclang needs them.
-                if h.extension == "h" and "/PROTECTED/" not in h.path:
-                    input_files.append(h)
-            for target in ctx.attr.input_files:
-                if target.files:
-                    for f in target.files.to_list():
-                        input_files_paths.append(f.path)
-                        input_files.append(f)
+    quote_includes = cc_ctx.quote_includes.to_list()
+    append_all(extra_flags, "-D", cc_ctx.defines.to_list())
+    append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
+    append_all(extra_flags, "-iquote", quote_includes)
 
-            # Try to find files automatically.
-        else:
-            for h in cc_ctx.headers.to_list():
-                # Collect all headers as dependency in case clang needs them.
-                if h.extension == "h" and "/PROTECTED/" not in h.path:
-                    input_files.append(h)
-
-                    # Include only headers coming from the target
-                    # not ones that it depends on by comparing the label packages.
-                    if (h.owner.package == ctx.attr.lib.label.package):
-                        input_files_paths.append(h.path)
-
-        append_arg(args, "--sapi_in", ",".join(input_files_paths))
-        args += ["--"] + extra_flags
+    if ctx.attr.input_files:
+        for target in ctx.attr.input_files:
+            if target.files:
+                for f in target.files.to_list():
+                    input_files_paths.append(f.path)
+                    input_files.append(f)
     else:
-        # TODO(szwl): Error out if the lib has no cc.
-        pass
+        # Try to find files automatically
+        for h in cc_ctx.direct_headers:
+            # Collect all headers as dependency.
+            if h.extension != "h" or "/PROTECTED/" in h.path:
+                continue
+
+            # Include only headers coming from the target
+            # not ones that it depends on by comparing the label packages.
+            if (h.owner.package == ctx.attr.lib.label.package):
+                input_files_paths.append(h.path)
+
+    append_arg(args, "--sapi_in", ",".join(input_files_paths))
+    args += ["--"] + extra_flags
 
     progress_msg = ("Generating {} from {} header files." +
                     "").format(ctx.outputs.out.short_path, len(input_files_paths))
@@ -126,10 +120,11 @@ sapi_interface = rule(
         "functions": attr.string_list(allow_empty = True, default = []),
         "include_prefix": attr.string(),
         "input_files": attr.label_list(allow_files = True),
-        "lib": attr.label(mandatory = True),
+        "lib": attr.label(providers = [CcInfo], mandatory = True),
         "lib_name": attr.string(mandatory = True),
         "namespace": attr.string(),
         "isystem": attr.label(),
+        "limit_scan_depth": attr.bool(default = False),
         "_sapi_generator": attr.label(
             executable = True,
             cfg = "host",

@@ -14,13 +14,15 @@
 
 // A proto for the sandbox2::Forkserver class
 
-syntax = "proto2";
+syntax = "proto3";
 
 package sandbox2;
 
-import "sandboxed_api/sandbox2/mounttree.proto";
+import "sandboxed_api/sandbox2/mount_tree.proto";
 
 enum Mode {
+  // Default value
+  FORKSERVER_FORK_UNSPECIFIED = 0;
   // Fork, execve and sandbox
   FORKSERVER_FORK_EXECVE_SANDBOX = 1;
   // Fork and execve, but no sandboxing
@@ -38,10 +40,10 @@ message ForkRequest {
   repeated bytes envs = 2;
 
   // How to interpret the request
-  required Mode mode = 3;
+  optional Mode mode = 3;
 
   // Clone flags for the new process
-  optional int32 clone_flags = 4 [default = 0];
+  optional int32 clone_flags = 4;
 
   // Capabilities to keep when starting the sandboxee
   repeated int32 capabilities = 5;
@@ -51,4 +53,7 @@ message ForkRequest {
 
   // Hostname in the network namespace
   optional bytes hostname = 7;
+
+  // Changes mount propagation from MS_PRIVATE to MS_SLAVE if set
+  optional bool allow_mount_propagation = 8;
 }

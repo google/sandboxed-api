@@ -78,6 +78,12 @@ class FrontendActionTest : public ::testing::Test {
   absl::flat_hash_map<std::string, std::string> file_contents_;
 };
 
+// Flattens a piece of C++ code into one line and removes consecutive runs of
+// whitespace. This makes it easier to compare code snippets for testing.
+// Note: This is not syntax-aware and will replace characters within strings as
+// well.
+std::string Uglify(absl::string_view code);
+
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_TOOLS_CLANG_GENERATOR_FRONTEND_ACTION_TEST_UTIL_H_

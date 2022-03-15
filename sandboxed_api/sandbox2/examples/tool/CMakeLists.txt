@@ -21,6 +21,7 @@ add_executable(sandbox2::sandbox2tool ALIAS sandbox2_sandbox2tool)
 target_link_libraries(sandbox2_sandbox2tool PRIVATE
   absl::memory
   absl::strings
+  absl::time
   sandbox2::bpf_helper
   # sandbox2::ipc
   sandbox2::sandbox2

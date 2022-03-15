@@ -12,7 +12,8 @@ jobs:
       matrix:
         include:
           - container: fedora:35
-            compiler: gcc  # GCC 11
+            compiler: gcc
+            compiler-version: 11  # Only used in cache action so far
             ignore-errors: true  # Stack trace test fails on Fedora (issue #118)
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.ignore-errors }}
@@ -22,6 +23,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Cache dependencies
+      uses: actions/cache@v2
+      with:
+        key: ${{matrix.container}}-${{matrix.compiler}}${{matrix.compiler-version}}
+        path: |
+          ${{github.workspace}}/_deps
 
     - name: Prepare container
       # Note: For the sandbox tests to work, we need a privileged, unconfined

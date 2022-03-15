@@ -178,7 +178,7 @@ TEST(MountTreeTest, TestMinimalDynamicBinary) {
 
 TEST(MountTreeTest, TestList) {
   struct TestCase {
-    const char *path;
+    const char* path;
     const bool is_ro;
   };
   // clang-format off
@@ -196,7 +196,7 @@ TEST(MountTreeTest, TestList) {
   Mounts mounts;
 
   // Create actual directories and files on disk and selectively add
-  for (const auto &test_case : kTestCases) {
+  for (const auto& test_case : kTestCases) {
     const auto inside_path = test_case.path;
     const std::string outside_path = absl::StrCat("/some/dir/", inside_path);
     if (absl::EndsWith(outside_path, "/")) {
@@ -242,6 +242,61 @@ TEST(MountTreeTest, TestList) {
           absl::StrCat("tmpfs: size=", 1024*1024),
       }));
   // clang-format on
+}
+
+TEST(MountTreeTest, TestNodeEquivalence) {
+  MountTree::Node nodes[8];
+  MountTree::FileNode* fn0 = nodes[0].mutable_file_node();
+  fn0->set_writable(false);
+  fn0->set_outside("foo");
+  MountTree::FileNode* fn1 = nodes[1].mutable_file_node();
+  fn1->set_writable(false);
+  fn1->set_outside("bar");
+  MountTree::DirNode* dn0 = nodes[2].mutable_dir_node();
+  dn0->set_writable(false);
+  dn0->set_outside("foo");
+  MountTree::DirNode* dn1 = nodes[3].mutable_dir_node();
+  dn1->set_writable(false);
+  dn1->set_outside("bar");
+  MountTree::TmpfsNode* tn0 = nodes[4].mutable_tmpfs_node();
+  tn0->set_tmpfs_options("option1");
+  MountTree::TmpfsNode* tn1 = nodes[5].mutable_tmpfs_node();
+  tn1->set_tmpfs_options("option2");
+  MountTree::RootNode* rn0 = nodes[6].mutable_root_node();
+  rn0->set_writable(false);
+  MountTree::RootNode* rn1 = nodes[7].mutable_root_node();
+  rn1->set_writable(true);
+
+  for (const MountTree::Node n : nodes) {
+    ASSERT_TRUE(n.IsInitialized());
+  }
+  // Compare same file nodes
+  EXPECT_TRUE(internal::IsEquivalentNode(nodes[0], nodes[0]));
+  // Compare with different file node
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[0], nodes[1]));
+  // compare file node with dir node
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[0], nodes[2]));
+
+  // Compare same dir nodes
+  EXPECT_TRUE(internal::IsEquivalentNode(nodes[2], nodes[2]));
+  // Compare with different dir node
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[2], nodes[3]));
+  // Compare dir node with tmpfs node
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[2], nodes[4]));
+
+  // Compare same tmpfs nodes
+  EXPECT_TRUE(internal::IsEquivalentNode(nodes[4], nodes[4]));
+  // Compare with different tmpfs nodes
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[4], nodes[5]));
+  // Compare tmpfs node with root node
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[4], nodes[6]));
+
+  // Compare same root nodes
+  EXPECT_TRUE(internal::IsEquivalentNode(nodes[6], nodes[6]));
+  // Compare different root node
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[6], nodes[7]));
+  // Compare root node with file node
+  EXPECT_FALSE(internal::IsEquivalentNode(nodes[6], nodes[0]));
 }
 
 TEST(MountsResolvePathTest, Files) {

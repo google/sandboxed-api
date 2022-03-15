@@ -150,8 +150,26 @@ constexpr bool IsASan() {
 #endif
 }
 
+constexpr bool IsHwASan() {
+#ifdef ABSL_HAVE_HWADDRESS_SANITIZER
+  return true;
+#else
+  return false;
+#endif
+}
+
+constexpr bool IsLSan() {
+#ifdef ABSL_HAVE_LEAK_SANITIZER
+  return true;
+#else
+  return false;
+#endif
+}
+
 // Returns whether any of the sanitizers is enabled.
-constexpr bool IsAny() { return IsMSan() || IsTSan() || IsASan(); }
+constexpr bool IsAny() {
+  return IsMSan() || IsTSan() || IsASan() || IsHwASan() || IsLSan();
+}
 
 }  // namespace sanitizers
 

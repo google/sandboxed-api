@@ -143,7 +143,7 @@ class FunctionCallPreparer {
 
  private:
   // Deserializes the protobuf argument.
-  google::protobuf::Message** GetDeserializedProto(LenValStruct* src) {
+  google::protobuf::MessageLite** GetDeserializedProto(LenValStruct* src) {
     ProtoArg proto_arg;
     if (!proto_arg.ParseFromArray(src->data, src->size)) {
       LOG(FATAL) << "Unable to parse ProtoArg.";
@@ -153,7 +153,7 @@ class FunctionCallPreparer {
             proto_arg.full_name());
     LOG_IF(FATAL, desc == nullptr) << "Unable to find the descriptor for '"
                                    << proto_arg.full_name() << "'" << desc;
-    google::protobuf::Message* deserialized_proto =
+    google::protobuf::MessageLite* deserialized_proto =
         google::protobuf::MessageFactory::generated_factory()->GetPrototype(desc)->New();
     LOG_IF(FATAL, deserialized_proto == nullptr)
         << "Unable to create deserialized proto for " << proto_arg.full_name();
@@ -168,7 +168,8 @@ class FunctionCallPreparer {
   // Use list instead of vector to preserve references even with modifications.
   // Contains pairs of lenval message pointer -> deserialized message
   // so that we can serialize the argument again after the function call.
-  std::list<std::pair<LenValStruct*, google::protobuf::Message*>> protos_to_be_destroyed_;
+  std::list<std::pair<LenValStruct*, google::protobuf::MessageLite*>>
+      protos_to_be_destroyed_;
   ffi_type* ret_type_;
   ffi_type* arg_types_[FuncCall::kArgsMax];
   const void* arg_values_[FuncCall::kArgsMax];

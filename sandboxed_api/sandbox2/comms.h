@@ -155,8 +155,8 @@ class Comms {
   bool SendFD(int fd);
 
   // Receives/sends protobufs.
-  bool RecvProtoBuf(google::protobuf::Message* message);
-  bool SendProtoBuf(const google::protobuf::Message& message);
+  bool RecvProtoBuf(google::protobuf::MessageLite* message);
+  bool SendProtoBuf(const google::protobuf::MessageLite& message);
 
   // Receives/sends Status objects.
   bool RecvStatus(absl::Status* status);

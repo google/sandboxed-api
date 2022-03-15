@@ -243,12 +243,16 @@ cc_library(
         ":forkserver_bin_embed",
         ":forkserver_cc_proto",
         ":util",
+        "//sandboxed_api:config",
         "//sandboxed_api:embed_file",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_glog//:glog",
@@ -282,7 +286,9 @@ cc_library(
         ":limits",
         ":namespace",
         ":util",
+        "//sandboxed_api:config",
         "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
@@ -466,7 +472,7 @@ cc_library(
     hdrs = ["mounts.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":mounttree_cc_proto",
+        ":mount_tree_cc_proto",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/util:minielf",
         "//sandboxed_api/util:file_base",
@@ -489,6 +495,7 @@ cc_test(
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
     deps = [
+        ":mount_tree_cc_proto",
         ":mounts",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_base",
@@ -506,8 +513,8 @@ cc_library(
     hdrs = ["namespace.h"],
     copts = sapi_platform_copts(),
     deps = [
+        ":mount_tree_cc_proto",
         ":mounts",
-        ":mounttree_cc_proto",
         ":util",
         ":violation_cc_proto",
         "//sandboxed_api/util:file_base",
@@ -623,12 +630,12 @@ sapi_proto_library(
     name = "forkserver_proto",
     srcs = ["forkserver.proto"],
     copts = sapi_platform_copts(),
-    deps = [":mounttree_proto"],
+    deps = [":mount_tree_proto"],
 )
 
 sapi_proto_library(
-    name = "mounttree_proto",
-    srcs = ["mounttree.proto"],
+    name = "mount_tree_proto",
+    srcs = ["mount_tree.proto"],
 )
 
 cc_library(
@@ -879,7 +886,7 @@ cc_library(
 sapi_proto_library(
     name = "violation_proto",
     srcs = ["violation.proto"],
-    deps = [":mounttree_proto"],
+    deps = [":mount_tree_proto"],
 )
 
 cc_test(

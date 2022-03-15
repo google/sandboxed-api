@@ -27,6 +27,7 @@
 #include "absl/strings/strip.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
@@ -213,21 +214,36 @@ std::string PrintRecordTemplateArguments(const clang::CXXRecordDecl* record) {
 }
 
 // Serializes the given Clang AST declaration back into compilable source code.
-std::string PrintAstDecl(const clang::Decl* decl) {
-  // TODO(cblichmann): Make types nicer
-  //   - Rewrite typedef to using
-  //   - Rewrite function pointers using std::add_pointer_t<>;
-
-  if (const auto* record = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
-    // For C++ classes/structs, only emit a forward declaration.
-    return absl::StrCat(PrintRecordTemplateArguments(record),
-                        record->isClass() ? "class " : "struct ",
-                        std::string(record->getName()));
-  }
+std::string PrintDecl(const clang::Decl* decl) {
   std::string pretty;
   llvm::raw_string_ostream os(pretty);
   decl->print(os);
   return os.str();
+}
+
+// Returns the spelling for a given declaration will be emitted to the final
+// header. This may rewrite declarations (like converting typedefs to using,
+// etc.).
+std::string GetSpelling(const clang::Decl* decl) {
+  // TODO(cblichmann): Make types nicer
+  //   - Rewrite typedef to using
+  //   - Rewrite function pointers using std::add_pointer_t<>;
+
+  if (const auto* typedef_decl = llvm::dyn_cast<clang::TypedefNameDecl>(decl)) {
+    // Special case: anonymous enum/struct
+    if (auto* tag_decl = typedef_decl->getAnonDeclWithTypedefName()) {
+      return absl::StrCat("typedef ", PrintDecl(tag_decl), " ",
+                          ToStringView(typedef_decl->getName()));
+    }
+  }
+
+  if (const auto* record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
+    // For C++ classes/structs, only emit a forward declaration.
+    return absl::StrCat(PrintRecordTemplateArguments(record_decl),
+                        record_decl->isClass() ? "class " : "struct ",
+                        ToStringView(record_decl->getName()));
+  }
+  return PrintDecl(decl);
 }
 
 std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
@@ -305,7 +321,7 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
     absl::StrAppend(&out, ", ", IsPointerOrReference(qual) ? "" : "&v_", name);
   }
   absl::StrAppend(&out, "));\nreturn ",
-                  (returns_void ? "absl::OkStatus()" : "v_ret_.GetValue()"),
+                  (returns_void ? "::absl::OkStatus()" : "v_ret_.GetValue()"),
                   ";\n}\n");
   return out;
 }
@@ -392,18 +408,27 @@ void Emitter::CollectType(clang::QualType qual) {
   const std::vector<std::string> ns_path = GetNamespacePath(decl);
   std::string ns_name;
   if (!ns_path.empty()) {
-    if (const auto& ns_root = ns_path.front();
-        ns_root == "std" || ns_root == "sapi" || ns_root == "__gnu_cxx") {
-      // Filter out any and all declarations from the C++ standard library,
-      // from SAPI itself and from other well-known namespaces. This avoids
-      // re-declaring things like standard integer types, for example.
+    const auto& ns_root = ns_path.front();
+    // Filter out any and all declarations from the C++ standard library,
+    // from SAPI itself and from other well-known namespaces. This avoids
+    // re-declaring things like standard integer types, for example.
+    if (ns_root == "std" || ns_root == "__gnu_cxx" || ns_root == "sapi") {
       return;
+    }
+    if (ns_root == "absl") {
+      // Skip types from Abseil that we already include in the generated
+      // header.
+      if (auto name = ToStringView(decl->getName());
+          name == "StatusCode" || name == "StatusToStringMode" ||
+          name == "CordMemoryAccounting") {
+        return;
+      }
     }
     ns_name = absl::StrCat(ns_path[0].empty() ? "" : " ",
                            absl::StrJoin(ns_path, "::"));
   }
 
-  rendered_types_[ns_name].push_back(PrintAstDecl(decl));
+  rendered_types_[ns_name].push_back(GetSpelling(decl));
 }
 
 void Emitter::CollectFunction(clang::FunctionDecl* decl) {

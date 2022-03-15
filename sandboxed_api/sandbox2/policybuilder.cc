@@ -22,6 +22,7 @@
 #include <linux/random.h>  // For GRND_NONBLOCK
 #include <sys/mman.h>      // For mmap arguments
 #include <sys/socket.h>
+#include <sys/statvfs.h>
 #include <syscall.h>
 
 #include <array>
@@ -72,6 +73,15 @@ bool CheckBpfBounds(const sock_filter& filter, size_t max_jmp) {
   return true;
 }
 
+bool IsOnReadOnlyDev(const std::string& path) {
+  struct statvfs vfs;
+  if (TEMP_FAILURE_RETRY(statvfs(path.c_str(), &vfs)) == -1) {
+    PLOG(ERROR) << "Could not statvfs: " << path.c_str();
+    return false;
+  }
+  return vfs.f_flag & ST_RDONLY;
+}
+
 }  // namespace
 
 PolicyBuilder& PolicyBuilder::AllowSyscall(uint32_t num) {
@@ -104,6 +114,36 @@ PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
     }
   }
   return *this;
+}
+
+PolicyBuilder& PolicyBuilder::OverridableBlockSyscallWithErrno(uint32_t num,
+                                                               int error) {
+  overridable_policy_.insert(overridable_policy_.end(),
+                             {SYSCALL(num, ERRNO(error))});
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowEpoll() {
+  return AllowSyscalls({
+#ifdef __NR_epoll_create
+      __NR_epoll_create,
+#endif
+#ifdef __NR_epoll_create1
+      __NR_epoll_create1,
+#endif
+#ifdef __NR_epoll_ctl
+      __NR_epoll_ctl,
+#endif
+#ifdef __NR_epoll_wait
+      __NR_epoll_wait,
+#endif
+#ifdef __NR_epoll_pwait
+      __NR_epoll_pwait,
+#endif
+#ifdef __NR_epoll_pwait2
+      __NR_epoll_pwait2,
+#endif
+  });
 }
 
 PolicyBuilder& PolicyBuilder::AllowExit() {
@@ -207,10 +247,21 @@ PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
 
 PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   if constexpr (sapi::sanitizers::IsAny()) {
-    // *san use a custom allocator that runs mmap under the hood.  For example:
+    // *san use a custom allocator that runs mmap/unmap under the hood.  For
+    // example:
     // https://github.com/llvm/llvm-project/blob/596d534ac3524052df210be8d3c01a33b2260a42/compiler-rt/lib/asan/asan_allocator.cpp#L980
     // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
     AllowMmap();
+    AllowSyscall(__NR_munmap);
+
+    // https://github.com/llvm/llvm-project/blob/4bbc3290a25c0dc26007912a96e0f77b2092ee56/compiler-rt/lib/sanitizer_common/sanitizer_stack_store.cpp#L293
+    AddPolicyOnSyscall(__NR_mprotect,
+                       {
+                           ARG_32(2),
+                           BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
+                                    ~uint32_t{PROT_READ | PROT_WRITE}),
+                           JEQ32(PROT_NONE, ALLOW),
+                       });
 
     AddPolicyOnSyscall(__NR_madvise, {
                                          ARG_32(2),
@@ -218,21 +269,17 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
                                          JEQ32(MADV_NOHUGEPAGE, ALLOW),
                                      });
     // Sanitizers read from /proc. For example:
-    // https://github.com/llvm-mirror/compiler-rt/blob/69445f095c22aac2388f939bedebf224a6efcdaf/lib/sanitizer_common/sanitizer_linux.cpp#L1101
+    // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L1155
     AddDirectory("/proc");
+    // Sanitizers need pid for reports. For example:
+    // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L740
+    AllowGetPIDs();
+    // Sanitizers may try color output. For example:
+    // https://github.com/llvm/llvm-project/blob/87dd3d350c4ce0115b2cdf91d85ddd05ae2661aa/compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp#L157
+    OverridableBlockSyscallWithErrno(__NR_ioctl, EPERM);
   }
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
-  }
-  if constexpr (sapi::sanitizers::IsTSan()) {
-    AllowSyscall(__NR_munmap);
-    AddPolicyOnSyscall(__NR_mprotect,
-                       {
-                           ARG_32(2),
-                           BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
-                                    ~uint32_t{PROT_READ | PROT_WRITE}),
-                           JEQ32(0, ALLOW),
-                       });
   }
   return *this;
 }
@@ -647,10 +694,10 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 #endif
 
   if constexpr (sapi::host_cpu::IsArm64()) {
-    BlockSyscallWithErrno(__NR_readlinkat, ENOENT);
+    OverridableBlockSyscallWithErrno(__NR_readlinkat, ENOENT);
   }
 #ifdef __NR_readlink
-  BlockSyscallWithErrno(__NR_readlink, ENOENT);
+  OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
 
   AddPolicyOnSyscall(__NR_mprotect, {
@@ -851,7 +898,8 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
           "Cannot set hostname without network namespaces.");
     }
     output->SetNamespace(absl::make_unique<Namespace>(
-        allow_unrestricted_networking_, std::move(mounts_), hostname_));
+        allow_unrestricted_networking_, std::move(mounts_), hostname_,
+        allow_mount_propagation_));
   } else {
     // Not explicitly disabling them here as this is a technical limitation in
     // our stack trace collection functionality.
@@ -865,6 +913,9 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   output->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
   output->collect_stacktrace_on_exit_ = collect_stacktrace_on_exit_;
   output->user_policy_ = std::move(user_policy_);
+  output->user_policy_.insert(output->user_policy_.end(),
+                              overridable_policy_.begin(),
+                              overridable_policy_.end());
   output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
 
   auto pb_description = absl::make_unique<PolicyBuilderDescription>();
@@ -896,6 +947,13 @@ PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",
                      outside)));
+    return *this;
+  }
+
+  if (!is_ro && IsOnReadOnlyDev(*valid_outside)) {
+    SetError(absl::FailedPreconditionError(
+        absl::StrCat("Cannot add ", outside,
+                     " as read-write as it's on a read-only device")));
     return *this;
   }
 
@@ -952,6 +1010,13 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
                      "whole /proc instead. You tried to mount ",
                      outside)));
+    return *this;
+  }
+
+  if (!is_ro && IsOnReadOnlyDev(*valid_outside)) {
+    SetError(absl::FailedPreconditionError(
+        absl::StrCat("Cannot add ", outside,
+                     " as read-write as it's on a read-only device")));
     return *this;
   }
 

@@ -39,6 +39,7 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -202,7 +203,7 @@ int main(int argc, char** argv) {
       sleep(3);
       kill(s2.pid(), SIGSTOP);
       sleep(3);
-      s2.SetWallTimeLimit(3);
+      s2.set_walltime_limit(absl::Seconds(3));
       kill(s2.pid(), SIGCONT);
     } else if (absl::GetFlag(FLAGS_sandbox2tool_pause_kill)) {
       sleep(3);

@@ -437,7 +437,7 @@ bool Comms::SendFD(int fd) {
   return true;
 }
 
-bool Comms::RecvProtoBuf(google::protobuf::Message* message) {
+bool Comms::RecvProtoBuf(google::protobuf::MessageLite* message) {
   uint32_t tag;
   std::vector<uint8_t> bytes;
   if (!RecvTLV(&tag, &bytes)) {
@@ -457,7 +457,7 @@ bool Comms::RecvProtoBuf(google::protobuf::Message* message) {
   return message->ParseFromArray(bytes.data(), bytes.size());
 }
 
-bool Comms::SendProtoBuf(const google::protobuf::Message& message) {
+bool Comms::SendProtoBuf(const google::protobuf::MessageLite& message) {
   std::string str;
   if (!message.SerializeToString(&str)) {
     SAPI_RAW_LOG(ERROR, "Couldn't serialize the ProtoBuf");

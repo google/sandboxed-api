@@ -15,6 +15,8 @@
 #include "sandboxed_api/tools/clang_generator/types.h"
 
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "clang/AST/Type.h"
 
 namespace sapi {
 namespace {
@@ -37,7 +39,12 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   seen_.insert(qual);
 
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
-    CollectRelatedTypes(typedef_type->getDecl()->getUnderlyingType());
+    auto* typedef_decl = typedef_type->getDecl();
+    if (!typedef_decl->getAnonDeclWithTypedefName()) {
+      // Do not collect anonymous enums/structs as those are handled when
+      // emitting them via their parent typedef/using declaration.
+      CollectRelatedTypes(typedef_decl->getUnderlyingType());
+    }
     collected_.insert(qual);
     return;
   }
@@ -210,10 +217,10 @@ std::string MapQualTypeParameter(const clang::ASTContext& /*context*/,
 std::string MapQualTypeReturn(const clang::ASTContext& context,
                               clang::QualType qual) {
   if (qual->isVoidType()) {
-    return "absl::Status";
+    return "::absl::Status";
   }
   // Remove const qualifier like in MapQualType().
-  return absl::StrCat("absl::StatusOr<",
+  return absl::StrCat("::absl::StatusOr<",
                       MaybeRemoveConst(context, qual).getAsString(), ">");
 }
 

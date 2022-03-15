@@ -39,6 +39,11 @@ namespace sandbox2 {
 // new processes which will be sandboxed.
 class Executor final {
  public:
+  struct Process {
+    pid_t init_pid;
+    pid_t main_pid;
+  };
+
   Executor(const Executor&) = delete;
   Executor& operator=(const Executor&) = delete;
 
@@ -120,11 +125,9 @@ class Executor final {
   //
   // caps is a vector of capabilities that are kept in the permitted set after
   // the clone, use with caution.
-  //
-  // Returns the same values as fork().
-  pid_t StartSubProcess(int clone_flags, const Namespace* ns = nullptr,
-                        const std::vector<int>& caps = {},
-                        pid_t* init_pid_out = nullptr);
+  absl::StatusOr<Process> StartSubProcess(int clone_flags,
+                                          const Namespace* ns = nullptr,
+                                          const std::vector<int>& caps = {});
 
   // Whether the Executor has been started yet
   bool started_ = false;

@@ -32,21 +32,28 @@
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
+
+namespace file_util = ::sapi::file_util;
 
 bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
                    std::string* error) {
@@ -102,6 +109,8 @@ std::string AbslUnparseFlag(GlobalForkserverStartModeSet in) {
 
 }  // namespace sandbox2
 
+ABSL_FLAG(string, sandbox2_forkserver_binary_path, "",
+          "Path to forkserver_bin binary");
 ABSL_FLAG(string, sandbox2_forkserver_start_mode, "ondemand",
           "When Sandbox2 Forkserver process should be started");
 DEFINE_validator(sandbox2_forkserver_start_mode, &sandbox2::ValidateStartMode);
@@ -121,12 +130,27 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   SAPI_RAW_LOG(INFO, "Starting global forkserver");
 
-  // The fd is owned by EmbedFile
-  int exec_fd = sapi::EmbedFile::instance()->GetFdForFileToc(
-      forkserver_bin_embed_create());
+  // Allow passing of a spearate forkserver_bin via flag
+  int exec_fd = -1;
+  if (!absl::GetFlag(FLAGS_sandbox2_forkserver_binary_path).empty()) {
+    exec_fd = open(absl::GetFlag(FLAGS_sandbox2_forkserver_binary_path).c_str(),
+                   O_RDONLY);
+  }
+  if (exec_fd < 0) {
+    // For Android we expect the forkserver_bin in the flag
+    if constexpr (sapi::host_os::IsAndroid()) {
+      return absl::InternalError(sapi::OsErrorMessage(
+          errno,
+          "Open init binary passed via --sandbox2_forkserver_binary_path"));
+    }
+    // Extract the fd when it's owned by EmbedFile
+    exec_fd = sapi::EmbedFile::instance()->GetDupFdForFileToc(
+        forkserver_bin_embed_create());
+  }
   if (exec_fd < 0) {
     return absl::InternalError("Getting FD for init binary failed");
   }
+  file_util::fileops::FDCloser exec_fd_closer(exec_fd);
 
   std::string proc_name = "S2-FORK-SERV";
 

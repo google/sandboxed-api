@@ -197,11 +197,12 @@ void LogFilesystem(const std::string& dir) {
 }  // namespace
 
 Namespace::Namespace(bool allow_unrestricted_networking, Mounts mounts,
-                     std::string hostname)
+                     std::string hostname, bool allow_mount_propagation)
     : clone_flags_(CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWPID |
                    CLONE_NEWIPC),
       mounts_(std::move(mounts)),
-      hostname_(std::move(hostname)) {
+      hostname_(std::move(hostname)),
+      allow_mount_propagation_(allow_mount_propagation) {
   if (!allow_unrestricted_networking) {
     clone_flags_ |= CLONE_NEWNET;
   }
@@ -214,7 +215,8 @@ int32_t Namespace::GetCloneFlags() const { return clone_flags_; }
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts, bool mount_proc,
                                      const std::string& hostname,
-                                     bool avoid_pivot_root) {
+                                     bool avoid_pivot_root,
+                                     bool allow_mount_propagation) {
   if (clone_flags & CLONE_NEWUSER && !avoid_pivot_root) {
     SetupIDMaps(uid, gid);
   }
@@ -325,8 +327,13 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
   SAPI_RAW_PCHECK(chdir("/") == 0,
                   "changing cwd after mntns initialization failed");
 
-  SAPI_RAW_PCHECK(mount("/", "/", "", MS_PRIVATE | MS_REC, nullptr) == 0,
-                  "changing mount propagation to private failed");
+  if (allow_mount_propagation) {
+    SAPI_RAW_PCHECK(mount("/", "/", "", MS_SLAVE | MS_REC, nullptr) == 0,
+                    "changing mount propagation to slave failed");
+  } else {
+    SAPI_RAW_PCHECK(mount("/", "/", "", MS_PRIVATE | MS_REC, nullptr) == 0,
+                    "changing mount propagation to private failed");
+  }
 
   if (SAPI_VLOG_IS_ON(2)) {
     SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");

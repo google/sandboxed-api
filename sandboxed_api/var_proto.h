@@ -35,7 +35,7 @@ namespace sapi::v {
 template <typename T>
 class Proto : public Var {
  public:
-  static_assert(std::is_base_of<google::protobuf::Message, T>::value,
+  static_assert(std::is_base_of<google::protobuf::MessageLite, T>::value,
                 "Template argument must be a proto message");
 
   ABSL_DEPRECATED("Use Proto<>::FromMessage() instead")

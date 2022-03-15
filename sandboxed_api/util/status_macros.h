@@ -35,7 +35,7 @@
     if (ABSL_PREDICT_FALSE(!status.ok())) {     \
       return status;                            \
     }                                           \
-  } while (0);
+  } while (0)
 
 #define SAPI_ASSIGN_OR_RETURN(lhs, rexpr) \
   SAPI_ASSIGN_OR_RETURN_IMPL(             \
@@ -46,6 +46,6 @@
   if (ABSL_PREDICT_FALSE(!statusor.ok())) {              \
     return statusor.status();                            \
   }                                                      \
-  lhs = std::move(statusor).value();
+  lhs = std::move(statusor).value()
 
 #endif  // THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_
