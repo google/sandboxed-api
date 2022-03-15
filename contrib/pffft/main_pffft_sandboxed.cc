@@ -133,7 +133,7 @@ absl::Status PffftMain() {
 
         if (simd_size_iter == 0) simd_size_iter = 1;
         if (complex) {
-          SAPI_RETURN_IF_ERROR(api.cffti(n, work_array.PtrBoth()))
+          SAPI_RETURN_IF_ERROR(api.cffti(n, work_array.PtrBoth()));
         } else {
           SAPI_RETURN_IF_ERROR(api.rffti(n, work_array.PtrBoth()));
         }
