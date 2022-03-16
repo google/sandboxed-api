@@ -30,7 +30,8 @@
 #define SAPI_ASSERT_OK_AND_ASSIGN_IMPL(statusor, lhs, rexpr) \
   auto statusor = (rexpr);                                   \
   ASSERT_THAT(statusor.status(), ::sapi::IsOk());            \
-  lhs = std::move(statusor).value();
+  lhs = std::move(statusor).value();                         \
+  do {} while(0)
 
 namespace sapi {
 namespace internal {
