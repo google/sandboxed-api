@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto2";
+syntax = "proto3";
 package sandbox2;
 
 message LogMessage {
-  required int32 severity = 1;
-  required string path = 2;
-  required int32 line = 3;
-  required string message = 4;
-  required int32 pid = 5;
+  optional int32 severity = 1;
+  optional string path = 2;
+  optional int32 line = 3;
+  optional string message = 4;
+  optional int32 pid = 5;
 }

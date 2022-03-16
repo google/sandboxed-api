@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto2";
+syntax = "proto3";
 
 package sapi;
 
 message ProtoArg {
   // Fully qualified name of the protobuf that is being passed.
-  required string full_name = 1;
+  optional string full_name = 1;
   // The serialized protobuf data.
-  required bytes protobuf_data = 2;
+  optional bytes protobuf_data = 2;
 }

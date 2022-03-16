@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto2";
+syntax = "proto3";
 
 package sumsapi;
 
 message SumParamsProto {
-  optional int32 a = 1 [default = 0];
-  optional int32 b = 2 [default = 0];
-  optional int32 c = 3 [default = 0];
+  optional int32 a = 1;
+  optional int32 b = 2;
+  optional int32 c = 3;
 }

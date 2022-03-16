@@ -14,7 +14,7 @@
 
 // A proto for comms_test
 
-syntax = "proto2";
+syntax = "proto3";
 package sandbox2;
 
 message CommsTestMsg {
