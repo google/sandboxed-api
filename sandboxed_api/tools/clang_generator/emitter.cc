@@ -399,8 +399,8 @@ void Emitter::CollectType(clang::QualType qual) {
     decl = typedef_type->getDecl();
   } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
     decl = enum_type->getDecl();
-  } else {
-    decl = qual->getAsRecordDecl();
+  } else if (const auto* record_type = qual->getAs<clang::RecordType>()) {
+    decl = record_type->getDecl();
   }
   if (!decl) {
     return;

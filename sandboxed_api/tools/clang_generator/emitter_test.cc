@@ -74,24 +74,18 @@ TEST_F(EmitterTest, RelatedTypes) {
       size_t width;
       size_t height;
     };
-    struct ByValue {
-      int value;
-    };
+    struct ByValue { int value; };
     extern "C" void Colorize(Channel* chan, ByValue v) {}
 
     typedef struct { int member; } MyStruct;
     extern "C" void Structize(MyStruct* s);
-  )",
+        )",
       absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
   // Types from "std" should be skipped
   EXPECT_THAT(emitter.rendered_types_["std"], IsEmpty());
 
-  std::vector<std::string> ugly_types;
-  for (const auto& type : emitter.rendered_types_[""]) {
-    ugly_types.push_back(Uglify(type));
-  }
-  EXPECT_THAT(ugly_types,
+  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("typedef enum { kRed, kGreen, kBlue } Color",
                           "struct Channel {"
                           " Color color;"
@@ -106,27 +100,19 @@ TEST_F(EmitterTest, NestedStruct) {
   RunFrontendAction(
       R"(
     struct A {
-      struct B {
-         int number;
-      };
+      struct B { int number; };
       B b;
       int data;
     };
     extern "C" void Structize(A* s);
-  )",
+        )",
       absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
-  std::vector<std::string> ugly_types;
-  for (const auto& type : emitter.rendered_types_[""]) {
-    ugly_types.push_back(Uglify(type));
-  }
-  EXPECT_THAT(ugly_types, ElementsAre("struct A {"
-                                      " struct B {"
-                                      " int number;"
-                                      " };"
-                                      " A::B b;"
-                                      " int data; "
-                                      "}"));
+  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+              ElementsAre("struct A {"
+                          " struct B { int number; };"
+                          " A::B b;"
+                          " int data; }"));
 }
 
 TEST_F(EmitterTest, NestedAnonymousStruct) {
@@ -134,25 +120,50 @@ TEST_F(EmitterTest, NestedAnonymousStruct) {
   RunFrontendAction(
       R"(
     struct A {
-      struct {
-         int number;
-      } b;
+      struct { int number; } b;
       int data;
     };
     extern "C" void Structize(A* s);
-  )",
+        )",
       absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
-  std::vector<std::string> ugly_types;
-  for (const auto& type : emitter.rendered_types_[""]) {
-    ugly_types.push_back(Uglify(type));
-  }
-  EXPECT_THAT(ugly_types, ElementsAre("struct A {"
-                                      " struct {"
-                                      " int number;"
-                                      " } b;"
-                                      " int data; "
-                                      "}"));
+  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+              ElementsAre("struct A {"
+                          " struct { int number; } b;"
+                          " int data; }"));
+}
+
+TEST_F(EmitterTest, ParentNotCollected) {
+  EmitterForTesting emitter;
+  RunFrontendAction(
+      R"(
+    struct A {
+      struct B { int number; };
+      B b;
+      int data;
+    };
+    extern "C" void Structize(A::B* s);
+        )",
+      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+
+  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+              ElementsAre("struct A {"
+                          " struct B { int number; };"
+                          " A::B b;"
+                          " int data; }"));
+}
+
+TEST_F(EmitterTest, RemoveQualifiers) {
+  EmitterForTesting emitter;
+  RunFrontendAction(
+      R"(
+    struct A { int data; };
+    extern "C" void Structize(const A* in, A* out);
+        )",
+      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+
+  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+              ElementsAre("struct A { int data; }"));
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {

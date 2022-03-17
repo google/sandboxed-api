@@ -33,10 +33,9 @@ bool IsFunctionReferenceType(clang::QualType qual) {
 }  // namespace
 
 void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
-  if (seen_.count(qual) > 0) {  // contains() is LLVM_VERSION_MAJOR >= 11
+  if (!seen_.insert(qual)) {
     return;
   }
-  seen_.insert(qual);
 
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
     auto* typedef_decl = typedef_type->getDecl();
@@ -95,7 +94,12 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     for (const clang::FieldDecl* field : decl->fields()) {
       CollectRelatedTypes(field->getType());
     }
-    collected_.insert(qual);
+    // Do not collect structs/unions if they are declared within another
+    // record. The enclosing type is enough to reconstruct the AST when
+    // writing the header.
+    const clang::RecordDecl* outer = decl->getOuterLexicalRecordContext();
+    decl = outer ? outer : decl;
+    collected_.insert(clang::QualType(decl->getTypeForDecl(), 0));
     return;
   }
 }

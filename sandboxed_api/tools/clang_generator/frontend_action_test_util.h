@@ -84,6 +84,8 @@ class FrontendActionTest : public ::testing::Test {
 // well.
 std::string Uglify(absl::string_view code);
 
+std::vector<std::string> UglifyAll(const std::vector<std::string>& snippets);
+
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_TOOLS_CLANG_GENERATOR_FRONTEND_ACTION_TEST_UTIL_H_

@@ -14,6 +14,8 @@
 
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
 
+#include <algorithm>
+#include <iterator>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -72,6 +74,14 @@ std::vector<std::string> FrontendActionTest::GetCommandLineFlagsForTesting(
 std::string Uglify(absl::string_view code) {
   std::string result = absl::StrReplaceAll(code, {{"\n", " "}});
   absl::RemoveExtraAsciiWhitespace(&result);
+  return result;
+}
+
+std::vector<std::string> UglifyAll(const std::vector<std::string>& snippets) {
+  std::vector<std::string> result;
+  result.reserve(snippets.size());
+  std::transform(snippets.cbegin(), snippets.cend(), std::back_inserter(result),
+                 Uglify);
   return result;
 }
 
