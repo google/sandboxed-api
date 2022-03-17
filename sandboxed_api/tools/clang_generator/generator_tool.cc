@@ -13,18 +13,22 @@
 // limitations under the License.
 
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/CommandLine.h"
+#include "sandboxed_api/tools/clang_generator/compilation_database.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
@@ -99,13 +103,14 @@ GeneratorOptions GeneratorOptionsFromFlags(
 }
 
 absl::Status GeneratorMain(int argc, const char** argv) {
-  auto expected_opt_parser = clang::tooling::CommonOptionsParser::create(
+  auto expected_opt_parser = OptionsParser::create(
       argc, argv, *sapi::g_tool_category, llvm::cl::ZeroOrMore,
       "Generates a Sandboxed API header for C/C++ translation units.");
   if (!expected_opt_parser) {
     return absl::InternalError(llvm::toString(expected_opt_parser.takeError()));
   }
-  clang::tooling::CommonOptionsParser& opt_parser = expected_opt_parser.get();
+  OptionsParser& opt_parser = expected_opt_parser.get();
+
   std::vector<std::string> sources = opt_parser.getSourcePathList();
   for (const auto& sapi_in : *sapi::g_sapi_in) {
     sources.push_back(sapi_in);
@@ -117,7 +122,13 @@ absl::Status GeneratorMain(int argc, const char** argv) {
   auto options = sapi::GeneratorOptionsFromFlags(sources);
   sapi::Emitter emitter;
 
-  clang::tooling::ClangTool tool(opt_parser.getCompilations(), sources);
+  std::unique_ptr<clang::tooling::CompilationDatabase> db =
+      FromCxxAjustedCompileCommands(
+          NonOwningCompileCommands(opt_parser.getCompilations()));
+  clang::tooling::ClangTool tool(*db, sources);
+
+  // TODO(cblichmann): Rmove the .isystem files. CMake does not need them, and
+  //                   we can get the information in Bazel from the toolchain.
   if (!sapi::g_sapi_isystem->empty()) {
     std::string isystem_lines;
     SAPI_RETURN_IF_ERROR(sapi::file::GetContents(
@@ -130,6 +141,7 @@ absl::Status GeneratorMain(int argc, const char** argv) {
     tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
         isystem, clang::tooling::ArgumentInsertPosition::BEGIN));
   }
+
   if (int result = tool.run(
           absl::make_unique<sapi::GeneratorFactory>(emitter, options).get());
       result != 0) {
@@ -147,7 +159,7 @@ absl::Status GeneratorMain(int argc, const char** argv) {
 
 int main(int argc, const char** argv) {
   if (absl::Status status = sapi::GeneratorMain(argc, argv); !status.ok()) {
-    absl::FPrintF(stderr, "error: %s\n", status.message());
+    absl::FPrintF(stderr, "%s\n", status.message());
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;

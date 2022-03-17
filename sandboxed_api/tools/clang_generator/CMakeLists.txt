@@ -56,6 +56,8 @@ target_link_libraries(sapi_generator PUBLIC
 )
 
 add_executable(sapi_generator_tool
+  compilation_database.cc
+  compilation_database.h
   generator_tool.cc
 )
 target_link_libraries(sapi_generator_tool PRIVATE
