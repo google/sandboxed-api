@@ -93,8 +93,66 @@ TEST_F(EmitterTest, RelatedTypes) {
   }
   EXPECT_THAT(ugly_types,
               ElementsAre("typedef enum { kRed, kGreen, kBlue } Color",
-                          "struct Channel", "struct ByValue",
+                          "struct Channel {"
+                          " Color color;"
+                          " std::size_t width;"
+                          " std::size_t height; }",
+                          "struct ByValue { int value; }",
                           "typedef struct { int member; } MyStruct"));
+}
+
+TEST_F(EmitterTest, NestedStruct) {
+  EmitterForTesting emitter;
+  RunFrontendAction(
+      R"(
+    struct A {
+      struct B {
+         int number;
+      };
+      B b;
+      int data;
+    };
+    extern "C" void Structize(A* s);
+  )",
+      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+
+  std::vector<std::string> ugly_types;
+  for (const auto& type : emitter.rendered_types_[""]) {
+    ugly_types.push_back(Uglify(type));
+  }
+  EXPECT_THAT(ugly_types, ElementsAre("struct A {"
+                                      " struct B {"
+                                      " int number;"
+                                      " };"
+                                      " A::B b;"
+                                      " int data; "
+                                      "}"));
+}
+
+TEST_F(EmitterTest, NestedAnonymousStruct) {
+  EmitterForTesting emitter;
+  RunFrontendAction(
+      R"(
+    struct A {
+      struct {
+         int number;
+      } b;
+      int data;
+    };
+    extern "C" void Structize(A* s);
+  )",
+      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+
+  std::vector<std::string> ugly_types;
+  for (const auto& type : emitter.rendered_types_[""]) {
+    ugly_types.push_back(Uglify(type));
+  }
+  EXPECT_THAT(ugly_types, ElementsAre("struct A {"
+                                      " struct {"
+                                      " int number;"
+                                      " } b;"
+                                      " int data; "
+                                      "}"));
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {

@@ -238,10 +238,12 @@ std::string GetSpelling(const clang::Decl* decl) {
   }
 
   if (const auto* record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
-    // For C++ classes/structs, only emit a forward declaration.
-    return absl::StrCat(PrintRecordTemplateArguments(record_decl),
-                        record_decl->isClass() ? "class " : "struct ",
-                        ToStringView(record_decl->getName()));
+    if (!record_decl->isCLike()) {
+      // For C++ classes/structs, only emit a forward declaration.
+      return absl::StrCat(PrintRecordTemplateArguments(record_decl),
+                          record_decl->isClass() ? "class " : "struct ",
+                          ToStringView(record_decl->getName()));
+    }
   }
   return PrintDecl(decl);
 }
@@ -423,8 +425,7 @@ void Emitter::CollectType(clang::QualType qual) {
         return;
       }
     }
-    ns_name = absl::StrCat(ns_path[0].empty() ? "" : " ",
-                           absl::StrJoin(ns_path, "::"));
+    ns_name = absl::StrJoin(ns_path, "::");
   }
 
   rendered_types_[ns_name].push_back(GetSpelling(decl));
