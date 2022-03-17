@@ -27,14 +27,12 @@ if(NOT TARGET sapi::sapi)
 endif()
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(HIDE_SYMBOLS OFF CACHE BOOL "" FORCE)
 set(URIPARSER_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(URIPARSER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(URIPARSER_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(uriparser
   GIT_REPOSITORY https://github.com/uriparser/uriparser
-  GIT_TAG        e0dc98b767aadb86c6510c1b25e575084eeb803c
-  PATCH_COMMAND  patch < "${CMAKE_SOURCE_DIR}/patches/uriparser.cmake.patch"
+  GIT_TAG        a259209a57f7123d4bc422336ce0d420d41f4f5e
 )
 FetchContent_MakeAvailable(uriparser)
 
