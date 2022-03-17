@@ -34,7 +34,7 @@ set(URIPARSER_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(uriparser
   GIT_REPOSITORY https://github.com/uriparser/uriparser
   GIT_TAG        e0dc98b767aadb86c6510c1b25e575084eeb803c
-  PATCH_COMMAND  patch < "${CMAKE_SOURCE_DIR}/patches/uriparser.cmake.patch"
+  PATCH_COMMAND  patch --batch --fuzz=0 < "${CMAKE_CURRENT_SOURCE_DIR}/patches/uriparser.cmake.patch"
 )
 FetchContent_MakeAvailable(uriparser)
 
