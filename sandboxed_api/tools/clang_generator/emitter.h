@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/btree_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -39,7 +39,7 @@ class GeneratorOptions;
 class Emitter {
  public:
   using RenderedTypesMap =
-      absl::flat_hash_map<std::string, std::vector<std::string>>;
+      absl::btree_map<std::string, std::vector<std::string>>;
 
   void CollectType(clang::QualType qual);
   void CollectFunction(clang::FunctionDecl* decl);
