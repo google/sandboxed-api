@@ -23,6 +23,8 @@
 #include "absl/types/optional.h"
 #include "sandboxed_api/util/status_macros.h"
 
+#define SAPI_ASSERT_OK(expr) ASSERT_THAT(expr, ::sapi::IsOk())
+
 #define SAPI_ASSERT_OK_AND_ASSIGN(lhs, rexpr) \
   SAPI_ASSERT_OK_AND_ASSIGN_IMPL(             \
       SAPI_MACROS_IMPL_CONCAT(_sapi_statusor, __LINE__), lhs, rexpr)
