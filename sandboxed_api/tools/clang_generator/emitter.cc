@@ -175,7 +175,7 @@ std::vector<std::string> GetNamespacePath(const clang::TypeDecl* decl) {
   std::vector<std::string> comps;
   for (const auto* ctx = decl->getDeclContext(); ctx; ctx = ctx->getParent()) {
     if (const auto* nd = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
-      comps.push_back(nd->getNameAsString());
+      comps.push_back(nd->getName().str());
     }
   }
   std::reverse(comps.begin(), comps.end());
@@ -255,9 +255,8 @@ std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
 
 std::string PrintFunctionPrototype(const clang::FunctionDecl* decl) {
   // TODO(cblichmann): Fix function pointers and anonymous namespace formatting
-  std::string out =
-      absl::StrCat(decl->getDeclaredReturnType().getAsString(), " ",
-                   std::string(decl->getQualifiedNameAsString()), "(");
+  std::string out = absl::StrCat(decl->getDeclaredReturnType().getAsString(),
+                                 " ", decl->getQualifiedNameAsString(), "(");
 
   std::string print_separator;
   for (int i = 0; i < decl->getNumParams(); ++i) {
@@ -277,7 +276,7 @@ std::string PrintFunctionPrototype(const clang::FunctionDecl* decl) {
 absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   std::string out;
   absl::StrAppend(&out, "\n// ", PrintFunctionPrototype(decl), "\n");
-  const std::string function_name = decl->getNameAsString();
+  auto function_name = ToStringView(decl->getName());
   const clang::QualType return_type = decl->getDeclaredReturnType();
   const bool returns_void = return_type->isVoidType();
 

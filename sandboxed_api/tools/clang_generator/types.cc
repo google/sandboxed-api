@@ -193,8 +193,14 @@ std::string MapQualType(const clang::ASTContext& context,
         break;
     }
   } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
-    return absl::StrCat("::sapi::v::IntBase<",
-                        enum_type->getDecl()->getQualifiedNameAsString(), ">");
+    clang::EnumDecl* enum_decl = enum_type->getDecl();
+    std::string name;
+    if (auto* typedef_name = enum_decl->getTypedefNameForAnonDecl()) {
+      name = typedef_name->getQualifiedNameAsString();
+    } else {
+      name = enum_decl->getQualifiedNameAsString();
+    }
+    return absl::StrCat("::sapi::v::IntBase<", name, ">");
   } else if (IsPointerOrReference(qual)) {
     // Remove "const" qualifier from a pointer or reference type's pointee, as
     // e.g. const pointers do not work well with SAPI.
