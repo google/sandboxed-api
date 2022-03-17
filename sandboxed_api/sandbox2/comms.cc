@@ -50,10 +50,6 @@
 
 namespace sandbox2 {
 
-// Future extension point used to mark code sections that invoke syscalls that
-// potentially block.
-// Internally at Google, there is an implementation that supports light-weight
-// fibers.
 class PotentiallyBlockingRegion {
  public:
   ~PotentiallyBlockingRegion() {
