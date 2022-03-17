@@ -25,6 +25,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
@@ -122,6 +123,12 @@ class GeneratorFactory : public clang::tooling::FrontendActionFactory {
     return new GeneratorAction(emitter_, options_);
   }
 #endif
+
+  bool runInvocation(
+      std::shared_ptr<clang::CompilerInvocation> invocation,
+      clang::FileManager* files,
+      std::shared_ptr<clang::PCHContainerOperations> pch_container_ops,
+      clang::DiagnosticConsumer* diag_consumer) override;
 
   Emitter& emitter_;
   const GeneratorOptions& options_;

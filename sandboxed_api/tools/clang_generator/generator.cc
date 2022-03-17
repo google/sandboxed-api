@@ -21,6 +21,7 @@
 #include "absl/status/statusor.h"
 #include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/util/fileops.h"
@@ -64,7 +65,6 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
 }
 
 void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
-  std::cout << "Processing " << in_file_ << "\n";
   if (!visitor_.TraverseDecl(context.getTranslationUnitDecl())) {
     ReportFatalError(context.getDiagnostics(),
                      context.getTranslationUnitDecl()->getBeginLoc(),
@@ -77,6 +77,50 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   for (clang::FunctionDecl* func : visitor_.functions_) {
     emitter_.CollectFunction(func);
   }
+}
+
+bool GeneratorFactory::runInvocation(
+    std::shared_ptr<clang::CompilerInvocation> invocation,
+    clang::FileManager* files,
+    std::shared_ptr<clang::PCHContainerOperations> pch_container_ops,
+    clang::DiagnosticConsumer* diag_consumer) {
+  auto& options = invocation->getPreprocessorOpts();
+  // Explicitly ask to define __clang_analyzer__ macro.
+  options.SetUpStaticAnalyzer = true;
+  for (const auto& def : {
+           // Enable code to detect whether it is being SAPI-ized
+           "__SAPI__",
+           // TODO(b/222241644): Figure out how to deal with intrinsics properly
+           "__builtin_ia32_paddsb128=",
+           "__builtin_ia32_paddsb256=",
+           "__builtin_ia32_paddsb512=",
+           "__builtin_ia32_paddsw128=",
+           "__builtin_ia32_paddsw256=",
+           "__builtin_ia32_paddsw512=",
+           "__builtin_ia32_paddusb128=",
+           "__builtin_ia32_paddusb256=",
+           "__builtin_ia32_paddusb512=",
+           "__builtin_ia32_paddusw128=",
+           "__builtin_ia32_paddusw256=",
+           "__builtin_ia32_paddusw512=",
+           "__builtin_ia32_psubsb128=",
+           "__builtin_ia32_psubsb256=",
+           "__builtin_ia32_psubsb512=",
+           "__builtin_ia32_psubsw128=",
+           "__builtin_ia32_psubsw256=",
+           "__builtin_ia32_psubsw512=",
+           "__builtin_ia32_psubusb128=",
+           "__builtin_ia32_psubusb256=",
+           "__builtin_ia32_psubusb512=",
+           "__builtin_ia32_psubusw128=",
+           "__builtin_ia32_psubusw256=",
+           "__builtin_ia32_psubusw512=",
+       }) {
+    options.addMacroDef(def);
+  }
+  return FrontendActionFactory::runInvocation(std::move(invocation), files,
+                                              std::move(pch_container_ops),
+                                              diag_consumer);
 }
 
 }  // namespace sapi
