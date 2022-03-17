@@ -30,7 +30,8 @@ namespace sapi {
 namespace internal {
 
 absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
-                                                const std::string& code);
+                                                const std::string& code,
+                                                int column_limit = -1);
 
 }  // namespace internal
 

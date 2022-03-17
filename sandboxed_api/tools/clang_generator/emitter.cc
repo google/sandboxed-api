@@ -23,6 +23,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "clang/AST/DeclCXX.h"
@@ -115,12 +116,16 @@ constexpr absl::string_view kClassFooterTemplate = R"(
 namespace internal {
 
 absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
-                                                const std::string& code) {
+                                                const std::string& code,
+                                                int column_limit) {
   // Configure code style based on Google style, but enforce pointer alignment
   clang::format::FormatStyle style =
       clang::format::getGoogleStyle(clang::format::FormatStyle::LK_Cpp);
   style.DerivePointerAlignment = false;
   style.PointerAlignment = clang::format::FormatStyle::PAS_Left;
+  if (column_limit >= 0) {
+    style.ColumnLimit = column_limit;
+  }
 
   clang::tooling::Replacements replacements = clang::format::reformat(
       style, code, llvm::makeArrayRef(clang::tooling::Range(0, code.size())),
@@ -255,7 +260,8 @@ std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
   return absl::StrCat("unnamed", index, "_");
 }
 
-std::string PrintFunctionPrototype(const clang::FunctionDecl* decl) {
+absl::StatusOr<std::string> PrintFunctionPrototypeComment(
+    const clang::FunctionDecl* decl) {
   // TODO(cblichmann): Fix function pointers and anonymous namespace formatting
   std::string out = absl::StrCat(decl->getDeclaredReturnType().getAsString(),
                                  " ", decl->getQualifiedNameAsString(), "(");
@@ -272,12 +278,24 @@ std::string PrintFunctionPrototype(const clang::FunctionDecl* decl) {
     }
   }
   absl::StrAppend(&out, ")");
+
+  SAPI_ASSIGN_OR_RETURN(
+      std::string formatted,
+      internal::ReformatGoogleStyle(/*filename=*/"input", out, 75));
+  out.clear();
+  for (const auto& line : absl::StrSplit(formatted, '\n')) {
+    absl::StrAppend(&out, "// ", line, "\n");
+  }
   return out;
 }
 
 absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   std::string out;
-  absl::StrAppend(&out, "\n// ", PrintFunctionPrototype(decl), "\n");
+
+  SAPI_ASSIGN_OR_RETURN(std::string prototype,
+                        PrintFunctionPrototypeComment(decl));
+  absl::StrAppend(&out, "\n", prototype);
+
   auto function_name = ToStringView(decl->getName());
   const clang::QualType return_type = decl->getDeclaredReturnType();
   const bool returns_void = return_type->isVoidType();
