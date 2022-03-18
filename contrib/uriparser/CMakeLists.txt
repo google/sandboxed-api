@@ -60,7 +60,7 @@ add_sapi_library(
     uriFreeUriMembersA
 
   INPUTS
-    "${CMAKE_BINARY_DIR}/uri.gen.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/uri.gen.h"
 
   LIBRARY uriparser
   LIBRARY_NAME Uriparser
