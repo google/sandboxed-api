@@ -33,6 +33,14 @@ add_sapi_library(turbojpeg_sapi
   LIBRARY turbojpeg
   LIBRARY_NAME TurboJPEG
   NAMESPACE "turbojpeg_sapi"
+  FUNCTIONS
+   tjDestroy
+   tjGetErrorStr2
+   tjCompress2
+   tjInitCompress
+   tjInitDecompress
+   tjDecompressHeader3
+   tjDecompress2
 )
 add_library(sapi_contrib::turbojpeg ALIAS turbojpeg_sapi)
 target_include_directories(turbojpeg_sapi INTERFACE

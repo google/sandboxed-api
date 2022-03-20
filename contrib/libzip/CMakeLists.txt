@@ -27,6 +27,7 @@ if(NOT TARGET sapi::sapi)
 endif()
 
 set(BUILD_SHARED_LIBS off)
+set(LIBZIP_DO_INSTALL off)
 FetchContent_Declare(libzip
   GIT_REPOSITORY https://github.com/nih-at/libzip/
   GIT_TAG        34b13ca4e887a5aba050015e3a179069643f4e76
@@ -72,8 +73,6 @@ add_sapi_library(
 
     zip_strerror
   INPUTS
-    "${libzip_BINARY_DIR}/zipconf.h"
-    "${libzip_SOURCE_DIR}/lib/zip.h"
     "wrapper/wrapper_zip.h"
 
   LIBRARY wrapper_zip
