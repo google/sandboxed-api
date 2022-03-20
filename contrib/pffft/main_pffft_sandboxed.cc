@@ -26,9 +26,6 @@
 #include "absl/flags/flag.h"
 #include "sandboxed_api/vars.h"
 
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all);
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
-
 class PffftSapiSandbox : public PffftSandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(sandbox2::PolicyBuilder*) {
