@@ -29,6 +29,7 @@ if(NOT TARGET sapi::sapi)
 endif()
 
 set(HIDE_SYMBOLS OFF CACHE BOOL "" FORCE)
+set(PREFER_EXTERNAL_ZLIB ON CACHE BOOL "" FORCE) # prevent undefined symbol errors
 FetchContent_Declare(
   libblosc
 

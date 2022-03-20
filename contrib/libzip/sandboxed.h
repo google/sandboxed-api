@@ -20,11 +20,6 @@
 
 #include <memory>
 
-// Note: This header is required because of the bug in generator. The generator
-// for some reason doesn't catch the types defined by zip (for example
-// zip_uint32_t).
-#include <zipconf.h>  // NOLINT(build/include_order)
-
 #include "sapi_zip.sapi.h"  // NOLINT(build/include)
 
 class ZipSapiSandbox : public ZipSandbox {
