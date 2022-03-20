@@ -1,0 +1,24 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f9b105c8..236aa445 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -247,6 +247,8 @@ option(DISABLE_SNF "Disable Myricom SNF support" OFF)
+ 
+ option(DISABLE_TC "Disable Riverbed TurboCap support" OFF)
+ 
++option(HIDE_SYMBOLS "Do not hidde symbols" ON)
++
+ #
+ # Debugging options.
+ #
+@@ -2029,7 +2031,9 @@ if(NOT MSVC)
+         # and a number of other compilers, such as Clang and Intel C,
+         # use it as well.
+         #
+-        check_and_add_compiler_option(-fvisibility=hidden)
++        if (HIDE_SYMBOLS)
++         check_and_add_compiler_option(-fvisibility=hidden)
++        endif()
+     endif()
+ endif(NOT MSVC)
+ 
