@@ -215,13 +215,23 @@ std::string MapQualType(const clang::ASTContext& context,
   return absl::StrCat("::sapi::v::Int /* aka '", qual.getAsString(), "' */");
 }
 
-std::string MapQualTypeParameter(const clang::ASTContext& /*context*/,
+std::string MapQualTypeParameterForCxx(const clang::ASTContext& /*context*/,
+                                       clang::QualType qual) {
+  if (const auto* builtin = qual->getAs<clang::BuiltinType>()) {
+    if (builtin->getKind() == clang::BuiltinType::Bool) {
+      return "bool";  // _Bool -> bool
+    }
+    // We may decide to add more mappings later, depending on data model:
+    // - long long -> uint64_t
+    // - ...
+  }
+  return qual.getAsString();
+}
+
+std::string MapQualTypeParameter(const clang::ASTContext& context,
                                  clang::QualType qual) {
-  // TODO(cblichmann): Define additional mappings, as appropriate
-  //   _Bool              -> bool
-  //   unsigned long long -> uint64_t (where applicable)
-  //   ...
-  return IsPointerOrReference(qual) ? "::sapi::v::Ptr*" : qual.getAsString();
+  return IsPointerOrReference(qual) ? "::sapi::v::Ptr*"
+                                    : MapQualTypeParameterForCxx(context, qual);
 }
 
 std::string MapQualTypeReturn(const clang::ASTContext& context,
@@ -230,8 +240,10 @@ std::string MapQualTypeReturn(const clang::ASTContext& context,
     return "::absl::Status";
   }
   // Remove const qualifier like in MapQualType().
-  return absl::StrCat("::absl::StatusOr<",
-                      MaybeRemoveConst(context, qual).getAsString(), ">");
+  return absl::StrCat(
+      "::absl::StatusOr<",
+      MapQualTypeParameterForCxx(context, MaybeRemoveConst(context, qual)),
+      ">");
 }
 
 }  // namespace sapi
