@@ -15,12 +15,14 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
 #include <asm/ioctls.h>  // For TCGETS
-#include <fcntl.h>       // For the fcntl flags
+#include <asm/unistd_64.h>
+#include <fcntl.h>  // For the fcntl flags
 #include <linux/filter.h>
 #include <linux/futex.h>
 #include <linux/net.h>     // For SYS_CONNECT
 #include <linux/random.h>  // For GRND_NONBLOCK
 #include <sys/mman.h>      // For mmap arguments
+#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/statvfs.h>
 #include <syscall.h>
@@ -643,6 +645,11 @@ PolicyBuilder& PolicyBuilder::AllowRename() {
       __NR_renameat2,
 #endif
   });
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowPrctlSetName() {
+  AddPolicyOnSyscall(__NR_prctl, {ARG_32(0), JEQ(PR_SET_NAME, ALLOW)});
   return *this;
 }
 

@@ -379,6 +379,11 @@ class PolicyBuilder final {
   // - renameat2
   PolicyBuilder& AllowRename();
 
+  // Appends code to allow setting the name of a thread
+  // Allows the following
+  // - prctl(PR_SET_NAME, ...)
+  PolicyBuilder& AllowPrctlSetName();
+
   // Enables the syscalls necessary to start a statically linked binary
   //
   // NOTE: This will call BlockSyscallWithErrno(__NR_readlink, ENOENT). If you
