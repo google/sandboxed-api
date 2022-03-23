@@ -69,6 +69,10 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       // write() calls with fd not in (1, 2) will continue evaluating the
       // policy. This means that other rules might still allow them.
 
+      // Allow the Sandboxee to set the name for better recognition in the
+      // process listing.
+      .AllowPrctlSetName()
+
       // Allow the dynamic loader to mark pages to never allow read-write-exec.
       .AddPolicyOnSyscall(__NR_mprotect,
                           {

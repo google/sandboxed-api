@@ -18,6 +18,7 @@
 // It inverts all bytes coming from stdin and writes them to the stdout.
 
 #include <signal.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 
 #include <cctype>
@@ -27,6 +28,8 @@
 int main(int argc, char** argv) {
   char buf[1024];
   size_t total_bytes = 0U;
+
+  prctl(PR_SET_NAME, "static_bin");
 
   fprintf(stderr, "=============================\n");
   fprintf(stderr, "Starting file capitalization\n");
