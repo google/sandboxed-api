@@ -16,7 +16,6 @@
 
 #include <cstdlib>
 
-#include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
