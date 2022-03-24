@@ -114,6 +114,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":strerror",
+        "//sandboxed_api:config",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
