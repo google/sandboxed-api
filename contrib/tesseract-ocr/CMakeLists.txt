@@ -26,7 +26,10 @@ if(NOT TARGET sapi::sapi)
 endif()
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(tesseract REQUIRED IMPORTED_TARGET tesseract)
+pkg_check_modules(tesseract IMPORTED_TARGET tesseract)
+if(NOT tesseract_FOUND)
+  return()
+endif()
 
 add_sapi_library(tesseract_sapi
   INPUTS "${tesseract_INCLUDEDIR}/tesseract/capi.h"
@@ -94,8 +97,8 @@ add_sapi_library(tesseract_sapi
     TessBaseAPINumDawgs
     TessBaseAPIOem
 # these crash the code generator
-#   TessBaseAPIPrintVariables
-#   TessBaseAPIPrintVariablesToFile
+    TessBaseAPIPrintVariables
+    TessBaseAPIPrintVariablesToFile
     TessBaseAPIProcessPage
     TessBaseAPIProcessPages
     TessBaseAPIReadConfigFile
