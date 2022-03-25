@@ -12,21 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Append to this list whenever a new sandboxed library is added to `contrib/`.
-set(SAPI_CONTRIB_SANDBOXES
-  c-blosc
-  hunspell
-  jsonnet
-  libidn2
-  libraw
-  libzip
-  pffft
-  turbojpeg
-  uriparser
-  zopfli
-  zstd
+include(GoogleTest)
+
+add_executable(
+        sapi_libraw_test
+
+        libraw_test.cc
+        ../utils/utils_libraw.cc
 )
 
-foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)
-  add_sapi_subdirectory("contrib/${_contrib}" INCLUDE_FROM_ALL)
-endforeach()
+
+target_link_libraries(
+        sapi_libraw_test PRIVATE
+
+        sapi_libraw
+        sapi::test_main
+        sapi::temp_file
+)
+
+gtest_discover_tests(sapi_libraw_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/files")
