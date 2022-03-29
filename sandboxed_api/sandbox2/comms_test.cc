@@ -76,7 +76,7 @@ class CommsTest : public ::testing::Test {
   int fd_server_;
 };
 
-constexpr char kProtoStr[] = "value: \"ABCD\"\n";
+constexpr char kProtoStr[] = "ABCD";
 static const absl::string_view NullTestString() {
   static constexpr char kHelperStr[] = "test\0\n\r\t\x01\x02";
   return absl::string_view(kHelperStr, sizeof(kHelperStr) - 1);
@@ -285,16 +285,14 @@ TEST_F(CommsTest, TestSendRecvProto) {
     // Receive a ProtoBuf.
     std::unique_ptr<CommsTestMsg> comms_msg(new CommsTestMsg());
     ASSERT_THAT(comms->RecvProtoBuf(comms_msg.get()), IsTrue());
-    std::string tmp_str;
-    ASSERT_THAT(google::protobuf::TextFormat::PrintToString(*comms_msg, &tmp_str),
-                IsTrue());
-    EXPECT_THAT(tmp_str, Eq(kProtoStr));
+    ASSERT_THAT(comms_msg->value_size(), Eq(1));
+    EXPECT_THAT(comms_msg->value(0), Eq(kProtoStr));
   };
   auto b = [](Comms* comms) {
     // Send a ProtoBuf.
     std::unique_ptr<CommsTestMsg> comms_msg(new CommsTestMsg());
-    ASSERT_THAT(google::protobuf::TextFormat::ParseFromString(kProtoStr, comms_msg.get()),
-                IsTrue());
+    comms_msg->add_value(kProtoStr);
+    ASSERT_THAT(comms_msg->value_size(), Eq(1));
     ASSERT_THAT(comms->SendProtoBuf(*comms_msg), IsTrue());
   };
   HandleCommunication(sockname_, a, b);
