@@ -87,13 +87,19 @@ endmacro()
 #   LIBRARY_NAME into.
 # HEADER If set, does not generate an interface header, but uses the one
 #   specified.
+# API_VERSION Which version of the Sandboxed API to generate. Currently, only
+#   version "1" is defined.
 function(add_sapi_library)
   set(_sapi_opts NOEMBED)
-  set(_sapi_one_value HEADER LIBRARY LIBRARY_NAME NAMESPACE)
+  set(_sapi_one_value HEADER LIBRARY LIBRARY_NAME NAMESPACE API_VERSION)
   set(_sapi_multi_value SOURCES FUNCTIONS INPUTS)
   cmake_parse_arguments(PARSE_ARGV 0 _sapi "${_sapi_opts}"
                         "${_sapi_one_value}" "${_sapi_multi_value}")
   set(_sapi_NAME "${ARGV0}")
+
+  if(_sapi_API_VERSION AND NOT _sapi_API_VERSION VERSION_EQUAL "1")
+    message(FATAL_ERROR "API_VERSION \"1\" is the only one defined right now")
+  endif()
 
   set(_sapi_gen_header "${_sapi_NAME}.sapi.h")
   foreach(func IN LISTS _sapi_FUNCTIONS)

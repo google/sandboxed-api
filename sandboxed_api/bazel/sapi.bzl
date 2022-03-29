@@ -148,12 +148,25 @@ sapi_interface = rule(
         "out": attr.output(mandatory = True),
         "embed_dir": attr.string(),
         "embed_name": attr.string(),
-        "functions": attr.string_list(allow_empty = True, default = []),
-        "input_files": attr.label_list(allow_files = True),
-        "lib": attr.label(providers = [CcInfo], mandatory = True),
+        "functions": attr.string_list(
+            allow_empty = True,
+            default = [],
+        ),
+        "input_files": attr.label_list(
+            providers = [CcInfo],
+            allow_files = True,
+        ),
+        "lib": attr.label(
+            providers = [CcInfo],
+            mandatory = True,
+        ),
         "lib_name": attr.string(mandatory = True),
         "namespace": attr.string(),
         "limit_scan_depth": attr.bool(default = False),
+        "api_version": attr.int(
+            default = 1,
+            values = [1],  # Only a single version is defined right now
+        ),
         "generator": attr.label(
             executable = True,
             cfg = "host",
@@ -173,6 +186,7 @@ def sapi_library(
         lib,
         lib_name,
         namespace = "",
+        api_version = 1,
         embed = True,
         add_default_deps = True,
         limit_scan_depth = False,
@@ -197,6 +211,8 @@ def sapi_library(
       embed: Whether the SAPI library should be embedded inside the host code
       add_default_deps: Add SAPI dependencies to target (deprecated)
       limit_scan_depth: Limit include depth for header generator (deprecated)
+      api_version: Which version of the Sandboxed API to generate. Currently,
+        only version 1 is defined.
       srcs: Any additional sources to include with the sandboxed library
       hdrs: Like srcs, any additional headers to include with the sandboxed
         library
@@ -204,7 +220,7 @@ def sapi_library(
       header: If set, do not generate a header, but use the specified one
         (deprecated).
       input_files: List of source files which the SAPI interface generator
-        should scan for function declaration
+        should scan for function declarations
       deps: Extra dependencies to add to the SAPI library
       tags: Extra tags to associate with the target
       generator_executable: Label of the SAPI interface generator to use
@@ -303,6 +319,7 @@ def sapi_library(
         embed_name = embed_name,
         embed_dir = embed_dir,
         namespace = namespace,
+        api_version = api_version,
         generator = generator_executable,
         limit_scan_depth = limit_scan_depth,
         **common
