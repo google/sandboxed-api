@@ -15,7 +15,14 @@
 """Starlark rules for projects using Sandboxed API."""
 
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
+load(
+    "//sandboxed_api/bazel:proto.bzl",
+    _sapi_proto_library = "sapi_proto_library",
+)
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain")
+
+# Reexport symbols
+sapi_proto_library = _sapi_proto_library
 
 # Helper functions
 def append_arg(arguments, name, value):
