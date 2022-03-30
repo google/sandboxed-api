@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "contrib/libraw/utils/utils_libraw.h"
-#include "contrib/libraw/sandboxed.h"
 
+#include "contrib/libraw/sandboxed.h"
 
 absl::Status LibRaw::InitLibRaw() {
   SAPI_ASSIGN_OR_RETURN(libraw_data_t * lr_data, api_.libraw_init(0));
@@ -73,20 +73,20 @@ absl::Status LibRaw::SubtractBlack() {
   return api_.libraw_subtract_black(sapi_libraw_data_t_.PtrAfter());
 }
 
-absl::StatusOr<std::vector<char *>> LibRaw::GetCameraList() {
+absl::StatusOr<std::vector<char*>> LibRaw::GetCameraList() {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
   int size;
   SAPI_ASSIGN_OR_RETURN(size, api_.libraw_cameraCount());
 
-  std::vector<char *> buf(size);
-  sapi::v::Array<char *> camera_list(buf.data(), buf.size());
+  std::vector<char*> buf(size);
+  sapi::v::Array<char*> camera_list(buf.data(), buf.size());
 
-  char ** sapi_camera_list;
+  char** sapi_camera_list;
   SAPI_ASSIGN_OR_RETURN(sapi_camera_list, api_.libraw_cameraList());
 
   camera_list.SetRemote(sapi_camera_list);
-  SAPI_RETURN_IF_ERROR(api_.GetSandbox()->TransferFromSandboxee(&camera_list));
+  SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&camera_list));
 
   return buf;
 }
@@ -112,7 +112,7 @@ absl::StatusOr<std::vector<uint16_t>> LibRaw::RawData() {
   sapi::v::Array<uint16_t> rawdata(buf.data(), buf.size());
 
   rawdata.SetRemote(sapi_libraw_data_t_.data().rawdata.raw_image);
-  SAPI_RETURN_IF_ERROR(api_.GetSandbox()->TransferFromSandboxee(&rawdata));
+  SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&rawdata));
 
   return buf;
 }

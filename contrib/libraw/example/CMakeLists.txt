@@ -13,15 +13,15 @@
 # limitations under the License.
 
 add_executable(
-  sapi_minilibraw
+        sapi_minilibraw
 
-  main.cc
-  ../utils/utils_libraw.cc
+        main.cc
+        ../utils/utils_libraw.cc
 )
 
 target_link_libraries(
-  sapi_minilibraw PRIVATE
+        sapi_minilibraw PRIVATE
 
-  sapi_libraw
-  sapi::sapi
+        sapi_libraw
+        sapi::sapi
 )

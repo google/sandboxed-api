@@ -21,7 +21,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 
-if(NOT TARGET sapi::sapi)
+if (NOT TARGET sapi::sapi)
   set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
   add_subdirectory(
     "${SAPI_ROOT}"
@@ -74,16 +74,17 @@ add_sapi_library(
   NAMESPACE ""
 )
 
+add_library(sapi_contrib::libraw ALIAS sapi_libraw)
 target_include_directories(
   sapi_libraw INTERFACE
 
   "${PROJECT_BINARY_DIR}"
 )
 
-if(SAPI_ENABLE_EXAMPLES)
+if (SAPI_ENABLE_EXAMPLES)
     add_subdirectory(example)
 endif()
 
-if(SAPI_ENABLE_TESTS)
+if (SAPI_ENABLE_TESTS)
     add_subdirectory(test)
 endif()

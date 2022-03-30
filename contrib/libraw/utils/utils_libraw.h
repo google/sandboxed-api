@@ -16,10 +16,10 @@
 #define CONTRIB_LIBRAW_UTILS_UTILS_LIBRAW_H_
 
 #include <vector>
+
 #include "contrib/libraw/sandboxed.h"
 
-enum LibRaw_errors
-{
+enum LibRaw_errors {
   LIBRAW_SUCCESS = 0,
   LIBRAW_UNSPECIFIED_ERROR = -1,
   LIBRAW_FILE_UNSUPPORTED = -2,
@@ -37,7 +37,6 @@ enum LibRaw_errors
   LIBRAW_TOO_BIG = -100012,
   LIBRAW_MEMPOOL_OVERFLOW = -100013
 };
-
 
 class LibRaw {
  public:
@@ -59,19 +58,20 @@ class LibRaw {
   absl::Status OpenFile();
   absl::Status Unpack();
   absl::Status SubtractBlack();
-  absl::StatusOr<std::vector<char *>> GetCameraList();
+  absl::StatusOr<std::vector<char*>> GetCameraList();
   absl::StatusOr<int> COLOR(int row, int col);
 
  private:
   absl::Status InitLibRaw();
 
-  LibRawSapiSandbox * sandbox_;
+  LibRawSapiSandbox* sandbox_;
   LibRawApi api_;
   absl::Status init_status_;
 
   std::string file_name_;
 
- public: sapi::v::Struct<libraw_data_t> sapi_libraw_data_t_;
+ public:
+  sapi::v::Struct<libraw_data_t> sapi_libraw_data_t_;
 };
 
 #endif  // CONTRIB_LIBRAW_UTILS_UTILS_LIBRAW_H_
