@@ -59,17 +59,12 @@ add_sapi_library(
     libraw_unpack
     libraw_close
 
-    libraw_subtract_black #
-#    libraw_raw2image
-#    libraw_free_image
+    libraw_subtract_black
 
     libraw_cameraList
     libraw_cameraCount
 
-    libraw_COLOR #
-#    libraw_dcraw_process
-#    libraw_dcraw_ppm_tiff_writer
-
+    libraw_COLOR
 
   INPUTS
     "${CMAKE_BINARY_DIR}/raw.gen.h"
