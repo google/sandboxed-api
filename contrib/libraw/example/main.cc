@@ -66,16 +66,18 @@ int main(int ac, char* av[]) {
   LibRaw lr(&sandbox, av[1]);
   if (not lr.CheckIsInit().ok()) {
     std::cerr << "Unable init LibRaw";
+    std::cerr << lr.CheckIsInit().status();
     return EXIT_FAILURE;
   }
 
   status = lr.OpenFile();
   if (not status.ok()) {
     std::cerr << "Unable to open file" << av[1] << "\n";
+    std::cerr << status;
     return EXIT_FAILURE;
   }
 
-  if ((lr.GetImgData().idata.colors == 1 and channel > 0) or (channel > 3)) {
+  if ((lr.GetColorCount() == 1 and channel > 0) or (channel > 3)) {
     std::cerr << "Incorrect CHANNEL specified:" << channel << "\n";
     return EXIT_FAILURE;
   }
@@ -83,66 +85,78 @@ int main(int ac, char* av[]) {
   status = lr.Unpack();
   if (not status.ok()) {
     std::cerr << "Unable to unpack file" << av[1] << "\n";
+    std::cerr << status;
     return EXIT_FAILURE;
   }
 
   status = lr.SubtractBlack();
   if (not status.ok()) {
     std::cerr << "Unable to subtract black level";
+    std::cerr << status;
+    // ok, but different output
   }
 
+  absl::StatusOr<std::vector<uint16_t>> rawdata = lr.RawData();
+  if (not rawdata.ok()) {
+    std::cerr << "Unable to get raw data\n";
+    std::cerr << rawdata.status();
+    return EXIT_FAILURE;
+  }
+
+  absl::StatusOr<ushort> raw_height = lr.GetRawHeight();
+  absl::StatusOr<ushort> raw_width = lr.GetRawWidth();
+  if (not raw_height.ok() or not raw_width.ok()) {
+    std::cerr << "Unable to get raw image sizes.";
+    return EXIT_FAILURE;
+  }
+
+  // header
   std::cout << av[1] << "\t" << colstart << "-" << rowstart << "-" << width
             << "x" << height << "\t"
             << "channel: " << channel << "\n";
   std::cout << std::setw(6) << "R\\C";
   for (int col = colstart;
-       col < colstart + width and col < lr.GetImgData().sizes.raw_width;
+       col < colstart + width and col < *raw_width;
        col++) {
     std::cout << std::setw(6) << col;
   }
   std::cout << "\n";
 
-  if (lr.GetImgData().rawdata.raw_image) {
-    absl::StatusOr<std::vector<uint16_t>> rawdata = lr.RawData();
-    if (not rawdata.ok()) {
-      std::cerr << "Unable to get raw data\n";
-      return EXIT_FAILURE;
+  // dump raw to output
+  for (int row = rowstart;
+       row < rowstart + height && row < *raw_height;
+       row++) {
+    unsigned rcolors[48];
+    if (lr.GetColorCount() > 1) {
+      absl::StatusOr<int> color;
+      for (int c = 0; c < 48; c++) {
+        color = lr.COLOR(row, c);
+        if (color.ok()) rcolors[c] = *color;
+      }
+    } else {
+      memset(rcolors, 0, sizeof(rcolors));
     }
+    std::cout << std::setw(6) << row;
 
-    for (int row = rowstart;
-         row < rowstart + height && row < lr.GetImgData().sizes.raw_height;
-         row++) {
-      unsigned rcolors[48];
-      if (lr.GetImgData().idata.colors > 1) {
-        absl::StatusOr<int> color;
-        for (int c = 0; c < 48; c++) {
-          color = lr.COLOR(row, c);
-          if (color.ok()) rcolors[c] = *color;
+    for (int col = colstart;
+         col < colstart + width && col < *raw_width;
+         col++) {
+      int idx = row * lr.GetImgData().sizes.raw_pitch / 2 + col;
+
+      if (rcolors[col % 48] == (unsigned)channel) {
+        absl::StatusOr<int> cblack = lr.GetCBlack(channel);
+        if (not cblack.ok()) {
+          std::cerr << "Unable to get cblack for channel " << channel;
+          std::cerr << cblack.status();
+          return EXIT_FAILURE;
         }
+        std::cout << std::setw(6)
+                  << subtract_bl((*rawdata).at(idx), *cblack);
       } else {
-        memset(rcolors, 0, sizeof(rcolors));
+        std::cout << "     -";
       }
-      std::cout << std::setw(6) << row;
-
-      for (int col = colstart;
-           col < colstart + width && col < lr.GetImgData().sizes.raw_width;
-           col++) {
-        int idx = row * lr.GetImgData().sizes.raw_pitch / 2 + col;
-
-        if (rcolors[col % 48] == (unsigned)channel) {
-          std::cout << std::setw(6)
-                    << subtract_bl((*rawdata)[idx],
-                                   lr.GetImgData().color.cblack[channel]);
-        } else {
-          std::cout << "     -";
-        }
-      }
-      std::cout << "\n";
     }
-  } else {
-    std::cout
-        << "Unsupported file data (e.g. floating point format), or incorrect "
-           "channel specified\n";
+    std::cout << "\n";
   }
 
   return EXIT_SUCCESS;

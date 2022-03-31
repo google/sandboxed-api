@@ -31,21 +31,14 @@ class LibRawSapiSandbox : public LibRawSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowStaticStartup()
         .AllowDynamicStartup()
-        .AllowTcMalloc()
-        .AllowSystemMalloc()
-        .AllowScudoMalloc()
         .AllowOpen()
         .AllowRead()
         .AllowWrite()
         .AllowSystemMalloc()
         .AllowExit()
-        .AllowSafeFcntl()
         .AllowSyscalls({__NR_recvmsg})
         .AddFile(file_name_, /*is_ro=*/true)
-        .AllowRestartableSequencesWithProcFiles(
-            sandbox2::PolicyBuilder::kAllowSlowFences)  // hangs without it?
         .BuildOrDie();
   }
 

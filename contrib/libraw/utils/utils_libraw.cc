@@ -95,19 +95,63 @@ absl::StatusOr<int> LibRaw::COLOR(int row, int col) {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
   int color;
-
   SAPI_ASSIGN_OR_RETURN(
       color, api_.libraw_COLOR(sapi_libraw_data_t_.PtrNone(), row, col));
 
   return color;
 }
 
+absl::StatusOr<ushort> LibRaw::GetRawHeight() {
+  SAPI_RETURN_IF_ERROR(CheckIsInit());
+
+  ushort height;
+  SAPI_ASSIGN_OR_RETURN(
+      height, api_.libraw_get_raw_height(sapi_libraw_data_t_.PtrNone()));
+
+  return height;
+}
+
+absl::StatusOr<ushort> LibRaw::GetRawWidth() {
+  SAPI_RETURN_IF_ERROR(CheckIsInit());
+
+  ushort width;
+  SAPI_ASSIGN_OR_RETURN(
+      width, api_.libraw_get_raw_width(sapi_libraw_data_t_.PtrNone()));
+
+  return width;
+}
+
+absl::StatusOr<unsigned> LibRaw::GetCBlack(int channel) {
+  SAPI_RETURN_IF_ERROR(CheckIsInit());
+
+  if (channel < 0 or channel >= LIBRAW_CBLACK_SIZE) {
+    return absl::OutOfRangeError(
+        absl::string_view(std::to_string(channel)
+                          + " is out of range for array with size "
+                          + std::to_string(LIBRAW_CBLACK_SIZE)));
+  }
+
+  return GetImgData().color.cblack[channel];
+
+  ushort width;
+  SAPI_ASSIGN_OR_RETURN(
+      width, api_.libraw_get_raw_width(sapi_libraw_data_t_.PtrNone()));
+
+  return width;
+}
+
+int LibRaw::GetColorCount() {
+  return GetImgData().idata.colors;
+}
+
 absl::StatusOr<std::vector<uint16_t>> LibRaw::RawData() {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
-  int size = sapi_libraw_data_t_.data().sizes.raw_height *
-             sapi_libraw_data_t_.data().sizes.raw_width;
-
+  ushort raw_height;
+  ushort raw_width;
+  SAPI_ASSIGN_OR_RETURN(raw_height, GetRawHeight());
+  SAPI_ASSIGN_OR_RETURN(raw_width, GetRawWidth());
+  unsigned size = raw_height * raw_width;
   std::vector<uint16_t> buf(size);
   sapi::v::Array<uint16_t> rawdata(buf.data(), buf.size());
 

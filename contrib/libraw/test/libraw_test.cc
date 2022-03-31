@@ -97,10 +97,11 @@ TEST_P(LibRawTestFiles, TestSize) {
   SAPI_ASSERT_OK(lr.OpenFile());
   SAPI_ASSERT_OK(lr.Unpack());
 
-  libraw_data_t lr_data = lr.GetImgData();
+  SAPI_ASSERT_OK_AND_ASSIGN(ushort raw_height, lr.GetRawHeight());
+  SAPI_ASSERT_OK_AND_ASSIGN(ushort raw_width, lr.GetRawWidth());
 
-  ASSERT_EQ(lr_data.sizes.raw_height, tv.raw_height);
-  ASSERT_EQ(lr_data.sizes.raw_width, tv.raw_width);
+  ASSERT_EQ(raw_height, tv.raw_height);
+  ASSERT_EQ(raw_width, tv.raw_width);
 }
 
 TEST_P(LibRawTestFiles, TestCameraList) {

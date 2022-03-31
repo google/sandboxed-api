@@ -60,6 +60,10 @@ class LibRaw {
   absl::Status SubtractBlack();
   absl::StatusOr<std::vector<char*>> GetCameraList();
   absl::StatusOr<int> COLOR(int row, int col);
+  absl::StatusOr<ushort> GetRawHeight();
+  absl::StatusOr<ushort> GetRawWidth();
+  absl::StatusOr<unsigned> GetCBlack(int channel);
+  int GetColorCount();
 
  private:
   absl::Status InitLibRaw();
@@ -70,7 +74,6 @@ class LibRaw {
 
   std::string file_name_;
 
- public:
   sapi::v::Struct<libraw_data_t> sapi_libraw_data_t_;
 };
 

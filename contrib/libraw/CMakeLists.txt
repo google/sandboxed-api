@@ -65,6 +65,8 @@ add_sapi_library(
     libraw_cameraCount
 
     libraw_COLOR
+    libraw_get_raw_height
+    libraw_get_raw_width
 
   INPUTS
     "${CMAKE_BINARY_DIR}/raw.gen.h"
