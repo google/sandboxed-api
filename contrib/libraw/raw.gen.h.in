@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef CONTRIB_LIBRAW_RAW_GEN_H
+#define CONTRIB_LIBRAW_RAW_GEN_H
+
+#include <cstdint>
+
 #define __time_t uint64_t
 #define time_t uint64_t
+
 #include "${libraw_SOURCE_DIR}/libraw/libraw.h"
+
+#endif  // CONTRIB_LIBRAW_RAW_GEN_H

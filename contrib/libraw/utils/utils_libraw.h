@@ -60,9 +60,9 @@ class LibRaw {
   absl::Status SubtractBlack();
   absl::StatusOr<std::vector<char*>> GetCameraList();
   absl::StatusOr<int> COLOR(int row, int col);
-  absl::StatusOr<ushort> GetRawHeight();
-  absl::StatusOr<ushort> GetRawWidth();
-  absl::StatusOr<unsigned> GetCBlack(int channel);
+  absl::StatusOr<int> GetRawHeight();
+  absl::StatusOr<int> GetRawWidth();
+  absl::StatusOr<unsigned int> GetCBlack(int channel);
   int GetColorCount();
 
  private:

@@ -45,4 +45,4 @@ class LibRawSapiSandbox : public LibRawSandbox {
   std::string file_name_;
 };
 
-#endif  // CONTRIB_LIBRAW_SANDBOXED_
+#endif  // CONTRIB_LIBRAW_SANDBOXED_H_

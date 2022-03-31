@@ -1,7 +1,7 @@
 // Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
+// you may !use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
 //     https://www.apache.org/licenses/LICENSE-2.0
@@ -20,9 +20,9 @@
 #include "contrib/libraw/sandboxed.h"
 #include "contrib/libraw/utils/utils_libraw.h"
 
-void usage(const char* av) {
+void PrintUsage(const char* name) {
   std::cout << "Dump (small) selecton of RAW file as tab-separated text file\n"
-            << "Usage: " << av
+            << "Usage: " << name
             << " inputfile COL ROW [CHANNEL] [width] [height]\n"
                "  COL - start column\n"
                "  ROW - start row\n"
@@ -31,92 +31,89 @@ void usage(const char* av) {
                "  height - area height to dump, default is 4\n";
 }
 
-unsigned subtract_bl(int val, int bl) { return val > bl ? val - bl : 0; }
+uint16_t SubtractBlack(uint16_t val, unsigned int bl) {
+  return val > bl ? val - bl : 0;
+}
 
-int main(int ac, char* av[]) {
-  google::InitGoogleLogging(av[0]);
+int main(int argc, char* argv[]) {
+  google::InitGoogleLogging(argv[0]);
 
-  if (ac < 4) {
-    usage(av[0]);
-    exit(1);
+  if (argc < 4) {
+    PrintUsage(argv[0]);
+    return EXIT_FAILURE;
   }
-  int colstart = atoi(av[2]);
-  int rowstart = atoi(av[3]);
+  int colstart = atoi(argv[2]);
+  int rowstart = atoi(argv[3]);
   int channel = 0;
-  if (ac > 4) channel = atoi(av[4]);
+  if (argc > 4) channel = atoi(argv[4]);
   int width = 16;
-  if (ac > 5) width = atoi(av[5]);
+  if (argc > 5) width = atoi(argv[5]);
   int height = 4;
-  if (ac > 6) height = atoi(av[6]);
+  if (argc > 6) height = atoi(argv[6]);
   if (width < 1 || height < 1) {
-    usage(av[0]);
-    exit(1);
-  }
-
-  sapi::v::ConstCStr file_name(av[1]);
-
-  LibRawSapiSandbox sandbox(file_name.GetData());
-  if (!sandbox.Init().ok()) {
-    std::cerr << "Unable to start sandbox\n";
+    PrintUsage(argv[0]);
     return EXIT_FAILURE;
   }
 
+  sapi::v::ConstCStr file_name(argv[1]);
   absl::Status status;
+  LibRawSapiSandbox sandbox(file_name.GetData());
 
-  LibRaw lr(&sandbox, av[1]);
-  if (not lr.CheckIsInit().ok()) {
-    std::cerr << "Unable init LibRaw";
-    std::cerr << lr.CheckIsInit().status();
+  status = sandbox.Init();
+  if (!status.ok()) {
+    std::cerr << "Unable to start sandbox: " << status.message() << "\n";
+    return EXIT_FAILURE;
+  }
+
+  LibRaw lr(&sandbox, argv[1]);
+  if (!lr.CheckIsInit().ok()) {
+    std::cerr << "Unable init LibRaw: " << lr.CheckIsInit().message();
     return EXIT_FAILURE;
   }
 
   status = lr.OpenFile();
-  if (not status.ok()) {
-    std::cerr << "Unable to open file" << av[1] << "\n";
-    std::cerr << status;
+  if (!status.ok()) {
+    std::cerr << "Unable to open file " << argv[1] << ": " << status.message();
     return EXIT_FAILURE;
   }
 
-  if ((lr.GetColorCount() == 1 and channel > 0) or (channel > 3)) {
-    std::cerr << "Incorrect CHANNEL specified:" << channel << "\n";
+  if ((lr.GetColorCount() == 1 && channel > 0) || (channel > 3)) {
+    std::cerr << "Incorrect CHANNEL specified: " << channel << "\n";
     return EXIT_FAILURE;
   }
 
   status = lr.Unpack();
-  if (not status.ok()) {
-    std::cerr << "Unable to unpack file" << av[1] << "\n";
-    std::cerr << status;
+  if (!status.ok()) {
+    std::cerr << "Unable to unpack file " << argv[1] << status.message();
     return EXIT_FAILURE;
   }
 
   status = lr.SubtractBlack();
-  if (not status.ok()) {
-    std::cerr << "Unable to subtract black level";
-    std::cerr << status;
+  if (!status.ok()) {
+    std::cerr << "Unable to subtract black level: " << status.message();
     // ok, but different output
   }
 
   absl::StatusOr<std::vector<uint16_t>> rawdata = lr.RawData();
-  if (not rawdata.ok()) {
-    std::cerr << "Unable to get raw data\n";
-    std::cerr << rawdata.status();
+  if (!rawdata.ok()) {
+    std::cerr << "Unable to get raw data: " << rawdata.status().message();
     return EXIT_FAILURE;
   }
 
   absl::StatusOr<ushort> raw_height = lr.GetRawHeight();
   absl::StatusOr<ushort> raw_width = lr.GetRawWidth();
-  if (not raw_height.ok() or not raw_width.ok()) {
-    std::cerr << "Unable to get raw image sizes.";
+  if (!raw_height.ok() || !raw_width.ok()) {
+    std::cerr << "Unable to get raw image sizes";
     return EXIT_FAILURE;
   }
 
   // header
-  std::cout << av[1] << "\t" << colstart << "-" << rowstart << "-" << width
+  std::cout << argv[1] << "\t" << colstart << "-" << rowstart << "-" << width
             << "x" << height << "\t"
             << "channel: " << channel << "\n";
   std::cout << std::setw(6) << "R\\C";
   for (int col = colstart;
-       col < colstart + width and col < *raw_width;
+       col < colstart + width && col < *raw_width;
        col++) {
     std::cout << std::setw(6) << col;
   }
@@ -125,8 +122,8 @@ int main(int ac, char* av[]) {
   // dump raw to output
   for (int row = rowstart;
        row < rowstart + height && row < *raw_height;
-       row++) {
-    unsigned rcolors[48];
+       ++row) {
+    int rcolors[48];
     if (lr.GetColorCount() > 1) {
       absl::StatusOr<int> color;
       for (int c = 0; c < 48; c++) {
@@ -140,18 +137,18 @@ int main(int ac, char* av[]) {
 
     for (int col = colstart;
          col < colstart + width && col < *raw_width;
-         col++) {
+         ++col) {
       int idx = row * lr.GetImgData().sizes.raw_pitch / 2 + col;
 
-      if (rcolors[col % 48] == (unsigned)channel) {
-        absl::StatusOr<int> cblack = lr.GetCBlack(channel);
-        if (not cblack.ok()) {
-          std::cerr << "Unable to get cblack for channel " << channel;
-          std::cerr << cblack.status();
+      if (rcolors[col % 48] == channel) {
+        absl::StatusOr<unsigned int> cblack = lr.GetCBlack(channel);
+        if (!cblack.ok()) {
+          std::cerr << "Unable to get cblack for channel " << channel
+                    << ": " << cblack.status().message();
           return EXIT_FAILURE;
         }
         std::cout << std::setw(6)
-                  << subtract_bl((*rawdata).at(idx), *cblack);
+                  << SubtractBlack((*rawdata).at(idx), *cblack);
       } else {
         std::cout << "     -";
       }

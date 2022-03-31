@@ -35,8 +35,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/LibRaw/LibRaw.git
   GIT_TAG adcb898a00746c8aa886eb06cc9f5a1cb1834fca
 )
-FetchContent_GetProperties(libraw)
-FetchContent_Populate(libraw)
+FetchContent_MakeAvailable(libraw)
 
 set(LIBRAW_PATH "${libraw_SOURCE_DIR}" CACHE STRING "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)

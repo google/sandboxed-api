@@ -28,7 +28,7 @@ const struct TestVariant {
   ushort raw_width;
   int COLOR[4][4];
   int color_values[4][4];
-} TestData[] = {
+} kTestData[] = {
     {.filename = "img.raw",
      .raw_height = 3516,
      .raw_width = 5344,
@@ -178,6 +178,6 @@ TEST_P(LibRawTestFiles, TestSubtractBlack) {
 }
 
 INSTANTIATE_TEST_SUITE_P(LibRawBase, LibRawTestFiles,
-                         testing::ValuesIn(TestData));
+                         testing::ValuesIn(kTestData));
 
 }  // namespace

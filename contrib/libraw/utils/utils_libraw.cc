@@ -101,7 +101,7 @@ absl::StatusOr<int> LibRaw::COLOR(int row, int col) {
   return color;
 }
 
-absl::StatusOr<ushort> LibRaw::GetRawHeight() {
+absl::StatusOr<int> LibRaw::GetRawHeight() {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
   ushort height;
@@ -111,7 +111,7 @@ absl::StatusOr<ushort> LibRaw::GetRawHeight() {
   return height;
 }
 
-absl::StatusOr<ushort> LibRaw::GetRawWidth() {
+absl::StatusOr<int> LibRaw::GetRawWidth() {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
   ushort width;
@@ -121,7 +121,7 @@ absl::StatusOr<ushort> LibRaw::GetRawWidth() {
   return width;
 }
 
-absl::StatusOr<unsigned> LibRaw::GetCBlack(int channel) {
+absl::StatusOr<unsigned int> LibRaw::GetCBlack(int channel) {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
   if (channel < 0 or channel >= LIBRAW_CBLACK_SIZE) {
@@ -147,11 +147,11 @@ int LibRaw::GetColorCount() {
 absl::StatusOr<std::vector<uint16_t>> LibRaw::RawData() {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
-  ushort raw_height;
-  ushort raw_width;
+  int raw_height;
+  int raw_width;
   SAPI_ASSIGN_OR_RETURN(raw_height, GetRawHeight());
   SAPI_ASSIGN_OR_RETURN(raw_width, GetRawWidth());
-  unsigned size = raw_height * raw_width;
+  int size = raw_height * raw_width;
   std::vector<uint16_t> buf(size);
   sapi::v::Array<uint16_t> rawdata(buf.data(), buf.size());
 
