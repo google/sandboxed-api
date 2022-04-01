@@ -54,6 +54,7 @@ sapi_library(
         "violate",
         "get_raw_c_string",
     ],
+    generator_version = 1,
     input_files = ["stringop.cc"],
     lib = ":stringop",
     lib_name = "Stringop",
