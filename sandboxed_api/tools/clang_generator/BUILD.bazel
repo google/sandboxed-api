@@ -32,6 +32,8 @@ cc_library(
     ],
     copts = sapi_platform_copts(),
     deps = [
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
@@ -49,8 +51,6 @@ cc_library(
         "@llvm-project//clang:lex",
         "@llvm-project//clang:tooling",
         "@llvm-project//llvm:Support",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
     ],
 )
 
@@ -64,18 +64,18 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":generator",
-        "@com_google_googletest//:gtest_main",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
         "@llvm-project//clang:basic",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
         "@llvm-project//llvm:Support",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -91,6 +91,9 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":generator",
+        "//sandboxed_api/util:file_helpers",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -100,8 +103,5 @@ cc_binary(
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
         "@llvm-project//llvm:Support",
-        "//sandboxed_api/util:file_helpers",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
     ],
 )

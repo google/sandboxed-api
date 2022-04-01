@@ -38,6 +38,20 @@ def append_all(arguments, name, values):
 def get_embed_dir():
     return native.package_name()
 
+def make_exec_label(label):
+    return attr.label(
+        default = label,
+        cfg = "exec",
+        allow_files = True,
+        executable = True,
+    )
+
+# buildifier: disable=function-docstring
+def select_generator(ctx):
+    if ctx.attr.generator_version == 1:
+        return ctx.executable._generator_v1
+    return ctx.executable._generator_v2
+
 def sort_deps(deps):
     """Sorts a list of dependencies.
 
@@ -49,16 +63,16 @@ def sort_deps(deps):
     Returns:
       A sorted list of dependencies, with local deps (starting with ":") first.
     """
+
     deps = depset(deps).to_list()
     colon_deps = [x for x in deps if x.startswith(":")]
     other_deps = [x for x in deps if not x.startswith(":")]
     return sorted(colon_deps) + sorted(other_deps)
 
-def sapi_interface_impl(ctx):
-    """Implementation of build rule that generates SAPI interface."""
-
+def _sapi_interface_impl(ctx):
     cpp_toolchain = find_cpp_toolchain(ctx)
-    use_clang_generator = ctx.executable.generator.basename == "generator_tool"
+    generator = select_generator(ctx)
+    use_clang_generator = ctx.attr.generator_version == 2
 
     # TODO(szwl): warn if input_files is not set and we didn't find anything
     input_files_paths = []
@@ -137,13 +151,14 @@ def sapi_interface_impl(ctx):
         inputs = input_files,
         outputs = [ctx.outputs.out],
         arguments = args,
+        mnemonic = "SapiInterfaceGen",
         progress_message = progress_msg,
-        executable = ctx.executable.generator,
+        executable = generator,
     )
 
 # Build rule that generates SAPI interface.
 sapi_interface = rule(
-    implementation = sapi_interface_impl,
+    implementation = _sapi_interface_impl,
     attrs = {
         "out": attr.output(mandatory = True),
         "embed_dir": attr.string(),
@@ -167,11 +182,16 @@ sapi_interface = rule(
             default = 1,
             values = [1],  # Only a single version is defined right now
         ),
-        "generator": attr.label(
-            executable = True,
-            cfg = "host",
-            allow_files = True,
-            default = Label("//sandboxed_api/tools/generator2:sapi_generator"),
+        "generator_version": attr.int(
+            default = 1,
+            values = [1, 2],
+        ),
+        "_generator_v1": make_exec_label(
+            "//sandboxed_api/tools/generator2:sapi_generator",
+        ),
+        "_generator_v2": make_exec_label(
+            # TODO(cblichmann): Add prebuilt version of Clang based generator
+            "//sandboxed_api/tools/clang_generator:generator_tool",
         ),
         "_cc_toolchain": attr.label(
             default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
@@ -197,7 +217,7 @@ def sapi_library(
         input_files = [],
         deps = [],
         tags = [],
-        generator_executable = "//sandboxed_api/tools/generator2:sapi_generator",
+        generator_version = 1,
         visibility = None):
     """Provides the implementation of a Sandboxed API library.
 
@@ -223,8 +243,10 @@ def sapi_library(
         should scan for function declarations
       deps: Extra dependencies to add to the SAPI library
       tags: Extra tags to associate with the target
-      generator_executable: Label of the SAPI interface generator to use
-        (experimental).
+      generator_version: Which version the the interface generator to use
+        (experimental). Version 1 uses the Python/libclang based `generator2`,
+        version 2 uses the newer C++ implementation that uses the full clang
+        compiler front-end for parsing. Both emit equivalent Sandboxed APIs.
       visibility: Target visibility
     """
 
@@ -320,7 +342,7 @@ def sapi_library(
         embed_dir = embed_dir,
         namespace = namespace,
         api_version = api_version,
-        generator = generator_executable,
+        generator_version = generator_version,
         limit_scan_depth = limit_scan_depth,
         **common
     )
