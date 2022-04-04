@@ -16,7 +16,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
-SYSTEM_LLVM_BAZEL = """package(default_visibility = ["//visibility:public"])
+SYSTEM_LLVM_BAZEL_TEMPLATE = """package(default_visibility = ["//visibility:public"])
 # Create one hidden library with all LLVM headers that depends on all its
 # static library archives. This will be used to provide individual library
 # targets named the same as the upstream Bazel files.
@@ -32,12 +32,15 @@ cc_library(
         "llvm-project-include/llvm/**/*.h",
         "llvm-project-include/llvm/**/*.inc",
     ]),
-    linkopts = ["-lncurses"],
     includes = ["llvm-project-include"],
-    srcs = glob([
-        "llvm-project-lib/libLLVM*.a",
-        "llvm-project-lib/libclang*.a",
-    ]),
+    linkopts = [
+        "-lncurses",
+        "-lz",
+        "-L%{llvm_lib_dir}",
+        "-Wl,--start-group",
+        %{llvm_libs}
+        "-Wl,--end-group",
+    ],
     visibility = ["@llvm-project//clang:__pkg__"],
 )
 # Fake support library
@@ -60,14 +63,14 @@ def _use_system_llvm(ctx):
 
     # Look for LLVM in known places
     llvm_dirs = ctx.execute(
-        ["ls", "-1"] +
+        ["ls", "-1f"] +
         [
             "/usr/lib/llvm-{}/include/llvm/Support/InitLLVM.h".format(ver)
             for ver in [16, 15, 14, 13, 12, 11]  # Debian
         ] + [
             "/usr/include/llvm/Support/InitLLVM.h",  # Fedora and others
         ],
-    ).stdout.split("\n")[:-1]
+    ).stdout.splitlines()
     if llvm_dirs:
         llvm_dir = llvm_dirs[0].split("/include/llvm/")[0]
         for suffix in ["llvm", "llvm-c", "clang", "clang-c"]:
@@ -78,16 +81,28 @@ def _use_system_llvm(ctx):
 
         # Try to find the lib directory
         lib_dirs = ctx.execute(
-            ["ls", "-d", "-1"] +
+            ["ls", "-d1f"] +
             [llvm_dir + "/lib64", llvm_dir + "/lib"],
-        ).stdout.split("\n")[:-1]
+        ).stdout.splitlines()
         if lib_dirs:
-            ctx.symlink(lib_dirs[0], "llvm/llvm-project-lib")
             found = True
 
     if found:
         # Create stub targets in sub-packages
-        ctx.file("llvm/BUILD.bazel", SYSTEM_LLVM_BAZEL)
+        lib_dir = lib_dirs[0]  # buildifier: disable=uninitialized
+        archives = ctx.execute(
+            ["find", ".", "-maxdepth", "1"] +
+            ["(", "-name", "libLLVM*.a", "-o", "-name", "libclang*.a", ")"],
+            working_directory = lib_dir,
+        ).stdout.splitlines()
+        lib_strs = sorted(["\"-l{}\",".format(a[5:-2]) for a in archives])
+
+        ctx.file(
+            "llvm/BUILD.bazel",
+            SYSTEM_LLVM_BAZEL_TEMPLATE
+                .replace("%{llvm_lib_dir}", lib_dir)
+                .replace("%{llvm_libs}", "\n".join(lib_strs)),
+        )
         ctx.file("clang/BUILD.bazel", SYSTEM_CLANG_BAZEL)
     return found
 
