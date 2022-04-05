@@ -14,7 +14,7 @@
 
 FetchContent_Declare(absl
   GIT_REPOSITORY https://github.com/abseil/abseil-cpp
-  GIT_TAG        e3fdd9b16a2a90c9e01e00de46605ce59bebc661 # 2022-01-26
+  GIT_TAG        6f43f5bb398b6685575b36874e36cf1695734df1 # 2022-04-04
 )
 set(ABSL_CXX_STANDARD ${SAPI_CXX_STANDARD} CACHE STRING "" FORCE)
 set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)

@@ -26,19 +26,19 @@ def sapi_deps():
         http_archive,
         name = "bazel_skylib",
         urls = [
-            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
-            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
         ],
-        sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",  # 2020-08-27
+        sha256 = "f7be3474d42aae265405a592bb7da8e171919d74c16f082a5457840f06054728",  # 2022-03-10
     )
 
     # Abseil
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "8fbdf05383ea735e9aa32012bc00afc6ab87cc020b6b3d780719fdb94615b6fb",  # 2022-01-26
-        strip_prefix = "abseil-cpp-e3fdd9b16a2a90c9e01e00de46605ce59bebc661",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/e3fdd9b16a2a90c9e01e00de46605ce59bebc661.zip"],
+        sha256 = "610fa79ad54a80533447ba2bb3c91b7395c8d46111fc1d6b9de12f2d88e66dbb",  # 2022-04-04
+        strip_prefix = "abseil-cpp-6f43f5bb398b6685575b36874e36cf1695734df1",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/6f43f5bb398b6685575b36874e36cf1695734df1.zip"],
     )
     maybe(
         http_archive,
