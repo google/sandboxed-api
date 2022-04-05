@@ -14,6 +14,7 @@
 
 """Starlark rules for projects using Sandboxed API."""
 
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load(
     "//sandboxed_api/bazel:proto.bzl",
@@ -211,7 +212,10 @@ def sapi_library(
         add_default_deps = True,
         limit_scan_depth = False,
         srcs = [],
+        data = [],
         hdrs = [],
+        copts = sapi_platform_copts(),
+        defines = [],
         functions = [],
         header = "",
         input_files = [],
@@ -234,8 +238,14 @@ def sapi_library(
       api_version: Which version of the Sandboxed API to generate. Currently,
         only version 1 is defined.
       srcs: Any additional sources to include with the sandboxed library
+      data: To be used with srcs, any additional data files to make available
+        to the sandboxed library.
       hdrs: Like srcs, any additional headers to include with the sandboxed
         library
+      copts: Add these options to the C++ compilation command. See
+        cc_library.copts.
+      defines: List of defines to add to the compile line. See
+        cc_library.defines.
       functions: A list for function to use from host code
       header: If set, do not generate a header, but use the specified one
         (deprecated).
@@ -280,8 +290,10 @@ def sapi_library(
     native.cc_library(
         name = name,
         srcs = srcs,
+        data = [":" + name + ".bin"] + data,
         hdrs = lib_hdrs,
-        data = [":" + name + ".bin"],
+        copts = copts,
+        defines = defines,
         deps = sort_deps(
             [
                 "@com_google_absl//absl/base:core_headers",
