@@ -1,0 +1,85 @@
+name: CMake Ubuntu Contrib
+
+on: [push, pull_request]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+        contrib: [jsonnet, pffft]
+        ignore-errors: [true]
+        include:
+          - compiler: clang
+            compiler-version: 11
+          - compiler: gcc
+            compiler-version: 10
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.ignore-errors }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        key: ${{matrix.os}}-${{matrix.compiler}}${{matrix.compiler-version}}
+        path: |
+          ${{github.workspace}}/build/_deps
+          !${{github.workspace}}/build/_deps/${{matrix.contrib}}-*/**
+
+    - name: Cache dependencies (contrib)
+      uses: actions/cache@v3
+      with:
+        key: ${{matrix.os}}-${{matrix.compiler}}${{matrix.compiler-version}}-${{matrix.contrib}}
+        path: |
+          ${{github.workspace}}/build/_deps/${{matrix.contrib}}-*/**
+
+    - name: Install ninja-build tool
+      uses: seanmiddleditch/gha-setup-ninja@v3
+
+    - name: Install/configure Clang compiler toolchain
+      if: matrix.compiler == 'clang'
+      run: |
+        sudo apt-get install -qy clang-${{matrix.compiler-version}}
+        echo "CXX=clang++-${{matrix.compiler-version}}" >> $GITHUB_ENV
+        echo "CC=clang-${{matrix.compiler-version}}" >> $GITHUB_ENV
+
+    - name: Install/configure GCC compiler toolchain
+      if: matrix.compiler == 'gcc'
+      run: |
+        sudo apt-get install -qy g++-${{matrix.compiler-version}}
+        echo "CXX=g++-${{matrix.compiler-version}}" >> $GITHUB_ENV
+        echo "CC=gcc-${{matrix.compiler-version}}" >> $GITHUB_ENV
+
+    - name: Create Build Environment
+      run: |
+        pip3 install absl-py clang
+        cmake -E make_directory $GITHUB_WORKSPACE/build
+
+    - name: Configure CMake
+      run: |
+        cmake \
+          -S $GITHUB_WORKSPACE/contrib/${{matrix.contrib}} \
+          -B $GITHUB_WORKSPACE/build \
+          -G Ninja \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+          -DSAPI_ENABLE_TEST=ON \
+          -DSAPI_ENABLE_EXAMPLES=ON
+
+    - name: Build
+      run: |
+        cmake \
+          --build $GITHUB_WORKSPACE/build \
+          --config $BUILD_TYPE
+
+    - name: Test
+      run: |
+        ctest \
+          --test-dir $GITHUB_WORKSPACE/build \
+          -C $BUILD_TYPE \
+          --output-on-failure
