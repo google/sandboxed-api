@@ -502,6 +502,7 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequencesWithProcFiles(
   AllowRestartableSequences(cpu_fence_mode);
   AddFile("/proc/cpuinfo");
   AddFile("/proc/stat");
+  AddDirectory("/sys/devices/system/cpu");
   if (cpu_fence_mode == kAllowSlowFences) {
     AddFile("/proc/self/cpuset");
   }

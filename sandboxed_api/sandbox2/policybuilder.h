@@ -148,6 +148,8 @@ class PolicyBuilder final {
   // Allows these files:
   // - "/proc/cpuinfo"
   // - "/proc/stat"
+  // And this directory (including subdirs/files):
+  // - "/sys/devices/system/cpu/"
   //
   // If `cpu_fence_mode` is `kAllowSlowFences`, also permits slow CPU fences.
   // Allows these syscalls:
