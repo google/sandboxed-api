@@ -48,8 +48,9 @@ endif()
 
 include(CheckCXXCompilerFlag)
 
-# Allow the header generator to auto-configure include paths
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Allow the header generator to auto-configure include paths. Need to set a
+# cache variable, so that sub- and super-projects also have this enabled.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 
 set(CMAKE_SKIP_BUILD_RPATH ON)
 
