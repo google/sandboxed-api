@@ -25,7 +25,7 @@ absl::Status JsonnetMain(std::string in_file, std::string out_file) {
 
   // Initialize sandbox.
   JsonnetBaseSandbox sandbox(in_file, out_file);
-  SAPI_RETURN_IF_ERROR(sandbox.Init())
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
 
   JsonnetApi api(&sandbox);
 
