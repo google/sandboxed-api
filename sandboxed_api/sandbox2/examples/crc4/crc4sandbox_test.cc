@@ -30,7 +30,7 @@ namespace {
 
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
-using ::testing::StrEq;
+using ::testing::HasSubstr;
 
 class CRC4Test : public ::testing::Test {
  protected:
@@ -51,7 +51,7 @@ TEST_F(CRC4Test, TestNormalOperation) {
       int exit_code,
       util::Communicate({path_, "-input", "ABCD"}, env_, &output));
 
-  EXPECT_THAT(output, StrEq("0x44434241\n"));
+  EXPECT_THAT(output, HasSubstr("0x44434241\n"));
   EXPECT_THAT(exit_code, Eq(0));
 }
 
