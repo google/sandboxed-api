@@ -125,7 +125,7 @@ cc_library(
 
 cc_library(
     name = "runfiles",
-    srcs = ["runfiles.cc"],
+    srcs = ["runfiles_bazel.cc"],
     hdrs = ["runfiles.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
