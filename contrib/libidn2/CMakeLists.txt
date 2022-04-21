@@ -58,6 +58,6 @@ target_link_libraries(libidn2_sapi_wrapper
   PRIVATE idn2
 )
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(tests)
 endif()

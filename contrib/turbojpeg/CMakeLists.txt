@@ -41,6 +41,6 @@ target_include_directories(turbojpeg_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
 )
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(tests)
 endif()

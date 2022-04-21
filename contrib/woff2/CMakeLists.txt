@@ -61,7 +61,7 @@ target_include_directories(woff2_sapi INTERFACE
   "${SAPI_SOURCE_DIR}"
 )
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   enable_testing()
   add_executable(woff2_sapi_test
     woff2_sapi_test.cc

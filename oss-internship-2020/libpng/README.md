@@ -16,7 +16,7 @@ make -j8
 ```
 
 #### Example:
-You should add `-DLIBPNG_SAPI_ENABLE_EXAMPLES=ON` to use the example.\
+You should add `-DLIBPNG_SAPI_BUILD_EXAMPLES=ON` to use the example.\
 run PNG to PNG:
 ```
 ./examples/pngtopng /absolute/path/to/input/image.png /absolute/path/to/output/image.png
@@ -38,7 +38,7 @@ output: `images/rgbtobgr_red_ball.png`
 
 
 #### Tests:
-You should add `-DLIBPNG_SAPI_ENABLE_TESTS=ON` to use tests and do:
+You should add `-DLIBPNG_SAPI_BUILD_TESTING=ON` to use tests and do:
 ```
 cd tests
 ctest .

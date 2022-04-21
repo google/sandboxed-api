@@ -68,8 +68,8 @@ jobs:
           -B $GITHUB_WORKSPACE/build \
           -G Ninja \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-          -DSAPI_ENABLE_TEST=ON \
-          -DSAPI_ENABLE_EXAMPLES=ON
+          -DSAPI_BUILD_TESTING=ON \
+          -DSAPI_BUILD_EXAMPLES=ON
 
     - name: Build
       run: |

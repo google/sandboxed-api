@@ -65,7 +65,7 @@ target_link_libraries(stringop-sapi PRIVATE
   sapi::base
 )
 
-if(SAPI_ENABLE_TESTS)
+if(SAPI_BUILD_TESTING)
   # sandboxed_api/examples/stringop:main_stringop
   add_executable(sapi_main_stringop
     main_stringop.cc

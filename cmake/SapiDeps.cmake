@@ -41,7 +41,7 @@ endif()
 set(_sapi_saved_BUILD_TESTING ${BUILD_TESTING})
 set(BUILD_TESTING OFF)  # No need to build test code of our deps
 
-if(SAPI_ENABLE_TESTS)
+if(SAPI_BUILD_TESTING)
   if(SAPI_DOWNLOAD_GOOGLETEST)
     include(cmake/googletest.cmake)
   endif()
@@ -99,7 +99,7 @@ if(SAPI_DOWNLOAD_PROTOBUF)
 endif()
 find_package(Protobuf REQUIRED)
 
-if(SAPI_ENABLE_EXAMPLES)
+if(SAPI_BUILD_EXAMPLES)
   if(SAPI_DOWNLOAD_ZLIB)
     include(cmake/zlib.cmake)
     sapi_check_target(ZLIB::ZLIB)

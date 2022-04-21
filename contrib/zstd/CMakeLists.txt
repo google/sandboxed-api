@@ -92,10 +92,10 @@ target_include_directories(sapi_zstd INTERFACE
   "${SAPI_SOURCE_DIR}"
 )
 
-if(SAPI_ENABLE_EXAMPLES)
+if(SAPI_BUILD_EXAMPLES)
   add_subdirectory(example)
 endif()
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(test)
 endif()

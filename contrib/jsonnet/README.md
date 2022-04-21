@@ -53,7 +53,7 @@ in the `contrib/jsonnet` directory:
 
 ```
 mkdir -p build && cd build
-cmake .. -G Ninja -Wno-dev -DSAPI_ENABLE_TESTS=ON
+cmake .. -G Ninja -Wno-dev -DSAPI_BUILD_TESTING=ON
 ninja
 ```
 

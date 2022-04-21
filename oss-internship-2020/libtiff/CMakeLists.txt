@@ -27,11 +27,11 @@ set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 #   mkdir -p build && cd build
 #   cmake .. -G Ninja -DSAPI_ROOT=$HOME/sapi_root
 
-option(TIFF_SAPI_ENABLE_EXAMPLES "" ON)
-option(TIFF_SAPI_ENABLE_TESTS "" ON)
+option(TIFF_SAPI_BUILD_EXAMPLES "" ON)
+option(TIFF_SAPI_BUILD_TESTING "" ON)
 
-set(SAPI_ENABLE_EXAMPLES ${TIFF_SAPI_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
-set(SAPI_ENABLE_TESTS ${TIFF_SAPI_ENABLE_TESTS} CACHE BOOL "" FORCE)
+set(SAPI_BUILD_EXAMPLES ${TIFF_SAPI_BUILD_EXAMPLES} CACHE BOOL "" FORCE)
+set(SAPI_BUILD_TESTING ${TIFF_SAPI_BUILD_TESTING} CACHE BOOL "" FORCE)
 
 add_subdirectory(wrapper)
 
@@ -121,10 +121,10 @@ target_include_directories(tiff_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-if (TIFF_SAPI_ENABLE_EXAMPLES)
+if (TIFF_SAPI_BUILD_EXAMPLES)
   add_subdirectory(example)
 endif()
 
-if (TIFF_SAPI_ENABLE_TESTS)
+if (TIFF_SAPI_BUILD_TESTING)
   add_subdirectory(test)
 endif()

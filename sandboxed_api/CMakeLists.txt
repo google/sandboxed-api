@@ -190,7 +190,7 @@ target_link_libraries(sapi_client
   PUBLIC glog::glog
 )
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS AND NOT CMAKE_CROSSCOMPILING)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   # sandboxed_api:testing
   add_library(sapi_testing ${SAPI_LIB_TYPE}
     testing.cc

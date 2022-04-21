@@ -149,7 +149,7 @@ target_link_libraries(sapi_test_main INTERFACE
   sapi::base
 )
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   include(GoogleTest)
   # Setup tests to work like with Bazel
   create_directory_symlink("${SAPI_BINARY_DIR}" com_google_sandboxed_api)
@@ -158,6 +158,6 @@ endif()
 
 add_subdirectory(sandboxed_api)
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS AND SAPI_ENABLE_CONTRIB_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING AND SAPI_CONTRIB_BUILD_TESTING)
   add_subdirectory(contrib)
 endif()

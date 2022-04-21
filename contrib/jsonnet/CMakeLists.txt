@@ -89,11 +89,11 @@ target_link_libraries(jsonnet_sapi PUBLIC
   sapi_contrib::jsonnet_helper
 )
 
-if(SAPI_ENABLE_EXAMPLES)
+if(SAPI_BUILD_EXAMPLES)
   add_subdirectory(examples)
 endif()
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # Create directories so the tests will be able to access them
   file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tests_input"
                       "${PROJECT_BINARY_DIR}/tests_output"

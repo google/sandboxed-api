@@ -67,7 +67,7 @@ target_link_libraries(sapi_generator_tool PRIVATE
   sapi::generator
 )
 
-if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_executable(sapi_generator_test
     frontend_action_test_util.cc
     frontend_action_test_util.h

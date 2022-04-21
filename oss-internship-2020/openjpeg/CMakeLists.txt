@@ -24,8 +24,8 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build OpenJPEG shared library and link exe
 add_subdirectory(openjpeg)
 
 set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
-set(SAPI_ENABLE_EXAMPLES OFF CACHE BOOL "")
-set(SAPI_ENABLE_TESTS OFF CACHE BOOL "")
+set(SAPI_BUILD_EXAMPLES OFF CACHE BOOL "")
+set(SAPI_BUILD_TESTING OFF CACHE BOOL "")
 set(EXECUTABLE_OUTPUT_PATH "" CACHE PATH "" FORCE)
 add_subdirectory("${SAPI_ROOT}"
                  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
