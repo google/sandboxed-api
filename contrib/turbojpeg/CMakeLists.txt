@@ -13,7 +13,9 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.13..3.22)
+
 project(turbojpeg-sapi CXX C)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -39,6 +41,6 @@ target_include_directories(turbojpeg_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   add_subdirectory(tests)
 endif()

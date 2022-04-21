@@ -148,7 +148,7 @@ target_link_libraries(sapi_util_temp_file
          absl::statusor
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   # sandboxed_api/util:file_base_test
   add_executable(sapi_file_base_test
     path_test.cc

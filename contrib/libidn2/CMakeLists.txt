@@ -13,7 +13,9 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.13..3.22)
+
 project(libidn2-sapi CXX C)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -56,6 +58,6 @@ target_link_libraries(libidn2_sapi_wrapper
   PRIVATE idn2
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   add_subdirectory(tests)
 endif()

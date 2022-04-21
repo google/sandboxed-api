@@ -30,7 +30,7 @@ sapi_cc_embed_data(NAME filewrapper_embedded
   SOURCES testdata/filewrapper_embedded.bin
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   # sandboxed_api/tools/filewrapper:filewrapper_test
   add_executable(sapi_filewrapper_test
     filewrapper_test.cc

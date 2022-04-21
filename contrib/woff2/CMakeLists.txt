@@ -13,7 +13,9 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.13..3.22)
+
 project(woff2-sapi CXX C)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -59,7 +61,7 @@ target_include_directories(woff2_sapi INTERFACE
   "${SAPI_SOURCE_DIR}"
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   enable_testing()
   add_executable(woff2_sapi_test
     woff2_sapi_test.cc

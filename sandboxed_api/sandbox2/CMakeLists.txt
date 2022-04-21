@@ -617,7 +617,7 @@ target_link_libraries(sandbox2_violation_proto PRIVATE
   sapi::base
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   add_subdirectory(testcases)
 
   # sandboxed_api/sandbox2:regs_test

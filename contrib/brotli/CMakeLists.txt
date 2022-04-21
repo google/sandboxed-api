@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.13..3.22)
 
 project(sapi_brotli CXX)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -75,6 +76,6 @@ if(SAPI_ENABLE_EXAMPLES)
   add_subdirectory(example)
 endif()
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   add_subdirectory(test)
 endif()

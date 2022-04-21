@@ -13,7 +13,9 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.13..3.22)
+
 project(jsonnet-sapi C CXX)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -91,10 +93,7 @@ if(SAPI_ENABLE_EXAMPLES)
   add_subdirectory(examples)
 endif()
 
-if(SAPI_ENABLE_TESTS)
-  include(GoogleTest)
-  enable_testing()
-
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   # Create directories so the tests will be able to access them
   file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tests_input"
                       "${PROJECT_BINARY_DIR}/tests_output"

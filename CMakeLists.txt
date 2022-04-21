@@ -19,6 +19,7 @@ if(POLICY CMP0083)
 endif()
 
 project(SandboxedAPI C CXX ASM)
+include(CTest)
 
 # TODO(cblichmann): Enable for Android once support lands
 if(NOT CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -148,7 +149,7 @@ target_link_libraries(sapi_test_main INTERFACE
   sapi::base
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS)
   include(GoogleTest)
   # Setup tests to work like with Bazel
   create_directory_symlink("${SAPI_BINARY_DIR}" com_google_sandboxed_api)
@@ -157,6 +158,6 @@ endif()
 
 add_subdirectory(sandboxed_api)
 
-if(SAPI_ENABLE_TESTS AND SAPI_ENABLE_CONTRIB_TESTS)
+if(BUILD_TESTING AND SAPI_ENABLE_TESTS AND SAPI_ENABLE_CONTRIB_TESTS)
   add_subdirectory(contrib)
 endif()
