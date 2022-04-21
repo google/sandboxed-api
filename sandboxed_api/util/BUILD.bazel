@@ -149,7 +149,6 @@ cc_library(
     name = "status",
     srcs = ["status.cc"],
     hdrs = [
-        "os_error.h",
         "status.h",
         "status_macros.h",
     ],

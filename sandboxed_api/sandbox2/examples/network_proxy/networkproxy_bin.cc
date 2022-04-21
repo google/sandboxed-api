@@ -20,7 +20,6 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
@@ -64,9 +63,8 @@ absl::StatusOr<struct sockaddr_in6> CreateAddres(int port) {
   saddr.sin6_family = AF_INET6;
   saddr.sin6_port = htons(port);
 
-  int err = inet_pton(AF_INET6, "::1", &saddr.sin6_addr);
-  if (err <= 0) {
-    return absl::InternalError(sapi::OsErrorMessage(errno, "socket() failed"));
+  if (int err = inet_pton(AF_INET6, "::1", &saddr.sin6_addr); err <= 0) {
+    return absl::ErrnoToStatus(errno, "socket()");
   }
   return saddr;
 }
@@ -91,7 +89,7 @@ absl::StatusOr<int> ConnectToServer(int port) {
 
   sapi::file_util::fileops::FDCloser s(socket(AF_INET6, SOCK_STREAM, 0));
   if (s.get() < 0) {
-    return absl::InternalError(sapi::OsErrorMessage(errno, "socket() failed"));
+    return absl::ErrnoToStatus(errno, "socket()");
   }
 
   if (absl::GetFlag(FLAGS_connect_with_handler)) {

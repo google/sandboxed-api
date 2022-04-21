@@ -47,7 +47,6 @@
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 
@@ -139,9 +138,9 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   if (exec_fd < 0) {
     // For Android we expect the forkserver_bin in the flag
     if constexpr (sapi::host_os::IsAndroid()) {
-      return absl::InternalError(sapi::OsErrorMessage(
+      return absl::ErrnoToStatus(
           errno,
-          "Open init binary passed via --sandbox2_forkserver_binary_path"));
+          "Open init binary passed via --sandbox2_forkserver_binary_path");
     }
     // Extract the fd when it's owned by EmbedFile
     exec_fd = sapi::EmbedFile::instance()->GetDupFdForFileToc(
@@ -156,15 +155,13 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
 
   int sv[2];
   if (socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == -1) {
-    return absl::InternalError(
-        sapi::OsErrorMessage(errno, "Creating socket pair failed"));
+    return absl::ErrnoToStatus(errno, "Creating socket pair failed");
   }
 
   // Fork the fork-server, and clean-up the resources (close remote sockets).
   pid_t pid = util::ForkWithFlags(SIGCHLD);
   if (pid == -1) {
-    return absl::InternalError(
-        sapi::OsErrorMessage(errno, "Forking forkserver process failed"));
+    return absl::ErrnoToStatus(errno, "Forking forkserver process failed");
   }
 
   // Child.

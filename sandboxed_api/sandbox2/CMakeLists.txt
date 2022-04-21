@@ -282,6 +282,7 @@ target_link_libraries(sandbox2_executor
           sapi::base
           sapi::status_proto
   PUBLIC absl::span
+         absl::status
          absl::strings
          glog::glog
          sapi::config

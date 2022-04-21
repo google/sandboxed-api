@@ -26,6 +26,7 @@
 #include <string_view>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -36,7 +37,6 @@
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/os_error.h"
 
 namespace sandbox2 {
 
@@ -92,10 +92,10 @@ absl::StatusOr<Executor::Process> Executor::StartSubProcess(
     exec_fd_ = file_util::fileops::FDCloser(open(path_.c_str(), O_PATH));
     if (exec_fd_.get() < 0) {
       if (errno == ENOENT) {
-        return absl::NotFoundError(sapi::OsErrorMessage(errno, path_));
+        return absl::ErrnoToStatus(errno, path_);
       }
-      return absl::InternalError(
-          sapi::OsErrorMessage(errno, "Could not open file ", path_));
+      return absl::ErrnoToStatus(errno,
+                                 absl::StrCat("Could not open file ", path_));
     }
   }
 
@@ -159,8 +159,8 @@ absl::StatusOr<Executor::Process> Executor::StartSubProcess(
         absl::StrCat("/proc/", libunwind_sbox_for_pid_, "/ns/user");
     ns_fd = file_util::fileops::FDCloser(open(ns_path.c_str(), O_RDONLY));
     if (ns_fd.get() == -1) {
-      return absl::InternalError(sapi::OsErrorMessage(
-          errno, "Could not open user ns fd (", ns_path, ")"));
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("Could not open user ns fd (", ns_path, ")"));
     }
   }
 

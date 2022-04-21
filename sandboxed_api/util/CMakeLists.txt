@@ -105,7 +105,6 @@ target_link_libraries(sapi_util_status_proto
 
 # sandboxed_api/util:status
 add_library(sapi_util_status ${SAPI_LIB_TYPE}
-  os_error.h
   status.cc
   status.h
   status_macros.h
