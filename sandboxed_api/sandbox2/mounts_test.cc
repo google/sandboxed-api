@@ -267,7 +267,7 @@ TEST(MountTreeTest, TestNodeEquivalence) {
   MountTree::RootNode* rn1 = nodes[7].mutable_root_node();
   rn1->set_writable(true);
 
-  for (const MountTree::Node n : nodes) {
+  for (const MountTree::Node& n : nodes) {
     ASSERT_TRUE(n.IsInitialized());
   }
   // Compare same file nodes

@@ -15,6 +15,7 @@
 """General build definitions useful for the whole project."""
 
 _SAPI_LINUX_COPTS = [
+    "-Wno-deprecated-declarations",
     "-Wno-narrowing",
     "-Wno-sign-compare",
 ]
