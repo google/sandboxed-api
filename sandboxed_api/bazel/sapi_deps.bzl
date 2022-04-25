@@ -16,12 +16,13 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+load("//sandboxed_api/bazel:llvm_config.bzl", "llvm_configure")
 load("//sandboxed_api/bazel:repositories.bzl", "autotools_repository")
 
 def sapi_deps():
     """Loads common dependencies needed to compile Sandboxed API."""
 
-    # Bazel Skylib, needed by newer Protobuf builds
+    # Bazel Skylib
     maybe(
         http_archive,
         name = "bazel_skylib",
@@ -118,4 +119,31 @@ def sapi_deps():
         sha256 = "4a6aec666991fb45d0889c44aede8ad6eb108071c3554fcdff671f9c94794976",  # 2021-12-01
         strip_prefix = "libunwind-1.6.2",
         urls = ["https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz"],
+    )
+
+    # GoogleTest/GoogleMock
+    maybe(
+        http_archive,
+        name = "com_google_googletest",
+        sha256 = "1009ce4e75a64a4e61bcb2efaa256f9d54e6a859a2985cb6fa57c06d45356866",  # 2021-12-20
+        strip_prefix = "googletest-9a32aee22d771387c494be2d8519fbdf46a713b2",
+        urls = ["https://github.com/google/googletest/archive/9a32aee22d771387c494be2d8519fbdf46a713b2.zip"],
+    )
+
+    # Google Benchmark
+    maybe(
+        http_archive,
+        name = "com_google_benchmark",
+        sha256 = "12663580821c69f5a71217433b58e96f061570f0e18d94891b82115fcdb4284d",  # 2021-12-14
+        strip_prefix = "benchmark-3b3de69400164013199ea448f051d94d7fc7d81f",
+        urls = ["https://github.com/google/benchmark/archive/3b3de69400164013199ea448f051d94d7fc7d81f.zip"],
+    )
+
+    # LLVM/libclang
+    maybe(
+        llvm_configure,
+        name = "llvm-project",
+        commit = "2c494f094123562275ae688bd9e946ae2a0b4f8b",  # 2022-03-31
+        sha256 = "59b9431ae22f0ea5f2ce880925c0242b32a9e4f1ae8147deb2bb0fc19b53fa0d",
+        system_libraries = True,  # Prefer system libraries
     )
