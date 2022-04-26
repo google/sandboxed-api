@@ -28,6 +28,7 @@ sapi_library(
         "deflate",
         "deflateEnd",
     ],
+    generator_version = 1,
     lib = "@net_zlib//:zlib",
     lib_name = "Zlib",
     namespace = "sapi::zlib",

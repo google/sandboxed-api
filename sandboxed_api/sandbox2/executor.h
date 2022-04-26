@@ -40,8 +40,8 @@ namespace sandbox2 {
 class Executor final {
  public:
   struct Process {
-    pid_t init_pid;
-    pid_t main_pid;
+    pid_t init_pid = -1;
+    pid_t main_pid = -1;
   };
 
   Executor(const Executor&) = delete;

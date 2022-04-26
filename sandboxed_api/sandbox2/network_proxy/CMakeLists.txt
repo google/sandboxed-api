@@ -61,7 +61,7 @@ target_link_libraries(sandbox2_network_proxy_client PRIVATE
   sapi::status
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/network_proxy:filtering_test
   add_executable(sandbox2_filtering_test
     filtering_test.cc

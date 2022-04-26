@@ -28,7 +28,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
-#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
@@ -120,8 +119,7 @@ absl::Status NetworkProxyClient::ReceiveRemoteResult() {
   }
   if (result != 0) {
     errno = result;
-    return absl::InternalError(
-        sapi::OsErrorMessage(errno, "Error in network proxy server"));
+    return absl::ErrnoToStatus(errno, "Error in network proxy server");
   }
   return absl::OkStatus();
 }

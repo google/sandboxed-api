@@ -38,19 +38,20 @@ option(SAPI_DOWNLOAD_LIBCAP "Download libcap at config time" ON)
 option(SAPI_DOWNLOAD_LIBFFI "Download libffi at config time" ON)
 
 # Options for building examples
-option(SAPI_ENABLE_EXAMPLES
-  "Build example code" ${_sapi_enable_tests_examples_default}
+option(SAPI_BUILD_EXAMPLES
+  "If ON, build example code" ${_sapi_enable_tests_examples_default}
 )
 option(SAPI_DOWNLOAD_ZLIB
-  "Download zlib at config time (only if SAPI_ENABLE_EXAMPLES is set)"
+  "Download zlib at config time (only if SAPI_BUILD_EXAMPLES is set)"
   ${_sapi_enable_tests_examples_default}
 )
 
-option(SAPI_ENABLE_TESTS
-  "Build unit tests" ${_sapi_enable_tests_examples_default}
+option(SAPI_BUILD_TESTING
+  "If ON, this will build all of Sandboxed API's own tests"
+  ${_sapi_enable_tests_examples_default}
 )
 # Disabled by default, as this will download a lot of extra content.
-option(SAPI_ENABLE_CONTRIB_TESTS "Build tests for sandboxes in 'contrib'" OFF)
+option(SAPI_CONTRIB_BUILD_TESTING "Build tests for sandboxes in 'contrib'" OFF)
 
 option(SAPI_ENABLE_GENERATOR
   "Build Clang based code generator from source" OFF

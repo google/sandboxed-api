@@ -114,6 +114,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":strerror",
+        "//sandboxed_api:config",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
@@ -124,7 +125,7 @@ cc_library(
 
 cc_library(
     name = "runfiles",
-    srcs = ["runfiles.cc"],
+    srcs = ["runfiles_bazel.cc"],
     hdrs = ["runfiles.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
@@ -148,7 +149,6 @@ cc_library(
     name = "status",
     srcs = ["status.cc"],
     hdrs = [
-        "os_error.h",
         "status.h",
         "status_macros.h",
     ],

@@ -14,6 +14,8 @@
 
 # Description: Example using dynamic length structures for Sandboxed API
 
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
+
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
@@ -32,7 +34,6 @@ cc_library(
     srcs = ["stringop.cc"],
     copts = sapi_platform_copts(),
     linkstatic = True,
-    visibility = ["//visibility:public"],
     deps = [
         ":stringop_params_cc_proto",
         "//sandboxed_api:lenval_core",
@@ -41,24 +42,25 @@ cc_library(
     alwayslink = True,
 )
 
+STRINGOP_FUNCTIONS = [
+    "duplicate_string",
+    "reverse_string",
+    "pb_duplicate_string",
+    "pb_reverse_string",
+    "nop",
+    "violate",
+    "get_raw_c_string",
+]
+
 sapi_library(
     name = "stringop-sapi",
-    srcs = [],
     hdrs = ["sandbox.h"],
-    functions = [
-        "duplicate_string",
-        "reverse_string",
-        "pb_duplicate_string",
-        "pb_reverse_string",
-        "nop",
-        "violate",
-        "get_raw_c_string",
-    ],
+    functions = STRINGOP_FUNCTIONS,
+    generator_version = 1,
     input_files = ["stringop.cc"],
     lib = ":stringop",
     lib_name = "Stringop",
     namespace = "",
-    visibility = ["//visibility:public"],
     deps = [":stringop_params_cc_proto"],
 )
 

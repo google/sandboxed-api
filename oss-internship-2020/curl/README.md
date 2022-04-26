@@ -99,7 +99,7 @@ website. More information about each example can be found in the examples'
 [README](examples/README.md).
 
 To build these examples when building the library, the cmake variable
-`CURL_SAPI_ENABLE_EXAMPLES` must be set to `ON`. This enables Sandboxed API
+`CURL_SAPI_BUILD_EXAMPLES` must be set to `ON`. This enables Sandboxed API
 examples as well.
 
 ## Policy
@@ -117,7 +117,7 @@ The `tests` folder contains some test cases created using Google Test. The class
 including the setup of a mock local server on which test requests are performed.
 
 To build these tests when building the library, the cmake variable
-`CURL_SAPI_ENABLE_TESTS` must be set to `ON`. This enables Sandboxed API tests
+`CURL_SAPI_BUILD_TESTING` must be set to `ON`. This enables Sandboxed API tests
 as well.
 
 ## Callbacks

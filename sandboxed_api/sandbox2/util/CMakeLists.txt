@@ -50,7 +50,7 @@ target_link_libraries(sandbox2_util_maps_parser
   PUBLIC absl::statusor
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test
     minielf_test.cc

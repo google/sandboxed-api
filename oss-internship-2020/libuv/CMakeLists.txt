@@ -72,8 +72,8 @@ target_link_libraries(uv_wrapper_and_callbacks uv_a)
 
 # Setup Sandboxed API
 set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
-set(SAPI_ENABLE_EXAMPLES ${SAPI_UV_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
-set(SAPI_ENABLE_TESTS ${SAPI_UV_ENABLE_TESTS} CACHE BOOL "" FORCE)
+set(SAPI_BUILD_EXAMPLES ${SAPI_UV_ENABLE_EXAMPLES} CACHE BOOL "" FORCE)
+set(SAPI_BUILD_TESTING ${SAPI_UV_ENABLE_TESTS} CACHE BOOL "" FORCE)
 
 # Generate SAPI header
 add_sapi_library(uv_sapi

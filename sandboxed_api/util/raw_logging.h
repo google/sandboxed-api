@@ -41,7 +41,10 @@
 #define SAPI_INTERNAL_UNREACHABLE
 #endif
 
-#ifdef ABSL_RAW_LOG
+// Exclude ABSL_RAW_LOG when running on Android because it will not be visible
+// in logcat since Android sends anything written to stdout and stderr to
+// /dev/null.
+#if defined(ABSL_RAW_LOG) && !(__ANDROID__)
 #define SAPI_RAW_LOG ABSL_RAW_LOG
 #else
 // This is similar to LOG(severity) << format..., but

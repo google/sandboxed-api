@@ -18,12 +18,14 @@ set(SAPI_CONTRIB_SANDBOXES
   hunspell
   jsonnet
   libidn2
+  libxls
   libzip
   pffft
   turbojpeg
   uriparser
   zopfli
   zstd
+  woff2
 )
 
 foreach(_contrib IN LISTS SAPI_CONTRIB_SANDBOXES)

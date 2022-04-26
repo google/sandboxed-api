@@ -87,13 +87,19 @@ endmacro()
 #   LIBRARY_NAME into.
 # HEADER If set, does not generate an interface header, but uses the one
 #   specified.
+# API_VERSION Which version of the Sandboxed API to generate. Currently, only
+#   version "1" is defined.
 function(add_sapi_library)
   set(_sapi_opts NOEMBED)
-  set(_sapi_one_value HEADER LIBRARY LIBRARY_NAME NAMESPACE)
+  set(_sapi_one_value HEADER LIBRARY LIBRARY_NAME NAMESPACE API_VERSION)
   set(_sapi_multi_value SOURCES FUNCTIONS INPUTS)
   cmake_parse_arguments(PARSE_ARGV 0 _sapi "${_sapi_opts}"
                         "${_sapi_one_value}" "${_sapi_multi_value}")
   set(_sapi_NAME "${ARGV0}")
+
+  if(_sapi_API_VERSION AND NOT _sapi_API_VERSION VERSION_EQUAL "1")
+    message(FATAL_ERROR "API_VERSION \"1\" is the only one defined right now")
+  endif()
 
   set(_sapi_gen_header "${_sapi_NAME}.sapi.h")
   foreach(func IN LISTS _sapi_FUNCTIONS)
@@ -139,7 +145,6 @@ function(add_sapi_library)
     set(_sapi_embed_name "${_sapi_NAME}")
   endif()
 
-  set(_sapi_isystem "${_sapi_NAME}.isystem")
   list(APPEND _sapi_generator_args
     "--sapi_name=${_sapi_LIBRARY_NAME}"
     "--sapi_out=${_sapi_gen_header}"
@@ -147,7 +152,6 @@ function(add_sapi_library)
     "--sapi_embed_name=${_sapi_embed_name}"
     "--sapi_functions=${_sapi_funcs}"
     "--sapi_ns=${_sapi_NAMESPACE}"
-    "--sapi_isystem=${_sapi_isystem}"
   )
   if(SAPI_ENABLE_GENERATOR)
     list(APPEND _sapi_generator_command
@@ -156,26 +160,35 @@ function(add_sapi_library)
       ${_sapi_generator_args}
       ${_sapi_full_inputs}
     )
+    add_custom_command(
+      OUTPUT "${_sapi_gen_header}"
+      COMMAND ${_sapi_generator_command}
+      COMMENT "Generating interface"
+      DEPENDS ${_sapi_INPUTS}
+      VERBATIM
+    )
   else()
+    set(_sapi_isystem "${_sapi_NAME}.isystem")
     list(JOIN _sapi_full_inputs "," _sapi_full_inputs)
     list(APPEND _sapi_generator_command
       "${SAPI_PYTHON3_EXECUTABLE}" -B
       "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
       ${_sapi_generator_args}
+      "--sapi_isystem=${_sapi_isystem}"
       "--sapi_in=${_sapi_full_inputs}"
     )
+    add_custom_command(
+      OUTPUT "${_sapi_gen_header}" "${_sapi_isystem}"
+      COMMAND sh -c
+              "${CMAKE_CXX_COMPILER} -E -x c++ -v /dev/null 2>&1 | \
+               awk '/> search starts here:/{f=1;next}/^End of search/{f=0}f{print $1}' \
+               > \"${_sapi_isystem}\""
+      COMMAND ${_sapi_generator_command}
+      COMMENT "Generating interface"
+      DEPENDS ${_sapi_INPUTS}
+      VERBATIM
+    )
   endif()
-  add_custom_command(
-    OUTPUT "${_sapi_gen_header}" "${_sapi_isystem}"
-    COMMAND sh -c
-            "${CMAKE_CXX_COMPILER} -E -x c++ -v /dev/null 2>&1 | \
-             awk '/> search starts here:/{f=1;next}/^End of search/{f=0}f{print $1}' \
-             > \"${_sapi_isystem}\""
-    COMMAND ${_sapi_generator_command}
-    COMMENT "Generating interface"
-    DEPENDS ${_sapi_INPUTS}
-    VERBATIM
-  )
 
   # Library with the interface
   if(NOT _sapi_SOURCES)

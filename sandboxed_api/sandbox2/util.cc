@@ -50,7 +50,6 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
 
@@ -278,7 +277,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
   posix_spawn_file_actions_t action;
 
   if (pipe(cout_pipe) == -1) {
-    return absl::UnknownError(sapi::OsErrorMessage(errno, "creating pipe"));
+    return absl::ErrnoToStatus(errno, "creating pipe");
   }
   file_util::fileops::FDCloser cout_closer{cout_pipe[1]};
 
@@ -301,7 +300,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
   if (posix_spawnp(&pid, args.array()[0], &action, nullptr,
                    const_cast<char**>(args.data()),
                    const_cast<char**>(envp.data())) != 0) {
-    return absl::UnknownError(sapi::OsErrorMessage(errno, "posix_spawnp()"));
+    return absl::ErrnoToStatus(errno, "posix_spawnp()");
   }
 
   // Close child end of the pipe.
@@ -312,8 +311,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
     int bytes_read =
         TEMP_FAILURE_RETRY(read(cout_pipe[0], &buffer[0], buffer.length()));
     if (bytes_read < 0) {
-      return absl::InternalError(
-          sapi::OsErrorMessage(errno, "reading from cout pipe"));
+      return absl::ErrnoToStatus(errno, "reading from cout pipe");
     }
     if (bytes_read == 0) {
       break;  // Nothing left to read
@@ -412,13 +410,12 @@ absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
 
   SAPI_RAW_VLOG(4, "ReadCPathFromPid (iovec): len1: %zu, len2: %zu", len1,
                 len2);
-  ssize_t sz = process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
-                                remote_iov, ABSL_ARRAYSIZE(remote_iov), 0);
-  if (sz < 0) {
-    return absl::InternalError(sapi::OsErrorMessage(
+  if (process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov), remote_iov,
+                       ABSL_ARRAYSIZE(remote_iov), 0) < 0) {
+    return absl::ErrnoToStatus(
         errno,
         absl::StrFormat("process_vm_readv() failed for PID: %d at address: %#x",
-                        pid, reinterpret_cast<uintptr_t>(ptr))));
+                        pid, reinterpret_cast<uintptr_t>(ptr)));
   }
 
   // Check for whether there's a NUL byte in the buffer. If not, it's an

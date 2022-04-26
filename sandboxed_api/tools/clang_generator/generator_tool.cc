@@ -61,11 +61,12 @@ static auto* g_sapi_functions = new llvm::cl::list<std::string>(
     llvm::cl::cat(*g_tool_category));
 static auto* g_sapi_in = new llvm::cl::list<std::string>(
     "sapi_in", llvm::cl::CommaSeparated,
-    llvm::cl::desc("List of input files to analyze."),
+    llvm::cl::desc("List of input files to analyze (deprecated)"),
     llvm::cl::cat(*g_tool_category));
 static auto* g_sapi_isystem = new llvm::cl::opt<std::string>(
     "sapi_isystem",
-    llvm::cl::desc("Parameter file with extra system include paths"),
+    llvm::cl::desc("Parameter file with extra system include paths (ignored "
+                   "for compatibility)"),
     llvm::cl::cat(*g_tool_category));
 static auto* g_sapi_limit_scan_depth = new llvm::cl::opt<bool>(
     "sapi_limit_scan_depth",
@@ -127,19 +128,10 @@ absl::Status GeneratorMain(int argc, const char** argv) {
           NonOwningCompileCommands(opt_parser.getCompilations()));
   clang::tooling::ClangTool tool(*db, sources);
 
-  // TODO(cblichmann): Rmove the .isystem files. CMake does not need them, and
-  //                   we can get the information in Bazel from the toolchain.
-  if (!sapi::g_sapi_isystem->empty()) {
-    std::string isystem_lines;
-    SAPI_RETURN_IF_ERROR(sapi::file::GetContents(
-        *sapi::g_sapi_isystem, &isystem_lines, sapi::file::Defaults()));
-    std::vector<std::string> isystem =
-        absl::StrSplit(isystem_lines, '\n', absl::SkipWhitespace());
-    for (std::string& line : isystem) {
-      line.insert(0, "-isystem");
-    }
-    tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
-        isystem, clang::tooling::ArgumentInsertPosition::BEGIN));
+  if (!g_sapi_isystem->empty()) {
+    absl::FPrintF(
+        stderr,
+        "Note: Ignoring deprecated command-line option: sapi_isystem\n");
   }
 
   if (int result = tool.run(

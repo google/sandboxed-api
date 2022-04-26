@@ -21,6 +21,7 @@
 #include <linux/net.h>     // For SYS_CONNECT
 #include <linux/random.h>  // For GRND_NONBLOCK
 #include <sys/mman.h>      // For mmap arguments
+#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/statvfs.h>
 #include <syscall.h>
@@ -501,6 +502,7 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequencesWithProcFiles(
   AllowRestartableSequences(cpu_fence_mode);
   AddFile("/proc/cpuinfo");
   AddFile("/proc/stat");
+  AddDirectory("/sys/devices/system/cpu");
   if (cpu_fence_mode == kAllowSlowFences) {
     AddFile("/proc/self/cpuset");
   }
@@ -643,6 +645,11 @@ PolicyBuilder& PolicyBuilder::AllowRename() {
       __NR_renameat2,
 #endif
   });
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowPrctlSetName() {
+  AddPolicyOnSyscall(__NR_prctl, {ARG_32(0), JEQ32(PR_SET_NAME, ALLOW)});
   return *this;
 }
 

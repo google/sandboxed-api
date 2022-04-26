@@ -148,6 +148,8 @@ class PolicyBuilder final {
   // Allows these files:
   // - "/proc/cpuinfo"
   // - "/proc/stat"
+  // And this directory (including subdirs/files):
+  // - "/sys/devices/system/cpu/"
   //
   // If `cpu_fence_mode` is `kAllowSlowFences`, also permits slow CPU fences.
   // Allows these syscalls:
@@ -378,6 +380,11 @@ class PolicyBuilder final {
   // - renameat
   // - renameat2
   PolicyBuilder& AllowRename();
+
+  // Appends code to allow setting the name of a thread
+  // Allows the following
+  // - prctl(PR_SET_NAME, ...)
+  PolicyBuilder& AllowPrctlSetName();
 
   // Enables the syscalls necessary to start a statically linked binary
   //

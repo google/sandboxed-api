@@ -14,6 +14,8 @@
 
 #include <fcntl.h>
 
+#include <thread>  // NOLINT(build/c++11)
+
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -260,6 +262,21 @@ TEST(SandboxTest, NoRaceInAwaitResult) {
   absl::SleepFor(absl::Milliseconds(200));  // Make sure we lose the race
   const auto& result = sandbox.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));
+}
+
+TEST(SandboxTest, NoRaceInConcurrentTerminate) {
+  SumSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
+  std::thread th([&sandbox] {
+    // Sleep so that the call already starts
+    absl::SleepFor(absl::Seconds(1));
+    sandbox.Terminate(/*attempt_graceful_exit=*/false);
+  });
+  EXPECT_THAT(api.sleep_for_sec(10), StatusIs(absl::StatusCode::kUnavailable));
+  th.join();
+  const auto& result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::EXTERNAL_KILL));
 }
 
 }  // namespace

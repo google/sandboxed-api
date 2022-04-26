@@ -282,6 +282,7 @@ target_link_libraries(sandbox2_executor
           sapi::base
           sapi::status_proto
   PUBLIC absl::span
+         absl::status
          absl::strings
          glog::glog
          sapi::config
@@ -617,7 +618,7 @@ target_link_libraries(sandbox2_violation_proto PRIVATE
   sapi::base
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(testcases)
 
   # sandboxed_api/sandbox2:regs_test

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(SAPI_ENABLE_EXAMPLES)
+if(SAPI_BUILD_EXAMPLES)
   add_subdirectory(crc4)
   add_subdirectory(custom_fork)
   add_subdirectory(network)

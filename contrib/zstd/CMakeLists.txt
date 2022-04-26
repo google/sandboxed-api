@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 project(sapi_zstd CXX)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -91,10 +92,10 @@ target_include_directories(sapi_zstd INTERFACE
   "${SAPI_SOURCE_DIR}"
 )
 
-if(SAPI_ENABLE_EXAMPLES)
+if(SAPI_BUILD_EXAMPLES)
   add_subdirectory(example)
 endif()
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(test)
 endif()

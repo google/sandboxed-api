@@ -200,6 +200,7 @@ absl::Status Sandbox::Init() {
 
   s2_ = absl::make_unique<sandbox2::Sandbox2>(std::move(executor),
                                               std::move(s2p), CreateNotifier());
+  s2_awaited_ = false;
   auto res = s2_->RunAsync();
 
   comms_ = s2_->comms();
@@ -432,9 +433,9 @@ absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
 }
 
 const sandbox2::Result& Sandbox::AwaitResult() {
-  if (s2_) {
+  if (s2_ && !s2_awaited_) {
     result_ = s2_->AwaitResult();
-    s2_.reset(nullptr);
+    s2_awaited_ = true;
   }
   return result_;
 }

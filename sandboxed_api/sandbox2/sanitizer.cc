@@ -16,6 +16,8 @@
 
 #include "sandboxed_api/sandbox2/sanitizer.h"
 
+#include "absl/status/status.h"
+
 #if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
     defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
     defined(ABSL_HAVE_LEAK_SANITIZER) ||      \
@@ -45,10 +47,8 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2::sanitizer {
 namespace {
@@ -126,12 +126,13 @@ absl::Status MarkAllFDsAsCOEExcept(
 
     int flags = fcntl(fd, F_GETFD);
     if (flags == -1) {
-      return absl::InternalError(
-          sapi::OsErrorMessage(errno, "fcntl(", fd, ", F_GETFD) failed"));
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("fcntl(", fd, ", F_GETFD) failed"));
     }
     if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1) {
-      return absl::InternalError(sapi::OsErrorMessage(
-          errno, "fcntl(", fd, ", F_SETFD, ", flags, " | FD_CLOEXEC) failed"));
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("fcntl(", fd, ", F_SETFD, ", flags,
+                              " | FD_CLOEXEC) failed"));
     }
   }
 
@@ -184,8 +185,8 @@ absl::Status SanitizeCurrentProcess(
 
   // If the parent goes down, so should we.
   if (prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0) {
-    return absl::InternalError(
-        sapi::OsErrorMessage(errno, "prctl(PR_SET_PDEATHSIG, SIGKILL) failed"));
+    return absl::ErrnoToStatus(errno,
+                               "prctl(PR_SET_PDEATHSIG, SIGKILL) failed");
   }
 
   // Close or mark as close-on-exec open file descriptors.

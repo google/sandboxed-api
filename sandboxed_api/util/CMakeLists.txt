@@ -105,7 +105,6 @@ target_link_libraries(sapi_util_status_proto
 
 # sandboxed_api/util:status
 add_library(sapi_util_status ${SAPI_LIB_TYPE}
-  os_error.h
   status.cc
   status.h
   status_macros.h
@@ -148,7 +147,7 @@ target_link_libraries(sapi_util_temp_file
          absl::statusor
 )
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/util:file_base_test
   add_executable(sapi_file_base_test
     path_test.cc

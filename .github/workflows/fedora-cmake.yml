@@ -25,11 +25,11 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Cache dependencies
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         key: ${{matrix.container}}-${{matrix.compiler}}${{matrix.compiler-version}}
         path: |
-          ${{github.workspace}}/_deps
+          ${{github.workspace}}/build/_deps
 
     - name: Prepare container
       # Note: For the sandbox tests to work, we need a privileged, unconfined
@@ -50,9 +50,9 @@ jobs:
     - name: Install build tools
       run: |
         $RUN_CMD dnf update -y --quiet
-        $RUN_CMD dnf install -y --quiet git make automake patch glibc-static \
-          libstdc++-static cmake ninja-build python3 python3-pip clang-devel \
-          libcap-devel
+        $RUN_CMD dnf install -y --quiet \
+          git make automake patch glibc-static libstdc++-static cmake \
+          ninja-build python3 python3-pip clang-devel libcap-devel
 
     - name: Create Build Environment
       run: |
@@ -61,15 +61,22 @@ jobs:
 
     - name: Configure CMake
       run: |
-        $RUN_CMD cmake -S $GITHUB_WORKSPACE -B $GITHUB_WORKSPACE/build \
-          -G Ninja -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+        $RUN_CMD cmake \
+          -S $GITHUB_WORKSPACE \
+          -B $GITHUB_WORKSPACE/build \
+          -G Ninja \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
     - name: Build
       run: |
-        $RUN_CMD cmake --build $GITHUB_WORKSPACE/build --config $BUILD_TYPE
+        $RUN_CMD cmake \
+          --build $GITHUB_WORKSPACE/build \
+          --config $BUILD_TYPE
 
     - name: Test
       run: |
-        $RUN_CMD ctest --test-dir $GITHUB_WORKSPACE/build -C $BUILD_TYPE \
+        $RUN_CMD ctest \
+          --test-dir $GITHUB_WORKSPACE/build \
+          -C $BUILD_TYPE \
           --output-on-failure \
           -R SapiTest

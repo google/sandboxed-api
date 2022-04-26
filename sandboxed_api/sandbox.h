@@ -149,6 +149,10 @@ class Sandbox {
 
   // The main sandbox2::Sandbox2 object.
   std::unique_ptr<sandbox2::Sandbox2> s2_;
+  // Marks whether Sandbox2 result was already fetched.
+  // We cannot just delete s2_ as Terminate might be called from another thread
+  // and comms object can be still in use then.
+  bool s2_awaited_ = false;
 
   // Result of the most recent sandbox execution
   sandbox2::Result result_;

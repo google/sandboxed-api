@@ -15,7 +15,6 @@
 #include <cstdlib>
 
 #include "absl/strings/str_format.h"
-#include "sandboxed_api/util/flag.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/runfiles.h"
@@ -28,7 +27,7 @@ std::string GetDataDependencyFilePath(absl::string_view relative_path) {
 
   static Runfiles* runfiles = []() {
     std::string error;
-    auto* runfiles = Runfiles::Create(gflags::GetArgv0(), &error);
+    auto* runfiles = Runfiles::Create(/*argv=*/"" /* unknown */, &error);
     SAPI_RAW_CHECK(runfiles != nullptr, error.c_str());
 
     // Setup environment for child processes.

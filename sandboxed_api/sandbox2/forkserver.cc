@@ -59,7 +59,6 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/os_error.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 
@@ -172,8 +171,7 @@ absl::Status SendPid(int signaling_fd) {
   // on the socket.
   char dummy = ' ';
   if (TEMP_FAILURE_RETRY(send(signaling_fd, &dummy, 1, 0)) != 1) {
-    return absl::InternalError(
-        sapi::OsErrorMessage(errno, "Sending PID: send()"));
+    return absl::ErrnoToStatus(errno, "Sending PID: send()");
   }
   return absl::OkStatus();
 }
@@ -197,15 +195,14 @@ absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
   iov.iov_len = sizeof(char);
 
   if (TEMP_FAILURE_RETRY(recvmsg(signaling_fd, &msgh, MSG_WAITALL)) != 1) {
-    return absl::InternalError(
-        sapi::OsErrorMessage(errno, "Receiving pid failed: recvmsg"));
+    return absl::ErrnoToStatus(errno, "Receiving pid failed: recvmsg");
   }
   struct cmsghdr* cmsgp = CMSG_FIRSTHDR(&msgh);
   if (cmsgp->cmsg_len != CMSG_LEN(sizeof(struct ucred)) ||
       cmsgp->cmsg_level != SOL_SOCKET || cmsgp->cmsg_type != SCM_CREDENTIALS) {
     return absl::InternalError("Receiving pid failed");
   }
-  struct ucred* ucredp = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsgp));
+  auto* ucredp = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsgp));
   return ucredp->pid;
 }
 

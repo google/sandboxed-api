@@ -142,7 +142,9 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
   // Add all possible libraries without the need of parsing the binary
   // or /proc/pid/maps.
   for (const auto& library_path : {
+           "/usr/lib64",
            "/usr/lib",
+           "/lib64",
            "/lib",
        }) {
     if (access(library_path, F_OK) != -1) {

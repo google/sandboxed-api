@@ -22,7 +22,7 @@ namespace sapi {
 std::string GetTestTempPath(absl::string_view name) {
   // When using Bazel, the environment variable TEST_TMPDIR is guaranteed to be
   // set.
-  // See https://docs.bazel.build/versions/master/test-encyclopedia.html for
+  // See https://bazel.build/reference/test-encyclopedia#initial-conditions for
   // details.
   const char* test_tmpdir = getenv("TEST_TMPDIR");
   return file::JoinPath(test_tmpdir ? test_tmpdir : ".", name);

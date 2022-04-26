@@ -31,6 +31,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
+#ifdef __ANDROID__
+#include "android/log.h"
+#endif
+
 static const char kTruncated[] = " ... (message truncated)\n";
 
 // sprintf the format to the buffer, adjusting *buf and *size to reflect the
@@ -77,6 +81,23 @@ bool DoRawLog(char** buf, int* size, const char* format, ...) {
   return true;
 }
 
+#ifdef __ANDROID__
+android_LogPriority ConvertSeverity(absl::LogSeverity severity) {
+  switch (severity) {
+    case absl::LogSeverity::kInfo:
+      return ANDROID_LOG_INFO;
+    case absl::LogSeverity::kWarning:
+      return ANDROID_LOG_WARN;
+    case absl::LogSeverity::kError:
+      return ANDROID_LOG_ERROR;
+    case absl::LogSeverity::kFatal:
+      return ANDROID_LOG_FATAL;
+    default:
+      return ANDROID_LOG_INFO;
+  }
+}
+#endif
+
 void RawLogVA(absl::LogSeverity severity, const char* file, int line,
               const char* format, va_list ap) ABSL_PRINTF_ATTRIBUTE(4, 0);
 void RawLogVA(absl::LogSeverity severity, const char* file, int line,
@@ -93,7 +114,13 @@ void RawLogVA(absl::LogSeverity severity, const char* file, int line,
   } else {
     DoRawLog(&buf, &size, "%s", kTruncated);
   }
+#ifndef __ANDROID__
   sapi::raw_logging_internal::SafeWriteToStderr(buffer, strlen(buffer));
+#else
+  // Logs to Android's logcat with the TAG SAPI and the log line containing
+  // the code location and the log output.
+  __android_log_print(ConvertSeverity(severity), "SAPI", "%s", buffer);
+#endif
 
   // Abort the process after logging a FATAL message, even if the output itself
   // was suppressed.
