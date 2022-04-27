@@ -22,11 +22,9 @@
 
 #include <glog/logging.h>
 #include "pffft_sapi.sapi.h"  // NOLINT(build/include)
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
 #include "sandboxed_api/vars.h"
-
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all);
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 
 class PffftSapiSandbox : public PffftSandbox {
  public:
@@ -47,27 +45,14 @@ class PffftSapiSandbox : public PffftSandbox {
   }
 };
 
-// output_format flag determines whether the output shows information in detail
-// or not. By default, the flag is set as 0, meaning an elaborate display
-// (see ShowOutput method).
-static bool ValidateFlag(const char* flagname, int32_t value) {
-  if (value >= 0 && value < 32768) {
-    return true;
-  }
-
-  LOG(ERROR) << "Invalid value for --" << flagname << ".";
-  return false;
-}
-
-DEFINE_int32(output_format, 0, "Value to specific the output format.");
-DEFINE_validator(output_format, &ValidateFlag);
+ABSL_FLAG(bool, verbose_output, true, "Whether to display verbose output");
 
 double UclockSec() { return static_cast<double>(clock()) / CLOCKS_PER_SEC; }
 
 void ShowOutput(const char* name, int n, int complex, float flops, float t0,
                 float t1, int max_iter) {
   float mflops = flops / 1e6 / (t1 - t0 + 1e-16);
-  if (FLAGS_output_format) {
+  if (absl::GetFlag(FLAGS_verbose_output)) {
     if (flops != -1) {
       printf("|%9.0f   ", mflops);
     } else {
@@ -193,10 +178,8 @@ absl::Status PffftMain() {
 }
 
 int main(int argc, char* argv[]) {
-  // Initialize Google's logging library.
+  absl::ParseCommandLine(argc, argv);
   google::InitGoogleLogging(argv[0]);
-
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   if (absl::Status status = PffftMain(); !status.ok()) {
     LOG(ERROR) << "Initialization failed: " << status.ToString();
