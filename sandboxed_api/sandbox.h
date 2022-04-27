@@ -114,12 +114,17 @@ class Sandbox {
 
  protected:
 
-  // Gets the arguments passed to the sandboxee.
+  // Gets extra arguments to be passed to the sandboxee.
   virtual void GetArgs(std::vector<std::string>* args) const {
-    args->push_back("--logtostderr=true");
+    // Do nothing by default.
   }
 
  private:
+  // Gets the environment variables passed to the sandboxee.
+  virtual void GetEnvs(std::vector<std::string>* envs) const {
+    envs->push_back("GOOGLE_LOGTOSTDERR=1");
+  }
+
   // Returns the sandbox policy. Subclasses can modify the default policy
   // builder, or return a completely new policy.
   virtual std::unique_ptr<sandbox2::Policy> ModifyPolicy(
@@ -131,11 +136,10 @@ class Sandbox {
   //  - absolute: will be used as is.
   virtual std::string GetLibPath() const { return ""; }
 
-  // Gets the environment variables passed to the sandboxee.
-  virtual void GetEnvs(std::vector<std::string>* envs) const {}
-
   // Modifies the Executor object if needed.
-  virtual void ModifyExecutor(sandbox2::Executor* executor) {}
+  virtual void ModifyExecutor(sandbox2::Executor* executor) {
+    // Do nothing by default.
+  }
 
   // Provides a custom notifier for sandboxee events. May return nullptr.
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
