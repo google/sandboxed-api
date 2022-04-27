@@ -132,7 +132,7 @@ std::string GetFilePath(const std::string filename) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   std::string srcfile;

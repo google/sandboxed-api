@@ -64,7 +64,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   return absl::OkStatus();
 }
 
-int main(int argc, const char** argv) {
+int main(int argc, char* argv[]) {
   if (argc != 3) {
     LOG(ERROR) << "usage: example input-file output-file";
     return EXIT_FAILURE;

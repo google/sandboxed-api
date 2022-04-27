@@ -33,7 +33,7 @@ void* Sleepy(void*) {
   }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   pthread_t thread;
 
   if (pthread_barrier_init(&g_barrier, nullptr, 2) < 0) {

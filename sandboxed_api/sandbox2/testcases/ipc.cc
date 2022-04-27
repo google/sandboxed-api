@@ -24,7 +24,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/raw_logging.h"
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   if (argc < 2) {
     printf("argc < 2\n");
     return EXIT_FAILURE;

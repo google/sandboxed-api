@@ -92,7 +92,7 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
   return result.reason_code();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 

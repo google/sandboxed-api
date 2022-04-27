@@ -119,7 +119,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       .BuildOrDie();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // This test is incompatible with sanitizers.
   // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
   // need to return something.

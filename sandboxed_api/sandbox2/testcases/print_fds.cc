@@ -18,7 +18,7 @@
 
 #include <cstdio>
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   for (int fd = 0; fd < 4096; fd++) {
     if (fcntl(fd, F_GETFD) != -1) {
       printf("%d\n", fd);

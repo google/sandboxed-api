@@ -60,7 +60,7 @@ static bool CommunicationTest(int sock) {
   return true;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // Set-up the sandbox2::Client object, using a file descriptor (1023).
   sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
   sandbox2::Client sandbox2_client(&comms);

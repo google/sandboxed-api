@@ -51,7 +51,7 @@ void Usage() {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   if (argc < 3 || !sandbox2::file::IsAbsolutePath(argv[2])) {
     Usage();
     return EXIT_FAILURE;

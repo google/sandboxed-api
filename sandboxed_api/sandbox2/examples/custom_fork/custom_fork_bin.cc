@@ -37,7 +37,7 @@ static int SandboxeeFunction(sandbox2::Comms* comms) {
   return i;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // Writing to stderr limits the number of invoked syscalls.
   gflags::SetCommandLineOptionWithMode("logtostderr", "true",
                                        gflags::SET_FLAG_IF_DEFAULT);

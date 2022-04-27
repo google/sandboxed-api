@@ -117,7 +117,7 @@
 #define NO_GZIP_CREATE
 #endif
 
-int main(int unused_argc, const char** argv) {
+int main(int unused_argc, char* argv[]) {
   const char* filename = nullptr;
   int compress;
   int flags;

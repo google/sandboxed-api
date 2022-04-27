@@ -65,7 +65,7 @@ void RunWritable() {
   SAPI_RAW_PCHECK(execv(tmpname.c_str(), argv) == 0, "Executing copied binary");
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   if (argc < 2) {
     printf("argc < 3\n");
     return EXIT_FAILURE;

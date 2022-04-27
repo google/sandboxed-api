@@ -37,7 +37,7 @@
 #define Z_STREAM_ERROR (-2)
 #define Z_STREAM_END 1
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 

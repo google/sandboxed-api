@@ -103,9 +103,10 @@ GeneratorOptions GeneratorOptionsFromFlags(
   return options;
 }
 
-absl::Status GeneratorMain(int argc, const char** argv) {
+absl::Status GeneratorMain(int argc, char* argv[]) {
   auto expected_opt_parser = OptionsParser::create(
-      argc, argv, *sapi::g_tool_category, llvm::cl::ZeroOrMore,
+      argc, const_cast<const char**>(argv), *sapi::g_tool_category,
+      llvm::cl::ZeroOrMore,
       "Generates a Sandboxed API header for C/C++ translation units.");
   if (!expected_opt_parser) {
     return absl::InternalError(llvm::toString(expected_opt_parser.takeError()));
@@ -149,7 +150,7 @@ absl::Status GeneratorMain(int argc, const char** argv) {
 
 }  // namespace sapi
 
-int main(int argc, const char** argv) {
+int main(int argc, char* argv[]) {
   if (absl::Status status = sapi::GeneratorMain(argc, argv); !status.ok()) {
     absl::FPrintF(stderr, "%s\n", status.message());
     return EXIT_FAILURE;

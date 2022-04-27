@@ -18,7 +18,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/raw_logging.h"
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
 
   // Exchange data with sandbox sandbox (parent) before sandboxing is enabled.

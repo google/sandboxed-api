@@ -44,7 +44,7 @@ void Usage() {
 
 }  // namespace
 
-int main(int argc, const char** argv) {
+int main(int argc, char* argv[]) {
   int verbose = 0;
   int quality = kDefaultJPEGQuality;
   int memlimit_mb = kDefaultMemlimitMB;

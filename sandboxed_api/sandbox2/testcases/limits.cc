@@ -72,7 +72,7 @@ __attribute__((noinline)) int TestAllocaBigAboveLimit() {
   return EXIT_FAILURE;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // Disable buffering.
   setbuf(stdin, nullptr);
   setbuf(stdout, nullptr);

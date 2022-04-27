@@ -44,7 +44,7 @@ static uint32_t ComputeCRC4Impl(const uint8_t* ptr, uint64_t len) {
   return crc4;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, false);
 
   // Set-up the sandbox2::Client object, using a file descriptor (1023).

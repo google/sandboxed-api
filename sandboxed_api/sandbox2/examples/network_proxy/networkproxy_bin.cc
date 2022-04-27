@@ -104,7 +104,7 @@ absl::StatusOr<int> ConnectToServer(int port) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, false);
 
   // Set-up the sandbox2::Client object, using a file descriptor (1023).

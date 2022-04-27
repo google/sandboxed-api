@@ -15,7 +15,7 @@
 // A binary doing nothing and returning 0 or 1.
 // It is used to find the minimal syscall policy to allow.
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   if (argc <= 1) {
     return 0;
   }

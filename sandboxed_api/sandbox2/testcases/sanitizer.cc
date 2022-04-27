@@ -48,7 +48,7 @@ void TestOpenFd(int fd) {
   }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // Disable caching.
   setbuf(stdin, nullptr);
   setbuf(stdout, nullptr);

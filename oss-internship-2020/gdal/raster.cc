@@ -167,7 +167,7 @@ absl::Status GdalMain(std::string filename) {
   return absl::OkStatus();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // The file to be converted should be specified in the first argument while
   // running the program.
   if (argc < 2) {

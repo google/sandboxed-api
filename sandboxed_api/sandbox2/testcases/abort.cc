@@ -19,7 +19,7 @@
 
 #include "sandboxed_api/util/raw_logging.h"
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   SAPI_RAW_LOG(ERROR, "Raising SIGABRT");
   abort();
   return EXIT_SUCCESS;  // Not reached

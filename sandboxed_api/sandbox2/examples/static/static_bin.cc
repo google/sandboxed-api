@@ -25,7 +25,7 @@
 #include <cstddef>
 #include <cstdio>
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   char buf[1024];
   size_t total_bytes = 0U;
 

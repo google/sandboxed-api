@@ -162,7 +162,7 @@ bool HandleSandboxee(sandbox2::Comms* comms, int port) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // This test is incompatible with sanitizers.
   // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we
   // need to return something.

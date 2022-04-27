@@ -71,7 +71,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
