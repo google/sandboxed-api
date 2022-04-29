@@ -46,8 +46,8 @@ using ::testing::Eq;
 std::unique_ptr<Policy> NotifyTestcasePolicy() {
   return PolicyBuilder()
       .DisableNamespaces()
-      .AllowStaticStartup()
-      .AllowDynamicStartup()  // For PrintPidAndComms
+      .AllowDynamicStartup()  // For PrintPidAndComms and includes
+                              // AllowStaticStartup
       .AllowExit()
       .AllowRead()
       .AllowWrite()
