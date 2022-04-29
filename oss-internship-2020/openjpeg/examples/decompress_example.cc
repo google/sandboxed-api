@@ -55,7 +55,7 @@ class Openjp2SapiSandbox : public Openjp2Sandbox {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   if (argc != 3) {
     std::cerr << "Usage: " << basename(argv[0]) << " absolute/path/to/INPUT.jp2"

@@ -18,6 +18,7 @@ add_executable(turbojpeg_sapi_test turbojpeg_sapi_test.cc)
 
 target_link_libraries(turbojpeg_sapi_test PRIVATE
   turbojpeg_sapi
+  sapi::logging
   sapi::base
   gtest
   gmock

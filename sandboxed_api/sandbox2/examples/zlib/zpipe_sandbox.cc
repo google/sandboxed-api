@@ -37,6 +37,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/runfiles.h"
 
 using std::string;
@@ -73,7 +74,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   if (absl::GetFlag(FLAGS_input).empty()) {
     LOG(ERROR) << "Parameter --input required.";

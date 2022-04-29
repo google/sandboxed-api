@@ -38,5 +38,6 @@ set_target_properties(gflags_nothreads PROPERTIES
   IMPORTED_LOCATION "${gflags_BINARY_DIR}/libgflags_nothreads.a"
 )
 target_link_libraries(glog PRIVATE
-  -Wl,--whole-archive gflags_nothreads -Wl,--no-whole-archive
+  #-Wl,--whole-archive gflags_nothreads -Wl,--no-whole-archive
+  gflags_nothreads
 )

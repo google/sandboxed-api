@@ -73,9 +73,7 @@ cc_library(
     name = "fileops",
     srcs = ["fileops.cc"],
     hdrs = ["fileops.h"],
-    copts = sapi_platform_copts([
-        "-Wno-deprecated-declarations",  # readdir64_r
-    ]),
+    copts = sapi_platform_copts(),
     deps = [
         ":strerror",
         "@com_google_absl//absl/strings",
@@ -103,6 +101,18 @@ cc_library(
     hdrs = ["flag.h"],
     copts = sapi_platform_copts(),
     deps = ["@com_github_gflags_gflags//:gflags"],
+)
+
+# Transitional library that helps configure glog with Abseil flags to
+# avoid a dependency on gflags.
+cc_library(
+    name = "logging",
+    srcs = ["logging.cc"],
+    hdrs = ["logging.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "@com_google_glog//:glog",
+    ],
 )
 
 # Small support library emulating verbose logging using Abseil's raw logging

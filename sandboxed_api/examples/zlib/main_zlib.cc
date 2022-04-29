@@ -22,7 +22,7 @@
 #include "sandboxed_api/util/flag.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/examples/zlib/zlib-sapi.sapi.h"
-#include "sandboxed_api/examples/zlib/zlib-sapi_embed.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/vars.h"
 
 // Need to define these manually, as zlib.h cannot be directly included. The
@@ -39,7 +39,7 @@
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   sapi::Sandbox sandbox(sapi::zlib::zlib_sapi_embed_create());
   sapi::zlib::ZlibApi api(&sandbox);

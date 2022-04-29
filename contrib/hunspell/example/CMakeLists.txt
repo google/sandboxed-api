@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(
-  sapi_minihunspell
-
+add_executable(sapi_minihunspell
   main.cc
 )
 
-target_link_libraries(
-  sapi_minihunspell PRIVATE
-
-  sapi_hunspell
-  sapi::sapi
+target_link_libraries(sapi_minihunspell
+  PRIVATE sapi_contrib::hunspell
+          sapi::logging
+          sapi::sapi
 )

@@ -84,6 +84,7 @@ target_link_libraries(sapi_main_sum PRIVATE
   glog::glog
   sapi::base
   sapi::flags
+  sapi::logging
   sapi::sapi
   sapi::status
   sapi::sum_sapi

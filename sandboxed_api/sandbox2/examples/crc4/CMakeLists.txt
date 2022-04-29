@@ -28,6 +28,7 @@ target_link_libraries(sandbox2_crc4sandbox PRIVATE
   sandbox2::sandbox2
   sapi::base
   sapi::flags
+  sapi::logging
 )
 
 # sandboxed_api/sandbox2/examples/crc4:crc4bin

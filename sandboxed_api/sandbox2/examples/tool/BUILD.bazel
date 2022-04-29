@@ -35,6 +35,7 @@ cc_binary(
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:flags",
+        "//sandboxed_api/util:logging",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

@@ -185,6 +185,7 @@ cc_library(
         "//sandboxed_api/sandbox2:forkingclient",
         "//sandboxed_api/sandbox2:logsink",
         "//sandboxed_api/util:flags",
+        "//sandboxed_api/util:logging",
         "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/strings",
         "@com_google_glog//:glog",

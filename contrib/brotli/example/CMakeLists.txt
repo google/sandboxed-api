@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(
-  sapi_minibroli
-
+add_executable(sapi_minibrotli
   main.cc
   ../utils/utils_brotli.cc
   ../utils/utils_brotli_enc.cc
   ../utils/utils_brotli_dec.cc
 )
-
-target_link_libraries(
-  sapi_minibroli PRIVATE
-
-  sapi_brotli
-  sapi::sapi
-  absl::flags_parse
+target_link_libraries(sapi_minibrotli
+  PRIVATE absl::flags_parse
+          sapi_contrib::brotli
+          sapi::logging
+          sapi::sapi
 )

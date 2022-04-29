@@ -67,7 +67,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     woff2_sapi_test.cc
   )
   target_link_libraries(woff2_sapi_test PRIVATE
-    woff2_sapi
+    sapi_contrib::woff2
+    sapi::logging
     sapi::base
     gtest
     gmock

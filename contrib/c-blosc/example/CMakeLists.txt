@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(
-  sapi_miniblosc
-
+add_executable(sapi_miniblosc
   main.cc
   ../utils/utils_blosc.cc
 )
@@ -23,10 +21,9 @@ target_include_directories(sapi_miniblosc INTERFACE
   "${SAPI_SOURCE_DIR}"
 )
 
-target_link_libraries(
-  sapi_miniblosc PRIVATE
-
-  sapi_blosc
-  sapi::sapi
-  absl::flags_parse
+target_link_libraries(sapi_miniblosc
+  PRIVATE sapi_contrib::blosc
+          absl::flags_parse
+          sapi::logging
+          sapi::sapi
 )

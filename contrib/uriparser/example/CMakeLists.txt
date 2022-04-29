@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(
-  sapi_miniuriparser
-
+add_executable(sapi_miniuriparser
   main.cc
   ../utils/utils_uriparser.cc
 )
 
-target_link_libraries(
-  sapi_miniuriparser PRIVATE
-
-  sapi_uriparser
-  sapi::sapi
-  absl::flags_parse
+target_link_libraries(sapi_miniuriparser
+  PRIVATE sapi_contrib::uriparser
+          sapi::logging
+          sapi::sapi
+          absl::flags_parse
 )

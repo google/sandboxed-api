@@ -22,6 +22,7 @@ foreach(target IN ITEMS base multiple_files yaml_stream formatter)
     sapi_contrib::jsonnet
     sapi::file_base
     sapi::fileops
+    sapi::logging
     sapi::sapi
   )
 endforeach()

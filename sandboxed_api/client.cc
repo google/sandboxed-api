@@ -35,6 +35,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/sandbox2/logsink.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/vars.h"
 
 #include <ffi.h>
@@ -415,10 +416,8 @@ void ServeRequest(sandbox2::Comms* comms) {
 }  // namespace sapi
 
 ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
-  gflags::SetCommandLineOptionWithMode("userspace_coredumper", "false",
-                                       gflags::SET_FLAG_IF_DEFAULT);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   // Note regarding the FD usage here: Parent and child seem to make use of the
   // same FD, although this is not true. During process setup `dup2()` will be

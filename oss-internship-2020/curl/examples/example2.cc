@@ -106,7 +106,7 @@ absl::Status Example2() {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   if (absl::Status status = Example2(); !status.ok()) {
     LOG(ERROR) << "Example2 failed: " << status.ToString();

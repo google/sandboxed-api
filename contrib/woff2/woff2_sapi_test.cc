@@ -23,12 +23,12 @@
 #include <optional>
 
 #include "gflags/gflags.h"
-#include "glog/logging.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "contrib/woff2/woff2_wrapper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "woff2_sapi.sapi.h"  // NOLINT(build/include)
@@ -131,7 +131,7 @@ TEST_F(Woff2SapiSandboxTest, Decompress) {
 
 int main(int argc, char* argv[]) {
   if (argc < 1) return 255;
-  ::google::InitGoogleLogging(argv[0]);
+  ::sapi::InitLogging(argv[0]);
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

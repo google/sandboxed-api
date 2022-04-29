@@ -128,7 +128,7 @@ add_sapi_library(
   LIBRARY_NAME Hunspell
   NAMESPACE ""
 )
-
+add_library(sapi_contrib::hunspell ALIAS sapi_hunspell)
 target_include_directories(sapi_hunspell INTERFACE
   "${PROJECT_BINARY_DIR}"
 )

@@ -20,10 +20,10 @@
 #include <cstring>
 #include <ctime>
 
-#include <glog/logging.h>
 #include "pffft_sapi.sapi.h"  // NOLINT(build/include)
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/vars.h"
 
 class PffftSapiSandbox : public PffftSandbox {
@@ -179,7 +179,7 @@ absl::Status PffftMain() {
 
 int main(int argc, char* argv[]) {
   absl::ParseCommandLine(argc, argv);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   if (absl::Status status = PffftMain(); !status.ok()) {
     LOG(ERROR) << "Initialization failed: " << status.ToString();

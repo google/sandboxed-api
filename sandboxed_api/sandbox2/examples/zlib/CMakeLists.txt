@@ -24,6 +24,7 @@ target_link_libraries(sandbox2_zpipe_sandbox PRIVATE
   absl::memory
   sandbox2::bpf_helper
   sandbox2::comms
+  sapi::logging
   sapi::runfiles
   sandbox2::sandbox2
   sapi::base

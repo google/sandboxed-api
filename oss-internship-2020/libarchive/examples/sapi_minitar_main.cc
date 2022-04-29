@@ -39,7 +39,7 @@ static void PrintUsage() {
 }
 
 int main(int unused_argc, char* argv[]) {
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
   const char* filename = nullptr;
   int compress;
   int flags;

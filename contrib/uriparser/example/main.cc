@@ -20,6 +20,7 @@
 #include "absl/flags/parse.h"
 #include "contrib/uriparser/sandboxed.h"
 #include "contrib/uriparser/utils/utils_uriparser.h"
+#include "sandboxed_api/util/logging.h"
 
 void Print(const char* name, const absl::StatusOr<std::string>& r) {
   if (!r.ok()) {
@@ -37,8 +38,8 @@ void Print(const char* name, const absl::StatusOr<std::string>& r) {
 
 int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
-  google::InitGoogleLogging(argv[0]);
   std::vector<char*> args = absl::ParseCommandLine(argc, argv);
+  sapi::InitLogging(argv[0]);
 
   if (args.size() < 2) {
     std::cerr << "Usage:\n  " << prog_name << " URI ...\n";

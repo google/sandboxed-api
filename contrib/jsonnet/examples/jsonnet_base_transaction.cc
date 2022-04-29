@@ -15,6 +15,7 @@
 #include "contrib/jsonnet/jsonnet_base_transaction.h"
 
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/path.h"
 
 absl::Status JsonnetTransaction::Main() {
@@ -64,7 +65,7 @@ absl::Status JsonnetTransaction::Main() {
 int main(int argc, char* argv[]) {
   using sapi::file_util::fileops::Basename;
 
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   if (!(argc == 3)) {

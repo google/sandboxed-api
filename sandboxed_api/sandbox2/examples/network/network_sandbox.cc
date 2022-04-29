@@ -38,6 +38,7 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/runfiles.h"
 
 namespace {
@@ -174,7 +175,7 @@ int main(int argc, char* argv[]) {
   }
 
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
   int port = 8085;
   std::thread server_thread{Server,port};
   server_thread.detach();

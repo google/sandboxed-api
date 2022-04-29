@@ -29,6 +29,7 @@ target_link_libraries(sandbox2_custom_fork_sandbox PRIVATE
   sandbox2::sandbox2
   sapi::base
   sapi::flags
+  sapi::logging
   sapi::raw_logging
 )
 

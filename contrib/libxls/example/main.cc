@@ -25,13 +25,14 @@
 #include "absl/flags/parse.h"
 #include "contrib/libxls/sandboxed.h"
 #include "contrib/libxls/utils/utils_libxls.h"
+#include "sandboxed_api/util/logging.h"
 
 ABSL_FLAG(uint32_t, sheet, 0, "sheet number");
 
 int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
-  google::InitGoogleLogging(argv[0]);
   std::vector<char*> args = absl::ParseCommandLine(argc, argv);
+  sapi::InitLogging(argv[0]);
 
   if (args.size() != 2) {
     std::cerr << "Usage:\n  " << prog_name << " INPUT\n";

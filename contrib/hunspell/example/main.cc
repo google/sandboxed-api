@@ -19,6 +19,7 @@
 #include <string>
 
 #include "contrib/hunspell/sandboxed.h"
+#include "sandboxed_api/util/logging.h"
 
 absl::Status PrintSuggest(HunspellApi& api, sapi::v::RemotePtr& hunspellrp,
                           sapi::v::ConstCStr& word) {
@@ -52,7 +53,7 @@ absl::Status PrintSuggest(HunspellApi& api, sapi::v::RemotePtr& hunspellrp,
 }
 
 int main(int argc, char* argv[]) {
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   if (argc != 4) {
     std::cerr << "Usage:\n  " << argv[0];

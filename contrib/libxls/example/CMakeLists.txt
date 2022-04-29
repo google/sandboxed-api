@@ -20,5 +20,6 @@ add_executable(sapi_minixls
 target_link_libraries(sapi_minixls
   PRIVATE sapi_libxls
           absl::flags_parse
+          sapi::logging
           sapi::sapi
 )

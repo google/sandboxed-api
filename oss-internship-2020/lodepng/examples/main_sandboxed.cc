@@ -172,7 +172,7 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox& sandbox, LodepngApi& api) {
 }
 
 int main(int argc, char* argv[]) {
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   const std::string images_path = CreateTempDirAtCWD();
   CHECK(sandbox2::file_util::fileops::Exists(images_path, false))

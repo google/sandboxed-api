@@ -30,6 +30,9 @@ if(NOT TARGET sapi::sapi)
 endif()
 
 set(HIDE_SYMBOLS OFF CACHE BOOL "" FORCE)
+set(BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   libblosc
 
@@ -38,45 +41,37 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libblosc)
 
-add_sapi_library(
-  sapi_blosc
+add_sapi_library(sapi_blosc
+  FUNCTIONS blosc_init
+            blosc_destroy
 
-  FUNCTIONS
-    blosc_init
-    blosc_destroy
+            blosc_compress
+            blosc_decompress
 
-    blosc_compress
-    blosc_decompress
+            blosc_get_nthreads
+            blosc_set_nthreads
 
-    blosc_get_nthreads
-    blosc_set_nthreads
+            blosc_get_compressor
+            blosc_set_compressor
 
-    blosc_get_compressor
-    blosc_set_compressor
+            blosc_list_compressors
 
-    blosc_list_compressors
+            blosc_get_version_string
 
-    blosc_get_version_string
+            blosc_get_blocksize
+            blosc_set_blocksize
 
-    blosc_get_blocksize
-    blosc_set_blocksize
+            blosc_set_splitmode
 
-    blosc_set_splitmode
-
-    blosc_cbuffer_sizes
-    blosc_cbuffer_validate
-    blosc_cbuffer_versions
-
-  INPUTS
-    "${libblosc_SOURCE_DIR}/blosc/blosc.h"
-
+            blosc_cbuffer_sizes
+            blosc_cbuffer_validate
+            blosc_cbuffer_versions
+  INPUTS "${libblosc_SOURCE_DIR}/blosc/blosc.h"
   LIBRARY blosc_static
   LIBRARY_NAME Cblosc
   NAMESPACE ""
 )
-
 add_library(sapi_contrib::blosc ALIAS sapi_blosc)
-
 target_include_directories(sapi_blosc INTERFACE
   "${PROJECT_BINARY_DIR}"
 )

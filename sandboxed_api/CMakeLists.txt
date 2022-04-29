@@ -184,6 +184,7 @@ target_link_libraries(sapi_client
           sapi::call
           sapi::flags
           sapi::lenval_core
+          sapi::logging
           sapi::proto_arg_proto
           sapi::vars
           ${CMAKE_DL_LIBS}

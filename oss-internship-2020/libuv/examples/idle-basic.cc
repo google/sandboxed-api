@@ -103,7 +103,7 @@ absl::Status IdleBasic() {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   if (absl::Status status = IdleBasic(); !status.ok()) {
     LOG(ERROR) << "IdleBasic failed: " << status.ToString();

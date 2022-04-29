@@ -43,6 +43,7 @@ cc_binary(
         ":zlib-sapi_embed",
         "//sandboxed_api:vars",
         "//sandboxed_api/util:flags",
+        "//sandboxed_api/util:logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
     ],

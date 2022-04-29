@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(
-  sapi_minizstd
-
+add_executable(sapi_minizstd
   main.cc
   ../utils/utils_zstd.cc
 )
 
-target_link_libraries(
-  sapi_minizstd PRIVATE
-
-  sapi_zstd
-  sapi::sapi
-  absl::flags_parse
+target_link_libraries(sapi_minizstd
+  PRIVATE sapi_contrib::zstd
+          sapi::logging
+          sapi::sapi
+          absl::flags_parse
 )

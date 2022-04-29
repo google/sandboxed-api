@@ -22,6 +22,7 @@
 
 #include "contrib/c-blosc/sandboxed.h"
 #include "contrib/c-blosc/utils/utils_blosc.h"
+#include "sandboxed_api/util/logging.h"
 
 ABSL_FLAG(bool, decompress, false, "decompress");
 ABSL_FLAG(int, clevel, 5, "compression level");
@@ -52,8 +53,8 @@ absl::Status Stream(CbloscApi& api, std::string& infile_s,
 
 int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
-  google::InitGoogleLogging(argv[0]);
   std::vector<char*> args = absl::ParseCommandLine(argc, argv);
+  sapi::InitLogging(argv[0]);
 
   if (args.size() != 3) {
     std::cerr << "Usage:\n  " << prog_name << " INPUT OUTPUT\n";

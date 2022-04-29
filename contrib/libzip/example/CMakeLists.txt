@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_executable(
-  sapi_minizip
-
+add_executable(sapi_minizip
   main.cc
   ../utils/utils_zip.cc
 )
 
-target_link_libraries(
-  sapi_minizip PRIVATE
-
-  sapi_zip
-  sapi::sapi
-  absl::flags_parse
+target_link_libraries(sapi_minizip
+  PRIVATE sapi_contrib::libzip
+          sapi::logging
+          sapi::sapi
+          absl::flags_parse
 )

@@ -50,6 +50,7 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/logging.h"
 
 using std::string;
 
@@ -106,7 +107,7 @@ void OutputFD(int fd) {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   if (argc < 2) {
     absl::FPrintF(stderr, "Usage: %s [flags] -- cmd args...", argv[0]);

@@ -48,7 +48,7 @@ target_link_libraries(sapi_util_fileops PRIVATE
 )
 
 # sandboxed_api/util:flag
-file(WRITE ${SAPI_BINARY_DIR}/sapi_util_flags_force_cxx_linkage.cc "")
+file(WRITE "${SAPI_BINARY_DIR}/sapi_util_flags_force_cxx_linkage.cc" "")
 add_library(sapi_util_flags ${SAPI_LIB_TYPE}
   flag.h
   "${SAPI_BINARY_DIR}/sapi_util_flags_force_cxx_linkage.cc"
@@ -56,7 +56,19 @@ add_library(sapi_util_flags ${SAPI_LIB_TYPE}
 add_library(sapi::flags ALIAS sapi_util_flags)
 target_link_libraries(sapi_util_flags PUBLIC
   glog::glog
-  # gflags::gflags
+  gflags::gflags
+)
+
+# sandboxed_api/util:logging
+add_library(sapi_util_logging ${SAPI_LIB_TYPE}
+  logging.cc
+  logging.h
+)
+add_library(sapi::logging ALIAS sapi_util_logging)
+target_link_libraries(sapi_util_logging
+  PUBLIC glog::glog
+  PRIVATE sapi::base
+  INTERFACE absl::core_headers
 )
 
 # sandboxed_api/util:raw_logging

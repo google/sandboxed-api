@@ -35,6 +35,7 @@ cc_binary(
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:flags",
+        "//sandboxed_api/util:logging",
         "//sandboxed_api/util:runfiles",
         "@com_google_absl//absl/base:core_headers",
     ],

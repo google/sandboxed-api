@@ -21,6 +21,7 @@
 #include "contrib/brotli/utils/utils_brotli.h"
 #include "contrib/brotli/utils/utils_brotli_dec.h"
 #include "contrib/brotli/utils/utils_brotli_enc.h"
+#include "sandboxed_api/util/logging.h"
 
 ABSL_FLAG(bool, decompress, false, "decompress");
 
@@ -61,7 +62,7 @@ absl::Status DecompressInMemory(BrotliSandbox &sandbox,
 
 int main(int argc, char *argv[]) {
   std::string prog_name(argv[0]);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
   std::vector<char *> args = absl::ParseCommandLine(argc, argv);
 
   if (args.size() != 3) {

@@ -23,9 +23,9 @@ target_link_libraries(sandbox2_sandbox2tool PRIVATE
   absl::strings
   absl::time
   sandbox2::bpf_helper
-  # sandbox2::ipc
   sandbox2::sandbox2
   sandbox2::util
   sapi::base
   sapi::flags
+  sapi::logging
 )

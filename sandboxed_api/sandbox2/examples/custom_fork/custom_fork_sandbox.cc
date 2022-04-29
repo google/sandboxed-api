@@ -35,6 +35,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/runfiles.h"
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
@@ -94,7 +95,7 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   // This test is incompatible with sanitizers.
   // The `SKIP_SANITIZERS_AND_COVERAGE` macro won't work for us here since we

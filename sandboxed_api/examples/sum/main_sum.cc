@@ -25,6 +25,7 @@
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
 #include "sandboxed_api/examples/sum/sum_params.pb.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/vars.h"
 
 namespace {
@@ -207,7 +208,7 @@ absl::Status test_addition(sapi::Sandbox* sandbox, int a, int b, int c) {
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   absl::Status status;
 

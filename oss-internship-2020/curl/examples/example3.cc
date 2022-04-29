@@ -169,7 +169,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  sapi::InitLogging(argv[0]);
 
   // Get input parameters (should be absolute paths)
   if (argc != 5) {

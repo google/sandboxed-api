@@ -37,6 +37,7 @@ target_link_libraries(sapi_main_zlib PRIVATE
   sapi::base
   glog::glog
   sapi::flags
+  sapi::logging
   sapi::sapi
   sapi::status
   sapi::zlib_sapi

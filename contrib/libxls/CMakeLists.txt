@@ -80,25 +80,19 @@ target_include_directories(libxls PUBLIC
 
 configure_file(xls.gen.h.in xls.gen.h)
 
-add_sapi_library(
-  sapi_libxls
+add_sapi_library(sapi_libxls
+  FUNCTIONS xls_open_file
 
-  FUNCTIONS
-    xls_open_file
+            xls_getWorkSheet
+            xls_parseWorkSheet
 
-    xls_getWorkSheet
-    xls_parseWorkSheet
+            xls_cell
 
-    xls_cell
+            xls_close_WS
+            xls_close_WB
 
-    xls_close_WS
-    xls_close_WB
-
-    xls_getError
-
-  INPUTS
-    "${CMAKE_BINARY_DIR}/xls.gen.h"
-
+            xls_getError
+  INPUTS "${PROJECT_BINARY_DIR}/xls.gen.h"
   LIBRARY libxls
   LIBRARY_NAME Libxls
   NAMESPACE ""
