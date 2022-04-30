@@ -278,6 +278,11 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
     // Sanitizers may try color output. For example:
     // https://github.com/llvm/llvm-project/blob/87dd3d350c4ce0115b2cdf91d85ddd05ae2661aa/compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp#L157
     OverridableBlockSyscallWithErrno(__NR_ioctl, EPERM);
+    // https://github.com/llvm/llvm-project/blob/02c2b472b510ff55679844c087b66e7837e13dc2/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L434
+#ifdef __NR_readlink
+    OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
+#endif
+    OverridableBlockSyscallWithErrno(__NR_readlinkat, ENOENT);
   }
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
