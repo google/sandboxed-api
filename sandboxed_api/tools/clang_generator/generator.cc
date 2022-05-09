@@ -91,6 +91,8 @@ bool GeneratorFactory::runInvocation(
            // Enable code to detect whether it is being SAPI-ized
            "__SAPI__",
            // TODO(b/222241644): Figure out how to deal with intrinsics properly
+           // Note: The definitions below just need to parse, they don't need to
+           //       compile into useful code.
            "__builtin_ia32_paddsb128=",
            "__builtin_ia32_paddsb256=",
            "__builtin_ia32_paddsb512=",
@@ -115,6 +117,10 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_psubusw128=",
            "__builtin_ia32_psubusw256=",
            "__builtin_ia32_psubusw512=",
+           "__builtin_ia32_reduce_add_d512=[](auto)->long long{return 0;}",
+           "__builtin_ia32_reduce_add_q512=[](auto)->long long{return 0;}",
+           "__builtin_ia32_reduce_mul_d512=[](auto)->long long{return 0;}",
+           "__builtin_ia32_reduce_mul_q512=[](auto)->long long{return 0;}",
        }) {
     options.addMacroDef(def);
   }
