@@ -97,12 +97,6 @@ std::string ReadProcMaps(pid_t pid) {
   return contents.str();
 }
 
-void InterruptProcess(pid_t pid) {
-  if (ptrace(PTRACE_INTERRUPT, pid, 0, 0) == -1) {
-    PLOG(WARNING) << "ptrace(PTRACE_INTERRUPT, pid=" << pid << ")";
-  }
-}
-
 void ContinueProcess(pid_t pid, int signo) {
   if (ptrace(PTRACE_CONT, pid, 0, signo) == -1) {
     if (errno == ESRCH) {
@@ -415,8 +409,15 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
 void Monitor::KillSandboxee() {
   VLOG(1) << "Sending SIGKILL to the PID: " << pid_;
   if (kill(pid_, SIGKILL) != 0) {
-    LOG(ERROR) << "Could not send SIGKILL to PID " << pid_;
+    PLOG(ERROR) << "Could not send SIGKILL to PID " << pid_;
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
+  }
+}
+
+void Monitor::InterruptSandboxee() {
+  if (ptrace(PTRACE_INTERRUPT, pid_, 0, 0) == -1) {
+    PLOG(ERROR) << "Could not send interrupt to pid=" << pid_;
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_INTERRUPT);
   }
 }
 
@@ -428,7 +429,7 @@ void Monitor::MainLoop(sigset_t* sset) {
   int status;
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
-  while (result_.final_status() == Result::UNSET) {
+  for (;;) {
     int64_t deadline = deadline_millis_.load(std::memory_order_relaxed);
     if (deadline != 0 && absl::Now() >= absl::FromUnixMillis(deadline)) {
       VLOG(1) << "Sandbox process hit timeout due to the walltime timer";
@@ -438,7 +439,7 @@ void Monitor::MainLoop(sigset_t* sset) {
 
     if (!dump_stack_request_flag_.test_and_set(std::memory_order_relaxed)) {
       should_dump_stack_ = true;
-      InterruptProcess(pid_);
+      InterruptSandboxee();
     }
 
     if (!external_kill_request_flag_.test_and_set(std::memory_order_relaxed)) {
@@ -452,6 +453,10 @@ void Monitor::MainLoop(sigset_t* sset) {
         !network_violation_) {
       network_violation_ = true;
       KillSandboxee();
+    }
+
+    if (result_.final_status() != Result::UNSET) {
+      break;
     }
 
     // It should be a non-blocking operation (hence WNOHANG), so this function
@@ -873,7 +878,12 @@ void Monitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
   Regs regs(pid);
   auto status = regs.Fetch();
   if (!status.ok()) {
-    LOG(ERROR) << status;
+    // Ignore if process is killed in the meanwhile
+    if (absl::IsNotFound(status)) {
+      LOG(WARNING) << "failed to fetch regs: " << status;
+      return;
+    }
+    LOG(ERROR) << "failed to fetch regs: " << status;
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
     return;
   }
@@ -900,7 +910,12 @@ void Monitor::EventSyscallExit(pid_t pid) {
   Regs regs(pid);
   auto status = regs.Fetch();
   if (!status.ok()) {
-    LOG(ERROR) << status;
+    // Ignore if process is killed in the meanwhile
+    if (absl::IsNotFound(status)) {
+      LOG(WARNING) << "failed to fetch regs: " << status;
+      return;
+    }
+    LOG(ERROR) << "failed to fetch regs: " << status;
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
     return;
   }
@@ -970,17 +985,22 @@ void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
     return;
   }
 
+  const bool is_seccomp =
+      WIFSIGNALED(event_msg) && WTERMSIG(event_msg) == SIGSYS;
+
   // Fetch the registers as we'll need them to fill the result in any case
   auto regs = absl::make_unique<Regs>(pid);
-  auto status = regs->Fetch();
-  if (!status.ok()) {
-    LOG(ERROR) << "failed to fetch regs: " << status;
-    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
-    return;
+  if (is_seccomp || pid == pid_) {
+    auto status = regs->Fetch();
+    if (!status.ok()) {
+      LOG(ERROR) << "failed to fetch regs: " << status;
+      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
+      return;
+    }
   }
 
   // Process signaled due to seccomp violation.
-  if (WIFSIGNALED(event_msg) && WTERMSIG(event_msg) == SIGSYS) {
+  if (is_seccomp) {
     VLOG(1) << "PID: " << pid << " violation uncovered via the EXIT_EVENT";
     ActionProcessSyscallViolation(
         regs.get(), regs->ToSyscall(Syscall::GetHostArch()), kSyscallViolation);

@@ -99,6 +99,9 @@ class Monitor final {
   // Kills the main traced PID with PTRACE_KILL.
   void KillSandboxee();
 
+  // Interrupts the main traced PID with PTRACE_INTERRUPT.
+  void InterruptSandboxee();
+
   // Waits for events from monitored clients and signals from the main process.
   void MainLoop(sigset_t* sset);
 
