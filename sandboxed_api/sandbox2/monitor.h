@@ -97,10 +97,12 @@ class Monitor final {
   bool InitApplyLimit(pid_t pid, int resource, const rlimit64& rlim) const;
 
   // Kills the main traced PID with PTRACE_KILL.
-  void KillSandboxee();
+  // Returns false if an error occured and process could not be killed.
+  bool KillSandboxee();
 
   // Interrupts the main traced PID with PTRACE_INTERRUPT.
-  void InterruptSandboxee();
+  // Returns false if an error occured and process could not be interrupted.
+  bool InterruptSandboxee();
 
   // Waits for events from monitored clients and signals from the main process.
   void MainLoop(sigset_t* sset);

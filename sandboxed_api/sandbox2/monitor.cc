@@ -406,19 +406,23 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   LOG(INFO) << "]";
 }
 
-void Monitor::KillSandboxee() {
+bool Monitor::KillSandboxee() {
   VLOG(1) << "Sending SIGKILL to the PID: " << pid_;
   if (kill(pid_, SIGKILL) != 0) {
     PLOG(ERROR) << "Could not send SIGKILL to PID " << pid_;
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
+    return false;
   }
+  return true;
 }
 
-void Monitor::InterruptSandboxee() {
+bool Monitor::InterruptSandboxee() {
   if (ptrace(PTRACE_INTERRUPT, pid_, 0, 0) == -1) {
     PLOG(ERROR) << "Could not send interrupt to pid=" << pid_;
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_INTERRUPT);
+    return false;
   }
+  return true;
 }
 
 // Not defined in glibc.
@@ -429,22 +433,28 @@ void Monitor::MainLoop(sigset_t* sset) {
   int status;
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
-  for (;;) {
+  while (result_.final_status() == Result::UNSET) {
     int64_t deadline = deadline_millis_.load(std::memory_order_relaxed);
     if (deadline != 0 && absl::Now() >= absl::FromUnixMillis(deadline)) {
       VLOG(1) << "Sandbox process hit timeout due to the walltime timer";
       timed_out_ = true;
-      KillSandboxee();
+      if (!KillSandboxee()) {
+        break;
+      }
     }
 
     if (!dump_stack_request_flag_.test_and_set(std::memory_order_relaxed)) {
       should_dump_stack_ = true;
-      InterruptSandboxee();
+      if (!InterruptSandboxee()) {
+        break;
+      }
     }
 
     if (!external_kill_request_flag_.test_and_set(std::memory_order_relaxed)) {
       external_kill_ = true;
-      KillSandboxee();
+      if (!KillSandboxee()) {
+        break;
+      }
     }
 
     if (network_proxy_server_ &&
@@ -452,11 +462,9 @@ void Monitor::MainLoop(sigset_t* sset) {
             std::memory_order_acquire) &&
         !network_violation_) {
       network_violation_ = true;
-      KillSandboxee();
-    }
-
-    if (result_.final_status() != Result::UNSET) {
-      break;
+      if (!KillSandboxee()) {
+        break;
+      }
     }
 
     // It should be a non-blocking operation (hence WNOHANG), so this function
