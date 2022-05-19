@@ -91,14 +91,14 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
 #ifdef __NR_arch_prctl  // x86-64 only
           __NR_arch_prctl,
 #endif
-      })
-      .AddFile("/etc/localtime")
-      .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size) */);
+      });
   if constexpr (sanitizers::IsAny()) {
     LOG(WARNING) << "Allowing additional calls to support the LLVM "
                  << "(ASAN/MSAN/TSAN) sanitizer";
     builder->AllowLlvmSanitizers();
   }
+    builder->AddFile("/etc/localtime")
+        .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size */);
 }
 
 void Sandbox::Terminate(bool attempt_graceful_exit) {
@@ -140,7 +140,7 @@ absl::Status Sandbox::Init() {
     // library.
     std::string lib_path;
     int embed_lib_fd = -1;
-    if (embed_lib_toc_) {
+    if (embed_lib_toc_ && !sapi::host_os::IsAndroid()) {
       embed_lib_fd = EmbedFile::instance()->GetDupFdForFileToc(embed_lib_toc_);
       if (embed_lib_fd == -1) {
         PLOG(ERROR) << "Cannot create executable FD for TOC:'"
@@ -155,7 +155,6 @@ absl::Status Sandbox::Init() {
         return absl::FailedPreconditionError("No SAPI library path given");
       }
     }
-
     std::vector<std::string> args = {lib_path};
     // Additional arguments, if needed.
     GetArgs(&args);

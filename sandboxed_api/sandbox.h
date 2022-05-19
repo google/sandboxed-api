@@ -22,6 +22,7 @@
 #include "sandboxed_api/file_toc.h"
 #include "absl/base/macros.h"
 #include "absl/status/statusor.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
