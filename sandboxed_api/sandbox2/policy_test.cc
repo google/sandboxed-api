@@ -114,6 +114,21 @@ TEST(PolicyTest, PtraceDisallowed) {
   EXPECT_THAT(result.reason_code(), Eq(__NR_ptrace));
 }
 
+TEST(PolicyTest, PtraceBlocked) {
+  SKIP_SANITIZERS_AND_COVERAGE;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  std::vector<std::string> args = {path, "8"};
+
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              CreatePolicyTestPolicyBuilder()
+                  .BlockSyscallWithErrno(__NR_ptrace, EPERM)
+                  .BuildOrDie());
+  auto result = s2.Run();
+
+  // The policy binary fails with an error if the system call is *not* blocked.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+}
+
 // Test that clone(2) with flag CLONE_UNTRACED is disallowed.
 TEST(PolicyTest, CloneUntracedDisallowed) {
   SKIP_SANITIZERS_AND_COVERAGE;

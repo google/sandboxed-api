@@ -106,10 +106,16 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
     SANDBOX2_TRACE,
     LABEL(&l, past_execveat_l),
 
-    // Forbid ptrace because it's unsafe or too risky.
     LOAD_SYSCALL_NR,
-    JEQ32(__NR_ptrace, DENY),
   };
+
+  // Forbid ptrace because it's unsafe or too risky. The user policy can only
+  // block (i.e. return an error instead of killing the process) but not allow
+  // ptrace. This uses LOAD_SYSCALL_NR from above.
+  if (!user_policy_handles_ptrace_) {
+    policy.insert(policy.end(), {JEQ32(__NR_ptrace, DENY)});
+  }
+
   // If user policy doesn't mention it, then forbid bpf because it's unsafe or
   // too risky.  This uses LOAD_SYSCALL_NR from above.
   if (!user_policy_handles_bpf_) {

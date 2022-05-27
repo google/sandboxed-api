@@ -107,6 +107,7 @@ class Policy final {
   // The policy set by the user.
   std::vector<sock_filter> user_policy_;
   bool user_policy_handles_bpf_ = false;
+  bool user_policy_handles_ptrace_ = false;
 
   // Contains a list of hosts the sandboxee is allowed to connect to.
   absl::optional<AllowedHosts> allowed_hosts_;

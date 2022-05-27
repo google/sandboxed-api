@@ -639,6 +639,7 @@ class PolicyBuilder final {
   std::vector<sock_filter> user_policy_;
   std::vector<sock_filter> overridable_policy_;
   bool user_policy_handles_bpf_ = false;
+  bool user_policy_handles_ptrace_ = false;
   absl::flat_hash_set<uint32_t> handled_syscalls_;
 
   // Error handling

@@ -113,6 +113,9 @@ PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
     if (num == __NR_bpf) {
       user_policy_handles_bpf_ = true;
     }
+    if (num == __NR_ptrace) {
+      user_policy_handles_ptrace_ = true;
+    }
   }
   return *this;
 }
@@ -929,6 +932,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
                               overridable_policy_.begin(),
                               overridable_policy_.end());
   output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
+  output->user_policy_handles_ptrace_ = user_policy_handles_ptrace_;
 
   auto pb_description = absl::make_unique<PolicyBuilderDescription>();
 

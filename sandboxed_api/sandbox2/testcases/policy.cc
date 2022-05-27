@@ -58,11 +58,20 @@ void TestAMD64SyscallMismatchFs() {
 }
 #endif
 
-void TestPtrace() {
+void TestPtraceDenied() {
   ptrace(PTRACE_SEIZE, getppid(), 0, 0);
 
   printf("Syscall violation should have been discovered by now\n");
   exit(EXIT_FAILURE);
+}
+
+void TestPtraceBlocked() {
+  int result = ptrace(PTRACE_SEIZE, getppid(), 0, 0);
+
+  if (result != -1 || errno != EPERM) {
+    printf("System call should have been blocked\n");
+    exit(EXIT_FAILURE);
+  }
 }
 
 void TestCloneUntraced() {
@@ -113,7 +122,7 @@ int main(int argc, char* argv[]) {
       break;
 #endif
     case 3:
-      TestPtrace();
+      TestPtraceDenied();
       break;
     case 4:
       TestCloneUntraced();
@@ -126,6 +135,9 @@ int main(int argc, char* argv[]) {
       break;
     case 7:
       TestBpfError();
+      break;
+    case 8:
+      TestPtraceBlocked();
       break;
     default:
       printf("Unknown test: %d\n", testno);
