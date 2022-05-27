@@ -414,8 +414,9 @@ class PolicyBuilder final {
   PolicyBuilder& AllowDynamicStartup();
 
   // Appends a policy, which will be run on the specified syscall.
-  // This policy must be written without labels. If you need labels, use the
-  // next function.
+  // This policy must be written without labels. If you need labels, use
+  // the overloaded function passing a BpfFunc object instead of the
+  // sock_filter.
   PolicyBuilder& AddPolicyOnSyscall(uint32_t num,
                                     absl::Span<const sock_filter> policy);
 
@@ -457,19 +458,18 @@ class PolicyBuilder final {
   // target architecture.
   PolicyBuilder& AddPolicyOnMmap(absl::Span<const sock_filter> policy);
 
-  // Equivalent to AddPolicyOnSyscalls(mmap_syscalls, f), where mmap_syscalls is
-  // a subset of {__NR_mmap, __NR_mmap2}, which exists on the target
+  // Equivalent to AddPolicyOnSyscalls(mmap_syscalls, f), where mmap_syscalls
+  // is a subset of {__NR_mmap, __NR_mmap2}, which exists on the target
   // architecture.
   PolicyBuilder& AddPolicyOnMmap(BpfFunc f);
 
-  // Builds the policy returning a unique_ptr to it. This should only be called
-  // once.
+  // Builds the policy returning a unique_ptr to it. This should only be
+  // called once.
   absl::StatusOr<std::unique_ptr<Policy>> TryBuild();
 
-  // Builds the policy returning a unique_ptr to it. This should only be called
-  // once.
-  // This function will abort if an error happened in any of the PolicyBuilder
-  // methods.
+  // Builds the policy returning a unique_ptr to it. This should only be
+  // called once. This function will abort if an error happened in any of the
+  // PolicyBuilder methods.
   std::unique_ptr<Policy> BuildOrDie() { return TryBuild().value(); }
 
   // Adds a bind-mount for a file from outside the namespace to inside. This
@@ -495,7 +495,8 @@ class PolicyBuilder final {
   PolicyBuilder& AddLibrariesForBinary(absl::string_view path,
                                        absl::string_view ld_library_path = {});
 
-  // Similar to AddLibrariesForBinary, but binary is specified with an open fd.
+  // Similar to AddLibrariesForBinary, but binary is specified with an open
+  // fd.
   PolicyBuilder& AddLibrariesForBinary(int fd,
                                        absl::string_view ld_library_path = {});
 
@@ -515,9 +516,9 @@ class PolicyBuilder final {
   PolicyBuilder& AddTmpfs(absl::string_view inside, size_t size);
 
   // Allows unrestricted access to the network by *not* creating a network
-  // namespace. Note that this only disables the network namespace. To actually
-  // allow networking, you would also need to allow networking syscalls.
-  // Calling this function will enable use of namespaces.
+  // namespace. Note that this only disables the network namespace. To
+  // actually allow networking, you would also need to allow networking
+  // syscalls. Calling this function will enable use of namespaces.
   PolicyBuilder& AllowUnrestrictedNetworking();
 
   // Enables the use of namespaces.
@@ -539,8 +540,8 @@ class PolicyBuilder final {
     CHECK(!requires_namespaces_)
         << "Namespaces cannot be both disabled and enabled. You're probably "
            "using features that implicitly enable namespaces (SetHostname, "
-           "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary or "
-           "similar)";
+           "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary "
+           "or similar)";
     use_namespaces_ = false;
     return *this;
   }

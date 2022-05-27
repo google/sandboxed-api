@@ -724,6 +724,7 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
+
   AllowRead();
   AllowStat();
   AllowSyscalls({__NR_lseek,
