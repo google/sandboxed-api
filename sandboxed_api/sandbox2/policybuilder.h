@@ -78,7 +78,7 @@ namespace sandbox2 {
 //
 // auto policy = PolicyBuilder.AllowRead().BuildOrDie();
 //
-// If you dislike the chained style, is is also possible to write the first
+// If you dislike the chained style, it is also possible to write the first
 // example as this:
 //
 // PolicyBuilder builder;

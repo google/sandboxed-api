@@ -82,7 +82,7 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
   bpf_labels l = {0};
 
   std::vector<sock_filter> policy = {
-    // If compiled arch is different than the runtime one, inform the Monitor.
+    // If compiled arch is different from the runtime one, inform the Monitor.
     LOAD_ARCH,
     JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
 #if defined(SAPI_X86_64)
