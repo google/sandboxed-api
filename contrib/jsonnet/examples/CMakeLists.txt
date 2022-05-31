@@ -35,5 +35,6 @@ target_link_libraries(jsonnet_base_transacted PRIVATE
   libjsonnet
   sapi_contrib::jsonnet_helper
   sapi_contrib::jsonnet
+  sapi::logging
   sapi::sapi
 )

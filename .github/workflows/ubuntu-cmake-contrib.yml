@@ -82,4 +82,5 @@ jobs:
         ctest \
           --test-dir $GITHUB_WORKSPACE/build \
           -C $BUILD_TYPE \
+          -E "^(sapi_|sandbox2_|regression_test)" \
           --output-on-failure
