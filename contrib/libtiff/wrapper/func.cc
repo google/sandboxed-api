@@ -12,7 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "func.h"  // NOLINT(build/include)
+#include "contrib/libtiff/wrapper/func.h"
+
+#include <cstdint>
+
+// Work around the linker not including this symbol in the final sandboxee
+// binary.
+static volatile auto unused_reference_function =
+    reinterpret_cast<uintptr_t>(&TIFFReadRGBATile);
 
 int TIFFGetField1(TIFF* tif, uint32_t tag, void* param) {
   return TIFFGetField(tif, tag, param);

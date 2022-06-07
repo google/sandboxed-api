@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBTIFF_WRAPPER_FUNC_H_
-#define LIBTIFF_WRAPPER_FUNC_H_
+#ifndef CONTRIB_LIBTIFF_WRAPPER_FUNC_H_
+#define CONTRIB_LIBTIFF_WRAPPER_FUNC_H_
 
 #include <cstdint>
 
@@ -85,4 +85,4 @@ int TIFFSetFieldDouble3(TIFF* tif, uint32_t tag, double param1, double param2,
 
 }  // extern "C"
 
-#endif  // LIBTIFF_WRAPPER_FUNC_H_
+#endif  // CONTRIB_LIBTIFF_WRAPPER_FUNC_H_

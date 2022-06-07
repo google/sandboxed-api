@@ -12,35 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13..3.22)
 
 project(sandboxed_libtiff CXX)
+include(CTest)
+include(GoogleTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Set this on the command-line
-set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
-# To obtain a full SAPI_ROOT check out its source separately:
-#   git clone https://github.com/google/sandboxed-api.git $HOME/sapi_root
-# Then configure:
-#   mkdir -p build && cd build
-#   cmake .. -G Ninja -DSAPI_ROOT=$HOME/sapi_root
+if(NOT TARGET sapi::sapi)
+  set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
+  add_subdirectory("${SAPI_ROOT}"
+                   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+                   EXCLUDE_FROM_ALL)
+endif()
 
-option(TIFF_SAPI_BUILD_EXAMPLES "" ON)
-option(TIFF_SAPI_BUILD_TESTING "" ON)
-
-set(SAPI_BUILD_EXAMPLES ${TIFF_SAPI_BUILD_EXAMPLES} CACHE BOOL "" FORCE)
-set(SAPI_BUILD_TESTING ${TIFF_SAPI_BUILD_TESTING} CACHE BOOL "" FORCE)
+FetchContent_Declare(libtiff
+  GIT_REPOSITORY https://gitlab.com/libtiff/libtiff
+  GIT_TAG        v4.4.0  # 2022-05-20
+)
+FetchContent_MakeAvailable(libtiff)
 
 add_subdirectory(wrapper)
-
-add_subdirectory(
-  "${SAPI_ROOT}"
-  "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-  # Omit this to have the full Sandboxed API in IDE
-  EXCLUDE_FROM_ALL
-)
 
 add_sapi_library(tiff_sapi
   # List of functions that we want to include in the
@@ -84,6 +78,7 @@ add_sapi_library(tiff_sapi
             TIFFSetFieldDouble3
 
             TIFFReadRGBATile
+            TIFFReadRGBATileExt
             TIFFReadEncodedTile
             TIFFReadEncodedStrip
             TIFFReadFromUserBuffer
@@ -108,7 +103,7 @@ add_sapi_library(tiff_sapi
             TIFFCreateEXIFDirectory
             TIFFWriteCustomDirectory
 
-  INPUTS wrapper/libtiff/libtiff/tiffio.h
+  INPUTS "${libtiff_SOURCE_DIR}/libtiff/tiffio.h"
          wrapper/func.h
                           # Header files or .cc files that should be parsed
   LIBRARY wrapped_tiff    # Library dependency from the add_library() above
@@ -116,15 +111,15 @@ add_sapi_library(tiff_sapi
                           # suffixed with "Api" and "Sandbox" as needed.
   NAMESPACE ""            # Optional C++ namespace to wrap the generated code
 )
-
+add_library(sapi_contrib::libtiff ALIAS tiff_sapi)
 target_include_directories(tiff_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"  # To find the generated SAPI header
 )
 
-if (TIFF_SAPI_BUILD_EXAMPLES)
+if (SAPI_BUILD_EXAMPLES)
   add_subdirectory(example)
 endif()
 
-if (TIFF_SAPI_BUILD_TESTING)
+if (BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(test)
 endif()

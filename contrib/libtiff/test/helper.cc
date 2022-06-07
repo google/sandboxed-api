@@ -16,30 +16,10 @@
 
 #include <iostream>
 
-auto* g_in_dir = new std::string();
-
-std::string GetCWD() {
-  char cwd[PATH_MAX];
-  getcwd(cwd, sizeof(cwd));
-  return cwd;
-}
-
-std::string GetImagesDir() {
-  std::string cwd = GetCWD();
-  auto find = cwd.rfind("/build");
-  if (find == std::string::npos) {
-    std::cerr << "Something went wrong: CWD don't contain build dir. "
-              << "Please run tests from build dir, path might be incorrect\n";
-
-    return cwd + "/test/images";
-  }
-
-  return cwd.substr(0, find) + "/test/images";
-}
-
 std::string GetFilePath(const std::string& filename) {
-  if (g_in_dir->empty()) {
-    *g_in_dir = GetImagesDir();
-  }
-  return sandbox2::file::JoinPath(*g_in_dir, filename);
+  const char* test_srcdir = std::getenv("TEST_SRCDIR");
+
+  return sapi::file::JoinPath(
+      test_srcdir == nullptr ? sapi::file_util::fileops::GetCWD() : test_srcdir,
+      filename);
 }

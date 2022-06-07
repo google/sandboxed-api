@@ -12,17 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_library(wrapped_tiff OBJECT
+add_library(wrapped_tiff STATIC
   func.h
   func.cc
 )
-set_target_properties(wrapped_tiff
-  PROPERTIES LINKER_LANGUAGE C
-)
-
-add_subdirectory(libtiff)
-
-target_link_libraries(wrapped_tiff
+target_link_libraries(wrapped_tiff PRIVATE
   sapi::temp_file
   sapi::sapi
   tiff

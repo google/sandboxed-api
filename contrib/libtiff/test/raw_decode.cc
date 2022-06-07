@@ -41,9 +41,10 @@ constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
 constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
 constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
 
-int CheckCluster(int cluster, const sapi::v::Array<uint8_t> &buffer,
-                 const std::vector<uint8_t> &expected_cluster) {
-  uint8_t *target = buffer.GetData() + cluster * 6;
+template <typename ArrayT>
+int CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
+                 const ArrayT& expected_cluster) {
+  uint8_t* target = buffer.GetData() + cluster * 6;
 
   bool comp = !(std::memcmp(target, expected_cluster.data(), 6) == 0);
 
@@ -60,8 +61,8 @@ int CheckCluster(int cluster, const sapi::v::Array<uint8_t> &buffer,
 
 int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
                   int max_green, int min_blue, int max_blue,
-                  const sapi::v::Array<uint8_t> &buffer) {
-  uint8_t *rgb = buffer.GetData() + 3 * pixel;
+                  const sapi::v::Array<uint8_t>& buffer) {
+  uint8_t* rgb = buffer.GetData() + 3 * pixel;
 
   bool comp =
       !(rgb[0] >= min_red && rgb[0] <= max_red && rgb[1] >= min_green &&
@@ -78,7 +79,7 @@ int CheckRgbPixel(int pixel, int min_red, int max_red, int min_green,
 
 int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
                    int max_green, int min_blue, int max_blue, int min_alpha,
-                   int max_alpha, const sapi::v::Array<uint32_t> &buffer) {
+                   int max_alpha, const sapi::v::Array<uint32_t>& buffer) {
   // RGBA images are upside down - adjust for normal ordering
   int adjusted_pixel = pixel % 128 + (127 - (pixel / 128)) * 128;
   unsigned rgba = buffer[adjusted_pixel];
@@ -103,38 +104,37 @@ int CheckRgbaPixel(int pixel, int min_red, int max_red, int min_green,
 }
 
 TEST(SandboxTest, RawDecode) {
-  std::string srcfile = GetFilePath("quad-tile.jpg.tiff");
+  std::string srcfile = GetFilePath("test/images/quad-tile.jpg.tiff");
 
   TiffSapiSandbox sandbox("", srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
   tsize_t sz;
   unsigned int pixel_status = 0;
-  sapi::v::UShort h, v;
-  absl::StatusOr<TIFF> status_or_tif;
-  absl::StatusOr<int> status_or_int;
-  absl::StatusOr<tmsize_t> status_or_long;
+  sapi::v::UShort h;
+  sapi::v::UShort v;
 
   TiffApi api(&sandbox);
   sapi::v::ConstCStr srcfile_var(srcfile.c_str());
   sapi::v::ConstCStr r_var("r");
 
-  status_or_tif = api.TIFFOpen(srcfile_var.PtrBefore(), r_var.PtrBefore());
+  absl::StatusOr<TIFF*> status_or_tif =
+      api.TIFFOpen(srcfile_var.PtrBefore(), r_var.PtrBefore());
   ASSERT_THAT(status_or_tif, IsOk()) << "Could not open " << srcfile;
 
   sapi::v::RemotePtr tif(status_or_tif.value());
   ASSERT_THAT(tif.GetValue(), NotNull())
       << "Could not open " << srcfile << ", TIFFOpen return NULL";
 
-  status_or_int = api.TIFFGetField2(&tif, TIFFTAG_YCBCRSUBSAMPLING, h.PtrBoth(),
-                                    v.PtrBoth());
+  absl::StatusOr<int> status_or_int = api.TIFFGetField2(
+      &tif, TIFFTAG_YCBCRSUBSAMPLING, h.PtrBoth(), v.PtrBoth());
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFGetField2 fatal error";
   EXPECT_THAT(
       status_or_int.value() == 0 || h.GetValue() != 2 || v.GetValue() != 2,
       IsFalse())
       << "Could not retrieve subsampling tag";
 
-  status_or_long = api.TIFFTileSize(&tif);
+  absl::StatusOr<tmsize_t> status_or_long = api.TIFFTileSize(&tif);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFTileSize fatal error";
   EXPECT_THAT(status_or_long.value(), Eq(24576))
       << "tiles are " << status_or_long.value() << " bytes";

@@ -50,11 +50,11 @@ constexpr int kSamplePerPixel = 1;
 
 void TestWriting(const char* mode, int tiled, int height) {
   absl::StatusOr<std::string> status_or_path =
-      sandbox2::CreateNamedTempFileAndClose("defer_strile_writing.tif");
+      sapi::CreateNamedTempFileAndClose("defer_strile_writing.tif");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp file";
 
-  std::string srcfile = sandbox2::file::JoinPath(
-      sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
+  std::string srcfile = sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(),
+                                             status_or_path.value());
 
   absl::StatusOr<int> status_or_int;
   absl::StatusOr<int64_t> status_or_long;

@@ -21,6 +21,7 @@
 #include "../sandboxed.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/vars.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
 // sapi functions:
@@ -38,8 +39,9 @@ constexpr std::array<uint8_t, 6> kCluster0 = {0, 0, 2, 0, 138, 139};
 constexpr std::array<uint8_t, 6> kCluster64 = {0, 0, 9, 6, 134, 119};
 constexpr std::array<uint8_t, 6> kCluster128 = {44, 40, 63, 59, 230, 95};
 
+template <typename ArrayT>
 int CheckCluster(int cluster, const sapi::v::Array<uint8_t>& buffer,
-                 const std::vector<uint8_t>& expected_cluster) {
+                 const ArrayT& expected_cluster) {
   uint8_t* target = buffer.GetData() + cluster * 6;
 
   if (!std::memcmp(target, expected_cluster.data(), 6)) {

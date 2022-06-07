@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBTIFF_SANDBOXED_H_
-#define LIBTIFF_SANDBOXED_H_
+#ifndef CONTRIB_LIBTIFF_SANDBOXED_H_
+#define CONTRIB_LIBTIFF_SANDBOXED_H_
 
 #include <linux/futex.h>
 #include <syscall.h>
 
+#include <string>
+#include <memory>
 #include <utility>
 
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "tiff_sapi.sapi.h"  // NOLINT(build/include)
-
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all);
-ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 
 class TiffSapiSandbox : public TiffSandbox {
  public:
@@ -67,4 +66,4 @@ class TiffSapiSandbox : public TiffSandbox {
   std::string file_;
 };
 
-#endif  // LIBTIFF_SANDBOXED_H_
+#endif  // CONTRIB_LIBTIFF_SANDBOXED_H_

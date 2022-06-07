@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBTIFF_TEST_CHECK_TAG_H_
-#define LIBTIFF_TEST_CHECK_TAG_H_
+#ifndef CONTRIB_LIBTIFF_TEST_CHECK_TAG_H_
+#define CONTRIB_LIBTIFF_TEST_CHECK_TAG_H_
 
 #include <cstdint>
 
@@ -28,4 +28,4 @@ void CheckShortPairedField(TiffApi& api, sapi::v::RemotePtr& tif,
 void CheckLongField(TiffApi&, sapi::v::RemotePtr& tif, const ttag_t field,
                     const uint32_t value);
 
-#endif  // LIBTIFF_TEST_CHECK_TAG_H_
+#endif  // CONTRIB_LIBTIFF_TEST_CHECK_TAG_H_

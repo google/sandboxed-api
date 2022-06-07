@@ -23,6 +23,7 @@ using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
+using ::testing::Ne;
 using ::testing::NotNull;
 
 // sapi functions:
@@ -47,35 +48,35 @@ struct SingleTag {
   const uint16_t value;
 };
 
+constexpr std::array<SingleTag, 9> kShortSingleTags = {
+    SingleTag{TIFFTAG_COMPRESSION, COMPRESSION_NONE},
+    SingleTag{TIFFTAG_FILLORDER, FILLORDER_MSB2LSB},
+    SingleTag{TIFFTAG_ORIENTATION, ORIENTATION_BOTRIGHT},
+    SingleTag{TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH},
+    SingleTag{TIFFTAG_MINSAMPLEVALUE, 23},
+    SingleTag{TIFFTAG_MAXSAMPLEVALUE, 241},
+    SingleTag{TIFFTAG_INKSET, INKSET_MULTIINK},
+    SingleTag{TIFFTAG_NUMBEROFINKS, kSamplePerPixel},
+    SingleTag{TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}};
+
 struct PairedTag {
   const ttag_t tag;
   const std::array<uint16_t, 2> values;
 };
 
-constexpr std::array<SingleTag, 9> kShortSingleTags = {
-    {TIFFTAG_COMPRESSION, COMPRESSION_NONE},
-    {TIFFTAG_FILLORDER, FILLORDER_MSB2LSB},
-    {TIFFTAG_ORIENTATION, ORIENTATION_BOTRIGHT},
-    {TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH},
-    {TIFFTAG_MINSAMPLEVALUE, 23},
-    {TIFFTAG_MAXSAMPLEVALUE, 241},
-    {TIFFTAG_INKSET, INKSET_MULTIINK},
-    {TIFFTAG_NUMBEROFINKS, kSamplePerPixel},
-    {TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT}};
-
 constexpr std::array<PairedTag, 4> kShortPairedTags = {
-    {TIFFTAG_PAGENUMBER, {1, 1}},
-    {TIFFTAG_HALFTONEHINTS, {0, 255}},
-    {TIFFTAG_DOTRANGE, {8, 16}},
-    {TIFFTAG_YCBCRSUBSAMPLING, {2, 1}}};
+    PairedTag{TIFFTAG_PAGENUMBER, {1, 1}},
+    PairedTag{TIFFTAG_HALFTONEHINTS, {0, 255}},
+    PairedTag{TIFFTAG_DOTRANGE, {8, 16}},
+    PairedTag{TIFFTAG_YCBCRSUBSAMPLING, {2, 1}}};
 
 TEST(SandboxTest, ShortTag) {
   absl::StatusOr<std::string> status_or_path =
-      sandbox2::CreateNamedTempFileAndClose("short_test.tif");
+      sapi::CreateNamedTempFileAndClose("short_test.tif");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp file";
 
-  std::string srcfile = sandbox2::file::JoinPath(
-      sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
+  std::string srcfile =
+      sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(), *status_or_path);
 
   TiffSapiSandbox sandbox("", srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";

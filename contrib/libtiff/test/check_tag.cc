@@ -22,8 +22,6 @@ using ::testing::IsTrue;
 // sapi functions:
 // TIFFGetField
 
-namespace {
-
 void CheckShortField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
                      const uint16_t value) {
   sapi::v::UShort tmp(123);
@@ -67,5 +65,3 @@ void CheckLongField(TiffApi& api, sapi::v::RemotePtr& tif, const ttag_t field,
   EXPECT_THAT(tmp.GetValue(), Eq(value))
       << "Wrong LONG value fetched for tag " << field;
 }
-
-}  // namespace

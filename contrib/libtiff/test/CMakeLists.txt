@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include(GoogleTest)
-
 add_executable(tests
   check_tag.h
   check_tag.cc
@@ -24,14 +22,15 @@ add_executable(tests
   helper.h
   helper.cc
 )
-
-target_link_libraries(tests PRIVATE
-  tiff_sapi
-  sapi::sapi
-  sapi::temp_file
-  gtest
-  gmock
-  gtest_main
+target_link_libraries(tests
+  PRIVATE sapi::base
+          sapi::sapi
+          sapi::temp_file
+          sapi_contrib::libtiff
+          gmock
+          gtest_main
 )
 
-gtest_discover_tests(tests)
+gtest_discover_tests(tests PROPERTIES
+  ENVIRONMENT "TEST_SRCDIR=${PROJECT_SOURCE_DIR}"
+)

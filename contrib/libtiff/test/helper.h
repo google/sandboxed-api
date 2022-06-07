@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBTIFF_TEST_HELPER_H_
-#define LIBTIFF_TEST_HELPER_H_
+#ifndef CONTRIB_LIBTIFF_TEST_HELPER_H_
+#define CONTRIB_LIBTIFF_TEST_HELPER_H_
 
 #include <string>
 
@@ -26,4 +26,4 @@
 
 std::string GetFilePath(const std::string& filename);
 
-#endif  // LIBTIFF_TEST_HELPER_H_
+#endif  // CONTRIB_LIBTIFF_TEST_HELPER_H_

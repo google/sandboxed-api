@@ -49,17 +49,17 @@ constexpr int kRowsPerStrip = 1;
 
 TEST(SandboxTest, LongTag) {
   absl::StatusOr<std::string> status_or_path =
-      sandbox2::CreateNamedTempFileAndClose("long_test.tif");
+      sapi::CreateNamedTempFileAndClose("long_test.tif");
   ASSERT_THAT(status_or_path, IsOk()) << "Could not create temp file";
 
-  std::string srcfile = sandbox2::file::JoinPath(
-      sandbox2::file_util::fileops::GetCWD(), status_or_path.value());
+  std::string srcfile = sapi::file::JoinPath(sapi::file_util::fileops::GetCWD(),
+                                             status_or_path.value());
 
   TiffSapiSandbox sandbox("", srcfile);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Couldn't initialize Sandboxed API";
 
-  std::array<uint8_t, SPP> buffer = {0, 127, 255};
-  sapi::v::Array<uint8_t> buffer_(buffer.data(), SPP);
+  std::array<uint8_t, kSamplesPerPixel> buffer = {0, 127, 255};
+  sapi::v::Array<uint8_t> buffer_(buffer.data(), kSamplesPerPixel);
 
   absl::StatusOr<int> status_or_int;
   absl::StatusOr<TIFF*> status_or_tif;
@@ -87,7 +87,8 @@ TEST(SandboxTest, LongTag) {
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue()) << "Can't set BitsPerSample tag";
 
-  status_or_int = api.TIFFSetFieldU1(&tif, TIFFTAG_SAMPLESPERPIXEL, SPP);
+  status_or_int =
+      api.TIFFSetFieldU1(&tif, TIFFTAG_SAMPLESPERPIXEL, kSamplesPerPixel);
   ASSERT_THAT(status_or_int, IsOk()) << "TIFFSetFieldU1 fatal error";
   EXPECT_THAT(status_or_int.value(), IsTrue())
       << "Can't set SamplesPerPixel tag";

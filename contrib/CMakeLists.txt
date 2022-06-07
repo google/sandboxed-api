@@ -18,6 +18,7 @@ set(SAPI_CONTRIB_SANDBOXES
   hunspell
   jsonnet
   libidn2
+  libtiff
   libxls
   libzip
   pffft
