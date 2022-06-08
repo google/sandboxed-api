@@ -149,7 +149,7 @@ void SafeWriteToStderr(const char* s, size_t len) {
 
 bool VLogIsOn(int verbose_level) {
   static int external_verbose_level = [] {
-    int external_verbose_level = std::numeric_limits<int>::max();
+    int external_verbose_level = std::numeric_limits<int>::min();
     char* env_var = getenv("SAPI_VLOG_LEVEL");
     if (!env_var) {
       return external_verbose_level;
@@ -159,7 +159,7 @@ bool VLogIsOn(int verbose_level) {
                    "SAPI_VLOG_LEVEL needs to be an integer >= 0");
     return external_verbose_level;
   }();
-  return verbose_level >= external_verbose_level;
+  return verbose_level <= external_verbose_level;
 }
 
 }  // namespace sapi::raw_logging_internal
