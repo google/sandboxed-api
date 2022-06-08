@@ -73,7 +73,8 @@ using ::sapi::StatusIs;
 
 class PolicyBuilderTest : public testing::Test {
  protected:
-  static std::string Run(std::vector<std::string> args, bool network = false);
+  static std::string Run(const std::vector<std::string>& args,
+                         bool network = false);
 };
 
 TEST_F(PolicyBuilderTest, Testpolicy_size) {
@@ -157,12 +158,18 @@ TEST_F(PolicyBuilderTest, TestValidateAbsolutePath) {
   }
 }
 
-std::string PolicyBuilderTest::Run(std::vector<std::string> args,
+std::string PolicyBuilderTest::Run(const std::vector<std::string>& args,
                                    bool network) {
   PolicyBuilder builder;
   // Don't restrict the syscalls at all.
   builder.DangerDefaultAllowAll();
-  builder.AddLibrariesForBinary(args[0]);
+
+  if constexpr (sapi::host_os::IsAndroid()) {
+    builder.DisableNamespaces();
+  } else {
+    builder.AddLibrariesForBinary(args[0]);
+  }
+
   if (network) {
     builder.AllowUnrestrictedNetworking();
   }
@@ -216,6 +223,7 @@ TEST_F(PolicyBuilderTest, TestEcho) {
 }
 
 TEST_F(PolicyBuilderTest, TestInterfacesNoNetwork) {
+  SKIP_ANDROID;
   auto lines = absl::StrSplit(Run({"/sbin/ip", "addr", "show", "up"}), '\n');
 
   int count = 0;
@@ -230,6 +238,7 @@ TEST_F(PolicyBuilderTest, TestInterfacesNoNetwork) {
 }
 
 TEST_F(PolicyBuilderTest, TestInterfacesNetwork) {
+  SKIP_ANDROID;
   auto lines =
       absl::StrSplit(Run({"/sbin/ip", "addr", "show", "up"}, true), '\n');
 
@@ -245,11 +254,19 @@ TEST_F(PolicyBuilderTest, TestInterfacesNetwork) {
 }
 
 TEST_F(PolicyBuilderTest, TestUid) {
-  EXPECT_THAT(Run({"/usr/bin/id", "-u"}), StrEq("1000\n"));
+  if constexpr (!sapi::host_os::IsAndroid()) {
+    EXPECT_THAT(Run({"/usr/bin/id", "-u"}), StrEq("1000\n"));
+  } else {
+    EXPECT_THAT(Run({"/bin/id", "-u"}), StrEq("0\n"));
+  }
 }
 
 TEST_F(PolicyBuilderTest, TestGid) {
-  EXPECT_THAT(Run({"/usr/bin/id", "-g"}), StrEq("1000\n"));
+  if constexpr (!sapi::host_os::IsAndroid()) {
+    EXPECT_THAT(Run({"/usr/bin/id", "-g"}), StrEq("1000\n"));
+  } else {
+    EXPECT_THAT(Run({"/bin/id", "-g"}), StrEq("0\n"));
+  }
 }
 
 TEST_F(PolicyBuilderTest, TestOpenFds) {

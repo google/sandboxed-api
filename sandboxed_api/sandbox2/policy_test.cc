@@ -16,6 +16,7 @@
 
 #include <sys/resource.h>
 #include <syscall.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <cstdlib>
@@ -42,8 +43,13 @@ using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 
 PolicyBuilder CreatePolicyTestPolicyBuilder() {
-  return PolicyBuilder()
-      .DisableNamespaces()
+  sandbox2::PolicyBuilder builder;
+
+  if constexpr (sapi::host_os::IsAndroid()) {
+    builder.AllowDynamicStartup();
+  }
+
+  builder.DisableNamespaces()
       .AllowStaticStartup()
       .AllowExit()
       .AllowRead()
@@ -66,6 +72,7 @@ PolicyBuilder CreatePolicyTestPolicyBuilder() {
           },
           ENOENT)
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
+  return builder;
 }
 
 std::unique_ptr<Policy> PolicyTestcasePolicy() {
@@ -75,6 +82,7 @@ std::unique_ptr<Policy> PolicyTestcasePolicy() {
 #ifdef SAPI_X86_64
 // Test that 32-bit syscalls from 64-bit are disallowed.
 TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
+  SKIP_ANDROID;
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
 
@@ -89,6 +97,7 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
 
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
 TEST(PolicyTest, AMD64Syscall32FsAllowed) {
+  SKIP_ANDROID;
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "2"};
@@ -182,20 +191,27 @@ TEST(PolicyTest, IsattyAllowed) {
 }
 
 std::unique_ptr<Policy> MinimalTestcasePolicy() {
-  return PolicyBuilder()
-      .AllowStaticStartup()
-      .AllowExit()
+  sandbox2::PolicyBuilder builder;
+
+  if constexpr (sapi::host_os::IsAndroid()) {
+    builder.AllowDynamicStartup();
+    builder.DisableNamespaces();
+  }
+
+  builder.AllowStaticStartup()
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
 #ifdef __NR_access
       .BlockSyscallWithErrno(__NR_access, ENOENT)
 #endif
-      .BuildOrDie();
+      .AllowExit();
+  return builder.BuildOrDie();
 }
 
 // Test that we can sandbox a minimal static binary returning 0.
 // If this starts failing, it means something changed, maybe in the way we
 // compile static binaries, and we need to update the policy just above.
 TEST(MinimalTest, MinimalBinaryWorks) {
+  SKIP_ANDROID;
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
@@ -213,18 +229,24 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
       GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
   std::vector<std::string> args = {path};
 
-  auto policy = PolicyBuilder()
-                    .AllowDynamicStartup()
-                    .AllowOpen()
-                    .AllowExit()
-                    .AllowMmap()
+  sandbox2::PolicyBuilder builder;
+
+  if constexpr (sapi::host_os::IsAndroid()) {
+    builder.DisableNamespaces();
+  } else {
+    builder.AddLibrariesForBinary(path);
+  }
+
+  builder.AllowDynamicStartup()
+      .AllowOpen()
+      .AllowExit()
+      .AllowMmap()
 #ifdef __NR_access
-                    // New glibc accesses /etc/ld.so.preload
-                    .BlockSyscallWithErrno(__NR_access, ENOENT)
+      // New glibc accesses /etc/ld.so.preload
+      .BlockSyscallWithErrno(__NR_access, ENOENT)
 #endif
-                    .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-                    .AddLibrariesForBinary(path)
-                    .BuildOrDie();
+      .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
+  auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
@@ -240,15 +262,24 @@ TEST(MallocTest, SystemMallocWorks) {
       GetTestSourcePath("sandbox2/testcases/malloc_system");
   std::vector<std::string> args = {path};
 
-  auto policy = PolicyBuilder()
-                    .AllowStaticStartup()
-                    .AllowSystemMalloc()
-                    .AllowExit()
-                    .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
+  sandbox2::PolicyBuilder builder;
+
+  if constexpr (sapi::host_os::IsAndroid()) {
+    builder.DisableNamespaces();
+    builder.AllowDynamicStartup();
+    builder.AllowSyscalls({
+        __NR_madvise,
+    });
+  }
+
+  builder.AllowStaticStartup()
+      .AllowSystemMalloc()
+      .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
 #ifdef __NR_access
-                    .BlockSyscallWithErrno(__NR_access, ENOENT)
+      .BlockSyscallWithErrno(__NR_access, ENOENT)
 #endif
-                    .BuildOrDie();
+      .AllowExit();
+  auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
@@ -268,57 +299,62 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
       GetTestSourcePath("sandbox2/testcases/add_policy_on_syscalls");
   std::vector<std::string> args = {path};
 
-  auto policy = PolicyBuilder()
-                    .AllowStaticStartup()
-                    .AllowTcMalloc()
-                    .AllowExit()
-                    .AddPolicyOnSyscalls(
-                        {
-                            __NR_getuid,
-                            __NR_getgid,
-                            __NR_geteuid,
-                            __NR_getegid,
+  sandbox2::PolicyBuilder builder;
+  if constexpr (sapi::host_os::IsAndroid()) {
+    builder.DisableNamespaces();
+    builder.AllowDynamicStartup();
+  }
+
+  builder.AllowStaticStartup()
+      .AllowTcMalloc()
+      .AllowExit()
+      .AddPolicyOnSyscalls(
+          {
+              __NR_getuid,
+              __NR_getgid,
+              __NR_geteuid,
+              __NR_getegid,
 #ifdef __NR_getuid32
-                            __NR_getuid32,
+              __NR_getuid32,
 #endif
 #ifdef __NR_getgid32
-                            __NR_getgid32,
+              __NR_getgid32,
 #endif
 #ifdef __NR_geteuid32
-                            __NR_geteuid32,
+              __NR_geteuid32,
 #endif
 #ifdef __NR_getegid32
-                            __NR_getegid32,
+              __NR_getegid32,
 #endif
-                        },
-                        {ALLOW})
-                    .AddPolicyOnSyscalls(
-                        {
-                            __NR_getresuid,
-                            __NR_getresgid,
+          },
+          {ALLOW})
+      .AddPolicyOnSyscalls(
+          {
+              __NR_getresuid,
+              __NR_getresgid,
 #ifdef __NR_getresuid32
-                            __NR_getresuid32,
+              __NR_getresuid32,
 #endif
 #ifdef __NR_getresgid32
-                            __NR_getresgid32,
+              __NR_getresgid32,
 #endif
-                        },
-                        {ERRNO(42)})
-                    .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
-                    .AddPolicyOnSyscall(__NR_umask, {DENY})
-                    .BlockSyscallsWithErrno(
-                        {
+          },
+          {ERRNO(42)})
+      .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
+      .AddPolicyOnSyscall(__NR_umask, {DENY})
+      .BlockSyscallsWithErrno(
+          {
 #ifdef __NR_open
-                            __NR_open,
+              __NR_open,
 #endif
-                            __NR_openat,
+              __NR_openat,
 #ifdef __NR_access
-                            __NR_access,
+              __NR_access,
 #endif
-                        },
-                        ENOENT)
-                    .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-                    .BuildOrDie();
+          },
+          ENOENT)
+      .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
+  auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();

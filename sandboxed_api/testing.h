@@ -20,6 +20,22 @@
 
 #include "absl/strings/string_view.h"
 
+// The macro SKIP_ANDROID can be used in tests to skip running a
+// given test (by emitting 'retrun') when running on Android. Example:
+//
+//    TEST(Foo, Bar) {
+//      SKIP_ANDROID;
+//      [...]
+//      }
+//
+// The reason for this is because certain unit tests require the use of user
+// namespaces which are not present on Android.
+#if defined(__ANDROID__)
+#define SKIP_ANDROID return
+#else
+#define SKIP_ANDROID
+#endif
+
 // The macro SKIP_SANITIZERS_AND_COVERAGE can be used in tests to skip running
 // a given test (by emitting 'return') when running under one of the sanitizers
 // (ASan, MSan, TSan) or under code coverage. Example:

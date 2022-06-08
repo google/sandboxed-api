@@ -724,6 +724,77 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
+#ifdef __ANDROID__
+  AllowAccess();
+  AllowSafeFcntl();
+  AllowGetIDs();
+  AllowGetPIDs();
+  AllowGetRandom();
+  AllowOpen();
+  AllowSyscalls({
+#ifdef __NR_fstatfs
+      __NR_fstatfs,
+#endif
+#ifdef __NR_fstatfs64
+      __NR_fstatfs64,
+#endif
+      __NR_readlinkat,
+      __NR_sched_getaffinity,
+      __NR_sched_getscheduler,
+  });
+  AllowHandleSignals();
+  AllowFutexOp(FUTEX_WAKE_PRIVATE);
+  AddPolicyOnSyscall(__NR_prctl,
+                     [](bpf_labels& labels) -> std::vector<sock_filter> {
+                       return {
+                           ARG_32(0),  // option
+                           JEQ32(PR_GET_DUMPABLE, ALLOW),
+                           JNE32(PR_SET_VMA, JUMP(&labels, prctl_end)),
+
+                           ARG_32(1),  // arg2
+                           JEQ32(PR_SET_VMA_ANON_NAME, ALLOW),
+
+                           LABEL(&labels, prctl_end),
+                       };
+                     });
+  AddPolicyOnSyscall(__NR_mremap,
+                     {
+                         ARG_32(3),
+                         JEQ32(MREMAP_MAYMOVE | MREMAP_FIXED, ALLOW),
+                     });
+  AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
+    return {
+        ARG_32(2),  // prot
+        JEQ32(PROT_NONE, JUMP(&labels, prot_none)),
+        JEQ32(PROT_READ, JUMP(&labels, prot_read)),
+        JEQ32(PROT_READ | PROT_WRITE, JUMP(&labels, prot_RW_or_RX)),
+        JEQ32(PROT_READ | PROT_EXEC, JUMP(&labels, prot_RW_or_RX)),
+
+        // PROT_NONE
+        LABEL(&labels, prot_none),
+        ARG_32(3),  // flags
+        JEQ32(MAP_PRIVATE | MAP_ANONYMOUS, ALLOW),
+        JEQ32(MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, ALLOW),
+        JUMP(&labels, mmap_end),
+
+        // PROT_READ
+        LABEL(&labels, prot_read),
+        ARG_32(3),  // flags
+        JEQ32(MAP_SHARED, ALLOW),
+        JEQ32(MAP_PRIVATE, ALLOW),
+        JEQ32(MAP_PRIVATE | MAP_FIXED, ALLOW),
+        JUMP(&labels, mmap_end),
+
+        // PROT_READ | PROT_WRITE
+        // PROT_READ | PROT_EXEC
+        LABEL(&labels, prot_RW_or_RX),
+        ARG_32(3),  // flags
+        JEQ32(MAP_PRIVATE | MAP_FIXED, ALLOW),
+
+        LABEL(&labels, mmap_end),
+    };
+  });
+#endif
 
   AllowRead();
   AllowStat();
