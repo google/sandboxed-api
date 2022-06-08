@@ -21,7 +21,7 @@
 #include "../sandboxed.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/vars.h"
+#include "sandboxed_api/vars.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
 // sapi functions:
