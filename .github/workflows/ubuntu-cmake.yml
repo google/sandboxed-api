@@ -11,6 +11,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: ubuntu-22.04
+            compiler: clang
+            compiler-version: 11
+            # Ubuntu 22.04 is in beta
+            ignore-errors: true
+          - os: ubuntu-22.04
+            compiler: gcc
+            compiler-version: 11
+            # Ubuntu 22.04 is in beta
+            ignore-errors: true
           - os: ubuntu-20.04
             compiler: clang
             compiler-version: 11
