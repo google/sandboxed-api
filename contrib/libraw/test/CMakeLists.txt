@@ -17,7 +17,8 @@ add_executable(sapi_libraw_test
   ../utils/utils_libraw.cc
 )
 target_link_libraries(sapi_libraw_test PRIVATE
-  sapi_libraw
+  absl::strings
+  sapi_contrib::libraw
   sapi::test_main
   sapi::temp_file
 )

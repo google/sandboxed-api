@@ -14,6 +14,7 @@
 
 #include "contrib/libraw/utils/utils_libraw.h"
 
+#include "absl/strings/str_cat.h"
 #include "contrib/libraw/sandboxed.h"
 
 absl::Status LibRaw::InitLibRaw() {
@@ -124,10 +125,9 @@ absl::StatusOr<int> LibRaw::GetRawWidth() {
 absl::StatusOr<unsigned int> LibRaw::GetCBlack(int channel) {
   SAPI_RETURN_IF_ERROR(CheckIsInit());
 
-  if (channel < 0 || >= LIBRAW_CBLACK_SIZE) {
-    return absl::OutOfRangeError(absl::string_view(
-        std::to_string(channel) + " is out of range for array with size " +
-        std::to_string(LIBRAW_CBLACK_SIZE)));
+  if (channel < 0 || channel >= LIBRAW_CBLACK_SIZE) {
+    return absl::OutOfRangeError(absl::StrCat(
+        channel, " is out of range for array with size ", LIBRAW_CBLACK_SIZE));
   }
 
   return GetImgData().color.cblack[channel];

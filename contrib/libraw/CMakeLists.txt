@@ -28,7 +28,7 @@ if (NOT TARGET sapi::sapi)
                    EXCLUDE_FROM_ALL)
 endif()
 
-FetchContent_Declare( libraw
+FetchContent_Declare(libraw
   GIT_REPOSITORY https://github.com/LibRaw/LibRaw.git
   GIT_TAG        a077aac05190530f22af4254a1e31745876d007f # 2022-06-03
 )

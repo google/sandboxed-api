@@ -17,7 +17,8 @@ add_executable(sapi_minilibraw
   ../utils/utils_libraw.cc
 )
 target_link_libraries(sapi_minilibraw
-  PRIVATE sapi_libraw
+  PRIVATE absl::strings
+          sapi_contrib::libraw
           sapi::logging
           sapi::sapi
 )
