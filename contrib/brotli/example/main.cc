@@ -25,9 +25,9 @@
 
 ABSL_FLAG(bool, decompress, false, "decompress");
 
-absl::Status CompressInMemory(BrotliSandbox &sandbox,
-                              const std::string &in_file_s,
-                              const std::string &out_file_s) {
+absl::Status CompressInMemory(BrotliSandbox& sandbox,
+                              const std::string& in_file_s,
+                              const std::string& out_file_s) {
   BrotliEncoder enc(&sandbox);
   if (!enc.IsInit()) {
     return absl::UnavailableError("Unable to init brotli encoder");
@@ -41,9 +41,9 @@ absl::Status CompressInMemory(BrotliSandbox &sandbox,
   return absl::OkStatus();
 }
 
-absl::Status DecompressInMemory(BrotliSandbox &sandbox,
-                                const std::string &in_file_s,
-                                const std::string &out_file_s) {
+absl::Status DecompressInMemory(BrotliSandbox& sandbox,
+                                const std::string& in_file_s,
+                                const std::string& out_file_s) {
   BrotliDecoder dec(&sandbox);
   if (!dec.IsInit()) {
     return absl::UnavailableError("Unable to init brotli decoder");
@@ -60,10 +60,10 @@ absl::Status DecompressInMemory(BrotliSandbox &sandbox,
   return absl::OkStatus();
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
   sapi::InitLogging(argv[0]);
-  std::vector<char *> args = absl::ParseCommandLine(argc, argv);
+  std::vector<char*> args = absl::ParseCommandLine(argc, argv);
 
   if (args.size() != 3) {
     std::cerr << "Usage:\n  " << prog_name << " INPUT OUTPUT\n";

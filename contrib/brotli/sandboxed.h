@@ -31,7 +31,9 @@ class BrotliSapiSandbox : public BrotliSandbox {
         .AllowRead()
         .AllowWrite()
         .AllowSystemMalloc()
+        .AllowGetPIDs()
         .AllowExit()
+        .BlockSyscallWithErrno(__NR_openat, ENOENT)
         .BuildOrDie();
   }
 };

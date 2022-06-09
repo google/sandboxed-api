@@ -16,6 +16,7 @@ cmake_minimum_required(VERSION 3.13..3.22)
 
 project(sapi_brotli CXX)
 include(CTest)
+include(GoogleTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -29,38 +30,34 @@ endif()
 
 FetchContent_Declare(libbrotli
   GIT_REPOSITORY https://github.com/google/brotli.git
-  GIT_TAG        f4153a09f87cbb9c826d8fc12c74642bb2d879ea
+  GIT_TAG        f4153a09f87cbb9c826d8fc12c74642bb2d879ea # 2022-01-10
 )
 FetchContent_MakeAvailable(libbrotli)
 
 set(brotli_INCLUDE_DIR "${brotli_SOURCE_DIR}/c/include")
 configure_file(brotli.gen.h.in brotli.gen.h)
 
-add_library(brotli_static INTERFACE)
-target_link_libraries(brotli_static INTERFACE
-  brotlicommon-static
-  brotlidec-static
-  brotlienc-static
+add_library(brotli_static STATIC
+  "${SAPI_BINARY_DIR}/sapi_force_cxx_linkage.cc"
+  $<TARGET_OBJECTS:brotlicommon-static>
+  $<TARGET_OBJECTS:brotlidec-static>
+  $<TARGET_OBJECTS:brotlienc-static>
 )
 
-add_sapi_library(
-  sapi_brotli
+add_sapi_library(sapi_brotli
+  FUNCTIONS BrotliDecoderCreateInstance
+            BrotliDecoderSetParameter
+            BrotliDecoderDecompressStream
+            BrotliDecoderTakeOutput
+            BrotliDecoderDestroyInstance
 
-  FUNCTIONS
-    BrotliDecoderCreateInstance
-    BrotliDecoderSetParameter
-    BrotliDecoderDecompressStream
-    BrotliDecoderTakeOutput
-    BrotliDecoderDestroyInstance
+            BrotliEncoderCreateInstance
+            BrotliEncoderCompressStream
+            BrotliEncoderTakeOutput
+            BrotliEncoderSetParameter
+            BrotliEncoderDestroyInstance
 
-    BrotliEncoderCreateInstance
-    BrotliEncoderCompressStream
-    BrotliEncoderTakeOutput
-    BrotliEncoderSetParameter
-    BrotliEncoderDestroyInstance
-
-  INPUTS
-    "${CMAKE_BINARY_DIR}/brotli.gen.h"
+  INPUTS "${CMAKE_BINARY_DIR}/brotli.gen.h"
 
   LIBRARY brotli_static
   LIBRARY_NAME Brotli

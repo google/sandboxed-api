@@ -15,6 +15,7 @@
 #ifndef CONTRIB_BROTLI_UTILS_UTILS_BROTLI_H_
 #define CONTRIB_BROTLI_UTILS_UTILS_BROTLI_H_
 
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -23,10 +24,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-constexpr size_t kFileMaxSize = 1024 * 1024 * 1024;  // 1GB
+constexpr size_t kFileMaxSize = size_t{1} << 30;  // 1GiB
 
 std::streamsize GetStreamSize(std::ifstream& stream);
+
 absl::StatusOr<std::vector<uint8_t>> ReadFile(const std::string& in_file_s);
+
 absl::Status WriteFile(const std::string& out_file_s,
                        const std::vector<uint8_t>& out_buf);
 
