@@ -111,10 +111,9 @@ function(add_sapi_library)
 
   # The sandboxed binary
   set(_sapi_bin "${_sapi_NAME}.bin")
-  set(_sapi_force_cxx_linkage
-    "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_bin}_force_cxx_linkage.cc")
-  file(WRITE "${_sapi_force_cxx_linkage}" "")
-  add_executable("${_sapi_bin}" "${_sapi_force_cxx_linkage}")
+  add_executable("${_sapi_bin}"
+    "${SAPI_BINARY_DIR}/sapi_force_cxx_linkage.cc"
+  )
   target_link_libraries("${_sapi_bin}" PRIVATE
     -fuse-ld=gold
     -Wl,--whole-archive "${_sapi_LIBRARY}" -Wl,--no-whole-archive
@@ -192,10 +191,9 @@ function(add_sapi_library)
 
   # Library with the interface
   if(NOT _sapi_SOURCES)
-    set(_sapi_force_cxx_linkage
-      "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_NAME}_force_cxx_linkage.cc")
-    file(WRITE "${_sapi_force_cxx_linkage}" "")
-    list(APPEND _sapi_SOURCES "${_sapi_force_cxx_linkage}")
+    list(APPEND _sapi_SOURCES
+      "${SAPI_BINARY_DIR}/sapi_force_cxx_linkage.cc"
+    )
   endif()
   add_library("${_sapi_NAME}" STATIC
     "${_sapi_gen_header}"

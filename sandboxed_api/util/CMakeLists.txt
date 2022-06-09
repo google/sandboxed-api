@@ -48,10 +48,9 @@ target_link_libraries(sapi_util_fileops PRIVATE
 )
 
 # sandboxed_api/util:flag
-file(WRITE "${SAPI_BINARY_DIR}/sapi_util_flags_force_cxx_linkage.cc" "")
 add_library(sapi_util_flags ${SAPI_LIB_TYPE}
   flag.h
-  "${SAPI_BINARY_DIR}/sapi_util_flags_force_cxx_linkage.cc"
+  "${SAPI_BINARY_DIR}/sapi_force_cxx_linkage.cc"
 )
 add_library(sapi::flags ALIAS sapi_util_flags)
 target_link_libraries(sapi_util_flags PUBLIC
