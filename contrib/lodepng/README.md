@@ -1,6 +1,10 @@
 # LodePNG Sandboxed API
 
-Sandboxed version of the [LodePNG](https://github.com/lvandeve/lodepng) library, using [Sandboxed API](https://github.com/google/sandboxed-api)
+This library was sandboxed as part of Google's summer 2020 internship program
+([blog post](https://security.googleblog.com/2020/12/improving-open-source-security-during.html)).
+
+This directory contains a sandbox for the
+[LodePNG](https://github.com/lvandeve/lodepng) library.
 
 ## Details
 
@@ -14,8 +18,7 @@ In the **patches** folder there is a patch file that adds `extern "C"` to the re
 
 ## Build
 
-First, run `git submodule update --init --recursive` to update submodules.
-After this, run the following commands:
+Run the following commands:
 
 `mkdir -p build && cd build`
 

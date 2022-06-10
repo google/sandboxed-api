@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LODEPNG_EXAMPLES_HELPERS_H_
-#define LODEPNG_EXAMPLES_HELPERS_H_
+#ifndef CONTRIB_LODEPNG_EXAMPLES_HELPERS_H_
+#define CONTRIB_LODEPNG_EXAMPLES_HELPERS_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -36,4 +36,4 @@ std::vector<uint8_t> GenerateValues();
 // the path.
 std::string CreateTempDirAtCWD();
 
-#endif  // LODEPNG_EXAMPLES_HELPERS_H_
+#endif  // CONTRIB_LODEPNG_EXAMPLES_HELPERS_H_

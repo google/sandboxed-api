@@ -1,4 +1,4 @@
-name: CMake Ubuntu Contrib
+name: CMake Ubuntu Contrb
 
 on: [push, pull_request]
 
@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04]
-        contrib: [brotli, jsonnet, libraw, libtiff, pffft]
+        contrib: [brotli, jsonnet, libraw, lodepng, libtiff, pffft]
         ignore-errors: [true]
         include:
           - compiler: clang

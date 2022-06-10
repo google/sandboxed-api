@@ -14,10 +14,10 @@
 
 #include <iostream>
 
-#include <glog/logging.h>
-#include "helpers.h"  // NOLINT(build/include)
-#include "lodepng.h"  // NOLINT(build/include)
+#include "helpers.h"      // NOLINT(build/include)
+#include "lodepng.gen.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/path.h"
 
 void EncodeDecodeOneStep(const std::string& images_path) {
@@ -26,7 +26,7 @@ void EncodeDecodeOneStep(const std::string& images_path) {
 
   // Encode the image.
   const std::string filename =
-      sandbox2::file::JoinPath(images_path, "/out_generated1.png");
+      sapi::file::JoinPath(images_path, "/out_generated1.png");
   unsigned int result =
       lodepng_encode32_file(filename.c_str(), image.data(), kWidth, kHeight);
 
@@ -57,7 +57,7 @@ void EncodeDecodeTwoSteps(const std::string& images_path) {
 
   // Encode the image into memory first.
   const std::string filename =
-      sandbox2::file::JoinPath(images_path, "/out_generated2.png");
+      sapi::file::JoinPath(images_path, "/out_generated2.png");
   uint8_t* png;
   size_t pngsize;
 
@@ -102,13 +102,13 @@ int main(int argc, char* argv[]) {
   sapi::InitLogging(argv[0]);
 
   const std::string images_path = CreateTempDirAtCWD();
-  CHECK(sandbox2::file_util::fileops::Exists(images_path, false))
+  CHECK(sapi::file_util::fileops::Exists(images_path, false))
       << "Temporary directory does not exist";
 
   EncodeDecodeOneStep(images_path);
   EncodeDecodeTwoSteps(images_path);
 
-  if (sandbox2::file_util::fileops::DeleteRecursively(images_path)) {
+  if (sapi::file_util::fileops::DeleteRecursively(images_path)) {
     LOG(WARNING) << "Temporary folder could not be deleted";
   }
 

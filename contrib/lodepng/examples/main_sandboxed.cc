@@ -14,10 +14,10 @@
 
 #include <iostream>
 
-#include <glog/logging.h>
 #include "helpers.h"  // NOLINT(build/include)
 #include "sandbox.h"  // NOLINT(build/include)
 #include "absl/status/statusor.h"
+#include "sandboxed_api/util/logging.h"
 
 void EncodeDecodeOneStep(SapiLodepngSandbox& sandbox, LodepngApi& api) {
   // Generate the values.
@@ -71,7 +71,7 @@ void EncodeDecodeOneStep(SapiLodepngSandbox& sandbox, LodepngApi& api) {
       << "Values differ";
 
   // Free the memory allocated inside the sandbox.
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()).ok())
+  CHECK(sandbox.rpc_channel()->Free(sapi_image_ptr.GetValue()).ok())
       << "Could not free memory inside sandboxed process";
 }
 
@@ -163,11 +163,11 @@ void EncodeDecodeTwoSteps(SapiLodepngSandbox& sandbox, LodepngApi& api) {
       << "Values differ";
 
   // Free the memory allocated inside the sandbox.
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr.GetValue()).ok())
+  CHECK(sandbox.rpc_channel()->Free(sapi_png_ptr.GetValue()).ok())
       << "Could not free memory inside sandboxed process";
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr2.GetValue()).ok())
+  CHECK(sandbox.rpc_channel()->Free(sapi_png_ptr2.GetValue()).ok())
       << "Could not free memory inside sandboxed process";
-  CHECK(sandbox.GetRpcChannel()->Free(sapi_png_ptr3.GetValue()).ok())
+  CHECK(sandbox.rpc_channel()->Free(sapi_png_ptr3.GetValue()).ok())
       << "Could not free memory inside sandboxed process";
 }
 
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
   sapi::InitLogging(argv[0]);
 
   const std::string images_path = CreateTempDirAtCWD();
-  CHECK(sandbox2::file_util::fileops::Exists(images_path, false))
+  CHECK(sapi::file_util::fileops::Exists(images_path, false))
       << "Temporary directory does not exist";
 
   SapiLodepngSandbox sandbox(images_path);
@@ -186,7 +186,7 @@ int main(int argc, char* argv[]) {
   EncodeDecodeOneStep(sandbox, api);
   EncodeDecodeTwoSteps(sandbox, api);
 
-  if (sandbox2::file_util::fileops::DeleteRecursively(images_path)) {
+  if (sapi::file_util::fileops::DeleteRecursively(images_path)) {
     LOG(WARNING) << "Temporary folder could not be deleted";
   }
 

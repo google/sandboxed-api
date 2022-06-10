@@ -26,11 +26,10 @@ namespace {
 
 TEST(HelpersTest, CreateTempDirAtCWD) {
   const std::string images_path = CreateTempDirAtCWD();
-  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
-              IsTrue())
+  ASSERT_THAT(sapi::file_util::fileops::Exists(images_path, false), IsTrue())
       << "Temporary directory does not exist";
 
-  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+  EXPECT_THAT(sapi::file_util::fileops::DeleteRecursively(images_path),
               IsTrue())
       << "Temporary directory could not be deleted";
 }
@@ -41,14 +40,13 @@ TEST(HelpersTest, GenerateValues) {
 
 TEST(LodePngTest, Init) {
   const std::string images_path = CreateTempDirAtCWD();
-  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
-              IsTrue())
+  ASSERT_THAT(sapi::file_util::fileops::Exists(images_path, false), IsTrue())
       << "Temporary directory does not exist";
 
   SapiLodepngSandbox sandbox(images_path);
   ASSERT_THAT(sandbox.Init(), IsOk()) << "Error during sandbox init";
 
-  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+  EXPECT_THAT(sapi::file_util::fileops::DeleteRecursively(images_path),
               IsTrue())
       << "Temporary directory could not be deleted";
 }
@@ -57,8 +55,7 @@ TEST(LodePngTest, Init) {
 // initial values.
 TEST(LodePngTest, EncodeDecodeOneStep) {
   const std::string images_path = CreateTempDirAtCWD();
-  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
-              IsTrue())
+  ASSERT_THAT(sapi::file_util::fileops::Exists(images_path, false), IsTrue())
       << "Temporary directory does not exist";
 
   SapiLodepngSandbox sandbox(images_path);
@@ -105,10 +102,10 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
               IsTrue())
       << "Values differ";
 
-  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_image_ptr.GetValue()), IsOk())
+  EXPECT_THAT(sandbox.rpc_channel()->Free(sapi_image_ptr.GetValue()), IsOk())
       << "Could not free memory inside sandboxed process";
 
-  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+  EXPECT_THAT(sapi::file_util::fileops::DeleteRecursively(images_path),
               IsTrue())
       << "Temporary directory could not be deleted";
 }
@@ -118,8 +115,7 @@ TEST(LodePngTest, EncodeDecodeOneStep) {
 // memory and then getting the actual pixel values.
 TEST(LodePngTest, EncodeDecodeTwoSteps) {
   const std::string images_path = CreateTempDirAtCWD();
-  ASSERT_THAT(sandbox2::file_util::fileops::Exists(images_path, false),
-              IsTrue())
+  ASSERT_THAT(sapi::file_util::fileops::Exists(images_path, false), IsTrue())
       << "Temporary directory does not exist";
 
   SapiLodepngSandbox sandbox(images_path);
@@ -201,11 +197,11 @@ TEST(LodePngTest, EncodeDecodeTwoSteps) {
               IsTrue())
       << "Values differ";
 
-  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_png_ptr.GetValue()), IsOk());
-  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_png_ptr2.GetValue()), IsOk());
-  EXPECT_THAT(sandbox.GetRpcChannel()->Free(sapi_png_ptr3.GetValue()), IsOk());
+  EXPECT_THAT(sandbox.rpc_channel()->Free(sapi_png_ptr.GetValue()), IsOk());
+  EXPECT_THAT(sandbox.rpc_channel()->Free(sapi_png_ptr2.GetValue()), IsOk());
+  EXPECT_THAT(sandbox.rpc_channel()->Free(sapi_png_ptr3.GetValue()), IsOk());
 
-  EXPECT_THAT(sandbox2::file_util::fileops::DeleteRecursively(images_path),
+  EXPECT_THAT(sapi::file_util::fileops::DeleteRecursively(images_path),
               IsTrue())
       << "Temporary directory could not be deleted";
 }

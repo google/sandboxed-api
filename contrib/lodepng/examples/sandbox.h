@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LODEPNG_EXAMPLES_SANDBOX_H_
-#define LODEPNG_EXAMPLES_SANDBOX_H_
+#ifndef CONTRIB_LODEPNG_EXAMPLES_SANDBOX_H_
+#define CONTRIB_LODEPNG_EXAMPLES_SANDBOX_H_
 
 #include <syscall.h>
 
@@ -34,6 +34,7 @@ class SapiLodepngSandbox : public LodepngSandbox {
         .AllowSystemMalloc()
         .AllowExit()
         .AllowStat()
+        .AllowGetPIDs()
         .AddDirectoryAt(images_path_, "/output/", /*is_ro=*/false)
         .AllowSyscalls({
             __NR_futex,
@@ -46,4 +47,4 @@ class SapiLodepngSandbox : public LodepngSandbox {
   const std::string images_path_;
 };
 
-#endif  // LODEPNG_EXAMPLES_SANDBOX__
+#endif  // CONTRIB_LODEPNG_EXAMPLES_SANDBOX__
