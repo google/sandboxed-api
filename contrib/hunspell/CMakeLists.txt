@@ -16,11 +16,10 @@ cmake_minimum_required(VERSION 3.13..3.22)
 
 project(sapi_hunspell CXX)
 include(CTest)
+include(GoogleTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-
-set(SAPI_ROOT "" CACHE PATH "Path to the Sandboxed API source tree")
 
 if(NOT TARGET sapi::sapi)
   set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
@@ -31,7 +30,7 @@ endif()
 
 FetchContent_Declare(libhunspell
   GIT_REPOSITORY https://github.com/hunspell/hunspell.git
-  GIT_TAG 31e6d6323026a3bef12c5912ce032d88bfef2091
+  GIT_TAG        31e6d6323026a3bef12c5912ce032d88bfef2091 # 2021-10-15
 )
 
 FetchContent_GetProperties(libhunspell)
@@ -103,26 +102,23 @@ target_include_directories(hunspell PUBLIC
 
 set(libhunspell_INCLUDE_DIR "${libhunspell_SOURCE_DIR}/src/hunspell")
 
-add_sapi_library(
-  sapi_hunspell
+add_sapi_library(sapi_hunspell
+  FUNCTIONS Hunspell_create
+            Hunspell_create_key
+            Hunspell_destroy
 
-  FUNCTIONS
-    Hunspell_create
-    Hunspell_create_key
-    Hunspell_destroy
+            Hunspell_spell
+            Hunspell_get_dic_encoding
 
-    Hunspell_spell
-    Hunspell_get_dic_encoding
+            Hunspell_suggest
+            Hunspell_analyze
 
-    Hunspell_suggest
-    Hunspell_analyze
+            Hunspell_add
+            Hunspell_remove
 
-    Hunspell_add
-    Hunspell_remove
+            Hunspell_free_list
 
-    Hunspell_free_list
-  INPUTS
-    "${libhunspell_INCLUDE_DIR}/hunspell.h"
+  INPUTS "${libhunspell_INCLUDE_DIR}/hunspell.h"
 
   LIBRARY hunspell
   LIBRARY_NAME Hunspell

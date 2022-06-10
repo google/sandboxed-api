@@ -16,29 +16,26 @@ cmake_minimum_required(VERSION 3.13..3.22)
 
 project(sapi_blosc CXX)
 include(CTest)
+include(GoogleTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 if(NOT TARGET sapi::sapi)
   set(SAPI_ROOT "../.." CACHE PATH "Path to the Sandboxed API source tree")
-  add_subdirectory(
-    "${SAPI_ROOT}"
-    "${CMAKE_BINARY_DIR}/sandboxed-api-build"
-    EXCLUDE_FROM_ALL
-  )
+  add_subdirectory("${SAPI_ROOT}"
+                   "${CMAKE_BINARY_DIR}/sandboxed-api-build"
+                   EXCLUDE_FROM_ALL)
 endif()
 
+FetchContent_Declare(libblosc
+  GIT_REPOSITORY https://github.com/Blosc/c-blosc.git
+  GIT_TAG        ad6361f0151f830efb5ae113211c3559ab969886 # 2022-05-31
+)
 set(HIDE_SYMBOLS OFF CACHE BOOL "" FORCE)
 set(BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-  libblosc
-
-  GIT_REPOSITORY https://github.com/Blosc/c-blosc.git
-  GIT_TAG 5b68ad8a6c25e7f013e78b44e8b3bf3b5a6b9cc7
-)
 FetchContent_MakeAvailable(libblosc)
 
 add_sapi_library(sapi_blosc

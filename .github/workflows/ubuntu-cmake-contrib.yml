@@ -11,7 +11,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04]
-        contrib: [brotli, jsonnet, libraw, lodepng, libtiff, pffft]
+        contrib:
+          - brotli
+          - c-blosc
+          - jsonnet
+          - libraw
+          - libtiff
+          - lodepng
+          - pffft
         ignore-errors: [true]
         include:
           - compiler: clang
