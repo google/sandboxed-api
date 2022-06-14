@@ -15,6 +15,7 @@ jobs:
           - brotli
           - c-blosc
           - jsonnet
+          - libidn2
           - libraw
           - libtiff
           - lodepng
@@ -62,6 +63,11 @@ jobs:
         sudo apt-get install -qy g++-${{matrix.compiler-version}}
         echo "CXX=g++-${{matrix.compiler-version}}" >> $GITHUB_ENV
         echo "CC=gcc-${{matrix.compiler-version}}" >> $GITHUB_ENV
+
+    - name: Install extra dependencies for contrib
+      if: matrix.contrib == 'libidn2'
+      run: |
+        sudo apt-get install -qy libidn2-dev libunistring-dev
 
     - name: Create Build Environment
       run: |

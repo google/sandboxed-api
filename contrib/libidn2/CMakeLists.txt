@@ -16,6 +16,7 @@ cmake_minimum_required(VERSION 3.13..3.22)
 
 project(libidn2-sapi CXX C)
 include(CTest)
+include(GoogleTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -28,22 +29,33 @@ if(NOT TARGET sapi::sapi)
                    EXCLUDE_FROM_ALL)
 endif()
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBIDN2 REQUIRED IMPORTED_TARGET libidn2)
+# System libidn2 needs to have the libidn2-dev and libunistring-dev packages
+# installed. We cannot use pkg-config here, as libidn2's config file does not
+# support static linking.
+find_library(libidn2 NAMES libidn2.a idn2)
+find_library(libunistring NAMES libunistring.a unistring)
+
+# Combine libidn2 and its dependency into a single static library
+add_library(idn2_static STATIC
+  "${SAPI_BINARY_DIR}/sapi_force_cxx_linkage.cc"
+)
+target_link_libraries(idn2_static PUBLIC
+  "-Wl,--whole-archive,${libidn2},--no-whole-archive"
+  "-Wl,--whole-archive,${libunistring},--no-whole-archive"
+)
 
 add_sapi_library(libidn2_sapi
   FUNCTIONS idn2_lookup_u8 idn2_register_u8
             idn2_strerror idn2_strerror_name
             idn2_free idn2_to_ascii_8z
             idn2_to_unicode_8z8z
-  INPUTS "${LIBIDN2_INCLUDEDIR}/idn2.h"
-  LIBRARY idn2
+  INPUTS "${libidn2_INCLUDEDIR}/idn2.h"
+  LIBRARY idn2_static
   LIBRARY_NAME IDN2
   NAMESPACE ""
 )
 target_include_directories(libidn2_sapi INTERFACE
   "${PROJECT_BINARY_DIR}"
-  "${SAPI_SOURCE_DIR}"
 )
 
 add_library(libidn2_sapi_wrapper

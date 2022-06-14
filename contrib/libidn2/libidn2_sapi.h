@@ -22,6 +22,7 @@
 
 #include "libidn2_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandboxed_api/util/fileops.h"
+
 class Idn2SapiSandbox : public IDN2Sandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
@@ -32,12 +33,13 @@ class Idn2SapiSandbox : public IDN2Sandbox {
         .AllowStat()
         .AllowWrite()
         .AllowExit()
+        .AllowGetPIDs()
         .AllowSyscalls({
             __NR_futex,
             __NR_close,
             __NR_lseek,
-            __NR_getpid,
         })
+        .BlockSyscallWithErrno(__NR_openat, ENOENT)
         .BuildOrDie();
   }
 };
@@ -62,4 +64,5 @@ class IDN2Lib {
   Idn2SapiSandbox* sandbox_;
   IDN2Api api_;
 };
+
 #endif  // CONTRIB_LIBIDN2_LIBIDN2_SAPI_H_
