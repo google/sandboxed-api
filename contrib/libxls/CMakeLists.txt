@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.13..3.22)
 project(sapi_libxls C CXX)
 include(CTest)
+include(GoogleTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -28,7 +29,7 @@ endif()
 
 FetchContent_Declare(libxls
   GIT_REPOSITORY https://github.com/libxls/libxls.git
-  GIT_TAG        448240067919707eb95fb009f76f3fdb439b1427
+  GIT_TAG        448240067919707eb95fb009f76f3fdb439b1427 # 2021-01-04
 )
 
 FetchContent_GetProperties(libxls)
@@ -72,7 +73,6 @@ add_library(libxls STATIC
   "${libxls_SOURCE_DIR}/src/xls.c"
   "${libxls_SOURCE_DIR}/src/xlstool.c"
 )
-
 target_include_directories(libxls PUBLIC
   "${libxls_SOURCE_DIR}"
   "${libxls_SOURCE_DIR}/include"
@@ -102,10 +102,10 @@ target_include_directories(sapi_libxls INTERFACE
   "${PROJECT_BINARY_DIR}"
 )
 
-if(SAPI_ENABLE_EXAMPLES)
+if(SAPI_BUILD_EXAMPLES)
   add_subdirectory(example)
 endif()
 
-if(SAPI_ENABLE_TESTS)
+if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(test)
 endif()

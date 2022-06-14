@@ -25,4 +25,6 @@ target_link_libraries(sapi_libxls_test
           sapi::test_main
 )
 
-gtest_discover_tests(sapi_libxls_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/files")
+gtest_discover_tests(sapi_libxls_test PROPERTIES
+  ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/files"
+)

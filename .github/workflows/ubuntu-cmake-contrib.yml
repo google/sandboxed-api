@@ -18,6 +18,7 @@ jobs:
           - libidn2
           - libraw
           - libtiff
+          - libxls
           - lodepng
           - pffft
         ignore-errors: [true]
