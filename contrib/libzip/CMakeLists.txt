@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.13..2.22)
 
 project(sapi_zip CXX)
 include(CTest)
+include(GoogleTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -35,61 +36,60 @@ set(BUILD_DOC OFF CACHE BOOL "" FORCE)
 set(LIBZIP_DO_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(libzip
   GIT_REPOSITORY https://github.com/nih-at/libzip/
-  GIT_TAG        34b13ca4e887a5aba050015e3a179069643f4e76
+  GIT_TAG        e076a6fd97663025785a64cc8160aa633220be61 # 2022-06-08
 )
 FetchContent_MakeAvailable(libzip)
 
-include_directories("${libzip_BINARY_DIR}")
-
 add_subdirectory(wrapper)
 
-add_sapi_library(
-  sapi_zip
+add_sapi_library(sapi_zip
+  FUNCTIONS zip_open_from_source
+            zip_close
 
-  FUNCTIONS
-    zip_open_from_source
-    zip_close
+            zip_get_name
+            zip_get_num_entries
 
-    zip_get_name
-    zip_get_num_entries
+            zip_stat
+            zip_stat_index
 
-    zip_stat
-    zip_stat_index
+            zip_fopen
+            zip_fopen_index
+            zip_fclose
 
-    zip_fopen
-    zip_fopen_index
-    zip_fclose
+            zip_fread
+            zip_fseek
+            zip_ftell
 
-    zip_fread
-    zip_fseek
-    zip_ftell
+            zip_source_buffer
+            zip_read_fd_to_source
+            zip_source_to_fd
+            zip_source_filefd
+            zip_source_filefd_create
+            zip_source_keep
+            zip_source_free
 
-    zip_source_buffer
-    zip_read_fd_to_source
-    zip_source_to_fd
-    zip_source_filefd
-    zip_source_filefd_create
-    zip_source_keep
-    zip_source_free
+            zip_file_add
+            zip_file_replace
+            zip_delete
 
-    zip_file_add
-    zip_file_replace
-    zip_delete
+            zip_strerror
+  INPUTS "${libzip_BINARY_DIR}/zipconf.h"
+         "${libzip_SOURCE_DIR}/lib/zip.h"
+         wrapper/wrapper_zip.h
 
-    zip_strerror
-  INPUTS
-    "${libzip_BINARY_DIR}/zipconf.h"
-    "${libzip_SOURCE_DIR}/lib/zip.h"
-    "wrapper/wrapper_zip.h"
-
-  LIBRARY wrapper_zip
+  LIBRARY libzip::zip
   LIBRARY_NAME Zip
   NAMESPACE ""
 )
 add_library(sapi_contrib::libzip ALIAS sapi_zip)
-target_include_directories(sapi_zip INTERFACE
+target_include_directories(sapi_zip PUBLIC
   "${PROJECT_BINARY_DIR}"
-  "${SAPI_SOURCE_DIR}"
+  "${libzip_BINARY_DIR}"
+)
+target_sources(sapi_zip PUBLIC
+  sandboxed.h
+  utils/utils_zip.cc
+  utils/utils_zip.h
 )
 
 if(SAPI_BUILD_EXAMPLES)

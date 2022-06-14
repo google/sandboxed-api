@@ -20,9 +20,9 @@
 
 #include <memory>
 
-// Note: This header is required because of the bug in generator. The generator
-// for some reason doesn't catch the types defined by zip (for example
-// zip_uint32_t).
+// Note: This header is required because to work around an issue with the
+//       libclang based header generator, which doesn't catch the types
+//       defined by zip (for example zip_uint32_t).
 #include <zipconf.h>  // NOLINT(build/include_order)
 
 #include "sapi_zip.sapi.h"  // NOLINT(build/include)
@@ -36,6 +36,7 @@ class ZipSapiSandbox : public ZipSandbox {
         .AllowRead()
         .AllowWrite()
         .AllowSystemMalloc()
+        .AllowGetPIDs()
         .AllowExit()
         .AllowSafeFcntl()
         .AllowSyscalls({

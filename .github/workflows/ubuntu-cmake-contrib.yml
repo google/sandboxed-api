@@ -19,6 +19,7 @@ jobs:
           - libraw
           - libtiff
           - libxls
+          - libzip
           - lodepng
           - pffft
         ignore-errors: [true]

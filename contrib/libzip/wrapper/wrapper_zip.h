@@ -16,6 +16,7 @@
 #define CONTRIB_LIBZIP_WRAPPER_WRAPPER_ZIP_H_
 
 #include <zip.h>
+#include <zipconf.h>
 
 extern "C" {
 

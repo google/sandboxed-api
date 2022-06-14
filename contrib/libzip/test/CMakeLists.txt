@@ -12,22 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include(GoogleTest)
-
-add_executable(
-  sapi_zip_test
-
+add_executable(sapi_zip_test
   test_zip.cc
-  ../utils/utils_zip.cc
 )
-
-
-target_link_libraries(
-  sapi_zip_test PRIVATE
-
-  sapi_zip
+target_link_libraries(sapi_zip_test PRIVATE
+  sapi_contrib::libzip
   sapi::temp_file
   sapi::test_main
 )
 
-gtest_discover_tests(sapi_zip_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/files")
+gtest_discover_tests(sapi_zip_test PROPERTIES
+  ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/files"
+)

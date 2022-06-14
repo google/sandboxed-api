@@ -14,12 +14,10 @@
 
 add_executable(sapi_minizip
   main.cc
-  ../utils/utils_zip.cc
 )
-
-target_link_libraries(sapi_minizip
-  PRIVATE sapi_contrib::libzip
-          sapi::logging
-          sapi::sapi
-          absl::flags_parse
+target_link_libraries(sapi_minizip PRIVATE
+  sapi_contrib::libzip
+  sapi::logging
+  sapi::sapi
+  absl::flags_parse
 )

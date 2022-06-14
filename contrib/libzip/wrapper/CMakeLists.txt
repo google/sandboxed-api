@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_library(wrapper_zip STATIC
+# Directly compile the wrapper sources as part of the libzip archive
+target_sources(zip PRIVATE
   wrapper_zip.cc
+  wrapper_zip.h
 )
-target_link_libraries(wrapper_zip PUBLIC
-  libzip::zip
-
+target_link_libraries(zip PRIVATE
+  absl::cleanup
   sapi::sapi
-)
-target_include_directories(wrapper_zip PUBLIC
-  "${SAPI_SOURCE_DIR}"
-  "${libzip_SOURCE_DIR}/lib/"
 )
