@@ -1,4 +1,4 @@
-name: CMake Fedora
+name: cmake
 
 on: [push, pull_request]
 

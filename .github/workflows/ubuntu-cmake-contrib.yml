@@ -1,4 +1,4 @@
-name: CMake Ubuntu Contrb
+name: cmake-contrib
 
 on: [push, pull_request]
 
@@ -70,6 +70,11 @@ jobs:
       if: matrix.contrib == 'libidn2'
       run: |
         sudo apt-get install -qy libidn2-dev libunistring-dev
+
+    - name: Install extra dependencies for contrib
+      if: matrix.contrib == 'libxls'
+      run: |
+        sudo apt-get install -qy autoconf-archive gettext
 
     - name: Create Build Environment
       run: |
