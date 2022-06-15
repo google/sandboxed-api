@@ -29,9 +29,13 @@ if(NOT TARGET sapi::sapi)
                    EXCLUDE_FROM_ALL)
 endif()
 
+# Use pkg-config for the libidn2 include paths
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(libidn2 REQUIRED IMPORTED_TARGET libidn2)
+
 # System libidn2 needs to have the libidn2-dev and libunistring-dev packages
-# installed. We cannot use pkg-config here, as libidn2's config file does not
-# support static linking.
+# installed. We cannot use pkg-config here, as libidn2's pkg-config file does
+# not support static linking well.
 find_library(libidn2 NAMES libidn2.a idn2)
 find_library(libunistring NAMES libunistring.a unistring)
 
