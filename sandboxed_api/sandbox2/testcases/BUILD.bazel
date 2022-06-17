@@ -125,7 +125,9 @@ cc_binary(
     srcs = ["policy.cc"],
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
-    deps = ["//sandboxed_api:config"],
+    deps = [
+        "//sandboxed_api:config",
+    ],
 )
 
 cc_binary(
