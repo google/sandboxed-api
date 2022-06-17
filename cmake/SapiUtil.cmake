@@ -46,12 +46,25 @@ function(sapi_protobuf_generate_cpp SRCS HDRS)
   endif()
 
   foreach(_file IN LISTS _pb_UNPARSED_ARGUMENTS)
-    file(READ "${_file}" _pb_orig)
-    string(REGEX REPLACE "import \".*/([^/]+\\.proto)\""
-                         "import \"\\1\"" _pb_repl "${_pb_orig}")
-    set(_file "${CMAKE_CURRENT_BINARY_DIR}/${_file}")
-    file(WRITE "${_file}" "${_pb_repl}")
-    list(APPEND _pb_files "${_file}")
+    get_filename_component(_abs_file_orig "${_file}" ABSOLUTE)
+    get_filename_component(_abs_file_repl
+                           "${CMAKE_CURRENT_BINARY_DIR}/${_file}" ABSOLUTE)
+
+    # Add a CMake script that replaces the actual import paths. An extra
+    # script file is necessary so that this happens at build time.
+    set(_cmake_gen "${CMAKE_CURRENT_BINARY_DIR}/${_file}.gen.cmake")
+    file(WRITE "${_cmake_gen}" "\
+file(READ \"${_abs_file_orig}\" _pb_orig)
+string(REGEX REPLACE \"import \\\".*/([^/]+\\\\.proto)\\\"\"\
+                     \"import \\\"\\\\1\\\"\" _pb_repl \"\${_pb_orig}\")
+file(WRITE \"${_abs_file_repl}\" \"\${_pb_repl}\")\
+")
+    add_custom_command(OUTPUT "${_abs_file_repl}"
+                       COMMAND "${CMAKE_COMMAND}"
+                       ARGS -P "${_cmake_gen}"
+                       DEPENDS "${_abs_file_orig}")
+
+    list(APPEND _pb_files "${_abs_file_repl}")
   endforeach()
 
   set(_outvar)
@@ -140,8 +153,8 @@ function(sapi_protobuf_generate)
 
   # Create an include path for each file specified
   foreach(_file ${_pb_PROTOS})
-    get_filename_component(_abs_file ${_file} ABSOLUTE)
-    get_filename_component(_abs_path ${_abs_file} PATH)
+    get_filename_component(_abs_file "${_file}" ABSOLUTE)
+    get_filename_component(_abs_path "${_abs_file}" PATH)
     list(FIND _protobuf_include_path "${_abs_path}" _contains_already)
     if(${_contains_already} EQUAL -1)
       list(APPEND _protobuf_include_path -I ${_abs_path})
@@ -158,9 +171,9 @@ function(sapi_protobuf_generate)
 
   set(_generated_srcs_all)
   foreach(_proto IN LISTS _pb_PROTOS)
-    get_filename_component(_abs_file ${_proto} ABSOLUTE)
-    get_filename_component(_abs_dir ${_abs_file} DIRECTORY)
-    get_filename_component(_basename ${_proto} NAME_WE)
+    get_filename_component(_abs_file "${_proto}" ABSOLUTE)
+    get_filename_component(_abs_dir "${_abs_file}" DIRECTORY)
+    get_filename_component(_basename "${_proto}" NAME_WE)
 
     set(_generated_srcs)
     foreach(_ext ${_pb_GENERATE_EXTENSIONS})
@@ -170,7 +183,7 @@ function(sapi_protobuf_generate)
     list(APPEND _generated_srcs_all ${_generated_srcs})
 
     add_custom_command(OUTPUT ${_generated_srcs}
-                       COMMAND  protobuf::protoc
+                       COMMAND protobuf::protoc
                        ARGS --${_pb_LANGUAGE}_out
                             ${_dll_export_decl}${_pb_PROTOC_OUT_DIR}
                             ${_protobuf_include_path}
