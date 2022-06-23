@@ -384,7 +384,7 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   result_.SetProgName(util::GetProgName(pid));
   result_.SetProcMaps(ReadProcMaps(pid_));
   if (!ShouldCollectStackTrace()) {
-    LOG(INFO) << "Stack traces have been disabled";
+    VLOG(1) << "Stack traces have been disabled";
     return;
   }
   auto* ns = policy_->GetNamespace();
