@@ -20,7 +20,7 @@ load(
     "//sandboxed_api/bazel:proto.bzl",
     _sapi_proto_library = "sapi_proto_library",
 )
-load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain")
+load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 
 # Reexport symbols
 sapi_proto_library = _sapi_proto_library
@@ -199,7 +199,7 @@ sapi_interface = rule(
         ),
     },
     output_to_genfiles = True,
-    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+    toolchains = use_cpp_toolchain(),
 )
 
 def sapi_library(
