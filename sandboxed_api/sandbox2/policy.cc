@@ -34,6 +34,10 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
+#ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
+#define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
+#endif
+
 using std::string;
 
 ABSL_FLAG(bool, sandbox2_danger_danger_permit_all, false,
@@ -131,6 +135,15 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
                     ARG_32(0),
                     JA32(CLONE_UNTRACED, DENY),
                     LABEL(&l, past_clone_untraced_l),
+                    // Disallow seccomp with SECCOMP_FILTER_FLAG_NEW_LISTENER
+                    // flag.
+                    LOAD_SYSCALL_NR,
+                    JNE32(__NR_seccomp, JUMP(&l, past_seccomp_new_listener)),
+                    // Regardless of arch, we only care about the lower 32-bits
+                    // of the flags.
+                    ARG_32(1),
+                    JA32(SECCOMP_FILTER_FLAG_NEW_LISTENER, DENY),
+                    LABEL(&l, past_seccomp_new_listener),
                 });
 
   if (bpf_resolve_jumps(&l, policy.data(), policy.size()) != 0) {
