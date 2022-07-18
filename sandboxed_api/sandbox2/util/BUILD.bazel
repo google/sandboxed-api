@@ -14,10 +14,19 @@
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
-package(default_visibility = [
-    "//sandboxed_api:__subpackages__",
+_DEFAULT_VISIBILITY = [
     "//security/bedebox:__subpackages__",
-])
+    "//sandboxed_api:__subpackages__",
+]
+
+package(default_visibility = _DEFAULT_VISIBILITY)
+
+package_group(
+    name = "minielf_users",
+    packages = [
+        "//buzz/diffractor/sandbox/...",  # mbonadei@ and ossu@ (alternatively rtc-diffractor-eng@)
+    ],
+)
 
 licenses(["notice"])
 
@@ -35,6 +44,7 @@ cc_library(
     srcs = ["minielf.cc"],
     hdrs = ["minielf.h"],
     copts = sapi_platform_copts(),
+    visibility = _DEFAULT_VISIBILITY + [":minielf_users"],
     deps = [
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2:util",
