@@ -816,8 +816,7 @@ void Monitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
   if (trace_response == Notify::TraceAction::kInspectAfterReturn) {
     // Note that a process might die without an exit-stop before the syscall is
     // completed (eg. a thread calls execve() and the thread group leader dies),
-    // so this entry might never get removed from the table. This may increase
-    // the monitor's memory usage by O(number-of-sandboxed-pids).
+    // so the entry is removed when the process exits.
     syscalls_in_progress_[regs->pid()] = syscall;
     CompleteSyscall(regs->pid(), 0);
     return;
@@ -985,6 +984,9 @@ void Monitor::EventPtraceExec(pid_t pid, int event_msg) {
 }
 
 void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
+  // Forget about any syscalls in progress for this PID.
+  syscalls_in_progress_.erase(pid);
+
   // A regular exit, let it continue (fast-path).
   if (ABSL_PREDICT_TRUE(
           WIFEXITED(event_msg) &&
