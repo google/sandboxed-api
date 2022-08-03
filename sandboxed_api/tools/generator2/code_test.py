@@ -288,7 +288,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(generator.translation_units[0].types_to_skip, 1)
 
     names = [t._clang_type.spelling for t in types]
-    self.assertSameElements(['data_s', 'struct s'], names)
+    self.assertSameElements(['data_s', 's'], names)
 
     # Extra check for generation, in case rendering throws error for this test.
     generator.generate('Test', [], 'sapi::Tests', None, None)
@@ -328,7 +328,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     types = args[0].get_related_types()
     names = [t._clang_type.spelling for t in types]
     self.assertLen(types, 3)
-    self.assertSameElements(names, ['struct struct_2', 'uint', 'struct_1'])
+    self.assertSameElements(names, ['struct_2', 'uint', 'struct_1'])
 
     types = args[1].get_related_types()
     names = [t._clang_type.spelling for t in types]
@@ -336,7 +336,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertSameElements(names, ['struct_1', 'uint'])
 
     names = [t._clang_type.spelling for t in generator._get_related_types()]
-    self.assertEqual(names, ['uint', 'struct_1', 'struct struct_2', 'struct_a'])
+    self.assertEqual(names, ['uint', 'struct_1', 'struct_2', 'struct_a'])
 
     types = args[2].get_related_types()
     self.assertLen(types, 1)
@@ -374,7 +374,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     types = args[0].get_related_types()
     names = [t._clang_type.spelling for t in types]
     self.assertLen(types, 3)
-    self.assertSameElements(names, ['union union_2', 'uint', 'union_1'])
+    self.assertSameElements(names, ['union_2', 'uint', 'union_1'])
 
     types = args[1].get_related_types()
     names = [t._clang_type.spelling for t in types]
@@ -407,7 +407,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     types = args[0].get_related_types()
     names = [t._clang_type.spelling for t in types]
     self.assertLen(types, 3)
-    self.assertSameElements(names, ['struct struct_1', 'uint', 'uchar'])
+    self.assertSameElements(names, ['struct_1', 'uint', 'uchar'])
 
     types = args[1].get_related_types()
     names = [t._clang_type.spelling for t in types]
@@ -440,18 +440,18 @@ class CodeAnalysisTest(parameterized.TestCase):
     names = [t._clang_type.spelling for t in types]
     self.assertLen(types, 4)
     self.assertSameElements(
-        names, ['struct_6p', 'struct_6', 'struct struct_6_def', 'function_p3'])
+        names, ['struct_6p', 'struct_6', 'struct_6_def', 'function_p3'])
 
     self.assertLen(generator.translation_units, 1)
     self.assertLen(generator.translation_units[0].forward_decls, 1)
 
     t = next(
-        x for x in types if x._clang_type.spelling == 'struct struct_6_def')
+        x for x in types if x._clang_type.spelling == 'struct_6_def')
     self.assertIn(t, generator.translation_units[0].forward_decls)
 
     names = [t._clang_type.spelling for t in generator._get_related_types()]
     self.assertEqual(
-        names, ['struct_6', 'struct_6p', 'function_p3', 'struct struct_6_def'])
+        names, ['struct_6', 'struct_6p', 'function_p3', 'struct_6_def'])
 
     # Extra check for generation, in case rendering throws error for this test.
     forward_decls = generator._get_forward_decls(generator._get_related_types())

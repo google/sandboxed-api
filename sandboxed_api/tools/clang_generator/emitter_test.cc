@@ -89,8 +89,8 @@ TEST_F(EmitterTest, RelatedTypes) {
               ElementsAre("typedef enum { kRed, kGreen, kBlue } Color",
                           "struct Channel {"
                           " Color color;"
-                          " std::size_t width;"
-                          " std::size_t height; }",
+                          " size_t width;"
+                          " size_t height; }",
                           "struct ByValue { int value; }",
                           "typedef struct { int member; } MyStruct"));
 }
@@ -111,7 +111,7 @@ TEST_F(EmitterTest, NestedStruct) {
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
                           " struct B { int number; };"
-                          " A::B b;"
+                          " B b;"
                           " int data; }"));
 }
 
@@ -149,7 +149,7 @@ TEST_F(EmitterTest, ParentNotCollected) {
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
                           " struct B { int number; };"
-                          " A::B b;"
+                          " B b;"
                           " int data; }"));
 }
 

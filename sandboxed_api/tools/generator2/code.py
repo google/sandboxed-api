@@ -181,36 +181,44 @@ class Type(object):
     # type: () -> bool
     return self._clang_type.kind == cindex.TypeKind.TYPEDEF
 
+  def is_elaborated(self):
+    # type: () -> bool
+    return self._clang_type.kind == cindex.TypeKind.ELABORATED
+
   # Hack: both class and struct types are indistinguishable except for
   # declaration cursor kind
-  def is_elaborated(self):  # class, struct, union
+  def is_sugared_record(self):  # class, struct, union
     # type: () -> bool
-    return (self._clang_type.kind == cindex.TypeKind.ELABORATED or
-            self._clang_type.kind == cindex.TypeKind.RECORD)
+    return self._clang_type.get_declaration().kind in (
+        cindex.CursorKind.STRUCT_DECL, cindex.CursorKind.UNION_DECL,
+        cindex.CursorKind.CLASS_DECL)
 
   def is_struct(self):
     # type: () -> bool
-    return (self.is_elaborated() and
-            self._get_declaration().kind == cindex.CursorKind.STRUCT_DECL)
+    return (self._clang_type.get_declaration().kind ==
+            cindex.CursorKind.STRUCT_DECL)
 
   def is_class(self):
     # type: () -> bool
-    return (self.is_elaborated() and
-            self._get_declaration().kind == cindex.CursorKind.CLASS_DECL)
+    return (self._clang_type.get_declaration().kind ==
+            cindex.CursorKind.CLASS_DECL)
+
+  def is_union(self):
+    # type: () -> bool
+    return (self._clang_type.get_declaration().kind ==
+            cindex.CursorKind.UNION_DECL)
 
   def is_function(self):
     # type: () -> bool
     return self._clang_type.kind == cindex.TypeKind.FUNCTIONPROTO
 
-  def is_ptr(self):
+  def is_sugared_ptr(self):
     # type: () -> bool
-    if self.is_typedef():
-      return self._clang_type.get_canonical().kind == cindex.TypeKind.POINTER
-    return self._clang_type.kind == cindex.TypeKind.POINTER
+    return self._clang_type.get_canonical().kind == cindex.TypeKind.POINTER
 
-  def is_enum(self):
+  def is_sugared_enum(self):
     # type: () -> bool
-    return self._clang_type.kind == cindex.TypeKind.ENUM
+    return self._clang_type.get_canonical().kind == cindex.TypeKind.ENUM
 
   def is_const_array(self):
     # type: () -> bool
@@ -227,7 +235,7 @@ class Type(object):
   def _get_declaration(self):
     # type: () -> cindex.Cursor
     decl = self._clang_type.get_declaration()
-    if decl.kind == cindex.CursorKind.NO_DECL_FOUND and self.is_ptr():
+    if decl.kind == cindex.CursorKind.NO_DECL_FOUND and self.is_sugared_ptr():
       decl = self.get_pointee()._get_declaration()  # pylint: disable=protected-access
 
     return decl
@@ -238,15 +246,23 @@ class Type(object):
     if result is None:
       result = set()
 
+    # Base case.
     if self in result or self.is_simple_type() or self.is_class():
       return result
 
+    # Sugar types.
+    if self.is_typedef():
+      return self._get_related_types_of_typedef(result)
+
+    if self.is_elaborated():
+      return Type(self._tu,
+                  self._clang_type.get_named_type()).get_related_types(
+                      result, skip_self)
+
+    # Composite types.
     if self.is_const_array():
       t = Type(self._tu, self._clang_type.get_array_element_type())
       return t.get_related_types(result)
-
-    if self.is_typedef():
-      return self._get_related_types_of_typedef(result)
 
     if self._clang_type.kind in (cindex.TypeKind.POINTER,
                                  cindex.TypeKind.MEMBERPOINTER,
@@ -254,13 +270,14 @@ class Type(object):
                                  cindex.TypeKind.RVALUEREFERENCE):
       return self.get_pointee().get_related_types(result, skip_self)
 
-    if self.is_elaborated():  # union + struct, class hould be filtered out
-      return self._get_related_types_of_elaborated(result, skip_self)
+    # union + struct, class should be filtered out
+    if self.is_struct() or self.is_union():
+      return self._get_related_types_of_record(result, skip_self)
 
     if self.is_function():
       return self._get_related_types_of_function(result)
 
-    if self.is_enum():
+    if self.is_sugared_enum():
       if not skip_self:
         result.add(self)
         self._tu.search_for_macro_name(self._get_declaration())
@@ -273,23 +290,23 @@ class Type(object):
     # type: (Set[Type]) -> Set[Type]
     """Returns all intermediate types related to the typedef."""
     result.add(self)
-    decl = self._get_declaration()
-    t = Type(self._tu, decl.underlying_typedef_type)
-    if t.is_ptr():
-      t = t.get_pointee()
-
+    decl = self._clang_type.get_declaration()
     self._tu.search_for_macro_name(decl)
+
+    t = Type(self._tu, decl.underlying_typedef_type)
+    if t.is_sugared_ptr():
+      t = t.get_pointee()
 
     if not t.is_simple_type():
       skip_child = self.contains_declaration(t)
-      if t.is_elaborated() and skip_child:
+      if t.is_sugared_record() and skip_child:
         # if child declaration is contained in parent, we don't have to emit it
         self._tu.types_to_skip.add(t)
       result.update(t.get_related_types(result, skip_child))
 
     return result
 
-  def _get_related_types_of_elaborated(self, result, skip_self=False):
+  def _get_related_types_of_record(self, result, skip_self=False):
     # type: (Set[Type], bool) -> Set[Type]
     """Returns all types related to the structure."""
     # skip unnamed structures eg. typedef struct {...} x;
@@ -395,13 +412,13 @@ class ArgumentType(Type):
     self.name = name or 'a{}'.format(pos)
     self.type = arg_type.spelling
 
-    template = '{}' if self.is_ptr() else '&{}_'
+    template = '{}' if self.is_sugared_ptr() else '&{}_'
     self.call_argument = template.format(self.name)
 
   def __str__(self):
     # type: () -> Text
     """Returns function argument prepared from the type."""
-    if self.is_ptr():
+    if self.is_sugared_ptr():
       return '::sapi::v::Ptr* {}'.format(self.name)
 
     return '{} {}'.format(self._clang_type.spelling, self.name)
@@ -415,7 +432,7 @@ class ArgumentType(Type):
   def mapped_type(self):
     # type: () -> Text
     """Maps the type to its SAPI equivalent."""
-    if self.is_ptr():
+    if self.is_sugared_ptr():
       # TODO(szwl): const ptrs do not play well with SAPI C++ API...
       spelling = self._clang_type.spelling.replace('const', '')
       return '::sapi::v::Reg<{}>'.format(spelling)
@@ -852,7 +869,7 @@ class Generator(object):
 
     argument_types = []
     for a in f.argument_types:
-      if not a.is_ptr():
+      if not a.is_sugared_ptr():
         argument_types.append(a.wrapped + ';')
     if argument_types:
       for arg in argument_types:
@@ -868,7 +885,7 @@ class Generator(object):
 
     return_status = 'return absl::OkStatus();'
     if f.result and not f.result.is_void():
-      if f.result and f.result.is_enum():
+      if f.result and f.result.is_sugared_enum():
         return_status = ('return static_cast<{}>'
                          '(ret.GetValue());').format(f.result.type)
       else:
