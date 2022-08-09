@@ -36,11 +36,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <deque>
 #include <fstream>
 #include <memory>
 #include <set>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include <glog/logging.h>
 #include "absl/cleanup/cleanup.h"
@@ -87,6 +89,67 @@ ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 namespace sandbox2 {
 
 namespace {
+
+// Since waitpid() is biased towards newer threads, we run the risk of starving
+// older threads if the newer ones raise a lot of events.
+// To avoid it, we use this class to gather all the waiting threads and then
+// return them one at a time on each call to Wait().
+// In this way, everyone gets their chance.
+class PidWaiter {
+ public:
+  // Constructs a PidWaiter where the given priority_pid is checked first.
+  explicit PidWaiter(pid_t priority_pid) : priority_pid_(priority_pid) {}
+
+  // Returns the PID of a thread that needs attention, populating 'status' with
+  // the status returned by the waitpid() call. It returns 0 if no threads
+  // require attention at the moment, or -1 if there was an error, in which case
+  // the error value can be found in 'errno'.
+  int Wait(int* status) {
+    if (statuses_.empty() && last_errno_ == 0) {
+      RefillStatuses();
+    }
+
+    if (statuses_.empty()) {
+      if (last_errno_ == 0) return 0;
+      errno = last_errno_;
+      last_errno_ = 0;
+      return -1;
+    }
+
+    const auto& entry = statuses_.front();
+    pid_t pid = entry.first;
+    *status = entry.second;
+    statuses_.pop_front();
+    return pid;
+  }
+
+ private:
+  void RefillStatuses() {
+    statuses_.clear();
+    last_errno_ = 0;
+    pid_t pid = priority_pid_;
+    int status;
+    while (true) {
+      // It should be a non-blocking operation (hence WNOHANG), so this function
+      // returns quickly if there are no events to be processed.
+      pid_t ret =
+          waitpid(pid, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
+      if (ret > 0) {
+        statuses_.emplace_back(ret, status);
+      } else if (ret < 0) {
+        last_errno_ = errno;
+        break;
+      } else if (pid == -1) {
+        break;
+      }
+      pid = -1;
+    }
+  }
+
+  pid_t priority_pid_;
+  std::deque<std::pair<pid_t, int>> statuses_ = {};
+  int last_errno_ = 0;
+};
 
 // We could use the ProcMapsIterator, however we want the full file content.
 std::string ReadProcMaps(pid_t pid) {
@@ -430,6 +493,7 @@ bool Monitor::InterruptSandboxee() {
 
 void Monitor::MainLoop(sigset_t* sset) {
   bool sandboxee_exited = false;
+  PidWaiter pid_waiter(pid_);
   int status;
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
@@ -467,15 +531,7 @@ void Monitor::MainLoop(sigset_t* sset) {
       }
     }
 
-    // It should be a non-blocking operation (hence WNOHANG), so this function
-    // returns quickly if there are no events to be processed.
-    // Prioritize main pid to avoid resource starvation
-    pid_t ret =
-        waitpid(pid_, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-    if (ret == 0) {
-      ret = waitpid(-1, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-    }
-
+    pid_t ret = pid_waiter.Wait(&status);
     if (ret == 0) {
       constexpr timespec ts = {kWakeUpPeriodSec, kWakeUpPeriodNSec};
       int signo = sigtimedwait(sset, nullptr, &ts);
@@ -552,13 +608,7 @@ void Monitor::MainLoop(sigset_t* sset) {
         LOG(INFO) << "Waiting for sandboxee exit timed out";
         break;
       }
-      pid_t ret =
-          waitpid(pid_, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-      if (ret == 0) {
-        // Sometimes PTRACE_EVENT_EXIT needs to be handled for each child thread
-        // in order to observe main thread exit
-        ret = waitpid(-1, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-      }
+      pid_t ret = pid_waiter.Wait(&status);
       if (ret == -1) {
         PLOG(ERROR) << "waitpid() failed";
         break;
