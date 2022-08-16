@@ -30,8 +30,9 @@ class SyscallTable {
 
   absl::string_view GetName(int syscall) const;
 
-  std::vector<std::string> GetArgumentsDescription(
-      int syscall, const uint64_t values[syscalls::kMaxArgs], pid_t pid) const;
+  std::vector<std::string> GetArgumentsDescription(int syscall,
+                                                   const uint64_t values[],
+                                                   pid_t pid) const;
 
  private:
   constexpr SyscallTable() = default;
