@@ -43,9 +43,6 @@ struct SyscallTable::Entry {
   static std::string GetArgumentDescription(uint64_t value, ArgType type,
                                             pid_t pid);
 
-  std::vector<std::string> GetArgumentsDescription(
-      const uint64_t values[syscalls::kMaxArgs], pid_t pid) const;
-
   static constexpr bool BySyscallNr(const SyscallTable::Entry& a,
                                     const SyscallTable::Entry& b) {
     return a.nr < b.nr;
