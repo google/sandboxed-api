@@ -215,6 +215,7 @@ cc_binary(
     name = "forkserver_bin",
     srcs = ["forkserver_bin.cc"],
     copts = sapi_platform_copts(),
+    stamp = 0,
     deps = [
         ":comms",
         ":forkserver",
