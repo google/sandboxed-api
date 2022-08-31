@@ -929,6 +929,18 @@ void Monitor::LogSyscallViolation(const Syscall& syscall) const {
 }
 
 void Monitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
+  if (event_msg < sapi::cpu::Architecture::kUnknown ||
+      event_msg > sapi::cpu::Architecture::kMax) {
+    // We've observed that, if the process has exited, the event_msg may contain
+    // the exit status even though we haven't received the exit event yet.
+    // To work around this, if the event msg is not in the range of the known
+    // architectures, we assume that it's an exit status. We deal with it by
+    // ignoring this event, and we'll get the exit event in the next iteration.
+    LOG(WARNING) << "received event_msg for unknown architecture: " << event_msg
+                 << "; the program may have exited";
+    return;
+  }
+
   // If the seccomp-policy is using RET_TRACE, we request that it returns the
   // syscall architecture identifier in the SECCOMP_RET_DATA.
   const auto syscall_arch = static_cast<sapi::cpu::Architecture>(event_msg);

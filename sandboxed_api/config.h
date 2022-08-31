@@ -55,6 +55,7 @@ enum Architecture : uint16_t {
   kPPC64LE,
   kArm64,
   kArm,
+  kMax = kArm
 };
 
 }  // namespace cpu
