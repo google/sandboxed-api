@@ -52,7 +52,7 @@ TEST_F(EmitterTest, BasicFunctionality) {
 
   EmitterForTesting emitter;
   RunFrontendAction(R"(extern "C" void ExposedFunction() {})",
-                    absl::make_unique<GeneratorAction>(emitter, options));
+                    std::make_unique<GeneratorAction>(emitter, options));
 
   EXPECT_THAT(emitter.functions_, SizeIs(1));
 
@@ -80,7 +80,7 @@ TEST_F(EmitterTest, RelatedTypes) {
     typedef struct { int member; } MyStruct;
     extern "C" void Structize(MyStruct* s);
         )",
-      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
   // Types from "std" should be skipped
   EXPECT_THAT(emitter.rendered_types_["std"], IsEmpty());
@@ -106,7 +106,7 @@ TEST_F(EmitterTest, NestedStruct) {
     };
     extern "C" void Structize(A* s);
         )",
-      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
@@ -125,7 +125,7 @@ TEST_F(EmitterTest, NestedAnonymousStruct) {
     };
     extern "C" void Structize(A* s);
         )",
-      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
@@ -144,7 +144,7 @@ TEST_F(EmitterTest, ParentNotCollected) {
     };
     extern "C" void Structize(A::B* s);
         )",
-      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
@@ -160,7 +160,7 @@ TEST_F(EmitterTest, RemoveQualifiers) {
     struct A { int data; };
     extern "C" void Structize(const A* in, A* out);
         )",
-      absl::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A { int data; }"));

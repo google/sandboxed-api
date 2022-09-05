@@ -48,12 +48,25 @@ std::string GetOutputFilename(absl::string_view source_file) {
 }
 
 bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
-  if (!decl->isCXXClassMember() &&  // Skip classes
-      decl->isExternC() &&          // Skip non external functions
-      !decl->isTemplated() &&       // Skip function templates
-      // Process either all function or just the requested ones
-      (options_.function_names.empty() ||
-       options_.function_names.count(ToStringView(decl->getName())) > 0)) {
+  if (decl->isCXXClassMember() ||  // Skip classes
+      !decl->isExternC() ||        // Skip non external functions
+      decl->isTemplated()          // Skip function templates
+  ) {
+    return true;
+  }
+
+  // Process either all function or just the requested ones
+  if (bool all_functions = options_.function_names.empty();
+      all_functions ||
+      options_.function_names.count(ToStringView(decl->getName())) > 0) {
+    // Skip functions from system headers when all functions are requested.
+    // This allows to still specify standard library functions explicitly.
+    if (all_functions &&
+        decl->getASTContext().getSourceManager().isInSystemHeader(
+            decl->getBeginLoc())) {
+      return true;
+    }
+
     functions_.push_back(decl);
 
     collector_.CollectRelatedTypes(decl->getDeclaredReturnType());

@@ -136,7 +136,7 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
   }
 
   if (int result = tool.run(
-          absl::make_unique<sapi::GeneratorFactory>(emitter, options).get());
+          std::make_unique<sapi::GeneratorFactory>(emitter, options).get());
       result != 0) {
     return absl::UnknownError("header generation failed");
   }

@@ -97,8 +97,8 @@ class GeneratorAction : public clang::ASTFrontendAction {
  private:
   std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
       clang::CompilerInstance&, llvm::StringRef in_file) override {
-    return absl::make_unique<GeneratorASTConsumer>(std::string(in_file),
-                                                   emitter_, options_);
+    return std::make_unique<GeneratorASTConsumer>(std::string(in_file),
+                                                  emitter_, options_);
   }
 
   bool hasCodeCompletionSupport() const override { return false; }
@@ -116,7 +116,7 @@ class GeneratorFactory : public clang::tooling::FrontendActionFactory {
  private:
 #if LLVM_VERSION_MAJOR >= 10
   std::unique_ptr<clang::FrontendAction> create() override {
-    return absl::make_unique<GeneratorAction>(emitter_, options_);
+    return std::make_unique<GeneratorAction>(emitter_, options_);
   }
 #else
   clang::FrontendAction* create() override {
