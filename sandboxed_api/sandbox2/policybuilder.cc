@@ -23,8 +23,11 @@
 #include <sys/mman.h>      // For mmap arguments
 #include <sys/prctl.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/types.h>
 #include <syscall.h>
+#include <unistd.h>
 
 #include <array>
 #include <csignal>
