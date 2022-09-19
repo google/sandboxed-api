@@ -37,9 +37,9 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "1a87de20498817e4a8b9f146214bb92d0cb17b7ad8a65678eada7b78ec900e14",  # 2022-04-20
-        strip_prefix = "abseil-cpp-3dccef2a91243460364312d3e1100ff1d573fb1d",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/3dccef2a91243460364312d3e1100ff1d573fb1d.zip"],
+        sha256 = "ef76248ccea6dd05762cfdc9a5b234222e1f3b38d31325e35d4172559eac7935",  # 2022-09-15
+        strip_prefix = "abseil-cpp-ab2e2c4f6062999afaf960759dfccb77f350c702",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/ab2e2c4f6062999afaf960759dfccb77f350c702.zip"],
     )
     maybe(
         http_archive,
@@ -83,9 +83,9 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_protobuf",
-        sha256 = "dd513a79c7d7e45cbaeaf7655289f78fd6b806e52dbbd7018ef4e3cf5cff697a",  # 2021-04-08
-        strip_prefix = "protobuf-3.15.8",
-        urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.15.8.zip"],
+        sha256 = "0ac0d92cba957fdfc77cab689ffc56d52ce2ff89ebcc384e4e682e6f9d218071",  # 2022-09-14
+        strip_prefix = "protobuf-3.21.6",
+        urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.21.6.zip"],
     )
 
     # libcap

@@ -14,21 +14,16 @@
 
 FetchContent_Declare(protobuf
   GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
-  GIT_TAG        v3.15.8  # 2021-04-08
-  GIT_SUBMODULES "cmake" # Workaround for CMake #20579
-  SOURCE_SUBDIR  cmake
+  GIT_TAG        v3.21.6  # 2022-09-14
 )
 
+set(protobuf_ABSL_PROVIDER "package" CACHE STRING "" FORCE)
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
 
-FetchContent_GetProperties(protobuf)
-if(NOT protobuf_POPULATED)
-  FetchContent_Populate(protobuf)
-  add_subdirectory("${protobuf_SOURCE_DIR}/cmake"
-                  "${protobuf_BINARY_DIR}")
-endif()
+FetchContent_MakeAvailable(protobuf)
 
 sapi_check_target(protobuf::libprotobuf)
 sapi_check_target(protobuf::protoc)
