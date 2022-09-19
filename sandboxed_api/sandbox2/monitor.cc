@@ -744,7 +744,6 @@ bool Monitor::InitPtraceAttach() {
   }
 
   // With TSYNC, we can allow threads: seccomp applies to all threads.
-
   if (tasks.size() > 1) {
     LOG(WARNING) << "PID " << pid_ << " has " << tasks.size() << " threads,"
                  << " at the time of call to SandboxMeHere. If you are seeing"
