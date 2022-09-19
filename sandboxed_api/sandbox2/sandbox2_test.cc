@@ -31,7 +31,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
