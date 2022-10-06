@@ -44,6 +44,8 @@ namespace sandbox2 {
 
 class Comms {
  public:
+  struct DefaultConnectionTag {};
+
   // Default tags, custom tags should be <0x80000000.
   static constexpr uint32_t kTagBool = 0x80000001;
   static constexpr uint32_t kTagInt8 = 0x80000002;
@@ -73,6 +75,8 @@ class Comms {
   // sandbox2::Comms object at the server-side).
   static constexpr int kSandbox2ClientCommsFD = 1023;
 
+  static constexpr DefaultConnectionTag kDefaultConnection = {};
+
   // This object will have to be connected later on.
   explicit Comms(const std::string& socket_name);
 
@@ -82,6 +86,9 @@ class Comms {
   // Instantiates a pre-connected object.
   // Takes ownership over fd, which will be closed on object's destruction.
   explicit Comms(int fd);
+
+  // Instantiates a pre-connected object using the default connection params.
+  explicit Comms(DefaultConnectionTag) : Comms(kSandbox2ClientCommsFD) {}
 
   ~Comms();
 
