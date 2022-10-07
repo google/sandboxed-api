@@ -346,7 +346,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     // Create a Comms object here and not above, as we know we will execve and
     // therefore not call the Comms destructor, which would otherwise close the
     // comms file descriptor, which we do not want for the general case.
-    Comms client_comms(Comms::kSandbox2ClientCommsFD);
+    Comms client_comms(Comms::kDefaultConnection);
     Client c(&client_comms);
 
     // The following client calls are basically SandboxMeHere. We split it so

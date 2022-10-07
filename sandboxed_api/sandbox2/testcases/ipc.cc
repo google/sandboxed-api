@@ -30,8 +30,8 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  sandbox2::Comms sb_comms(sandbox2::Comms::kSandbox2ClientCommsFD);
-  sandbox2::Client client(&sb_comms);
+  sandbox2::Comms default_comms(sandbox2::Comms::kDefaultConnection);
+  sandbox2::Client client(&default_comms);
 
   int testno;
   SAPI_RAW_CHECK(absl::SimpleAtoi(argv[1], &testno), "testno is not a number");

@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, false);
 
   // Set-up the sandbox2::Client object, using a file descriptor (1023).
-  sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
+  sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::Client sandbox2_client(&comms);
   // Enable sandboxing from here.
   sandbox2_client.SandboxMeHere();

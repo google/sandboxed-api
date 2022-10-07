@@ -19,7 +19,7 @@
 #include "sandboxed_api/util/raw_logging.h"
 
 int main(int argc, char* argv[]) {
-  sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
+  sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
 
   // Exchange data with sandbox sandbox (parent) before sandboxing is enabled.
   SAPI_RAW_CHECK(comms.SendBool(true), "Sending data to the executor");

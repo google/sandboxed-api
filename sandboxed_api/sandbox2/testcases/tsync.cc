@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
   // Wait to make sure that the sleepy-thread is up and running.
   pthread_barrier_wait(&g_barrier);
 
-  sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
+  sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::Client sandbox2_client(&comms);
   sandbox2_client.SandboxMeHere();
 

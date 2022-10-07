@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     }
 
     case 2: {  // Send and receive FD
-      sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
+      sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
       int fd;
       if (!comms.RecvFD(&fd)) {
         return EXIT_FAILURE;
