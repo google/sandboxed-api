@@ -423,7 +423,7 @@ ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
   // same FD, although this is not true. During process setup `dup2()` will be
   // called to replace the FD `kSandbox2ClientCommsFD`.
   // We do not use a new comms object here as the destructor would close our FD.
-  sandbox2::Comms comms{sandbox2::Comms::kSandbox2ClientCommsFD};
+  sandbox2::Comms comms{sandbox2::Comms::kDefaultConnection};
   sandbox2::ForkingClient s2client{&comms};
 
   // Forkserver loop.
