@@ -33,6 +33,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/util/status.pb.h"
 
@@ -41,6 +42,8 @@ class Message;
 }  // namespace proto2
 
 namespace sandbox2 {
+
+class Client;
 
 class Comms {
  public:
@@ -77,6 +80,8 @@ class Comms {
 
   static constexpr DefaultConnectionTag kDefaultConnection = {};
 
+  static constexpr const char* kSandbox2CommsFDEnvVar = "SANDBOX2_COMMS_FD";
+
   // This object will have to be connected later on.
   explicit Comms(const std::string& socket_name);
 
@@ -88,7 +93,7 @@ class Comms {
   explicit Comms(int fd);
 
   // Instantiates a pre-connected object using the default connection params.
-  explicit Comms(DefaultConnectionTag) : Comms(kSandbox2ClientCommsFD) {}
+  explicit Comms(DefaultConnectionTag);
 
   ~Comms();
 
@@ -170,6 +175,8 @@ class Comms {
   bool SendStatus(const absl::Status& status);
 
  private:
+  friend class Client;
+
   // State of the channel
   enum class State {
     kUnconnected = 0,
@@ -200,6 +207,9 @@ class Comms {
 
   // Fills sockaddr_un struct with proper values.
   socklen_t CreateSockaddrUn(sockaddr_un* sun);
+
+  // Moves the comms fd to an other free file descriptor.
+  void MoveToAnotherFd();
 
   // Support for EINTR and size completion.
   bool Send(const void* data, size_t len);

@@ -34,6 +34,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -69,8 +70,8 @@ std::string Client::GetFdMapEnvVar() const {
                       absl::StrJoin(fd_map_, ",", absl::PairFormatter(",")));
 }
 
-void Client::PrepareEnvironment() {
-  SetUpIPC();
+void Client::PrepareEnvironment(std::vector<int>* preserve_fds) {
+  SetUpIPC(preserve_fds);
   SetUpCwd();
 }
 
@@ -123,13 +124,20 @@ void Client::SetUpCwd() {
   }
 }
 
-void Client::SetUpIPC() {
+void Client::SetUpIPC(std::vector<int>* preserve_fds) {
   uint32_t num_of_fd_pairs;
   SAPI_RAW_CHECK(comms_->RecvUint32(&num_of_fd_pairs),
                  "receiving number of fd pairs");
   SAPI_RAW_CHECK(fd_map_.empty(), "fd map not empty");
 
   SAPI_RAW_VLOG(1, "Will receive %d file descriptor pairs", num_of_fd_pairs);
+
+  absl::flat_hash_map<int, int*> preserve_fds_map;
+  if (preserve_fds) {
+    for (int& fd : *preserve_fds) {
+      preserve_fds_map.emplace(fd, &fd);
+    }
+  }
 
   for (uint32_t i = 0; i < num_of_fd_pairs; ++i) {
     int32_t requested_fd;
@@ -139,6 +147,27 @@ void Client::SetUpIPC() {
     SAPI_RAW_CHECK(comms_->RecvInt32(&requested_fd), "receiving requested fd");
     SAPI_RAW_CHECK(comms_->RecvFD(&fd), "receiving current fd");
     SAPI_RAW_CHECK(comms_->RecvString(&name), "receiving name string");
+
+    if (auto it = preserve_fds_map.find(requested_fd);
+        it != preserve_fds_map.end()) {
+      int old_fd = it->first;
+      int new_fd = dup(old_fd);
+      SAPI_RAW_PCHECK(new_fd != -1, "Failed to duplicate preserved fd=%d",
+                      old_fd);
+      SAPI_RAW_LOG(INFO, "Moved preserved fd=%d to %d", old_fd, new_fd);
+      close(old_fd);
+      int* pfd = it->second;
+      *pfd = new_fd;
+      preserve_fds_map.erase(it);
+      preserve_fds_map.emplace(new_fd, pfd);
+    }
+
+    if (requested_fd == comms_->GetConnectionFD()) {
+      comms_->MoveToAnotherFd();
+      SAPI_RAW_LOG(INFO,
+                   "Trying to map over comms fd (%d). Remapped comms to %d",
+                   requested_fd, comms_->GetConnectionFD());
+    }
 
     if (requested_fd != -1 && fd != requested_fd) {
       if (requested_fd > STDERR_FILENO && fcntl(requested_fd, F_GETFD) != -1) {

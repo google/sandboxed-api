@@ -352,8 +352,19 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     // The following client calls are basically SandboxMeHere. We split it so
     // that we can set up the envp after we received the file descriptors but
     // before we enable the syscall filter.
-    c.PrepareEnvironment();
+    std::vector<int> preserved_fds;
+    if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
+      preserved_fds.push_back(execve_fd);
+    }
+    c.PrepareEnvironment(&preserved_fds);
+    if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
+      execve_fd = preserved_fds[0];
+    }
 
+    if (client_comms.GetConnectionFD() != Comms::kSandbox2ClientCommsFD) {
+      envs.push_back(absl::StrCat(Comms::kSandbox2CommsFDEnvVar, "=",
+                                  client_comms.GetConnectionFD()));
+    }
     envs.push_back(c.GetFdMapEnvVar());
     // Convert args and envs before enabling sandbox (it'll allocate which might
     // be blocked).

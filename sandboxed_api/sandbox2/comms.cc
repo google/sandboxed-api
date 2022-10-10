@@ -31,6 +31,7 @@
 #include <cerrno>
 #include <cinttypes>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 
@@ -63,6 +64,16 @@ bool IsFatalError(int saved_errno) {
          saved_errno != EFAULT && saved_errno != EINTR &&
          saved_errno != EINVAL && saved_errno != ENOMEM;
 }
+
+int GetDefaultCommsFd() {
+  if (const char* var = getenv(Comms::kSandbox2CommsFDEnvVar); var) {
+    int fd;
+    SAPI_RAW_CHECK(absl::SimpleAtoi(var, &fd), "cannot parse comms fd var");
+    unsetenv(Comms::kSandbox2CommsFDEnvVar);
+    return fd;
+  }
+  return Comms::kSandbox2ClientCommsFD;
+}
 }  // namespace
 
 Comms::Comms(const std::string& socket_name) : socket_name_(socket_name) {}
@@ -76,6 +87,8 @@ Comms::Comms(int fd) : connection_fd_(fd) {
   // File descriptor is already connected.
   state_ = State::kConnected;
 }
+
+Comms::Comms(Comms::DefaultConnectionTag) : Comms(GetDefaultCommsFd()) {}
 
 Comms::~Comms() { Terminate(); }
 
@@ -647,6 +660,15 @@ bool Comms::SendStatus(const absl::Status& status) {
   sapi::StatusProto proto;
   sapi::SaveStatusToProto(status, &proto);
   return SendProtoBuf(proto);
+}
+
+void Comms::MoveToAnotherFd() {
+  SAPI_RAW_CHECK(connection_fd_ != -1,
+                 "Cannot move comms fd as it's not connected");
+  int new_fd = dup(connection_fd_);
+  SAPI_RAW_CHECK(new_fd != -1, "Failed to move comms to another fd");
+  close(connection_fd_);
+  connection_fd_ = new_fd;
 }
 
 }  // namespace sandbox2

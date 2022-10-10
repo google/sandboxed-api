@@ -62,14 +62,46 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
   sandbox2::Comms comms(fd);
-  std::string hello;
-  if (!comms.RecvString(&hello)) {
-    fputs("error on comms.RecvString(&hello)", stderr);
+  std::string resp;
+  if (!default_comms.SendString("start")) {
+    fputs("error on default_comms.RecvString(\"start\")", stderr);
+    return EXIT_FAILURE;
+  }
+  if (!default_comms.RecvString(&resp)) {
+    fputs("error on default_comms.RecvString(&resp)", stderr);
+    return EXIT_FAILURE;
+  }
+  if (resp != "started") {
+    fprintf(stderr, "unexpected response \"%s\" (expected \"started\")\n",
+            resp.c_str());
+    return EXIT_FAILURE;
+  }
+
+  if (!comms.RecvString(&resp)) {
+    fputs("error on comms.RecvString(&resp)", stderr);
+    return EXIT_FAILURE;
+  }
+  if (resp != "hello") {
+    fprintf(stderr, "unexpected response \"%s\" (expected \"hello\")\n",
+            resp.c_str());
     return EXIT_FAILURE;
   }
 
   if (!comms.SendString("world")) {
     fputs("error on comms.SendString(\"world\")", stderr);
+    return EXIT_FAILURE;
+  }
+  if (!default_comms.SendString("finish")) {
+    fputs("error on default_comms.RecvString(\"finish\")", stderr);
+    return EXIT_FAILURE;
+  }
+  if (!default_comms.RecvString(&resp)) {
+    fputs("error on default_comms.RecvString(&resp)", stderr);
+    return EXIT_FAILURE;
+  }
+  if (resp != "finished") {
+    fprintf(stderr, "unexpected response \"%s\" (expected \"finished\")\n",
+            resp.c_str());
     return EXIT_FAILURE;
   }
 
