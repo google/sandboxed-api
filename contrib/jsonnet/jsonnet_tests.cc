@@ -47,13 +47,13 @@ class JsonnetTest : public ::testing::Test {
         sapi::file::JoinPath(binary_path, "tests_output", "dummy_input");
 
     // Set up sandbox and api.
-    sandbox_ = absl::make_unique<JsonnetBaseSandbox>(input_path, output_path);
+    sandbox_ = std::make_unique<JsonnetBaseSandbox>(input_path, output_path);
     ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
-    api_ = absl::make_unique<JsonnetApi>(sandbox_.get());
+    api_ = std::make_unique<JsonnetApi>(sandbox_.get());
 
     // Initialize library's main structure.
     SAPI_ASSERT_OK_AND_ASSIGN(JsonnetVm * vm_ptr, api_->c_jsonnet_make());
-    vm_ = absl::make_unique<sapi::v::RemotePtr>(vm_ptr);
+    vm_ = std::make_unique<sapi::v::RemotePtr>(vm_ptr);
   }
 
   void TearDown() override {
@@ -98,7 +98,7 @@ void JsonnetTest::ReadInput(const char* filename) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(char* input_ptr,
                             api_->c_read_input(0, in_file_var.PtrBefore()));
-  input_ = absl::make_unique<sapi::v::RemotePtr>(input_ptr);
+  input_ = std::make_unique<sapi::v::RemotePtr>(input_ptr);
 
   input_was_read_ = true;
 }
@@ -140,7 +140,7 @@ void JsonnetTest::EvaluateJsonnetCode(Evaluation type, bool expected_correct) {
     ASSERT_THAT(error.GetValue(), testing::Eq(1));
   }
 
-  output_ = absl::make_unique<sapi::v::RemotePtr>(output_ptr);
+  output_ = std::make_unique<sapi::v::RemotePtr>(output_ptr);
 
   jsonnet_vm_was_used_ = true;
 }

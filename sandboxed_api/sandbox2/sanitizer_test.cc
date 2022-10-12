@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include <cstdlib>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -27,7 +28,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -116,7 +116,7 @@ TEST(SanitizerTest, TestSandboxedBinary) {
       absl::StrCat(STDERR_FILENO),
       absl::StrCat(Comms::kSandbox2ClientCommsFD),
   };
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()

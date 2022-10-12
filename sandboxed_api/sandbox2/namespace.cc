@@ -29,9 +29,9 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <utility>
 
-#include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -230,7 +230,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
   if (avoid_pivot_root) {
     // We want to bind-mount chrooted to real root, so that symlinks work.
     // Reference to main root is kept to escape later from the chroot
-    root_fd = absl::make_unique<file_util::fileops::FDCloser>(
+    root_fd = std::make_unique<file_util::fileops::FDCloser>(
         TEMP_FAILURE_RETRY(open("/", O_PATH)));
     SAPI_RAW_CHECK(root_fd->get() != -1, "creating fd for main root");
 

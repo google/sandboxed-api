@@ -16,9 +16,10 @@
 
 #include <unistd.h>
 
+#include <memory>
+
 #include <glog/logging.h>
 #include "sandboxed_api/sandbox2/sanitizer.h"
-#include "absl/memory/memory.h"
 
 namespace sandbox2 {
 
@@ -33,7 +34,7 @@ pid_t ForkingClient::WaitAndFork() {
     CHECK_NE(n, -1) << "sanitizer::GetNumberOfThreads failed";
     CHECK_EQ(n, 1) << "Too many threads (" << n
                    << ") during sandbox2::Client::WaitAndFork()";
-    fork_server_worker_ = absl::make_unique<ForkServer>(comms_);
+    fork_server_worker_ = std::make_unique<ForkServer>(comms_);
   }
   return fork_server_worker_->ServeRequest();
 }

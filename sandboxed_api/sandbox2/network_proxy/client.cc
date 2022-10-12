@@ -22,9 +22,9 @@
 
 #include <cerrno>
 #include <iostream>
+#include <memory>
 
 #include <glog/logging.h>
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"

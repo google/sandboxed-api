@@ -26,12 +26,12 @@
 
 #include <csignal>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -187,7 +187,7 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   }
 
   close(sv[0]);
-  return absl::make_unique<GlobalForkClient>(sv[1], pid);
+  return std::make_unique<GlobalForkClient>(sv[1], pid);
 }
 
 void WaitForForkserver(pid_t pid) {

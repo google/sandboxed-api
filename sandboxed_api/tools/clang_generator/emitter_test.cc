@@ -15,10 +15,10 @@
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 
 #include <initializer_list>
+#include <memory>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/testing.h"

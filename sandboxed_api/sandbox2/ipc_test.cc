@@ -14,11 +14,11 @@
 
 #include "sandboxed_api/sandbox2/ipc.h"
 
+#include <memory>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -46,7 +46,7 @@ TEST_P(IPCTest, MapFDByNamePreExecve) {
   const int fd = GetParam();
   const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
   std::vector<std::string> args = {path, "1", std::to_string(fd)};
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
   Comms comms(executor->ipc()->ReceiveFd(fd, "ipc_test"));
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -83,7 +83,7 @@ TEST_P(IPCTest, MapFDByNamePostExecve) {
   const int fd = GetParam();
   const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
   std::vector<std::string> args = {path, "2", std::to_string(fd)};
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
   executor->set_enable_sandbox_before_exec(false);
   Comms comms(executor->ipc()->ReceiveFd(fd, "ipc_test"));
 
@@ -118,7 +118,7 @@ TEST(IPCTest, NoMappedFDsPreExecve) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
   std::vector<std::string> args = {path, "3"};
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()

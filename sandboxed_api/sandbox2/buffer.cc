@@ -19,18 +19,17 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <memory>
 
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
 
 namespace sandbox2 {
 
 // Creates a new Buffer that is backed by the specified file descriptor.
 absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(int fd) {
-  auto buffer = absl::WrapUnique(new Buffer{});
+  auto buffer = std::make_unique<Buffer>();
 
   struct stat stat_buf;
   if (fstat(fd, &stat_buf) != 0) {

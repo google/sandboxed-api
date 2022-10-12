@@ -18,6 +18,7 @@
 
 #include <cstdio>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -25,7 +26,6 @@
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -97,7 +97,7 @@ void SymbolizationWorksCommon(
   modify_policy(&policybuilder);
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, policybuilder.TryBuild());
 
-  Sandbox2 s2(absl::make_unique<Executor>(path, args), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
@@ -198,7 +198,7 @@ TEST(StackTraceTest, SymbolizationTrustedFilesOnly) {
                                 .AddFile(path)
                                 .AddLibrariesForBinary(path)
                                 .TryBuild());
-  Sandbox2 s2(absl::make_unique<Executor>(path, args), std::move(policy));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));

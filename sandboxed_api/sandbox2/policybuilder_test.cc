@@ -17,13 +17,13 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <memory>
 #include <string>
 #include <utility>
 
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -174,7 +174,7 @@ std::string PolicyBuilderTest::Run(const std::vector<std::string>& args,
     builder.AllowUnrestrictedNetworking();
   }
 
-  auto executor = absl::make_unique<sandbox2::Executor>(args[0], args);
+  auto executor = std::make_unique<sandbox2::Executor>(args[0], args);
   if constexpr (sapi::sanitizers::IsAny()) {
     executor->limits()->set_rlimit_as(RLIM64_INFINITY);
   }

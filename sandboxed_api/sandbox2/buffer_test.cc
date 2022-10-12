@@ -27,7 +27,6 @@
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -108,7 +107,7 @@ TEST(BufferTest, TestWithSandboxeeMapFd) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/buffer");
   std::vector<std::string> args = {path, "1"};
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
   auto policy = BufferTestcasePolicy();
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
@@ -141,7 +140,7 @@ TEST(BufferTest, TestWithSandboxeeSendRecv) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/buffer");
   std::vector<std::string> args = {path, "2"};
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
 
   Sandbox2 s2(std::move(executor), BufferTestcasePolicy());
   ASSERT_THAT(s2.RunAsync(), IsTrue());

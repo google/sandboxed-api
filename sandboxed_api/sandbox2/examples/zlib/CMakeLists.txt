@@ -21,7 +21,6 @@ add_dependencies(sandbox2_zpipe_sandbox
   sandbox2::zpipe
 )
 target_link_libraries(sandbox2_zpipe_sandbox PRIVATE
-  absl::memory
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::logging

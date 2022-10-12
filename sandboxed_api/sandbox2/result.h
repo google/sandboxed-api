@@ -26,7 +26,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/regs.h"

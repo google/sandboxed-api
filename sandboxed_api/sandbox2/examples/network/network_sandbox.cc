@@ -186,7 +186,7 @@ int main(int argc, char* argv[]) {
   std::vector<std::string> args = {path};
   std::vector<std::string> envs = {};
 
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args, envs);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args, envs);
   executor
       // Sandboxing is enabled by the binary itself (i.e. the crc4bin is capable
       // of enabling sandboxing on its own).

@@ -22,7 +22,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -41,7 +40,7 @@ using ::sapi::GetTestSourcePath;
 TEST(LimitsTest, RLimitASMmapUnderLimit) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/limits");
   std::vector<std::string> args = {path, "1"};  // mmap(1 MiB)
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -60,7 +59,7 @@ TEST(LimitsTest, RLimitASMmapUnderLimit) {
 TEST(LimitsTest, RLimitASMmapAboveLimit) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/limits");
   std::vector<std::string> args = {path, "2"};  // mmap(100 MiB)
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -79,7 +78,7 @@ TEST(LimitsTest, RLimitASMmapAboveLimit) {
 TEST(LimitsTest, RLimitASAllocaSmallUnderLimit) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/limits");
   std::vector<std::string> args = {path, "3"};  // alloca(1 MiB)
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -98,7 +97,7 @@ TEST(LimitsTest, RLimitASAllocaSmallUnderLimit) {
 TEST(LimitsTest, RLimitASAllocaBigUnderLimit) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/limits");
   std::vector<std::string> args = {path, "4"};  // alloca(8 MiB)
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -117,7 +116,7 @@ TEST(LimitsTest, RLimitASAllocaBigUnderLimit) {
 TEST(LimitsTest, RLimitASAllocaBigAboveLimit) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/limits");
   std::vector<std::string> args = {path, "5"};  // alloca(100 MiB)
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
   executor->limits()->set_rlimit_as(100ULL << 20);  // 100 MiB
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,

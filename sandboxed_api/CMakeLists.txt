@@ -77,7 +77,6 @@ add_library(sapi::sapi ALIAS sapi_sapi)
 target_link_libraries(sapi_sapi
   PRIVATE absl::dynamic_annotations
           absl::flat_hash_map
-          absl::memory
           absl::status
           absl::statusor
           absl::str_format
@@ -209,7 +208,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi_test.cc
   )
   target_link_libraries(sapi_test PRIVATE
-    absl::memory
     absl::status
     absl::statusor
     benchmark

@@ -28,7 +28,6 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -94,7 +93,7 @@ int main(int argc, char* argv[]) {
     args.push_back("-d");
   }
   std::vector<std::string> envs = {};
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args, envs);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args, envs);
 
   executor
       // Kill sandboxed processes with a signal (SIGXFSZ) if it writes more than

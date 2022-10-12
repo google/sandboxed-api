@@ -35,7 +35,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -277,12 +276,12 @@ bool Client::HasMappedFD(const std::string& name) {
 void Client::SendLogsToSupervisor() {
   // This LogSink will register itself and send all logs to the executor until
   // the object is destroyed.
-  logsink_ = absl::make_unique<LogSink>(GetMappedFD(LogSink::kLogFDName));
+  logsink_ = std::make_unique<LogSink>(GetMappedFD(LogSink::kLogFDName));
 }
 
 NetworkProxyClient* Client::GetNetworkProxyClient() {
   if (proxy_client_ == nullptr) {
-    proxy_client_ = absl::make_unique<NetworkProxyClient>(
+    proxy_client_ = std::make_unique<NetworkProxyClient>(
         GetMappedFD(NetworkProxyClient::kFDName));
   }
   return proxy_client_.get();

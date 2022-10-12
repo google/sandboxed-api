@@ -14,12 +14,12 @@
 
 #include <fcntl.h>
 
+#include <memory>
 #include <thread>  // NOLINT(build/c++11)
 
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "sandboxed_api/examples/stringop/sandbox.h"
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
@@ -68,7 +68,7 @@ absl::Status InvokeStringReversal(Sandbox* sandbox) {
 // Minimal case for measuring the minimum overhead of restarting the sandbox.
 void BenchmarkSandboxRestartOverhead(benchmark::State& state) {
   for (auto _ : state) {
-    BasicTransaction st(absl::make_unique<StringopSandbox>());
+    BasicTransaction st(std::make_unique<StringopSandbox>());
     // Invoke nop() to make sure that our sandbox is running.
     EXPECT_THAT(st.Run(InvokeNop), IsOk());
   }
@@ -76,7 +76,7 @@ void BenchmarkSandboxRestartOverhead(benchmark::State& state) {
 BENCHMARK(BenchmarkSandboxRestartOverhead);
 
 void BenchmarkSandboxRestartForkserverOverhead(benchmark::State& state) {
-  sapi::BasicTransaction st(absl::make_unique<StringopSandbox>());
+  sapi::BasicTransaction st(std::make_unique<StringopSandbox>());
   for (auto _ : state) {
     EXPECT_THAT(st.Run(InvokeNop), IsOk());
     EXPECT_THAT(st.sandbox()->Restart(true), IsOk());
@@ -85,7 +85,7 @@ void BenchmarkSandboxRestartForkserverOverhead(benchmark::State& state) {
 BENCHMARK(BenchmarkSandboxRestartForkserverOverhead);
 
 void BenchmarkSandboxRestartForkserverOverheadForced(benchmark::State& state) {
-  sapi::BasicTransaction st{absl::make_unique<StringopSandbox>()};
+  sapi::BasicTransaction st{std::make_unique<StringopSandbox>()};
   for (auto _ : state) {
     EXPECT_THAT(st.Run(InvokeNop), IsOk());
     EXPECT_THAT(st.sandbox()->Restart(false), IsOk());
@@ -95,7 +95,7 @@ BENCHMARK(BenchmarkSandboxRestartForkserverOverheadForced);
 
 // Reuse the sandbox. Used to measure the overhead of the call invocation.
 void BenchmarkCallOverhead(benchmark::State& state) {
-  BasicTransaction st(absl::make_unique<StringopSandbox>());
+  BasicTransaction st(std::make_unique<StringopSandbox>());
   for (auto _ : state) {
     EXPECT_THAT(st.Run(InvokeNop), IsOk());
   }
@@ -104,7 +104,7 @@ BENCHMARK(BenchmarkCallOverhead);
 
 // Make use of protobufs.
 void BenchmarkProtobufHandling(benchmark::State& state) {
-  BasicTransaction st(absl::make_unique<StringopSandbox>());
+  BasicTransaction st(std::make_unique<StringopSandbox>());
   for (auto _ : state) {
     EXPECT_THAT(st.Run(InvokeStringReversal), IsOk());
   }
@@ -113,7 +113,7 @@ BENCHMARK(BenchmarkProtobufHandling);
 
 // Measure overhead of synchronizing data.
 void BenchmarkIntDataSynchronization(benchmark::State& state) {
-  auto sandbox = absl::make_unique<StringopSandbox>();
+  auto sandbox = std::make_unique<StringopSandbox>();
   ASSERT_THAT(sandbox->Init(), IsOk());
 
   long current_val = 0;  // NOLINT
@@ -141,7 +141,7 @@ BENCHMARK(BenchmarkIntDataSynchronization);
 TEST(SapiTest, HasStackTraces) {
   SKIP_SANITIZERS_AND_COVERAGE;
 
-  auto sandbox = absl::make_unique<StringopSandbox>();
+  auto sandbox = std::make_unique<StringopSandbox>();
   ASSERT_THAT(sandbox->Init(), IsOk());
   StringopApi api(sandbox.get());
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
@@ -172,7 +172,7 @@ int LeakFileDescriptor(sapi::Sandbox* sandbox, const char* path) {
 
 // Make sure that restarting the sandboxee works (= fresh set of FDs).
 TEST(SandboxTest, RestartSandboxFD) {
-  sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
+  sapi::BasicTransaction st{std::make_unique<SumSandbox>()};
 
   auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
     // Open some FDs and check their value.
@@ -191,7 +191,7 @@ TEST(SandboxTest, RestartSandboxFD) {
 }
 
 TEST(SandboxTest, RestartTransactionSandboxFD) {
-  sapi::BasicTransaction st{absl::make_unique<SumSandbox>()};
+  sapi::BasicTransaction st{std::make_unique<SumSandbox>()};
 
   EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));

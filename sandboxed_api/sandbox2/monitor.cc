@@ -48,7 +48,6 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -895,8 +894,8 @@ void Monitor::ActionProcessSyscallViolation(Regs* regs, const Syscall& syscall,
   LogSyscallViolation(syscall);
   notify_->EventSyscallViolation(syscall, violation_type);
   SetExitStatusCode(Result::VIOLATION, syscall.nr());
-  result_.SetSyscall(absl::make_unique<Syscall>(syscall));
-  SetAdditionalResultInfo(absl::make_unique<Regs>(*regs));
+  result_.SetSyscall(std::make_unique<Syscall>(syscall));
+  SetAdditionalResultInfo(std::make_unique<Regs>(*regs));
   // Rewrite the syscall argument to something invalid (-1).
   // The process will be killed anyway so this is just a precaution.
   auto status = regs->SkipSyscallReturnValue(-ENOSYS);
@@ -1060,7 +1059,7 @@ void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
       WIFSIGNALED(event_msg) && WTERMSIG(event_msg) == SIGSYS;
 
   // Fetch the registers as we'll need them to fill the result in any case
-  auto regs = absl::make_unique<Regs>(pid);
+  auto regs = std::make_unique<Regs>(pid);
   if (is_seccomp || pid == pid_) {
     auto status = regs->Fetch();
     if (!status.ok()) {
@@ -1248,7 +1247,7 @@ void Monitor::LogSyscallViolationExplanation(const Syscall& syscall) const {
 void Monitor::EnableNetworkProxyServer() {
   int fd = ipc_->ReceiveFd(NetworkProxyClient::kFDName);
 
-  network_proxy_server_ = absl::make_unique<NetworkProxyServer>(
+  network_proxy_server_ = std::make_unique<NetworkProxyServer>(
       fd, &policy_->allowed_hosts_.value(), pthread_self());
 
   network_proxy_thread_ = std::thread(&NetworkProxyServer::Run,

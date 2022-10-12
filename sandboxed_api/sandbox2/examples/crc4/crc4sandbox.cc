@@ -29,7 +29,6 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -105,7 +104,7 @@ int main(int argc, char* argv[]) {
     args.push_back("-call_syscall_not_allowed");
   }
   std::vector<std::string> envs = {};
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args, envs);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args, envs);
 
   executor
       // Sandboxing is enabled by the binary itself (i.e. the crc4bin is capable

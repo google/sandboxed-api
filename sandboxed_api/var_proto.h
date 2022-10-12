@@ -19,10 +19,10 @@
 
 #include <cinttypes>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "absl/base/macros.h"
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/utility/utility.h"
 #include "sandboxed_api/proto_helper.h"
@@ -65,7 +65,7 @@ class Proto : public Var {
   ABSL_DEPRECATED("Use GetMessage() instead")
   std::unique_ptr<T> GetProtoCopy() const {
     if (auto proto = GetMessage(); proto.ok()) {
-      return absl::make_unique<T>(*std::move(proto));
+      return std::make_unique<T>(*std::move(proto));
     }
     return nullptr;
   }

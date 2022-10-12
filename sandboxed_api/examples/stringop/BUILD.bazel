@@ -14,11 +14,11 @@
 
 # Description: Example using dynamic length structures for Sandboxed API
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
-
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -77,7 +77,6 @@ cc_test(
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_matchers",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",

@@ -22,7 +22,6 @@ add_dependencies(sandbox2_custom_fork_sandbox
 )
 target_link_libraries(sandbox2_custom_fork_sandbox PRIVATE
   absl::core_headers
-  absl::memory
   sandbox2::comms
   sandbox2::forkserver
   sapi::runfiles

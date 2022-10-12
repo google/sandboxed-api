@@ -51,7 +51,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(main_unit_test PRIVATE
     sapi_contrib::lodepng
-    absl::memory
     absl::strings
     absl::time
     sapi::flags

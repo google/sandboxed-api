@@ -34,7 +34,6 @@ cc_binary(
         "//sandboxed_api/util:flags",
         "//sandboxed_api/util:logging",
         "//sandboxed_api/util:runfiles",
-        "@com_google_absl//absl/memory",
     ],
 )
 

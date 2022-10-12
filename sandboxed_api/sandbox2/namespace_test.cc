@@ -26,7 +26,6 @@
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
@@ -54,7 +53,7 @@ using ::testing::Ne;
 int RunSandboxeeWithArgsAndPolicy(const std::string& sandboxee,
                                   std::initializer_list<std::string> args,
                                   std::unique_ptr<Policy> policy) {
-  Sandbox2 sandbox(absl::make_unique<Executor>(sandboxee, args),
+  Sandbox2 sandbox(std::make_unique<Executor>(sandboxee, args),
                    std::move(policy));
 
   Result result = sandbox.Run();

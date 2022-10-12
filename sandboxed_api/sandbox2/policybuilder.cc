@@ -33,6 +33,7 @@
 #include <csignal>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <utility>
 
 #include "absl/memory/memory.h"
@@ -43,6 +44,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/namespace.h"
+#include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -987,7 +989,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    output->SetNamespace(absl::make_unique<Namespace>(
+    output->SetNamespace(std::make_unique<Namespace>(
         allow_unrestricted_networking_, std::move(mounts_), hostname_,
         allow_mount_propagation_));
   } else {
@@ -1009,7 +1011,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
   output->user_policy_handles_ptrace_ = user_policy_handles_ptrace_;
 
-  auto pb_description = absl::make_unique<PolicyBuilderDescription>();
+  auto pb_description = std::make_unique<PolicyBuilderDescription>();
 
   StoreDescription(pb_description.get());
   output->policy_builder_description_ = std::move(pb_description);

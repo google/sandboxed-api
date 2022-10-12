@@ -24,7 +24,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -52,7 +51,7 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
   std::vector<std::string> args = {
       path,
   };
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
@@ -74,7 +73,7 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/tsync");
 
   auto executor =
-      absl::make_unique<Executor>(path, std::vector<std::string>{path});
+      std::make_unique<Executor>(path, std::vector<std::string>{path});
   executor->set_enable_sandbox_before_exec(false);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -102,7 +101,7 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
 
   std::vector<std::string> args = {absl::StrCat("FD:", fd)};
   std::vector<std::string> envs;
-  auto executor = absl::make_unique<Executor>(fd, args, envs);
+  auto executor = std::make_unique<Executor>(fd, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
@@ -123,7 +122,7 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
 
   std::vector<std::string> args = {path};
   std::vector<std::string> envs;
-  auto executor = absl::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
@@ -146,7 +145,7 @@ TEST(RunAsyncTest, SandboxeeTimeoutWithStacktraces) {
 
   std::vector<std::string> args = {path};
   std::vector<std::string> envs;
-  auto executor = absl::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
@@ -167,7 +166,7 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
 
   std::vector<std::string> args = {path};
   std::vector<std::string> envs;
-  auto executor = absl::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
@@ -186,7 +185,7 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
 
   std::vector<std::string> args = {path};
   std::vector<std::string> envs;
-  auto executor = absl::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args, envs);
   executor->limits()->set_walltime_limit(absl::Seconds(5));
 
   SAPI_ASSERT_OK_AND_ASSIGN(

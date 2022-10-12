@@ -322,7 +322,7 @@ absl::Status ExtractArchive(const char* filename, int do_extract, int flags,
   // We should only delete it if the do_extract flag is true which
   // means that this struct is instantiated only in that case.
   auto cleanup_ptr =
-      do_extract ? absl::make_unique<ExtractTempDirectoryCleanup>(tmp_dir)
+      do_extract ? std::make_unique<ExtractTempDirectoryCleanup>(tmp_dir)
                  : nullptr;
 
   std::string filename_absolute = MakeAbsolutePathAtCWD(filename);

@@ -29,12 +29,12 @@ Result& Result::operator=(const Result& other) {
   reason_code_ = other.reason_code_;
   stack_trace_ = other.stack_trace_;
   if (other.regs_) {
-    regs_ = absl::make_unique<Regs>(*other.regs_);
+    regs_ = std::make_unique<Regs>(*other.regs_);
   } else {
     regs_.reset(nullptr);
   }
   if (other.syscall_) {
-    syscall_ = absl::make_unique<Syscall>(*other.syscall_);
+    syscall_ = std::make_unique<Syscall>(*other.syscall_);
   } else {
     syscall_.reset(nullptr);
   }

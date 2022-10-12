@@ -36,7 +36,6 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
@@ -123,7 +122,7 @@ int main(int argc, char* argv[]) {
   if (absl::GetFlag(FLAGS_sandbox2tool_keep_env)) {
     envp = sandbox2::util::CharPtrArray(environ).ToStringVector();
   }
-  auto executor = absl::make_unique<sandbox2::Executor>(argv[1], args, envp);
+  auto executor = std::make_unique<sandbox2::Executor>(argv[1], args, envp);
 
   sapi::file_util::fileops::FDCloser recv_fd1;
   if (absl::GetFlag(FLAGS_sandbox2tool_redirect_fd1)) {

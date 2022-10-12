@@ -30,7 +30,6 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -134,7 +133,7 @@ int main(int argc, char* argv[]) {
   const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
       "sandbox2/examples/static/static_bin");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
 
   executor
       // Sandboxing is enabled by the sandbox itself. The sandboxed binary is

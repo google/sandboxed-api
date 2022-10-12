@@ -43,7 +43,6 @@ target_link_libraries(sapi_generator PUBLIC
   sapi::base
   absl::btree
   absl::flat_hash_set
-  absl::memory
   absl::random_random
   absl::status
   absl::statusor

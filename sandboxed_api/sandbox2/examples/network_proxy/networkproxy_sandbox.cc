@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
   }
   std::vector<std::string> envs = {};
 
-  auto executor = absl::make_unique<sandbox2::Executor>(path, args, envs);
+  auto executor = std::make_unique<sandbox2::Executor>(path, args, envs);
 
   executor
       // Sandboxing is enabled by the binary itself (i.e. the networkproxy_bin

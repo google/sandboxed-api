@@ -61,7 +61,7 @@ absl::Status LibZip::OpenRemote() {
   SAPI_RETURN_IF_ERROR(sandbox_->TransferToSandboxee(&rfd_));
 
   SAPI_ASSIGN_OR_RETURN(void* zipsource, CreateSourceFromFd(rfd_));
-  zipsource_ = absl::make_unique<sapi::v::RemotePtr>(zipsource);
+  zipsource_ = std::make_unique<sapi::v::RemotePtr>(zipsource);
 
   sapi::v::NullPtr null_ptr;
   absl::StatusOr<zip_t*> status_or_zip =
@@ -74,7 +74,7 @@ absl::Status LibZip::OpenRemote() {
 
   SAPI_RETURN_IF_ERROR(api_.zip_source_keep(&(*zipsource_)));
 
-  zip_ = absl::make_unique<sapi::v::RemotePtr>(*status_or_zip);
+  zip_ = std::make_unique<sapi::v::RemotePtr>(*status_or_zip);
 
   return absl::OkStatus();
 }

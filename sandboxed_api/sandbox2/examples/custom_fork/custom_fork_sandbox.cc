@@ -25,7 +25,6 @@
 
 #include <glog/logging.h>
 #include "sandboxed_api/util/flag.h"
-#include "absl/memory/memory.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -58,7 +57,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
 static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
   // Now, start the sandboxee as usual, just use a different Executor
   // constructor, which takes pointer to the ForkClient.
-  auto executor = absl::make_unique<sandbox2::Executor>(fork_client);
+  auto executor = std::make_unique<sandbox2::Executor>(fork_client);
 
   // Set limits as usual.
   executor
@@ -110,7 +109,7 @@ int main(int argc, char* argv[]) {
       "sandbox2/examples/custom_fork/custom_fork_bin");
   std::vector<std::string> args = {path};
   std::vector<std::string> envs = {};
-  auto fork_executor = absl::make_unique<sandbox2::Executor>(path, args, envs);
+  auto fork_executor = std::make_unique<sandbox2::Executor>(path, args, envs);
   // Start the fork-server (which is here: the custom_fork_bin process calling
   // sandbox2::Client::WaitAndFork() in a loop).
   //

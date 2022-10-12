@@ -19,16 +19,15 @@
 #include <sys/socket.h>
 #include <thread>
 
+#include <memory>
+
 #include <glog/logging.h>
-#include "absl/memory/memory.h"
 #include "sandboxed_api/sandbox2/logserver.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 
 namespace sandbox2 {
 
-void IPC::SetUpServerSideComms(int fd) {
-  comms_ = absl::make_unique<Comms>(fd);
-}
+void IPC::SetUpServerSideComms(int fd) { comms_ = std::make_unique<Comms>(fd); }
 
 void IPC::MapFd(int local_fd, int remote_fd) {
   VLOG(3) << "Will send: " << local_fd << ", to overwrite: " << remote_fd;

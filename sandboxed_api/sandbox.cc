@@ -21,12 +21,12 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
+#include <memory>
 
 #include <glog/logging.h>
 #include "absl/base/casts.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/macros.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -164,8 +164,8 @@ absl::Status Sandbox::Init() {
 
     forkserver_executor_ =
         (embed_lib_fd >= 0)
-            ? absl::make_unique<sandbox2::Executor>(embed_lib_fd, args, envs)
-            : absl::make_unique<sandbox2::Executor>(lib_path, args, envs);
+            ? std::make_unique<sandbox2::Executor>(embed_lib_fd, args, envs)
+            : std::make_unique<sandbox2::Executor>(lib_path, args, envs);
 
     fork_client_ = forkserver_executor_->StartForkServer();
 
@@ -180,7 +180,7 @@ absl::Status Sandbox::Init() {
   auto s2p = ModifyPolicy(&policy_builder);
 
   // Spawn new process from the forkserver.
-  auto executor = absl::make_unique<sandbox2::Executor>(fork_client_.get());
+  auto executor = std::make_unique<sandbox2::Executor>(fork_client_.get());
 
   executor
       // The client.cc code is capable of enabling sandboxing on its own.
@@ -197,15 +197,15 @@ absl::Status Sandbox::Init() {
   // Modify the executor, e.g. by setting custom limits and IPC.
   ModifyExecutor(executor.get());
 
-  s2_ = absl::make_unique<sandbox2::Sandbox2>(std::move(executor),
-                                              std::move(s2p), CreateNotifier());
+  s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
+                                             std::move(s2p), CreateNotifier());
   s2_awaited_ = false;
   auto res = s2_->RunAsync();
 
   comms_ = s2_->comms();
   pid_ = s2_->pid();
 
-  rpc_channel_ = absl::make_unique<RPCChannel>(comms_);
+  rpc_channel_ = std::make_unique<RPCChannel>(comms_);
 
   if (!res) {
     Terminate();

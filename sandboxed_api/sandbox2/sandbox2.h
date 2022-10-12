@@ -25,7 +25,6 @@
 
 #include <glog/logging.h>
 #include "absl/base/macros.h"
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -51,7 +50,7 @@ class Sandbox2 final {
     CHECK(executor_ != nullptr);
     CHECK(policy_ != nullptr);
     if (notify_ == nullptr) {
-      notify_ = absl::make_unique<Notify>();
+      notify_ = std::make_unique<Notify>();
     }
   }
 

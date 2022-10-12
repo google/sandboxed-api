@@ -20,7 +20,6 @@
 #include <memory>
 #include <string>
 
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -118,9 +117,9 @@ void Sandbox2::set_walltime_limit(absl::Duration limit) const {
 
 void Sandbox2::Launch() {
   monitor_ =
-      absl::make_unique<Monitor>(executor_.get(), policy_.get(), notify_.get());
+      std::make_unique<Monitor>(executor_.get(), policy_.get(), notify_.get());
   monitor_thread_ =
-      absl::make_unique<std::thread>(&Monitor::Run, monitor_.get());
+      std::make_unique<std::thread>(&Monitor::Run, monitor_.get());
 
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for

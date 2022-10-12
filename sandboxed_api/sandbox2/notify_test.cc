@@ -24,7 +24,6 @@
 #include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/strings/str_join.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -108,8 +107,8 @@ TEST(NotifyTest, AllowPersonality) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
-  Sandbox2 s2(absl::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
-              absl::make_unique<PersonalityNotify>(/*allow=*/true));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
+              std::make_unique<PersonalityNotify>(/*allow=*/true));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -121,8 +120,8 @@ TEST(NotifyTest, DisallowPersonality) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
-  Sandbox2 s2(absl::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
-              absl::make_unique<PersonalityNotify>(/*allow=*/false));
+  Sandbox2 s2(std::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
+              std::make_unique<PersonalityNotify>(/*allow=*/false));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -134,11 +133,11 @@ TEST(NotifyTest, PrintPidAndComms) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/pidcomms");
   std::vector<std::string> args = {path};
-  auto executor = absl::make_unique<Executor>(path, args);
+  auto executor = std::make_unique<Executor>(path, args);
   executor->set_enable_sandbox_before_exec(false);
 
   Sandbox2 s2(std::move(executor), NotifyTestcasePolicy(),
-              absl::make_unique<PidCommsNotify>());
+              std::make_unique<PidCommsNotify>());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));

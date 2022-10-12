@@ -72,7 +72,6 @@ if(SAPI_BUILD_TESTING)
   )
   set_target_properties(sapi_main_stringop PROPERTIES OUTPUT_NAME main_stringop)
   target_link_libraries(sapi_main_stringop PRIVATE
-    absl::memory
     absl::strings
     absl::time
     glog::glog

@@ -23,9 +23,9 @@
 
 #include <climits>
 #include <cstddef>
+#include <memory>
 #include <string_view>
 
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -193,7 +193,7 @@ std::unique_ptr<ForkClient> Executor::StartForkServer() {
   if (!process.ok()) {
     return nullptr;
   }
-  return absl::make_unique<ForkClient>(process->main_pid, ipc_.comms());
+  return std::make_unique<ForkClient>(process->main_pid, ipc_.comms());
 }
 
 void Executor::SetUpServerSideCommsFd() {

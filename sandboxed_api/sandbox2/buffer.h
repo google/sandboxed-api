@@ -28,7 +28,11 @@ namespace sandbox2 {
 // The executor must distrust the content of this buffer, like everything
 // else that comes under control of the sandboxee.
 class Buffer final {
+ private:
+  struct Tag {};
+
  public:
+  Buffer(Tag tag = {}) {}
   ~Buffer();
 
   Buffer(const Buffer&) = delete;
@@ -53,8 +57,6 @@ class Buffer final {
   int fd() const { return fd_; }
 
  private:
-  Buffer() = default;
-
   uint8_t* buf_ = nullptr;
   int fd_ = -1;
   size_t size_ = 0;

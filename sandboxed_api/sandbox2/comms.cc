@@ -34,11 +34,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <memory>
 
 #include "google/protobuf/message.h"
 #include "absl/base/config.h"
 #include "absl/base/dynamic_annotations.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

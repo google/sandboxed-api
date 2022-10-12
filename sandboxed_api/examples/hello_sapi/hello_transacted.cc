@@ -66,7 +66,7 @@ class CustomHelloSandbox : public HelloSandbox {
 int main() {
   std::cout << "Calling into a sandboxee to add two numbers...\n";
 
-  sapi::BasicTransaction transaction(absl::make_unique<CustomHelloSandbox>());
+  sapi::BasicTransaction transaction(std::make_unique<CustomHelloSandbox>());
 
   absl::Status status =
       transaction.Run([](sapi::Sandbox* sandbox) -> absl::Status {
