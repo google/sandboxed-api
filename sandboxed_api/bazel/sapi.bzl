@@ -222,7 +222,8 @@ def sapi_library(
         deps = [],
         tags = [],
         generator_version = 1,
-        visibility = None):
+        visibility = None,
+        default_copts = []):
     """Provides the implementation of a Sandboxed API library.
 
     Args:
@@ -258,6 +259,8 @@ def sapi_library(
         version 2 uses the newer C++ implementation that uses the full clang
         compiler front-end for parsing. Both emit equivalent Sandboxed APIs.
       visibility: Target visibility
+      default_copts: List of package level default copts, an additional
+        attribute since copts already has default value.
     """
 
     common = {
@@ -292,7 +295,7 @@ def sapi_library(
         srcs = srcs,
         data = [":" + name + ".bin"] + data,
         hdrs = lib_hdrs,
-        copts = copts,
+        copts = default_copts + copts,
         defines = defines,
         deps = sort_deps(
             [
@@ -320,6 +323,7 @@ def sapi_library(
             ":" + name + ".lib",
             "//sandboxed_api:client",
         ],
+        copts = default_copts,
         **common
     )
 
@@ -327,6 +331,7 @@ def sapi_library(
         name = name + ".lib",
         deps = [lib],
         alwayslink = 1,  # All functions are linked into depending binaries
+        copts = default_copts,
         **common
     )
 
