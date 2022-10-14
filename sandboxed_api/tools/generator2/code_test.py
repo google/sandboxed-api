@@ -327,16 +327,23 @@ class CodeAnalysisTest(parameterized.TestCase):
 
     types = args[0].get_related_types()
     names = [t._clang_type.spelling for t in types]
-    self.assertLen(types, 3)
-    self.assertSameElements(names, ['struct_2', 'uint', 'struct_1'])
+    self.assertLen(types, 4)
+    self.assertSameElements(names, [
+        'struct_2', 'struct_1::(unnamed struct at tmp.cc:6:9)', 'uint',
+        'struct_1'
+    ])
 
     types = args[1].get_related_types()
     names = [t._clang_type.spelling for t in types]
-    self.assertLen(types, 2)
-    self.assertSameElements(names, ['struct_1', 'uint'])
+    self.assertLen(types, 3)
+    self.assertSameElements(
+        names, ['struct_1', 'struct_1::(unnamed struct at tmp.cc:6:9)', 'uint'])
 
     names = [t._clang_type.spelling for t in generator._get_related_types()]
-    self.assertEqual(names, ['uint', 'struct_1', 'struct_2', 'struct_a'])
+    self.assertEqual(names, [
+        'uint', 'struct_1', 'struct_1::(unnamed struct at tmp.cc:6:9)',
+        'struct_2', 'struct_a'
+    ])
 
     types = args[2].get_related_types()
     self.assertLen(types, 1)
@@ -373,13 +380,16 @@ class CodeAnalysisTest(parameterized.TestCase):
 
     types = args[0].get_related_types()
     names = [t._clang_type.spelling for t in types]
-    self.assertLen(types, 3)
-    self.assertSameElements(names, ['union_2', 'uint', 'union_1'])
+    self.assertLen(types, 4)
+    self.assertSameElements(names, [
+        'union_2', 'union_1::(unnamed union at tmp.cc:6:9)', 'uint', 'union_1'
+    ])
 
     types = args[1].get_related_types()
     names = [t._clang_type.spelling for t in types]
-    self.assertLen(types, 2)
-    self.assertSameElements(names, ['union_1', 'uint'])
+    self.assertLen(types, 3)
+    self.assertSameElements(
+        names, ['union_1', 'union_1::(unnamed union at tmp.cc:6:9)', 'uint'])
 
     # Extra check for generation, in case rendering throws error for this test.
     generator.generate('Test', [], 'sapi::Tests', None, None)
@@ -638,7 +648,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(functions, 1)
 
     types = generator._get_related_types()
-    self.assertLen(types, 2)
+    self.assertLen(types, 3)
     self.assertEqual('typedef unsigned int uint', types[0].stringify())
     self.assertMultiLineEqual(expected, types[1].stringify())
 
