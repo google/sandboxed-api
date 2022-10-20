@@ -17,12 +17,14 @@
 
 #include <cstdlib>
 
-#include <glog/logging.h>
 #include "absl/base/macros.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/examples/zlib/zlib-sapi.sapi.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/vars.h"
 
 // Need to define these manually, as zlib.h cannot be directly included. The
@@ -38,8 +40,9 @@
 #define Z_STREAM_END 1
 
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   sapi::Sandbox sandbox(sapi::zlib::zlib_sapi_embed_create());
   sapi::zlib::ZlibApi api(&sandbox);

@@ -63,7 +63,7 @@ target_link_libraries(sapi_embed_file
           sapi::base
           sapi::raw_logging
           sapi::status
-  PUBLIC glog::glog
+  PUBLIC absl::log
 )
 
 # sandboxed_api:sapi
@@ -162,7 +162,7 @@ target_link_libraries(sapi_vars
           sapi::proto_arg_proto
           sapi::status
           sapi::var_type
-  PUBLIC glog::glog
+  PUBLIC absl::log
 )
 
 # sandboxed_api:client
@@ -173,6 +173,8 @@ add_library(sapi::client ALIAS sapi_client)
 target_link_libraries(sapi_client
   PRIVATE absl::core_headers
           absl::dynamic_annotations
+          absl::flags_parse
+          absl::log_initialize
           absl::strings
           libffi::libffi
           sandbox2::client
@@ -181,13 +183,12 @@ target_link_libraries(sapi_client
           sandbox2::logsink
           sapi::base
           sapi::call
-          sapi::flags
           sapi::lenval_core
-          sapi::logging
           sapi::proto_arg_proto
           sapi::vars
           ${CMAKE_DL_LIBS}
-  PUBLIC glog::glog
+  PUBLIC absl::check
+         absl::log
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)

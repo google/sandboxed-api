@@ -19,17 +19,15 @@
 #include <csignal>
 #include <cstdlib>
 
-#include "absl/base/attributes.h"
-#include "absl/strings/str_cat.h"
+#include "absl/log/globals.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 
 int main() {
   // Make sure the logs go stderr.
-  google::LogToStderr();
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
 
   // Close all non-essential FDs to keep newly opened FD numbers consistent.
   absl::Status status = sandbox2::sanitizer::CloseAllFDsExcept(
@@ -67,7 +65,7 @@ int main() {
     if (!child_pid) {
       // FORKSERVER_FORK sent to the global forkserver. This case does not make
       // sense, we thus kill the process here.
-      exit(0);
+      _Exit(0);
     }
   }
 }

@@ -18,15 +18,19 @@
 
 #include <memory>
 
-#include <glog/logging.h>
-#include "sandboxed_api/util/flag.h"
+#include "absl/base/log_severity.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/check.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/examples/sum/sandbox.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
 #include "sandboxed_api/examples/sum/sum_params.pb.h"
 #include "sandboxed_api/transaction.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/vars.h"
 
 namespace {
@@ -208,12 +212,13 @@ absl::Status test_addition(sapi::Sandbox* sandbox, int a, int b, int c) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   absl::Status status;
 
-  sapi::BasicTransaction st{std::make_unique<SumSapiSandbox>()};
+  sapi::BasicTransaction st(std::make_unique<SumSapiSandbox>());
   // Using the simple transaction (and function pointers):
   CHECK(st.Run(test_addition, 1, 1, 2).ok());
   CHECK(st.Run(test_addition, 1336, 1, 1337).ok());
@@ -273,10 +278,10 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "Final run result for violate: " << status;
   CHECK(status.code() == absl::StatusCode::kUnavailable);
 
-  SumTransaction sapi_timeout{std::make_unique<SumSapiSandbox>(),
+  SumTransaction sapi_timeout(std::make_unique<SumSapiSandbox>(),
                               /*crash=*/false,
                               /*violate=*/false,
-                              /*time_out=*/true};
+                              /*time_out=*/true);
   status = sapi_timeout.Run();
   LOG(INFO) << "Final run result for timeout: " << status;
   CHECK(status.code() == absl::StatusCode::kUnavailable);

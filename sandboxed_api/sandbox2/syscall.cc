@@ -22,7 +22,6 @@
 #include <cstring>
 #include <string>
 
-#include <glog/logging.h>
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "sandboxed_api/config.h"

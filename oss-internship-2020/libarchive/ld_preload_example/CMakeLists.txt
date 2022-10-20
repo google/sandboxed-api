@@ -36,7 +36,7 @@ add_library(sapi_minitar_lib_shared SHARED
 )
 
 target_link_libraries(sapi_minitar_lib_shared PUBLIC
-  glog::glog
+  absl::log
   libarchive_sapi
   sandbox2::executor
   sapi::fileops

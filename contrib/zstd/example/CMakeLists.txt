@@ -17,9 +17,11 @@ add_executable(sapi_minizstd
   ../utils/utils_zstd.cc
 )
 
-target_link_libraries(sapi_minizstd
-  PRIVATE sapi_contrib::zstd
-          sapi::logging
-          sapi::sapi
-          absl::flags_parse
+target_link_libraries(sapi_minizstd PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::zstd
+  sapi::sapi
 )

@@ -34,8 +34,11 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
@@ -49,9 +52,6 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/logging.h"
-
-using std::string;
 
 ABSL_FLAG(bool, sandbox2tool_keep_env, false,
           "Keep current environment variables");
@@ -78,9 +78,9 @@ ABSL_FLAG(uint64_t, sandbox2tool_walltime_timeout, 60U,
           "Wall-time timeout in seconds (if >0)");
 ABSL_FLAG(uint64_t, sandbox2tool_file_size_creation_limit, 1024U,
           "Maximum size of created files");
-ABSL_FLAG(string, sandbox2tool_cwd, "/",
+ABSL_FLAG(std::string, sandbox2tool_cwd, "/",
           "If not empty, chdir to the directory before sandboxed");
-ABSL_FLAG(string, sandbox2tool_additional_bind_mounts, "",
+ABSL_FLAG(std::string, sandbox2tool_additional_bind_mounts, "",
           "If user namespaces are enabled, this option will add additional "
           "bind mounts. Mounts are separated by comma and can optionally "
           "specify a target using \"=>\" "
@@ -105,8 +105,9 @@ void OutputFD(int fd) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   if (argc < 2) {
     absl::FPrintF(stderr, "Usage: %s [flags] -- cmd args...", argv[0]);

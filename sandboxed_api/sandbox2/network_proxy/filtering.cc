@@ -16,7 +16,7 @@
 
 #include <arpa/inet.h>
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"

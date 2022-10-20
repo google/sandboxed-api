@@ -16,8 +16,10 @@ add_executable(sapi_minizip
   main.cc
 )
 target_link_libraries(sapi_minizip PRIVATE
-  sapi_contrib::libzip
-  sapi::logging
-  sapi::sapi
+  absl::flags
   absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::libzip
+  sapi::sapi
 )

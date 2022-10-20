@@ -23,8 +23,8 @@
 #include <thread>  // NOLINT(build/c++11)
 #include <utility>
 
-#include <glog/logging.h>
 #include "absl/base/macros.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"

@@ -21,14 +21,17 @@ add_dependencies(sandbox2_networkproxy_sandbox
   sandbox2::networkproxy_bin
 )
 target_link_libraries(sandbox2_networkproxy_sandbox PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::fileops
   sapi::runfiles
   sandbox2::sandbox2
   sapi::base
-  sapi::flags
-  sapi::logging
 )
 
 # sandboxed_api/sandbox2/examples/networkproxy:networkproxy_bin
@@ -40,6 +43,11 @@ set_target_properties(sandbox2_networkproxy_bin PROPERTIES
 )
 add_executable(sandbox2::networkproxy_bin ALIAS sandbox2_networkproxy_bin)
 target_link_libraries(sandbox2_networkproxy_bin PRIVATE absl::status
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
   absl::statusor
   absl::str_format
   sandbox2::client
@@ -47,7 +55,6 @@ target_link_libraries(sandbox2_networkproxy_bin PRIVATE absl::status
   sapi::fileops
   sandbox2::network_proxy_client
   sapi::base
-  sapi::flags
   sapi::status
   sapi::strerror
 )

@@ -18,9 +18,11 @@ add_executable(sapi_minibrotli
   ../utils/utils_brotli_enc.cc
   ../utils/utils_brotli_dec.cc
 )
-target_link_libraries(sapi_minibrotli
-  PRIVATE absl::flags_parse
-          sapi_contrib::brotli
-          sapi::logging
-          sapi::sapi
+target_link_libraries(sapi_minibrotli PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::brotli
+  sapi::sapi
 )

@@ -20,11 +20,13 @@
 #include <memory>
 #include <string>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/monitor.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 

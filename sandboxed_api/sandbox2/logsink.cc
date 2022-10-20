@@ -17,10 +17,11 @@
 #include <unistd.h>
 
 #include <csignal>
-#include <iostream>
 #include <string>
 
+#include "absl/log/log_sink_registry.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/logserver.pb.h"
 
@@ -28,29 +29,26 @@ namespace sandbox2 {
 
 constexpr char LogSink::kLogFDName[];
 
-LogSink::LogSink(int fd) : comms_(fd) { AddLogSink(this); }
+LogSink::LogSink(int fd) : comms_(fd) { absl::AddLogSink(this); }
 
-LogSink::~LogSink() { RemoveLogSink(this); }
+LogSink::~LogSink() { absl::RemoveLogSink(this); }
 
-void LogSink::send(google::LogSeverity severity, const char* full_filename,
-                   const char* base_filename, int line,
-                   const struct tm* tm_time, const char* message,
-                   size_t message_len) {
+void LogSink::Send(const absl::LogEntry& e) {
   absl::MutexLock l(&lock_);
 
   LogMessage msg;
-  msg.set_severity(static_cast<int>(severity));
-  msg.set_path(base_filename);
-  msg.set_line(line);
-  msg.set_message(absl::StrCat(absl::string_view{message, message_len}, "\n"));
+  msg.set_severity(static_cast<int>(e.log_severity()));
+  msg.set_path(std::string(e.source_basename()));
+  msg.set_line(e.source_line());
+  msg.set_message(absl::StrCat(e.text_message(), "\n"));
   msg.set_pid(getpid());
 
   if (!comms_.SendProtoBuf(msg)) {
-    std::cerr << "sending log message to supervisor failed: " << std::endl
-              << msg.DebugString() << std::endl;
+    absl::FPrintF(stderr, "sending log message to supervisor failed:\n%s\n",
+                  e.text_message_with_prefix());
   }
 
-  if (severity == google::FATAL) {
+  if (e.log_severity() == absl::LogSeverity::kFatal) {
     // Raise a SIGABRT to prevent the remaining code in logging to try to dump a
     // symbolized stack trace which can lead to syscall violations.
     kill(0, SIGABRT);

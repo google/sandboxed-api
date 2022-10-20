@@ -15,9 +15,12 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "absl/flags/parse.h"
+#include "absl/log/check.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "contrib/jsonnet/jsonnet_base_sandbox.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/path.h"
 
 absl::Status JsonnetMain(std::string in_file, std::string out_file) {
@@ -73,10 +76,11 @@ absl::Status JsonnetMain(std::string in_file, std::string out_file) {
 int main(int argc, char* argv[]) {
   using sapi::file_util::fileops::Basename;
 
-  sapi::InitLogging(argv[0]);
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
-  if (!(argc == 3)) {
+  if (argc == 3) {
     std::cerr << "Usage:\n"
               << Basename(argv[0])
               << " /absolute/path/to/INPUT.jsonnet /absolute/path/to/OUTPUT\n";

@@ -18,10 +18,9 @@
 
 #include <memory>
 
-#include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/examples/stringop/sandbox.h"
@@ -41,7 +40,7 @@ using ::testing::StrEq;
 
 // Tests using a simple transaction (and function pointers):
 TEST(StringopTest, ProtobufStringDuplication) {
-  sapi::BasicTransaction st(std::make_unique<StringopSapiSandbox>());
+  sapi::BasicTransaction st(absl::make_unique<StringopSapiSandbox>());
   EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
     StringopApi api(sandbox);
     stringop::StringDuplication proto;

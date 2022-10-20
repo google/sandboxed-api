@@ -19,6 +19,9 @@
 #include <vector>
 
 #include "../sandboxed.h"  // NOLINT(build/include)
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/vars.h"
@@ -135,7 +138,9 @@ std::string GetFilePath(const std::string filename) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   std::string srcfile;
   // "test/images/quad-tile.jpg.tiff"

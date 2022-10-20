@@ -24,10 +24,10 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"

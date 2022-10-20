@@ -23,8 +23,9 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
 #include "absl/base/macros.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/fork_client.h"

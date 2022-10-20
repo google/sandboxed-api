@@ -18,9 +18,9 @@
 
 #include <string>
 
-#include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"

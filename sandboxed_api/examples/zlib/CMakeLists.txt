@@ -33,11 +33,12 @@ add_executable(sapi_main_zlib
 )
 set_target_properties(sapi_main_zlib PROPERTIES OUTPUT_NAME main_zlib)
 target_link_libraries(sapi_main_zlib PRIVATE
-  absl::status
   sapi::base
-  glog::glog
-  sapi::flags
-  sapi::logging
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_initialize
+  absl::status
   sapi::sapi
   sapi::status
   sapi::zlib_sapi

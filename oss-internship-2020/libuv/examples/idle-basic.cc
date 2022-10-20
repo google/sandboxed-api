@@ -18,7 +18,8 @@
 
 #include <iostream>
 
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/log/initialize.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {
@@ -102,8 +103,8 @@ absl::Status IdleBasic() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   if (absl::Status status = IdleBasic(); !status.ok()) {
     LOG(ERROR) << "IdleBasic failed: " << status.ToString();

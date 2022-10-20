@@ -1,4 +1,3 @@
-// Copyright 2019 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,11 +25,12 @@
 #include <thread>  // NOLINT(build/c++11)
 #include <utility>
 
-#include <glog/logging.h>
 #include "google/protobuf/text_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/fixed_array.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"
 #include "sandboxed_api/util/status_matchers.h"

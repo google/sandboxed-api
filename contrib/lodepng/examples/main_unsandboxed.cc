@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <iostream>
+#include <vector>
 
 #include "helpers.h"      // NOLINT(build/include)
 #include "lodepng.gen.h"  // NOLINT(build/include)
+#include "absl/flags/parse.h"
+#include "absl/log/check.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/path.h"
 
 void EncodeDecodeOneStep(const std::string& images_path) {
@@ -99,7 +104,9 @@ void EncodeDecodeTwoSteps(const std::string& images_path) {
 }
 
 int main(int argc, char* argv[]) {
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   const std::string images_path = CreateTempDirAtCWD();
   CHECK(sapi::file_util::fileops::Exists(images_path, false))

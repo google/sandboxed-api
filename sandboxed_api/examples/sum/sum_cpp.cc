@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "sandboxed_api/examples/sum/sum_params.pb.h"
 
 extern "C" int sumproto(const sumsapi::SumParamsProto* params) {

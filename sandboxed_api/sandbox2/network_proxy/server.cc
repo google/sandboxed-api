@@ -26,7 +26,7 @@
 #include <cstring>
 #include <memory>
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 
@@ -37,7 +37,7 @@ namespace file_util = ::sapi::file_util;
 NetworkProxyServer::NetworkProxyServer(int fd, AllowedHosts* allowed_hosts,
                                        pthread_t monitor_thread_id)
     : violation_occurred_(false),
-      comms_{std::make_unique<Comms>(fd)},
+      comms_(std::make_unique<Comms>(fd)),
       fatal_error_(false),
       monitor_thread_id_(monitor_thread_id),
       allowed_hosts_(allowed_hosts) {}

@@ -28,8 +28,11 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -38,7 +41,6 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/runfiles.h"
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
@@ -126,8 +128,9 @@ int main(int argc, char* argv[]) {
   if constexpr (sapi::sanitizers::IsAny()) {
     return EXIT_SUCCESS;
   }
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
   const std::string path = sapi::internal::GetSapiDataDependencyFilePath(

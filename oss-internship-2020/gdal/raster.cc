@@ -18,8 +18,8 @@
 #include <fstream>
 #include <iostream>
 
-#include <glog/logging.h>
 #include "gdal_sapi.sapi.h"  // NOLINT(build/include)
+#include "absl/log/log.h"
 #include "sandboxed_api/util/fileops.h"
 
 class GdalSapiSandbox : public GDALSandbox {

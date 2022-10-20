@@ -30,8 +30,8 @@
 #include <string>
 #include <vector>
 
-#include <glog/logging.h>
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -48,11 +48,23 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
 namespace file_util = ::sapi::file_util;
+
+namespace {
+
+std::string ToString(GlobalForkserverStartMode mode) {
+  switch (mode) {
+    case GlobalForkserverStartMode::kOnDemand:
+      return "ondemand";
+    default:
+      return "unknown";
+  }
+}
+
+}  // namespace
 
 bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
                    std::string* error) {
@@ -72,26 +84,6 @@ bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
   return true;
 }
 
-namespace {
-std::string ToString(GlobalForkserverStartMode mode) {
-  switch (mode) {
-    case GlobalForkserverStartMode::kOnDemand:
-      return "ondemand";
-    default:
-      return "unknown";
-  }
-}
-bool ValidateStartMode(const char*, const std::string& flag) {
-  GlobalForkserverStartModeSet unused;
-  std::string error;
-  if (!AbslParseFlag(flag, &unused, &error)) {
-    SAPI_RAW_LOG(ERROR, "%s", error.c_str());
-    return false;
-  }
-  return true;
-}
-}  // namespace
-
 std::string AbslUnparseFlag(GlobalForkserverStartModeSet in) {
   std::vector<std::string> str_modes;
   for (size_t i = 0; i < GlobalForkserverStartModeSet::kSize; ++i) {
@@ -108,22 +100,21 @@ std::string AbslUnparseFlag(GlobalForkserverStartModeSet in) {
 
 }  // namespace sandbox2
 
-ABSL_FLAG(string, sandbox2_forkserver_binary_path, "",
+ABSL_FLAG(std::string, sandbox2_forkserver_binary_path, "",
           "Path to forkserver_bin binary");
-ABSL_FLAG(string, sandbox2_forkserver_start_mode, "ondemand",
+ABSL_FLAG(sandbox2::GlobalForkserverStartModeSet,
+          sandbox2_forkserver_start_mode,
+          sandbox2::GlobalForkserverStartModeSet(
+              sandbox2::GlobalForkserverStartMode::kOnDemand)
+          ,
           "When Sandbox2 Forkserver process should be started");
-DEFINE_validator(sandbox2_forkserver_start_mode, &sandbox2::ValidateStartMode);
 
 namespace sandbox2 {
 
 namespace {
 
 GlobalForkserverStartModeSet GetForkserverStartMode() {
-  GlobalForkserverStartModeSet rv;
-  std::string error;
-  CHECK(AbslParseFlag(absl::GetFlag(FLAGS_sandbox2_forkserver_start_mode), &rv,
-                      &error));
-  return rv;
+  return absl::GetFlag(FLAGS_sandbox2_forkserver_start_mode);
 }
 
 absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {

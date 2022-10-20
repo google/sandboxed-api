@@ -16,8 +16,11 @@ add_executable(sapi_minihunspell
   main.cc
 )
 
-target_link_libraries(sapi_minihunspell
-  PRIVATE sapi_contrib::hunspell
-          sapi::logging
-          sapi::sapi
+target_link_libraries(sapi_minihunspell PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::hunspell
+  sapi::sapi
 )

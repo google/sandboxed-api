@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <absl/flags/flag.h>
-#include <absl/flags/parse.h>
 #include <unistd.h>
 
 #include <fstream>
 #include <iostream>
 #include <string>
 
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "contrib/c-blosc/sandboxed.h"
 #include "contrib/c-blosc/utils/utils_blosc.h"
-#include "sandboxed_api/util/logging.h"
 
 ABSL_FLAG(bool, decompress, false, "decompress");
 ABSL_FLAG(int, clevel, 5, "compression level");
@@ -53,8 +54,9 @@ absl::Status Stream(CbloscApi& api, std::string& infile_s,
 
 int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
   std::vector<char*> args = absl::ParseCommandLine(argc, argv);
-  sapi::InitLogging(argv[0]);
+  absl::InitializeLog();
 
   if (args.size() != 3) {
     std::cerr << "Usage:\n  " << prog_name << " INPUT OUTPUT\n";

@@ -79,21 +79,6 @@ if(SAPI_DOWNLOAD_LIBUNWIND)
 endif()
 sapi_check_target(unwind_ptrace_wrapped)
 
-if(SAPI_DOWNLOAD_GFLAGS)
-  include(cmake/gflags.cmake)
-  sapi_check_target(gflags)
-else()
-  find_package(gflags REQUIRED)
-endif()
-
-if(SAPI_DOWNLOAD_GLOG)
-  include(cmake/glog.cmake)
-endif()
-sapi_check_target(glog::glog)
-
-# TODO(cblichmann): Check if this is needed/works with system lib
-add_dependencies(glog gflags::gflags)
-
 if(SAPI_DOWNLOAD_PROTOBUF)
   include(cmake/protobuf.cmake)
 endif()

@@ -22,24 +22,24 @@
 #include <list>
 #include <vector>
 
-#include <glog/logging.h>
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
 #include "absl/base/dynamic_annotations.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/check.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/call.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/proto_arg.pb.h"
+#include "sandboxed_api/proto_helper.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/sandbox2/logsink.h"
-#include "sandboxed_api/util/logging.h"
-#include "sandboxed_api/vars.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 #include <ffi.h>
-#include <ffitarget.h>
 
 namespace sapi {
 namespace {
@@ -56,13 +56,14 @@ ffi_type* GetFFIType(size_t size, v::Type type) {
     case v::Type::kFloat:
       if (size == sizeof(float)) {
         return &ffi_type_float;
-      } else if (size == sizeof(double)) {
-        return &ffi_type_double;
-      } else if (size == sizeof(long double)) {
-        return &ffi_type_longdouble;
-      } else {
-        LOG(FATAL) << "Unknown floating-point size: " << size;
       }
+      if (size == sizeof(double)) {
+        return &ffi_type_double;
+      }
+      if (size == sizeof(long double)) {
+        return &ffi_type_longdouble;
+      }
+      LOG(FATAL) << "Unsupported floating-point size: " << size;
     case v::Type::kInt:
       switch (size) {
         case 1:
@@ -74,7 +75,7 @@ ffi_type* GetFFIType(size_t size, v::Type type) {
         case 8:
           return &ffi_type_uint64;
         default:
-          LOG(FATAL) << "Unknown integral size: " << size;
+          LOG(FATAL) << "Unsupported integral size: " << size;
       }
     case v::Type::kStruct:
       LOG(FATAL) << "Structs are not supported as function arguments";
@@ -416,15 +417,15 @@ void ServeRequest(sandbox2::Comms* comms) {
 }  // namespace sapi
 
 ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   // Note regarding the FD usage here: Parent and child seem to make use of the
   // same FD, although this is not true. During process setup `dup2()` will be
   // called to replace the FD `kSandbox2ClientCommsFD`.
   // We do not use a new comms object here as the destructor would close our FD.
-  sandbox2::Comms comms{sandbox2::Comms::kDefaultConnection};
-  sandbox2::ForkingClient s2client{&comms};
+  sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
+  sandbox2::ForkingClient s2client(&comms);
 
   // Forkserver loop.
   while (true) {

@@ -95,26 +95,6 @@ cc_test(
     ],
 )
 
-# Compatibility layer for Abseil's flags vs. gFlags
-cc_library(
-    name = "flags",
-    hdrs = ["flag.h"],
-    copts = sapi_platform_copts(),
-    deps = ["@com_github_gflags_gflags//:gflags"],
-)
-
-# Transitional library that helps configure glog with Abseil flags to
-# avoid a dependency on gflags.
-cc_library(
-    name = "logging",
-    srcs = ["logging.cc"],
-    hdrs = ["logging.h"],
-    copts = sapi_platform_copts(),
-    deps = [
-        "@com_google_glog//:glog",
-    ],
-)
-
 # Small support library emulating verbose logging using Abseil's raw logging
 # facility.
 cc_library(
@@ -141,7 +121,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":file_base",
-        ":flags",
         ":raw_logging",
         "@bazel_tools//tools/cpp/runfiles",
         "@com_google_absl//absl/strings",

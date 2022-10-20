@@ -99,10 +99,12 @@ target_include_directories(pffft_sapi INTERFACE
 add_executable(pffft_sandboxed
   main_pffft_sandboxed.cc
 )
-target_link_libraries(pffft_sandboxed
-  PRIVATE sapi_contrib::pffft
-          absl::flags
-          absl::flags_parse
-          sapi::logging
-          sapi::sapi
+target_link_libraries(pffft_sandboxed PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::pffft
+  sapi::sapi
 )

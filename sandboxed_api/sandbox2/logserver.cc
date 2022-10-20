@@ -16,7 +16,8 @@
 
 #include <string>
 
-#include <glog/logging.h>
+#include "absl/base/log_severity.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/logserver.pb.h"
 
 namespace sandbox2 {
@@ -24,18 +25,16 @@ namespace sandbox2 {
 LogServer::LogServer(int fd) : comms_(fd) {}
 
 void LogServer::Run() {
-  namespace logging = ::google;
   LogMessage msg;
   while (comms_.RecvProtoBuf(&msg)) {
-    logging::LogSeverity severity = msg.severity();
+    absl::LogSeverity severity = absl::NormalizeLogSeverity(msg.severity());
     const char* fatal_string = "";
-    if (severity == logging::FATAL) {
+    if (severity == absl::LogSeverity::kFatal) {
       // We don't want to trigger an abort() in the executor for FATAL logs.
-      severity = logging::ERROR;
+      severity = absl::LogSeverity::kError;
       fatal_string = " FATAL";
     }
-    logging::LogMessage log_message(msg.path().c_str(), msg.line(), severity);
-    log_message.stream()
+    LOG(LEVEL(severity)).AtLocation(msg.path().c_str(), msg.line())
         << "(sandboxee " << msg.pid() << fatal_string << "): " << msg.message();
   }
 

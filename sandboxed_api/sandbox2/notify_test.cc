@@ -21,9 +21,9 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_join.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"

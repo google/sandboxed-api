@@ -40,11 +40,13 @@ cc_binary(
     copts = sapi_platform_copts(),
     deps = [
         ":zlib-sapi",
-        ":zlib-sapi_embed",
         "//sandboxed_api:vars",
-        "//sandboxed_api/util:flags",
-        "//sandboxed_api/util:logging",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/status:statusor",
     ],
 )

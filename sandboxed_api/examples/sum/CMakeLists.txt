@@ -38,7 +38,7 @@ add_dependencies(sapi_sum
 )
 target_link_libraries(sapi_sum
   PRIVATE $<TARGET_OBJECTS:sapi_sum_params_proto>
-          glog::glog
+          absl::log
           sapi::base
   PUBLIC protobuf::libprotobuf
 )
@@ -79,11 +79,12 @@ add_executable(sapi_main_sum
 set_target_properties(sapi_main_sum PROPERTIES OUTPUT_NAME main_sum)
 add_executable(sapi::main_sum ALIAS sapi_main_sum)
 target_link_libraries(sapi_main_sum PRIVATE
+  absl::log
+  absl::log_initialize
+  absl::flags
+  absl::flags_parse
   absl::strings
-  glog::glog
   sapi::base
-  sapi::flags
-  sapi::logging
   sapi::sapi
   sapi::status
   sapi::sum_sapi

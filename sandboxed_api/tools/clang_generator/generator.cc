@@ -106,6 +106,7 @@ bool GeneratorFactory::runInvocation(
            // TODO(b/222241644): Figure out how to deal with intrinsics properly
            // Note: The definitions below just need to parse, they don't need to
            //       compile into useful code.
+           "__builtin_ia32_cvtsbf162ss_32=[](auto)->long long{return 0;}",
            "__builtin_ia32_paddsb128=",
            "__builtin_ia32_paddsb256=",
            "__builtin_ia32_paddsb512=",

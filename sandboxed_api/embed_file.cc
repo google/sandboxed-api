@@ -20,9 +20,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <glog/logging.h>
-#include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"

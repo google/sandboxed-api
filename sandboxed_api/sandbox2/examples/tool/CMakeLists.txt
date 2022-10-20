@@ -19,12 +19,15 @@ add_executable(sandbox2_sandbox2tool
 set_target_properties(sandbox2_sandbox2tool PROPERTIES OUTPUT_NAME sandbox2tool)
 add_executable(sandbox2::sandbox2tool ALIAS sandbox2_sandbox2tool)
 target_link_libraries(sandbox2_sandbox2tool PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
   absl::strings
   absl::time
   sandbox2::bpf_helper
   sandbox2::sandbox2
   sandbox2::util
   sapi::base
-  sapi::flags
-  sapi::logging
 )

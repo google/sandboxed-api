@@ -17,12 +17,17 @@ foreach(target IN ITEMS base multiple_files yaml_stream formatter)
     jsonnet_${target}_example.cc
   )
   target_link_libraries(jsonnet_${target}_sandboxed PRIVATE
+    absl::check
+    absl::flags
+    absl::flags_parse
+    absl::log
+    absl::log_globals
+    absl::log_initialize
     libjsonnet
     sapi_contrib::jsonnet_helper
     sapi_contrib::jsonnet
     sapi::file_base
     sapi::fileops
-    sapi::logging
     sapi::sapi
   )
 endforeach()
@@ -30,11 +35,15 @@ endforeach()
 add_executable(jsonnet_base_transacted
   jsonnet_base_transaction.cc
 )
-
 target_link_libraries(jsonnet_base_transacted PRIVATE
+  absl::check
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
   libjsonnet
   sapi_contrib::jsonnet_helper
   sapi_contrib::jsonnet
-  sapi::logging
   sapi::sapi
 )

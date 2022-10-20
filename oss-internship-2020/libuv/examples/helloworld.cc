@@ -18,7 +18,7 @@
 
 #include <iostream>
 
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {

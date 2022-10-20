@@ -17,13 +17,14 @@
 #include "sandboxed_api/sandbox2/ipc.h"
 
 #include <sys/socket.h>
-#include <thread>
 
 #include <memory>
+#include <thread>
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/logserver.h"
 #include "sandboxed_api/sandbox2/logsink.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 

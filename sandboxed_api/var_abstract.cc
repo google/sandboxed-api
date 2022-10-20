@@ -20,10 +20,10 @@
 
 #include <memory>
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_ptr.h"
 

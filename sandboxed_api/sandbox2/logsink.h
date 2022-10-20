@@ -15,16 +15,16 @@
 #ifndef SANDBOXED_API_SANDBOX2_LOGSINK_H_
 #define SANDBOXED_API_SANDBOX2_LOGSINK_H_
 
-#include <glog/logging.h>
-
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
 
-// The LogSink will register itself with the logging facilities and forward all
-// log messages to the executor on a given file descriptor.
-class LogSink : public google::LogSink {
+// The LogSink will register itself with the facilities and forward all log
+// messages to the executor on a given file descriptor.
+class LogSink : public absl::LogSink {
  public:
   static constexpr char kLogFDName[] = "sb2_logsink";
 
@@ -34,9 +34,7 @@ class LogSink : public google::LogSink {
   LogSink(const LogSink&) = delete;
   LogSink& operator=(const LogSink&) = delete;
 
-  void send(google::LogSeverity severity, const char* full_filename,
-            const char* base_filename, int line, const struct tm* tm_time,
-            const char* message, size_t message_len) override;
+  void Send(const absl::LogEntry& e) override;
 
  private:
   Comms comms_;

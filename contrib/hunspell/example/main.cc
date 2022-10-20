@@ -18,8 +18,10 @@
 #include <iostream>
 #include <string>
 
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "contrib/hunspell/sandboxed.h"
-#include "sandboxed_api/util/logging.h"
 
 absl::Status PrintSuggest(HunspellApi& api, sapi::v::RemotePtr& hunspellrp,
                           sapi::v::ConstCStr& word) {
@@ -53,7 +55,9 @@ absl::Status PrintSuggest(HunspellApi& api, sapi::v::RemotePtr& hunspellrp,
 }
 
 int main(int argc, char* argv[]) {
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   if (argc != 4) {
     std::cerr << "Usage:\n  " << argv[0];

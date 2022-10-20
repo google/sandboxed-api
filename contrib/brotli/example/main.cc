@@ -17,11 +17,12 @@
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "contrib/brotli/sandboxed.h"
 #include "contrib/brotli/utils/utils_brotli.h"
 #include "contrib/brotli/utils/utils_brotli_dec.h"
 #include "contrib/brotli/utils/utils_brotli_enc.h"
-#include "sandboxed_api/util/logging.h"
 
 ABSL_FLAG(bool, decompress, false, "decompress");
 
@@ -62,8 +63,9 @@ absl::Status DecompressInMemory(BrotliSandbox& sandbox,
 
 int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
   std::vector<char*> args = absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   if (args.size() != 3) {
     std::cerr << "Usage:\n  " << prog_name << " INPUT OUTPUT\n";

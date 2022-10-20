@@ -37,7 +37,7 @@ target_link_libraries(sandbox2_network_proxy_filtering
           sapi::fileops
           sapi::base
   PUBLIC absl::statusor
-         glog::glog
+         absl::log
          sapi::strerror
          sapi::status
 )
@@ -49,9 +49,10 @@ add_library(sandbox2_network_proxy_client ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::network_proxy_client ALIAS sandbox2_network_proxy_client)
 target_link_libraries(sandbox2_network_proxy_client PRIVATE
+  absl::check
   absl::strings
   absl::synchronization
-  glog::glog
+  absl::log
   sandbox2::comms
   sapi::config
   sapi::strerror
@@ -68,6 +69,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME filtering_test
   )
   target_link_libraries(sandbox2_filtering_test PRIVATE
+    absl::check
     absl::strings
     sandbox2::network_proxy_filtering
     sapi::testing

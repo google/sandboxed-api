@@ -18,10 +18,9 @@
 #include <linux/unistd.h>
 #include <string.h>
 
-#include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/testing.h"
+#include "absl/log/check.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {

@@ -21,14 +21,15 @@
 
 #include <utility>
 
-#include <glog/logging.h>
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 
@@ -36,7 +37,7 @@ using ::sapi::GetTestSourcePath;
 
 class IpcPeer {
  public:
-  explicit IpcPeer(IPC* ipc) : ipc_{ipc} {}
+  explicit IpcPeer(IPC* ipc) : ipc_(ipc) {}
 
   void SetUpServerSideComms(int fd) { ipc_->SetUpServerSideComms(fd); }
 

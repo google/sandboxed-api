@@ -67,11 +67,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     woff2_sapi_test.cc
   )
   target_link_libraries(woff2_sapi_test PRIVATE
+    absl::flags
+    absl::flags_parse
     sapi_contrib::woff2
-    sapi::logging
-    sapi::base
-    gtest
-    gmock
+    sapi::test_main
   )
   gtest_discover_tests(woff2_sapi_test PROPERTIES
     ENVIRONMENT "TEST_DATA_DIR=${PROJECT_SOURCE_DIR}/testdata")

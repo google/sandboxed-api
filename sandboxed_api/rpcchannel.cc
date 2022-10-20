@@ -14,12 +14,13 @@
 
 #include "sandboxed_api/rpcchannel.h"
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {

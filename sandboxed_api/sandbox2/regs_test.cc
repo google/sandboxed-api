@@ -12,9 +12,9 @@
 #include <cerrno>
 #include <cstdlib>
 
-#include <glog/logging.h>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"

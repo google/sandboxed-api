@@ -23,9 +23,10 @@
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "contrib/zstd/sandboxed.h"
 #include "contrib/zstd/utils/utils_zstd.h"
-#include "sandboxed_api/util/logging.h"
 
 ABSL_FLAG(bool, stream, false, "stream data to sandbox");
 ABSL_FLAG(bool, decompress, false, "decompress");
@@ -79,8 +80,9 @@ absl::Status FileDescriptor(ZstdApi& api, std::string infile_s,
 
 int main(int argc, char* argv[]) {
   std::string prog_name(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
   std::vector<char*> args = absl::ParseCommandLine(argc, argv);
-  sapi::InitLogging(argv[0]);
+  absl::InitializeLog();
 
   if (args.size() != 3) {
     std::cerr << "Usage:\n  " << prog_name << " INPUT OUTPUT\n";

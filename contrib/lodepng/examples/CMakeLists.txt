@@ -20,7 +20,6 @@ if(SAPI_BUILD_EXAMPLES)
   )
   target_link_libraries(lodepng_unsandboxed PRIVATE
     lodepng
-    sapi::logging
     sapi::sapi
     sapi::temp_file
     sapi::file_base
@@ -35,7 +34,6 @@ if(SAPI_BUILD_EXAMPLES)
   )
   target_link_libraries(lodepng_sandboxed PRIVATE
     sapi_contrib::lodepng
-    sapi::logging
     sapi::sapi
     sapi::temp_file
     sapi::fileops
@@ -53,8 +51,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi_contrib::lodepng
     absl::strings
     absl::time
-    sapi::flags
-    sapi::logging
     sapi::sapi
     sapi::temp_file
     sapi::fileops

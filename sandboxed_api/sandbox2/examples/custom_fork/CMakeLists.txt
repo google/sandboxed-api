@@ -22,13 +22,16 @@ add_dependencies(sandbox2_custom_fork_sandbox
 )
 target_link_libraries(sandbox2_custom_fork_sandbox PRIVATE
   absl::core_headers
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
   sandbox2::comms
   sandbox2::forkserver
   sapi::runfiles
   sandbox2::sandbox2
   sapi::base
-  sapi::flags
-  sapi::logging
   sapi::raw_logging
 )
 
@@ -41,10 +44,11 @@ set_target_properties(sandbox2_custom_fork_bin PROPERTIES
 )
 add_executable(sandbox2::custom_fork_bin ALIAS sandbox2_custom_fork_bin)
 target_link_libraries(sandbox2_custom_fork_bin PRIVATE
+  absl::log_initialize
+  absl::flags_parse
   sandbox2::comms
   sandbox2::forkingclient
   sandbox2::util
   sapi::base
-  sapi::flags
   sapi::raw_logging
 )

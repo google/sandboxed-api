@@ -4,8 +4,8 @@
 
 #include <cerrno>
 
-#include <glog/logging.h>
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/numbers.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 

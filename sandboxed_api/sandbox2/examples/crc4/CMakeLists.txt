@@ -21,13 +21,15 @@ add_dependencies(sandbox2_crc4sandbox
   sandbox2::crc4bin
 )
 target_link_libraries(sandbox2_crc4sandbox PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_initialize
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::runfiles
   sandbox2::sandbox2
   sapi::base
-  sapi::flags
-  sapi::logging
 )
 
 # sandboxed_api/sandbox2/examples/crc4:crc4bin
@@ -38,9 +40,10 @@ set_target_properties(sandbox2_crc4bin PROPERTIES OUTPUT_NAME crc4bin)
 add_executable(sandbox2::crc4bin ALIAS sandbox2_crc4bin)
 target_link_libraries(sandbox2_crc4bin PRIVATE
   absl::core_headers
+  absl::flags
+  absl::flags_parse
   sandbox2::client
   sandbox2::comms
   sandbox2::util
   sapi::base
-  sapi::flags
 )

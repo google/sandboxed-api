@@ -27,9 +27,12 @@
 #include <cstdlib>
 #include <string>
 
-#include <glog/logging.h>
 #include "absl/base/macros.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -38,7 +41,6 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/runfiles.h"
 
 namespace {
@@ -174,8 +176,9 @@ int main(int argc, char* argv[]) {
     return EXIT_SUCCESS;
   }
 
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
   int port = 8085;
   std::thread server_thread{Server,port};
   server_thread.detach();

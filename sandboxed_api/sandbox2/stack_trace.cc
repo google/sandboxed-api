@@ -23,9 +23,9 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
 #include "absl/cleanup/cleanup.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
@@ -47,6 +47,7 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, sandbox_disable_all_stack_traces, false,

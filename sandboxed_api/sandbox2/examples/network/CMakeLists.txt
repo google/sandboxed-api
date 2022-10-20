@@ -21,14 +21,17 @@ add_dependencies(sandbox2_network_sandbox
   sandbox2::network_bin
 )
 target_link_libraries(sandbox2_network_sandbox PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::fileops
   sapi::runfiles
   sandbox2::sandbox2
   sapi::base
-  sapi::flags
-  sapi::logging
 )
 
 # sandboxed_api/sandbox2/examples/network_bin:network_bin

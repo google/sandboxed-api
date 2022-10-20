@@ -24,7 +24,7 @@
 #include <string>
 
 #include "absl/base/thread_annotations.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/declare.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -106,7 +106,8 @@ std::string AbslUnparseFlag(GlobalForkserverStartModeSet in);
 
 }  // namespace sandbox2
 
-ABSL_DECLARE_FLAG(string, sandbox2_forkserver_start_mode);
-ABSL_DECLARE_FLAG(string, sandbox2_forkserver_binary_path);
+ABSL_DECLARE_FLAG(sandbox2::GlobalForkserverStartModeSet,
+                  sandbox2_forkserver_start_mode);
+ABSL_DECLARE_FLAG(std::string, sandbox2_forkserver_binary_path);
 
 #endif  // SANDBOXED_API_SANDBOX2_GLOBAL_FORKCLIENT_H_

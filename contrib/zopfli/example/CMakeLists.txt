@@ -16,9 +16,11 @@ add_executable(sapi_minizopfli
   main.cc
   ../utils/utils_zopfli.cc
 )
-target_link_libraries(sapi_minizopfli
-  PRIVATE sapi_contrib::zopfli
-          sapi::logging
-          sapi::sapi
-          absl::flags_parse
+target_link_libraries(sapi_minizopfli PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::zopfli
+  sapi::sapi
 )

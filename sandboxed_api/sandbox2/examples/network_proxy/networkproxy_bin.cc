@@ -11,10 +11,14 @@
 
 #include <cstring>
 
-#include "sandboxed_api/util/flag.h"
+#include "absl/base/log_severity.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -105,7 +109,9 @@ absl::StatusOr<int> ConnectToServer(int port) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, false);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   // Set-up the sandbox2::Client object, using a file descriptor (1023).
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);

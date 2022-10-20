@@ -17,10 +17,12 @@
 #include <iostream>
 #include <vector>
 
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "absl/status/statusor.h"
 #include "contrib/libraw/sandboxed.h"
 #include "contrib/libraw/utils/utils_libraw.h"
-#include "sandboxed_api/util/logging.h"
 
 void PrintUsage(const char* name) {
   std::cout << "Dump (small) selecton of RAW file as tab-separated text file\n"
@@ -38,7 +40,10 @@ uint16_t SubtractBlack(uint16_t val, unsigned int bl) {
 }
 
 int main(int argc, char* argv[]) {
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
+
   if (argc < 4) {
     PrintUsage(argv[0]);
     return EXIT_FAILURE;

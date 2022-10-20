@@ -18,7 +18,7 @@
 
 #include <memory>
 
-#include <glog/logging.h>
+#include "absl/log/check.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 
 namespace sandbox2 {

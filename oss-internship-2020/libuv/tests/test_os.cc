@@ -17,7 +17,7 @@
 #include <uv.h>
 
 #include "gtest/gtest.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 

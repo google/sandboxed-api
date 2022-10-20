@@ -14,14 +14,15 @@
 
 include(GoogleTest)
 
-add_executable(turbojpeg_sapi_test turbojpeg_sapi_test.cc)
-
-target_link_libraries(turbojpeg_sapi_test PRIVATE
-  turbojpeg_sapi
-  sapi::logging
-  sapi::base
-  gtest
-  gmock
+add_executable(turbojpeg_sapi_test
+  turbojpeg_sapi_test.cc
 )
 
-gtest_discover_tests(turbojpeg_sapi_test PROPERTIES ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/tests")
+target_link_libraries(turbojpeg_sapi_test PRIVATE
+  sapi_contrib::turbojpeg
+  sapi::test_main
+)
+
+gtest_discover_tests(turbojpeg_sapi_test PROPERTIES
+  ENVIRONMENT "TEST_FILES_DIR=${PROJECT_SOURCE_DIR}/tests"
+)

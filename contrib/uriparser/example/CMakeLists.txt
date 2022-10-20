@@ -17,9 +17,11 @@ add_executable(sapi_miniuriparser
   ../utils/utils_uriparser.cc
 )
 
-target_link_libraries(sapi_miniuriparser
-  PRIVATE sapi_contrib::uriparser
-          sapi::logging
-          sapi::sapi
-          absl::flags_parse
+target_link_libraries(sapi_miniuriparser PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::uriparser
+  sapi::sapi
 )

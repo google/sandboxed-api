@@ -18,7 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/temp_file.h"
 

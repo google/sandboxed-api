@@ -18,7 +18,6 @@ add_executable(helloworld
 target_link_libraries(helloworld
   uv_a
   uv_sapi
-  sapi::flags
   sapi::sapi
 )
 

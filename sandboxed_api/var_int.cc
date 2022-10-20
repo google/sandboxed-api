@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/var_int.h"
 
+#include "absl/log/log.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/util/status_macros.h"
 

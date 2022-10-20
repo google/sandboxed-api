@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <type_traits>
 
-#include <glog/logging.h>
 #include "absl/algorithm/container.h"
+#include "absl/log/log.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"

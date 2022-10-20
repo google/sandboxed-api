@@ -23,10 +23,10 @@
 #include <cstdio>
 #include <memory>
 
-#include <glog/logging.h>
 #include "absl/base/casts.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/macros.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -42,6 +42,7 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/runfiles.h"
 #include "sandboxed_api/util/status_macros.h"
 
@@ -239,6 +240,7 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   }
   // Cast is safe, since type is v::Type::kPointer
   auto* p = static_cast<v::Ptr*>(ptr);
+  // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
   if (p->GetSyncType() == v::Pointable::kSyncNone) {
     return absl::OkStatus();
   }
@@ -252,6 +254,7 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   // Allocation occurs during both before/after synchronization modes. But the
   // memory is transferred to the sandboxee only if v::Pointable::kSyncBefore
   // was requested.
+  // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
   if ((p->GetSyncType() & v::Pointable::kSyncBefore) == 0) {
     return absl::OkStatus();
   }
@@ -270,6 +273,7 @@ absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
     return absl::OkStatus();
   }
   v::Ptr* p = reinterpret_cast<v::Ptr*>(ptr);
+  // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
   if ((p->GetSyncType() & v::Pointable::kSyncAfter) == 0) {
     return absl::OkStatus();
   }

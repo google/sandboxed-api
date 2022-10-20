@@ -23,7 +23,8 @@
 #include "pffft_sapi.sapi.h"  // NOLINT(build/include)
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
-#include "sandboxed_api/util/logging.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "sandboxed_api/vars.h"
 
 class PffftSapiSandbox : public PffftSandbox {
@@ -178,8 +179,9 @@ absl::Status PffftMain() {
 }
 
 int main(int argc, char* argv[]) {
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
   absl::ParseCommandLine(argc, argv);
-  sapi::InitLogging(argv[0]);
+  absl::InitializeLog();
 
   if (absl::Status status = PffftMain(); !status.ok()) {
     LOG(ERROR) << "Initialization failed: " << status.ToString();

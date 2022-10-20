@@ -25,7 +25,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/declare.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/reflection.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -54,24 +56,6 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Not;
-
-// Temporarily overrides a flag, restores the original flag value when it goes
-// out of scope.
-template <typename T>
-class TemporaryFlagOverride {
- public:
-  using Flag = T;
-  TemporaryFlagOverride(Flag* flag, T value)
-      : flag_(flag), original_value_(absl::GetFlag(*flag)) {
-    absl::SetFlag(flag, value);
-  }
-
-  ~TemporaryFlagOverride() { absl::SetFlag(flag_, original_value_); }
-
- private:
-  Flag* flag_;
-  T original_value_;
-};
 
 // Test that symbolization of stack traces works.
 void SymbolizationWorksCommon(
@@ -108,30 +92,34 @@ void SymbolizationWorksCommon(
 
 TEST(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, false);
+  absl::FlagSaver fs;
+  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, false);
+
   SymbolizationWorksCommon([](PolicyBuilder*) {});
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, true);
+  absl::FlagSaver fs;
+  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
+
   SymbolizationWorksCommon([](PolicyBuilder*) {});
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, true);
+  absl::FlagSaver fs;
+  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
+
   SymbolizationWorksCommon(
       [](PolicyBuilder* builder) { builder->AddDirectory("/proc"); });
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcFileMounted) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, true);
+  absl::FlagSaver fs;
+  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
+
   SymbolizationWorksCommon([](PolicyBuilder* builder) {
     builder->AddFile("/proc/sys/vm/overcommit_memory");
   });
@@ -139,16 +127,18 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcFileMounted) {
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysDirMounted) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, true);
+  absl::FlagSaver fs;
+  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
+
   SymbolizationWorksCommon(
       [](PolicyBuilder* builder) { builder->AddDirectory("/sys"); });
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysFileMounted) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, true);
+  absl::FlagSaver fs;
+  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
+
   SymbolizationWorksCommon([](PolicyBuilder* builder) {
     builder->AddFile("/sys/devices/system/cpu/online");
   });
@@ -163,8 +153,8 @@ static size_t FileCountInDirectory(const std::string& path) {
 
 TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
   SKIP_SANITIZERS_AND_COVERAGE;
-  TemporaryFlagOverride<bool> temp_override(
-      &FLAGS_sandbox_libunwind_crash_handler, true);
+  absl::FlagSaver fs;
+  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
   // Very first sanitization might create some fds (e.g. for initial
   // namespaces).

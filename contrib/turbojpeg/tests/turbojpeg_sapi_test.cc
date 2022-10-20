@@ -22,12 +22,10 @@
 #include <fstream>
 #include <iostream>
 
-#include "gflags/gflags.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "turbojpeg_sapi.sapi.h"  // NOLINT(build/include)
@@ -173,9 +171,3 @@ TEST_F(TurboJpegSapiSandboxTest, Decompressor) {
   ASSERT_THAT(decompress_result.value(), Eq(0));
 }
 }  // namespace
-
-int main(int argc, char* argv[]) {
-  ::sapi::InitLogging(program_invocation_short_name);
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}

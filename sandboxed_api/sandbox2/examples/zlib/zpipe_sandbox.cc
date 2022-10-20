@@ -26,8 +26,11 @@
 #include <utility>
 #include <vector>
 
-#include <glog/logging.h>
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -36,13 +39,10 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/util/logging.h"
 #include "sandboxed_api/util/runfiles.h"
 
-using std::string;
-
-ABSL_FLAG(string, input, "", "Input file");
-ABSL_FLAG(string, output, "", "Output file");
+ABSL_FLAG(std::string, input, "", "Input file");
+ABSL_FLAG(std::string, output, "", "Output file");
 ABSL_FLAG(bool, decompress, false, "Decompress instead of compress.");
 
 namespace {
@@ -72,8 +72,9 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  sapi::InitLogging(argv[0]);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  absl::ParseCommandLine(argc, argv);
+  absl::InitializeLog();
 
   if (absl::GetFlag(FLAGS_input).empty()) {
     LOG(ERROR) << "Parameter --input required.";

@@ -25,24 +25,22 @@
 #include <cstring>
 #include <string>
 
-#include <glog/logging.h>
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 #ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
 #endif
 
-using std::string;
-
 ABSL_FLAG(bool, sandbox2_danger_danger_permit_all, false,
           "Allow all syscalls, useful for testing");
-ABSL_FLAG(string, sandbox2_danger_danger_permit_all_and_log, "",
+ABSL_FLAG(std::string, sandbox2_danger_danger_permit_all_and_log, "",
           "Allow all syscalls and log them into specified file");
 
 namespace sandbox2 {

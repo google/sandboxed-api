@@ -22,10 +22,10 @@
 #include <cstring>
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/util.h"
 
 static ssize_t ReadFromFd(int fd, uint8_t* buf, size_t size) {
   ssize_t received = 0;
@@ -73,6 +73,8 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  if (!CommunicationTest(client)) return 2;
+  if (!CommunicationTest(client)) {
+    return 2;
+  }
   return 0;
 }

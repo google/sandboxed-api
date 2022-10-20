@@ -21,9 +21,11 @@ target_include_directories(sapi_miniblosc INTERFACE
   "${SAPI_SOURCE_DIR}"
 )
 
-target_link_libraries(sapi_miniblosc
-  PRIVATE sapi_contrib::blosc
-          absl::flags_parse
-          sapi::logging
-          sapi::sapi
+target_link_libraries(sapi_miniblosc PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  sapi_contrib::blosc
+  sapi::sapi
 )

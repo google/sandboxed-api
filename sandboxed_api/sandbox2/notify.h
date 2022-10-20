@@ -19,8 +19,8 @@
 
 #include <sys/types.h>
 
-#include <glog/logging.h>
 #include "absl/base/attributes.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/result.h"

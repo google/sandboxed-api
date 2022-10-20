@@ -74,8 +74,7 @@ if(SAPI_BUILD_TESTING)
   target_link_libraries(sapi_main_stringop PRIVATE
     absl::strings
     absl::time
-    glog::glog
-    sapi::flags
+    absl::log
     sapi::sapi
     sapi::status
     sapi::stringop_sapi

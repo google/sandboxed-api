@@ -20,7 +20,7 @@
 #include <fstream>
 #include <iostream>
 
-#include <glog/logging.h>
+#include "absl/log/log.h"
 #include "sandboxed_api/util/fileops.h"
 
 static constexpr std::size_t kMaxDomainNameLength = 256;

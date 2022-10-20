@@ -34,10 +34,13 @@ cc_binary(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:flags",
-        "//sandboxed_api/util:logging",
         "//sandboxed_api/util:runfiles",
-        "@com_google_glog//:glog",
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:initialize",
     ],
 )
 
@@ -50,8 +53,8 @@ cc_binary(
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:flags",
-        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
     ],
 )
 
@@ -68,7 +71,7 @@ cc_test(
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:status_matchers",
-        "@com_google_glog//:glog",
+        "@com_google_absl//absl/log",
         "@com_google_googletest//:gtest_main",
     ],
 )

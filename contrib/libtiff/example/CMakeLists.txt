@@ -18,7 +18,11 @@ add_executable(sandboxed
 )
 
 target_link_libraries(sandboxed PRIVATE
-  tiff_sapi
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
   sapi::sapi
+  sapi_contrib::libtiff
   sapi::temp_file
 )

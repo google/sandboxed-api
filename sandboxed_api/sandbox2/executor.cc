@@ -37,6 +37,7 @@
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 

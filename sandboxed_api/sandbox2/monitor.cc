@@ -44,10 +44,11 @@
 #include <string>
 #include <utility>
 
-#include <glog/logging.h>
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
-#include "sandboxed_api/util/flag.h"
+#include "absl/flags/declare.h"
+#include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -69,6 +70,7 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/temp_file.h"
@@ -311,7 +313,7 @@ void Monitor::Run() {
   }
 
   Namespace* ns = policy_->GetNamespace();
-  if (VLOG_IS_ON(1) && ns != nullptr) {
+  if (SAPI_VLOG_IS_ON(1) && ns != nullptr) {
     std::vector<std::string> outside_entries;
     std::vector<std::string> inside_entries;
     ns->mounts().RecursivelyListMounts(
@@ -917,7 +919,7 @@ void Monitor::LogSyscallViolation(const Syscall& syscall) const {
   LOG(ERROR) << "SANDBOX VIOLATION : PID: " << syscall.pid() << ", PROG: '"
              << util::GetProgName(syscall.pid())
              << "' : " << syscall.GetDescription();
-  if (VLOG_IS_ON(1)) {
+  if (SAPI_VLOG_IS_ON(1)) {
     VLOG(1) << "Cmdline: " << util::GetCmdLine(syscall.pid());
     VLOG(1) << "Task Name: " << util::GetProcStatusLine(syscall.pid(), "Name");
     VLOG(1) << "Tgid: " << util::GetProcStatusLine(syscall.pid(), "Tgid");
@@ -1155,7 +1157,7 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
 
     if (!stack_trace.ok()) {
       LOG(WARNING) << "FAILED TO GET SANDBOX STACK : " << stack_trace.status();
-    } else if (VLOG_IS_ON(0)) {
+    } else if (SAPI_VLOG_IS_ON(0)) {
       VLOG(0) << "SANDBOX STACK: PID: " << pid << ", [";
       for (const auto& frame : *stack_trace) {
         VLOG(0) << "  " << frame;

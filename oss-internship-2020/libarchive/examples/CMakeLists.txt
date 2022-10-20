@@ -19,7 +19,7 @@ add_library(sapi_minitar_lib STATIC
 )
 
 target_link_libraries(sapi_minitar_lib PUBLIC
-  glog::glog
+  absl::log
   libarchive_sapi
   sandbox2::executor
   sapi::fileops

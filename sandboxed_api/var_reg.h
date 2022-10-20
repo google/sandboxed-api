@@ -19,7 +19,6 @@
 #include <string>
 #include <type_traits>
 
-#include <glog/logging.h>
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
 
