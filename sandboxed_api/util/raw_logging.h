@@ -30,17 +30,6 @@
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/util/strerror.h"
 
-// `SAPI_INTERNAL_UNREACHABLE` is an unreachable statement.  A program which
-// reaches one has undefined behavior, and the compiler may optimize
-// accordingly.
-#if defined(__GNUC__) || ABSL_HAVE_BUILTIN(__builtin_unreachable)
-#define SAPI_INTERNAL_UNREACHABLE __builtin_unreachable()
-#elif defined(_MSC_VER)
-#define SAPI_INTERNAL_UNREACHABLE __assume(0)
-#else
-#define SAPI_INTERNAL_UNREACHABLE
-#endif
-
 // Exclude ABSL_RAW_LOG when running on Android because it will not be visible
 // in logcat since Android sends anything written to stdout and stderr to
 // /dev/null.
