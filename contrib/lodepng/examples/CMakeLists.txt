@@ -19,6 +19,7 @@ if(SAPI_BUILD_EXAMPLES)
     helpers.cc
   )
   target_link_libraries(lodepng_unsandboxed PRIVATE
+    absl::check
     lodepng
     sapi::sapi
     sapi::temp_file
@@ -33,6 +34,7 @@ if(SAPI_BUILD_EXAMPLES)
     helpers.cc
   )
   target_link_libraries(lodepng_sandboxed PRIVATE
+    absl::check
     sapi_contrib::lodepng
     sapi::sapi
     sapi::temp_file
@@ -49,6 +51,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(main_unit_test PRIVATE
     sapi_contrib::lodepng
+    absl::check
     absl::strings
     absl::time
     sapi::sapi

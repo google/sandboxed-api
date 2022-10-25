@@ -99,8 +99,8 @@ class LibXlsWorkbook {
 
  private:
   LibXlsWorkbook(LibxlsSapiSandbox* sandbox, xlsWorkBook* rwb, size_t count)
-      : sandbox_(CHECK_NOTNULL(sandbox)),
-        rwb_(CHECK_NOTNULL(rwb)),
+      : sandbox_(ABSL_DIE_IF_NULL(sandbox)),
+        rwb_(ABSL_DIE_IF_NULL(rwb)),
         sheet_count_(count) {}
 
   LibxlsSapiSandbox* sandbox_;

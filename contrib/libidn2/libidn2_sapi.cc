@@ -14,8 +14,6 @@
 
 #include "libidn2_sapi.h"  // NOLINT(build/include)
 
-#include <gflags/gflags.h>
-
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -39,7 +37,7 @@ absl::StatusOr<std::string> IDN2Lib::ProcessErrors(
     }
     return absl::InvalidArgumentError("Unexpected error");
   }
-  ::sapi::v::RemotePtr p(reinterpret_cast<void*>(ptr.GetValue()));
+  sapi::v::RemotePtr p(reinterpret_cast<void*>(ptr.GetValue()));
   auto maybe_untrusted_name = sandbox_->GetCString(p, kMaxDomainNameLength);
   SAPI_RETURN_IF_ERROR(sandbox_->Free(&p));
   if (!maybe_untrusted_name.ok()) {
@@ -53,11 +51,16 @@ absl::StatusOr<std::string> IDN2Lib::ProcessErrors(
 
 absl::StatusOr<std::string> IDN2Lib::idn2_register_u8(const char* ulabel,
                                                       const char* alabel) {
-  ::std::optional<::sapi::v::ConstCStr> alabel_ptr, ulabel_ptr;
-  if (ulabel) ulabel_ptr.emplace(ulabel);
-  if (alabel) alabel_ptr.emplace(alabel);
-  ::sapi::v::GenericPtr ptr;
-  ::sapi::v::NullPtr null_ptr;
+  std::optional<sapi::v::ConstCStr> alabel_ptr;
+  std::optional<sapi::v::ConstCStr> ulabel_ptr;
+  if (ulabel) {
+    ulabel_ptr.emplace(ulabel);
+  }
+  if (alabel) {
+    alabel_ptr.emplace(alabel);
+  }
+  sapi::v::GenericPtr ptr;
+  sapi::v::NullPtr null_ptr;
   const auto untrusted_res = api_.idn2_register_u8(
       ulabel ? ulabel_ptr->PtrBefore() : &null_ptr,
       alabel ? alabel_ptr->PtrBefore() : &null_ptr, ptr.PtrAfter(),
@@ -69,8 +72,8 @@ absl::StatusOr<std::string> IDN2Lib::SapiGeneric(
     const char* data,
     absl::StatusOr<int> (IDN2Api::*cb)(sapi::v::Ptr* input,
                                        sapi::v::Ptr* output, int flags)) {
-  ::sapi::v::ConstCStr src(data);
-  ::sapi::v::GenericPtr ptr;
+  sapi::v::ConstCStr src(data);
+  sapi::v::GenericPtr ptr;
 
   absl::StatusOr<int> untrusted_res = ((api_).*(cb))(
       src.PtrBefore(), ptr.PtrAfter(), IDN2_NFC_INPUT | IDN2_NONTRANSITIONAL);

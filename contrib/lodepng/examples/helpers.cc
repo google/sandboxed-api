@@ -14,6 +14,7 @@
 
 #include "helpers.h"  // NOLINT(build/include)
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/temp_file.h"
 
@@ -39,6 +40,6 @@ std::string CreateTempDirAtCWD() {
   cwd.append("/");
 
   absl::StatusOr<std::string> result = sapi::CreateTempDir(cwd);
-  CHECK(result.ok()) << "Could not create temporary directory";
+  CHECK_OK(result) << "Could not create temporary directory";
   return result.value();
 }
