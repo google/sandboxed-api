@@ -969,6 +969,7 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
 }
 
 absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
+  // Using `new` to access a non-public constructor.
   auto output = absl::WrapUnique(new Policy());
 
   if (user_policy_.size() > kMaxUserPolicyLength) {

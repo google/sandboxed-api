@@ -169,12 +169,8 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
     const Regs* regs, const Mounts& mounts) {
   const pid_t pid = regs->pid();
 
-  // Tell executor to use this special internal mode.
-  std::vector<std::string> argv;
-  std::vector<std::string> envp;
-
-  // We're not using absl::make_unique here as we're a friend of this specific
-  // constructor and using make_unique won't work.
+  // Tell executor to use this special internal mode. Using `new` to access a
+  // non-public constructor.
   auto executor = absl::WrapUnique(new Executor(pid));
 
   executor->limits()
@@ -264,9 +260,8 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
     return absl::InternalError(
         "Receiving status from libunwind sandbox failed");
   }
-  if (!status.ok()) {
-    return status;
-  }
+  SAPI_RETURN_IF_ERROR(status);
+
   UnwindResult result;
   if (!comms->RecvProtoBuf(&result)) {
     return absl::InternalError("Receiving libunwind result failed");

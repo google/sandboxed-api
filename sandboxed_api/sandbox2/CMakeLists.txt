@@ -525,6 +525,7 @@ add_library(sandbox2_buffer ${SAPI_LIB_TYPE}
 add_library(sandbox2::buffer ALIAS sandbox2_buffer)
 target_link_libraries(sandbox2_buffer
   PRIVATE absl::core_headers
+          absl::memory
           absl::status
           absl::strings
           sapi::strerror
