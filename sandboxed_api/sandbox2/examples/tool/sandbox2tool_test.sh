@@ -23,7 +23,10 @@ die() {
 
 BIN=$TEST_SRCDIR/com_google_sandboxed_api/sandboxed_api/sandbox2/examples/tool/sandbox2tool
 
-out=$("$BIN" -sandbox2tool_resolve_and_add_libraries -sandbox2tool_walltime_timeout=1 /bin/sleep 60 2>&1)
+out=$("$BIN" \
+      --sandbox2tool_resolve_and_add_libraries \
+      --sandbox2tool_walltime_timeout=1 \
+      -- /bin/sleep 60 2>&1)
 result=$?
 if [[ $result -ne 2 ]]; then
   echo "$out" >&2
@@ -59,7 +62,7 @@ fi
 out=$("$BIN" \
       --sandbox2tool_resolve_and_add_libraries \
       --sandbox2tool_additional_bind_mounts '/etc,/proc' \
-      -sandbox2tool_mount_tmp \
+      --sandbox2tool_mount_tmp \
       -- /bin/ls /proc/1/fd/ 2>&1)
 result=$?
 if [[ $result -ne 0 ]]; then

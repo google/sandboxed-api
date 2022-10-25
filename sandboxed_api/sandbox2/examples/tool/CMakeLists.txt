@@ -21,6 +21,7 @@ add_executable(sandbox2::sandbox2tool ALIAS sandbox2_sandbox2tool)
 target_link_libraries(sandbox2_sandbox2tool PRIVATE
   absl::flags
   absl::flags_parse
+  absl::flags_usage
   absl::log
   absl::log_globals
   absl::log_initialize

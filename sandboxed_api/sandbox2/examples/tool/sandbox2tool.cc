@@ -36,6 +36,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/flags/usage.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
@@ -105,25 +106,33 @@ void OutputFD(int fd) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  const std::string program_name = sapi::file_util::fileops::Basename(argv[0]);
+  absl::SetProgramUsageMessage(
+      absl::StrFormat("A sandbox testing tool.\n"
+                      "Usage: %1$s [OPTION] -- CMD [ARGS]...",
+                      program_name));
+
+  std::vector<std::string> args;
+  {
+    const std::vector<char*> parsed_argv = absl::ParseCommandLine(argc, argv);
+    args.assign(parsed_argv.begin() + 1, parsed_argv.end());
+  }
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-  absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
 
-  if (argc < 2) {
-    absl::FPrintF(stderr, "Usage: %s [flags] -- cmd args...", argv[0]);
+  if (args.empty()) {
+    absl::FPrintF(stderr, "Missing command to execute\n");
     return EXIT_FAILURE;
   }
 
-  // Pass everything after '--' to the sandbox.
-  std::vector<std::string> args =
-      sandbox2::util::CharPtrArray(&argv[1]).ToStringVector();
+  const std::string& sandboxee = args[0];
 
   // Pass the current environ pointer, depending on the flag.
   std::vector<std::string> envp;
   if (absl::GetFlag(FLAGS_sandbox2tool_keep_env)) {
     envp = sandbox2::util::CharPtrArray(environ).ToStringVector();
   }
-  auto executor = std::make_unique<sandbox2::Executor>(argv[1], args, envp);
+  auto executor = std::make_unique<sandbox2::Executor>(sandboxee, args, envp);
 
   sapi::file_util::fileops::FDCloser recv_fd1;
   if (absl::GetFlag(FLAGS_sandbox2tool_redirect_fd1)) {
@@ -184,7 +193,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (absl::GetFlag(FLAGS_sandbox2tool_resolve_and_add_libraries)) {
-    builder.AddLibrariesForBinary(argv[1]);
+    builder.AddLibrariesForBinary(sandboxee);
   }
 
   auto policy = builder.BuildOrDie();
