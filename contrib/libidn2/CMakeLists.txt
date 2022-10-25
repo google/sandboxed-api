@@ -71,7 +71,8 @@ target_link_libraries(libidn2_sapi_wrapper
   # PUBLIC so that the include directories are included in the interface
   PUBLIC libidn2_sapi
          sapi::base
-  PRIVATE idn2
+  PRIVATE absl::die_if_null
+          idn2
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)

@@ -18,6 +18,7 @@ add_executable(sapi_miniuriparser
 )
 
 target_link_libraries(sapi_miniuriparser PRIVATE
+  absl::die_if_null
   absl::flags
   absl::flags_parse
   absl::log_globals

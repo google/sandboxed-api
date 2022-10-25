@@ -17,13 +17,14 @@
 
 #include <vector>
 
+#include "absl/log/die_if_null.h"
 #include "contrib/brotli/sandboxed.h"
 #include "sandboxed_api/util/status_macros.h"
 
 class BrotliEncoder {
  public:
   explicit BrotliEncoder(BrotliSandbox* sandbox)
-      : sandbox_(CHECK_NOTNULL(sandbox)), api_(sandbox_), state_(nullptr) {
+      : sandbox_(ABSL_DIE_IF_NULL(sandbox)), api_(sandbox_), state_(nullptr) {
     status = InitStructs();
   }
   ~BrotliEncoder();

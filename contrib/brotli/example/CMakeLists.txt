@@ -15,10 +15,14 @@
 add_executable(sapi_minibrotli
   main.cc
   ../utils/utils_brotli.cc
-  ../utils/utils_brotli_enc.cc
+  ../utils/utils_brotli.h
   ../utils/utils_brotli_dec.cc
+  ../utils/utils_brotli_dec.h
+  ../utils/utils_brotli_enc.cc
+  ../utils/utils_brotli_enc.h
 )
 target_link_libraries(sapi_minibrotli PRIVATE
+  absl::die_if_null
   absl::flags
   absl::flags_parse
   absl::log_globals

@@ -39,6 +39,7 @@
 #include "google/protobuf/message.h"
 #include "absl/base/config.h"
 #include "absl/base/dynamic_annotations.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

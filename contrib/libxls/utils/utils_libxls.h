@@ -17,6 +17,7 @@
 
 #include <fcntl.h>
 
+#include "absl/log/die_if_null.h"
 #include "contrib/libxls/sandboxed.h"
 
 #define XLS_RECORD_FORMULA 0x0006
@@ -60,7 +61,7 @@ class LibXlsSheet {
 
   LibXlsSheet(LibxlsSapiSandbox* sandbox, xlsWorkSheet* rws, size_t row,
               size_t col)
-      : sandbox_(CHECK_NOTNULL(sandbox)), rws_(rws), row_(row), col_(col) {}
+      : sandbox_(ABSL_DIE_IF_NULL(sandbox)), rws_(rws), row_(row), col_(col) {}
 
   absl::StatusOr<std::string> GetStr(const sapi::v::Struct<xlsCell>& sapi_cell);
   absl::StatusOr<LibXlsCell> GetNewCell(

@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include "absl/log/die_if_null.h"
 #include "contrib/libraw/sandboxed.h"
 
 enum LibRaw_errors {
@@ -41,7 +42,7 @@ enum LibRaw_errors {
 class LibRaw {
  public:
   LibRaw(LibRawSapiSandbox* sandbox, const std::string& file_name)
-      : sandbox_(CHECK_NOTNULL(sandbox)),
+      : sandbox_(ABSL_DIE_IF_NULL(sandbox)),
         api_(sandbox_),
         file_name_(file_name) {
     init_status_ = InitLibRaw();

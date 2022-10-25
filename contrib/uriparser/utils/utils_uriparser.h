@@ -18,13 +18,16 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/log/die_if_null.h"
 #include "contrib/uriparser/sandboxed.h"
 #include "sandboxed_api/util/status_macros.h"
 
 class UriParser {
  public:
   UriParser(UriparserSandbox* sandbox, const std::string& uri)
-      : sandbox_(CHECK_NOTNULL(sandbox)), api_(sandbox_), c_uri_(uri.c_str()) {
+      : sandbox_(ABSL_DIE_IF_NULL(sandbox)),
+        api_(sandbox_),
+        c_uri_(uri.c_str()) {
     status_ = ParseUri();
   }
 

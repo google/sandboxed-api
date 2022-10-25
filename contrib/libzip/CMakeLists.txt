@@ -91,6 +91,9 @@ target_sources(sapi_zip PUBLIC
   utils/utils_zip.cc
   utils/utils_zip.h
 )
+target_link_libraries(sapi_zip PRIVATE
+  absl::die_if_null
+)
 
 if(SAPI_BUILD_EXAMPLES)
   add_subdirectory(example)

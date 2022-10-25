@@ -15,9 +15,11 @@
 add_executable(sapi_minixls
   main.cc
   ../utils/utils_libxls.cc
+  ../utils/utils_libxls.h
 )
 
 target_link_libraries(sapi_minixls PRIVATE
+  absl::die_if_null
   absl::flags
   absl::flags_parse
   absl::log_globals

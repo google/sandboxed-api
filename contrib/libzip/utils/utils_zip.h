@@ -17,13 +17,14 @@
 
 #include <fcntl.h>
 
+#include "absl/log/die_if_null.h"
 #include "contrib/libzip/sandboxed.h"
 #include "sandboxed_api/util/status_macros.h"
 
 class LibZip {
  public:
   explicit LibZip(ZipSandbox* sandbox, std::string filename, int flags)
-      : sandbox_(CHECK_NOTNULL(sandbox)),
+      : sandbox_(ABSL_DIE_IF_NULL(sandbox)),
         api_(sandbox_),
         filename_(std::move(filename)),
         flags_(flags),

@@ -21,6 +21,7 @@
 #include <cstdlib>
 
 #include "libidn2_sapi.sapi.h"  // NOLINT(build/include)
+#include "absl/log/die_if_null.h"
 #include "sandboxed_api/util/fileops.h"
 
 class Idn2SapiSandbox : public IDN2Sandbox {
@@ -47,7 +48,7 @@ class Idn2SapiSandbox : public IDN2Sandbox {
 class IDN2Lib {
  public:
   explicit IDN2Lib(Idn2SapiSandbox* sandbox)
-      : sandbox_(CHECK_NOTNULL(sandbox)), api_(sandbox_) {}
+      : sandbox_(ABSL_DIE_IF_NULL(sandbox)), api_(sandbox_) {}
   absl::StatusOr<std::string> idn2_register_u8(const char* ulabel,
                                                const char* alabel);
   absl::StatusOr<std::string> idn2_lookup_u8(const char* data);

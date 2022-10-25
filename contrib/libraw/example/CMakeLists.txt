@@ -17,6 +17,7 @@ add_executable(sapi_minilibraw
   ../utils/utils_libraw.cc
 )
 target_link_libraries(sapi_minilibraw PRIVATE
+  absl::die_if_null
   absl::flags
   absl::flags_parse
   absl::log_globals
