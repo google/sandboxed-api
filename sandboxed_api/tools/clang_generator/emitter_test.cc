@@ -46,13 +46,14 @@ class EmitterTest : public FrontendActionTest {};
 
 TEST_F(EmitterTest, BasicFunctionality) {
   GeneratorOptions options;
-  options.out_file = "input.h";
   options.set_function_names<std::initializer_list<std::string>>(
       {"ExposedFunction"});
 
   EmitterForTesting emitter;
-  RunFrontendAction(R"(extern "C" void ExposedFunction() {})",
-                    std::make_unique<GeneratorAction>(emitter, options));
+  ASSERT_THAT(
+      RunFrontendAction(R"(extern "C" void ExposedFunction() {})",
+                        std::make_unique<GeneratorAction>(emitter, options)),
+      IsOk());
 
   EXPECT_THAT(emitter.functions_, SizeIs(1));
 
@@ -62,25 +63,25 @@ TEST_F(EmitterTest, BasicFunctionality) {
 
 TEST_F(EmitterTest, RelatedTypes) {
   EmitterForTesting emitter;
-  RunFrontendAction(
-      R"(
-    namespace std {
-    using size_t = unsigned long;
-    }  // namespace std
-    using std::size_t;
-    typedef enum { kRed, kGreen, kBlue } Color;
-    struct Channel {
-      Color color;
-      size_t width;
-      size_t height;
-    };
-    struct ByValue { int value; };
-    extern "C" void Colorize(Channel* chan, ByValue v) {}
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(namespace std {
+             using size_t = unsigned long;
+             }  // namespace std
+             using std::size_t;
+             typedef enum { kRed, kGreen, kBlue } Color;
+             struct Channel {
+               Color color;
+               size_t width;
+               size_t height;
+             };
+             struct ByValue { int value; };
+             extern "C" void Colorize(Channel* chan, ByValue v);
 
-    typedef struct { int member; } MyStruct;
-    extern "C" void Structize(MyStruct* s);
-        )",
-      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+             typedef struct { int member; } MyStruct;
+             extern "C" void Structize(MyStruct* s);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
 
   // Types from "std" should be skipped
   EXPECT_THAT(emitter.rendered_types_["std"], IsEmpty());
@@ -97,16 +98,16 @@ TEST_F(EmitterTest, RelatedTypes) {
 
 TEST_F(EmitterTest, NestedStruct) {
   EmitterForTesting emitter;
-  RunFrontendAction(
-      R"(
-    struct A {
-      struct B { int number; };
-      B b;
-      int data;
-    };
-    extern "C" void Structize(A* s);
-        )",
-      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A {
+               struct B { int number; };
+               B b;
+               int data;
+             };
+             extern "C" void Structize(A* s);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
@@ -117,15 +118,15 @@ TEST_F(EmitterTest, NestedStruct) {
 
 TEST_F(EmitterTest, NestedAnonymousStruct) {
   EmitterForTesting emitter;
-  RunFrontendAction(
-      R"(
-    struct A {
-      struct { int number; } b;
-      int data;
-    };
-    extern "C" void Structize(A* s);
-        )",
-      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A {
+               struct { int number; } b;
+               int data;
+             };
+             extern "C" void Structize(A* s);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
@@ -135,16 +136,16 @@ TEST_F(EmitterTest, NestedAnonymousStruct) {
 
 TEST_F(EmitterTest, ParentNotCollected) {
   EmitterForTesting emitter;
-  RunFrontendAction(
-      R"(
-    struct A {
-      struct B { int number; };
-      B b;
-      int data;
-    };
-    extern "C" void Structize(A::B* s);
-        )",
-      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A {
+               struct B { int number; };
+               B b;
+               int data;
+             };
+             extern "C" void Structize(A::B* s);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A {"
@@ -155,12 +156,12 @@ TEST_F(EmitterTest, ParentNotCollected) {
 
 TEST_F(EmitterTest, RemoveQualifiers) {
   EmitterForTesting emitter;
-  RunFrontendAction(
-      R"(
-    struct A { int data; };
-    extern "C" void Structize(const A* in, A* out);
-        )",
-      std::make_unique<GeneratorAction>(emitter, GeneratorOptions()));
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A { int data; };
+             extern "C" void Structize(const A* in, A* out);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A { int data; }"));

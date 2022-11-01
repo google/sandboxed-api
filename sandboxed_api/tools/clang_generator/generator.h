@@ -19,8 +19,6 @@
 #include <string>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -51,7 +49,7 @@ struct GeneratorOptions {
   std::string namespace_name;  // Namespace to wrap the SAPI in
   // Output path of the generated header. Used to build the header include
   // guard.
-  std::string out_file;
+  std::string out_file = "out_file.cc";
   std::string embed_dir;   // Directory with embedded includes
   std::string embed_name;  // Identifier of the embed object
 };

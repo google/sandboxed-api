@@ -56,21 +56,20 @@ class FrontendActionTest : public ::testing::Test {
       absl::string_view input_file);
 
   // Runs the specified frontend action on in-memory source code.
-  void RunFrontendAction(absl::string_view code,
-                         std::unique_ptr<clang::FrontendAction> action) {
+  absl::Status RunFrontendAction(
+      absl::string_view code, std::unique_ptr<clang::FrontendAction> action) {
     std::vector<std::string> command_line =
         GetCommandLineFlagsForTesting(input_file_);
     AddCode(input_file_, code);
-    ASSERT_THAT(
-        internal::RunClangTool(command_line, file_contents_, std::move(action)),
-        IsOk());
+    return internal::RunClangTool(command_line, file_contents_,
+                                  std::move(action));
   }
 
   // Runs the specified frontend action. Provided for compatibility with LLVM <
   // 10. Takes ownership.
-  void RunFrontendAction(absl::string_view code,
-                         clang::FrontendAction* action) {
-    RunFrontendAction(code, absl::WrapUnique(action));
+  absl::Status RunFrontendAction(absl::string_view code,
+                                 clang::FrontendAction* action) {
+    return RunFrontendAction(code, absl::WrapUnique(action));
   }
 
  private:
