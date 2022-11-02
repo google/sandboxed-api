@@ -37,16 +37,28 @@ absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
 
 class GeneratorOptions;
 
+// Responsible for emitting the actual textual representation of the generated
+// Sandboxed API header.
 class Emitter {
  public:
   using RenderedTypesMap =
       absl::btree_map<std::string, std::vector<std::string>>;
 
-  void CollectType(clang::QualType qual);
-  void CollectFunction(clang::FunctionDecl* decl);
+  // Adds the set of previously collected types to the emitter, recording the
+  // spelling of each one. Types that are not supported by the current
+  // generator settings or that are unwanted/unnecessary are skipped. Filtered
+  // types include C++ constructs or well-known standard library elements. The
+  // latter can be replaced by including the correct headers in the emitted
+  // header.
+  void AddTypesFiltered(const QualTypeSet& types);
+
+  absl::Status AddFunction(clang::FunctionDecl* decl);
 
   // Outputs a formatted header for a list of functions and their related types.
   absl::StatusOr<std::string> EmitHeader(const GeneratorOptions& options);
+
+ private:
+  void EmitType(clang::QualType qual);
 
  protected:
   // Maps namespace to a list of spellings for types
@@ -57,8 +69,8 @@ class Emitter {
 };
 
 // Constructs an include guard name for the given filename. The name is of the
-// same form as the include guards in this project.
-// For example,
+// same form as the include guards in this project and conforms to the Google
+// C++ style. For example,
 //   sandboxed_api/examples/zlib/zlib-sapi.sapi.h
 // will be mapped to
 //   SANDBOXED_API_EXAMPLES_ZLIB_ZLIB_SAPI_SAPI_H_

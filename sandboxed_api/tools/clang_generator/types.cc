@@ -240,6 +240,8 @@ std::string MapQualTypeReturn(const clang::ASTContext& context,
     return "::absl::Status";
   }
   // Remove const qualifier like in MapQualType().
+  // TODO(cblichmann): We should return pointers differently, as they point to
+  //                   the sandboxee's address space.
   return absl::StrCat(
       "::absl::StatusOr<",
       MapQualTypeParameterForCxx(context, MaybeRemoveConst(context, qual)),

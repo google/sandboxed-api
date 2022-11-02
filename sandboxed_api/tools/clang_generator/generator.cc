@@ -18,14 +18,10 @@
 #include <iostream>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "clang/AST/Type.h"
-#include "clang/Format/Format.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
-#include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 namespace {
@@ -84,11 +80,17 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
                      "AST traversal exited early");
   }
 
-  for (clang::QualType qual : visitor_.collector_.collected()) {
-    emitter_.CollectType(qual);
-  }
+  emitter_.AddTypesFiltered(visitor_.collector_.collected());
+
   for (clang::FunctionDecl* func : visitor_.functions_) {
-    emitter_.CollectFunction(func);
+    absl::Status status = emitter_.AddFunction(func);
+    if (!status.ok()) {
+      ReportFatalError(
+          context.getDiagnostics(),
+          GetDiagnosticLocationFromStatus(status).value_or(func->getBeginLoc()),
+          status.message());
+      break;
+    }
   }
 }
 

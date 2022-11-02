@@ -75,8 +75,7 @@ TEST_F(EmitterTest, RelatedTypes) {
                size_t width;
                size_t height;
              };
-             struct ByValue { int value; };
-             extern "C" void Colorize(Channel* chan, ByValue v);
+             extern "C" void Colorize(Channel* chan);
 
              typedef struct { int member; } MyStruct;
              extern "C" void Structize(MyStruct* s);)",
@@ -92,7 +91,6 @@ TEST_F(EmitterTest, RelatedTypes) {
                           " Color color;"
                           " size_t width;"
                           " size_t height; }",
-                          "struct ByValue { int value; }",
                           "typedef struct { int member; } MyStruct"));
 }
 
@@ -165,6 +163,36 @@ TEST_F(EmitterTest, RemoveQualifiers) {
 
   EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
               ElementsAre("struct A { int data; }"));
+}
+
+TEST_F(EmitterTest, StructByValueFails) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(struct A { int data; };
+             extern "C" int Structize(A a);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      Not(IsOk()));
+}
+
+TEST_F(EmitterTest, ReturnStructByValueFails) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(struct A { int data; };
+             extern "C" A Structize();)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      Not(IsOk()));
+}
+
+TEST_F(EmitterTest, TypedefStructByValueFails) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(typedef struct { int data; } A;
+             extern "C" int Structize(A a);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      Not(IsOk()));
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {

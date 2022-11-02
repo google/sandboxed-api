@@ -29,7 +29,7 @@ using QualTypeSet =
     llvm::SetVector<clang::QualType, std::vector<clang::QualType>,
                     llvm::SmallPtrSet<clang::QualType, 8>>;
 
-// Returns whether a type is "simple". Simple types are arithemtic types,
+// Returns whether a type is "simple". Simple types are arithmetic types,
 // i.e. signed and unsigned integer, character and bool types, as well as
 // "void".
 inline bool IsSimple(clang::QualType qual) {
@@ -66,7 +66,7 @@ class TypeCollector {
 };
 
 // Maps a qualified type to a fully qualified SAPI-compatible type name. This
-// is used for the generated code that invokes the actual function call RPC.
+// is used for the generated code that invokes the actual function call IPC.
 // If no mapping can be found, "int" is assumed.
 std::string MapQualType(const clang::ASTContext& context, clang::QualType qual);
 
@@ -77,8 +77,8 @@ std::string MapQualTypeParameter(const clang::ASTContext& context,
 
 // Maps a qualified type used as a function return type to a type name
 // compatible with the generated Sandboxed API. Uses MapQualTypeParameter() and
-// wraps the type in an absl::StatusOr<> if qual is non-void. Otherwise returns
-// absl::Status.
+// wraps the type in an "absl::StatusOr<>" if qual is non-void. Otherwise
+// returns "absl::Status".
 std::string MapQualTypeReturn(const clang::ASTContext& context,
                               clang::QualType qual);
 

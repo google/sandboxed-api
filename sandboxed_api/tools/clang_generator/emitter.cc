@@ -17,7 +17,6 @@
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -28,11 +27,11 @@
 #include "absl/strings/strip.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/types.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
@@ -298,6 +297,10 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
 
   auto function_name = ToStringView(decl->getName());
   const clang::QualType return_type = decl->getDeclaredReturnType();
+  if (return_type->isRecordType()) {
+    return MakeStatusWithDiagnostic(decl->getBeginLoc(),
+                                    "returning record by value");
+  }
   const bool returns_void = return_type->isVoidType();
 
   const clang::ASTContext& context = decl->getASTContext();
@@ -315,6 +318,12 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   std::string print_separator;
   for (int i = 0; i < decl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = decl->getParamDecl(i);
+    if (param->getType()->isRecordType()) {
+      return MakeStatusWithDiagnostic(
+          param->getBeginLoc(),
+          absl::StrCat("passing record parameter '",
+                       ToStringView(param->getName()), "' by value"));
+    }
 
     ParameterInfo& param_info = params.emplace_back();
     param_info.qual = param->getType();
@@ -411,7 +420,7 @@ absl::StatusOr<std::string> EmitHeader(
   return out;
 }
 
-void Emitter::CollectType(clang::QualType qual) {
+void Emitter::EmitType(clang::QualType qual) {
   clang::TypeDecl* decl = nullptr;
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
     decl = typedef_type->getDecl();
@@ -449,8 +458,16 @@ void Emitter::CollectType(clang::QualType qual) {
   rendered_types_[ns_name].push_back(GetSpelling(decl));
 }
 
-void Emitter::CollectFunction(clang::FunctionDecl* decl) {
-  functions_.push_back(*EmitFunction(decl));  // Cannot currently fail
+void Emitter::AddTypesFiltered(const QualTypeSet& types) {
+  for (clang::QualType qual : types) {
+    EmitType(qual);
+  }
+}
+
+absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
+  SAPI_ASSIGN_OR_RETURN(std::string function, EmitFunction(decl));
+  functions_.push_back(function);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::string> Emitter::EmitHeader(
