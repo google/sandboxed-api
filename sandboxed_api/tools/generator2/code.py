@@ -284,7 +284,8 @@ class Type(object):
       return result
 
     # Ignore all cindex.TypeKind.UNEXPOSED AST nodes
-    return result
+    # TODO(b/256934562): Remove the disable once the pytype bug is fixed.
+    return result  # pytype: disable=bad-return-type
 
   def _get_related_types_of_typedef(self, result):
     # type: (Set[Type]) -> Set[Type]
