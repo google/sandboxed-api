@@ -78,6 +78,7 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
     ReportFatalError(context.getDiagnostics(),
                      context.getTranslationUnitDecl()->getBeginLoc(),
                      "AST traversal exited early");
+    return;
   }
 
   emitter_.AddTypesFiltered(visitor_.collector_.collected());
@@ -85,10 +86,13 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   for (clang::FunctionDecl* func : visitor_.functions_) {
     absl::Status status = emitter_.AddFunction(func);
     if (!status.ok()) {
-      ReportFatalError(
-          context.getDiagnostics(),
-          GetDiagnosticLocationFromStatus(status).value_or(func->getBeginLoc()),
-          status.message());
+      clang::SourceLocation loc =
+          GetDiagnosticLocationFromStatus(status).value_or(func->getBeginLoc());
+      if (absl::IsCancelled(status)) {
+        ReportWarning(context.getDiagnostics(), loc, status.message());
+        continue;
+      }
+      ReportFatalError(context.getDiagnostics(), loc, status.message());
       break;
     }
   }

@@ -14,7 +14,9 @@
 
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "clang/Basic/Diagnostic.h"
 
 namespace sapi {
 
@@ -22,14 +24,20 @@ constexpr absl::string_view kSapiStatusPayload =
     "https://github.com/google/sandboxed-api";
 
 absl::Status MakeStatusWithDiagnostic(clang::SourceLocation loc,
+                                      absl::StatusCode code,
                                       absl::string_view message) {
-  absl::Status status = absl::UnknownError(message);
+  absl::Status status(code, message);
   absl::Cord payload;
   uint64_t raw_loc = loc.getRawEncoding();
   payload.Append(
       absl::string_view(reinterpret_cast<char*>(&raw_loc), sizeof(raw_loc)));
   status.SetPayload(kSapiStatusPayload, std::move(payload));
   return status;
+}
+
+absl::Status MakeStatusWithDiagnostic(clang::SourceLocation loc,
+                                      absl::string_view message) {
+  return MakeStatusWithDiagnostic(loc, absl::StatusCode::kUnknown, message);
 }
 
 absl::optional<clang::SourceLocation> GetDiagnosticLocationFromStatus(
@@ -43,14 +51,31 @@ absl::optional<clang::SourceLocation> GetDiagnosticLocationFromStatus(
   return absl::nullopt;
 }
 
+namespace {
+
+clang::DiagnosticBuilder GetDiagnosticBuilder(
+    clang::DiagnosticsEngine& de, clang::SourceLocation loc,
+    clang::DiagnosticsEngine::Level level, absl::string_view message) {
+  clang::DiagnosticBuilder builder =
+      de.Report(loc, de.getCustomDiagID(level, "header generation: %0"));
+  builder.AddString(llvm::StringRef(message.data(), message.size()));
+  return builder;
+}
+
+}  // namespace
+
 clang::DiagnosticBuilder ReportFatalError(clang::DiagnosticsEngine& de,
                                           clang::SourceLocation loc,
                                           absl::string_view message) {
-  clang::DiagnosticBuilder builder =
-      de.Report(loc, de.getCustomDiagID(clang::DiagnosticsEngine::Fatal,
-                                        "header generation failed: %0"));
-  builder.AddString(llvm::StringRef(message.data(), message.size()));
-  return builder;
+  return GetDiagnosticBuilder(de, loc, clang::DiagnosticsEngine::Fatal,
+                              message);
+}
+
+clang::DiagnosticBuilder ReportWarning(clang::DiagnosticsEngine& de,
+                                       clang::SourceLocation loc,
+                                       absl::string_view message) {
+  return GetDiagnosticBuilder(de, loc, clang::DiagnosticsEngine::Warning,
+                              message);
 }
 
 }  // namespace sapi

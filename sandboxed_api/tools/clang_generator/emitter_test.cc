@@ -165,34 +165,37 @@ TEST_F(EmitterTest, RemoveQualifiers) {
               ElementsAre("struct A { int data; }"));
 }
 
-TEST_F(EmitterTest, StructByValueFails) {
+TEST_F(EmitterTest, StructByValueSkipsFunction) {
   EmitterForTesting emitter;
   EXPECT_THAT(
       RunFrontendAction(
           R"(struct A { int data; };
              extern "C" int Structize(A a);)",
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
-      Not(IsOk()));
+      IsOk());
+  EXPECT_THAT(emitter.functions_, IsEmpty());
 }
 
-TEST_F(EmitterTest, ReturnStructByValueFails) {
+TEST_F(EmitterTest, ReturnStructByValueSkipsFunction) {
   EmitterForTesting emitter;
   EXPECT_THAT(
       RunFrontendAction(
           R"(struct A { int data; };
              extern "C" A Structize();)",
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
-      Not(IsOk()));
+      IsOk());
+  EXPECT_THAT(emitter.functions_, IsEmpty());
 }
 
-TEST_F(EmitterTest, TypedefStructByValueFails) {
+TEST_F(EmitterTest, TypedefStructByValueSkipsFunction) {
   EmitterForTesting emitter;
   EXPECT_THAT(
       RunFrontendAction(
           R"(typedef struct { int data; } A;
              extern "C" int Structize(A a);)",
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
-      Not(IsOk()));
+      IsOk());
+  EXPECT_THAT(emitter.functions_, IsEmpty());
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {

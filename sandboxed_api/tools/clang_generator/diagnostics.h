@@ -23,6 +23,12 @@
 
 namespace sapi {
 
+// Returns a new status with a payload that encodes the specified Clang source
+// location.
+absl::Status MakeStatusWithDiagnostic(clang::SourceLocation loc,
+                                      absl::StatusCode code,
+                                      absl::string_view message);
+
 // Returns a new UNKNOWN status with a payload that encodes the specified Clang
 // source location.
 absl::Status MakeStatusWithDiagnostic(clang::SourceLocation loc,
@@ -31,6 +37,10 @@ absl::Status MakeStatusWithDiagnostic(clang::SourceLocation loc,
 // Extracts the Clang source location encoded in a status payload.
 absl::optional<clang::SourceLocation> GetDiagnosticLocationFromStatus(
     const absl::Status& status);
+
+clang::DiagnosticBuilder ReportWarning(clang::DiagnosticsEngine& de,
+                                       clang::SourceLocation loc,
+                                       absl::string_view message);
 
 clang::DiagnosticBuilder ReportFatalError(clang::DiagnosticsEngine& de,
                                           clang::SourceLocation loc,

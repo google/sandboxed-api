@@ -298,8 +298,9 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   auto function_name = ToStringView(decl->getName());
   const clang::QualType return_type = decl->getDeclaredReturnType();
   if (return_type->isRecordType()) {
-    return MakeStatusWithDiagnostic(decl->getBeginLoc(),
-                                    "returning record by value");
+    return MakeStatusWithDiagnostic(
+        decl->getBeginLoc(), absl::StatusCode::kCancelled,
+        "returning record by value, skipping function");
   }
   const bool returns_void = return_type->isVoidType();
 
@@ -320,9 +321,10 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
     const clang::ParmVarDecl* param = decl->getParamDecl(i);
     if (param->getType()->isRecordType()) {
       return MakeStatusWithDiagnostic(
-          param->getBeginLoc(),
+          param->getBeginLoc(), absl::StatusCode::kCancelled,
           absl::StrCat("passing record parameter '",
-                       ToStringView(param->getName()), "' by value"));
+                       ToStringView(param->getName()),
+                       "' by value, skipping function"));
     }
 
     ParameterInfo& param_info = params.emplace_back();
