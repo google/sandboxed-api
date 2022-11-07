@@ -16,6 +16,8 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
 
 namespace sapi {
@@ -38,7 +40,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   }
 
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
-    auto* typedef_decl = typedef_type->getDecl();
+    clang::TypedefNameDecl* typedef_decl = typedef_type->getDecl();
     if (!typedef_decl->getAnonDeclWithTypedefName()) {
       // Do not collect anonymous enums/structs as those are handled when
       // emitting them via their parent typedef/using declaration.
@@ -215,8 +217,12 @@ std::string MapQualType(const clang::ASTContext& context,
   return absl::StrCat("::sapi::v::Int /* aka '", qual.getAsString(), "' */");
 }
 
-std::string MapQualTypeParameterForCxx(const clang::ASTContext& /*context*/,
+std::string MapQualTypeParameterForCxx(const clang::ASTContext& context,
                                        clang::QualType qual) {
+  if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
+    clang::TypedefNameDecl* typedef_decl = typedef_type->getDecl();
+    return typedef_decl->getQualifiedNameAsString();
+  }
   if (const auto* builtin = qual->getAs<clang::BuiltinType>()) {
     if (builtin->getKind() == clang::BuiltinType::Bool) {
       return "bool";  // _Bool -> bool
@@ -225,7 +231,8 @@ std::string MapQualTypeParameterForCxx(const clang::ASTContext& /*context*/,
     // - long long -> uint64_t
     // - ...
   }
-  return qual.getAsString();
+  return clang::TypeName::getFullyQualifiedName(qual, context,
+                                                context.getPrintingPolicy());
 }
 
 std::string MapQualTypeParameter(const clang::ASTContext& context,

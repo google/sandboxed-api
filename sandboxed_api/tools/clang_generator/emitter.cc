@@ -227,7 +227,8 @@ std::string PrintDecl(const clang::Decl* decl) {
 
 // Returns the spelling for a given declaration will be emitted to the final
 // header. This may rewrite declarations (like converting typedefs to using,
-// etc.).
+// etc.). Note that the resulting spelling will need to be wrapped inside a
+// namespace if the original declaration was inside one.
 std::string GetSpelling(const clang::Decl* decl) {
   // TODO(cblichmann): Make types nicer
   //   - Rewrite typedef to using
@@ -261,9 +262,11 @@ std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
 
 absl::StatusOr<std::string> PrintFunctionPrototypeComment(
     const clang::FunctionDecl* decl) {
-  // TODO(cblichmann): Fix function pointers and anonymous namespace formatting
-  std::string out = absl::StrCat(decl->getDeclaredReturnType().getAsString(),
-                                 " ", decl->getQualifiedNameAsString(), "(");
+  const clang::ASTContext& context = decl->getASTContext();
+
+  std::string out = absl::StrCat(
+      MapQualTypeParameterForCxx(context, decl->getDeclaredReturnType()), " ",
+      decl->getQualifiedNameAsString(), "(");
 
   std::string print_separator;
   for (int i = 0; i < decl->getNumParams(); ++i) {
@@ -271,7 +274,8 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
 
     absl::StrAppend(&out, print_separator);
     print_separator = ", ";
-    absl::StrAppend(&out, param->getType().getAsString());
+    absl::StrAppend(&out,
+                    MapQualTypeParameterForCxx(context, param->getType()));
     if (std::string name = param->getName().str(); !name.empty()) {
       absl::StrAppend(&out, " ", name);
     }
@@ -357,8 +361,8 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
 }
 
 absl::StatusOr<std::string> EmitHeader(
-    const std::vector<std::string>& functions,
-    const Emitter::RenderedTypesMap& rendered_types,
+    const std::vector<std::string>& function_definitions,
+    const std::vector<const RenderedType*>& rendered_types,
     const GeneratorOptions& options) {
   std::string out;
   const std::string include_guard = GetIncludeGuard(options.out_file);
@@ -386,16 +390,23 @@ absl::StatusOr<std::string> EmitHeader(
   // Emit type dependencies
   if (!rendered_types.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
-    for (const auto& [ns_name, types] : rendered_types) {
-      if (!ns_name.empty()) {
-        absl::StrAppend(&out, "namespace ", ns_name, " {\n");
+    std::string last_ns_name;
+    for (const RenderedType* rt : rendered_types) {
+      const auto& [ns_name, spelling] = *rt;
+      if (last_ns_name != ns_name) {
+        if (!last_ns_name.empty()) {
+          absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
+        }
+        if (!ns_name.empty()) {
+          absl::StrAppend(&out, "namespace ", ns_name, " {\n");
+        }
+        last_ns_name = ns_name;
       }
-      for (const auto& type : types) {
-        absl::StrAppend(&out, type, ";\n");
-      }
-      if (!ns_name.empty()) {
-        absl::StrAppend(&out, "}  // namespace ", ns_name, "\n\n");
-      }
+
+      absl::StrAppend(&out, spelling, ";\n");
+    }
+    if (!last_ns_name.empty()) {
+      absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
     }
   }
 
@@ -411,7 +422,7 @@ absl::StatusOr<std::string> EmitHeader(
   // TODO(cblichmann): Make the "Api" suffix configurable or at least optional.
   absl::StrAppendFormat(&out, kClassHeaderTemplate,
                         absl::StrCat(options.name, "Api"));
-  absl::StrAppend(&out, absl::StrJoin(functions, "\n"));
+  absl::StrAppend(&out, absl::StrJoin(function_definitions, "\n"));
   absl::StrAppend(&out, kClassFooterTemplate);
 
   // Close out the header: close namespace (if needed) and end include guard
@@ -435,6 +446,15 @@ void Emitter::EmitType(clang::QualType qual) {
     return;
   }
 
+  // Skip types defined in system headers.
+  // TODO(cblichmann): Instead of this and the hard-coded entities below, we
+  //                   should map add the correct (system) headers to the
+  //                   generated output.
+  if (decl->getASTContext().getSourceManager().isInSystemHeader(
+          decl->getBeginLoc())) {
+    return;
+  }
+
   const std::vector<std::string> ns_path = GetNamespacePath(decl);
   std::string ns_name;
   if (!ns_path.empty()) {
@@ -446,18 +466,28 @@ void Emitter::EmitType(clang::QualType qual) {
       return;
     }
     if (ns_root == "absl") {
-      // Skip types from Abseil that we already include in the generated
+      // Skip Abseil internal namespaces
+      if (ns_path.size() > 1 && absl::EndsWith(ns_path[1], "_internal")) {
+        return;
+      }
+      // Skip types from Abseil that will already be included in the generated
       // header.
       if (auto name = ToStringView(decl->getName());
           name == "StatusCode" || name == "StatusToStringMode" ||
-          name == "CordMemoryAccounting") {
+          name == "CordMemoryAccounting" || name == "string_view" ||
+          name == "LogSeverity" || name == "LogEntry" || name == "Span" ||
+          name == "Time") {
         return;
       }
     }
     ns_name = absl::StrJoin(ns_path, "::");
   }
 
-  rendered_types_[ns_name].push_back(GetSpelling(decl));
+  std::string spelling = GetSpelling(decl);
+  if (const auto& [it, inserted] = rendered_types_.emplace(ns_name, spelling);
+      inserted) {
+    rendered_types_ordered_.push_back(&*it);
+  }
 }
 
 void Emitter::AddTypesFiltered(const QualTypeSet& types) {
@@ -467,16 +497,18 @@ void Emitter::AddTypesFiltered(const QualTypeSet& types) {
 }
 
 absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
-  SAPI_ASSIGN_OR_RETURN(std::string function, EmitFunction(decl));
-  functions_.push_back(function);
+  if (rendered_functions_.insert(decl->getQualifiedNameAsString()).second) {
+    SAPI_ASSIGN_OR_RETURN(std::string function, EmitFunction(decl));
+    rendered_functions_ordered_.push_back(function);
+  }
   return absl::OkStatus();
 }
 
 absl::StatusOr<std::string> Emitter::EmitHeader(
     const GeneratorOptions& options) {
-  SAPI_ASSIGN_OR_RETURN(
-      const std::string header,
-      ::sapi::EmitHeader(functions_, rendered_types_, options));
+  SAPI_ASSIGN_OR_RETURN(const std::string header,
+                        ::sapi::EmitHeader(rendered_functions_ordered_,
+                                           rendered_types_ordered_, options));
   return internal::ReformatGoogleStyle(options.out_file, header);
 }
 

@@ -38,8 +38,19 @@ using ::testing::StrNe;
 
 class EmitterForTesting : public Emitter {
  public:
-  using Emitter::functions_;
-  using Emitter::rendered_types_;
+  std::vector<std::string> SpellingsForNS(const std::string& ns_name) {
+    std::vector<std::string> result;
+    for (const RenderedType* rt : rendered_types_ordered_) {
+      if (rt->ns_name == ns_name) {
+        result.push_back(rt->spelling);
+      }
+    }
+    return result;
+  }
+
+  const std::vector<std::string>& GetRenderedFunctions() {
+    return rendered_functions_ordered_;
+  }
 };
 
 class EmitterTest : public FrontendActionTest {};
@@ -55,7 +66,7 @@ TEST_F(EmitterTest, BasicFunctionality) {
                         std::make_unique<GeneratorAction>(emitter, options)),
       IsOk());
 
-  EXPECT_THAT(emitter.functions_, SizeIs(1));
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
 
   absl::StatusOr<std::string> header = emitter.EmitHeader(options);
   EXPECT_THAT(header, IsOk());
@@ -83,9 +94,9 @@ TEST_F(EmitterTest, RelatedTypes) {
       IsOk());
 
   // Types from "std" should be skipped
-  EXPECT_THAT(emitter.rendered_types_["std"], IsEmpty());
+  EXPECT_THAT(emitter.SpellingsForNS("std"), IsEmpty());
 
-  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("typedef enum { kRed, kGreen, kBlue } Color",
                           "struct Channel {"
                           " Color color;"
@@ -107,7 +118,7 @@ TEST_F(EmitterTest, NestedStruct) {
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
 
-  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("struct A {"
                           " struct B { int number; };"
                           " B b;"
@@ -126,7 +137,7 @@ TEST_F(EmitterTest, NestedAnonymousStruct) {
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
 
-  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("struct A {"
                           " struct { int number; } b;"
                           " int data; }"));
@@ -145,7 +156,7 @@ TEST_F(EmitterTest, ParentNotCollected) {
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
 
-  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("struct A {"
                           " struct B { int number; };"
                           " B b;"
@@ -161,7 +172,7 @@ TEST_F(EmitterTest, RemoveQualifiers) {
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
 
-  EXPECT_THAT(UglifyAll(emitter.rendered_types_[""]),
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("struct A { int data; }"));
 }
 
@@ -173,7 +184,7 @@ TEST_F(EmitterTest, StructByValueSkipsFunction) {
              extern "C" int Structize(A a);)",
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
-  EXPECT_THAT(emitter.functions_, IsEmpty());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
 }
 
 TEST_F(EmitterTest, ReturnStructByValueSkipsFunction) {
@@ -184,7 +195,7 @@ TEST_F(EmitterTest, ReturnStructByValueSkipsFunction) {
              extern "C" A Structize();)",
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
-  EXPECT_THAT(emitter.functions_, IsEmpty());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
 }
 
 TEST_F(EmitterTest, TypedefStructByValueSkipsFunction) {
@@ -195,7 +206,7 @@ TEST_F(EmitterTest, TypedefStructByValueSkipsFunction) {
              extern "C" int Structize(A a);)",
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
-  EXPECT_THAT(emitter.functions_, IsEmpty());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {

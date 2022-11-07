@@ -18,7 +18,8 @@
 #include <string>
 #include <vector>
 
-#include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -37,13 +38,28 @@ absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
 
 class GeneratorOptions;
 
+class RenderedType {
+ public:
+  RenderedType(std::string ns_name, std::string spelling)
+      : ns_name(std::move(ns_name)), spelling(std::move(spelling)) {}
+
+  bool operator==(const RenderedType& other) const {
+    return ns_name == other.ns_name && spelling == other.spelling;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, RenderedType rt) {
+    return H::combine(std::move(h), rt.ns_name, rt.spelling);
+  }
+
+  std::string ns_name;
+  std::string spelling;
+};
+
 // Responsible for emitting the actual textual representation of the generated
 // Sandboxed API header.
 class Emitter {
  public:
-  using RenderedTypesMap =
-      absl::btree_map<std::string, std::vector<std::string>>;
-
   // Adds the set of previously collected types to the emitter, recording the
   // spelling of each one. Types that are not supported by the current
   // generator settings or that are unwanted/unnecessary are skipped. Filtered
@@ -61,11 +77,21 @@ class Emitter {
   void EmitType(clang::QualType qual);
 
  protected:
-  // Maps namespace to a list of spellings for types
-  RenderedTypesMap rendered_types_;
+  // Stores namespaces and a list of spellings for types. Keeps track of types
+  // that have been rendered so far. Using a node_hash_set for pointer
+  // stability.
+  absl::node_hash_set<RenderedType> rendered_types_;
 
-  // Functions for sandboxed API, including their bodies
-  std::vector<std::string> functions_;
+  // A vector to preserve the order of type declarations needs to be preserved.
+  std::vector<const RenderedType*> rendered_types_ordered_;
+
+  // Fully qualified names of functions for the sandboxed API. Keeps track of
+  // functions that have been rendered so far.
+  absl::flat_hash_set<std::string> rendered_functions_;
+
+  // Rendered function bodies, as a vector to preserve source order. This is
+  // not strictly necessary, but makes the output look less surprising.
+  std::vector<std::string> rendered_functions_ordered_;
 };
 
 // Constructs an include guard name for the given filename. The name is of the

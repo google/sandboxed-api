@@ -43,6 +43,7 @@ target_link_libraries(sapi_generator PUBLIC
   sapi::base
   absl::btree
   absl::flat_hash_set
+  absl::node_hash_set
   absl::random_random
   absl::status
   absl::statusor
@@ -73,6 +74,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     emitter_test.cc
   )
   target_link_libraries(sapi_generator_test PRIVATE
+    absl::flat_hash_map
     absl::memory
     benchmark
     sapi::sapi

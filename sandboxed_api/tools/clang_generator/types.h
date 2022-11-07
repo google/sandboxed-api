@@ -37,8 +37,7 @@ inline bool IsSimple(clang::QualType qual) {
 }
 
 inline bool IsPointerOrReference(clang::QualType qual) {
-  return qual->isPointerType() || qual->isMemberPointerType() ||
-         qual->isLValueReferenceType() || qual->isRValueReferenceType();
+  return qual->isAnyPointerType() || qual->isReferenceType();
 }
 
 class TypeCollector {
@@ -69,6 +68,11 @@ class TypeCollector {
 // is used for the generated code that invokes the actual function call IPC.
 // If no mapping can be found, "int" is assumed.
 std::string MapQualType(const clang::ASTContext& context, clang::QualType qual);
+
+// Maps a qualified type to a fully qualified C++ type name. Transforms C-only
+// constructs such as _Bool to bool.
+std::string MapQualTypeParameterForCxx(const clang::ASTContext& context,
+                                       clang::QualType qual);
 
 // Maps a qualified type used as a function parameter to a type name compatible
 // with the generated Sandboxed API.
