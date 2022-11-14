@@ -132,8 +132,8 @@ struct FileToc {
 
 #endif  // SANDBOXED_API_FILE_TOC_H_
 
-#ifndef %3$s
-#define %3$s
+#ifndef %1$s
+#define %1$s
 
 )";
 constexpr const char kHNamespaceBeginFmt[] =
@@ -226,8 +226,7 @@ int main(int argc, char* argv[]) {
     std::replace_if(
         header_guard.begin(), header_guard.end(),
         [](char c) { return !absl::ascii_isalnum(c); }, '_');
-    absl::FPrintF(out_h.get(), kHFileHeaderFmt, package, toc_ident,
-                  header_guard);
+    absl::FPrintF(out_h.get(), kHFileHeaderFmt, header_guard);
     if (have_ns) {
       absl::FPrintF(out_h.get(), kHNamespaceBeginFmt, ns);
     }
