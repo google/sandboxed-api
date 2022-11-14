@@ -57,7 +57,7 @@ _sapi_cc_embed_data = rule(
         "ident": attr.string(),
         "_filewrapper": attr.label(
             executable = True,
-            cfg = "host",
+            cfg = "exec",
             allow_files = True,
             default = Label(_FILEWRAPPER),
         ),
