@@ -14,8 +14,10 @@
 
 #include "sandboxed_api/tools/clang_generator/types.h"
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
@@ -33,6 +35,11 @@ bool IsFunctionReferenceType(clang::QualType qual) {
 }
 
 }  // namespace
+
+void TypeCollector::RecordOrderedDecl(clang::TypeDecl* type_decl) {
+  // This implicitly assigns a number (its source order) to each declaration.
+  ordered_decls_.push_back(type_decl);
+}
 
 void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   if (!seen_.insert(qual)) {
@@ -104,6 +111,44 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     collected_.insert(clang::QualType(decl->getTypeForDecl(), 0));
     return;
   }
+}
+
+std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
+  if (ordered_decls_.empty()) {
+    return {};
+  }
+
+  // The AST context is the same for all declarations in this translation unit,
+  // so use a reference here.
+  clang::ASTContext& context = ordered_decls_.front()->getASTContext();
+
+  absl::flat_hash_set<std::string> collected_names;
+  for (clang::QualType qual : collected_) {
+    collected_names.insert(clang::TypeName::getFullyQualifiedName(
+        qual, context, context.getPrintingPolicy()));
+  }
+
+  std::vector<clang::TypeDecl*> result;
+  for (clang::TypeDecl* type_decl : ordered_decls_) {
+    // Ideally, collected_.contains() on the underlying QualType of the TypeDecl
+    // would work here. However, QualTypes obtained from a TypeDecl contain
+    // different Type pointers, even when referring to one of the same types
+    // from the set and thus will not be found. Instead, work around the issue
+    // by always using the fully qualified name of the type.
+    if (!collected_names.contains(type_decl->getQualifiedNameAsString())) {
+      continue;
+    }
+    if (auto* tag_decl = llvm::dyn_cast<clang::TagDecl>(type_decl);
+        tag_decl && tag_decl->getTypedefNameForAnonDecl()) {
+      // Skip anonymous declarations that are typedef-ed. For example skip
+      // things like "typedef enum { A } SomeName". In this case, the enum is
+      // unnamed and the emitter will instead work with the complete typedef, so
+      // nothing is lost.
+      continue;
+    }
+    result.push_back(type_decl);
+  }
+  return result;
 }
 
 namespace {

@@ -25,6 +25,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Type.h"
@@ -433,16 +434,8 @@ absl::StatusOr<std::string> EmitHeader(
   return out;
 }
 
-void Emitter::EmitType(clang::QualType qual) {
-  clang::TypeDecl* decl = nullptr;
-  if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
-    decl = typedef_type->getDecl();
-  } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
-    decl = enum_type->getDecl();
-  } else if (const auto* record_type = qual->getAs<clang::RecordType>()) {
-    decl = record_type->getDecl();
-  }
-  if (!decl) {
+void Emitter::EmitType(clang::TypeDecl* type_decl) {
+  if (!type_decl) {
     return;
   }
 
@@ -450,18 +443,17 @@ void Emitter::EmitType(clang::QualType qual) {
   // TODO(cblichmann): Instead of this and the hard-coded entities below, we
   //                   should map add the correct (system) headers to the
   //                   generated output.
-  if (decl->getASTContext().getSourceManager().isInSystemHeader(
-          decl->getBeginLoc())) {
+  if (type_decl->getASTContext().getSourceManager().isInSystemHeader(
+          type_decl->getBeginLoc())) {
     return;
   }
 
-  const std::vector<std::string> ns_path = GetNamespacePath(decl);
+  const std::vector<std::string> ns_path = GetNamespacePath(type_decl);
   std::string ns_name;
   if (!ns_path.empty()) {
     const auto& ns_root = ns_path.front();
-    // Filter out any and all declarations from the C++ standard library,
-    // from SAPI itself and from other well-known namespaces. This avoids
-    // re-declaring things like standard integer types, for example.
+    // Filter out declarations from the C++ standard library, from SAPI itself
+    // and from other well-known namespaces.
     if (ns_root == "std" || ns_root == "__gnu_cxx" || ns_root == "sapi") {
       return;
     }
@@ -472,7 +464,7 @@ void Emitter::EmitType(clang::QualType qual) {
       }
       // Skip types from Abseil that will already be included in the generated
       // header.
-      if (auto name = ToStringView(decl->getName());
+      if (auto name = ToStringView(type_decl->getName());
           name == "StatusCode" || name == "StatusToStringMode" ||
           name == "CordMemoryAccounting" || name == "string_view" ||
           name == "LogSeverity" || name == "LogEntry" || name == "Span" ||
@@ -483,16 +475,17 @@ void Emitter::EmitType(clang::QualType qual) {
     ns_name = absl::StrJoin(ns_path, "::");
   }
 
-  std::string spelling = GetSpelling(decl);
+  std::string spelling = GetSpelling(type_decl);
   if (const auto& [it, inserted] = rendered_types_.emplace(ns_name, spelling);
       inserted) {
     rendered_types_ordered_.push_back(&*it);
   }
 }
 
-void Emitter::AddTypesFiltered(const QualTypeSet& types) {
-  for (clang::QualType qual : types) {
-    EmitType(qual);
+void Emitter::AddTypeDeclarations(
+    const std::vector<clang::TypeDecl*>& type_decls) {
+  for (clang::TypeDecl* type_decl : type_decls) {
+    EmitType(type_decl);
   }
 }
 

@@ -21,6 +21,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
@@ -60,6 +61,7 @@ class GeneratorASTVisitor
   explicit GeneratorASTVisitor(const GeneratorOptions& options)
       : options_(options) {}
 
+  bool VisitTypeDecl(clang::TypeDecl* decl);
   bool VisitFunctionDecl(clang::FunctionDecl* decl);
 
  private:

@@ -18,7 +18,9 @@
 #include <iostream>
 
 #include "absl/status/status.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
@@ -43,6 +45,11 @@ std::string GetOutputFilename(absl::string_view source_file) {
   return ReplaceFileExtension(source_file, ".sapi.h");
 }
 
+bool GeneratorASTVisitor::VisitTypeDecl(clang::TypeDecl* decl) {
+  collector_.RecordOrderedDecl(decl);
+  return true;
+}
+
 bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
   if (decl->isCXXClassMember() ||  // Skip classes
       !decl->isExternC() ||        // Skip non external functions
@@ -55,14 +62,16 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
   if (bool all_functions = options_.function_names.empty();
       all_functions ||
       options_.function_names.count(ToStringView(decl->getName())) > 0) {
+    clang::SourceManager& source_manager =
+        decl->getASTContext().getSourceManager();
+
     // Skip functions from system headers when all functions are requested.
     // This allows to still specify standard library functions explicitly.
-    if (all_functions &&
-        decl->getASTContext().getSourceManager().isInSystemHeader(
-            decl->getBeginLoc())) {
+    if (all_functions && source_manager.isInSystemHeader(decl->getBeginLoc())) {
       return true;
     }
 
+    // TODO(cblichmann): Skip functions to implement limit_scan_depth feature.
     functions_.push_back(decl);
 
     collector_.CollectRelatedTypes(decl->getDeclaredReturnType());
@@ -81,7 +90,7 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
     return;
   }
 
-  emitter_.AddTypesFiltered(visitor_.collector_.collected());
+  emitter_.AddTypeDeclarations(visitor_.collector_.GetTypeDeclarations());
 
   for (clang::FunctionDecl* func : visitor_.functions_) {
     absl::Status status = emitter_.AddFunction(func);

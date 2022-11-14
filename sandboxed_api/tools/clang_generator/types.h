@@ -18,7 +18,9 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -42,6 +44,12 @@ inline bool IsPointerOrReference(clang::QualType qual) {
 
 class TypeCollector {
  public:
+  // Records the source order of the given type in the current translation unit.
+  // This is different from collecting related types, as the emitter also needs
+  // to know in which order to emit typedefs vs forward decls, etc. and
+  // QualTypes only refer to complete definitions.
+  void RecordOrderedDecl(clang::TypeDecl* type_decl);
+
   // Computes the transitive closure of all types that a type depends on. Those
   // are types that need to be declared before a declaration of the type denoted
   // by the qual parameter is valid. For example, given
@@ -53,13 +61,15 @@ class TypeCollector {
   //
   // calling this function on the type "AggregateStruct" yields these types:
   //   int
-  //   SubStruct
   //   bool
+  //   SubStruct
   void CollectRelatedTypes(clang::QualType qual);
 
-  QualTypeSet& collected() { return collected_; }
+  // Returns the declarations for the collected types in source order.
+  std::vector<clang::TypeDecl*> GetTypeDeclarations();
 
  private:
+  std::vector<clang::TypeDecl*> ordered_decls_;
   QualTypeSet collected_;
   QualTypeSet seen_;
 };

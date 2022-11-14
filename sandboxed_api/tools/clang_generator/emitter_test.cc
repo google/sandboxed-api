@@ -65,7 +65,6 @@ TEST_F(EmitterTest, BasicFunctionality) {
       RunFrontendAction(R"(extern "C" void ExposedFunction() {})",
                         std::make_unique<GeneratorAction>(emitter, options)),
       IsOk());
-
   EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
 
   absl::StatusOr<std::string> header = emitter.EmitHeader(options);
@@ -92,6 +91,7 @@ TEST_F(EmitterTest, RelatedTypes) {
              extern "C" void Structize(MyStruct* s);)",
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(2));
 
   // Types from "std" should be skipped
   EXPECT_THAT(emitter.SpellingsForNS("std"), IsEmpty());
@@ -103,6 +103,25 @@ TEST_F(EmitterTest, RelatedTypes) {
                           " size_t width;"
                           " size_t height; }",
                           "typedef struct { int member; } MyStruct"));
+}
+
+TEST_F(EmitterTest, TypedefNames) {
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(typedef enum { kNone, kSome } E;
+             struct A { E member; };
+             typedef struct { int member; } B;
+             typedef struct tagC { int member; } C;
+             extern "C" void Colorize(A*, B*, C*);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+
+  EXPECT_THAT(
+      UglifyAll(emitter.SpellingsForNS("")),
+      ElementsAre("typedef enum { kNone, kSome } E", "struct A { E member; }",
+                  "typedef struct { int member; } B",
+                  "struct tagC { int member; }", "typedef struct tagC C"));
 }
 
 TEST_F(EmitterTest, NestedStruct) {
@@ -207,6 +226,34 @@ TEST_F(EmitterTest, TypedefStructByValueSkipsFunction) {
           std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
       IsOk());
   EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
+}
+
+TEST_F(EmitterTest, TypedefTypeDependencies) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(typedef bool some_other_unused;
+             using size_t = long long int;
+             typedef struct _Image Image;
+             typedef size_t (*StreamHandler)(const Image*, const void*,
+                                             const size_t);
+             enum unrelated_unused { NONE, SOME };
+             struct _Image {
+               StreamHandler stream;
+               int size;
+             };
+             extern "C" void Process(StreamHandler handler);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("using size_t = long long", "struct _Image",
+                          "typedef size_t (*StreamHandler)(const Image *, "
+                          "const void *, const size_t)",
+                          "struct _Image {"
+                          " StreamHandler stream;"
+                          " int size; }"));
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {

@@ -60,13 +60,13 @@ class RenderedType {
 // Sandboxed API header.
 class Emitter {
  public:
-  // Adds the set of previously collected types to the emitter, recording the
-  // spelling of each one. Types that are not supported by the current
-  // generator settings or that are unwanted/unnecessary are skipped. Filtered
-  // types include C++ constructs or well-known standard library elements. The
-  // latter can be replaced by including the correct headers in the emitted
-  // header.
-  void AddTypesFiltered(const QualTypeSet& types);
+  // Adds the declarations of previously collected types to the emitter,
+  // recording the spelling of each one. Types/declarations that are not
+  // supported by the current generator settings or that are unwanted or
+  // unnecessary are skipped. Other filtered types include C++ constructs or
+  // well-known standard library elements. The latter can be replaced by
+  // including the correct headers in the emitted header.
+  void AddTypeDeclarations(const std::vector<clang::TypeDecl*>& type_decls);
 
   absl::Status AddFunction(clang::FunctionDecl* decl);
 
@@ -74,7 +74,7 @@ class Emitter {
   absl::StatusOr<std::string> EmitHeader(const GeneratorOptions& options);
 
  private:
-  void EmitType(clang::QualType qual);
+  void EmitType(clang::TypeDecl* type_decl);
 
  protected:
   // Stores namespaces and a list of spellings for types. Keeps track of types
