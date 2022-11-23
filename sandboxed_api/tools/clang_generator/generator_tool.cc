@@ -20,10 +20,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_split.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/Frontend/FrontendActions.h"
-#include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/CommandLine.h"
@@ -31,6 +27,7 @@
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
@@ -90,9 +87,16 @@ static auto* g_sapi_out = new llvm::cl::opt<std::string>(
 GeneratorOptions GeneratorOptionsFromFlags(
     const std::vector<std::string>& sources) {
   GeneratorOptions options;
-  options.function_names.insert(g_sapi_functions->begin(),
-                                g_sapi_functions->end());
   options.work_dir = sapi::file_util::fileops::GetCWD();
+  options.set_function_names(*g_sapi_functions);
+  for (const auto& input : sources) {
+    // Keep absolute paths as is, turn
+    options.in_files.insert(
+        absl::StartsWith(input, "/")
+            ? input
+            : sapi::file::JoinPath(options.work_dir, input));
+  }
+  options.set_limit_scan_depth(*g_sapi_limit_scan_depth);
   options.name = *g_sapi_name;
   options.namespace_name = *g_sapi_ns;
   options.out_file =
@@ -131,7 +135,7 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
   if (!g_sapi_isystem->empty()) {
     absl::FPrintF(
         stderr,
-        "Note: Ignoring deprecated command-line option: sapi_isystem\n");
+        "note: ignoring deprecated command-line option: sapi_isystem\n");
   }
 
   if (int result = tool.run(

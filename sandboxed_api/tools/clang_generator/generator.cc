@@ -17,8 +17,12 @@
 #include <fstream>
 #include <iostream>
 
+#include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
@@ -84,7 +88,14 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
     return true;
   }
 
-  // TODO(cblichmann): Skip functions to implement limit_scan_depth feature.
+  if (all_functions) {
+    const std::string filename(absl::StripPrefix(
+        ToStringView(source_manager.getFilename(decl_start)), "./"));
+    if (options_.limit_scan_depth && !options_.in_files.contains(filename)) {
+      return true;
+    }
+  }
+
   functions_.push_back(decl);
 
   collector_.CollectRelatedTypes(decl->getDeclaredReturnType());

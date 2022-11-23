@@ -40,9 +40,23 @@ struct GeneratorOptions {
     return *this;
   }
 
+  template <typename ContainerT>
+  GeneratorOptions& set_in_files(const ContainerT& value) {
+    in_files.clear();
+    in_files.insert(std::begin(value), std::end(value));
+    return *this;
+  }
+
+  GeneratorOptions& set_limit_scan_depth(bool value) {
+    limit_scan_depth = value;
+    return *this;
+  }
+
   bool has_namespace() const { return !namespace_name.empty(); }
 
   absl::flat_hash_set<std::string> function_names;
+  absl::flat_hash_set<std::string> in_files;
+  bool limit_scan_depth = false;
 
   // Output options
   std::string work_dir;

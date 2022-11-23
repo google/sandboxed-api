@@ -41,6 +41,7 @@ llvm_map_components_to_libnames(_sapi_generator_llvm_libs
 )
 target_link_libraries(sapi_generator PUBLIC
   sapi::base
+  absl::algorithm_container
   absl::btree
   absl::flat_hash_set
   absl::node_hash_set
@@ -62,6 +63,7 @@ add_executable(sapi_generator_tool
 )
 target_link_libraries(sapi_generator_tool PRIVATE
   sapi::base
+  sapi::file_base
   sapi::file_helpers
   sapi::fileops
   sapi::generator
@@ -76,11 +78,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sapi_generator_test PRIVATE
     absl::flat_hash_map
     absl::memory
+    absl::statusor
     benchmark
     sapi::sapi
     sapi::generator
     sapi::status
-    absl::statusor
     sapi::status_matchers
     sapi::test_main
   )
