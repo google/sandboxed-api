@@ -315,6 +315,22 @@ TEST_F(EmitterTest, OmitDependentTypes) {
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), IsEmpty());
 }
 
+TEST_F(EmitterTest, SkipAbseilInternals) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(namespace absl::internal {
+               typedef int Int;
+             }
+             extern "C" void TakesAnInternalInt(absl::internal::Int);
+             extern "C" void AbslInternalTakingAnInt(int);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), IsEmpty());
+}
+
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {
   // Copybara will transform the string. This is intentional.
   constexpr absl::string_view kGeneratedHeaderPrefix =

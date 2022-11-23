@@ -18,8 +18,10 @@
 #include <iostream>
 
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
@@ -59,26 +61,37 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
   }
 
   // Process either all function or just the requested ones
-  if (bool all_functions = options_.function_names.empty();
-      all_functions ||
-      options_.function_names.count(ToStringView(decl->getName())) > 0) {
-    clang::SourceManager& source_manager =
-        decl->getASTContext().getSourceManager();
-
-    // Skip functions from system headers when all functions are requested.
-    // This allows to still specify standard library functions explicitly.
-    if (all_functions && source_manager.isInSystemHeader(decl->getBeginLoc())) {
-      return true;
-    }
-
-    // TODO(cblichmann): Skip functions to implement limit_scan_depth feature.
-    functions_.push_back(decl);
-
-    collector_.CollectRelatedTypes(decl->getDeclaredReturnType());
-    for (const clang::ParmVarDecl* param : decl->parameters()) {
-      collector_.CollectRelatedTypes(param->getType());
-    }
+  bool all_functions = options_.function_names.empty();
+  if (!all_functions &&
+      !options_.function_names.contains(ToStringView(decl->getName()))) {
+    return true;
   }
+
+  // Skip Abseil internal functions when all functions are requested. This still
+  // allows them to be specified explicitly.
+  if (all_functions &&
+      absl::StartsWith(decl->getQualifiedNameAsString(), "AbslInternal")) {
+    return true;
+  }
+
+  clang::SourceManager& source_manager =
+      decl->getASTContext().getSourceManager();
+  clang::SourceLocation decl_start = decl->getBeginLoc();
+
+  // Skip functions from system headers when all functions are requested. Like
+  // above, they can still explicitly be specified.
+  if (all_functions && source_manager.isInSystemHeader(decl_start)) {
+    return true;
+  }
+
+  // TODO(cblichmann): Skip functions to implement limit_scan_depth feature.
+  functions_.push_back(decl);
+
+  collector_.CollectRelatedTypes(decl->getDeclaredReturnType());
+  for (const clang::ParmVarDecl* param : decl->parameters()) {
+    collector_.CollectRelatedTypes(param->getType());
+  }
+
   return true;
 }
 

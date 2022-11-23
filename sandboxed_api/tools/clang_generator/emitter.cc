@@ -467,10 +467,11 @@ void Emitter::EmitType(clang::TypeDecl* type_decl) {
       // Skip types from Abseil that will already be included in the generated
       // header.
       if (auto name = ToStringView(type_decl->getName());
+          name == "CordMemoryAccounting" || name == "Duration" ||
+          name == "LogEntry" || name == "LogSeverity" || name == "Span" ||
           name == "StatusCode" || name == "StatusToStringMode" ||
-          name == "CordMemoryAccounting" || name == "string_view" ||
-          name == "LogSeverity" || name == "LogEntry" || name == "Span" ||
-          name == "Time") {
+          name == "SynchLocksHeld" || name == "SynchWaitParams" ||
+          name == "Time" || name == "string_view" || name == "tid_t") {
         return;
       }
     }
