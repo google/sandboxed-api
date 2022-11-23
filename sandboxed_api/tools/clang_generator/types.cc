@@ -61,22 +61,19 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
       qual->isMemberFunctionPointerType()) {
     if (const auto* function_type = qual->getPointeeOrArrayElementType()
                                         ->getAs<clang::FunctionProtoType>()) {
-      // Note: Do not add the function type itself, as this will always be a
-      //       pointer argument. We only need to collect all its related types.
+      // Collect the return type, the parameter types as well as the function
+      // pointer type itself.
       CollectRelatedTypes(function_type->getReturnType());
       for (const clang::QualType& param : function_type->getParamTypes()) {
         CollectRelatedTypes(param);
       }
+      collected_.insert(qual);
       return;
     }
   }
 
   if (IsPointerOrReference(qual)) {
-    clang::QualType pointee = qual;
-    do {
-      pointee = pointee->getPointeeType();
-    } while (IsPointerOrReference(pointee));
-    CollectRelatedTypes(pointee);
+    CollectRelatedTypes(qual->getPointeeType());
     return;
   }
 

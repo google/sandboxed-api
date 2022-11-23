@@ -105,6 +105,25 @@ TEST_F(EmitterTest, RelatedTypes) {
                           "typedef struct { int member; } MyStruct"));
 }
 
+TEST_F(EmitterTest, CollectFunctionPointer) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(typedef void (callback_t)(void*);
+             struct HandlerData {
+               int member;
+               callback_t* cb;
+             };
+             extern "C" int Structize(HandlerData*);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(
+      UglifyAll(emitter.SpellingsForNS("")),
+      ElementsAre("struct HandlerData { int member; callback_t *cb; }"));
+}
+
 TEST_F(EmitterTest, TypedefNames) {
   EmitterForTesting emitter;
   ASSERT_THAT(
