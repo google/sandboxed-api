@@ -110,6 +110,24 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   }
 }
 
+namespace {
+
+std::string GetQualTypeName(const clang::ASTContext& context,
+                            clang::QualType qual) {
+  // Remove any "const", "volatile", etc. except for those added via typedefs.
+  clang::QualType unqual = qual.getLocalUnqualifiedType();
+
+  // This is to get to the actual name of function pointers.
+  if (unqual->isFunctionPointerType() || IsFunctionReferenceType(unqual) ||
+      unqual->isMemberFunctionPointerType()) {
+    unqual = unqual->getPointeeType();
+  }
+  return clang::TypeName::getFullyQualifiedName(unqual, context,
+                                                context.getPrintingPolicy());
+}
+
+}  // namespace
+
 std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
   if (ordered_decls_.empty()) {
     return {};
@@ -121,28 +139,33 @@ std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
 
   absl::flat_hash_set<std::string> collected_names;
   for (clang::QualType qual : collected_) {
-    collected_names.insert(clang::TypeName::getFullyQualifiedName(
-        qual, context, context.getPrintingPolicy()));
+    const std::string qual_name = GetQualTypeName(context, qual);
+    collected_names.insert(qual_name);
   }
 
   std::vector<clang::TypeDecl*> result;
   for (clang::TypeDecl* type_decl : ordered_decls_) {
+    clang::QualType type_decl_type = context.getTypeDeclType(type_decl);
+
     // Ideally, collected_.contains() on the underlying QualType of the TypeDecl
     // would work here. However, QualTypes obtained from a TypeDecl contain
     // different Type pointers, even when referring to one of the same types
     // from the set and thus will not be found. Instead, work around the issue
     // by always using the fully qualified name of the type.
-    if (!collected_names.contains(type_decl->getQualifiedNameAsString())) {
+    const std::string qual_name = GetQualTypeName(context, type_decl_type);
+    if (!collected_names.contains(qual_name)) {
       continue;
     }
+
+    // Skip anonymous declarations that are typedef-ed. For example skip things
+    // like "typedef enum { A } SomeName". In this case, the enum is unnamed and
+    // the emitter will instead work with the complete typedef, so nothing is
+    // lost.
     if (auto* tag_decl = llvm::dyn_cast<clang::TagDecl>(type_decl);
         tag_decl && tag_decl->getTypedefNameForAnonDecl()) {
-      // Skip anonymous declarations that are typedef-ed. For example skip
-      // things like "typedef enum { A } SomeName". In this case, the enum is
-      // unnamed and the emitter will instead work with the complete typedef, so
-      // nothing is lost.
       continue;
     }
+
     result.push_back(type_decl);
   }
   return result;
@@ -151,10 +174,16 @@ std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
 namespace {
 
 // Removes "const" from a qualified type if it denotes a pointer or reference
-// type.
+// type. Keeps top-level typedef types intact.
 clang::QualType MaybeRemoveConst(const clang::ASTContext& context,
                                  clang::QualType qual) {
-  if (IsPointerOrReference(qual)) {
+  if (
+#if LLVM_VERSION_MAJOR < 13
+      qual->getAs<clang::TypedefType>() == nullptr
+#else
+      !qual->isTypedefNameType()
+#endif
+      && IsPointerOrReference(qual)) {
     clang::QualType pointee_qual = qual->getPointeeType();
     pointee_qual.removeLocalConst();
     qual = context.getPointerType(pointee_qual);
@@ -253,18 +282,21 @@ std::string MapQualType(const clang::ASTContext& context,
     // Remove "const" qualifier from a pointer or reference type's pointee, as
     // e.g. const pointers do not work well with SAPI.
     return absl::StrCat("::sapi::v::Reg<",
-                        MaybeRemoveConst(context, qual).getAsString(), ">");
+                        clang::TypeName::getFullyQualifiedName(
+                            MaybeRemoveConst(context, qual), context,
+                            context.getPrintingPolicy()),
+                        ">");
   }
   // Best-effort mapping to "int", leave a comment.
-  return absl::StrCat("::sapi::v::Int /* aka '", qual.getAsString(), "' */");
+  return absl::StrCat("::sapi::v::Int /* aka '",
+                      clang::TypeName::getFullyQualifiedName(
+                          MaybeRemoveConst(context, qual), context,
+                          context.getPrintingPolicy()),
+                      "' */");
 }
 
 std::string MapQualTypeParameterForCxx(const clang::ASTContext& context,
                                        clang::QualType qual) {
-  if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
-    clang::TypedefNameDecl* typedef_decl = typedef_type->getDecl();
-    return typedef_decl->getQualifiedNameAsString();
-  }
   if (const auto* builtin = qual->getAs<clang::BuiltinType>()) {
     if (builtin->getKind() == clang::BuiltinType::Bool) {
       return "bool";  // _Bool -> bool

@@ -21,7 +21,6 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/util/status_matchers.h"
@@ -121,7 +120,8 @@ TEST_F(EmitterTest, CollectFunctionPointer) {
 
   EXPECT_THAT(
       UglifyAll(emitter.SpellingsForNS("")),
-      ElementsAre("struct HandlerData { int member; callback_t *cb; }"));
+      ElementsAre("typedef void (callback_t)(void *)",
+                  "struct HandlerData { int member; callback_t *cb; }"));
 }
 
 TEST_F(EmitterTest, TypedefNames) {
@@ -247,6 +247,25 @@ TEST_F(EmitterTest, TypedefStructByValueSkipsFunction) {
   EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
 }
 
+TEST_F(EmitterTest, CollectTypedefPointerType) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(typedef struct _KernelProfileRecord {
+               int member;
+             }* KernelProfileRecord;
+             extern "C" const KernelProfileRecord*
+             GetOpenCLKernelProfileRecords(const int, long long int*);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(
+      UglifyAll(emitter.SpellingsForNS("")),
+      ElementsAre("struct _KernelProfileRecord { int member; }",
+                  "typedef struct _KernelProfileRecord *KernelProfileRecord"));
+}
+
 TEST_F(EmitterTest, TypedefTypeDependencies) {
   EmitterForTesting emitter;
   EXPECT_THAT(
@@ -268,6 +287,7 @@ TEST_F(EmitterTest, TypedefTypeDependencies) {
 
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("using size_t = long long", "struct _Image",
+                          "typedef struct _Image Image",
                           "typedef size_t (*StreamHandler)(const Image *, "
                           "const void *, const size_t)",
                           "struct _Image {"

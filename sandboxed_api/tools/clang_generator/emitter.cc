@@ -25,9 +25,11 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
@@ -200,15 +202,16 @@ std::string PrintRecordTemplateArguments(const clang::CXXRecordDecl* record) {
   if (!template_params) {
     return "";
   }
+  clang::ASTContext& context = record->getASTContext();
   std::vector<std::string> params;
   params.reserve(template_params->size());
   for (const auto& template_param : *template_params) {
     if (const auto* p =
             llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(template_param)) {
-      // TODO(cblichmann): These types should be included by
-      //                   CollectRelatedTypes().
-      params.push_back(
-          p->getType().getDesugaredType(record->getASTContext()).getAsString());
+      // TODO(cblichmann): Should be included by CollectRelatedTypes().
+      params.push_back(clang::TypeName::getFullyQualifiedName(
+          p->getType().getDesugaredType(context), context,
+          context.getPrintingPolicy()));
     } else {  // Also covers template template parameters
       params.push_back("typename");
     }
@@ -294,6 +297,12 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
 }
 
 absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
+  const clang::QualType return_type = decl->getDeclaredReturnType();
+  if (return_type->isRecordType()) {
+    return MakeStatusWithDiagnostic(
+        decl->getBeginLoc(), absl::StatusCode::kCancelled,
+        "returning record by value, skipping function");
+  }
   std::string out;
 
   SAPI_ASSIGN_OR_RETURN(std::string prototype,
@@ -301,12 +310,6 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   absl::StrAppend(&out, "\n", prototype);
 
   auto function_name = ToStringView(decl->getName());
-  const clang::QualType return_type = decl->getDeclaredReturnType();
-  if (return_type->isRecordType()) {
-    return MakeStatusWithDiagnostic(
-        decl->getBeginLoc(), absl::StatusCode::kCancelled,
-        "returning record by value, skipping function");
-  }
   const bool returns_void = return_type->isVoidType();
 
   const clang::ASTContext& context = decl->getASTContext();
@@ -368,7 +371,6 @@ absl::StatusOr<std::string> EmitHeader(
   std::string out;
   const std::string include_guard = GetIncludeGuard(options.out_file);
   absl::StrAppendFormat(&out, kHeaderProlog, include_guard);
-
   // When embedding the sandboxee, add embed header include
   if (!options.embed_name.empty()) {
     // Not using JoinPath() because even on Windows include paths use plain
@@ -441,8 +443,8 @@ void Emitter::EmitType(clang::TypeDecl* type_decl) {
 
   // Skip types defined in system headers.
   // TODO(cblichmann): Instead of this and the hard-coded entities below, we
-  //                   should map add the correct (system) headers to the
-  //                   generated output.
+  //                   should map types and add the correct (system) headers to
+  //                   the generated output.
   if (type_decl->getASTContext().getSourceManager().isInSystemHeader(
           type_decl->getBeginLoc())) {
     return;
