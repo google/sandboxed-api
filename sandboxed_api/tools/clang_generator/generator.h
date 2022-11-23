@@ -64,13 +64,15 @@ class GeneratorASTVisitor
   bool VisitTypeDecl(clang::TypeDecl* decl);
   bool VisitFunctionDecl(clang::FunctionDecl* decl);
 
+  TypeCollector& collector() { return collector_; }
+
+  const std::vector<clang::FunctionDecl*>& functions() const {
+    return functions_;
+  }
+
  private:
-  friend class GeneratorASTConsumer;
-
   TypeCollector collector_;
-
   std::vector<clang::FunctionDecl*> functions_;
-
   const GeneratorOptions& options_;
 };
 
@@ -85,7 +87,6 @@ class GeneratorASTConsumer : public clang::ASTConsumer {
 
   std::string in_file_;
   GeneratorASTVisitor visitor_;
-
   Emitter& emitter_;
 };
 

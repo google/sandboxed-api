@@ -90,9 +90,9 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
     return;
   }
 
-  emitter_.AddTypeDeclarations(visitor_.collector_.GetTypeDeclarations());
-
-  for (clang::FunctionDecl* func : visitor_.functions_) {
+  // TODO(cblichmann): Move below to emit all functions after traversing TUs.
+  emitter_.AddTypeDeclarations(visitor_.collector().GetTypeDeclarations());
+  for (clang::FunctionDecl* func : visitor_.functions()) {
     absl::Status status = emitter_.AddFunction(func);
     if (!status.ok()) {
       clang::SourceLocation loc =
