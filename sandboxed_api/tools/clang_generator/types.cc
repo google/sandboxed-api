@@ -147,6 +147,14 @@ std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
   for (clang::TypeDecl* type_decl : ordered_decls_) {
     clang::QualType type_decl_type = context.getTypeDeclType(type_decl);
 
+    // Filter out problematic dependent types that we cannot emit properly.
+    // CollectRelatedTypes() cannot skip those, as it runs before this
+    // information is available.
+    if (type_decl_type->isMemberFunctionPointerType() &&
+        type_decl_type->isDependentType()) {
+      continue;
+    }
+
     // Ideally, collected_.contains() on the underlying QualType of the TypeDecl
     // would work here. However, QualTypes obtained from a TypeDecl contain
     // different Type pointers, even when referring to one of the same types

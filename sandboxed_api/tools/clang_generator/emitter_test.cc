@@ -295,6 +295,26 @@ TEST_F(EmitterTest, TypedefTypeDependencies) {
                           " int size; }"));
 }
 
+TEST_F(EmitterTest, OmitDependentTypes) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(template <typename T>
+             struct Callback {
+               typedef void (T::*MemberSignature)();
+               MemberSignature pointer;
+             };
+             struct S : public Callback<S> {
+               void Callable() {}
+             };
+             extern "C" void Invoke(S::MemberSignature* cb);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), IsEmpty());
+}
+
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {
   // Copybara will transform the string. This is intentional.
   constexpr absl::string_view kGeneratedHeaderPrefix =
