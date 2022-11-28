@@ -19,7 +19,9 @@ _DEFAULT_VISIBILITY = [
     "//sandboxed_api:__subpackages__",
 ]
 
-package(default_visibility = _DEFAULT_VISIBILITY)
+package(
+    default_visibility = _DEFAULT_VISIBILITY,
+)
 
 package_group(
     name = "minielf_users",
