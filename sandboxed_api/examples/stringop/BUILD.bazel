@@ -18,7 +18,9 @@ load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
+package(
+    default_visibility = ["//sandboxed_api:__subpackages__"],
+)
 
 licenses(["notice"])
 
