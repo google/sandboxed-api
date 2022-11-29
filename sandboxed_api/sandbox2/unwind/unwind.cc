@@ -86,12 +86,7 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
       break;
     }
     ips.push_back(ip);
-    rc = unw_step(&cursor);
-    // Non-error condition: UNW_ESUCCESS (0).
-    if (rc < 0) {
-      // If anything but UNW_ESTOPUNWIND (-5), there has been an error.
-      // However since we can't do anything about it and it appears that
-      // this happens every time we don't log this.
+    if (unw_step(&cursor) <= 0) {
       break;
     }
   }
