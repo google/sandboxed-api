@@ -49,12 +49,11 @@ add_library(sandbox2_network_proxy_client ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::network_proxy_client ALIAS sandbox2_network_proxy_client)
 target_link_libraries(sandbox2_network_proxy_client PRIVATE
-  absl::check
   absl::strings
   absl::synchronization
   absl::log
   sandbox2::comms
-  sapi::config
+  sandbox2::syscall_trap
   sapi::strerror
   sapi::base
   sapi::status

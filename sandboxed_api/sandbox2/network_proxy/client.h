@@ -16,11 +16,11 @@
 #define SANDBOXED_API_SANDBOX2_NETWORK_PROXY_CLIENT_H_
 
 #include <netinet/in.h>
-#include <signal.h>
 
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/util/syscall_trap.h"
 
 namespace sandbox2 {
 
@@ -57,17 +57,9 @@ class NetworkProxyHandler {
   // if this connection is allowed and sends the connected socket to us.
   static absl::Status InstallNetworkProxyHandler(NetworkProxyClient* npc);
 
-  void ProcessSeccompTrap(int nr, siginfo_t* info, void* void_context);
+  static bool ProcessSeccompTrap(int nr, SyscallTrap::Args args, uintptr_t* rv);
 
- private:
-  NetworkProxyHandler(NetworkProxyClient* npc) : network_proxy_client_(npc) {
-    InstallSeccompTrap();
-  }
-  void InvokeOldAct(int nr, siginfo_t* info, void* void_context);
-  void InstallSeccompTrap();
-
-  struct sigaction oldact_;
-  NetworkProxyClient* network_proxy_client_;
+  static NetworkProxyClient* network_proxy_client_;
 };
 
 }  // namespace sandbox2
