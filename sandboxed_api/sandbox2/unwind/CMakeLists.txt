@@ -40,6 +40,7 @@ target_link_libraries(sandbox2_unwind PRIVATE
   sapi::strerror
   sandbox2::unwind_proto
   sapi::base
+  sapi::config
   sapi::file_helpers
   sapi::raw_logging
   sapi::status

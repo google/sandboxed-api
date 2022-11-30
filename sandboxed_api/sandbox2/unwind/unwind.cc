@@ -30,6 +30,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "libunwind-ptrace.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/unwind/ptrace_hook.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
@@ -171,6 +172,19 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
     }
 
     for (const ElfFile::Symbol& symbol : elf->symbols()) {
+      // Skip Mapping Symbols on ARM
+      // ARM documentation for Mapping Symbols:
+      // https://developer.arm.com/documentation/dui0803/a/Accessing-and-managing-symbols-with-armlink/About-mapping-symbols
+      if constexpr (sapi::host_cpu::IsArm64() || sapi::host_cpu::IsArm()) {
+        if (absl::StartsWith(symbol.name, "$x") ||
+            absl::StartsWith(symbol.name, "$d") ||
+            absl::StartsWith(symbol.name, "$t") ||
+            absl::StartsWith(symbol.name, "$a") ||
+            absl::StartsWith(symbol.name, "$v")) {
+          continue;
+        }
+      }
+
       if (elf->position_independent()) {
         if (symbol.address >= entry.pgoff &&
             symbol.address - entry.pgoff < entry.end - entry.start) {
