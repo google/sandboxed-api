@@ -50,6 +50,18 @@ target_link_libraries(sandbox2_util_maps_parser
   PUBLIC absl::statusor
 )
 
+# sandboxed_api/sandbox2/util:syscall_trap
+add_library(sandbox2_util_syscall_trap ${SAPI_LIB_TYPE}
+  syscall_trap.cc
+  syscall_trap.h
+)
+add_library(sandbox2::syscall_trap ALIAS sandbox2_util_syscall_trap)
+target_link_libraries(sandbox2_util_syscall_trap
+  PRIVATE absl::check
+          sapi::base
+          sapi::config
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test

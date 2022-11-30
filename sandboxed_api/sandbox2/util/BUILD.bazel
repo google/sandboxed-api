@@ -82,6 +82,17 @@ cc_test(
 )
 
 cc_library(
+    name = "syscall_trap",
+    srcs = ["syscall_trap.cc"],
+    hdrs = ["syscall_trap.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "//sandboxed_api:config",
+        "@com_google_absl//absl/log:check",
+    ],
+)
+
+cc_library(
     name = "maps_parser",
     srcs = ["maps_parser.cc"],
     hdrs = ["maps_parser.h"],
