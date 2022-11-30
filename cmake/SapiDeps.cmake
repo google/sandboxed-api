@@ -77,7 +77,7 @@ endif()
 if(SAPI_DOWNLOAD_LIBUNWIND)
   include(cmake/libunwind.cmake)
 endif()
-sapi_check_target(unwind_ptrace_wrapped)
+sapi_check_target(unwind_ptrace)
 
 if(SAPI_DOWNLOAD_PROTOBUF)
   include(cmake/protobuf.cmake)

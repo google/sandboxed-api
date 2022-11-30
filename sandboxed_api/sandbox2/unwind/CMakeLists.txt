@@ -20,6 +20,7 @@ add_library(sandbox2_ptrace_hook STATIC
 add_library(sandbox2::ptrace_hook ALIAS sandbox2_ptrace_hook)
 target_link_libraries(sandbox2_ptrace_hook
   PRIVATE sapi::base
+          sandbox2::syscall_trap
   PUBLIC absl::strings
 )
 
@@ -44,7 +45,7 @@ target_link_libraries(sandbox2_unwind PRIVATE
   sapi::file_helpers
   sapi::raw_logging
   sapi::status
-  unwind::unwind_ptrace_wrapped
+  unwind::unwind_ptrace
 )
 
 # sandboxed_api/sandbox2/unwind:unwind_proto

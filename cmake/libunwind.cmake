@@ -110,7 +110,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm")
   )
 endif()
 
-add_library(unwind_ptrace_wrapped STATIC
+add_library(unwind_ptrace STATIC
   # internal_headers
   ${libunwind_SOURCE_DIR}/include/compiler.h
   ${libunwind_SOURCE_DIR}/include/config.h
@@ -185,35 +185,22 @@ add_library(unwind_ptrace_wrapped STATIC
   # source_ptrace
   ${_unwind_ptrace_srcs}
 )
-add_library(unwind::unwind_ptrace_wrapped ALIAS unwind_ptrace_wrapped)
-target_include_directories(unwind_ptrace_wrapped PUBLIC
+add_library(unwind::unwind_ptrace ALIAS unwind_ptrace)
+target_include_directories(unwind_ptrace PUBLIC
   ${libunwind_SOURCE_DIR}/include
   ${libunwind_SOURCE_DIR}/include/tdep
   ${libunwind_SOURCE_DIR}/include/tdep-${_unwind_cpu}
   ${libunwind_SOURCE_DIR}/src
 )
-target_compile_options(unwind_ptrace_wrapped PRIVATE
+target_compile_options(unwind_ptrace PRIVATE
   -fno-common
   -Wno-cpp
 )
-target_compile_definitions(unwind_ptrace_wrapped
+target_compile_definitions(unwind_ptrace
   PRIVATE -DHAVE_CONFIG_H
           -D_GNU_SOURCE
           -DNO_FRAME_POINTER
-  PUBLIC -D_UPT_accessors=_UPT_accessors_wrapped
-         -D_UPT_create=_UPT_create_wrapped
-         -D_UPT_destroy=_UPT_destroy_wrapped
-
-         -D_U${_unwind_cpu}_create_addr_space=_U${_unwind_cpu}_create_addr_space_wrapped
-         -D_U${_unwind_cpu}_destroy_addr_space=_U${_unwind_cpu}_destroy_addr_space_wrapped
-         -D_U${_unwind_cpu}_get_proc_name=_U${_unwind_cpu}_get_proc_name_wrapped
-         -D_U${_unwind_cpu}_get_reg=_U${_unwind_cpu}_get_reg_wrapped
-         -D_U${_unwind_cpu}_init_remote=_U${_unwind_cpu}_init_remote_wrapped
-         -D_U${_unwind_cpu}_step=_U${_unwind_cpu}_step_wrapped
-
-         -Dptrace=ptrace_wrapped
 )
-target_link_libraries(unwind_ptrace_wrapped PRIVATE
+target_link_libraries(unwind_ptrace PRIVATE
   sapi::base
-  sandbox2::ptrace_hook
 )

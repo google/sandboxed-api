@@ -1246,6 +1246,12 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::TrapPtrace() {
+  AddPolicyOnSyscall(__NR_ptrace, {TRAP(0)});
+  user_policy_handles_ptrace_ = true;
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::SetRootWritable() {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
   mounts_.SetRootWritable();

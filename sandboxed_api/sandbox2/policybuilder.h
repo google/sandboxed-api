@@ -605,6 +605,9 @@ class PolicyBuilder final {
   // Allows a limited version of madvise
   PolicyBuilder& AllowLimitedMadvise();
 
+  // Traps instead of denying ptrace.
+  PolicyBuilder& TrapPtrace();
+
   // Appends code to block a specific syscall and setting errno at the end of
   // the policy - decision taken by user policy take precedence.
   PolicyBuilder& OverridableBlockSyscallWithErrno(uint32_t num, int error);

@@ -17,6 +17,7 @@
 #include <elf.h>  // For NT_PRSTATUS
 #include <sys/ptrace.h>
 #include <sys/uio.h>
+#include <syscall.h>
 #include <unistd.h>
 
 #include <cstdint>
@@ -24,6 +25,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+
+#include "sandboxed_api/sandbox2/util/syscall_trap.h"
 
 // Android doesn't use an enum for __ptrace_request, use int instead.
 #if defined(__ANDROID__)
@@ -45,38 +48,23 @@ constexpr size_t kRegSize = sizeof(RegType);
 // limit).
 auto* g_registers = new std::vector<RegType>();
 
-// Whether ptrace() emulation is in effect. This can only be enabled (per
-// thread), never disabled.
-thread_local bool g_emulate_ptrace = false;
-
-}  // namespace
-
-void EnablePtraceEmulationWithUserRegs(absl::string_view regs) {
-  g_registers->resize((regs.size() + 1) / kRegSize);
-  memcpy(&g_registers->front(), regs.data(), regs.size());
-  g_emulate_ptrace = true;
-}
-
-// Replaces the libc version of ptrace.
+// Hooks ptrace.
 // This wrapper makes use of process_vm_readv to read process memory instead of
 // issuing ptrace syscalls. Accesses to registers will be emulated, for this the
 // register values should be set via EnablePtraceEmulationWithUserRegs().
-extern "C" long int ptrace_wrapped(  // NOLINT
+long int ptrace_hook(  // NOLINT
     PtraceRequest request, pid_t pid, void* addr, void* data) {
-  if (!g_emulate_ptrace) {
-    return ptrace(request, pid, addr, data);
-  }
-
   switch (request) {
     case PTRACE_PEEKDATA: {
-      long int read_data;  // NOLINT
+      RegType read_data;
       iovec local = {.iov_base = &read_data, .iov_len = sizeof(read_data)};
       iovec remote = {.iov_base = addr, .iov_len = sizeof(read_data)};
 
       if (process_vm_readv(pid, &local, 1, &remote, 1, 0) <= 0) {
         return -1;
       }
-      return read_data;
+      *reinterpret_cast<RegType*>(data) = read_data;
+      break;
     }
     case PTRACE_PEEKUSER: {
       // Make sure read is in-bounds and aligned.
@@ -85,7 +73,8 @@ extern "C" long int ptrace_wrapped(  // NOLINT
           offset % kRegSize != 0) {
         return -1;
       }
-      return (*g_registers)[offset / kRegSize];
+      *reinterpret_cast<RegType*>(data) = (*g_registers)[offset / kRegSize];
+      break;
     }
     case PTRACE_GETREGSET: {
       // Only return general-purpose registers.
@@ -100,11 +89,26 @@ extern "C" long int ptrace_wrapped(  // NOLINT
       break;
     }
     default:
-      fprintf(stderr, "ptrace_wrapped(): operation not permitted: %d\n",
-              request);
+      fprintf(stderr, "ptrace_hook(): operation not permitted: %d\n", request);
       abort();
   }
   return 0;
+}
+
+}  // namespace
+
+void EnablePtraceEmulationWithUserRegs(absl::string_view regs) {
+  g_registers->resize((regs.size() + 1) / kRegSize);
+  memcpy(&g_registers->front(), regs.data(), regs.size());
+  SyscallTrap::Install([](int nr, SyscallTrap::Args args, uintptr_t* rv) {
+    if (nr != __NR_ptrace) {
+      return false;
+    }
+    *rv = ptrace_hook(
+        static_cast<PtraceRequest>(args[0]), static_cast<pid_t>(args[1]),
+        reinterpret_cast<void*>(args[2]), reinterpret_cast<void*>(args[3]));
+    return true;
+  });
 }
 
 }  // namespace sandbox2

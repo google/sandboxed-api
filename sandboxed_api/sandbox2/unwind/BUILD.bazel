@@ -28,8 +28,10 @@ cc_library(
     srcs = ["ptrace_hook.cc"],
     hdrs = ["ptrace_hook.h"],
     copts = sapi_platform_copts(),
-    visibility = ["@org_gnu_libunwind//:__subpackages__"],
-    deps = ["@com_google_absl//absl/strings"],
+    deps = [
+        "//sandboxed_api/sandbox2/util:syscall_trap",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 cc_library(
@@ -39,19 +41,6 @@ cc_library(
     copts = sapi_platform_copts([
         # TODO(cblichmann): Remove this, fix bazel/external/libunwind.BUILD
         "-Iexternal/org_gnu_libunwind/include",
-    ] + [
-        "-D{symbol}={symbol}_wrapped".format(symbol = symbol)
-        for symbol in [
-            "_UPT_accessors",
-            "_UPT_create",
-            "_UPT_destroy",
-            "_Ux86_64_create_addr_space",
-            "_Ux86_64_destroy_addr_space",
-            "_Ux86_64_get_proc_name",
-            "_Ux86_64_get_reg",
-            "_Ux86_64_init_remote",
-            "_Ux86_64_step",
-        ]
     ]),
     visibility = ["//visibility:public"],
     deps = [
@@ -68,7 +57,7 @@ cc_library(
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@org_gnu_libunwind//:unwind-ptrace-wrapped",
+        "@org_gnu_libunwind//:unwind-ptrace",
     ],
 )
 

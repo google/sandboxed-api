@@ -120,6 +120,7 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowSyscall(__NR_madvise)
 
       // Required for our ptrace replacement.
+      .TrapPtrace()
       .AddPolicyOnSyscall(
           __NR_process_vm_readv,
           {
