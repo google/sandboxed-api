@@ -88,7 +88,6 @@ ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
 
 namespace sandbox2 {
-
 namespace {
 
 // Since waitpid() is biased towards newer threads, we run the risk of starving
