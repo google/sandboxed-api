@@ -133,8 +133,22 @@ PolicyBuilder& PolicyBuilder::OverridableBlockSyscallWithErrno(uint32_t num,
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AllowEpoll() {
+PolicyBuilder& PolicyBuilder::AllowEpollWait() {
   return AllowSyscalls({
+#ifdef __NR_epoll_wait
+      __NR_epoll_wait,
+#endif
+#ifdef __NR_epoll_pwait
+      __NR_epoll_pwait,
+#endif
+#ifdef __NR_epoll_pwait2
+      __NR_epoll_pwait2,
+#endif
+  });
+}
+
+PolicyBuilder& PolicyBuilder::AllowEpoll() {
+  AllowSyscalls({
 #ifdef __NR_epoll_create
       __NR_epoll_create,
 #endif
@@ -144,14 +158,29 @@ PolicyBuilder& PolicyBuilder::AllowEpoll() {
 #ifdef __NR_epoll_ctl
       __NR_epoll_ctl,
 #endif
-#ifdef __NR_epoll_wait
-      __NR_epoll_wait,
+  });
+
+  return AllowEpollWait();
+}
+
+PolicyBuilder& PolicyBuilder::AllowInotifyInit() {
+  return AllowSyscalls({
+#ifdef __NR_inotify_init
+      __NR_inotify_init,
 #endif
-#ifdef __NR_epoll_pwait
-      __NR_epoll_pwait,
+#ifdef __NR_inotify_init1
+      __NR_inotify_init1,
 #endif
-#ifdef __NR_epoll_pwait2
-      __NR_epoll_pwait2,
+  });
+}
+
+PolicyBuilder& PolicyBuilder::AllowSelect() {
+  return AllowSyscalls({
+#ifdef __NR_select
+      __NR_select,
+#endif
+#ifdef __NR_pselect6
+      __NR_pselect6,
 #endif
   });
 }
@@ -313,6 +342,9 @@ PolicyBuilder& PolicyBuilder::AllowMmap() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowOpen() {
+#ifdef __NR_creat
+  AllowSyscall(__NR_creat);
+#endif
 #ifdef __NR_open
   AllowSyscall(__NR_open);
 #endif
@@ -334,6 +366,12 @@ PolicyBuilder& PolicyBuilder::AllowStat() {
 #endif
 #ifdef __NR_fstatat64
   AllowSyscall(__NR_fstatat64);
+#endif
+#ifdef __NR_fstatfs
+  AllowSyscall(__NR_fstatfs);
+#endif
+#ifdef __NR_fstatfs64
+  AllowSyscall(__NR_fstatfs64);
 #endif
 #ifdef __NR_lstat
   AllowSyscall(__NR_lstat);
@@ -378,6 +416,44 @@ PolicyBuilder& PolicyBuilder::AllowAccess() {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::AllowDup() {
+  AllowSyscall(__NR_dup);
+#ifdef __NR_dup2
+  AllowSyscall(__NR_dup2);
+#endif
+  AllowSyscall(__NR_dup3);
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowPipe() {
+#ifdef __NR_pipe
+  AllowSyscall(__NR_pipe);
+#endif
+  AllowSyscall(__NR_pipe2);
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowChmod() {
+#ifdef __NR_chmod
+  AllowSyscall(__NR_chmod);
+#endif
+  AllowSyscall(__NR_fchmod);
+  AllowSyscall(__NR_fchmodat);
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowChown() {
+#ifdef __NR_chown
+  AllowSyscall(__NR_chown);
+#endif
+#ifdef __NR_lchown
+  AllowSyscall(__NR_lchown);
+#endif
+  AllowSyscall(__NR_fchown);
+  AllowSyscall(__NR_fchownat);
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AllowRead() {
   return AllowSyscalls({
       __NR_read,
@@ -403,6 +479,67 @@ PolicyBuilder& PolicyBuilder::AllowReaddir() {
 #endif
 #ifdef __NR_getdents64
       __NR_getdents64,
+#endif
+  });
+}
+
+PolicyBuilder& PolicyBuilder::AllowReadlink() {
+  return AllowSyscalls({
+#ifdef __NR_readlink
+      __NR_readlink,
+#endif
+#ifdef __NR_readlinkat
+      __NR_readlinkat,
+#endif
+  });
+}
+
+PolicyBuilder& PolicyBuilder::AllowLink() {
+  return AllowSyscalls({
+#ifdef __NR_link
+      __NR_link,
+#endif
+#ifdef __NR_linkat
+      __NR_linkat,
+#endif
+  });
+}
+
+PolicyBuilder& PolicyBuilder::AllowSymlink() {
+  return AllowSyscalls({
+#ifdef __NR_symlink
+      __NR_symlink,
+#endif
+#ifdef __NR_symlinkat
+      __NR_symlinkat,
+#endif
+  });
+}
+
+PolicyBuilder& PolicyBuilder::AllowMkdir() {
+  return AllowSyscalls({
+#ifdef __NR_mkdir
+      __NR_mkdir,
+#endif
+#ifdef __NR_mkdirat
+      __NR_mkdirat,
+#endif
+  });
+}
+
+PolicyBuilder& PolicyBuilder::AllowUtime() {
+  return AllowSyscalls({
+#ifdef __NR_futimens
+      __NR_futimens,
+#endif
+#ifdef __NR_utime
+      __NR_utime,
+#endif
+#ifdef __NR_utimes
+      __NR_utimes,
+#endif
+#ifdef __NR_utimensat
+      __NR_utimensat,
 #endif
   });
 }
@@ -444,6 +581,14 @@ PolicyBuilder& PolicyBuilder::AllowWait() {
       __NR_waitpid,
 #endif
       __NR_wait4});
+}
+
+PolicyBuilder& PolicyBuilder::AllowAlarm() {
+  return AllowSyscalls({
+#ifdef __NR_alarm
+      __NR_alarm,
+#endif
+      __NR_setitimer});
 }
 
 PolicyBuilder& PolicyBuilder::AllowHandleSignals() {
@@ -563,6 +708,15 @@ PolicyBuilder& PolicyBuilder::AllowGetPIDs() {
   });
 }
 
+PolicyBuilder& PolicyBuilder::AllowGetPGIDs() {
+  return AllowSyscalls({
+      __NR_getpgid,
+#ifdef __NR_getpgrp
+      __NR_getpgrp,
+#endif
+  });
+}
+
 PolicyBuilder& PolicyBuilder::AllowGetRlimit() {
   return AllowSyscalls({
 #ifdef __NR_getrlimit
@@ -641,10 +795,23 @@ PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
 
 PolicyBuilder& PolicyBuilder::AllowUnlink() {
   AllowSyscalls({
+#ifdef __NR_rmdir
+      __NR_rmdir,
+#endif
 #ifdef __NR_unlink
       __NR_unlink,
 #endif
       __NR_unlinkat,
+  });
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowPoll() {
+  AllowSyscalls({
+#ifdef __NR_poll
+      __NR_poll,
+#endif
+      __NR_ppoll,
   });
   return *this;
 }

@@ -119,6 +119,13 @@ class PolicyBuilder final {
   // Appends code to block a specific syscall and setting errno.
   PolicyBuilder& BlockSyscallWithErrno(uint32_t num, int error);
 
+  // Appends code to allow waiting for events on epoll file descriptors.
+  // Allows these syscalls:
+  // - epoll_wait
+  // - epoll_pwait
+  // - epoll_pwait2
+  PolicyBuilder& AllowEpollWait();
+
   // Appends code to allow using epoll.
   // Allows these syscalls:
   // - epoll_create
@@ -128,6 +135,18 @@ class PolicyBuilder final {
   // - epoll_pwait
   // - epoll_pwait2
   PolicyBuilder& AllowEpoll();
+
+  // Appends code to allow initializing an inotify instance.
+  // Allows these syscalls:
+  // - inotify_init
+  // - inotify_init1
+  PolicyBuilder& AllowInotifyInit();
+
+  // Appends code to allow synchronous I/O multiplexing.
+  // Allows these syscalls:
+  // - pselect6
+  // - select
+  PolicyBuilder& AllowSelect();
 
   // Appends code to allow exiting.
   // Allows these syscalls:
@@ -207,9 +226,9 @@ class PolicyBuilder final {
   // Appends code to allow calling futex with the given operation.
   PolicyBuilder& AllowFutexOp(int op);
 
-  // Appends code to allow opening files or directories. Specifically it allows
-  // these sycalls:
-  //
+  // Appends code to allow opening and possibly creating files or directories.
+  // Allows these sycalls:
+  // - creat
   // - open
   // - openat
   PolicyBuilder& AllowOpen();
@@ -241,6 +260,34 @@ class PolicyBuilder final {
   // - faccessat
   PolicyBuilder& AllowAccess();
 
+  // Appends code to allow duplicating file descriptors.
+  // Allows these syscalls:
+  // - dup
+  // - dup2
+  // - dup3
+  PolicyBuilder& AllowDup();
+
+  // Appends code to allow creating pipes.
+  // Allows these syscalls:
+  // - pipe
+  // - pipe2
+  PolicyBuilder& AllowPipe();
+
+  // Appends code to allow changing file permissions.
+  // Allows these syscalls:
+  // - chmod
+  // - fchmod
+  // - fchmodat
+  PolicyBuilder& AllowChmod();
+
+  // Appends code to allow changing file ownership.
+  // Allows these syscalls:
+  // - chown
+  // - lchown
+  // - fchown
+  // - fchownat
+  PolicyBuilder& AllowChown();
+
   // Appends code to the policy to allow reading from file descriptors.
   // Allows these sycalls:
   // - read
@@ -262,6 +309,38 @@ class PolicyBuilder final {
   // - getdents
   // - getdents64
   PolicyBuilder& AllowReaddir();
+
+  // Appends code to allow reading symbolic links.
+  // Allows these sycalls:
+  // - readlink
+  // - readlinkat
+  PolicyBuilder& AllowReadlink();
+
+  // Appends code to allow creating links.
+  // Allows these sycalls:
+  // - link
+  // - linkat
+  PolicyBuilder& AllowLink();
+
+  // Appends code to allow creating symbolic links.
+  // Allows these sycalls:
+  // - symlink
+  // - symlinkat
+  PolicyBuilder& AllowSymlink();
+
+  // Appends code to allow creating directories.
+  // Allows these sycalls:
+  // - mkdir
+  // - mkdirat
+  PolicyBuilder& AllowMkdir();
+
+  // Appends code to allow changing file timestamps.
+  // Allows these sycalls:
+  // - futimens
+  // - utime
+  // - utimensat
+  // - utimes
+  PolicyBuilder& AllowUtime();
 
   // Appends code to allow safe calls to fcntl.
   // Allows these sycalls:
@@ -289,6 +368,12 @@ class PolicyBuilder final {
   // - waitpid (on architectures where it exists)
   // - wait4
   PolicyBuilder& AllowWait();
+
+  // Appends code to allow setting alarms / interval timers.
+  // Allows these sycalls:
+  // - alarm (on architectures where it exists)
+  // - setitimer
+  PolicyBuilder& AllowAlarm();
 
   // Appends code to allow setting up signal handlers, returning from them, etc.
   // Allows these sycalls:
@@ -334,6 +419,12 @@ class PolicyBuilder final {
   // - gettid
   PolicyBuilder& AllowGetPIDs();
 
+  // Appends code to allow getting process groups.
+  // Allows these syscalls:
+  // - getpgid
+  // - getpgrp
+  PolicyBuilder& AllowGetPGIDs();
+
   // Appends code to allow getting the rlimits.
   // Allows these sycalls:
   // - getrlimit
@@ -367,8 +458,9 @@ class PolicyBuilder final {
   // - close
   PolicyBuilder& AllowLogForwarding();
 
-  // Appends code to allow deleting files
+  // Appends code to allow deleting files and directories.
   // Allows these syscalls:
+  // - rmdir (if available)
   // - unlink (if available)
   // - unlinkat
   PolicyBuilder& AllowUnlink();
@@ -379,6 +471,12 @@ class PolicyBuilder final {
   // - renameat
   // - renameat2
   PolicyBuilder& AllowRename();
+
+  // Appends code to allow polling files.
+  // Allows these syscalls:
+  // - poll (if available)
+  // - ppoll
+  PolicyBuilder& AllowPoll();
 
   // Appends code to allow setting the name of a thread
   // Allows the following
