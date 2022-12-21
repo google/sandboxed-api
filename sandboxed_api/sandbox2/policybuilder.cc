@@ -1355,10 +1355,8 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
   AllowFutexOp(FUTEX_WAKE);
   AllowFutexOp(FUTEX_WAIT);
   AllowFutexOp(FUTEX_WAIT_BITSET);
+  AllowDup();
   AllowSyscalls({
-#ifdef __NR_dup2
-      __NR_dup2,
-#endif
       __NR_recvmsg,
       __NR_close,
       __NR_gettid,
