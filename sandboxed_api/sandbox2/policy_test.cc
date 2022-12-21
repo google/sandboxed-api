@@ -245,6 +245,9 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
       // New glibc accesses /etc/ld.so.preload
       .BlockSyscallWithErrno(__NR_access, ENOENT)
 #endif
+#ifdef __NR_faccessat
+      .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
+#endif
       .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
   auto policy = builder.BuildOrDie();
 
