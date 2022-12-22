@@ -56,6 +56,13 @@
 #include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
 #endif
 
+#ifndef PR_SET_VMA
+#define PR_SET_VMA 0x53564d41
+#endif
+#ifndef PR_SET_VMA_ANON_NAME
+#define PR_SET_VMA_ANON_NAME 0
+#endif
+
 namespace sandbox2 {
 namespace {
 
