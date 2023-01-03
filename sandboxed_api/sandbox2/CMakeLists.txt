@@ -220,7 +220,8 @@ add_library(sandbox2_global_forkserver ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::global_forkserver ALIAS sandbox2_global_forkserver)
 target_link_libraries(sandbox2_global_forkserver
-  PRIVATE absl::strings
+  PRIVATE absl::cleanup
+          absl::strings
           absl::status
           absl::statusor
           absl::log

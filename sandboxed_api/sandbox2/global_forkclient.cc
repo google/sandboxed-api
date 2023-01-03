@@ -17,6 +17,8 @@
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 
 #include <fcntl.h>
+#include <sched.h>
+#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -24,12 +26,14 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <climits>
 #include <csignal>
 #include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -117,6 +121,35 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
   return absl::GetFlag(FLAGS_sandbox2_forkserver_start_mode);
 }
 
+struct ForkserverArgs {
+  int exec_fd;
+  int comms_fd;
+};
+
+int LaunchForkserver(void* vargs) {
+  auto* args = static_cast<ForkserverArgs*>(vargs);
+  // Move the comms FD to the proper, expected FD number.
+  // The new FD will not be CLOEXEC, which is what we want.
+  // If exec_fd == Comms::kSandbox2ClientCommsFD then it would be replaced by
+  // the comms fd and result in EACCESS at execveat.
+  // So first move exec_fd to another fd number.
+  if (args->exec_fd == Comms::kSandbox2ClientCommsFD) {
+    args->exec_fd = dup(args->exec_fd);
+    SAPI_RAW_PCHECK(args->exec_fd != -1, "duping exec fd failed");
+    fcntl(args->exec_fd, F_SETFD, FD_CLOEXEC);
+  }
+  SAPI_RAW_PCHECK(dup2(args->comms_fd, Comms::kSandbox2ClientCommsFD) != -1,
+                  "duping comms fd failed");
+
+  char proc_name[] = "S2-FORK-SERV";
+  char* const argv[] = {proc_name, nullptr};
+  char* const envp[] = {nullptr};
+
+  syscall(__NR_execveat, args->exec_fd, "", argv, envp, AT_EMPTY_PATH);
+  SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
+  abort();
+}
+
 absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   SAPI_RAW_LOG(INFO, "Starting global forkserver");
 
@@ -142,39 +175,33 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   }
   file_util::fileops::FDCloser exec_fd_closer(exec_fd);
 
-  std::string proc_name = "S2-FORK-SERV";
-
   int sv[2];
   if (socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == -1) {
     return absl::ErrnoToStatus(errno, "Creating socket pair failed");
   }
 
   // Fork the fork-server, and clean-up the resources (close remote sockets).
-  pid_t pid = util::ForkWithFlags(SIGCHLD);
+  constexpr size_t kStackSize = PTHREAD_STACK_MIN;
+  int clone_flags = CLONE_VM | CLONE_VFORK | SIGCHLD;
+  // CLONE_VM does not play well with TSan.
+  if constexpr (sapi::sanitizers::IsTSan()) {
+    clone_flags &= ~CLONE_VM & ~CLONE_VFORK;
+  }
+  char* stack =
+      static_cast<char*>(mmap(NULL, kStackSize, PROT_READ | PROT_WRITE,
+                              MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0));
+  if (stack == MAP_FAILED) {
+    return absl::ErrnoToStatus(errno, "Allocating stack failed");
+  }
+  absl::Cleanup stack_dealloc = [stack] { munmap(stack, kStackSize); };
+  ForkserverArgs args = {
+      .exec_fd = exec_fd,
+      .comms_fd = sv[0],
+  };
+  pid_t pid = clone(LaunchForkserver, &stack[kStackSize], clone_flags, &args,
+                    nullptr, nullptr, nullptr);
   if (pid == -1) {
     return absl::ErrnoToStatus(errno, "Forking forkserver process failed");
-  }
-
-  // Child.
-  if (pid == 0) {
-    // Move the comms FD to the proper, expected FD number.
-    // The new FD will not be CLOEXEC, which is what we want.
-    // If exec_fd == Comms::kSandbox2ClientCommsFD then it would be replaced by
-    // the comms fd and result in EACCESS at execveat.
-    // So first move exec_fd to another fd number.
-    if (exec_fd == Comms::kSandbox2ClientCommsFD) {
-      exec_fd = dup(exec_fd);
-      SAPI_RAW_PCHECK(exec_fd != -1, "duping exec fd failed");
-      fcntl(exec_fd, F_SETFD, FD_CLOEXEC);
-    }
-    SAPI_RAW_PCHECK(dup2(sv[0], Comms::kSandbox2ClientCommsFD) != -1,
-                    "duping comms fd failed");
-
-    char* const args[] = {proc_name.data(), nullptr};
-    char* const envp[] = {nullptr};
-    syscall(__NR_execveat, exec_fd, "", args, envp, AT_EMPTY_PATH);
-    SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
-    abort();
   }
 
   close(sv[0]);
