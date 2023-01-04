@@ -111,6 +111,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
               // /etc/ld.so.nohwcap.
               __NR_access,
 #endif
+              __NR_faccessat,
 
 #ifdef __NR_open
               __NR_open,
