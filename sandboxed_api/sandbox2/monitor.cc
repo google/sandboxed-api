@@ -1001,6 +1001,9 @@ void Monitor::EventPtraceNewProcess(pid_t pid, int event_msg) {
   if (index != syscalls_in_progress_.end()) {
     auto syscall_nr = index->second.nr();
     bool creating_new_process = syscall_nr == __NR_clone;
+#ifdef __NR_clone3
+    creating_new_process = creating_new_process || syscall_nr == __NR_clone3;
+#endif
 #ifdef __NR_fork
     creating_new_process = creating_new_process || syscall_nr == __NR_fork;
 #endif
