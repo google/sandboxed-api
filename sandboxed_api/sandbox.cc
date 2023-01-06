@@ -70,29 +70,26 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
       .AllowHandleSignals()
       .AllowSystemMalloc()
       .AllowSafeFcntl()
-      .AllowSyscalls({
-          __NR_recvmsg,
-          __NR_sendmsg,
-          __NR_futex,
-          __NR_close,
-          __NR_lseek,
-          __NR_getpid,
-          __NR_getppid,
-          __NR_gettid,
-          __NR_clock_nanosleep,
-          __NR_nanosleep,
-          __NR_uname,
-          __NR_getrandom,
-          __NR_kill,
-          __NR_tgkill,
-          __NR_tkill,
-#ifdef __NR_readlink
-          __NR_readlink,
-#endif
+      .AllowSyscall(__NR_recvmsg)
+      .AllowSyscall(__NR_sendmsg)
+      .AllowSyscall(__NR_futex)
+      .AllowSyscall(__NR_close)
+      .AllowSyscall(__NR_lseek)
+      .AllowSyscall(__NR_getpid)
+      .AllowSyscall(__NR_getppid)
+      .AllowSyscall(__NR_gettid)
+      .AllowSleep()
+      .AllowSyscall(__NR_uname)
+      .AllowSyscall(__NR_getrandom)
+      .AllowSyscall(__NR_kill)
+      .AllowSyscall(__NR_tgkill)
+      .AllowSyscall(__NR_tkill)
+      .AllowReadlink();
+
 #ifdef __NR_arch_prctl  // x86-64 only
-          __NR_arch_prctl,
+  builder->AllowSyscall(__NR_arch_prctl);
 #endif
-      });
+
   if constexpr (sanitizers::IsAny()) {
     LOG(WARNING) << "Allowing additional calls to support the LLVM "
                  << "(ASAN/MSAN/TSAN) sanitizer";

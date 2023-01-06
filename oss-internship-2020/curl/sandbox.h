@@ -43,26 +43,24 @@ class CurlSapiSandbox : public curl::CurlSandbox {
         .AllowSafeFcntl()
         .AllowWrite()
         .AllowAccess()
-        .AllowSyscalls({
-            __NR_accept,
-            __NR_bind,
-            __NR_connect,
-            __NR_getpeername,
-            __NR_getsockname,
-            __NR_getsockopt,
-            __NR_ioctl,
-            __NR_listen,
-            __NR_madvise,
-            __NR_poll,
-            __NR_recvfrom,
-            __NR_recvmsg,
-            __NR_rt_sigaction,
-            __NR_sendmmsg,
-            __NR_sendto,
-            __NR_setsockopt,
-            __NR_socket,
-            __NR_sysinfo,
-        })
+        .AllowSyscall(__NR_accept)
+        .AllowSyscall(__NR_bind)
+        .AllowSyscall(__NR_connect)
+        .AllowSyscall(__NR_getpeername)
+        .AllowSyscall(__NR_getsockname)
+        .AllowSyscall(__NR_getsockopt)
+        .AllowSyscall(__NR_ioctl)
+        .AllowSyscall(__NR_listen)
+        .AllowSyscall(__NR_madvise)
+        .AllowPoll()
+        .AllowSyscall(__NR_recvfrom)
+        .AllowSyscall(__NR_recvmsg)
+        .AllowSyscall(__NR_rt_sigaction)
+        .AllowSyscall(__NR_sendmmsg)
+        .AllowSyscall(__NR_sendto)
+        .AllowSyscall(__NR_setsockopt)
+        .AllowSyscall(__NR_socket)
+        .AllowSyscall(__NR_sysinfo)
         .AddDirectory("/lib")
         .AllowUnrestrictedNetworking()
         .BuildOrDie();

@@ -39,8 +39,10 @@ class UVSapiUVCatSandbox : public uv::UVSandbox {
         .AllowFutexOp(FUTEX_WAIT_PRIVATE)
         .AllowMmap()
         .AllowOpen()
-        .AllowSyscalls({__NR_epoll_create1, __NR_epoll_ctl, __NR_epoll_wait,
-                        __NR_eventfd2, __NR_pipe2, __NR_prlimit64})
+        .AllowEpoll()
+        .AllowSyscall(__NR_eventfd2)
+        .AllowPipe()
+        .AllowSyscall(__NR_prlimit64)
         .AllowWrite()
         .BuildOrDie();
   }

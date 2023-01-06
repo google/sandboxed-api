@@ -32,8 +32,9 @@ class UVSapiIdleBasicSandbox : public uv::UVSandbox {
         .AllowDynamicStartup()
         .AllowExit()
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
-        .AllowSyscalls({__NR_epoll_create1, __NR_epoll_ctl, __NR_epoll_wait,
-                        __NR_eventfd2, __NR_pipe2})
+        .AllowEpoll()
+        .AllowSyscall(__NR_eventfd2)
+        .AllowPipe()
         .AllowWrite()
         .BuildOrDie();
   }

@@ -37,18 +37,16 @@ class GdalSapiSandbox : public GDALSandbox {
         .AllowExit()
         .AllowStat()
         .AllowOpen()
-        .AllowSyscalls({
-            __NR_futex,
-            __NR_close,
-            __NR_recvmsg,
-            __NR_getdents64,
-            __NR_lseek,
-            __NR_getpid,
-            __NR_sysinfo,
-            __NR_prlimit64,
-            __NR_ftruncate,
-            __NR_unlink,
-        })
+        .AllowSyscall(__NR_futex)
+        .AllowSyscall(__NR_close)
+        .AllowSyscall(__NR_recvmsg)
+        .AllowSyscall(__NR_getdents64)
+        .AllowSyscall(__NR_lseek)
+        .AllowSyscall(__NR_getpid)
+        .AllowSyscall(__NR_sysinfo)
+        .AllowSyscall(__NR_prlimit64)
+        .AllowSyscall(__NR_ftruncate)
+        .AllowUnlink()
         .AddFile(file_path_)
         .BuildOrDie();
   }

@@ -46,22 +46,20 @@ class SapiLibarchiveSandboxCreate : public LibarchiveSandbox {
             .AllowSafeFcntl()
             .AllowStat()
             .AllowExit()
-            .AllowSyscalls({
-                __NR_futex,
-                __NR_lseek,
-                __NR_close,
-                __NR_gettid,
-                __NR_umask,
-                __NR_utimensat,
-                __NR_unlink,
-                __NR_mkdir,
-                __NR_fstatfs,
-                __NR_socket,
-                __NR_connect,
-                __NR_flistxattr,
-                __NR_recvmsg,
-                __NR_getdents64,
-            })
+            .AllowSyscall(__NR_futex)
+            .AllowSyscall(__NR_lseek)
+            .AllowSyscall(__NR_close)
+            .AllowSyscall(__NR_gettid)
+            .AllowSyscall(__NR_umask)
+            .AllowSyscall(__NR_utimensat)
+            .AllowUnlink()
+            .AllowMkdir()
+            .AllowSyscall(__NR_fstatfs)
+            .AllowSyscall(__NR_socket)
+            .AllowSyscall(__NR_connect)
+            .AllowSyscall(__NR_flistxattr)
+            .AllowSyscall(__NR_recvmsg)
+            .AllowSyscall(__NR_getdents64)
             // Allow ioctl only for FS_IOC_GETFLAGS.
             .AddPolicyOnSyscall(__NR_ioctl,
                                 {ARG(1), JEQ(FS_IOC_GETFLAGS, ALLOW)});
@@ -118,16 +116,14 @@ class SapiLibarchiveSandboxExtract : public LibarchiveSandbox {
                                          .AllowSafeFcntl()
                                          .AllowStat()
                                          .AllowExit()
-                                         .AllowSyscalls({
-                                             __NR_futex,
-                                             __NR_lseek,
-                                             __NR_close,
-                                             __NR_gettid,
-                                             __NR_umask,
-                                             __NR_utimensat,
-                                             __NR_unlink,
-                                             __NR_mkdir,
-                                         })
+                                         .AllowSyscall(__NR_futex)
+                                         .AllowSyscall(__NR_lseek)
+                                         .AllowSyscall(__NR_close)
+                                         .AllowSyscall(__NR_gettid)
+                                         .AllowSyscall(__NR_umask)
+                                         .AllowSyscall(__NR_utimensat)
+                                         .AllowUnlink()
+                                         .AllowMkdir()
                                          .AddFile(archive_path_);
 
     if (do_extract_) {
