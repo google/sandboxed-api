@@ -420,6 +420,9 @@ PolicyBuilder& PolicyBuilder::AllowAccess() {
 #ifdef __NR_faccessat
   AllowSyscall(__NR_faccessat);
 #endif
+#ifdef __NR_faccessat2
+  AllowSyscall(__NR_faccessat2);
+#endif
   return *this;
 }
 
