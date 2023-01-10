@@ -130,7 +130,7 @@ absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
   }
 
   clang::tooling::Replacements replacements = clang::format::reformat(
-      style, code, llvm::makeArrayRef(clang::tooling::Range(0, code.size())),
+      style, code, llvm::ArrayRef(clang::tooling::Range(0, code.size())),
       filename);
 
   llvm::Expected<std::string> formatted_header =
