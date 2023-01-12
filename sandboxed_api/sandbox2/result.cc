@@ -78,14 +78,14 @@ std::string Result::ToString() const {
           ReasonCodeEnumToString(static_cast<ReasonCodeEnum>(reason_code())));
       break;
     case sandbox2::Result::VIOLATION:
-      if (reason_code() == sandbox2::Result::VIOLATION_NETWORK) {
+      if (syscall_) {
+        result = absl::StrCat("SYSCALL VIOLATION - Violating Syscall ",
+                              syscall_->GetDescription(),
+                              " Stack: ", GetStackTrace());
+      } else if (reason_code() == sandbox2::Result::VIOLATION_NETWORK) {
         result = absl::StrCat("NETWORK VIOLATION: ", GetNetworkViolation());
       } else {
-        result = absl::StrCat(
-            "SYSCALL VIOLATION - Violating Syscall ",
-            Syscall::GetArchDescription(GetSyscallArch()), "[", reason_code(),
-            "/", Syscall(GetSyscallArch(), reason_code()).GetName(),
-            "] Stack: ", GetStackTrace());
+        result = "SYSCALL VIOLATION - Unknown Violation";
       }
       break;
     case sandbox2::Result::SIGNALED:
