@@ -120,11 +120,16 @@ class Monitor final {
   // Sets basic info status and reason code in the result object.
   void SetExitStatusCode(Result::StatusEnum final_status,
                          uintptr_t reason_code);
-  // Whether a stack trace should be collected given the current status
+  // Tells if collecting stack trace is at all possible.
+  bool StackTraceCollectionPossible();
+  // Whether a stack trace should be collected given the status
   bool ShouldCollectStackTrace();
   // Sets additional information in the result object, such as program name,
   // stack trace etc.
   void SetAdditionalResultInfo(std::unique_ptr<Regs> regs);
+  // Gets and logs stack trace.
+  absl::StatusOr<std::vector<std::string>> GetAndLogStackTrace(
+      const Regs* regs);
 
   // Logs a SANDBOX VIOLATION message based on the registers and additional
   // explanation for the reason of the violation.
@@ -132,6 +137,8 @@ class Monitor final {
   // Logs an additional explanation for the possible reason of the violation
   // based on the registers.
   void LogSyscallViolationExplanation(const Syscall& syscall) const;
+
+  void LogStackTraceOfPid(pid_t pid);
 
   // Ptrace events:
   // Syscall violation processing path.

@@ -83,6 +83,16 @@ ABSL_FLAG(bool, sandbox2_report_on_sandboxee_signal, true,
 ABSL_FLAG(bool, sandbox2_report_on_sandboxee_timeout, true,
           "Report sandbox2 sandboxee timeouts");
 
+ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
+          "If set, sandbox2 monitor will log stack traces of all monitored "
+          "threads/processes that are reported to terminate with a signal.");
+
+ABSL_FLAG(absl::Duration, sandbox2_stack_traces_collection_timeout,
+          absl::Seconds(1),
+          "How much time should be spent on logging threads' stack traces on "
+          "monitor shut down. Only relevent when collection of all stack "
+          "traces is enabled.");
+
 ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
 ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 ABSL_DECLARE_FLAG(string, sandbox2_danger_danger_permit_all_and_log);
@@ -412,17 +422,23 @@ void Monitor::SetExitStatusCode(Result::StatusEnum final_status,
   result_.SetExitStatusCode(final_status, reason_code);
 }
 
-bool Monitor::ShouldCollectStackTrace() {
+bool Monitor::StackTraceCollectionPossible() {
   // Only get the stacktrace if we are not in the libunwind sandbox (avoid
   // recursion).
-  bool stacktrace_collection_possible =
-      (policy_->GetNamespace() ||
+  if ((policy_->GetNamespace() ||
        absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) == false) &&
-      executor_->libunwind_sbox_for_pid_ == 0;
-  if (!stacktrace_collection_possible) {
+      executor_->libunwind_sbox_for_pid_ == 0) {
+    return true;
+  } else {
     LOG(ERROR) << "Cannot collect stack trace. Unwind pid "
                << executor_->libunwind_sbox_for_pid_ << ", namespace "
                << policy_->GetNamespace();
+    return false;
+  }
+}
+
+bool Monitor::ShouldCollectStackTrace() {
+  if (!StackTraceCollectionPossible()) {
     return false;
   }
   switch (result_.final_status()) {
@@ -441,6 +457,22 @@ bool Monitor::ShouldCollectStackTrace() {
   }
 }
 
+absl::StatusOr<std::vector<std::string>> Monitor::GetAndLogStackTrace(
+    const Regs* regs) {
+  auto* ns = policy_->GetNamespace();
+  const Mounts empty_mounts;
+  SAPI_ASSIGN_OR_RETURN(std::vector<std::string> stack_trace,
+                        GetStackTrace(regs, ns ? ns->mounts() : empty_mounts));
+
+  LOG(INFO) << "Stack trace: [";
+  for (const auto& frame : CompactStackTrace(stack_trace)) {
+    LOG(INFO) << "  " << frame;
+  }
+  LOG(INFO) << "]";
+
+  return stack_trace;
+}
+
 void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   pid_t pid = regs->pid();
   result_.SetRegs(std::move(regs));
@@ -450,23 +482,14 @@ void Monitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
     VLOG(1) << "Stack traces have been disabled";
     return;
   }
-  auto* ns = policy_->GetNamespace();
-  const Mounts empty_mounts;
-  absl::StatusOr<std::vector<std::string>> stack_trace =
-      GetStackTrace(result_.GetRegs(), ns ? ns->mounts() : empty_mounts);
 
+  absl::StatusOr<std::vector<std::string>> stack_trace =
+      GetAndLogStackTrace(result_.GetRegs());
   if (!stack_trace.ok()) {
     LOG(ERROR) << "Could not obtain stack trace: " << stack_trace.status();
     return;
   }
-
   result_.set_stack_trace(*stack_trace);
-
-  LOG(INFO) << "Stack trace: [";
-  for (const auto& frame : CompactStackTrace(result_.stack_trace())) {
-    LOG(INFO) << "  " << frame;
-  }
-  LOG(INFO) << "]";
 }
 
 bool Monitor::KillSandboxee() {
@@ -597,11 +620,21 @@ void Monitor::MainLoop(sigset_t* sset) {
       VLOG(2) << "PID: " << ret << " is being continued";
     }
   }
-  // Try to make sure main pid is killed and reaped
+
   if (!sandboxee_exited) {
-    kill(pid_, SIGKILL);
+    const bool log_stack_traces =
+        result_.final_status() != Result::OK &&
+        absl::GetFlag(FLAGS_sandbox2_log_all_stack_traces);
+    if (!log_stack_traces) {
+      // Try to make sure main pid is killed and reaped
+      kill(pid_, SIGKILL);
+    }
     constexpr auto kGracefullExitTimeout = absl::Milliseconds(200);
     auto deadline = absl::Now() + kGracefullExitTimeout;
+    if (log_stack_traces) {
+      deadline = absl::Now() +
+                 absl::GetFlag(FLAGS_sandbox2_stack_traces_collection_timeout);
+    }
     for (;;) {
       auto left = deadline - absl::Now();
       if (absl::Now() >= deadline) {
@@ -610,23 +643,55 @@ void Monitor::MainLoop(sigset_t* sset) {
       }
       pid_t ret = pid_waiter.Wait(&status);
       if (ret == -1) {
-        PLOG(ERROR) << "waitpid() failed";
+        if (!log_stack_traces || ret != ECHILD) {
+          PLOG(ERROR) << "waitpid() failed";
+        }
         break;
       }
-      if (ret == pid_ && (WIFSIGNALED(status) || WIFEXITED(status))) {
+      if (!log_stack_traces && ret == pid_ &&
+          (WIFSIGNALED(status) || WIFEXITED(status))) {
         break;
       }
+
       if (ret == 0) {
         auto ts = absl::ToTimespec(left);
         sigtimedwait(sset, nullptr, &ts);
-      } else if (WIFSTOPPED(status) &&
-                 __WPTRACEEVENT(status) == PTRACE_EVENT_EXIT) {
-        VLOG(2) << "PID: " << ret << " PTRACE_EVENT_EXIT ";
-        ContinueProcess(ret, 0);
-      } else {
+        continue;
+      }
+
+      if (WIFSTOPPED(status)) {
+        if (log_stack_traces) {
+          LogStackTraceOfPid(ret);
+        }
+
+        if (__WPTRACEEVENT(status) == PTRACE_EVENT_EXIT) {
+          VLOG(2) << "PID: " << ret << " PTRACE_EVENT_EXIT ";
+          ContinueProcess(ret, 0);
+          continue;
+        }
+      }
+
+      if (!log_stack_traces) {
         kill(pid_, SIGKILL);
       }
     }
+  }
+}
+
+void Monitor::LogStackTraceOfPid(pid_t pid) {
+  if (!StackTraceCollectionPossible()) {
+    return;
+  }
+
+  Regs regs(pid);
+  if (auto status = regs.Fetch(); !status.ok()) {
+    LOG(ERROR) << "Failed to get regs, PID:" << pid << " status:" << status;
+    return;
+  }
+
+  if (auto stack_trace = GetAndLogStackTrace(&regs); !stack_trace.ok()) {
+    LOG(ERROR) << "Failed to get stack trace, PID:" << pid
+               << " status:" << stack_trace.status();
   }
 }
 
@@ -1061,10 +1126,11 @@ void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
 
   const bool is_seccomp =
       WIFSIGNALED(event_msg) && WTERMSIG(event_msg) == SIGSYS;
-
+  const bool log_stack_trace =
+      absl::GetFlag(FLAGS_sandbox2_log_all_stack_traces);
   // Fetch the registers as we'll need them to fill the result in any case
   auto regs = std::make_unique<Regs>(pid);
-  if (is_seccomp || pid == pid_) {
+  if (is_seccomp || pid == pid_ || log_stack_trace) {
     auto status = regs->Fetch();
     if (!status.ok()) {
       LOG(ERROR) << "failed to fetch regs: " << status;
@@ -1101,6 +1167,16 @@ void Monitor::EventPtraceExit(pid_t pid, int event_msg) {
       SetExitStatusCode(Result::SIGNALED, WTERMSIG(event_msg));
     }
     SetAdditionalResultInfo(std::move(regs));
+  } else if (log_stack_trace) {
+    // In case pid == pid_ the stack trace will be logged anyway. So we need
+    // to do explicit logging only when this is not a main PID.
+    if (StackTraceCollectionPossible()) {
+      if (auto stack_trace = GetAndLogStackTrace(regs.get());
+          !stack_trace.ok()) {
+        LOG(ERROR) << "Failed to get stack trace, PID:" << pid
+                   << " status:" << stack_trace.status();
+      }
+    }
   }
   VLOG(1) << "Continuing";
   ContinueProcess(pid, 0);
