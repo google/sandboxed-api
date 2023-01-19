@@ -53,7 +53,6 @@ cc_library(
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

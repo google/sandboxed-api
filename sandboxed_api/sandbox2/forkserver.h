@@ -50,7 +50,7 @@ class ForkServer {
  private:
   // Creates and launched the child process.
   void LaunchChild(const ForkRequest& request, int execve_fd, int client_fd,
-                   uid_t uid, gid_t gid, int user_ns_fd, int signaling_fd,
+                   uid_t uid, gid_t gid, int signaling_fd,
                    bool avoid_pivot_root) const;
 
   // Prepares the Fork-Server (worker side, not the requester side) for work by

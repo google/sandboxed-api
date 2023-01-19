@@ -36,7 +36,7 @@ class ForkClient {
 
   // Sends the fork request over the supplied Comms channel.
   pid_t SendRequest(const ForkRequest& request, int exec_fd, int comms_fd,
-                    int user_ns_fd = -1, pid_t* init_pid = nullptr);
+                    pid_t* init_pid = nullptr);
 
   pid_t pid() { return pid_; }
 

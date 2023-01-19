@@ -47,6 +47,8 @@ constexpr size_t kRegSize = sizeof(RegType);
 // pretty opaque which is why we just forward the raw bytes (up to a certain
 // limit).
 auto* g_registers = new std::vector<RegType>();
+pid_t g_pid;
+int g_mem_fd;
 
 // Hooks ptrace.
 // This wrapper makes use of process_vm_readv to read process memory instead of
@@ -56,11 +58,12 @@ long int ptrace_hook(  // NOLINT
     PtraceRequest request, pid_t pid, void* addr, void* data) {
   switch (request) {
     case PTRACE_PEEKDATA: {
+      if (pid != g_pid) {
+        return -1;
+      }
       RegType read_data;
-      iovec local = {.iov_base = &read_data, .iov_len = sizeof(read_data)};
-      iovec remote = {.iov_base = addr, .iov_len = sizeof(read_data)};
-
-      if (process_vm_readv(pid, &local, 1, &remote, 1, 0) <= 0) {
+      if (pread(g_mem_fd, &read_data, sizeof(read_data),
+                reinterpret_cast<uintptr_t>(addr)) != sizeof(read_data)) {
         return -1;
       }
       *reinterpret_cast<RegType*>(data) = read_data;
@@ -97,7 +100,10 @@ long int ptrace_hook(  // NOLINT
 
 }  // namespace
 
-void EnablePtraceEmulationWithUserRegs(absl::string_view regs) {
+void EnablePtraceEmulationWithUserRegs(pid_t pid, absl::string_view regs,
+                                       int mem_fd) {
+  g_pid = pid;
+  g_mem_fd = mem_fd;
   g_registers->resize((regs.size() + 1) / kRegSize);
   memcpy(&g_registers->front(), regs.data(), regs.size());
   SyscallTrap::Install([](int nr, SyscallTrap::Args args, uintptr_t* rv) {

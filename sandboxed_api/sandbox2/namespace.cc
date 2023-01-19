@@ -213,7 +213,7 @@ void Namespace::DisableUserNamespace() { clone_flags_ &= ~CLONE_NEWUSER; }
 int32_t Namespace::GetCloneFlags() const { return clone_flags_; }
 
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
-                                     const Mounts& mounts, bool mount_proc,
+                                     const Mounts& mounts,
                                      const std::string& hostname,
                                      bool avoid_pivot_root,
                                      bool allow_mount_propagation) {
@@ -238,10 +238,9 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting real root");
   }
 
-  SAPI_RAW_PCHECK(
-      !mount_proc || mount("", "/proc", "proc",
-                           MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr) != -1,
-      "Could not mount a new /proc"
+  SAPI_RAW_PCHECK(mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID,
+                        nullptr) != -1,
+                  "Could not mount a new /proc"
   );
 
   if (clone_flags & CLONE_NEWNET) {

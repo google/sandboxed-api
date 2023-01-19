@@ -60,6 +60,8 @@ class Mounts {
 
   absl::Status AddTmpfs(absl::string_view inside, size_t sz);
 
+  absl::Status Remove(absl::string_view path);
+
   void CreateMounts(const std::string& root_path) const;
 
   MountTree GetMountTree() const { return mount_tree_; }

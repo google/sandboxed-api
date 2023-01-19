@@ -39,7 +39,6 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
 namespace {
@@ -206,8 +205,12 @@ bool RunLibUnwindAndSymbolizer(Comms* comms) {
   if (!comms->RecvProtoBuf(&setup)) {
     return false;
   }
+  int mem_fd;
+  if (!comms->RecvFD(&mem_fd)) {
+    return false;
+  }
 
-  EnablePtraceEmulationWithUserRegs(setup.regs());
+  EnablePtraceEmulationWithUserRegs(setup.pid(), setup.regs(), mem_fd);
 
   absl::StatusOr<std::vector<uintptr_t>> ips =
       RunLibUnwind(setup.pid(), setup.default_max_frames());

@@ -269,19 +269,12 @@ void ForkServer::PrepareExecveArgs(const ForkRequest& request,
 
 void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
                              int client_fd, uid_t uid, gid_t gid,
-                             int user_ns_fd, int signaling_fd,
-                             bool avoid_pivot_root) const {
+                             int signaling_fd, bool avoid_pivot_root) const {
   SAPI_RAW_CHECK(request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
 
   bool will_execve = (request.mode() == FORKSERVER_FORK_EXECVE ||
                       request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX);
-
-  if (request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
-    SAPI_RAW_CHECK(setns(user_ns_fd, CLONE_NEWUSER) == 0,
-                   "Could not join user NS");
-    close(user_ns_fd);
-  }
 
   // Prepare the arguments before sandboxing (if needed), as doing it after
   // sandoxing can cause syscall violations (e.g. related to memory management).
@@ -414,12 +407,6 @@ pid_t ForkServer::ServeRequest() {
   // this to make sure the zombie process is reaped immediately.
   int clone_flags = fork_request.clone_flags() | SIGCHLD;
 
-  int user_ns_fd = -1;
-  if (fork_request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
-    SAPI_RAW_CHECK(comms_->RecvFD(&user_ns_fd),
-                   "Failed to receive user namespace fd");
-  }
-
   // Store uid and gid since they will change if CLONE_NEWUSER is set.
   uid_t uid = getuid();
   uid_t gid = getgid();
@@ -493,8 +480,8 @@ pid_t ForkServer::ServeRequest() {
 
   // Child.
   if (sandboxee_pid == 0) {
-    LaunchChild(fork_request, exec_fd, comms_fd, uid, gid, user_ns_fd,
-                fd_closer1.get(), avoid_pivot_root);
+    LaunchChild(fork_request, exec_fd, comms_fd, uid, gid, fd_closer1.get(),
+                avoid_pivot_root);
     return sandboxee_pid;
   }
 
@@ -520,9 +507,6 @@ pid_t ForkServer::ServeRequest() {
   close(comms_fd);
   if (exec_fd >= 0) {
     close(exec_fd);
-  }
-  if (user_ns_fd >= 0) {
-    close(user_ns_fd);
   }
   SAPI_RAW_CHECK(comms_->SendInt32(init_pid),
                  absl::StrCat("Failed to send init PID: ", init_pid).c_str());
@@ -646,17 +630,9 @@ void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,
   if (!request.has_mount_tree()) {
     return;
   }
-  int32_t clone_flags = request.clone_flags();
-  if (request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
-    clone_flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
-    SAPI_RAW_PCHECK(!unshare(clone_flags),
-                    "Could not create new namespaces for libunwind");
-  }
-
   Namespace::InitializeNamespaces(
-      uid, gid, clone_flags, Mounts(request.mount_tree()),
-      request.mode() != FORKSERVER_FORK_JOIN_SANDBOX_UNWIND, request.hostname(),
-      avoid_pivot_root, request.allow_mount_propagation());
+      uid, gid, request.clone_flags(), Mounts(request.mount_tree()),
+      request.hostname(), avoid_pivot_root, request.allow_mount_propagation());
 }
 
 }  // namespace sandbox2

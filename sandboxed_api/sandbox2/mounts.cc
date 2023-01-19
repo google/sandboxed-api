@@ -173,6 +173,41 @@ bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
 
 }  // namespace internal
 
+absl::Status Mounts::Remove(absl::string_view path) {
+  if (PathContainsNullByte(path)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Path contains a null byte: ", path));
+  }
+
+  std::string fixed_path = sapi::file::CleanPath(path);
+  if (!sapi::file::IsAbsolutePath(fixed_path)) {
+    return absl::InvalidArgumentError("Only absolute paths are supported");
+  }
+
+  if (fixed_path == "/") {
+    return absl::InvalidArgumentError("Cannot remove root");
+  }
+  std::vector<absl::string_view> parts =
+      absl::StrSplit(absl::StripPrefix(fixed_path, "/"), '/');
+
+  MountTree* curtree = &mount_tree_;
+  for (absl::string_view part : parts) {
+    if (curtree->has_node() && curtree->node().has_file_node()) {
+      return absl::NotFoundError(
+          absl::StrCat("File node is mounted at parent of: ", path));
+    }
+    auto it = curtree->mutable_entries()->find(part);
+    if (it == curtree->mutable_entries()->end()) {
+      return absl::NotFoundError(
+          absl::StrCat("Path does not exist in mounts: ", path));
+    }
+    curtree = &it->second;
+  }
+  curtree->clear_node();
+  curtree->clear_entries();
+  return absl::OkStatus();
+}
+
 absl::Status Mounts::Insert(absl::string_view path,
                             const MountTree::Node& new_node) {
   // Some sandboxes allow the inside/outside paths to be partially

@@ -34,7 +34,7 @@ class Namespace final {
  public:
   // Performs the namespace setup (mounts, write the uid_map, etc.).
   static void InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
-                                   const Mounts& mounts, bool mount_proc,
+                                   const Mounts& mounts,
                                    const std::string& hostname,
                                    bool avoid_pivot_root,
                                    bool allow_mount_propagation);

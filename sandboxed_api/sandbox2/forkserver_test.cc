@@ -50,7 +50,7 @@ int GetMinimalTestcaseFd() {
   return open(path.c_str(), O_RDONLY);
 }
 
-pid_t TestSingleRequest(Mode mode, int exec_fd, int userns_fd) {
+pid_t TestSingleRequest(Mode mode, int exec_fd) {
   ForkRequest fork_req;
   IPC ipc;
   int sv[2];
@@ -62,8 +62,7 @@ pid_t TestSingleRequest(Mode mode, int exec_fd, int userns_fd) {
   fork_req.add_args("/binary");
   fork_req.add_envs("FOO=1");
 
-  pid_t pid =
-      GlobalForkClient::SendRequest(fork_req, exec_fd, sv[0], userns_fd);
+  pid_t pid = GlobalForkClient::SendRequest(fork_req, exec_fd, sv[0]);
   if (pid != -1) {
     VLOG(1) << "TestSingleRequest: Waiting for pid=" << pid;
     waitpid(pid, nullptr, 0);
@@ -75,12 +74,12 @@ pid_t TestSingleRequest(Mode mode, int exec_fd, int userns_fd) {
 
 TEST(ForkserverTest, SimpleFork) {
   // Make sure that the regular fork request works.
-  ASSERT_NE(TestSingleRequest(FORKSERVER_FORK, -1, -1), -1);
+  ASSERT_NE(TestSingleRequest(FORKSERVER_FORK, -1), -1);
 }
 
 TEST(ForkserverTest, SimpleForkNoZombie) {
   // Make sure that we don't create zombies.
-  pid_t child = TestSingleRequest(FORKSERVER_FORK, -1, -1);
+  pid_t child = TestSingleRequest(FORKSERVER_FORK, -1);
   ASSERT_NE(child, -1);
   std::string proc = absl::StrCat("/proc/", child, "/cmdline");
 
@@ -101,7 +100,7 @@ TEST(ForkserverTest, ForkExecveWorks) {
   // Run a test binary through the FORK_EXECVE request.
   int exec_fd = GetMinimalTestcaseFd();
   PCHECK(exec_fd != -1) << "Could not open test binary";
-  ASSERT_NE(TestSingleRequest(FORKSERVER_FORK_EXECVE, exec_fd, -1), -1);
+  ASSERT_NE(TestSingleRequest(FORKSERVER_FORK_EXECVE, exec_fd), -1);
 }
 
 TEST(ForkserverTest, ForkExecveSandboxWithoutPolicy) {

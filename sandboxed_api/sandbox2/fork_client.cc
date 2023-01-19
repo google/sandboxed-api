@@ -22,7 +22,7 @@
 namespace sandbox2 {
 
 pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
-                              int comms_fd, int user_ns_fd, pid_t* init_pid) {
+                              int comms_fd, pid_t* init_pid) {
   // Acquire the channel ownership for this request (transaction).
   absl::MutexLock l(&comms_mutex_);
 
@@ -41,15 +41,6 @@ pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
     CHECK(exec_fd != -1) << "exec_fd cannot be -1 in execve mode";
     if (!comms_->SendFD(exec_fd)) {
       LOG(ERROR) << "Sending Exec FD (" << exec_fd
-                 << ") to the ForkServer failed";
-      return -1;
-    }
-  }
-
-  if (request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
-    CHECK(user_ns_fd != -1) << "user_ns_fd cannot be -1 in unwind mode";
-    if (!comms_->SendFD(user_ns_fd)) {
-      LOG(ERROR) << "Sending user ns FD (" << user_ns_fd
                  << ") to the ForkServer failed";
       return -1;
     }

@@ -290,15 +290,14 @@ void GlobalForkClient::Shutdown() {
 }
 
 pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
-                                    int comms_fd, int user_ns_fd,
-                                    pid_t* init_pid) {
+                                    int comms_fd, pid_t* init_pid) {
   absl::ReleasableMutexLock lock(&GlobalForkClient::instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   if (!instance_) {
     return -1;
   }
-  pid_t pid = instance_->fork_client_.SendRequest(request, exec_fd, comms_fd,
-                                                  user_ns_fd, init_pid);
+  pid_t pid =
+      instance_->fork_client_.SendRequest(request, exec_fd, comms_fd, init_pid);
   if (instance_->comms_.IsTerminated()) {
     LOG(ERROR) << "Global forkserver connection terminated";
     pid_t server_pid = instance_->fork_client_.pid();

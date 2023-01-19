@@ -45,8 +45,7 @@ class GlobalForkClient {
       : comms_(fd), fork_client_(pid, &comms_) {}
 
   static pid_t SendRequest(const ForkRequest& request, int exec_fd,
-                           int comms_fd, int user_ns_fd = -1,
-                           pid_t* init_pid = nullptr)
+                           int comms_fd, pid_t* init_pid = nullptr)
       ABSL_LOCKS_EXCLUDED(instance_mutex_);
   static pid_t GetPid() ABSL_LOCKS_EXCLUDED(instance_mutex_);
 

@@ -38,7 +38,6 @@ target_link_libraries(sandbox2_unwind PRIVATE
   sandbox2::maps_parser
   sandbox2::minielf
   sandbox2::ptrace_hook
-  sapi::strerror
   sandbox2::unwind_proto
   sapi::base
   sapi::config

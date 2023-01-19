@@ -60,6 +60,7 @@ TEST(MountTreeTest, TestInvalidFilenames) {
               StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddFileAt("/a", "/"),
               StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(mounts.Remove("/"), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(MountTreeTest, TestAddFile) {
@@ -89,6 +90,25 @@ TEST(MountTreeTest, TestAddTmpFs) {
   EXPECT_THAT(mounts.AddTmpfs("/a/b", kTmpfsSize), IsOk());
   EXPECT_THAT(mounts.AddFile("/a/b/c"), IsOk());
   EXPECT_THAT(mounts.AddDirectoryAt("/a/b/d", "/a/b/d"), IsOk());
+}
+
+TEST(MountTreeTest, TestRemove) {
+  Mounts mounts;
+  EXPECT_THAT(mounts.AddTmpfs("/a", kTmpfsSize), IsOk());
+  EXPECT_THAT(mounts.AddFile("/b/c/d"), IsOk());
+  EXPECT_THAT(mounts.AddFile("/c/c/d"), IsOk());
+  EXPECT_THAT(mounts.AddDirectoryAt("/d/b/d", "/d/b/d"), IsOk());
+  EXPECT_THAT(mounts.AddDirectoryAt("/e/b/d", "/e/b/d"), IsOk());
+  EXPECT_THAT(mounts.Remove("/a/b"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(mounts.Remove("/a"), IsOk());
+  EXPECT_THAT(mounts.Remove("/b/c/d/e"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(mounts.Remove("/b/c/e"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(mounts.Remove("/b/c/d"), IsOk());
+  EXPECT_THAT(mounts.Remove("/c"), IsOk());
+  EXPECT_THAT(mounts.Remove("/d/b/d/e"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(mounts.Remove("/d/b/d"), IsOk());
+  EXPECT_THAT(mounts.Remove("/e"), IsOk());
+  EXPECT_THAT(mounts.Remove("/f"), StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST(MountTreeTest, TestMultipleInsertionFileSymlink) {
@@ -165,6 +185,8 @@ TEST(MountTreeTest, TestEvilNullByte) {
   EXPECT_THAT(mounts.AddDirectoryAt("/a", filename),
               StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.AddTmpfs(filename, kTmpfsSize),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(mounts.Remove(filename),
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 

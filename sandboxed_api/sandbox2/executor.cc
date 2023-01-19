@@ -154,27 +154,14 @@ absl::StatusOr<Executor::Process> Executor::StartSubProcess(
     request.add_capabilities(cap);
   }
 
-  file_util::fileops::FDCloser ns_fd;
-  if (libunwind_sbox_for_pid_ != 0) {
-    const std::string ns_path =
-        absl::StrCat("/proc/", libunwind_sbox_for_pid_, "/ns/user");
-    ns_fd = file_util::fileops::FDCloser(open(ns_path.c_str(), O_RDONLY));
-    if (ns_fd.get() == -1) {
-      return absl::ErrnoToStatus(
-          errno, absl::StrCat("Could not open user ns fd (", ns_path, ")"));
-    }
-  }
-
   Process process;
 
   if (fork_client_) {
     process.main_pid = fork_client_->SendRequest(
-        request, exec_fd_.get(), client_comms_fd_.get(), ns_fd.get(),
-        &process.init_pid);
+        request, exec_fd_.get(), client_comms_fd_.get(), &process.init_pid);
   } else {
     process.main_pid = GlobalForkClient::SendRequest(
-        request, exec_fd_.get(), client_comms_fd_.get(), ns_fd.get(),
-        &process.init_pid);
+        request, exec_fd_.get(), client_comms_fd_.get(), &process.init_pid);
   }
 
   started_ = true;

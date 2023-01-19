@@ -16,6 +16,7 @@
 
 #include "sandboxed_api/sandbox2/stack_trace.h"
 
+#include <fcntl.h>
 #include <sys/resource.h>
 #include <syscall.h>
 
@@ -109,7 +110,10 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
   } else {
     // Use the mounttree of the original executable.
     CHECK(ns != nullptr);
-    builder.SetMounts(ns->mounts());
+    Mounts mounts = ns->mounts();
+    mounts.Remove("/proc").IgnoreError();
+    mounts.Remove(app_path).IgnoreError();
+    builder.SetMounts(std::move(mounts));
   }
   builder.AllowOpen()
       .AllowRead()
@@ -119,6 +123,8 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowHandleSignals()
       .AllowTcMalloc()
       .AllowSystemMalloc()
+      // for Comms:RecvFD
+      .AllowSyscall(__NR_recvmsg)
 
       // libunwind
       .AllowMmap()
@@ -142,15 +148,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
 
       // Required for our ptrace replacement.
       .TrapPtrace()
-      .AddPolicyOnSyscall(
-          __NR_process_vm_readv,
-          {
-              // The pid technically is a 64bit int, however Linux usually uses
-              // max 16 bit, so we are fine with comparing only 32 bits here.
-              ARG_32(0),
-              JEQ32(static_cast<unsigned int>(target_pid), ALLOW),
-              JEQ32(static_cast<unsigned int>(1), ALLOW),
-          })
 
       // Add proc maps.
       .AddFileAt(maps_file,
@@ -163,10 +160,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AddFileAt(exe_path, app_path);
 
   SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy, builder.TryBuild());
-  policy->AllowUnsafeKeepCapabilities({CAP_SYS_PTRACE});
-  // Use no special namespace flags when cloning. We will join an existing
-  // user namespace and will unshare() afterwards (See forkserver.cc).
-  policy->GetNamespace()->clone_flags_ = 0;
   return std::move(policy);
 }
 
@@ -174,6 +167,11 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
     const Regs* regs, const Namespace* ns, bool uses_custom_forkserver) {
   const pid_t pid = regs->pid();
 
+  sapi::file_util::fileops::FDCloser memory_fd(
+      open(absl::StrCat("/proc/", pid, "/mem").c_str(), O_RDONLY));
+  if (memory_fd.get() == -1) {
+    return absl::InternalError("Opening sandboxee process memory failed");
+  }
   // Tell executor to use this special internal mode. Using `new` to access a
   // non-public constructor.
   auto executor = absl::WrapUnique(new Executor(pid));
@@ -261,6 +259,9 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
 
   if (!comms->SendProtoBuf(msg)) {
     return absl::InternalError("Sending libunwind setup message failed");
+  }
+  if (!comms->SendFD(memory_fd.get())) {
+    return absl::InternalError("Sending sandboxee's memory fd failed");
   }
   absl::Status status;
   if (!comms->RecvStatus(&status)) {
