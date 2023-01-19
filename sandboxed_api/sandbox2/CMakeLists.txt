@@ -942,6 +942,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     sandbox2::bpf_helper
     sandbox2::global_forkserver
+    sandbox2::namespace
     sandbox2::sandbox2
     sandbox2::util
     sapi::fileops

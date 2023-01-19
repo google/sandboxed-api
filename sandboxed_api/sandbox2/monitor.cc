@@ -344,6 +344,7 @@ void Monitor::Run() {
 
   // Get PID of the sandboxee.
   bool should_have_init = ns && (ns->GetCloneFlags() & CLONE_NEWPID);
+  uses_custom_forkserver_ = executor_->fork_client_ != nullptr;
   absl::StatusOr<Executor::Process> process =
       executor_->StartSubProcess(clone_flags, ns, policy_->capabilities());
 
@@ -459,10 +460,9 @@ bool Monitor::ShouldCollectStackTrace() {
 
 absl::StatusOr<std::vector<std::string>> Monitor::GetAndLogStackTrace(
     const Regs* regs) {
-  auto* ns = policy_->GetNamespace();
-  const Mounts empty_mounts;
-  SAPI_ASSIGN_OR_RETURN(std::vector<std::string> stack_trace,
-                        GetStackTrace(regs, ns ? ns->mounts() : empty_mounts));
+  SAPI_ASSIGN_OR_RETURN(
+      std::vector<std::string> stack_trace,
+      GetStackTrace(regs, policy_->GetNamespace(), uses_custom_forkserver_));
 
   LOG(INFO) << "Stack trace: [";
   for (const auto& frame : CompactStackTrace(stack_trace)) {
@@ -1230,7 +1230,8 @@ void Monitor::StateProcessStopped(pid_t pid, int status) {
                         pid]() -> absl::StatusOr<std::vector<std::string>> {
       Regs regs(pid);
       SAPI_RETURN_IF_ERROR(regs.Fetch());
-      return GetStackTrace(&regs, policy_->GetNamespace()->mounts());
+      return GetStackTrace(&regs, policy_->GetNamespace(),
+                           uses_custom_forkserver_);
     }();
 
     if (!stack_trace.ok()) {

@@ -201,6 +201,8 @@ class Monitor final {
 
   // Is the sandboxee actively monitored, or maybe we're waiting for execve()?
   bool wait_for_execve_;
+  // Is the sandboxee forked from a custom forkserver?
+  bool uses_custom_forkserver_;
   // Log file specified by
   // --sandbox_danger_danger_permit_all_and_log flag.
   FILE* log_file_ = nullptr;

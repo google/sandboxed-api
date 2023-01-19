@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "sandboxed_api/sandbox2/mounts.h"
+#include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/regs.h"
 
 namespace sandbox2 {
@@ -32,8 +32,8 @@ namespace sandbox2 {
 constexpr size_t kDefaultMaxFrames = 200;
 
 // Returns the stack-trace of the PID=pid, one line per frame.
-absl::StatusOr<std::vector<std::string>> GetStackTrace(const Regs* regs,
-                                                       const Mounts& mounts);
+absl::StatusOr<std::vector<std::string>> GetStackTrace(
+    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver);
 
 // Returns a stack trace that collapses duplicate stack frames and annotates
 // them with a repetition count.

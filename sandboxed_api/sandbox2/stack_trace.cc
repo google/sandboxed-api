@@ -76,48 +76,69 @@ class StackTracePeer {
   static absl::StatusOr<std::unique_ptr<Policy>> GetPolicy(
       pid_t target_pid, const std::string& maps_file,
       const std::string& app_path, const std::string& exe_path,
-      const Mounts& mounts);
+      const Namespace* ns, bool uses_custom_forkserver);
 
   static absl::StatusOr<UnwindResult> LaunchLibunwindSandbox(
-      const Regs* regs, const Mounts& mounts);
+      const Regs* regs, const Namespace* ns, bool uses_custom_forkserver);
 };
 
 absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
     pid_t target_pid, const std::string& maps_file, const std::string& app_path,
-    const std::string& exe_path, const Mounts& mounts) {
+    const std::string& exe_path, const Namespace* ns,
+    bool uses_custom_forkserver) {
   PolicyBuilder builder;
-  builder
-      // Use the mounttree of the original executable as starting point.
-      .SetMounts(mounts)
-      .AllowOpen()
+  if (uses_custom_forkserver) {
+    // Custom forkserver just forks, the binary is loaded outside of the
+    // sandboxee's mount namespace.
+    // Add all possible libraries without the need of parsing the binary
+    // or /proc/pid/maps.
+    for (const auto& library_path : {
+             "/usr/lib64",
+             "/usr/lib",
+             "/lib64",
+             "/lib",
+         }) {
+      if (access(library_path, F_OK) != -1) {
+        VLOG(1) << "Adding library folder '" << library_path << "'";
+        builder.AddDirectory(library_path);
+      } else {
+        VLOG(1) << "Could not add library folder '" << library_path
+                << "' as it does not exist";
+      }
+    }
+  } else {
+    // Use the mounttree of the original executable.
+    CHECK(ns != nullptr);
+    builder.SetMounts(ns->mounts());
+  }
+  builder.AllowOpen()
       .AllowRead()
       .AllowWrite()
       .AllowSyscall(__NR_close)
-      .AllowMmap()
       .AllowExit()
       .AllowHandleSignals()
+      .AllowTcMalloc()
+      .AllowSystemMalloc()
 
       // libunwind
+      .AllowMmap()
       .AllowStat()
       .AllowSyscall(__NR_lseek)
 #ifdef __NR__llseek
       .AllowSyscall(__NR__llseek)  // Newer glibc on PPC
 #endif
       .AllowSyscall(__NR_mincore)
-      .AllowSyscall(__NR_mprotect)
       .AllowSyscall(__NR_munmap)
-      .AllowSyscall(__NR_pipe2)
+      .AllowPipe()
 
       // Symbolizer
       .AllowSyscall(__NR_brk)
-      .AllowSyscall(__NR_clock_gettime)
+      .AllowTime()
 
       // Other
-      .AllowSyscall(__NR_dup)
-      .AllowSyscall(__NR_fcntl)
-      .AllowSyscall(__NR_getpid)
-      .AllowSyscall(__NR_gettid)
-      .AllowSyscall(__NR_madvise)
+      .AllowDup()
+      .AllowSafeFcntl()
+      .AllowGetPIDs()
 
       // Required for our ptrace replacement.
       .TrapPtrace()
@@ -141,23 +162,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       // Add the binary itself.
       .AddFileAt(exe_path, app_path);
 
-  // Add all possible libraries without the need of parsing the binary
-  // or /proc/pid/maps.
-  for (const auto& library_path : {
-           "/usr/lib64",
-           "/usr/lib",
-           "/lib64",
-           "/lib",
-       }) {
-    if (access(library_path, F_OK) != -1) {
-      VLOG(1) << "Adding library folder '" << library_path << "'";
-      builder.AddDirectory(library_path);
-    } else {
-      VLOG(1) << "Could not add library folder '" << library_path
-              << "' as it does not exist";
-    }
-  }
-
   SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy, builder.TryBuild());
   policy->AllowUnsafeKeepCapabilities({CAP_SYS_PTRACE});
   // Use no special namespace flags when cloning. We will join an existing
@@ -167,7 +171,7 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
 }
 
 absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
-    const Regs* regs, const Mounts& mounts) {
+    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver) {
   const pid_t pid = regs->pid();
 
   // Tell executor to use this special internal mode. Using `new` to access a
@@ -216,7 +220,8 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
   // The exe_path will have a mountable path of the application, even if it was
   // removed.
   // Resolve app_path backing file.
-  std::string exe_path = mounts.ResolvePath(app_path).value_or("");
+  std::string exe_path =
+      ns ? ns->mounts().ResolvePath(app_path).value_or("") : "";
 
   if (exe_path.empty()) {
     // File was probably removed.
@@ -233,9 +238,10 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
 
   // Add mappings for the binary (as they might not have been added due to the
   // forkserver).
-  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy,
-                        StackTracePeer::GetPolicy(pid, unwind_temp_maps_path,
-                                                  app_path, exe_path, mounts));
+  SAPI_ASSIGN_OR_RETURN(
+      std::unique_ptr<Policy> policy,
+      StackTracePeer::GetPolicy(pid, unwind_temp_maps_path, app_path, exe_path,
+                                ns, uses_custom_forkserver));
   Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   VLOG(1) << "Running libunwind sandbox";
@@ -283,8 +289,8 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
   return result;
 }
 
-absl::StatusOr<std::vector<std::string>> GetStackTrace(const Regs* regs,
-                                                       const Mounts& mounts) {
+absl::StatusOr<std::vector<std::string>> GetStackTrace(
+    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver) {
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
     return absl::UnavailableError("Stacktraces disabled");
   }
@@ -310,8 +316,9 @@ absl::StatusOr<std::vector<std::string>> GetStackTrace(const Regs* regs,
     return UnsafeGetStackTrace(regs->pid());
   }
 
-  SAPI_ASSIGN_OR_RETURN(UnwindResult res,
-                        StackTracePeer::LaunchLibunwindSandbox(regs, mounts));
+  SAPI_ASSIGN_OR_RETURN(
+      UnwindResult res,
+      StackTracePeer::LaunchLibunwindSandbox(regs, ns, uses_custom_forkserver));
   return std::vector<std::string>(res.stacktrace().begin(),
                                   res.stacktrace().end());
 }

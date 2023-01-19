@@ -841,7 +841,7 @@ cc_test(
     tags = ["no_qemu_user_mode"],
     deps = [
         ":global_forkserver",
-        ":mounts",
+        ":namespace",
         ":regs",
         ":sandbox2",
         "//sandboxed_api:testing",
