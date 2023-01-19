@@ -196,7 +196,7 @@ absl::Status Mounts::Remove(absl::string_view path) {
       return absl::NotFoundError(
           absl::StrCat("File node is mounted at parent of: ", path));
     }
-    auto it = curtree->mutable_entries()->find(part);
+    auto it = curtree->mutable_entries()->find(std::string(part));
     if (it == curtree->mutable_entries()->end()) {
       return absl::NotFoundError(
           absl::StrCat("Path does not exist in mounts: ", path));
