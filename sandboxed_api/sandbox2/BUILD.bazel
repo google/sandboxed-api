@@ -640,6 +640,9 @@ sapi_proto_library(
 sapi_proto_library(
     name = "mount_tree_proto",
     srcs = ["mount_tree.proto"],
+    visibility = [
+        "//monitoring/utilization/borg/turbine/stages:__pkg__",
+    ],
 )
 
 cc_library(
