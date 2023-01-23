@@ -20,13 +20,10 @@
 
 #include <ctime>
 #include <memory>
-#include <thread>  // NOLINT(build/c++11)
 #include <utility>
 
 #include "absl/base/macros.h"
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -53,8 +50,6 @@ class Sandbox2 final {
       notify_ = std::make_unique<Notify>();
     }
   }
-
-  ~Sandbox2();
 
   Sandbox2(const Sandbox2&) = delete;
   Sandbox2& operator=(const Sandbox2&) = delete;
@@ -106,7 +101,7 @@ class Sandbox2 final {
   void set_walltime_limit(absl::Duration limit) const;
 
   // Returns the process id inside the executor.
-  pid_t pid() const { return monitor_ != nullptr ? monitor_->pid_ : -1; }
+  pid_t pid() const { return monitor_ != nullptr ? monitor_->pid() : -1; }
 
   // Gets the comms inside the executor.
   Comms* comms() {
@@ -116,8 +111,6 @@ class Sandbox2 final {
  private:
   // Launches the Monitor.
   void Launch();
-  // Notifies monitor about a state change
-  void NotifyMonitor();
 
   // Executor set by user - owned by Sandbox2.
   std::unique_ptr<Executor> executor_;
@@ -129,13 +122,7 @@ class Sandbox2 final {
   std::unique_ptr<Notify> notify_;
 
   // Monitor object - owned by Sandbox2.
-  std::unique_ptr<Monitor> monitor_;
-
-  // Monitor thread object - owned by Sandbox2.
-  std::unique_ptr<std::thread> monitor_thread_;
-
-  // Synchronizes monitor thread deletion and notifying the monitor.
-  absl::Mutex monitor_notify_mutex_;
+  std::unique_ptr<MonitorBase> monitor_;
 };
 
 }  // namespace sandbox2

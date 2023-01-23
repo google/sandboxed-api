@@ -20,6 +20,7 @@
 #include <csignal>
 #include <memory>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -178,6 +179,24 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::VIOLATION);
   EXPECT_THAT(result.GetStackTrace(), IsEmpty());
+}
+
+TEST(RunAsyncTest, SandboxeeNotKilledWhenStartingThreadFinishes) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                // Don't restrict the syscalls at all.
+                                .DangerDefaultAllowAll()
+                                .CollectStacktracesOnExit(true)
+                                .TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  std::thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });
+  sandbox_start_thread.join();
+  Result result = sandbox.AwaitResult();
+  EXPECT_EQ(result.final_status(), Result::OK);
 }
 
 TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {

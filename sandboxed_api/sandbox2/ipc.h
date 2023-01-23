@@ -62,7 +62,7 @@ class IPC final {
 
  private:
   friend class Executor;
-  friend class Monitor;
+  friend class MonitorBase;
   friend class IpcPeer;  // For testing
 
   // Uses a pre-connected file descriptor.

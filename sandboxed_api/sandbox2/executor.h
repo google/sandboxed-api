@@ -101,7 +101,8 @@ class Executor final {
   }
 
  private:
-  friend class Monitor;
+  friend class MonitorBase;
+  friend class PtraceMonitor;
   friend class StackTracePeer;
 
   // Internal constructor for executing libunwind on the given pid

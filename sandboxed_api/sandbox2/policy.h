@@ -59,7 +59,8 @@ class Policy final {
   void GetPolicyDescription(PolicyDescription* policy) const;
 
  private:
-  friend class Monitor;
+  friend class MonitorBase;
+  friend class PtraceMonitor;
   friend class PolicyBuilder;
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
