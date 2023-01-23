@@ -272,6 +272,7 @@ bool CopyFile(const std::string& old_path, const std::string& new_path,
     std::ofstream output(new_path,
                          std::ios_base::trunc | std::ios_base::binary);
     output << input.rdbuf();
+    output.close();
     if (!input || !output) {
       return false;
     }
