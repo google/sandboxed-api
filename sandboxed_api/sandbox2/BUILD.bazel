@@ -324,7 +324,6 @@ cc_library(
         "notify.h",
         "policy.h",
         "policybuilder.h",
-        "regs.h",
         "result.h",
         "sandbox2.h",
         "syscall.h",
