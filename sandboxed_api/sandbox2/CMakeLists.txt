@@ -288,8 +288,6 @@ target_link_libraries(sandbox2_executor
 add_library(sandbox2_sandbox2 ${SAPI_LIB_TYPE}
   monitor.cc
   monitor.h
-  policybuilder.cc
-  policybuilder.h
   sandbox2.cc
   sandbox2.h
   stack_trace.cc
@@ -301,7 +299,6 @@ target_link_libraries(sandbox2_sandbox2
           absl::cleanup
           absl::flat_hash_set
           absl::optional
-          absl::span
           absl::str_format
           absl::strings
           sapi::strerror
@@ -333,6 +330,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::network_proxy_server
           sandbox2::notify
           sandbox2::policy
+          sandbox2::policybuilder
           sandbox2::regs
           sandbox2::result
           sandbox2::sanitizer
@@ -341,6 +339,33 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::unwind_proto
           sandbox2::util
           sandbox2::violation_proto
+)
+
+# sandboxed_api/sandbox2:policybuilder
+add_library(sandbox2_policybuilder ${SAPI_LIB_TYPE}
+  policybuilder.cc
+  policybuilder.h
+)
+add_library(sandbox2::policybuilder ALIAS sandbox2_policybuilder)
+target_link_libraries(sandbox2_policybuilder
+  PRIVATE absl::log
+          absl::memory
+          absl::status
+          sapi::base
+          sapi::config
+          sandbox2::bpf_helper
+          sandbox2::namespace
+          sapi::file_base
+          sapi::status
+  PUBLIC absl::check
+         absl::core_headers
+         absl::flat_hash_set
+         absl::span
+         absl::strings
+         absl::statusor
+         sandbox2::mounts
+         sandbox2::network_proxy_filtering
+         sandbox2::policy
 )
 
 # sandboxed_api/sandbox2:client
@@ -994,10 +1019,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     PRIVATE absl::strings
             sandbox2::bpf_helper
             sandbox2::comms
+            sandbox2::policybuilder
+            sandbox2::sandbox2
             sapi::testing
             sapi::status_matchers
             sapi::test_main
-    PUBLIC sandbox2::sandbox2
   )
   gtest_discover_tests_xcompile(sandbox2_policybuilder_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"

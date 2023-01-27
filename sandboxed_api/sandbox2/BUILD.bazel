@@ -311,7 +311,6 @@ cc_library(
     srcs = [
         "monitor.cc",
         "monitor.h",
-        "policybuilder.cc",
         "sandbox2.cc",
         "stack_trace.cc",
         "stack_trace.h",
@@ -344,6 +343,7 @@ cc_library(
         ":namespace",
         ":notify",
         ":policy",
+        ":policybuilder",
         ":regs",
         ":result",
         ":sanitizer",
@@ -381,6 +381,32 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@org_kernel_libcap//:libcap",
+    ],
+)
+
+cc_library(
+    name = "policybuilder",
+    srcs = ["policybuilder.cc"],
+    hdrs = ["policybuilder.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":mounts",
+        ":namespace",
+        ":policy",
+        "//sandboxed_api:config",
+        "//sandboxed_api/sandbox2/network_proxy:filtering",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:file_base",
+        "//sandboxed_api/util:status",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -902,6 +928,7 @@ cc_test(
     ],
     deps = [
         ":comms",
+        ":policybuilder",
         ":sandbox2",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
