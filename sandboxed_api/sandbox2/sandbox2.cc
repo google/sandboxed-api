@@ -23,7 +23,7 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
-#include "sandboxed_api/sandbox2/monitor.h"
+#include "sandboxed_api/sandbox2/monitor_ptrace.h"
 #include "sandboxed_api/sandbox2/result.h"
 
 namespace sandbox2 {
