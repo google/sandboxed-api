@@ -83,7 +83,7 @@ std::vector<std::string> Executor::CopyEnviron() {
 }
 
 absl::StatusOr<Executor::Process> Executor::StartSubProcess(
-    int32_t clone_flags, const Namespace* ns, const std::vector<int>& caps) {
+    int32_t clone_flags, const Namespace* ns) {
   if (started_) {
     return absl::FailedPreconditionError(
         "This executor has already been started");
@@ -149,10 +149,6 @@ absl::StatusOr<Executor::Process> Executor::StartSubProcess(
   }
 
   request.set_clone_flags(clone_flags);
-
-  for (auto cap : caps) {
-    request.add_capabilities(cap);
-  }
 
   Process process;
 

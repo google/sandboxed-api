@@ -181,13 +181,6 @@ bool Policy::SendPolicy(Comms* comms) const {
   return true;
 }
 
-void Policy::AllowUnsafeKeepCapabilities(std::vector<int> caps) {
-  if (namespace_) {
-    namespace_->DisableUserNamespace();
-  }
-  capabilities_ = std::move(caps);
-}
-
 void Policy::GetPolicyDescription(PolicyDescription* policy) const {
   policy->set_user_bpf_policy(user_policy_.data(),
                               user_policy_.size() * sizeof(sock_filter));
@@ -199,10 +192,6 @@ void Policy::GetPolicyDescription(PolicyDescription* policy) const {
   if (namespace_) {
     namespace_->GetNamespaceDescription(
         policy->mutable_namespace_description());
-  }
-
-  for (const auto& cap : capabilities_) {
-    policy->add_capabilities(cap);
   }
 }
 

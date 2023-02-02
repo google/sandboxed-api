@@ -47,8 +47,6 @@ class Namespace final {
   Namespace(bool allow_unrestricted_networking, Mounts mounts,
             std::string hostname, bool allow_mount_propagation);
 
-  void DisableUserNamespace();
-
   // Returns all needed CLONE_NEW* flags.
   int32_t GetCloneFlags() const;
 

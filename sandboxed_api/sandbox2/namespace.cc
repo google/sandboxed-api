@@ -208,8 +208,6 @@ Namespace::Namespace(bool allow_unrestricted_networking, Mounts mounts,
   }
 }
 
-void Namespace::DisableUserNamespace() { clone_flags_ &= ~CLONE_NEWUSER; }
-
 int32_t Namespace::GetCloneFlags() const { return clone_flags_; }
 
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,

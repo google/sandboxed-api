@@ -124,12 +124,8 @@ class Executor final {
   // Starts a new process which is connected with this Executor instance via a
   // Comms channel.
   // For clone_flags refer to Linux' 'man 2 clone'.
-  //
-  // caps is a vector of capabilities that are kept in the permitted set after
-  // the clone, use with caution.
   absl::StatusOr<Process> StartSubProcess(int clone_flags,
-                                          const Namespace* ns = nullptr,
-                                          const std::vector<int>& caps = {});
+                                          const Namespace* ns = nullptr);
 
   // Whether the Executor has been started yet
   bool started_ = false;

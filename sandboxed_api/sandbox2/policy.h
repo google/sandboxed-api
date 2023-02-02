@@ -49,11 +49,6 @@ class Comms;
 
 class Policy final {
  public:
-  // Skips creation of a user namespace and keep capabilities in the global
-  // namespace. This only makes sense in some rare cases where the sandbox is
-  // started as root, please talk to sandbox-team@ before using this function.
-  void AllowUnsafeKeepCapabilities(std::vector<int> caps);
-
   // Stores information about the policy (and the policy builder if existing)
   // in the protobuf structure.
   void GetPolicyDescription(PolicyDescription* policy) const;
@@ -80,8 +75,6 @@ class Policy final {
     namespace_ = std::move(ns);
   }
 
-  const std::vector<int>& capabilities() const { return capabilities_; }
-
   // Returns the default policy, which blocks certain dangerous syscalls and
   // mismatched syscall tables.
   std::vector<sock_filter> GetDefaultPolicy() const;
@@ -98,9 +91,6 @@ class Policy final {
   bool collect_stacktrace_on_timeout_ = true;
   bool collect_stacktrace_on_kill_ = true;
   bool collect_stacktrace_on_exit_ = false;
-
-  // The capabilities to keep in the sandboxee.
-  std::vector<int> capabilities_;
 
   // Optional pointer to a PolicyBuilder description pb object.
   std::unique_ptr<PolicyBuilderDescription> policy_builder_description_;

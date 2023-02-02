@@ -300,15 +300,6 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   InitializeNamespaces(request, uid, gid, avoid_pivot_root);
 
   auto caps = cap_init();
-  for (auto cap : request.capabilities()) {
-    SAPI_RAW_CHECK(cap_set_flag(caps, CAP_PERMITTED, 1, &cap, CAP_SET) == 0,
-                   absl::StrCat("setting capability ", cap).c_str());
-    SAPI_RAW_CHECK(cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, CAP_SET) == 0,
-                   absl::StrCat("setting capability ", cap).c_str());
-    SAPI_RAW_CHECK(cap_set_flag(caps, CAP_INHERITABLE, 1, &cap, CAP_SET) == 0,
-                   absl::StrCat("setting capability ", cap).c_str());
-  }
-
   SAPI_RAW_CHECK(cap_set_proc(caps) == 0, "while dropping capabilities");
   cap_free(caps);
 
