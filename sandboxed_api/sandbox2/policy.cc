@@ -150,7 +150,7 @@ std::vector<sock_filter> Policy::GetDefaultPolicy() const {
 
   return policy;
 }
-// LINT.ThenChange(monitor.cc)
+// LINT.ThenChange(monitor_ptrace.cc)
 
 std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   return {
