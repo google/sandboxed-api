@@ -82,7 +82,7 @@ std::vector<std::string> Executor::CopyEnviron() {
   return util::CharPtrArray(environ).ToStringVector();
 }
 
-absl::StatusOr<Executor::Process> Executor::StartSubProcess(
+absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
     int32_t clone_flags, const Namespace* ns) {
   if (started_) {
     return absl::FailedPreconditionError(
@@ -150,14 +150,14 @@ absl::StatusOr<Executor::Process> Executor::StartSubProcess(
 
   request.set_clone_flags(clone_flags);
 
-  Process process;
+  SandboxeeProcess process;
 
   if (fork_client_) {
-    process.main_pid = fork_client_->SendRequest(
-        request, exec_fd_.get(), client_comms_fd_.get(), &process.init_pid);
+    process = fork_client_->SendRequest(request, exec_fd_.get(),
+                                        client_comms_fd_.get());
   } else {
-    process.main_pid = GlobalForkClient::SendRequest(
-        request, exec_fd_.get(), client_comms_fd_.get(), &process.init_pid);
+    process = GlobalForkClient::SendRequest(request, exec_fd_.get(),
+                                            client_comms_fd_.get());
   }
 
   started_ = true;
@@ -173,7 +173,7 @@ std::unique_ptr<ForkClient> Executor::StartForkServer() {
   // This flag is set explicitly to 'true' during object instantiation, and
   // custom fork-servers should never be sandboxed.
   set_enable_sandbox_before_exec(false);
-  absl::StatusOr<Process> process = StartSubProcess(0);
+  absl::StatusOr<SandboxeeProcess> process = StartSubProcess(0);
   if (!process.ok()) {
     return nullptr;
   }

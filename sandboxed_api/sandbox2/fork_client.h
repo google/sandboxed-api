@@ -28,6 +28,11 @@ constexpr inline char kForkServerDisableEnv[] = "SANDBOX2_NOFORKSERVER";
 class Comms;
 class ForkRequest;
 
+struct SandboxeeProcess {
+  pid_t init_pid = -1;
+  pid_t main_pid = -1;
+};
+
 class ForkClient {
  public:
   ForkClient(pid_t pid, Comms* comms) : pid_(pid), comms_(comms) {}
@@ -35,8 +40,8 @@ class ForkClient {
   ForkClient& operator=(const ForkClient&) = delete;
 
   // Sends the fork request over the supplied Comms channel.
-  pid_t SendRequest(const ForkRequest& request, int exec_fd, int comms_fd,
-                    pid_t* init_pid = nullptr);
+  SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
+                               int comms_fd);
 
   pid_t pid() { return pid_; }
 

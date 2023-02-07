@@ -289,15 +289,18 @@ void GlobalForkClient::Shutdown() {
   }
 }
 
-pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
-                                    int comms_fd, pid_t* init_pid) {
+SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
+                                               int exec_fd, int comms_fd) {
   absl::ReleasableMutexLock lock(&GlobalForkClient::instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   if (!instance_) {
-    return -1;
+    return {
+        .init_pid = -1,
+        .main_pid = -1,
+    };
   }
-  pid_t pid =
-      instance_->fork_client_.SendRequest(request, exec_fd, comms_fd, init_pid);
+  SandboxeeProcess process =
+      instance_->fork_client_.SendRequest(request, exec_fd, comms_fd);
   if (instance_->comms_.IsTerminated()) {
     LOG(ERROR) << "Global forkserver connection terminated";
     pid_t server_pid = instance_->fork_client_.pid();
@@ -308,7 +311,7 @@ pid_t GlobalForkClient::SendRequest(const ForkRequest& request, int exec_fd,
     lock.Release();
     WaitForForkserver(server_pid);
   }
-  return pid;
+  return process;
 }
 
 pid_t GlobalForkClient::GetPid() {

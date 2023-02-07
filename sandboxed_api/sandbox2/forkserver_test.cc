@@ -62,14 +62,15 @@ pid_t TestSingleRequest(Mode mode, int exec_fd) {
   fork_req.add_args("/binary");
   fork_req.add_envs("FOO=1");
 
-  pid_t pid = GlobalForkClient::SendRequest(fork_req, exec_fd, sv[0]);
-  if (pid != -1) {
-    VLOG(1) << "TestSingleRequest: Waiting for pid=" << pid;
-    waitpid(pid, nullptr, 0);
+  SandboxeeProcess process =
+      GlobalForkClient::SendRequest(fork_req, exec_fd, sv[0]);
+  if (process.main_pid != -1) {
+    VLOG(1) << "TestSingleRequest: Waiting for pid=" << process.main_pid;
+    waitpid(process.main_pid, nullptr, 0);
   }
 
   close(sv[0]);
-  return pid;
+  return process.main_pid;
 }
 
 TEST(ForkserverTest, SimpleFork) {

@@ -40,11 +40,6 @@ namespace sandbox2 {
 // new processes which will be sandboxed.
 class Executor final {
  public:
-  struct Process {
-    pid_t init_pid = -1;
-    pid_t main_pid = -1;
-  };
-
   Executor(const Executor&) = delete;
   Executor& operator=(const Executor&) = delete;
 
@@ -124,8 +119,8 @@ class Executor final {
   // Starts a new process which is connected with this Executor instance via a
   // Comms channel.
   // For clone_flags refer to Linux' 'man 2 clone'.
-  absl::StatusOr<Process> StartSubProcess(int clone_flags,
-                                          const Namespace* ns = nullptr);
+  absl::StatusOr<SandboxeeProcess> StartSubProcess(
+      int clone_flags, const Namespace* ns = nullptr);
 
   // Whether the Executor has been started yet
   bool started_ = false;

@@ -349,28 +349,29 @@ add_library(sandbox2_monitor_base ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::monitor_base ALIAS sandbox2_monitor_base)
 target_link_libraries(sandbox2_monitor_base
-  PRIVATE absl::status
+  PRIVATE absl::cleanup
+          absl::status
+          absl::time
+          sandbox2::client
+          sandbox2::limits
+          sandbox2::mounts
+          sandbox2::namespace
+          sandbox2::util
+          sapi::file_helpers
+          sapi::temp_file
+          sapi::base
+          sapi::raw_logging
+  PUBLIC  absl::statusor
           absl::synchronization
           sandbox2::comms
           sandbox2::executor
+          sandbox2::fork_client
           sandbox2::ipc
           sandbox2::network_proxy_server
           sandbox2::notify
           sandbox2::policy
           sandbox2::result
           sandbox2::syscall
-          sapi::base
-          sapi::raw_logging
-  PUBLIC  absl::cleanup
-          absl::statusor
-          absl::time
-          sapi::file_helpers
-          sapi::temp_file
-          sandbox2::client
-          sandbox2::limits
-          sandbox2::mounts
-          sandbox2::namespace
-          sandbox2::util
 )
 
 # sandboxed_api/sandbox2:policybuilder

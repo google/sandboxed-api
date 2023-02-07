@@ -191,7 +191,7 @@ void MonitorBase::Launch() {
 
   // Get PID of the sandboxee.
   bool should_have_init = ns && (ns->GetCloneFlags() & CLONE_NEWPID);
-  absl::StatusOr<Executor::Process> process =
+  absl::StatusOr<SandboxeeProcess> process =
       executor_->StartSubProcess(clone_flags, ns);
 
   if (!process.ok()) {

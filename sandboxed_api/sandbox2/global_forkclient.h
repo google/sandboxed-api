@@ -44,8 +44,8 @@ class GlobalForkClient {
   GlobalForkClient(int fd, pid_t pid)
       : comms_(fd), fork_client_(pid, &comms_) {}
 
-  static pid_t SendRequest(const ForkRequest& request, int exec_fd,
-                           int comms_fd, pid_t* init_pid = nullptr)
+  static SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
+                                      int comms_fd)
       ABSL_LOCKS_EXCLUDED(instance_mutex_);
   static pid_t GetPid() ABSL_LOCKS_EXCLUDED(instance_mutex_);
 

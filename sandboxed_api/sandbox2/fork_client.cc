@@ -21,20 +21,24 @@
 
 namespace sandbox2 {
 
-pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
-                              int comms_fd, pid_t* init_pid) {
+SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
+                                         int exec_fd, int comms_fd) {
+  SandboxeeProcess process = {
+      .init_pid = -1,
+      .main_pid = -1,
+  };
   // Acquire the channel ownership for this request (transaction).
   absl::MutexLock l(&comms_mutex_);
 
   if (!comms_->SendProtoBuf(request)) {
     LOG(ERROR) << "Sending PB to the ForkServer failed";
-    return -1;
+    return process;
   }
   CHECK(comms_fd != -1) << "comms_fd was not properly set up";
   if (!comms_->SendFD(comms_fd)) {
     LOG(ERROR) << "Sending Comms FD (" << comms_fd
                << ") to the ForkServer failed";
-    return -1;
+    return process;
   }
   if (request.mode() == FORKSERVER_FORK_EXECVE ||
       request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
@@ -42,7 +46,7 @@ pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
     if (!comms_->SendFD(exec_fd)) {
       LOG(ERROR) << "Sending Exec FD (" << exec_fd
                  << ") to the ForkServer failed";
-      return -1;
+      return process;
     }
   }
 
@@ -50,18 +54,17 @@ pid_t ForkClient::SendRequest(const ForkRequest& request, int exec_fd,
   // Receive init process ID.
   if (!comms_->RecvInt32(&pid)) {
     LOG(ERROR) << "Receiving init PID from the ForkServer failed";
-    return -1;
+    return process;
   }
-  if (init_pid) {
-    *init_pid = static_cast<pid_t>(pid);
-  }
+  process.init_pid = static_cast<pid_t>(pid);
 
   // Receive sandboxee process ID.
   if (!comms_->RecvInt32(&pid)) {
     LOG(ERROR) << "Receiving sandboxee PID from the ForkServer failed";
-    return -1;
+    return process;
   }
-  return static_cast<pid_t>(pid);
+  process.main_pid = static_cast<pid_t>(pid);
+  return process;
 }
 
 }  // namespace sandbox2

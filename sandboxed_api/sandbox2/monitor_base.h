@@ -29,6 +29,7 @@
 #include "absl/synchronization/notification.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/network_proxy/server.h"
 #include "sandboxed_api/sandbox2/notify.h"
@@ -82,7 +83,7 @@ class MonitorBase {
   Notify* notify_;
   Policy* policy_;
   // The sandboxee process.
-  Executor::Process process_;
+  SandboxeeProcess process_;
   Result result_;
   // Comms channel ptr, copied from the Executor object for convenience.
   Comms* comms_;

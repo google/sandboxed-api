@@ -390,6 +390,7 @@ cc_library(
         ":client",
         ":comms",
         ":executor",
+        ":fork_client",
         ":ipc",
         ":limits",
         ":mounts",
