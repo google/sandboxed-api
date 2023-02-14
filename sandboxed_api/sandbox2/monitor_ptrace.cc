@@ -906,7 +906,6 @@ void PtraceMonitor::EventPtraceExit(pid_t pid, int event_msg) {
     } else {
       SetExitStatusCode(Result::SIGNALED, WTERMSIG(event_msg));
     }
-    LOG(INFO) << "CPU limit: " << executor_->limits()->rlimit_cpu().rlim_cur;
     SetAdditionalResultInfo(std::move(regs));
   } else if (log_stack_trace) {
     // In case pid == pid_ the stack trace will be logged anyway. So we need
