@@ -228,7 +228,6 @@ target_link_libraries(sandbox2_global_forkserver
           sandbox2::client
           sandbox2::forkserver_bin_embed
           sapi::strerror
-          sandbox2::util
           sapi::base
           sapi::config
           sapi::embed_file

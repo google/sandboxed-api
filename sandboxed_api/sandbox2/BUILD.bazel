@@ -248,7 +248,6 @@ cc_library(
         ":fork_client",
         ":forkserver_bin_embed",
         ":forkserver_cc_proto",
-        ":util",
         "//sandboxed_api:config",
         "//sandboxed_api:embed_file",
         "//sandboxed_api/util:fileops",
