@@ -28,7 +28,6 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -37,7 +36,6 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
@@ -120,7 +118,6 @@ TEST(SanitizerTest, TestSandboxedBinary) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());

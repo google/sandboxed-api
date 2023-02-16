@@ -57,7 +57,6 @@ class Policy final {
   friend class MonitorBase;
   friend class PtraceMonitor;
   friend class PolicyBuilder;
-  friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
 
   // Private constructor only called by the PolicyBuilder.

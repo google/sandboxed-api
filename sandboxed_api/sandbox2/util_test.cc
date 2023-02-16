@@ -21,7 +21,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/path.h"
 
 namespace sandbox2::util {
 namespace {

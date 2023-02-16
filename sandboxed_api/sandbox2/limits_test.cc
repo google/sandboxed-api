@@ -28,7 +28,6 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
@@ -45,7 +44,6 @@ TEST(LimitsTest, RLimitASMmapUnderLimit) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
@@ -64,7 +62,6 @@ TEST(LimitsTest, RLimitASMmapAboveLimit) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
@@ -83,7 +80,6 @@ TEST(LimitsTest, RLimitASAllocaSmallUnderLimit) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
@@ -102,7 +98,6 @@ TEST(LimitsTest, RLimitASAllocaBigUnderLimit) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
@@ -121,7 +116,6 @@ TEST(LimitsTest, RLimitASAllocaBigAboveLimit) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());

@@ -37,6 +37,19 @@
 namespace sandbox2 {
 namespace {
 
+PolicyBuilder CreateDefaultPolicyBuilder(absl::string_view path) {
+  PolicyBuilder builder;
+  // Don't restrict the syscalls at all.
+  builder.DangerDefaultAllowAll();
+  if constexpr (sapi::sanitizers::IsAny()) {
+    builder.AddLibrariesForBinary(path);
+  }
+  if constexpr (sapi::sanitizers::IsAny()) {
+    builder.AddDirectory("/proc");
+  }
+  return builder;
+}
+
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::HasSubstr;
@@ -54,12 +67,8 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
   };
   auto executor = std::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                .DisableNamespaces()
-                                // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
-                                .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPolicyBuilder(path)
+                                             .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
@@ -78,11 +87,7 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
   executor->set_enable_sandbox_before_exec(false);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                .DisableNamespaces()
-                                // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
-                                .TryBuild());
+                            CreateDefaultPolicyBuilder(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
@@ -105,42 +110,15 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   auto executor = std::make_unique<Executor>(fd, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                .DisableNamespaces()
-                                // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
-                                .TryBuild());
+                            CreateDefaultPolicyBuilder(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
   ASSERT_EQ(result.final_status(), Result::OK);
 }
 
-// Tests that we return the correct state when the sandboxee was killed by an
-// external signal. Also make sure that we do not have the stack trace.
-TEST(RunAsyncTest, SandboxeeExternalKill) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
-
-  std::vector<std::string> args = {path};
-  std::vector<std::string> envs;
-  auto executor = std::make_unique<Executor>(path, args, envs);
-
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
-                                .TryBuild());
-  Sandbox2 sandbox(std::move(executor), std::move(policy));
-  ASSERT_TRUE(sandbox.RunAsync());
-  sleep(1);
-  sandbox.Kill();
-  auto result = sandbox.AwaitResult();
-  EXPECT_EQ(result.final_status(), Result::EXTERNAL_KILL);
-  EXPECT_THAT(result.GetStackTrace(), IsEmpty());
-}
-
 // Tests that we return the correct state when the sandboxee timed out.
-TEST(RunAsyncTest, SandboxeeTimeoutWithStacktraces) {
+TEST(StackTraceTest, StackTraceOnTimeoutWorks) {
   SKIP_ANDROID;
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
@@ -161,6 +139,26 @@ TEST(RunAsyncTest, SandboxeeTimeoutWithStacktraces) {
   EXPECT_THAT(result.GetStackTrace(), HasSubstr("sleep"));
 }
 
+// Tests that we return the correct state when the sandboxee was killed by an
+// external signal. Also make sure that we do not have the stack trace.
+TEST(RunAsyncTest, SandboxeeExternalKill) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
+
+  std::vector<std::string> args = {path};
+  std::vector<std::string> envs;
+  auto executor = std::make_unique<Executor>(path, args, envs);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPolicyBuilder(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_TRUE(sandbox.RunAsync());
+  sleep(1);
+  sandbox.Kill();
+  auto result = sandbox.AwaitResult();
+  EXPECT_EQ(result.final_status(), Result::EXTERNAL_KILL);
+  EXPECT_THAT(result.GetStackTrace(), IsEmpty());
+}
+
 // Tests that we do not collect stack traces if it was disabled (signaled).
 TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
@@ -169,10 +167,29 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
   std::vector<std::string> envs;
   auto executor = std::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPolicyBuilder(path)
+                                             .CollectStacktracesOnTimeout(false)
+                                             .TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_TRUE(sandbox.RunAsync());
+  sandbox.set_walltime_limit(absl::Seconds(1));
+  auto result = sandbox.AwaitResult();
+  EXPECT_EQ(result.final_status(), Result::TIMEOUT);
+  EXPECT_THAT(result.GetStackTrace(), IsEmpty());
+}
+
+// Tests that we do not collect stack traces if it was disabled (violation).
+TEST(RunAsyncTest, SandboxeeViolationDisabledStacktraces) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
+
+  std::vector<std::string> args = {path};
+  std::vector<std::string> envs;
+  auto executor = std::make_unique<Executor>(path, args, envs);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy, PolicyBuilder()
+                       // Don't allow anything - Make sure that we'll crash.
+                       .CollectStacktracesOnViolation(false)
                        .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
@@ -186,12 +203,9 @@ TEST(RunAsyncTest, SandboxeeNotKilledWhenStartingThreadFinishes) {
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
-                                .CollectStacktracesOnExit(true)
-                                .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPolicyBuilder(path)
+                                             .CollectStacktracesOnExit(true)
+                                             .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   std::thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });
   sandbox_start_thread.join();
@@ -207,9 +221,8 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
   auto executor = std::make_unique<Executor>(path, args, envs);
   executor->limits()->set_walltime_limit(absl::Seconds(5));
 
-  SAPI_ASSERT_OK_AND_ASSIGN(
-      auto policy,
-      PolicyBuilder().DisableNamespaces().DangerDefaultAllowAll().TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPolicyBuilder(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   auto start = absl::Now();

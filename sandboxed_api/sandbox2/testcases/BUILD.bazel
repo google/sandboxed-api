@@ -40,6 +40,7 @@ cc_binary(
     testonly = True,
     srcs = ["abort.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
     deps = ["//sandboxed_api/util:raw_logging"],
 )
 
@@ -56,6 +57,7 @@ cc_binary(
     testonly = True,
     srcs = ["buffer.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
     deps = [
         "//sandboxed_api/sandbox2:buffer",
         "//sandboxed_api/sandbox2:comms",
@@ -68,6 +70,7 @@ cc_binary(
     testonly = True,
     srcs = ["ipc.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -112,6 +115,7 @@ cc_binary(
     testonly = True,
     srcs = ["pidcomms.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -135,6 +139,7 @@ cc_binary(
     testonly = True,
     srcs = ["sanitizer.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
 )
 
 cc_binary(
@@ -176,6 +181,7 @@ cc_binary(
     testonly = True,
     srcs = ["tsync.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
@@ -187,6 +193,7 @@ cc_binary(
     testonly = True,
     srcs = ["starve.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
 )
 
 cc_binary(

@@ -614,7 +614,6 @@ cc_test(
         ":mounts",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:status_matchers",
         "//sandboxed_api/util:temp_file",
         "@com_google_absl//absl/strings",
@@ -826,7 +825,6 @@ cc_test(
         ":sandbox2",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:status_matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -916,7 +914,6 @@ cc_test(
         ":sanitizer",
         ":util",
         "//sandboxed_api:testing",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -932,7 +929,6 @@ cc_test(
     deps = [
         ":util",
         "//sandboxed_api:testing",
-        "//sandboxed_api/util:file_base",
         "@com_google_googletest//:gtest_main",
     ],
 )

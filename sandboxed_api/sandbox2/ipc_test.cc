@@ -51,7 +51,6 @@ TEST_P(IPCTest, MapFDByNamePreExecve) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
@@ -89,7 +88,6 @@ TEST_P(IPCTest, MapFDByNamePostExecve) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());
@@ -122,7 +120,6 @@ TEST(IPCTest, NoMappedFDsPreExecve) {
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
-                                .DisableNamespaces()
                                 // Don't restrict the syscalls at all.
                                 .DangerDefaultAllowAll()
                                 .TryBuild());

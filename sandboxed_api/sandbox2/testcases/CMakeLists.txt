@@ -20,6 +20,7 @@ set_target_properties(sandbox2_testcase_abort PROPERTIES
   OUTPUT_NAME abort)
 add_executable(sandbox2::testcase_abort ALIAS sandbox2_testcase_abort)
 target_link_libraries(sandbox2_testcase_abort PRIVATE
+  -static
   sapi::base
   sapi::raw_logging
 )
@@ -47,6 +48,7 @@ set_target_properties(sandbox2_testcase_buffer PROPERTIES
   OUTPUT_NAME buffer
 )
 target_link_libraries(sandbox2_testcase_buffer PRIVATE
+  -static
   absl::str_format
   sandbox2::buffer
   sandbox2::comms
@@ -62,6 +64,7 @@ set_target_properties(sandbox2_testcase_ipc PROPERTIES
 )
 add_executable(sandbox2::testcase_ipc ALIAS sandbox2_testcase_ipc)
 target_link_libraries(sandbox2_testcase_ipc PRIVATE
+  -static
   absl::strings
   sandbox2::client
   sandbox2::comms
@@ -132,6 +135,7 @@ set_target_properties(sandbox2_testcase_pidcomms PROPERTIES
   OUTPUT_NAME pidcomms
 )
 target_link_libraries(sandbox2_testcase_pidcomms PRIVATE
+  -static
   sandbox2::client
   sandbox2::comms
   sapi::base
@@ -161,6 +165,7 @@ set_target_properties(sandbox2_testcase_sanitizer PROPERTIES
   OUTPUT_NAME sanitizer
 )
 target_link_libraries(sandbox2_testcase_sanitizer PRIVATE
+  -static
   sapi::base
 )
 
@@ -220,6 +225,7 @@ set_target_properties(sandbox2_testcase_starve PROPERTIES
   OUTPUT_NAME starve
 )
 target_link_libraries(sandbox2_testcase_starve PRIVATE
+  -static
   sapi::base
 )
 
@@ -232,6 +238,7 @@ set_target_properties(sandbox2_testcase_tsync PROPERTIES
   OUTPUT_NAME tsync
 )
 target_link_libraries(sandbox2_testcase_tsync PRIVATE
+  -static
   sandbox2::client
   sandbox2::comms
   sapi::base

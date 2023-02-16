@@ -59,7 +59,7 @@ using ::testing::Not;
 
 // Test that symbolization of stack traces works.
 void SymbolizationWorksCommon(
-    const std::function<void(PolicyBuilder*)>& modify_policy) {
+    std::function<void(PolicyBuilder*)> modify_policy = {}) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
   std::vector<std::string> args = {path, "1"};
 
@@ -78,7 +78,9 @@ void SymbolizationWorksCommon(
                            .AddFile(path)
                            .AddLibrariesForBinary(path)
                            .AddFileAt(temp_filename, "/proc/cpuinfo");
-  modify_policy(&policybuilder);
+  if (modify_policy) {
+    modify_policy(&policybuilder);
+  }
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, policybuilder.TryBuild());
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
@@ -95,7 +97,7 @@ TEST(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, false);
 
-  SymbolizationWorksCommon([](PolicyBuilder*) {});
+  SymbolizationWorksCommon();
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
@@ -103,7 +105,7 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
-  SymbolizationWorksCommon([](PolicyBuilder*) {});
+  SymbolizationWorksCommon();
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {

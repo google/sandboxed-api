@@ -23,7 +23,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/temp_file.h"

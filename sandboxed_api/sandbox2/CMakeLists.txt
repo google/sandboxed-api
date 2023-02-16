@@ -988,7 +988,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_sandbox2_test PRIVATE
     absl::strings
-    sandbox2::bpf_helper
     sapi::config
     sandbox2::sandbox2
     sapi::testing
@@ -1036,7 +1035,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME util_test
   )
   target_link_libraries(sandbox2_util_test PRIVATE
-    sapi::file_base
     sapi::testing
     sandbox2::util
     sapi::test_main

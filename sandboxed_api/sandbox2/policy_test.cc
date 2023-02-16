@@ -32,7 +32,6 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 
@@ -46,11 +45,10 @@ PolicyBuilder CreatePolicyTestPolicyBuilder() {
   sandbox2::PolicyBuilder builder;
 
   if constexpr (sapi::host_os::IsAndroid()) {
-    builder.AllowDynamicStartup();
+    builder.DisableNamespaces().AllowDynamicStartup();
   }
 
-  builder.DisableNamespaces()
-      .AllowStaticStartup()
+  builder.AllowStaticStartup()
       .AllowExit()
       .AllowRead()
       .AllowWrite()
