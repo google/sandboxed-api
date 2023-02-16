@@ -44,6 +44,7 @@
 #include "sandboxed_api/sandbox2/network_proxy/server.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/stack_trace.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
@@ -59,6 +60,8 @@ ABSL_FLAG(bool, sandbox2_report_on_sandboxee_timeout, true,
 
 ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
 ABSL_DECLARE_FLAG(std::string, sandbox2_danger_danger_permit_all_and_log);
+
+ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 
 namespace sandbox2 {
 namespace {
@@ -118,7 +121,8 @@ MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify)
       policy_(policy),
       // NOLINTNEXTLINE clang-diagnostic-deprecated-declarations
       comms_(executor_->ipc()->comms()),
-      ipc_(executor_->ipc()) {
+      ipc_(executor_->ipc()),
+      uses_custom_forkserver_(executor_->fork_client_ != nullptr) {
   // It's a pre-connected Comms channel, no need to accept new connection.
   CHECK(comms_->IsConnected());
   std::string path =
@@ -383,6 +387,20 @@ void MonitorBase::LogSyscallViolationExplanation(const Syscall& syscall) const {
   }
 }
 
+bool MonitorBase::StackTraceCollectionPossible() const {
+  // Only get the stacktrace if we are not in the libunwind sandbox (avoid
+  // recursion).
+  if ((policy_->GetNamespace() ||
+       absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) == false) &&
+      executor_->libunwind_sbox_for_pid_ == 0) {
+    return true;
+  }
+  LOG(ERROR) << "Cannot collect stack trace. Unwind pid "
+             << executor_->libunwind_sbox_for_pid_ << ", namespace "
+             << policy_->GetNamespace();
+  return false;
+}
+
 void MonitorBase::EnableNetworkProxyServer() {
   int fd = ipc_->ReceiveFd(NetworkProxyClient::kFDName);
 
@@ -391,5 +409,47 @@ void MonitorBase::EnableNetworkProxyServer() {
 
   network_proxy_thread_ = std::thread(&NetworkProxyServer::Run,
   network_proxy_server_.get());
+}
+
+bool MonitorBase::ShouldCollectStackTrace(Result::StatusEnum status) const {
+  if (!StackTraceCollectionPossible()) {
+    return false;
+  }
+  switch (status) {
+    case Result::EXTERNAL_KILL:
+      return policy_->collect_stacktrace_on_kill_;
+    case Result::TIMEOUT:
+      return policy_->collect_stacktrace_on_timeout_;
+    case Result::SIGNALED:
+      return policy_->collect_stacktrace_on_signal_;
+    case Result::VIOLATION:
+      return policy_->collect_stacktrace_on_violation_;
+    case Result::OK:
+      return policy_->collect_stacktrace_on_exit_;
+    default:
+      return false;
+  }
+}
+
+absl::StatusOr<std::vector<std::string>> MonitorBase::GetStackTrace(
+    const Regs* regs) {
+  return sandbox2::GetStackTrace(regs, policy_->GetNamespace(),
+                                 uses_custom_forkserver_);
+}
+
+absl::StatusOr<std::vector<std::string>> MonitorBase::GetAndLogStackTrace(
+    const Regs* regs) {
+  auto stack_trace = GetStackTrace(regs);
+  if (!stack_trace.ok()) {
+    return stack_trace.status();
+  }
+
+  LOG(INFO) << "Stack trace: [";
+  for (const auto& frame : CompactStackTrace(*stack_trace)) {
+    LOG(INFO) << "  " << frame;
+  }
+  LOG(INFO) << "]";
+
+  return stack_trace;
 }
 }  // namespace sandbox2

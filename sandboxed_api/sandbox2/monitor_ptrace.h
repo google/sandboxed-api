@@ -25,7 +25,6 @@
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -33,7 +32,6 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
-#include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/util/raw_logging.h"
 
@@ -89,12 +87,6 @@ class PtraceMonitor : public MonitorBase {
   // Process with given PID changed state to a stopped state.
   void StateProcessStopped(pid_t pid, int status);
 
-  // Tells if collecting stack trace is at all possible.
-  bool StackTraceCollectionPossible() const;
-
-  // Whether a stack trace should be collected given the current status
-  bool ShouldCollectStackTrace() const;
-
   // Sets additional information in the result object, such as program name,
   // stack trace etc.
   void SetAdditionalResultInfo(std::unique_ptr<Regs> regs);
@@ -102,10 +94,6 @@ class PtraceMonitor : public MonitorBase {
   // Logs the syscall violation and kills the process afterwards.
   void ActionProcessSyscallViolation(Regs* regs, const Syscall& syscall,
                                      ViolationType violation_type);
-
-  // Gets and logs stack trace.
-  absl::StatusOr<std::vector<std::string>> GetAndLogStackTrace(
-      const Regs* regs);
 
   void LogStackTraceOfPid(pid_t pid);
 
@@ -166,8 +154,6 @@ class PtraceMonitor : public MonitorBase {
   // Syscalls that are running, whose result values we want to inspect.
   absl::flat_hash_map<pid_t, Syscall> syscalls_in_progress_;
   sigset_t sset_;
-  // Is the sandboxee forked from a custom forkserver?
-  bool uses_custom_forkserver_;
 
   // Monitor thread object.
   std::unique_ptr<std::thread> thread_;

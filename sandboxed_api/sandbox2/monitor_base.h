@@ -24,6 +24,8 @@
 #include <cstdio>
 #include <memory>
 #include <thread>
+#include <string>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/synchronization/notification.h"
@@ -34,6 +36,7 @@
 #include "sandboxed_api/sandbox2/network_proxy/server.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
+#include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 
@@ -77,6 +80,19 @@ class MonitorBase {
   // Logs a SANDBOX VIOLATION message based on the registers and additional
   // explanation for the reason of the violation.
   void LogSyscallViolation(const Syscall& syscall) const;
+
+  // Tells if collecting stack trace is at all possible.
+  bool StackTraceCollectionPossible() const;
+
+  // Whether a stack trace should be collected given the current status
+  bool ShouldCollectStackTrace(Result::StatusEnum status) const;
+
+  // Gets stack trace.
+  absl::StatusOr<std::vector<std::string>> GetStackTrace(const Regs* regs);
+
+  // Gets and logs stack trace.
+  absl::StatusOr<std::vector<std::string>> GetAndLogStackTrace(
+      const Regs* regs);
 
   // Internal objects, owned by the Sandbox2 object.
   Executor* executor_;
@@ -134,6 +150,9 @@ class MonitorBase {
   std::string comms_fd_dev_;
 
   std::thread network_proxy_thread_;
+
+  // Is the sandboxee forked from a custom forkserver?
+  bool uses_custom_forkserver_;
 };
 
 }  // namespace sandbox2

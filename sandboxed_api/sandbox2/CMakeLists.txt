@@ -295,25 +295,19 @@ add_library(sandbox2_sandbox2 ${SAPI_LIB_TYPE}
 add_library(sandbox2::sandbox2 ALIAS sandbox2_sandbox2)
 target_link_libraries(sandbox2_sandbox2
   PRIVATE absl::core_headers
-          absl::cleanup
           absl::flat_hash_set
           absl::memory
           absl::optional
           absl::str_format
           absl::strings
-          sapi::strerror
           sapi::base
   PUBLIC  absl::flat_hash_map
           absl::status
           absl::statusor
-          absl::synchronization
           absl::time
           sapi::config
-          sapi::file_base
           sapi::fileops
-          sapi::status
           sapi::temp_file
-          sandbox2::bpf_helper
           sandbox2::client
           sandbox2::comms
           sandbox2::executor
@@ -323,6 +317,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::limits
           sandbox2::logsink
           sandbox2::monitor_base
+          sandbox2::monitor_ptrace
           sandbox2::mounts
           sandbox2::mount_tree_proto
           sandbox2::namespace
@@ -333,13 +328,46 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::policybuilder
           sandbox2::regs
           sandbox2::result
-          sandbox2::sanitizer
           sandbox2::syscall
-          sandbox2::unwind
-          sandbox2::unwind_proto
           sandbox2::util
           sandbox2::violation_proto
 )
+
+
+# sandboxed_api/sandbox2:stack_trace
+add_library(sandbox2_stack_trace ${SAPI_LIB_TYPE}
+  stack_trace.cc
+  stack_trace.h
+)
+add_library(sandbox2::stack_trace ALIAS sandbox2_stack_trace)
+target_link_libraries(sandbox2_stack_trace
+  PRIVATE absl::cleanup
+          absl::flags
+          absl::log
+          absl::memory
+          absl::status
+          absl::strings
+          sandbox2::client
+          sandbox2::limits
+          sandbox2::policybuilder
+          sandbox2::util
+          sandbox2::unwind
+          sandbox2::unwind_proto
+          sapi::base
+          sapi::config
+          sapi::file_base
+          sapi::fileops
+          sapi::raw_logging
+          sapi::status
+  PUBLIC absl::statusor
+         sandbox2::comms
+         sandbox2::executor
+         sandbox2::namespace
+         sandbox2::policy
+         sandbox2::result
+         sandbox2::regs
+)
+
 
 # sandboxed_api/sandbox2:monitor_base
 add_library(sandbox2_monitor_base ${SAPI_LIB_TYPE}
@@ -355,6 +383,7 @@ target_link_libraries(sandbox2_monitor_base
           sandbox2::limits
           sandbox2::mounts
           sandbox2::namespace
+          sandbox2::stack_trace
           sandbox2::util
           sapi::file_helpers
           sapi::temp_file
@@ -371,6 +400,38 @@ target_link_libraries(sandbox2_monitor_base
           sandbox2::policy
           sandbox2::result
           sandbox2::syscall
+)
+
+# sandboxed_api/sandbox2:monitor_ptrace
+add_library(sandbox2_monitor_ptrace ${SAPI_LIB_TYPE}
+  monitor_ptrace.cc
+  monitor_ptrace.h
+)
+add_library(sandbox2::monitor_ptrace ALIAS sandbox2_monitor_ptrace)
+target_link_libraries(sandbox2_monitor_ptrace
+  PRIVATE absl::cleanup
+          absl::flat_hash_set
+          absl::flags
+          absl::status
+          absl::strings
+          absl::time
+          sapi::base
+          sapi::config
+          sapi::status
+          sandbox2::client
+          sandbox2::comms
+          sandbox2::result
+          sandbox2::sanitizer
+          sandbox2::util
+  PUBLIC sandbox2::executor
+         sandbox2::monitor_base
+         sandbox2::notify
+         sandbox2::policy
+         sandbox2::regs
+         sandbox2::syscall
+         absl::synchronization
+         absl::flat_hash_map
+         sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2:policybuilder
@@ -1001,6 +1062,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::global_forkserver
     sandbox2::namespace
     sandbox2::sandbox2
+    sandbox2::stack_trace
     sandbox2::util
     sapi::fileops
     sapi::temp_file

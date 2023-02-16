@@ -29,23 +29,18 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
-#include "libcap/include/sys/capability.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
-#include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -79,7 +74,7 @@ class StackTracePeer {
       const std::string& app_path, const std::string& exe_path,
       const Namespace* ns, bool uses_custom_forkserver);
 
-  static absl::StatusOr<UnwindResult> LaunchLibunwindSandbox(
+  static absl::StatusOr<std::vector<std::string>> LaunchLibunwindSandbox(
       const Regs* regs, const Namespace* ns, bool uses_custom_forkserver);
 };
 
@@ -163,7 +158,11 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
   return std::move(policy);
 }
 
-absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
+namespace internal {
+SandboxPeer::SpawnFn SandboxPeer::spawn_fn_ = nullptr;
+}  // namespace internal
+
+absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     const Regs* regs, const Namespace* ns, bool uses_custom_forkserver) {
   const pid_t pid = regs->pid();
 
@@ -240,11 +239,11 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
       std::unique_ptr<Policy> policy,
       StackTracePeer::GetPolicy(pid, unwind_temp_maps_path, app_path, exe_path,
                                 ns, uses_custom_forkserver));
-  Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   VLOG(1) << "Running libunwind sandbox";
-  sandbox.RunAsync();
-  Comms* comms = sandbox.comms();
+  auto sandbox =
+      internal::SandboxPeer::Spawn(std::move(executor), std::move(policy));
+  Comms* comms = sandbox->comms();
 
   UnwindSetup msg;
   msg.set_pid(pid);
@@ -253,8 +252,8 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
   msg.set_default_max_frames(kDefaultMaxFrames);
 
   absl::Cleanup kill_sandbox = [&sandbox]() {
-    sandbox.Kill();
-    sandbox.AwaitResult().IgnoreResult();
+    sandbox->Kill();
+    sandbox->AwaitResult().IgnoreResult();
   };
 
   if (!comms->SendProtoBuf(msg)) {
@@ -277,7 +276,7 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
 
   std::move(kill_sandbox).Cancel();
 
-  auto sandbox_result = sandbox.AwaitResult();
+  auto sandbox_result = sandbox->AwaitResult();
 
   LOG(INFO) << "Libunwind execution status: " << sandbox_result.ToString();
 
@@ -287,7 +286,8 @@ absl::StatusOr<UnwindResult> StackTracePeer::LaunchLibunwindSandbox(
                      sandbox_result.ToString()));
   }
 
-  return result;
+  return std::vector<std::string>(result.stacktrace().begin(),
+                                  result.stacktrace().end());
 }
 
 absl::StatusOr<std::vector<std::string>> GetStackTrace(
@@ -317,11 +317,8 @@ absl::StatusOr<std::vector<std::string>> GetStackTrace(
     return UnsafeGetStackTrace(regs->pid());
   }
 
-  SAPI_ASSIGN_OR_RETURN(
-      UnwindResult res,
-      StackTracePeer::LaunchLibunwindSandbox(regs, ns, uses_custom_forkserver));
-  return std::vector<std::string>(res.stacktrace().begin(),
-                                  res.stacktrace().end());
+  return StackTracePeer::LaunchLibunwindSandbox(regs, ns,
+                                                uses_custom_forkserver);
 }
 
 std::vector<std::string> CompactStackTrace(
