@@ -629,7 +629,6 @@ cc_library(
     deps = [
         ":mount_tree_cc_proto",
         ":mounts",
-        ":util",
         ":violation_cc_proto",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
@@ -928,7 +927,6 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":util",
-        "//sandboxed_api:testing",
         "@com_google_googletest//:gtest_main",
     ],
 )

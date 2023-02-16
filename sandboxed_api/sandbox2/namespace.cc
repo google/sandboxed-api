@@ -35,7 +35,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -67,8 +66,9 @@ int MountFallbackToReadOnly(const char* source, const char* target,
 
 void PrepareChroot(const Mounts& mounts) {
   // Create a tmpfs mount for the new rootfs.
-  SAPI_RAW_CHECK(util::CreateDirRecursive(kSandbox2ChrootPath, 0700),
-                 "could not create directory for rootfs");
+  SAPI_RAW_CHECK(
+      file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
+      "could not create directory for rootfs");
   SAPI_RAW_PCHECK(mount("none", kSandbox2ChrootPath, "tmpfs", 0, nullptr) == 0,
                   "mounting rootfs failed");
 
@@ -340,13 +340,15 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
 
 void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
   SetupIDMaps(uid, gid);
-  SAPI_RAW_CHECK(util::CreateDirRecursive(kSandbox2ChrootPath, 0700),
-                 "could not create directory for rootfs");
+  SAPI_RAW_CHECK(
+      file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
+      "could not create directory for rootfs");
   SAPI_RAW_PCHECK(mount("none", kSandbox2ChrootPath, "tmpfs", 0, nullptr) == 0,
                   "mounting rootfs failed");
   auto realroot_path = file::JoinPath(kSandbox2ChrootPath, "/realroot");
-  SAPI_RAW_CHECK(util::CreateDirRecursive(realroot_path, 0700),
-                 "could not create directory for real root");
+  SAPI_RAW_CHECK(
+      file_util::fileops::CreateDirectoryRecursively(realroot_path, 0700),
+      "could not create directory for real root");
   SAPI_RAW_PCHECK(syscall(__NR_pivot_root, kSandbox2ChrootPath,
                           realroot_path.c_str()) != -1,
                   "pivot root");

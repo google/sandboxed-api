@@ -332,6 +332,12 @@ void SetupDirectory() {
   ASSERT_THAT(chmod("foo/bar/baz/foo", 0644), Eq(0));
 }
 
+TEST_F(FileOpsTest, CreateDirectoryRecursivelyTest) {
+  constexpr char kTestDir[] = "a/b/c";
+  EXPECT_THAT(fileops::CreateDirectoryRecursively(kTestDir, 0700), IsTrue());
+  EXPECT_THAT(fileops::CreateDirectoryRecursively(kTestDir, 0700), IsTrue());
+}
+
 TEST_F(FileOpsTest, DeleteRecursivelyTest) {
   EXPECT_THAT(fileops::DeleteRecursively("foo"), IsTrue());
   EXPECT_THAT(fileops::DeleteRecursively("/not_there"), IsTrue());

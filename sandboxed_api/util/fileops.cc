@@ -220,6 +220,30 @@ bool ListDirectoryEntries(const std::string& directory,
   return true;
 }
 
+bool CreateDirectoryRecursively(const std::string& path, int mode) {
+  if (mkdir(path.c_str(), mode) == 0 || errno == EEXIST) {
+    return true;
+  }
+
+  // We couldn't create the dir for reasons we can't handle.
+  if (errno != ENOENT) {
+    return false;
+  }
+
+  // The ENOENT case, the parent directory doesn't exist yet.
+  // Let's create it.
+  const std::string dir = StripBasename(path);
+  if (dir == "/" || dir.empty()) {
+    return false;
+  }
+  if (!CreateDirectoryRecursively(dir, mode)) {
+    return false;
+  }
+
+  // Now the parent dir exists, retry creating the directory.
+  return mkdir(path.c_str(), mode) == 0;
+}
+
 bool DeleteRecursively(const std::string& filename) {
   std::vector<std::string> to_delete;
   to_delete.push_back(filename);

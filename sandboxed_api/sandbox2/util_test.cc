@@ -16,30 +16,14 @@
 
 #include <unistd.h>
 
-#include <string>
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/testing.h"
 
 namespace sandbox2::util {
 namespace {
 
-using ::sapi::GetTestTempPath;
 using ::testing::Gt;
 using ::testing::IsTrue;
-
-constexpr char kTestDir[] = "a/b/c";
-
-TEST(UtilTest, TestCreateDirSuccess) {
-  EXPECT_THAT(CreateDirRecursive(GetTestTempPath(kTestDir), 0700), IsTrue());
-}
-
-TEST(UtilTest, TestCreateDirExistSuccess) {
-  const std::string test_dir = GetTestTempPath(kTestDir);
-  EXPECT_THAT(CreateDirRecursive(test_dir, 0700), IsTrue());
-  EXPECT_THAT(CreateDirRecursive(test_dir, 0700), IsTrue());
-}
 
 TEST(UtilTest, TestCreateMemFd) {
   int fd = 0;

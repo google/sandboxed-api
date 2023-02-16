@@ -89,6 +89,9 @@ bool ListDirectoryEntries(const std::string& directory,
                           std::vector<std::string>* entries,
                           std::string* error);
 
+// Recursively creates a directory, skipping segments that already exist.
+bool CreateDirectoryRecursively(const std::string& path, int mode);
+
 // Deletes the specified file or directory, including any sub-directories.
 bool DeleteRecursively(const std::string& filename);
 

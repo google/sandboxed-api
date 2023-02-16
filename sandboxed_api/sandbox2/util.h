@@ -78,9 +78,6 @@ long Syscall(long sys_no,  // NOLINT
              uintptr_t a1 = 0, uintptr_t a2 = 0, uintptr_t a3 = 0,
              uintptr_t a4 = 0, uintptr_t a5 = 0, uintptr_t a6 = 0);
 
-// Recursively creates a directory, skipping segments that already exist.
-bool CreateDirRecursive(const std::string& path, mode_t mode);
-
 // Fork based on clone() which updates glibc's PID/TID caches - Based on:
 // https://chromium.googlesource.com/chromium/src/+/9eb564175dbd452196f782da2b28e3e8e79c49a5%5E!/
 //

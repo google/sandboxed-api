@@ -19,7 +19,6 @@
 #include <spawn.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
-#include <sys/stat.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -167,34 +166,6 @@ long Syscall(long sys_no,  // NOLINT
              uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4,
              uintptr_t a5, uintptr_t a6) {
   return syscall(sys_no, a1, a2, a3, a4, a5, a6);
-}
-
-bool CreateDirRecursive(const std::string& path, mode_t mode) {
-  int error = mkdir(path.c_str(), mode);
-
-  if (error == 0 || errno == EEXIST) {
-    return true;
-  }
-
-  // We couldn't create the dir for reasons we can't handle.
-  if (errno != ENOENT) {
-    return false;
-  }
-
-  // The EEXIST case, the parent directory doesn't exist yet.
-  // Let's create it.
-  const std::string dir = file_util::fileops::StripBasename(path);
-  if (dir == "/" || dir.empty()) {
-    return false;
-  }
-  if (!CreateDirRecursive(dir, mode)) {
-    return false;
-  }
-
-  // Now the parent dir exists, retry creating the directory.
-  error = mkdir(path.c_str(), mode);
-
-  return error == 0;
 }
 
 namespace {

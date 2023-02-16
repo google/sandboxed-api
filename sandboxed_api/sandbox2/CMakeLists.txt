@@ -586,7 +586,6 @@ target_link_libraries(sandbox2_namespace PRIVATE
   sandbox2::mounts
   sandbox2::mount_tree_proto
   sapi::strerror
-  sandbox2::util
   sandbox2::violation_proto
   sapi::base
   sapi::raw_logging
@@ -1035,7 +1034,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME util_test
   )
   target_link_libraries(sandbox2_util_test PRIVATE
-    sapi::testing
     sandbox2::util
     sapi::test_main
   )
