@@ -131,13 +131,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "print_fds",
-    testonly = True,
-    srcs = ["print_fds.cc"],
-    copts = sapi_platform_copts(),
-)
-
-cc_binary(
     name = "sanitizer",
     testonly = True,
     srcs = ["sanitizer.cc"],

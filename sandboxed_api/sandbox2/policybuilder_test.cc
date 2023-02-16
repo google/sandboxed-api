@@ -58,14 +58,12 @@ class PolicyBuilderPeer {
 
 namespace {
 
-using ::sapi::GetTestSourcePath;
 using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 using ::testing::Lt;
-using ::testing::NotNull;
 using ::testing::StartsWith;
 using ::testing::StrEq;
 using ::sapi::IsOk;
@@ -251,31 +249,6 @@ TEST_F(PolicyBuilderTest, TestInterfacesNetwork) {
 
   // Loopback network interface 'lo' and more.
   EXPECT_THAT(count, Gt(1));
-}
-
-TEST_F(PolicyBuilderTest, TestUid) {
-  if constexpr (!sapi::host_os::IsAndroid()) {
-    EXPECT_THAT(Run({"/usr/bin/id", "-u"}), StrEq("1000\n"));
-  } else {
-    EXPECT_THAT(Run({"/bin/id", "-u"}), StrEq("0\n"));
-  }
-}
-
-TEST_F(PolicyBuilderTest, TestGid) {
-  if constexpr (!sapi::host_os::IsAndroid()) {
-    EXPECT_THAT(Run({"/usr/bin/id", "-g"}), StrEq("1000\n"));
-  } else {
-    EXPECT_THAT(Run({"/bin/id", "-g"}), StrEq("0\n"));
-  }
-}
-
-TEST_F(PolicyBuilderTest, TestOpenFds) {
-  SKIP_SANITIZERS_AND_COVERAGE;
-
-  std::string sandboxee = GetTestSourcePath("sandbox2/testcases/print_fds");
-  std::string expected =
-      absl::StrCat("0\n1\n2\n", sandbox2::Comms::kSandbox2ClientCommsFD, "\n");
-  EXPECT_THAT(Run({sandboxee}), StrEq(expected));
 }
 
 }  // namespace

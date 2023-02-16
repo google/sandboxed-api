@@ -1044,9 +1044,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   set_target_properties(sandbox2_policybuilder_test PROPERTIES
     OUTPUT_NAME policybuilder_test
   )
-  add_dependencies(sandbox2_policybuilder_test
-    sandbox2::testcase_print_fds
-  )
   target_link_libraries(sandbox2_policybuilder_test
     PRIVATE absl::strings
             sandbox2::bpf_helper

@@ -954,7 +954,6 @@ cc_test(
     name = "policybuilder_test",
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:print_fds"],
     tags = [
         "no_qemu_user_mode",
         "requires-net:external",

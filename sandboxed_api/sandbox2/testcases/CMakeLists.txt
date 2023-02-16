@@ -152,18 +152,6 @@ target_link_libraries(sandbox2_testcase_policy PRIVATE
   sapi::config
 )
 
-# sandboxed_api/sandbox2/testcases:print_fds
-add_executable(sandbox2_testcase_print_fds
-  print_fds.cc
-)
-add_executable(sandbox2::testcase_print_fds ALIAS sandbox2_testcase_print_fds)
-set_target_properties(sandbox2_testcase_print_fds PROPERTIES
-  OUTPUT_NAME print_fds
-)
-target_link_libraries(sandbox2_testcase_print_fds PRIVATE
-  sapi::base
-)
-
 # sandboxed_api/sandbox2/testcases:sanitizer
 add_executable(sandbox2_testcase_sanitizer
   sanitizer.cc
