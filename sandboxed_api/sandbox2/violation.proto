@@ -113,6 +113,7 @@ message SyscallDescription {
 message PolicyBuilderDescription {
   repeated int32 handled_syscalls = 1;
   repeated string bind_mounts = 2;
+  string built_at_sloc = 3;
 }
 
 message NamespaceDescription {
