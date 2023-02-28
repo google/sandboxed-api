@@ -987,9 +987,6 @@ cc_library(
 sapi_proto_library(
     name = "violation_proto",
     srcs = ["violation.proto"],
-    visibility = [
-        "//monitoring/utilization/borg/turbine/stages:__pkg__",
-    ],
     deps = [":mount_tree_proto"],
 )
 
