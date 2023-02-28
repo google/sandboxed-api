@@ -250,6 +250,5 @@ TEST_F(PolicyBuilderTest, TestInterfacesNetwork) {
   // Loopback network interface 'lo' and more.
   EXPECT_THAT(count, Gt(1));
 }
-
 }  // namespace
 }  // namespace sandbox2
