@@ -15,7 +15,9 @@
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 
 #include <cxxabi.h>
+#include <sys/ptrace.h>
 
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -26,6 +28,7 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -56,6 +59,33 @@ std::string DemangleSymbol(const std::string& maybe_mangled) {
   return maybe_mangled;
 }
 
+absl::StatusOr<uintptr_t> ReadMemory(pid_t pid, uintptr_t addr) {
+  errno = 0;
+  uintptr_t val = ptrace(PTRACE_PEEKDATA, pid, addr, 0);
+  if (errno != 0) {
+    return absl::ErrnoToStatus(errno, "ptrace() failed");
+  }
+  return val;
+}
+
+absl::StatusOr<std::vector<uintptr_t>> UnwindUsingFramePointer(pid_t pid,
+                                                               int max_frames,
+                                                               uintptr_t fp) {
+#if defined(SAPI_PPC64_LE)
+  constexpr int kIPOffset = 2;
+#else
+  constexpr int kIPOffset = 1;
+#endif
+  std::vector<uintptr_t> ips;
+  for (int i = 0; fp != 0 && i < max_frames; ++i) {
+    SAPI_ASSIGN_OR_RETURN(uintptr_t ip,
+                          ReadMemory(pid, fp + kIPOffset * sizeof(void*)));
+    ips.push_back(ip);
+    SAPI_ASSIGN_OR_RETURN(fp, ReadMemory(pid, fp));
+  }
+  return ips;
+}
+
 absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
   static unw_addr_space_t as =
       unw_create_addr_space(&_UPT_accessors, 0 /* byte order */);
@@ -75,18 +105,47 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
     return absl::InternalError(
         absl::StrCat("unw_init_remote() failed with error ", rc));
   }
-
   std::vector<uintptr_t> ips;
   for (int i = 0; i < max_frames; ++i) {
     unw_word_t ip;
+    unw_word_t fp = 0;
     int rc = unw_get_reg(&cursor, UNW_REG_IP, &ip);
     if (rc < 0) {
       // Could be UNW_EUNSPEC or UNW_EBADREG.
       SAPI_RAW_LOG(WARNING, "unw_get_reg() failed with error %d", rc);
       break;
     }
+#if defined(SAPI_ARM64)
+    constexpr int kFpReg = UNW_AARCH64_X29;
+#elif defined(SAPI_ARM)
+    constexpr int kFpReg = UNW_ARM_R11;
+#elif defined(SAPI_X86_64)
+    constexpr int kFpReg = UNW_X86_64_RBP;
+#elif defined(SAPI_PPC64_LE)
+    constexpr int kFpReg = UNW_PPC64_R1;
+#endif
+    rc = unw_get_reg(&cursor, kFpReg, &fp);
+    if (rc < 0) {
+      SAPI_RAW_LOG(WARNING, "unw_get_reg() failed with error %d", rc);
+    }
     ips.push_back(ip);
-    if (unw_step(&cursor) <= 0) {
+    rc = unw_step(&cursor);
+    if (rc <= 0) {
+      if (rc < 0) {
+        SAPI_RAW_LOG(WARNING, "unw_step() failed with error %d", rc);
+      }
+      if (fp != 0) {
+        SAPI_RAW_LOG(INFO, "Falling back to frame based unwinding at FP: %lx",
+                     fp);
+        absl::StatusOr<std::vector<uintptr_t>> fp_ips =
+            UnwindUsingFramePointer(pid, max_frames - ips.size(), fp);
+        if (!fp_ips.ok()) {
+          SAPI_RAW_LOG(WARNING, "FP based unwinding failed: %s",
+                       std::string(fp_ips.status().message()).c_str());
+          break;
+        }
+        ips.insert(ips.end(), fp_ips->begin(), fp_ips->end());
+      }
       break;
     }
   }
