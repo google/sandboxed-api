@@ -27,6 +27,7 @@ target_link_libraries(sandbox2_sandbox2tool PRIVATE
   absl::log_initialize
   absl::strings
   absl::time
+  sandbox2::allow_all_syscalls
   sandbox2::bpf_helper
   sandbox2::sandbox2
   sandbox2::util

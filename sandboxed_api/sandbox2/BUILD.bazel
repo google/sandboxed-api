@@ -25,6 +25,24 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "allow_all_syscalls",
+    hdrs = ["allow_all_syscalls.h"],
+    copts = sapi_platform_copts(),
+    visibility = [
+        "//sandboxed_api/sandbox2:__pkg__",
+        "//sandboxed_api/sandbox2/examples/tool:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "testonly_allow_all_syscalls",
+    testonly = True,
+    hdrs = ["allow_all_syscalls.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "bpfdisassembler",
     srcs = ["bpfdisassembler.cc"],
     hdrs = ["bpfdisassembler.h"],
@@ -472,6 +490,7 @@ cc_library(
     hdrs = ["policybuilder.h"],
     copts = sapi_platform_copts(),
     deps = [
+        ":allow_all_syscalls",
         ":mounts",
         ":namespace",
         ":policy",
@@ -652,6 +671,7 @@ cc_test(
         ":comms",
         ":namespace",
         ":sandbox2",
+        ":testonly_allow_all_syscalls",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:fileops",
@@ -822,6 +842,7 @@ cc_test(
     deps = [
         ":limits",
         ":sandbox2",
+        ":testonly_allow_all_syscalls",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:status_matchers",
@@ -890,6 +911,7 @@ cc_test(
     ],
     deps = [
         ":sandbox2",
+        ":testonly_allow_all_syscalls",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:status_matchers",
@@ -911,6 +933,7 @@ cc_test(
         ":comms",
         ":sandbox2",
         ":sanitizer",
+        ":testonly_allow_all_syscalls",
         ":util",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:status_matchers",
@@ -945,6 +968,7 @@ cc_test(
         ":regs",
         ":sandbox2",
         ":stack_trace",
+        ":testonly_allow_all_syscalls",
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",
@@ -968,6 +992,7 @@ cc_test(
     deps = [
         ":comms",
         ":sandbox2",
+        ":testonly_allow_all_syscalls",
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:status_matchers",
@@ -1002,6 +1027,7 @@ cc_test(
         ":comms",
         ":policybuilder",
         ":sandbox2",
+        ":testonly_allow_all_syscalls",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:bpf_helper",

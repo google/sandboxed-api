@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -52,7 +53,7 @@ TEST_P(IPCTest, MapFDByNamePreExecve) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
@@ -89,7 +90,7 @@ TEST_P(IPCTest, MapFDByNamePostExecve) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
@@ -121,7 +122,7 @@ TEST(IPCTest, NoMappedFDsPreExecve) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));

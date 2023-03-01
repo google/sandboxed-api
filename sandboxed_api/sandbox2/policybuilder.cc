@@ -44,6 +44,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -1112,7 +1113,12 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(BpfFunc f) {
 }
 
 PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
-  user_policy_.push_back(ALLOW);
+  default_action_ = ALLOW;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::DefaultAction(AllowAllSyscalls) {
+  default_action_ = ALLOW;
   return *this;
 }
 
@@ -1185,6 +1191,9 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   output->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
   output->collect_stacktrace_on_exit_ = collect_stacktrace_on_exit_;
   output->user_policy_ = std::move(user_policy_);
+  if (default_action_) {
+    output->user_policy_.push_back(*default_action_);
+  }
   output->user_policy_.insert(output->user_policy_.end(),
                               overridable_policy_.begin(),
                               overridable_policy_.end());

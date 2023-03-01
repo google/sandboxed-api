@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -119,7 +120,7 @@ TEST(SanitizerTest, TestSandboxedBinary) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));

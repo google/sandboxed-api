@@ -30,6 +30,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -109,8 +110,6 @@ TEST_F(PolicyBuilderTest, Testpolicy_size) {
   builder.AllowTCGETS(); assert_increased();
   builder.AllowTCGETS(); assert_increased();
 
-  builder.DangerDefaultAllowAll(); assert_increased();
-  builder.DangerDefaultAllowAll(); assert_increased();
   builder.AddPolicyOnSyscall(__NR_fchmod, { ALLOW }); assert_increased();
   builder.AddPolicyOnSyscall(__NR_fchmod, { ALLOW }); assert_increased();
 
@@ -160,7 +159,7 @@ std::string PolicyBuilderTest::Run(const std::vector<std::string>& args,
                                    bool network) {
   PolicyBuilder builder;
   // Don't restrict the syscalls at all.
-  builder.DangerDefaultAllowAll();
+  builder.DefaultAction(AllowAllSyscalls());
 
   if constexpr (sapi::host_os::IsAndroid()) {
     builder.DisableNamespaces();
@@ -206,14 +205,15 @@ TEST_F(PolicyBuilderTest, TestCanOnlyBuildOnce) {
 
 TEST_F(PolicyBuilderTest, TestIsCopyable) {
   PolicyBuilder builder;
-  builder.DangerDefaultAllowAll();
+  builder.AllowSyscall(__NR_getpid);
 
   PolicyBuilder copy = builder;
-  ASSERT_EQ(PolicyBuilderPeer(&copy).policy_size(), 1);
+  ASSERT_EQ(PolicyBuilderPeer(&copy).policy_size(),
+            PolicyBuilderPeer(&builder).policy_size());
 
-  // Building both does not crash.
-  builder.BuildOrDie();
-  copy.BuildOrDie();
+  // Both can be built.
+  EXPECT_THAT(builder.TryBuild(), IsOk());
+  EXPECT_THAT(copy.TryBuild(), IsOk());
 }
 
 TEST_F(PolicyBuilderTest, TestEcho) {

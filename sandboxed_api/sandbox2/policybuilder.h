@@ -40,6 +40,8 @@ struct bpf_labels;
 
 namespace sandbox2 {
 
+class AllowAllSyscalls;
+
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
 //
@@ -666,10 +668,13 @@ class PolicyBuilder final {
   // Enables/disables stack trace collection on normal process exit.
   PolicyBuilder& CollectStacktracesOnExit(bool enable);
 
-  // Appends an unconditional ALLOW action for all syscalls.
+  // Changes the default action to ALLOW.
+  // All syscalls not handled explicitly by the policy will thus be allowed.
   // Do not use in environment with untrusted code and/or data, ask
   // sandbox-team@ first if unsure.
+  ABSL_DEPRECATED("Use DefaultAction(sandbox2::AllowAllSyscalls()) instead")
   PolicyBuilder& DangerDefaultAllowAll();
+  PolicyBuilder& DefaultAction(AllowAllSyscalls);
 
   // Allows syscalls that are necessary for the NetworkProxyClient
   PolicyBuilder& AddNetworkProxyPolicy();
@@ -739,6 +744,7 @@ class PolicyBuilder final {
   // Seccomp fields
   std::vector<sock_filter> user_policy_;
   std::vector<sock_filter> overridable_policy_;
+  std::optional<sock_filter> default_action_;
   bool user_policy_handles_bpf_ = false;
   bool user_policy_handles_ptrace_ = false;
   absl::flat_hash_set<uint32_t> handled_syscalls_;

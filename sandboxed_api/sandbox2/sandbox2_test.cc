@@ -27,6 +27,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -40,7 +41,7 @@ namespace {
 PolicyBuilder CreateDefaultPolicyBuilder(absl::string_view path) {
   PolicyBuilder builder;
   // Don't restrict the syscalls at all.
-  builder.DangerDefaultAllowAll();
+  builder.DefaultAction(AllowAllSyscalls());
   if constexpr (sapi::sanitizers::IsAny()) {
     builder.AddLibrariesForBinary(path);
   }

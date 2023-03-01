@@ -30,6 +30,7 @@
 #include "absl/flags/reflection.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -74,7 +75,7 @@ void SymbolizationWorksCommon(
 
   auto policybuilder = PolicyBuilder()
                            // Don't restrict the syscalls at all.
-                           .DangerDefaultAllowAll()
+                           .DefaultAction(AllowAllSyscalls())
                            .AddFile(path)
                            .AddLibrariesForBinary(path)
                            .AddFileAt(temp_filename, "/proc/cpuinfo");
@@ -186,7 +187,7 @@ TEST(StackTraceTest, SymbolizationTrustedFilesOnly) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .AddFile(path)
                                 .AddLibrariesForBinary(path)
                                 .TryBuild());

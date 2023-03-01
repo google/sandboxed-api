@@ -17,6 +17,15 @@ add_subdirectory(unwind)
 add_subdirectory(util)
 add_subdirectory(network_proxy)
 
+# sandboxed_api/sandbox2:allow_all_syscalls
+add_library(sandbox2_allow_all_syscalls ${SAPI_LIB_TYPE}
+  allow_all_syscalls.h
+)
+add_library(sandbox2::allow_all_syscalls ALIAS sandbox2_allow_all_syscalls)
+target_link_libraries(sandbox2_allow_all_syscalls PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2:bpfdisassembler
 add_library(sandbox2_bpfdisassembler ${SAPI_LIB_TYPE}
   bpfdisassembler.cc
@@ -796,6 +805,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_namespace_test PRIVATE
     absl::strings
+    sandbox2::allow_all_syscalls
     sandbox2::comms
     sapi::config
     sapi::fileops
@@ -905,6 +915,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_minimal
   )
   target_link_libraries(sandbox2_limits_test PRIVATE
+    sandbox2::allow_all_syscalls
     sandbox2::bpf_helper
     sapi::config
     sandbox2::limits
@@ -987,6 +998,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_sandbox2_test PRIVATE
     absl::strings
+    sandbox2::allow_all_syscalls
     sapi::config
     sandbox2::sandbox2
     sapi::testing
@@ -1011,6 +1023,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_sanitizer_test PRIVATE
     absl::strings
+    sandbox2::allow_all_syscalls
     sandbox2::bpf_helper
     sandbox2::client
     sandbox2::comms
@@ -1054,6 +1067,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::flags
     absl::status
     absl::strings
+    sandbox2::allow_all_syscalls
     sandbox2::bpf_helper
     sandbox2::global_forkserver
     sandbox2::namespace
@@ -1082,6 +1096,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_ipc
   )
   target_link_libraries(sandbox2_ipc_test PRIVATE
+    sandbox2::allow_all_syscalls
     sandbox2::bpf_helper
     sandbox2::comms
     sandbox2::ipc
@@ -1104,6 +1119,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_policybuilder_test
     PRIVATE absl::strings
+            sandbox2::allow_all_syscalls
             sandbox2::bpf_helper
             sandbox2::comms
             sandbox2::policybuilder

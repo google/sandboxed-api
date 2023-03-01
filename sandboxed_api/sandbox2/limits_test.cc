@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -45,7 +46,7 @@ TEST(LimitsTest, RLimitASMmapUnderLimit) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
@@ -63,7 +64,7 @@ TEST(LimitsTest, RLimitASMmapAboveLimit) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
@@ -81,7 +82,7 @@ TEST(LimitsTest, RLimitASAllocaSmallUnderLimit) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
@@ -99,7 +100,7 @@ TEST(LimitsTest, RLimitASAllocaBigUnderLimit) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
@@ -117,7 +118,7 @@ TEST(LimitsTest, RLimitASAllocaBigAboveLimit) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
                                 // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
+                                .DefaultAction(AllowAllSyscalls())
                                 .TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();
