@@ -24,12 +24,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/cleanup/cleanup.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
@@ -37,11 +36,9 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_matchers.h"
-#include "sandboxed_api/util/temp_file.h"
 
 ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 
@@ -49,64 +46,70 @@ namespace sandbox2 {
 namespace {
 
 namespace file_util = ::sapi::file_util;
-using ::sapi::CreateNamedTempFileAndClose;
 using ::sapi::GetTestSourcePath;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::Eq;
-using ::testing::HasSubstr;
 using ::testing::IsEmpty;
-using ::testing::IsTrue;
-using ::testing::Not;
+using ::testing::StartsWith;
+
+struct TestCase {
+  std::string arg = "1";
+  int final_status = Result::SIGNALED;
+  std::string function_name = "CrashMe";
+  std::string full_function_description = "CrashMe(char)";
+  std::function<void(PolicyBuilder*)> modify_policy;
+  absl::Duration wall_time_limit = absl::ZeroDuration();
+};
+
+class StackTraceTest : public ::testing::TestWithParam<TestCase> {};
 
 // Test that symbolization of stack traces works.
-void SymbolizationWorksCommon(
-    std::function<void(PolicyBuilder*)> modify_policy = {}) {
+void SymbolizationWorksCommon(TestCase param) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
-  std::vector<std::string> args = {path, "1"};
-
-  SAPI_ASSERT_OK_AND_ASSIGN(std::string temp_filename,
-                            CreateNamedTempFileAndClose("/tmp/"));
-  absl::Cleanup temp_cleanup = [&temp_filename] {
-    remove(temp_filename.c_str());
-  };
-  ASSERT_THAT(
-      file_util::fileops::CopyFile("/proc/cpuinfo", temp_filename, 0444),
-      IsTrue());
+  std::vector<std::string> args = {path, param.arg};
 
   auto policybuilder = PolicyBuilder()
                            // Don't restrict the syscalls at all.
-                           .DefaultAction(AllowAllSyscalls())
-                           .AddFile(path)
-                           .AddLibrariesForBinary(path)
-                           .AddFileAt(temp_filename, "/proc/cpuinfo");
-  if (modify_policy) {
-    modify_policy(&policybuilder);
+                           .DefaultAction(AllowAllSyscalls());
+  if (param.modify_policy) {
+    param.modify_policy(&policybuilder);
   }
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, policybuilder.TryBuild());
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
-  auto result = s2.Run();
+  ASSERT_TRUE(s2.RunAsync());
+  s2.set_walltime_limit(param.wall_time_limit);
+  auto result = s2.AwaitResult();
 
-  ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
-  ASSERT_THAT(result.GetStackTrace(), HasSubstr("CrashMe"));
+  EXPECT_THAT(result.final_status(), Eq(param.final_status));
+  EXPECT_THAT(result.stack_trace(), Contains(StartsWith(param.function_name)));
   // Check that demangling works as well.
-  ASSERT_THAT(result.GetStackTrace(), HasSubstr("CrashMe()"));
+  EXPECT_THAT(result.stack_trace(),
+              Contains(StartsWith(param.full_function_description)));
 }
 
-TEST(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
+void SymbolizationWorksWithModifiedPolicy(
+    std::function<void(PolicyBuilder*)> modify_policy) {
+  TestCase test_case;
+  test_case.modify_policy = std::move(modify_policy);
+  SymbolizationWorksCommon(test_case);
+}
+
+TEST_P(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
   SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, false);
 
-  SymbolizationWorksCommon();
+  SymbolizationWorksCommon(GetParam());
 }
 
-TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
+TEST_P(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
   SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
-  SymbolizationWorksCommon();
+  SymbolizationWorksCommon(GetParam());
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {
@@ -114,7 +117,7 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
-  SymbolizationWorksCommon(
+  SymbolizationWorksWithModifiedPolicy(
       [](PolicyBuilder* builder) { builder->AddDirectory("/proc"); });
 }
 
@@ -123,7 +126,7 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcFileMounted) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
-  SymbolizationWorksCommon([](PolicyBuilder* builder) {
+  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/proc/sys/vm/overcommit_memory");
   });
 }
@@ -133,7 +136,7 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysDirMounted) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
-  SymbolizationWorksCommon(
+  SymbolizationWorksWithModifiedPolicy(
       [](PolicyBuilder* builder) { builder->AddDirectory("/sys"); });
 }
 
@@ -142,12 +145,12 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysFileMounted) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
-  SymbolizationWorksCommon([](PolicyBuilder* builder) {
+  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/sys/devices/system/cpu/online");
   });
 }
 
-static size_t FileCountInDirectory(const std::string& path) {
+size_t FileCountInDirectory(const std::string& path) {
   std::vector<std::string> fds;
   std::string error;
   CHECK(file_util::fileops::ListDirectoryEntries(path, &fds, &error));
@@ -161,9 +164,7 @@ TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
 
   // Very first sanitization might create some fds (e.g. for initial
   // namespaces).
-  SymbolizationWorksCommon([](PolicyBuilder* builder) {
-    builder->AddFile("/sys/devices/system/cpu/online");
-  });
+  SymbolizationWorksCommon({});
 
   // Get list of open FDs in the global forkserver.
   pid_t forkserver_pid = GlobalForkClient::GetPid();
@@ -171,31 +172,9 @@ TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
       absl::StrCat("/proc/", forkserver_pid, "/fd");
   size_t filecount_before = FileCountInDirectory(forkserver_fd_path);
 
-  SymbolizationWorksCommon([](PolicyBuilder* builder) {
-    builder->AddFile("/sys/devices/system/cpu/online");
-  });
+  SymbolizationWorksCommon({});
 
   EXPECT_THAT(filecount_before, Eq(FileCountInDirectory(forkserver_fd_path)));
-}
-
-// Test that symbolization skips writeable files (attack vector).
-TEST(StackTraceTest, SymbolizationTrustedFilesOnly) {
-  SKIP_SANITIZERS_AND_COVERAGE;
-  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
-  std::vector<std::string> args = {path, "2"};
-
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DefaultAction(AllowAllSyscalls())
-                                .AddFile(path)
-                                .AddLibrariesForBinary(path)
-                                .TryBuild());
-  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
-  auto result = s2.Run();
-
-  ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
-  ASSERT_THAT(result.GetStackTrace(), Not(HasSubstr("CrashMe")));
 }
 
 TEST(StackTraceTest, CompactStackTrace) {
@@ -222,6 +201,42 @@ TEST(StackTraceTest, CompactStackTrace) {
               ElementsAre("_start", "main", "recursive_call",
                           "(previous frame repeated 3 times)"));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Instantiation, StackTraceTest,
+    ::testing::Values(
+        TestCase{
+            .arg = "1",
+            .final_status = Result::SIGNALED,
+            .function_name = "CrashMe",
+            .full_function_description = "CrashMe(char)",
+        },
+        TestCase{
+            .arg = "2",
+            .final_status = Result::VIOLATION,
+            .function_name = "ViolatePolicy",
+            .full_function_description = "ViolatePolicy(int)",
+        },
+        TestCase{
+            .arg = "3",
+            .final_status = Result::OK,
+            .function_name = "ExitNormally",
+            .full_function_description = "ExitNormally(int)",
+            .modify_policy =
+                [](PolicyBuilder* builder) {
+                  builder->CollectStacktracesOnExit(true);
+                },
+        },
+        TestCase{
+            .arg = "4",
+            .final_status = Result::TIMEOUT,
+            .function_name = "SleepForXSeconds",
+            .full_function_description = "SleepForXSeconds(int)",
+            .wall_time_limit = absl::Seconds(1),
+        }),
+    [](const ::testing::TestParamInfo<TestCase>& info) {
+      return info.param.function_name;
+    });
 
 }  // namespace
 }  // namespace sandbox2

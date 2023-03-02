@@ -1063,19 +1063,17 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_symbolize
   )
   target_link_libraries(sandbox2_stack_trace_test PRIVATE
-    absl::cleanup
     absl::flags
     absl::status
     absl::strings
+    absl::time
     sandbox2::allow_all_syscalls
-    sandbox2::bpf_helper
     sandbox2::global_forkserver
     sandbox2::namespace
     sandbox2::sandbox2
     sandbox2::stack_trace
     sandbox2::util
     sapi::fileops
-    sapi::temp_file
     sapi::testing
     sapi::status_matchers
     sapi::test_main

@@ -208,10 +208,9 @@ set_target_properties(sandbox2_testcase_symbolize PROPERTIES
   OUTPUT_NAME symbolize
 )
 target_link_libraries(sandbox2_testcase_symbolize PRIVATE
+  -static
   absl::core_headers
   absl::strings
-  sapi::temp_file
-  sapi::strerror
   sapi::base
   sapi::raw_logging
 )

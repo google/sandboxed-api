@@ -53,7 +53,6 @@ PolicyBuilder CreateDefaultPolicyBuilder(absl::string_view path) {
 
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
-using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Lt;
@@ -118,28 +117,6 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   ASSERT_EQ(result.final_status(), Result::OK);
 }
 
-// Tests that we return the correct state when the sandboxee timed out.
-TEST(StackTraceTest, StackTraceOnTimeoutWorks) {
-  SKIP_ANDROID;
-  const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
-
-  std::vector<std::string> args = {path};
-  std::vector<std::string> envs;
-  auto executor = std::make_unique<Executor>(path, args, envs);
-
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DangerDefaultAllowAll()
-                                .TryBuild());
-  Sandbox2 sandbox(std::move(executor), std::move(policy));
-  ASSERT_TRUE(sandbox.RunAsync());
-  sandbox.set_walltime_limit(absl::Seconds(1));
-  auto result = sandbox.AwaitResult();
-  EXPECT_EQ(result.final_status(), Result::TIMEOUT);
-  EXPECT_THAT(result.GetStackTrace(), HasSubstr("sleep"));
-}
-
 // Tests that we return the correct state when the sandboxee was killed by an
 // external signal. Also make sure that we do not have the stack trace.
 TEST(RunAsyncTest, SandboxeeExternalKill) {
@@ -157,7 +134,7 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
   sandbox.Kill();
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::EXTERNAL_KILL);
-  EXPECT_THAT(result.GetStackTrace(), IsEmpty());
+  EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 
 // Tests that we do not collect stack traces if it was disabled (signaled).
@@ -176,7 +153,7 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
   sandbox.set_walltime_limit(absl::Seconds(1));
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::TIMEOUT);
-  EXPECT_THAT(result.GetStackTrace(), IsEmpty());
+  EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 
 // Tests that we do not collect stack traces if it was disabled (violation).
@@ -196,7 +173,7 @@ TEST(RunAsyncTest, SandboxeeViolationDisabledStacktraces) {
   ASSERT_TRUE(sandbox.RunAsync());
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::VIOLATION);
-  EXPECT_THAT(result.GetStackTrace(), IsEmpty());
+  EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 
 TEST(RunAsyncTest, SandboxeeNotKilledWhenStartingThreadFinishes) {
@@ -205,7 +182,6 @@ TEST(RunAsyncTest, SandboxeeNotKilledWhenStartingThreadFinishes) {
   auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPolicyBuilder(path)
-                                             .CollectStacktracesOnExit(true)
                                              .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   std::thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });

@@ -168,9 +168,9 @@ cc_binary(
     testonly = True,
     srcs = ["symbolize.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
     deps = [
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:temp_file",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
