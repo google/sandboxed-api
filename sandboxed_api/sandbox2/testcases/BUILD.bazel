@@ -163,6 +163,22 @@ cc_binary(
     features = ["fully_static_link"],
 )
 
+cc_library(
+    name = "symbolize_lib",
+    testonly = True,
+    srcs = ["symbolize_lib.cc"],
+    hdrs = ["symbolize_lib.h"],
+    copts = sapi_platform_copts([
+        "-fno-omit-frame-pointer",
+        "-fno-unwind-tables",
+        "-fno-asynchronous-unwind-tables",
+    ]),
+    features = ["fully_static_link"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
 cc_binary(
     name = "symbolize",
     testonly = True,
@@ -170,6 +186,7 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
+        ":symbolize_lib",
         "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",

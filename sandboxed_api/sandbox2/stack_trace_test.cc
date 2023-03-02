@@ -54,9 +54,11 @@ using ::testing::IsEmpty;
 using ::testing::StartsWith;
 
 struct TestCase {
-  std::string arg = "1";
+  std::string testname = "CrashMe";
+  int testno = 1;
+  int testmode = 1;
   int final_status = Result::SIGNALED;
-  std::string function_name = "CrashMe";
+  std::string function_name = testname;
   std::string full_function_description = "CrashMe(char)";
   std::function<void(PolicyBuilder*)> modify_policy;
   absl::Duration wall_time_limit = absl::ZeroDuration();
@@ -67,7 +69,8 @@ class StackTraceTest : public ::testing::TestWithParam<TestCase> {};
 // Test that symbolization of stack traces works.
 void SymbolizationWorksCommon(TestCase param) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
-  std::vector<std::string> args = {path, param.arg};
+  std::vector<std::string> args = {path, absl::StrCat(param.testno),
+                                   absl::StrCat(param.testmode)};
 
   auto policybuilder = PolicyBuilder()
                            // Don't restrict the syscalls at all.
@@ -87,6 +90,20 @@ void SymbolizationWorksCommon(TestCase param) {
   // Check that demangling works as well.
   EXPECT_THAT(result.stack_trace(),
               Contains(StartsWith(param.full_function_description)));
+  EXPECT_THAT(result.stack_trace(), Contains(StartsWith("RunTest")));
+  EXPECT_THAT(result.stack_trace(), Contains(StartsWith("main")));
+  if (param.testmode == 2) {
+    EXPECT_THAT(result.stack_trace(),
+                Contains(StartsWith("RecurseA")).Times(5));
+    EXPECT_THAT(result.stack_trace(),
+                Contains(StartsWith("RecurseB")).Times(5));
+  } else if (param.testmode == 3) {
+    EXPECT_THAT(result.stack_trace(), Contains(StartsWith("LibRecurse")));
+    EXPECT_THAT(result.stack_trace(),
+                Contains(StartsWith("LibRecurseA")).Times(5));
+    EXPECT_THAT(result.stack_trace(),
+                Contains(StartsWith("LibRecurseB")).Times(5));
+  }
 }
 
 void SymbolizationWorksWithModifiedPolicy(
@@ -206,21 +223,21 @@ INSTANTIATE_TEST_SUITE_P(
     Instantiation, StackTraceTest,
     ::testing::Values(
         TestCase{
-            .arg = "1",
+            .testname = "CrashMe",
+            .testno = 1,
             .final_status = Result::SIGNALED,
-            .function_name = "CrashMe",
             .full_function_description = "CrashMe(char)",
         },
         TestCase{
-            .arg = "2",
+            .testname = "ViolatePolicy",
+            .testno = 2,
             .final_status = Result::VIOLATION,
-            .function_name = "ViolatePolicy",
             .full_function_description = "ViolatePolicy(int)",
         },
         TestCase{
-            .arg = "3",
+            .testname = "ExitNormally",
+            .testno = 3,
             .final_status = Result::OK,
-            .function_name = "ExitNormally",
             .full_function_description = "ExitNormally(int)",
             .modify_policy =
                 [](PolicyBuilder* builder) {
@@ -228,14 +245,30 @@ INSTANTIATE_TEST_SUITE_P(
                 },
         },
         TestCase{
-            .arg = "4",
+            .testname = "SleepForXSeconds",
+            .testno = 4,
             .final_status = Result::TIMEOUT,
-            .function_name = "SleepForXSeconds",
             .full_function_description = "SleepForXSeconds(int)",
             .wall_time_limit = absl::Seconds(1),
+        },
+        TestCase{
+            .testname = "ViolatePolicyRecursive",
+            .testno = 2,
+            .testmode = 2,
+            .final_status = Result::VIOLATION,
+            .function_name = "ViolatePolicy",
+            .full_function_description = "ViolatePolicy(int)",
+        },
+        TestCase{
+            .testname = "ViolatePolicyRecursiveLib",
+            .testno = 2,
+            .testmode = 3,
+            .final_status = Result::VIOLATION,
+            .function_name = "ViolatePolicy",
+            .full_function_description = "ViolatePolicy(int)",
         }),
     [](const ::testing::TestParamInfo<TestCase>& info) {
-      return info.param.function_name;
+      return info.param.testname;
     });
 
 }  // namespace

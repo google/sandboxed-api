@@ -213,6 +213,24 @@ target_link_libraries(sandbox2_testcase_symbolize PRIVATE
   absl::strings
   sapi::base
   sapi::raw_logging
+  sandbox2::testcase_symbolize_lib
+)
+
+# sandboxed_api/sandbox2/testcases:symbolize_lib
+add_library(sandbox2_testcase_symbolize_lib
+  symbolize_lib.cc
+  symbolize_lib.h
+)
+add_library(sandbox2::testcase_symbolize_lib ALIAS sandbox2_testcase_symbolize_lib)
+target_link_libraries(sandbox2_testcase_symbolize_lib PRIVATE
+  -static
+  absl::core_headers
+  sapi::base
+)
+target_compile_options(sandbox2_testcase_symbolize_lib PRIVATE
+  -fno-omit-frame-pointer
+  -fno-unwind-tables
+  -fno-asynchronous-unwind-tables
 )
 
 # sandboxed_api/sandbox2/testcases:starve

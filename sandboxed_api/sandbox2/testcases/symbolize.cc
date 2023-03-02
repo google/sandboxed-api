@@ -22,6 +22,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/numbers.h"
+#include "sandboxed_api/sandbox2/testcases/symbolize_lib.h"
 #include "sandboxed_api/util/raw_logging.h"
 
 // Sometimes we don't have debug info to properly unwind through libc (a frame
@@ -63,10 +64,9 @@ void SleepForXSeconds(int x = 0) {
   IndirectLibcCall([x]() { sleep(x); });
 }
 
-int main(int argc, char* argv[]) {
-  SAPI_RAW_CHECK(argc >= 2, "Not enough arguments");
-  int testno;
-  SAPI_RAW_CHECK(absl::SimpleAtoi(argv[1], &testno), "testno not a number");
+ABSL_ATTRIBUTE_NOINLINE
+ABSL_ATTRIBUTE_NO_TAIL_CALL
+void RunTest(int testno) {
   switch (testno) {
     case 1:
       CrashMe();
@@ -82,6 +82,47 @@ int main(int argc, char* argv[]) {
       break;
     default:
       SAPI_RAW_LOG(FATAL, "Unknown test case: %d", testno);
+  }
+}
+
+ABSL_ATTRIBUTE_NOINLINE
+ABSL_ATTRIBUTE_NO_TAIL_CALL
+void RecurseA(int testno, int n);
+
+ABSL_ATTRIBUTE_NOINLINE
+ABSL_ATTRIBUTE_NO_TAIL_CALL
+void RecurseB(int testno, int n) {
+  if (n > 1) {
+    return RecurseA(testno, n - 1);
+  }
+  return RunTest(testno);
+}
+
+void RecurseA(int testno, int n) {
+  if (n > 1) {
+    return RecurseB(testno, n - 1);
+  }
+  return RunTest(testno);
+}
+
+int main(int argc, char* argv[]) {
+  SAPI_RAW_CHECK(argc >= 3, "Not enough arguments");
+  int testno;
+  int testmode;
+  SAPI_RAW_CHECK(absl::SimpleAtoi(argv[1], &testno), "testno not a number");
+  SAPI_RAW_CHECK(absl::SimpleAtoi(argv[2], &testmode), "testmode not a number");
+  switch (testmode) {
+    case 1:
+      RunTest(testno);
+      break;
+    case 2:
+      RecurseA(testno, 10);
+      break;
+    case 3:
+      LibRecurse(&RunTest, testno, 10);
+      break;
+    default:
+      SAPI_RAW_LOG(FATAL, "Unknown test mode: %d", testmode);
   }
   return EXIT_SUCCESS;
 }
