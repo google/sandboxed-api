@@ -28,7 +28,6 @@ class UVTestCallbackSapiSandbox : public uv::UVSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .DangerDefaultAllowAll()
         .AllowDynamicStartup()
         .AllowExit()
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
