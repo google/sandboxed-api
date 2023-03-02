@@ -198,10 +198,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     testing.h
   )
   add_library(sapi::testing ALIAS sapi_testing)
-  target_link_libraries(sapi_testing PRIVATE
-    absl::strings
-    sapi::file_base
-    sapi::base
+  target_link_libraries(sapi_testing
+   PRIVATE absl::strings
+           sapi::file_base
+           sapi::base
+   PUBLIC sapi::config
+          sandbox2::allow_all_syscalls
+          sandbox2::policybuilder
   )
 
   # sandboxed_api:sapi_test

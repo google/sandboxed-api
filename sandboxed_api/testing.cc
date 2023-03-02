@@ -14,10 +14,38 @@
 
 #include "sandboxed_api/testing.h"
 
+#include <cstdlib>
+
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/util/path.h"
 
 namespace sapi {
+
+bool IsCoverageRun() {
+  return getenv("COVERAGE") != nullptr;
+}
+
+sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
+    absl::string_view bin_path) {
+  sandbox2::PolicyBuilder builder;
+  // Don't restrict the syscalls at all.
+  builder.DefaultAction(sandbox2::AllowAllSyscalls());
+  if (sapi::host_os::IsAndroid()) {
+    builder.DisableNamespaces();
+  }
+  if (IsCoverageRun()) {
+    builder.AddDirectory(getenv("COVERAGE_DIR"), /*is_ro=*/false);
+  }
+  if constexpr (sapi::sanitizers::IsAny()) {
+    builder.AddLibrariesForBinary(bin_path);
+  }
+  if constexpr (sapi::sanitizers::IsAny()) {
+    builder.AddDirectory("/proc");
+  }
+  return builder;
+}
 
 std::string GetTestTempPath(absl::string_view name) {
   // When using Bazel, the environment variable TEST_TMPDIR is guaranteed to be

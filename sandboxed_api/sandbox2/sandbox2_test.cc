@@ -27,7 +27,6 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
-#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -38,19 +37,7 @@
 namespace sandbox2 {
 namespace {
 
-PolicyBuilder CreateDefaultPolicyBuilder(absl::string_view path) {
-  PolicyBuilder builder;
-  // Don't restrict the syscalls at all.
-  builder.DefaultAction(AllowAllSyscalls());
-  if constexpr (sapi::sanitizers::IsAny()) {
-    builder.AddLibrariesForBinary(path);
-  }
-  if constexpr (sapi::sanitizers::IsAny()) {
-    builder.AddDirectory("/proc");
-  }
-  return builder;
-}
-
+using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::IsEmpty;
@@ -60,14 +47,13 @@ using ::testing::Lt;
 // Test that aborting inside a sandbox with all userspace core dumping
 // disabled reports the signal.
 TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/abort");
   std::vector<std::string> args = {
       path,
   };
   auto executor = std::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPolicyBuilder(path)
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
                                              .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
@@ -79,7 +65,6 @@ TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
 // Test that with TSYNC we are able to sandbox when multithreaded and with no
 // memory checks. If TSYNC is not supported, then no.
 TEST(TsyncTest, TsyncNoMemoryChecks) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/tsync");
 
   auto executor =
@@ -87,7 +72,7 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
   executor->set_enable_sandbox_before_exec(false);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPolicyBuilder(path).TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
@@ -99,8 +84,6 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
 // Tests whether Executor(fd, std::vector<std::string>{path}, envp) constructor
 // works as expected.
 TEST(ExecutorTest, ExecutorFdConstructor) {
-  SKIP_SANITIZERS_AND_COVERAGE;
-
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   int fd = open(path.c_str(), O_RDONLY);
   ASSERT_NE(fd, -1);
@@ -110,7 +93,7 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   auto executor = std::make_unique<Executor>(fd, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPolicyBuilder(path).TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
@@ -127,7 +110,7 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
   auto executor = std::make_unique<Executor>(path, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPolicyBuilder(path).TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_TRUE(sandbox.RunAsync());
   sleep(1);
@@ -145,7 +128,7 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
   std::vector<std::string> envs;
   auto executor = std::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPolicyBuilder(path)
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
                                              .CollectStacktracesOnTimeout(false)
                                              .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
@@ -181,8 +164,8 @@ TEST(RunAsyncTest, SandboxeeNotKilledWhenStartingThreadFinishes) {
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPolicyBuilder(path)
-                                             .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   std::thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });
   sandbox_start_thread.join();
@@ -199,7 +182,7 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
   executor->limits()->set_walltime_limit(absl::Seconds(5));
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPolicyBuilder(path).TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   auto start = absl::Now();

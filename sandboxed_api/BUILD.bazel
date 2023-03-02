@@ -224,6 +224,9 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":config",
+        "//sandboxed_api/sandbox2:policybuilder",
+        "//sandboxed_api/sandbox2:testonly_allow_all_syscalls",
         "//sandboxed_api/util:file_base",
         "@com_google_absl//absl/strings",
     ],

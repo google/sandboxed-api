@@ -998,7 +998,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_sandbox2_test PRIVATE
     absl::strings
-    sandbox2::allow_all_syscalls
     sapi::config
     sandbox2::sandbox2
     sapi::testing

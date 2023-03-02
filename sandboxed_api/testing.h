@@ -15,10 +15,11 @@
 #ifndef SANDBOXED_API_TESTING_H_
 #define SANDBOXED_API_TESTING_H_
 
-#include <cstdlib>
 #include <string>
 
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/policybuilder.h"
 
 // The macro SKIP_ANDROID can be used in tests to skip running a
 // given test (by emitting 'retrun') when running on Android. Example:
@@ -30,11 +31,12 @@
 //
 // The reason for this is because certain unit tests require the use of user
 // namespaces which are not present on Android.
-#if defined(__ANDROID__)
-#define SKIP_ANDROID return
-#else
-#define SKIP_ANDROID
-#endif
+#define SKIP_ANDROID                            \
+  do {                                          \
+    if constexpr (sapi::host_os::IsAndroid()) { \
+      return;                                   \
+    }                                           \
+  } while (0)
 
 // The macro SKIP_SANITIZERS_AND_COVERAGE can be used in tests to skip running
 // a given test (by emitting 'return') when running under one of the sanitizers
@@ -57,20 +59,20 @@
 // The downside of this approach is that no coverage will be collected.
 // To still have coverage, pre-compile sandboxees and add them as test data,
 // then there will be no need to skip tests.
-#if defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
-    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
-#define SKIP_SANITIZERS_AND_COVERAGE return
-#else
-#define SAPI_BUILDDATA_COVERAGE_ENABLED false
-#define SKIP_SANITIZERS_AND_COVERAGE                                        \
-  do {                                                                      \
-    if (SAPI_BUILDDATA_COVERAGE_ENABLED || getenv("COVERAGE") != nullptr) { \
-      return;                                                               \
-    }                                                                       \
+#define SKIP_SANITIZERS_AND_COVERAGE                          \
+  do {                                                        \
+    if (sapi::sanitizers::IsAny() || sapi::IsCoverageRun()) { \
+      return;                                                 \
+    }                                                         \
   } while (0)
-#endif
 
 namespace sapi {
+
+// Returns whether the executable running under code coverage.
+bool IsCoverageRun();
+
+sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
+    absl::string_view bin_path);
 
 // Returns a writable path usable in tests. If the name argument is specified,
 // returns a name under that path. This can then be used for creating temporary
