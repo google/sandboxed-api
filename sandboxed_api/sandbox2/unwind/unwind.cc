@@ -271,14 +271,8 @@ bool RunLibUnwindAndSymbolizer(Comms* comms) {
 
   EnablePtraceEmulationWithUserRegs(setup.pid(), setup.regs(), mem_fd);
 
-  absl::StatusOr<std::vector<uintptr_t>> ips =
-      RunLibUnwind(setup.pid(), setup.default_max_frames());
-  absl::StatusOr<std::vector<std::string>> stack_trace;
-  if (ips.ok()) {
-    stack_trace = SymbolizeStacktrace(setup.pid(), *ips);
-  } else {
-    stack_trace = ips.status();
-  }
+  absl::StatusOr<std::vector<std::string>> stack_trace =
+      RunLibUnwindAndSymbolizer(setup.pid(), setup.default_max_frames());
 
   if (!comms->SendStatus(stack_trace.status())) {
     return false;
@@ -290,7 +284,6 @@ bool RunLibUnwindAndSymbolizer(Comms* comms) {
 
   UnwindResult msg;
   *msg.mutable_stacktrace() = {stack_trace->begin(), stack_trace->end()};
-  *msg.mutable_ip() = {ips->begin(), ips->end()};
   return comms->SendProtoBuf(msg);
 }
 

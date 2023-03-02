@@ -30,6 +30,5 @@ message UnwindSetup {
 message UnwindResult {
   // Readable stacktrace, symbolized, one frame per line
   repeated string stacktrace = 1;
-  // Stack frames
-  repeated uint64 ip = 2;
+  reserved 2;
 }
