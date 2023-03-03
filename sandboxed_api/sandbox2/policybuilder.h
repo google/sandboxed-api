@@ -672,9 +672,10 @@ class PolicyBuilder final {
   // All syscalls not handled explicitly by the policy will thus be allowed.
   // Do not use in environment with untrusted code and/or data, ask
   // sandbox-team@ first if unsure.
+  PolicyBuilder& DefaultAction(AllowAllSyscalls);
+
   ABSL_DEPRECATED("Use DefaultAction(sandbox2::AllowAllSyscalls()) instead")
   PolicyBuilder& DangerDefaultAllowAll();
-  PolicyBuilder& DefaultAction(AllowAllSyscalls);
 
   // Allows syscalls that are necessary for the NetworkProxyClient
   PolicyBuilder& AddNetworkProxyPolicy();

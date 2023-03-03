@@ -1113,8 +1113,7 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(BpfFunc f) {
 }
 
 PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
-  default_action_ = ALLOW;
-  return *this;
+  return DefaultAction(AllowAllSyscalls());
 }
 
 PolicyBuilder& PolicyBuilder::DefaultAction(AllowAllSyscalls) {
