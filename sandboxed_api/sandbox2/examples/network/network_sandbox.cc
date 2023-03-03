@@ -199,12 +199,9 @@ int main(int argc, char* argv[]) {
 
   executor
       ->limits()
-      // Remove restrictions on the size of address-space of sandboxed
-      // processes.
-      ->set_rlimit_as(RLIM64_INFINITY)
       // Kill sandboxed processes with a signal (SIGXFSZ) if it writes more than
       // these many bytes to the file-system.
-      .set_rlimit_fsize(10000)
+      ->set_rlimit_fsize(10000)
       .set_rlimit_cpu(100)  // The CPU time limit in seconds
       .set_walltime_limit(absl::Seconds(100));
 

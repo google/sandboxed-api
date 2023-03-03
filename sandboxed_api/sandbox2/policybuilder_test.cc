@@ -172,9 +172,6 @@ std::string PolicyBuilderTest::Run(const std::vector<std::string>& args,
   }
 
   auto executor = std::make_unique<sandbox2::Executor>(args[0], args);
-  if constexpr (sapi::sanitizers::IsAny()) {
-    executor->limits()->set_rlimit_as(RLIM64_INFINITY);
-  }
   int fd1 = executor->ipc()->ReceiveFd(STDOUT_FILENO);
   sandbox2::Sandbox2 s2(std::move(executor), builder.BuildOrDie());
 

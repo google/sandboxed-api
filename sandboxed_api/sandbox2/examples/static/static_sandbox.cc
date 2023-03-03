@@ -145,12 +145,9 @@ int main(int argc, char* argv[]) {
       // Note: 'true' is the default setting for this class.
       ->set_enable_sandbox_before_exec(true)
       .limits()
-      // Remove restrictions on the size of address-space of sandboxed
-      // processes.
-      ->set_rlimit_as(RLIM64_INFINITY)
       // Kill sandboxed processes with a signal (SIGXFSZ) if it writes more than
       // these many bytes to the file-system.
-      .set_rlimit_fsize(1024 * 1024)
+      ->set_rlimit_fsize(1024 * 1024)
       // The CPU time limit.
       .set_rlimit_cpu(60)
       .set_walltime_limit(absl::Seconds(30));

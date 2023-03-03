@@ -175,10 +175,7 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
   // non-public constructor.
   auto executor = absl::WrapUnique(new Executor(pid));
 
-  executor->limits()
-      ->set_rlimit_as(RLIM64_INFINITY)
-      .set_rlimit_cpu(10)
-      .set_walltime_limit(absl::Seconds(5));
+  executor->limits()->set_rlimit_cpu(10).set_walltime_limit(absl::Seconds(5));
 
   // Temporary directory used to provide files from /proc to the unwind sandbox.
   char unwind_temp_directory_template[] = "/tmp/.sandbox2_unwind_XXXXXX";

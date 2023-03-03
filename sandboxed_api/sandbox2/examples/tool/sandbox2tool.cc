@@ -144,12 +144,9 @@ int main(int argc, char* argv[]) {
 
   executor
       ->limits()
-      // Remove restrictions on the size of address-space of sandboxed
-      // processes.
-      ->set_rlimit_as(RLIM64_INFINITY)
       // Kill sandboxed processes with a signal (SIGXFSZ) if it writes more than
       // this to the file-system.
-      .set_rlimit_fsize(
+      ->set_rlimit_fsize(
           absl::GetFlag(FLAGS_sandbox2tool_file_size_creation_limit))
       // An arbitrary, but empirically safe value.
       .set_rlimit_nofile(1024U)

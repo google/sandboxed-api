@@ -188,9 +188,7 @@ absl::Status Sandbox::Init() {
       .limits()
       // Disable time limits.
       ->set_walltime_limit(absl::ZeroDuration())
-      .set_rlimit_cpu(RLIM64_INFINITY)
-      // Needed by the Scudo Allocator, and by various *SAN options.
-      .set_rlimit_as(RLIM64_INFINITY);
+      .set_rlimit_cpu(RLIM64_INFINITY);
 
   // Modify the executor, e.g. by setting custom limits and IPC.
   ModifyExecutor(executor.get());

@@ -65,15 +65,10 @@ static int SandboxIteration(sandbox2::ForkClient* fork_client, int32_t i) {
   // Set limits as usual.
   executor
       ->limits()
-      // Remove restrictions on the size of address-space of sandboxed
-      // processes. Here, it's 1GiB.
-      ->set_rlimit_as(sapi::sanitizers::IsAny() ? RLIM64_INFINITY
-                                                : 1ULL << 30  // 1GiB
-                      )
       // Kill sandboxed processes with a signal (SIGXFSZ) if it writes more than
       // these many bytes to the file-system (including logs in prod, which
       // write to files STDOUT and STDERR).
-      .set_rlimit_fsize(1024 /* bytes */)
+      ->set_rlimit_fsize(1024 /* bytes */)
       // The CPU time limit.
       .set_rlimit_cpu(10 /* CPU-seconds */)
       .set_walltime_limit(absl::Seconds(5));
