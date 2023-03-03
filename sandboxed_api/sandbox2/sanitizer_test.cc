@@ -29,7 +29,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -40,6 +39,7 @@
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
+using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::Gt;
@@ -101,7 +101,6 @@ TEST(SanitizerTest, TestMarkFDsAsCOE) {
 // Test that default sanitizer leaves only 0/1/2 and 1023 (client comms FD)
 // open but closes the rest.
 TEST(SanitizerTest, TestSandboxedBinary) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   // Open a few file descriptors in non-close-on-exec mode.
   int sock_fd[2];
   ASSERT_THAT(socketpair(AF_UNIX, SOCK_STREAM, 0, sock_fd), Ne(-1));
@@ -118,10 +117,7 @@ TEST(SanitizerTest, TestSandboxedBinary) {
   auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DefaultAction(AllowAllSyscalls())
-                                .TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();

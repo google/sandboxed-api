@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -34,58 +35,26 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
 
+using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
-
-PolicyBuilder CreatePolicyTestPolicyBuilder() {
-  sandbox2::PolicyBuilder builder;
-
-  if constexpr (sapi::host_os::IsAndroid()) {
-    builder.DisableNamespaces().AllowDynamicStartup();
-  }
-
-  builder.AllowStaticStartup()
-      .AllowExit()
-      .AllowRead()
-      .AllowWrite()
-      .AllowSyscall(__NR_close)
-      .AllowSyscall(__NR_getppid)
-      .AllowTCGETS()
-      .BlockSyscallsWithErrno(
-          {
-#ifdef __NR_open
-              __NR_open,
-#endif
-              __NR_openat,
-#ifdef __NR_access
-              __NR_access,
-#endif
-#ifdef __NR_faccessat
-              __NR_faccessat,
-#endif
-          },
-          ENOENT)
-      .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
-  return builder;
-}
-
-std::unique_ptr<Policy> PolicyTestcasePolicy() {
-  return CreatePolicyTestPolicyBuilder().BuildOrDie();
-}
 
 #ifdef SAPI_X86_64
 // Test that 32-bit syscalls from 64-bit are disallowed.
 TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
   SKIP_ANDROID;
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
 
   std::vector<std::string> args = {path, "1"};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -96,10 +65,12 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
 TEST(PolicyTest, AMD64Syscall32FsAllowed) {
   SKIP_ANDROID;
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "2"};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -111,10 +82,12 @@ TEST(PolicyTest, AMD64Syscall32FsAllowed) {
 
 // Test that ptrace(2) is disallowed.
 TEST(PolicyTest, PtraceDisallowed) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "3"};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -122,14 +95,14 @@ TEST(PolicyTest, PtraceDisallowed) {
 }
 
 TEST(PolicyTest, PtraceBlocked) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "8"};
 
-  Sandbox2 s2(std::make_unique<Executor>(path, args),
-              CreatePolicyTestPolicyBuilder()
-                  .BlockSyscallWithErrno(__NR_ptrace, EPERM)
-                  .BuildOrDie());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path)
+                                .BlockSyscallWithErrno(__NR_ptrace, EPERM)
+                                .TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   // The policy binary fails with an error if the system call is *not* blocked.
@@ -138,10 +111,11 @@ TEST(PolicyTest, PtraceBlocked) {
 
 // Test that clone(2) with flag CLONE_UNTRACED is disallowed.
 TEST(PolicyTest, CloneUntracedDisallowed) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "4"};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -150,10 +124,11 @@ TEST(PolicyTest, CloneUntracedDisallowed) {
 
 // Test that bpf(2) is disallowed.
 TEST(PolicyTest, BpfDisallowed) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "5"};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -162,14 +137,13 @@ TEST(PolicyTest, BpfDisallowed) {
 
 // Test that bpf(2) can return EPERM.
 TEST(PolicyTest, BpfPermissionDenied) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "7"};
 
-  auto policy = CreatePolicyTestPolicyBuilder()
-                    .BlockSyscallWithErrno(__NR_bpf, EPERM)
-                    .BuildOrDie();
-
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path)
+                                .BlockSyscallWithErrno(__NR_bpf, EPERM)
+                                .TryBuild());
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
@@ -180,9 +154,19 @@ TEST(PolicyTest, BpfPermissionDenied) {
 
 TEST(PolicyTest, IsattyAllowed) {
   SKIP_SANITIZERS_AND_COVERAGE;
+  sandbox2::PolicyBuilder builder;
+  if constexpr (sapi::host_os::IsAndroid()) {
+    builder.DisableNamespaces().AllowDynamicStartup();
+  }
+  builder.AllowStaticStartup()
+      .AllowExit()
+      .AllowRead()
+      .AllowWrite()
+      .AllowTCGETS();
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "6"};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), PolicyTestcasePolicy());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));

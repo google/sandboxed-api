@@ -283,6 +283,7 @@ set_target_properties(sandbox2_testcase_limits PROPERTIES
   OUTPUT_NAME limits
 )
 target_link_libraries(sandbox2_testcase_limits PRIVATE
+  -static
   sapi::base
 )
 

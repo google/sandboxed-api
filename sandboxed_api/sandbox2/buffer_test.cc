@@ -27,12 +27,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/policy.h"
-#include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/testing.h"
@@ -41,6 +39,7 @@
 namespace sandbox2 {
 namespace {
 
+using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::IsTrue;
@@ -62,52 +61,13 @@ TEST(BufferTest, TestImplementation) {
   }
 }
 
-std::unique_ptr<Policy> BufferTestcasePolicy() {
-  auto s2p = PolicyBuilder()
-                 .AllowDynamicStartup()
-                 .AllowExit()
-                 .AllowSafeFcntl()
-                 .AllowTime()
-                 .AllowSystemMalloc()
-                 .AllowRead()
-                 .AllowWrite()
-                 .AllowMmap()
-                 .AllowStat()
-                 .AllowOpen()
-                 .AllowSyscalls({
-                     __NR_dup,
-                     __NR_futex,
-                     __NR_getpid,
-                     __NR_gettid,
-                     __NR_nanosleep,
-                     __NR_rt_sigprocmask,
-                     __NR_recvmsg,
-                     __NR_lseek,
-                     __NR_close,
-                 })
-                 .BlockSyscallsWithErrno(
-                     {
-#ifdef __NR_access
-                         // On Debian, even static binaries check existence of
-                         // /etc/ld.so.nohwcap.
-                         __NR_access,
-#endif
-                         __NR_faccessat,
-                     },
-                     ENOENT)
-                 .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-                 .BuildOrDie();
-
-  return s2p;
-}
-
 // Test sharing of buffer between executor/sandboxee using dup/MapFd.
 TEST(BufferTest, TestWithSandboxeeMapFd) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/buffer");
   std::vector<std::string> args = {path, "1"};
   auto executor = std::make_unique<Executor>(path, args);
-  auto policy = BufferTestcasePolicy();
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
                             Buffer::CreateWithSize(1ULL << 20 /* 1MiB */));
@@ -136,12 +96,14 @@ TEST(BufferTest, TestWithSandboxeeMapFd) {
 
 // Test sharing of buffer between executor/sandboxee using SendFD/RecvFD.
 TEST(BufferTest, TestWithSandboxeeSendRecv) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/buffer");
   std::vector<std::string> args = {path, "2"};
   auto executor = std::make_unique<Executor>(path, args);
 
-  Sandbox2 s2(std::move(executor), BufferTestcasePolicy());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
   ASSERT_THAT(s2.RunAsync(), IsTrue());
   Comms* comms = s2.comms();
 

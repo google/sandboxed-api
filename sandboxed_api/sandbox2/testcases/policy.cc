@@ -95,9 +95,6 @@ void TestBpfError() {
 
 void TestIsatty() {
   isatty(0);
-
-  printf("Syscall violation should have been discovered by now\n");
-  exit(EXIT_FAILURE);
 }
 
 int main(int argc, char* argv[]) {

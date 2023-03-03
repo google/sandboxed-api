@@ -29,7 +29,6 @@
 #include "absl/flags/reflection.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
-#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -46,6 +45,7 @@ namespace sandbox2 {
 namespace {
 
 namespace file_util = ::sapi::file_util;
+using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Contains;
 using ::testing::ElementsAre;
@@ -72,13 +72,11 @@ void SymbolizationWorksCommon(TestCase param) {
   std::vector<std::string> args = {path, absl::StrCat(param.testno),
                                    absl::StrCat(param.testmode)};
 
-  auto policybuilder = PolicyBuilder()
-                           // Don't restrict the syscalls at all.
-                           .DefaultAction(AllowAllSyscalls());
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
   if (param.modify_policy) {
-    param.modify_policy(&policybuilder);
+    param.modify_policy(&builder);
   }
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, policybuilder.TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   ASSERT_TRUE(s2.RunAsync());
@@ -114,7 +112,6 @@ void SymbolizationWorksWithModifiedPolicy(
 }
 
 TEST_P(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, false);
 
@@ -122,7 +119,6 @@ TEST_P(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
 }
 
 TEST_P(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
@@ -130,7 +126,6 @@ TEST_P(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
@@ -139,7 +134,6 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcFileMounted) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
@@ -149,7 +143,6 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcFileMounted) {
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysDirMounted) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
@@ -158,7 +151,6 @@ TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysDirMounted) {
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysFileMounted) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 
@@ -175,7 +167,6 @@ size_t FileCountInDirectory(const std::string& path) {
 }
 
 TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
 

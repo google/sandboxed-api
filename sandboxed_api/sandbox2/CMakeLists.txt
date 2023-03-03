@@ -806,7 +806,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_namespace_test PRIVATE
     absl::strings
     sandbox2::allow_all_syscalls
-    sandbox2::comms
     sapi::config
     sapi::fileops
     sandbox2::namespace
@@ -834,7 +833,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_buffer_test PRIVATE
     sandbox2::buffer
     sandbox2::comms
-    sapi::config
     sandbox2::ipc
     sandbox2::sandbox2
     sapi::testing
@@ -890,7 +888,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_forkserver_test PRIVATE
     absl::check
     absl::strings
-    sandbox2::comms
     sandbox2::forkserver
     sandbox2::forkserver_proto
     sandbox2::sandbox2
@@ -915,7 +912,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_minimal
   )
   target_link_libraries(sandbox2_limits_test PRIVATE
-    sandbox2::allow_all_syscalls
     sandbox2::bpf_helper
     sapi::config
     sandbox2::limits
@@ -975,6 +971,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::limits
     sandbox2::regs
     sandbox2::sandbox2
+    sapi::status_matchers
     sapi::testing
     sapi::test_main
   )
@@ -1022,7 +1019,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_sanitizer_test PRIVATE
     absl::strings
-    sandbox2::allow_all_syscalls
     sandbox2::bpf_helper
     sandbox2::client
     sandbox2::comms
@@ -1066,7 +1062,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::status
     absl::strings
     absl::time
-    sandbox2::allow_all_syscalls
     sandbox2::global_forkserver
     sandbox2::namespace
     sandbox2::sandbox2
@@ -1093,8 +1088,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_ipc
   )
   target_link_libraries(sandbox2_ipc_test PRIVATE
-    sandbox2::allow_all_syscalls
-    sandbox2::bpf_helper
     sandbox2::comms
     sandbox2::ipc
     sandbox2::sandbox2

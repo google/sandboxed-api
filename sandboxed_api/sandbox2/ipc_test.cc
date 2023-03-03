@@ -19,20 +19,18 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
-#include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
 
+using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 
 constexpr int kPreferredIpcFd = 812;
@@ -43,7 +41,6 @@ class IPCTest : public testing::Test,
 // This test verifies that mapping fds by name works if the sandbox is enabled
 // before execve.
 TEST_P(IPCTest, MapFDByNamePreExecve) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const int fd = GetParam();
   const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
   std::vector<std::string> args = {path, "1", std::to_string(fd)};
@@ -51,10 +48,7 @@ TEST_P(IPCTest, MapFDByNamePreExecve) {
   Comms comms(executor->ipc()->ReceiveFd(fd, "ipc_test"));
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DefaultAction(AllowAllSyscalls())
-                                .TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   s2.RunAsync();
@@ -88,10 +82,7 @@ TEST_P(IPCTest, MapFDByNamePostExecve) {
   Comms comms(executor->ipc()->ReceiveFd(fd, "ipc_test"));
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DefaultAction(AllowAllSyscalls())
-                                .TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   s2.RunAsync();
@@ -120,10 +111,7 @@ TEST(IPCTest, NoMappedFDsPreExecve) {
   auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            PolicyBuilder()
-                                // Don't restrict the syscalls at all.
-                                .DefaultAction(AllowAllSyscalls())
-                                .TryBuild());
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();

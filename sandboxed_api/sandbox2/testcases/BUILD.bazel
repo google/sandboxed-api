@@ -226,6 +226,7 @@ cc_binary(
     testonly = True,
     srcs = ["limits.cc"],
     copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
 )
 
 cc_binary(

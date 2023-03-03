@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -37,32 +38,15 @@
 namespace sandbox2 {
 namespace {
 
+using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 
 // Allow typical syscalls and call SECCOMP_RET_TRACE for personality syscall,
 // chosen because unlikely to be called by a regular program.
-std::unique_ptr<Policy> NotifyTestcasePolicy() {
-  return PolicyBuilder()
-      .AllowDynamicStartup()  // For PrintPidAndComms and includes
-                              // AllowStaticStartup
-      .AllowExit()
-      .AllowRead()
-      .AllowWrite()
-      .AllowSyscall(__NR_close)
+std::unique_ptr<Policy> NotifyTestcasePolicy(absl::string_view path) {
+  return CreateDefaultPermissiveTestPolicy(path)
       .AddPolicyOnSyscall(__NR_personality, {SANDBOX2_TRACE})
-      .BlockSyscallsWithErrno(
-          {
-#ifdef __NR_open
-              __NR_open,
-#endif
-              __NR_openat,
-#ifdef __NR_access
-              __NR_access,
-#endif
-          },
-          ENOENT)
-      .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
       .BuildOrDie();
 }
 
@@ -103,10 +87,10 @@ class PidCommsNotify : public Notify {
 
 // Test EventSyscallTrap on personality syscall and allow it.
 TEST(NotifyTest, AllowPersonality) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              NotifyTestcasePolicy(path),
               std::make_unique<PersonalityNotify>(/*allow=*/true));
   auto result = s2.Run();
 
@@ -116,10 +100,10 @@ TEST(NotifyTest, AllowPersonality) {
 
 // Test EventSyscallTrap on personality syscall and disallow it.
 TEST(NotifyTest, DisallowPersonality) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), NotifyTestcasePolicy(),
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              NotifyTestcasePolicy(path),
               std::make_unique<PersonalityNotify>(/*allow=*/false));
   auto result = s2.Run();
 
@@ -129,13 +113,12 @@ TEST(NotifyTest, DisallowPersonality) {
 
 // Test EventStarted by exchanging data after started but before sandboxed.
 TEST(NotifyTest, PrintPidAndComms) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/pidcomms");
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
   executor->set_enable_sandbox_before_exec(false);
 
-  Sandbox2 s2(std::move(executor), NotifyTestcasePolicy(),
+  Sandbox2 s2(std::move(executor), NotifyTestcasePolicy(path),
               std::make_unique<PidCommsNotify>());
   auto result = s2.Run();
 

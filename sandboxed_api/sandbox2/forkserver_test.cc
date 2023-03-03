@@ -24,7 +24,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/ipc.h"
