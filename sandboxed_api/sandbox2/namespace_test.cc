@@ -21,7 +21,9 @@
 
 #include <initializer_list>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -47,28 +49,48 @@ using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::CreateNamedTempFile;
 using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
+using ::testing::Contains;
+using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::Gt;
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Ne;
+using ::testing::SizeIs;
+using ::testing::StartsWith;
+using ::testing::StrEq;  // sapi::google3-only(broken matchers)
 
 std::string GetTestcaseBinPath(absl::string_view bin_name) {
   return GetTestSourcePath(absl::StrCat("sandbox2/testcases/", bin_name));
 }
 
-int RunSandboxeeWithArgsAndPolicy(const std::string& bin_path,
-                                  std::initializer_list<std::string> args,
-                                  std::unique_ptr<Policy> policy = nullptr) {
+std::vector<std::string> RunSandboxeeWithArgsAndPolicy(
+    const std::string& bin_path, std::initializer_list<std::string> args,
+    std::unique_ptr<Policy> policy = nullptr) {
   if (!policy) {
     policy = CreateDefaultPermissiveTestPolicy(bin_path).BuildOrDie();
   }
   Sandbox2 sandbox(std::make_unique<Executor>(bin_path, args),
                    std::move(policy));
 
-  Result result = sandbox.Run();
-  EXPECT_THAT(result.final_status(), Eq(Result::OK));
-  return result.reason_code();
-}
+  CHECK(sandbox.RunAsync());
+  Comms* comms = sandbox.comms();
+  uint64_t num;
 
-constexpr absl::string_view kHostnameTestBinary = "sandbox2/testcases/hostname";
+  std::vector<std::string> entries;
+  if (comms->RecvUint64(&num)) {
+    entries.reserve(num);
+    for (int i = 0; i < num; ++i) {
+      std::string entry;
+      CHECK(comms->RecvString(&entry));
+      entries.push_back(std::move(entry));
+    }
+  }
+  Result result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+  return entries;
+}
 
 TEST(NamespaceTest, FileNamespaceWorks) {
   // Mount /binary_path RO and check that it exists and is readable.
@@ -78,9 +100,9 @@ TEST(NamespaceTest, FileNamespaceWorks) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
                                              .AddFileAt(path, "/binary_path")
                                              .TryBuild());
-  int reason_code = RunSandboxeeWithArgsAndPolicy(
+  std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
       path, {path, "0", "/binary_path", "/etc/passwd"}, std::move(policy));
-  EXPECT_THAT(reason_code, Eq(2));
+  EXPECT_THAT(result, ElementsAre("/binary_path"));
 }
 
 TEST(NamespaceTest, ReadOnlyIsRespected) {
@@ -95,9 +117,9 @@ TEST(NamespaceTest, ReadOnlyIsRespected) {
                                   .AddFileAt(name, "/temp_file")
                                   .TryBuild());
     // Check that it is readable
-    int reason_code = RunSandboxeeWithArgsAndPolicy(
+    std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
         path, {path, "0", "/temp_file"}, std::move(policy));
-    EXPECT_THAT(reason_code, Eq(0));
+    EXPECT_THAT(result, ElementsAre("/temp_file"));
   }
   {
     SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
@@ -105,9 +127,9 @@ TEST(NamespaceTest, ReadOnlyIsRespected) {
                                   .AddFileAt(name, "/temp_file")
                                   .TryBuild());
     // Now check that it is not writeable
-    int reason_code = RunSandboxeeWithArgsAndPolicy(
+    std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
         path, {path, "1", "/temp_file"}, std::move(policy));
-    EXPECT_THAT(reason_code, Eq(1));
+    EXPECT_THAT(result, IsEmpty());
   }
 }
 
@@ -116,19 +138,20 @@ TEST(NamespaceTest, UserNamespaceWorks) {
 
   // Check that getpid() returns 2 (which is the case inside pid NS).
   {
-    int reason_code = RunSandboxeeWithArgsAndPolicy(path, {path, "2"});
-    EXPECT_THAT(reason_code, Eq(0));
+    std::vector<std::string> result =
+        RunSandboxeeWithArgsAndPolicy(path, {path, "2"});
+    EXPECT_THAT(result, ElementsAre("2"));
   }
 
   // Validate that getpid() does not return 2 when outside of a pid NS.
   {
-    int reason_code = RunSandboxeeWithArgsAndPolicy(
+    std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
         path, {path, "2"},
         PolicyBuilder()
             .DisableNamespaces()
             .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
             .BuildOrDie());
-    EXPECT_THAT(reason_code, Ne(0));
+    EXPECT_THAT(result, ElementsAre(Ne("2")));
   }
 }
 
@@ -137,20 +160,21 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
   // started.
   const std::string path = GetTestcaseBinPath("namespace");
   {
-    int reason_code =
+    std::vector<std::string> result =
         RunSandboxeeWithArgsAndPolicy(path, {path, "3", "1000", "1000"});
-    EXPECT_THAT(reason_code, Eq(0));
+    EXPECT_THAT(result, ElementsAre("1000", "1000"));
   }
 
   // Check that the uid/gid is the same when not using namespaces.
   {
-    int reason_code = RunSandboxeeWithArgsAndPolicy(
-        path, {path, "3", absl::StrCat(getuid()), absl::StrCat(getgid())},
+    std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "3"},
         PolicyBuilder()
             .DisableNamespaces()
             .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
             .BuildOrDie());
-    EXPECT_THAT(reason_code, Eq(0));
+    EXPECT_THAT(result,
+                ElementsAre(absl::StrCat(getuid()), absl::StrCat(getgid())));
   }
 }
 
@@ -162,9 +186,9 @@ TEST(NamespaceTest, RootReadOnly) {
       auto policy, CreateDefaultPermissiveTestPolicy(path)
                        .AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */)
                        .TryBuild());
-  int reason_code = RunSandboxeeWithArgsAndPolicy(
+  std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
       path, {path, "4", "/tmp/testfile", "/testfile"}, std::move(policy));
-  EXPECT_THAT(reason_code, Eq(2));
+  EXPECT_THAT(result, ElementsAre("/tmp/testfile"));
 }
 
 TEST(NamespaceTest, RootWritable) {
@@ -173,36 +197,58 @@ TEST(NamespaceTest, RootWritable) {
   SAPI_ASSERT_OK_AND_ASSIGN(
       auto policy,
       CreateDefaultPermissiveTestPolicy(path).SetRootWritable().TryBuild());
-  int reason_code = RunSandboxeeWithArgsAndPolicy(
+  std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
       path, {path, "4", "/testfile"}, std::move(policy));
-  EXPECT_THAT(reason_code, Eq(0));
+  EXPECT_THAT(result, ElementsAre("/testfile"));
 }
 
-TEST(HostnameTest, None) {
-  const std::string path = GetTestcaseBinPath("hostname");
-  int reason_code = RunSandboxeeWithArgsAndPolicy(
-      path, {path, "sandbox2"},
+TEST(NamespaceTest, HostnameNone) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "7"},
       PolicyBuilder()
           .DisableNamespaces()
           .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
           .BuildOrDie());
-  EXPECT_THAT(reason_code, Eq(1));
+  EXPECT_THAT(result, ElementsAre(Ne("sandbox2")));
 }
 
-TEST(HostnameTest, Default) {
-  const std::string path = GetTestcaseBinPath("hostname");
-  int reason_code = RunSandboxeeWithArgsAndPolicy(path, {path, "sandbox2"});
-  EXPECT_THAT(reason_code, Eq(0));
+TEST(NamespaceTest, HostnameDefault) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  std::vector<std::string> result =
+      RunSandboxeeWithArgsAndPolicy(path, {path, "7"});
+  EXPECT_THAT(result, ElementsAre("sandbox2"));
 }
 
-TEST(HostnameTest, Configured) {
-  const std::string path = GetTestcaseBinPath("hostname");
+TEST(NamespaceTest, HostnameConfigured) {
+  const std::string path = GetTestcaseBinPath("namespace");
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
                                              .SetHostname("configured")
                                              .TryBuild());
-  int reason_code = RunSandboxeeWithArgsAndPolicy(path, {path, "configured"},
-                                                  std::move(policy));
-  EXPECT_THAT(reason_code, Eq(0));
+  std::vector<std::string> result =
+      RunSandboxeeWithArgsAndPolicy(path, {path, "7"}, std::move(policy));
+  EXPECT_THAT(result, ElementsAre("configured"));
+}
+
+TEST(NamespaceTest, TestInterfacesNoNetwork) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  std::vector<std::string> result =
+      RunSandboxeeWithArgsAndPolicy(path, {path, "5"});
+  // Only loopback network interface 'lo'.
+  EXPECT_THAT(result, ElementsAre("lo"));
+}
+
+TEST(NamespaceTest, TestInterfacesWithNetwork) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
+                                             .AllowUnrestrictedNetworking()
+                                             .TryBuild());
+
+  std::vector<std::string> result =
+      RunSandboxeeWithArgsAndPolicy(path, {path, "5"}, std::move(policy));
+  // Loopback network interface 'lo' and more.
+  EXPECT_THAT(result, Contains("lo"));
+  EXPECT_THAT(result, SizeIs(Gt(1)));
 }
 
 }  // namespace

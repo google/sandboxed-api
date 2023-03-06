@@ -800,7 +800,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME namespace_test
   )
   add_dependencies(sandbox2_namespace_test
-    sandbox2::testcase_hostname
     sandbox2::testcase_namespace
   )
   target_link_libraries(sandbox2_namespace_test PRIVATE
@@ -1109,11 +1108,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_policybuilder_test
     PRIVATE absl::strings
-            sandbox2::allow_all_syscalls
+            absl::log
+            absl::status
+            absl::statusor
             sandbox2::bpf_helper
-            sandbox2::comms
             sandbox2::policybuilder
-            sandbox2::sandbox2
             sapi::testing
             sapi::status_matchers
             sapi::test_main

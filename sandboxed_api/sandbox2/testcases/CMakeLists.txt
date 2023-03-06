@@ -261,19 +261,6 @@ target_link_libraries(sandbox2_testcase_tsync PRIVATE
   sapi::base
 )
 
-# sandboxed_api/sandbox2/testcases:hostname
-add_executable(sandbox2_testcase_hostname
-  hostname.cc
-)
-add_executable(sandbox2::testcase_hostname ALIAS sandbox2_testcase_hostname)
-set_target_properties(sandbox2_testcase_hostname PROPERTIES
-  OUTPUT_NAME hostname
-)
-target_link_libraries(sandbox2_testcase_hostname PRIVATE
-  -static
-  sapi::base
-)
-
 # sandboxed_api/sandbox2/testcases:limits
 add_executable(sandbox2_testcase_limits
   limits.cc
@@ -297,5 +284,10 @@ set_target_properties(sandbox2_testcase_namespace PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_namespace PRIVATE
   -static
+  absl::check
+  absl::flat_hash_set
+  sandbox2::comms
   sapi::base
+  sapi::file_base
+  sapi::fileops
 )

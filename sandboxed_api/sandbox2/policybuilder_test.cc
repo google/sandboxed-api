@@ -26,18 +26,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
-#include "sandboxed_api/config.h"
-#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
-#include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/executor.h"
-#include "sandboxed_api/sandbox2/ipc.h"
-#include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
@@ -59,24 +48,14 @@ class PolicyBuilderPeer {
 
 namespace {
 
-using ::testing::AllOf;
-using ::testing::AnyOf;
 using ::testing::Eq;
-using ::testing::Gt;
-using ::testing::HasSubstr;
 using ::testing::Lt;
 using ::testing::StartsWith;
 using ::testing::StrEq;
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
 
-class PolicyBuilderTest : public testing::Test {
- protected:
-  static std::string Run(const std::vector<std::string>& args,
-                         bool network = false);
-};
-
-TEST_F(PolicyBuilderTest, Testpolicy_size) {
+TEST(PolicyBuilderTest, Testpolicy_size) {
   ssize_t last_size = 0;
   PolicyBuilder builder;
   PolicyBuilderPeer builder_peer{&builder};
@@ -131,7 +110,7 @@ TEST_F(PolicyBuilderTest, Testpolicy_size) {
   // clang-format on
 }
 
-TEST_F(PolicyBuilderTest, TestValidateAbsolutePath) {
+TEST(PolicyBuilderTest, TestValidateAbsolutePath) {
   for (auto const& bad_path : {
            "..",
            "a",
@@ -155,52 +134,14 @@ TEST_F(PolicyBuilderTest, TestValidateAbsolutePath) {
   }
 }
 
-std::string PolicyBuilderTest::Run(const std::vector<std::string>& args,
-                                   bool network) {
-  PolicyBuilder builder;
-  // Don't restrict the syscalls at all.
-  builder.DefaultAction(AllowAllSyscalls());
-
-  if constexpr (sapi::host_os::IsAndroid()) {
-    builder.DisableNamespaces();
-  } else {
-    builder.AddLibrariesForBinary(args[0]);
-  }
-
-  if (network) {
-    builder.AllowUnrestrictedNetworking();
-  }
-
-  auto executor = std::make_unique<sandbox2::Executor>(args[0], args);
-  int fd1 = executor->ipc()->ReceiveFd(STDOUT_FILENO);
-  sandbox2::Sandbox2 s2(std::move(executor), builder.BuildOrDie());
-
-  s2.RunAsync();
-
-  char buf[4096];
-  std::string output;
-
-  while (true) {
-    int nbytes;
-    PCHECK((nbytes = read(fd1, buf, sizeof(buf))) >= 0);
-
-    if (nbytes == 0) break;
-    output += std::string(buf, nbytes);
-  }
-
-  auto result = s2.AwaitResult();
-  EXPECT_EQ(result.final_status(), sandbox2::Result::OK);
-  return output;
-}
-
-TEST_F(PolicyBuilderTest, TestCanOnlyBuildOnce) {
+TEST(PolicyBuilderTest, TestCanOnlyBuildOnce) {
   PolicyBuilder b;
   ASSERT_THAT(b.TryBuild(), IsOk());
   EXPECT_THAT(b.TryBuild(), StatusIs(absl::StatusCode::kFailedPrecondition,
                                      "Can only build policy once."));
 }
 
-TEST_F(PolicyBuilderTest, TestIsCopyable) {
+TEST(PolicyBuilderTest, TestIsCopyable) {
   PolicyBuilder builder;
   builder.AllowSyscall(__NR_getpid);
 
@@ -211,41 +152,6 @@ TEST_F(PolicyBuilderTest, TestIsCopyable) {
   // Both can be built.
   EXPECT_THAT(builder.TryBuild(), IsOk());
   EXPECT_THAT(copy.TryBuild(), IsOk());
-}
-
-TEST_F(PolicyBuilderTest, TestEcho) {
-  ASSERT_THAT(Run({"/bin/echo", "HELLO"}), StrEq("HELLO\n"));
-}
-
-TEST_F(PolicyBuilderTest, TestInterfacesNoNetwork) {
-  SKIP_ANDROID;
-  auto lines = absl::StrSplit(Run({"/sbin/ip", "addr", "show", "up"}), '\n');
-
-  int count = 0;
-  for (auto const& line : lines) {
-    if (!line.empty() && !absl::StartsWith(line, " ")) {
-      count += 1;
-    }
-  }
-
-  // Only loopback network interface 'lo'.
-  EXPECT_THAT(count, Eq(1));
-}
-
-TEST_F(PolicyBuilderTest, TestInterfacesNetwork) {
-  SKIP_ANDROID;
-  auto lines =
-      absl::StrSplit(Run({"/sbin/ip", "addr", "show", "up"}, true), '\n');
-
-  int count = 0;
-  for (auto const& line : lines) {
-    if (!line.empty() && !absl::StartsWith(line, " ")) {
-      count += 1;
-    }
-  }
-
-  // Loopback network interface 'lo' and more.
-  EXPECT_THAT(count, Gt(1));
 }
 }  // namespace
 }  // namespace sandbox2
