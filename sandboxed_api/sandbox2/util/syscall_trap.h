@@ -15,9 +15,9 @@
 #ifndef SANDBOXED_API_SANDBOX2_UTIL_SYSCALL_TRAP_H_
 #define SANDBOXED_API_SANDBOX2_UTIL_SYSCALL_TRAP_H_
 
-#include <signal.h>
-
 #include <array>
+#include <csignal>
+#include <cstdint>
 
 namespace sandbox2 {
 
