@@ -96,6 +96,7 @@ void SymbolizationWorksCommon(TestCase param) {
     EXPECT_THAT(result.stack_trace(),
                 Contains(StartsWith("RecurseB")).Times(5));
   } else if (param.testmode == 3) {
+    EXPECT_THAT(result.stack_trace(), Contains(StartsWith("LibCallCallback")));
     EXPECT_THAT(result.stack_trace(), Contains(StartsWith("LibRecurse")));
     EXPECT_THAT(result.stack_trace(),
                 Contains(StartsWith("LibRecurseA")).Times(5));

@@ -8,18 +8,22 @@ void LibRecurseA(void (*cb)(int), int data, int n);
 
 ABSL_ATTRIBUTE_NOINLINE
 ABSL_ATTRIBUTE_NO_TAIL_CALL
+void LibCallCallback(void (*cb)(int), int data) { cb(data); }
+
+ABSL_ATTRIBUTE_NOINLINE
+ABSL_ATTRIBUTE_NO_TAIL_CALL
 void LibRecurseB(void (*cb)(int), int data, int n) {
   if (n > 1) {
     return LibRecurseA(cb, data, n - 1);
   }
-  return cb(data);
+  return LibCallCallback(cb, data);
 }
 
 void LibRecurseA(void (*cb)(int), int data, int n) {
   if (n > 1) {
     return LibRecurseB(cb, data, n - 1);
   }
-  return cb(data);
+  return LibCallCallback(cb, data);
 }
 
 void LibRecurse(void (*cb)(int), int data, int n) { LibRecurseA(cb, data, n); }
