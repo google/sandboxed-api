@@ -172,9 +172,6 @@ int main(int argc, char* argv[]) {
   if constexpr (sapi::sanitizers::IsAny()) {
     return EXIT_SUCCESS;
   }
-  if (getenv("COVERAGE") != nullptr) {
-    return EXIT_SUCCESS;
-  }
 
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
   absl::ParseCommandLine(argc, argv);

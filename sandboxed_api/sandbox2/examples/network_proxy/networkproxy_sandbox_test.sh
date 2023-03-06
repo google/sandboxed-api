@@ -19,6 +19,8 @@ die() {
   exit 1
 }
 
+[[ -n "$COVERAGE" ]] && exit 0
+
 # Find input files
 BINDIR=$TEST_SRCDIR/com_google_sandboxed_api/sandboxed_api/sandbox2
 EXE=$BINDIR/examples/network_proxy/networkproxy_sandbox
