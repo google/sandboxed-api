@@ -180,7 +180,7 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   }
 
   // Fork the fork-server, and clean-up the resources (close remote sockets).
-  constexpr size_t kStackSize = PTHREAD_STACK_MIN;
+  const size_t kStackSize = PTHREAD_STACK_MIN;
   int clone_flags = CLONE_VM | CLONE_VFORK | SIGCHLD;
   // CLONE_VM does not play well with TSan.
   if constexpr (sapi::sanitizers::IsTSan()) {
