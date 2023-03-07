@@ -95,10 +95,13 @@ void SyscallTrap::SignalHandlerImpl(int nr, siginfo_t* info, void* context) {
 #elif defined(SAPI_ARM)
   auto* registers = &uctx->uc_mcontext.arm_r0;
 #endif
-  int syscall_nr = registers[kRegSyscall];
-  Args args = {registers[kRegArgs[0]], registers[kRegArgs[1]],
-               registers[kRegArgs[2]], registers[kRegArgs[3]],
-               registers[kRegArgs[4]], registers[kRegArgs[5]]};
+  int syscall_nr = static_cast<int>(registers[kRegSyscall]);
+  Args args = {static_cast<uintptr_t>(registers[kRegArgs[0]]),
+               static_cast<uintptr_t>(registers[kRegArgs[1]]),
+               static_cast<uintptr_t>(registers[kRegArgs[2]]),
+               static_cast<uintptr_t>(registers[kRegArgs[3]]),
+               static_cast<uintptr_t>(registers[kRegArgs[4]]),
+               static_cast<uintptr_t>(registers[kRegArgs[5]])};
   uintptr_t rv;
   if (!handler_(syscall_nr, args, &rv)) {
     InvokeOldAct(nr, info, context);
