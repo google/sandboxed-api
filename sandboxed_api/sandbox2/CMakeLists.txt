@@ -32,10 +32,10 @@ add_library(sandbox2_bpfdisassembler ${SAPI_LIB_TYPE}
   bpfdisassembler.h
 )
 add_library(sandbox2::bpfdisassembler ALIAS sandbox2_bpfdisassembler)
-target_link_libraries(sandbox2_bpfdisassembler PRIVATE
-  absl::span
-  absl::strings
-  sapi::base
+target_link_libraries(sandbox2_bpfdisassembler
+  PUBLIC absl::span
+  PRIVATE absl::strings
+          sapi::base
 )
 
 # sandboxed_api/sandbox2:regs
@@ -1118,6 +1118,23 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_policybuilder_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
+
+  # sandboxed_api/sandbox2:bpfdisassembler_test
+  add_executable(sandbox2_bpfdisassembler_test
+    bpfdisassembler_test.cc
+  )
+  set_target_properties(sandbox2_bpfdisassembler_test PROPERTIES
+    OUTPUT_NAME bpfdisassembler_test
+  )
+  target_link_libraries(sandbox2_bpfdisassembler_test
+    PRIVATE sandbox2::bpfdisassembler
+            sandbox2::bpf_helper
+            sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_bpfdisassembler_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )

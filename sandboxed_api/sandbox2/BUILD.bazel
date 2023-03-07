@@ -1020,3 +1020,14 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "bpfdisassembler_test",
+    srcs = ["bpfdisassembler_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":bpfdisassembler",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
