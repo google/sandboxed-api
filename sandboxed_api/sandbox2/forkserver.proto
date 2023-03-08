@@ -33,6 +33,15 @@ enum Mode {
   FORKSERVER_FORK_JOIN_SANDBOX_UNWIND = 4;
 }
 
+enum MonitorType {
+  // Default value
+  FORKSERVER_MONITOR_UNSPECIFIED = 0;
+  // Ptrace based monitor
+  FORKSERVER_MONITOR_PTRACE = 1;
+  // Seccomp_unotify based monitor
+  FORKSERVER_MONITOR_UNOTIFY = 2;
+}
+
 message ForkRequest {
   // List of arguments, starting with argv[0]
   repeated bytes args = 1;
@@ -56,4 +65,7 @@ message ForkRequest {
 
   // Changes mount propagation from MS_PRIVATE to MS_SLAVE if set
   optional bool allow_mount_propagation = 8;
+
+  // Monitor type used by the sandbox
+  optional MonitorType monitor_type = 9;
 }

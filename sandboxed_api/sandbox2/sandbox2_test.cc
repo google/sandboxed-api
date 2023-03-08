@@ -39,32 +39,47 @@ namespace {
 
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
+using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Lt;
 
+class Sandbox2Test : public ::testing::TestWithParam<bool> {
+ public:
+  PolicyBuilder CreateDefaultTestPolicy(absl::string_view path) {
+    PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+    if (GetParam()) {
+      builder.CollectStacktracesOnSignal(false);
+    }
+    return builder;
+  }
+  absl::Status SetUpSandbox(Sandbox2* sandbox) {
+    return GetParam() ? sandbox->EnableUnotifyMonitor() : absl::OkStatus();
+  }
+};
+
 // Test that aborting inside a sandbox with all userspace core dumping
 // disabled reports the signal.
-TEST(SandboxCoreDumpTest, AbortWithoutCoreDumpReturnsSignaled) {
+TEST_P(Sandbox2Test, AbortWithoutCoreDumpReturnsSignaled) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/abort");
   std::vector<std::string> args = {
       path,
   };
   auto executor = std::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultTestPolicy(path)
                                              .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   auto result = sandbox.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::SIGNALED));
   EXPECT_THAT(result.reason_code(), Eq(SIGABRT));
 }
 
-// Test that with TSYNC we are able to sandbox when multithreaded and with no
-// memory checks. If TSYNC is not supported, then no.
-TEST(TsyncTest, TsyncNoMemoryChecks) {
+// Test that with TSYNC we are able to sandbox when multithreaded.
+TEST_P(Sandbox2Test, TsyncNoMemoryChecks) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/tsync");
 
   auto executor =
@@ -72,8 +87,9 @@ TEST(TsyncTest, TsyncNoMemoryChecks) {
   executor->set_enable_sandbox_before_exec(false);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+                            CreateDefaultTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   auto result = sandbox.Run();
 
   // With TSYNC, SandboxMeHere should be able to sandbox when multithreaded.
@@ -102,7 +118,7 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
 
 // Tests that we return the correct state when the sandboxee was killed by an
 // external signal. Also make sure that we do not have the stack trace.
-TEST(RunAsyncTest, SandboxeeExternalKill) {
+TEST_P(Sandbox2Test, SandboxeeExternalKill) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
   std::vector<std::string> args = {path};
@@ -110,8 +126,9 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
   auto executor = std::make_unique<Executor>(path, args, envs);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+                            CreateDefaultTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   ASSERT_TRUE(sandbox.RunAsync());
   sleep(1);
   sandbox.Kill();
@@ -121,17 +138,18 @@ TEST(RunAsyncTest, SandboxeeExternalKill) {
 }
 
 // Tests that we do not collect stack traces if it was disabled (signaled).
-TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
+TEST_P(Sandbox2Test, SandboxeeTimeoutDisabledStacktraces) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
   std::vector<std::string> args = {path};
   std::vector<std::string> envs;
   auto executor = std::make_unique<Executor>(path, args, envs);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultTestPolicy(path)
                                              .CollectStacktracesOnTimeout(false)
                                              .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   ASSERT_TRUE(sandbox.RunAsync());
   sandbox.set_walltime_limit(absl::Seconds(1));
   auto result = sandbox.AwaitResult();
@@ -140,7 +158,7 @@ TEST(RunAsyncTest, SandboxeeTimeoutDisabledStacktraces) {
 }
 
 // Tests that we do not collect stack traces if it was disabled (violation).
-TEST(RunAsyncTest, SandboxeeViolationDisabledStacktraces) {
+TEST(Sandbox2Test, SandboxeeViolationDisabledStacktraces) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
   std::vector<std::string> args = {path};
@@ -159,14 +177,15 @@ TEST(RunAsyncTest, SandboxeeViolationDisabledStacktraces) {
   EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 
-TEST(RunAsyncTest, SandboxeeNotKilledWhenStartingThreadFinishes) {
+TEST_P(Sandbox2Test, SandboxeeNotKilledWhenStartingThreadFinishes) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+                            CreateDefaultTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   std::thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });
   sandbox_start_thread.join();
   Result result = sandbox.AwaitResult();
@@ -193,6 +212,12 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
   auto elapsed = absl::Now() - start;
   EXPECT_THAT(elapsed, Lt(absl::Seconds(10)));
 }
+
+INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "UnotifyMonitor"
+                                             : "PtraceMonitor";
+                         });
 
 }  // namespace
 }  // namespace sandbox2

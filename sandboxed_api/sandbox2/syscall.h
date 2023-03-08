@@ -65,6 +65,7 @@ class Syscall {
 
  private:
   friend class Regs;
+  friend class UnotifyMonitor;
 
   explicit Syscall(pid_t pid) : pid_(pid) {}
   Syscall(sapi::cpu::Architecture arch, uint64_t nr, Args args, pid_t pid,

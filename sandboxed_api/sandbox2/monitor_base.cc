@@ -196,7 +196,7 @@ void MonitorBase::Launch() {
   // Get PID of the sandboxee.
   bool should_have_init = ns && (ns->GetCloneFlags() & CLONE_NEWPID);
   absl::StatusOr<SandboxeeProcess> process =
-      executor_->StartSubProcess(clone_flags, ns);
+      executor_->StartSubProcess(clone_flags, ns, type_);
 
   if (!process.ok()) {
     LOG(ERROR) << "Starting sandboxed subprocess failed: " << process.status();
@@ -259,7 +259,7 @@ void MonitorBase::SetExitStatusCode(Result::StatusEnum final_status,
 }
 
 bool MonitorBase::InitSendPolicy() {
-  if (!policy_->SendPolicy(comms_)) {
+  if (!policy_->SendPolicy(comms_, type_ == FORKSERVER_MONITOR_UNOTIFY)) {
     LOG(ERROR) << "Couldn't send policy";
     return false;
   }

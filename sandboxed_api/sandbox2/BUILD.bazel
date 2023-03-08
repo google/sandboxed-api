@@ -347,11 +347,13 @@ cc_library(
         ":comms",
         ":executor",
         ":fork_client",
+        ":forkserver_cc_proto",
         ":ipc",
         ":limits",
         ":logsink",
         ":monitor_base",
         ":monitor_ptrace",
+        ":monitor_unotify",
         ":mounts",
         ":namespace",
         ":notify",
@@ -445,6 +447,29 @@ cc_library(
 )
 
 cc_library(
+    name = "monitor_unotify",
+    srcs = ["monitor_unotify.cc"],
+    hdrs = ["monitor_unotify.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":client",
+        ":executor",
+        ":forkserver_cc_proto",
+        ":monitor_base",
+        ":notify",
+        ":policy",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:raw_logging",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
     name = "monitor_base",
     srcs = ["monitor_base.cc"],
     hdrs = ["monitor_base.h"],
@@ -454,6 +479,7 @@ cc_library(
         ":comms",
         ":executor",
         ":fork_client",
+        ":forkserver_cc_proto",
         ":ipc",
         ":limits",
         ":mounts",
@@ -522,8 +548,11 @@ cc_library(
     deps = [
         ":comms",
         ":logsink",
+        ":policy",
         ":sanitizer",
+        ":syscall",
         "//sandboxed_api/sandbox2/network_proxy:client",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/base:core_headers",
@@ -593,6 +622,7 @@ cc_library(
     deps = [
         ":comms",
         ":forkserver_cc_proto",
+        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

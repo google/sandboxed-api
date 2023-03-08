@@ -38,6 +38,12 @@
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
 #endif
 
+#ifndef SECCOMP_RET_USER_NOTIF
+#define SECCOMP_RET_USER_NOTIF 0x7fc00000U /* notifies userspace */
+#endif
+
+#define DO_USER_NOTIF BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_USER_NOTIF)
+
 ABSL_FLAG(bool, sandbox2_danger_danger_permit_all, false,
           "Allow all syscalls, useful for testing");
 ABSL_FLAG(std::string, sandbox2_danger_danger_permit_all_and_log, "",
@@ -49,7 +55,7 @@ namespace sandbox2 {
 //   1. default policy (GetDefaultPolicy, private),
 //   2. user policy (user_policy_, public),
 //   3. default KILL action (avoid failing open if user policy did not do it).
-std::vector<sock_filter> Policy::GetPolicy() const {
+std::vector<sock_filter> Policy::GetPolicy(bool user_notif) const {
   if (absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all) ||
       !absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all_and_log).empty()) {
     return GetTrackingPolicy();
@@ -57,7 +63,7 @@ std::vector<sock_filter> Policy::GetPolicy() const {
 
   // Now we can start building the policy.
   // 1. Start with the default policy (e.g. syscall architecture checks).
-  auto policy = GetDefaultPolicy();
+  auto policy = GetDefaultPolicy(user_notif);
   VLOG(3) << "Default policy:\n" << bpf::Disasm(policy);
 
   // 2. Append user policy.
@@ -68,6 +74,15 @@ std::vector<sock_filter> Policy::GetPolicy() const {
 
   // 3. Finish with default KILL action.
   policy.push_back(KILL);
+
+  // In seccomp_unotify mode replace all KILLS with unotify
+  if (user_notif) {
+    for (sock_filter& filter : policy) {
+      if (filter.code == BPF_RET + BPF_K && filter.k == SECCOMP_RET_KILL) {
+        filter = DO_USER_NOTIF;
+      }
+    }
+  }
 
   VLOG(2) << "Final policy:\n" << bpf::Disasm(policy);
   return policy;
@@ -80,36 +95,61 @@ std::vector<sock_filter> Policy::GetPolicy() const {
 // for the __NR_execve syscall, so the tracer can make a decision to allow or
 // disallow it depending on which occurrence of __NR_execve it was.
 // LINT.IfChange
-std::vector<sock_filter> Policy::GetDefaultPolicy() const {
+std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
   bpf_labels l = {0};
 
-  std::vector<sock_filter> policy = {
-    // If compiled arch is different from the runtime one, inform the Monitor.
-    LOAD_ARCH,
-    JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
+  std::vector<sock_filter> policy;
+  if (user_notif) {
+    policy = {
+        // If compiled arch is different from the runtime one, inform the
+        // Monitor.
+        LOAD_ARCH,
+        JNE32(Syscall::GetHostAuditArch(), DENY),
+        LOAD_SYSCALL_NR,
+        // TODO(b/271400371) Use NOTIF_FLAG_CONTINUE once generally available
+        JNE32(__NR_seccomp, JUMP(&l, past_seccomp_l)),
+        ARG_32(3),
+        JNE32(internal::kExecveMagic, JUMP(&l, past_seccomp_l)),
+        ALLOW,
+        LABEL(&l, past_seccomp_l),
+        LOAD_SYSCALL_NR,
+        JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
+        ARG_32(4),
+        JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
+        ARG_32(5),
+        JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
+        ALLOW,
+        LABEL(&l, past_execveat_l),
+    };
+  } else {
+    policy = {
+      // If compiled arch is different from the runtime one, inform the Monitor.
+      LOAD_ARCH,
+      JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
 #if defined(SAPI_X86_64)
-    JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),  // 32-bit sandboxee
+      JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),  // 32-bit sandboxee
 #endif
-    TRACE(sapi::cpu::kUnknown),
-    LABEL(&l, past_arch_check_l),
+      TRACE(sapi::cpu::kUnknown),
+      LABEL(&l, past_arch_check_l),
 
-    // After the policy is uploaded, forkserver will execve the sandboxee. We
-    // need to allow this execve but not others. Since BPF does not have
-    // state, we need to inform the Monitor to decide, and for that we use a
-    // magic value in syscall args 5. Note that this value is not supposed to
-    // be secret, but just an optimization so that the monitor is not
-    // triggered on every call to execveat.
-    LOAD_SYSCALL_NR,
-    JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
-    ARG_32(4),
-    JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
-    ARG_32(5),
-    JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
-    SANDBOX2_TRACE,
-    LABEL(&l, past_execveat_l),
+      // After the policy is uploaded, forkserver will execve the sandboxee. We
+      // need to allow this execve but not others. Since BPF does not have
+      // state, we need to inform the Monitor to decide, and for that we use a
+      // magic value in syscall args 5. Note that this value is not supposed to
+      // be secret, but just an optimization so that the monitor is not
+      // triggered on every call to execveat.
+      LOAD_SYSCALL_NR,
+      JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
+      ARG_32(4),
+      JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
+      ARG_32(5),
+      JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
+      SANDBOX2_TRACE,
+      LABEL(&l, past_execveat_l),
 
-    LOAD_SYSCALL_NR,
-  };
+      LOAD_SYSCALL_NR,
+    };
+  }
 
   // Forbid ptrace because it's unsafe or too risky. The user policy can only
   // block (i.e. return an error instead of killing the process) but not allow
@@ -169,8 +209,8 @@ std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   };
 }
 
-bool Policy::SendPolicy(Comms* comms) const {
-  auto policy = GetPolicy();
+bool Policy::SendPolicy(Comms* comms, bool user_notif) const {
+  auto policy = GetPolicy(user_notif);
   if (!comms->SendBytes(
           reinterpret_cast<uint8_t*>(policy.data()),
           static_cast<uint64_t>(policy.size()) * sizeof(sock_filter))) {

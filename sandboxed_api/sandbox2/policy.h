@@ -54,8 +54,10 @@ class Policy final {
   void GetPolicyDescription(PolicyDescription* policy) const;
 
  private:
+  friend class Sandbox2;
   friend class MonitorBase;
   friend class PtraceMonitor;
+  friend class UnotifyMonitor;
   friend class PolicyBuilder;
   friend class StackTracePeer;
 
@@ -63,11 +65,11 @@ class Policy final {
   Policy() = default;
 
   // Sends the policy over the IPC channel.
-  bool SendPolicy(Comms* comms) const;
+  bool SendPolicy(Comms* comms, bool user_notif) const;
 
   // Returns the policy, but modifies it according to FLAGS and internal
   // requirements (message passing via Comms, Executor::WaitForExecve etc.).
-  std::vector<sock_filter> GetPolicy() const;
+  std::vector<sock_filter> GetPolicy(bool user_notif) const;
 
   Namespace* GetNamespace() { return namespace_.get(); }
   void SetNamespace(std::unique_ptr<Namespace> ns) {
@@ -76,7 +78,7 @@ class Policy final {
 
   // Returns the default policy, which blocks certain dangerous syscalls and
   // mismatched syscall tables.
-  std::vector<sock_filter> GetDefaultPolicy() const;
+  std::vector<sock_filter> GetDefaultPolicy(bool user_notif) const;
   // Returns a policy allowing the Monitor module to track all syscalls.
   std::vector<sock_filter> GetTrackingPolicy() const;
 

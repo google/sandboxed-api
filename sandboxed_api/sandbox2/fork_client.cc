@@ -21,12 +21,11 @@
 
 namespace sandbox2 {
 
+using ::sapi::file_util::fileops::FDCloser;
+
 SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
                                          int exec_fd, int comms_fd) {
-  SandboxeeProcess process = {
-      .init_pid = -1,
-      .main_pid = -1,
-  };
+  SandboxeeProcess process;
   // Acquire the channel ownership for this request (transaction).
   absl::MutexLock l(&comms_mutex_);
 
@@ -64,6 +63,14 @@ SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
     return process;
   }
   process.main_pid = static_cast<pid_t>(pid);
+  if (request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY) {
+    int fd = -1;
+    if (!comms_->RecvFD(&fd)) {
+      LOG(ERROR) << "Receiving status fd from the ForkServer failed";
+      return process;
+    }
+    process.status_fd = FDCloser(fd);
+  }
   return process;
 }
 

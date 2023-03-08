@@ -29,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/namespace.h"
@@ -120,7 +121,8 @@ class Executor final {
   // Comms channel.
   // For clone_flags refer to Linux' 'man 2 clone'.
   absl::StatusOr<SandboxeeProcess> StartSubProcess(
-      int clone_flags, const Namespace* ns = nullptr);
+      int clone_flags, const Namespace* ns = nullptr,
+      MonitorType type = FORKSERVER_MONITOR_PTRACE);
 
   // Whether the Executor has been started yet
   bool started_ = false;

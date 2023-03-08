@@ -23,10 +23,12 @@
 
 #include "absl/base/call_once.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
+#include "sandboxed_api/sandbox2/monitor_unotify.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/stack_trace.h"
 
@@ -105,9 +107,42 @@ void Sandbox2::Launch() {
     internal::SandboxPeer::spawn_fn_ = Sandbox2Peer::Spawn;
   });
 
-  monitor_ = std::make_unique<PtraceMonitor>(executor_.get(), policy_.get(),
-                                             notify_.get());
+  monitor_ = CreateMonitor();
   monitor_->Launch();
+}
+
+absl::Status Sandbox2::EnableUnotifyMonitor() {
+  if (notify_) {
+    return absl::FailedPreconditionError(
+        "sandbox2::Notify is not compatible with unotify monitor");
+  }
+  if (policy_->GetNamespace() == nullptr) {
+    return absl::FailedPreconditionError(
+        "Unotify monitor can only be used together with namespaces");
+  }
+  if (policy_->collect_stacktrace_on_signal_) {
+    return absl::FailedPreconditionError(
+        "Unotify monitor cannot collect stack traces on signal");
+  }
+
+  if (policy_->collect_stacktrace_on_exit_) {
+    return absl::FailedPreconditionError(
+        "Unotify monitor cannot collect stack traces on normal exit");
+  }
+  use_unotify_monitor_ = true;
+  return absl::OkStatus();
+}
+
+std::unique_ptr<MonitorBase> Sandbox2::CreateMonitor() {
+  if (!notify_) {
+    notify_ = std::make_unique<Notify>();
+  }
+  if (use_unotify_monitor_) {
+    return std::make_unique<UnotifyMonitor>(executor_.get(), policy_.get(),
+                                            notify_.get());
+  }
+  return std::make_unique<PtraceMonitor>(executor_.get(), policy_.get(),
+                                         notify_.get());
 }
 
 }  // namespace sandbox2

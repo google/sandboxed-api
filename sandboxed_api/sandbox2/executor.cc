@@ -82,8 +82,9 @@ std::vector<std::string> Executor::CopyEnviron() {
   return util::CharPtrArray(environ).ToStringVector();
 }
 
-absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
-    int32_t clone_flags, const Namespace* ns) {
+absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(int32_t clone_flags,
+                                                           const Namespace* ns,
+                                                           MonitorType type) {
   if (started_) {
     return absl::FailedPreconditionError(
         "This executor has already been started");
@@ -149,6 +150,7 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
   }
 
   request.set_clone_flags(clone_flags);
+  request.set_monitor_type(type);
 
   SandboxeeProcess process;
 

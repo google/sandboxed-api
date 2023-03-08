@@ -32,6 +32,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/network_proxy/server.h"
 #include "sandboxed_api/sandbox2/notify.h"
@@ -109,6 +110,8 @@ class MonitorBase {
   // Handle to the class responsible for proxying and validating connect()
   // requests.
   std::unique_ptr<NetworkProxyServer> network_proxy_server_;
+  // Monitor type
+  MonitorType type_ = FORKSERVER_MONITOR_PTRACE;
 
  private:
   // Sends Policy to the Client.

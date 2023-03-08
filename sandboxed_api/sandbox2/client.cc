@@ -23,6 +23,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cinttypes>
 #include <climits>
 #include <cstddef>
@@ -30,6 +31,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <thread>  // NOLINT(build/c++11)
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -40,13 +42,90 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
+#include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 
+#ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
+#define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
+#endif
+
 namespace sandbox2 {
+namespace {
 
 using ::sapi::StrError;
+
+void InitSeccompUnotify(sock_fprog prog, Comms* comms) {
+  // The policy might not allow sending the notify FD.
+  // Create a separate thread that won't get the seccomp policy to send the FD.
+  // Synchronize with it using plain atomics + seccomp TSYNC, so we don't need
+  // any additional syscalls.
+  std::atomic<int> fd(-1);
+  std::atomic<int> tid(-1);
+
+  std::thread th([comms, &fd, &tid]() {
+    int notify_fd = -1;
+    while (notify_fd == -1) {
+      notify_fd = fd.load(std::memory_order_seq_cst);
+    }
+    SAPI_RAW_CHECK(comms->SendFD(notify_fd), "sending unotify fd");
+    SAPI_RAW_CHECK(close(notify_fd) == 0, "closing unotify fd");
+    sock_filter filter = ALLOW;
+    struct sock_fprog allow_prog = {
+        .len = 1,
+        .filter = &filter,
+    };
+    int result = syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0,
+                         reinterpret_cast<uintptr_t>(&allow_prog));
+    SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
+    tid.store(syscall(__NR_gettid), std::memory_order_seq_cst);
+  });
+  th.detach();
+  int result = syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
+                       SECCOMP_FILTER_FLAG_NEW_LISTENER,
+                       reinterpret_cast<uintptr_t>(&prog));
+  SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
+  fd.store(result, std::memory_order_seq_cst);
+  pid_t child = -1;
+  while (child == -1) {
+    child = tid.load(std::memory_order_seq_cst);
+  }
+  // Apply seccomp.
+  struct sock_filter code[] = {
+      LOAD_ARCH,
+      JNE32(sandbox2::Syscall::GetHostAuditArch(), ALLOW),
+      LOAD_SYSCALL_NR,
+      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, __NR_seccomp, 0, 3),
+      ARG_32(3),
+      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, internal::kExecveMagic, 0, 1),
+      DENY,
+      ALLOW,
+  };
+  prog.len = ABSL_ARRAYSIZE(code);
+  prog.filter = code;
+  do {
+    result = syscall(
+        __NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC,
+        reinterpret_cast<uintptr_t>(&prog), internal::kExecveMagic);
+  } while (result == child);
+  SAPI_RAW_CHECK(result == 0, "Enabling seccomp filter");
+}
+
+void InitSeccompRegular(sock_fprog prog) {
+  int result =
+      syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC,
+              reinterpret_cast<uintptr_t>(&prog));
+  SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
+  SAPI_RAW_PCHECK(result == 0,
+                  "synchronizing threads using SECCOMP_FILTER_FLAG_TSYNC flag "
+                  "for thread=%d",
+                  result);
+}
+
+}  // namespace
 
 Client::Client(Comms* comms) : comms_(comms) {
   char* fdmap_envvar = getenv(kFDMapEnvVar);
@@ -247,17 +326,13 @@ void Client::ApplyPolicyAndBecomeTracee() {
   uint32_t ret;  // wait for confirmation
   SAPI_RAW_CHECK(comms_->RecvUint32(&ret),
                  "receving confirmation from executor");
-  SAPI_RAW_CHECK(ret == kSandbox2ClientDone,
-                 "invalid confirmation from executor");
-
-  int result =
-      syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC,
-              reinterpret_cast<uintptr_t>(&prog));
-  SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
-  SAPI_RAW_PCHECK(result == 0,
-                  "synchronizing threads using SECCOMP_FILTER_FLAG_TSYNC flag "
-                  "for thread=%d",
-                  result);
+  if (ret == kSandbox2ClientUnotify) {
+    InitSeccompUnotify(prog, comms_);
+  } else {
+    SAPI_RAW_CHECK(ret == kSandbox2ClientDone,
+                   "invalid confirmation from executor");
+    InitSeccompRegular(prog);
+  }
 }
 
 int Client::GetMappedFD(const std::string& name) {

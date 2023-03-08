@@ -294,8 +294,6 @@ target_link_libraries(sandbox2_executor
 
 # sandboxed_api/sandbox2:sandbox2
 add_library(sandbox2_sandbox2 ${SAPI_LIB_TYPE}
-  monitor_ptrace.cc
-  monitor_ptrace.h
   sandbox2.cc
   sandbox2.h
   stack_trace.cc
@@ -309,6 +307,9 @@ target_link_libraries(sandbox2_sandbox2
           absl::optional
           absl::str_format
           absl::strings
+          sandbox2::forkserver_proto
+          sandbox2::monitor_ptrace
+          sandbox2::monitor_unotify
           sapi::base
   PUBLIC  absl::flat_hash_map
           absl::status
@@ -326,7 +327,6 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::limits
           sandbox2::logsink
           sandbox2::monitor_base
-          sandbox2::monitor_ptrace
           sandbox2::mounts
           sandbox2::mount_tree_proto
           sandbox2::namespace
@@ -443,6 +443,31 @@ target_link_libraries(sandbox2_monitor_ptrace
          sapi::raw_logging
 )
 
+# sandboxed_api/sandbox2:monitor_unotify
+add_library(sandbox2_monitor_unotify ${SAPI_LIB_TYPE}
+  monitor_unotify.cc
+  monitor_unotify.h
+)
+add_library(sandbox2::monitor_unotify ALIAS sandbox2_monitor_unotify)
+target_link_libraries(sandbox2_monitor_unotify
+  PRIVATE absl::cleanup
+          absl::log
+          absl::status
+          absl::time
+          sapi::base
+          sandbox2::client
+          sandbox2::forkserver_proto
+          sapi::fileops
+          sapi::raw_logging
+  PUBLIC sandbox2::executor
+         sandbox2::monitor_base
+         sandbox2::notify
+         sandbox2::policy
+         absl::statusor
+         absl::synchronization
+         sapi::raw_logging
+)
+
 # sandboxed_api/sandbox2:policybuilder
 add_library(sandbox2_policybuilder ${SAPI_LIB_TYPE}
   policybuilder.cc
@@ -479,7 +504,10 @@ add_library(sandbox2::client ALIAS sandbox2_client)
 target_link_libraries(sandbox2_client
   PRIVATE absl::core_headers
           absl::strings
+          sandbox2::bpf_helper
+          sandbox2::policy
           sandbox2::sanitizer
+          sandbox2::syscall
           sapi::strerror
           sapi::base
           sapi::raw_logging
@@ -546,12 +574,13 @@ add_library(sandbox2_fork_client ${SAPI_LIB_TYPE}
         fork_client.h
 )
 add_library(sandbox2::fork_client ALIAS sandbox2_fork_client)
-target_link_libraries(sandbox2_fork_client PRIVATE
-  absl::core_headers
-  absl::synchronization
-  sandbox2::comms
-  sandbox2::forkserver_proto
-  sapi::base
+target_link_libraries(sandbox2_fork_client
+  PRIVATE sandbox2::comms
+          sandbox2::forkserver_proto
+  PUBLIC absl::core_headers
+         absl::synchronization
+         sapi::base
+         sapi::fileops
 )
 
 # sandboxed_api/sandbox2:mounts

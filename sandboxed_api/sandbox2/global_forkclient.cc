@@ -293,10 +293,7 @@ SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
   absl::ReleasableMutexLock lock(&GlobalForkClient::instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   if (!instance_) {
-    return {
-        .init_pid = -1,
-        .main_pid = -1,
-    };
+    return SandboxeeProcess();
   }
   SandboxeeProcess process =
       instance_->fork_client_.SendRequest(request, exec_fd, comms_fd);

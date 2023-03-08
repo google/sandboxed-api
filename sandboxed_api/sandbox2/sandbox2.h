@@ -46,9 +46,6 @@ class Sandbox2 final {
         notify_(std::move(notify)) {
     CHECK(executor_ != nullptr);
     CHECK(policy_ != nullptr);
-    if (notify_ == nullptr) {
-      notify_ = std::make_unique<Notify>();
-    }
   }
 
   Sandbox2(const Sandbox2&) = delete;
@@ -108,9 +105,13 @@ class Sandbox2 final {
     return executor_ != nullptr ? executor_->ipc()->comms() : nullptr;
   }
 
+  absl::Status EnableUnotifyMonitor();
+
  private:
   // Launches the Monitor.
   void Launch();
+
+  std::unique_ptr<MonitorBase> CreateMonitor();
 
   // Executor set by user - owned by Sandbox2.
   std::unique_ptr<Executor> executor_;
@@ -123,6 +124,8 @@ class Sandbox2 final {
 
   // Monitor object - owned by Sandbox2.
   std::unique_ptr<MonitorBase> monitor_;
+
+  bool use_unotify_monitor_ = false;
 };
 
 }  // namespace sandbox2

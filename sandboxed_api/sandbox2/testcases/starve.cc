@@ -41,7 +41,7 @@ int ChildFunc(void*) {
 int main() {
   for (int i = 0; i < kProcesses; ++i) {
     int p[2];
-    char c;
+    char c = ' ';
     pipe(p);
     g_pids[i] = fork();
     if (g_pids[i] == 0) {

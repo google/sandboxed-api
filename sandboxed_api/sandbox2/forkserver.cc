@@ -110,34 +110,43 @@ void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
   }
 }
 
-void RunInitProcess(const absl::flat_hash_set<int>& open_fds) {
+void RunInitProcess(pid_t main_pid, int pipe_fd,
+                    const absl::flat_hash_set<int>& open_fds) {
   if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
   }
+
   // Close all open fds (equals to CloseAllFDsExcept but does not require /proc
   // to be available).
   for (const auto& fd : open_fds) {
     close(fd);
   }
 
+  // Clear SA_NOCLDWAIT.
+  struct sigaction sa;
+  sa.sa_handler = SIG_DFL;
+  sa.sa_flags = 0;
+  sigemptyset(&sa.sa_mask);
+  SAPI_RAW_CHECK(sigaction(SIGCHLD, &sa, nullptr) == 0,
+                 "clearing SA_NOCLDWAIT");
+
   // Apply seccomp.
-  struct sock_filter code[] = {
+  std::vector<sock_filter> code = {
       LOAD_ARCH,
       JNE32(sandbox2::Syscall::GetHostAuditArch(), DENY),
 
       LOAD_SYSCALL_NR,
-#ifdef __NR_waitpid
-      SYSCALL(__NR_waitpid, ALLOW),
-#endif
-      SYSCALL(__NR_wait4, ALLOW),
+      SYSCALL(__NR_waitid, ALLOW),
       SYSCALL(__NR_exit, ALLOW),
-      SYSCALL(__NR_exit_group, ALLOW),
-      DENY,
   };
+  if (pipe_fd >= 0) {
+    code.insert(code.end(), {SYSCALL(__NR_write, ALLOW)});
+  }
+  code.push_back(DENY);
 
-  struct sock_fprog prog {};
-  prog.len = ABSL_ARRAYSIZE(code);
-  prog.filter = code;
+  struct sock_fprog prog {
+    .len = code.size(), .filter = code.data(),
+  };
 
   SAPI_RAW_CHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
                  "Denying new privs");
@@ -147,20 +156,20 @@ void RunInitProcess(const absl::flat_hash_set<int>& open_fds) {
               reinterpret_cast<uintptr_t>(&prog)) == 0,
       "Enabling seccomp filter");
 
-  pid_t pid;
-  int status = 0;
-
+  siginfo_t info;
   // Reap children.
-  while (true) {
-    // Wait until we don't have any children anymore.
-    // We cannot watch for the child pid as ptrace steals our waitpid
-    // notifications. (See man ptrace / man waitpid).
-    pid = TEMP_FAILURE_RETRY(waitpid(-1, &status, __WALL));
-    if (pid < 0) {
-      if (errno == ECHILD) {
-        _exit(0);
-      }
+  for (;;) {
+    int rv = TEMP_FAILURE_RETRY(waitid(P_ALL, -1, &info, WEXITED | __WALL));
+    if (rv != 0) {
       _exit(1);
+    }
+
+    if (info.si_pid == main_pid) {
+      if (pipe_fd >= 0) {
+        write(pipe_fd, &info.si_code, sizeof(info.si_code));
+        write(pipe_fd, &info.si_status, sizeof(info.si_status));
+      }
+      _exit(0);
     }
   }
 }
@@ -269,7 +278,8 @@ void ForkServer::PrepareExecveArgs(const ForkRequest& request,
 
 void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
                              int client_fd, uid_t uid, gid_t gid,
-                             int signaling_fd, bool avoid_pivot_root) const {
+                             int signaling_fd, int status_fd,
+                             bool avoid_pivot_root) const {
   SAPI_RAW_CHECK(request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
 
@@ -311,7 +321,13 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
       SAPI_RAW_PLOG(FATAL, "Could not spawn init process");
     }
     if (child != 0) {
-      RunInitProcess(*open_fds);
+      if (status_fd >= 0) {
+        open_fds->erase(status_fd);
+      }
+      RunInitProcess(child, status_fd, *open_fds);
+    }
+    if (status_fd >= 0) {
+      close(status_fd);
     }
     // Send sandboxee pid
     auto status = SendPid(signaling_fd);
@@ -402,6 +418,11 @@ pid_t ForkServer::ServeRequest() {
   uid_t uid = getuid();
   uid_t gid = getgid();
 
+  int pfds[2] = {-1, -1};
+  if (fork_request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY) {
+    SAPI_RAW_PCHECK(pipe(pfds) == 0, "creating status pipe");
+  }
+
   int socketpair_fds[2];
   SAPI_RAW_PCHECK(
       socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, socketpair_fds) == 0,
@@ -472,7 +493,7 @@ pid_t ForkServer::ServeRequest() {
   // Child.
   if (sandboxee_pid == 0) {
     LaunchChild(fork_request, exec_fd, comms_fd, uid, gid, fd_closer1.get(),
-                avoid_pivot_root);
+                pfds[1], avoid_pivot_root);
     return sandboxee_pid;
   }
 
@@ -495,6 +516,9 @@ pid_t ForkServer::ServeRequest() {
   }
 
   // Parent.
+  if (pfds[1] >= 0) {
+    close(pfds[1]);
+  }
   close(comms_fd);
   if (exec_fd >= 0) {
     close(exec_fd);
@@ -504,6 +528,11 @@ pid_t ForkServer::ServeRequest() {
   SAPI_RAW_CHECK(
       comms_->SendInt32(sandboxee_pid),
       absl::StrCat("Failed to send sandboxee PID: ", sandboxee_pid).c_str());
+
+  if (pfds[0] >= 0) {
+    SAPI_RAW_CHECK(comms_->SendFD(pfds[0]), "Failed to send status pipe");
+    close(pfds[0]);
+  }
   return sandboxee_pid;
 }
 

@@ -19,6 +19,7 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -31,6 +32,7 @@ class ForkRequest;
 struct SandboxeeProcess {
   pid_t init_pid = -1;
   pid_t main_pid = -1;
+  sapi::file_util::fileops::FDCloser status_fd;
 };
 
 class ForkClient {
