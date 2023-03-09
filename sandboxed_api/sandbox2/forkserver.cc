@@ -145,7 +145,7 @@ void RunInitProcess(pid_t main_pid, int pipe_fd,
   code.push_back(DENY);
 
   struct sock_fprog prog {
-    .len = code.size(), .filter = code.data(),
+    .len = static_cast<uint16_t>(code.size()), .filter = code.data(),
   };
 
   SAPI_RAW_CHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
