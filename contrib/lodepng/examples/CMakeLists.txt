@@ -20,6 +20,9 @@ if(SAPI_BUILD_EXAMPLES)
   )
   target_link_libraries(lodepng_unsandboxed PRIVATE
     absl::check
+    absl::flags_parse
+    absl::log_globals
+    absl::log_initialize
     lodepng
     sapi::sapi
     sapi::temp_file
@@ -35,6 +38,9 @@ if(SAPI_BUILD_EXAMPLES)
   )
   target_link_libraries(lodepng_sandboxed PRIVATE
     absl::check
+    absl::flags_parse
+    absl::log_globals
+    absl::log_initialize
     sapi_contrib::lodepng
     sapi::sapi
     sapi::temp_file
