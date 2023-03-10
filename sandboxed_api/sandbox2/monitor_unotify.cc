@@ -108,11 +108,12 @@ void UnotifyMonitor::HandleUnotify() {
                   {req_->data.args[0], req_->data.args[1], req_->data.args[2],
                    req_->data.args[3], req_->data.args[4], req_->data.args[5]},
                   req_->pid, 0, req_->data.instruction_pointer);
-  LogSyscallViolation(syscall);
-  MaybeGetStackTrace(req_->pid, Result::VIOLATION);
   ViolationType violation_type = syscall.arch() == Syscall::GetHostArch()
                                      ? kSyscallViolation
                                      : kArchitectureSwitchViolation;
+  LogSyscallViolation(syscall);
+  notify_->EventSyscallViolation(syscall, violation_type);
+  MaybeGetStackTrace(req_->pid, Result::VIOLATION);
   SetExitStatusCode(Result::VIOLATION, syscall.nr());
   notify_->EventSyscallViolation(syscall, violation_type);
   result_.SetSyscall(std::make_unique<Syscall>(syscall));

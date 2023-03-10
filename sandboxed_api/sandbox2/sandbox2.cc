@@ -113,8 +113,10 @@ void Sandbox2::Launch() {
 
 absl::Status Sandbox2::EnableUnotifyMonitor() {
   if (notify_) {
-    return absl::FailedPreconditionError(
-        "sandbox2::Notify is not compatible with unotify monitor");
+    LOG(WARNING) << "Running UnotifyMonitor with sandbox2::Notify is not fully "
+                    "supported. Runtime syscall decisions via "
+                    "EventSyscallTrap/EventSyscallTrace, notifications about "
+                    "signals via EventSignal will not work";
   }
   if (policy_->GetNamespace() == nullptr) {
     return absl::FailedPreconditionError(
