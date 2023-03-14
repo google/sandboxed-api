@@ -975,6 +975,9 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":util",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )
