@@ -203,9 +203,21 @@ void UnotifyMonitor::Run() {
     }
   }
   if (wait_for_sandboxee) {
-    int timeout_ms = 1000;  // 1 sec
-    PCHECK(poll(pfds, 1, timeout_ms) != -1);
-    if (pfds[0].revents & POLLIN) {
+    absl::Time deadline = absl::Now() + absl::Seconds(1);
+    int ret = 0;
+    do {
+      absl::Duration remaining = deadline - absl::Now();
+      if (remaining <= absl::ZeroDuration()) {
+        ret = 0;
+        break;
+      }
+      ret =
+          poll(pfds, 1, static_cast<int>(absl::ToInt64Milliseconds(remaining)));
+    } while (ret == -1 && errno == EINTR);
+    PCHECK(ret != -1);
+    if (ret == 0) {
+      LOG(WARNING) << "Waiting for sandboxee exit timed out";
+    } else if (pfds[0].revents & POLLIN) {
       SetExitStatusFromStatusPipe();
     } else if (pfds[0].revents & POLLHUP) {
       SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
