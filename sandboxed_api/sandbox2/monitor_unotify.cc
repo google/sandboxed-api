@@ -171,11 +171,17 @@ void UnotifyMonitor::Run() {
       KillSandboxee();
       break;
     }
-    constexpr int64_t kMinWakeupMsec = 10000;
-    int timeout_msec = static_cast<int>(
-        std::min(kMinWakeupMsec,
-                 std::max(int64_t{0}, absl::ToInt64Milliseconds(remaining))));
-    PCHECK(poll(pfds, ABSL_ARRAYSIZE(pfds), timeout_msec) != -1);
+    constexpr int64_t kMinWakeupMsec = 30000;
+    int timeout_msec = kMinWakeupMsec;
+    if (remaining > absl::ZeroDuration()) {
+      timeout_msec = static_cast<int>(
+          std::min(kMinWakeupMsec, absl::ToInt64Milliseconds(remaining)));
+    }
+    int ret = poll(pfds, ABSL_ARRAYSIZE(pfds), timeout_msec);
+    if (ret == 0 || (ret == -1 && errno == EINTR)) {
+      continue;
+    }
+    PCHECK(ret != -1);
     if (pfds[2].revents & POLLIN) {
       char c = ' ';
       read(monitor_notify_pipe_[0].get(), &c, 1);
