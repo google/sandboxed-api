@@ -120,6 +120,8 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
         JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
         ALLOW,
         LABEL(&l, past_execveat_l),
+
+        LOAD_SYSCALL_NR,
     };
   } else {
     policy = {
