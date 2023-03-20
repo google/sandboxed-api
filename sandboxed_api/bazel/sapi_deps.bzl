@@ -37,9 +37,9 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "ef76248ccea6dd05762cfdc9a5b234222e1f3b38d31325e35d4172559eac7935",  # 2022-09-15
-        strip_prefix = "abseil-cpp-ab2e2c4f6062999afaf960759dfccb77f350c702",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/ab2e2c4f6062999afaf960759dfccb77f350c702.zip"],
+        sha256 = "adca6c26a90d6791e36bfe5dbc8573182c5fa0726da29901a6b3949d65116e25",  # 2023-03-20
+        strip_prefix = "abseil-cpp-efeb95f4491740817a1c37345b66d26bce722ae4",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/efeb95f4491740817a1c37345b66d26bce722ae4.zip"],
     )
     maybe(
         http_archive,

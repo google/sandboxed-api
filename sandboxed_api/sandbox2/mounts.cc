@@ -64,7 +64,6 @@ absl::string_view GetOutsidePath(const MountTree::Node& node) {
       return node.dir_node().outside();
     default:
       SAPI_RAW_LOG(FATAL, "Invalid node type");
-      return "";  // NOT REACHED
   }
 }
 

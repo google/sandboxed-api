@@ -56,6 +56,9 @@
     ::sapi::raw_logging_internal::RawLog(SAPI_RAW_LOGGING_INTERNAL_##severity, \
                                          absl_raw_logging_internal_basename,   \
                                          __LINE__, __VA_ARGS__);               \
+    if (SAPI_RAW_LOGGING_INTERNAL_##severity == ::absl::LogSeverity::kFatal) { \
+      ABSL_UNREACHABLE();                                                      \
+    }                                                                          \
   } while (0)
 #endif
 
