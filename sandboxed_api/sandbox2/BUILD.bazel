@@ -1035,7 +1035,9 @@ cc_library(
 sapi_proto_library(
     name = "violation_proto",
     srcs = ["violation.proto"],
-    deps = [":mount_tree_proto"],
+    deps = [
+        ":mount_tree_proto",
+    ],
 )
 
 cc_test(
