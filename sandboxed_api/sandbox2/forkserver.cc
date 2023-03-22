@@ -43,7 +43,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "libcap/include/sys/capability.h"
@@ -378,13 +377,11 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     } else {
       ExecuteProcess(execve_fd, argv.data(), envp.data());
     }
-    abort();
   }
 
   if (will_execve) {
     ExecuteProcess(execve_fd, util::CharPtrArray::FromStringVector(args).data(),
                    util::CharPtrArray::FromStringVector(envs).data());
-    abort();
   }
 }
 
@@ -643,6 +640,7 @@ void ForkServer::ExecuteProcess(int execve_fd, const char* const* argv,
   }
 
   util::Syscall(__NR_exit_group, EXIT_FAILURE);
+  abort();
 }
 
 void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,

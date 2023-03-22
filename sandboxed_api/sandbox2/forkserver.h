@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/log/log.h"
 
 namespace sandbox2 {
@@ -73,7 +74,7 @@ class ForkServer {
 
   // Executes the sandboxee, or exit with Executor::kFailedExecve.
   static void ExecuteProcess(int execve_fd, const char* const* argv,
-                             const char* const* envp);
+                             const char* const* envp) ABSL_ATTRIBUTE_NORETURN;
 
   // Runs namespace initializers for a sandboxee.
   static void InitializeNamespaces(const ForkRequest& request, uid_t uid,

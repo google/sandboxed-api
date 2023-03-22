@@ -543,29 +543,30 @@ add_library(sandbox2_forkserver ${SAPI_LIB_TYPE}
   forkserver.h
 )
 add_library(sandbox2::forkserver ALIAS sandbox2_forkserver)
-target_link_libraries(sandbox2_forkserver PRIVATE
-  absl::flat_hash_map
-  absl::flat_hash_set
-  absl::status
-  absl::statusor
-  absl::str_format
-  absl::strings
-  libcap::libcap
-  sandbox2::bpf_helper
-  sandbox2::client
-  sandbox2::comms
-  sapi::fileops
-  sandbox2::fork_client
-  sandbox2::forkserver_proto
-  sandbox2::namespace
-  sandbox2::policy
-  sapi::strerror
-  sandbox2::sanitizer
-  sandbox2::syscall
-  sandbox2::unwind
-  sandbox2::util
-  sapi::base
-  sapi::raw_logging
+target_link_libraries(sandbox2_forkserver
+  PRIVATE absl::flat_hash_map
+          absl::flat_hash_set
+          absl::status
+          absl::statusor
+          absl::strings
+          libcap::libcap
+          sandbox2::bpf_helper
+          sandbox2::client
+          sandbox2::comms
+          sapi::fileops
+          sandbox2::fork_client
+          sandbox2::forkserver_proto
+          sandbox2::namespace
+          sandbox2::policy
+          sapi::strerror
+          sandbox2::sanitizer
+          sandbox2::syscall
+          sandbox2::unwind
+          sandbox2::util
+          sapi::base
+          sapi::raw_logging
+  PUBLIC absl::core_headers
+         absl::log
 )
 
 # sandboxed_api/sandbox2:fork_client
