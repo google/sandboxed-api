@@ -844,6 +844,16 @@ PolicyBuilder& PolicyBuilder::AllowRename() {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::AllowEventFd() {
+  AllowSyscalls({
+#ifdef __NR_eventfd
+      __NR_eventfd,
+#endif
+      __NR_eventfd2,
+  });
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AllowPrctlSetName() {
   AddPolicyOnSyscall(__NR_prctl, {ARG_32(0), JEQ32(PR_SET_NAME, ALLOW)});
   return *this;

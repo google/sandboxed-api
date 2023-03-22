@@ -474,6 +474,12 @@ class PolicyBuilder final {
   // - renameat2
   PolicyBuilder& AllowRename();
 
+  // Appends code to allow creating event notification file descriptors.
+  // Allows these syscalls:
+  // - eventfd (if available)
+  // - eventfd2
+  PolicyBuilder& AllowEventFd();
+
   // Appends code to allow polling files.
   // Allows these syscalls:
   // - poll (if available)
