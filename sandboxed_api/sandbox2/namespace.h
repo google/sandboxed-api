@@ -21,10 +21,8 @@
 #include <sys/types.h>
 
 #include <cstdint>
-#include <memory>
 #include <string>
 
-#include "absl/base/macros.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 
@@ -61,8 +59,6 @@ class Namespace final {
   bool allow_mount_propagation() const { return allow_mount_propagation_; }
 
  private:
-  friend class StackTracePeer;
-
   int32_t clone_flags_;
   Mounts mounts_;
   std::string hostname_;

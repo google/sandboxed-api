@@ -615,19 +615,14 @@ add_library(sandbox2_namespace ${SAPI_LIB_TYPE}
   namespace.h
 )
 add_library(sandbox2::namespace ALIAS sandbox2_namespace)
-target_link_libraries(sandbox2_namespace PRIVATE
-  absl::core_headers
-  absl::str_format
-  absl::strings
-  protobuf::libprotobuf
-  sapi::file_base
-  sapi::fileops
-  sandbox2::mounts
-  sandbox2::mount_tree_proto
-  sapi::strerror
-  sandbox2::violation_proto
-  sapi::base
-  sapi::raw_logging
+target_link_libraries(sandbox2_namespace
+  PRIVATE absl::strings
+          sapi::file_base
+          sapi::fileops
+          sapi::base
+          sapi::raw_logging
+  PUBLIC sandbox2::violation_proto
+         sandbox2::mounts
 )
 
 # sandboxed_api/sandbox2:forkingclient

@@ -33,12 +33,9 @@
 #include <utility>
 
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
 

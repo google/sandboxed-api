@@ -682,10 +682,7 @@ cc_library(
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:strerror",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
