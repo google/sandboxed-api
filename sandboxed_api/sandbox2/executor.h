@@ -58,8 +58,9 @@ class Executor final {
 
   // Executor will own this file-descriptor, so if intend to use it, pass here
   // dup(fd) instead
-  Executor(int exec_fd, absl::Span<const std::string> argv,
-           absl::Span<const std::string> envp)
+  Executor(
+      int exec_fd, absl::Span<const std::string> argv,
+      absl::Span<const std::string> envp = absl::MakeConstSpan(CopyEnviron()))
       : exec_fd_(exec_fd),
         argv_(argv.begin(), argv.end()),
         envp_(envp.begin(), envp.end()) {

@@ -105,8 +105,7 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   ASSERT_NE(fd, -1);
 
   std::vector<std::string> args = {absl::StrCat("FD:", fd)};
-  std::vector<std::string> envs;
-  auto executor = std::make_unique<Executor>(fd, args, envs);
+  auto executor = std::make_unique<Executor>(fd, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             CreateDefaultPermissiveTestPolicy(path).TryBuild());
@@ -122,8 +121,7 @@ TEST_P(Sandbox2Test, SandboxeeExternalKill) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
   std::vector<std::string> args = {path};
-  std::vector<std::string> envs;
-  auto executor = std::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             CreateDefaultTestPolicy(path).TryBuild());
@@ -142,8 +140,7 @@ TEST_P(Sandbox2Test, SandboxeeTimeoutDisabledStacktraces) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
   std::vector<std::string> args = {path};
-  std::vector<std::string> envs;
-  auto executor = std::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultTestPolicy(path)
                                              .CollectStacktracesOnTimeout(false)
@@ -162,8 +159,7 @@ TEST(Sandbox2Test, SandboxeeViolationDisabledStacktraces) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
   std::vector<std::string> args = {path};
-  std::vector<std::string> envs;
-  auto executor = std::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args);
 
   SAPI_ASSERT_OK_AND_ASSIGN(
       auto policy, PolicyBuilder()
@@ -196,8 +192,7 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/starve");
 
   std::vector<std::string> args = {path};
-  std::vector<std::string> envs;
-  auto executor = std::make_unique<Executor>(path, args, envs);
+  auto executor = std::make_unique<Executor>(path, args);
   executor->limits()->set_walltime_limit(absl::Seconds(5));
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
