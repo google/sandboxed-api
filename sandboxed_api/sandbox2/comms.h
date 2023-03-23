@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The sandbox2::Comms class uses AF_UNIX sockets in the abstract namespace
-// (man 7 unix) to send pieces of data between processes. It uses the TLV
-// encoding and provides some useful helpers.
+// The sandbox2::Comms class uses AF_UNIX sockets (man 7 unix) to send pieces of
+// data between processes. It uses the TLV encoding and provides some useful
+// helpers.
 //
 // The endianess is platform-specific, but as it can be used over abstract
 // sockets only, that's not a problem. Is some poor soul decides to rewrite it
@@ -83,7 +83,8 @@ class Comms {
   static constexpr const char* kSandbox2CommsFDEnvVar = "SANDBOX2_COMMS_FD";
 
   // This object will have to be connected later on.
-  explicit Comms(const std::string& socket_name);
+  // When not specified the constructor uses abstract unix domain sockets.
+  explicit Comms(const std::string& socket_name, bool abstract_uds = true);
 
   Comms(const Comms&) = delete;
   Comms& operator=(const Comms&) = delete;
@@ -186,6 +187,7 @@ class Comms {
 
   // Connection parameters.
   std::string socket_name_;
+  bool abstract_uds_ = true;
   int connection_fd_ = -1;
   int bind_fd_ = -1;
 

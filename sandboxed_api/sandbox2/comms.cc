@@ -77,7 +77,8 @@ int GetDefaultCommsFd() {
 }
 }  // namespace
 
-Comms::Comms(const std::string& socket_name) : socket_name_(socket_name) {}
+Comms::Comms(const std::string& socket_name, bool abstract_uds)
+    : socket_name_(socket_name), abstract_uds_(abstract_uds) {}
 
 Comms::Comms(int fd) : connection_fd_(fd) {
   // Generate a unique and meaningful socket name for this FD.
@@ -485,16 +486,24 @@ bool Comms::SendProtoBuf(const google::protobuf::MessageLite& message) {
 socklen_t Comms::CreateSockaddrUn(sockaddr_un* sun) {
   sun->sun_family = AF_UNIX;
   bzero(sun->sun_path, sizeof(sun->sun_path));
-  // Create an 'abstract socket address' by specifying a leading null byte. The
-  // remainder of the path is used as a unique name, but no file is created on
-  // the filesystem. No need to NUL-terminate the string.
-  // See `man 7 unix` for further explanation.
-  strncpy(&sun->sun_path[1], socket_name_.c_str(), sizeof(sun->sun_path) - 1);
+  socklen_t slen = sizeof(sun->sun_family) + strlen(socket_name_.c_str());
+  if (abstract_uds_) {
+    // Create an 'abstract socket address' by specifying a leading null byte.
+    // The remainder of the path is used as a unique name, but no file is
+    // created on the filesystem. No need to NUL-terminate the string. See `man
+    // 7 unix` for further explanation.
+    strncpy(&sun->sun_path[1], socket_name_.c_str(), sizeof(sun->sun_path) - 1);
+    // Len is complicated - it's essentially size of the path, plus initial
+    // NUL-byte, minus size of the sun.sun_family.
+    slen++;
+  } else {
+    // Create the socket address as it was passed from the constructor.
+    strncpy(&sun->sun_path[0], socket_name_.c_str(), sizeof(sun->sun_path));
+  }
 
-  // Len is complicated - it's essentially size of the path, plus initial
-  // NUL-byte, minus size of the sun.sun_family.
-  socklen_t slen = sizeof(sun->sun_family) + strlen(socket_name_.c_str()) + 1;
+  // This takes care of the socket address overflow.
   if (slen > sizeof(sockaddr_un)) {
+    SAPI_RAW_LOG(ERROR, "Socket address is too long, will be truncated");
     slen = sizeof(sockaddr_un);
   }
   return slen;
