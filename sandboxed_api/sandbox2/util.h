@@ -106,6 +106,10 @@ std::string GetPtraceEventName(int event);
 // process memory
 absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);
 
+// Wrapper for execveat(2).
+int Execveat(int dirfd, const char* pathname, const char* const argv[],
+             const char* const envp[], int flags, uintptr_t extra_arg = 0);
+
 }  // namespace sandbox2::util
 
 #endif  // SANDBOXED_API_SANDBOX2_UTIL_H_

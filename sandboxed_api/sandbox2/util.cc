@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
@@ -66,6 +67,32 @@ std::string ConcatenateAll(char* const* arr) {
     result.append(*arr, len + 1);
   }
   return result;
+}
+
+#ifdef __ELF__
+extern "C" void __gcov_dump() ABSL_ATTRIBUTE_WEAK;
+extern "C" void __gcov_flush() ABSL_ATTRIBUTE_WEAK;
+extern "C" void __gcov_reset() ABSL_ATTRIBUTE_WEAK;
+#endif
+
+void DumpCoverageData() {
+#ifdef __ELF__
+  if (&__gcov_dump != nullptr) {
+    SAPI_RAW_LOG(WARNING, "Flushing coverage data (dump)");
+    __gcov_dump();
+  } else if (&__gcov_flush != nullptr) {
+    SAPI_RAW_LOG(WARNING, "Flushing coverage data (flush)");
+    __gcov_flush();
+  }
+#endif
+}
+
+void ResetCoverageData() {
+#ifdef __ELF__
+  if (&__gcov_reset != nullptr) {
+    __gcov_reset();
+  }
+#endif
 }
 
 }  // namespace
@@ -398,6 +425,24 @@ absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
   }
   path.resize(pos);
   return path;
+}
+
+int Execveat(int dirfd, const char* pathname, const char* const argv[],
+             const char* const envp[], int flags, uintptr_t extra_arg) {
+  // Flush coverage data prior to exec.
+  if (extra_arg == 0) {
+    DumpCoverageData();
+  }
+  int res = syscall(__NR_execveat, static_cast<uintptr_t>(dirfd),
+                    reinterpret_cast<uintptr_t>(pathname),
+                    reinterpret_cast<uintptr_t>(argv),
+                    reinterpret_cast<uintptr_t>(envp),
+                    static_cast<uintptr_t>(flags), extra_arg);
+  // Reset coverage data if exec fails as the counters have been already dumped.
+  if (extra_arg == 0) {
+    ResetCoverageData();
+  }
+  return res;
 }
 
 }  // namespace sandbox2::util

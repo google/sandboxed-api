@@ -61,6 +61,10 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 
+namespace sandbox2 {
+
+namespace file_util = ::sapi::file_util;
+
 namespace {
 
 using ::sapi::StrError;
@@ -243,10 +247,6 @@ bool IsLikelyChrooted() {
 }
 
 }  // namespace
-
-namespace sandbox2 {
-
-namespace file_util = ::sapi::file_util;
 
 void ForkServer::PrepareExecveArgs(const ForkRequest& request,
                                    std::vector<std::string>* args,
@@ -616,11 +616,8 @@ void ForkServer::ExecuteProcess(int execve_fd, const char* const* argv,
   // Do not add any code before execve(), as it's subject to seccomp policies.
   // Indicate that it's a special execve(), by setting 4th, 5th and 6th syscall
   // argument to magic values.
-  util::Syscall(
-      __NR_execveat, static_cast<uintptr_t>(execve_fd),
-      reinterpret_cast<uintptr_t>(""), reinterpret_cast<uintptr_t>(argv),
-      reinterpret_cast<uintptr_t>(envp), static_cast<uintptr_t>(AT_EMPTY_PATH),
-      reinterpret_cast<uintptr_t>(internal::kExecveMagic));
+  util::Execveat(execve_fd, "", argv, envp, AT_EMPTY_PATH,
+                 internal::kExecveMagic);
 
   int saved_errno = errno;
   SAPI_RAW_PLOG(ERROR, "sandbox2::ForkServer: execveat failed");

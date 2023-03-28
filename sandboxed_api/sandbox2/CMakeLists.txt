@@ -210,6 +210,7 @@ target_link_libraries(sandbox2_forkserver_bin PRIVATE
   sandbox2::comms
   sandbox2::forkserver
   sandbox2::sanitizer
+  sandbox2::util
   sapi::base
   sapi::raw_logging
 )
@@ -236,6 +237,7 @@ target_link_libraries(sandbox2_global_forkserver
           absl::log
           sandbox2::client
           sandbox2::forkserver_bin_embed
+          sandbox2::util
           sapi::strerror
           sapi::base
           sapi::config

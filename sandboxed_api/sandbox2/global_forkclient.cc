@@ -49,6 +49,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 
@@ -142,11 +143,8 @@ int LaunchForkserver(void* vargs) {
 
   char proc_name[] = "S2-FORK-SERV";
   char* const argv[] = {proc_name, nullptr};
-  char* const envp[] = {nullptr};
-
-  syscall(__NR_execveat, args->exec_fd, "", argv, envp, AT_EMPTY_PATH);
+  util::Execveat(args->exec_fd, "", argv, environ, AT_EMPTY_PATH);
   SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
-  abort();
 }
 
 absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
