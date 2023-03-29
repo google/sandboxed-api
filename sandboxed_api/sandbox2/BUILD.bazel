@@ -722,6 +722,7 @@ cc_library(
         ":comms",
         ":forkserver",
         ":sanitizer",
+        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/log:check",
     ],
 )

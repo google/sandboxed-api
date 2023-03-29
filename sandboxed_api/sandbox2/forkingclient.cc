@@ -14,12 +14,16 @@
 
 #include "sandboxed_api/sandbox2/forkingclient.h"
 
+#include <sys/types.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <memory>
 
 #include "absl/log/check.h"
+#include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 
@@ -36,7 +40,12 @@ pid_t ForkingClient::WaitAndFork() {
                    << ") during sandbox2::Client::WaitAndFork()";
     fork_server_worker_ = std::make_unique<ForkServer>(comms_);
   }
-  return fork_server_worker_->ServeRequest();
+  pid_t pid = fork_server_worker_->ServeRequest();
+  if (pid == -1 && fork_server_worker_->IsTerminated()) {
+    SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");
+    exit(0);
+  }
+  return pid;
 }
 
 }  // namespace sandbox2

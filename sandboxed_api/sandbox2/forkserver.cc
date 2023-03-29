@@ -389,8 +389,7 @@ pid_t ForkServer::ServeRequest() {
   ForkRequest fork_request;
   if (!comms_->RecvProtoBuf(&fork_request)) {
     if (comms_->IsTerminated()) {
-      SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");
-      exit(0);
+      return -1;
     }
     SAPI_RAW_LOG(FATAL, "Failed to receive ForkServer request");
   }
@@ -532,6 +531,8 @@ pid_t ForkServer::ServeRequest() {
   }
   return sandboxee_pid;
 }
+
+bool ForkServer::IsTerminated() const { return comms_->IsTerminated(); }
 
 bool ForkServer::Initialize() {
   // All processes spawned by the fork'd/execute'd process will see this process

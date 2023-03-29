@@ -60,12 +60,13 @@ int main() {
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::ForkServer fork_server(&comms);
 
-  while (true) {
+  while (!fork_server.IsTerminated()) {
     pid_t child_pid = fork_server.ServeRequest();
-    if (!child_pid) {
+    if (child_pid == 0) {
       // FORKSERVER_FORK sent to the global forkserver. This case does not make
       // sense, we thus kill the process here.
       _Exit(0);
     }
   }
+  SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");
 }

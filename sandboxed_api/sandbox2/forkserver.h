@@ -42,6 +42,9 @@ class ForkServer {
     }
   }
 
+  // Returns whether the connection with the forkserver was terminated.
+  bool IsTerminated() const;
+
   // Receives a fork request from the master process. The started process does
   // not need to be waited for (with waitid/waitpid/wait3/wait4) as the current
   // process will have the SIGCHLD set to sa_flags=SA_NOCLDWAIT.

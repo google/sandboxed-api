@@ -638,6 +638,7 @@ target_link_libraries(sandbox2_forkingclient
           absl::log
           sandbox2::sanitizer
           sapi::base
+          sapi::raw_logging
   PUBLIC sandbox2::client
          sandbox2::comms
          sandbox2::forkserver
