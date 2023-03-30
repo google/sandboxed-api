@@ -588,7 +588,6 @@ cc_library(
     srcs = ["forkserver.cc"],
     hdrs = ["forkserver.h"],
     copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
     deps = [
         ":client",
         ":comms",
