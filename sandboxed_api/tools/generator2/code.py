@@ -899,7 +899,7 @@ class Generator(object):
   def format_template(self, name, functions, related_types, namespaces,
                       embed_dir, embed_name, output_file):
     # pylint: disable=line-too-long
-    # type: (Text, List[Function], List[Type], List[Text], Text, Text, Text) -> Text
+    # type: (Text, List[Function], List[Text], List[Text], Text, Text, Text) -> Text
     # pylint: enable=line-too-long
     """Formats arguments into proper interface header file.
 
