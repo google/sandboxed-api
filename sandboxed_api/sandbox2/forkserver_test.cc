@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "sandboxed_api/sandbox2/forkserver.h"
+
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <syscall.h>
@@ -21,7 +23,6 @@
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
