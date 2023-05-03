@@ -53,6 +53,10 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 
+ABSL_FLAG(
+    bool, sandbox2_forkserver_use_waitpid, false,
+    "Use waitpid to reap child processes instead of relying on SA_NOCLDWAIT");
+
 namespace sandbox2 {
 
 namespace file_util = ::sapi::file_util;
@@ -124,6 +128,7 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 struct ForkserverArgs {
   int exec_fd;
   int comms_fd;
+  bool use_waitpid;
 };
 
 int LaunchForkserver(void* vargs) {
@@ -142,7 +147,11 @@ int LaunchForkserver(void* vargs) {
                   "duping comms fd failed");
 
   char proc_name[] = "S2-FORK-SERV";
-  char* const argv[] = {proc_name, nullptr};
+  char use_waitpid[] = "--sandbox2_forkserver_use_waitpid";
+  char* argv[] = {proc_name, nullptr, nullptr};
+  if (args->use_waitpid) {
+    argv[1] = use_waitpid;
+  }
   util::Execveat(args->exec_fd, "", argv, environ, AT_EMPTY_PATH);
   SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
 }
@@ -196,6 +205,7 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   ForkserverArgs args = {
       .exec_fd = exec_fd,
       .comms_fd = sv[0],
+      .use_waitpid = absl::GetFlag(FLAGS_sandbox2_forkserver_use_waitpid),
   };
   pid_t pid = clone(LaunchForkserver, &stack[stack_size], clone_flags, &args,
                     nullptr, nullptr, nullptr);

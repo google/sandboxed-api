@@ -39,6 +39,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -61,6 +62,13 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 
+// Make the forkserver use a signal handler for SIGCHLD instead of setting
+// `SA_NOCLDWAIT`. This is needed in certain cases where the process need
+// to be explicitly reaped by waitpid (see getrusage).
+ABSL_FLAG(
+    bool, sandbox2_forkserver_use_waitpid, false,
+    "Use waitpid to reap child processes instead of relying on SA_NOCLDWAIT");
+
 namespace sandbox2 {
 
 namespace file_util = ::sapi::file_util;
@@ -68,6 +76,18 @@ namespace file_util = ::sapi::file_util;
 namespace {
 
 using ::sapi::StrError;
+
+void SigChldHandler(int signal) {
+  if (signal != SIGCHLD) {
+    return;
+  }
+
+  pid_t pid;
+  int wstatus;
+  do {
+    pid = waitpid(-1, &wstatus, WNOHANG);
+  } while (pid > 0);
+}
 
 // "Moves" FDs in move_fds from current to target FD number while keeping FDs
 // in keep_fds open - potentially moving them to another FD number as well in
@@ -547,11 +567,20 @@ bool ForkServer::Initialize() {
   // Don't convert terminated child processes into zombies. It's up to the
   // sandbox (Monitor) to track them and receive/report their final status.
   struct sigaction sa;
-  sa.sa_handler = SIG_DFL;
-  sa.sa_flags = SA_NOCLDWAIT;
+  if (absl::GetFlag(FLAGS_sandbox2_forkserver_use_waitpid)) {
+    sa.sa_handler = SigChldHandler;
+    sa.sa_flags = 0;
+  } else {
+    sa.sa_handler = SIG_DFL;
+    sa.sa_flags = SA_NOCLDWAIT;
+  }
   sigemptyset(&sa.sa_mask);
   if (sigaction(SIGCHLD, &sa, nullptr) == -1) {
-    SAPI_RAW_PLOG(ERROR, "sigaction(SIGCHLD, flags=SA_NOCLDWAIT)");
+    if (absl::GetFlag(FLAGS_sandbox2_forkserver_use_waitpid)) {
+      SAPI_RAW_PLOG(ERROR, "sigaction(SIGCHLD, sa_handler=SigChldHandler)");
+    } else {
+      SAPI_RAW_PLOG(ERROR, "sigaction(SIGCHLD, flags=SA_NOCLDWAIT)");
+    }
     return false;
   }
   return true;

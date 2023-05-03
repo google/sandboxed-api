@@ -19,15 +19,19 @@
 #include <csignal>
 #include <cstdlib>
 
+#include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/util/raw_logging.h"
 
-int main() {
+int main(int argc, char* argv[]) {
   // Make sure the logs go stderr.
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+
+  // Parse command line arguments.
+  absl::ParseCommandLine(argc, argv);
 
   // Close all non-essential FDs to keep newly opened FD numbers consistent.
   absl::Status status = sandbox2::sanitizer::CloseAllFDsExcept(
