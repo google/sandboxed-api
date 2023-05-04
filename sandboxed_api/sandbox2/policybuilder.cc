@@ -45,6 +45,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
+#include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -98,6 +99,12 @@ bool IsOnReadOnlyDev(const std::string& path) {
 }
 
 }  // namespace
+
+PolicyBuilder& PolicyBuilder::Allow(UnrestrictedNetworking tag) {
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
+  allow_unrestricted_networking_ = true;
+  return *this;
+}
 
 PolicyBuilder& PolicyBuilder::AllowSyscall(uint32_t num) {
   if (handled_syscalls_.insert(num).second) {
@@ -1335,11 +1342,9 @@ PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t size) {
   return *this;
 }
 
+// Use Allow(UnrestrictedNetworking()) instead.
 PolicyBuilder& PolicyBuilder::AllowUnrestrictedNetworking() {
-  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
-  allow_unrestricted_networking_ = true;
-
-  return *this;
+  return Allow(UnrestrictedNetworking());
 }
 
 PolicyBuilder& PolicyBuilder::SetHostname(absl::string_view hostname) {

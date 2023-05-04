@@ -43,6 +43,27 @@ cc_library(
 )
 
 cc_library(
+    name = "allow_unrestricted_networking",
+    hdrs = [
+        "allow_unrestricted_networking.h",
+    ],
+    copts = sapi_platform_copts(),
+    visibility = [
+        "//sandboxed_api/sandbox2:__pkg__",
+        "//sandboxed_api/sandbox2/examples/tool:__pkg__",
+        "//sandboxed_api/sandbox2/performance:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "testonly_allow_unrestricted_networking",
+    testonly = True,
+    hdrs = ["allow_unrestricted_networking.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "bpfdisassembler",
     srcs = ["bpfdisassembler.cc"],
     hdrs = ["bpfdisassembler.h"],
@@ -519,6 +540,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":allow_all_syscalls",
+        ":allow_unrestricted_networking",
         ":mounts",
         ":namespace",
         ":policy",

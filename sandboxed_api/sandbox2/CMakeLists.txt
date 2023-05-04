@@ -26,6 +26,15 @@ target_link_libraries(sandbox2_allow_all_syscalls PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2:allow_unrestricted_networking
+add_library(sandbox2_allow_unrestricted_networking ${SAPI_LIB_TYPE}
+  allow_unrestricted_networking.h
+)
+add_library(sandbox2::allow_unrestricted_networking ALIAS sandbox2_allow_unrestricted_networking)
+target_link_libraries(sandbox2_allow_unrestricted_networking PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2:bpfdisassembler
 add_library(sandbox2_bpfdisassembler ${SAPI_LIB_TYPE}
   bpfdisassembler.cc
@@ -833,6 +842,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_namespace_test PRIVATE
     absl::strings
     sandbox2::allow_all_syscalls
+    sandbox2::allow_unrestricted_networking
     sapi::config
     sapi::fileops
     sandbox2::namespace

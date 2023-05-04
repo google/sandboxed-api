@@ -41,6 +41,7 @@ struct bpf_labels;
 namespace sandbox2 {
 
 class AllowAllSyscalls;
+class UnrestrictedNetworking;
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
@@ -107,6 +108,26 @@ class PolicyBuilder final {
   static constexpr size_t kMaxUserPolicyLength = 30000;
 
   using BpfFunc = const std::function<std::vector<sock_filter>(bpf_labels&)>&;
+
+  // Appends code to allow visibility restricted policy functionality.
+  //
+  // For example:
+  // Allow(sandbox2::UnrestrictedNetworking);
+  // This allows unrestricted network access by not creating a network
+  // namespace.
+  //
+  // Each type T is defined in an individual library and individually visibility
+  // restricted.
+  template <typename... T>
+  PolicyBuilder& Allow(T... tags) {
+    return (Allow(tags), ...);
+  }
+
+  // Allows unrestricted access to the network by *not* creating a network
+  // namespace. Note that this only disables the network namespace. To
+  // actually allow networking, you would also need to allow networking
+  // syscalls. Calling this function will enable use of namespaces
+  PolicyBuilder& Allow(UnrestrictedNetworking tag);
 
   // Appends code to allow a specific syscall
   PolicyBuilder& AllowSyscall(uint32_t num);
