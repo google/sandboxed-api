@@ -215,6 +215,8 @@ set_target_properties(sandbox2_forkserver_bin PROPERTIES
 add_executable(sandbox2::forkserver_bin ALIAS sandbox2_forkserver_bin)
 target_link_libraries(sandbox2_forkserver_bin PRIVATE
   absl::log_globals
+  absl::flags
+  absl::flags_parse
   sandbox2::client
   sandbox2::comms
   sandbox2::forkserver
@@ -590,6 +592,7 @@ target_link_libraries(sandbox2_fork_client
   PRIVATE sandbox2::comms
           sandbox2::forkserver_proto
   PUBLIC absl::core_headers
+         absl::flags
          absl::synchronization
          sapi::base
          sapi::fileops
@@ -924,6 +927,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_forkserver_test PRIVATE
     absl::check
+    absl::log
     absl::strings
     sandbox2::forkserver
     sandbox2::forkserver_proto
