@@ -63,6 +63,7 @@ int main(int argc, char* argv[]) {
 
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::ForkServer fork_server(&comms);
+  sandbox2::sanitizer::WaitForSanitizer();
 
   while (!fork_server.IsTerminated()) {
     pid_t child_pid = fork_server.ServeRequest();

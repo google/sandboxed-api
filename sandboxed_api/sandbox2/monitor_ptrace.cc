@@ -487,8 +487,6 @@ bool PtraceMonitor::InitSetupSignals() {
 }
 
 bool PtraceMonitor::InitPtraceAttach() {
-  sanitizer::WaitForSanitizer();
-
   if (process_.init_pid > 0) {
     if (ptrace(PTRACE_SEIZE, process_.init_pid, 0, PTRACE_O_EXITKILL) != 0) {
       if (errno != ESRCH) {
