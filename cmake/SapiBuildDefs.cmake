@@ -153,10 +153,13 @@ function(add_sapi_library)
     "--sapi_ns=${_sapi_NAMESPACE}"
   )
   if(SAPI_ENABLE_CLANG_TOOL)
+    set(_sapi_isystem_args ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
+    list(TRANSFORM _sapi_isystem_args PREPEND --extra-arg-before=-isystem)
     list(APPEND _sapi_generator_command
       sapi_generator_tool
       -p "${CMAKE_CURRENT_BINARY_DIR}"
       ${_sapi_generator_args}
+      ${_sapi_isystem_args}
       ${_sapi_full_inputs}
     )
     add_custom_command(
@@ -179,9 +182,8 @@ function(add_sapi_library)
     add_custom_command(
       OUTPUT "${_sapi_gen_header}" "${_sapi_isystem}"
       COMMAND sh -c
-              "${CMAKE_CXX_COMPILER} -E -x c++ -v /dev/null 2>&1 | \
-               awk '/> search starts here:/{f=1;next}/^End of search/{f=0}f{print $1}' \
-               > \"${_sapi_isystem}\""
+              "printf '${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}' | \
+               sed \"s/;/\\n/g\" > \"${_sapi_isystem}\""
       COMMAND ${_sapi_generator_command}
       COMMENT "Generating interface"
       DEPENDS ${_sapi_INPUTS}
