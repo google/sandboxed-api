@@ -36,9 +36,70 @@ target_compile_definitions(sapi_generator PUBLIC
 target_include_directories(sapi_generator PUBLIC
   ${LLVM_INCLUDE_DIRS}
 )
-llvm_map_components_to_libnames(_sapi_generator_llvm_libs
-  core
+list(APPEND _sapi_generator_llvm_comp
+  Core
+  BinaryFormat
+  Remarks
+  BitstreamReader
+  Support
+  Demangle
+  FrontendOpenMP
+  MC
+  MCParser
+  Option
+  ProfileData
+  Support
+  BinaryFormat
+  Demangle
 )
+if(LLVM_VERSION VERSION_GREATER_EQUAL "15.0.0")
+  list(APPEND _sapi_generator_llvm_comp
+    WindowsDriver # Always needed
+  )
+endif()
+llvm_map_components_to_libnames(_sapi_generator_llvm_libs
+  ${_sapi_generator_llvm_comp}
+)
+if(NOT SAPI_ENABLE_CLANG_TOOL_STATIC)
+  # Use regular library name
+  list(APPEND _sapi_generator_clang_libs clang-cpp)
+else()
+  foreach(_clang_lib IN ITEMS
+    # Required Clang libraries
+    clangBasic
+    clangLex
+    clangParse
+    clangAST
+    clangASTMatchers
+    clangSema
+    clangAnalysis
+    clangEdit
+    clangRewrite
+    clangDriver
+    clangSerialization
+    clangFrontend
+    clangToolingCore
+    clangToolingInclusions
+    clangTooling
+    clangFormat
+    clangSupport # Needed from LLVM 15 onwards
+  )
+    if(TARGET ${_clang_lib})
+      list(APPEND _sapi_generator_clang_libs ${_clang_lib})
+    endif()
+  endforeach()
+  # Remove dependency on dynamic library libLLVM.so, which is added by Clang.
+  # Necessary symbols from LLVM are provided by _sapi_generator_llvm_libs.
+  foreach(_clang_lib IN LISTS _sapi_generator_clang_libs)
+    get_target_property(_clang_link ${_clang_lib} INTERFACE_LINK_LIBRARIES)
+    if(_clang_link)
+      list(REMOVE_ITEM _clang_link LLVM)
+      set_target_properties(${_clang_lib} PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${_clang_link}"
+      )
+    endif()
+  endforeach()
+endif()
 target_link_libraries(sapi_generator PUBLIC
   sapi::base
   absl::algorithm_container
@@ -49,10 +110,9 @@ target_link_libraries(sapi_generator PUBLIC
   absl::status
   absl::statusor
   absl::strings
-  clang
-  clang-cpp
   sapi::fileops
   sapi::status
+  ${_sapi_generator_clang_libs}
   ${_sapi_generator_llvm_libs}
 )
 

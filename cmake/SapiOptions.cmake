@@ -54,6 +54,9 @@ option(SAPI_CONTRIB_BUILD_TESTING "Build tests for sandboxes in 'contrib'" OFF)
 option(SAPI_ENABLE_CLANG_TOOL
   "Use the new Clang tool based header generator" OFF
 )
+option(SAPI_ENABLE_CLANG_TOOL_STATIC
+  "Link the Clang libraries statically into the tool" OFF
+)
 
 # This flag should be only enabled for embedded and resource-constrained
 # environments.
