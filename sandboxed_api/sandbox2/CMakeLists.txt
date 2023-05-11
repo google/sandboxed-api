@@ -309,8 +309,6 @@ target_link_libraries(sandbox2_executor
 add_library(sandbox2_sandbox2 ${SAPI_LIB_TYPE}
   sandbox2.cc
   sandbox2.h
-  stack_trace.cc
-  stack_trace.h
 )
 add_library(sandbox2::sandbox2 ALIAS sandbox2_sandbox2)
 target_link_libraries(sandbox2_sandbox2
