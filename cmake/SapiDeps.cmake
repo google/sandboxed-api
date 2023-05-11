@@ -95,7 +95,7 @@ endif()
 
 find_package(Threads REQUIRED)
 
-if(NOT SAPI_ENABLE_GENERATOR)
+if(NOT SAPI_ENABLE_CLANG_TOOL)
   # Find Python 3 and add its location to the cache so that its available in
   # the add_sapi_library() macro in embedding projects.
   find_package(Python3 COMPONENTS Interpreter REQUIRED)

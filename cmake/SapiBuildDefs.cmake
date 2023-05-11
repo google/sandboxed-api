@@ -152,7 +152,7 @@ function(add_sapi_library)
     "--sapi_functions=${_sapi_funcs}"
     "--sapi_ns=${_sapi_NAMESPACE}"
   )
-  if(SAPI_ENABLE_GENERATOR)
+  if(SAPI_ENABLE_CLANG_TOOL)
     list(APPEND _sapi_generator_command
       sapi_generator_tool
       -p "${CMAKE_CURRENT_BINARY_DIR}"
