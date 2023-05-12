@@ -107,11 +107,6 @@ class Sandbox {
   const sandbox2::Result& result() const { return result_; }
 
   absl::Status SetWallTimeLimit(absl::Duration limit) const;
-  ABSL_DEPRECATED(
-      "Use sapi::Sandbox::SetWallTimeLimit(absl::Duration) overload instead")
-  absl::Status SetWallTimeLimit(time_t limit) const {
-    return this->SetWallTimeLimit(absl::Seconds(limit));
-  }
 
  protected:
 
