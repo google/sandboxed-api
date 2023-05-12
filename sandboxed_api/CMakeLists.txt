@@ -15,7 +15,7 @@
 add_subdirectory(tools/filewrapper)
 add_subdirectory(sandbox2)
 add_subdirectory(util)
-if(SAPI_ENABLE_CLANG_TOOL)
+if(SAPI_ENABLE_CLANG_TOOL AND NOT SAPI_CLANG_TOOL_EXECUTABLE)
   add_subdirectory(tools/clang_generator)
 endif()
 add_subdirectory(examples)

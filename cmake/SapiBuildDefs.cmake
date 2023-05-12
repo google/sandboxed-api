@@ -155,8 +155,12 @@ function(add_sapi_library)
   if(SAPI_ENABLE_CLANG_TOOL)
     set(_sapi_isystem_args ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
     list(TRANSFORM _sapi_isystem_args PREPEND --extra-arg-before=-isystem)
+    if(SAPI_CLANG_TOOL_EXECUTABLE)
+      list(APPEND _sapi_generator_command "${SAPI_CLANG_TOOL_EXECUTABLE}")
+    else()
+      list(APPEND _sapi_generator_command sapi_generator_tool)
+    endif()
     list(APPEND _sapi_generator_command
-      sapi_generator_tool
       -p "${CMAKE_CURRENT_BINARY_DIR}"
       ${_sapi_generator_args}
       ${_sapi_isystem_args}

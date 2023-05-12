@@ -95,7 +95,13 @@ endif()
 
 find_package(Threads REQUIRED)
 
-if(NOT SAPI_ENABLE_CLANG_TOOL)
+if(SAPI_ENABLE_CLANG_TOOL)
+  # If unset (the default), CMake will build the tool first and add it as a
+  # dependency.
+  set(SAPI_CLANG_TOOL_EXECUTABLE "" CACHE FILEPATH
+    "Path to the Clang tool based header generator"
+  )
+else()
   # Find Python 3 and add its location to the cache so that its available in
   # the add_sapi_library() macro in embedding projects.
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
