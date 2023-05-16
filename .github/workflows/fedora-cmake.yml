@@ -22,7 +22,7 @@ jobs:
       RUN_CMD: docker exec --tty ${{matrix.compiler}}-build-container
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Cache dependencies
       uses: actions/cache@v3
