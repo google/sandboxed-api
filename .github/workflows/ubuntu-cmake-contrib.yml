@@ -1,4 +1,4 @@
-name: cmake-contrib
+name: ubuntu-cmake-contrib
 
 on: [push, pull_request]
 

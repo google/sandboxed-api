@@ -1,4 +1,4 @@
-name: sapi-generator-tool
+name: debian-sapi-generator-tool
 on: push
 jobs:
   build:
