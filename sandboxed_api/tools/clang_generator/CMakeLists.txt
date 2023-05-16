@@ -128,6 +128,13 @@ target_link_libraries(sapi_generator_tool PRIVATE
   sapi::fileops
   sapi::generator
 )
+if(SAPI_ENABLE_CLANG_TOOL_STATIC)
+  target_link_options(sapi_generator_tool PRIVATE
+    # These work for both GCC and Clang
+    -static-libgcc
+    -static-libstdc++
+  )
+endif()
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_executable(sapi_generator_test
