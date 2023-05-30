@@ -59,26 +59,6 @@ def sapi_deps():
         urls = ["https://pypi.python.org/packages/source/s/six/six-1.15.0.tar.gz"],
     )
 
-    # gflags
-    # TODO(cblichmann): Use Abseil flags once logging is in Abseil
-    maybe(
-        http_archive,
-        name = "com_github_gflags_gflags",
-        sha256 = "97312c67e5e0ad7fe02446ee124629ca7890727469b00c9a4bf45da2f9b80d32",  # 2019-11-13
-        strip_prefix = "gflags-addd749114fab4f24b7ea1e0f2f837584389e52c",
-        urls = ["https://github.com/gflags/gflags/archive/addd749114fab4f24b7ea1e0f2f837584389e52c.zip"],
-    )
-
-    # Google logging
-    # TODO(cblichmann): Remove dependency once logging is in Abseil
-    maybe(
-        http_archive,
-        name = "com_google_glog",
-        sha256 = "feca3c7e29a693cab7887409756d89d342d4a992d54d7c5599bebeae8f7b50be",  # 2020-02-16
-        strip_prefix = "glog-3ba8976592274bc1f907c402ce22558011d6fc5e",
-        urls = ["https://github.com/google/glog/archive/3ba8976592274bc1f907c402ce22558011d6fc5e.zip"],
-    )
-
     # Protobuf
     maybe(
         http_archive,
