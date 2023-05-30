@@ -485,11 +485,6 @@ pid_t ForkServer::ServeRequest() {
       absl::Status status = SendPid(fd_closer1.get());
       SAPI_RAW_CHECK(status.ok(),
                      absl::StrCat("sending pid: ", status.message()).c_str());
-    } else if (auto pid_or = ReceivePid(fd_closer0.get()); !pid_or.ok()) {
-      SAPI_RAW_LOG(ERROR, "receiving pid: %s",
-                   std::string(pid_or.status().message()).c_str());
-    } else {
-      sandboxee_pid = pid_or.value();
     }
   } else {
     sandboxee_pid = util::ForkWithFlags(clone_flags);
@@ -511,6 +506,14 @@ pid_t ForkServer::ServeRequest() {
 
   fd_closer1.Close();
 
+  if (avoid_pivot_root) {
+    if (auto pid = ReceivePid(fd_closer0.get()); !pid.ok()) {
+      SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
+    } else {
+      sandboxee_pid = pid.value();
+    }
+  }
+
   if (fork_request.clone_flags() & CLONE_NEWPID) {
     // The pid of the init process is equal to the child process that we've
     // previously forked.
@@ -520,7 +523,9 @@ pid_t ForkServer::ServeRequest() {
     // receive the actual PID.
     if (auto pid_or = ReceivePid(fd_closer0.get()); !pid_or.ok()) {
       SAPI_RAW_LOG(ERROR, "%s", std::string(pid_or.status().message()).c_str());
-      kill(init_pid, SIGKILL);
+      if (init_pid != -1) {
+        kill(init_pid, SIGKILL);
+      }
       init_pid = -1;
     } else {
       sandboxee_pid = pid_or.value();
