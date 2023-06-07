@@ -18,9 +18,7 @@ load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
-package(
-    default_visibility = ["//sandboxed_api:__subpackages__"],
-)
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -44,9 +42,7 @@ cc_library(
 
 cc_library(
     name = "allow_unrestricted_networking",
-    hdrs = [
-        "allow_unrestricted_networking.h",
-    ],
+    hdrs = ["allow_unrestricted_networking.h"],
     copts = sapi_platform_copts(),
     visibility = [
         "//sandboxed_api/sandbox2:__pkg__",

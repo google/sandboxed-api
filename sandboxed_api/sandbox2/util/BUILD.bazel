@@ -15,18 +15,14 @@
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 _DEFAULT_VISIBILITY = [
-    "//security/bedebox:__subpackages__",
     "//sandboxed_api:__subpackages__",
 ]
 
-package(
-    default_visibility = _DEFAULT_VISIBILITY,
-)
+package(default_visibility = _DEFAULT_VISIBILITY)
 
 package_group(
     name = "minielf_users",
     packages = [
-        "//buzz/diffractor/sandbox/...",  # mbonadei@ and ossu@ (alternatively rtc-diffractor-eng@)
     ],
 )
 
