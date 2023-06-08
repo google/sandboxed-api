@@ -50,7 +50,7 @@ jobs:
           ${{github.workspace}}/build/_deps/${{matrix.contrib}}-*/**
 
     - name: Install ninja-build tool
-      uses: seanmiddleditch/gha-setup-ninja@v3
+      uses: turtlesec-no/get-ninja@1.1.0
 
     - name: Install/configure Clang compiler toolchain
       if: matrix.compiler == 'clang'
