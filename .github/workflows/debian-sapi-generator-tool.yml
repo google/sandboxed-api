@@ -28,14 +28,12 @@ jobs:
             libc6-dev \
             lsb-release \
             make \
+            ninja-build \
             software-properties-common \
             wget
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         ./llvm.sh 16 all
-
-    - name: Install ninja-build tool
-      uses: seanmiddleditch/gha-setup-ninja@v3
 
     - name: Configure CMake
       run: |
@@ -65,3 +63,4 @@ jobs:
       with:
         name: sapi_generator_tool-linux
         path: ${{github.workspace}}/build/sapi_generator_tool-linux-x86_64
+

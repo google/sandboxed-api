@@ -1,0 +1,60 @@
+name: generate-pre-release
+on:
+  workflow_run:
+    workflows: [debian-sapi-generator-tool]
+    types: [completed]
+    branches: [main]
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    env:
+      ARTIFACT_NAME: sapi_generator_tool-linux
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Prepare environment
+      run: mkdir -p "$GITHUB_WORKSPACE/build"
+
+    - name: Download Build Artifact
+      uses: actions/github-script@v6
+      with:
+        script: |
+          let artifactName = process.env.ARTIFACT_NAME;
+          let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.payload.workflow_run.id,
+          });
+          let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+            return artifact.name == artifactName
+          })[0];
+          let download = await github.rest.actions.downloadArtifact({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            artifact_id: matchArtifact.id,
+            archive_format: 'zip',
+          });
+          let fs = require('fs');
+          fs.writeFileSync(
+            `${process.env.GITHUB_WORKSPACE}/build/${artifactName}.zip`,
+            Buffer.from(download.data)
+          );
+
+    - name: "Repackage as *-<arch>.tar.gz"
+      run: |
+        ( \
+          cd "$GITHUB_WORKSPACE/build"; \
+          unzip "${ARTIFACT_NAME}.zip"; \
+          tar czf sapi_generator_tool-linux-x86_64.tar.gz \
+            sapi_generator_tool-linux-x86_64
+        )
+
+    - name: Create Pre-release
+      uses: marvinpinto/action-automatic-releases@v1.2.1
+      with:
+        repo_token: "${{secrets.GITHUB_TOKEN}}"
+        automatic_release_tag: "latest"
+        prerelease: true
+        files: |
+          ${{github.workspace}}/build/sapi_generator_tool-linux-x86_64.tar.gz
