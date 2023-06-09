@@ -14,7 +14,7 @@
 
 """Generates proto targets in various languages."""
 
-load("@com_google_protobuf//:protobuf.bzl", "cc_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 
 def _cc_proto_library_name_from_proto_name(name):
     """Converts proto name to cc_proto_library name.
@@ -69,16 +69,18 @@ def sapi_proto_library(
     if kwargs.get("has_services", False):
         fail("Services are not currently supported.")
 
-    cc_proto_library(
+    proto_library(
         name = name,
         srcs = srcs,
         deps = deps,
-        alwayslink = alwayslink,
-        **kwargs
+    )
+    native.cc_proto_library(
+        name = name + "_sapi_cc_proto",
+        deps = [name],
     )
     native.cc_library(
         name = _cc_proto_library_name_from_proto_name(name),
-        deps = [name],
+        deps = [name + "_sapi_cc_proto"],
         alwayslink = alwayslink,
         **kwargs
     )

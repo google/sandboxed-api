@@ -40,7 +40,22 @@ def _init_libclang():
   # Try to find libclang in the standard location and a few versioned paths
   # that are used on Debian (and others). If LD_LIBRARY_PATH is set, it is
   # used as well.
-  for version in ['', '12', '11', '10', '9', '8', '7', '6.0', '5.0', '4.0']:
+  for version in [
+      '',
+      '16',
+      '15',
+      '14',
+      '13',
+      '12',
+      '11',
+      '10',
+      '9',
+      '8',
+      '7',
+      '6.0',
+      '5.0',
+      '4.0',
+  ]:
     libname = 'clang' + ('-' + version if version else '')
     libclang = util.find_library(libname)
     if libclang:

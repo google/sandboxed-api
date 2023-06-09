@@ -21,7 +21,10 @@ import sys
 from absl import app
 from absl import flags
 from absl import logging
-import code
+try:
+  from com_google_sandboxed_api.sandboxed_api.tools.generator2 import code
+except:
+  import code
 
 FLAGS = flags.FLAGS
 

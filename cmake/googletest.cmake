@@ -14,6 +14,6 @@
 
 FetchContent_Declare(googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        9a32aee22d771387c494be2d8519fbdf46a713b2 # 2021-12-20
+  GIT_TAG        334704df263b480a3e9e7441ed3292a5e30a37ec # 2023-06-06
 )
 FetchContent_MakeAvailable(googletest)

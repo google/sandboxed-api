@@ -14,7 +14,7 @@
 
 FetchContent_Declare(protobuf
   GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
-  GIT_TAG        v3.21.6  # 2022-09-14
+  GIT_TAG        v23.2 # 2023-05-26
 )
 
 set(protobuf_ABSL_PROVIDER "package" CACHE STRING "" FORCE)

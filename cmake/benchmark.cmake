@@ -14,7 +14,7 @@
 
 FetchContent_Declare(benchmark
   GIT_REPOSITORY https://github.com/google/benchmark.git
-  GIT_TAG        3b3de69400164013199ea448f051d94d7fc7d81f # 2021-12-14
+  GIT_TAG        604f6fd3f4b34a84ec4eb4db81d842fa4db829cd # 2023-05-30
 )
 set(BENCHMARK_ENABLE_TESTING OFF)
 set(BENCHMARK_ENABLE_EXCEPTIONS OFF)

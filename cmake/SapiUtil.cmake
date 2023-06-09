@@ -193,8 +193,10 @@ function(sapi_protobuf_generate)
                        VERBATIM)
   endforeach()
 
-  set_source_files_properties(${_generated_srcs_all}
-                              PROPERTIES GENERATED TRUE)
+  set_source_files_properties(${_generated_srcs_all} PROPERTIES
+    GENERATED TRUE
+    INCLUDE_DIRECTORIES "${absl_SOURCE_DIR}"
+  )
   if(_pb_OUT_VAR)
     set(${_pb_OUT_VAR} ${_generated_srcs_all} PARENT_SCOPE)
   endif()

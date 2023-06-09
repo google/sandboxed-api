@@ -19,8 +19,8 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 from clang import cindex
-import code
-import code_test_util
+from com_google_sandboxed_api.sandboxed_api.tools.generator2 import code
+from com_google_sandboxed_api.sandboxed_api.tools.generator2 import code_test_util
 
 CODE = """
 typedef int(fun*)(int,int);

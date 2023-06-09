@@ -26,20 +26,20 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "bazel_skylib",
+        sha256 = "66ffd9315665bfaafc96b52278f57c7e2dd09f5ede279ea6d39b2be471e7e3aa",
         urls = [
-            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
-            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
         ],
-        sha256 = "f7be3474d42aae265405a592bb7da8e171919d74c16f082a5457840f06054728",  # 2022-03-10
     )
 
     # Abseil
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "adca6c26a90d6791e36bfe5dbc8573182c5fa0726da29901a6b3949d65116e25",  # 2023-03-20
-        strip_prefix = "abseil-cpp-efeb95f4491740817a1c37345b66d26bce722ae4",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/efeb95f4491740817a1c37345b66d26bce722ae4.zip"],
+        sha256 = "fbe050daabadda2297cea9ace55ccde48e3994887bc0b1e6c7330f1a97ee071b",  # 2023-06-08
+        strip_prefix = "abseil-cpp-ae87791869cacbc125aa708108c4721e51ff703d",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/ae87791869cacbc125aa708108c4721e51ff703d.zip"],
     )
     maybe(
         http_archive,
@@ -63,9 +63,9 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_protobuf",
-        sha256 = "0ac0d92cba957fdfc77cab689ffc56d52ce2ff89ebcc384e4e682e6f9d218071",  # 2022-09-14
-        strip_prefix = "protobuf-3.21.6",
-        urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.21.6.zip"],
+        sha256 = "ddf8c9c1ffccb7e80afd183b3bd32b3b62f7cc54b106be190bf49f2bc09daab5",  # 2023-05-26
+        strip_prefix = "protobuf-23.2",
+        urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v23.2/protobuf-23.2.tar.gz"],
     )
 
     # libcap
@@ -105,18 +105,18 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_googletest",
-        sha256 = "1009ce4e75a64a4e61bcb2efaa256f9d54e6a859a2985cb6fa57c06d45356866",  # 2021-12-20
-        strip_prefix = "googletest-9a32aee22d771387c494be2d8519fbdf46a713b2",
-        urls = ["https://github.com/google/googletest/archive/9a32aee22d771387c494be2d8519fbdf46a713b2.zip"],
+        sha256 = "a217118c2c36a3632b594af7ff98111a65bb2b980b726a7fa62305e02a998440",  # 2023-06-06
+        strip_prefix = "googletest-334704df263b480a3e9e7441ed3292a5e30a37ec",
+        urls = ["https://github.com/google/googletest/archive/334704df263b480a3e9e7441ed3292a5e30a37ec.zip"],
     )
 
     # Google Benchmark
     maybe(
         http_archive,
         name = "com_google_benchmark",
-        sha256 = "12663580821c69f5a71217433b58e96f061570f0e18d94891b82115fcdb4284d",  # 2021-12-14
-        strip_prefix = "benchmark-3b3de69400164013199ea448f051d94d7fc7d81f",
-        urls = ["https://github.com/google/benchmark/archive/3b3de69400164013199ea448f051d94d7fc7d81f.zip"],
+        sha256 = "342705876335bf894147e052d0dac141fe15962034b41bef5aa59c4b279ca89c",  # 2023-05-30
+        strip_prefix = "benchmark-604f6fd3f4b34a84ec4eb4db81d842fa4db829cd",
+        urls = ["https://github.com/google/benchmark/archive/604f6fd3f4b34a84ec4eb4db81d842fa4db829cd.zip"],
     )
 
     # LLVM/libclang
