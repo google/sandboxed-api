@@ -18,9 +18,11 @@
 
 #include <fcntl.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 #include <syscall.h>
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -63,6 +65,20 @@ namespace file_util = ::sapi::file_util;
 absl::StatusOr<std::vector<std::string>> UnsafeGetStackTrace(pid_t pid) {
   LOG(WARNING) << "Using non-sandboxed libunwind";
   return RunLibUnwindAndSymbolizer(pid, kDefaultMaxFrames);
+}
+
+bool IsSameFile(const std::string& path, const std::string& other) {
+  struct stat buf, other_buf;
+  if (stat(path.c_str(), &buf) != 0 || stat(other.c_str(), &other_buf) != 0) {
+    return false;
+  }
+  return buf.st_dev == other_buf.st_dev && buf.st_ino == other_buf.st_ino &&
+         buf.st_mode == other_buf.st_mode &&
+         buf.st_nlink == other_buf.st_nlink && buf.st_uid == other_buf.st_uid &&
+         buf.st_gid == other_buf.st_gid && buf.st_rdev == other_buf.st_rdev &&
+         buf.st_size == other_buf.st_size &&
+         buf.st_blksize == other_buf.st_blksize &&
+         buf.st_blocks == other_buf.st_blocks;
 }
 
 }  // namespace
@@ -211,11 +227,14 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     return absl::InternalError("Could not obtain absolute path to the binary");
   }
 
-  // The exe_path will have a mountable path of the application, even if it was
-  // removed.
-  // Resolve app_path backing file.
-  std::string exe_path =
-      ns ? ns->mounts().ResolvePath(app_path).value_or("") : "";
+  std::string exe_path;
+  if (IsSameFile(app_path, proc_pid_exe)) {
+    exe_path = app_path;
+  } else {
+    // The exe_path will have a mountable path of the application, even if it
+    // was removed. Resolve app_path backing file.
+    exe_path = ns ? ns->mounts().ResolvePath(app_path).value_or("") : "";
+  }
 
   if (exe_path.empty()) {
     // File was probably removed.
