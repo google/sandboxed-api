@@ -26,6 +26,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendAction.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Tooling.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
@@ -114,6 +115,11 @@ class GeneratorAction : public clang::ASTFrontendAction {
       clang::CompilerInstance&, llvm::StringRef in_file) override {
     return std::make_unique<GeneratorASTConsumer>(std::string(in_file),
                                                   emitter_, options_);
+  }
+
+  bool BeginSourceFileAction(clang::CompilerInstance& ci) override {
+    ci.getPreprocessor().enableIncrementalProcessing();
+    return true;
   }
 
   bool hasCodeCompletionSupport() const override { return false; }
