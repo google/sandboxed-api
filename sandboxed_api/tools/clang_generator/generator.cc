@@ -145,6 +145,7 @@ bool GeneratorFactory::runInvocation(
            // TODO(b/222241644): Figure out how to deal with intrinsics properly
            // Note: The definitions below just need to parse, they don't need to
            //       compile into useful code.
+           // Intel
            "__builtin_ia32_cvtsbf162ss_32=[](auto)->long long{return 0;}",
            "__builtin_ia32_paddsb128=",
            "__builtin_ia32_paddsb256=",
@@ -176,6 +177,33 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_reduce_mul_q512=[](auto)->long long{return 0;}",
        }) {
     options.addMacroDef(def);
+    // To avoid code to include header with compiler intrinsics, undefine a few
+    // key pre-defines.
+    for (
+        const auto& undef : {
+            // ARM ISA (see
+            // https://developer.arm.com/documentation/101028/0010/Feature-test-macros)
+            "__ARM_NEON",
+            "__ARM_NEON__",
+            // Intel
+            "__AVX__",
+            "__AVX2__",
+            "__AVX512BW__",
+            "__AVX512CD__",
+            "__AVX512DQ__",
+            "__AVX512F__",
+            "__AVX512VL__",
+            "__SSE__",
+            "__SSE2__",
+            "__SSE2_MATH__",
+            "__SSE3__",
+            "__SSE4_1__",
+            "__SSE4_2__",
+            "__SSE_MATH__",
+            "__SSSE3__",
+        }) {
+      options.addMacroUndef(undef);
+    }
   }
   return FrontendActionFactory::runInvocation(std::move(invocation), files,
                                               std::move(pch_container_ops),
