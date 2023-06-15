@@ -160,17 +160,21 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
 
   // Allow passing of a spearate forkserver_bin via flag
   int exec_fd = -1;
-  if (!absl::GetFlag(FLAGS_sandbox2_forkserver_binary_path).empty()) {
-    exec_fd = open(absl::GetFlag(FLAGS_sandbox2_forkserver_binary_path).c_str(),
-                   O_RDONLY);
+  std::string bin_path = absl::GetFlag(FLAGS_sandbox2_forkserver_binary_path);
+  if (!bin_path.empty()) {
+    exec_fd = open(bin_path.c_str(), O_RDONLY);
+    if (exec_fd < 0) {
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("Opening forkserver binary passed via "
+                              "--sandbox2_forkserver_binary_path (",
+                              bin_path, ")"));
+    }
+  } else if constexpr (sapi::host_os::IsAndroid()) {
+    return absl::FailedPreconditionError(
+        "sandbox2_forkserver_binary_path flag has to be set to the location of "
+        "the forkserver binary on Android");
   }
   if (exec_fd < 0) {
-    // For Android we expect the forkserver_bin in the flag
-    if constexpr (sapi::host_os::IsAndroid()) {
-      return absl::ErrnoToStatus(
-          errno,
-          "Open init binary passed via --sandbox2_forkserver_binary_path");
-    }
     // Extract the fd when it's owned by EmbedFile
     exec_fd = sapi::EmbedFile::instance()->GetDupFdForFileToc(
         forkserver_bin_embed_create());
