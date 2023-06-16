@@ -228,12 +228,19 @@ void UnotifyMonitor::Run() {
 
 void UnotifyMonitor::SetExitStatusFromStatusPipe() {
   int code, status;
+  rusage usage;
+
   SAPI_RAW_PCHECK(
-      read(process_.status_fd.get(), &code, sizeof(code)) == sizeof(int),
+      read(process_.status_fd.get(), &code, sizeof(code)) == sizeof(code),
       "read");
   SAPI_RAW_PCHECK(
-      read(process_.status_fd.get(), &status, sizeof(status)) == sizeof(int),
+      read(process_.status_fd.get(), &status, sizeof(status)) == sizeof(status),
       "read");
+  SAPI_RAW_PCHECK(
+      read(process_.status_fd.get(), &usage, sizeof(usage)) == sizeof(usage),
+      "read");
+
+  result_.SetRUsageSandboxee(usage);
   if (code == CLD_EXITED) {
     SetExitStatusCode(Result::OK, status);
   } else if (code == CLD_KILLED || code == CLD_DUMPED) {

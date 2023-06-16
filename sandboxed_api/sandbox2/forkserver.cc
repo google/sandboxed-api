@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <sched.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -159,7 +160,8 @@ void RunInitProcess(pid_t main_pid, int pipe_fd,
       SYSCALL(__NR_exit, ALLOW),
   };
   if (pipe_fd >= 0) {
-    code.insert(code.end(), {SYSCALL(__NR_write, ALLOW)});
+    code.insert(code.end(),
+                {SYSCALL(__NR_getrusage, ALLOW), SYSCALL(__NR_write, ALLOW)});
   }
   code.push_back(DENY);
 
@@ -187,6 +189,10 @@ void RunInitProcess(pid_t main_pid, int pipe_fd,
       if (pipe_fd >= 0) {
         write(pipe_fd, &info.si_code, sizeof(info.si_code));
         write(pipe_fd, &info.si_status, sizeof(info.si_status));
+
+        rusage usage{};
+        getrusage(RUSAGE_CHILDREN, &usage);
+        write(pipe_fd, &usage, sizeof(usage));
       }
       _exit(0);
     }

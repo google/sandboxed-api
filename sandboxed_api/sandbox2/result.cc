@@ -41,6 +41,7 @@ Result& Result::operator=(const Result& other) {
   prog_name_ = other.prog_name_;
   proc_maps_ = other.proc_maps_;
   rusage_monitor_ = other.rusage_monitor_;
+  rusage_sandboxee_ = other.rusage_sandboxee_;
   return *this;
 }
 

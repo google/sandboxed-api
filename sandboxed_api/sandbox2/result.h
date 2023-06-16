@@ -175,6 +175,13 @@ class Result {
 
   rusage* GetRUsageMonitor() { return &rusage_monitor_; }
 
+  // Only set by the unotify monitor.
+  const std::optional<rusage>& GetRUsageSandboxee() const {
+    return rusage_sandboxee_;
+  }
+
+  void SetRUsageSandboxee(rusage usage) { rusage_sandboxee_ = usage; }
+
  private:
   // Final execution status - see 'StatusEnum' for details.
   StatusEnum final_status_ = UNSET;
@@ -201,6 +208,8 @@ class Result {
   // Final resource usage as defined in <sys/resource.h> (man getrusage), for
   // the Monitor thread.
   rusage rusage_monitor_;
+  // Final resource usage for the sandboxee process, only for unotify monitor.
+  std::optional<rusage> rusage_sandboxee_;
 };
 
 }  // namespace sandbox2
