@@ -512,6 +512,11 @@ class PolicyBuilder final {
   // - prctl(PR_SET_NAME, ...)
   PolicyBuilder& AllowPrctlSetName();
 
+  // Appends code to allow setting a name for an anonymous memory region.
+  // Allows the following
+  // - prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, ...)
+  PolicyBuilder& AllowPrctlSetVma();
+
   // Enables the syscalls necessary to start a statically linked binary
   //
   // NOTE: This will call BlockSyscallWithErrno(__NR_readlink, ENOENT). If you

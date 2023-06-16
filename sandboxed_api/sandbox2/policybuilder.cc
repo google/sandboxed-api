@@ -241,6 +241,7 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowSyscalls(
       {__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore, __NR_membarrier});
   AllowLimitedMadvise();
+  AllowPrctlSetVma();
 
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
@@ -863,6 +864,20 @@ PolicyBuilder& PolicyBuilder::AllowEventFd() {
 
 PolicyBuilder& PolicyBuilder::AllowPrctlSetName() {
   AddPolicyOnSyscall(__NR_prctl, {ARG_32(0), JEQ32(PR_SET_NAME, ALLOW)});
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowPrctlSetVma() {
+  AddPolicyOnSyscall(__NR_prctl,
+                     [](bpf_labels& labels) -> std::vector<sock_filter> {
+                       return {
+                           ARG_32(0),
+                           JNE32(PR_SET_VMA, JUMP(&labels, prctlsetvma_end)),
+                           ARG_32(1),
+                           JEQ32(PR_SET_VMA_ANON_NAME, ALLOW),
+                           LABEL(&labels, prctlsetvma_end),
+                       };
+                     });
   return *this;
 }
 
