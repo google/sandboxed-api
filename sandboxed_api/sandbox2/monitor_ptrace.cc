@@ -643,18 +643,13 @@ void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
     return;
   }
 
-  // TODO(wiktorg): Further clean that up, probably while doing monitor cleanup
-  // log_file_ not null iff FLAGS_sandbox2_danger_danger_permit_all_and_log is
-  // set.
-  if (log_file_) {
+  if (absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all) || log_file_) {
     std::string syscall_description = syscall.GetDescription();
-    PCHECK(absl::FPrintF(log_file_, "PID: %d %s\n", regs->pid(),
-                         syscall_description) >= 0);
-    ContinueProcess(regs->pid(), 0);
-    return;
-  }
-
-  if (absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all)) {
+    if (log_file_) {
+      PCHECK(absl::FPrintF(log_file_, "PID: %d %s\n", regs->pid(),
+                           syscall_description) >= 0);
+    }
+    VLOG(1) << "PID: " << regs->pid() << " " << syscall_description;
     ContinueProcess(regs->pid(), 0);
     return;
   }
