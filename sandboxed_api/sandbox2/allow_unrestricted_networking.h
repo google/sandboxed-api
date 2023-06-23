@@ -15,8 +15,6 @@
 #ifndef SANDBOXED_API_SANDBOX2_ALLOW_UNRESTRICTED_NETWORKING_H_
 #define SANDBOXED_API_SANDBOX2_ALLOW_UNRESTRICTED_NETWORKING_H_
 
-// #include "sandboxed_api/sandbox2/policybuilder.h"
-
 namespace sandbox2 {
 
 class UnrestrictedNetworking {
