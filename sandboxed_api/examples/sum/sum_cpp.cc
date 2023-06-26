@@ -16,6 +16,6 @@
 #include "sandboxed_api/examples/sum/sum_params.pb.h"
 
 extern "C" int sumproto(const sumsapi::SumParamsProto* params) {
-  LOG(INFO) << "Param is " << params->DebugString();
+  LOG(INFO) << "Param is " << *params;
   return params->a() + params->b() + params->c();
 }

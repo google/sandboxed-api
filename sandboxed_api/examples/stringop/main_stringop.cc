@@ -56,7 +56,7 @@ TEST(StringopTest, ProtobufStringDuplication) {
     }
 
     SAPI_ASSIGN_OR_RETURN(auto pb_result, pp->GetMessage());
-    LOG(INFO) << "Result PB: " << pb_result.DebugString();
+    LOG(INFO) << "Result PB: " << pb_result;
     TRANSACTION_FAIL_IF_NOT(pb_result.output() == "HelloHello",
                             "Incorrect output");
     return absl::OkStatus();
@@ -77,7 +77,7 @@ TEST(StringopTest, ProtobufStringReversal) {
   EXPECT_THAT(return_value, Ne(0)) << "pb_reverse_string() failed";
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto pb_result, pp->GetMessage());
-  LOG(INFO) << "Result PB: " << pb_result.DebugString();
+  LOG(INFO) << "Result PB: " << pb_result;
   EXPECT_THAT(pb_result.output(), StrEq("olleH"));
 }
 
