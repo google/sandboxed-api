@@ -253,6 +253,7 @@ def sapi_library(
         tags = [],
         generator_version = 1,
         visibility = None,
+        compatible_with = None,
         default_copts = []):
     """Provides the implementation of a Sandboxed API library.
 
@@ -289,6 +290,8 @@ def sapi_library(
         version 2 uses the newer C++ implementation that uses the full clang
         compiler front-end for parsing. Both emit equivalent Sandboxed APIs.
       visibility: Target visibility
+      compatible_with: The list of environments this target can be built for,
+        in addition to default-supported environments.
       default_copts: List of package level default copts, an additional
         attribute since copts already has default value.
     """
@@ -298,6 +301,9 @@ def sapi_library(
     }
     if visibility:
         common["visibility"] = visibility
+
+    if compatible_with != None:
+        common["compatible_with"] = compatible_with
 
     generated_header = name + ".sapi.h"
 
