@@ -106,7 +106,6 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":strerror",
-        "//sandboxed_api:config",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
@@ -147,7 +146,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":status_cc_proto",
-        ":strerror",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -231,7 +229,6 @@ cc_library(
     deps = [
         ":fileops",
         ":status",
-        ":strerror",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
