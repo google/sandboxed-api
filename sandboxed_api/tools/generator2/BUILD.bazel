@@ -81,7 +81,6 @@ cc_binary(
     deps = [
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
-        "//sandboxed_api/sandbox2",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
