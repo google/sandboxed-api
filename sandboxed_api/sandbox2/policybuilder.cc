@@ -242,6 +242,7 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
       {__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore, __NR_membarrier});
   AllowLimitedMadvise();
   AllowPrctlSetVma();
+  AllowPoll();
 
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
