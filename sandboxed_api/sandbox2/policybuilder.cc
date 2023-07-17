@@ -325,7 +325,7 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
                                      });
     // Sanitizers read from /proc. For example:
     // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L1155
-    AddDirectory("/proc");
+    AddDirectoryIfNamespaced("/proc");
     // Sanitizers need pid for reports. For example:
     // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L740
     AllowGetPIDs();
@@ -679,18 +679,6 @@ PolicyBuilder& PolicyBuilder::AllowGetIDs() {
   });
 }
 
-PolicyBuilder& PolicyBuilder::AllowRestartableSequencesWithProcFiles(
-    CpuFenceMode cpu_fence_mode) {
-  AllowRestartableSequences(cpu_fence_mode);
-  AddFile("/proc/cpuinfo");
-  AddFile("/proc/stat");
-  AddDirectory("/sys/devices/system/cpu");
-  if (cpu_fence_mode == kAllowSlowFences) {
-    AddFile("/proc/self/cpuset");
-  }
-  return *this;
-}
-
 PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
     CpuFenceMode cpu_fence_mode) {
 #ifdef __NR_rseq
@@ -719,6 +707,12 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
   if (cpu_fence_mode == kAllowSlowFences) {
     AllowSyscall(__NR_sched_getaffinity);
     AllowSyscall(__NR_sched_setaffinity);
+  }
+  AddFileIfNamespaced("/proc/cpuinfo");
+  AddFileIfNamespaced("/proc/stat");
+  AddDirectoryIfNamespaced("/sys/devices/system/cpu");
+  if (cpu_fence_mode == kAllowSlowFences) {
+    AddFileIfNamespaced("/proc/self/cpuset");
   }
   return *this;
 }
@@ -1250,7 +1244,17 @@ PolicyBuilder& PolicyBuilder::AddFile(absl::string_view path, bool is_ro) {
 PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
                                         absl::string_view inside, bool is_ro) {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
+  return AddFileAtIfNamespaced(outside, inside, is_ro);
+}
 
+PolicyBuilder& PolicyBuilder::AddFileIfNamespaced(absl::string_view path,
+                                                  bool is_ro) {
+  return AddFileAtIfNamespaced(path, path, is_ro);
+}
+
+PolicyBuilder& PolicyBuilder::AddFileAtIfNamespaced(absl::string_view outside,
+                                                    absl::string_view inside,
+                                                    bool is_ro) {
   auto valid_outside = ValidateAbsolutePath(outside);
   if (!valid_outside.ok()) {
     SetError(valid_outside.status());
@@ -1314,7 +1318,16 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,
                                              absl::string_view inside,
                                              bool is_ro) {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
+  return AddDirectoryAtIfNamespaced(outside, inside, is_ro);
+}
 
+PolicyBuilder& PolicyBuilder::AddDirectoryIfNamespaced(absl::string_view path,
+                                                       bool is_ro) {
+  return AddDirectoryAtIfNamespaced(path, path, is_ro);
+}
+
+PolicyBuilder& PolicyBuilder::AddDirectoryAtIfNamespaced(
+    absl::string_view outside, absl::string_view inside, bool is_ro) {
   auto valid_outside = ValidateAbsolutePath(outside);
   if (!valid_outside.ok()) {
     SetError(valid_outside.status());

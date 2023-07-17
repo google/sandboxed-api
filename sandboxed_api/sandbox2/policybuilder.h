@@ -201,17 +201,12 @@ class PolicyBuilder final {
   //
   // If `cpu_fence_mode` is `kRequireFastFences`, RSEQ functionality may not
   // be enabled if fast CPU fences are not available.
-  //
-  // This function enables namespaces! If your policy disables namespaces,
-  // the conflict will cause an error when the policy is built. You should
-  // call AllowRestartableSequences() instead; see below for instructions.
-  PolicyBuilder& AllowRestartableSequencesWithProcFiles(
-      CpuFenceMode cpu_fence_mode);
-
-  // Appends code to allow restartable sequences.
-  // See above for the allowed syscalls and, more importantly, for the files
-  // that you are responsible for allowing via the deprecated `Fs` mechanism.
   PolicyBuilder& AllowRestartableSequences(CpuFenceMode cpu_fence_mode);
+  ABSL_DEPRECATED("Use AllowRestartableSequences() instead")
+  PolicyBuilder& AllowRestartableSequencesWithProcFiles(
+      CpuFenceMode cpu_fence_mode) {
+    return this->AllowRestartableSequences(cpu_fence_mode);
+  }
 
   // Appends code to allow the scudo version of malloc, free and
   // friends. This should be used in conjunction with namespaces. If scudo
@@ -737,6 +732,19 @@ class PolicyBuilder final {
   static absl::StatusOr<std::string> ValidateAbsolutePath(
       absl::string_view path);
   static absl::StatusOr<std::string> ValidatePath(absl::string_view path);
+
+  // Similar to AddFile(At)/AddDirectory(At) but it won't force use of
+  // namespaces - files will only be added to the namespace if it is not
+  // disabled by the time of TryBuild().
+  PolicyBuilder& AddFileIfNamespaced(absl::string_view path, bool is_ro = true);
+  PolicyBuilder& AddFileAtIfNamespaced(absl::string_view outside,
+                                       absl::string_view inside,
+                                       bool is_ro = true);
+  PolicyBuilder& AddDirectoryIfNamespaced(absl::string_view path,
+                                          bool is_ro = true);
+  PolicyBuilder& AddDirectoryAtIfNamespaced(absl::string_view outside,
+                                            absl::string_view inside,
+                                            bool is_ro = true);
 
   // Allows a limited version of madvise
   PolicyBuilder& AllowLimitedMadvise();
