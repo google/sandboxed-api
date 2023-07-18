@@ -145,24 +145,54 @@ bool IsSameFile(const std::string& path1, const std::string& path2) {
   return stat1.st_dev == stat2.st_dev && stat1.st_ino == stat2.st_ino;
 }
 
-bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
+bool IsWritable(const MountTree::Node& node) {
+  switch (node.node_case()) {
+    case MountTree::Node::kFileNode:
+      return node.file_node().writable();
+    case MountTree::Node::kDirNode:
+      return node.dir_node().writable();
+    case MountTree::Node::kRootNode:
+      return node.root_node().writable();
+    default:
+      return false;
+  }
+}
+
+bool HasSameTarget(const MountTree::Node& n1, const MountTree::Node& n2) {
   // Return early when node types are different
   if (n1.node_case() != n2.node_case()) {
+    return false;
+  }
+  // Compare proto fileds
+  switch (n1.node_case()) {
+    case MountTree::Node::kFileNode:
+      // Check whether files are the same (e.g. symlinks / hardlinks)
+      return IsSameFile(n1.file_node().outside(), n2.file_node().outside());
+    case MountTree::Node::kDirNode:
+      // Check whether dirs are the same (e.g. symlinks / hardlinks)
+      return IsSameFile(n1.dir_node().outside(), n2.dir_node().outside());
+    case MountTree::Node::kTmpfsNode:
+      return n1.tmpfs_node().tmpfs_options() == n2.tmpfs_node().tmpfs_options();
+    case MountTree::Node::kRootNode:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
+  if (!HasSameTarget(n1, n2)) {
     return false;
   }
 
   // Compare proto fileds
   switch (n1.node_case()) {
     case MountTree::Node::kFileNode:
-      // Check whether files are the same (e.g. symlinks / hardlinks)
-      return n1.file_node().writable() == n2.file_node().writable() &&
-             IsSameFile(n1.file_node().outside(), n2.file_node().outside());
+      return n1.file_node().writable() == n2.file_node().writable();
     case MountTree::Node::kDirNode:
-      // Check whether dirs are the same (e.g. symlinks / hardlinks)
-      return n1.dir_node().writable() == n2.dir_node().writable() &&
-             IsSameFile(n1.dir_node().outside(), n2.dir_node().outside());
+      return n1.dir_node().writable() == n2.dir_node().writable();
     case MountTree::Node::kTmpfsNode:
-      return n1.tmpfs_node().tmpfs_options() == n2.tmpfs_node().tmpfs_options();
+      return true;
     case MountTree::Node::kRootNode:
       return n1.root_node().writable() == n2.root_node().writable();
     default:
@@ -275,6 +305,24 @@ absl::Status Mounts::Insert(absl::string_view path,
                    std::string(path).c_str());
       return absl::OkStatus();
     }
+    if (internal::HasSameTarget(curtree->node(), new_node)) {
+      if (!internal::IsWritable(curtree->node()) &&
+          internal::IsWritable(new_node)) {
+        SAPI_RAW_LOG(INFO,
+                     "Chaning %s to writable, was insterted read-only before",
+                     std::string(path).c_str());
+        *curtree->mutable_node() = new_node;
+        return absl::OkStatus();
+      }
+      if (internal::IsWritable(curtree->node()) &&
+          !internal::IsWritable(new_node)) {
+        SAPI_RAW_LOG(INFO,
+                     "Inserting %s read-only is a nop, as it was insterted "
+                     "writable before",
+                     std::string(path).c_str());
+        return absl::OkStatus();
+      }
+    }
     return absl::FailedPreconditionError(absl::StrCat(
         "Inserting ", path, " twice with conflicting values ",
         curtree->node().DebugString(), " vs. ", new_node.DebugString()));
@@ -287,10 +335,6 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   *curtree->mutable_node() = new_node;
   return absl::OkStatus();
-}
-
-absl::Status Mounts::AddFile(absl::string_view path, bool is_ro) {
-  return AddFileAt(path, path, is_ro);
 }
 
 absl::Status Mounts::AddFileAt(absl::string_view outside,

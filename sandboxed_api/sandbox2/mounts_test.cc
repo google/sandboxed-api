@@ -128,6 +128,18 @@ TEST(MountTreeTest, TestMultipleInsertionFileSymlink) {
   EXPECT_THAT(mounts.AddFileAt(symlink_path, "/a"), IsOk());
 }
 
+TEST(MountTreeTest, TestMultipleInsertionUpgradeToWritable) {
+  Mounts mounts;
+  EXPECT_THAT(mounts.AddFile("/a"), IsOk());
+  EXPECT_THAT(mounts.AddFile("/a", /*is_ro=*/false), IsOk());
+  EXPECT_THAT(mounts.AddDirectory("/b"), IsOk());
+  EXPECT_THAT(mounts.AddDirectory("/b", /*is_ro=*/false), IsOk());
+  EXPECT_THAT(mounts.AddFile("/c", /*is_ro=*/false), IsOk());
+  EXPECT_THAT(mounts.AddFile("/c"), IsOk());
+  EXPECT_THAT(mounts.AddDirectory("/d", /*is_ro=*/false), IsOk());
+  EXPECT_THAT(mounts.AddDirectory("/d"), IsOk());
+}
+
 TEST(MountTreeTest, TestMultipleInsertionDirSymlink) {
   Mounts mounts;
 
@@ -263,6 +275,96 @@ TEST(MountTreeTest, TestList) {
           absl::StrCat("tmpfs: size=", 1024*1024),
       }));
   // clang-format on
+}
+
+TEST(MountTreeTest, TestIsWritable) {
+  MountTree::Node nodes[7];
+  MountTree::FileNode* fn0 = nodes[0].mutable_file_node();
+  fn0->set_writable(false);
+  fn0->set_outside("foo");
+  MountTree::FileNode* fn1 = nodes[1].mutable_file_node();
+  fn1->set_writable(true);
+  fn1->set_outside("bar");
+  MountTree::DirNode* dn0 = nodes[2].mutable_dir_node();
+  dn0->set_writable(false);
+  dn0->set_outside("foo");
+  MountTree::DirNode* dn1 = nodes[3].mutable_dir_node();
+  dn1->set_writable(true);
+  dn1->set_outside("bar");
+  MountTree::RootNode* rn0 = nodes[4].mutable_root_node();
+  rn0->set_writable(false);
+  MountTree::RootNode* rn1 = nodes[5].mutable_root_node();
+  rn1->set_writable(true);
+  MountTree::TmpfsNode* tn0 = nodes[6].mutable_tmpfs_node();
+  tn0->set_tmpfs_options("option1");
+
+  EXPECT_FALSE(internal::IsWritable(nodes[0]));
+  EXPECT_TRUE(internal::IsWritable(nodes[1]));
+  EXPECT_FALSE(internal::IsWritable(nodes[2]));
+  EXPECT_TRUE(internal::IsWritable(nodes[3]));
+  EXPECT_FALSE(internal::IsWritable(nodes[4]));
+  EXPECT_TRUE(internal::IsWritable(nodes[5]));
+  EXPECT_FALSE(internal::IsWritable(nodes[6]));
+}
+
+TEST(MountTreeTest, TestHasSameTarget) {
+  MountTree::Node nodes[10];
+  MountTree::FileNode* fn0 = nodes[0].mutable_file_node();
+  fn0->set_writable(false);
+  fn0->set_outside("foo");
+  MountTree::FileNode* fn1 = nodes[1].mutable_file_node();
+  fn1->set_writable(true);
+  fn1->set_outside("foo");
+  MountTree::FileNode* fn2 = nodes[2].mutable_file_node();
+  fn2->set_writable(false);
+  fn2->set_outside("bar");
+  MountTree::DirNode* dn0 = nodes[3].mutable_dir_node();
+  dn0->set_writable(false);
+  dn0->set_outside("foo");
+  MountTree::DirNode* dn1 = nodes[4].mutable_dir_node();
+  dn1->set_writable(true);
+  dn1->set_outside("foo");
+  MountTree::DirNode* dn2 = nodes[5].mutable_dir_node();
+  dn2->set_writable(false);
+  dn2->set_outside("bar");
+  MountTree::TmpfsNode* tn0 = nodes[6].mutable_tmpfs_node();
+  tn0->set_tmpfs_options("option1");
+  MountTree::TmpfsNode* tn1 = nodes[7].mutable_tmpfs_node();
+  tn1->set_tmpfs_options("option2");
+  MountTree::RootNode* rn0 = nodes[8].mutable_root_node();
+  rn0->set_writable(false);
+  MountTree::RootNode* rn1 = nodes[9].mutable_root_node();
+  rn1->set_writable(true);
+
+  // Compare same file nodes
+  EXPECT_TRUE(internal::HasSameTarget(nodes[0], nodes[0]));
+  // Compare almost same file nodes (ro vs rw)
+  EXPECT_TRUE(internal::HasSameTarget(nodes[0], nodes[1]));
+  // Compare different file nodes
+  EXPECT_FALSE(internal::HasSameTarget(nodes[0], nodes[2]));
+  // Compare file node with dir node
+  EXPECT_FALSE(internal::HasSameTarget(nodes[0], nodes[3]));
+
+  // Compare same dir nodes
+  EXPECT_TRUE(internal::HasSameTarget(nodes[3], nodes[3]));
+  // Compare almost same dir nodes (ro vs rw)
+  EXPECT_TRUE(internal::HasSameTarget(nodes[3], nodes[4]));
+  // Compare different dir nodes
+  EXPECT_FALSE(internal::HasSameTarget(nodes[3], nodes[5]));
+  // Compare dir node with tmpfs node
+  EXPECT_FALSE(internal::HasSameTarget(nodes[3], nodes[6]));
+
+  // Compare same tmpfs nodes
+  EXPECT_TRUE(internal::HasSameTarget(nodes[6], nodes[6]));
+  // Compare different tmpfs nodes
+  EXPECT_FALSE(internal::HasSameTarget(nodes[6], nodes[7]));
+  // Compare dir node with root node
+  EXPECT_FALSE(internal::HasSameTarget(nodes[6], nodes[8]));
+
+  // Compare same root nodes
+  EXPECT_TRUE(internal::HasSameTarget(nodes[8], nodes[8]));
+  // Compare almost same root nodes (ro vs rw)
+  EXPECT_TRUE(internal::HasSameTarget(nodes[8], nodes[9]));
 }
 
 TEST(MountTreeTest, TestNodeEquivalence) {

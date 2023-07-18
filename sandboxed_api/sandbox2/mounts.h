@@ -29,6 +29,8 @@ namespace sandbox2 {
 namespace internal {
 
 bool IsSameFile(const std::string& path1, const std::string& path2);
+bool IsWritable(const MountTree::Node& node);
+bool HasSameTarget(const MountTree::Node& n1, const MountTree::Node& n2);
 bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2);
 }  // namespace internal
 
@@ -47,10 +49,16 @@ class Mounts {
   Mounts& operator=(const Mounts&) = default;
   Mounts& operator=(Mounts&&) = default;
 
-  absl::Status AddFile(absl::string_view path, bool is_ro = true);
+  absl::Status AddFile(absl::string_view path, bool is_ro = true) {
+    return AddFileAt(path, path, is_ro);
+  }
 
   absl::Status AddFileAt(absl::string_view outside, absl::string_view inside,
                          bool is_ro = true);
+
+  absl::Status AddDirectory(absl::string_view path, bool is_ro = true) {
+    return AddDirectoryAt(path, path, is_ro);
+  }
 
   absl::Status AddDirectoryAt(absl::string_view outside,
                               absl::string_view inside, bool is_ro = true);
