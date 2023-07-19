@@ -13,8 +13,8 @@
 # limitations under the License.
 
 FetchContent_Declare(benchmark
-  GIT_REPOSITORY https://github.com/google/benchmark.git
-  GIT_TAG        604f6fd3f4b34a84ec4eb4db81d842fa4db829cd # 2023-05-30
+  URL https://github.com/google/benchmark/archive/604f6fd3f4b34a84ec4eb4db81d842fa4db829cd.zip  # 2023-05-30
+  URL_HASH SHA256=342705876335bf894147e052d0dac141fe15962034b41bef5aa59c4b279ca89c
 )
 set(BENCHMARK_ENABLE_TESTING OFF)
 set(BENCHMARK_ENABLE_EXCEPTIONS OFF)

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 FetchContent_Declare(googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        334704df263b480a3e9e7441ed3292a5e30a37ec # 2023-06-06
+  URL https://github.com/google/googletest/archive/334704df263b480a3e9e7441ed3292a5e30a37ec.zip  # 2023-06-06
+  URL_HASH SHA256=a217118c2c36a3632b594af7ff98111a65bb2b980b726a7fa62305e02a998440
 )
 FetchContent_MakeAvailable(googletest)

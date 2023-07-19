@@ -63,9 +63,9 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_protobuf",
-        sha256 = "ddf8c9c1ffccb7e80afd183b3bd32b3b62f7cc54b106be190bf49f2bc09daab5",  # 2023-05-26
-        strip_prefix = "protobuf-23.2",
-        urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v23.2/protobuf-23.2.tar.gz"],
+        sha256 = "a700a49470d301f1190a487a923b5095bf60f08f4ae4cac9f5f7c36883d17971",  # 2023-07-06
+        strip_prefix = "protobuf-23.4",
+        urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protobuf-23.4.tar.gz"],
     )
 
     # libcap

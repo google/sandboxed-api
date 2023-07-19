@@ -13,8 +13,8 @@
 # limitations under the License.
 
 FetchContent_Declare(protobuf
-  GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
-  GIT_TAG        v23.2 # 2023-05-26
+  URL https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protobuf-23.4.tar.gz
+  URL_HASH SHA256=a700a49470d301f1190a487a923b5095bf60f08f4ae4cac9f5f7c36883d17971
 )
 
 set(protobuf_ABSL_PROVIDER "package" CACHE STRING "" FORCE)
