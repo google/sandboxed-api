@@ -1068,6 +1068,11 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(uint32_t num, BpfFunc f) {
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
     absl::Span<const uint32_t> nums, absl::Span<const sock_filter> policy) {
+  if (nums.empty()) {
+    SetError(absl::InvalidArgumentError(
+        "Cannot add a policy for empty list of syscalls"));
+    return *this;
+  }
   std::deque<sock_filter> out;
   // Insert and verify the policy.
   out.insert(out.end(), policy.begin(), policy.end());

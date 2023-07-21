@@ -96,7 +96,6 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   assert_increased();
   builder.AddPolicyOnSyscalls({ __NR_fchmod, __NR_chdir }, { ALLOW });
   assert_increased();
-  builder.AddPolicyOnSyscalls({ }, { ALLOW }); assert_increased();
 
   // This might change in the future if we implement an optimization.
   builder.AddPolicyOnSyscall(__NR_umask, { ALLOW }); assert_increased();
