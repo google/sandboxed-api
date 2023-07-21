@@ -60,8 +60,6 @@ cc_binary(
     features = ["fully_static_link"],
     deps = [
         "//sandboxed_api/sandbox2:buffer",
-        "//sandboxed_api/sandbox2:comms",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

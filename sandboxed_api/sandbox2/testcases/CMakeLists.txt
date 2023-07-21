@@ -49,9 +49,7 @@ set_target_properties(sandbox2_testcase_buffer PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_buffer PRIVATE
   -static
-  absl::str_format
   sandbox2::buffer
-  sandbox2::comms
   sapi::base
 )
 

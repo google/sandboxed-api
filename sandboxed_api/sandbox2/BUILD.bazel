@@ -791,11 +791,9 @@ cc_test(
     tags = ["no_qemu_user_mode"],
     deps = [
         ":buffer",
-        ":comms",
         ":sandbox2",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:status_matchers",
-        "@com_google_absl//absl/log",
         "@com_google_googletest//:gtest_main",
     ],
 )

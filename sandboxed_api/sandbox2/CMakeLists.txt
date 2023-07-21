@@ -870,8 +870,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_buffer_test PRIVATE
     sandbox2::buffer
-    sandbox2::comms
-    sandbox2::ipc
     sandbox2::sandbox2
     sapi::testing
     sapi::status_matchers

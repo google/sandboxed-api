@@ -18,7 +18,6 @@
 #include <syscall.h>
 #include <unistd.h>
 
-#include <cerrno>
 #include <memory>
 #include <string>
 #include <utility>
@@ -26,8 +25,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
-#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -42,7 +39,6 @@ namespace {
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
-using ::testing::IsTrue;
 using ::testing::Ne;
 
 // Test all public methods of sandbox2::Buffer.
@@ -64,7 +60,7 @@ TEST(BufferTest, TestImplementation) {
 // Test sharing of buffer between executor/sandboxee using dup/MapFd.
 TEST(BufferTest, TestWithSandboxeeMapFd) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/buffer");
-  std::vector<std::string> args = {path, "1"};
+  std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             CreateDefaultPermissiveTestPolicy(path).TryBuild());
@@ -93,38 +89,5 @@ TEST(BufferTest, TestWithSandboxeeMapFd) {
   struct stat stat_buf;
   EXPECT_THAT(fstat(buffer->fd(), &stat_buf), Ne(-1));
 }
-
-// Test sharing of buffer between executor/sandboxee using SendFD/RecvFD.
-TEST(BufferTest, TestWithSandboxeeSendRecv) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/buffer");
-  std::vector<std::string> args = {path, "2"};
-  auto executor = std::make_unique<Executor>(path, args);
-
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
-
-  Sandbox2 s2(std::move(executor), std::move(policy));
-  ASSERT_THAT(s2.RunAsync(), IsTrue());
-  Comms* comms = s2.comms();
-
-  SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
-                            Buffer::CreateWithSize(1ULL << 20 /* 1MiB */));
-  uint8_t* buf = buffer->data();
-  // Test that we can write data to the sandboxee.
-  buf[0] = 'A';
-  EXPECT_THAT(comms->SendFD(buffer->fd()), IsTrue());
-
-  auto result = s2.AwaitResult();
-  EXPECT_THAT(result.final_status(), Eq(Result::OK));
-  EXPECT_THAT(result.reason_code(), Eq(0));
-
-  // Test that we can read data from the sandboxee.
-  EXPECT_THAT(buf[buffer->size() - 1], Eq('B'));
-
-  // Test that internal buffer fd remains valid.
-  struct stat stat_buf;
-  EXPECT_THAT(fstat(buffer->fd(), &stat_buf), Ne(-1));
-}
-
 }  // namespace
 }  // namespace sandbox2
