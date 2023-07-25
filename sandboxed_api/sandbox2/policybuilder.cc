@@ -327,6 +327,7 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
     // Sanitizers read from /proc. For example:
     // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L1155
     AddDirectoryIfNamespaced("/proc");
+    AllowOpen();
     // Sanitizers need pid for reports. For example:
     // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L740
     AllowGetPIDs();
