@@ -81,9 +81,7 @@ class PidWaiter {
   // require attention at the moment, or -1 if there was an error, in which case
   // the error value can be found in 'errno'.
   int Wait(int* status) {
-    if (statuses_.empty() && last_errno_ == 0) {
-      RefillStatuses();
-    }
+    RefillStatuses();
 
     if (statuses_.empty()) {
       if (last_errno_ == 0) return 0;
@@ -100,25 +98,37 @@ class PidWaiter {
   }
 
  private:
-  void RefillStatuses() {
-    statuses_.clear();
-    last_errno_ = 0;
-    pid_t pid = priority_pid_;
+  bool CheckStatus(pid_t pid) {
     int status;
-    while (true) {
-      // It should be a non-blocking operation (hence WNOHANG), so this function
-      // returns quickly if there are no events to be processed.
-      pid_t ret =
-          waitpid(pid, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-      if (ret > 0) {
-        statuses_.emplace_back(ret, status);
-      } else if (ret < 0) {
-        last_errno_ = errno;
-        break;
-      } else if (pid == -1) {
+    // It should be a non-blocking operation (hence WNOHANG), so this function
+    // returns quickly if there are no events to be processed.
+    pid_t ret =
+        waitpid(pid, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
+    if (ret < 0) {
+      last_errno_ = errno;
+      return true;
+    }
+    if (ret == 0) {
+      return false;
+    }
+    statuses_.emplace_back(ret, status);
+    return true;
+  }
+
+  void RefillStatuses() {
+    constexpr int kMaxIterations = 1000;
+    constexpr int kPriorityCheckPeriod = 100;
+    if (!statuses_.empty()) {
+      return;
+    }
+    for (int i = 0; last_errno_ == 0 && i < kMaxIterations; ++i) {
+      bool should_check_priority = (i % kPriorityCheckPeriod) == 0;
+      if (should_check_priority && CheckStatus(priority_pid_)) {
+        return;
+      }
+      if (!CheckStatus(-1)) {
         break;
       }
-      pid = -1;
     }
   }
 
