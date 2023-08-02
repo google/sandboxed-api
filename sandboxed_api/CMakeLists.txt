@@ -52,18 +52,13 @@ add_library(sapi_embed_file ${SAPI_LIB_TYPE}
 )
 add_library(sapi::embed_file ALIAS sapi_embed_file)
 target_link_libraries(sapi_embed_file
-  PRIVATE absl::flat_hash_map
-          absl::status
-          absl::statusor
-          absl::strings
-          absl::synchronization
-          sapi::fileops
-          sapi::strerror
+  PRIVATE absl::strings
           sandbox2::util
           sapi::base
+          sapi::fileops
           sapi::raw_logging
-          sapi::status
-  PUBLIC absl::log
+  PUBLIC absl::flat_hash_map
+         absl::synchronization
 )
 
 # sandboxed_api:sapi

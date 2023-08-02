@@ -47,7 +47,6 @@ cc_library(
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",

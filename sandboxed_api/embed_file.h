@@ -15,8 +15,6 @@
 #ifndef SANDBOXED_API_EMBED_FILE_H_
 #define SANDBOXED_API_EMBED_FILE_H_
 
-#include <vector>
-
 #include "sandboxed_api/file_toc.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"

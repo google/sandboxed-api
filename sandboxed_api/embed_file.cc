@@ -20,11 +20,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "absl/strings/string_view.h"
+#include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sapi {
 
@@ -64,7 +63,16 @@ int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
   // mm/memfd.c). Since fsync() is a no-op on memfds, it doesn't help to
   // ameliorate the problem.
 
-  return embed_fd.Release();
+  // Instead of working around problems with CRIU we reopen the file as
+  // read-only.
+  fd = open(absl::StrCat("/proc/", getpid(), "/fd/", embed_fd.get()).c_str(),
+            O_RDONLY | O_CLOEXEC);
+  if (fd == -1) {
+    SAPI_RAW_PLOG(ERROR, "Couldn't reopen '%d' read-only through /proc",
+                  embed_fd.get());
+    return -1;
+  }
+  return fd;
 }
 
 int EmbedFile::GetFdForFileToc(const FileToc* toc) {
