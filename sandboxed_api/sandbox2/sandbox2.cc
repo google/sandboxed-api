@@ -71,6 +71,7 @@ Result Sandbox2::AwaitResult() {
 }
 
 bool Sandbox2::RunAsync() {
+  CHECK(monitor_ == nullptr) << "Sandbox was launched already";
   Launch();
 
   // If the sandboxee setup failed we return 'false' here.
