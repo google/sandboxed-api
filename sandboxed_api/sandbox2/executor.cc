@@ -143,7 +143,7 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(int32_t clone_flags,
   }
 
   if (ns) {
-    clone_flags |= ns->GetCloneFlags();
+    clone_flags |= ns->clone_flags();
     *request.mutable_mount_tree() = ns->mounts().GetMountTree();
     request.set_hostname(ns->hostname());
     request.set_allow_mount_propagation(ns->allow_mount_propagation());

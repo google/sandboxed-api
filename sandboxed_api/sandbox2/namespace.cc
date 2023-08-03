@@ -195,17 +195,13 @@ void LogFilesystem(const std::string& dir) {
 
 Namespace::Namespace(bool allow_unrestricted_networking, Mounts mounts,
                      std::string hostname, bool allow_mount_propagation)
-    : clone_flags_(CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWPID |
-                   CLONE_NEWIPC),
-      mounts_(std::move(mounts)),
+    : mounts_(std::move(mounts)),
       hostname_(std::move(hostname)),
       allow_mount_propagation_(allow_mount_propagation) {
-  if (!allow_unrestricted_networking) {
-    clone_flags_ |= CLONE_NEWNET;
+  if (allow_unrestricted_networking) {
+    clone_flags_ &= ~CLONE_NEWNET;
   }
 }
-
-int32_t Namespace::GetCloneFlags() const { return clone_flags_; }
 
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts,

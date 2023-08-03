@@ -45,11 +45,10 @@ class Namespace final {
   Namespace(bool allow_unrestricted_networking, Mounts mounts,
             std::string hostname, bool allow_mount_propagation);
 
-  // Returns all needed CLONE_NEW* flags.
-  int32_t GetCloneFlags() const;
-
   // Stores information about this namespace in the protobuf structure.
   void GetNamespaceDescription(NamespaceDescription* pb_description);
+
+  int32_t clone_flags() const { return clone_flags_; }
 
   Mounts& mounts() { return mounts_; }
   const Mounts& mounts() const { return mounts_; }
@@ -59,10 +58,11 @@ class Namespace final {
   bool allow_mount_propagation() const { return allow_mount_propagation_; }
 
  private:
-  int32_t clone_flags_;
+  int32_t clone_flags_ = CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWUTS |
+                         CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNET;
   Mounts mounts_;
   std::string hostname_;
-  bool allow_mount_propagation_;
+  bool allow_mount_propagation_ = false;
 };
 
 }  // namespace sandbox2
