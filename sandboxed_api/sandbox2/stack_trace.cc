@@ -170,8 +170,7 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       // Add the binary itself.
       .AddFileAt(exe_path, app_path);
 
-  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy, builder.TryBuild());
-  return std::move(policy);
+  return builder.TryBuild();
 }
 
 namespace internal {
