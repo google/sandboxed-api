@@ -1213,11 +1213,6 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
     output->SetNamespace(std::make_unique<Namespace>(
         allow_unrestricted_networking_, std::move(mounts_), hostname_,
         allow_mount_propagation_));
-  } else {
-    // Not explicitly disabling them here as this is a technical limitation in
-    // our stack trace collection functionality.
-    LOG(WARNING) << "Using policy without namespaces, disabling stack traces on"
-                 << " crash";
   }
 
   output->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;

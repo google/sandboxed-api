@@ -23,6 +23,8 @@
 #include <utility>
 
 #include "absl/base/macros.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -46,6 +48,10 @@ class Sandbox2 final {
         notify_(std::move(notify)) {
     CHECK(executor_ != nullptr);
     CHECK(policy_ != nullptr);
+    // This is a technical limitation in our stack trace collection
+    // functionality.
+    LOG(WARNING) << "Using policy without namespaces, disabling stack traces on"
+                 << " crash";
   }
 
   Sandbox2(const Sandbox2&) = delete;
