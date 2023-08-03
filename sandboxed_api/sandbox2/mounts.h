@@ -91,7 +91,7 @@ class Mounts {
   // inside_entries[i]. The elements of inside_entries are prefixed with either
   // 'R' (read-only) or 'W' (writable).
   void RecursivelyListMounts(std::vector<std::string>* outside_entries,
-                             std::vector<std::string>* inside_entries);
+                             std::vector<std::string>* inside_entries) const;
 
   absl::StatusOr<std::string> ResolvePath(absl::string_view path) const;
 

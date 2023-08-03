@@ -23,7 +23,9 @@
 
 #include <climits>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "google/protobuf/util/message_differencer.h"
 #include "absl/container/flat_hash_set.h"
@@ -777,8 +779,9 @@ void RecursivelyListMountsImpl(const MountTree& tree,
 
 }  // namespace
 
-void Mounts::RecursivelyListMounts(std::vector<std::string>* outside_entries,
-                                   std::vector<std::string>* inside_entries) {
+void Mounts::RecursivelyListMounts(
+    std::vector<std::string>* outside_entries,
+    std::vector<std::string>* inside_entries) const {
   RecursivelyListMountsImpl(GetMountTree(), "", outside_entries,
                             inside_entries);
 }
