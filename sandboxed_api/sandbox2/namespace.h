@@ -38,10 +38,6 @@ class Namespace final {
                                    bool allow_mount_propagation);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
 
-  Namespace() = delete;
-  Namespace(const Namespace&) = delete;
-  Namespace& operator=(const Namespace&) = delete;
-
   Namespace(bool allow_unrestricted_networking, Mounts mounts,
             std::string hostname, bool allow_mount_propagation);
 
