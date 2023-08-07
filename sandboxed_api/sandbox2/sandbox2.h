@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/macros.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
