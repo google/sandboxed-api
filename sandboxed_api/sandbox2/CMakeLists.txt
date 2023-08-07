@@ -432,6 +432,7 @@ target_link_libraries(sandbox2_monitor_ptrace
   PRIVATE absl::cleanup
           absl::flat_hash_set
           absl::flags
+          absl::log
           absl::status
           absl::strings
           absl::time

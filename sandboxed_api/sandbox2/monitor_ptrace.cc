@@ -35,6 +35,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
@@ -419,7 +420,9 @@ void PtraceMonitor::Run() {
     for (;;) {
       auto left = deadline - absl::Now();
       if (absl::Now() >= deadline) {
-        LOG(INFO) << "Waiting for sandboxee exit timed out";
+        LOG(WARNING)
+            << "Waiting for sandboxee exit timed out. Sandboxee result: "
+            << result_.ToString();
         break;
       }
       pid_t ret = pid_waiter.Wait(&status);
