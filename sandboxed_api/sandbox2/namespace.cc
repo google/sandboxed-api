@@ -27,12 +27,12 @@
 #include <syscall.h>
 #include <unistd.h>
 
-#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <utility>
 
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -351,7 +351,8 @@ void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
       "remounting rootfs read-only failed");
 }
 
-void Namespace::GetNamespaceDescription(NamespaceDescription* pb_description) {
+void Namespace::GetNamespaceDescription(
+    NamespaceDescription* pb_description) const {
   pb_description->set_clone_flags(clone_flags_);
   *pb_description->mutable_mount_tree_mounts() = mounts_.GetMountTree();
 }

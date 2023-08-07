@@ -42,7 +42,7 @@ class Namespace final {
             std::string hostname, bool allow_mount_propagation);
 
   // Stores information about this namespace in the protobuf structure.
-  void GetNamespaceDescription(NamespaceDescription* pb_description);
+  void GetNamespaceDescription(NamespaceDescription* pb_description) const;
 
   int32_t clone_flags() const { return clone_flags_; }
 
