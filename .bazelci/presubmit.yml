@@ -3,6 +3,6 @@ tasks:
   debian10:
     shell_commands:
     - "sudo apt -y update && sudo apt -y install llvm-11-dev libclang-11-dev libncurses-dev"
-    - pip3 install absl-py clang
+    - pip3 install absl-py clang==11
     build_targets:
     - "..."
