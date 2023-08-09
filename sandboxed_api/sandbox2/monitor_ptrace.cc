@@ -407,10 +407,6 @@ void PtraceMonitor::Run() {
     const bool log_stack_traces =
         result_.final_status() != Result::OK &&
         absl::GetFlag(FLAGS_sandbox2_log_all_stack_traces);
-    if (!log_stack_traces) {
-      // Try to make sure main pid is killed and reaped
-      kill(process_.main_pid, SIGKILL);
-    }
     constexpr auto kGracefullExitTimeout = absl::Milliseconds(200);
     auto deadline = absl::Now() + kGracefullExitTimeout;
     if (log_stack_traces) {
@@ -432,9 +428,12 @@ void PtraceMonitor::Run() {
         }
         break;
       }
-      if (!log_stack_traces && ret == process_.main_pid &&
-          (WIFSIGNALED(status) || WIFEXITED(status))) {
-        break;
+      if (!log_stack_traces) {
+        if (ret == process_.main_pid &&
+            (WIFSIGNALED(status) || WIFEXITED(status))) {
+          break;
+        }
+        kill(process_.main_pid, SIGKILL);
       }
 
       if (ret == 0) {
@@ -453,10 +452,6 @@ void PtraceMonitor::Run() {
           ContinueProcess(ret, 0);
           continue;
         }
-      }
-
-      if (!log_stack_traces) {
-        kill(process_.main_pid, SIGKILL);
       }
     }
   }
