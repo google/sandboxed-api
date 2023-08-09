@@ -40,7 +40,6 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
@@ -49,6 +48,7 @@
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
 
@@ -1188,8 +1188,9 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
 }
 
 absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
-  // Using `new` to access a non-public constructor.
-  auto output = absl::WrapUnique(new Policy());
+  if (!last_status_.ok()) {
+    return last_status_;
+  }
 
   if (user_policy_.size() > kMaxUserPolicyLength) {
     return absl::FailedPreconditionError(
@@ -1197,9 +1198,8 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
                      " > ", kMaxUserPolicyLength, ")."));
   }
 
-  if (!last_status_.ok()) {
-    return last_status_;
-  }
+  // Using `new` to access a non-public constructor.
+  auto output = absl::WrapUnique(new Policy());
 
   if (already_built_) {
     return absl::FailedPreconditionError("Can only build policy once.");
@@ -1210,9 +1210,9 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    output->SetNamespace(std::make_unique<Namespace>(
-        allow_unrestricted_networking_, std::move(mounts_), hostname_,
-        allow_mount_propagation_));
+    output->namespace_ =
+        Namespace(allow_unrestricted_networking_, std::move(mounts_), hostname_,
+                  allow_mount_propagation_);
   }
 
   output->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
@@ -1230,10 +1230,10 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
   output->user_policy_handles_ptrace_ = user_policy_handles_ptrace_;
 
-  auto pb_description = std::make_unique<PolicyBuilderDescription>();
+  PolicyBuilderDescription pb_description;
 
-  StoreDescription(pb_description.get());
-  output->policy_builder_description_ = std::move(pb_description);
+  StoreDescription(&pb_description);
+  output->policy_builder_description_ = pb_description;
   output->allowed_hosts_ = std::move(allowed_hosts_);
   already_built_ = true;
   return std::move(output);

@@ -20,12 +20,12 @@
 #include <syscall.h>
 
 #include <cerrno>
-#include <csignal>
 #include <cstdio>
-#include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/declare.h"
@@ -132,7 +132,7 @@ MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify)
     PCHECK(log_file_ != nullptr) << "Failed to open log file '" << path << "'";
   }
 
-  if (auto* ns = policy_->GetNamespace(); ns) {
+  if (auto& ns = policy_->namespace_; ns) {
     // Check for the Tomoyo LSM, which is active by default in several common
     // distribution kernels (esp. Debian).
     MaybeEnableTomoyoLsmWorkaround(ns->mounts(), comms_fd_dev_);
@@ -172,7 +172,7 @@ void MonitorBase::Launch() {
   };
   absl::Cleanup monitor_done = [this] { OnDone(); };
 
-  Namespace* ns = policy_->GetNamespace();
+  const Namespace* ns = policy_->GetNamespaceOrNull();
   if (SAPI_VLOG_IS_ON(1) && ns != nullptr) {
     std::vector<std::string> outside_entries;
     std::vector<std::string> inside_entries;
@@ -397,7 +397,7 @@ bool MonitorBase::StackTraceCollectionPossible() const {
   }
   LOG(ERROR) << "Cannot collect stack trace. Unwind pid "
              << executor_->libunwind_sbox_for_pid_ << ", namespace "
-             << policy_->GetNamespace();
+             << policy_->GetNamespaceOrNull();
   return false;
 }
 
@@ -433,7 +433,7 @@ bool MonitorBase::ShouldCollectStackTrace(Result::StatusEnum status) const {
 
 absl::StatusOr<std::vector<std::string>> MonitorBase::GetStackTrace(
     const Regs* regs) {
-  return sandbox2::GetStackTrace(regs, policy_->GetNamespace(),
+  return sandbox2::GetStackTrace(regs, policy_->GetNamespaceOrNull(),
                                  uses_custom_forkserver_);
 }
 

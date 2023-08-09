@@ -167,7 +167,6 @@ add_library(sandbox2_policy ${SAPI_LIB_TYPE}
 add_library(sandbox2::policy ALIAS sandbox2_policy)
 target_link_libraries(sandbox2_policy PRIVATE
   absl::core_headers
-  absl::optional
   sandbox2::bpf_helper
   sandbox2::bpfdisassembler
   sandbox2::comms
@@ -494,6 +493,7 @@ target_link_libraries(sandbox2_policybuilder
           sapi::config
           sandbox2::bpf_helper
           sandbox2::namespace
+          sandbox2::violation_proto
           sapi::file_base
           sapi::status
   PUBLIC absl::check

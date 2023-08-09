@@ -122,16 +122,16 @@ absl::Status Sandbox2::EnableUnotifyMonitor() {
                     "EventSyscallTrap/EventSyscallTrace, notifications about "
                     "signals via EventSignal will not work";
   }
-  if (policy_->GetNamespace() == nullptr) {
+  if (!policy_->GetNamespace()) {
     return absl::FailedPreconditionError(
         "Unotify monitor can only be used together with namespaces");
   }
-  if (policy_->collect_stacktrace_on_signal_) {
+  if (policy_->collect_stacktrace_on_signal()) {
     return absl::FailedPreconditionError(
         "Unotify monitor cannot collect stack traces on signal");
   }
 
-  if (policy_->collect_stacktrace_on_exit_) {
+  if (policy_->collect_stacktrace_on_exit()) {
     return absl::FailedPreconditionError(
         "Unotify monitor cannot collect stack traces on normal exit");
   }

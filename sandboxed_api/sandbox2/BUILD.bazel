@@ -221,7 +221,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -539,6 +538,7 @@ cc_library(
         ":mounts",
         ":namespace",
         ":policy",
+        ":violation_cc_proto",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/network_proxy:filtering",
         "//sandboxed_api/sandbox2/util:bpf_helper",

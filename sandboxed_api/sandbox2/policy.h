@@ -21,15 +21,9 @@
 #include <asm/types.h>
 #include <linux/filter.h>
 
-#include <cstddef>
-#include <memory>
-#include <set>
-#include <utility>
+#include <optional>
 #include <vector>
 
-#include "absl/base/macros.h"
-#include "absl/types/optional.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/syscall.h"
@@ -46,23 +40,20 @@ inline constexpr uintptr_t kExecveMagic = 0x921c2c34;
 }  // namespace internal
 
 class Comms;
+class PolicyBuilder;
+class MonitorBase;
 
 class Policy final {
  public:
+  Policy(const Policy&) = default;
+  Policy& operator=(const Policy&) = default;
+
+  Policy(Policy&&) = delete;
+  Policy& operator=(Policy&&) = delete;
+
   // Stores information about the policy (and the policy builder if existing)
   // in the protobuf structure.
   void GetPolicyDescription(PolicyDescription* policy) const;
-
- private:
-  friend class Sandbox2;
-  friend class MonitorBase;
-  friend class PtraceMonitor;
-  friend class UnotifyMonitor;
-  friend class PolicyBuilder;
-  friend class StackTracePeer;
-
-  // Private constructor only called by the PolicyBuilder.
-  Policy() = default;
 
   // Sends the policy over the IPC channel.
   bool SendPolicy(Comms* comms, bool user_notif) const;
@@ -71,9 +62,9 @@ class Policy final {
   // requirements (message passing via Comms, Executor::WaitForExecve etc.).
   std::vector<sock_filter> GetPolicy(bool user_notif) const;
 
-  Namespace* GetNamespace() { return namespace_.get(); }
-  void SetNamespace(std::unique_ptr<Namespace> ns) {
-    namespace_ = std::move(ns);
+  const std::optional<Namespace>& GetNamespace() const { return namespace_; }
+  const Namespace* GetNamespaceOrNull() const {
+    return namespace_ ? &namespace_.value() : nullptr;
   }
 
   // Returns the default policy, which blocks certain dangerous syscalls and
@@ -82,8 +73,23 @@ class Policy final {
   // Returns a policy allowing the Monitor module to track all syscalls.
   std::vector<sock_filter> GetTrackingPolicy() const;
 
+  bool collect_stacktrace_on_signal() const {
+    return collect_stacktrace_on_signal_;
+  }
+
+  bool collect_stacktrace_on_exit() const {
+    return collect_stacktrace_on_exit_;
+  }
+
+ private:
+  friend class PolicyBuilder;
+  friend class MonitorBase;
+
+  // Private constructor only called by the PolicyBuilder.
+  Policy() = default;
+
   // The Namespace object, defines ways of putting sandboxee into namespaces.
-  std::unique_ptr<Namespace> namespace_;
+  std::optional<Namespace> namespace_;
 
   // Gather stack traces on violations, signals, timeouts or when getting
   // killed. See policybuilder.h for more information.
@@ -94,7 +100,7 @@ class Policy final {
   bool collect_stacktrace_on_exit_ = false;
 
   // Optional pointer to a PolicyBuilder description pb object.
-  std::unique_ptr<PolicyBuilderDescription> policy_builder_description_;
+  std::optional<PolicyBuilderDescription> policy_builder_description_;
 
   // The policy set by the user.
   std::vector<sock_filter> user_policy_;
@@ -102,7 +108,7 @@ class Policy final {
   bool user_policy_handles_ptrace_ = false;
 
   // Contains a list of hosts the sandboxee is allowed to connect to.
-  absl::optional<AllowedHosts> allowed_hosts_;
+  std::optional<AllowedHosts> allowed_hosts_;
 };
 
 }  // namespace sandbox2

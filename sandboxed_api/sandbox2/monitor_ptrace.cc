@@ -806,7 +806,7 @@ void PtraceMonitor::EventPtraceExit(pid_t pid, int event_msg) {
 
   // A regular exit, let it continue (fast-path).
   if (ABSL_PREDICT_TRUE(WIFEXITED(event_msg) &&
-                        (!policy_->collect_stacktrace_on_exit_ ||
+                        (!policy_->collect_stacktrace_on_exit() ||
                          pid != process_.main_pid))) {
     ContinueProcess(pid, 0);
     return;
