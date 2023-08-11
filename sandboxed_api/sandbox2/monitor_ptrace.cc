@@ -38,6 +38,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/client.h"
@@ -230,6 +231,10 @@ bool PtraceMonitor::KillSandboxee() {
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
     return false;
   }
+  constexpr absl::Duration kGracefullKillTimeout = absl::Milliseconds(500);
+  if (hard_deadline_ == absl::InfiniteFuture()) {
+    hard_deadline_ = absl::Now() + kGracefullKillTimeout;
+  }
   return true;
 }
 
@@ -303,6 +308,12 @@ void PtraceMonitor::Run() {
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
   while (result().final_status() == Result::UNSET) {
+    if (absl::Now() >= hard_deadline_) {
+      LOG(WARNING) << "Hard deadline exceeded (timed_out=" << timed_out_
+                   << ", external_kill=" << external_kill_
+                   << ", network_violation=" << network_violation_ << ").";
+      break;
+    }
     int64_t deadline = deadline_millis_.load(std::memory_order_relaxed);
     if (deadline != 0 && absl::Now() >= absl::FromUnixMillis(deadline)) {
       VLOG(1) << "Sandbox process hit timeout due to the walltime timer";

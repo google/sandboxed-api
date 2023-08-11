@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/notify.h"
@@ -154,6 +155,8 @@ class PtraceMonitor : public MonitorBase {
   // Syscalls that are running, whose result values we want to inspect.
   absl::flat_hash_map<pid_t, Syscall> syscalls_in_progress_;
   sigset_t sset_;
+  // Deadline after which sandboxee get terminated via PTRACE_O_EXITKILL.
+  absl::Time hard_deadline_ = absl::InfiniteFuture();
 
   // Monitor thread object.
   std::unique_ptr<std::thread> thread_;
