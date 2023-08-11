@@ -17,6 +17,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <memory>
 #include <string>
 #include <utility>
@@ -48,12 +49,12 @@ class PolicyBuilderPeer {
 
 namespace {
 
+using ::sapi::IsOk;
+using ::sapi::StatusIs;
 using ::testing::Eq;
 using ::testing::Lt;
 using ::testing::StartsWith;
 using ::testing::StrEq;
-using ::sapi::IsOk;
-using ::sapi::StatusIs;
 
 TEST(PolicyBuilderTest, Testpolicy_size) {
   ssize_t last_size = 0;
@@ -151,6 +152,13 @@ TEST(PolicyBuilderTest, TestIsCopyable) {
   // Both can be built.
   EXPECT_THAT(builder.TryBuild(), IsOk());
   EXPECT_THAT(copy.TryBuild(), IsOk());
+}
+
+TEST(PolicyBuilderTest, CanBypassPtrace) {
+  PolicyBuilder builder;
+  builder.AddPolicyOnSyscall(__NR_ptrace, {ALLOW})
+      .BlockSyscallWithErrno(__NR_ptrace, ENOENT);
+  EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
 }
 }  // namespace
 }  // namespace sandbox2

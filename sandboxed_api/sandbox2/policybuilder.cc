@@ -1106,6 +1106,11 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
   constexpr size_t kMaxShortJump = 255;
   bool last = true;
   for (auto it = std::rbegin(nums); it != std::rend(nums); ++it) {
+    if (*it == __NR_bpf || *it == __NR_ptrace) {
+      SetError(absl::InvalidArgumentError(
+          "cannot add policy for bpf/ptrace syscall"));
+      return *this;
+    }
     // If syscall is not matched try with the next one.
     uint8_t jf = 0;
     // If last syscall on the list does not match skip the policy by jumping
@@ -1479,8 +1484,10 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
 }
 
 PolicyBuilder& PolicyBuilder::TrapPtrace() {
-  AddPolicyOnSyscall(__NR_ptrace, {TRAP(0)});
-  user_policy_handles_ptrace_ = true;
+  if (handled_syscalls_.insert(__NR_ptrace).second) {
+    user_policy_.insert(user_policy_.end(), {SYSCALL(__NR_ptrace, TRAP(0))});
+    user_policy_handles_ptrace_ = true;
+  }
   return *this;
 }
 
