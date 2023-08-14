@@ -201,6 +201,53 @@ TEST_F(EmitterTest, ParentNotCollected) {
                           " int data; }"));
 }
 
+TEST_F(EmitterTest, StructForwardDecl) {
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A;
+             extern "C" void UsingForwardDeclaredStruct(A* s);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), ElementsAre("struct A"));
+}
+
+TEST_F(EmitterTest, AggregateStructWithDefaultedMembers) {
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A {
+               int a = 0;
+               int b = 42;
+             };
+             extern "C" void AggregateStruct(A* s);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("struct A {"
+                          " int a = 0;"
+                          " int b = 42; }"));
+}
+
+TEST_F(EmitterTest, AggregateStructWithMethods) {
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A {
+               int a = 0;
+               int b = 42;
+               int my_mem_fn();
+             };
+             extern "C" void AggregateStruct(A* s);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+
+  // Expect a forward decl in this case
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), ElementsAre("struct A"));
+}
+
 TEST_F(EmitterTest, RemoveQualifiers) {
   EmitterForTesting emitter;
   ASSERT_THAT(

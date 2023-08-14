@@ -247,12 +247,20 @@ std::string GetSpelling(const clang::Decl* decl) {
   }
 
   if (const auto* record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
-    if (!record_decl->isCLike()) {
-      // For C++ classes/structs, only emit a forward declaration.
-      return absl::StrCat(PrintRecordTemplateArguments(record_decl),
-                          record_decl->isClass() ? "class " : "struct ",
-                          ToStringView(record_decl->getName()));
+    if (record_decl->hasDefinition() &&
+        // Aggregates capture all C-like structs, but also structs with
+        // non-static members that have default initializers.
+        record_decl->isAggregate() &&
+        // Make sure to skip types with user-defined methods (including
+        // constructors).
+        record_decl->methods().empty()) {
+      return PrintDecl(decl);
     }
+    // For unsupported types or types with no definition, only emit a forward
+    // declaration.
+    return absl::StrCat(PrintRecordTemplateArguments(record_decl),
+                        record_decl->isClass() ? "class " : "struct ",
+                        ToStringView(record_decl->getName()));
   }
   return PrintDecl(decl);
 }
