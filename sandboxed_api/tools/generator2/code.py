@@ -327,8 +327,9 @@ class Type(object):
     """Returns all types related to the structure."""
     # skip unnamed structures eg. typedef struct {...} x;
     # struct {...} will be rendered as part of typedef rendering
-    if self._get_declaration().spelling and not skip_self:
-      self._tu.search_for_macro_name(self._get_declaration())
+    decl = self._get_declaration()
+    if not decl.is_anonymous() and not skip_self:
+      self._tu.search_for_macro_name(decl)
       result.add(self)
 
     for f in self._clang_type.get_fields():
