@@ -40,7 +40,7 @@ void IPC::MapFd(int local_fd, int remote_fd) {
 
 void IPC::MapDupedFd(int local_fd, int remote_fd) {
   const int dup_local_fd = dup(local_fd);
-  if (dup_local_fd != -1) {
+  if (dup_local_fd == -1) {
     PLOG(FATAL) << "dup(" << local_fd << ")";
   }
   fd_map_.push_back(std::make_tuple(dup_local_fd, remote_fd, ""));
