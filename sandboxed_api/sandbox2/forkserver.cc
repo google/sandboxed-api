@@ -657,20 +657,22 @@ void ForkServer::ExecuteProcess(int execve_fd, const char* const* argv,
                  internal::kExecveMagic);
 
   int saved_errno = errno;
-  SAPI_RAW_PLOG(ERROR, "sandbox2::ForkServer: execveat failed");
+  SAPI_RAW_PLOG(ERROR, "execveat failed");
+  if (argv[0]) {
+    SAPI_RAW_LOG(ERROR, "argv[0]=%s", argv[0]);
+  }
 
   if (saved_errno == ENOSYS) {
     SAPI_RAW_LOG(ERROR,
-                 "sandbox2::ForkServer: This is likely caused by running"
-                 " sandbox2 on too old a kernel."
+                 "This is likely caused by running on a kernel that is too old."
     );
   } else if (saved_errno == ENOENT && execve_fd >= 0) {
     // Since we know the file exists, it must be that the file is dynamically
     // linked and the ELF interpreter is what's actually missing.
-    SAPI_RAW_LOG(ERROR,
-                 "sandbox2::ForkServer: This is likely caused by running"
-                 " dynamically-linked sandboxee without calling"
-                 " .AddLibrariesForBinary() on the policy builder.");
+    SAPI_RAW_LOG(
+        ERROR,
+        "This is likely caused by running dynamically-linked sandboxee without "
+        "calling .AddLibrariesForBinary() on the policy builder.");
   }
 
   util::Syscall(__NR_exit_group, EXIT_FAILURE);
