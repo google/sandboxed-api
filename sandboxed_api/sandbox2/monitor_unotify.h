@@ -63,7 +63,7 @@ class UnotifyMonitor : public MonitorBase {
   void Run();
 
   bool InitSetupUnotify();
-  bool InitSetupNotifyPipe();
+  bool InitSetupNotifyEventFd();
   // Kills the main traced PID with SIGKILL.
   // Returns false if an error occured and process could not be killed.
   bool KillSandboxee();
@@ -80,7 +80,7 @@ class UnotifyMonitor : public MonitorBase {
 
   absl::Notification setup_notification_;
   sapi::file_util::fileops::FDCloser seccomp_notify_fd_;
-  sapi::file_util::fileops::FDCloser monitor_notify_pipe_[2];
+  sapi::file_util::fileops::FDCloser monitor_notify_fd_;
   // Deadline in Unix millis
   std::atomic<int64_t> deadline_millis_{0};
   // False iff external kill is requested

@@ -5,6 +5,7 @@
 #include <linux/ioctl.h>
 #include <linux/seccomp.h>
 #include <poll.h>
+#include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
@@ -131,7 +132,7 @@ void UnotifyMonitor::Run() {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_NOTIFY);
     return;
   }
-  if (!InitSetupNotifyPipe()) {
+  if (!InitSetupNotifyEventFd()) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_NOTIFY);
     return;
   }
@@ -141,7 +142,7 @@ void UnotifyMonitor::Run() {
   pollfd pfds[] = {
       {.fd = process_.status_fd.get(), .events = POLLIN},
       {.fd = seccomp_notify_fd_.get(), .events = POLLIN},
-      {.fd = monitor_notify_pipe_[0].get(), .events = POLLIN},
+      {.fd = monitor_notify_fd_.get(), .events = POLLIN},
   };
   bool wait_for_sandboxee = true;
   while (result_.final_status() == Result::UNSET) {
@@ -183,8 +184,8 @@ void UnotifyMonitor::Run() {
     }
     PCHECK(ret != -1);
     if (pfds[2].revents & POLLIN) {
-      char c = ' ';
-      read(monitor_notify_pipe_[0].get(), &c, 1);
+      uint64_t value = 0;
+      read(monitor_notify_fd_.get(), &value, sizeof(value));
       continue;
     }
     if (pfds[0].revents & POLLIN) {
@@ -280,24 +281,23 @@ bool UnotifyMonitor::InitSetupUnotify() {
   return true;
 }
 
-bool UnotifyMonitor::InitSetupNotifyPipe() {
-  int pfds[2];
-  if (pipe(pfds) != 0) {
+bool UnotifyMonitor::InitSetupNotifyEventFd() {
+  int fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+  if (fd == -1) {
     PLOG(ERROR) << "failed creating monitor pipe";
     return false;
   }
-  monitor_notify_pipe_[0] = FDCloser(pfds[0]);
-  monitor_notify_pipe_[1] = FDCloser(pfds[1]);
+  monitor_notify_fd_ = FDCloser(fd);
   return true;
 }
 
 void UnotifyMonitor::NotifyMonitor() {
   absl::ReaderMutexLock lock(&notify_mutex_);
-  if (!monitor_notify_pipe_[1].get()) {
+  if (monitor_notify_fd_.get() < 0) {
     return;
   }
-  char c = ' ';
-  write(monitor_notify_pipe_[1].get(), &c, 1);
+  uint64_t value = 1;
+  write(monitor_notify_fd_.get(), &value, sizeof(value));
 }
 
 bool UnotifyMonitor::KillSandboxee() {
@@ -324,8 +324,7 @@ void UnotifyMonitor::Join() {
     VLOG(1) << "Final execution status: " << result_.ToString();
     CHECK(result_.final_status() != Result::UNSET);
     thread_.reset();
-    monitor_notify_pipe_[0].Close();
-    monitor_notify_pipe_[1].Close();
+    monitor_notify_fd_.Close();
   }
 }
 
