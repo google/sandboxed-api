@@ -401,14 +401,15 @@ absl::StatusOr<std::string> EmitHeader(
   // Emit type dependencies
   if (!rendered_types.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
-    std::string last_ns_name;
+    std::string last_ns_name = options.namespace_name;
     for (const RenderedType* rt : rendered_types) {
       const auto& [ns_name, spelling] = *rt;
       if (last_ns_name != ns_name) {
-        if (!last_ns_name.empty()) {
+        if (!last_ns_name.empty() && last_ns_name != options.namespace_name) {
           absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
         }
-        if (!ns_name.empty()) {
+
+        if (!ns_name.empty() && ns_name != options.namespace_name) {
           absl::StrAppend(&out, "namespace ", ns_name, " {\n");
         }
         last_ns_name = ns_name;
@@ -416,7 +417,7 @@ absl::StatusOr<std::string> EmitHeader(
 
       absl::StrAppend(&out, spelling, ";\n");
     }
-    if (!last_ns_name.empty()) {
+    if (!last_ns_name.empty() && last_ns_name != options.namespace_name) {
       absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
     }
   }
