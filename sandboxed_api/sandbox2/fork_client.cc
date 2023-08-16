@@ -14,18 +14,10 @@
 
 #include "sandboxed_api/sandbox2/fork_client.h"
 
-#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
-
-// Make the forkserver use a signal handler for SIGCHLD instead of setting
-// `SA_NOCLDWAIT`. This is needed in certain cases where the process need
-// to be explicitly reaped by waitpid (see getrusage).
-ABSL_FLAG(
-    bool, sandbox2_forkserver_use_waitpid, false,
-    "Use waitpid to reap child processes instead of relying on SA_NOCLDWAIT");
 
 namespace sandbox2 {
 
