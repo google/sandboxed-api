@@ -29,8 +29,7 @@ enum Mode {
   FORKSERVER_FORK_EXECVE = 2;
   // Just fork
   FORKSERVER_FORK = 3;
-  // Special internal case: join a user namespace prior to unwinding
-  FORKSERVER_FORK_JOIN_SANDBOX_UNWIND = 4;
+  reserved 4;
 }
 
 enum MonitorType {

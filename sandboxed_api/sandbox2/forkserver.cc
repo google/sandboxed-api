@@ -56,7 +56,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
@@ -340,8 +339,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
                    absl::StrCat("sending pid: ", status.message()).c_str());
   }
 
-  if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX ||
-      request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
+  if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
     // Sandboxing can be enabled either here - just before execve, or somewhere
     // inside the executed binary (e.g. after basic structures have been
     // initialized, and resources acquired). In the latter case, it's up to the
@@ -358,13 +356,9 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     // that we can set up the envp after we received the file descriptors but
     // before we enable the syscall filter.
     std::vector<int> preserved_fds;
-    if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-      preserved_fds.push_back(execve_fd);
-    }
+    preserved_fds.push_back(execve_fd);
     c.PrepareEnvironment(&preserved_fds);
-    if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-      execve_fd = preserved_fds[0];
-    }
+    execve_fd = preserved_fds[0];
 
     if (client_comms.GetConnectionFD() != Comms::kSandbox2ClientCommsFD) {
       envs.push_back(absl::StrCat(Comms::kSandbox2CommsFDEnvVar, "=",
@@ -377,12 +371,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     util::CharPtrArray envp = util::CharPtrArray::FromStringVector(envs);
 
     c.EnableSandbox();
-    if (request.mode() == FORKSERVER_FORK_JOIN_SANDBOX_UNWIND) {
-      exit(RunLibUnwindAndSymbolizer(&client_comms) ? EXIT_SUCCESS
-                                                    : EXIT_FAILURE);
-    } else {
-      ExecuteProcess(execve_fd, argv.data(), envp.data());
-    }
+    ExecuteProcess(execve_fd, argv.data(), envp.data());
   }
 
   if (will_execve) {

@@ -132,9 +132,7 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(int32_t clone_flags,
   //
   // Otherwise, it's either sandboxing pre- or post-execve with the global
   // Fork-Server.
-  if (libunwind_sbox_for_pid_ != 0) {
-    request.set_mode(FORKSERVER_FORK_JOIN_SANDBOX_UNWIND);
-  } else if (exec_fd_.get() == -1) {
+  if (exec_fd_.get() == -1) {
     request.set_mode(FORKSERVER_FORK);
   } else if (enable_sandboxing_pre_execve_) {
     request.set_mode(FORKSERVER_FORK_EXECVE_SANDBOX);

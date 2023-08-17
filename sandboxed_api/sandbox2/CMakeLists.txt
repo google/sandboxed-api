@@ -219,6 +219,7 @@ target_link_libraries(sandbox2_forkserver_bin PRIVATE
   sandbox2::comms
   sandbox2::forkserver
   sandbox2::sanitizer
+  sandbox2::unwind
   sandbox2::util
   sapi::base
   sapi::raw_logging
@@ -572,7 +573,6 @@ target_link_libraries(sandbox2_forkserver
           sapi::strerror
           sandbox2::sanitizer
           sandbox2::syscall
-          sandbox2::unwind
           sandbox2::util
           sapi::base
           sapi::raw_logging

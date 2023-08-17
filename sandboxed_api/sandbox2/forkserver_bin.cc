@@ -20,9 +20,11 @@
 #include <cstdlib>
 
 #include "absl/log/globals.h"
+#include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
+#include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/util/raw_logging.h"
 
 int main() {
@@ -64,9 +66,9 @@ int main() {
   while (!fork_server.IsTerminated()) {
     pid_t child_pid = fork_server.ServeRequest();
     if (child_pid == 0) {
-      // FORKSERVER_FORK sent to the global forkserver. This case does not make
-      // sense, we thus kill the process here.
-      _Exit(0);
+      sandbox2::Client client(&comms);
+      client.SandboxMeHere();
+      exit(sandbox2::RunLibUnwindAndSymbolizer(&comms));
     }
   }
   SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");
