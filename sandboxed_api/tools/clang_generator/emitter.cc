@@ -484,6 +484,10 @@ void Emitter::EmitType(clang::TypeDecl* type_decl) {
         return;
       }
     }
+    // Skip Protocol Buffers namespaces
+    if (ns_root == "google" && ns_path.size() > 1 && ns_path[1] == "protobuf") {
+      return;
+    }
     ns_name = absl::StrJoin(ns_path, "::");
   }
 
