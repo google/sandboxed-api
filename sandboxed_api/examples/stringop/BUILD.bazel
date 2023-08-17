@@ -54,7 +54,6 @@ STRINGOP_FUNCTIONS = [
 
 sapi_library(
     name = "stringop-sapi",
-    hdrs = ["sandbox.h"],
     functions = STRINGOP_FUNCTIONS,
     generator_version = 1,
     input_files = ["stringop.cc"],

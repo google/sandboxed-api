@@ -44,8 +44,6 @@ cc_library(
 
 sapi_library(
     name = "sum-sapi",
-    srcs = [],
-    hdrs = ["sandbox.h"],
     functions = [
         "sum",
         "sums",

@@ -27,7 +27,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/examples/sum/sandbox.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
 #include "sandboxed_api/examples/sum/sum_params.pb.h"
 #include "sandboxed_api/transaction.h"
@@ -218,7 +217,7 @@ int main(int argc, char* argv[]) {
 
   absl::Status status;
 
-  sapi::BasicTransaction st(std::make_unique<SumSapiSandbox>());
+  sapi::BasicTransaction st(std::make_unique<SumSandbox>());
   // Using the simple transaction (and function pointers):
   CHECK(st.Run(test_addition, 1, 1, 2).ok());
   CHECK(st.Run(test_addition, 1336, 1, 1337).ok());
@@ -263,14 +262,14 @@ int main(int argc, char* argv[]) {
   CHECK(status.ok()) << status.message();
 
   // Using overloaded transaction class:
-  SumTransaction sapi_crash{std::make_unique<SumSapiSandbox>(), /*crash=*/true,
+  SumTransaction sapi_crash{std::make_unique<SumSandbox>(), /*crash=*/true,
                             /*violate=*/false,
                             /*time_out=*/false};
   status = sapi_crash.Run();
   LOG(INFO) << "Final run result for crash: " << status;
   CHECK(status.code() == absl::StatusCode::kUnavailable);
 
-  SumTransaction sapi_violate{std::make_unique<SumSapiSandbox>(),
+  SumTransaction sapi_violate{std::make_unique<SumSandbox>(),
                               /*crash=*/false,
                               /*violate=*/true,
                               /*time_out=*/false};
@@ -278,7 +277,7 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "Final run result for violate: " << status;
   CHECK(status.code() == absl::StatusCode::kUnavailable);
 
-  SumTransaction sapi_timeout(std::make_unique<SumSapiSandbox>(),
+  SumTransaction sapi_timeout(std::make_unique<SumSandbox>(),
                               /*crash=*/false,
                               /*violate=*/false,
                               /*time_out=*/true);
@@ -286,7 +285,7 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "Final run result for timeout: " << status;
   CHECK(status.code() == absl::StatusCode::kUnavailable);
 
-  SumTransaction sapi{std::make_unique<SumSapiSandbox>(), /*crash=*/false,
+  SumTransaction sapi{std::make_unique<SumSandbox>(), /*crash=*/false,
                       /*violate=*/false, /*time_out=*/false};
   for (int i = 0; i < 32; ++i) {
     status = sapi.Run();

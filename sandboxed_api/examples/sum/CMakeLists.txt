@@ -45,7 +45,6 @@ target_link_libraries(sapi_sum
 
 # sandboxed_api/examples/sum/lib:sum-sapi
 add_sapi_library(sum-sapi
-  SOURCES sandbox.h
   FUNCTIONS sum
             sums
             addf

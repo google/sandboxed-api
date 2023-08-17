@@ -46,7 +46,6 @@ target_link_libraries(sapi_stringop
 
 # sandboxed_api/examples/stringop/lib:stringop-sapi
 add_sapi_library(stringop-sapi
-  SOURCES sandbox.h
   FUNCTIONS duplicate_string
             reverse_string
             pb_duplicate_string
