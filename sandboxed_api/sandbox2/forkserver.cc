@@ -19,6 +19,7 @@
 #include <asm/types.h>
 #include <fcntl.h>
 #include <sched.h>
+#include <sys/eventfd.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
@@ -95,8 +96,7 @@ void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
     }
 
     // Make sure we won't override another fd
-    auto it = fd_map.find(new_fd);
-    if (it != fd_map.end()) {
+    if (auto it = fd_map.find(new_fd); it != fd_map.end()) {
       int fd = dup(new_fd);
       SAPI_RAW_CHECK(fd != -1, "Duplicating an FD failed.");
       *it->second = fd;
@@ -577,9 +577,10 @@ void ForkServer::CreateInitialNamespaces() {
   gid_t gid = getgid();
 
   // Socket to synchronize so that we open ns fds before process dies
-  int fds[2];
-  SAPI_RAW_PCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != -1,
-                  "creating socket");
+  file_util::fileops::FDCloser create_efd(eventfd(0, EFD_CLOEXEC));
+  SAPI_RAW_PCHECK(create_efd.get() != -1, "creating eventfd");
+  file_util::fileops::FDCloser open_efd(eventfd(0, EFD_CLOEXEC));
+  SAPI_RAW_PCHECK(open_efd.get() != -1, "creating eventfd");
   pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | SIGCHLD);
   if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
     SAPI_RAW_LOG(FATAL,
@@ -587,28 +588,29 @@ void ForkServer::CreateInitialNamespaces() {
                  "likely chrooted");
   }
   SAPI_RAW_PCHECK(pid != -1, "failed to fork initial namespaces process");
-  char unused = '\0';
+  uint64_t value = 1;
   if (pid == 0) {
-    close(fds[1]);
     Namespace::InitializeInitialNamespaces(uid, gid);
-    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(fds[0], &unused, 1)) == 1,
+    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(create_efd.get(), &value,
+                                             sizeof(value))) == sizeof(value),
                     "synchronizing initial namespaces creation");
-    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(fds[0], &unused, 1)) == 1,
+    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(open_efd.get(), &value,
+                                            sizeof(value))) == sizeof(value),
                     "synchronizing initial namespaces creation");
     _exit(0);
   }
-  close(fds[0]);
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(create_efd.get(), &value,
+                                          sizeof(value))) == sizeof(value),
+                  "synchronizing initial namespaces creation");
   initial_userns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/user").c_str(),
                             O_RDONLY | O_CLOEXEC);
   SAPI_RAW_PCHECK(initial_userns_fd_ != -1, "getting initial userns fd");
   initial_mntns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/mnt").c_str(),
                            O_RDONLY | O_CLOEXEC);
   SAPI_RAW_PCHECK(initial_mntns_fd_ != -1, "getting initial mntns fd");
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(fds[1], &unused, 1)) == 1,
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(open_efd.get(), &value,
+                                           sizeof(value))) == sizeof(value),
                   "synchronizing initial namespaces creation");
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(fds[1], &unused, 1)) == 1,
-                  "synchronizing initial namespaces creation");
-  close(fds[1]);
 }
 
 void ForkServer::SanitizeEnvironment() {
