@@ -157,6 +157,7 @@ target_link_libraries(sandbox2_ipc PRIVATE
   sandbox2::network_proxy_client
   sandbox2::network_proxy_server
   sapi::base
+  sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2:policy

@@ -29,12 +29,14 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logserver.h"
 #include "sandboxed_api/sandbox2/logsink.h"
+#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 
 void IPC::SetUpServerSideComms(int fd) { comms_ = std::make_unique<Comms>(fd); }
 
 void IPC::MapFd(int local_fd, int remote_fd) {
+  VLOG(3) << "Will send: " << local_fd << ", to overwrite: " << remote_fd;
   fd_map_.push_back(std::make_tuple(local_fd, remote_fd, ""));
 }
 
@@ -43,6 +45,8 @@ void IPC::MapDupedFd(int local_fd, int remote_fd) {
   if (dup_local_fd == -1) {
     PLOG(FATAL) << "dup(" << local_fd << ")";
   }
+  VLOG(3) << "Will send: " << dup_local_fd << " (dup of " << local_fd
+          << "), to overwrite: " << remote_fd;
   fd_map_.push_back(std::make_tuple(dup_local_fd, remote_fd, ""));
 }
 
@@ -55,9 +59,9 @@ int IPC::ReceiveFd(int remote_fd, absl::string_view name) {
   if (socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == -1) {
     PLOG(FATAL) << "socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)";
   }
-
+  VLOG(3) << "Created a socketpair (" << sv[0] << "/" << sv[1] << "), "
+          << "which will overwrite remote_fd: " << remote_fd;
   fd_map_.push_back(std::make_tuple(sv[1], remote_fd, std::string(name)));
-
   return sv[0];
 }
 
@@ -81,6 +85,8 @@ bool IPC::SendFdsOverComms() {
       LOG(ERROR) << "SendString: Couldn't send " << std::get<2>(fd_tuple);
       return false;
     }
+    VLOG(3) << "IPC: local_fd: " << std::get<0>(fd_tuple)
+            << ", remote_fd: " << std::get<1>(fd_tuple) << " sent";
   }
 
   return true;
