@@ -346,6 +346,9 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
   }
+  if constexpr (sapi::sanitizers::IsTSan()) {
+    AllowSyscall(__NR_set_robust_list);
+  }
   return *this;
 }
 
