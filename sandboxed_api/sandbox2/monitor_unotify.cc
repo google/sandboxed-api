@@ -231,15 +231,11 @@ void UnotifyMonitor::SetExitStatusFromStatusPipe() {
   int code, status;
   rusage usage;
 
-  SAPI_RAW_PCHECK(
-      read(process_.status_fd.get(), &code, sizeof(code)) == sizeof(code),
-      "read");
-  SAPI_RAW_PCHECK(
-      read(process_.status_fd.get(), &status, sizeof(status)) == sizeof(status),
-      "read");
-  SAPI_RAW_PCHECK(
-      read(process_.status_fd.get(), &usage, sizeof(usage)) == sizeof(usage),
-      "read");
+  PCHECK(read(process_.status_fd.get(), &code, sizeof(code)) == sizeof(code));
+  PCHECK(read(process_.status_fd.get(), &status, sizeof(status)) ==
+         sizeof(status));
+  PCHECK(read(process_.status_fd.get(), &usage, sizeof(usage)) ==
+         sizeof(usage));
 
   result_.SetRUsageSandboxee(usage);
   if (code == CLD_EXITED) {

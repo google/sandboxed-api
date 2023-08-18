@@ -42,7 +42,7 @@ pid_t ForkingClient::WaitAndFork() {
   }
   pid_t pid = fork_server_worker_->ServeRequest();
   if (pid == -1 && fork_server_worker_->IsTerminated()) {
-    SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");
+    VLOG(1) << "ForkServer Comms closed. Exiting";
     exit(0);
   }
   return pid;
