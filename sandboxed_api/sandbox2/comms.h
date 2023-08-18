@@ -30,6 +30,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
@@ -85,6 +86,16 @@ class Comms {
   // This object will have to be connected later on.
   // When not specified the constructor uses abstract unix domain sockets.
   explicit Comms(const std::string& socket_name, bool abstract_uds = true);
+
+  Comms(Comms&& other) { *this = std::move(other); }
+  Comms& operator=(Comms&& other) {
+    if (this != &other) {
+      using std::swap;
+      swap(*this, other);
+      other.Terminate();
+    }
+    return *this;
+  }
 
   Comms(const Comms&) = delete;
   Comms& operator=(const Comms&) = delete;
@@ -174,6 +185,20 @@ class Comms {
   // Receives/sends Status objects.
   bool RecvStatus(absl::Status* status);
   bool SendStatus(const absl::Status& status);
+
+  void Swap(Comms& other) {
+    if (this == &other) {
+      return;
+    }
+    using std::swap;
+    swap(socket_name_, other.socket_name_);
+    swap(abstract_uds_, other.abstract_uds_);
+    swap(connection_fd_, other.connection_fd_);
+    swap(bind_fd_, other.bind_fd_);
+    swap(state_, other.state_);
+  }
+
+  friend void swap(Comms& x, Comms& y) { return x.Swap(y); }
 
  private:
   friend class Client;
