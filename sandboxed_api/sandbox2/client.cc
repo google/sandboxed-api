@@ -148,8 +148,8 @@ std::string Client::GetFdMapEnvVar() const {
                       absl::StrJoin(fd_map_, ",", absl::PairFormatter(",")));
 }
 
-void Client::PrepareEnvironment(std::vector<int>* preserve_fds) {
-  SetUpIPC(preserve_fds);
+void Client::PrepareEnvironment(int* preserved_fd) {
+  SetUpIPC(preserved_fd);
   SetUpCwd();
 }
 
@@ -202,7 +202,7 @@ void Client::SetUpCwd() {
   }
 }
 
-void Client::SetUpIPC(std::vector<int>* preserve_fds) {
+void Client::SetUpIPC(int* preserved_fd) {
   uint32_t num_of_fd_pairs;
   SAPI_RAW_CHECK(comms_->RecvUint32(&num_of_fd_pairs),
                  "receiving number of fd pairs");
@@ -211,10 +211,8 @@ void Client::SetUpIPC(std::vector<int>* preserve_fds) {
   SAPI_RAW_VLOG(1, "Will receive %d file descriptor pairs", num_of_fd_pairs);
 
   absl::flat_hash_map<int, int*> preserve_fds_map;
-  if (preserve_fds) {
-    for (int& fd : *preserve_fds) {
-      preserve_fds_map.emplace(fd, &fd);
-    }
+  if (preserved_fd) {
+    preserve_fds_map.emplace(*preserved_fd, preserved_fd);
   }
 
   for (uint32_t i = 0; i < num_of_fd_pairs; ++i) {

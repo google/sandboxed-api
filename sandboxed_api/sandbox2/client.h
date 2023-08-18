@@ -91,10 +91,10 @@ class Client {
   std::string GetFdMapEnvVar() const;
 
   // Sets up communication channels with the sandbox.
-  // preserve_fds contains file descriptors that should be kept open and alive.
-  // The FD numbers might be changed if needed and are updated in the vector.
-  // preserve_fds can be a nullptr, equivallent to an empty vector.
-  void SetUpIPC(std::vector<int>* preserve_fds);
+  // preserved_fd contains file descriptor that should be kept open and alive.
+  // The FD number might be changed if needed.
+  // preserved_fd can be a nullptr.
+  void SetUpIPC(int* preserved_fd);
 
   // Sets up the current working directory.
   void SetUpCwd();
@@ -105,7 +105,7 @@ class Client {
   // Applies sandbox-bpf policy, have limits applied on us, and become ptrace'd.
   void ApplyPolicyAndBecomeTracee();
 
-  void PrepareEnvironment(std::vector<int>* preserve_fds = nullptr);
+  void PrepareEnvironment(int* preserved_fd = nullptr);
   void EnableSandbox();
 };
 

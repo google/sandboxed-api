@@ -287,8 +287,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   SAPI_RAW_CHECK(request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
 
-  bool will_execve = (request.mode() == FORKSERVER_FORK_EXECVE ||
-                      request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX);
+  const bool will_execve = execve_fd != -1;
 
   // Prepare the arguments before sandboxing (if needed), as doing it after
   // sandoxing can cause syscall violations (e.g. related to memory management).
@@ -355,10 +354,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     // The following client calls are basically SandboxMeHere. We split it so
     // that we can set up the envp after we received the file descriptors but
     // before we enable the syscall filter.
-    std::vector<int> preserved_fds;
-    preserved_fds.push_back(execve_fd);
-    c.PrepareEnvironment(&preserved_fds);
-    execve_fd = preserved_fds[0];
+    c.PrepareEnvironment(&execve_fd);
 
     if (client_comms.GetConnectionFD() != Comms::kSandbox2ClientCommsFD) {
       envs.push_back(absl::StrCat(Comms::kSandbox2CommsFDEnvVar, "=",
