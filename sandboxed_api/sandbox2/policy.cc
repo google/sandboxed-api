@@ -22,7 +22,6 @@
 #include <sched.h>
 #include <syscall.h>
 
-#include <cstring>
 #include <string>
 
 #include "absl/flags/flag.h"
