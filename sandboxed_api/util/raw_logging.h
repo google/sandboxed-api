@@ -88,6 +88,8 @@
 #define SAPI_VLOG_IS_ON(verbose_level) \
   ::sapi::raw_logging_internal::VLogIsOn(verbose_level)
 
+#define SAPI_RAW_VLOG_IS_ON(verbose_level) SAPI_VLOG_IS_ON(verbose_level)
+
 #ifndef VLOG
 // `VLOG` uses numeric levels to provide verbose logging that can configured at
 // runtime, globally. `VLOG` statements are logged at `INFO` severity if they

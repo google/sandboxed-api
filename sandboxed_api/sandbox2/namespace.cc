@@ -325,7 +325,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                     "changing mount propagation to private failed");
   }
 
-  if (SAPI_VLOG_IS_ON(2)) {
+  if (SAPI_RAW_VLOG_IS_ON(2)) {
     SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");
     LogFilesystem("/");
   }

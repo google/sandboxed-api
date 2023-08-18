@@ -472,13 +472,13 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
       to_resolve.emplace_back(imported_lib, 1);
     }
 
-    if (SAPI_VLOG_IS_ON(1)) {
+    if (SAPI_RAW_VLOG_IS_ON(1)) {
       SAPI_RAW_VLOG(
           1, "Resolving dynamic library dependencies of %s using these dirs:",
           path.c_str());
       LogContainer(full_search_paths);
     }
-    if (SAPI_VLOG_IS_ON(2)) {
+    if (SAPI_RAW_VLOG_IS_ON(2)) {
       SAPI_RAW_VLOG(2, "Direct dependencies of %s to resolve:", path.c_str());
       LogContainer(imported_libs);
     }
@@ -531,7 +531,7 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
           "Exceeded max entries pending resolving limit");
     }
 
-    if (SAPI_VLOG_IS_ON(2)) {
+    if (SAPI_RAW_VLOG_IS_ON(2)) {
       SAPI_RAW_VLOG(2,
                     "Transitive dependencies of %s to resolve (depth = %d): ",
                     resolved_lib.c_str(), depth + 1);
