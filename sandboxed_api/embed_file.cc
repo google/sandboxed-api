@@ -20,7 +20,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "sandboxed_api/file_toc.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
