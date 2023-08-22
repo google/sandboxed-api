@@ -31,6 +31,14 @@ namespace sapi {
 
 namespace {
 
+#ifndef F_ADD_SEALS
+#define F_ADD_SEALS 1033
+#define F_SEAL_SEAL 0x0001
+#define F_SEAL_SHRINK 0x0002
+#define F_SEAL_GROW 0x0004
+#define F_SEAL_WRITE 0x0008
+#endif
+
 bool SealFile(int fd) {
   constexpr int kMaxRetries = 10;
   for (int i = 0; i < kMaxRetries; ++i) {

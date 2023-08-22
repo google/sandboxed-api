@@ -248,10 +248,10 @@ pid_t ForkWithFlags(int flags) {
 bool CreateMemFd(int* fd, const char* name) {
   // Usually defined in linux/memfd.h. Define it here to avoid dependency on
   // UAPI headers.
-  constexpr uintptr_t MFD_CLOEXEC = 0x0001;
-  constexpr uintptr_t MFD_ALLOW_SEALING = 0x0002;
+  constexpr uintptr_t kMfdCloseOnExec = 0x0001;
+  constexpr uintptr_t kMfdAllowSealing = 0x0002;
   int tmp_fd = Syscall(__NR_memfd_create, reinterpret_cast<uintptr_t>(name),
-                       MFD_CLOEXEC | MFD_ALLOW_SEALING);
+                       kMfdCloseOnExec | kMfdAllowSealing);
   if (tmp_fd < 0) {
     if (errno == ENOSYS) {
       SAPI_RAW_LOG(ERROR,
