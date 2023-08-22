@@ -29,6 +29,21 @@
 
 namespace sapi {
 
+namespace {
+
+bool SealFile(int fd) {
+  constexpr int kMaxRetries = 10;
+  for (int i = 0; i < kMaxRetries; ++i) {
+    if (fcntl(fd, F_ADD_SEALS,
+              F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
 EmbedFile* EmbedFile::instance() {
   static auto* embed_file_instance = new EmbedFile();
   return embed_file_instance;
@@ -57,13 +72,11 @@ int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
     return -1;
   }
 
-  // Ideally, we'd seal the file here using fcntl(). However, in rare cases,
-  // adding the file seals F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW |
-  // F_SEAL_WRITE results in EBUSY errors.
-  // This is likely because of an interaction of SEAL_WRITE with pending writes
-  // to the mapped memory region (see memfd_wait_for_pins() in Linux'
-  // mm/memfd.c). Since fsync() is a no-op on memfds, it doesn't help to
-  // ameliorate the problem.
+  // Seal the file
+  if (!SealFile(embed_fd.get())) {
+    SAPI_RAW_PLOG(ERROR, "Couldn't apply file seals to FD=%d", embed_fd.get());
+    return -1;
+  }
 
   // Instead of working around problems with CRIU we reopen the file as
   // read-only.
