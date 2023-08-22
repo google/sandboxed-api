@@ -23,30 +23,28 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <array>
 #include <cerrno>
-#include <climits>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "absl/strings/strip.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
