@@ -24,7 +24,6 @@
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
-#include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_matchers.h"
@@ -35,7 +34,6 @@ namespace {
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
 using ::testing::Eq;
-using ::testing::Gt;
 using ::testing::HasSubstr;
 
 // Functions that will be used during the benchmarks:
@@ -193,23 +191,22 @@ TEST(SandboxTest, RestartSandboxFD) {
 TEST(SandboxTest, RestartTransactionSandboxFD) {
   sapi::BasicTransaction st{std::make_unique<SumSandbox>()};
 
-  int fd_no = -1;
-  ASSERT_THAT(st.Run([&fd_no](sapi::Sandbox* sandbox) -> absl::Status {
-    fd_no = LeakFileDescriptor(sandbox, "/proc/self/exe");
+  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
     return absl::OkStatus();
   }),
               IsOk());
 
-  EXPECT_THAT(st.Run([fd_no](sapi::Sandbox* sandbox) -> absl::Status {
-    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Gt(fd_no));
+  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(4));
     return absl::OkStatus();
   }),
               IsOk());
 
   EXPECT_THAT(st.Restart(), IsOk());
 
-  EXPECT_THAT(st.Run([fd_no](sapi::Sandbox* sandbox) -> absl::Status {
-    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(fd_no));
+  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
+    EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(3));
     return absl::OkStatus();
   }),
               IsOk());

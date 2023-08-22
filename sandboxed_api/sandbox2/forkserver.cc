@@ -38,9 +38,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
-#include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -65,10 +63,12 @@
 #include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
+
+namespace file_util = ::sapi::file_util;
+
 namespace {
 
 using ::sapi::StrError;
-using ::sapi::file_util::fileops::FDCloser;
 
 // "Moves" FDs in move_fds from current to target FD number while keeping FDs
 // in keep_fds open - potentially moving them to another FD number as well in
@@ -113,9 +113,16 @@ void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
   }
 }
 
-ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd) {
+void RunInitProcess(pid_t main_pid, int pipe_fd,
+                    const absl::flat_hash_set<int>& open_fds) {
   if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
+  }
+
+  // Close all open fds (equals to CloseAllFDsExcept but does not require /proc
+  // to be available).
+  for (const auto& fd : open_fds) {
+    close(fd);
   }
 
   // Clear SA_NOCLDWAIT.
@@ -135,7 +142,7 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd) {
       SYSCALL(__NR_waitid, ALLOW),
       SYSCALL(__NR_exit, ALLOW),
   };
-  if (pipe_fd.get() >= 0) {
+  if (pipe_fd >= 0) {
     code.insert(code.end(),
                 {SYSCALL(__NR_getrusage, ALLOW), SYSCALL(__NR_write, ALLOW)});
   }
@@ -162,13 +169,13 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd) {
     }
 
     if (info.si_pid == main_pid) {
-      if (pipe_fd.get() >= 0) {
-        write(pipe_fd.get(), &info.si_code, sizeof(info.si_code));
-        write(pipe_fd.get(), &info.si_status, sizeof(info.si_status));
+      if (pipe_fd >= 0) {
+        write(pipe_fd, &info.si_code, sizeof(info.si_code));
+        write(pipe_fd, &info.si_status, sizeof(info.si_status));
 
         rusage usage{};
         getrusage(RUSAGE_CHILDREN, &usage);
-        write(pipe_fd.get(), &usage, sizeof(usage));
+        write(pipe_fd, &usage, sizeof(usage));
       }
       _exit(0);
     }
@@ -274,8 +281,9 @@ void ForkServer::PrepareExecveArgs(const ForkRequest& request,
 }
 
 void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
-                             uid_t uid, gid_t gid, FDCloser signaling_fd,
-                             FDCloser status_fd, bool avoid_pivot_root) const {
+                             int client_fd, uid_t uid, gid_t gid,
+                             int signaling_fd, int status_fd,
+                             bool avoid_pivot_root) const {
   SAPI_RAW_CHECK(request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
 
@@ -288,6 +296,10 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   if (will_execve) {
     PrepareExecveArgs(request, &args, &envs);
   }
+
+  MoveFDs({{&execve_fd, Comms::kSandbox2TargetExecFD},
+           {&client_fd, Comms::kSandbox2ClientCommsFD}},
+          {&signaling_fd});
 
   SanitizeEnvironment();
 
@@ -312,23 +324,19 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
       SAPI_RAW_PLOG(FATAL, "Could not spawn init process");
     }
     if (child != 0) {
-      if (status_fd.get() >= 0) {
-        open_fds->erase(status_fd.get());
+      if (status_fd >= 0) {
+        open_fds->erase(status_fd);
       }
-      // Close all open fds (equals to CloseAllFDsExcept but does not require
-      // /proc to be available).
-      for (const auto& fd : *open_fds) {
-        close(fd);
-      }
-      RunInitProcess(child, std::move(status_fd));
+      RunInitProcess(child, status_fd, *open_fds);
+    }
+    if (status_fd >= 0) {
+      close(status_fd);
     }
     // Send sandboxee pid
-    auto status = SendPid(signaling_fd.get());
+    auto status = SendPid(signaling_fd);
     SAPI_RAW_CHECK(status.ok(),
                    absl::StrCat("sending pid: ", status.message()).c_str());
   }
-  signaling_fd.Close();
-  status_fd.Close();
 
   if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
     // Sandboxing can be enabled either here - just before execve, or somewhere
@@ -340,16 +348,17 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     // Create a Comms object here and not above, as we know we will execve and
     // therefore not call the Comms destructor, which would otherwise close the
     // comms file descriptor, which we do not want for the general case.
-    Client c(comms_);
+    Comms client_comms(Comms::kDefaultConnection);
+    Client c(&client_comms);
 
     // The following client calls are basically SandboxMeHere. We split it so
     // that we can set up the envp after we received the file descriptors but
     // before we enable the syscall filter.
     c.PrepareEnvironment(&execve_fd);
 
-    if (comms_->GetConnectionFD() != Comms::kSandbox2ClientCommsFD) {
+    if (client_comms.GetConnectionFD() != Comms::kSandbox2ClientCommsFD) {
       envs.push_back(absl::StrCat(Comms::kSandbox2CommsFDEnvVar, "=",
-                                  comms_->GetConnectionFD()));
+                                  client_comms.GetConnectionFD()));
     }
     envs.push_back(c.GetFdMapEnvVar());
     // Convert args and envs before enabling sandbox (it'll allocate which might
@@ -396,14 +405,9 @@ pid_t ForkServer::ServeRequest() {
   uid_t uid = getuid();
   uid_t gid = getgid();
 
-  FDCloser pipe_fds[2];
-  {
-    int pfds[2] = {-1, -1};
-    if (fork_request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY) {
-      SAPI_RAW_PCHECK(pipe(pfds) == 0, "creating status pipe");
-    }
-    pipe_fds[0] = FDCloser(pfds[0]);
-    pipe_fds[1] = FDCloser(pfds[1]);
+  int pfds[2] = {-1, -1};
+  if (fork_request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY) {
+    SAPI_RAW_PCHECK(pipe(pfds) == 0, "creating status pipe");
   }
 
   int socketpair_fds[2];
@@ -417,8 +421,8 @@ pid_t ForkServer::ServeRequest() {
                     "setsockopt failed");
   }
 
-  FDCloser signaling_fds[] = {FDCloser(socketpair_fds[0]),
-                              FDCloser(socketpair_fds[1])};
+  file_util::fileops::FDCloser fd_closer0{socketpair_fds[0]};
+  file_util::fileops::FDCloser fd_closer1{socketpair_fds[1]};
 
   // Note: init_pid will be overwritten with the actual init pid if the init
   //       process was started or stays at 0 if that is not needed - no pidns.
@@ -453,7 +457,7 @@ pid_t ForkServer::ServeRequest() {
         _exit(0);
       }
       // Send sandboxee pid
-      absl::Status status = SendPid(signaling_fds[1].get());
+      absl::Status status = SendPid(fd_closer1.get());
       SAPI_RAW_CHECK(status.ok(),
                      absl::StrCat("sending pid: ", status.message()).c_str());
     }
@@ -470,29 +474,15 @@ pid_t ForkServer::ServeRequest() {
 
   // Child.
   if (sandboxee_pid == 0) {
-    signaling_fds[0].Close();
-    pipe_fds[0].Close();
-    // Make sure we override the forkserver's comms fd
-    comms_->Terminate();
-    if (exec_fd != -1) {
-      int signaling_fd = signaling_fds[1].Release();
-      int pipe_fd = pipe_fds[1].Release();
-      MoveFDs({{&exec_fd, Comms::kSandbox2TargetExecFD},
-               {&comms_fd, Comms::kSandbox2ClientCommsFD}},
-              {&signaling_fd, &pipe_fd});
-      signaling_fds[1] = FDCloser(signaling_fd);
-      pipe_fds[1] = FDCloser(pipe_fd);
-    }
-    *comms_ = Comms(comms_fd);
-    LaunchChild(fork_request, exec_fd, uid, gid, std::move(signaling_fds[1]),
-                std::move(pipe_fds[1]), avoid_pivot_root);
+    LaunchChild(fork_request, exec_fd, comms_fd, uid, gid, fd_closer1.get(),
+                pfds[1], avoid_pivot_root);
     return sandboxee_pid;
   }
 
-  signaling_fds[1].Close();
+  fd_closer1.Close();
 
   if (avoid_pivot_root) {
-    if (auto pid = ReceivePid(signaling_fds[0].get()); !pid.ok()) {
+    if (auto pid = ReceivePid(fd_closer0.get()); !pid.ok()) {
       SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
     } else {
       sandboxee_pid = pid.value();
@@ -506,7 +496,7 @@ pid_t ForkServer::ServeRequest() {
     sandboxee_pid = -1;
     // And the actual sandboxee is forked from the init process, so we need to
     // receive the actual PID.
-    if (auto pid_or = ReceivePid(signaling_fds[0].get()); !pid_or.ok()) {
+    if (auto pid_or = ReceivePid(fd_closer0.get()); !pid_or.ok()) {
       SAPI_RAW_LOG(ERROR, "%s", std::string(pid_or.status().message()).c_str());
       if (init_pid != -1) {
         kill(init_pid, SIGKILL);
@@ -518,7 +508,9 @@ pid_t ForkServer::ServeRequest() {
   }
 
   // Parent.
-  pipe_fds[1].Close();
+  if (pfds[1] >= 0) {
+    close(pfds[1]);
+  }
   close(comms_fd);
   if (exec_fd >= 0) {
     close(exec_fd);
@@ -529,9 +521,9 @@ pid_t ForkServer::ServeRequest() {
       comms_->SendInt32(sandboxee_pid),
       absl::StrCat("Failed to send sandboxee PID: ", sandboxee_pid).c_str());
 
-  if (pipe_fds[0].get() >= 0) {
-    SAPI_RAW_CHECK(comms_->SendFD(pipe_fds[0].get()),
-                   "Failed to send status pipe");
+  if (pfds[0] >= 0) {
+    SAPI_RAW_CHECK(comms_->SendFD(pfds[0]), "Failed to send status pipe");
+    close(pfds[0]);
   }
   return sandboxee_pid;
 }
@@ -570,9 +562,9 @@ void ForkServer::CreateInitialNamespaces() {
   gid_t gid = getgid();
 
   // Socket to synchronize so that we open ns fds before process dies
-  FDCloser create_efd(eventfd(0, EFD_CLOEXEC));
+  file_util::fileops::FDCloser create_efd(eventfd(0, EFD_CLOEXEC));
   SAPI_RAW_PCHECK(create_efd.get() != -1, "creating eventfd");
-  FDCloser open_efd(eventfd(0, EFD_CLOEXEC));
+  file_util::fileops::FDCloser open_efd(eventfd(0, EFD_CLOEXEC));
   SAPI_RAW_PCHECK(open_efd.get() != -1, "creating eventfd");
   pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | SIGCHLD);
   if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
@@ -606,11 +598,12 @@ void ForkServer::CreateInitialNamespaces() {
                   "synchronizing initial namespaces creation");
 }
 
-void ForkServer::SanitizeEnvironment() const {
+void ForkServer::SanitizeEnvironment() {
   // Mark all file descriptors, except the standard ones (needed
   // for proper sandboxed process operations), as close-on-exec.
   absl::Status status = sanitizer::SanitizeCurrentProcess(
-      {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, comms_->GetConnectionFD()},
+      {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+       Comms::kSandbox2ClientCommsFD},
       /* close_fds = */ false);
   SAPI_RAW_CHECK(
       status.ok(),

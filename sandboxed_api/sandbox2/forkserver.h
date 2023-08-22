@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/log/log.h"
-#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -54,9 +53,8 @@ class ForkServer {
 
  private:
   // Creates and launched the child process.
-  void LaunchChild(const ForkRequest& request, int execve_fd, uid_t uid,
-                   gid_t gid, sapi::file_util::fileops::FDCloser signaling_fd,
-                   sapi::file_util::fileops::FDCloser status_fd,
+  void LaunchChild(const ForkRequest& request, int execve_fd, int client_fd,
+                   uid_t uid, gid_t gid, int signaling_fd, int status_fd,
                    bool avoid_pivot_root) const;
 
   // Prepares the Fork-Server (worker side, not the requester side) for work by
@@ -75,7 +73,7 @@ class ForkServer {
                                 std::vector<std::string>* envp);
 
   // Ensures that no unnecessary file descriptors are lingering after execve().
-  void SanitizeEnvironment() const;
+  static void SanitizeEnvironment();
 
   // Executes the sandboxee, or exit with Executor::kFailedExecve.
   static void ExecuteProcess(int execve_fd, const char* const* argv,
