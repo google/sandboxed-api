@@ -15,7 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_TESTING_H_
 #define SANDBOXED_API_SANDBOX2_TESTING_H_
 
-// Forward include to new location
-#include "sandboxed_api/testing.h"
+// IWYU pragma: private, include "third_party/sandboxed_api/testing.h"
+#include "sandboxed_api/testing.h"  // IWYU pragma: export
 
 #endif  // SANDBOXED_API_SANDBOX2_TESTING_H_
