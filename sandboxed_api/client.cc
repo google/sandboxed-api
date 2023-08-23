@@ -12,18 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/client.h"
-
 #include <dlfcn.h>
 #include <sys/syscall.h>
 
+#include <algorithm>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <iterator>
 #include <list>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
+#include "absl/base/attributes.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/flags/parse.h"
 #include "absl/log/check.h"
@@ -38,6 +42,7 @@
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/var_type.h"
 
 #include <ffi.h>
 

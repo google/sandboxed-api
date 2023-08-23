@@ -523,6 +523,7 @@ target_link_libraries(sandbox2_client
           sapi::base
           sapi::raw_logging
   PUBLIC absl::flat_hash_map
+         absl::status
          sandbox2::comms
          sandbox2::logsink
          sandbox2::network_proxy_client
@@ -612,8 +613,7 @@ target_link_libraries(sandbox2_mounts
           sapi::base
           sapi::raw_logging
           sapi::status
-  PUBLIC absl::core_headers
-         absl::status
+  PUBLIC absl::status
          absl::statusor
          absl::strings
          sandbox2::mount_tree_proto
@@ -739,7 +739,6 @@ target_link_libraries(sandbox2_comms
           absl::statusor
           absl::str_format
           absl::strings
-          sapi::strerror
           sandbox2::util
           sapi::base
           sapi::raw_logging

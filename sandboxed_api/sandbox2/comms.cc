@@ -29,7 +29,6 @@
 
 #include <atomic>
 #include <cerrno>
-#include <cinttypes>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -37,18 +36,14 @@
 #include <memory>
 
 #include "google/protobuf/message.h"
-#include "absl/base/config.h"
 #include "absl/base/dynamic_annotations.h"
-#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
 

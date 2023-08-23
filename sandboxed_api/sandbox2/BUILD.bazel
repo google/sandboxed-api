@@ -576,6 +576,7 @@ cc_library(
         "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -660,13 +661,10 @@ cc_library(
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:strerror",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -819,8 +817,6 @@ cc_library(
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_cc_proto",
-        "//sandboxed_api/util:strerror",
-        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/log:die_if_null",
@@ -849,9 +845,9 @@ cc_test(
         "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 

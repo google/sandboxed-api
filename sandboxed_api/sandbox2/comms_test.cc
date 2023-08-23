@@ -19,19 +19,21 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-#include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <ctime>
-#include <sstream>
+#include <functional>
+#include <memory>
+#include <string>
 #include <thread>  // NOLINT(build/c++11)
-#include <utility>
+#include <vector>
 
-#include "google/protobuf/text_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"

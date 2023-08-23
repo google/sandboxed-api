@@ -25,12 +25,10 @@
 
 #include <atomic>
 #include <cinttypes>
-#include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <memory>
+#include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <utility>
 
@@ -41,6 +39,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"

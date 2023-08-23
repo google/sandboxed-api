@@ -26,6 +26,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -33,6 +34,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"

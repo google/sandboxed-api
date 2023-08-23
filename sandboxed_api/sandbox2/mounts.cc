@@ -27,12 +27,9 @@
 #include <utility>
 #include <vector>
 
-#include "google/protobuf/util/message_differencer.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -45,7 +42,6 @@
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/strerror.h"
 
 namespace sandbox2 {
 namespace {
