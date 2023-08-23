@@ -520,7 +520,6 @@ target_link_libraries(sandbox2_client
           sandbox2::policy
           sandbox2::sanitizer
           sandbox2::syscall
-          sapi::strerror
           sapi::base
           sapi::raw_logging
   PUBLIC absl::flat_hash_map

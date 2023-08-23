@@ -47,7 +47,6 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/strerror.h"
 
 #ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
@@ -55,8 +54,6 @@
 
 namespace sandbox2 {
 namespace {
-
-using ::sapi::StrError;
 
 void InitSeccompUnotify(sock_fprog prog, Comms* comms) {
   // The policy might not allow sending the notify FD.
@@ -192,12 +189,12 @@ void Client::SetUpCwd() {
   if (!cwd.empty()) {
     // On the other hand this chdir can fail without a sandbox escape. It will
     // probably not have the intended behavior though.
-    if (chdir(cwd.c_str()) == -1) {
-      SAPI_RAW_VLOG(
-          1,
+    if (chdir(cwd.c_str()) == -1 && SAPI_RAW_VLOG_IS_ON(1)) {
+      SAPI_RAW_PLOG(
+          INFO,
           "chdir(%s) failed, falling back to previous cwd or / (with "
-          "namespaces). Use Executor::SetCwd() to set a working directory: %s",
-          cwd.c_str(), StrError(errno).c_str());
+          "namespaces). Use Executor::SetCwd() to set a working directory",
+          cwd.c_str());
     }
   }
 }

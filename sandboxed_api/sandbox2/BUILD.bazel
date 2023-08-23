@@ -574,7 +574,6 @@ cc_library(
         "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
