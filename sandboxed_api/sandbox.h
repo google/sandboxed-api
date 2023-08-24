@@ -118,7 +118,7 @@ class Sandbox {
  private:
   // Gets the environment variables passed to the sandboxee.
   virtual void GetEnvs(std::vector<std::string>* envs) const {
-    envs->push_back("GOOGLE_LOGTOSTDERR=1");
+    envs->push_back("GOOGLE_STDERRTHRESHOLD=INFO");
   }
 
   // Returns the sandbox policy. Subclasses can modify the default policy
