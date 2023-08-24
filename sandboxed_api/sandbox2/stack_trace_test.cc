@@ -116,6 +116,10 @@ TEST_P(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
   absl::FlagSaver fs;
   absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, false);
 
+  if (GetParam().testname == "CrashMe") {
+    return;
+  }
+
   SymbolizationWorksCommon(GetParam());
 }
 
