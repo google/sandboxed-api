@@ -1,20 +1,38 @@
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
 
 #include <linux/audit.h>
-#include <linux/filter.h>
-#include <linux/ioctl.h>
 #include <linux/seccomp.h>
 #include <poll.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/ptrace.h>
+#include <sys/resource.h>
+#include <sys/sysinfo.h>
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <atomic>
+#include <cerrno>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"

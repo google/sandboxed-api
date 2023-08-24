@@ -19,10 +19,16 @@
 #include <sys/stat.h>  // stat64
 #include <unistd.h>
 
+#include <cerrno>
+#include <cstdlib>
 #include <fstream>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "sandboxed_api/util/strerror.h"
 

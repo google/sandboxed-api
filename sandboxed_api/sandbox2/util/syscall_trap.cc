@@ -16,6 +16,11 @@
 
 #include <ucontext.h>
 
+#include <array>
+#include <cerrno>
+#include <csignal>
+#include <cstdint>
+
 #include "absl/log/check.h"
 #include "sandboxed_api/config.h"
 

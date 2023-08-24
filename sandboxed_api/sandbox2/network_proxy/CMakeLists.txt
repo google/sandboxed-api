@@ -18,11 +18,12 @@ add_library(sandbox2_network_proxy_server ${SAPI_LIB_TYPE}
   server.h
 )
 add_library(sandbox2::network_proxy_server ALIAS sandbox2_network_proxy_server)
-target_link_libraries(sandbox2_network_proxy_server PRIVATE
-  sandbox2::comms
-  sapi::fileops
-  sandbox2::network_proxy_filtering
-  sapi::base
+target_link_libraries(sandbox2_network_proxy_server
+ PRIVATE absl::status
+         sapi::fileops
+         sapi::base
+ PUBLIC sandbox2::comms
+        sandbox2::network_proxy_filtering
 )
 
 # sandboxed_api/sandbox2/network_proxy:filtering

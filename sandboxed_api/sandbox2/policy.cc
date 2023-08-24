@@ -18,14 +18,20 @@
 
 #include <fcntl.h>
 #include <linux/audit.h>
-#include <linux/ipc.h>
+#include <linux/bpf_common.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <sched.h>
 #include <syscall.h>
 
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 #include "sandboxed_api/sandbox2/comms.h"

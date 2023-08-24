@@ -14,8 +14,13 @@
 
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 
+#include <cstdint>
+#include <utility>
+
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "clang/Basic/Diagnostic.h"
 
 namespace sapi {

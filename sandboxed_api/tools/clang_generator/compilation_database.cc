@@ -16,8 +16,11 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "clang/Driver/Types.h"
 #include "clang/Tooling/CompilationDatabase.h"

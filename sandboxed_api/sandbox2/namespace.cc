@@ -27,9 +27,12 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"

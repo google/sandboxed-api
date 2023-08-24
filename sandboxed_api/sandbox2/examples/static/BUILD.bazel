@@ -39,11 +39,12 @@ cc_binary(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:runfiles",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/time",
     ],
 )
 

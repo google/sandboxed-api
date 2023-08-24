@@ -15,7 +15,9 @@
 #ifndef SANDBOXED_API_VAR_VOID_H_
 #define SANDBOXED_API_VAR_VOID_H_
 
+#include <cstddef>
 #include <memory>
+#include <string>
 
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"

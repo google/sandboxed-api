@@ -102,7 +102,6 @@ else()
 endif()
 target_link_libraries(sapi_generator PUBLIC
   sapi::base
-  absl::algorithm_container
   absl::btree
   absl::flat_hash_set
   absl::node_hash_set
@@ -122,6 +121,7 @@ add_executable(sapi_generator_tool
   generator_tool.cc
 )
 target_link_libraries(sapi_generator_tool PRIVATE
+  absl::statusor
   sapi::base
   sapi::file_base
   sapi::file_helpers

@@ -21,11 +21,15 @@ add_dependencies(sandbox2_zpipe_sandbox
   sandbox2::zpipe
 )
 target_link_libraries(sandbox2_zpipe_sandbox PRIVATE
+  absl::check
   absl::flags
   absl::flags_parse
   absl::log
   absl::log_globals
   absl::log_initialize
+  absl::log_severity
+  absl::strings
+  absl::time
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::runfiles

@@ -14,15 +14,22 @@
 
 #include "sandboxed_api/sandbox2/util.h"
 
+#include <sched.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
-#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
+#include <cstring>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/util/status_matchers.h"
 

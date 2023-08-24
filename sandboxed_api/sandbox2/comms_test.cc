@@ -17,9 +17,9 @@
 
 #include <fcntl.h>
 #include <sys/socket.h>
-#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <functional>

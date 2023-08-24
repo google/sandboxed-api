@@ -14,9 +14,11 @@
 
 #include "sandboxed_api/tools/clang_generator/types.h"
 
+#include <string>
+#include <vector>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/QualTypeNames.h"

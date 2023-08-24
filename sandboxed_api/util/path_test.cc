@@ -14,8 +14,11 @@
 
 #include "sandboxed_api/util/path.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/string_view.h"
 
 namespace sandbox2 {
 namespace {

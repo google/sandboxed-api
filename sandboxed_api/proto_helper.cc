@@ -14,7 +14,13 @@
 
 #include "sandboxed_api/proto_helper.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 namespace sapi {
 

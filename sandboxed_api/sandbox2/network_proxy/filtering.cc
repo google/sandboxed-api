@@ -15,6 +15,15 @@
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+
+#include <algorithm>
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"

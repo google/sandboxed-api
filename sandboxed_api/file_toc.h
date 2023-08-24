@@ -22,6 +22,8 @@
 
 #include <sys/types.h>
 
+#include <cstddef>
+
 struct FileToc {
   const char* name;
   const char* data;

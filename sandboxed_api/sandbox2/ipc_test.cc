@@ -15,9 +15,10 @@
 #include "sandboxed_api/sandbox2/ipc.h"
 
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"

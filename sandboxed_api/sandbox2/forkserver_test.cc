@@ -16,13 +16,14 @@
 
 #include <fcntl.h>
 #include <sys/socket.h>
-#include <syscall.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
-#include <utility>
+#include <string>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"

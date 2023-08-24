@@ -71,9 +71,10 @@ if(SAPI_BUILD_TESTING)
   )
   set_target_properties(sapi_main_stringop PROPERTIES OUTPUT_NAME main_stringop)
   target_link_libraries(sapi_main_stringop PRIVATE
-    absl::strings
-    absl::time
+    absl::memory
     absl::log
+    absl::statusor
+    absl::strings
     sapi::sapi
     sapi::status
     sapi::stringop_sapi

@@ -17,27 +17,39 @@
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
 
 #include <sys/ptrace.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
-#include <csignal>
+#include <cstdint>
+#include <ctime>
 #include <deque>
 #include <fstream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/client.h"

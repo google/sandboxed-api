@@ -14,13 +14,17 @@
 
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 
+#include <linux/bpf_common.h>
 // IWYU pragma: no_include <asm/int-ll64.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <sys/sysinfo.h>
 
 #include <cstddef>
+#include <string>
 
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 
 #define INSIDE_FIELD(what, field)               \
   ((offsetof(seccomp_data, field) == 0 ||       \

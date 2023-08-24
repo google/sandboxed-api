@@ -14,13 +14,13 @@
 
 #include "sandboxed_api/sandbox2/forkingclient.h"
 
-#include <sys/types.h>
 #include <unistd.h>
 
 #include <cstdlib>
 #include <memory>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/util/raw_logging.h"

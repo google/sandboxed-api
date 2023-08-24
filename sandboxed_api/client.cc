@@ -13,7 +13,8 @@
 // limitations under the License.
 
 #include <dlfcn.h>
-#include <sys/syscall.h>
+#include <syscall.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -21,6 +22,7 @@
 #include <cstring>
 #include <iterator>
 #include <list>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -33,6 +35,7 @@
 #include "absl/log/check.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/lenval_core.h"

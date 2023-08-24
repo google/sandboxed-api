@@ -48,7 +48,6 @@ cc_test(
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:status_matchers",
-        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )

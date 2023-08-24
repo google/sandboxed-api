@@ -44,11 +44,12 @@ cc_binary(
         ":zlib-sapi",
         "//sandboxed_api:vars",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
 )

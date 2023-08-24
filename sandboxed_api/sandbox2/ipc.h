@@ -23,6 +23,7 @@
 #include <tuple>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 

@@ -76,6 +76,7 @@ add_library(sandbox2::syscall ALIAS sandbox2_syscall)
 target_link_libraries(sandbox2_syscall
   PRIVATE absl::algorithm_container
           absl::span
+          absl::statusor
           absl::str_format
           absl::strings
           sandbox2::util
@@ -166,17 +167,18 @@ add_library(sandbox2_policy ${SAPI_LIB_TYPE}
   policy.h
 )
 add_library(sandbox2::policy ALIAS sandbox2_policy)
-target_link_libraries(sandbox2_policy PRIVATE
-  absl::core_headers
-  sandbox2::bpf_helper
-  sandbox2::bpfdisassembler
-  sandbox2::comms
-  sandbox2::namespace
-  sandbox2::regs
-  sandbox2::syscall
-  sandbox2::violation_proto
-  sapi::base
-  sapi::config
+target_link_libraries(sandbox2_policy
+ PRIVATE absl::strings
+         sandbox2::bpf_helper
+         sandbox2::bpfdisassembler
+         sandbox2::comms
+         sandbox2::regs
+         sandbox2::syscall
+         sapi::base
+         sapi::config
+ PUBLIC sandbox2::network_proxy_filtering
+        sandbox2::namespace
+        sandbox2::violation_proto
 )
 
 # sandboxed_api/sandbox2:notify
@@ -215,6 +217,8 @@ set_target_properties(sandbox2_forkserver_bin PROPERTIES
 add_executable(sandbox2::forkserver_bin ALIAS sandbox2_forkserver_bin)
 target_link_libraries(sandbox2_forkserver_bin PRIVATE
   absl::log_globals
+  absl::log_severity
+  absl::status
   sandbox2::client
   sandbox2::comms
   sandbox2::forkserver
@@ -286,6 +290,7 @@ add_library(sandbox2_executor ${SAPI_LIB_TYPE}
 add_library(sandbox2::executor ALIAS sandbox2_executor)
 target_link_libraries(sandbox2_executor
   PRIVATE absl::core_headers
+          absl::status
           sandbox2::forkserver_proto
           sandbox2::ipc
           sandbox2::limits
@@ -295,7 +300,7 @@ target_link_libraries(sandbox2_executor
           sapi::status_proto
   PUBLIC absl::log
          absl::span
-         absl::status
+         absl::statusor
          absl::strings
          sapi::config
          sapi::fileops
@@ -366,6 +371,7 @@ target_link_libraries(sandbox2_stack_trace
           absl::memory
           absl::status
           absl::strings
+          absl::time
           sandbox2::client
           sandbox2::limits
           sandbox2::policybuilder
@@ -378,7 +384,8 @@ target_link_libraries(sandbox2_stack_trace
           sapi::fileops
           sapi::raw_logging
           sapi::status
-  PUBLIC absl::statusor
+  PUBLIC absl::check
+         absl::statusor
          sandbox2::comms
          sandbox2::executor
          sandbox2::namespace
@@ -428,11 +435,14 @@ add_library(sandbox2_monitor_ptrace ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::monitor_ptrace ALIAS sandbox2_monitor_ptrace)
 target_link_libraries(sandbox2_monitor_ptrace
-  PRIVATE absl::cleanup
+  PRIVATE absl::core_headers
+          absl::cleanup
           absl::flat_hash_set
           absl::flags
           absl::log
           absl::status
+          absl::statusor
+          absl::str_format
           absl::strings
           absl::time
           sapi::base
@@ -443,7 +453,8 @@ target_link_libraries(sandbox2_monitor_ptrace
           sandbox2::result
           sandbox2::sanitizer
           sandbox2::util
-  PUBLIC sandbox2::executor
+  PUBLIC absl::check
+         sandbox2::executor
          sandbox2::monitor_base
          sandbox2::notify
          sandbox2::policy
@@ -461,9 +472,13 @@ add_library(sandbox2_monitor_unotify ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::monitor_unotify ALIAS sandbox2_monitor_unotify)
 target_link_libraries(sandbox2_monitor_unotify
-  PRIVATE absl::cleanup
+  PRIVATE absl::check
+          absl::cleanup
+          absl::core_headers
           absl::log
+          absl::optional
           absl::status
+          absl::strings
           absl::time
           sapi::base
           sandbox2::client
@@ -493,6 +508,7 @@ target_link_libraries(sandbox2_policybuilder
           sapi::config
           sandbox2::bpf_helper
           sandbox2::namespace
+          sandbox2::syscall
           sandbox2::violation_proto
           sapi::file_base
           sapi::status
@@ -538,7 +554,6 @@ add_library(sandbox2::sanitizer ALIAS sandbox2_sanitizer)
 target_link_libraries(sandbox2_sanitizer
   PRIVATE absl::strings
           sandbox2::util
-          sapi::file_helpers
           sapi::fileops
           sapi::strerror
           sapi::raw_logging
@@ -642,7 +657,8 @@ add_library(sandbox2_forkingclient ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::forkingclient ALIAS sandbox2_forkingclient)
 target_link_libraries(sandbox2_forkingclient
-  PRIVATE absl::memory
+  PRIVATE absl::check
+          absl::memory
           absl::log
           sandbox2::sanitizer
           sapi::base
@@ -659,15 +675,13 @@ add_library(sandbox2_util ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::util ALIAS sandbox2_util)
 target_link_libraries(sandbox2_util
-  PRIVATE absl::algorithm_container
-          absl::core_headers
+  PRIVATE absl::core_headers
           absl::str_format
           absl::strings
           sapi::config
           sapi::file_base
           sapi::file_helpers
           sapi::fileops
-          sapi::status
           sapi::base
           sapi::raw_logging
   PUBLIC absl::status
@@ -813,10 +827,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_minimal_dynamic
   )
   target_link_libraries(sandbox2_mounts_test PRIVATE
+    absl::status
     absl::strings
     sapi::file_base
     sandbox2::mounts
-    sandbox2::mount_tree_proto
     sapi::temp_file
     sapi::testing
     sapi::status_matchers
@@ -838,6 +852,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_namespace
   )
   target_link_libraries(sandbox2_namespace_test PRIVATE
+    absl::check
+    absl::statusor
     absl::strings
     sandbox2::allow_all_syscalls
     sandbox2::allow_unrestricted_networking
@@ -971,7 +987,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_notify_test PRIVATE
     absl::strings
-    sandbox2::bpf_helper
     sandbox2::comms
     sandbox2::regs
     sandbox2::sandbox2
@@ -1001,8 +1016,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     sandbox2::bpf_helper
     sapi::config
-    sandbox2::limits
-    sandbox2::regs
     sandbox2::sandbox2
     sapi::status_matchers
     sapi::testing
@@ -1027,7 +1040,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_tsync
   )
   target_link_libraries(sandbox2_sandbox2_test PRIVATE
+    absl::status
+    absl::statusor
     absl::strings
+    absl::synchronization
+    absl::time
     sapi::config
     sandbox2::sandbox2
     sapi::testing
@@ -1076,6 +1093,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_util_test PRIVATE
     sandbox2::util
+    absl::statusor
     absl::strings
     absl::cleanup
     sapi::status_matchers
@@ -1094,12 +1112,12 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_symbolize
   )
   target_link_libraries(sandbox2_stack_trace_test PRIVATE
+    absl::check
     absl::flags
     absl::status
     absl::strings
     absl::time
     sandbox2::global_forkserver
-    sandbox2::namespace
     sandbox2::sandbox2
     sandbox2::stack_trace
     sandbox2::util

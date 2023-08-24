@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include <sched.h>
-#include <signal.h>
 #include <unistd.h>
 
-#include <cinttypes>
+#include <csignal>
+#include <cstdint>
 
 constexpr int kProcesses = 512;
 constexpr int kThreads = 1;

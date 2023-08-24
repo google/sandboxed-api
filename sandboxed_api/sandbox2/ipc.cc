@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <vector>
 #include <thread>
 
 #include "absl/log/log.h"

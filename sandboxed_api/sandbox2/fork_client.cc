@@ -14,10 +14,14 @@
 
 #include "sandboxed_api/sandbox2/fork_client.h"
 
+#include <sys/types.h>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 

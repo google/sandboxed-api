@@ -48,7 +48,6 @@ cc_library(
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/base:endian",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -72,7 +71,7 @@ cc_test(
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -107,6 +106,7 @@ cc_test(
     deps = [
         ":maps_parser",
         "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )

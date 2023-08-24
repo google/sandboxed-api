@@ -13,10 +13,9 @@
 // limitations under the License.
 
 #include <stdio.h>
-#include <stdint.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <sys/ptrace.h>
+#include <unistd.h>
 
 int sumsymbol = 5;
 

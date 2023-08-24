@@ -43,6 +43,8 @@ py_binary(
     deps = [
         ":code",
         "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -79,6 +81,7 @@ cc_binary(
     ],
     copts = sapi_platform_copts(),
     deps = [
+        ":tests_sapi_generator",
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
         "//sandboxed_api/util:status",

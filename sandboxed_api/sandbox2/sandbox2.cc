@@ -17,6 +17,7 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 
 #include <memory>
+#include <utility>
 
 #include "absl/base/call_once.h"
 #include "absl/log/check.h"

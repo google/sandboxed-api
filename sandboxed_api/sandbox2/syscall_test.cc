@@ -14,7 +14,10 @@
 
 #include "sandboxed_api/sandbox2/syscall.h"
 
-#include <linux/unistd.h>
+#include <syscall.h>
+
+#include <array>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

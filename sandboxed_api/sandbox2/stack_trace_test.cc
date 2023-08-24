@@ -14,19 +14,21 @@
 
 #include "sandboxed_api/sandbox2/stack_trace.h"
 
-#include <dirent.h>
+#include <sys/types.h>
 
 #include <cstdio>
 #include <functional>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/executor.h"

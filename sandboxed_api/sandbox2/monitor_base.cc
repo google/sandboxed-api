@@ -16,11 +16,16 @@
 
 #include "sandboxed_api/sandbox2/monitor_base.h"
 
+#include <pthread.h>
 #include <sched.h>
+#include <signal.h>
+#include <sys/resource.h>
 #include <syscall.h>
 
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
+#include <iomanip>
 #include <memory>
 #include <optional>
 #include <string>
@@ -30,10 +35,14 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"

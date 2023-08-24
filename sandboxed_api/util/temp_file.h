@@ -16,8 +16,10 @@
 #define SANDBOXED_API_UTIL_TEMP_FILE_H_
 
 #include <string>
+#include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 
 namespace sapi {
 

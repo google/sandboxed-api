@@ -16,10 +16,13 @@
 
 #include <unistd.h>
 
-#include <utility>
+#include <cstddef>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/testing.h"

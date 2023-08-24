@@ -15,12 +15,16 @@
 #include <fcntl.h>
 
 #include <memory>
+#include <string>
 #include <thread>  // NOLINT(build/c++11)
 
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"

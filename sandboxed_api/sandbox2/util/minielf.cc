@@ -16,15 +16,23 @@
 
 #include <elf.h>
 
+#include <algorithm>
+#include <cerrno>
 #include <cstddef>
-#include <memory>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <string>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include "absl/base/internal/endian.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/raw_logging.h"

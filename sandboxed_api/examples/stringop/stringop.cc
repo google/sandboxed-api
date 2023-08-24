@@ -15,10 +15,10 @@
 #include <sys/ptrace.h>
 
 #include <algorithm>
-#include <iostream>
+#include <cstdlib>
+#include <string>
 
 #include "absl/base/attributes.h"
-#include "absl/base/optimization.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/lenval_core.h"
 

@@ -34,17 +34,17 @@ cc_binary(
     copts = sapi_platform_copts(),
     data = [":crc4bin"],
     deps = [
-        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:runfiles",
-        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -59,6 +59,7 @@ cc_binary(
         "//sandboxed_api/sandbox2:util",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 

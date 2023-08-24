@@ -21,6 +21,7 @@
 #include <sys/types.h>
 
 #include <bitset>
+#include <cstddef>
 #include <string>
 
 #include "absl/base/thread_annotations.h"

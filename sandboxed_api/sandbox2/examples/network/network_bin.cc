@@ -16,11 +16,11 @@
 // namespace. It can't connect with the server directly, but the executor can
 // establish a connection and pass the connected socket to the sandboxee.
 
-#include <sys/socket.h>
-#include <syscall.h>
+#include <unistd.h>
 
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
-#include <string>
 
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"

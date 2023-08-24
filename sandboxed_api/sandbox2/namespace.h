@@ -18,6 +18,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_NAMESPACE_H_
 #define SANDBOXED_API_SANDBOX2_NAMESPACE_H_
 
+#include <sched.h>
 #include <sys/types.h>
 
 #include <cstdint>

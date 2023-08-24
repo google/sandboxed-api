@@ -14,24 +14,18 @@
 
 #include "sandboxed_api/util/fileops.h"
 
-#include <dirent.h>
-#include <fcntl.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/un.h>
 #include <unistd.h>
 
-#include <cstdio>
-#include <memory>
+#include <algorithm>
+#include <cerrno>
+#include <climits>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/status_matchers.h"

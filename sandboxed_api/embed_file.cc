@@ -16,9 +16,9 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
-#include <sys/types.h>
 #include <unistd.h>
+
+#include <string>
 
 #include "sandboxed_api/file_toc.h"
 #include "absl/strings/str_cat.h"

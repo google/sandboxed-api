@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/notify.h"
 
+#include <sys/types.h>
 #include <syscall.h>
 
 #include <memory>
@@ -32,7 +33,6 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/testing.h"
 
 namespace sandbox2 {

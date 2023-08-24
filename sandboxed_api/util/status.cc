@@ -14,7 +14,12 @@
 
 #include "sandboxed_api/util/status.h"
 
+#include <string>
+#include <utility>
+
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 
 namespace sapi {
 

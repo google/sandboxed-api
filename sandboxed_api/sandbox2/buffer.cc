@@ -19,7 +19,10 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"

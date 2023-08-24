@@ -14,19 +14,20 @@
 
 #include "sandboxed_api/sandbox2/util.h"
 
-#include <asm/unistd.h>  // __NR_memdfd_create
 #include <sched.h>
 #include <spawn.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
+#include <syscall.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <utility>

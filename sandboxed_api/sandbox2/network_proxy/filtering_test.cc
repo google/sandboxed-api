@@ -15,8 +15,12 @@
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 
 #include <arpa/inet.h>
-#include <linux/unistd.h>
-#include <string.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+
+#include <cstdint>
+#include <cstring>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -15,7 +15,7 @@
 // A binary that exits via different modes: crashes, causes violation, exits
 // normally or times out, to test the stack tracing symbolizer.
 
-#include <sys/syscall.h>
+#include <syscall.h>
 #include <unistd.h>
 
 #include <cstdlib>

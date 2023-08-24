@@ -31,7 +31,6 @@
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include <cstdlib>
@@ -40,6 +39,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"

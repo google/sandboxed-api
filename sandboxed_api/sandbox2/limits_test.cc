@@ -20,7 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"

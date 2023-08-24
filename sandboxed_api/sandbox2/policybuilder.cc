@@ -14,43 +14,54 @@
 
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
-#include <asm/ioctls.h>  // For TCGETS
-#include <fcntl.h>       // For the fcntl flags
+#include <fcntl.h>  // For the fcntl flags
+#include <linux/bpf_common.h>
 #include <linux/filter.h>
 #include <linux/futex.h>
-#include <linux/net.h>     // For SYS_CONNECT
 #include <linux/random.h>  // For GRND_NONBLOCK
-#include <sys/mman.h>      // For mmap arguments
+#include <linux/seccomp.h>
+#include <stddef.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>  // For mmap arguments
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <sys/types.h>
 #include <syscall.h>
 #include <unistd.h>
 
 #include <array>
+#include <cerrno>
 #include <csignal>
 #include <cstdint>
 #include <deque>
+#include <functional>
+#include <iterator>
+#include <limits>
 #include <memory>
+#include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
+#include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_macros.h"
 
 #if defined(SAPI_X86_64)
 #include <asm/prctl.h>

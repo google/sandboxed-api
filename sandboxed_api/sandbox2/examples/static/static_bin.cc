@@ -17,12 +17,10 @@
 //
 // It inverts all bytes coming from stdin and writes them to the stdout.
 
-#include <signal.h>
 #include <sys/prctl.h>
 #include <unistd.h>
 
 #include <cctype>
-#include <cstddef>
 #include <cstdio>
 
 int main(int argc, char* argv[]) {

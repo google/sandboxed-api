@@ -16,6 +16,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <cstring>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>

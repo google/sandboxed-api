@@ -16,6 +16,7 @@
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_EMITTER_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"

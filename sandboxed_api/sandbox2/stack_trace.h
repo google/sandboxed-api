@@ -19,10 +19,13 @@
 #ifndef SANDBOXED_API_SANDBOX2_STACK_TRACE_H_
 #define SANDBOXED_API_SANDBOX2_STACK_TRACE_H_
 
+#include <cstddef>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"

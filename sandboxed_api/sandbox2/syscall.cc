@@ -15,15 +15,14 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 
 #include <linux/audit.h>
-#include <linux/elf-em.h>
 
-#include <climits>
-#include <csignal>
-#include <cstring>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall_defs.h"
 

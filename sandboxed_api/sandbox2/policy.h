@@ -19,17 +19,21 @@
 #define SANDBOXED_API_SANDBOX2_POLICY_H_
 
 #include <asm/types.h>
-#include <linux/filter.h>
+#include <linux/filter.h>   // IWYU pragma: export
+#include <linux/seccomp.h>  // IWYU pragma: export
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
-#include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 
-#define SANDBOX2_TRACE TRACE(::sandbox2::Syscall::GetHostArch())
+#define SANDBOX2_TRACE         \
+  BPF_STMT(BPF_RET + BPF_K,    \
+           SECCOMP_RET_TRACE | \
+               (::sandbox2::Syscall::GetHostArch() & SECCOMP_RET_DATA))
 
 namespace sandbox2 {
 
@@ -40,8 +44,8 @@ inline constexpr uintptr_t kExecveMagic = 0x921c2c34;
 }  // namespace internal
 
 class Comms;
-class PolicyBuilder;
 class MonitorBase;
+class PolicyBuilder;
 
 class Policy final {
  public:

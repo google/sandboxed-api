@@ -1,5 +1,9 @@
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 
+#include <linux/bpf_common.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"

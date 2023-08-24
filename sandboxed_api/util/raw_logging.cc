@@ -14,22 +14,18 @@
 
 #include "sandboxed_api/util/raw_logging.h"
 
-#include <sys/syscall.h>
+#include <syscall.h>
 #include <unistd.h>
 
 #include <cstdarg>
-#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
 
 #include "absl/base/attributes.h"
-#include "absl/base/config.h"
 #include "absl/base/log_severity.h"
 #include "absl/strings/numbers.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 
 #ifdef __ANDROID__
 #include "android/log.h"

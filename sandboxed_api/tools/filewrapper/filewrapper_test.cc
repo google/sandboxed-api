@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdint>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/string_view.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
 #include "sandboxed_api/util/file_helpers.h"

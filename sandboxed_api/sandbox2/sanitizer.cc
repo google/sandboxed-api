@@ -16,16 +16,6 @@
 
 #include "sandboxed_api/sandbox2/sanitizer.h"
 
-#include "absl/status/status.h"
-
-#if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
-    defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
-    defined(ABSL_HAVE_LEAK_SANITIZER) ||      \
-    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
-#include <sanitizer/common_interface_defs.h>
-#endif
-
-#include <dirent.h>
 #include <fcntl.h>
 #include <sys/prctl.h>
 #include <syscall.h>
@@ -33,22 +23,25 @@
 
 #include <cerrno>
 #include <csignal>
-#include <cstring>
-#include <fstream>
-#include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
+
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
+    defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_LEAK_SANITIZER) ||      \
+    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
+#include <sanitizer/common_interface_defs.h>
+#endif
 
 namespace sandbox2::sanitizer {
 namespace {

@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <cstdio>
+#include <cstdlib>
 
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"

@@ -16,15 +16,15 @@
 
 #include <cxxabi.h>
 #include <sys/ptrace.h>
+#include <sys/types.h>
 
 #include <cerrno>
-#include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "libunwind-ptrace.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"

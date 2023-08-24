@@ -27,7 +27,10 @@ target_link_libraries(sandbox2_custom_fork_sandbox PRIVATE
   absl::log
   absl::log_globals
   absl::log_initialize
+  absl::log_severity
+  absl::time
   sandbox2::comms
+  sandbox2::fork_client
   sandbox2::forkserver
   sapi::runfiles
   sandbox2::sandbox2

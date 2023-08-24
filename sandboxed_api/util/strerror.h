@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_UTIL_STRERROR_H_
 #define SANDBOXED_API_UTIL_STRERROR_H_
 
+#include <cstddef>
 #include <string>
 
 namespace sapi {

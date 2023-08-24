@@ -15,13 +15,20 @@
 #ifndef SANDBOXED_API_SANDBOX_H_
 #define SANDBOXED_API_SANDBOX_H_
 
+#include <ctime>
+#include <initializer_list>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/client.h"

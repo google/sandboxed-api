@@ -15,7 +15,9 @@
 #ifndef SANDBOXED_API_SANDBOX2_MOUNTTREE_H_
 #define SANDBOXED_API_SANDBOX2_MOUNTTREE_H_
 
+#include <cstddef>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"

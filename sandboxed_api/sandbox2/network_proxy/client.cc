@@ -14,17 +14,16 @@
 
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 
-#include <linux/net.h>
-#include <linux/seccomp.h>
-#include <stdio.h>
+#include <sys/socket.h>
 #include <syscall.h>
+#include <unistd.h>
 
 #include <cerrno>
-#include <iostream>
-#include <memory>
+#include <cstdint>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/util/syscall_trap.h"
 #include "sandboxed_api/util/status_macros.h"
 

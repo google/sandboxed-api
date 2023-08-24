@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_UTIL_FILEOPS_H_
 #define SANDBOXED_API_UTIL_FILEOPS_H_
 
+#include <cstddef>
 #include <string>
 #include <utility>
 #include <vector>

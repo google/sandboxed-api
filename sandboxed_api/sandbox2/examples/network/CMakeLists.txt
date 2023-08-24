@@ -26,6 +26,9 @@ target_link_libraries(sandbox2_network_sandbox PRIVATE
   absl::log
   absl::log_globals
   absl::log_initialize
+  absl::log_severity
+  absl::strings
+  absl::time
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::fileops

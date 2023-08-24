@@ -19,20 +19,17 @@
 #include <fcntl.h>
 #include <sched.h>
 #include <sys/mman.h>
-#include <sys/prctl.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-#include <syscall.h>
 #include <unistd.h>
 
-#include <climits>
-#include <csignal>
+#include <cerrno>
 #include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "absl/base/const_init.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"

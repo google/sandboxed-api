@@ -15,9 +15,9 @@
 #include "sandboxed_api/sandbox2/buffer.h"
 
 #include <sys/stat.h>
-#include <syscall.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>

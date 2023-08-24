@@ -18,19 +18,21 @@
 #include <linux/filter.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
-#include <initializer_list>
 #include <memory>
-#include <set>
 #include <string>
-#include <tuple>
+#include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"

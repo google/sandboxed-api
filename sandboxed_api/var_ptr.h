@@ -15,7 +15,10 @@
 #ifndef SANDBOXED_API_VAR_PTR_H_
 #define SANDBOXED_API_VAR_PTR_H_
 
+#include <algorithm>
+#include <cstring>
 #include <memory>
+#include <string>
 
 #include "absl/base/macros.h"
 #include "absl/strings/str_format.h"

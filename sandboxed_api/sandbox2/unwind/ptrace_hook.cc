@@ -26,6 +26,7 @@
 #include <cstring>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util/syscall_trap.h"
 
 // Android doesn't use an enum for __ptrace_request, use int instead.

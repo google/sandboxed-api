@@ -24,7 +24,9 @@ target_link_libraries(sandbox2_crc4sandbox PRIVATE
   absl::flags
   absl::flags_parse
   absl::log
+  absl::log_globals
   absl::log_initialize
+  absl::log_severity
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::runfiles
@@ -42,6 +44,7 @@ target_link_libraries(sandbox2_crc4bin PRIVATE
   absl::core_headers
   absl::flags
   absl::flags_parse
+  absl::strings
   sandbox2::client
   sandbox2::comms
   sandbox2::util

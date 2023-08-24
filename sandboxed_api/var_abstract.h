@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_VAR_ABSTRACT_H_
 #define SANDBOXED_API_VAR_ABSTRACT_H_
 
+#include <ctime>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -29,8 +30,8 @@ class Comms;
 }  // namespace sandbox2
 
 namespace sapi {
-class Sandbox;
 class RPCChannel;
+class Sandbox;
 }  // namespace sapi
 
 namespace sapi::v {

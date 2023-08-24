@@ -16,11 +16,14 @@
 
 #include "sandboxed_api/var_abstract.h"
 
+#include <sys/types.h>
 #include <sys/uio.h>
 
 #include <memory>
+#include <string>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/util/raw_logging.h"

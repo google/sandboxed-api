@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/status/status.h"
+#include "sandboxed_api/util/status.h"
 
+#include <cstdint>
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "sandboxed_api/util/status.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 
 using ::testing::Eq;
 using ::testing::StrEq;

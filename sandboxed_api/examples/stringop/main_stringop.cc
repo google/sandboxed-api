@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <memory>
+#include <cstring>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "absl/time/time.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_macros.h"

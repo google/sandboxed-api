@@ -16,6 +16,7 @@
 
 #include "sandboxed_api/sandbox2/buffer.h"
 
+#include <cstdint>
 #include <utility>
 
 int main(int argc, char* argv[]) {

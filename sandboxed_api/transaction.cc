@@ -14,6 +14,12 @@
 
 #include "sandboxed_api/transaction.h"
 
+#include <functional>
+#include <memory>
+
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {

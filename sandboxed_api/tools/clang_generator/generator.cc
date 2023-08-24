@@ -14,13 +14,17 @@
 
 #include "sandboxed_api/tools/clang_generator/generator.h"
 
-#include <fstream>
-#include <iostream>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"

@@ -16,6 +16,9 @@
 #define SANDBOXED_API_SANDBOX2_NETWORK_PROXY_CLIENT_H_
 
 #include <netinet/in.h>
+#include <sys/socket.h>
+
+#include <cstdint>
 
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"

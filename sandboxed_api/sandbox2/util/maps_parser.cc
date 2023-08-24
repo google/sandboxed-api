@@ -14,6 +14,11 @@
 
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"

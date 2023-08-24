@@ -16,8 +16,11 @@
 #define SANDBOXED_API_VAR_ARRAY_H_
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <string>
+#include <type_traits>
 
 #include "absl/base/macros.h"
 #include "absl/log/check.h"

@@ -17,6 +17,8 @@
 #ifndef SANDBOXED_API_UTIL_RAW_LOGGING_H_
 #define SANDBOXED_API_UTIL_RAW_LOGGING_H_
 
+#include <cerrno>
+#include <cstddef>
 #include <string>
 #include <utility>
 

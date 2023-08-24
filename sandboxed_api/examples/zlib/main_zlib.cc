@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <linux/audit.h>
-#include <sys/syscall.h>
-
+#include <cassert>
+#include <cstdio>
 #include <cstdlib>
 
+#include "absl/base/log_severity.h"
 #include "absl/base/macros.h"
-#include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/examples/zlib/zlib-sapi.sapi.h"
 #include "sandboxed_api/vars.h"

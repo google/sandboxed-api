@@ -15,11 +15,16 @@
 #ifndef SANDBOXED_API_VAR_LENVAL_H_
 #define SANDBOXED_API_VAR_LENVAL_H_
 
+#include <sys/types.h>
 #include <sys/uio.h>
 
+#include <cstring>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "absl/base/macros.h"
+#include "absl/status/status.h"
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_array.h"

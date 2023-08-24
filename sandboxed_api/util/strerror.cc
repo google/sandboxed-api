@@ -18,6 +18,7 @@
 
 #include <cerrno>
 #include <cstddef>
+#include <string>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/str_format.h"

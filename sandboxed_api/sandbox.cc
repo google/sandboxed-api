@@ -14,16 +14,18 @@
 
 #include "sandboxed_api/sandbox.h"
 
-#include <sys/ioctl.h>
 #include <sys/resource.h>
+#include <sys/types.h>
 #include <sys/uio.h>
+#include <syscall.h>
 
-#include <algorithm>
-#include <cstdarg>
 #include <cstdio>
+#include <initializer_list>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "absl/base/casts.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/macros.h"
 #include "absl/log/log.h"

@@ -17,13 +17,13 @@
 #include "sandboxed_api/sandbox2/regs.h"
 
 #include <elf.h>  // IWYU pragma: keep // used for NT_PRSTATUS inside an ifdef
-#include <linux/audit.h>
 #include <sys/ptrace.h>
 #include <sys/uio.h>  // IWYU pragma: keep // used for iovec
 
 #include <cerrno>
+#include <cstdint>
 
-#include "absl/base/macros.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"

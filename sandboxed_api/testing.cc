@@ -15,6 +15,7 @@
 #include "sandboxed_api/testing.h"
 
 #include <cstdlib>
+#include <string>
 
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"

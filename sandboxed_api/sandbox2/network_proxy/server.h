@@ -15,7 +15,11 @@
 #ifndef SANDBOXED_API_SANDBOX2_NETWORK_PROXY_SERVER_H_
 #define SANDBOXED_API_SANDBOX2_NETWORK_PROXY_SERVER_H_
 
+#include <pthread.h>
+
+#include <atomic>
 #include <memory>
+#include <string>
 
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"

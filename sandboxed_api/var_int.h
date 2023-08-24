@@ -15,11 +15,19 @@
 #ifndef SANDBOXED_API_VAR_INT_H_
 #define SANDBOXED_API_VAR_INT_H_
 
+#include <sys/types.h>
+
+#include <cstdint>
 #include <memory>
 
+#include "absl/status/status.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
+
+namespace sapi {
+class RPCChannel;
+}  // namespace sapi
 
 namespace sapi::v {
 

@@ -57,3 +57,9 @@ bzl_library(
     srcs = ["sapi.bzl"],
     visibility = ["//visibility:private"],
 )
+
+bzl_library(
+    name = "llvm_config_bzl",
+    srcs = ["llvm_config.bzl"],
+    visibility = ["//visibility:private"],
+)

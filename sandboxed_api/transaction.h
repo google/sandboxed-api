@@ -15,8 +15,13 @@
 #ifndef SANDBOXED_API_TRANSACTION_H_
 #define SANDBOXED_API_TRANSACTION_H_
 
+#include <ctime>
+#include <functional>
 #include <memory>
+#include <utility>
 
+#include "absl/base/attributes.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"

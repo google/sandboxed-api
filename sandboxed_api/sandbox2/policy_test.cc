@@ -14,22 +14,20 @@
 
 #include "sandboxed_api/sandbox2/policy.h"
 
-#include <sys/resource.h>
 #include <syscall.h>
-#include <unistd.h>
 
 #include <cerrno>
 #include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
-#include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"

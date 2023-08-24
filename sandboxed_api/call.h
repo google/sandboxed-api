@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_CALL_H_
 #define SANDBOXED_API_CALL_H_
 
+#include <cstddef>
 #include <cstdint>
 
 #include "sandboxed_api/var_type.h"

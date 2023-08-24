@@ -2,15 +2,22 @@
 #define SANDBOXED_API_SANDBOX2_MONITOR_UNOTIFY_H_
 
 #include <linux/seccomp.h>
+#include <sys/sysinfo.h>
+#include <sys/types.h>
 
 #include <atomic>
+#include <cstdlib>
 #include <memory>
 #include <thread>
 #include <string>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/notify.h"

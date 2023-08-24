@@ -14,8 +14,11 @@
 
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {

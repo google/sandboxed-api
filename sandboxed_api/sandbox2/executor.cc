@@ -17,16 +17,19 @@
 #include "sandboxed_api/sandbox2/executor.h"
 
 #include <fcntl.h>
-#include <libgen.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <climits>
-#include <cstddef>
+#include <algorithm>
+#include <cerrno>
+#include <cstdint>
 #include <memory>
-#include <string_view>
+#include <string>
+#include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"

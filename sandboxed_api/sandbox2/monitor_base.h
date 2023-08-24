@@ -19,6 +19,7 @@
 #define SANDBOXED_API_SANDBOX2_MONITOR_BASE_H_
 
 #include <sys/resource.h>
+#include <sys/types.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -29,6 +30,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"

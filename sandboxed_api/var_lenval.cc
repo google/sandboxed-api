@@ -14,9 +14,11 @@
 
 #include "sandboxed_api/var_lenval.h"
 
-#include <sys/uio.h>
+#include <sys/types.h>
 
-#include "absl/log/log.h"
+#include <cstddef>
+
+#include "absl/status/status.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/util/status_macros.h"
 

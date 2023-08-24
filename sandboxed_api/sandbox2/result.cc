@@ -16,6 +16,15 @@
 
 #include "sandboxed_api/sandbox2/result.h"
 
+#include <sys/resource.h>
+
+#include <cstdlib>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "sandboxed_api/config.h"

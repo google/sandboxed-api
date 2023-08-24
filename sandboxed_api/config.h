@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_CONFIG_H_
 #define SANDBOXED_API_CONFIG_H_
 
+#include <features.h>
 #include <cstdint>
 #include <string>
 

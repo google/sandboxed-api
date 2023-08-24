@@ -17,6 +17,7 @@
 #include "sandboxed_api/sandbox2/client.h"
 
 #include <fcntl.h>
+#include <linux/bpf_common.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
@@ -24,17 +25,21 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cerrno>
 #include <cinttypes>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <utility>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"

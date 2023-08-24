@@ -15,6 +15,8 @@
 #ifndef SANDBOXED_API_VAR_REG_H_
 #define SANDBOXED_API_VAR_REG_H_
 
+#include <algorithm>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <type_traits>

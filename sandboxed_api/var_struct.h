@@ -15,7 +15,10 @@
 #ifndef SANDBOXED_API_VAR_STRUCT_H_
 #define SANDBOXED_API_VAR_STRUCT_H_
 
+#include <cstddef>
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "absl/base/macros.h"
 #include "absl/strings/str_cat.h"

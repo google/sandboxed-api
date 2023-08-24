@@ -15,7 +15,6 @@
 #ifndef SANDBOXED_API_SANDBOX2_EXECUTOR_H_
 #define SANDBOXED_API_SANDBOX2_EXECUTOR_H_
 
-#include <stdlib.h>
 #include <unistd.h>
 
 #include <memory>
@@ -26,6 +25,7 @@
 #include "absl/base/macros.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/fork_client.h"

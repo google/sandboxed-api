@@ -1,16 +1,19 @@
 #include "sandboxed_api/sandbox2/regs.h"
 
-#include <linux/audit.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <syscall.h>
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstdint>
 #include <cstdlib>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

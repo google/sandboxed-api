@@ -1,18 +1,15 @@
 // A demo sandbox for the network binary.
 
 #include <arpa/inet.h>
-#include <linux/filter.h>
-#include <netdb.h>
 #include <netinet/in.h>
-#include <sys/resource.h>
 #include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <syscall.h>
+#include <unistd.h>
 
-#include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/base/macros.h"
@@ -21,13 +18,15 @@
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
+#include "absl/base/log_severity.h"
+#include "absl/strings/string_view.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/runfiles.h"
 

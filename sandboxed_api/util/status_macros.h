@@ -18,6 +18,8 @@
 #ifndef THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_
 #define THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_
 
+#include <utility>
+
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 

@@ -1,13 +1,18 @@
 #include "sandboxed_api/sandbox2/syscall_defs.h"
 
+#include <sys/types.h>
+
+#include <array>
 #include <cstdint>
-#include <type_traits>
+#include <string>
+#include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/log/log.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
 

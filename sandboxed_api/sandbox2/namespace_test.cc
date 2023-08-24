@@ -14,11 +14,9 @@
 
 #include "sandboxed_api/sandbox2/namespace.h"
 
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <syscall.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -27,8 +25,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"

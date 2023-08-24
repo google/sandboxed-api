@@ -31,7 +31,6 @@ add_library(sandbox2::minielf ALIAS sandbox2_util_minielf)
 target_link_libraries(sandbox2_util_minielf PRIVATE
   absl::status
   absl::strings
-  sapi::strerror
   sandbox2::util
   sapi::base
   sapi::raw_logging
@@ -76,7 +75,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
                  testdata/chrome_grte_header COPYONLY)
   target_link_libraries(sandbox2_minielf_test
     PRIVATE absl::algorithm_container
-            absl::strings
+            absl::statusor
             sapi::file_helpers
             sandbox2::maps_parser
             sandbox2::minielf
@@ -98,6 +97,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME maps_parser_test
   )
   target_link_libraries(sandbox2_maps_parser_test PRIVATE
+    absl::statusor
     sandbox2::maps_parser
     sapi::status_matchers
     sapi::test_main

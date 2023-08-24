@@ -16,7 +16,7 @@
 // sandbox2, and which uses a built-in fork-server to spawn new sandboxees
 // (instead of doing fork/execve via the Fork-Server).
 
-#include <sys/types.h>
+#include <unistd.h>
 
 #include <cstdint>
 

@@ -13,13 +13,13 @@
 // limitations under the License.
 
 #include <sys/prctl.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 #include <csignal>
 #include <cstdlib>
 
+#include "absl/base/log_severity.h"
 #include "absl/log/globals.h"
+#include "absl/status/status.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.h"

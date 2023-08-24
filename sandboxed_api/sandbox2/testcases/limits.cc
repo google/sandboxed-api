@@ -18,6 +18,7 @@
 // expansion, for instance with a large stack allocation with alloca(3),
 // and we have no alternate stack, then we are killed with SIGSEGV.
 
+#include <alloca.h>
 #include <sys/mman.h>
 
 #include <cerrno>

@@ -29,16 +29,20 @@
 
 #include <atomic>
 #include <cerrno>
-#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "google/protobuf/message.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/util.h"

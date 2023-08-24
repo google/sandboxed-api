@@ -17,7 +17,8 @@
 #ifndef SANDBOXED_API_PROTO_HELPER_H_
 #define SANDBOXED_API_PROTO_HELPER_H_
 
-#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <vector>
 

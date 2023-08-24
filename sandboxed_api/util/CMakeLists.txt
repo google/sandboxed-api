@@ -98,7 +98,8 @@ add_library(sapi_util_status ${SAPI_LIB_TYPE}
 )
 add_library(sapi::status ALIAS sapi_util_status)
 target_link_libraries(sapi_util_status
-  PRIVATE absl::core_headers
+  PRIVATE absl::cord
+          absl::core_headers
           absl::status
           absl::strings
           sapi::base
@@ -126,7 +127,6 @@ add_library(sapi_util_temp_file ${SAPI_LIB_TYPE}
 add_library(sapi::temp_file ALIAS sapi_util_temp_file)
 target_link_libraries(sapi_util_temp_file
   PRIVATE absl::strings
-          sapi::fileops
           sapi::status
           sapi::strerror
           sapi::base
@@ -157,7 +157,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME file_helpers_test
   )
   target_link_libraries(sapi_file_helpers_test PRIVATE
-    absl::strings
     sapi::file_helpers
     sapi::status_matchers
     sapi::test_main
@@ -190,11 +189,12 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   add_library(sapi::status_matchers ALIAS sapi_util_status_matchers)
   target_link_libraries(sapi_util_status_matchers
-    PRIVATE absl::optional
-            gmock
-            gtest
-            sapi::base
-    PUBLIC absl::status
+    PUBLIC absl::optional
+           absl::status
+           absl::strings
+           gmock
+           gtest
+           sapi::base
            sapi::status
   )
 
@@ -205,7 +205,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   set_target_properties(sapi_status_test PROPERTIES OUTPUT_NAME status_test)
   target_link_libraries(sapi_status_test PRIVATE
     absl::status
-    absl::type_traits
+    absl::statusor
     sapi::status
     sapi::status_matchers
     sapi::test_main

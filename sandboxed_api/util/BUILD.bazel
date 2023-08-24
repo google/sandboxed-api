@@ -64,8 +64,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":file_helpers",
-        "//sandboxed_api/util:status_matchers",
-        "@com_google_absl//absl/strings",
+        ":status_matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -90,8 +89,8 @@ cc_test(
     deps = [
         ":file_helpers",
         ":fileops",
+        ":status_matchers",
         "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
@@ -149,6 +148,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -164,6 +164,7 @@ cc_library(
         ":status",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:optional",
         "@com_google_googletest//:gtest",
     ],
@@ -176,8 +177,8 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":status",
-        ":status_matchers",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -227,7 +228,6 @@ cc_library(
     hdrs = ["temp_file.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":fileops",
         ":status",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -242,9 +242,11 @@ cc_test(
     deps = [
         ":file_base",
         ":fileops",
+        ":status_matchers",
         ":temp_file",
         "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )

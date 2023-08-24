@@ -41,7 +41,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   configure_file(testdata/filewrapper_embedded.bin
                  testdata/filewrapper_embedded.bin COPYONLY)
   target_link_libraries(sapi_filewrapper_test PRIVATE
-    absl::strings
     filewrapper_embedded
     sapi::file_helpers
     sapi::fileops

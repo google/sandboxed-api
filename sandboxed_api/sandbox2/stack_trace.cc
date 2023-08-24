@@ -17,10 +17,11 @@
 #include "sandboxed_api/sandbox2/stack_trace.h"
 
 #include <fcntl.h>
-#include <sys/resource.h>
 #include <sys/stat.h>
 #include <syscall.h>
+#include <unistd.h>
 
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>
@@ -28,11 +29,15 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"

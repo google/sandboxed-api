@@ -16,6 +16,7 @@
 #define SANDBOXED_API_RPCCHANNEL_H_
 
 #include <cstddef>
+#include <cstdint>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

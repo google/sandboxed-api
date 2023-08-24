@@ -16,15 +16,15 @@
 
 #include "sandboxed_api/sandbox2/forkserver.h"
 
-#include <asm/types.h>
 #include <fcntl.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <sched.h>
 #include <sys/eventfd.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
+#include <sys/uio.h>
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -32,12 +32,13 @@
 #include <cerrno>
 #include <csignal>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <memory>
+#include <initializer_list>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -47,6 +48,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"

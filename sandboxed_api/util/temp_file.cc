@@ -14,18 +14,16 @@
 
 #include "sandboxed_api/util/temp_file.h"
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
-#include <cstdlib>
-#include <vector>
+#include <cerrno>
+#include <string>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/util/fileops.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {

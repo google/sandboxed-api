@@ -19,10 +19,17 @@
 
 #include <cinttypes>
 #include <cstdint>
+#include <ctime>
 #include <memory>
+#include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/utility/utility.h"
 #include "sandboxed_api/proto_helper.h"

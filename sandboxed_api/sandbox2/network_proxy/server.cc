@@ -14,19 +14,21 @@
 
 #include "sandboxed_api/sandbox2/network_proxy/server.h"
 
-#include <arpa/inet.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <signal.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <syscall.h>
 
+#include <atomic>
 #include <cerrno>
-#include <cstring>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 
