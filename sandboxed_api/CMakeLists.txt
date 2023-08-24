@@ -52,8 +52,7 @@ add_library(sapi_embed_file ${SAPI_LIB_TYPE}
 )
 add_library(sapi::embed_file ALIAS sapi_embed_file)
 target_link_libraries(sapi_embed_file
-  PRIVATE absl::core_headers
-          absl::strings
+  PRIVATE absl::strings
           sandbox2::util
           sapi::base
           sapi::fileops
@@ -71,8 +70,11 @@ add_library(sapi_sapi ${SAPI_LIB_TYPE}
 )
 add_library(sapi::sapi ALIAS sapi_sapi)
 target_link_libraries(sapi_sapi
-  PRIVATE absl::dynamic_annotations
+  PRIVATE absl::base
+          absl::dynamic_annotations
           absl::flat_hash_map
+          absl::log
+          absl::log_globals
           absl::status
           absl::statusor
           absl::str_format
@@ -100,6 +102,7 @@ add_library(sapi_call ${SAPI_LIB_TYPE}
 )
 add_library(sapi::call ALIAS sapi_call)
 target_link_libraries(sapi_call PRIVATE
+  absl::core_headers
   sapi::var_type
   sapi::base
 )
@@ -172,8 +175,8 @@ target_link_libraries(sapi_client
           absl::dynamic_annotations
           absl::flags_parse
           absl::log
+          absl::log_flags
           absl::log_initialize
-          absl::statusor
           absl::strings
           libffi::libffi
           sandbox2::comms
@@ -210,7 +213,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   target_link_libraries(sapi_test PRIVATE
     absl::status
     absl::statusor
-    absl::time
     benchmark
     sandbox2::result
     sapi::proto_arg_proto

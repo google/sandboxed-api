@@ -19,12 +19,11 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
-#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/log/globals.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -119,13 +118,14 @@ class Sandbox {
 
   // Gets extra arguments to be passed to the sandboxee.
   virtual void GetArgs(std::vector<std::string>* args) const {
-    // Do nothing by default.
+    args->push_back(absl::StrCat("--stderrthreshold=",
+                                 static_cast<int>(absl::StderrThreshold())));
   }
 
  private:
   // Gets the environment variables passed to the sandboxee.
   virtual void GetEnvs(std::vector<std::string>* envs) const {
-    envs->push_back("GOOGLE_STDERRTHRESHOLD=INFO");
+    // Do nothing by default.
   }
 
   // Returns the sandbox policy. Subclasses can modify the default policy

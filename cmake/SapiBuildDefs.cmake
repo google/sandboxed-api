@@ -117,6 +117,8 @@ function(add_sapi_library)
   target_link_libraries("${_sapi_bin}" PRIVATE
     -fuse-ld=gold
     -Wl,--whole-archive "${_sapi_LIBRARY}" -Wl,--no-whole-archive
+    # Needs to be whole-archive due to how it Abseil registers flags
+    -Wl,--whole-archive absl::log_flags -Wl,--no-whole-archive
     sapi::client
     ${CMAKE_DL_LIBS}
   )
