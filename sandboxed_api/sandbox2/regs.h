@@ -21,7 +21,6 @@
 #include <sys/types.h>
 
 #include <cstdint>
-#include <string>
 
 #include "absl/status/status.h"
 #include "sandboxed_api/config.h"

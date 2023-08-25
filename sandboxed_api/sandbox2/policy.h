@@ -18,7 +18,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_POLICY_H_
 #define SANDBOXED_API_SANDBOX2_POLICY_H_
 
-#include <asm/types.h>
+#include <linux/bpf_common.h>
 #include <linux/filter.h>   // IWYU pragma: export
 #include <linux/seccomp.h>  // IWYU pragma: export
 

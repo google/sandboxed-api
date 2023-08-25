@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/status/statusor.h"
 
 namespace sandbox2::util {

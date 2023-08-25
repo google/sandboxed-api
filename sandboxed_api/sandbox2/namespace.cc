@@ -23,7 +23,6 @@
 #include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <syscall.h>
 #include <unistd.h>
 

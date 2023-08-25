@@ -94,7 +94,9 @@ cc_test(
     deps = [
         ":regs",
         ":sanitizer",
+        ":syscall",
         ":util",
+        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/log:check",
@@ -607,7 +609,6 @@ cc_library(
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

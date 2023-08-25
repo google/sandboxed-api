@@ -19,7 +19,6 @@
 #define SANDBOXED_API_SANDBOX2_RESULT_H_
 
 #include <sys/resource.h>
-#include <sys/types.h>
 
 #include <cstdint>
 #include <memory>

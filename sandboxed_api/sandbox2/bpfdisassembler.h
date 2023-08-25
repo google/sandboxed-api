@@ -16,7 +16,6 @@
 #define SANDBOXED_API_SANDBOX2_BPFDISASSEMBLER_H_
 
 #include <string>
-#include <vector>
 
 #include "absl/types/span.h"
 

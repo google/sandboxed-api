@@ -18,7 +18,6 @@
 #ifndef SANDBOXED_API_SANDBOX2_SANITIZER_H_
 #define SANDBOXED_API_SANDBOX2_SANITIZER_H_
 
-#include "absl/base/macros.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

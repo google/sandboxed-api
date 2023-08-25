@@ -5,7 +5,6 @@
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -18,7 +17,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
+#include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/status_matchers.h"

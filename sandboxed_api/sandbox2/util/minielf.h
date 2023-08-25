@@ -16,8 +16,6 @@
 #define SANDBOXED_API_SANDBOX2_UTIL_MINIELF_H_
 
 #include <cstdint>
-#include <cstdio>
-#include <memory>
 #include <string>
 #include <vector>
 

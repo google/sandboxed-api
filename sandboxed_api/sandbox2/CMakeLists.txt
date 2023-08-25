@@ -558,8 +558,7 @@ target_link_libraries(sandbox2_sanitizer
           sapi::strerror
           sapi::raw_logging
           sapi::base
-  PUBLIC absl::core_headers
-         absl::flat_hash_set
+  PUBLIC absl::flat_hash_set
          absl::status
          absl::statusor
 )
@@ -796,6 +795,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::bpf_helper
     sandbox2::regs
     sandbox2::sanitizer
+    sandbox2::syscall
     sandbox2::util
     sapi::test_main
   )

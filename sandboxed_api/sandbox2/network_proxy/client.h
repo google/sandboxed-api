@@ -15,7 +15,6 @@
 #ifndef SANDBOXED_API_SANDBOX2_NETWORK_PROXY_CLIENT_H_
 #define SANDBOXED_API_SANDBOX2_NETWORK_PROXY_CLIENT_H_
 
-#include <netinet/in.h>
 #include <sys/socket.h>
 
 #include <cstdint>
