@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_VARS_H_
 #define SANDBOXED_API_VARS_H_
 
+// IWYU pragma: begin_exports
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
@@ -22,5 +23,6 @@
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_struct.h"
 #include "sandboxed_api/var_void.h"
+// IWYU pragma: end_exports
 
 #endif  // SANDBOXED_API_VARS_H_
