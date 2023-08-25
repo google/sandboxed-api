@@ -27,8 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/message.h"
 #include "absl/base/attributes.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/flags/parse.h"
@@ -37,6 +35,8 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/message.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/proto_arg.pb.h"
