@@ -28,6 +28,7 @@
 
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
+#include "sandboxed_api/sandbox2/syscall.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/violation.pb.h"
 
 #define SANDBOX2_TRACE         \
