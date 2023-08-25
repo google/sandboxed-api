@@ -177,6 +177,7 @@ target_link_libraries(sapi_client
           absl::log
           absl::log_flags
           absl::log_initialize
+          absl::statusor
           absl::strings
           libffi::libffi
           sandbox2::comms
@@ -213,6 +214,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   target_link_libraries(sapi_test PRIVATE
     absl::status
     absl::statusor
+    absl::time
     benchmark
     sandbox2::result
     sapi::proto_arg_proto
