@@ -178,12 +178,7 @@ std::unique_ptr<Policy> MinimalTestcasePolicy() {
     builder.DisableNamespaces();
   }
 
-  builder.AllowStaticStartup()
-      .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-#ifdef __NR_access
-      .BlockSyscallWithErrno(__NR_access, ENOENT)
-#endif
-      .AllowExit();
+  builder.AllowStaticStartup().AllowExit();
   return builder.BuildOrDie();
 }
 
@@ -217,18 +212,7 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
     builder.AddLibrariesForBinary(path);
   }
 
-  builder.AllowDynamicStartup()
-      .AllowOpen()
-      .AllowExit()
-      .AllowMmap()
-#ifdef __NR_access
-      // New glibc accesses /etc/ld.so.preload
-      .BlockSyscallWithErrno(__NR_access, ENOENT)
-#endif
-#ifdef __NR_faccessat
-      .BlockSyscallWithErrno(__NR_faccessat, ENOENT)
-#endif
-      .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
+  builder.AllowDynamicStartup().AllowExit();
   auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
@@ -255,13 +239,7 @@ TEST(MallocTest, SystemMallocWorks) {
     });
   }
 
-  builder.AllowStaticStartup()
-      .AllowSystemMalloc()
-      .BlockSyscallWithErrno(__NR_prlimit64, EPERM)
-#ifdef __NR_access
-      .BlockSyscallWithErrno(__NR_access, ENOENT)
-#endif
-      .AllowExit();
+  builder.AllowStaticStartup().AllowSystemMalloc().AllowExit();
   auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
@@ -324,19 +302,7 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
           },
           {ERRNO(42)})
       .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
-      .AddPolicyOnSyscall(__NR_umask, {DENY})
-      .BlockSyscallsWithErrno(
-          {
-#ifdef __NR_open
-              __NR_open,
-#endif
-              __NR_openat,
-#ifdef __NR_access
-              __NR_access,
-#endif
-          },
-          ENOENT)
-      .BlockSyscallWithErrno(__NR_prlimit64, EPERM);
+      .AddPolicyOnSyscall(__NR_umask, {DENY});
   auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));

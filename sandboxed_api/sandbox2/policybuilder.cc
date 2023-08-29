@@ -221,7 +221,14 @@ PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
   AllowFutexOp(FUTEX_WAKE);
   AllowLimitedMadvise();
   AllowGetRandom();
+  AllowGetPIDs();
   AllowWipeOnFork();
+#ifdef __NR_open
+  OverridableBlockSyscallWithErrno(__NR_open, ENOENT);
+#endif
+#ifdef __NR_openat
+  OverridableBlockSyscallWithErrno(__NR_openat, ENOENT);
+#endif
 
   return AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
     return {
@@ -254,6 +261,13 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowLimitedMadvise();
   AllowPrctlSetVma();
   AllowPoll();
+  AllowGetPIDs();
+#ifdef __NR_open
+  OverridableBlockSyscallWithErrno(__NR_open, ENOENT);
+#endif
+#ifdef __NR_openat
+  OverridableBlockSyscallWithErrno(__NR_openat, ENOENT);
+#endif
 
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
@@ -945,6 +959,9 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
 
+#ifdef __NR_prlimit64
+  OverridableBlockSyscallWithErrno(__NR_prlimit64, EPERM);
+#endif
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
                                         JEQ32(PROT_READ, ALLOW),
@@ -955,12 +972,10 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 
 PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
 #ifdef __ANDROID__
-  AllowAccess();
   AllowSafeFcntl();
   AllowGetIDs();
   AllowGetPIDs();
   AllowGetRandom();
-  AllowOpen();
   AllowSyscalls({
 #ifdef __NR_fstatfs
       __NR_fstatfs,
@@ -1026,6 +1041,8 @@ PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
   });
 #endif
 
+  AllowAccess();
+  AllowOpen();
   AllowRead();
   AllowStat();
   AllowSyscalls({__NR_lseek,
