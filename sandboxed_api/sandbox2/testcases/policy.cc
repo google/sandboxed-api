@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "absl/base/attributes.h"
 #include "sandboxed_api/config.h"
 
 #ifdef SAPI_X86_64
@@ -74,6 +75,15 @@ void TestPtraceBlocked() {
   }
 }
 
+void TestBpfBlocked() {
+  int result = syscall(__NR_bpf, 0, nullptr, 0);
+
+  if (result != -1 || errno != EPERM) {
+    printf("System call should have been blocked\n");
+    exit(EXIT_FAILURE);
+  }
+}
+
 void TestCloneUntraced() {
   syscall(__NR_clone, static_cast<uintptr_t>(CLONE_UNTRACED), nullptr, nullptr,
           nullptr, static_cast<uintptr_t>(0));
@@ -89,13 +99,7 @@ void TestBpf() {
   exit(EXIT_FAILURE);
 }
 
-void TestBpfError() {
-  exit(syscall(__NR_bpf, 0, nullptr, 0) == -1 ? errno : 0);
-}
-
-void TestIsatty() {
-  isatty(0);
-}
+void TestIsatty() { isatty(0); }
 
 int main(int argc, char* argv[]) {
   // Disable buffering.
@@ -131,10 +135,10 @@ int main(int argc, char* argv[]) {
       TestIsatty();
       break;
     case 7:
-      TestBpfError();
-      break;
-    case 8:
       TestPtraceBlocked();
+      ABSL_FALLTHROUGH_INTENDED;
+    case 8:
+      TestBpfBlocked();
       break;
     default:
       printf("Unknown test: %d\n", testno);

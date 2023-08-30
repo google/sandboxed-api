@@ -129,6 +129,7 @@ cc_binary(
     features = ["fully_static_link"],
     deps = [
         "//sandboxed_api:config",
+        "@com_google_absl//absl/base:core_headers",
     ],
 )
 

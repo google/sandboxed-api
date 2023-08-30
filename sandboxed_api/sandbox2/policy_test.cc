@@ -92,21 +92,6 @@ TEST(PolicyTest, PtraceDisallowed) {
   EXPECT_THAT(result.reason_code(), Eq(__NR_ptrace));
 }
 
-TEST(PolicyTest, PtraceBlocked) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
-  std::vector<std::string> args = {path, "8"};
-
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPermissiveTestPolicy(path)
-                                .BlockSyscallWithErrno(__NR_ptrace, EPERM)
-                                .TryBuild());
-  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
-  auto result = s2.Run();
-
-  // The policy binary fails with an error if the system call is *not* blocked.
-  ASSERT_THAT(result.final_status(), Eq(Result::OK));
-}
-
 // Test that clone(2) with flag CLONE_UNTRACED is disallowed.
 TEST(PolicyTest, CloneUntracedDisallowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
@@ -133,21 +118,21 @@ TEST(PolicyTest, BpfDisallowed) {
   EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
 }
 
-// Test that bpf(2) can return EPERM.
-TEST(PolicyTest, BpfPermissionDenied) {
+// Test that ptrace/bpf can return EPERM.
+TEST(PolicyTest, BpfPtracePermissionDenied) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "7"};
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPermissiveTestPolicy(path)
-                                .BlockSyscallWithErrno(__NR_bpf, EPERM)
-                                .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy, CreateDefaultPermissiveTestPolicy(path)
+                       .BlockSyscallsWithErrno({__NR_ptrace, __NR_bpf}, EPERM)
+                       .TryBuild());
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
   auto result = s2.Run();
 
-  // bpf(2) is not a violation due to explicit policy.  EPERM is expected.
+  // ptrace/bpf is not a violation due to explicit policy.  EPERM is expected.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
-  EXPECT_THAT(result.reason_code(), Eq(EPERM));
+  EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
 TEST(PolicyTest, IsattyAllowed) {

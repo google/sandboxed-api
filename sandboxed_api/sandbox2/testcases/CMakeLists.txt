@@ -150,6 +150,7 @@ set_target_properties(sandbox2_testcase_policy PROPERTIES
 )
 target_link_libraries(sandbox2_testcase_policy PRIVATE
   -static
+  absl::core_headers
   sapi::base
   sapi::config
 )
