@@ -281,16 +281,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
                  "Forkserver mode is unspecified");
 
   const bool will_execve = execve_fd != -1;
-
-  // Prepare the arguments before sandboxing (if needed), as doing it after
-  // sandoxing can cause syscall violations (e.g. related to memory management).
-  std::vector<std::string> args;
-  std::vector<std::string> envs;
-  if (will_execve) {
-    PrepareExecveArgs(request, &args, &envs);
-  }
-
-  SanitizeEnvironment();
+  const bool should_sandbox = request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX;
 
   absl::StatusOr<absl::flat_hash_set<int>> open_fds = sanitizer::GetListOfFDs();
   if (!open_fds.ok()) {
@@ -298,6 +289,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
                  std::string(open_fds.status().message()).c_str());
     open_fds = absl::flat_hash_set<int>();
   }
+  SanitizeEnvironment();
 
   InitializeNamespaces(request, uid, gid, avoid_pivot_root);
 
@@ -331,40 +323,44 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   signaling_fd.Close();
   status_fd.Close();
 
-  if (request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-    // Sandboxing can be enabled either here - just before execve, or somewhere
-    // inside the executed binary (e.g. after basic structures have been
-    // initialized, and resources acquired). In the latter case, it's up to the
-    // sandboxed binary to establish proper Comms channel (using
-    // Comms::kSandbox2ClientCommsFD) and call sandbox2::Client::SandboxMeHere()
+  Client c(comms_);
 
-    // Create a Comms object here and not above, as we know we will execve and
-    // therefore not call the Comms destructor, which would otherwise close the
-    // comms file descriptor, which we do not want for the general case.
-    Client c(comms_);
+  // Prepare the arguments before sandboxing (if needed), as doing it after
+  // sandoxing can cause syscall violations (e.g. related to memory management).
+  std::vector<std::string> args;
+  std::vector<std::string> envs;
+  if (will_execve) {
+    PrepareExecveArgs(request, &args, &envs);
+  }
 
+  // Sandboxing can be enabled either here - just before execve, or somewhere
+  // inside the executed binary (e.g. after basic structures have been
+  // initialized, and resources acquired). In the latter case, it's up to the
+  // sandboxed binary to establish proper Comms channel (using
+  // Comms::kSandbox2ClientCommsFD) and call sandbox2::Client::SandboxMeHere()
+  if (should_sandbox) {
     // The following client calls are basically SandboxMeHere. We split it so
     // that we can set up the envp after we received the file descriptors but
     // before we enable the syscall filter.
     c.PrepareEnvironment(&execve_fd);
-
     if (comms_->GetConnectionFD() != Comms::kSandbox2ClientCommsFD) {
       envs.push_back(absl::StrCat(Comms::kSandbox2CommsFDEnvVar, "=",
                                   comms_->GetConnectionFD()));
     }
     envs.push_back(c.GetFdMapEnvVar());
-    // Convert args and envs before enabling sandbox (it'll allocate which might
-    // be blocked).
-    util::CharPtrArray argv = util::CharPtrArray::FromStringVector(args);
-    util::CharPtrArray envp = util::CharPtrArray::FromStringVector(envs);
+  }
 
+  // Convert args and envs before enabling sandbox (it'll allocate which might
+  // be blocked).
+  util::CharPtrArray argv = util::CharPtrArray::FromStringVector(args);
+  util::CharPtrArray envp = util::CharPtrArray::FromStringVector(envs);
+
+  if (should_sandbox) {
     c.EnableSandbox();
-    ExecuteProcess(execve_fd, argv.data(), envp.data());
   }
 
   if (will_execve) {
-    ExecuteProcess(execve_fd, util::CharPtrArray::FromStringVector(args).data(),
-                   util::CharPtrArray::FromStringVector(envs).data());
+    ExecuteProcess(execve_fd, argv.data(), envp.data());
   }
 }
 
