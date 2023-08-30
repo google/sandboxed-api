@@ -6,6 +6,7 @@
 #include <sys/types.h>
 
 #include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <thread>
@@ -22,6 +23,8 @@
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
+#include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {

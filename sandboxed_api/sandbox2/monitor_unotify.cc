@@ -8,6 +8,7 @@
 #include <sys/ptrace.h>
 #include <sys/resource.h>
 #include <sys/sysinfo.h>
+#include <sys/uio.h>
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -34,10 +35,17 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/client.h"
+#include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
+#include "sandboxed_api/sandbox2/notify.h"
+#include "sandboxed_api/sandbox2/policy.h"
+#include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/raw_logging.h"
 
 #ifndef SECCOMP_GET_NOTIF_SIZES
@@ -65,6 +73,8 @@ namespace sandbox2 {
 
 namespace {
 
+using ::sapi::file_util::fileops::FDCloser;
+
 int seccomp(unsigned int operation, unsigned int flags, void* args) {
   return syscall(SYS_seccomp, operation, flags, args);
 }
@@ -86,7 +96,55 @@ sapi::cpu::Architecture AuditArchToCPUArch(uint32_t arch) {
   }
 }
 
-using ::sapi::file_util::fileops::FDCloser;
+absl::Status WaitForFdReadable(int fd, absl::Time deadline) {
+  pollfd pfds[] = {
+      {.fd = fd, .events = POLLIN},
+  };
+  for (absl::Duration remaining = deadline - absl::Now();
+       remaining > absl::ZeroDuration(); remaining = deadline - absl::Now()) {
+    int ret = poll(pfds, ABSL_ARRAYSIZE(pfds),
+                   static_cast<int>(absl::ToInt64Milliseconds(remaining)));
+    if (ret > 0) {
+      if (pfds[0].revents & POLLIN) {
+        return absl::OkStatus();
+      }
+      if (pfds[0].revents & POLLHUP) {
+        return absl::UnavailableError("hangup");
+      }
+      return absl::InternalError("poll");
+    }
+    if (ret == -1 && errno != EINTR) {
+      return absl::ErrnoToStatus(errno, "poll");
+    }
+  }
+  return absl::DeadlineExceededError("waiting for fd");
+}
+
+absl::Status ReadWholeWithDeadline(int fd, std::vector<iovec> vecs_vec,
+                                   absl::Time deadline) {
+  absl::Span<iovec> vecs = absl::MakeSpan(vecs_vec);
+  while (!vecs.empty()) {
+    SAPI_RETURN_IF_ERROR(WaitForFdReadable(fd, deadline));
+    ssize_t r = readv(fd, vecs.data(), vecs.size());
+    if (r < 0 && errno != EINTR) {
+      return absl::ErrnoToStatus(errno, "readv");
+    }
+    while (r > 0) {
+      if (vecs.empty()) {
+        return absl::InternalError("readv return value too big");
+      }
+      iovec& vec = vecs.front();
+      if (r < vec.iov_len) {
+        vec.iov_len -= r;
+        vec.iov_base = reinterpret_cast<char*>(vec.iov_base) + r;
+        break;
+      }
+      r -= vec.iov_len;
+      vecs.remove_prefix(1);
+    }
+  }
+  return absl::OkStatus();
+}
 
 }  // namespace
 
@@ -162,7 +220,6 @@ void UnotifyMonitor::Run() {
       {.fd = seccomp_notify_fd_.get(), .events = POLLIN},
       {.fd = monitor_notify_fd_.get(), .events = POLLIN},
   };
-  bool wait_for_sandboxee = true;
   while (result_.final_status() == Result::UNSET) {
     int64_t deadline = deadline_millis_.load(std::memory_order_relaxed);
     absl::Duration remaining = absl::FromUnixMillis(deadline) - absl::Now();
@@ -171,6 +228,7 @@ void UnotifyMonitor::Run() {
       timed_out_ = true;
       MaybeGetStackTrace(process_.main_pid, Result::TIMEOUT);
       KillSandboxee();
+      SetExitStatusFromStatusPipe();
       break;
     }
 
@@ -178,6 +236,7 @@ void UnotifyMonitor::Run() {
       external_kill_ = true;
       MaybeGetStackTrace(process_.main_pid, Result::EXTERNAL_KILL);
       KillSandboxee();
+      SetExitStatusFromStatusPipe();
       break;
     }
 
@@ -188,6 +247,7 @@ void UnotifyMonitor::Run() {
       network_violation_ = true;
       MaybeGetStackTrace(process_.main_pid, Result::VIOLATION);
       KillSandboxee();
+      SetExitStatusFromStatusPipe();
       break;
     }
     constexpr int64_t kMinWakeupMsec = 30000;
@@ -200,7 +260,11 @@ void UnotifyMonitor::Run() {
     if (ret == 0 || (ret == -1 && errno == EINTR)) {
       continue;
     }
-    PCHECK(ret != -1);
+    if (ret == -1) {
+      PLOG(ERROR) << "waiting for action failed";
+      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
+      break;
+    }
     if (pfds[2].revents & POLLIN) {
       uint64_t value = 0;
       read(monitor_notify_fd_.get(), &value, sizeof(value));
@@ -208,38 +272,14 @@ void UnotifyMonitor::Run() {
     }
     if (pfds[0].revents & POLLIN) {
       SetExitStatusFromStatusPipe();
-      wait_for_sandboxee = false;
       break;
     }
     if (pfds[0].revents & POLLHUP) {
       SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
-      wait_for_sandboxee = false;
       break;
     }
     if (pfds[1].revents & POLLIN) {
       HandleUnotify();
-      wait_for_sandboxee = false;
-    }
-  }
-  if (wait_for_sandboxee) {
-    absl::Time deadline = absl::Now() + absl::Seconds(1);
-    int ret = 0;
-    do {
-      absl::Duration remaining = deadline - absl::Now();
-      if (remaining <= absl::ZeroDuration()) {
-        ret = 0;
-        break;
-      }
-      ret =
-          poll(pfds, 1, static_cast<int>(absl::ToInt64Milliseconds(remaining)));
-    } while (ret == -1 && errno == EINTR);
-    PCHECK(ret != -1);
-    if (ret == 0) {
-      LOG(WARNING) << "Waiting for sandboxee exit timed out";
-    } else if (pfds[0].revents & POLLIN) {
-      SetExitStatusFromStatusPipe();
-    } else if (pfds[0].revents & POLLHUP) {
-      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
     }
   }
   KillInit();
@@ -249,11 +289,19 @@ void UnotifyMonitor::SetExitStatusFromStatusPipe() {
   int code, status;
   rusage usage;
 
-  PCHECK(read(process_.status_fd.get(), &code, sizeof(code)) == sizeof(code));
-  PCHECK(read(process_.status_fd.get(), &status, sizeof(status)) ==
-         sizeof(status));
-  PCHECK(read(process_.status_fd.get(), &usage, sizeof(usage)) ==
-         sizeof(usage));
+  std::vector<iovec> iov = {
+      {.iov_base = &code, .iov_len = sizeof(code)},
+      {.iov_base = &status, .iov_len = sizeof(status)},
+      {.iov_base = &usage, .iov_len = sizeof(usage)},
+  };
+
+  if (absl::Status status = ReadWholeWithDeadline(
+          process_.status_fd.get(), iov, absl::Now() + absl::Seconds(1));
+      !status.ok()) {
+    PLOG(ERROR) << "reading status pipe failed " << status;
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
+    return;
+  }
 
   result_.SetRUsageSandboxee(usage);
   if (code == CLD_EXITED) {
@@ -270,7 +318,7 @@ void UnotifyMonitor::SetExitStatusFromStatusPipe() {
       SetExitStatusCode(Result::SIGNALED, status);
     }
   } else {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_MONITOR);
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
   }
 }
 

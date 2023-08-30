@@ -477,20 +477,23 @@ target_link_libraries(sandbox2_monitor_unotify
           absl::core_headers
           absl::log
           absl::optional
+          absl::span
           absl::status
           absl::strings
           absl::time
           sapi::base
           sandbox2::client
           sandbox2::forkserver_proto
-          sapi::fileops
-          sapi::raw_logging
+          sapi::config
+          sapi::status
   PUBLIC sandbox2::executor
          sandbox2::monitor_base
          sandbox2::notify
          sandbox2::policy
+         sandbox2::result
          absl::statusor
          absl::synchronization
+         sapi::fileops
          sapi::raw_logging
 )
 

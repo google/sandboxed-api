@@ -488,8 +488,11 @@ cc_library(
         ":monitor_base",
         ":notify",
         ":policy",
+        ":result",
+        "//sandboxed_api:config",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
@@ -499,6 +502,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
