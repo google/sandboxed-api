@@ -579,7 +579,6 @@ target_link_libraries(sandbox2_forkserver
           sandbox2::bpf_helper
           sandbox2::client
           sandbox2::comms
-          sapi::fileops
           sandbox2::fork_client
           sandbox2::forkserver_proto
           sandbox2::namespace
@@ -592,6 +591,7 @@ target_link_libraries(sandbox2_forkserver
           sapi::raw_logging
   PUBLIC absl::core_headers
          absl::log
+         sapi::fileops
 )
 
 # sandboxed_api/sandbox2:fork_client

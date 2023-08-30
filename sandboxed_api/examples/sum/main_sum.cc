@@ -156,13 +156,13 @@ absl::Status SumTransaction::Main() {
   sapi::v::Fd fd(fdesc);
   SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd));
   LOG(INFO) << "remote_fd = " << fd.GetRemoteFd();
-  TRANSACTION_FAIL_IF_NOT(fd.GetRemoteFd() == 3, "remote_fd != 3");
+  TRANSACTION_FAIL_IF_NOT(fd.GetRemoteFd() != -1, "remote_fd == -1");
 
   fdesc = open("/proc/self/comm", O_RDONLY);
   sapi::v::Fd fd2(fdesc);
   SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd2));
   LOG(INFO) << "remote_fd2 = " << fd2.GetRemoteFd();
-  TRANSACTION_FAIL_IF_NOT(fd2.GetRemoteFd() == 4, "remote_fd2 != 4");
+  TRANSACTION_FAIL_IF_NOT(fd2.GetRemoteFd() != -1, "remote_fd2 == -1");
 
   // Read from fd test.
   char buffer[1024] = {0};
