@@ -374,6 +374,7 @@ target_link_libraries(sandbox2_stack_trace
           absl::time
           sandbox2::client
           sandbox2::limits
+          sandbox2::mounts
           sandbox2::policybuilder
           sandbox2::util
           sandbox2::unwind

@@ -416,6 +416,7 @@ cc_library(
         ":comms",
         ":executor",
         ":limits",
+        ":mounts",
         ":namespace",
         ":policy",
         ":policybuilder",

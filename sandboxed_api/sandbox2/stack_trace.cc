@@ -21,7 +21,6 @@
 #include <syscall.h>
 #include <unistd.h>
 
-#include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>
@@ -42,6 +41,8 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
+#include "sandboxed_api/sandbox2/mounts.h"
+#include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/regs.h"
@@ -173,7 +174,8 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
                                 absl::StrCat(target_pid), "maps"))
 
       // Add the binary itself.
-      .AddFileAt(exe_path, app_path);
+      .AddFileAt(exe_path, app_path)
+      .AllowLlvmCoverage();
 
   return builder.TryBuild();
 }
@@ -320,20 +322,14 @@ absl::StatusOr<std::vector<std::string>> GetStackTrace(
         "Could not obtain stacktrace, regs == nullptr");
   }
 
-  // Show a warning if sandboxed libunwind is requested but we're running in
-  // an ASAN/coverage build (= we can't use sandboxed libunwind).
-  if (const bool coverage_enabled =
-          getenv("COVERAGE") != nullptr;
-      absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) &&
-      (sapi::sanitizers::IsAny() || coverage_enabled)) {
-    LOG_IF(WARNING, sapi::sanitizers::IsAny())
-        << "Sanitizer build, using non-sandboxed libunwind";
-    LOG_IF(WARNING, coverage_enabled)
-        << "Coverage build, using non-sandboxed libunwind";
+  if (!absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler)) {
     return UnsafeGetStackTrace(regs->pid());
   }
 
-  if (!absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler)) {
+  // Show a warning if sandboxed libunwind is requested but we're running in
+  // a sanitizer build (= we can't use sandboxed libunwind).
+  if (sapi::sanitizers::IsAny()) {
+    LOG(WARNING) << "Sanitizer build, using non-sandboxed libunwind";
     return UnsafeGetStackTrace(regs->pid());
   }
 
