@@ -242,19 +242,26 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
 
   SAPI_RAW_VLOG(3, "Sending a TLV message, tag: 0x%08x, length: %zu", tag,
                 length);
-  {
-    absl::MutexLock lock(&tlv_send_transmission_mutex_);
-    if (!Send(&tag, sizeof(tag))) {
+
+  // To maintain consistency with `RecvTL()`, we wrap `tag` and `length` in a TL
+  // struct.
+  const InternalTLV tl = {
+      .tag = tag,
+      .len = length,
+  };
+
+  absl::MutexLock lock(&tlv_send_transmission_mutex_);
+  if (length + sizeof(tl) > kSendTLVTempBufferSize) {
+    if (!Send(&tl, sizeof(tl))) {
       return false;
     }
-    if (!Send(&length, sizeof(length))) {
-      return false;
-    }
-    if (length > 0 && !Send(value, length)) {
-      return false;
-    }
+    return Send(value, length);
   }
-  return true;
+  uint8_t tlv[kSendTLVTempBufferSize];
+  memcpy(tlv, &tl, sizeof(tl));
+  memcpy(reinterpret_cast<uint8_t*>(tlv) + sizeof(tl), value, length);
+
+  return Send(&tlv, sizeof(tl) + length);
 }
 
 bool Comms::RecvString(std::string* v) {
@@ -573,14 +580,13 @@ bool Comms::Recv(void* data, size_t len) {
 
 // Internal helper method (low level).
 bool Comms::RecvTL(uint32_t* tag, size_t* length) {
-  if (!Recv(reinterpret_cast<uint8_t*>(tag), sizeof(*tag))) {
-    SAPI_RAW_VLOG(2, "RecvTL: Can't read tag");
+  InternalTLV tl;
+  if (!Recv(reinterpret_cast<uint8_t*>(&tl), sizeof(tl))) {
+    SAPI_RAW_VLOG(2, "RecvTL: Can't read tag and length");
     return false;
   }
-  if (!Recv(reinterpret_cast<uint8_t*>(length), sizeof(*length))) {
-    SAPI_RAW_VLOG(2, "RecvTL: Can't read length for tag %u", *tag);
-    return false;
-  }
+  *tag = tl.tag;
+  *length = tl.len;
   if (*length > GetMaxMsgSize()) {
     SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%zu > %zd)",
                  *length, GetMaxMsgSize());
@@ -622,6 +628,7 @@ bool Comms::RecvTLVGeneric(uint32_t* tag, T* value) {
 bool Comms::RecvTLV(uint32_t* tag, size_t* length, void* buffer,
                     size_t buffer_size) {
   absl::MutexLock lock(&tlv_recv_transmission_mutex_);
+
   if (!RecvTL(tag, length)) {
     return false;
   }

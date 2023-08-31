@@ -84,6 +84,12 @@ class Comms {
   // sandbox2::Comms object at the server-side).
   static constexpr int kSandbox2ClientCommsFD = 1023;
 
+  // Within SendTLV, a stack-allocated buffer is created to contiguously store
+  // the TLV in order to perform one call to Send.
+  // If the TLV is larger than the size below, two calls to Send are
+  // used.
+  static constexpr size_t kSendTLVTempBufferSize = 1024;
+
   static constexpr DefaultConnectionTag kDefaultConnection = {};
 
   static constexpr const char* kSandbox2CommsFDEnvVar = "SANDBOX2_COMMS_FD";
@@ -229,12 +235,14 @@ class Comms {
   // State of the channel (enum), socket will have to be connected later on.
   State state_ = State::kUnconnected;
 
-  // Special struct for passing credentials or FDs. Different from the one above
-  // as it inlines the value. This is important as the data is transmitted using
-  // sendmsg/recvmsg instead of send/recv.
+  // Special struct for passing credentials or FDs.
+  // When passing credentials or FDs, it inlines the value. This is important as
+  // the data is transmitted using sendmsg/recvmsg instead of send/recv.
+  // It is also used when sending/receiving through SendTLV/RecvTLV to reduce
+  // writes/reads, although the value is written/read separately.
   struct ABSL_ATTRIBUTE_PACKED InternalTLV {
     uint32_t tag;
-    uint32_t len;
+    size_t len;
   };
 
   // Fills sockaddr_un struct with proper values.
