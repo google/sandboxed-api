@@ -1094,3 +1094,21 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "network_proxy_test",
+    srcs = ["network_proxy_test.cc"],
+    copts = sapi_platform_copts(),
+    data = [
+        "//sandboxed_api/sandbox2/testcases:network_proxy",
+    ],
+    tags = ["no_qemu_user_mode"],
+    deps = [
+        ":sandbox2",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2/network_proxy:testing",
+        "//sandboxed_api/util:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

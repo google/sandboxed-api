@@ -27,11 +27,12 @@ target_link_libraries(sandbox2_networkproxy_sandbox PRIVATE
   absl::log_globals
   absl::log_initialize
   absl::log_severity
+  absl::statusor
   absl::strings
   absl::time
   sandbox2::bpf_helper
   sandbox2::comms
-  sapi::fileops
+  sandbox2::network_proxy_testing
   sapi::runfiles
   sandbox2::sandbox2
   sapi::base

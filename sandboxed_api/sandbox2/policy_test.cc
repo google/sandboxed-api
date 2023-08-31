@@ -137,7 +137,7 @@ TEST(PolicyTest, BpfPtracePermissionDenied) {
 
 TEST(PolicyTest, IsattyAllowed) {
   SKIP_SANITIZERS;
-  sandbox2::PolicyBuilder builder;
+  PolicyBuilder builder;
   if constexpr (sapi::host_os::IsAndroid()) {
     builder.DisableNamespaces().AllowDynamicStartup();
   }
@@ -157,7 +157,7 @@ TEST(PolicyTest, IsattyAllowed) {
 }
 
 std::unique_ptr<Policy> MinimalTestcasePolicy(absl::string_view path = "") {
-  sandbox2::PolicyBuilder builder;
+  PolicyBuilder builder;
 
   if constexpr (sapi::host_os::IsAndroid()) {
     builder.AllowDynamicStartup();
@@ -191,7 +191,7 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
       GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
   std::vector<std::string> args = {path};
 
-  sandbox2::PolicyBuilder builder;
+  PolicyBuilder builder;
 
   if constexpr (sapi::host_os::IsAndroid()) {
     builder.DisableNamespaces();
@@ -216,7 +216,7 @@ TEST(MallocTest, SystemMallocWorks) {
       GetTestSourcePath("sandbox2/testcases/malloc_system");
   std::vector<std::string> args = {path};
 
-  sandbox2::PolicyBuilder builder;
+  PolicyBuilder builder;
 
   if constexpr (sapi::host_os::IsAndroid()) {
     builder.DisableNamespaces();
@@ -250,7 +250,7 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
       GetTestSourcePath("sandbox2/testcases/add_policy_on_syscalls");
   std::vector<std::string> args = {path};
 
-  sandbox2::PolicyBuilder builder;
+  PolicyBuilder builder;
   if constexpr (sapi::host_os::IsAndroid()) {
     builder.DisableNamespaces();
     builder.AllowDynamicStartup();

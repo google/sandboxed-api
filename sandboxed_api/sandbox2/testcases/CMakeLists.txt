@@ -292,3 +292,32 @@ target_link_libraries(sandbox2_testcase_namespace PRIVATE
   sapi::file_base
   sapi::fileops
 )
+
+# sandboxed_api/sandbox2/testcases:network_proxy
+add_executable(sandbox2_testcase_network_proxy
+  network_proxy.cc
+)
+add_executable(sandbox2::testcase_network_proxy ALIAS sandbox2_testcase_network_proxy)
+set_target_properties(sandbox2_testcase_network_proxy PROPERTIES
+  OUTPUT_NAME network_proxy
+)
+target_link_libraries(sandbox2_testcase_network_proxy PRIVATE
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
+  absl::log_severity
+  absl::status
+  absl::statusor
+  absl::strings
+  absl::str_format
+  sandbox2::client
+  sandbox2::comms
+  sandbox2::network_proxy_client
+  sapi::base
+  sapi::file_base
+  sapi::fileops
+  sapi::status
+)
+

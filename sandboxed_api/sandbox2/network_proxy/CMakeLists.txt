@@ -60,6 +60,21 @@ target_link_libraries(sandbox2_network_proxy_client PRIVATE
   sapi::status
 )
 
+# sandboxed_api/sandbox2/network_proxy:testing
+add_library(sandbox2_network_proxy_testing ${SAPI_LIB_TYPE}
+  testing.cc
+  testing.h
+)
+add_library(sandbox2::network_proxy_testing ALIAS sandbox2_network_proxy_testing)
+target_link_libraries(sandbox2_network_proxy_testing PRIVATE
+  absl::log
+  absl::status
+  absl::statusor
+  absl::strings
+  sapi::fileops
+  sapi::base
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/network_proxy:filtering_test
   add_executable(sandbox2_filtering_test

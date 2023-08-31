@@ -1197,6 +1197,27 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
+
+  # sandboxed_api/sandbox2:network_proxy_test
+  add_executable(sandbox2_network_proxy_test
+    network_proxy_test.cc
+  )
+  set_target_properties(sandbox2_network_proxy_test PROPERTIES
+    OUTPUT_NAME network_proxy_test
+  )
+  target_link_libraries(sandbox2_network_proxy_test
+    PRIVATE absl::strings
+            sandbox2::sandbox2
+            sandbox2::network_proxy_testing
+            sapi::status_matchers
+            sapi::testing
+            sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_bpfdisassembler_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
+
 endif()
 
 configure_file(

@@ -26,22 +26,22 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/macros.h"
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/base/log_severity.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/network_proxy/testing.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
+#include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/runfiles.h"
 
 namespace {
@@ -58,58 +58,6 @@ std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
       .AllowStat()                 // printf,puts
       .AddLibrariesForBinary(sandboxee_path)
       .BuildOrDie();
-}
-
-void Server(int port) {
-  sapi::file_util::fileops::FDCloser s(
-      socket(AF_INET6, SOCK_STREAM | SOCK_CLOEXEC, 0));
-  if (s.get() < 0) {
-    PLOG(ERROR) << "socket() failed";
-    return;
-  }
-
-  if (int enable = 1; setsockopt(s.get(), SOL_SOCKET, SO_REUSEADDR, &enable,
-                                 sizeof(enable)) < 0) {
-    PLOG(ERROR) << "setsockopt(SO_REUSEADDR) failed";
-    return;
-  }
-
-  // Listen to localhost only.
-  struct sockaddr_in6 addr = {};
-  addr.sin6_family = AF_INET6;
-  addr.sin6_port = htons(port);
-
-  int err = inet_pton(AF_INET6, "::1", &addr.sin6_addr.s6_addr);
-  if (err == 0) {
-    LOG(ERROR) << "inet_pton() failed";
-    return;
-  }
-  if (err == -1) {
-    PLOG(ERROR) << "inet_pton() failed";
-    return;
-  }
-
-  if (bind(s.get(), reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) <
-      0) {
-    PLOG(ERROR) << "bind() failed";
-    return;
-  }
-
-  if (listen(s.get(), 1) < 0) {
-    PLOG(ERROR) << "listen() failed";
-    return;
-  }
-
-  sapi::file_util::fileops::FDCloser client(accept(s.get(), 0, 0));
-  if (client.get() < 0) {
-    PLOG(ERROR) << "accept() failed";
-    return;
-  }
-
-  constexpr char kMsg[] = "Hello World\n";
-  if (write(client.get(), kMsg, ABSL_ARRAYSIZE(kMsg) - 1) < 0) {
-    PLOG(ERROR) << "write() failed";
-  }
 }
 
 int ConnectToServer(int port) {
@@ -177,9 +125,12 @@ int main(int argc, char* argv[]) {
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
-  int port = 8085;
-  std::thread server_thread{Server,port};
-  server_thread.detach();
+
+  absl::StatusOr<int> port = sandbox2::StartNetworkProxyTestServer();
+  if (!port.ok()) {
+    LOG(ERROR) << port.status();
+    return EXIT_FAILURE;
+  }
 
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
   const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
@@ -214,7 +165,7 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-  if (!HandleSandboxee(comms, port)) {
+  if (!HandleSandboxee(comms, *port)) {
     if (!s2.IsTerminated()) {
       // Kill the sandboxee, because failure to receive the data over the Comms
       // channel doesn't automatically mean that the sandboxee itself had
