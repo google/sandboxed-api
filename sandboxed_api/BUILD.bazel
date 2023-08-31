@@ -23,9 +23,12 @@ exports_files(["LICENSE"])
 
 cc_library(
     name = "config",
+    srcs = ["config.cc"],
     hdrs = ["config.h"],
     copts = sapi_platform_copts(),
-    deps = ["@com_google_absl//absl/base:config"],
+    deps = [
+        "@com_google_absl//absl/base:config",
+    ],
 )
 
 sapi_proto_library(

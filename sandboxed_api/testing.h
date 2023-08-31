@@ -18,7 +18,7 @@
 #include <string>
 
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/config.h"
+#include "sandboxed_api/config.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
 // The macro SKIP_ANDROID can be used in tests to skip running a
@@ -66,10 +66,14 @@
     }                                                         \
   } while (0)
 
-namespace sapi {
+#define SKIP_SANITIZERS              \
+  do {                               \
+    if (sapi::sanitizers::IsAny()) { \
+      return;                        \
+    }                                \
+  } while (0)
 
-// Returns whether the executable running under code coverage.
-bool IsCoverageRun();
+namespace sapi {
 
 sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
     absl::string_view bin_path);

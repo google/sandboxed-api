@@ -17,9 +17,8 @@
 
 #include <features.h>
 #include <cstdint>
-#include <string>
 
-#include "absl/base/config.h"
+#include "absl/base/config.h"  // IWYU pragma: keep
 
 // GCC/Clang define __x86_64__, Visual Studio uses _M_X64
 #if defined(__x86_64__) || defined(_M_X64)
@@ -42,6 +41,9 @@
 #endif
 
 namespace sapi {
+
+// Returns whether the executable running under code coverage.
+bool IsCoverageRun();
 
 namespace cpu {
 

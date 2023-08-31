@@ -239,6 +239,10 @@ class PolicyBuilder final {
   // all binaries.
   PolicyBuilder& AllowLlvmSanitizers();
 
+  // Allows system calls typically used by the LLVM coverage.
+  // This method is intended as a best effort.
+  PolicyBuilder& AllowLlvmCoverage();
+
   // Appends code to allow mmap. Specifically this allows mmap and mmap2 syscall
   // on architectures where this syscalls exist.
   PolicyBuilder& AllowMmap();

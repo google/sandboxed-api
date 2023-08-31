@@ -136,7 +136,7 @@ TEST(PolicyTest, BpfPtracePermissionDenied) {
 }
 
 TEST(PolicyTest, IsattyAllowed) {
-  SKIP_SANITIZERS_AND_COVERAGE;
+  SKIP_SANITIZERS;
   sandbox2::PolicyBuilder builder;
   if constexpr (sapi::host_os::IsAndroid()) {
     builder.DisableNamespaces().AllowDynamicStartup();
@@ -145,7 +145,8 @@ TEST(PolicyTest, IsattyAllowed) {
       .AllowExit()
       .AllowRead()
       .AllowWrite()
-      .AllowTCGETS();
+      .AllowTCGETS()
+      .AllowLlvmCoverage();
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "6"};
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
@@ -155,7 +156,7 @@ TEST(PolicyTest, IsattyAllowed) {
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
 }
 
-std::unique_ptr<Policy> MinimalTestcasePolicy() {
+std::unique_ptr<Policy> MinimalTestcasePolicy(absl::string_view path = "") {
   sandbox2::PolicyBuilder builder;
 
   if constexpr (sapi::host_os::IsAndroid()) {
@@ -163,7 +164,7 @@ std::unique_ptr<Policy> MinimalTestcasePolicy() {
     builder.DisableNamespaces();
   }
 
-  builder.AllowStaticStartup().AllowExit();
+  builder.AllowStaticStartup().AllowExit().AllowLlvmCoverage();
   return builder.BuildOrDie();
 }
 
@@ -172,10 +173,11 @@ std::unique_ptr<Policy> MinimalTestcasePolicy() {
 // compile static binaries, and we need to update the policy just above.
 TEST(MinimalTest, MinimalBinaryWorks) {
   SKIP_ANDROID;
-  SKIP_SANITIZERS_AND_COVERAGE;
+  SKIP_SANITIZERS;
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
-  Sandbox2 s2(std::make_unique<Executor>(path, args), MinimalTestcasePolicy());
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              MinimalTestcasePolicy(path));
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -184,7 +186,7 @@ TEST(MinimalTest, MinimalBinaryWorks) {
 
 // Test that we can sandbox a minimal non-static binary returning 0.
 TEST(MinimalTest, MinimalSharedBinaryWorks) {
-  SKIP_SANITIZERS_AND_COVERAGE;
+  SKIP_SANITIZERS;
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
   std::vector<std::string> args = {path};
@@ -197,7 +199,7 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
     builder.AddLibrariesForBinary(path);
   }
 
-  builder.AllowDynamicStartup().AllowExit();
+  builder.AllowDynamicStartup().AllowExit().AllowLlvmCoverage();
   auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
@@ -209,7 +211,7 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
 
 // Test that the AllowSystemMalloc helper works as expected.
 TEST(MallocTest, SystemMallocWorks) {
-  SKIP_SANITIZERS_AND_COVERAGE;
+  SKIP_SANITIZERS;
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/malloc_system");
   std::vector<std::string> args = {path};
@@ -224,7 +226,10 @@ TEST(MallocTest, SystemMallocWorks) {
     });
   }
 
-  builder.AllowStaticStartup().AllowSystemMalloc().AllowExit();
+  builder.AllowStaticStartup()
+      .AllowSystemMalloc()
+      .AllowExit()
+      .AllowLlvmCoverage();
   auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));

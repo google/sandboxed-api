@@ -34,6 +34,7 @@
 #include <cerrno>
 #include <csignal>
 #include <cstdint>
+#include <cstdlib>
 #include <deque>
 #include <functional>
 #include <iterator>
@@ -327,53 +328,86 @@ PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
-  if constexpr (sapi::sanitizers::IsAny()) {
-    // *san use a custom allocator that runs mmap/unmap under the hood.  For
-    // example:
-    // https://github.com/llvm/llvm-project/blob/596d534ac3524052df210be8d3c01a33b2260a42/compiler-rt/lib/asan/asan_allocator.cpp#L980
-    // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
-    AllowMmap();
-    AllowSyscall(__NR_munmap);
-
-    // https://github.com/llvm/llvm-project/blob/4bbc3290a25c0dc26007912a96e0f77b2092ee56/compiler-rt/lib/sanitizer_common/sanitizer_stack_store.cpp#L293
-    AddPolicyOnSyscall(__NR_mprotect,
-                       {
-                           ARG_32(2),
-                           BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
-                                    ~uint32_t{PROT_READ | PROT_WRITE}),
-                           JEQ32(PROT_NONE, ALLOW),
-                       });
-
-    AddPolicyOnSyscall(__NR_madvise, {
-                                         ARG_32(2),
-                                         JEQ32(MADV_DONTDUMP, ALLOW),
-                                         JEQ32(MADV_NOHUGEPAGE, ALLOW),
-                                     });
-    // Sanitizers read from /proc. For example:
-    // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L1155
-    AddDirectoryIfNamespaced("/proc");
-    AllowOpen();
-    // Sanitizers need pid for reports. For example:
-    // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L740
-    AllowGetPIDs();
-    // Sanitizers may try color output. For example:
-    // https://github.com/llvm/llvm-project/blob/87dd3d350c4ce0115b2cdf91d85ddd05ae2661aa/compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp#L157
-    OverridableBlockSyscallWithErrno(__NR_ioctl, EPERM);
-    // https://github.com/llvm/llvm-project/blob/9aa39481d9eb718e872993791547053a3c1f16d5/compiler-rt/lib/sanitizer_common/sanitizer_linux_libcdep.cpp#L150
-    // https://sourceware.org/git/?p=glibc.git;a=blob;f=nptl/pthread_getattr_np.c;h=de7edfa0928224eb8375e2fe894d6677570fbb3b;hb=HEAD#l188
-    OverridableBlockSyscallWithErrno(__NR_sched_getaffinity, EPERM);
-    // https://github.com/llvm/llvm-project/blob/02c2b472b510ff55679844c087b66e7837e13dc2/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L434
-#ifdef __NR_readlink
-    OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
-#endif
-    OverridableBlockSyscallWithErrno(__NR_readlinkat, ENOENT);
+  if constexpr (!sapi::sanitizers::IsAny()) {
+    return *this;
   }
+  // *san use a custom allocator that runs mmap/unmap under the hood.  For
+  // example:
+  // https://github.com/llvm/llvm-project/blob/596d534ac3524052df210be8d3c01a33b2260a42/compiler-rt/lib/asan/asan_allocator.cpp#L980
+  // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
+  AllowMmap();
+  AllowSyscall(__NR_munmap);
+  AllowSyscall(__NR_sched_yield);
+
+  // https://github.com/llvm/llvm-project/blob/4bbc3290a25c0dc26007912a96e0f77b2092ee56/compiler-rt/lib/sanitizer_common/sanitizer_stack_store.cpp#L293
+  AddPolicyOnSyscall(__NR_mprotect,
+                     {
+                         ARG_32(2),
+                         BPF_STMT(BPF_AND | BPF_ALU | BPF_K,
+                                  ~uint32_t{PROT_READ | PROT_WRITE}),
+                         JEQ32(PROT_NONE, ALLOW),
+                     });
+
+  AddPolicyOnSyscall(__NR_madvise, {
+                                       ARG_32(2),
+                                       JEQ32(MADV_DONTDUMP, ALLOW),
+                                       JEQ32(MADV_NOHUGEPAGE, ALLOW),
+                                   });
+  // Sanitizers read from /proc. For example:
+  // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L1155
+  AddDirectoryIfNamespaced("/proc");
+  AllowOpen();
+  // Sanitizers need pid for reports. For example:
+  // https://github.com/llvm/llvm-project/blob/634da7a1c61ee8c173e90a841eb1f4ea03caa20b/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L740
+  AllowGetPIDs();
+  // Sanitizers may try color output. For example:
+  // https://github.com/llvm/llvm-project/blob/87dd3d350c4ce0115b2cdf91d85ddd05ae2661aa/compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp#L157
+  OverridableBlockSyscallWithErrno(__NR_ioctl, EPERM);
+  // https://github.com/llvm/llvm-project/blob/9aa39481d9eb718e872993791547053a3c1f16d5/compiler-rt/lib/sanitizer_common/sanitizer_linux_libcdep.cpp#L150
+  // https://sourceware.org/git/?p=glibc.git;a=blob;f=nptl/pthread_getattr_np.c;h=de7edfa0928224eb8375e2fe894d6677570fbb3b;hb=HEAD#l188
+  OverridableBlockSyscallWithErrno(__NR_sched_getaffinity, EPERM);
+  // https://github.com/llvm/llvm-project/blob/02c2b472b510ff55679844c087b66e7837e13dc2/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L434
+#ifdef __NR_readlink
+  OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
+#endif
+  OverridableBlockSyscallWithErrno(__NR_readlinkat, ENOENT);
   if constexpr (sapi::sanitizers::IsASan()) {
     AllowSyscall(__NR_sigaltstack);
   }
   if constexpr (sapi::sanitizers::IsTSan()) {
     AllowSyscall(__NR_set_robust_list);
   }
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowLlvmCoverage() {
+  if (!sapi::IsCoverageRun()) {
+    return *this;
+  }
+  AllowStat();
+  AllowGetPIDs();
+  AllowOpen();
+  AllowRead();
+  AllowWrite();
+  AllowMkdir();
+  AllowSafeFcntl();
+  AllowSyscalls({
+      __NR_munmap, __NR_close, __NR_lseek,
+#ifdef __NR__llseek
+      __NR__llseek,  // Newer glibc on PPC
+#endif
+  });
+  AllowTcMalloc();
+  AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
+    return {
+        ARG_32(2),  // prot
+        JNE32(PROT_READ | PROT_WRITE, JUMP(&labels, mmap_end)),
+        ARG_32(3),  // flags
+        JEQ32(MAP_SHARED, ALLOW),
+        LABEL(&labels, mmap_end),
+    };
+  });
+  AddDirectoryIfNamespaced(getenv("COVERAGE_DIR"), /*is_ro=*/false);
   return *this;
 }
 
