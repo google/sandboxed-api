@@ -36,11 +36,10 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/base/thread_annotations.h"
 #include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
+#include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 
 namespace proto2 {
@@ -227,11 +226,6 @@ class Comms {
   int connection_fd_ = -1;
   int bind_fd_ = -1;
 
-  // Mutex making sure that we serialize TLV messages (which consist out of
-  // three different calls to send / receive).
-  absl::Mutex tlv_send_transmission_mutex_;
-  absl::Mutex tlv_recv_transmission_mutex_;
-
   // State of the channel (enum), socket will have to be connected later on.
   State state_ = State::kUnconnected;
 
@@ -257,8 +251,7 @@ class Comms {
 
   // Receives tag and length. Assumes that the `tlv_transmission_mutex_` mutex
   // is locked.
-  bool RecvTL(uint32_t* tag, size_t* length)
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(tlv_recv_transmission_mutex_);
+  bool RecvTL(uint32_t* tag, size_t* length);
 
   // T has to be a ContiguousContainer
   template <typename T>

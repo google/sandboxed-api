@@ -43,7 +43,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
-#include "absl/synchronization/mutex.h"
 #include "google/protobuf/message_lite.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -250,7 +249,6 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
       .len = length,
   };
 
-  absl::MutexLock lock(&tlv_send_transmission_mutex_);
   if (length + sizeof(tl) > kSendTLVTempBufferSize) {
     if (!Send(&tl, sizeof(tl))) {
       return false;
@@ -615,7 +613,6 @@ bool Comms::RecvTLV(uint32_t* tag, std::string* value) {
 
 template <typename T>
 bool Comms::RecvTLVGeneric(uint32_t* tag, T* value) {
-  absl::MutexLock lock(&tlv_recv_transmission_mutex_);
   size_t length;
   if (!RecvTL(tag, &length)) {
     return false;
@@ -627,8 +624,6 @@ bool Comms::RecvTLVGeneric(uint32_t* tag, T* value) {
 
 bool Comms::RecvTLV(uint32_t* tag, size_t* length, void* buffer,
                     size_t buffer_size) {
-  absl::MutexLock lock(&tlv_recv_transmission_mutex_);
-
   if (!RecvTL(tag, length)) {
     return false;
   }
