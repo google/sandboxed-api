@@ -104,19 +104,19 @@ static absl::Status ParseIpAndMask(const std::string& ip_and_mask,
   }
   std::string mask_or_cidr = ip_and_mask_split[1];
 
-  const bool has_dot = !absl::StrContains(mask_or_cidr, '.');
-  if (has_dot) {  // mask_or_cidr is cidr
-    bool res = absl::SimpleAtoi<uint32_t>(mask_or_cidr, cidr);
-    if (!res || !*cidr) {
-      return absl::InvalidArgumentError(
-          absl::StrCat(mask_or_cidr, " is not a correct cidr"));
-    }
-  } else {
+  const bool has_dot = absl::StrContains(mask_or_cidr, '.');
+  if (has_dot) {
     if (mask == nullptr) {
       return absl::InvalidArgumentError(
           "mask argument of ParseIpAndMask cannot be NULL in this case");
     }
     *mask = std::string(mask_or_cidr);
+  } else {  // mask_or_cidr is cidr
+    bool res = absl::SimpleAtoi<uint32_t>(mask_or_cidr, cidr);
+    if (!res || !*cidr) {
+      return absl::InvalidArgumentError(
+          absl::StrCat(mask_or_cidr, " is not a correct cidr"));
+    }
   }
   return absl::OkStatus();
 }
