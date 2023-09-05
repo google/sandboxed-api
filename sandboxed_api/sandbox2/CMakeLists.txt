@@ -1205,7 +1205,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME network_proxy_test
   )
   target_link_libraries(sandbox2_network_proxy_test
-    PRIVATE absl::strings
+    PRIVATE absl::status
+            absl::strings
             absl::time
             sandbox2::sandbox2
             sandbox2::network_proxy_testing

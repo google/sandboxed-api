@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/network_proxy/testing.h"
@@ -35,7 +36,48 @@ namespace sandbox2 {
 namespace {
 
 using ::sapi::GetTestSourcePath;
+using ::sapi::StatusIs;
 using ::testing::Eq;
+
+TEST(NetworkProxyTest, NoDoublePolicy) {
+  PolicyBuilder builder;
+  builder.AddNetworkProxyHandlerPolicy().AddNetworkProxyPolicy();
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(NetworkProxyTest, NoDoublePolicyHandler) {
+  PolicyBuilder builder;
+  builder.AddNetworkProxyPolicy().AddNetworkProxyHandlerPolicy();
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(NetworkProxyTest, NoNetworkPolicyIpv4) {
+  PolicyBuilder builder;
+  builder.AllowIPv4("127.0.0.1");
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(NetworkProxyTest, NoNetworkPolicyIpv6) {
+  PolicyBuilder builder;
+  builder.AllowIPv6("::1");
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(NetworkProxyTest, WrongIPv4) {
+  PolicyBuilder builder;
+  builder.AddNetworkProxyPolicy().AllowIPv4("256.256.256.256");
+  EXPECT_THAT(builder.TryBuild(), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(NetworkProxyTest, WrongIPv6) {
+  PolicyBuilder builder;
+  builder.AddNetworkProxyPolicy().AllowIPv6("127.0.0.1");
+  EXPECT_THAT(builder.TryBuild(), StatusIs(absl::StatusCode::kInvalidArgument));
+}
 
 using NetworkProxyTest = ::testing::TestWithParam<bool>;
 
