@@ -1245,7 +1245,6 @@ constexpr std::array kSyscallDataPPC64LE = {
 static_assert(IsSorted(kSyscallDataPPC64LE, SyscallTable::Entry::BySyscallNr),
               "Syscalls should be sorted");
 
-// TODO(cblichmann): Confirm the entries in this list.
 // https://github.com/torvalds/linux/blob/v5.8/include/uapi/asm-generic/unistd.h
 constexpr std::array kSyscallDataArm64 = {
     // clang-format off
@@ -1513,6 +1512,14 @@ constexpr std::array kSyscallDataArm64 = {
     MakeEntry(277, "seccomp", kInt, kHex, kHex),
     MakeEntry(278, "getrandom", kGen, kInt, kHex),
     MakeEntry(279, "memfd_create", kString, kHex),
+    MakeEntry(280, "bpf", kInt, kHex, kInt),
+    MakeEntry(281, "execveat", kInt, kPath, kHex, kHex, kHex),
+    MakeEntry(282, "userfaultfd", kHex),
+    MakeEntry(283, "membarrier", kInt, kHex),
+    MakeEntry(284, "mlock2", kHex, kInt, kHex),
+    MakeEntry(285, "copy_file_range", kInt, kHex, kInt, kHex, kInt, kHex),
+    MakeEntry(286, "preadv2", kInt, kHex, kInt, kInt, kInt, kHex),
+    MakeEntry(287, "pwritev2", kInt, kHex, kInt, kInt, kInt, kHex),
     // clang-format on
 };
 
