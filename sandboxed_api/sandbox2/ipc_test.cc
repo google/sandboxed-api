@@ -74,7 +74,6 @@ TEST_P(IPCTest, MapFDByNamePreExecve) {
 // This test verifies that mapping fds by name works if SandboxMeHere() is
 // called by the sandboxee.
 TEST_P(IPCTest, MapFDByNamePostExecve) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const int fd = GetParam();
   const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
   std::vector<std::string> args = {path, "2", std::to_string(fd)};
@@ -106,7 +105,6 @@ TEST_P(IPCTest, MapFDByNamePostExecve) {
 }
 
 TEST(IPCTest, NoMappedFDsPreExecve) {
-  SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
   std::vector<std::string> args = {path, "3"};
   auto executor = std::make_unique<Executor>(path, args);
