@@ -67,11 +67,14 @@ add_library(sandbox2_network_proxy_testing ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::network_proxy_testing ALIAS sandbox2_network_proxy_testing)
 target_link_libraries(sandbox2_network_proxy_testing PRIVATE
-  absl::log
+  absl::check
+  absl::core_headers
+  absl::memory
   absl::status
   absl::statusor
   absl::strings
   sapi::fileops
+  sapi::status
   sapi::base
 )
 

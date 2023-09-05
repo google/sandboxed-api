@@ -27,10 +27,12 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <variant>
 
 #include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/log/check.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
@@ -45,10 +47,23 @@
 #include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
+ABSL_FLAG(bool, ipv6, false, "Use IPv6.");
 
 namespace {
 
 using ::sapi::file_util::fileops::FDCloser;
+
+struct IPAddr {
+  size_t GetSize() const {
+    return addr.index() == 0 ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+  }
+  const sockaddr* GetPtr() const {
+    return addr.index() == 0
+               ? reinterpret_cast<const sockaddr*>(&std::get<0>(addr))
+               : reinterpret_cast<const sockaddr*>(&std::get<1>(addr));
+  }
+  std::variant<sockaddr_in, sockaddr_in6> addr;
+};
 
 static sandbox2::NetworkProxyClient* g_proxy_client;
 
@@ -82,25 +97,24 @@ absl::Status CommunicationTest(int sock) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<struct sockaddr_in6> CreateAddres(int port) {
-  static struct sockaddr_in6 saddr {};
-  saddr.sin6_family = AF_INET6;
-  saddr.sin6_port = htons(port);
-
-  if (int err = inet_pton(AF_INET6, "::1", &saddr.sin6_addr); err <= 0) {
-    return absl::ErrnoToStatus(errno, "socket()");
-  }
-  return saddr;
+IPAddr CreateAddress(int port) {
+  static struct sockaddr_in saddr4 {};
+  static struct sockaddr_in6 saddr6 {};
+  saddr4.sin_family = AF_INET;
+  saddr6.sin6_family = AF_INET6;
+  saddr4.sin_port = saddr6.sin6_port = htons(port);
+  PCHECK(inet_pton(AF_INET6, "::1", &saddr6.sin6_addr) == 1);
+  PCHECK(inet_pton(AF_INET, "127.0.0.1", &saddr4.sin_addr) == 1);
+  return absl::GetFlag(FLAGS_ipv6) ? IPAddr{.addr = saddr6}
+                                   : IPAddr{.addr = saddr4};
 }
 
-absl::Status ConnectWithoutHandler(int s, const struct sockaddr_in6& saddr) {
-  return g_proxy_client->Connect(
-      s, reinterpret_cast<const struct sockaddr*>(&saddr), sizeof(saddr));
+absl::Status ConnectWithoutHandler(int s, IPAddr saddr) {
+  return g_proxy_client->Connect(s, saddr.GetPtr(), saddr.GetSize());
 }
 
-absl::Status ConnectWithHandler(int s, const struct sockaddr_in6& saddr) {
-  int err = connect(s, reinterpret_cast<const struct sockaddr*>(&saddr),
-                    sizeof(saddr));
+absl::Status ConnectWithHandler(int s, IPAddr saddr) {
+  int err = connect(s, saddr.GetPtr(), saddr.GetSize());
   if (err != 0) {
     return absl::InternalError("connect() failed");
   }
@@ -109,17 +123,18 @@ absl::Status ConnectWithHandler(int s, const struct sockaddr_in6& saddr) {
 }
 
 absl::StatusOr<FDCloser> ConnectToServer(int port) {
-  SAPI_ASSIGN_OR_RETURN(struct sockaddr_in6 saddr, CreateAddres(port));
+  IPAddr addr = CreateAddress(port);
 
-  FDCloser s(socket(AF_INET6, SOCK_STREAM, 0));
+  FDCloser s(
+      socket(absl::GetFlag(FLAGS_ipv6) ? AF_INET6 : AF_INET, SOCK_STREAM, 0));
   if (s.get() < 0) {
     return absl::ErrnoToStatus(errno, "socket()");
   }
 
   if (absl::GetFlag(FLAGS_connect_with_handler)) {
-    SAPI_RETURN_IF_ERROR(ConnectWithHandler(s.get(), saddr));
+    SAPI_RETURN_IF_ERROR(ConnectWithHandler(s.get(), addr));
   } else {
-    SAPI_RETURN_IF_ERROR(ConnectWithoutHandler(s.get(), saddr));
+    SAPI_RETURN_IF_ERROR(ConnectWithoutHandler(s.get(), addr));
   }
 
   LOG(INFO) << "Connected to the server";

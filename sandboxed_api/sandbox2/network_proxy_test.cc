@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/network_proxy/testing.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -36,12 +37,19 @@ namespace {
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 
-TEST(NetworkProxy, ProxyWithHandlerAllowed) {
+using NetworkProxyTest = ::testing::TestWithParam<bool>;
+
+TEST_P(NetworkProxyTest, ProxyWithHandlerAllowed) {
   SKIP_SANITIZERS;
+  const bool ipv6 = GetParam();
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/network_proxy");
   std::vector<std::string> args = {"network_proxy"};
+  if (ipv6) {
+    args.push_back("--ipv6");
+  }
   auto executor = std::make_unique<Executor>(path, args);
+  executor->limits()->set_walltime_limit(absl::Seconds(3));
 
   PolicyBuilder builder;
   builder.AllowDynamicStartup()
@@ -52,28 +60,38 @@ TEST(NetworkProxy, ProxyWithHandlerAllowed) {
       .AllowTcMalloc()
       .AddNetworkProxyHandlerPolicy()
       .AllowLlvmCoverage()
-      .AllowIPv6("::1")
       .AddLibrariesForBinary(path);
+
+  if (ipv6) {
+    builder.AllowIPv6("::1");
+  } else {
+    builder.AllowIPv4("127.0.0.1");
+  }
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   ASSERT_TRUE(s2.RunAsync());
 
-  SAPI_ASSERT_OK_AND_ASSIGN(int port, StartNetworkProxyTestServer());
-  ASSERT_TRUE(s2.comms()->SendInt32(port));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto server, NetworkProxyTestServer::Start(ipv6));
+  ASSERT_TRUE(s2.comms()->SendInt32(server->port()));
 
   sandbox2::Result result = s2.AwaitResult();
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
 }
 
-TEST(NetworkProxy, ProxyWithHandlerNotAllowed) {
+TEST_P(NetworkProxyTest, ProxyWithHandlerNotAllowed) {
   SKIP_SANITIZERS;
+  const bool ipv6 = GetParam();
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/network_proxy");
   std::vector<std::string> args = {"network_proxy"};
+  if (ipv6) {
+    args.push_back("--ipv6");
+  }
   auto executor = std::make_unique<Executor>(path, args);
+  executor->limits()->set_walltime_limit(absl::Seconds(3));
 
   PolicyBuilder builder;
   builder.AllowDynamicStartup()
@@ -91,20 +109,25 @@ TEST(NetworkProxy, ProxyWithHandlerNotAllowed) {
   Sandbox2 s2(std::move(executor), std::move(policy));
   ASSERT_TRUE(s2.RunAsync());
 
-  SAPI_ASSERT_OK_AND_ASSIGN(int port, StartNetworkProxyTestServer());
-  ASSERT_TRUE(s2.comms()->SendInt32(port));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto server, NetworkProxyTestServer::Start(ipv6));
+  ASSERT_TRUE(s2.comms()->SendInt32(server->port()));
 
   sandbox2::Result result = s2.AwaitResult();
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_NETWORK));
 }
 
-TEST(NetworkProxy, ProxyWithoutHandlerAllowed) {
+TEST_P(NetworkProxyTest, ProxyWithoutHandlerAllowed) {
   SKIP_SANITIZERS;
+  const bool ipv6 = GetParam();
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/network_proxy");
   std::vector<std::string> args = {"network_proxy", "--noconnect_with_handler"};
+  if (ipv6) {
+    args.push_back("--ipv6");
+  }
   auto executor = std::make_unique<Executor>(path, args);
+  executor->limits()->set_walltime_limit(absl::Seconds(3));
 
   PolicyBuilder builder;
   builder.AllowDynamicStartup()
@@ -115,21 +138,64 @@ TEST(NetworkProxy, ProxyWithoutHandlerAllowed) {
       .AllowTcMalloc()
       .AddNetworkProxyHandlerPolicy()
       .AllowLlvmCoverage()
-      .AllowIPv6("::1")
       .AddLibrariesForBinary(path);
+
+  if (ipv6) {
+    builder.AllowIPv6("::1");
+  } else {
+    builder.AllowIPv4("127.0.0.1");
+  }
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   ASSERT_TRUE(s2.RunAsync());
 
-  SAPI_ASSERT_OK_AND_ASSIGN(int port, StartNetworkProxyTestServer());
-  ASSERT_TRUE(s2.comms()->SendInt32(port));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto server, NetworkProxyTestServer::Start(ipv6));
+  ASSERT_TRUE(s2.comms()->SendInt32(server->port()));
 
   sandbox2::Result result = s2.AwaitResult();
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
 }
+
+TEST(NetworkProxyTest, ProxyNonExistantAddress) {
+  // Creates a IPv6 server tries to connect with IPv4
+  SKIP_SANITIZERS;
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/network_proxy");
+  std::vector<std::string> args = {"network_proxy", "--noconnect_with_handler"};
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->limits()->set_walltime_limit(absl::Seconds(3));
+
+  PolicyBuilder builder;
+  builder.AllowDynamicStartup()
+      .AllowExit()
+      .AllowWrite()
+      .AllowRead()
+      .AllowSyscall(__NR_sendto)
+      .AllowTcMalloc()
+      .AddNetworkProxyHandlerPolicy()
+      .AllowLlvmCoverage()
+      .AddLibrariesForBinary(path)
+      .AllowIPv4("127.0.0.1");
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
+  ASSERT_TRUE(s2.RunAsync());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto server,
+                            NetworkProxyTestServer::Start(/*ipv6=*/true));
+  ASSERT_TRUE(s2.comms()->SendInt32(server->port()));
+
+  sandbox2::Result result = s2.AwaitResult();
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(3));
+}
+
+INSTANTIATE_TEST_SUITE_P(NetworkProxyTest, NetworkProxyTest,
+                         ::testing::Values(true, false));
 
 }  // namespace
 }  // namespace sandbox2

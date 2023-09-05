@@ -74,9 +74,10 @@ int main(int argc, char* argv[]) {
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
 
-  absl::StatusOr<int> port = sandbox2::StartNetworkProxyTestServer();
-  if (!port.ok()) {
-    LOG(ERROR) << port.status();
+  absl::StatusOr<std::unique_ptr<sandbox2::NetworkProxyTestServer>> server =
+      sandbox2::NetworkProxyTestServer::Start();
+  if (!server.ok()) {
+    LOG(ERROR) << server.status();
     return EXIT_FAILURE;
   }
 
@@ -118,7 +119,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Send the port number via comms
-  if (!comms->SendInt32(*port)) {
+  if (!comms->SendInt32((*server)->port())) {
     LOG(ERROR) << "sandboxee_comms->SendInt32() failed";
     return 3;
   }

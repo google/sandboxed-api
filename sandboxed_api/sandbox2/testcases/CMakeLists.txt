@@ -302,6 +302,7 @@ set_target_properties(sandbox2_testcase_network_proxy PROPERTIES
   OUTPUT_NAME network_proxy
 )
 target_link_libraries(sandbox2_testcase_network_proxy PRIVATE
+  absl::check
   absl::flags
   absl::flags_parse
   absl::log

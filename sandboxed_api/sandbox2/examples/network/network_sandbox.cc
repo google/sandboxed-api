@@ -126,9 +126,10 @@ int main(int argc, char* argv[]) {
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
 
-  absl::StatusOr<int> port = sandbox2::StartNetworkProxyTestServer();
-  if (!port.ok()) {
-    LOG(ERROR) << port.status();
+  absl::StatusOr<std::unique_ptr<sandbox2::NetworkProxyTestServer>> server =
+      sandbox2::NetworkProxyTestServer::Start();
+  if (!server.ok()) {
+    LOG(ERROR) << server.status();
     return EXIT_FAILURE;
   }
 
@@ -165,7 +166,7 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-  if (!HandleSandboxee(comms, *port)) {
+  if (!HandleSandboxee(comms, (*server)->port())) {
     if (!s2.IsTerminated()) {
       // Kill the sandboxee, because failure to receive the data over the Comms
       // channel doesn't automatically mean that the sandboxee itself had

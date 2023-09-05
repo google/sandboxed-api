@@ -1206,6 +1206,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_network_proxy_test
     PRIVATE absl::strings
+            absl::time
             sandbox2::sandbox2
             sandbox2::network_proxy_testing
             sapi::status_matchers

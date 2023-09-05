@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -30,6 +31,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
@@ -77,14 +80,15 @@ void NetworkProxyServer::ProcessConnectRequest() {
   int result = connect(
       new_socket, reinterpret_cast<const sockaddr*>(addr.data()), addr.size());
 
-  if (result == 0) {
-    NotifySuccess();
-    if (!fatal_error_) {
-      if (!comms_->SendFD(new_socket)) {
-        fatal_error_ = true;
-        return;
-      }
-    }
+  if (result < 0) {
+    SendError(errno);
+    return;
+  }
+
+  NotifySuccess();
+  if (!fatal_error_ && !comms_->SendFD(new_socket)) {
+    fatal_error_ = true;
+    return;
   }
 }
 
