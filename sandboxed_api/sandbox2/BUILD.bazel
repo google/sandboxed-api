@@ -1073,7 +1073,9 @@ cc_test(
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
     deps = [
+        ":policy",
         ":policybuilder",
+        ":violation_cc_proto",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/status",

@@ -27,7 +27,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
@@ -159,6 +161,19 @@ TEST(PolicyBuilderTest, CanBypassPtrace) {
   builder.AddPolicyOnSyscall(__NR_ptrace, {ALLOW})
       .BlockSyscallWithErrno(__NR_ptrace, ENOENT);
   EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
+}
+
+TEST(PolicyBuilderTest, AddPolicyOnSyscallsNoEmptyList) {
+  PolicyBuilder builder;
+  builder.AddPolicyOnSyscalls({}, {ALLOW});
+  EXPECT_THAT(builder.TryBuild(), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(PolicyBuilderTest, AddPolicyOnSyscallJumpOutOfBounds) {
+  PolicyBuilder builder;
+  builder.AddPolicyOnSyscall(__NR_write,
+                             {BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1, 2, 0)});
+  EXPECT_THAT(builder.TryBuild(), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 }  // namespace
 }  // namespace sandbox2

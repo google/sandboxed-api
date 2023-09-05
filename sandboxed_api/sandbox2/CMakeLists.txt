@@ -1170,7 +1170,9 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::status
             absl::statusor
             sandbox2::bpf_helper
+            sandbox2::policy
             sandbox2::policybuilder
+            sandbox2::violation_proto
             sapi::testing
             sapi::status_matchers
             sapi::test_main
