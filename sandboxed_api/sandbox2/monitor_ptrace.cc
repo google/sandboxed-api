@@ -29,7 +29,9 @@
 #include <ctime>
 #include <deque>
 #include <fstream>
+#include <ios>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -55,6 +57,7 @@
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -242,6 +245,10 @@ bool PtraceMonitor::KillSandboxee() {
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
     return false;
   }
+  constexpr absl::Duration kGracefullKillTimeout = absl::Milliseconds(1000);
+  if (hard_deadline_ == absl::InfiniteFuture()) {
+    hard_deadline_ = absl::Now() + kGracefullKillTimeout;
+  }
   return true;
 }
 
@@ -315,6 +322,13 @@ void PtraceMonitor::Run() {
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
   while (result().final_status() == Result::UNSET) {
+    if (absl::Now() >= hard_deadline_) {
+      LOG(WARNING) << "Hard deadline exceeded (timed_out=" << timed_out_
+                   << ", external_kill=" << external_kill_
+                   << ", network_violation=" << network_violation_ << ").";
+      SetExitStatusCode(Result::TIMEOUT, 0);
+      break;
+    }
     int64_t deadline = deadline_millis_.load(std::memory_order_relaxed);
     if (deadline != 0 && absl::Now() >= absl::FromUnixMillis(deadline)) {
       VLOG(1) << "Sandbox process hit timeout due to the walltime timer";

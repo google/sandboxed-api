@@ -156,6 +156,8 @@ class PtraceMonitor : public MonitorBase {
   // Syscalls that are running, whose result values we want to inspect.
   absl::flat_hash_map<pid_t, Syscall> syscalls_in_progress_;
   sigset_t sset_;
+  // Deadline after which sandboxee get terminated via PTRACE_O_EXITKILL.
+  absl::Time hard_deadline_ = absl::InfiniteFuture();
 
   // Monitor thread object.
   std::unique_ptr<std::thread> thread_;
