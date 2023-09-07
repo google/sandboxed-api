@@ -25,22 +25,12 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/status/statusor.h"
 
 namespace sandbox2::util {
 
 void DumpCoverageData();
-
-// Converts an array of char* (terminated by a nullptr, like argv, or environ
-// arrays), to an std::vector<std::string>.
-ABSL_DEPRECATED("Use CharPtrArray(arr).ToStringVector() instead")
-void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec);
-
-// Converts a vector of strings to a newly allocated array. The array is limited
-// by the terminating nullptr entry (like environ or argv). It must be freed by
-// the caller.
-ABSL_DEPRECATED("Use CharPtrArray class instead")
-const char** VecStringToCharPtrArr(const std::vector<std::string>& vec);
 
 // An char ptr array limited by the terminating nullptr entry (like environ
 // or argv).
@@ -61,6 +51,14 @@ class CharPtrArray {
   const std::string content_;
   std::vector<const char*> array_;
 };
+
+// Converts an array of char* (terminated by a nullptr, like argv, or environ
+// arrays), to an std::vector<std::string>.
+ABSL_DEPRECATED("Use CharPtrArray(arr).ToStringVector() instead")
+inline void CharPtrArrToVecString(char* const* arr,
+                                  std::vector<std::string>* vec) {
+  *vec = sandbox2::util::CharPtrArray(arr).ToStringVector();
+}
 
 // Returns the program name (via /proc/self/comm) for a given PID.
 std::string GetProgName(pid_t pid);

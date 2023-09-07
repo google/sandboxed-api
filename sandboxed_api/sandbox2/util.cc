@@ -96,20 +96,6 @@ void DumpCoverageData() {
 #endif
 }
 
-void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec) {
-  *vec = CharPtrArray(arr).ToStringVector();
-}
-
-const char** VecStringToCharPtrArr(const std::vector<std::string>& vec) {
-  const int vec_size = vec.size();
-  const char** arr = new const char*[vec_size + 1];
-  for (int i = 0; i < vec_size; ++i) {
-    arr[i] = vec[i].c_str();
-  }
-  arr[vec_size] = nullptr;
-  return arr;
-}
-
 CharPtrArray::CharPtrArray(char* const* arr) : content_(ConcatenateAll(arr)) {
   for (auto it = content_.begin(); it != content_.end();
        it += strlen(&*it) + 1) {

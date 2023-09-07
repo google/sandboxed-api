@@ -19,7 +19,7 @@
 #include "sandboxed_api/util/status_macros.h"
 
 absl::Status CreateArchive(const char* initial_filename, int compress,
-                           const char** argv, bool verbose) {
+                           const std::vector<std::string>& argv, bool verbose) {
   // We split the filename path into dirname and filename. To the filename we
   // prepend "/output/"" so that it will work with the security policy.
   std::string abs_path = MakeAbsolutePathAtCWD(std::string(initial_filename));
@@ -28,9 +28,7 @@ absl::Status CreateArchive(const char* initial_filename, int compress,
 
   std::string filename = sandbox2::file::JoinPath("/output/", filename_tmp);
 
-  std::vector<std::string> absolute_paths;
-  sandbox2::util::CharPtrArrToVecString(const_cast<char* const*>(argv),
-                                        &absolute_paths);
+  std::vector<std::string> absolute_paths = argv;
 
   std::vector<std::string> relative_paths = absolute_paths;
 

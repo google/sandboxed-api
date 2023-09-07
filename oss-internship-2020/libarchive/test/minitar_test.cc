@@ -23,7 +23,6 @@
 
 namespace {
 
-using ::sandbox2::util::VecStringToCharPtrArr;
 using ::sapi::IsOk;
 using ::sapi::file::JoinPath;
 using ::sapi::file_util::fileops::Exists;
@@ -164,8 +163,7 @@ std::string* MiniTarTest::init_wd_;
 TEST_F(MiniTarTest, TestFileSimple) {
   std::vector<std::string> v = {kFile1.data()};
 
-  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
-              IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), 0, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
@@ -178,8 +176,7 @@ TEST_F(MiniTarTest, TestFileSimple) {
 
 TEST_F(MiniTarTest, TestMultipleFiles) {
   std::vector<std::string> v = {kFile1.data(), kFile2.data(), kFile3.data()};
-  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
-              IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), 0, v, false), IsOk());
   ASSERT_THAT(Exists(id_.data(), false), IsTrue())
       << "Archive file was not created";
 
@@ -196,8 +193,7 @@ TEST_F(MiniTarTest, TestMultipleFiles) {
 
 TEST_F(MiniTarTest, TestDirectorySimple) {
   std::vector<std::string> v = {kDir2.data()};
-  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
-              IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), 0, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
@@ -210,8 +206,7 @@ TEST_F(MiniTarTest, TestDirectorySimple) {
 
 TEST_F(MiniTarTest, TestDirectoryNested) {
   std::vector<std::string> v = {kDir1.data()};
-  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
-              IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), 0, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
@@ -225,8 +220,7 @@ TEST_F(MiniTarTest, TestDirectoryNested) {
 
 TEST_F(MiniTarTest, TestComplex) {
   std::vector<std::string> v = {kFile1.data(), kDir1.data()};
-  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
-              IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), 0, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
@@ -242,9 +236,7 @@ TEST_F(MiniTarTest, TestComplex) {
 TEST_F(MiniTarTest, TestCompress) {
   std::vector<std::string> v = {kFile1.data(), kDir1.data()};
   int compress = 'Z';
-  ASSERT_THAT(
-      CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
-      IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), compress, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
@@ -259,9 +251,7 @@ TEST_F(MiniTarTest, TestCompress) {
 TEST_F(MiniTarTest, TestGZIP) {
   std::vector<std::string> v = {kFile1.data(), kDir1.data()};
   int compress = 'z';
-  ASSERT_THAT(
-      CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
-      IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), compress, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
@@ -276,9 +266,7 @@ TEST_F(MiniTarTest, TestGZIP) {
 TEST_F(MiniTarTest, TestBZIP2) {
   std::vector<std::string> v = {kFile1.data(), kDir1.data()};
   int compress = 'j';
-  ASSERT_THAT(
-      CreateArchive(id_.data(), compress, VecStringToCharPtrArr(v), false),
-      IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), compress, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";
@@ -294,8 +282,7 @@ TEST_F(MiniTarTest, TestPaths) {
   // These should be equivalent to kFile1 and kDir1 after cleaning.
   std::vector<std::string> v = {JoinPath("a/b/../../c/../", kFile1).data(),
                                 JoinPath("d/../e/././///../", kDir1).data()};
-  ASSERT_THAT(CreateArchive(id_.data(), 0, VecStringToCharPtrArr(v), false),
-              IsOk());
+  ASSERT_THAT(CreateArchive(id_.data(), 0, v, false), IsOk());
 
   ASSERT_THAT(chdir(tmp_dir_.data()), Eq(0))
       << "Could not chdir into test data directory";

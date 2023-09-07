@@ -101,7 +101,9 @@ int main(int unused_argc, char* argv[]) {
   absl::Status status;
   switch (mode) {
     case 'c':
-      status = CreateArchive(filename, compress, argv, verbose);
+      status = CreateArchive(filename, compress,
+                             sandbox2::util::CharArrPtr(argv).ToStringVector(),
+                             verbose);
       if (!status.ok()) {
         LOG(ERROR) << "Archive creation failed with message: "
                    << status.message();
