@@ -68,7 +68,8 @@ int main() {
     if (child_pid == 0) {
       sandbox2::Client client(&comms);
       client.SandboxMeHere();
-      exit(sandbox2::RunLibUnwindAndSymbolizer(&comms));
+      return sandbox2::RunLibUnwindAndSymbolizer(&comms) ? EXIT_SUCCESS
+                                                         : EXIT_FAILURE;
     }
   }
   SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");

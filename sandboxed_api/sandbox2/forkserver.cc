@@ -37,8 +37,8 @@
 #include <fstream>
 #include <initializer_list>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
@@ -300,7 +300,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   // A custom init process is only needed if a new PID NS is created.
   if (request.clone_flags() & CLONE_NEWPID) {
     // Spawn a child process
-    pid_t child = fork();
+    pid_t child = util::ForkWithFlags(SIGCHLD);
     if (child < 0) {
       SAPI_RAW_PLOG(FATAL, "Could not spawn init process");
     }
@@ -587,6 +587,9 @@ void ForkServer::CreateInitialNamespaces() {
     SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(open_efd.get(), &value,
                                             sizeof(value))) == sizeof(value),
                     "synchronizing initial namespaces creation");
+    SAPI_RAW_PCHECK(chroot("/realroot") == 0,
+                    "chrooting prior to dumping coverage");
+    util::DumpCoverageData();
     _exit(0);
   }
   SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(create_efd.get(), &value,

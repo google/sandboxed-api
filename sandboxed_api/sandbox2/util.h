@@ -29,6 +29,8 @@
 
 namespace sandbox2::util {
 
+void DumpCoverageData();
+
 // Converts an array of char* (terminated by a nullptr, like argv, or environ
 // arrays), to an std::vector<std::string>.
 ABSL_DEPRECATED("Use CharPtrArray(arr).ToStringVector() instead")

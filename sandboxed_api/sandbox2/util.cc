@@ -74,6 +74,16 @@ extern "C" void __gcov_flush() ABSL_ATTRIBUTE_WEAK;
 extern "C" void __gcov_reset() ABSL_ATTRIBUTE_WEAK;
 #endif
 
+void ResetCoverageData() {
+#ifdef __ELF__
+  if (&__gcov_reset != nullptr) {
+    __gcov_reset();
+  }
+#endif
+}
+
+}  // namespace
+
 void DumpCoverageData() {
 #ifdef __ELF__
   if (&__gcov_dump != nullptr) {
@@ -85,16 +95,6 @@ void DumpCoverageData() {
   }
 #endif
 }
-
-void ResetCoverageData() {
-#ifdef __ELF__
-  if (&__gcov_reset != nullptr) {
-    __gcov_reset();
-  }
-#endif
-}
-
-}  // namespace
 
 void CharPtrArrToVecString(char* const* arr, std::vector<std::string>* vec) {
   *vec = CharPtrArray(arr).ToStringVector();
