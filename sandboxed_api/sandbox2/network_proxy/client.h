@@ -40,10 +40,6 @@ class NetworkProxyClient {
   // back a connected socket.
   absl::Status Connect(int sockfd, const struct sockaddr* addr,
                        socklen_t addrlen);
-  // Same as Connect, but with same API as regular connect() call.
-  int ConnectHandler(int sockfd, const struct sockaddr* addr,
-                     socklen_t addrlen);
-
  private:
   Comms comms_;
   absl::Status ReceiveRemoteResult();

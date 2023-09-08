@@ -29,16 +29,6 @@
 
 namespace sandbox2 {
 
-int NetworkProxyClient::ConnectHandler(int sockfd, const struct sockaddr* addr,
-                                       socklen_t addrlen) {
-  absl::Status status = Connect(sockfd, addr, addrlen);
-  if (status.ok()) {
-    return 0;
-  }
-  LOG(ERROR) << "ConnectHandler() failed: " << status.message();
-  return -1;
-}
-
 absl::Status NetworkProxyClient::Connect(int sockfd,
                                          const struct sockaddr* addr,
                                          socklen_t addrlen) {
