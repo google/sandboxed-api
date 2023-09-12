@@ -25,6 +25,7 @@
 #include <syscall.h>
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -170,16 +171,37 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
   if (!user_policy_handles_bpf_) {
     policy.insert(policy.end(), {JEQ32(__NR_bpf, DENY)});
   }
+#ifndef CLONE_NEWCGROUP
+#define CLONE_NEWCGROUP 0x02000000
+#endif
+  constexpr uintptr_t kNewNamespacesFlags =
+      CLONE_NEWNS | CLONE_NEWUSER | CLONE_NEWNET | CLONE_NEWUTS |
+      CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWPID;
+  static_assert(kNewNamespacesFlags <= std::numeric_limits<uint32_t>::max());
+  constexpr uintptr_t kUnsafeCloneFlags = kNewNamespacesFlags | CLONE_UNTRACED;
+  static_assert(kUnsafeCloneFlags <= std::numeric_limits<uint32_t>::max());
   policy.insert(policy.end(),
                 {
-                    // Disallow clone with CLONE_UNTRACED flag.  This uses
+#ifdef __NR_clone3
+                    // Disallow clone3
+                    JEQ32(__NR_clone3, DENY),
+#endif
+                    // Disallow clone3 and clone with unsafe flags.  This uses
                     // LOAD_SYSCALL_NR from above.
-                    JNE32(__NR_clone, JUMP(&l, past_clone_untraced_l)),
+                    JNE32(__NR_clone, JUMP(&l, past_clone_unsafe_l)),
                     // Regardless of arch, we only care about the lower 32-bits
                     // of the flags.
                     ARG_32(0),
-                    JA32(CLONE_UNTRACED, DENY),
-                    LABEL(&l, past_clone_untraced_l),
+                    JA32(kUnsafeCloneFlags, DENY),
+                    LABEL(&l, past_clone_unsafe_l),
+                    // Disallow unshare with unsafe flags.
+                    LOAD_SYSCALL_NR,
+                    JNE32(__NR_unshare, JUMP(&l, past_unshare_unsafe_l)),
+                    // Regardless of arch, we only care about the lower 32-bits
+                    // of the flags.
+                    ARG_32(0),
+                    JA32(kNewNamespacesFlags, DENY),
+                    LABEL(&l, past_unshare_unsafe_l),
                     // Disallow seccomp with SECCOMP_FILTER_FLAG_NEW_LISTENER
                     // flag.
                     LOAD_SYSCALL_NR,
