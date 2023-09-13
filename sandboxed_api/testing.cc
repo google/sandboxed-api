@@ -43,6 +43,7 @@ sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
   if constexpr (sapi::sanitizers::IsAny()) {
     builder.AddDirectory("/proc");
   }
+  builder.AllowTcMalloc();
   return builder;
 }
 
