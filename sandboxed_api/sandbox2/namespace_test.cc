@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -29,7 +30,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -49,12 +49,15 @@ using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::CreateNamedTempFile;
 using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
+using ::testing::AllOf;
+using ::testing::AnyOfArray;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Matcher;
 using ::testing::Ne;
 using ::testing::SizeIs;
 using ::testing::StartsWith;
@@ -249,6 +252,40 @@ TEST(NamespaceTest, TestInterfacesWithNetwork) {
   // Loopback network interface 'lo' and more.
   EXPECT_THAT(result, Contains("lo"));
   EXPECT_THAT(result, SizeIs(Gt(1)));
+}
+
+TEST(NamespaceTest, TestFiles) {
+  SKIP_ANDROID;
+  const std::string path = GetTestcaseBinPath("namespace");
+  std::vector<std::string> result =
+      RunSandboxeeWithArgsAndPolicy(path, {path, "6", "/"});
+
+  std::vector<Matcher<std::string>> lib_paths = {
+      StartsWith("/lib/"),  // Often a symlink -> /usr/lib
+      StartsWith("/usr/lib/"),
+      StartsWith("/lib64/"),  // Often a symlink -> /usr/lib64
+      StartsWith("/usr/lib64/")};
+  auto correct_lib_path_matcher =
+      AllOf(HasSubstr(".so"), AnyOfArray(lib_paths));
+  std::vector<Matcher<std::string>> matchers = {
+      correct_lib_path_matcher,
+      // Conditionally mapped if Tomoyo is active
+      StrEq(absl::StrCat("/dev/fd/", Comms::kSandbox2TargetExecFD)),
+      // System ldconfig cache
+      StrEq("/etc/ld.so.cache"),
+      // GRTE ldconfig cache
+      StrEq("/usr/grte/v4/etc/ld.so.cache"),
+      StrEq("/usr/grte/v5/etc/ld.so.cache"),
+      // procfs and sysfs
+      StartsWith("/proc"), StartsWith("/sys")};
+  // Coverage DIR
+  char* coverage_dir = getenv("COVERAGE_DIR");
+  if (coverage_dir != nullptr) {
+    matchers.push_back(StartsWith(coverage_dir));
+  }
+  for (const auto& file : result) {
+    EXPECT_THAT(file, AnyOfArray(matchers));
+  }
 }
 
 }  // namespace

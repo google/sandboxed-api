@@ -51,7 +51,7 @@ using sapi::file_util::fileops::ListDirectoryEntries;
 
 bool IsDirectory(const std::string& path) {
   struct stat statbuf;
-  PCHECK(stat(path.c_str(), &statbuf) == 0);
+  PCHECK(lstat(path.c_str(), &statbuf) == 0) << "Failed to stat " << path;
   return statbuf.st_mode & S_IFDIR;
 }
 
@@ -62,6 +62,11 @@ void ListDirectoriesRecursively(const std::string& path,
   CHECK(ListDirectoryEntries(path, &entries, &error)) << error;
   for (const std::string& entry : entries) {
     std::string new_path = JoinPath(path, entry);
+    // Don't descent into /sys or /proc, just mark their existence
+    if (new_path == "/sys" || new_path == "/proc") {
+      files.push_back(new_path);
+      continue;
+    }
     if (IsDirectory(new_path)) {
       ListDirectoriesRecursively(new_path, files);
     } else {

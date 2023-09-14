@@ -724,7 +724,9 @@ cc_test(
     name = "namespace_test",
     srcs = ["namespace_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:namespace"],
+    data = [
+        "//sandboxed_api/sandbox2/testcases:namespace",
+    ],
     tags = [
         "requires-net:external",
     ],
