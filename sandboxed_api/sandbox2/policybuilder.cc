@@ -263,12 +263,6 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowPrctlSetVma();
   AllowPoll();
   AllowGetPIDs();
-#ifdef __NR_open
-  OverridableBlockSyscallWithErrno(__NR_open, ENOENT);
-#endif
-#ifdef __NR_openat
-  OverridableBlockSyscallWithErrno(__NR_openat, ENOENT);
-#endif
 
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
@@ -764,6 +758,9 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
   AllowSyscall(__NR_membarrier);
   AllowFutexOp(FUTEX_WAIT);
   AllowFutexOp(FUTEX_WAKE);
+  AllowRead();
+  AllowOpen();
+  AllowSyscall(__NR_close);
   AddPolicyOnSyscall(__NR_rt_sigprocmask, {
                                               ARG_32(0),
                                               JEQ32(SIG_SETMASK, ALLOW),

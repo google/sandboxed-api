@@ -57,6 +57,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
       .AllowSyscall(__NR_sendto)   // send
       .AllowStat()                 // printf,puts
       .AddLibrariesForBinary(sandboxee_path)
+      .AllowTcMalloc()
       .BuildOrDie();
 }
 

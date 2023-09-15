@@ -30,7 +30,6 @@ int main() {
   if (getegid() != 1000) return 4;
   if (getresuid(&r, &e, &s) != -1 || errno != 42) return 5;
   if (getresgid(&r, &e, &s) != -1 || errno != 42) return 6;
-  if (read(0, buf, 1) != -1 || errno != 43) return 7;
   if (write(1, buf, 1) != -1 || errno != 43) return 8;
 
   // Trigger a violation.

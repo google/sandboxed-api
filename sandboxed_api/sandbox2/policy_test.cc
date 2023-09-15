@@ -291,7 +291,7 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
 #endif
           },
           {ERRNO(42)})
-      .AddPolicyOnSyscalls({__NR_read, __NR_write}, {ERRNO(43)})
+      .AddPolicyOnSyscalls({__NR_write}, {ERRNO(43)})
       .AddPolicyOnSyscall(__NR_umask, {DENY});
   auto policy = builder.BuildOrDie();
 
