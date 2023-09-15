@@ -895,7 +895,9 @@ cc_test(
     name = "limits_test",
     srcs = ["limits_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:limits"],
+    data = [
+        "//sandboxed_api/sandbox2/testcases:limits",
+    ],
     deps = [
         ":limits",
         ":sandbox2",

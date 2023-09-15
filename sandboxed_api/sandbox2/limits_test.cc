@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
@@ -39,6 +38,7 @@ std::string GetLimitsTestcaseBinPath() {
 }
 
 TEST(LimitsTest, RLimitASMmapUnderLimit) {
+  SKIP_SANITIZERS;
   const std::string path = GetLimitsTestcaseBinPath();
   std::vector<std::string> args = {path, "1"};  // mmap(1 MiB)
   auto executor = std::make_unique<sandbox2::Executor>(path, args);
@@ -54,6 +54,7 @@ TEST(LimitsTest, RLimitASMmapUnderLimit) {
 }
 
 TEST(LimitsTest, RLimitASMmapAboveLimit) {
+  SKIP_SANITIZERS;
   const std::string path = GetLimitsTestcaseBinPath();
   std::vector<std::string> args = {path, "2"};  // mmap(100 MiB)
   auto executor = std::make_unique<sandbox2::Executor>(path, args);
@@ -69,6 +70,7 @@ TEST(LimitsTest, RLimitASMmapAboveLimit) {
 }
 
 TEST(LimitsTest, RLimitASAllocaSmallUnderLimit) {
+  SKIP_SANITIZERS;
   const std::string path = GetLimitsTestcaseBinPath();
   std::vector<std::string> args = {path, "3"};  // alloca(1 MiB)
   auto executor = std::make_unique<sandbox2::Executor>(path, args);
@@ -84,6 +86,7 @@ TEST(LimitsTest, RLimitASAllocaSmallUnderLimit) {
 }
 
 TEST(LimitsTest, RLimitASAllocaBigUnderLimit) {
+  SKIP_SANITIZERS;
   const std::string path = GetLimitsTestcaseBinPath();
   std::vector<std::string> args = {path, "4"};  // alloca(8 MiB)
   auto executor = std::make_unique<sandbox2::Executor>(path, args);
@@ -99,6 +102,7 @@ TEST(LimitsTest, RLimitASAllocaBigUnderLimit) {
 }
 
 TEST(LimitsTest, RLimitASAllocaBigAboveLimit) {
+  SKIP_SANITIZERS;
   const std::string path = GetLimitsTestcaseBinPath();
   std::vector<std::string> args = {path, "5"};  // alloca(100 MiB)
   auto executor = std::make_unique<sandbox2::Executor>(path, args);
