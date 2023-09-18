@@ -196,7 +196,7 @@ absl::Status AllowedHosts::AllowIPv4(const std::string& ip,
   in_addr addr{};
   in_addr m{};
 
-  if (mask.length()) {
+  if (!mask.empty()) {
     SAPI_RETURN_IF_ERROR(IPStringToAddr(mask, AF_INET, &m));
 
     if (!IsIPv4MaskCorrect(m.s_addr)) {
