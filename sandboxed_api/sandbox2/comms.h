@@ -249,8 +249,7 @@ class Comms {
   bool Send(const void* data, size_t len);
   bool Recv(void* data, size_t len);
 
-  // Receives tag and length. Assumes that the `tlv_transmission_mutex_` mutex
-  // is locked.
+  // Receives tag and length.
   bool RecvTL(uint32_t* tag, size_t* length);
 
   // T has to be a ContiguousContainer
