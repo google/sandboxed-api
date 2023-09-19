@@ -835,6 +835,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":util",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:status_cc_proto",

@@ -763,6 +763,7 @@ target_link_libraries(sandbox2_comms
   PUBLIC absl::core_headers
          absl::status
          protobuf::libprotobuf
+         sapi::fileops
          sapi::status
 )
 

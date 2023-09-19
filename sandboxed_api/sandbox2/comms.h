@@ -41,6 +41,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace proto2 {
 class Message;
@@ -49,6 +50,7 @@ class Message;
 namespace sandbox2 {
 
 class Client;
+class ListeningComms;
 
 class Comms {
  public:
@@ -93,8 +95,13 @@ class Comms {
 
   static constexpr const char* kSandbox2CommsFDEnvVar = "SANDBOX2_COMMS_FD";
 
+  static absl::StatusOr<Comms> Connect(const std::string& socket_name,
+                                       bool abstract_uds = true);
+
   // This object will have to be connected later on.
   // When not specified the constructor uses abstract unix domain sockets.
+  ABSL_DEPRECATED(
+      "Use ListeningComms or absl::StatusOr<Comms> Connect() instead")
   explicit Comms(const std::string& socket_name, bool abstract_uds = true);
 
   Comms(Comms&& other) { *this = std::move(other); }
@@ -112,7 +119,7 @@ class Comms {
 
   // Instantiates a pre-connected object.
   // Takes ownership over fd, which will be closed on object's destruction.
-  explicit Comms(int fd);
+  explicit Comms(int fd, absl::string_view name = "");
 
   // Instantiates a pre-connected object using the default connection params.
   explicit Comms(DefaultConnectionTag);
@@ -120,12 +127,17 @@ class Comms {
   ~Comms();
 
   // Binds to an address and make it listen to connections.
+  ABSL_DEPRECATED("Use ListeningComms::Create() instead")
   bool Listen();
 
   // Accepts the connection.
+  ABSL_DEPRECATED("Use ListeningComms::Accept() instead")
   bool Accept();
 
   // Connects to a remote socket.
+  ABSL_DEPRECATED(
+      "Use absl::StatusOr<Comms> Comms::Connect(std::string& socket_name, bool "
+      "abstract_uds) instead")
   bool Connect();
 
   // Terminates all underlying file descriptors, and sets the status of the
@@ -201,11 +213,11 @@ class Comms {
       return;
     }
     using std::swap;
-    swap(socket_name_, other.socket_name_);
+    swap(name_, other.name_);
     swap(abstract_uds_, other.abstract_uds_);
     swap(connection_fd_, other.connection_fd_);
-    swap(bind_fd_, other.bind_fd_);
     swap(state_, other.state_);
+    swap(listening_comms_, other.listening_comms_);
   }
 
   friend void swap(Comms& x, Comms& y) { return x.Swap(y); }
@@ -221,10 +233,11 @@ class Comms {
   };
 
   // Connection parameters.
-  std::string socket_name_;
+  std::string name_;
   bool abstract_uds_ = true;
-  int connection_fd_ = -1;
-  int bind_fd_ = -1;
+  sapi::file_util::fileops::FDCloser connection_fd_;
+
+  std::unique_ptr<ListeningComms> listening_comms_;
 
   // State of the channel (enum), socket will have to be connected later on.
   State state_ = State::kUnconnected;
@@ -238,9 +251,6 @@ class Comms {
     uint32_t tag;
     size_t len;
   };
-
-  // Fills sockaddr_un struct with proper values.
-  socklen_t CreateSockaddrUn(sockaddr_un* sun);
 
   // Moves the comms fd to an other free file descriptor.
   void MoveToAnotherFd();
@@ -268,6 +278,26 @@ class Comms {
   bool SendGeneric(T value, uint32_t tag) {
     return SendTLV(tag, sizeof(T), &value);
   }
+};
+
+class ListeningComms {
+ public:
+  static absl::StatusOr<ListeningComms> Create(absl::string_view socket_name,
+                                               bool abstract_uds = true);
+
+  ListeningComms(ListeningComms&& other) = default;
+  ListeningComms& operator=(ListeningComms&& other) = default;
+  ~ListeningComms() = default;
+  absl::StatusOr<Comms> Accept();
+
+ private:
+  ListeningComms(absl::string_view socket_name, bool abstract_uds)
+      : socket_name_(socket_name), abstract_uds_(abstract_uds), bind_fd_(-1) {}
+  absl::Status Listen();
+
+  std::string socket_name_;
+  bool abstract_uds_;
+  sapi::file_util::fileops::FDCloser bind_fd_;
 };
 
 }  // namespace sandbox2
