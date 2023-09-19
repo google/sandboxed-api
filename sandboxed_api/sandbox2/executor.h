@@ -97,6 +97,8 @@ class Executor final {
     return *this;
   }
 
+  int libunwind_recursion_depth() { return libunwind_recursion_depth_; }
+
  private:
   friend class MonitorBase;
   friend class PtraceMonitor;
@@ -104,8 +106,9 @@ class Executor final {
 
   // Internal constructor for executing libunwind on the given pid
   // enable_sandboxing_pre_execve=false as we are not going to execve.
-  explicit Executor(pid_t libunwind_sbox_for_pid)
+  explicit Executor(pid_t libunwind_sbox_for_pid, int libunwind_recursion_depth)
       : libunwind_sbox_for_pid_(libunwind_sbox_for_pid),
+        libunwind_recursion_depth_(libunwind_recursion_depth),
         enable_sandboxing_pre_execve_(false) {
     CHECK_GE(libunwind_sbox_for_pid_, 0);
     SetUpServerSideCommsFd();
@@ -131,6 +134,7 @@ class Executor final {
   // If this executor is running the libunwind sandbox for a process,
   // this variable will hold the PID of the process. Otherwise it is zero.
   pid_t libunwind_sbox_for_pid_ = 0;
+  int libunwind_recursion_depth_ = 0;
 
   // Should the sandboxing be enabled before execve() occurs, or the binary will
   // do it by itself, using the Client object's methods

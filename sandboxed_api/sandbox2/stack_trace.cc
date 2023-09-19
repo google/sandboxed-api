@@ -97,7 +97,8 @@ class StackTracePeer {
       const Namespace* ns, bool uses_custom_forkserver);
 
   static absl::StatusOr<std::vector<std::string>> LaunchLibunwindSandbox(
-      const Regs* regs, const Namespace* ns, bool uses_custom_forkserver);
+      const Regs* regs, const Namespace* ns, bool uses_custom_forkserver,
+      int recursion_depth);
 };
 
 absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
@@ -185,7 +186,8 @@ SandboxPeer::SpawnFn SandboxPeer::spawn_fn_ = nullptr;
 }  // namespace internal
 
 absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
-    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver) {
+    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver,
+    int recursion_depth) {
   const pid_t pid = regs->pid();
 
   sapi::file_util::fileops::FDCloser memory_fd(
@@ -195,7 +197,7 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
   }
   // Tell executor to use this special internal mode. Using `new` to access a
   // non-public constructor.
-  auto executor = absl::WrapUnique(new Executor(pid));
+  auto executor = absl::WrapUnique(new Executor(pid, recursion_depth));
 
   executor->limits()->set_rlimit_cpu(10).set_walltime_limit(absl::Seconds(5));
 
@@ -275,7 +277,8 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
 
   absl::Cleanup kill_sandbox = [&sandbox]() {
     sandbox->Kill();
-    sandbox->AwaitResult().IgnoreResult();
+    sandbox2::Result result = sandbox->AwaitResult();
+    LOG(INFO) << "Libunwind execution status: " << result.ToString();
   };
 
   if (!comms->SendProtoBuf(msg)) {
@@ -313,7 +316,8 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
 }
 
 absl::StatusOr<std::vector<std::string>> GetStackTrace(
-    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver) {
+    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver,
+    int recursion_depth) {
   if (absl::GetFlag(FLAGS_sandbox_disable_all_stack_traces)) {
     return absl::UnavailableError("Stacktraces disabled");
   }
@@ -333,8 +337,8 @@ absl::StatusOr<std::vector<std::string>> GetStackTrace(
     return UnsafeGetStackTrace(regs->pid());
   }
 
-  return StackTracePeer::LaunchLibunwindSandbox(regs, ns,
-                                                uses_custom_forkserver);
+  return StackTracePeer::LaunchLibunwindSandbox(
+      regs, ns, uses_custom_forkserver, recursion_depth);
 }
 
 std::vector<std::string> CompactStackTrace(

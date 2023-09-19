@@ -401,7 +401,7 @@ bool MonitorBase::StackTraceCollectionPossible() const {
   // recursion).
   if ((policy_->GetNamespace() ||
        absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) == false) &&
-      executor_->libunwind_sbox_for_pid_ == 0) {
+      executor_->libunwind_recursion_depth() <= 1) {
     return true;
   }
   LOG(ERROR) << "Cannot collect stack trace. Unwind pid "
@@ -443,7 +443,8 @@ bool MonitorBase::ShouldCollectStackTrace(Result::StatusEnum status) const {
 absl::StatusOr<std::vector<std::string>> MonitorBase::GetStackTrace(
     const Regs* regs) {
   return sandbox2::GetStackTrace(regs, policy_->GetNamespaceOrNull(),
-                                 uses_custom_forkserver_);
+                                 uses_custom_forkserver_,
+                                 executor_->libunwind_recursion_depth() + 1);
 }
 
 absl::StatusOr<std::vector<std::string>> MonitorBase::GetAndLogStackTrace(

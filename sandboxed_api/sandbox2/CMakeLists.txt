@@ -1118,6 +1118,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_stack_trace_test PRIVATE
     absl::check
     absl::flags
+    absl::log_severity
+    absl::scoped_mock_log
     absl::status
     absl::strings
     absl::time

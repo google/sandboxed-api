@@ -37,6 +37,7 @@
 namespace sandbox2 {
 
 class Sandbox2;
+class StackTraceTestPeer;
 
 namespace internal {
 
@@ -56,6 +57,7 @@ class SandboxPeer {
 
  private:
   friend class ::sandbox2::Sandbox2;
+  friend class ::sandbox2::StackTraceTestPeer;
   using SpawnFn = std::unique_ptr<SandboxPeer> (*)(std::unique_ptr<Executor>,
                                                    std::unique_ptr<Policy>);
   static SpawnFn spawn_fn_;
@@ -68,7 +70,8 @@ constexpr size_t kDefaultMaxFrames = 200;
 
 // Returns the stack-trace of the PID=pid, one line per frame.
 absl::StatusOr<std::vector<std::string>> GetStackTrace(
-    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver);
+    const Regs* regs, const Namespace* ns, bool uses_custom_forkserver,
+    int recursion_depth);
 
 // Returns a stack trace that collapses duplicate stack frames and annotates
 // them with a repetition count.

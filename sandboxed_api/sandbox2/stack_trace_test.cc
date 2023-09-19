@@ -25,10 +25,12 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
 #include "absl/log/check.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -44,12 +46,57 @@
 ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 
 namespace sandbox2 {
+
+class StackTraceTestPeer {
+ public:
+  static StackTraceTestPeer& GetInstance() {
+    static auto* peer = new StackTraceTestPeer();
+    return *peer;
+  }
+  std::unique_ptr<internal::SandboxPeer> SpawnFn(
+      std::unique_ptr<Executor> executor, std::unique_ptr<Policy> policy) {
+    if (crash_unwind_) {
+      policy = PolicyBuilder().BuildOrDie();
+      crash_unwind_ = false;
+    }
+    return old_spawn_fn_(std::move(executor), std::move(policy));
+  }
+  void ReplaceSpawnFn() {
+    old_spawn_fn_ = internal::SandboxPeer::spawn_fn_;
+    internal::SandboxPeer::spawn_fn_ = +[](std::unique_ptr<Executor> executor,
+                                           std::unique_ptr<Policy> policy) {
+      return GetInstance().SpawnFn(std::move(executor), std::move(policy));
+    };
+  }
+  void RestoreSpawnFn() { internal::SandboxPeer::spawn_fn_ = old_spawn_fn_; }
+  void CrashNextUnwind() { crash_unwind_ = true; }
+
+ private:
+  internal::SandboxPeer::SpawnFn old_spawn_fn_;
+  bool crash_unwind_ = false;
+};
+
+struct ScopedSpawnOverride {
+  ScopedSpawnOverride() { StackTraceTestPeer::GetInstance().ReplaceSpawnFn(); }
+  ~ScopedSpawnOverride() { StackTraceTestPeer::GetInstance().RestoreSpawnFn(); }
+  ScopedSpawnOverride(ScopedSpawnOverride&&) = delete;
+  ScopedSpawnOverride& operator=(ScopedSpawnOverride&&) = delete;
+  ScopedSpawnOverride(const ScopedSpawnOverride&) = delete;
+  ScopedSpawnOverride& operator=(const ScopedSpawnOverride&) = delete;
+
+  void CrashNextUnwind() {
+    StackTraceTestPeer::GetInstance().CrashNextUnwind();
+  }
+};
+
 namespace {
 
 namespace file_util = ::sapi::file_util;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
+using ::testing::_;
 using ::testing::Contains;
+using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;
@@ -211,6 +258,30 @@ TEST(StackTraceTest, CompactStackTrace) {
               }),
               ElementsAre("_start", "main", "recursive_call",
                           "(previous frame repeated 3 times)"));
+}
+
+TEST(StackTraceTest, RecursiveStackTrace) {
+  // Very first sandbox run will initialize spawn_fn_
+  SKIP_SANITIZERS;
+  ScopedSpawnOverride spawn_override;
+  SymbolizationWorksCommon({});
+  absl::ScopedMockLog log;
+  EXPECT_CALL(
+      log,
+      Log(absl::LogSeverity::kInfo, _,
+          ContainsRegex(
+              "Libunwind execution status: SYSCALL VIOLATION.*Stack: \\w+")));
+  spawn_override.CrashNextUnwind();
+  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
+  std::vector<std::string> args = {path, absl::StrCat(1), absl::StrCat(1)};
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
+  log.StartCapturingLogs();
+  ASSERT_TRUE(s2.RunAsync());
+  auto result = s2.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::SIGNALED));
 }
 
 INSTANTIATE_TEST_SUITE_P(
