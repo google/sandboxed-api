@@ -109,9 +109,6 @@ socklen_t CreateSockaddrUn(const std::string& socket_name, bool abstract_uds,
 }
 }  // namespace
 
-Comms::Comms(const std::string& socket_name, bool abstract_uds)
-    : name_(socket_name), abstract_uds_(abstract_uds) {}
-
 Comms::Comms(int fd, absl::string_view name) : connection_fd_(fd) {
   // Generate a unique and meaningful socket name for this FD.
   // Note: getpid()/gettid() are non-blocking syscalls.
@@ -163,23 +160,6 @@ absl::Status ListeningComms::Listen() {
   return absl::OkStatus();
 }
 
-bool Comms::Listen() {
-  if (IsConnected()) {
-    return true;
-  }
-
-  absl::StatusOr<ListeningComms> listening_comms =
-      ListeningComms::Create(name_, abstract_uds_);
-  if (!listening_comms.ok()) {
-    SAPI_RAW_LOG(ERROR, "Listening failed: %s",
-                 std::string(listening_comms.status().message()).c_str());
-    return false;
-  }
-  listening_comms_ =
-      std::make_unique<ListeningComms>(*std::move(listening_comms));
-  return true;
-}
-
 absl::StatusOr<Comms> ListeningComms::Accept() {
   sockaddr_un suc;
   socklen_t len = sizeof(suc);
@@ -195,25 +175,6 @@ absl::StatusOr<Comms> ListeningComms::Accept() {
   SAPI_RAW_VLOG(1, "Accepted connection at: %s, fd: %d", socket_name_.c_str(),
                 connection_fd);
   return Comms(connection_fd, socket_name_);
-}
-
-bool Comms::Accept() {
-  if (IsConnected()) {
-    return true;
-  }
-
-  if (listening_comms_ == nullptr) {
-    SAPI_RAW_LOG(ERROR, "Comms::Listen needs to be called first");
-    return false;
-  }
-
-  absl::StatusOr<Comms> comms = listening_comms_->Accept();
-  if (!comms.ok()) {
-    SAPI_RAW_LOG(ERROR, "%s", std::string(comms.status().message()).c_str());
-    return false;
-  }
-  *this = *std::move(comms);
-  return true;
 }
 
 absl::StatusOr<Comms> Comms::Connect(const std::string& socket_name,
@@ -238,21 +199,6 @@ absl::StatusOr<Comms> Comms::Connect(const std::string& socket_name,
   SAPI_RAW_VLOG(1, "Connected to: %s, fd: %d", socket_name.c_str(),
                 connection_fd.get());
   return Comms(connection_fd.Release(), socket_name);
-}
-
-bool Comms::Connect() {
-  if (IsConnected()) {
-    return true;
-  }
-
-  absl::StatusOr<Comms> connected = Connect(name_, abstract_uds_);
-  if (!connected.ok()) {
-    SAPI_RAW_LOG(ERROR, "%s",
-                 std::string(connected.status().message()).c_str());
-    return false;
-  }
-  *this = *std::move(connected);
-  return true;
 }
 
 void Comms::Terminate() {
