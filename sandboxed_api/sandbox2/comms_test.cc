@@ -371,4 +371,12 @@ TEST(CommsTest, TestSendRecvBytes) {
   HandleCommunication(a, b);
 }
 
+// We cannot test this in the Client or Server tests, as the endpoint needs to
+// be unconnected.
+TEST(CommsTest, TestMsgSize) {
+  // There will be no actual connection to this socket.
+  const std::string socket_name = "sandbox2_comms_msg_size_test";
+  Comms c(socket_name);
+}
+
 }  // namespace sandbox2

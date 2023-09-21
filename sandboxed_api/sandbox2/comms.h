@@ -98,6 +98,12 @@ class Comms {
   static absl::StatusOr<Comms> Connect(const std::string& socket_name,
                                        bool abstract_uds = true);
 
+  // This object will have to be connected later on.
+  // When not specified the constructor uses abstract unix domain sockets.
+  ABSL_DEPRECATED(
+      "Use ListeningComms or absl::StatusOr<Comms> Connect() instead")
+  explicit Comms(const std::string& socket_name, bool abstract_uds = true);
+
   Comms(Comms&& other) { *this = std::move(other); }
   Comms& operator=(Comms&& other) {
     if (this != &other) {
@@ -119,6 +125,20 @@ class Comms {
   explicit Comms(DefaultConnectionTag);
 
   ~Comms();
+
+  // Binds to an address and make it listen to connections.
+  ABSL_DEPRECATED("Use ListeningComms::Create() instead")
+  bool Listen();
+
+  // Accepts the connection.
+  ABSL_DEPRECATED("Use ListeningComms::Accept() instead")
+  bool Accept();
+
+  // Connects to a remote socket.
+  ABSL_DEPRECATED(
+      "Use absl::StatusOr<Comms> Comms::Connect(std::string& socket_name, bool "
+      "abstract_uds) instead")
+  bool Connect();
 
   // Terminates all underlying file descriptors, and sets the status of the
   // Comms object to TERMINATED.
