@@ -259,6 +259,7 @@ void GlobalForkClient::EnsureStartedLocked(GlobalForkserverStartMode mode) {
   if (!forkserver.ok()) {
     SAPI_RAW_LOG(ERROR, "Starting forkserver failed: %s",
                  forkserver.status().message().data());
+    return;
   }
   instance_ = forkserver->release();
 }
