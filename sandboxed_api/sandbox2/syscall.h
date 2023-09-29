@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "sandboxed_api/config.h"
+#include "sandboxed_api/config.h"  // IWYU pragma: export
 
 namespace sandbox2 {
 
