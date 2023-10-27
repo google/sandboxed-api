@@ -15,6 +15,7 @@
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 
 #include <cstdint>
+#include <cstring>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -50,8 +51,9 @@ absl::optional<clang::SourceLocation> GetDiagnosticLocationFromStatus(
   if (auto payload =
           status.GetPayload(kSapiStatusPayload).value_or(absl::Cord());
       payload.size() == sizeof(uint64_t)) {
-    return clang::SourceLocation::getFromRawEncoding(
-        *reinterpret_cast<const uint64_t*>(payload.Flatten().data()));
+    uint64_t raw_encoding = 0;
+    memcpy(&raw_encoding, payload.Flatten().data(), sizeof(raw_encoding));
+    return clang::SourceLocation::getFromRawEncoding(raw_encoding);
   }
   return absl::nullopt;
 }
