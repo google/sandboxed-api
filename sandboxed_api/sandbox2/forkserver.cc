@@ -536,6 +536,30 @@ pid_t ForkServer::ServeRequest() {
 bool ForkServer::IsTerminated() const { return comms_->IsTerminated(); }
 
 bool ForkServer::Initialize() {
+  // For safety drop as many capabilities as possible.
+  // Note that cap_t is actually a pointer.
+  cap_t have_caps = cap_get_proc();  // caps we currently have
+  SAPI_RAW_CHECK(have_caps, "failed to cap_get_proc()");
+  cap_t wanted_caps = cap_init();  // starts as empty set, ie. no caps
+  SAPI_RAW_CHECK(wanted_caps, "failed to cap_init()");
+
+  for (cap_flag_t flag : {CAP_EFFECTIVE, CAP_PERMITTED}) {
+    cap_flag_value_t value;
+    int rc = cap_get_flag(have_caps, CAP_SETFCAP, flag, &value);
+    SAPI_RAW_CHECK(!rc, "cap_get_flag");
+    if (value == CAP_SET) {
+      cap_value_t caps_to_set[1] = {
+          CAP_SETFCAP,
+      };
+      rc = cap_set_flag(wanted_caps, flag, 1, caps_to_set, CAP_SET);
+      SAPI_RAW_CHECK(!rc, "cap_set_flag");
+    }
+  }
+
+  SAPI_RAW_CHECK(!cap_set_proc(wanted_caps), "while dropping capabilities");
+  SAPI_RAW_CHECK(!cap_free(wanted_caps), "while freeing wanted_caps");
+  SAPI_RAW_CHECK(!cap_free(have_caps), "while freeing have_caps");
+
   // All processes spawned by the fork'd/execute'd process will see this process
   // as /sbin/init. Therefore it will receive (and ignore) their final status
   // (see the next comment as well). PR_SET_CHILD_SUBREAPER is available since
