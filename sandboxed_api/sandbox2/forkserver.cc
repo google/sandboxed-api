@@ -543,16 +543,20 @@ bool ForkServer::Initialize() {
   cap_t wanted_caps = cap_init();  // starts as empty set, ie. no caps
   SAPI_RAW_CHECK(wanted_caps, "failed to cap_init()");
 
-  for (cap_flag_t flag : {CAP_EFFECTIVE, CAP_PERMITTED}) {
-    cap_flag_value_t value;
-    int rc = cap_get_flag(have_caps, CAP_SETFCAP, flag, &value);
-    SAPI_RAW_CHECK(!rc, "cap_get_flag");
-    if (value == CAP_SET) {
-      cap_value_t caps_to_set[1] = {
-          CAP_SETFCAP,
-      };
-      rc = cap_set_flag(wanted_caps, flag, 1, caps_to_set, CAP_SET);
-      SAPI_RAW_CHECK(!rc, "cap_set_flag");
+  // CAP_SYS_PTRACE appears to be needed for apparmor (or possibly yama)
+  // CAP_SETFCAP is needed on newer kernels (5.10 needs it, 4.15 does not)
+  for (cap_value_t cap : {CAP_SYS_PTRACE, CAP_SETFCAP}) {
+    for (cap_flag_t flag : {CAP_EFFECTIVE, CAP_PERMITTED}) {
+      cap_flag_value_t value;
+      int rc = cap_get_flag(have_caps, cap, flag, &value);
+      SAPI_RAW_CHECK(!rc, "cap_get_flag");
+      if (value == CAP_SET) {
+        cap_value_t caps_to_set[1] = {
+            cap,
+        };
+        rc = cap_set_flag(wanted_caps, flag, 1, caps_to_set, CAP_SET);
+        SAPI_RAW_CHECK(!rc, "cap_set_flag");
+      }
     }
   }
 
