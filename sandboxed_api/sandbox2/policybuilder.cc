@@ -998,6 +998,8 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                                         JEQ32(PROT_READ, ALLOW),
                                     });
 
+  OverridableBlockSyscallWithErrno(__NR_sigaltstack, ENOSYS);
+
   return *this;
 }
 
