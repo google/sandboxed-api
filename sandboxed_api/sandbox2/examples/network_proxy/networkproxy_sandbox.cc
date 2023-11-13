@@ -50,6 +50,7 @@ std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
       .AllowSyscall(__NR_lseek)
       .AllowSyscall(__NR_munmap)
       .AllowSyscall(__NR_getpid)
+      .AllowSyscall(__NR_sigaltstack)
       .AllowTcMalloc()
       .AddLibrariesForBinary(sandboxee_path);
   if (absl::GetFlag(FLAGS_connect_with_handler)) {
