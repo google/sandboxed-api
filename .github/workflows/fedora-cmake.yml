@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - container: fedora:35
+          - container: fedora:38
             compiler: gcc
             compiler-version: 11  # Only used in cache action so far
             ignore-errors: true  # Stack trace test fails on Fedora (issue #118)
@@ -56,7 +56,7 @@ jobs:
 
     - name: Create Build Environment
       run: |
-        $RUN_CMD pip3 install --progress-bar=off absl-py clang
+        $RUN_CMD pip3 install --progress-bar=off absl-py clang>=13,<14
         $RUN_CMD cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake
