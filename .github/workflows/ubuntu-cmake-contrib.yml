@@ -78,7 +78,7 @@ jobs:
 
     - name: Create Build Environment
       run: |
-        pip3 install absl-py clang>=14,<15
+        pip3 install absl-py 'clang>=14,<15'
         cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake

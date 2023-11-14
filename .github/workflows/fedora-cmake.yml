@@ -56,7 +56,7 @@ jobs:
 
     - name: Create Build Environment
       run: |
-        $RUN_CMD pip3 install --progress-bar=off absl-py clang>=13,<14
+        $RUN_CMD pip3 install --progress-bar=off absl-py 'clang>=13,<14'
         $RUN_CMD cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake
