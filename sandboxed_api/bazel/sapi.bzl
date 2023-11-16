@@ -236,6 +236,7 @@ def sapi_library(
         name,
         lib,
         lib_name,
+        malloc = "@bazel_tools//tools/cpp:malloc",
         namespace = "",
         api_version = 1,
         embed = True,
@@ -355,6 +356,7 @@ def sapi_library(
             # The sandboxing client must have access to all
             "-Wl,-E",  # symbols used in the sandboxed library, so these
         ] + exported_funcs,  # must be both referenced, and exported
+        malloc = malloc,
         deps = [
             ":" + name + ".lib",
             "//sandboxed_api:client",
