@@ -271,7 +271,7 @@ void GlobalForkClient::ForceStart() {
                  "already running");
   absl::StatusOr<std::unique_ptr<GlobalForkClient>> forkserver =
       StartGlobalForkServer();
-  SAPI_RAW_CHECK(forkserver.ok(), forkserver.status().message().data());
+  SAPI_RAW_CHECK(forkserver.ok(), forkserver.status().ToString().c_str());
   instance_ = forkserver->release();
 }
 
