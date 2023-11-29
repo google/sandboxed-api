@@ -89,7 +89,7 @@ class CodeAnalysisTest(parameterized.TestCase):
         if x.kind != cindex.CursorKind.MACRO_DEFINITION
     ]
     self.assertListEqual(cursor_kinds, [
-        cindex.CursorKind.TRANSLATION_UNIT, cindex.CursorKind.UNEXPOSED_DECL,
+        cindex.CursorKind.TRANSLATION_UNIT, cindex.CursorKind.LINKAGE_SPEC,
         cindex.CursorKind.FUNCTION_DECL, cindex.CursorKind.PARM_DECL
     ])
 
