@@ -494,6 +494,7 @@ constexpr std::array kSyscallDataX8664 = {
     MakeEntry(332, "statx", kInt, kPath, kHex, kHex, kHex),
     MakeEntry(333, "io_pgetevents", UnknownArguments()),
     MakeEntry(334, "rseq", kHex, kInt, kHex, kHex),
+    MakeEntry(435, "clone3", kHex, kInt),
     // clang-format on
 };
 
@@ -860,6 +861,7 @@ constexpr std::array kSyscallDataX8632 = {
     MakeEntry(355, "getrandom", kGen, kInt, kHex),
     MakeEntry(356, "memfd_create", kString, kHex),
     MakeEntry(357, "bpf", kInt, kHex, kInt),
+    MakeEntry(435, "clone3", kHex, kInt),
     // clang-format on
 };
 
@@ -1239,6 +1241,7 @@ constexpr std::array kSyscallDataPPC64LE = {
     MakeEntry(379, "copy_file_range", kInt, kHex, kInt, kHex, kInt, kHex),
     MakeEntry(380, "preadv2", kInt, kHex, kInt, kInt, kInt, kHex),
     MakeEntry(381, "pwritev2", kInt, kHex, kInt, kInt, kInt, kHex),
+    MakeEntry(435, "clone3", kHex, kInt),
     // clang-format on
 };
 
@@ -1520,6 +1523,7 @@ constexpr std::array kSyscallDataArm64 = {
     MakeEntry(285, "copy_file_range", kInt, kHex, kInt, kHex, kInt, kHex),
     MakeEntry(286, "preadv2", kInt, kHex, kInt, kInt, kInt, kHex),
     MakeEntry(287, "pwritev2", kInt, kHex, kInt, kInt, kInt, kHex),
+    MakeEntry(435, "clone3", kHex, kInt),
     // clang-format on
 };
 
@@ -1877,6 +1881,7 @@ constexpr std::array kSyscallDataArm32 = {
     MakeEntry(393, "pwritev2", kInt, kHex, kInt, kInt, kInt, kHex),
     MakeEntry(400, "migrate_pages", kGen, kGen, kGen, kGen),
     MakeEntry(401, "kexec_file_load", kInt, kInt, kInt, kString, kHex),
+    MakeEntry(435, "clone3", kHex, kInt),
     MakeEntry(0xf0001, "ARM_breakpoint", kHex, kHex, kHex, kHex),
     MakeEntry(0xf0002, "ARM_cacheflush", kHex, kHex, kHex, kHex),
     MakeEntry(0xf0003, "ARM_usr26", kHex, kHex, kHex, kHex),
