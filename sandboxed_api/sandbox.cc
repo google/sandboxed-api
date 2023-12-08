@@ -40,6 +40,7 @@
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
+#include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
@@ -105,20 +106,31 @@ void Sandbox::Terminate(bool attempt_graceful_exit) {
     return;
   }
 
+  absl::StatusOr<sandbox2::Result> result;
   if (attempt_graceful_exit) {
-    // Gracefully ask it to exit (with 1 second limit) first, then kill it.
-    Exit();
-  } else {
-    // Kill it straight away
-    s2_->Kill();
+    if (absl::Status requested_exit = rpc_channel_->Exit();
+        !requested_exit.ok()) {
+      LOG(WARNING)
+          << "rpc_channel->Exit() failed, calling AwaitResultWithTimeout(1) "
+          << requested_exit;
+    }
+    result = s2_->AwaitResultWithTimeout(absl::Seconds(1));
+    if (!result.ok()) {
+      LOG(WARNING) << "s2_->AwaitResultWithTimeout failed, status: "
+                   << result.status() << " Killing PID: " << pid();
+    }
   }
 
-  const auto& result = AwaitResult();
-  if (result.final_status() == sandbox2::Result::OK &&
-      result.reason_code() == 0) {
-    VLOG(2) << "Sandbox2 finished with: " << result.ToString();
+  if (!attempt_graceful_exit || !result.ok()) {
+    s2_->Kill();
+    result = s2_->AwaitResult();
+  }
+
+  if (result->final_status() == sandbox2::Result::OK &&
+      result->reason_code() == 0) {
+    VLOG(2) << "Sandbox2 finished with: " << result->ToString();
   } else {
-    LOG(WARNING) << "Sandbox2 finished with: " << result.ToString();
+    LOG(WARNING) << "Sandbox2 finished with: " << result->ToString();
   }
 }
 

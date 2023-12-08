@@ -140,16 +140,6 @@ absl::Status RPCChannel::Exit() {
   // Try the RPC exit sequence. But, the only thing that matters as a success
   // indicator is whether the Comms channel had been closed
   comms_->SendTLV(comms::kMsgExit, 0, nullptr);
-  bool unused;
-  comms_->RecvBool(&unused);
-
-  if (!comms_->IsTerminated()) {
-    LOG(ERROR) << "Comms channel not terminated in Exit()";
-    // TODO(hamacher): Better error code
-    return absl::FailedPreconditionError(
-        "Comms channel not terminated in Exit()");
-  }
-
   return absl::OkStatus();
 }
 
