@@ -957,6 +957,7 @@ cc_test(
     copts = sapi_platform_copts(),
     data = [
         "//sandboxed_api/sandbox2/testcases:abort",
+        "//sandboxed_api/sandbox2/testcases:custom_fork",
         "//sandboxed_api/sandbox2/testcases:minimal",
         "//sandboxed_api/sandbox2/testcases:sleep",
         "//sandboxed_api/sandbox2/testcases:starve",
@@ -967,6 +968,7 @@ cc_test(
         "no_qemu_user_mode",
     ],
     deps = [
+        ":fork_client",
         ":sandbox2",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",

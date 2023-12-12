@@ -35,6 +35,7 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -51,6 +52,7 @@ using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Lt;
+using ::testing::Ne;
 
 class Sandbox2Test : public ::testing::TestWithParam<bool> {
  public:
@@ -192,6 +194,23 @@ TEST_P(Sandbox2Test, SandboxeeNotKilledWhenStartingThreadFinishes) {
   std::thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });
   sandbox_start_thread.join();
   Result result = sandbox.AwaitResult();
+  EXPECT_EQ(result.final_status(), Result::OK);
+}
+
+TEST_P(Sandbox2Test, CustomForkserverWorks) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/custom_fork");
+  std::vector<std::string> args = {path};
+  auto fork_executor = std::make_unique<Executor>(path, args);
+  std::unique_ptr<ForkClient> fork_client = fork_executor->StartForkServer();
+  ASSERT_THAT(fork_client.get(), Ne(nullptr));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+
+  Sandbox2 sandbox(std::make_unique<Executor>(fork_client.get()),
+                   std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  Result result = sandbox.Run();
   EXPECT_EQ(result.final_status(), Result::OK);
 }
 

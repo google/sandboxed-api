@@ -1039,6 +1039,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   add_dependencies(sandbox2_sandbox2_test
     sandbox2::testcase_abort
+    sandbox2::testcase_custom_fork
     sandbox2::testcase_minimal
     sandbox2::testcase_sleep
     sandbox2::testcase_tsync
@@ -1050,6 +1051,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::synchronization
     absl::time
     sapi::config
+    sandbox2::fork_client
     sandbox2::sandbox2
     sapi::testing
     sapi::status_matchers

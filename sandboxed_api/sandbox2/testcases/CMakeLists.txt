@@ -322,3 +322,19 @@ target_link_libraries(sandbox2_testcase_network_proxy PRIVATE
   sapi::status
 )
 
+# sandboxed_api/sandbox2/testcases:custom_fork
+add_executable(sandbox2_testcase_custom_fork
+  custom_fork.cc
+)
+add_executable(sandbox2::testcase_custom_fork ALIAS sandbox2_testcase_custom_fork)
+set_target_properties(sandbox2_testcase_custom_fork PROPERTIES
+  OUTPUT_NAME custom_fork
+)
+target_link_libraries(sandbox2_testcase_custom_fork PRIVATE
+  sandbox2::comms
+  sandbox2::forkingclient
+  sapi::base
+  sapi::raw_logging
+)
+
+
