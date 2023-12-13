@@ -422,6 +422,7 @@ target_link_libraries(sandbox2_monitor_base
           sandbox2::executor
           sandbox2::fork_client
           sandbox2::ipc
+          sandbox2::network_proxy_client
           sandbox2::network_proxy_server
           sandbox2::notify
           sandbox2::policy

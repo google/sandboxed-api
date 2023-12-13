@@ -27,6 +27,13 @@ namespace sandbox2 {
 
 using ::sapi::file_util::fileops::FDCloser;
 
+ForkClient::ForkClient(pid_t pid, Comms* comms, bool is_global)
+    : pid_(pid), comms_(comms), is_global_(is_global) {
+}
+
+ForkClient::~ForkClient() {
+}
+
 SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
                                          int exec_fd, int comms_fd) {
   SandboxeeProcess process;

@@ -37,9 +37,10 @@ struct SandboxeeProcess {
 
 class ForkClient {
  public:
-  ForkClient(pid_t pid, Comms* comms) : pid_(pid), comms_(comms) {}
+  ForkClient(pid_t pid, Comms* comms) : ForkClient(pid, comms, false) {}
   ForkClient(const ForkClient&) = delete;
   ForkClient& operator=(const ForkClient&) = delete;
+  ~ForkClient();
 
   // Sends the fork request over the supplied Comms channel.
   SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
@@ -48,10 +49,16 @@ class ForkClient {
   pid_t pid() { return pid_; }
 
  private:
+  friend class GlobalForkClient;
+
+  ForkClient(pid_t pid, Comms* comms, bool is_global);
+
   // Pid of the ForkServer.
   pid_t pid_;
   // Comms channel connecting with the ForkServer. Not owned by the object.
   Comms* comms_ ABSL_GUARDED_BY(comms_mutex_);
+  // Is it the global forkserver
+  bool is_global_;
   // Mutex locking transactions (requests) over the Comms channel.
   absl::Mutex comms_mutex_;
 };

@@ -43,7 +43,7 @@ enum class GlobalForkserverStartMode {
 class GlobalForkClient {
  public:
   GlobalForkClient(int fd, pid_t pid)
-      : comms_(fd), fork_client_(pid, &comms_) {}
+      : comms_(fd), fork_client_(pid, &comms_, /*is_global=*/true) {}
 
   static SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
                                       int comms_fd)
