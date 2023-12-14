@@ -284,5 +284,24 @@ TEST(SandboxTest, NoRaceInConcurrentTerminate) {
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::EXTERNAL_KILL));
 }
 
+TEST(SandboxTest, UseUnotifyMonitor) {
+  SumSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(/*use_unotify_monitor=*/true), IsOk());
+  SumApi api(&sandbox);
+
+  // Violate the sandbox policy.
+  EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(api.sum(1, 2).status(), StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(sandbox.AwaitResult().final_status(),
+              Eq(sandbox2::Result::VIOLATION));
+
+  // Restart the sandbox.
+  ASSERT_THAT(sandbox.Restart(false), IsOk());
+
+  // The sandbox should now be responsive again.
+  SAPI_ASSERT_OK_AND_ASSIGN(int result, api.sum(1, 2));
+  EXPECT_THAT(result, Eq(3));
+}
+
 }  // namespace
 }  // namespace sapi

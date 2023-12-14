@@ -139,7 +139,7 @@ static std::string PathToSAPILib(const std::string& lib_path) {
                                         : GetDataDependencyFilePath(lib_path);
 }
 
-absl::Status Sandbox::Init() {
+absl::Status Sandbox::Init(bool use_unotify_monitor) {
   // It's already initialized
   if (is_active()) {
     return absl::OkStatus();
@@ -188,6 +188,9 @@ absl::Status Sandbox::Init() {
 
     sandbox2::PolicyBuilder policy_builder;
     InitDefaultPolicyBuilder(&policy_builder);
+  if (use_unotify_monitor) {
+    policy_builder.CollectStacktracesOnSignal(false);
+  }
   auto s2p = ModifyPolicy(&policy_builder);
 
   // Spawn new process from the forkserver.
@@ -208,6 +211,9 @@ absl::Status Sandbox::Init() {
 
   s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
                                              std::move(s2p), CreateNotifier());
+  if (use_unotify_monitor) {
+    SAPI_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
+  }
   s2_awaited_ = false;
   auto res = s2_->RunAsync();
 

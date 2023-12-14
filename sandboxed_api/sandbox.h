@@ -52,7 +52,7 @@ class Sandbox {
   virtual ~Sandbox();
 
   // Initializes a new sandboxing session.
-  absl::Status Init();
+  absl::Status Init(bool use_unotify_monitor = false);
 
   // Returns whether the current sandboxing session is active.
   bool is_active() const;
