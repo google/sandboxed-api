@@ -38,7 +38,7 @@ class LibPNGSapiSandbox : public LibPNGSandbox {
         .AllowOpen()
         .AllowExit()
         .AllowStat()
-        .AllowMmap()
+        .AllowMmapWithoutExec()
         .AllowSystemMalloc()
         .AllowSyscalls({
             __NR_futex,

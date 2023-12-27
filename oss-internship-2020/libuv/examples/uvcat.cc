@@ -37,7 +37,7 @@ class UVSapiUVCatSandbox : public uv::UVSandbox {
         .AllowFork()
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
         .AllowFutexOp(FUTEX_WAIT_PRIVATE)
-        .AllowMmap()
+        .AllowMmapWithoutExec()
         .AllowOpen()
         .AllowEpoll()
         .AllowSyscall(__NR_eventfd2)

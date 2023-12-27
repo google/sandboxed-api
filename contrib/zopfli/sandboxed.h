@@ -31,7 +31,7 @@ class ZopfliSapiSandbox : public ZopfliSandbox {
         .AllowDynamicStartup()
         .AllowWrite()
         .AllowExit()
-        .AllowMmap()
+        .AllowMmapWithoutExec()
         .AllowSystemMalloc()
         .AllowSyscalls({
             __NR_recvmsg,

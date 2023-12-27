@@ -329,7 +329,7 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   // example:
   // https://github.com/llvm/llvm-project/blob/596d534ac3524052df210be8d3c01a33b2260a42/compiler-rt/lib/asan/asan_allocator.cpp#L980
   // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
-  AllowMmap();
+  AllowMmapWithoutExec();
   AllowSyscall(__NR_munmap);
   AllowSyscall(__NR_sched_yield);
 
@@ -413,6 +413,14 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
                                               JEQ32(MADV_HUGEPAGE, ALLOW),
                                               JEQ32(MADV_NOHUGEPAGE, ALLOW),
                                           });
+}
+
+PolicyBuilder& PolicyBuilder::AllowMmapWithoutExec() {
+  return AddPolicyOnMmap({
+      ARG_32(2),
+      BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, PROT_EXEC, 1, 0),
+      ALLOW,
+  });
 }
 
 PolicyBuilder& PolicyBuilder::AllowMmap() {

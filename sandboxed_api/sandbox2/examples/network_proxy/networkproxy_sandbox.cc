@@ -41,7 +41,7 @@ constexpr char kSandboxeePath[] =
 std::unique_ptr<sandbox2::Policy> GetPolicy(absl::string_view sandboxee_path) {
   sandbox2::PolicyBuilder builder;
   builder.AllowExit()
-      .AllowMmap()
+      .AllowMmapWithoutExec()
       .AllowRead()
       .AllowWrite()
       .AllowStat()  // printf, puts

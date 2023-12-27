@@ -32,7 +32,7 @@ class UVTestOSSapiSandbox : public uv::UVSandbox {
         .AllowExit()
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
         .AllowGetIDs()
-        .AllowMmap()
+        .AllowMmapWithoutExec()
         .AllowOpen()
         .AllowWrite()
         .AllowSyscalls({__NR_connect, __NR_socket})

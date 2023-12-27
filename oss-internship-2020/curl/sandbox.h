@@ -38,7 +38,7 @@ class CurlSapiSandbox : public curl::CurlSandbox {
         .AllowFutexOp(FUTEX_WAIT_PRIVATE)
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
         .AllowFutexOp(FUTEX_REQUEUE_PRIVATE)
-        .AllowMmap()
+        .AllowMmapWithoutExec()
         .AllowOpen()
         .AllowSafeFcntl()
         .AllowWrite()

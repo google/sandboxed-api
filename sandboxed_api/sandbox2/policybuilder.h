@@ -245,7 +245,12 @@ class PolicyBuilder final {
 
   // Appends code to allow mmap. Specifically this allows mmap and mmap2 syscall
   // on architectures where this syscalls exist.
+  // Prefer using AllowMmapWithoutExec as allowing mapping executable pages
+  // makes exploitation easier.
   PolicyBuilder& AllowMmap();
+
+  // Appends code to allow mmap calls that don't specify PROT_EXEC.
+  PolicyBuilder& AllowMmapWithoutExec();
 
   // Appends code to allow calling futex with the given operation.
   PolicyBuilder& AllowFutexOp(int op);

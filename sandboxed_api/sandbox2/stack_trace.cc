@@ -145,7 +145,7 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowSyscall(__NR_recvmsg)
 
       // libunwind
-      .AllowMmap()
+      .AllowMmapWithoutExec()
       .AllowStat()
       .AllowSyscall(__NR_lseek)
 #ifdef __NR__llseek
