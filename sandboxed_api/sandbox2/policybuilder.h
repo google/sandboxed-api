@@ -256,14 +256,14 @@ class PolicyBuilder final {
   PolicyBuilder& AllowFutexOp(int op);
 
   // Appends code to allow opening and possibly creating files or directories.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - creat
   // - open
   // - openat
   PolicyBuilder& AllowOpen();
 
   // Appends code to allow calling stat, fstat and lstat.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - fstat
   // - fstat64
   // - fstatat
@@ -318,7 +318,7 @@ class PolicyBuilder final {
   PolicyBuilder& AllowChown();
 
   // Appends code to the policy to allow reading from file descriptors.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - read
   // - readv
   // - preadv
@@ -326,7 +326,7 @@ class PolicyBuilder final {
   PolicyBuilder& AllowRead();
 
   // Appends code to the policy to allow writing to file descriptors.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - write
   // - writev
   // - pwritev
@@ -334,37 +334,37 @@ class PolicyBuilder final {
   PolicyBuilder& AllowWrite();
 
   // Appends code to allow reading directories.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - getdents
   // - getdents64
   PolicyBuilder& AllowReaddir();
 
   // Appends code to allow reading symbolic links.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - readlink
   // - readlinkat
   PolicyBuilder& AllowReadlink();
 
   // Appends code to allow creating links.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - link
   // - linkat
   PolicyBuilder& AllowLink();
 
   // Appends code to allow creating symbolic links.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - symlink
   // - symlinkat
   PolicyBuilder& AllowSymlink();
 
   // Appends code to allow creating directories.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - mkdir
   // - mkdirat
   PolicyBuilder& AllowMkdir();
 
   // Appends code to allow changing file timestamps.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - futimens
   // - utime
   // - utimensat
@@ -372,7 +372,7 @@ class PolicyBuilder final {
   PolicyBuilder& AllowUtime();
 
   // Appends code to allow safe calls to fcntl.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - fcntl
   // - fcntl64 (on architectures where it exists)
   //
@@ -382,7 +382,7 @@ class PolicyBuilder final {
   PolicyBuilder& AllowSafeFcntl();
 
   // Appends code to allow creating new processes.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - fork
   // - vfork
   // - clone
@@ -393,19 +393,19 @@ class PolicyBuilder final {
   PolicyBuilder& AllowFork();
 
   // Appends code to allow waiting for processes.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - waitpid (on architectures where it exists)
   // - wait4
   PolicyBuilder& AllowWait();
 
   // Appends code to allow setting alarms / interval timers.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - alarm (on architectures where it exists)
   // - setitimer
   PolicyBuilder& AllowAlarm();
 
   // Appends code to allow setting up signal handlers, returning from them, etc.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - rt_sigaction
   // - rt_sigreturn
   // - rt_procmask
@@ -416,12 +416,12 @@ class PolicyBuilder final {
   PolicyBuilder& AllowHandleSignals();
 
   // Appends code to allow doing the TCGETS ioctl.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - ioctl (when the first argument is TCGETS)
   PolicyBuilder& AllowTCGETS();
 
   // Appends code to allow to getting the current time.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - time
   // - gettimeofday
   // - clock_gettime
@@ -455,19 +455,19 @@ class PolicyBuilder final {
   PolicyBuilder& AllowGetPGIDs();
 
   // Appends code to allow getting the rlimits.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - getrlimit
   // - ugetrlimit (on architectures where it exist)
   PolicyBuilder& AllowGetRlimit();
 
   // Appends code to allow setting the rlimits.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - setrlimit
   // - usetrlimit (on architectures where it exist)
   PolicyBuilder& AllowSetRlimit();
 
   // Appends code to allow reading random bytes.
-  // Allows these sycalls:
+  // Allows these syscalls:
   // - getrandom (with no flags or GRND_NONBLOCK)
   //
   PolicyBuilder& AllowGetRandom();

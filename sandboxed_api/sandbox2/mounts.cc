@@ -163,7 +163,7 @@ bool HasSameTarget(const MountTree::Node& n1, const MountTree::Node& n2) {
   if (n1.node_case() != n2.node_case()) {
     return false;
   }
-  // Compare proto fileds
+  // Compare proto fields
   switch (n1.node_case()) {
     case MountTree::Node::kFileNode:
       // Check whether files are the same (e.g. symlinks / hardlinks)
@@ -185,7 +185,7 @@ bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
     return false;
   }
 
-  // Compare proto fileds
+  // Compare proto fields
   switch (n1.node_case()) {
     case MountTree::Node::kFileNode:
       return n1.file_node().writable() == n2.file_node().writable();
@@ -309,7 +309,7 @@ absl::Status Mounts::Insert(absl::string_view path,
       if (!internal::IsWritable(curtree->node()) &&
           internal::IsWritable(new_node)) {
         SAPI_RAW_LOG(INFO,
-                     "Chaning %s to writable, was insterted read-only before",
+                     "Changing %s to writable, was inserted read-only before",
                      std::string(path).c_str());
         *curtree->mutable_node() = new_node;
         return absl::OkStatus();
@@ -317,7 +317,7 @@ absl::Status Mounts::Insert(absl::string_view path,
       if (internal::IsWritable(curtree->node()) &&
           !internal::IsWritable(new_node)) {
         SAPI_RAW_LOG(INFO,
-                     "Inserting %s read-only is a nop, as it was insterted "
+                     "Inserting %s read-only is a nop, as it was inserted "
                      "writable before",
                      std::string(path).c_str());
         return absl::OkStatus();
@@ -349,7 +349,7 @@ absl::Status Mounts::AddFileAt(absl::string_view outside,
 absl::Status Mounts::AddDirectoryAt(absl::string_view outside,
                                     absl::string_view inside, bool is_ro) {
   MountTree::Node node;
-  auto dir_node = node.mutable_dir_node();
+  auto* dir_node = node.mutable_dir_node();
   dir_node->set_outside(std::string(outside));
   dir_node->set_writable(!is_ro);
   return Insert(inside, node);
