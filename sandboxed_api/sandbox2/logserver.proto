@@ -13,12 +13,13 @@
 // limitations under the License.
 
 syntax = "proto3";
+
 package sandbox2;
 
 message LogMessage {
   optional int32 severity = 1;
   optional string path = 2;
   optional int32 line = 3;
-  optional string message = 4;
+  optional bytes message = 4;
   optional int32 pid = 5;
 }
