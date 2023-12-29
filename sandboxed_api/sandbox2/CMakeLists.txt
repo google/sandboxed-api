@@ -194,7 +194,6 @@ target_link_libraries(sandbox2_notify
          sandbox2::syscall
          sandbox2::util
   PRIVATE sapi::base
-          sapi::config
 )
 
 # sandboxed_api/sandbox2:limits

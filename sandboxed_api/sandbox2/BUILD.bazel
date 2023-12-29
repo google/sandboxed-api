@@ -237,7 +237,6 @@ cc_library(
         ":result",
         ":syscall",
         ":util",
-        "//sandboxed_api:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
     ],

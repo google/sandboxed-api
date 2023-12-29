@@ -21,7 +21,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/log/log.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/syscall.h"
