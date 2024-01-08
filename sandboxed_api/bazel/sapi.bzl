@@ -146,10 +146,10 @@ def _sapi_interface_impl(ctx):
 
         # Disable warnings in parsed code
         extra_flags.append("--extra-arg=-Wno-everything")
-        extra_flags += ["--extra-arg=-isystem{}".format(d) for d in cpp_toolchain.built_in_include_directories]
         extra_flags += ["--extra-arg=-D{}".format(d) for d in cc_ctx.defines.to_list()]
         extra_flags += ["--extra-arg=-isystem{}".format(i) for i in cc_ctx.system_includes.to_list()]
         extra_flags += ["--extra-arg=-iquote{}".format(i) for i in quote_includes]
+        extra_flags += ["--extra-arg=-isystem{}".format(d) for d in cpp_toolchain.built_in_include_directories]
     else:
         append_all(extra_flags, "-D", cc_ctx.defines.to_list())
         append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
