@@ -773,6 +773,7 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
                                               ARG_32(0),
                                               JEQ32(SIG_SETMASK, ALLOW),
                                           });
+  AllowPrctlSetVma();
   if (cpu_fence_mode == kAllowSlowFences) {
     AllowSyscall(__NR_sched_getaffinity);
     AllowSyscall(__NR_sched_setaffinity);
