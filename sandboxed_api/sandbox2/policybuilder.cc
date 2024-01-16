@@ -805,6 +805,9 @@ PolicyBuilder& PolicyBuilder::AllowGetPGIDs() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowGetRlimit() {
+#ifdef __NR_prlimit64
+  AddPolicyOnSyscall(__NR_prlimit64, {ARG(2), JEQ64(0, 0, ALLOW)});
+#endif
   return AllowSyscalls({
 #ifdef __NR_getrlimit
       __NR_getrlimit,
@@ -817,6 +820,9 @@ PolicyBuilder& PolicyBuilder::AllowGetRlimit() {
 
 PolicyBuilder& PolicyBuilder::AllowSetRlimit() {
   return AllowSyscalls({
+#ifdef __NR_prlimit64
+      __NR_prlimit64,
+#endif
 #ifdef __NR_setrlimit
       __NR_setrlimit,
 #endif
@@ -865,7 +871,7 @@ PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
                                               ARG_32(0),
                                               JEQ32(SIG_BLOCK, ALLOW),
                                           });
-  AllowSyscall(__NR_prlimit64);
+  AllowGetRlimit();
 
   // For LOG(FATAL)
   return AddPolicyOnSyscall(__NR_kill,
@@ -999,9 +1005,7 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
 
-#ifdef __NR_prlimit64
-  OverridableBlockSyscallWithErrno(__NR_prlimit64, EPERM);
-#endif
+  AllowGetRlimit();
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
                                         JEQ32(PROT_READ, ALLOW),
