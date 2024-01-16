@@ -359,7 +359,7 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   OverridableBlockSyscallWithErrno(__NR_ioctl, EPERM);
   // https://github.com/llvm/llvm-project/blob/9aa39481d9eb718e872993791547053a3c1f16d5/compiler-rt/lib/sanitizer_common/sanitizer_linux_libcdep.cpp#L150
   // https://sourceware.org/git/?p=glibc.git;a=blob;f=nptl/pthread_getattr_np.c;h=de7edfa0928224eb8375e2fe894d6677570fbb3b;hb=HEAD#l188
-  OverridableBlockSyscallWithErrno(__NR_sched_getaffinity, EPERM);
+  AllowSyscall(__NR_sched_getaffinity);
   // https://github.com/llvm/llvm-project/blob/02c2b472b510ff55679844c087b66e7837e13dc2/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L434
 #ifdef __NR_readlink
   OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
