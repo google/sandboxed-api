@@ -78,7 +78,7 @@ class SyscallTable {
 
   absl::StatusOr<Entry> GetEntry(int syscall) const;
   // Returns the first entry matching the provided name.
-  absl::StatusOr<Entry> GetEntry(std::string_view name) const;
+  absl::StatusOr<Entry> GetEntry(absl::string_view name) const;
 
   absl::Span<const Entry> GetEntries() const { return data_; }
 
