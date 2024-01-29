@@ -324,6 +324,14 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
   // Copy all arguments into rfcall.
   int i = 0;
   for (auto* arg : args) {
+    if (arg == nullptr) {
+      rfcall.arg_type[i] = v::Type::kPointer;
+      rfcall.arg_size[i] = sizeof(void*);
+      rfcall.args[i].arg_int = 0;
+      VLOG(1) << "CALL ARG: (" << i << "): nullptr";
+      ++i;
+      continue;
+    }
     rfcall.arg_size[i] = arg->GetSize();
     rfcall.arg_type[i] = arg->GetType();
 
@@ -357,7 +365,6 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
       }
       rfcall.args[i].arg_int = fd->GetRemoteFd();
     }
-
     VLOG(1) << "CALL ARG: (" << i << "), Type: " << arg->GetTypeString()
             << ", Size: " << arg->GetSize() << ", Val: " << arg->ToString();
     ++i;
@@ -382,7 +389,9 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
 
   // Synchronize all pointers after the call if it's needed.
   for (auto* arg : args) {
-    SAPI_RETURN_IF_ERROR(SynchronizePtrAfter(arg));
+    if (arg != nullptr) {
+      SAPI_RETURN_IF_ERROR(SynchronizePtrAfter(arg));
+    }
   }
 
   VLOG(1) << "CALL EXIT: Type: " << ret->GetTypeString()

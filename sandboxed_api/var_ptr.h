@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
@@ -79,7 +80,9 @@ class Ptr : public Reg<Var*> {
 };
 
 // Good, old nullptr
-class NullPtr : public Ptr {
+class ABSL_DEPRECATED(
+    "Use regular `nullptr` or `NULL` instead. This class will eventually get "
+    "removed") NullPtr : public Ptr {
  public:
   NullPtr() : Ptr(&void_obj_, SyncType::kSyncNone) {}
 
