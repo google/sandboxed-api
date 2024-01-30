@@ -70,6 +70,9 @@
 #include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
 #endif
 
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
 #ifndef PR_SET_VMA
 #define PR_SET_VMA 0x53564d41
 #endif
@@ -285,6 +288,7 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
         LABEL(&labels, prot_none),
         ARG_32(3),  // flags
         JEQ32(MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE, ALLOW),
+        JEQ32(MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED_NOREPLACE, ALLOW),
         JEQ32(MAP_ANONYMOUS | MAP_PRIVATE, ALLOW),
 
         LABEL(&labels, mmap_end),
