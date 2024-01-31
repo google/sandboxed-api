@@ -772,6 +772,7 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
   AllowFutexOp(FUTEX_WAKE);
   AllowRead();
   AllowOpen();
+  AllowPoll();
   AllowSyscall(__NR_close);
   AddPolicyOnSyscall(__NR_rt_sigprocmask, {
                                               ARG_32(0),
