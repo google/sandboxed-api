@@ -76,6 +76,7 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
       .AllowGetPIDs()
       .AllowSleep()
       .AllowReadlink()
+      .AllowAccess()
       .AllowSyscalls({
           __NR_recvmsg,
           __NR_sendmsg,
