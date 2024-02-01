@@ -183,8 +183,9 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
   policy.insert(policy.end(),
                 {
 #ifdef __NR_clone3
-                    // Disallow clone3
-                    JEQ32(__NR_clone3, DENY),
+                    // Disallow clone3. Errno instead of DENY so that libraries
+                    // can fallback to regular clone/clone2.
+                    JEQ32(__NR_clone3, ERRNO(ENOSYS)),
 #endif
                     // Disallow clone3 and clone with unsafe flags.  This uses
                     // LOAD_SYSCALL_NR from above.
