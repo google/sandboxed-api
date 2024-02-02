@@ -43,6 +43,7 @@ struct bpf_labels;
 namespace sandbox2 {
 
 class AllowAllSyscalls;
+class TraceAllSyscalls;
 class UnrestrictedNetworking;
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
@@ -711,6 +712,12 @@ class PolicyBuilder final {
   // Do not use in environment with untrusted code and/or data, ask
   // sandbox-team@ first if unsure.
   PolicyBuilder& DefaultAction(AllowAllSyscalls);
+
+  // Changes the default action to SANDBOX2_TRACE.
+  // All syscalls not handled explicitly by the policy will be passed off to
+  // the `sandbox2::Notify` implementation given to the `sandbox2::Sandbox2`
+  // instance.
+  PolicyBuilder& DefaultAction(TraceAllSyscalls);
 
   ABSL_DEPRECATED("Use DefaultAction(sandbox2::AllowAllSyscalls()) instead")
   PolicyBuilder& DangerDefaultAllowAll();

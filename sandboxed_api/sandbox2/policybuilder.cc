@@ -60,6 +60,7 @@
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/sandbox2/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/path.h"
@@ -1241,6 +1242,11 @@ PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
 
 PolicyBuilder& PolicyBuilder::DefaultAction(AllowAllSyscalls) {
   default_action_ = ALLOW;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::DefaultAction(TraceAllSyscalls) {
+  default_action_ = SANDBOX2_TRACE;
   return *this;
 }
 

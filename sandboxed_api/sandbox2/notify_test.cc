@@ -33,6 +33,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/sandbox2/trace_all_syscalls.h"
 #include "sandboxed_api/testing.h"
 
 namespace sandbox2 {
@@ -124,6 +125,22 @@ TEST(NotifyTest, PrintPidAndComms) {
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(33));
+}
+
+// Test EventSyscallTrap on personality syscall through TraceAllSyscalls
+TEST(NotifyTest, TraceAllAllowPersonality) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
+  std::vector<std::string> args = {path};
+  auto policy = CreateDefaultPermissiveTestPolicy(path)
+                    .DefaultAction(TraceAllSyscalls())
+                    .BuildOrDie();
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              NotifyTestcasePolicy(path),
+              std::make_unique<PersonalityNotify>(/*allow=*/true));
+  auto result = s2.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(22));
 }
 
 }  // namespace
