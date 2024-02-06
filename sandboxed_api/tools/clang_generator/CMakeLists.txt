@@ -100,34 +100,34 @@ else()
     endif()
   endforeach()
 endif()
-target_link_libraries(sapi_generator PUBLIC
-  sapi::base
-  absl::btree
-  absl::flat_hash_set
-  absl::node_hash_set
-  absl::random_random
-  absl::status
-  absl::statusor
-  absl::strings
-  sapi::fileops
-  sapi::status
-  ${_sapi_generator_clang_libs}
-  ${_sapi_generator_llvm_libs}
-)
+#target_link_libraries(sapi_generator PUBLIC
+#  sapi::base
+#  absl::btree
+#  absl::flat_hash_set
+#  absl::node_hash_set
+#  absl::random_random
+#  absl::status
+#  absl::statusor
+#  absl::strings
+#  sapi::fileops
+#  sapi::status
+#  ${_sapi_generator_clang_libs}
+#  ${_sapi_generator_llvm_libs}
+#)
 
 add_executable(sapi_generator_tool
-  compilation_database.cc
-  compilation_database.h
+#  compilation_database.cc
+#  compilation_database.h
   generator_tool.cc
 )
-target_link_libraries(sapi_generator_tool PRIVATE
-  absl::statusor
-  sapi::base
-  sapi::file_base
-  sapi::file_helpers
-  sapi::fileops
-  sapi::generator
-)
+#target_link_libraries(sapi_generator_tool PRIVATE
+#  absl::statusor
+#  sapi::base
+#  sapi::file_base
+#  sapi::file_helpers
+#  sapi::fileops
+#  sapi::generator
+#)
 if(SAPI_ENABLE_CLANG_TOOL_STATIC)
   target_link_options(sapi_generator_tool PRIVATE
     # These work for both GCC and Clang

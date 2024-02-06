@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Prepare environment
+    - name: Prepare the environment
       run: mkdir -p "$GITHUB_WORKSPACE/build"
 
     - name: Download Build Artifact
@@ -46,7 +46,7 @@ jobs:
         ( \
           cd "$GITHUB_WORKSPACE/build"; \
           unzip "${ARTIFACT_NAME}.zip"; \
-          tar czf sapi_generator_tool-linux-x86_64.tar.gz \
+          tar czf AAAsapi_generator_tool-linux-x86_64.tar.gz \
             sapi_generator_tool-linux-x86_64
         )
 
@@ -57,4 +57,4 @@ jobs:
         automatic_release_tag: "latest"
         prerelease: true
         files: |
-          ${{github.workspace}}/build/sapi_generator_tool-linux-x86_64.tar.gz
+          ${{github.workspace}}/build/AAAsapi_generator_tool-linux-x86_64.tar.gz

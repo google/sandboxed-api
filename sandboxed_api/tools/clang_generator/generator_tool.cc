@@ -14,6 +14,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#if 0
 #include <memory>
 #include <string>
 #include <vector>
@@ -155,10 +156,12 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
 
 }  // namespace sapi
 
+#endif
 int main(int argc, char* argv[]) {
-  if (absl::Status status = sapi::GeneratorMain(argc, argv); !status.ok()) {
-    absl::FPrintF(stderr, "%s\n", status.message());
-    return EXIT_FAILURE;
-  }
+  printf("Test\n");
+//  if (absl::Status status = sapi::GeneratorMain(argc, argv); !status.ok()) {
+//    absl::FPrintF(stderr, "%s\n", status.message());
+//    return EXIT_FAILURE;
+//  }
   return EXIT_SUCCESS;
 }
