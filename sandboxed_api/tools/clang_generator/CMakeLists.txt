@@ -116,18 +116,18 @@ target_link_libraries(sapi_generator PUBLIC
 )
 
 add_executable(sapi_generator_tool
-  compilation_database.cc
-  compilation_database.h
+#  compilation_database.cc
+#  compilation_database.h
   generator_tool.cc
 )
-target_link_libraries(sapi_generator_tool PRIVATE
-  absl::statusor
-  sapi::base
-  sapi::file_base
-  sapi::file_helpers
-  sapi::fileops
-  sapi::generator
-)
+#target_link_libraries(sapi_generator_tool PRIVATE
+#  absl::statusor
+#  sapi::base
+#  sapi::file_base
+#  sapi::file_helpers
+#  sapi::fileops
+#  sapi::generator
+#)
 if(SAPI_ENABLE_CLANG_TOOL_STATIC)
   target_link_options(sapi_generator_tool PRIVATE
     # These work for both GCC and Clang
