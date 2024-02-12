@@ -98,9 +98,30 @@ class Sandbox {
   // Finds the address of a symbol in the sandboxee.
   absl::Status Symbol(const char* symname, void** addr);
 
-  // Transfers memory (both directions). Status is returned (memory transfer
-  // succeeded/failed).
+  // Transfers memory to the sandboxee's address space from the hostcode.
+  // Returns the status of the operation. Requires a v::Var object to be set up
+  // with a suitable memory buffer allocated in the hostcode.
+  //
+  // Example Usage:
+  //    std::string buffer(size_of_memory_in_sandboxee, ' ');
+  //    sapi::v::Array<uint8_t> sapi_buffer(
+  //       reinterpret_cast<uint8_t*>(buffer.data()), buffer.size());
+  //    SAPI_RETURN_IF_ERROR(sandbox.Allocate(&sapi_buffer));
+  //    SAPI_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&sapi_buffer));
   absl::Status TransferToSandboxee(v::Var* var);
+
+  // Transfers memory from the sandboxee's address space to the hostcode.
+  // Returns the status of the operation. Requires a v::Var object to be set up
+  // suitable memory buffer allocated in the hostcode. This call
+  // does not alter the memory in the sandboxee. It is therefore safe to
+  // const_cast `addr_of_memory_in_sandboxee` if necessary.
+  //
+  // Example Usage:
+  //    std::string buffer(size_of_memory_in_sandboxee, ' ');
+  //    sapi::v::Array<uint8_t> sapi_buffer(
+  //       reinterpret_cast<uint8_t*>(buffer.data()), buffer.size());
+  //    sapi_buffer.SetRemote(addr_of_memory_in_sandboxee);
+  //    SAPI_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&sapi_buffer));
   absl::Status TransferFromSandboxee(v::Var* var);
 
   absl::StatusOr<std::string> GetCString(const v::RemotePtr& str,
