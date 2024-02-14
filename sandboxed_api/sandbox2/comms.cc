@@ -27,6 +27,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
@@ -236,17 +237,19 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
       .len = length,
   };
 
-  if (length + sizeof(tl) > kSendTLVTempBufferSize) {
-    if (!Send(&tl, sizeof(tl))) {
-      return false;
-    }
-    return Send(value, length);
-  }
+  const size_t inline_size =
+      std::min(length, kSendTLVTempBufferSize - sizeof(tl));
   uint8_t tlv[kSendTLVTempBufferSize];
   memcpy(tlv, &tl, sizeof(tl));
-  memcpy(reinterpret_cast<uint8_t*>(tlv) + sizeof(tl), value, length);
-
-  return Send(&tlv, sizeof(tl) + length);
+  memcpy(&tlv[sizeof(tl)], value, inline_size);
+  if (!Send(&tlv, sizeof(tl) + inline_size)) {
+    return false;
+  }
+  if (inline_size < length) {
+    return Send(reinterpret_cast<const uint8_t*>(value) + inline_size,
+                length - inline_size);
+  }
+  return true;
 }
 
 bool Comms::RecvString(std::string* v) {
