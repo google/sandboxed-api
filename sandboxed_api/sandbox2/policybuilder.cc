@@ -221,6 +221,10 @@ PolicyBuilder& PolicyBuilder::AllowExit() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
+  if (allowed_complex_.scudo_malloc) {
+    return *this;
+  }
+  allowed_complex_.scudo_malloc = true;
   AllowTime();
   AllowSyscalls({__NR_munmap, __NR_nanosleep});
   AllowFutexOp(FUTEX_WAKE);
@@ -259,6 +263,10 @@ PolicyBuilder& PolicyBuilder::AllowScudoMalloc() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
+  if (allowed_complex_.tcmalloc) {
+    return *this;
+  }
+  allowed_complex_.tcmalloc = true;
   AllowTime();
   AllowRestartableSequences(kRequireFastFences);
   AllowSyscalls(
@@ -298,6 +306,10 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowSystemMalloc() {
+  if (allowed_complex_.system_malloc) {
+    return *this;
+  }
+  allowed_complex_.system_malloc = true;
   AllowSyscalls({__NR_munmap, __NR_brk});
   AllowFutexOp(FUTEX_WAKE);
   AddPolicyOnSyscall(__NR_mremap, {
@@ -330,6 +342,10 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   if constexpr (!sapi::sanitizers::IsAny()) {
     return *this;
   }
+  if (allowed_complex_.llvm_sanitizers) {
+    return *this;
+  }
+  allowed_complex_.llvm_sanitizers = true;
   // *san use a custom allocator that runs mmap/unmap under the hood.  For
   // example:
   // https://github.com/llvm/llvm-project/blob/596d534ac3524052df210be8d3c01a33b2260a42/compiler-rt/lib/asan/asan_allocator.cpp#L980
@@ -383,6 +399,10 @@ PolicyBuilder& PolicyBuilder::AllowLlvmCoverage() {
   if (!sapi::IsCoverageRun()) {
     return *this;
   }
+  if (allowed_complex_.llvm_coverage) {
+    return *this;
+  }
+  allowed_complex_.llvm_coverage = true;
   AllowStat();
   AllowGetPIDs();
   AllowOpen();
@@ -411,6 +431,10 @@ PolicyBuilder& PolicyBuilder::AllowLlvmCoverage() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
+  if (allowed_complex_.limited_madvise) {
+    return *this;
+  }
+  allowed_complex_.limited_madvise = true;
   return AddPolicyOnSyscall(__NR_madvise, {
                                               ARG_32(2),
                                               JEQ32(MADV_DONTNEED, ALLOW),
@@ -421,6 +445,10 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowMmapWithoutExec() {
+  if (allowed_complex_.mmap_without_exec) {
+    return *this;
+  }
+  allowed_complex_.mmap_without_exec = true;
   return AddPolicyOnMmap({
       ARG_32(2),
       BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, PROT_EXEC, 1, 0),
@@ -639,6 +667,10 @@ PolicyBuilder& PolicyBuilder::AllowUtime() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowSafeFcntl() {
+  if (allowed_complex_.safe_fcntl) {
+    return *this;
+  }
+  allowed_complex_.safe_fcntl = true;
   return AddPolicyOnSyscalls({__NR_fcntl,
 #ifdef __NR_fcntl64
                               __NR_fcntl64
@@ -709,6 +741,10 @@ PolicyBuilder& PolicyBuilder::AllowHandleSignals() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowTCGETS() {
+  if (allowed_complex_.tcgets) {
+    return *this;
+  }
+  allowed_complex_.tcgets = true;
   return AddPolicyOnSyscall(__NR_ioctl, {
                                             ARG_32(1),
                                             JEQ32(TCGETS, ALLOW),
@@ -752,43 +788,47 @@ PolicyBuilder& PolicyBuilder::AllowGetIDs() {
 
 PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
     CpuFenceMode cpu_fence_mode) {
+  if (!allowed_complex_.slow_fences && !allowed_complex_.fast_fences) {
 #ifdef __NR_rseq
-  AllowSyscall(__NR_rseq);
+    AllowSyscall(__NR_rseq);
 #endif
-  AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
-    return {
-        ARG_32(2),  // prot
-        JNE32(PROT_READ | PROT_WRITE, JUMP(&labels, mmap_end)),
+    AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
+      return {
+          ARG_32(2),  // prot
+          JNE32(PROT_READ | PROT_WRITE, JUMP(&labels, mmap_end)),
 
-        ARG_32(3),  // flags
-        JNE32(MAP_PRIVATE | MAP_ANONYMOUS, JUMP(&labels, mmap_end)),
+          ARG_32(3),  // flags
+          JNE32(MAP_PRIVATE | MAP_ANONYMOUS, JUMP(&labels, mmap_end)),
 
-        ALLOW,
-        LABEL(&labels, mmap_end),
-    };
-  });
-  AllowSyscall(__NR_getcpu);
-  AllowSyscall(__NR_membarrier);
-  AllowFutexOp(FUTEX_WAIT);
-  AllowFutexOp(FUTEX_WAKE);
-  AllowRead();
-  AllowOpen();
-  AllowPoll();
-  AllowSyscall(__NR_close);
-  AddPolicyOnSyscall(__NR_rt_sigprocmask, {
-                                              ARG_32(0),
-                                              JEQ32(SIG_SETMASK, ALLOW),
-                                          });
-  AllowPrctlSetVma();
-  if (cpu_fence_mode == kAllowSlowFences) {
+          ALLOW,
+          LABEL(&labels, mmap_end),
+      };
+    });
+    AllowSyscall(__NR_getcpu);
+    AllowSyscall(__NR_membarrier);
+    AllowFutexOp(FUTEX_WAIT);
+    AllowFutexOp(FUTEX_WAKE);
+    AllowRead();
+    AllowOpen();
+    AllowPoll();
+    AllowSyscall(__NR_close);
+    AddPolicyOnSyscall(__NR_rt_sigprocmask, {
+                                                ARG_32(0),
+                                                JEQ32(SIG_SETMASK, ALLOW),
+                                            });
+    AllowPrctlSetVma();
+
+    AddFileIfNamespaced("/proc/cpuinfo");
+    AddFileIfNamespaced("/proc/stat");
+    AddDirectoryIfNamespaced("/sys/devices/system/cpu");
+  }
+  if (cpu_fence_mode == kAllowSlowFences && !allowed_complex_.slow_fences) {
     AllowSyscall(__NR_sched_getaffinity);
     AllowSyscall(__NR_sched_setaffinity);
-  }
-  AddFileIfNamespaced("/proc/cpuinfo");
-  AddFileIfNamespaced("/proc/stat");
-  AddDirectoryIfNamespaced("/sys/devices/system/cpu");
-  if (cpu_fence_mode == kAllowSlowFences) {
     AddFileIfNamespaced("/proc/self/cpuset");
+    allowed_complex_.slow_fences = true;
+  } else if (cpu_fence_mode == kRequireFastFences) {
+    allowed_complex_.fast_fences = true;
   }
   return *this;
 }
@@ -811,6 +851,10 @@ PolicyBuilder& PolicyBuilder::AllowGetPGIDs() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowGetRlimit() {
+  if (allowed_complex_.getrlimit) {
+    return *this;
+  }
+  allowed_complex_.getrlimit = true;
 #ifdef __NR_prlimit64
   AddPolicyOnSyscall(__NR_prlimit64, {ARG(2), JEQ64(0, 0, ALLOW)});
 #endif
@@ -839,6 +883,10 @@ PolicyBuilder& PolicyBuilder::AllowSetRlimit() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowGetRandom() {
+  if (allowed_complex_.getrandom) {
+    return *this;
+  }
+  allowed_complex_.getrandom = true;
   return AddPolicyOnSyscall(__NR_getrandom, {
                                                 ARG_32(2),
                                                 JEQ32(0, ALLOW),
@@ -847,6 +895,10 @@ PolicyBuilder& PolicyBuilder::AllowGetRandom() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowWipeOnFork() {
+  if (allowed_complex_.wipe_on_fork) {
+    return *this;
+  }
+  allowed_complex_.wipe_on_fork = true;
   // System headers may not be recent enough to include MADV_WIPEONFORK.
   static constexpr uint32_t kMadv_WipeOnFork = 18;
   // The -1 value is used by code to probe that the kernel returns -EINVAL for
@@ -861,6 +913,10 @@ PolicyBuilder& PolicyBuilder::AllowWipeOnFork() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowLogForwarding() {
+  if (allowed_complex_.log_forwarding) {
+    return *this;
+  }
+  allowed_complex_.log_forwarding = true;
   AllowWrite();
   AllowSystemMalloc();
   AllowTcMalloc();
@@ -939,11 +995,19 @@ PolicyBuilder& PolicyBuilder::AllowEventFd() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowPrctlSetName() {
+  if (allowed_complex_.prctl_set_name) {
+    return *this;
+  }
+  allowed_complex_.prctl_set_name = true;
   AddPolicyOnSyscall(__NR_prctl, {ARG_32(0), JEQ32(PR_SET_NAME, ALLOW)});
   return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AllowPrctlSetVma() {
+  if (allowed_complex_.prctl_set_vma) {
+    return *this;
+  }
+  allowed_complex_.prctl_set_vma = true;
   AddPolicyOnSyscall(__NR_prctl,
                      [](bpf_labels& labels) -> std::vector<sock_filter> {
                        return {
@@ -969,19 +1033,25 @@ PolicyBuilder& PolicyBuilder::AllowFutexOp(int op) {
 }
 
 PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
+  if (allowed_complex_.static_startup) {
+    return *this;
+  }
+  allowed_complex_.static_startup = true;
   AllowGetRlimit();
   AllowSyscalls({
-    // These syscalls take a pointer, so no restriction.
-    __NR_uname, __NR_brk, __NR_set_tid_address,
+      // These syscalls take a pointer, so no restriction.
+      __NR_uname,
+      __NR_brk,
+      __NR_set_tid_address,
 
 #if defined(__ARM_NR_set_tls)
-        // libc sets the TLS during startup
-        __ARM_NR_set_tls,
+      // libc sets the TLS during startup
+      __ARM_NR_set_tls,
 #endif
 
-        // This syscall takes a pointer and a length.
-        // We could restrict length, but it might change, so not worth it.
-        __NR_set_robust_list,
+      // This syscall takes a pointer and a length.
+      // We could restrict length, but it might change, so not worth it.
+      __NR_set_robust_list,
   });
 
   AllowFutexOp(FUTEX_WAIT_BITSET);
@@ -1023,6 +1093,10 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
+  if (allowed_complex_.dynamic_startup) {
+    return *this;
+  }
+  allowed_complex_.dynamic_startup = true;
 #ifdef __ANDROID__
   AllowSafeFcntl();
   AllowGetIDs();

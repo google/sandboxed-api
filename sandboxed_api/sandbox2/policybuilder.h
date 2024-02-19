@@ -812,6 +812,28 @@ class PolicyBuilder final {
   absl::Status last_status_;
   bool already_built_ = false;
 
+  struct {
+    bool static_startup = false;
+    bool dynamic_startup = false;
+    bool system_malloc = false;
+    bool scudo_malloc = false;
+    bool tcmalloc = false;
+    bool llvm_sanitizers = false;
+    bool llvm_coverage = false;
+    bool limited_madvise = false;
+    bool mmap_without_exec = false;
+    bool safe_fcntl = false;
+    bool tcgets = false;
+    bool slow_fences = false;
+    bool fast_fences = false;
+    bool getrlimit = false;
+    bool getrandom = false;
+    bool wipe_on_fork = false;
+    bool log_forwarding = false;
+    bool prctl_set_name = false;
+    bool prctl_set_vma = false;
+  } allowed_complex_;
+
   // Contains list of allowed hosts.
   absl::optional<AllowedHosts> allowed_hosts_;
 };

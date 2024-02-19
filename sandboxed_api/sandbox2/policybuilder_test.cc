@@ -89,8 +89,8 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   assert_increased();
 
   builder.AllowTCGETS(); assert_increased();
-  builder.AllowTCGETS(); assert_increased();
-  builder.AllowTCGETS(); assert_increased();
+  builder.AllowTCGETS(); assert_same();
+  builder.AllowTCGETS(); assert_same();
 
   builder.AddPolicyOnSyscall(__NR_fchmod, { ALLOW }); assert_increased();
   builder.AddPolicyOnSyscall(__NR_fchmod, { ALLOW }); assert_increased();
