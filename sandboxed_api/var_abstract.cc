@@ -29,6 +29,7 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_ptr.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi::v {
 
@@ -98,9 +99,10 @@ absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
           << ", size: " << GetSize();
 
   if (remote_ == nullptr) {
-    LOG(WARNING) << "Object: " << GetType() << " has no remote object set";
+    LOG(WARNING) << "Object: " << GetTypeString()
+                 << " has no remote object set";
     return absl::FailedPreconditionError(
-        absl::StrCat("Object: ", GetType(), " has no remote object set"));
+        absl::StrCat("Object: ", GetTypeString(), " has no remote object set"));
   }
 
   struct iovec local = {
@@ -136,7 +138,7 @@ absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
 
   if (local_ == nullptr) {
     return absl::FailedPreconditionError(
-        absl::StrCat("Object: ", GetType(), " has no local storage set"));
+        absl::StrCat("Object: ", GetTypeString(), " has no local storage set"));
   }
 
   struct iovec local = {
