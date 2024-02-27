@@ -331,6 +331,13 @@ INSTANTIATE_TEST_SUITE_P(
             .final_status = Result::VIOLATION,
             .function_name = "ViolatePolicy",
             .full_function_description = "ViolatePolicy(int)",
+        },
+        TestCase{
+            .testname = "ViolatePolicyForked",
+            .testno = 5,
+            .final_status = Result::VIOLATION,
+            .function_name = "ViolatePolicy",
+            .full_function_description = "ViolatePolicy(int)",
         }),
     [](const ::testing::TestParamInfo<TestCase>& info) {
       return info.param.testname;

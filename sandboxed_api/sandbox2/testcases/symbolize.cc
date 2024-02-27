@@ -80,6 +80,19 @@ void RunTest(int testno) {
     case 4:
       SleepForXSeconds(10);
       break;
+    case 5: {
+      constexpr int kMaxForks = 16;
+      for (int i = 0; i < kMaxForks; ++i) {
+        if (fork() == 0) {
+          if (i == kMaxForks - 1) {
+            ViolatePolicy();
+          }
+          break;
+        }
+      }
+      SleepForXSeconds(10);
+      break;
+    }
     default:
       SAPI_RAW_LOG(FATAL, "Unknown test case: %d", testno);
   }
