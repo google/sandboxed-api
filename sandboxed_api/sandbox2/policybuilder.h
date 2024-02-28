@@ -45,6 +45,7 @@ namespace sandbox2 {
 class AllowAllSyscalls;
 class TraceAllSyscalls;
 class UnrestrictedNetworking;
+class LoadUserBpfCodeFromFile;
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
