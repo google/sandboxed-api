@@ -76,6 +76,7 @@ target_link_libraries(sapi_sapi
           absl::flat_hash_map
           absl::log
           absl::log_globals
+          absl::span
           absl::status
           absl::statusor
           absl::str_format

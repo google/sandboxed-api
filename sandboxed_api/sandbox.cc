@@ -19,6 +19,7 @@
 #include <sys/uio.h>
 #include <syscall.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <initializer_list>
 #include <memory>
@@ -33,7 +34,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/rpcchannel.h"
@@ -48,6 +51,8 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/runfiles.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/var_array.h"
+#include "sandboxed_api/var_ptr.h"
 
 namespace sapi {
 
@@ -420,6 +425,15 @@ absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
     return absl::UnavailableError("Sandbox not active");
   }
   return var->TransferFromSandboxee(rpc_channel(), pid());
+}
+
+absl::StatusOr<std::unique_ptr<sapi::v::Array<const uint8_t>>>
+Sandbox::AllocateAndTransferToSandboxee(absl::Span<const uint8_t> buffer) {
+  auto sapi_buffer = std::make_unique<sapi::v::Array<const uint8_t>>(
+      buffer.data(), buffer.size());
+  SAPI_RETURN_IF_ERROR(Allocate(sapi_buffer.get(), /*automatic_free=*/true));
+  SAPI_RETURN_IF_ERROR(TransferToSandboxee(sapi_buffer.get()));
+  return sapi_buffer;
 }
 
 absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,

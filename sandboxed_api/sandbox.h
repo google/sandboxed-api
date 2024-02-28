@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX_H_
 #define SANDBOXED_API_SANDBOX_H_
 
+#include <cstdint>
 #include <ctime>
 #include <initializer_list>
 #include <memory>
@@ -28,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/client.h"
@@ -123,6 +125,12 @@ class Sandbox {
   //    sapi_buffer.SetRemote(addr_of_memory_in_sandboxee);
   //    SAPI_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&sapi_buffer));
   absl::Status TransferFromSandboxee(v::Var* var);
+
+  // Allocates and transfers a buffer to the sandboxee's address space from the
+  // hostcode. Returns a status on failure, or a unique_ptr to
+  // sapi::v::Array<const uint8_t> on success.
+  absl::StatusOr<std::unique_ptr<sapi::v::Array<const uint8_t>>>
+  AllocateAndTransferToSandboxee(absl::Span<const uint8_t> buffer);
 
   absl::StatusOr<std::string> GetCString(const v::RemotePtr& str,
                                          size_t max_length = 10ULL

@@ -13,18 +13,24 @@
 // limitations under the License.
 
 #include <fcntl.h>
+#include <sys/types.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
+#include <vector>
 
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
@@ -32,15 +38,18 @@
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/var_array.h"
 
 namespace sapi {
 namespace {
 
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
+using ::testing::ContainerEq;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
+using ::testing::NotNull;
 
 // Functions that will be used during the benchmarks:
 
@@ -301,6 +310,31 @@ TEST(SandboxTest, UseUnotifyMonitor) {
   // The sandbox should now be responsive again.
   SAPI_ASSERT_OK_AND_ASSIGN(int result, api.sum(1, 2));
   EXPECT_THAT(result, Eq(3));
+}
+
+TEST(SandboxTest, AllocateAndTransferTest) {
+  std::string test_string("This is a test");
+  std::vector<uint8_t> test_string_vector(test_string.begin(),
+                                          test_string.end());
+
+  absl::Span<uint8_t> buffer_input(
+      reinterpret_cast<uint8_t*>(test_string_vector.data()),
+      test_string_vector.size());
+  std::vector<uint8_t> buffer_output(test_string_vector.size());
+
+  SumSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto sapi_array, sandbox.AllocateAndTransferToSandboxee(buffer_input));
+  ASSERT_THAT(sapi_array, NotNull());
+  sapi::v::Array<const uint8_t> sapi_buffer_output(
+      reinterpret_cast<const uint8_t*>(buffer_output.data()),
+      buffer_output.size());
+  sapi_buffer_output.SetRemote(sapi_array->GetRemote());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_buffer_output), IsOk());
+  EXPECT_THAT(test_string_vector, ContainerEq(buffer_output));
 }
 
 }  // namespace
