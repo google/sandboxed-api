@@ -42,8 +42,17 @@ namespace sapi::v {
 template <typename T>
 class Proto : public Var {
  public:
+  class PrivateToken {
+   private:
+    explicit PrivateToken() = default;
+    friend class Proto;
+  };
+
   static_assert(std::is_base_of<google::protobuf::MessageLite, T>::value,
                 "Template argument must be a proto message");
+
+  Proto(PrivateToken, std::vector<uint8_t> data)
+      : wrapped_var_(std::move(data)) {}
 
   ABSL_DEPRECATED("Use Proto<>::FromMessage() instead")
   explicit Proto(const T& proto)
@@ -51,7 +60,8 @@ class Proto : public Var {
 
   static absl::StatusOr<Proto<T>> FromMessage(const T& proto) {
     SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> len_val, SerializeProto(proto));
-    return absl::StatusOr<Proto<T>>(absl::in_place, proto);
+    return absl::StatusOr<Proto<T>>(absl::in_place, PrivateToken{},
+                                    std::move(len_val));
   }
 
   size_t GetSize() const final { return wrapped_var_.GetSize(); }
@@ -105,10 +115,6 @@ class Proto : public Var {
   }
 
  private:
-  friend class absl::StatusOr<Proto<T>>;
-
-  explicit Proto(std::vector<uint8_t> data) : wrapped_var_(std::move(data)) {}
-
   // The management of reading/writing the data to the sandboxee is handled by
   // the LenVal class.
   LenVal wrapped_var_;
