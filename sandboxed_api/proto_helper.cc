@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -47,7 +48,11 @@ absl::StatusOr<std::vector<uint8_t>> SerializeProto(
   // Wrap protobuf in a envelope so that we know the name of the protobuf
   // structure when deserializing in the sandboxee.
   ProtoArg proto_arg;
-  proto_arg.set_protobuf_data(proto.SerializeAsString());
+  std::string proto_data;
+  if (!proto.SerializeToString(&proto_data)) {
+    return absl::InternalError("Unable to serialize proto data");
+  }
+  proto_arg.set_protobuf_data(std::move(proto_data));
   proto_arg.set_full_name(proto.GetTypeName());
   std::vector<uint8_t> serialized_proto(proto_arg.ByteSizeLong());
   if (!proto_arg.SerializeToArray(serialized_proto.data(),
