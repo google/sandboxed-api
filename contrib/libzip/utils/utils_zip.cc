@@ -63,9 +63,8 @@ absl::Status LibZip::OpenRemote() {
   SAPI_ASSIGN_OR_RETURN(void* zipsource, CreateSourceFromFd(rfd_));
   zipsource_ = std::make_unique<sapi::v::RemotePtr>(zipsource);
 
-  sapi::v::NullPtr null_ptr;
   absl::StatusOr<zip_t*> status_or_zip =
-      api_.zip_open_from_source(&(*zipsource_), flags_, &null_ptr);
+      api_.zip_open_from_source(&(*zipsource_), flags_, nullptr);
   if (!status_or_zip.ok() || *status_or_zip == nullptr) {
     api_.zip_source_free(&(*zipsource_)).IgnoreError();
     zipsource_ = nullptr;
@@ -220,10 +219,8 @@ absl::StatusOr<uint64_t> LibZip::AddFile(const std::string& filename,
 }
 
 absl::StatusOr<void*> LibZip::CreateSourceFromFd(sapi::v::Fd& rfd) {
-  sapi::v::NullPtr null_ptr;
-
-  SAPI_ASSIGN_OR_RETURN(void* zipsource, api_.zip_read_fd_to_source(
-                                             rfd.GetRemoteFd(), &null_ptr));
+  SAPI_ASSIGN_OR_RETURN(void* zipsource,
+                        api_.zip_read_fd_to_source(rfd.GetRemoteFd(), nullptr));
   if (zipsource == nullptr) {
     return absl::UnavailableError("Unable to create buffer");
   }

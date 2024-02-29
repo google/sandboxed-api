@@ -168,10 +168,9 @@ absl::StatusOr<std::string> UriParser::GetUri(sapi::v::Struct<UriUriA>* uri) {
   }
 
   sapi::v::Array<char> buf(size.GetValue() + 1);
-  sapi::v::NullPtr null_ptr;
 
   SAPI_ASSIGN_OR_RETURN(ret, api_.uriToStringA(buf.PtrAfter(), uri->PtrNone(),
-                                               buf.GetSize(), &null_ptr));
+                                               buf.GetSize(), nullptr));
   if (ret != 0) {
     return absl::UnavailableError("Unable to Recomposing URI");
   }

@@ -92,9 +92,8 @@ absl::Status Example4() {
 
     if (still_running.GetValue()) {
       // Wait for an event or timeout
-      sapi::v::NullPtr null_ptr;
       SAPI_ASSIGN_OR_RETURN(
-          curl_code, api.curl_multi_poll_sapi(&multi_handle, &null_ptr, 0, 1000,
+          curl_code, api.curl_multi_poll_sapi(&multi_handle, nullptr, 0, 1000,
                                               numfds.PtrBoth()));
       if (curl_code != 0) {
         return absl::UnavailableError(absl::StrCat(

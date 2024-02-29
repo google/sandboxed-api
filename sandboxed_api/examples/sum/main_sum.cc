@@ -131,11 +131,10 @@ absl::Status SumTransaction::Main() {
   TRANSACTION_FAIL_IF_NOT(ret.GetValue() == 15, "puts('Hello World!!!') != 15");
 
   sapi::v::Int vp;
-  sapi::v::NullPtr nptr;
   LOG(INFO) << "Test whether pointer is NOT NULL - new pointers";
   SAPI_RETURN_IF_ERROR(f.testptr(vp.PtrBefore()));
   LOG(INFO) << "Test whether pointer is NULL";
-  SAPI_RETURN_IF_ERROR(f.testptr(&nptr));
+  SAPI_RETURN_IF_ERROR(f.testptr(nullptr));
 
   // Protobuf test.
   sumsapi::SumParamsProto proto;

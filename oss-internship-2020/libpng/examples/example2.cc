@@ -63,10 +63,9 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
 
   absl::StatusOr<png_structp> status_or_png_structp;
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
-  sapi::v::NullPtr null = sapi::v::NullPtr();
   SAPI_ASSIGN_OR_RETURN(
       status_or_png_structp,
-      api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(), &null));
+      api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(), nullptr));
 
   sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
   if (!struct_ptr.GetValue()) {
@@ -141,10 +140,9 @@ absl::Status WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
 
   absl::StatusOr<png_structp> status_or_png_structp;
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
-  sapi::v::NullPtr null = sapi::v::NullPtr();
   SAPI_ASSIGN_OR_RETURN(
       status_or_png_structp,
-      api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(), &null));
+      api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(), nullptr));
 
   sapi::v::RemotePtr struct_ptr(status_or_png_structp.value());
   if (!struct_ptr.GetValue()) {
@@ -176,7 +174,7 @@ absl::Status WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
       &struct_ptr, data.row_pointers->PtrBefore(), data.height, data.rowbytes));
 
   SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  SAPI_RETURN_IF_ERROR(api.png_write_end(&struct_ptr, &null));
+  SAPI_RETURN_IF_ERROR(api.png_write_end(&struct_ptr, nullptr));
 
   SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
   return absl::OkStatus();

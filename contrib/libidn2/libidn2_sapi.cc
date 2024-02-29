@@ -60,10 +60,9 @@ absl::StatusOr<std::string> IDN2Lib::idn2_register_u8(const char* ulabel,
     alabel_ptr.emplace(alabel);
   }
   sapi::v::GenericPtr ptr;
-  sapi::v::NullPtr null_ptr;
   const auto untrusted_res = api_.idn2_register_u8(
-      ulabel ? ulabel_ptr->PtrBefore() : &null_ptr,
-      alabel ? alabel_ptr->PtrBefore() : &null_ptr, ptr.PtrAfter(),
+      ulabel ? ulabel_ptr->PtrBefore() : nullptr,
+      alabel ? alabel_ptr->PtrBefore() : nullptr, ptr.PtrAfter(),
       IDN2_NFC_INPUT | IDN2_NONTRANSITIONAL);
   return this->ProcessErrors(untrusted_res, ptr);
 }
