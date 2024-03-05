@@ -63,6 +63,9 @@ inline void CharPtrArrToVecString(char* const* arr,
 // Returns the program name (via /proc/self/comm) for a given PID.
 std::string GetProgName(pid_t pid);
 
+// Given a resource descriptor FD and a PID, returns link of /proc/PID/fds/FD.
+absl::StatusOr<std::string> GetResolvedFdLink(pid_t pid, uint32_t fd);
+
 // Returns the command line (via /proc/self/cmdline) for a given PID. The
 // argument separators '\0' are converted to spaces.
 std::string GetCmdLine(pid_t pid);
@@ -95,11 +98,18 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
 // Returns signal description.
 std::string GetSignalName(int signo);
 
+// Returns the socket address family as a string ("AF_INET", ...)
+std::string GetAddressFamily(int addr_family);
+
 // Returns rlimit resource name
 std::string GetRlimitName(int resource);
 
 // Returns ptrace event name
 std::string GetPtraceEventName(int event);
+
+// Reads `size` bytes from the given `ptr` address, or returns an error.
+absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
+                                                      uint64_t size);
 
 // Reads a path string (NUL-terminated, shorter than PATH_MAX) from another
 // process memory

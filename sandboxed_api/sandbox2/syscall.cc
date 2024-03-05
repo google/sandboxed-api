@@ -74,6 +74,10 @@ std::string Syscall::GetName() const {
   return absl::StrFormat("UNKNOWN[%d/0x%x]", nr_, nr_);
 }
 
+std::vector<syscalls::ArgData> Syscall::GetArgumentsData() const {
+  return SyscallTable::get(arch_).GetArgumentsData(nr_, args_.data(), pid_);
+}
+
 std::vector<std::string> Syscall::GetArgumentsDescription() const {
   return SyscallTable::get(arch_).GetArgumentsDescription(nr_, args_.data(),
                                                           pid_);

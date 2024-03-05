@@ -14,15 +14,18 @@
 
 #include "sandboxed_api/sandbox2/util.h"
 
+#include <linux/limits.h>
 #include <sched.h>
 #include <spawn.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <csetjmp>
 #include <cstddef>
@@ -33,6 +36,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
@@ -51,7 +55,7 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
-
+#include "sandboxed_api/util/status_macros.h"
 namespace sandbox2::util {
 
 namespace file = ::sapi::file;
@@ -135,6 +139,19 @@ std::string GetProgName(pid_t pid) {
   // via memfd_create()) the RealPath will not work, as the destination file
   // doesn't exist on the local file-system.
   return file_util::fileops::Basename(file_util::fileops::ReadLink(fname));
+}
+
+absl::StatusOr<std::string> GetResolvedFdLink(pid_t pid, uint32_t fd) {
+  // The proc/PID/fd directory contains links for all of that process' file
+  // descriptors. They'll show up as more informative strings (paths, sockets).
+  std::string fd_path = absl::StrFormat("/proc/%u/fd/%u", pid, fd);
+  std::string result(PATH_MAX, '\0');
+  ssize_t size = readlink(fd_path.c_str(), &result[0], PATH_MAX);
+  if (size < 0) {
+    return absl::ErrnoToStatus(size, "failed to read link");
+  }
+  result.resize(size);
+  return result;
 }
 
 std::string GetCmdLine(pid_t pid) {
@@ -326,6 +343,29 @@ std::string GetSignalName(int signo) {
   return absl::StrFormat("%s [%d]", kSignalNames[signo], signo);
 }
 
+std::string GetAddressFamily(int addr_family) {
+  // Taken from definitions in `socket.h`. Each family's index in the array is
+  // also its integer value.
+  constexpr absl::string_view kAddressFamilies[] = {
+      "AF_UNSPEC",     "AF_UNIX",      "AF_INET",     "AF_AX25",
+      "AF_IPX",        "AF_APPLETALK", "AF_NETROM",   "AF_BRIDGE",
+      "AF_ATMPVC",     "AF_X25",       "AF_INET6",    "AF_ROSE",
+      "AF_DECnet",     "AF_NETBEUI",   "AF_SECURITY", "AF_KEY",
+      "AF_NETLINK",    "AF_PACKET",    "AF_ASH",      "AF_ECONET",
+      "AF_ATMSVC",     "AF_RDS",       "AF_SNA",      "AF_IRDA",
+      "AF_PPPOX",      "AF_WANPIPE",   "AF_LLC",      "AF_IB",
+      "AF_MPLS",       "AF_CAN",       "AF_TIPC",     "AF_BLUETOOTH",
+      "AF_IUCV",       "AF_RXRPC",     "AF_ISDN",     "AF_PHONET",
+      "AF_IEEE802154", "AF_CAIF",      "AF_ALG",      "AF_NFC",
+      "AF_VSOCK",      "AF_KCM",       "AF_QIPCRTR",  "AF_SMC",
+      "AF_XDP",        "AF_MCTP"};
+
+  if (addr_family < 0 && addr_family >= ABSL_ARRAYSIZE(kAddressFamilies)) {
+    return absl::StrFormat("UNKNOWN_ADDRESS_FAMILY [%d]", addr_family);
+  }
+  return std::string(kAddressFamilies[addr_family]);
+}
+
 std::string GetRlimitName(int resource) {
   switch (resource) {
     case RLIMIT_AS:
@@ -370,45 +410,53 @@ std::string GetPtraceEventName(int event) {
   }
 }
 
-absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
-  std::string path(PATH_MAX, '\0');
-  iovec local_iov[] = {{&path[0], path.size()}};
-
+absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
+                                                      uint64_t size) {
   static const uintptr_t page_size = getpagesize();
-  static const uintptr_t page_mask = ~(page_size - 1);
-  // See 'man process_vm_readv' for details on how to read NUL-terminated
-  // strings with this syscall.
-  size_t len1 = ((ptr + page_size) & page_mask) - ptr;
-  len1 = (len1 > path.size()) ? path.size() : len1;
-  size_t len2 = (path.size() <= len1) ? 0UL : path.size() - len1;
-  // Second iov is wrapping around to NULL ptr.
-  if ((ptr + len1) < ptr) {
-    len2 = 0UL;
+  static const uintptr_t page_mask = page_size - 1;
+
+  // Input sanity checks.
+  if (size == 0) {
+    return std::vector<uint8_t>();
   }
 
-  iovec remote_iov[] = {
-      {reinterpret_cast<void*>(ptr), len1},
-      {reinterpret_cast<void*>(ptr + len1), len2},
-  };
+  // Allocate enough bytes to hold the entire size.
+  std::vector<uint8_t> bytes(size, 0);
+  iovec local_iov[] = {{bytes.data(), bytes.size()}};
+  // Stores all the necessary iovecs to move memory.
+  std::vector<iovec> remote_iov;
+  // Each iovec should be contained to a single page.
+  size_t consumed = 0;
+  while (consumed < size) {
+    // Read till the end of the page, at most the remaining number of bytes.
+    size_t chunk_size =
+        std::min(size - consumed, page_size - ((ptr + consumed) & page_mask));
+    remote_iov.push_back({reinterpret_cast<void*>(ptr + consumed), chunk_size});
+    consumed += chunk_size;
+  }
 
-  SAPI_RAW_VLOG(4, "ReadCPathFromPid (iovec): len1: %zu, len2: %zu", len1,
-                len2);
-  if (process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov), remote_iov,
-                       ABSL_ARRAYSIZE(remote_iov), 0) < 0) {
+  ssize_t result = process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
+                                    remote_iov.data(), remote_iov.size(), 0);
+  if (result < 0) {
     return absl::ErrnoToStatus(
         errno,
         absl::StrFormat("process_vm_readv() failed for PID: %d at address: %#x",
-                        pid, reinterpret_cast<uintptr_t>(ptr)));
+                        pid, ptr));
   }
+  // Ensure only successfully read bytes are returned.
+  bytes.resize(result);
+  return bytes;
+}
 
-  // Check for whether there's a NUL byte in the buffer. If not, it's an
-  // incorrect path (or >PATH_MAX).
-  auto pos = path.find('\0');
-  if (pos == std::string::npos) {
-    return absl::FailedPreconditionError(absl::StrCat(
-        "No NUL-byte inside the C string '", absl::CHexEscape(path), "'"));
+absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
+  SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> bytes,
+                        ReadBytesFromPid(pid, ptr, PATH_MAX));
+  auto null_pos = absl::c_find(bytes, '\0');
+  std::string path(bytes.begin(), null_pos);
+  if (null_pos == bytes.end()) {
+    return absl::FailedPreconditionError(
+        absl::StrFormat("path '%s' is too long", absl::CHexEscape(path)));
   }
-  path.resize(pos);
   return path;
 }
 

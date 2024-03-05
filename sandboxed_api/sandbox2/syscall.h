@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "sandboxed_api/config.h"  // IWYU pragma: export
+#include "sandboxed_api/sandbox2/syscall_defs.h"
 
 namespace sandbox2 {
 
@@ -59,7 +60,7 @@ class Syscall {
   uint64_t instruction_pointer() const { return ip_; }
 
   std::string GetName() const;
-
+  std::vector<syscalls::ArgData> GetArgumentsData() const;
   std::vector<std::string> GetArgumentsDescription() const;
   std::string GetDescription() const;
 
