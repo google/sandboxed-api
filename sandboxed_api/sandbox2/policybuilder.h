@@ -744,6 +744,9 @@ class PolicyBuilder final {
   PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
   PolicyBuilder& AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
 
+  // Returns the current status of the PolicyBuilder.
+  absl::Status GetStatus() { return last_status_; }
+
  private:
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
@@ -810,7 +813,7 @@ class PolicyBuilder final {
   absl::flat_hash_set<uint32_t> handled_syscalls_;
 
   // Error handling
-  absl::Status last_status_;
+  absl::Status last_status_ = absl::OkStatus();
   bool already_built_ = false;
 
   struct {
