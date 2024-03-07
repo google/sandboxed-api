@@ -548,8 +548,7 @@ class PolicyBuilder final {
   PolicyBuilder& AllowStaticStartup();
 
   // In addition to syscalls allowed by AllowStaticStartup, also allow reading,
-  // seeking, mmapping and closing files. It does not allow opening them, as
-  // the mechanism for doing so depends on whether GetFs-checks are used or not.
+  // seeking, mmap()-ing and closing files.
   PolicyBuilder& AllowDynamicStartup();
 
   // Appends a policy, which will be run on the specified syscall.
