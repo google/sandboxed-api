@@ -86,8 +86,7 @@ absl::Status IdleBasic() {
   }
 
   // Close idler
-  sapi::v::NullPtr null_ptr;
-  SAPI_RETURN_IF_ERROR(api.sapi_uv_close(&idler, &null_ptr));
+  SAPI_RETURN_IF_ERROR(api.sapi_uv_close(&idler, nullptr));
 
   // Close loop
   SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_close(&loop));

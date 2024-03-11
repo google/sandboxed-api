@@ -51,7 +51,6 @@ absl::Status RasterToGTiffProcessor::Main() {
   sapi::v::RemotePtr driver_ptr(driver.value());
 
   sapi::v::ConstCStr out_file_full_path_ptr(out_file_full_path_.c_str());
-  sapi::v::NullPtr create_options;
 
   GDALDataType type = data_.bands.size() > 0
                           ? static_cast<GDALDataType>(data_.bands[0].data_type)
@@ -61,7 +60,7 @@ absl::Status RasterToGTiffProcessor::Main() {
       absl::StatusOr<GDALDatasetH> dataset,
       api.GDALCreate(&driver_ptr, out_file_full_path_ptr.PtrBefore(),
                      data_.width, data_.height, data_.bands.size(), type,
-                     &create_options));
+                     nullptr));
 
   TRANSACTION_FAIL_IF_NOT(dataset.value(), "Error creating dataset");
   sapi::v::RemotePtr dataset_ptr(dataset.value());

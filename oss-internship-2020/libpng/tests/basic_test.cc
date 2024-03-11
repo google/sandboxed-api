@@ -64,9 +64,8 @@ TEST(SandboxTest, ReadWrite) {
       << "image version changed";
 
   sapi::v::Array<uint8_t> buffer(PNG_IMAGE_SIZE(*image.mutable_data()));
-  sapi::v::NullPtr null = sapi::v::NullPtr();
-  status_or_int = api.png_image_finish_read(image.PtrBoth(), &null,
-                                            buffer.PtrBoth(), 0, &null);
+  status_or_int = api.png_image_finish_read(image.PtrBoth(), nullptr,
+                                            buffer.PtrBoth(), 0, nullptr);
   ASSERT_THAT(status_or_int, IsOk())
       << "fatal error when invoking png_image_finish_read";
   ASSERT_THAT(status_or_int.value(), IsTrue())
@@ -76,8 +75,9 @@ TEST(SandboxTest, ReadWrite) {
   ASSERT_THAT(image.mutable_data()->format, Eq(PNG_FORMAT_RGBA))
       << "image format changed";
 
-  status_or_int = api.png_image_write_to_file(
-      image.PtrBoth(), outfile_var.PtrBefore(), 0, buffer.PtrBoth(), 0, &null);
+  status_or_int =
+      api.png_image_write_to_file(image.PtrBoth(), outfile_var.PtrBefore(), 0,
+                                  buffer.PtrBoth(), 0, nullptr);
   ASSERT_THAT(status_or_int, IsOk())
       << "fatal error when invoking png_image_write_to_file";
   ASSERT_THAT(status_or_int.value(), IsTrue())
