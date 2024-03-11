@@ -23,7 +23,7 @@
 absl::Status BrotliEncoder::InitStructs() {
   SAPI_ASSIGN_OR_RETURN(
       BrotliEncoderState * state,
-      api_.BrotliEncoderCreateInstance(&null_ptr_, &null_ptr_, &null_ptr_));
+      api_.BrotliEncoderCreateInstance(nullptr, nullptr, nullptr));
 
   state_.SetRemote(state);
 
@@ -84,11 +84,11 @@ absl::Status BrotliEncoder::Compress(std::vector<uint8_t>& buf_in,
 
   sapi::v::IntBase<size_t> sapi_avilable_out(0);
 
-  SAPI_ASSIGN_OR_RETURN(
-      bool ret, api_.BrotliEncoderCompressStream(
-                    state_.PtrNone(), op, sapi_size_in.PtrBefore(),
-                    sapi_opaque_buf_in.PtrBefore(),
-                    sapi_avilable_out.PtrBefore(), &null_ptr_, &null_ptr_));
+  SAPI_ASSIGN_OR_RETURN(bool ret,
+                        api_.BrotliEncoderCompressStream(
+                            state_.PtrNone(), op, sapi_size_in.PtrBefore(),
+                            sapi_opaque_buf_in.PtrBefore(),
+                            sapi_avilable_out.PtrBefore(), nullptr, nullptr));
   if (!ret) {
     return absl::UnavailableError("Unable to compress input");
   }

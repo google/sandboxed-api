@@ -45,7 +45,6 @@ class BrotliEncoder {
   BrotliApi api_;
   absl::Status status;
   sapi::v::GenericPtr state_;
-  sapi::v::NullPtr null_ptr_;
 };
 
 #endif  // CONTRIB_BROTLI_UTILS_UTILS_BROTLI_ENC_H_

@@ -23,7 +23,7 @@
 absl::Status BrotliDecoder::InitStructs() {
   SAPI_ASSIGN_OR_RETURN(
       BrotliDecoderState * state,
-      api_.BrotliDecoderCreateInstance(&null_ptr_, &null_ptr_, &null_ptr_));
+      api_.BrotliDecoderCreateInstance(nullptr, nullptr, nullptr));
 
   state_.SetRemote(state);
 
@@ -84,12 +84,11 @@ absl::StatusOr<BrotliDecoderResult> BrotliDecoder::Decompress(
 
   sapi::v::IntBase<size_t> sapi_avilable_out(0);
 
-  SAPI_ASSIGN_OR_RETURN(
-      BrotliDecoderResult ret,
-      api_.BrotliDecoderDecompressStream(
-          state_.PtrNone(), sapi_size_in.PtrBefore(),
-          sapi_opaque_buf_in.PtrBefore(), sapi_avilable_out.PtrBefore(),
-          &null_ptr_, &null_ptr_));
+  SAPI_ASSIGN_OR_RETURN(BrotliDecoderResult ret,
+                        api_.BrotliDecoderDecompressStream(
+                            state_.PtrNone(), sapi_size_in.PtrBefore(),
+                            sapi_opaque_buf_in.PtrBefore(),
+                            sapi_avilable_out.PtrBefore(), nullptr, nullptr));
 
   // Ignore output error, as we didn't provide any buffer.
   if (ret == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT) {
