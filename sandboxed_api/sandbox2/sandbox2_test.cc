@@ -50,6 +50,7 @@ using ::sapi::GetTestSourcePath;
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsEmpty;
+using ::testing::IsFalse;
 using ::testing::IsTrue;
 using ::testing::Lt;
 using ::testing::Ne;
@@ -121,6 +122,7 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   auto result = sandbox.Run();
 
+  EXPECT_THAT(sandbox.IsTerminated(), IsTrue());
   ASSERT_EQ(result.final_status(), Result::OK);
 }
 
@@ -137,9 +139,11 @@ TEST_P(Sandbox2Test, SandboxeeExternalKill) {
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   ASSERT_TRUE(sandbox.RunAsync());
+  EXPECT_THAT(sandbox.IsTerminated(), IsFalse());
   sleep(1);
   sandbox.Kill();
   auto result = sandbox.AwaitResult();
+  EXPECT_THAT(sandbox.IsTerminated(), IsTrue());
   EXPECT_EQ(result.final_status(), Result::EXTERNAL_KILL);
   EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
