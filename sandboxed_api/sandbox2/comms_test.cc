@@ -449,5 +449,23 @@ TEST(CommsTest, RecvProtoBufFailsOnTagMismatch) {
   HandleCommunication(a, b);
 }
 
+TEST(ListeningCommsTest, AbstractSocket) {
+  static constexpr absl::string_view kSocketName = "s2_test_comms";
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      ListeningComms listening_comms,
+      ListeningComms::Create(kSocketName, /*abstract_uds=*/true));
+  std::thread remote([]() {
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        Comms comms,
+        Comms::Connect(std::string(kSocketName), /*abstract_uds=*/true));
+    comms.SendBool(true);
+  });
+  SAPI_ASSERT_OK_AND_ASSIGN(Comms comms, listening_comms.Accept());
+  bool b;
+  ASSERT_THAT(comms.RecvBool(&b), IsTrue());
+  EXPECT_THAT(b, Eq(true));
+  remote.join();
+}
+
 }  // namespace
 }  // namespace sandbox2
