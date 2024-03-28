@@ -259,6 +259,7 @@ bool Comms::RecvString(std::string* v) {
   }
 
   if (tag != kTagString) {
+    v->clear();
     SAPI_RAW_LOG(ERROR, "Expected (kTagString == 0x%x), got: 0x%x", kTagString,
                  tag);
     return false;
