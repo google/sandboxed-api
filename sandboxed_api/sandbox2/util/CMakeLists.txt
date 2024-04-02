@@ -103,4 +103,18 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_maps_parser_test)
+
+  # sandboxed_api/sandbox2/util:bpf_helper_test
+  add_executable(sandbox2_bpf_helper_test
+    bpf_helper_test.cc
+  )
+  set_target_properties(sandbox2_bpf_helper_test PROPERTIES
+    OUTPUT_NAME bpf_helper_test
+  )
+  target_link_libraries(sandbox2_bpf_helper_test PRIVATE
+    absl::strings
+    sandbox2::bpf_helper
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_bpf_helper_test)
 endif()

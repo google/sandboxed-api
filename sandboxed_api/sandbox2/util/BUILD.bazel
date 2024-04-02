@@ -35,6 +35,17 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+cc_test(
+    name = "bpf_helper_test",
+    srcs = ["bpf_helper_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":bpf_helper",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "minielf",
     srcs = ["minielf.cc"],
