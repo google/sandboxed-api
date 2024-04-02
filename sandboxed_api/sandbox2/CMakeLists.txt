@@ -1109,12 +1109,16 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   set_target_properties(sandbox2_util_test PROPERTIES
     OUTPUT_NAME util_test
   )
+  add_dependencies(sandbox2_sandbox2_test
+    sandbox2::testcase_util_communicate
+  )
   target_link_libraries(sandbox2_util_test PRIVATE
     sandbox2::util
     absl::statusor
     absl::strings
     absl::cleanup
     sapi::status_matchers
+    sapi::testing
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_util_test)

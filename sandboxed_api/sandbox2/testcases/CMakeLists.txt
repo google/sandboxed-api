@@ -337,4 +337,14 @@ target_link_libraries(sandbox2_testcase_custom_fork PRIVATE
   sapi::raw_logging
 )
 
-
+# sandboxed_api/sandbox2/testcases:util_communicate
+add_executable(sandbox2_testcase_util_communicate
+  util_communicate.cc
+)
+add_executable(sandbox2::testcase_util_communicate ALIAS sandbox2_testcase_util_communicate)
+set_target_properties(sandbox2_testcase_util_communicate PROPERTIES
+  OUTPUT_NAME util_communicate
+)
+target_link_libraries(sandbox2_testcase_util_communicate PRIVATE
+  sapi::base
+)

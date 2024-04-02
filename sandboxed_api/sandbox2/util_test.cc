@@ -31,11 +31,13 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2::util {
 namespace {
 
+using ::sapi::GetTestSourcePath;
 using ::sapi::IsOk;
 using ::testing::ElementsAre;
 using ::testing::Eq;
@@ -44,6 +46,7 @@ using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Ne;
 using ::testing::Not;
+using ::testing::StartsWith;
 using ::testing::StrEq;
 
 constexpr absl::string_view kTestString = "This is a test string";
@@ -164,6 +167,17 @@ TEST(ReadCPathFromPidSplitPageTest, NearUnreadableMemory) {
       ReadCPathFromPid(getpid(), reinterpret_cast<uintptr_t>(str));
   ASSERT_THAT(read, IsOk());
   EXPECT_THAT(*read, Eq(kTestString));
+}
+
+TEST(CommunitacteTest, Normal) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/util_communicate");
+  std::string output;
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      int exit_code,
+      util::Communicate({path, "argv1", "argv2"}, {"env1", "env2"}, &output));
+  EXPECT_THAT(exit_code, Eq(0));
+  EXPECT_THAT(output, StartsWith("3\nargv1\nargv2\nenv1\nenv2\n"));
 }
 
 }  // namespace

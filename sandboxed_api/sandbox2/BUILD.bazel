@@ -1033,8 +1033,12 @@ cc_test(
     name = "util_test",
     srcs = ["util_test.cc"],
     copts = sapi_platform_copts(),
+    data = [
+        "//sandboxed_api/sandbox2/testcases:util_communicate",
+    ],
     deps = [
         ":util",
+        "//sandboxed_api:testing",
         "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status:statusor",
