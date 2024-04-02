@@ -367,6 +367,7 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   AddPolicyOnSyscall(__NR_madvise, {
                                        ARG_32(2),
                                        JEQ32(MADV_DONTDUMP, ALLOW),
+                                       JEQ32(MADV_DONTNEED, ALLOW),
                                        JEQ32(MADV_NOHUGEPAGE, ALLOW),
                                    });
   // Sanitizers read from /proc. For example:
