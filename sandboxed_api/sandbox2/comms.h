@@ -28,15 +28,14 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -195,12 +194,38 @@ class Comms {
     using std::swap;
     swap(name_, other.name_);
     swap(abstract_uds_, other.abstract_uds_);
-    swap(connection_fd_, other.connection_fd_);
+    swap(raw_comms_, other.raw_comms_);
     swap(state_, other.state_);
     swap(listening_comms_, other.listening_comms_);
   }
 
   friend void swap(Comms& x, Comms& y) { return x.Swap(y); }
+
+ protected:
+  class RawComms {
+   public:
+    virtual ~RawComms() {};
+    virtual int GetConnectionFD() const = 0;
+    virtual void MoveToAnotherFd() = 0;
+    virtual ssize_t RawSend(const void* data, size_t len) = 0;
+    virtual ssize_t RawRecv(void* data, size_t len) = 0;
+    virtual ssize_t RawSendMsg(const void* msg) = 0;
+    virtual ssize_t RawRecvMsg(void* msg) = 0;
+  };
+
+  class RawCommsFdImpl : public RawComms {
+   public:
+    RawCommsFdImpl(int fd) : connection_fd_(fd) {}
+    int GetConnectionFD() const override;
+    void MoveToAnotherFd() override;
+    ssize_t RawSend(const void* data, size_t len) override;
+    ssize_t RawRecv(void* data, size_t len) override;
+    ssize_t RawSendMsg(const void* msg) override;
+    ssize_t RawRecvMsg(void* msg) override;
+
+   private:
+    sapi::file_util::fileops::FDCloser connection_fd_;
+  };
 
  private:
   friend class Client;
@@ -215,7 +240,7 @@ class Comms {
   // Connection parameters.
   std::string name_;
   bool abstract_uds_ = true;
-  sapi::file_util::fileops::FDCloser connection_fd_;
+  std::variant<std::unique_ptr<RawComms>, RawCommsFdImpl> raw_comms_;
 
   std::unique_ptr<ListeningComms> listening_comms_;
 
@@ -231,6 +256,27 @@ class Comms {
     uint32_t tag;
     size_t len;
   };
+
+  Comms(std::unique_ptr<RawComms> raw_comms)
+      : raw_comms_(std::move(raw_comms)) {
+    state_ = State::kConnected;
+  }
+
+  RawComms* GetRawComms() {
+    RawComms* raw_comms = std::get_if<RawCommsFdImpl>(&raw_comms_);
+    if (!raw_comms) {
+      raw_comms = std::get<std::unique_ptr<RawComms>>(raw_comms_).get();
+    }
+    return raw_comms;
+  }
+
+  const RawComms* GetRawComms() const {
+    const RawComms* raw_comms = std::get_if<RawCommsFdImpl>(&raw_comms_);
+    if (!raw_comms) {
+      raw_comms = std::get<std::unique_ptr<RawComms>>(raw_comms_).get();
+    }
+    return raw_comms;
+  }
 
   // Moves the comms fd to an other free file descriptor.
   void MoveToAnotherFd();
