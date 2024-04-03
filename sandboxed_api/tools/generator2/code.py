@@ -111,7 +111,6 @@ TYPE_MAPPING = {
     cindex.TypeKind.DOUBLE: '::sapi::v::Reg<double>',
     cindex.TypeKind.LONGDOUBLE: '::sapi::v::Reg<long double>',
     cindex.TypeKind.SCHAR: '::sapi::v::SChar',
-    cindex.TypeKind.SHORT: '::sapi::v::Short',
     cindex.TypeKind.BOOL: '::sapi::v::Bool',
 }
 
