@@ -57,12 +57,17 @@ def main(c_flags):
   c_flags.pop(0)
   logging.debug(FLAGS.sapi_functions)
   extract_includes(FLAGS.sapi_isystem, c_flags)
-  tus = code.Analyzer.process_files(FLAGS.sapi_in, c_flags,
-                                    FLAGS.sapi_limit_scan_depth)
+  tus = code.Analyzer.process_files(
+      FLAGS.sapi_in, c_flags, FLAGS.sapi_limit_scan_depth, FLAGS.sapi_functions
+  )
   generator = code.Generator(tus)
-  result = generator.generate(FLAGS.sapi_name, FLAGS.sapi_functions,
-                              FLAGS.sapi_ns, FLAGS.sapi_out,
-                              FLAGS.sapi_embed_dir, FLAGS.sapi_embed_name)
+  result = generator.generate(
+      FLAGS.sapi_name,
+      FLAGS.sapi_ns,
+      FLAGS.sapi_out,
+      FLAGS.sapi_embed_dir,
+      FLAGS.sapi_embed_name,
+  )
 
   if FLAGS.sapi_out:
     with open(FLAGS.sapi_out, 'w') as out_file:

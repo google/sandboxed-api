@@ -33,15 +33,20 @@ struct a {
 """
 
 
-def analyze_string(content, path='tmp.cc', limit_scan_depth=False):
+def analyze_string(
+    content, path='tmp.cc', limit_scan_depth=False, func_names=None
+):
   """Returns Analysis object for in memory content."""
-  return analyze_strings(path, [(path, content)], limit_scan_depth)
+  return analyze_strings(path, [(path, content)], limit_scan_depth, func_names)
 
 
-def analyze_strings(path, unsaved_files, limit_scan_depth=False):
+def analyze_strings(
+    path, unsaved_files, limit_scan_depth=False, func_names=None
+):
   """Returns Analysis object for in memory content."""
-  return code.Analyzer._analyze_file_for_tu(path, None, False, unsaved_files,
-                                            limit_scan_depth)
+  return code.Analyzer._analyze_file_for_tu(
+      path, None, False, unsaved_files, limit_scan_depth, func_names
+  )
 
 
 class CodeAnalysisTest(parameterized.TestCase):
@@ -126,8 +131,8 @@ class CodeAnalysisTest(parameterized.TestCase):
         'function_a', 'types_1', 'types_2', 'types_3', 'types_4', 'types_5',
         'types_6'
     ]
-    generator = code.Generator([analyze_string(body)])
-    result = generator.generate('Test', functions, 'sapi::Tests', None, None)
+    generator = code.Generator([analyze_string(body, func_names=functions)])
+    result = generator.generate('Test', 'sapi::Tests', None, None)
     self.assertMultiLineEqual(code_test_util.CODE_GOLD, result)
 
   def testElaboratedArgument(self):
@@ -135,18 +140,18 @@ class CodeAnalysisTest(parameterized.TestCase):
       struct x { int a; };
       extern "C" int function(struct x a) { return a.a; }
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = code.Generator([analyze_string(body, func_names=['function'])])
     with self.assertRaisesRegex(ValueError, r'Elaborate.*mapped.*'):
-      generator.generate('Test', ['function'], 'sapi::Tests', None, None)
+      generator.generate('Test', 'sapi::Tests', None, None)
 
   def testElaboratedArgument2(self):
     body = """
       typedef struct { int a; char b; } x;
       extern "C" int function(x a) { return a.a; }
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = code.Generator([analyze_string(body, func_names=['function'])])
     with self.assertRaisesRegex(ValueError, r'Elaborate.*mapped.*'):
-      generator.generate('Test', ['function'], 'sapi::Tests', None, None)
+      generator.generate('Test', 'sapi::Tests', None, None)
 
   def testGetMappedType(self):
     body = """
@@ -155,7 +160,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" uint function(uintp a) { return *a; }
     """
     generator = code.Generator([analyze_string(body)])
-    result = generator.generate('Test', [], 'sapi::Tests', None, None)
+    result = generator.generate('Test', 'sapi::Tests', None, None)
     self.assertMultiLineEqual(code_test_util.CODE_GOLD_MAPPED, result)
 
   @parameterized.named_parameters(
@@ -182,7 +187,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(functions, 1)
     self.assertLen(functions[0].argument_types, len(names))
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
     for t in functions[0].argument_types:
       self.assertIn(t.name, names)
 
@@ -203,7 +208,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       }
     """
     generator = code.Generator([analyze_string(body)])
-    result = generator.generate('Test', [], 'sapi::Tests', None, None)
+    result = generator.generate('Test', 'sapi::Tests', None, None)
     self.assertMultiLineEqual(code_test_util.CODE_ENUM_GOLD, result)
 
   def testTypeEq(self):
@@ -223,7 +228,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
     self.assertLen(set(args), 2)
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testTypedefRelatedTypes(self):
     body = """
@@ -262,7 +267,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertSameElements(names, ['data_s', 'data_p'])
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testTypedefDuplicateType(self):
     body = """
@@ -291,7 +296,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertSameElements(['data_s', 's'], names)
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testStructureRelatedTypes(self):
     body = """
@@ -342,7 +347,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(types, 1)
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testUnionRelatedTypes(self):
     body = """
@@ -382,7 +387,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertSameElements(names, ['union_1', 'uint'])
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testFunctionPointerRelatedTypes(self):
     body = """
@@ -415,7 +420,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertSameElements(names, ['funcp', 'uint', 'uchar'])
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testForwardDeclaration(self):
     body = """
@@ -457,7 +462,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     forward_decls = generator._get_forward_decls(generator._get_related_types())
     self.assertLen(forward_decls, 1)
     self.assertEqual(forward_decls[0], 'struct struct_6_def;')
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testEnumRelatedTypes(self):
     body = """
@@ -486,7 +491,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(args[5].get_related_types(), 1)
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testArrayAsParam(self):
     body = """
@@ -577,7 +582,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     args = functions[0].arguments()
     getattr(self, func)(args[a1], args[a2])
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testFilterFunctionsFromInputFilesOnly(self):
     file1_code = """
@@ -643,7 +648,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertMultiLineEqual(expected, types[1].stringify())
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testCollectDefines(self):
     body = """
@@ -665,7 +670,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
     generator._get_related_types()
     tu = generator.translation_units[0]
-    tu._process()
+    tu.get_functions()
 
     self.assertLen(tu.required_defines, 4)
     defines = generator._get_defines()
@@ -676,7 +681,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertIn('#define SIZE4 10', defines)
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testYaraCase(self):
     body = """
@@ -697,7 +702,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
     generator._get_related_types()
     tu = generator.translation_units[0]
-    tu._process()
+    tu.get_functions()
 
     self.assertLen(tu.required_defines, 2)
     defines = generator._get_defines()
@@ -708,7 +713,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertTrue(defines[1].startswith(gold))
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testDoubleFunction(self):
     body = """
@@ -726,7 +731,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(tu.functions, 1)
 
     # Extra check for generation, in case rendering throws error for this test.
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
   def testDefineStructBody(self):
     body = """
@@ -744,7 +749,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(generator.translation_units, 1)
 
     # initialize all internal data
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
     tu = generator.translation_units[0]
 
     self.assertLen(tu.functions, 1)
@@ -762,7 +767,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(generator.translation_units, 1)
 
     # initialize all internal data
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
     tu = generator.translation_units[0]
     self.assertLen(tu.functions, 1)
@@ -784,7 +789,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(generator.translation_units, 1)
 
     # Initialize all internal data
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
     tu = generator.translation_units[0]
     self.assertLen(tu.functions, 2)
@@ -802,7 +807,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(generator.translation_units, 1)
 
     # Initialize all internal data
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
     tu = generator.translation_units[0]
     self.assertLen(tu.functions, 1)
@@ -822,7 +827,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     unsaved_files = [(path, content)]
     generator = code.Generator([analyze_strings(path, unsaved_files)])
     # Initialize all internal data
-    generator.generate('Test', [], 'sapi::Tests', None, None)
+    generator.generate('Test', 'sapi::Tests', None, None)
 
     # generator should filter out mangled function
     functions = generator._get_functions()
