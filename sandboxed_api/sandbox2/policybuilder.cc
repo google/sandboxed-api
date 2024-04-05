@@ -721,6 +721,7 @@ PolicyBuilder& PolicyBuilder::AllowAlarm() {
 
 PolicyBuilder& PolicyBuilder::AllowHandleSignals() {
   return AllowSyscalls({
+      __NR_restart_syscall,
       __NR_rt_sigaction,
       __NR_rt_sigreturn,
       __NR_rt_sigprocmask,
