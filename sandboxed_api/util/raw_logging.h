@@ -37,7 +37,12 @@
 // /dev/null.
 #if defined(ABSL_RAW_LOG) && !(__ANDROID__)
 #define SAPI_RAW_LOG ABSL_RAW_LOG
+#define SAPI_USE_ABSL_RAW_LOG 1
 #else
+#define SAPI_RAW_LOGGING_INTERNAL_INFO ::absl::LogSeverity::kInfo
+#define SAPI_RAW_LOGGING_INTERNAL_WARNING ::absl::LogSeverity::kWarning
+#define SAPI_RAW_LOGGING_INTERNAL_ERROR ::absl::LogSeverity::kError
+#define SAPI_RAW_LOGGING_INTERNAL_FATAL ::absl::LogSeverity::kFatal
 // This is similar to LOG(severity) << format..., but
 // * it is to be used ONLY by low-level modules that can't use normal LOG()
 // * it is designed to be a low-level logger that does not allocate any
@@ -80,17 +85,12 @@
   } while (0)
 #endif
 
-#define SAPI_RAW_LOGGING_INTERNAL_INFO ::absl::LogSeverity::kInfo
-#define SAPI_RAW_LOGGING_INTERNAL_WARNING ::absl::LogSeverity::kWarning
-#define SAPI_RAW_LOGGING_INTERNAL_ERROR ::absl::LogSeverity::kError
-#define SAPI_RAW_LOGGING_INTERNAL_FATAL ::absl::LogSeverity::kFatal
-
 // Returns whether SAPI verbose logging is enabled, as determined by the
 // SAPI_VLOG_LEVEL environment variable.
-#define SAPI_VLOG_IS_ON(verbose_level) \
-  ::sapi::raw_logging_internal::VLogIsOn(verbose_level)
+#define SAPI_VLOG_IS_ON(verbose_level) SAPI_RAW_VLOG_IS_ON(verbose_level)
 
-#define SAPI_RAW_VLOG_IS_ON(verbose_level) SAPI_VLOG_IS_ON(verbose_level)
+#define SAPI_RAW_VLOG_IS_ON(verbose_level) \
+  ::sapi::raw_logging_internal::VLogIsOn(verbose_level)
 
 #ifndef VLOG
 // `VLOG` uses numeric levels to provide verbose logging that can configured at
@@ -148,19 +148,13 @@ namespace sapi::raw_logging_internal {
 
 constexpr int kLogBufSize = 3000;
 
+#ifndef SAPI_USE_ABSL_RAW_LOG
 // Helper function to implement ABSL_RAW_LOG
 // Logs format... at "severity" level, reporting it
 // as called from file:line.
 // This does not allocate memory or acquire locks.
 void RawLog(absl::LogSeverity severity, const char* file, int line,
             const char* format, ...) ABSL_PRINTF_ATTRIBUTE(4, 5);
-
-// Writes the provided buffer directly to stderr, in a safe, low-level manner.
-//
-// In POSIX this means calling write(), which is async-signal safe and does
-// not malloc.  If the platform supports the SYS_write syscall, we invoke that
-// directly to side-step any libc interception.
-void SafeWriteToStderr(const char* s, size_t len);
 
 // compile-time function to get the "base" filename, that is, the part of
 // a filename after the last "/" or "\" path separator.  The search starts at
@@ -170,6 +164,7 @@ constexpr const char* Basename(const char* fname, int offset) {
              ? fname + offset
              : Basename(fname, offset - 1);
 }
+#endif
 
 bool VLogIsOn(int verbose_level);
 
