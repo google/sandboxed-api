@@ -37,6 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/call.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/rpcchannel.h"
@@ -45,14 +46,15 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/runfiles.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_array.h"
+#include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_ptr.h"
+#include "sandboxed_api/var_reg.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi {
 

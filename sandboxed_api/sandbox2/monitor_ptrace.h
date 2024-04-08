@@ -35,7 +35,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 

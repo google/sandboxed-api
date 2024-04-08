@@ -85,26 +85,10 @@
   } while (0)
 #endif
 
-// Returns whether SAPI verbose logging is enabled, as determined by the
+// Returns whether SAPI raw verbose logging is enabled, as determined by the
 // SAPI_VLOG_LEVEL environment variable.
-#define SAPI_VLOG_IS_ON(verbose_level) SAPI_RAW_VLOG_IS_ON(verbose_level)
-
 #define SAPI_RAW_VLOG_IS_ON(verbose_level) \
   ::sapi::raw_logging_internal::VLogIsOn(verbose_level)
-
-#ifndef VLOG
-// `VLOG` uses numeric levels to provide verbose logging that can configured at
-// runtime, globally. `VLOG` statements are logged at `INFO` severity if they
-// are logged at all; the numeric levels are on a different scale than the
-// proper severity levels. Positive levels are disabled by default. Negative
-// levels should not be used.
-#define VLOG(verbose_level)                                                \
-  for (int sapi_logging_internal_verbose_level = (verbose_level),          \
-           sapi_logging_internal_log_loop = 1;                             \
-       sapi_logging_internal_log_loop; sapi_logging_internal_log_loop = 0) \
-  LOG_IF(INFO, SAPI_VLOG_IS_ON(sapi_logging_internal_verbose_level))       \
-      .WithVerbosity(sapi_logging_internal_verbose_level)
-#endif
 
 // Like SAPI_RAW_LOG(), but also logs the current value of errno and its
 // corresponding error message.

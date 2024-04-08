@@ -37,6 +37,7 @@
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -59,7 +60,6 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/file_helpers.h"
-#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/temp_file.h"
 
@@ -184,7 +184,7 @@ void MonitorBase::Launch() {
   absl::Cleanup monitor_done = [this] { OnDone(); };
 
   const Namespace* ns = policy_->GetNamespaceOrNull();
-  if (SAPI_VLOG_IS_ON(1) && ns != nullptr) {
+  if (VLOG_IS_ON(1) && ns != nullptr) {
     std::vector<std::string> outside_entries;
     std::vector<std::string> inside_entries;
     ns->mounts().RecursivelyListMounts(
@@ -359,7 +359,7 @@ void MonitorBase::LogSyscallViolation(const Syscall& syscall) const {
   LOG(ERROR) << "SANDBOX VIOLATION : PID: " << syscall.pid() << ", PROG: '"
              << util::GetProgName(syscall.pid())
              << "' : " << syscall.GetDescription();
-  if (SAPI_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     VLOG(1) << "Cmdline: " << util::GetCmdLine(syscall.pid());
     VLOG(1) << "Task Name: " << util::GetProcStatusLine(syscall.pid(), "Name");
     VLOG(1) << "Tgid: " << util::GetProcStatusLine(syscall.pid(), "Tgid");

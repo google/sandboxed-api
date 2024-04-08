@@ -46,7 +46,6 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/raw_logging.h"
 
 #ifndef SECCOMP_GET_NOTIF_SIZES
 #define SECCOMP_GET_NOTIF_SIZES 3

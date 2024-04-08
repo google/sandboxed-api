@@ -168,7 +168,6 @@ target_link_libraries(sandbox2_ipc PRIVATE
   sandbox2::network_proxy_client
   sandbox2::network_proxy_server
   sapi::base
-  sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2:policy
@@ -392,7 +391,6 @@ target_link_libraries(sandbox2_stack_trace
           sapi::config
           sapi::file_base
           sapi::fileops
-          sapi::raw_logging
           sapi::status
   PUBLIC absl::check
          absl::statusor
@@ -412,9 +410,15 @@ add_library(sandbox2_monitor_base ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::monitor_base ALIAS sandbox2_monitor_base)
 target_link_libraries(sandbox2_monitor_base
-  PRIVATE absl::cleanup
+  PRIVATE absl::bind_front
+          absl::check
+          absl::cleanup
+          absl::flags
+          absl::log
           absl::status
+          absl::strings
           absl::time
+          absl::vlog_is_on
           sandbox2::client
           sandbox2::limits
           sandbox2::mounts
@@ -424,7 +428,6 @@ target_link_libraries(sandbox2_monitor_base
           sapi::file_helpers
           sapi::temp_file
           sapi::base
-          sapi::raw_logging
   PUBLIC  absl::statusor
           absl::synchronization
           sandbox2::comms
@@ -456,6 +459,7 @@ target_link_libraries(sandbox2_monitor_ptrace
           absl::str_format
           absl::strings
           absl::time
+          absl::vlog_is_on
           sapi::base
           sapi::config
           sapi::status
@@ -473,7 +477,6 @@ target_link_libraries(sandbox2_monitor_ptrace
          sandbox2::syscall
          absl::synchronization
          absl::flat_hash_map
-         sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2:monitor_unotify
@@ -505,7 +508,6 @@ target_link_libraries(sandbox2_monitor_unotify
          absl::statusor
          absl::synchronization
          sapi::fileops
-         sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2:policybuilder
@@ -675,7 +677,6 @@ target_link_libraries(sandbox2_forkingclient
           absl::log
           sandbox2::sanitizer
           sapi::base
-          sapi::raw_logging
   PUBLIC sandbox2::client
          sandbox2::comms
          sandbox2::forkserver
@@ -955,7 +956,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::forkserver
     sandbox2::forkserver_proto
     sandbox2::sandbox2
-    sapi::raw_logging
     sapi::testing
     sapi::test_main
   )

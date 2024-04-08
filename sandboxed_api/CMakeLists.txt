@@ -82,13 +82,13 @@ target_link_libraries(sapi_sapi
           absl::str_format
           absl::strings
           absl::synchronization
-          sandbox2::bpf_helper
+          sapi::call
           sapi::file_base
-          sapi::fileops
           sapi::runfiles
           sapi::strerror
           sandbox2::util
           sapi::embed_file
+          sapi::var_type
           sapi::vars
   PUBLIC absl::check
          absl::core_headers

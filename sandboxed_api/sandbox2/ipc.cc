@@ -30,7 +30,6 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logserver.h"
 #include "sandboxed_api/sandbox2/logsink.h"
-#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 

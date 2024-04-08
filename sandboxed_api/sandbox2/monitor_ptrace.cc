@@ -44,6 +44,7 @@
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -64,7 +65,6 @@
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
@@ -949,7 +949,7 @@ void PtraceMonitor::StateProcessStopped(pid_t pid, int status) {
 
     if (!stack_trace.ok()) {
       LOG(WARNING) << "FAILED TO GET SANDBOX STACK : " << stack_trace.status();
-    } else if (SAPI_VLOG_IS_ON(0)) {
+    } else if (VLOG_IS_ON(0)) {
       VLOG(0) << "SANDBOX STACK: PID: " << pid << ", [";
       for (const auto& frame : *stack_trace) {
         VLOG(0) << "  " << frame;

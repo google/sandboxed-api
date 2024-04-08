@@ -25,7 +25,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
 

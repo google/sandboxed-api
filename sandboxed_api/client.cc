@@ -44,7 +44,6 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/sandbox2/logsink.h"
-#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/var_type.h"
 
 #include <ffi.h>
