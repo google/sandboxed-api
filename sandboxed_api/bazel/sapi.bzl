@@ -228,7 +228,6 @@ sapi_interface = rule(
             default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
         ),
     },
-    output_to_genfiles = True,
     toolchains = use_cpp_toolchain(),
 )
 
