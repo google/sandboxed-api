@@ -59,7 +59,7 @@ class LenVal : public Var {
   std::string ToString() const final { return "LenVal"; }
 
   absl::Status ResizeData(RPCChannel* rpc_channel, size_t size);
-  size_t GetDataSize() const { return struct_.data().size; }
+  size_t GetDataSize() const { return array_.GetSize(); }
   uint8_t* GetData() const { return array_.GetData(); }
   void* GetRemote() const final { return struct_.GetRemote(); }
 
