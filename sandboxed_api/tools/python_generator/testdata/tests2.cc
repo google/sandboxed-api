@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/tools/generator2/testdata/tests.h"
+#include "sandboxed_api/tools/python_generator/testdata/tests.h"  // IWYU pragma: keep
 
 // This compilation unit should have this structure partially defined
 struct struct_2* function_returning_struct_ptr() {

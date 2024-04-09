@@ -180,7 +180,7 @@ function(add_sapi_library)
     list(JOIN _sapi_full_inputs "," _sapi_full_inputs)
     list(APPEND _sapi_generator_command
       "${SAPI_PYTHON3_EXECUTABLE}" -B
-      "${SAPI_SOURCE_DIR}/sandboxed_api/tools/generator2/sapi_generator.py"
+      "${SAPI_SOURCE_DIR}/sandboxed_api/tools/python_generator/sapi_generator.py"
       ${_sapi_generator_args}
       "--sapi_isystem=${_sapi_isystem}"
       "--sapi_in=${_sapi_full_inputs}"

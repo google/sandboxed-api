@@ -19,8 +19,8 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 from clang import cindex
-from com_google_sandboxed_api.sandboxed_api.tools.generator2 import code
-from com_google_sandboxed_api.sandboxed_api.tools.generator2 import code_test_util
+from com_google_sandboxed_api.sandboxed_api.tools.python_generator import code
+from com_google_sandboxed_api.sandboxed_api.tools.python_generator import code_test_util
 
 CODE = """
 typedef int(fun*)(int,int);
@@ -93,10 +93,15 @@ class CodeAnalysisTest(parameterized.TestCase):
         for x in translation_unit._walk_preorder()
         if x.kind != cindex.CursorKind.MACRO_DEFINITION
     ]
-    self.assertListEqual(cursor_kinds, [
-        cindex.CursorKind.TRANSLATION_UNIT, cindex.CursorKind.LINKAGE_SPEC,
-        cindex.CursorKind.FUNCTION_DECL, cindex.CursorKind.PARM_DECL
-    ])
+    self.assertListEqual(
+        cursor_kinds,
+        [
+            cindex.CursorKind.TRANSLATION_UNIT,
+            cindex.CursorKind.LINKAGE_SPEC,
+            cindex.CursorKind.FUNCTION_DECL,
+            cindex.CursorKind.PARM_DECL,
+        ],
+    )
 
   @parameterized.named_parameters(
       ('1:', '/tmp/test.h', 'tmp', 'tmp/test.h'),
@@ -128,8 +133,13 @@ class CodeAnalysisTest(parameterized.TestCase):
       }
     """
     functions = [
-        'function_a', 'types_1', 'types_2', 'types_3', 'types_4', 'types_5',
-        'types_6'
+        'function_a',
+        'types_1',
+        'types_2',
+        'types_3',
+        'types_4',
+        'types_5',
+        'types_6',
     ]
     generator = code.Generator([analyze_string(body, func_names=functions)])
     result = generator.generate('Test', 'sapi::Tests', None, None)
@@ -175,11 +185,16 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertEqual(code.get_header_guard(path), expected)
 
   @parameterized.named_parameters(
-      ('function with return value and arguments',
-       'extern "C" int function(bool arg_bool, char* arg_ptr);',
-       ['arg_bool', 'arg_ptr']),
-      ('function without return value and no arguments',
-       'extern "C" void function();', []),
+      (
+          'function with return value and arguments',
+          'extern "C" int function(bool arg_bool, char* arg_ptr);',
+          ['arg_bool', 'arg_ptr'],
+      ),
+      (
+          'function without return value and no arguments',
+          'extern "C" void function();',
+          [],
+      ),
   )
   def testArgumentNames(self, body, names):
     generator = code.Generator([analyze_string(body)])
@@ -445,18 +460,19 @@ class CodeAnalysisTest(parameterized.TestCase):
     names = [t._clang_type.spelling for t in types]
     self.assertLen(types, 4)
     self.assertSameElements(
-        names, ['struct_6p', 'struct_6', 'struct_6_def', 'function_p3'])
+        names, ['struct_6p', 'struct_6', 'struct_6_def', 'function_p3']
+    )
 
     self.assertLen(generator.translation_units, 1)
     self.assertLen(generator.translation_units[0].forward_decls, 1)
 
-    t = next(
-        x for x in types if x._clang_type.spelling == 'struct_6_def')
+    t = next(x for x in types if x._clang_type.spelling == 'struct_6_def')
     self.assertIn(t, generator.translation_units[0].forward_decls)
 
     names = [t._clang_type.spelling for t in generator._get_related_types()]
     self.assertEqual(
-        names, ['struct_6', 'struct_6p', 'function_p3', 'struct_6_def'])
+        names, ['struct_6', 'struct_6p', 'function_p3', 'struct_6_def']
+    )
 
     # Extra check for generation, in case rendering throws error for this test.
     forward_decls = generator._get_forward_decls(generator._get_related_types())
@@ -573,8 +589,12 @@ class CodeAnalysisTest(parameterized.TestCase):
     typedef unsigned char uchar;"""
     file3_code = 'typedef unsigned long ulong;'
     file4_code = 'typedef char chr;'
-    files = [('f1.h', file1_code), ('/f2.h', file2_code), ('/f3.h', file3_code),
-             ('/f4.h', file4_code)]
+    files = [
+        ('f1.h', file1_code),
+        ('/f2.h', file2_code),
+        ('/f3.h', file3_code),
+        ('/f4.h', file4_code),
+    ]
     generator = code.Generator([analyze_strings('f1.h', files)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)

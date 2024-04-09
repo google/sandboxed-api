@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/tools/generator2/tests_sapi_generator.sapi.h"
+#include "sandboxed_api/tools/python_generator/tests_sapi_generator.sapi.h"
 
 int main() {
   sapi::tests::struct_t a;

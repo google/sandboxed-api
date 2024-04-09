@@ -218,7 +218,7 @@ sapi_interface = rule(
             values = [1, 2],
         ),
         "_generator_v1": make_exec_label(
-            "//sandboxed_api/tools/generator2:sapi_generator",
+            "//sandboxed_api/tools/python_generator:sapi_generator",
         ),
         "_generator_v2": make_exec_label(
             # TODO(cblichmann): Add prebuilt version of Clang based generator
@@ -286,7 +286,7 @@ def sapi_library(
       deps: Extra dependencies to add to the SAPI library
       tags: Extra tags to associate with the target
       generator_version: Which version the the interface generator to use
-        (experimental). Version 1 uses the Python/libclang based `generator2`,
+        (experimental). Version 1 uses the Python/libclang based `python_generator`,
         version 2 uses the newer C++ implementation that uses the full clang
         compiler front-end for parsing. Both emit equivalent Sandboxed APIs.
       visibility: Target visibility

@@ -18,7 +18,7 @@
 // be passed as arguments, returned by function or be part of structure
 // dependency chain
 
-#include "sandboxed_api/tools/generator2/testdata/tests.h"
+#include "sandboxed_api/tools/python_generator/testdata/tests.h"  // IWYU pragma: keep
 
 namespace a {
 namespace b {
