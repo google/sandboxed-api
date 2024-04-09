@@ -43,5 +43,5 @@ set_target_properties(sandbox2_static_bin PROPERTIES OUTPUT_NAME static_bin)
 add_executable(sandbox2::static_bin ALIAS sandbox2_static_bin)
 target_link_libraries(sandbox2_static_bin PRIVATE
   sapi::base
-  -static  # Fully static link
+  -static-pie  # Fully static link
 )

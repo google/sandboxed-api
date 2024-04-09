@@ -54,9 +54,9 @@ cc_binary(
     name = "static_bin",
     srcs = ["static_bin.cc"],
     copts = sapi_platform_copts(),
-    features = [
-        "-pie",
-        "fully_static_link",  # link libc statically
+    linkopts = [
+        "-static-pie",
+        "-fuse-ld=bfd",
     ],
     linkstatic = 1,
 )
