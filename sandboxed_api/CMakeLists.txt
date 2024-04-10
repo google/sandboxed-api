@@ -56,10 +56,10 @@ target_link_libraries(sapi_embed_file
   PRIVATE absl::strings
           sandbox2::util
           sapi::base
-          sapi::fileops
           sapi::raw_logging
   PUBLIC absl::flat_hash_map
          absl::synchronization
+         sapi::fileops
 )
 
 # sandboxed_api:sapi
@@ -194,6 +194,17 @@ target_link_libraries(sapi_client
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+  # sandboxed_api:embed_file_test
+  add_executable(embed_file_test
+    embed_file_test.cc
+  )
+  target_link_libraries(embed_file_test PRIVATE
+    absl::memory
+    absl::strings
+    sapi::embed_file
+    sapi::test_main
+  )
+
   # sandboxed_api:testing
   add_library(sapi_testing ${SAPI_LIB_TYPE}
     testing.cc

@@ -19,8 +19,11 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sapi {
+
+class EmbedFileTestPeer;
 
 // The class provides primitives for converting FileToc structures into
 // executable files.
@@ -39,6 +42,7 @@ class EmbedFile {
   int GetDupFdForFileToc(const FileToc* toc);
 
  private:
+  friend class EmbedFileTestPeer;  // For testing.
   // Creates an executable file for a given FileToc, and return its
   // file-descriptors (-1 in case of errors).
   static int CreateFdForFileToc(const FileToc* toc);
@@ -46,7 +50,7 @@ class EmbedFile {
   EmbedFile() = default;
 
   // List of File TOCs and corresponding file-descriptors.
-  absl::flat_hash_map<const FileToc*, int> file_tocs_
+  absl::flat_hash_map<const FileToc*, file_util::fileops::FDCloser> file_tocs_
       ABSL_GUARDED_BY(file_tocs_mutex_);
   absl::Mutex file_tocs_mutex_;
 };

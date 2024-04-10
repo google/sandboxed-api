@@ -31,6 +31,8 @@ namespace sapi {
 
 namespace {
 
+using ::sapi::file_util::fileops::FDCloser;
+
 #ifndef F_ADD_SEALS
 #define F_ADD_SEALS 1033
 #define F_SEAL_SEAL 0x0001
@@ -108,8 +110,8 @@ int EmbedFile::GetFdForFileToc(const FileToc* toc) {
     SAPI_RAW_VLOG(3,
                   "Returning pre-existing embed file entry for '%s', fd: %d "
                   "(orig name: '%s')",
-                  toc->name, entry->second, entry->first->name);
-    return entry->second;
+                  toc->name, entry->second.get(), entry->first->name);
+    return entry->second.get();
   }
 
   int embed_fd = CreateFdForFileToc(toc);
@@ -121,7 +123,7 @@ int EmbedFile::GetFdForFileToc(const FileToc* toc) {
   SAPI_RAW_VLOG(1, "Created new embed file entry for '%s' with fd: %d",
                 toc->name, embed_fd);
 
-  file_tocs_[toc] = embed_fd;
+  file_tocs_[toc] = FDCloser(embed_fd);
   return embed_fd;
 }
 
