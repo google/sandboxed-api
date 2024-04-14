@@ -95,9 +95,6 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(int32_t clone_flags,
   if (!path_.empty()) {
     exec_fd_ = file_util::fileops::FDCloser(open(path_.c_str(), O_PATH));
     if (exec_fd_.get() < 0) {
-      if (errno == ENOENT) {
-        return absl::ErrnoToStatus(errno, path_);
-      }
       return absl::ErrnoToStatus(errno,
                                  absl::StrCat("Could not open file ", path_));
     }
