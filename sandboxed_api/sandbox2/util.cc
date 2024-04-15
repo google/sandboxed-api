@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/util.h"
 
+#include <fcntl.h>
 #include <linux/limits.h>
 #include <sched.h>
 #include <spawn.h>
@@ -50,6 +51,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
@@ -410,39 +412,178 @@ std::string GetPtraceEventName(int event) {
   }
 }
 
-absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
-                                                      uint64_t size) {
+namespace {
+
+// Transfer memory via process_vm_readv/process_vm_writev.
+absl::StatusOr<size_t> ProcessVmTransfer(bool is_read, pid_t pid, uintptr_t ptr,
+                                         absl::Span<char> data) {
   static const uintptr_t page_size = getpagesize();
   static const uintptr_t page_mask = page_size - 1;
 
   // Input sanity checks.
-  if (size == 0) {
-    return std::vector<uint8_t>();
+  if (data.empty()) {
+    return 0;
   }
 
-  // Allocate enough bytes to hold the entire size.
-  std::vector<uint8_t> bytes(size, 0);
-  iovec local_iov[] = {{bytes.data(), bytes.size()}};
+  iovec local_iov[] = {{data.data(), data.size()}};
   // Stores all the necessary iovecs to move memory.
   std::vector<iovec> remote_iov;
   // Each iovec should be contained to a single page.
   size_t consumed = 0;
-  while (consumed < size) {
+  while (consumed < data.size()) {
     // Read till the end of the page, at most the remaining number of bytes.
-    size_t chunk_size =
-        std::min(size - consumed, page_size - ((ptr + consumed) & page_mask));
+    size_t chunk_size = std::min(data.size() - consumed,
+                                 page_size - ((ptr + consumed) & page_mask));
     remote_iov.push_back({reinterpret_cast<void*>(ptr + consumed), chunk_size});
     consumed += chunk_size;
   }
 
-  ssize_t result = process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
-                                    remote_iov.data(), remote_iov.size(), 0);
+  ssize_t result =
+      is_read ? process_vm_readv(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
+                                 remote_iov.data(), remote_iov.size(), 0)
+              : process_vm_writev(pid, local_iov, ABSL_ARRAYSIZE(local_iov),
+                                  remote_iov.data(), remote_iov.size(), 0);
   if (result < 0) {
     return absl::ErrnoToStatus(
-        errno,
-        absl::StrFormat("process_vm_readv() failed for PID: %d at address: %#x",
-                        pid, ptr));
+        errno, absl::StrFormat("transfer() failed for PID: %d at address: %#x",
+                               pid, ptr));
   }
+  return result;
+}
+
+// Open /proc/pid/mem file descriptor.
+absl::StatusOr<file_util::fileops::FDCloser> OpenProcMem(pid_t pid,
+                                                         bool is_read) {
+  auto path = absl::StrFormat("/proc/%d/mem", pid);
+  auto closer = file_util::fileops::FDCloser(
+      open(path.c_str(), is_read ? O_RDONLY : O_WRONLY));
+  if (closer.get() == -1) {
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("open() failed for PID: %d", pid));
+  }
+  return closer;
+}
+
+absl::StatusOr<size_t> ProcMemTransfer(bool is_read, pid_t pid, uintptr_t ptr,
+                                       absl::Span<char> data) {
+  if (data.empty()) {
+    return 0;
+  }
+
+  SAPI_ASSIGN_OR_RETURN(file_util::fileops::FDCloser fd_closer,
+                        OpenProcMem(pid, is_read));
+  size_t total_bytes_transferred = 0;
+  while (!data.empty()) {
+    ssize_t bytes_transfered =
+        is_read ? bytes_transfered =
+                      pread(fd_closer.get(), data.data(), data.size(), ptr)
+                : bytes_transfered =
+                      pwrite(fd_closer.get(), data.data(), data.size(), ptr);
+    if (bytes_transfered == 0) {
+      if (total_bytes_transferred == 0) {
+        return absl::NotFoundError(absl::StrFormat(
+            "Transfer was unsuccessful for PID: %d at address: %#x", pid, ptr));
+      }
+      break;
+    } else if (bytes_transfered < 0) {
+      if (total_bytes_transferred > 0) {
+        // Return number of bytes transferred until this error or end.
+        break;
+      }
+      // pread/write of /proc/<pid>mem returns EIO when ptr is unmapped.
+      if (errno == EIO) {
+        // Emulate returned error code from process_vm_readv.
+        errno = EFAULT;
+      }
+      return absl::ErrnoToStatus(
+          errno,
+          absl::StrFormat("transfer() failed for PID: %d at address: %#x", pid,
+                          ptr));
+    }
+    ptr += bytes_transfered;
+    data = data.subspan(bytes_transfered, data.size() - bytes_transfered);
+    total_bytes_transferred += bytes_transfered;
+  }
+  return total_bytes_transferred;
+}
+
+bool CheckIfProcessVmTransferWorks() {
+  // Fall-back to pread("/proc/$pid/mem") if process_vm_readv is unavailable.
+  static bool process_vm_transfer_works = []() {
+    constexpr char kMagic = 42;
+    char src = kMagic;
+    char dst = 0;
+    absl::StatusOr<size_t> read = internal::ReadBytesFromPidWithReadv(
+        getpid(), reinterpret_cast<uintptr_t>(&src), absl::MakeSpan(&dst, 1));
+    if (!read.ok() || *read != 1 || dst != kMagic) {
+      SAPI_RAW_LOG(WARNING,
+                   "This system does not seem to support the process_vm_readv()"
+                   " or process_vm_writev syscall. Falling back to transfers"
+                   " via /proc/pid/mem.");
+      return false;
+    }
+    return true;
+  }();
+  return process_vm_transfer_works;
+}
+
+}  // namespace
+
+namespace internal {
+
+absl::StatusOr<size_t> ReadBytesFromPidWithReadv(pid_t pid, uintptr_t ptr,
+                                                 absl::Span<char> data) {
+  return ProcessVmTransfer(true, pid, ptr, data);
+}
+
+absl::StatusOr<size_t> WriteBytesToPidWithWritev(pid_t pid, uintptr_t ptr,
+                                                 absl::Span<const char> data) {
+  return ProcessVmTransfer(
+      false, pid, ptr,
+      absl::MakeSpan(const_cast<char*>(data.data()), data.size()));
+}
+
+absl::StatusOr<size_t> ReadBytesFromPidWithProcMem(pid_t pid, uintptr_t ptr,
+                                                   absl::Span<char> data) {
+  return ProcMemTransfer(true, pid, ptr, data);
+}
+
+absl::StatusOr<size_t> WriteBytesToPidWithProcMem(pid_t pid, uintptr_t ptr,
+                                                  absl::Span<const char> data) {
+  return ProcMemTransfer(
+      false, pid, ptr,
+      absl::MakeSpan(const_cast<char*>(data.data()), data.size()));
+}
+
+}  // namespace internal
+
+absl::StatusOr<size_t> ReadBytesFromPidInto(pid_t pid, uintptr_t ptr,
+                                            absl::Span<char> data) {
+  if (CheckIfProcessVmTransferWorks()) {
+    return internal::ReadBytesFromPidWithReadv(pid, ptr, data);
+  } else {
+    return internal::ReadBytesFromPidWithProcMem(pid, ptr, data);
+  }
+}
+
+absl::StatusOr<size_t> WriteBytesToPidFrom(pid_t pid, uintptr_t ptr,
+                                           absl::Span<const char> data) {
+  if (CheckIfProcessVmTransferWorks()) {
+    return internal::WriteBytesToPidWithWritev(pid, ptr, data);
+  } else {
+    return internal::WriteBytesToPidWithProcMem(pid, ptr, data);
+  }
+}
+
+absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
+                                                      size_t size) {
+  // Allocate enough bytes to hold the entire size.
+  std::vector<uint8_t> bytes(size, 0);
+  SAPI_ASSIGN_OR_RETURN(
+      size_t result,
+      ReadBytesFromPidInto(
+          pid, ptr,
+          absl::MakeSpan(reinterpret_cast<char*>(bytes.data()), size)));
   // Ensure only successfully read bytes are returned.
   bytes.resize(result);
   return bytes;

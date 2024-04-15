@@ -700,7 +700,8 @@ target_link_libraries(sandbox2_util
           sapi::base
           sapi::raw_logging
           sapi::status
-  PUBLIC absl::status
+  PUBLIC absl::span
+         absl::status
          absl::statusor
 )
 target_compile_options(sandbox2_util PRIVATE
@@ -1116,7 +1117,9 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::util
     absl::statusor
     absl::strings
+    absl::check
     absl::cleanup
+    absl::span
     sapi::status_matchers
     sapi::testing
     sapi::test_main
