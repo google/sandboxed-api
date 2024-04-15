@@ -75,6 +75,12 @@
 #ifndef MAP_FIXED_NOREPLACE
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
+#ifndef MADV_POPULATE_READ
+#define MADV_POPULATE_READ 22  // Linux 5.14+
+#endif
+#ifndef MADV_POPULATE_WRITE  // Linux 5.14+
+#define MADV_POPULATE_WRITE 23
+#endif
 #ifndef PR_SET_VMA
 #define PR_SET_VMA 0x53564d41
 #endif
@@ -446,6 +452,18 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
                                           });
 }
 
+PolicyBuilder& PolicyBuilder::AllowMadvisePopulate() {
+  if (allowed_complex_.madvise_populate) {
+    return *this;
+  }
+  allowed_complex_.madvise_populate = true;
+  return AddPolicyOnSyscall(__NR_madvise, {
+                                              ARG_32(2),
+                                              JEQ32(MADV_POPULATE_READ, ALLOW),
+                                              JEQ32(MADV_POPULATE_WRITE, ALLOW),
+                                          });
+}
+
 PolicyBuilder& PolicyBuilder::AllowMmapWithoutExec() {
   if (allowed_complex_.mmap_without_exec) {
     return *this;
@@ -460,6 +478,19 @@ PolicyBuilder& PolicyBuilder::AllowMmapWithoutExec() {
 
 PolicyBuilder& PolicyBuilder::AllowMmap() {
   return AllowSyscalls(kMmapSyscalls);
+}
+
+PolicyBuilder& PolicyBuilder::AllowMlock() {
+#ifdef __NR_mlock
+  AllowSyscall(__NR_mlock);
+#endif
+#ifdef __NR_munlock
+  AllowSyscall(__NR_munlock);
+#endif
+#ifdef __NR_mlock2
+  AllowSyscall(__NR_mlock2);
+#endif
+  return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AllowOpen() {

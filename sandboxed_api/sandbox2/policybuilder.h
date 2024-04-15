@@ -254,6 +254,9 @@ class PolicyBuilder final {
   // Appends code to allow mmap calls that don't specify PROT_EXEC.
   PolicyBuilder& AllowMmapWithoutExec();
 
+  // Appends code to allow mlock and munlock calls.
+  PolicyBuilder& AllowMlock();
+
   // Appends code to allow calling futex with the given operation.
   PolicyBuilder& AllowFutexOp(int op);
 
@@ -770,6 +773,9 @@ class PolicyBuilder final {
   // Allows a limited version of madvise
   PolicyBuilder& AllowLimitedMadvise();
 
+  // Allows MADV_POPULATE_READ and MADV_POPULATE_WRITE.
+  PolicyBuilder& AllowMadvisePopulate();
+
   // Traps instead of denying ptrace.
   PolicyBuilder& TrapPtrace();
 
@@ -824,6 +830,7 @@ class PolicyBuilder final {
     bool llvm_sanitizers = false;
     bool llvm_coverage = false;
     bool limited_madvise = false;
+    bool madvise_populate = false;
     bool mmap_without_exec = false;
     bool safe_fcntl = false;
     bool tcgets = false;
