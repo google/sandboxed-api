@@ -19,7 +19,6 @@
 #include <sys/uio.h>
 #include <syscall.h>
 
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <initializer_list>
@@ -47,7 +46,6 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/runfiles.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -452,11 +450,21 @@ absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
         absl::StrCat("Target string too large: ", len, " > ", max_length));
   }
   std::string buffer(len, '\0');
-  SAPI_ASSIGN_OR_RETURN(
-      size_t ret,
-      sandbox2::util::ReadBytesFromPidInto(
-          pid_, reinterpret_cast<uintptr_t>(str.GetValue()),
-          absl::MakeSpan(reinterpret_cast<char*>(buffer.data()), len)));
+  struct iovec local = {
+      .iov_base = &buffer[0],
+      .iov_len = len,
+  };
+  struct iovec remote = {
+      .iov_base = str.GetValue(),
+      .iov_len = len,
+  };
+
+  ssize_t ret = process_vm_readv(pid_, &local, 1, &remote, 1, 0);
+  if (ret == -1) {
+    PLOG(WARNING) << "reading c-string failed: process_vm_readv(pid: " << pid_
+                  << " raddr: " << str.GetValue() << " size: " << len << ")";
+    return absl::UnavailableError("process_vm_readv failed");
+  }
   if (ret != len) {
     LOG(WARNING) << "partial read when reading c-string: process_vm_readv(pid: "
                  << pid_ << " raddr: " << str.GetValue() << " size: " << len

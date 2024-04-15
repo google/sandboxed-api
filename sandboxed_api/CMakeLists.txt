@@ -150,7 +150,6 @@ add_library(sapi_vars ${SAPI_LIB_TYPE}
 add_library(sapi::vars ALIAS sapi_vars)
 target_link_libraries(sapi_vars
   PRIVATE absl::core_headers
-          absl::span
           absl::status
           absl::statusor
           absl::str_format
@@ -158,7 +157,6 @@ target_link_libraries(sapi_vars
           absl::synchronization
           absl::utility
           sandbox2::comms
-          sandbox2::util
           sapi::base
           sapi::call
           sapi::lenval_core

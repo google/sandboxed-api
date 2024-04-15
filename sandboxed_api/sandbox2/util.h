@@ -20,7 +20,6 @@
 
 #include <sys/types.h>
 
-#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -28,7 +27,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 
 namespace sandbox2::util {
 
@@ -109,38 +107,9 @@ std::string GetRlimitName(int resource);
 // Returns ptrace event name
 std::string GetPtraceEventName(int event);
 
-namespace internal {
-// Reads `data`'s length of bytes from `ptr` in `pid`, returns number of bytes
-// read or an error.
-absl::StatusOr<size_t> ReadBytesFromPidWithReadv(pid_t pid, uintptr_t ptr,
-                                                 absl::Span<char> data);
-
-// Writes `data` to `ptr` in `pid`, returns number of bytes written or an error.
-absl::StatusOr<size_t> WriteBytesToPidWithWritev(pid_t pid, uintptr_t ptr,
-                                                 absl::Span<const char> data);
-
-// Reads `data`'s length of bytes from `ptr` in `pid`, returns number of bytes
-// read or an error.
-absl::StatusOr<size_t> ReadBytesFromPidWithProcMem(pid_t pid, uintptr_t ptr,
-                                                   absl::Span<char> data);
-
-// Writes `data` to `ptr` in `pid`, returns number of bytes written or an error.
-absl::StatusOr<size_t> WriteBytesToPidWithProcMem(pid_t pid, uintptr_t ptr,
-                                                  absl::Span<const char> data);
-};  // namespace internal
-
-// Reads `data`'s length of bytes from `ptr` in `pid`, returns number of bytes
-// read or an error.
-absl::StatusOr<size_t> ReadBytesFromPidInto(pid_t pid, uintptr_t ptr,
-                                            absl::Span<char> data);
-
-// Writes `data` to `ptr` in `pid`, returns number of bytes written or an error.
-absl::StatusOr<size_t> WriteBytesToPidFrom(pid_t pid, uintptr_t remote_ptr,
-                                           absl::Span<const char> data);
-
 // Reads `size` bytes from the given `ptr` address, or returns an error.
 absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
-                                                      size_t size);
+                                                      uint64_t size);
 
 // Reads a path string (NUL-terminated, shorter than PATH_MAX) from another
 // process memory

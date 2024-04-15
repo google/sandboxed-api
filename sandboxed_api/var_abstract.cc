@@ -19,17 +19,13 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
-#include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <string>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/span.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_ptr.h"
 
@@ -107,12 +103,22 @@ absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
         absl::StrCat("Object: ", GetTypeString(), " has no remote object set"));
   }
 
-  SAPI_ASSIGN_OR_RETURN(
-      size_t ret,
-      sandbox2::util::WriteBytesToPidFrom(
-          pid, reinterpret_cast<uintptr_t>(GetRemote()),
-          absl::MakeSpan(reinterpret_cast<char*>(GetLocal()), GetSize())));
+  struct iovec local = {
+      .iov_base = GetLocal(),
+      .iov_len = GetSize(),
+  };
+  struct iovec remote = {
+      .iov_base = GetRemote(),
+      .iov_len = GetSize(),
+  };
 
+  ssize_t ret = process_vm_writev(pid, &local, 1, &remote, 1, 0);
+  if (ret == -1) {
+    PLOG(WARNING) << "process_vm_writev(pid: " << pid
+                  << " laddr: " << GetLocal() << " raddr: " << GetRemote()
+                  << " size: " << GetSize() << ")";
+    return absl::UnavailableError("process_vm_writev failed");
+  }
   if (ret != GetSize()) {
     LOG(WARNING) << "process_vm_writev(pid: " << pid << " laddr: " << GetLocal()
                  << " raddr: " << GetRemote() << " size: " << GetSize() << ")"
@@ -133,11 +139,21 @@ absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
         absl::StrCat("Object: ", GetTypeString(), " has no local storage set"));
   }
 
-  SAPI_ASSIGN_OR_RETURN(
-      size_t ret,
-      sandbox2::util::ReadBytesFromPidInto(
-          pid, reinterpret_cast<uintptr_t>(GetRemote()),
-          absl::MakeSpan(reinterpret_cast<char*>(GetLocal()), GetSize())));
+  struct iovec local = {
+      .iov_base = GetLocal(),
+      .iov_len = GetSize(),
+  };
+  struct iovec remote = {
+      .iov_base = GetRemote(),
+      .iov_len = GetSize(),
+  };
+
+  ssize_t ret = process_vm_readv(pid, &local, 1, &remote, 1, 0);
+  if (ret == -1) {
+    PLOG(WARNING) << "process_vm_readv(pid: " << pid << " laddr: " << GetLocal()
+                  << " raddr: " << GetRemote() << " size: " << GetSize() << ")";
+    return absl::UnavailableError("process_vm_readv failed");
+  }
   if (ret != GetSize()) {
     LOG(WARNING) << "process_vm_readv(pid: " << pid << " laddr: " << GetLocal()
                  << " raddr: " << GetRemote() << " size: " << GetSize() << ")"

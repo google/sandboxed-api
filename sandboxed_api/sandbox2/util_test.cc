@@ -28,11 +28,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
-#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/span.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
@@ -42,7 +40,6 @@ namespace {
 using ::sapi::GetTestSourcePath;
 using ::sapi::IsOk;
 using ::testing::ElementsAre;
-using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::IsEmpty;
@@ -182,215 +179,6 @@ TEST(CommunitacteTest, Normal) {
   EXPECT_THAT(exit_code, Eq(0));
   EXPECT_THAT(output, StartsWith("3\nargv1\nargv2\nenv1\nenv2\n"));
 }
-
-TEST(ReadBytesFromPidTest, Normal) {
-  absl::StatusOr<std::vector<uint8_t>> read = ReadBytesFromPid(
-      getpid(), reinterpret_cast<uintptr_t>(kTestString.data()),
-      kTestString.size());
-  EXPECT_THAT(*read, ElementsAreArray(kTestString));
-}
-
-TEST(ReadBytesFromPidTest, NearUnmappedMemory) {
-  const uintptr_t page_size = getpagesize();
-  ASSERT_LE(kTestString.size(), page_size);
-  char* res = reinterpret_cast<char*>(mmap(nullptr, 2 * page_size,
-                                           PROT_READ | PROT_WRITE,
-                                           MAP_ANONYMOUS | MAP_PRIVATE, 0, 0));
-  ASSERT_THAT(res, Ne(MAP_FAILED));
-  ASSERT_THAT(munmap(&res[page_size], page_size), Eq(0));
-  absl::Cleanup cleanup = [res, page_size]() {
-    ASSERT_THAT(munmap(res, page_size), Eq(0));
-  };
-  char* data = &res[page_size - kTestString.size()];
-  memcpy(data, kTestString.data(), kTestString.size());
-  absl::StatusOr<std::vector<uint8_t>> read = ReadBytesFromPid(
-      getpid(), reinterpret_cast<uintptr_t>(data), 2 * kTestString.size());
-  ASSERT_THAT(read, IsOk());
-  EXPECT_THAT(*read, ElementsAreArray(kTestString));
-}
-
-class MemoryTransferTest : public testing::TestWithParam<bool> {
- protected:
-  absl::StatusOr<size_t> Read(pid_t pid, uintptr_t ptr, absl::Span<char> data) {
-    if (GetParam()) {
-      return internal::ReadBytesFromPidWithReadv(pid, ptr, data);
-    }
-    return internal::ReadBytesFromPidWithProcMem(pid, ptr, data);
-  }
-  absl::StatusOr<size_t> Write(pid_t pid, uintptr_t ptr,
-                               absl::Span<const char> data) {
-    if (GetParam()) {
-      return internal::WriteBytesToPidWithWritev(pid, ptr, data);
-    }
-    return internal::WriteBytesToPidWithProcMem(pid, ptr, data);
-  }
-};
-
-class ReadBytesFromPidIntoTest : public MemoryTransferTest {};
-
-TEST_P(ReadBytesFromPidIntoTest, Normal) {
-  char data[kTestString.size()] = {0};
-  absl::StatusOr<size_t> bytes_read =
-      Read(getpid(), reinterpret_cast<uintptr_t>(kTestString.data()),
-           absl::MakeSpan(data));
-  ASSERT_THAT(bytes_read, IsOk());
-  EXPECT_THAT(*bytes_read, Eq(kTestString.size()));
-  EXPECT_THAT(data, ElementsAreArray(kTestString));
-}
-
-TEST_P(ReadBytesFromPidIntoTest, SplitPage) {
-  const uintptr_t page_size = getpagesize();
-  ASSERT_LE(kTestString.size(), page_size);
-  char* res = reinterpret_cast<char*>(mmap(nullptr, 2 * page_size,
-                                           PROT_READ | PROT_WRITE,
-                                           MAP_ANONYMOUS | MAP_PRIVATE, 0, 0));
-  ASSERT_THAT(res, Ne(MAP_FAILED));
-  absl::Cleanup cleanup = [res, page_size]() {
-    ASSERT_THAT(munmap(res, 2 * page_size), Eq(0));
-  };
-  char* data = &res[page_size - kTestString.size() / 2];
-  memcpy(data, kTestString.data(), kTestString.size());
-  char output[kTestString.size()];
-  absl::StatusOr<size_t> bytes_read =
-      Read(getpid(), reinterpret_cast<uintptr_t>(data), absl::MakeSpan(output));
-  ASSERT_THAT(bytes_read, IsOk());
-  EXPECT_THAT(*bytes_read, Eq(kTestString.size()));
-  EXPECT_THAT(output, ElementsAreArray(kTestString));
-}
-
-TEST_P(ReadBytesFromPidIntoTest, InvalidPid) {
-  char data;
-  absl::StatusOr<size_t> bytes_read =
-      Read(-1, reinterpret_cast<uintptr_t>(&data), absl::MakeSpan(&data, 1));
-  ASSERT_THAT(bytes_read, Not(IsOk()));
-}
-
-TEST_P(ReadBytesFromPidIntoTest, ZeroLength) {
-  char data;
-  absl::StatusOr<size_t> bytes_read = Read(
-      getpid(), reinterpret_cast<uintptr_t>(&data), absl::MakeSpan(&data, 0));
-  ASSERT_THAT(bytes_read, IsOk());
-  ASSERT_THAT(*bytes_read, Eq(0));
-}
-
-TEST_P(ReadBytesFromPidIntoTest, ZeroLengthWithInvalidPid) {
-  char data;
-  absl::StatusOr<size_t> bytes_read =
-      Read(-1, reinterpret_cast<uintptr_t>(&data), absl::MakeSpan(&data, 0));
-  ASSERT_THAT(bytes_read, IsOk());
-  ASSERT_THAT(*bytes_read, Eq(0));
-}
-
-TEST_P(ReadBytesFromPidIntoTest, UnmappedMemory) {
-  const uintptr_t page_size = getpagesize();
-  char* res =
-      reinterpret_cast<char*>(mmap(nullptr, page_size, PROT_READ | PROT_WRITE,
-                                   MAP_ANONYMOUS | MAP_PRIVATE, 0, 0));
-  ASSERT_THAT(res, Ne(MAP_FAILED));
-  ASSERT_THAT(munmap(res, page_size), Eq(0));
-  absl::StatusOr<size_t> bytes_read =
-      Read(getpid(), reinterpret_cast<uintptr_t>(res), absl::MakeSpan(res, 1));
-  ASSERT_THAT(bytes_read, Not(IsOk()));
-}
-
-TEST_P(ReadBytesFromPidIntoTest, NearUnmappedMemory) {
-  const uintptr_t page_size = getpagesize();
-  char* res = reinterpret_cast<char*>(mmap(nullptr, 2 * page_size,
-                                           PROT_READ | PROT_WRITE,
-                                           MAP_ANONYMOUS | MAP_PRIVATE, 0, 0));
-  ASSERT_THAT(res, Ne(MAP_FAILED));
-  // Unmap second page so there's a gap.
-  ASSERT_THAT(munmap(&res[page_size], page_size), Eq(0));
-  absl::Cleanup cleanup = [res, page_size]() {
-    ASSERT_THAT(munmap(res, page_size), Eq(0));
-  };
-  char* data = &res[page_size - kTestString.size() / 2];
-  memcpy(data, kTestString.data(), kTestString.size() / 2);
-  char output[kTestString.size()];
-  absl::StatusOr<size_t> bytes_read =
-      Read(getpid(), reinterpret_cast<uintptr_t>(data), absl::MakeSpan(output));
-  ASSERT_THAT(bytes_read, IsOk());
-  EXPECT_THAT(*bytes_read, Eq(kTestString.size() / 2));
-  EXPECT_THAT(absl::MakeSpan(data, kTestString.size() / 2),
-              Eq(absl::MakeSpan(kTestString.data(), kTestString.size() / 2)));
-}
-
-INSTANTIATE_TEST_SUITE_P(ReadBytesFromPidInto, ReadBytesFromPidIntoTest,
-                         testing::Values(true, false));
-
-class WriteBytesToPidFromTest : public MemoryTransferTest {};
-
-TEST_P(WriteBytesToPidFromTest, Normal) {
-  char data[kTestString.size()] = {0};
-  absl::StatusOr<size_t> bytes_written =
-      Write(getpid(), reinterpret_cast<uintptr_t>(data), kTestString);
-  ASSERT_THAT(bytes_written, IsOk());
-  EXPECT_THAT(*bytes_written, Eq(kTestString.size()));
-  EXPECT_THAT(data, ElementsAreArray(kTestString));
-}
-
-TEST_P(WriteBytesToPidFromTest, SplitPage) {
-  const uintptr_t page_size = getpagesize();
-  ASSERT_LE(kTestString.size(), page_size);
-  char* res = reinterpret_cast<char*>(mmap(nullptr, 2 * page_size,
-                                           PROT_READ | PROT_WRITE,
-                                           MAP_ANONYMOUS | MAP_PRIVATE, 0, 0));
-  ASSERT_THAT(res, Ne(MAP_FAILED));
-  absl::Cleanup cleanup = [res, page_size]() {
-    ASSERT_THAT(munmap(res, 2 * page_size), Eq(0));
-  };
-  char* data = &res[page_size - kTestString.size() / 2];
-  absl::StatusOr<size_t> bytes_written =
-      Write(getpid(), reinterpret_cast<uintptr_t>(data), kTestString);
-  ASSERT_THAT(bytes_written, IsOk());
-  EXPECT_THAT(*bytes_written, Eq(kTestString.size()));
-  EXPECT_THAT(kTestString, ElementsAreArray(data, kTestString.size()));
-}
-
-TEST_P(WriteBytesToPidFromTest, InvalidPid) {
-  char data = 0;
-  absl::StatusOr<size_t> bytes_written =
-      Write(-1, reinterpret_cast<uintptr_t>(&data), absl::MakeSpan(&data, 1));
-  ASSERT_THAT(bytes_written, Not(IsOk()));
-}
-
-TEST_P(WriteBytesToPidFromTest, ZeroLength) {
-  char data = 0;
-  absl::StatusOr<size_t> bytes_written = Write(
-      getpid(), reinterpret_cast<uintptr_t>(&data), absl::MakeSpan(&data, 0));
-  ASSERT_THAT(bytes_written, IsOk());
-  ASSERT_THAT(*bytes_written, Eq(0));
-}
-
-TEST_P(WriteBytesToPidFromTest, ZeroLengthWithInvalidPid) {
-  char data = 0;
-  absl::StatusOr<size_t> bytes_written =
-      Write(-1, reinterpret_cast<uintptr_t>(&data), absl::MakeSpan(&data, 0));
-  ASSERT_THAT(bytes_written, IsOk());
-  ASSERT_THAT(*bytes_written, Eq(0));
-}
-
-TEST_P(WriteBytesToPidFromTest, NearUnmappedMemory) {
-  const uintptr_t page_size = getpagesize();
-  char* res = reinterpret_cast<char*>(mmap(nullptr, 2 * page_size,
-                                           PROT_READ | PROT_WRITE,
-                                           MAP_ANONYMOUS | MAP_PRIVATE, 0, 0));
-  ASSERT_THAT(res, Ne(MAP_FAILED));
-  ASSERT_THAT(munmap(&res[page_size], page_size), Eq(0));
-  absl::Cleanup cleanup = [res, page_size]() {
-    ASSERT_THAT(munmap(res, page_size), Eq(0));
-  };
-  char* data = &res[page_size - kTestString.size() / 2];
-  absl::StatusOr<size_t> bytes_written =
-      Write(getpid(), reinterpret_cast<uintptr_t>(data), kTestString);
-  ASSERT_THAT(bytes_written, IsOk());
-  EXPECT_THAT(*bytes_written, Eq(kTestString.size() / 2));
-  EXPECT_THAT(absl::MakeSpan(data, kTestString.size() / 2),
-              Eq(absl::MakeSpan(kTestString.data(), kTestString.size() / 2)));
-}
-
-INSTANTIATE_TEST_SUITE_P(WriteBytesToPidFrom, WriteBytesToPidFromTest,
-                         testing::Values(true, false));
 
 }  // namespace
 }  // namespace sandbox2::util
