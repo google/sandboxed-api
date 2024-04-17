@@ -94,6 +94,7 @@ cc_library(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:runfiles",
@@ -167,6 +168,7 @@ cc_library(
         ":proto_arg_cc_proto",
         ":var_type",
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
@@ -176,6 +178,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/utility",
     ],
 )

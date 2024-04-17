@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include <fcntl.h>
+#include <limits.h>
 #include <sys/types.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -314,6 +316,32 @@ TEST(SandboxTest, UseUnotifyMonitor) {
 
 TEST(SandboxTest, AllocateAndTransferTest) {
   std::string test_string("This is a test");
+  std::vector<uint8_t> test_string_vector(test_string.begin(),
+                                          test_string.end());
+
+  absl::Span<uint8_t> buffer_input(
+      reinterpret_cast<uint8_t*>(test_string_vector.data()),
+      test_string_vector.size());
+  std::vector<uint8_t> buffer_output(test_string_vector.size());
+
+  SumSandbox sandbox;
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto sapi_array, sandbox.AllocateAndTransferToSandboxee(buffer_input));
+  ASSERT_THAT(sapi_array, NotNull());
+  sapi::v::Array<const uint8_t> sapi_buffer_output(
+      reinterpret_cast<const uint8_t*>(buffer_output.data()),
+      buffer_output.size());
+  sapi_buffer_output.SetRemote(sapi_array->GetRemote());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_buffer_output), IsOk());
+  EXPECT_THAT(test_string_vector, ContainerEq(buffer_output));
+}
+
+TEST(SandboxTest, AllocateAndTransferTestLarge) {
+  const size_t kLargeSize = getpagesize() * (IOV_MAX + 1);
+  const std::string test_string(kLargeSize, 'A');
   std::vector<uint8_t> test_string_vector(test_string.begin(),
                                           test_string.end());
 
