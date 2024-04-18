@@ -254,6 +254,9 @@ class PolicyBuilder final {
   // Appends code to allow mmap calls that don't specify PROT_EXEC.
   PolicyBuilder& AllowMmapWithoutExec();
 
+  // Appends code to allow mprotect calls that don't specify PROT_EXEC.
+  PolicyBuilder& AllowMprotectWithoutExec();
+
   // Appends code to allow mlock and munlock calls.
   PolicyBuilder& AllowMlock();
 
@@ -832,6 +835,7 @@ class PolicyBuilder final {
     bool limited_madvise = false;
     bool madvise_populate = false;
     bool mmap_without_exec = false;
+    bool mprotect_without_exec = false;
     bool safe_fcntl = false;
     bool tcgets = false;
     bool slow_fences = false;

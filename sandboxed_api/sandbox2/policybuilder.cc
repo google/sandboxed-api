@@ -476,6 +476,19 @@ PolicyBuilder& PolicyBuilder::AllowMmapWithoutExec() {
   });
 }
 
+PolicyBuilder& PolicyBuilder::AllowMprotectWithoutExec() {
+  if (allowed_complex_.mprotect_without_exec) {
+    return *this;
+  }
+  allowed_complex_.mprotect_without_exec = true;
+  return AddPolicyOnSyscall(
+      __NR_mprotect, {
+                         ARG_32(2),
+                         BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, PROT_EXEC, 1, 0),
+                         ALLOW,
+                     });
+}
+
 PolicyBuilder& PolicyBuilder::AllowMmap() {
   return AllowSyscalls(kMmapSyscalls);
 }
