@@ -43,8 +43,9 @@ cc_library(
     ],
     visibility = ["@llvm-project//clang:__pkg__"],
 )
-# Fake support library
+# Fake llvm libraries
 cc_library(name = "Support", deps = ["@llvm-project//llvm:llvm"])
+cc_library(name = "config", deps = ["@llvm-project//llvm:llvm"])
 """
 
 SYSTEM_CLANG_BAZEL = """package(default_visibility = ["//visibility:public"])
