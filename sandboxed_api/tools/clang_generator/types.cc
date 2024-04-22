@@ -23,6 +23,8 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
+#include "llvm/Config/llvm-config.h"
+#include "llvm/Support/Casting.h"
 
 namespace sapi {
 namespace {

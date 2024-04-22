@@ -23,6 +23,8 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceLocation.h"
+#include "llvm/ADT/StringRef.h"
 
 namespace sapi {
 

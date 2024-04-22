@@ -26,7 +26,6 @@
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
-#include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
 namespace internal {

@@ -47,8 +47,11 @@ cc_library(
         "@llvm-project//clang:format",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:lex",
+        "@llvm-project//clang:serialization",
         "@llvm-project//clang:tooling",
+        "@llvm-project//clang:tooling_core",
         "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:config",
     ],
 )
 
@@ -73,6 +76,7 @@ cc_test(
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
         "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:config",
     ],
 )
 
@@ -93,7 +97,6 @@ cc_binary(
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@llvm-project//clang:driver",

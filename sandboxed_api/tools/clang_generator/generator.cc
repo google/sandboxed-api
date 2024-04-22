@@ -15,7 +15,6 @@
 #include "sandboxed_api/tools/clang_generator/generator.h"
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,9 +28,13 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Lex/PreprocessorOptions.h"
+#include "clang/Serialization/PCHContainerOperations.h"
+#include "clang/Tooling/Tooling.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 

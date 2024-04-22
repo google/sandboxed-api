@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
 #include "sandboxed_api/tools/clang_generator/compilation_database.h"
+#include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"

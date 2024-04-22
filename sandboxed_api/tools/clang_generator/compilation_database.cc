@@ -23,8 +23,13 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "clang/Driver/Types.h"
+#include "clang/Tooling/ArgumentsAdjusters.h"
+#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace sapi {
 

@@ -17,13 +17,10 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "clang/Tooling/ArgumentsAdjusters.h"
-#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/CompilationDatabase.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 

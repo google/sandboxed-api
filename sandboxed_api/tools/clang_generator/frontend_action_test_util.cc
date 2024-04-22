@@ -31,7 +31,9 @@
 #include "clang/Basic/FileSystemOptions.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
@@ -39,8 +41,8 @@ namespace sapi {
 namespace internal {
 
 absl::Status RunClangTool(
-    const std::vector<std::string> command_line,
-    const absl::flat_hash_map<std::string, std::string> file_contents,
+    const std::vector<std::string>& command_line,
+    const absl::flat_hash_map<std::string, std::string>& file_contents,
     std::unique_ptr<clang::FrontendAction> action) {
   // Setup an in-memory virtual filesystem
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> fs(

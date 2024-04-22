@@ -18,7 +18,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"

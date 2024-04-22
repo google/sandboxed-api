@@ -20,7 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
@@ -28,14 +27,13 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "clang/Frontend/FrontendAction.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sapi {
 namespace internal {
 
 absl::Status RunClangTool(
-    const std::vector<std::string> command_line,
-    const absl::flat_hash_map<std::string, std::string> file_contents,
+    const std::vector<std::string>& command_line,
+    const absl::flat_hash_map<std::string, std::string>& file_contents,
     std::unique_ptr<clang::FrontendAction> action);
 
 }  // namespace internal

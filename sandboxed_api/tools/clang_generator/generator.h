@@ -29,7 +29,10 @@
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Serialization/PCHContainerOperations.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Config/llvm-config.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
 
