@@ -55,7 +55,9 @@ cc_library(name = "driver", deps = ["@llvm-project//llvm:llvm"])
 cc_library(name = "format", deps = ["@llvm-project//llvm:llvm"])
 cc_library(name = "frontend", deps = ["@llvm-project//llvm:llvm"])
 cc_library(name = "lex", deps = ["@llvm-project//llvm:llvm"])
+cc_library(name = "serialization", deps = ["@llvm-project//llvm:llvm"])
 cc_library(name = "tooling", deps = ["@llvm-project//llvm:llvm"])
+cc_library(name = "tooling_core", deps = ["@llvm-project//llvm:llvm"])
 """
 
 def _use_system_llvm(ctx):
