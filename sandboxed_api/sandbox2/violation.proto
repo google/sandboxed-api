@@ -135,7 +135,11 @@ message PolicyDescription {
 }
 
 message Violation {
+  // Legacy violation message, contains no PII
   string legacy_fatal_message = 1;
+  // Contains details about the peer the sandboxee tried to connect to
+  string network_violation_message = 12;
+
   PBViolationType violation_type = 2;
   int32 pid = 3;
   string prog_name = 4;
