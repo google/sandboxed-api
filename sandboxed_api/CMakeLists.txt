@@ -31,20 +31,6 @@ target_link_libraries(sapi_config
   PUBLIC absl::config
 )
 
-# sandboxed_api:proto_arg
-sapi_protobuf_generate_cpp(_sapi_proto_arg_pb_cc _sapi_proto_arg_pb_h
-  proto_arg.proto
-)
-add_library(sapi_proto_arg_proto ${SAPI_LIB_TYPE}
-  ${_sapi_proto_arg_pb_cc}
-  ${_sapi_proto_arg_pb_h}
-)
-add_library(sapi::proto_arg_proto ALIAS sapi_proto_arg_proto)
-target_link_libraries(sapi_proto_arg_proto PRIVATE
-  protobuf::libprotobuf
-  sapi::base
-)
-
 # sandboxed_api:embed_file
 add_library(sapi_embed_file ${SAPI_LIB_TYPE}
   embed_file.cc
@@ -129,8 +115,6 @@ target_link_libraries(sapi_var_type PRIVATE
 
 # sandboxed_api:vars
 add_library(sapi_vars ${SAPI_LIB_TYPE}
-  proto_helper.cc
-  proto_helper.h
   rpcchannel.cc
   rpcchannel.h
   var_abstract.cc
@@ -162,10 +146,10 @@ target_link_libraries(sapi_vars
           sapi::base
           sapi::call
           sapi::lenval_core
-          sapi::proto_arg_proto
           sapi::status
           sapi::var_type
   PUBLIC absl::log
+         sapi::proto_helper
 )
 
 # sandboxed_api:client
@@ -191,7 +175,7 @@ target_link_libraries(sapi_client
           sapi::call
           sapi::lenval_core
           sapi::proto_arg_proto
-          sapi::vars
+          sapi::proto_helper
           ${CMAKE_DL_LIBS}
 )
 

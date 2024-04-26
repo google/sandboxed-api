@@ -14,8 +14,8 @@
 
 // Utility functions for protobuf handling.
 
-#ifndef SANDBOXED_API_PROTO_HELPER_H_
-#define SANDBOXED_API_PROTO_HELPER_H_
+#ifndef SANDBOXED_API_UTIL_PROTO_HELPER_H_
+#define SANDBOXED_API_UTIL_PROTO_HELPER_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -24,7 +24,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "sandboxed_api/proto_arg.pb.h"
+#include "sandboxed_api/util/proto_arg.pb.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
@@ -51,4 +51,4 @@ absl::StatusOr<T> DeserializeProto(const char* data, size_t len) {
 
 }  // namespace sapi
 
-#endif  // SANDBOXED_API_PROTO_HELPER_H_
+#endif  // SANDBOXED_API_UTIL_PROTO_HELPER_H_

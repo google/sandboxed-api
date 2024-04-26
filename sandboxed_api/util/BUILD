@@ -96,6 +96,25 @@ cc_test(
     ],
 )
 
+sapi_proto_library(
+    name = "proto_arg",
+    srcs = ["proto_arg.proto"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "proto_helper",
+    srcs = ["proto_helper.cc"],
+    hdrs = ["proto_helper.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":proto_arg_cc_proto",
+        ":status",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 # Small support library emulating verbose logging using Abseil's raw logging
 # facility.
 cc_library(

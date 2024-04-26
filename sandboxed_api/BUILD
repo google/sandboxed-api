@@ -13,7 +13,6 @@
 # limitations under the License.
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
@@ -29,12 +28,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/base:config",
     ],
-)
-
-sapi_proto_library(
-    name = "proto_arg",
-    srcs = ["proto_arg.proto"],
-    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -140,14 +133,12 @@ cc_library(
 cc_library(
     name = "vars",
     srcs = [
-        "proto_helper.cc",
         "rpcchannel.cc",
         "var_abstract.cc",
         "var_int.cc",
         "var_lenval.cc",
     ],
     hdrs = [
-        "proto_helper.h",
         "rpcchannel.h",
         "var_abstract.h",
         "var_array.h",
@@ -165,10 +156,10 @@ cc_library(
     deps = [
         ":call",
         ":lenval_core",
-        ":proto_arg_cc_proto",
         ":var_type",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:proto_helper",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
@@ -192,12 +183,12 @@ cc_library(
     deps = [
         ":call",
         ":lenval_core",
-        ":proto_arg_cc_proto",
         ":var_type",
-        ":vars",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:forkingclient",
         "//sandboxed_api/sandbox2:logsink",
+        "//sandboxed_api/util:proto_arg_cc_proto",
+        "//sandboxed_api/util:proto_helper",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/flags:parse",

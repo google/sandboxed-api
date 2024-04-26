@@ -32,7 +32,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/utility/utility.h"
-#include "sandboxed_api/proto_helper.h"
+#include "sandboxed_api/util/proto_helper.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_ptr.h"

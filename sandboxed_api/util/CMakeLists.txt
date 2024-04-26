@@ -47,6 +47,36 @@ target_link_libraries(sapi_util_fileops PRIVATE
   sapi::base
 )
 
+# sandboxed_api/util:proto_arg
+sapi_protobuf_generate_cpp(_sapi_proto_arg_pb_cc _sapi_proto_arg_pb_h
+  proto_arg.proto
+)
+add_library(sapi_util_proto_arg_proto ${SAPI_LIB_TYPE}
+  ${_sapi_proto_arg_pb_cc}
+  ${_sapi_proto_arg_pb_h}
+)
+add_library(sapi::proto_arg_proto ALIAS sapi_util_proto_arg_proto)
+target_link_libraries(sapi_util_proto_arg_proto PRIVATE
+  protobuf::libprotobuf
+  sapi::base
+)
+
+# sandboxed_api/util:proto_helper
+add_library(sapi_util_proto_helper ${SAPI_LIB_TYPE}
+  proto_helper.cc
+  proto_helper.h
+)
+add_library(sapi::proto_helper ALIAS sapi_util_proto_helper)
+target_link_libraries(sapi_util_proto_helper
+  PRIVATE sapi::base
+  PUBLIC absl::core_headers
+         absl::status
+         absl::statusor
+         sapi::proto_arg_proto
+         sapi::status
+)
+
+
 # sandboxed_api/util:raw_logging
 add_library(sapi_util_raw_logging ${SAPI_LIB_TYPE}
   raw_logging.cc

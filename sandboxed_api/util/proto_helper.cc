@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/proto_helper.h"
+#include "sandboxed_api/util/proto_helper.h"
 
 #include <cstddef>
 #include <cstdint>
