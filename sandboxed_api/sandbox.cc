@@ -68,6 +68,9 @@ Sandbox::~Sandbox() {
 
 // A generic policy which should work with majority of typical libraries, which
 // are single-threaded and require ~30 basic syscalls.
+//
+// IMPORTANT: This policy must be safe to use with
+// `Allow(sandbox2::UnrestrictedNetworking())`.
 void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
   (*builder)
       .AllowRead()
