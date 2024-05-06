@@ -28,6 +28,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -50,6 +51,8 @@ class Proto : public Var {
 
   static_assert(std::is_base_of<google::protobuf::MessageLite, T>::value,
                 "Template argument must be a proto message");
+
+  Proto() : wrapped_var_(SerializeProto(T{}).value()) {}
 
   Proto(PrivateToken, std::vector<uint8_t> data)
       : wrapped_var_(std::move(data)) {}
