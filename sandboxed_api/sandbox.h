@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX_H_
 #define SANDBOXED_API_SANDBOX_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <ctime>
 #include <initializer_list>
@@ -23,11 +24,14 @@
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/config.h"
@@ -41,17 +45,39 @@
 
 namespace sapi {
 
+// Context holding, potentially shared, fork client.
+class ForkClientContext {
+ public:
+  explicit ForkClientContext(const FileToc* embed_lib_toc)
+      : embed_lib_toc_(embed_lib_toc) {}
+
+ private:
+  friend class Sandbox;
+  const FileToc* embed_lib_toc_;
+  absl::Mutex mu_;
+  std::unique_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);
+  std::unique_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
+};
+
 // The Sandbox class represents the sandboxed library. It provides users with
 // means to communicate with it (make function calls, transfer memory).
 class Sandbox {
  public:
-  explicit Sandbox(const FileToc* embed_lib_toc)
-      : embed_lib_toc_(embed_lib_toc) {}
+  explicit Sandbox(
+      ForkClientContext* fork_client_context ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : fork_client_context_(fork_client_context) {}
+
+  explicit Sandbox(const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+  explicit Sandbox(std::nullptr_t);
 
   Sandbox(const Sandbox&) = delete;
   Sandbox& operator=(const Sandbox&) = delete;
 
   virtual ~Sandbox();
+
+  void SetForkClientContext(
+      ForkClientContext* fork_client_context ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   // Initializes a new sandboxing session.
   absl::Status Init(bool use_unotify_monitor = false);
@@ -179,10 +205,6 @@ class Sandbox {
   // Exits the sandboxee.
   void Exit() const;
 
-  // The client to the library forkserver.
-  std::unique_ptr<sandbox2::ForkClient> fork_client_;
-  std::unique_ptr<sandbox2::Executor> forkserver_executor_;
-
   // The main sandbox2::Sandbox2 object.
   std::unique_ptr<sandbox2::Sandbox2> s2_;
   // Marks whether Sandbox2 result was already fetched.
@@ -203,6 +225,10 @@ class Sandbox {
   // FileTOC with the embedded library, takes precedence over GetLibPath if
   // present (not nullptr).
   const FileToc* embed_lib_toc_;
+
+  ForkClientContext* fork_client_context_;
+  // Set if the object owns the client context instance.
+  std::unique_ptr<ForkClientContext> owned_fork_client_context_;
 };
 
 }  // namespace sapi

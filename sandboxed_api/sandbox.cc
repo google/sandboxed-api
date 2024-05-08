@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "sandboxed_api/file_toc.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/macros.h"
 #include "absl/log/log.h"
@@ -36,6 +37,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
@@ -60,10 +62,24 @@
 
 namespace sapi {
 
+Sandbox::Sandbox(const FileToc* embed_lib_toc) {
+  owned_fork_client_context_ =
+      std::make_unique<ForkClientContext>(embed_lib_toc);
+  fork_client_context_ = owned_fork_client_context_.get();
+}
+
+Sandbox::Sandbox(std::nullptr_t)
+    : Sandbox(static_cast<const FileToc*>(nullptr)) {}
+
 Sandbox::~Sandbox() {
   Terminate();
   // The forkserver will die automatically when the executor goes out of scope
   // and closes the comms object.
+}
+
+void Sandbox::SetForkClientContext(ForkClientContext* fork_client_context) {
+  fork_client_context_ = fork_client_context;
+  owned_fork_client_context_.reset();
 }
 
 // A generic policy which should work with majority of typical libraries, which
@@ -158,45 +174,52 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
     return absl::OkStatus();
   }
 
-  // Initialize the forkserver if it is not already running.
-  if (!fork_client_) {
-    // If FileToc was specified, it will be used over any paths to the SAPI
-    // library.
-    std::string lib_path;
-    int embed_lib_fd = -1;
-    if (embed_lib_toc_ && !sapi::host_os::IsAndroid()) {
-      embed_lib_fd = EmbedFile::instance()->GetDupFdForFileToc(embed_lib_toc_);
-      if (embed_lib_fd == -1) {
-        PLOG(ERROR) << "Cannot create executable FD for TOC:'"
-                    << embed_lib_toc_->name << "'";
-        return absl::UnavailableError("Could not create executable FD");
+  sandbox2::ForkClient* fork_client;
+  {
+    absl::MutexLock lock(&fork_client_context_->mu_);
+    // Initialize the forkserver if it is not already running.
+    if (!fork_client_context_->client_) {
+      // If FileToc was specified, it will be used over any paths to the SAPI
+      // library.
+      std::string lib_path;
+      int embed_lib_fd = -1;
+      const FileToc* embed_lib_toc = fork_client_context_->embed_lib_toc_;
+      if (embed_lib_toc && !sapi::host_os::IsAndroid()) {
+        embed_lib_fd = EmbedFile::instance()->GetDupFdForFileToc(embed_lib_toc);
+        if (embed_lib_fd == -1) {
+          PLOG(ERROR) << "Cannot create executable FD for TOC:'"
+                      << embed_lib_toc->name << "'";
+          return absl::UnavailableError("Could not create executable FD");
+        }
+        lib_path = embed_lib_toc->name;
+      } else {
+        lib_path = PathToSAPILib(GetLibPath());
+        if (lib_path.empty()) {
+          LOG(ERROR) << "SAPI library path is empty";
+          return absl::FailedPreconditionError("No SAPI library path given");
+        }
       }
-      lib_path = embed_lib_toc_->name;
-    } else {
-      lib_path = PathToSAPILib(GetLibPath());
-      if (lib_path.empty()) {
-        LOG(ERROR) << "SAPI library path is empty";
-        return absl::FailedPreconditionError("No SAPI library path given");
+      std::vector<std::string> args = {lib_path};
+      // Additional arguments, if needed.
+      GetArgs(&args);
+      std::vector<std::string> envs{};
+      // Additional envvars, if needed.
+      GetEnvs(&envs);
+
+      fork_client_context_->executor_ =
+          (embed_lib_fd >= 0)
+              ? std::make_unique<sandbox2::Executor>(embed_lib_fd, args, envs)
+              : std::make_unique<sandbox2::Executor>(lib_path, args, envs);
+
+      fork_client_context_->client_ =
+          fork_client_context_->executor_->StartForkServer();
+
+      if (!fork_client_context_->client_) {
+        LOG(ERROR) << "Could not start forkserver";
+        return absl::UnavailableError("Could not start the forkserver");
       }
     }
-    std::vector<std::string> args = {lib_path};
-    // Additional arguments, if needed.
-    GetArgs(&args);
-    std::vector<std::string> envs{};
-    // Additional envvars, if needed.
-    GetEnvs(&envs);
-
-    forkserver_executor_ =
-        (embed_lib_fd >= 0)
-            ? std::make_unique<sandbox2::Executor>(embed_lib_fd, args, envs)
-            : std::make_unique<sandbox2::Executor>(lib_path, args, envs);
-
-    fork_client_ = forkserver_executor_->StartForkServer();
-
-    if (!fork_client_) {
-      LOG(ERROR) << "Could not start forkserver";
-      return absl::UnavailableError("Could not start the forkserver");
-    }
+    fork_client = fork_client_context_->client_.get();
   }
 
     sandbox2::PolicyBuilder policy_builder;
@@ -207,7 +230,7 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
   auto s2p = ModifyPolicy(&policy_builder);
 
   // Spawn new process from the forkserver.
-  auto executor = std::make_unique<sandbox2::Executor>(fork_client_.get());
+  auto executor = std::make_unique<sandbox2::Executor>(fork_client);
 
   executor
       // The client.cc code is capable of enabling sandboxing on its own.
