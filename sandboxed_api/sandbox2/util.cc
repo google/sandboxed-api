@@ -423,20 +423,33 @@ absl::StatusOr<size_t> ProcessVmTransfer(bool is_read, pid_t pid, uintptr_t ptr,
     return 0;
   }
 
-  iovec local_iov = {data.data(), data.size()};
-  iovec remote_iov = {reinterpret_cast<void*>(ptr), data.size()};
-  ssize_t bytes_transferred =
-      is_read ? process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0)
-              : process_vm_writev(pid, &local_iov, 1, &remote_iov, 1, 0);
-  if (bytes_transferred == 0) {
-    return absl::NotFoundError(absl::StrFormat(
-        "Transfer was unsuccessful for PID: %d at address: %#x", pid, ptr));
-  } else if (bytes_transferred < 0) {
-    return absl::ErrnoToStatus(
-        errno, absl::StrFormat("transfer() failed for PID: %d at address: %#x",
-                               pid, ptr));
+  size_t total_bytes_transferred = 0;
+  while (!data.empty()) {
+    iovec local_iov = {data.data(), data.size()};
+    iovec remote_iov = {reinterpret_cast<void*>(ptr), data.size()};
+    ssize_t bytes_transferred =
+        is_read ? process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0)
+                : process_vm_writev(pid, &local_iov, 1, &remote_iov, 1, 0);
+    if (bytes_transferred == 0) {
+      if (total_bytes_transferred > 0) {
+        return total_bytes_transferred;
+      }
+      return absl::NotFoundError(absl::StrFormat(
+          "Transfer was unsuccessful for PID: %d at address: %#x", pid, ptr));
+    } else if (bytes_transferred < 0) {
+      if (total_bytes_transferred > 0) {
+        return total_bytes_transferred;
+      }
+      return absl::ErrnoToStatus(
+          errno,
+          absl::StrFormat("transfer() failed for PID: %d at address: %#x", pid,
+                          ptr));
+    }
+    ptr += bytes_transferred;
+    data = data.subspan(bytes_transferred, data.size() - bytes_transferred);
+    total_bytes_transferred += bytes_transferred;
   }
-  return bytes_transferred;
+  return total_bytes_transferred;
 }
 
 // Transfer memory via process_vm_readv.
