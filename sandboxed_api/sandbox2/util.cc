@@ -514,10 +514,8 @@ absl::StatusOr<size_t> ProcMemTransfer(bool is_read, pid_t pid, uintptr_t ptr,
   size_t total_bytes_transferred = 0;
   while (!data.empty()) {
     ssize_t bytes_transfered =
-        is_read ? bytes_transfered =
-                      pread(fd_closer.get(), data.data(), data.size(), ptr)
-                : bytes_transfered =
-                      pwrite(fd_closer.get(), data.data(), data.size(), ptr);
+        is_read ? pread(fd_closer.get(), data.data(), data.size(), ptr)
+                : pwrite(fd_closer.get(), data.data(), data.size(), ptr);
     if (bytes_transfered == 0) {
       if (total_bytes_transferred == 0) {
         return absl::NotFoundError(absl::StrFormat(
