@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -391,6 +392,19 @@ absl::StatusOr<std::string> EmitHeader(
     const std::vector<std::string>& function_definitions,
     const std::vector<const RenderedType*>& rendered_types,
     const GeneratorOptions& options) {
+  // Log a warning message if the number of requested functions is not equal to
+  // the number of functions generated.
+  if (!options.function_names.empty() &&
+      (options.function_names.size() != function_definitions.size())) {
+    LOG(WARNING)
+        << "Generated output has fewer functions than expected - some function "
+           "signatures might use language features that SAPI does not support. "
+           "For debugging, we recommend you compare "
+           "the list of functions in your sapi_library() rule with "
+           "the generated *.sapi.h file. Expected: "
+        << options.function_names.size()
+        << ", generated: " << function_definitions.size();
+  }
   std::string out;
   const std::string include_guard = GetIncludeGuard(options.out_file);
   absl::StrAppendFormat(&out, kHeaderProlog, include_guard);

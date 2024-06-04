@@ -24,6 +24,7 @@
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 #include "sandboxed_api/tools/clang_generator/compilation_database.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
