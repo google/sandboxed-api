@@ -71,6 +71,9 @@ ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
           "If set, sandbox2 monitor will log stack traces of all monitored "
           "threads/processes that are reported to terminate with a signal.");
 
+ABSL_FLAG(bool, sandbox2_log_unobtainable_stack_traces_errors, true,
+          "If set, unobtainable stack trace will be logged as errors.");
+
 ABSL_FLAG(absl::Duration, sandbox2_stack_traces_collection_timeout,
           absl::Seconds(1),
           "How much time should be spent on logging threads' stack traces on "
@@ -232,7 +235,9 @@ void PtraceMonitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   absl::StatusOr<std::vector<std::string>> stack_trace =
       GetAndLogStackTrace(result_.GetRegs());
   if (!stack_trace.ok()) {
-    LOG(ERROR) << "Could not obtain stack trace: " << stack_trace.status();
+    LOG_IF(ERROR,
+           absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
+        << "Could not obtain stack trace: " << stack_trace.status();
     return;
   }
   result_.set_stack_trace(*stack_trace);
