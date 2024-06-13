@@ -259,6 +259,11 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
   rpc_channel_ = std::make_unique<RPCChannel>(comms_);
 
   if (!res) {
+    // Allow recovering from a bad fork client state.
+    {
+      absl::MutexLock lock(&fork_client_context_->mu_);
+      fork_client_context_->client_.reset();
+    }
     Terminate();
     return absl::UnavailableError("Could not start the sandbox");
   }
