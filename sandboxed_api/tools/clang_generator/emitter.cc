@@ -107,7 +107,12 @@ constexpr absl::string_view kEmbedClassTemplate = R"(
 // Sandbox with embedded sandboxee and default policy
 class %1$s : public ::sapi::Sandbox {
  public:
-  %1$s() : ::sapi::Sandbox(%2$s_embed_create()) {}
+  %1$s()
+      : ::sapi::Sandbox([]() {
+          static auto* fork_client_context =
+              new ::sapi::ForkClientContext(%2$s_embed_create());
+          return fork_client_context;
+        }()) {}
 };
 
 )";

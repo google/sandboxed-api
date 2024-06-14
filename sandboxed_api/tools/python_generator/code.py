@@ -739,10 +739,16 @@ class Generator(object):
   GUARD_START = ('#ifndef {0}\n' '#define {0}')
   GUARD_END = '#endif  // {}'
   EMBED_INCLUDE = '#include "{}"'
-  EMBED_CLASS = ('class {0}Sandbox : public ::sapi::Sandbox {{\n'
-                 ' public:\n'
-                 '  {0}Sandbox() : ::sapi::Sandbox({1}_embed_create()) {{}}\n'
-                 '}};')
+  EMBED_CLASS = '''
+class {0}Sandbox : public ::sapi::Sandbox {{
+  public:
+    {0}Sandbox()
+      : ::sapi::Sandbox([]() {{
+          static auto* fork_client_context =
+              new ::sapi::ForkClientContext({1}_embed_create());
+          return fork_client_context;
+        }}()) {{}}
+}};'''
 
   def __init__(self, translation_units):
     # type: (List[cindex.TranslationUnit]) -> None
