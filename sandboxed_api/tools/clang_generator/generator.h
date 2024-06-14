@@ -160,6 +160,7 @@ class GeneratorFactory : public clang::tooling::FrontendActionFactory {
   const GeneratorOptions& options_;
 };
 
+// Returns the output filename for the given source file ending in .sapi.h.
 std::string GetOutputFilename(absl::string_view source_file);
 
 inline absl::string_view ToStringView(llvm::StringRef ref) {

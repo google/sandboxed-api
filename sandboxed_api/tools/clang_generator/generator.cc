@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/tools/clang_generator/generator.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -44,8 +45,8 @@ namespace {
 // Replaces the file extension of a path name.
 std::string ReplaceFileExtension(absl::string_view path,
                                  absl::string_view new_extension) {
-  auto last_slash = path.rfind('/');
-  auto pos = path.rfind('.', last_slash);
+  size_t last_slash = path.rfind('/');
+  size_t pos = path.rfind('.', last_slash);
   if (pos != absl::string_view::npos && last_slash != absl::string_view::npos) {
     pos += last_slash;
   }
@@ -117,11 +118,10 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   if (!visitor_.TraverseDecl(context.getTranslationUnitDecl())) {
     ReportFatalError(context.getDiagnostics(),
                      context.getTranslationUnitDecl()->getBeginLoc(),
-                     "AST traversal exited early");
+                     "AST traversal exited early.");
     return;
   }
 
-  // TODO(cblichmann): Move below to emit all functions after traversing TUs.
   emitter_.AddTypeDeclarations(visitor_.collector().GetTypeDeclarations());
   for (clang::FunctionDecl* func : visitor_.functions()) {
     absl::Status status = emitter_.AddFunction(func);
@@ -149,7 +149,8 @@ bool GeneratorFactory::runInvocation(
   for (const auto& def : {
            // Enable code to detect whether it is being SAPI-ized
            "__SAPI__",
-           // TODO(b/222241644): Figure out how to deal with intrinsics properly
+           // TODO: b/222241644 - Figure out how to deal with intrinsics
+           // properly.
            // Note: The definitions below just need to parse, they don't need to
            //       compile into useful code.
            // Intel

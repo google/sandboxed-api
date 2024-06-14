@@ -28,15 +28,20 @@
 #include "clang/AST/Type.h"
 
 namespace sapi {
+// TODO b/347118045 - Refactor the naming of internal namespaces across the
+// codebase.
 namespace internal {
 
+// Returns a string that is the reformatted given code to conform to the Google
+// style.
 absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
                                                 const std::string& code,
                                                 int column_limit = -1);
 
 }  // namespace internal
 
-class GeneratorOptions;
+// Forward declaration to avoid circular dependencies.
+struct GeneratorOptions;
 
 class RenderedType {
  public:
@@ -68,12 +73,15 @@ class Emitter {
   // including the correct headers in the emitted header.
   void AddTypeDeclarations(const std::vector<clang::TypeDecl*>& type_decls);
 
+  // Adds the declarations of previously collected functions to the emitter.
   absl::Status AddFunction(clang::FunctionDecl* decl);
 
   // Outputs a formatted header for a list of functions and their related types.
   absl::StatusOr<std::string> EmitHeader(const GeneratorOptions& options);
 
  private:
+  // Emits the given type declaration to the member variables `rendered_types_`
+  // and `rendered_types_ordered_`.
   void EmitType(clang::TypeDecl* type_decl);
 
  protected:

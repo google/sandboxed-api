@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -43,8 +44,8 @@ static auto* g_common_help =
     new llvm::cl::extrahelp(clang::tooling::CommonOptionsParser::HelpMessage);
 static auto* g_extra_help = new llvm::cl::extrahelp(
     "Full documentation at: "
-    "<https://developers.google.com/code-sandboxing/sandboxed-api/>\n"
-    "Report bugs to <https://github.com/google/sandboxed-api/issues>\n");
+    "https://developers.google.com/code-sandboxing/sandboxed-api\n"
+    "Report bugs to https://github.com/google/sandboxed-api/issues\n");
 
 // Command line options
 static auto* g_sapi_embed_dir = new llvm::cl::opt<std::string>(
@@ -58,14 +59,16 @@ static auto* g_sapi_functions = new llvm::cl::list<std::string>(
     llvm::cl::desc("List of functions to generate a Sandboxed API for. If "
                    "empty, generates a SAPI for all functions found."),
     llvm::cl::cat(*g_tool_category));
+ABSL_DEPRECATED("Pass the input files directly to the tool.")
 static auto* g_sapi_in = new llvm::cl::list<std::string>(
     "sapi_in", llvm::cl::CommaSeparated,
-    llvm::cl::desc("List of input files to analyze (deprecated)"),
+    llvm::cl::desc("List of input files to analyze (DEPRECATED)"),
     llvm::cl::cat(*g_tool_category));
+ABSL_DEPRECATED("Ignored for compatibility.")
 static auto* g_sapi_isystem = new llvm::cl::opt<std::string>(
     "sapi_isystem",
-    llvm::cl::desc("Parameter file with extra system include paths (ignored "
-                   "for compatibility)"),
+    llvm::cl::desc(
+        "Parameter file with extra system include paths (DEPRECATED)"),
     llvm::cl::cat(*g_tool_category));
 static auto* g_sapi_limit_scan_depth = new llvm::cl::opt<bool>(
     "sapi_limit_scan_depth",
@@ -87,6 +90,7 @@ static auto* g_sapi_out = new llvm::cl::opt<std::string>(
 
 }  // namespace
 
+// Returns a GeneratorOptions object based on the command-line flags.
 GeneratorOptions GeneratorOptionsFromFlags(
     const std::vector<std::string>& sources) {
   GeneratorOptions options;
@@ -124,7 +128,7 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
     sources.push_back(sapi_in);
   }
   if (sources.empty()) {
-    return absl::InvalidArgumentError("error: no input files");
+    return absl::InvalidArgumentError("Error: No input files.");
   }
 
   auto options = sapi::GeneratorOptionsFromFlags(sources);
@@ -138,17 +142,16 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
   if (!g_sapi_isystem->empty()) {
     absl::FPrintF(
         stderr,
-        "note: ignoring deprecated command-line option: sapi_isystem\n");
+        "Note: Ignoring deprecated command-line option: sapi_isystem\n");
   }
 
   if (int result = tool.run(
           std::make_unique<sapi::GeneratorFactory>(emitter, options).get());
       result != 0) {
-    return absl::UnknownError("header generation failed");
+    return absl::UnknownError("Error: Header generation failed.");
   }
 
   SAPI_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader(options));
-
   SAPI_RETURN_IF_ERROR(sapi::file::SetContents(options.out_file, header,
                                                sapi::file::Defaults()));
   return absl::OkStatus();

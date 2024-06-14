@@ -55,7 +55,7 @@
 
 namespace sapi {
 
-// Common file prolog with auto-generation notice.
+// Common header file prolog with auto-generation notice.
 // Note: The includes will be adjusted by Copybara when converting to/from
 //       internal code. This is intentional.
 // Text template arguments:
@@ -78,6 +78,9 @@ constexpr absl::string_view kHeaderProlog =
 #include "sandboxed_api/vars.h"
 
 )";
+
+// Text template arguments:
+//   1. Header guard
 constexpr absl::string_view kHeaderEpilog =
     R"(
 #endif  // %1$s)";
@@ -95,6 +98,9 @@ constexpr absl::string_view kNamespaceBeginTemplate =
 namespace %1$s {
 
 )";
+
+// Text template arguments:
+//   1. Namespace name
 constexpr absl::string_view kNamespaceEndTemplate =
     R"(
 }  // namespace %1$s
@@ -117,6 +123,7 @@ class %1$s : public ::sapi::Sandbox {
 
 )";
 
+// Sandboxed API class template.
 // Text template arguments:
 //   1. Class name
 constexpr absl::string_view kClassHeaderTemplate = R"(
@@ -130,6 +137,7 @@ class %1$s {
   ::sapi::Sandbox* sandbox() const { return sandbox_; }
 )";
 
+// Sandboxed API class template footer.
 constexpr absl::string_view kClassFooterTemplate = R"(
  private:
   ::sapi::Sandbox* sandbox_;
@@ -210,6 +218,7 @@ std::vector<std::string> GetNamespacePath(const clang::TypeDecl* decl) {
   return comps;
 }
 
+// Returns the template arguments for a given record.
 std::string PrintRecordTemplateArguments(const clang::CXXRecordDecl* record) {
   const auto* template_inst_decl = record->getTemplateInstantiationPattern();
   if (!template_inst_decl) {
@@ -286,6 +295,8 @@ std::string GetSpelling(const clang::Decl* decl) {
   return PrintDecl(decl);
 }
 
+// Returns a unique name for a parameter. If `decl` has no name, a unique name
+// will be generated in the form of `unnamed<index>_`.
 std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
   if (std::string name = decl->getName().str(); !name.empty()) {
     return absl::StrCat(name, "_");  // Suffix to avoid collisions
@@ -293,6 +304,8 @@ std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
   return absl::StrCat("unnamed", index, "_");
 }
 
+// Returns a comment for the given function `decl` which represents the
+// unsandboxed function signature.
 absl::StatusOr<std::string> PrintFunctionPrototypeComment(
     const clang::FunctionDecl* decl) {
   const clang::ASTContext& context = decl->getASTContext();
@@ -325,25 +338,27 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
   return out;
 }
 
+// Emits the given function `decl` as SAPI function with a leading comment
+// documenting the unsandboxed function signature.
 absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   const clang::QualType return_type = decl->getDeclaredReturnType();
+
+  // Skip functions returning record by value.
   if (return_type->isRecordType()) {
     return MakeStatusWithDiagnostic(
         decl->getBeginLoc(), absl::StatusCode::kCancelled,
-        "returning record by value, skipping function");
+        "Returning record by value, skipping function.");
   }
-  std::string out;
 
   SAPI_ASSIGN_OR_RETURN(std::string prototype,
                         PrintFunctionPrototypeComment(decl));
+  std::string out;
   absl::StrAppend(&out, "\n", prototype);
 
   auto function_name = ToStringView(decl->getName());
   const bool returns_void = return_type->isVoidType();
-
   const clang::ASTContext& context = decl->getASTContext();
 
-  // "Status<OptionalReturn> FunctionName("
   absl::StrAppend(&out, MapQualTypeReturn(context, return_type), " ",
                   function_name, "(");
 
@@ -353,15 +368,18 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   };
   std::vector<ParameterInfo> params;
 
+  // Process the function parameter list.
   std::string print_separator;
   for (int i = 0; i < decl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = decl->getParamDecl(i);
+
+    // Skip functions with record parameters passed by value.
     if (param->getType()->isRecordType()) {
       return MakeStatusWithDiagnostic(
           param->getBeginLoc(), absl::StatusCode::kCancelled,
-          absl::StrCat("passing record parameter '",
+          absl::StrCat("Passing record parameter '",
                        ToStringView(param->getName()),
-                       "' by value, skipping function"));
+                       "' by value, skipping function."));
     }
 
     ParameterInfo& param_info = params.emplace_back();
@@ -375,24 +393,34 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   }
 
   absl::StrAppend(&out, ") {\n");
+
+  // Declare the return value of the SAPI function.
   absl::StrAppend(&out, MapQualType(context, return_type), " v_ret_;\n");
+
+  // Declare the local variables for the parameters.
   for (const auto& [qual, name] : params) {
     if (!IsPointerOrReference(qual)) {
       absl::StrAppend(&out, MapQualType(context, qual), " v_", name, "(", name,
                       ");\n");
     }
   }
+
+  // Call the sandboxed function.
   absl::StrAppend(&out, "\nSAPI_RETURN_IF_ERROR(sandbox_->Call(\"",
                   function_name, "\", &v_ret_");
   for (const auto& [qual, name] : params) {
     absl::StrAppend(&out, ", ", IsPointerOrReference(qual) ? "" : "&v_", name);
   }
+
+  // End the sandboxed function call and return `ok` if the unsandboxed function
+  // returns void, or else return the value of the SAPI function.
   absl::StrAppend(&out, "));\nreturn ",
                   (returns_void ? "::absl::OkStatus()" : "v_ret_.GetValue()"),
                   ";\n}\n");
   return out;
 }
 
+// Emits the SAPI header.
 absl::StatusOr<std::string> EmitHeader(
     const std::vector<std::string>& function_definitions,
     const std::vector<const RenderedType*>& rendered_types,
@@ -458,14 +486,12 @@ absl::StatusOr<std::string> EmitHeader(
 
   // Optionally emit a default sandbox that instantiates an embedded sandboxee
   if (!options.embed_name.empty()) {
-    // TODO(cblichmann): Make the "Sandbox" suffix configurable.
     absl::StrAppendFormat(
         &out, kEmbedClassTemplate, absl::StrCat(options.name, "Sandbox"),
         absl::StrReplaceAll(options.embed_name, {{"-", "_"}}));
   }
 
   // Emit the actual Sandboxed API
-  // TODO(cblichmann): Make the "Api" suffix configurable or at least optional.
   absl::StrAppendFormat(&out, kClassHeaderTemplate,
                         absl::StrCat(options.name, "Api"));
   absl::StrAppend(&out, absl::StrJoin(function_definitions, "\n"));
