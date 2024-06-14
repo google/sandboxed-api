@@ -14,14 +14,12 @@
 
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/container/node_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -39,16 +37,9 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/DeclTemplate.h"
-#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
-#include "clang/Format/Format.h"
-#include "clang/Tooling/Core/Replacement.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/Error.h"
-#include "llvm/Support/raw_ostream.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
+#include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -132,6 +123,7 @@ class %1$s {
  public:
   explicit %1$s(::sapi::Sandbox* sandbox) : sandbox_(sandbox) {}
 
+
   ABSL_DEPRECATED("Call sandbox() instead")
   ::sapi::Sandbox* GetSandbox() const { return sandbox(); }
   ::sapi::Sandbox* sandbox() const { return sandbox_; }
@@ -143,34 +135,6 @@ constexpr absl::string_view kClassFooterTemplate = R"(
   ::sapi::Sandbox* sandbox_;
 };
 )";
-
-namespace internal {
-
-absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
-                                                const std::string& code,
-                                                int column_limit) {
-  // Configure code style based on Google style, but enforce pointer alignment
-  clang::format::FormatStyle style =
-      clang::format::getGoogleStyle(clang::format::FormatStyle::LK_Cpp);
-  style.DerivePointerAlignment = false;
-  style.PointerAlignment = clang::format::FormatStyle::PAS_Left;
-  if (column_limit >= 0) {
-    style.ColumnLimit = column_limit;
-  }
-
-  clang::tooling::Replacements replacements = clang::format::reformat(
-      style, code, llvm::ArrayRef(clang::tooling::Range(0, code.size())),
-      filename);
-
-  llvm::Expected<std::string> formatted_header =
-      clang::tooling::applyAllReplacements(code, replacements);
-  if (!formatted_header) {
-    return absl::InternalError(llvm::toString(formatted_header.takeError()));
-  }
-  return *formatted_header;
-}
-
-}  // namespace internal
 
 std::string GetIncludeGuard(absl::string_view filename) {
   if (filename.empty()) {
@@ -204,104 +168,6 @@ std::string GetIncludeGuard(absl::string_view filename) {
     guard += '_';
   }
   return guard;
-}
-
-// Returns the namespace components of a declaration's qualified name.
-std::vector<std::string> GetNamespacePath(const clang::TypeDecl* decl) {
-  std::vector<std::string> comps;
-  for (const auto* ctx = decl->getDeclContext(); ctx; ctx = ctx->getParent()) {
-    if (const auto* nd = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
-      comps.push_back(nd->getName().str());
-    }
-  }
-  std::reverse(comps.begin(), comps.end());
-  return comps;
-}
-
-// Returns the template arguments for a given record.
-std::string PrintRecordTemplateArguments(const clang::CXXRecordDecl* record) {
-  const auto* template_inst_decl = record->getTemplateInstantiationPattern();
-  if (!template_inst_decl) {
-    return "";
-  }
-  const auto* template_decl = template_inst_decl->getDescribedClassTemplate();
-  if (!template_decl) {
-    return "";
-  }
-  const auto* template_params = template_decl->getTemplateParameters();
-  if (!template_params) {
-    return "";
-  }
-  clang::ASTContext& context = record->getASTContext();
-  std::vector<std::string> params;
-  params.reserve(template_params->size());
-  for (const auto& template_param : *template_params) {
-    if (const auto* p =
-            llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(template_param)) {
-      // TODO(cblichmann): Should be included by CollectRelatedTypes().
-      params.push_back(clang::TypeName::getFullyQualifiedName(
-          p->getType().getDesugaredType(context), context,
-          context.getPrintingPolicy()));
-    } else {  // Also covers template template parameters
-      params.push_back("typename");
-    }
-    absl::StrAppend(&params.back(), " /*",
-                    std::string(template_param->getName()), "*/");
-  }
-  return absl::StrCat("template <", absl::StrJoin(params, ", "), ">");
-}
-
-// Serializes the given Clang AST declaration back into compilable source code.
-std::string PrintDecl(const clang::Decl* decl) {
-  std::string pretty;
-  llvm::raw_string_ostream os(pretty);
-  decl->print(os);
-  return os.str();
-}
-
-// Returns the spelling for a given declaration will be emitted to the final
-// header. This may rewrite declarations (like converting typedefs to using,
-// etc.). Note that the resulting spelling will need to be wrapped inside a
-// namespace if the original declaration was inside one.
-std::string GetSpelling(const clang::Decl* decl) {
-  // TODO(cblichmann): Make types nicer
-  //   - Rewrite typedef to using
-  //   - Rewrite function pointers using std::add_pointer_t<>;
-
-  if (const auto* typedef_decl = llvm::dyn_cast<clang::TypedefNameDecl>(decl)) {
-    // Special case: anonymous enum/struct
-    if (auto* tag_decl = typedef_decl->getAnonDeclWithTypedefName()) {
-      return absl::StrCat("typedef ", PrintDecl(tag_decl), " ",
-                          ToStringView(typedef_decl->getName()));
-    }
-  }
-
-  if (const auto* record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
-    if (record_decl->hasDefinition() &&
-        // Aggregates capture all C-like structs, but also structs with
-        // non-static members that have default initializers.
-        record_decl->isAggregate() &&
-        // Make sure to skip types with user-defined methods (including
-        // constructors).
-        record_decl->methods().empty()) {
-      return PrintDecl(decl);
-    }
-    // For unsupported types or types with no definition, only emit a forward
-    // declaration.
-    return absl::StrCat(PrintRecordTemplateArguments(record_decl),
-                        record_decl->isClass() ? "class " : "struct ",
-                        ToStringView(record_decl->getName()));
-  }
-  return PrintDecl(decl);
-}
-
-// Returns a unique name for a parameter. If `decl` has no name, a unique name
-// will be generated in the form of `unnamed<index>_`.
-std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
-  if (std::string name = decl->getName().str(); !name.empty()) {
-    return absl::StrCat(name, "_");  // Suffix to avoid collisions
-  }
-  return absl::StrCat("unnamed", index, "_");
 }
 
 // Returns a comment for the given function `decl` which represents the
@@ -429,14 +295,13 @@ absl::StatusOr<std::string> EmitHeader(
   // the number of functions generated.
   if (!options.function_names.empty() &&
       (options.function_names.size() != function_definitions.size())) {
-    LOG(WARNING)
-        << "Generated output has fewer functions than expected - some function "
-           "signatures might use language features that SAPI does not support. "
-           "For debugging, we recommend you compare "
-           "the list of functions in your sapi_library() rule with "
-           "the generated *.sapi.h file. Expected: "
-        << options.function_names.size()
-        << ", generated: " << function_definitions.size();
+    LOG(WARNING) << "Generated output has fewer functions than expected - some "
+                    "function signatures might use language features that "
+                    "SAPI does not support. For debugging, we recommend you "
+                    "compare the list of functions in your sapi_library() rule "
+                    "with the generated *.sapi.h file. Expected: "
+                 << options.function_names.size()
+                 << ", generated: " << function_definitions.size();
   }
   std::string out;
   const std::string include_guard = GetIncludeGuard(options.out_file);
@@ -503,66 +368,6 @@ absl::StatusOr<std::string> EmitHeader(
   }
   absl::StrAppendFormat(&out, kHeaderEpilog, include_guard);
   return out;
-}
-
-void Emitter::EmitType(clang::TypeDecl* type_decl) {
-  if (!type_decl) {
-    return;
-  }
-
-  // Skip types defined in system headers.
-  // TODO(cblichmann): Instead of this and the hard-coded entities below, we
-  //                   should map types and add the correct (system) headers to
-  //                   the generated output.
-  if (type_decl->getASTContext().getSourceManager().isInSystemHeader(
-          type_decl->getBeginLoc())) {
-    return;
-  }
-
-  const std::vector<std::string> ns_path = GetNamespacePath(type_decl);
-  std::string ns_name;
-  if (!ns_path.empty()) {
-    const auto& ns_root = ns_path.front();
-    // Filter out declarations from the C++ standard library, from SAPI itself
-    // and from other well-known namespaces.
-    if (ns_root == "std" || ns_root == "__gnu_cxx" || ns_root == "sapi") {
-      return;
-    }
-    if (ns_root == "absl") {
-      // Skip Abseil internal namespaces
-      if (ns_path.size() > 1 && absl::EndsWith(ns_path[1], "_internal")) {
-        return;
-      }
-      // Skip types from Abseil that will already be included in the generated
-      // header.
-      if (auto name = ToStringView(type_decl->getName());
-          name == "CordMemoryAccounting" || name == "Duration" ||
-          name == "LogEntry" || name == "LogSeverity" || name == "Span" ||
-          name == "StatusCode" || name == "StatusToStringMode" ||
-          name == "SynchLocksHeld" || name == "SynchWaitParams" ||
-          name == "Time" || name == "string_view" || name == "tid_t") {
-        return;
-      }
-    }
-    // Skip Protocol Buffers namespaces
-    if (ns_root == "google" && ns_path.size() > 1 && ns_path[1] == "protobuf") {
-      return;
-    }
-    ns_name = absl::StrJoin(ns_path, "::");
-  }
-
-  std::string spelling = GetSpelling(type_decl);
-  if (const auto& [it, inserted] = rendered_types_.emplace(ns_name, spelling);
-      inserted) {
-    rendered_types_ordered_.push_back(&*it);
-  }
-}
-
-void Emitter::AddTypeDeclarations(
-    const std::vector<clang::TypeDecl*>& type_decls) {
-  for (clang::TypeDecl* type_decl : type_decls) {
-    EmitType(type_decl);
-  }
 }
 
 absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {

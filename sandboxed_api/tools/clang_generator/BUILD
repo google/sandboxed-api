@@ -21,12 +21,14 @@ cc_library(
     srcs = [
         "diagnostics.cc",
         "emitter.cc",
+        "emitter_base.cc",
         "generator.cc",
         "types.cc",
     ],
     hdrs = [
         "diagnostics.h",
         "emitter.h",
+        "emitter_base.h",
         "generator.h",
         "types.h",
     ],

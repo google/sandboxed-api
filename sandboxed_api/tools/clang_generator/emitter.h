@@ -16,87 +16,33 @@
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_EMITTER_H_
 
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
-#include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
+#include "sandboxed_api/tools/clang_generator/emitter_base.h"
 
 namespace sapi {
-// TODO b/347118045 - Refactor the naming of internal namespaces across the
-// codebase.
-namespace internal {
-
-// Returns a string that is the reformatted given code to conform to the Google
-// style.
-absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
-                                                const std::string& code,
-                                                int column_limit = -1);
-
-}  // namespace internal
 
 // Forward declaration to avoid circular dependencies.
 struct GeneratorOptions;
 
-class RenderedType {
- public:
-  RenderedType(std::string ns_name, std::string spelling)
-      : ns_name(std::move(ns_name)), spelling(std::move(spelling)) {}
-
-  bool operator==(const RenderedType& other) const {
-    return ns_name == other.ns_name && spelling == other.spelling;
-  }
-
-  template <typename H>
-  friend H AbslHashValue(H h, RenderedType rt) {
-    return H::combine(std::move(h), rt.ns_name, rt.spelling);
-  }
-
-  std::string ns_name;
-  std::string spelling;
-};
-
 // Responsible for emitting the actual textual representation of the generated
 // Sandboxed API header.
-class Emitter {
+class Emitter : public EmitterBase {
  public:
-  // Adds the declarations of previously collected types to the emitter,
-  // recording the spelling of each one. Types/declarations that are not
-  // supported by the current generator settings or that are unwanted or
-  // unnecessary are skipped. Other filtered types include C++ constructs or
-  // well-known standard library elements. The latter can be replaced by
-  // including the correct headers in the emitted header.
-  void AddTypeDeclarations(const std::vector<clang::TypeDecl*>& type_decls);
-
-  // Adds the declarations of previously collected functions to the emitter.
-  absl::Status AddFunction(clang::FunctionDecl* decl);
+  // Adds a function to the list of functions to be rendered. In addition, it
+  // stores the original and SAPI function information for safe drop-in
+  // generation.
+  absl::Status AddFunction(clang::FunctionDecl* decl) override;
 
   // Outputs a formatted header for a list of functions and their related types.
   absl::StatusOr<std::string> EmitHeader(const GeneratorOptions& options);
 
- private:
-  // Emits the given type declaration to the member variables `rendered_types_`
-  // and `rendered_types_ordered_`.
-  void EmitType(clang::TypeDecl* type_decl);
-
  protected:
-  // Stores namespaces and a list of spellings for types. Keeps track of types
-  // that have been rendered so far. Using a node_hash_set for pointer
-  // stability.
-  absl::node_hash_set<RenderedType> rendered_types_;
-
-  // A vector to preserve the order of type declarations needs to be preserved.
-  std::vector<const RenderedType*> rendered_types_ordered_;
-
-  // Fully qualified names of functions for the sandboxed API. Keeps track of
-  // functions that have been rendered so far.
-  absl::flat_hash_set<std::string> rendered_functions_;
-
   // Rendered function bodies, as a vector to preserve source order. This is
   // not strictly necessary, but makes the output look less surprising.
   std::vector<std::string> rendered_functions_ordered_;

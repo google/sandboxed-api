@@ -37,7 +37,7 @@
 #include "clang/Serialization/PCHContainerOperations.h"
 #include "clang/Tooling/Tooling.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
-#include "sandboxed_api/tools/clang_generator/emitter.h"
+#include "sandboxed_api/tools/clang_generator/emitter_base.h"
 
 namespace sapi {
 namespace {

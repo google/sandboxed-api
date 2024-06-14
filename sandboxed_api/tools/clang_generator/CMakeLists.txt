@@ -24,6 +24,8 @@ add_library(sapi_generator
   diagnostics.h
   emitter.h
   emitter.cc
+  emitter_base.h
+  emitter_base.cc
   generator.h
   generator.cc
   types.h
