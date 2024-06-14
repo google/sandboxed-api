@@ -23,6 +23,7 @@
 #include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 
@@ -39,6 +40,36 @@ absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
                                                 int column_limit = -1);
 
 }  // namespace internal
+
+// Text template arguments:
+//   1. Namespace name
+inline constexpr absl::string_view kNamespaceBeginTemplate =
+    R"(
+namespace %1$s {
+
+)";
+
+// Text template arguments:
+//   1. Namespace name
+inline constexpr absl::string_view kNamespaceEndTemplate =
+    R"(
+}  // namespace %1$s
+)";
+
+// Text template arguments:
+//   1. Header guard
+inline constexpr absl::string_view kHeaderProlog =
+    R"(
+#ifndef %1$s
+#define %1$s
+
+)";
+
+// Text template arguments:
+//   1. Header guard
+inline constexpr absl::string_view kHeaderEpilog =
+    R"(
+#endif  // %1$s)";
 
 class RenderedType {
  public:
@@ -89,9 +120,12 @@ class EmitterBase {
   void EmitType(clang::TypeDecl* type_decl);
 };
 
-// Returns a unique name for a parameter. If `decl` has no name, a unique name
-// will be generated in the form of `unnamed<index>_`.
-std::string GetParamName(const clang::ParmVarDecl* decl, int index);
+// Constructs an include guard for the given filename. The generated string
+// conforms to the Google C++ style. For example,
+//   sandboxed_api/examples/zlib/zlib-sapi.sapi.h
+// will be mapped to
+//   SANDBOXED_API_EXAMPLES_ZLIB_ZLIB_SAPI_SAPI_H_
+std::string GetIncludeGuard(absl::string_view filename);
 
 }  // namespace sapi
 

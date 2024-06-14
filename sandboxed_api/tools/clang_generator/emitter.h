@@ -20,7 +20,6 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
@@ -47,14 +46,6 @@ class Emitter : public EmitterBase {
   // not strictly necessary, but makes the output look less surprising.
   std::vector<std::string> rendered_functions_ordered_;
 };
-
-// Constructs an include guard name for the given filename. The name is of the
-// same form as the include guards in this project and conforms to the Google
-// C++ style. For example,
-//   sandboxed_api/examples/zlib/zlib-sapi.sapi.h
-// will be mapped to
-//   SANDBOXED_API_EXAMPLES_ZLIB_ZLIB_SAPI_SAPI_H_
-std::string GetIncludeGuard(absl::string_view filename);
 
 }  // namespace sapi
 
