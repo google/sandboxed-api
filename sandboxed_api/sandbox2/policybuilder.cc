@@ -449,6 +449,7 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
   allowed_complex_.limited_madvise = true;
   return AddPolicyOnSyscall(__NR_madvise, {
                                               ARG_32(2),
+                                              JEQ32(MADV_SEQUENTIAL, ALLOW),
                                               JEQ32(MADV_DONTNEED, ALLOW),
                                               JEQ32(MADV_REMOVE, ALLOW),
                                               JEQ32(MADV_HUGEPAGE, ALLOW),
