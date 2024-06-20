@@ -964,10 +964,6 @@ void PtraceMonitor::StateProcessStopped(pid_t pid, int status) {
     should_dump_stack_ = false;
   }
 
-#ifndef PTRACE_EVENT_STOP
-#define PTRACE_EVENT_STOP 128
-#endif
-
   if (is_syscall_exit) {
     VLOG(2) << "PID: " << pid << " syscall-exit-stop: " << event_msg;
     EventSyscallExit(pid);
