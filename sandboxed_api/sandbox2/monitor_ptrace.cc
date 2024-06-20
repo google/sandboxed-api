@@ -657,8 +657,9 @@ bool PtraceMonitor::InitPtraceAttach() {
 void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
   // If the sandboxing is not enabled yet, allow the first __NR_execveat.
   if (syscall.nr() == __NR_execveat && !IsActivelyMonitoring()) {
-    VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: " << "SYSCALL ::: PID: "
-            << regs->pid() << ", PROG: '" << util::GetProgName(regs->pid())
+    VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: "
+            << "SYSCALL ::: PID: " << regs->pid() << ", PROG: '"
+            << util::GetProgName(regs->pid())
             << "' : " << syscall.GetDescription();
     ContinueProcess(regs->pid(), 0);
     return;
@@ -692,7 +693,7 @@ void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
     return;
   }
 
-  ActionProcessSyscallViolation(regs, syscall, ViolationType::kSyscall);
+  ActionProcessSyscallViolation(regs, syscall, kSyscallViolation);
 }
 
 void PtraceMonitor::ActionProcessSyscallViolation(
@@ -743,8 +744,7 @@ void PtraceMonitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
   // If the architecture of the syscall used is different that the current host
   // architecture, report a violation.
   if (syscall_arch != Syscall::GetHostArch()) {
-    ActionProcessSyscallViolation(&regs, syscall,
-                                  ViolationType::kArchitectureSwitch);
+    ActionProcessSyscallViolation(&regs, syscall, kArchitectureSwitchViolation);
     return;
   }
 
@@ -781,18 +781,18 @@ void PtraceMonitor::EventPtraceNewProcess(pid_t pid, int event_msg) {
   // ptrace doesn't issue syscall-exit-stops for successful fork/vfork/clone
   // system calls. Check if the monitor wanted to inspect the syscall's return
   // value, and call EventSyscallReturn for the parent process if so.
-  if (auto index = syscalls_in_progress_.find(pid);
-      index != syscalls_in_progress_.end()) {
+  auto index = syscalls_in_progress_.find(pid);
+  if (index != syscalls_in_progress_.end()) {
     auto syscall_nr = index->second.nr();
     bool creating_new_process = syscall_nr == __NR_clone;
 #ifdef __NR_clone3
-    creating_new_process |= syscall_nr == __NR_clone3;
+    creating_new_process = creating_new_process || syscall_nr == __NR_clone3;
 #endif
 #ifdef __NR_fork
-    creating_new_process |= syscall_nr == __NR_fork;
+    creating_new_process = creating_new_process || syscall_nr == __NR_fork;
 #endif
 #ifdef __NR_vfork
-    creating_new_process |= syscall_nr == __NR_vfork;
+    creating_new_process = creating_new_process || syscall_nr == __NR_vfork;
 #endif
     if (!creating_new_process) {
       LOG(ERROR) << "Expected a fork/vfork/clone syscall in progress in PID "
@@ -861,9 +861,8 @@ void PtraceMonitor::EventPtraceExit(pid_t pid, int event_msg) {
   // Process signaled due to seccomp violation.
   if (is_seccomp) {
     VLOG(1) << "PID: " << pid << " violation uncovered via the EXIT_EVENT";
-    ActionProcessSyscallViolation(regs.get(),
-                                  regs->ToSyscall(Syscall::GetHostArch()),
-                                  ViolationType::kSyscall);
+    ActionProcessSyscallViolation(
+        regs.get(), regs->ToSyscall(Syscall::GetHostArch()), kSyscallViolation);
     return;
   }
 

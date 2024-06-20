@@ -19,8 +19,6 @@
 
 #include <sys/types.h>
 
-#include <cstdint>
-
 #include "absl/base/attributes.h"
 #include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -30,11 +28,11 @@
 
 namespace sandbox2 {
 
-enum class ViolationType {
+enum ViolationType {
   // A syscall disallowed by the policy was invoked.
-  kSyscall,
+  kSyscallViolation,
   // A syscall with cpu architecture not covered by the policy was invoked.
-  kArchitectureSwitch,
+  kArchitectureSwitchViolation,
 };
 
 class Notify {
