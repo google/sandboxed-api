@@ -154,24 +154,24 @@ llvm::Error OptionsParser::init(int& argc, const char** argv,
                                 const char* overview) {
   static auto* build_path = new llvm::cl::opt<std::string>(
       "p", llvm::cl::desc("Build path"), llvm::cl::Optional,
-      llvm::cl::cat(category), llvm::cl::sub(*llvm::cl::AllSubCommands));
+      llvm::cl::cat(category), llvm::cl::sub(llvm::cl::SubCommand::getAll()));
 
   static auto* source_paths = new llvm::cl::list<std::string>(
       llvm::cl::Positional, llvm::cl::desc("<source0> [... <sourceN>]"),
       occurrences_flag, llvm::cl::cat(category),
-      llvm::cl::sub(*llvm::cl::AllSubCommands));
+      llvm::cl::sub(llvm::cl::SubCommand::getAll()));
 
   static auto* args_after = new llvm::cl::list<std::string>(
       "extra-arg",
       llvm::cl::desc(
           "Additional argument to append to the compiler command line"),
-      llvm::cl::cat(category), llvm::cl::sub(*llvm::cl::AllSubCommands));
+      llvm::cl::cat(category), llvm::cl::sub(llvm::cl::SubCommand::getAll()));
 
   static auto* args_before = new llvm::cl::list<std::string>(
       "extra-arg-before",
       llvm::cl::desc(
           "Additional argument to prepend to the compiler command line"),
-      llvm::cl::cat(category), llvm::cl::sub(*llvm::cl::AllSubCommands));
+      llvm::cl::cat(category), llvm::cl::sub(llvm::cl::SubCommand::getAll()));
 
   llvm::cl::ResetAllOptionOccurrences();
 
