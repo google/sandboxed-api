@@ -657,9 +657,8 @@ bool PtraceMonitor::InitPtraceAttach() {
 void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
   // If the sandboxing is not enabled yet, allow the first __NR_execveat.
   if (syscall.nr() == __NR_execveat && !IsActivelyMonitoring()) {
-    VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: "
-            << "SYSCALL ::: PID: " << regs->pid() << ", PROG: '"
-            << util::GetProgName(regs->pid())
+    VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: SYSCALL ::: PID: " << regs->pid()
+            << ", PROG: '" << util::GetProgName(regs->pid())
             << "' : " << syscall.GetDescription();
     ContinueProcess(regs->pid(), 0);
     return;
@@ -693,7 +692,7 @@ void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
     return;
   }
 
-  ActionProcessSyscallViolation(regs, syscall, kSyscallViolation);
+  ActionProcessSyscallViolation(regs, syscall, ViolationType::kSyscall);
 }
 
 void PtraceMonitor::ActionProcessSyscallViolation(
@@ -744,7 +743,8 @@ void PtraceMonitor::EventPtraceSeccomp(pid_t pid, int event_msg) {
   // If the architecture of the syscall used is different that the current host
   // architecture, report a violation.
   if (syscall_arch != Syscall::GetHostArch()) {
-    ActionProcessSyscallViolation(&regs, syscall, kArchitectureSwitchViolation);
+    ActionProcessSyscallViolation(&regs, syscall,
+                                  ViolationType::kArchitectureSwitch);
     return;
   }
 
@@ -861,8 +861,9 @@ void PtraceMonitor::EventPtraceExit(pid_t pid, int event_msg) {
   // Process signaled due to seccomp violation.
   if (is_seccomp) {
     VLOG(1) << "PID: " << pid << " violation uncovered via the EXIT_EVENT";
-    ActionProcessSyscallViolation(
-        regs.get(), regs->ToSyscall(Syscall::GetHostArch()), kSyscallViolation);
+    ActionProcessSyscallViolation(regs.get(),
+                                  regs->ToSyscall(Syscall::GetHostArch()),
+                                  ViolationType::kSyscall);
     return;
   }
 

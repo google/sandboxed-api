@@ -185,8 +185,8 @@ void UnotifyMonitor::HandleUnotify() {
                    req_->data.args[3], req_->data.args[4], req_->data.args[5]},
                   req_->pid, 0, req_->data.instruction_pointer);
   ViolationType violation_type = syscall.arch() == Syscall::GetHostArch()
-                                     ? kSyscallViolation
-                                     : kArchitectureSwitchViolation;
+                                     ? ViolationType::kSyscall
+                                     : ViolationType::kArchitectureSwitch;
   LogSyscallViolation(syscall);
   notify_->EventSyscallViolation(syscall, violation_type);
   MaybeGetStackTrace(req_->pid, Result::VIOLATION);

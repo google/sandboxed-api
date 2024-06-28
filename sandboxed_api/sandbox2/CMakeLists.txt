@@ -198,6 +198,7 @@ add_library(sandbox2::notify ALIAS sandbox2_notify)
 target_link_libraries(sandbox2_notify
   PUBLIC absl::core_headers
          absl::log
+         absl::str_format
          sandbox2::comms
          sandbox2::result
          sandbox2::syscall

@@ -19,8 +19,11 @@
 
 #include <sys/types.h>
 
+#include <cstdint>
+
 #include "absl/base/attributes.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/syscall.h"
@@ -28,12 +31,19 @@
 
 namespace sandbox2 {
 
-enum ViolationType {
+enum class ViolationType : int {
   // A syscall disallowed by the policy was invoked.
-  kSyscallViolation,
+  kSyscall,
   // A syscall with cpu architecture not covered by the policy was invoked.
-  kArchitectureSwitchViolation,
+  kArchitectureSwitch,
 };
+
+template <typename Sink>
+void AbslStringify(Sink& sink, ViolationType e) {
+  absl::Format(
+      &sink, "%s",
+      e == ViolationType::kSyscall ? "kSyscall" : "kArchitectureSwitch");
+}
 
 class Notify {
  public:
