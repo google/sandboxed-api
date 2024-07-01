@@ -374,6 +374,7 @@ class PolicyBuilder final {
   // Appends code to allow changing file timestamps.
   // Allows these syscalls:
   // - futimens
+  // - futimesat
   // - utime
   // - utimensat
   // - utimes

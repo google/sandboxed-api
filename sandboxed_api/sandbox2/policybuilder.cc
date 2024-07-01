@@ -705,6 +705,9 @@ PolicyBuilder& PolicyBuilder::AllowUtime() {
 #ifdef __NR_futimens
       __NR_futimens,
 #endif
+#ifdef __NR_futimesat
+      __NR_futimesat,
+#endif
 #ifdef __NR_utime
       __NR_utime,
 #endif
