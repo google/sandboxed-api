@@ -20,7 +20,9 @@
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"  // sapi::google3-only(internal feature only)
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"  // sapi::google3-only(internal feature only)
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Tooling.h"
@@ -29,6 +31,7 @@
 #include "sandboxed_api/tools/clang_generator/compilation_database.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/safe_replacement_emitter.h"  // sapi::google3-only(internal feature only)
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -44,8 +47,8 @@ static auto* g_common_help =
     new llvm::cl::extrahelp(clang::tooling::CommonOptionsParser::HelpMessage);
 static auto* g_extra_help = new llvm::cl::extrahelp(
     "Full documentation at: "
-    "https://developers.google.com/code-sandboxing/sandboxed-api\n"
-    "Report bugs to https://github.com/google/sandboxed-api/issues\n");
+    "<https://developers.google.com/code-sandboxing/sandboxed-api>\n"
+    "Report bugs to <https://github.com/google/sandboxed-api/issues>\n");
 
 // Command line options
 static auto* g_sapi_embed_dir = new llvm::cl::opt<std::string>(
@@ -87,10 +90,20 @@ static auto* g_sapi_out = new llvm::cl::opt<std::string>(
         "Output path of the generated header. If empty, simply appends .sapi.h "
         "to the basename of the first source file specified."),
     llvm::cl::cat(*g_tool_category));
+// sapi::google3-begin(internal feature only)
+static auto* g_safe_wrapper_gen = new llvm::cl::opt<bool>(
+    "safe_wrapper_gen",
+    llvm::cl::desc("Whether to generate a safe drop-in replacement library."),
+    llvm::cl::cat(*g_tool_category));
+static auto* g_force_safe_wrapper = new llvm::cl::opt<bool>(
+    "force_safe_wrapper",
+    llvm::cl::desc("Whether to overwrite an existing safe drop-in "
+                   "replacement library in the active workspace."),
+    llvm::cl::cat(*g_tool_category));
+// sapi::google3-end
 
 }  // namespace
 
-// Returns a GeneratorOptions object based on the command-line flags.
 GeneratorOptions GeneratorOptionsFromFlags(
     const std::vector<std::string>& sources) {
   GeneratorOptions options;
@@ -110,6 +123,10 @@ GeneratorOptions GeneratorOptionsFromFlags(
       !g_sapi_out->empty() ? *g_sapi_out : GetOutputFilename(sources.front());
   options.embed_dir = *g_sapi_embed_dir;
   options.embed_name = *g_sapi_embed_name;
+  // sapi::google3-begin(internal feature only)
+  options.safe_wrapper_gen = *g_safe_wrapper_gen;
+  options.force_safe_wrapper = *g_force_safe_wrapper;
+  // sapi::google3-end
   return options;
 }
 
@@ -132,7 +149,6 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
   }
 
   auto options = sapi::GeneratorOptionsFromFlags(sources);
-  sapi::Emitter emitter;
 
   std::unique_ptr<clang::tooling::CompilationDatabase> db =
       FromCxxAjustedCompileCommands(
@@ -145,6 +161,52 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
         "Note: Ignoring deprecated command-line option: sapi_isystem\n");
   }
 
+  // sapi::google3-begin(internal feature only)
+  // Process safe drop-in generation.
+  if (options.safe_wrapper_gen) {
+    sapi::SafeReplacementEmitter safe_emitter;
+    std::string base_file_path = file::JoinPath(
+        options.embed_dir,
+        StringReplace(options.embed_name, "sandboxed_", "safe_", false));
+    std::string safe_wrapper_header_path = absl::StrCat(base_file_path, ".h");
+    std::string safe_wrapper_implementation_path =
+        absl::StrCat(base_file_path, ".cc");
+
+    if (sapi::file_util::fileops::Exists(safe_wrapper_header_path,
+                                         /*fully_resolve=*/true) ||
+        sapi::file_util::fileops::Exists(safe_wrapper_implementation_path,
+                                         /*fully_resolve=*/true)) {
+      if (!options.force_safe_wrapper) {
+        return absl::UnknownError(
+            "Error: Safe drop-in replacement library already exists. To "
+            "overwrite it, use the --force_safe_wrapper option.");
+      }
+    }
+
+    if (int result = tool.run(
+            std::make_unique<sapi::GeneratorFactory>(safe_emitter, options)
+                .get());
+        result != 0) {
+      return absl::UnknownError("Error: Header generation failed.");
+    }
+
+    SAPI_ASSIGN_OR_RETURN(std::string safe_wrapper_header,
+                          safe_emitter.EmitSafeDropInHeader(options));
+    SAPI_RETURN_IF_ERROR(sapi::file::SetContents(
+        safe_wrapper_header_path, safe_wrapper_header, sapi::file::Defaults()));
+
+    SAPI_ASSIGN_OR_RETURN(std::string safe_wrapper_implementation,
+                          safe_emitter.EmitSafeDropInImplementation(options));
+    SAPI_RETURN_IF_ERROR(sapi::file::SetContents(
+        safe_wrapper_implementation_path, safe_wrapper_implementation,
+        sapi::file::Defaults()));
+
+    return absl::OkStatus();
+  }
+  // sapi::google3-end
+
+  // Process SAPI header generation.
+  sapi::Emitter emitter;
   if (int result = tool.run(
           std::make_unique<sapi::GeneratorFactory>(emitter, options).get());
       result != 0) {

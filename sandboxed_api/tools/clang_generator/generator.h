@@ -64,6 +64,10 @@ struct GeneratorOptions {
   absl::flat_hash_set<std::string> function_names;
   absl::flat_hash_set<std::string> in_files;
   bool limit_scan_depth = false;
+  // sapi::google3-begin(internal feature only)
+  bool safe_wrapper_gen = false;
+  bool force_safe_wrapper = false;
+  // sapi::google3-end
 
   // Output options
   std::string work_dir;

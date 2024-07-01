@@ -341,4 +341,36 @@ std::string MapQualTypeReturn(const clang::ASTContext& context,
       ">");
 }
 
+// sapi::google3-begin(internal feature only)
+std::string MapQualTypeSapiVariable(const clang::ASTContext& context,
+                                    clang::QualType qual) {
+  // For pointers, we need to get the pointee type.
+  if (IsPointerOrReference(qual)) {
+    const clang::PointerType& ptr_type = *qual->getAs<clang::PointerType>();
+    // We only extract the pointee type if it is a builtin type and not a char.
+    if (clang::QualType pointee_type = ptr_type.getPointeeType();
+        pointee_type->isBuiltinType() && !pointee_type->isCharType()) {
+      return MapQualType(context, pointee_type);
+    }
+  }
+  // The parameter is not a pointer, return the original type.
+  return MapQualTypeParameterForCxx(context, qual);
+}
+
+std::string MapQualTypeSapiBufferVariable(const clang::ASTContext& context,
+                                          clang::QualType qual) {
+  // For pointers, we need to get the pointee type.
+  if (IsPointerOrReference(qual)) {
+    const clang::PointerType& ptr_type = *qual->getAs<clang::PointerType>();
+    // We only extract the pointee type if it is a builtin type and not a char.
+    if (clang::QualType pointee_type = ptr_type.getPointeeType();
+        pointee_type->isBuiltinType() && pointee_type->isCharType()) {
+      return absl::StrCat("sapi::v::Array<", pointee_type.getAsString(), ">");
+    }
+  }
+  // The parameter is not a pointer, return the original type.
+  return MapQualTypeParameterForCxx(context, qual);
+}
+// sapi::google3-end
+
 }  // namespace sapi
