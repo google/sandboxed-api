@@ -525,6 +525,69 @@ bool PtraceMonitor::InitSetupSignals() {
   return true;
 }
 
+absl::Status TryAttach(const absl::flat_hash_set<int>& tasks,
+                       absl::Time deadline,
+                       absl::flat_hash_set<int>& tasks_attached) {
+  constexpr intptr_t kPtraceOptions =
+      PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
+      PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC |
+      PTRACE_O_TRACEEXIT | PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL;
+  auto format_ptrace_error = [](int task, absl::string_view message) {
+    return absl::StrCat("ptrace(PTRACE_SEIZE, ", task, ", ", "0x",
+                        absl::Hex(kPtraceOptions), " ", message);
+  };
+
+  absl::flat_hash_set<int> cur_tasks = tasks;
+  int retries = 0;
+
+  // In some situations we allow ptrace to try again when it fails.
+  while (!cur_tasks.empty()) {
+    absl::flat_hash_set<int> retry_tasks;
+    for (int task : cur_tasks) {
+      if (tasks_attached.contains(task)) {
+        continue;
+      }
+      int ret = ptrace(PTRACE_SEIZE, task, 0, kPtraceOptions);
+      if (ret != 0) {
+        if (errno == EPERM) {
+          // Sometimes when a task is exiting we can get an EPERM from ptrace.
+          // Let's try again up until the timeout in this situation.
+          PLOG(WARNING) << format_ptrace_error(task, "trying again...");
+          retry_tasks.insert(task);
+          continue;
+        }
+        if (errno == ESRCH) {
+          // A task may have exited since we captured the task list, we will
+          // allow things to continue after we log a warning.
+          PLOG(WARNING) << format_ptrace_error(
+              task, "skipping exited task. Continuing with other tasks.");
+          continue;
+        }
+        // Any other errno will be considered a failure.
+        return absl::ErrnoToStatus(errno, format_ptrace_error(task, "failed"));
+      }
+      tasks_attached.insert(task);
+    }
+    if (!retry_tasks.empty()) {
+      if (absl::Now() >= deadline) {
+        return absl::DeadlineExceededError(absl::StrCat(
+            "Attaching to sandboxee timed out: could not attach to ",
+            cur_tasks.size(), " tasks"));
+      }
+      // Exponential Backoff.
+      constexpr absl::Duration kInitialRetry = absl::Milliseconds(1);
+      constexpr absl::Duration kMaxRetry = absl::Milliseconds(20);
+      const absl::Duration retry_interval =
+          kInitialRetry * (1 << std::min(10, retries++));
+      absl::SleepFor(
+          std::min({retry_interval, kMaxRetry, deadline - absl::Now()}));
+    }
+    cur_tasks = std::move(retry_tasks);
+  }
+
+  return absl::OkStatus();
+}
+
 bool PtraceMonitor::InitPtraceAttach() {
   if (process_.init_pid > 0) {
     if (ptrace(PTRACE_SEIZE, process_.init_pid, 0, PTRACE_O_EXITKILL) != 0) {
@@ -536,102 +599,57 @@ bool PtraceMonitor::InitPtraceAttach() {
   }
 
   // Get a list of tasks.
-  absl::flat_hash_set<int> tasks;
-  if (auto task_list = sanitizer::GetListOfTasks(process_.main_pid);
-      task_list.ok()) {
-    tasks = *std::move(task_list);
-  } else {
-    LOG(ERROR) << "Could not get list of tasks: "
-               << task_list.status().message();
+  absl::StatusOr<absl::flat_hash_set<int>> tasks =
+      sanitizer::GetListOfTasks(process_.main_pid);
+  if (!tasks.ok()) {
+    LOG(ERROR) << "Could not get list of tasks: " << tasks.status().message();
     return false;
   }
 
-  if (tasks.find(process_.main_pid) == tasks.end()) {
+  if (!tasks->contains(process_.main_pid)) {
     LOG(ERROR) << "The pid " << process_.main_pid
                << " was not found in its own tasklist.";
     return false;
   }
 
   // With TSYNC, we can allow threads: seccomp applies to all threads.
-  if (tasks.size() > 1) {
-    LOG(WARNING) << "PID " << process_.main_pid << " has " << tasks.size()
-                 << " threads,"
-                 << " at the time of call to SandboxMeHere. If you are seeing"
-                 << " more sandbox violations than expected, this might be"
-                 << " the reason why"
+  if (tasks->size() > 1) {
+    LOG(WARNING) << "PID " << process_.main_pid << " has " << tasks->size()
+                 << " threads, at the time of call to SandboxMeHere(). If you "
+                    "are seeing more sandbox violations than expected, this "
+                    "might be the reason why"
                  << ".";
   }
 
   absl::flat_hash_set<int> tasks_attached;
-  int retries = 0;
-  absl::Time deadline = absl::Now() + absl::Seconds(2);
+  absl::Time deadline = absl::Now() + absl::Seconds(4);
 
-  // In some situations we allow ptrace to try again when it fails.
-  while (!tasks.empty()) {
-    absl::flat_hash_set<int> tasks_left;
-    for (int task : tasks) {
-      constexpr intptr_t options =
-          PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
-          PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC |
-          PTRACE_O_TRACEEXIT | PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL;
-      int ret = ptrace(PTRACE_SEIZE, task, 0, options);
-      if (ret != 0) {
-        if (errno == EPERM) {
-          // Sometimes when a task is exiting we can get an EPERM from ptrace.
-          // Let's try again up until the timeout in this situation.
-          PLOG(WARNING) << "ptrace(PTRACE_SEIZE, " << task << ", "
-                        << absl::StrCat("0x", absl::Hex(options))
-                        << "), trying again...";
-          tasks_left.insert(task);
-          continue;
-        }
-        if (errno == ESRCH) {
-          // A task may have exited since we captured the task list, we will
-          // allow things to continue after we log a warning.
-          PLOG(WARNING)
-              << "ptrace(PTRACE_SEIZE, " << task << ", "
-              << absl::StrCat("0x", absl::Hex(options))
-              << ") skipping exited task. Continuing with other tasks.";
-          continue;
-        }
-        // Any other errno will be considered a failure.
-        PLOG(ERROR) << "ptrace(PTRACE_SEIZE, " << task << ", "
-                    << absl::StrCat("0x", absl::Hex(options)) << ") failed.";
-        return false;
-      }
-      tasks_attached.insert(task);
+  constexpr int kMaxRetries = 3;
+  for (int retries = 0; retries < kMaxRetries && *tasks != tasks_attached;
+       ++retries) {
+    if (retries > 0) {
+      LOG(ERROR) << "PID " << process_.main_pid
+                 << " spawned new threads while we were trying to attach to it "
+                    "(attempt "
+                 << retries << "/" << kMaxRetries << ")";
     }
-    if (!tasks_left.empty()) {
-      if (absl::Now() < deadline) {
-        LOG(ERROR) << "Attaching to sandboxee timed out: could not attach to "
-                   << tasks_left.size() << " tasks";
-        return false;
-      }
-      // Exponential Backoff.
-      constexpr absl::Duration kInitialRetry = absl::Milliseconds(1);
-      constexpr absl::Duration kMaxRetry = absl::Milliseconds(20);
-      const absl::Duration retry_interval =
-          kInitialRetry * (1 << std::min(10, retries++));
-      absl::SleepFor(
-          std::min({retry_interval, kMaxRetry, deadline - absl::Now()}));
+    if (absl::Status status = TryAttach(*tasks, deadline, tasks_attached);
+        !status.ok()) {
+      LOG(ERROR) << status.message();
+      return false;
     }
-    tasks = std::move(tasks_left);
-  }
 
-  // Get a list of tasks after attaching.
-  if (auto tasks_list = sanitizer::GetListOfTasks(process_.main_pid);
-      tasks_list.ok()) {
-    tasks = *std::move(tasks_list);
-  } else {
-    LOG(ERROR) << "Could not get list of tasks: "
-               << tasks_list.status().message();
-    return false;
+    // Get a list of tasks after attaching.
+    tasks = sanitizer::GetListOfTasks(process_.main_pid);
+    if (!tasks.ok()) {
+      LOG(ERROR) << "Could not get list of tasks: " << tasks.status().message();
+      return false;
+    }
   }
-
-  // Check that we attached to all the threads
-  if (tasks_attached != tasks) {
-    LOG(ERROR) << "The pid " << process_.main_pid
-               << " spawned new threads while we were trying to attach to it.";
+  if (*tasks != tasks_attached) {
+    LOG(ERROR) << "PID " << process_.main_pid
+               << " spawned new threads while we were trying to attach to it "
+                  "(retries exhausted)";
     return false;
   }
 
@@ -657,8 +675,8 @@ bool PtraceMonitor::InitPtraceAttach() {
 void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
   // If the sandboxing is not enabled yet, allow the first __NR_execveat.
   if (syscall.nr() == __NR_execveat && !IsActivelyMonitoring()) {
-    VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: SYSCALL ::: PID: " << regs->pid()
-            << ", PROG: '" << util::GetProgName(regs->pid())
+    VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: " << "SYSCALL ::: PID: "
+            << regs->pid() << ", PROG: '" << util::GetProgName(regs->pid())
             << "' : " << syscall.GetDescription();
     ContinueProcess(regs->pid(), 0);
     return;
