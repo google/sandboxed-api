@@ -124,6 +124,7 @@ add_executable(sapi_generator_tool
 )
 target_link_libraries(sapi_generator_tool PRIVATE
   absl::base
+  absl::no_destructor
   absl::status
   absl::strings
   sapi::base

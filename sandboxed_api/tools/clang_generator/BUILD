@@ -110,6 +110,7 @@ cc_binary(
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
