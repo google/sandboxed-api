@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/tools/clang_generator/types.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
