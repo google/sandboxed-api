@@ -95,25 +95,6 @@ std::string MapQualTypeParameter(const clang::ASTContext& context,
 std::string MapQualTypeReturn(const clang::ASTContext& context,
                               clang::QualType qual);
 
-// sapi::google3-begin(internal feature only)
-// Maps, if possible, a qualified type to a fully qualified SAPI-compatible
-// variable type by calling MapyQualType. Whenever this is not possible, the
-// function maps to a fully qualified C++ type name by calling
-// MapQualTypeParameterForCxx.
-// Important: This function should only be used for the safe drop-in replacement
-// generator.
-std::string MapQualTypeSapiVariable(const clang::ASTContext& context,
-                                    clang::QualType qual);
-
-// Maps, if possible, a qualified type to a `sapi::v::Array<T>` variable type
-// Whenever this is not possible, the function maps to a fully qualified C++
-// type name by calling MapQualTypeParameterForCxx.
-// Important: This function should only be used for the safe drop-in replacement
-// generator.
-std::string MapQualTypeSapiBufferVariable(const clang::ASTContext& context,
-                                          clang::QualType qual);
-// sapi::google3-end
-
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_TOOLS_CLANG_GENERATOR_TYPES_H_

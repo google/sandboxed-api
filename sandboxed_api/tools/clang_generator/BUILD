@@ -23,9 +23,6 @@ cc_library(
         "emitter.cc",
         "emitter_base.cc",
         "generator.cc",
-        # sapi::google3-begin(internal feature only)
-        "safe_replacement_emitter.cc",
-        # sapi::google3-end
         "types.cc",
     ],
     hdrs = [
@@ -33,9 +30,6 @@ cc_library(
         "emitter.h",
         "emitter_base.h",
         "generator.h",
-        # sapi::google3-begin(internal feature only)
-        "safe_replacement_emitter.h",
-        # sapi::google3-end
         "types.h",
     ],
     copts = sapi_platform_copts(),
@@ -71,9 +65,6 @@ cc_test(
         "emitter_test.cc",
         "frontend_action_test_util.cc",
         "frontend_action_test_util.h",
-        # sapi::google3-begin(internal feature only)
-        "safe_replacement_emitter_test.cc",
-        # sapi::google3-end
     ],
     copts = sapi_platform_copts(),
     deps = [
@@ -117,5 +108,6 @@ cc_binary(
         "@llvm-project//clang:driver",
         "@llvm-project//clang:tooling",
         "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:config",
     ],
 )

@@ -61,7 +61,6 @@ using ::testing::Matcher;
 using ::testing::Ne;
 using ::testing::SizeIs;
 using ::testing::StartsWith;
-using ::testing::StrEq;  // sapi::google3-only(broken matchers)
 
 std::string GetTestcaseBinPath(absl::string_view bin_name) {
   return GetTestSourcePath(absl::StrCat("sandbox2/testcases/", bin_name));
