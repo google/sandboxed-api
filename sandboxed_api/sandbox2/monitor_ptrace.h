@@ -118,11 +118,11 @@ class PtraceMonitor : public MonitorBase {
   void EventSyscallExit(pid_t pid);
 
   // Kills the main traced PID with PTRACE_KILL.
-  // Returns false if an error occured and process could not be killed.
+  // Returns false if an error occurred and process could not be killed.
   bool KillSandboxee();
 
   // Interrupts the main traced PID with PTRACE_INTERRUPT.
-  // Returns false if an error occured and process could not be interrupted.
+  // Returns false if an error occurred and process could not be interrupted.
   bool InterruptSandboxee();
 
   // Sets up required signal masks/handlers; prepare mask for sigtimedwait().
