@@ -26,12 +26,21 @@
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace sapi {
+
+static llvm::cl::SubCommand& GetAllSubCommands() {
+#if LLVM_VERSION_MAJOR >= 15
+  return llvm::cl::SubCommand::getAll();
+#else
+  return *llvm::cl::AllSubCommands;
+#endif
+}
 
 class WrappingCompilationDatabase : public clang::tooling::CompilationDatabase {
  public:
@@ -154,24 +163,24 @@ llvm::Error OptionsParser::init(int& argc, const char** argv,
                                 const char* overview) {
   static auto* build_path = new llvm::cl::opt<std::string>(
       "p", llvm::cl::desc("Build path"), llvm::cl::Optional,
-      llvm::cl::cat(category), llvm::cl::sub(llvm::cl::SubCommand::getAll()));
+      llvm::cl::cat(category), llvm::cl::sub(GetAllSubCommands()));
 
   static auto* source_paths = new llvm::cl::list<std::string>(
       llvm::cl::Positional, llvm::cl::desc("<source0> [... <sourceN>]"),
       occurrences_flag, llvm::cl::cat(category),
-      llvm::cl::sub(llvm::cl::SubCommand::getAll()));
+      llvm::cl::sub(GetAllSubCommands()));
 
   static auto* args_after = new llvm::cl::list<std::string>(
       "extra-arg",
       llvm::cl::desc(
           "Additional argument to append to the compiler command line"),
-      llvm::cl::cat(category), llvm::cl::sub(llvm::cl::SubCommand::getAll()));
+      llvm::cl::cat(category), llvm::cl::sub(GetAllSubCommands()));
 
   static auto* args_before = new llvm::cl::list<std::string>(
       "extra-arg-before",
       llvm::cl::desc(
           "Additional argument to prepend to the compiler command line"),
-      llvm::cl::cat(category), llvm::cl::sub(llvm::cl::SubCommand::getAll()));
+      llvm::cl::cat(category), llvm::cl::sub(GetAllSubCommands()));
 
   llvm::cl::ResetAllOptionOccurrences();
 
