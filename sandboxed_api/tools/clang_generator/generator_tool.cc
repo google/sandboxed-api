@@ -52,40 +52,44 @@ absl::NoDestructor<llvm::cl::extrahelp> g_extra_help(
 absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_embed_dir(
     "sapi_embed_dir", llvm::cl::desc("Directory with embedded includes"),
     llvm::cl::cat(*g_tool_category));
+
 absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_embed_name(
     "sapi_embed_name", llvm::cl::desc("Identifier of the embed object"),
     llvm::cl::cat(*g_tool_category));
-absl::NoDestructor<llvm::cl::list<std::string>> g_sapi_functions(
 
+absl::NoDestructor<llvm::cl::list<std::string>> g_sapi_functions(
     "sapi_functions", llvm::cl::CommaSeparated,
     llvm::cl::desc("List of functions to generate a Sandboxed API for. If "
                    "empty, generates a SAPI for all functions found."),
     llvm::cl::cat(*g_tool_category));
+
 ABSL_DEPRECATED("Pass the input files directly to the tool.")
 absl::NoDestructor<llvm::cl::list<std::string>> g_sapi_in(
-
     "sapi_in", llvm::cl::CommaSeparated,
     llvm::cl::desc("List of input files to analyze (DEPRECATED)"),
     llvm::cl::cat(*g_tool_category));
+
 ABSL_DEPRECATED("Ignored for compatibility.")
 absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_isystem(
-
     "sapi_isystem",
     llvm::cl::desc(
         "Parameter file with extra system include paths (DEPRECATED)"),
     llvm::cl::cat(*g_tool_category));
+
 absl::NoDestructor<llvm::cl::opt<bool>> g_sapi_limit_scan_depth(
     "sapi_limit_scan_depth",
     llvm::cl::desc("Whether to only scan for functions "
                    "in the top-most translation unit"),
     llvm::cl::cat(*g_tool_category));
-absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_name(
 
+absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_name(
     "sapi_name", llvm::cl::desc("Name of the Sandboxed API library"),
     llvm::cl::cat(*g_tool_category));
+
 absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_ns(
     "sapi_ns", llvm::cl::desc("C++ namespace to wrap Sandboxed API class in"),
     llvm::cl::cat(*g_tool_category));
+
 absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_out(
     "sapi_out",
     llvm::cl::desc("Output path of the generated header. If empty, simply "
@@ -141,7 +145,7 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
           NonOwningCompileCommands(opt_parser.getCompilations()));
   clang::tooling::ClangTool tool(*db, sources);
 
-  if (!g_sapi_isystem->empty()) {
+  if (!g_sapi_isystem->empty()) {  // NOLINT(deprecated)
     absl::FPrintF(
         stderr,
         "Note: Ignoring deprecated command-line option: sapi_isystem\n");
