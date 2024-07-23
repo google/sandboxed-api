@@ -153,6 +153,33 @@ bool GeneratorFactory::runInvocation(
            // properly.
            // Note: The definitions below just need to parse, they don't need to
            //       compile into useful code.
+           // 3DNow!
+           "__builtin_ia32_femms=[](){}",
+           "__builtin_ia32_pavgusb=",
+           "__builtin_ia32_pf2id=",
+           "__builtin_ia32_pfacc=",
+           "__builtin_ia32_pfadd=",
+           "__builtin_ia32_pfcmpeq=",
+           "__builtin_ia32_pfcmpge=",
+           "__builtin_ia32_pfcmpgt=",
+           "__builtin_ia32_pfmax=",
+           "__builtin_ia32_pfmin=",
+           "__builtin_ia32_pfmul=",
+           "__builtin_ia32_pfrcp=",
+           "__builtin_ia32_pfrcpit1=",
+           "__builtin_ia32_pfrcpit2=",
+           "__builtin_ia32_pfrsqrt=",
+           "__builtin_ia32_pfrsqit1=",
+           "__builtin_ia32_pfsub=",
+           "__builtin_ia32_pfsubr=",
+           "__builtin_ia32_pi2fd=",
+           "__builtin_ia32_pmulhrw=",
+           "__builtin_ia32_pf2iw=",
+           "__builtin_ia32_pfnacc=",
+           "__builtin_ia32_pfpnacc=",
+           "__builtin_ia32_pi2fw=",
+           "__builtin_ia32_pswapdsf=",
+           "__builtin_ia32_pswapdsi=",
            // Intel
            "__builtin_ia32_cvtsbf162ss_32=[](auto)->long long{return 0;}",
            "__builtin_ia32_paddsb128=",
