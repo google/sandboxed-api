@@ -104,6 +104,8 @@ class Policy final {
   bool collect_stacktrace_on_kill_ = true;
   bool collect_stacktrace_on_exit_ = false;
 
+  bool allow_speculation_ = false;
+
   // Optional pointer to a PolicyBuilder description pb object.
   std::optional<PolicyBuilderDescription> policy_builder_description_;
 

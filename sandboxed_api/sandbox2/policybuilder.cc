@@ -56,6 +56,7 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
+#include "sandboxed_api/sandbox2/allow_seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
@@ -123,9 +124,14 @@ bool IsOnReadOnlyDev(const std::string& path) {
 
 }  // namespace
 
-PolicyBuilder& PolicyBuilder::Allow(UnrestrictedNetworking tag) {
+PolicyBuilder& PolicyBuilder::Allow(UnrestrictedNetworking) {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
   allow_unrestricted_networking_ = true;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::Allow(SeccompSpeculation) {
+  allow_speculation_ = true;
   return *this;
 }
 
@@ -1421,7 +1427,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   }
 
   // Using `new` to access a non-public constructor.
-  auto output = absl::WrapUnique(new Policy());
+  auto policy = absl::WrapUnique(new Policy());
 
   if (already_built_) {
     return absl::FailedPreconditionError("Can only build policy once.");
@@ -1432,33 +1438,34 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    output->namespace_ =
+    policy->namespace_ =
         Namespace(allow_unrestricted_networking_, std::move(mounts_), hostname_,
                   allow_mount_propagation_);
   }
 
-  output->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
-  output->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;
-  output->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;
-  output->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
-  output->collect_stacktrace_on_exit_ = collect_stacktrace_on_exit_;
-  output->user_policy_ = std::move(user_policy_);
+  policy->allow_speculation_ = allow_speculation_;
+  policy->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
+  policy->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;
+  policy->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;
+  policy->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
+  policy->collect_stacktrace_on_exit_ = collect_stacktrace_on_exit_;
+  policy->user_policy_ = std::move(user_policy_);
   if (default_action_) {
-    output->user_policy_.push_back(*default_action_);
+    policy->user_policy_.push_back(*default_action_);
   }
-  output->user_policy_.insert(output->user_policy_.end(),
+  policy->user_policy_.insert(policy->user_policy_.end(),
                               overridable_policy_.begin(),
                               overridable_policy_.end());
-  output->user_policy_handles_bpf_ = user_policy_handles_bpf_;
-  output->user_policy_handles_ptrace_ = user_policy_handles_ptrace_;
+  policy->user_policy_handles_bpf_ = user_policy_handles_bpf_;
+  policy->user_policy_handles_ptrace_ = user_policy_handles_ptrace_;
 
   PolicyBuilderDescription pb_description;
 
   StoreDescription(&pb_description);
-  output->policy_builder_description_ = pb_description;
-  output->allowed_hosts_ = std::move(allowed_hosts_);
+  policy->policy_builder_description_ = pb_description;
+  policy->allowed_hosts_ = std::move(allowed_hosts_);
   already_built_ = true;
-  return std::move(output);
+  return std::move(policy);
 }
 
 PolicyBuilder& PolicyBuilder::AddFile(absl::string_view path, bool is_ro) {

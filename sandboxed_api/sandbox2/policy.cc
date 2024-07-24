@@ -24,6 +24,7 @@
 #include <sched.h>
 #include <syscall.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -80,7 +81,7 @@ std::vector<sock_filter> Policy::GetPolicy(bool user_notif) const {
   // 3. Finish with default KILL action.
   policy.push_back(KILL);
 
-  // In seccomp_unotify mode replace all KILLS with unotify
+  // In seccomp_unotify mode replace all KILLs with unotify
   if (user_notif) {
     for (sock_filter& filter : policy) {
       if (filter.code == BPF_RET + BPF_K && filter.k == SECCOMP_RET_KILL) {
@@ -130,31 +131,32 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
     };
   } else {
     policy = {
-      // If compiled arch is different from the runtime one, inform the Monitor.
-      LOAD_ARCH,
-      JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
+        // If compiled arch is different from the runtime one, inform the
+        // Monitor.
+        LOAD_ARCH,
+        JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
 #if defined(SAPI_X86_64)
-      JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),  // 32-bit sandboxee
+        JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),  // 32-bit sandboxee
 #endif
-      TRACE(sapi::cpu::kUnknown),
-      LABEL(&l, past_arch_check_l),
+        TRACE(sapi::cpu::kUnknown),
+        LABEL(&l, past_arch_check_l),
 
-      // After the policy is uploaded, forkserver will execve the sandboxee. We
-      // need to allow this execve but not others. Since BPF does not have
-      // state, we need to inform the Monitor to decide, and for that we use a
-      // magic value in syscall args 5. Note that this value is not supposed to
-      // be secret, but just an optimization so that the monitor is not
-      // triggered on every call to execveat.
-      LOAD_SYSCALL_NR,
-      JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
-      ARG_32(4),
-      JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
-      ARG_32(5),
-      JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
-      SANDBOX2_TRACE,
-      LABEL(&l, past_execveat_l),
+        // After the policy is uploaded, forkserver will execve the sandboxee.
+        // We need to allow this execve but not others. Since BPF does not have
+        // state, we need to inform the Monitor to decide, and for that we use a
+        // magic value in syscall args 5. Note that this value is not supposed
+        // to be secret, but just an optimization so that the monitor is not
+        // triggered on every call to execveat.
+        LOAD_SYSCALL_NR,
+        JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
+        ARG_32(4),
+        JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
+        ARG_32(5),
+        JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
+        SANDBOX2_TRACE,
+        LABEL(&l, past_execveat_l),
 
-      LOAD_SYSCALL_NR,
+        LOAD_SYSCALL_NR,
     };
   }
 
@@ -223,30 +225,28 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
 
 std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   return {
-    LOAD_ARCH,
+      LOAD_ARCH,
 #if defined(SAPI_X86_64)
-        JEQ32(AUDIT_ARCH_X86_64, TRACE(sapi::cpu::kX8664)),
-        JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),
+      JEQ32(AUDIT_ARCH_X86_64, TRACE(sapi::cpu::kX8664)),
+      JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),
 #elif defined(SAPI_PPC64_LE)
-        JEQ32(AUDIT_ARCH_PPC64LE, TRACE(sapi::cpu::kPPC64LE)),
+      JEQ32(AUDIT_ARCH_PPC64LE, TRACE(sapi::cpu::kPPC64LE)),
 #elif defined(SAPI_ARM64)
-        JEQ32(AUDIT_ARCH_AARCH64, TRACE(sapi::cpu::kArm64)),
+      JEQ32(AUDIT_ARCH_AARCH64, TRACE(sapi::cpu::kArm64)),
 #elif defined(SAPI_ARM)
-        JEQ32(AUDIT_ARCH_ARM, TRACE(sapi::cpu::kArm)),
+      JEQ32(AUDIT_ARCH_ARM, TRACE(sapi::cpu::kArm)),
 #endif
-        TRACE(sapi::cpu::kUnknown),
+      TRACE(sapi::cpu::kUnknown),
   };
 }
 
 bool Policy::SendPolicy(Comms* comms, bool user_notif) const {
   auto policy = GetPolicy(user_notif);
-  if (!comms->SendBytes(
-          reinterpret_cast<uint8_t*>(policy.data()),
-          static_cast<uint64_t>(policy.size()) * sizeof(sock_filter))) {
+  if (!comms->SendBytes(reinterpret_cast<uint8_t*>(policy.data()),
+                        policy.size() * sizeof(sock_filter))) {
     LOG(ERROR) << "Couldn't send policy";
     return false;
   }
-
   return true;
 }
 

@@ -206,8 +206,8 @@ void MonitorBase::Launch() {
 
   // Get PID of the sandboxee.
   bool should_have_init = ns && (ns->clone_flags() & CLONE_NEWPID);
-  absl::StatusOr<SandboxeeProcess> process =
-      executor_->StartSubProcess(clone_flags, ns, type_);
+  absl::StatusOr<SandboxeeProcess> process = executor_->StartSubProcess(
+      clone_flags, ns, policy_->allow_speculation_, type_);
 
   if (!process.ok()) {
     LOG(ERROR) << "Starting sandboxed subprocess failed: " << process.status();
@@ -333,13 +333,13 @@ bool MonitorBase::InitApplyLimits() {
 bool MonitorBase::InitSendIPC() { return ipc_->SendFdsOverComms(); }
 
 bool MonitorBase::WaitForSandboxReady() {
-  uint32_t tmp;
-  if (!comms_->RecvUint32(&tmp)) {
+  uint32_t message;
+  if (!comms_->RecvUint32(&message)) {
     LOG(ERROR) << "Couldn't receive 'Client::kClient2SandboxReady' message";
     return false;
   }
-  if (tmp != Client::kClient2SandboxReady) {
-    LOG(ERROR) << "Received " << tmp << " != Client::kClient2SandboxReady ("
+  if (message != Client::kClient2SandboxReady) {
+    LOG(ERROR) << "Received " << message << " != Client::kClient2SandboxReady ("
                << Client::kClient2SandboxReady << ")";
     return false;
   }

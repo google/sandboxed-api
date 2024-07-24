@@ -46,6 +46,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/logsink.h"
+#include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
@@ -59,7 +61,8 @@
 namespace sandbox2 {
 namespace {
 
-void InitSeccompUnotify(sock_fprog prog, Comms* comms) {
+void InitSeccompUnotify(sock_fprog prog, Comms* comms,
+                        uint32_t seccomp_extra_flags) {
   // The policy might not allow sending the notify FD.
   // Create a separate thread that won't get the seccomp policy to send the FD.
   // Synchronize with it using plain atomics + seccomp TSYNC, so we don't need
@@ -108,17 +111,18 @@ void InitSeccompUnotify(sock_fprog prog, Comms* comms) {
   prog.len = ABSL_ARRAYSIZE(code);
   prog.filter = code;
   do {
-    result = syscall(
-        __NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC,
-        reinterpret_cast<uintptr_t>(&prog), internal::kExecveMagic);
+    result =
+        syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
+                SECCOMP_FILTER_FLAG_TSYNC | seccomp_extra_flags,
+                reinterpret_cast<uintptr_t>(&prog), internal::kExecveMagic);
   } while (result == child);
   SAPI_RAW_CHECK(result == 0, "Enabling seccomp filter");
 }
 
-void InitSeccompRegular(sock_fprog prog) {
-  int result =
-      syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC,
-              reinterpret_cast<uintptr_t>(&prog));
+void InitSeccompRegular(sock_fprog prog, uint32_t seccomp_extra_flags) {
+  int result = syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
+                       SECCOMP_FILTER_FLAG_TSYNC | seccomp_extra_flags,
+                       reinterpret_cast<uintptr_t>(&prog));
   SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
   SAPI_RAW_PCHECK(result == 0,
                   "synchronizing threads using SECCOMP_FILTER_FLAG_TSYNC flag "
@@ -322,15 +326,17 @@ void Client::ApplyPolicyAndBecomeTracee() {
   // want ptrace at the last moment to avoid synchronization deadlocks.
   SAPI_RAW_CHECK(comms_->SendUint32(kClient2SandboxReady),
                  "receiving ready signal from executor");
-  uint32_t ret;  // wait for confirmation
-  SAPI_RAW_CHECK(comms_->RecvUint32(&ret),
+  uint32_t message;  // wait for confirmation
+  SAPI_RAW_CHECK(comms_->RecvUint32(&message),
                  "receving confirmation from executor");
-  if (ret == kSandbox2ClientUnotify) {
-    InitSeccompUnotify(prog, comms_);
+  uint32_t seccomp_extra_flags =
+      allow_speculation_ ? SECCOMP_FILTER_FLAG_SPEC_ALLOW : 0;
+  if (message == kSandbox2ClientUnotify) {
+    InitSeccompUnotify(prog, comms_, seccomp_extra_flags);
   } else {
-    SAPI_RAW_CHECK(ret == kSandbox2ClientDone,
+    SAPI_RAW_CHECK(message == kSandbox2ClientDone,
                    "invalid confirmation from executor");
-    InitSeccompRegular(prog);
+    InitSeccompRegular(prog, seccomp_extra_flags);
   }
 }
 

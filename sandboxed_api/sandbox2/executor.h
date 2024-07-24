@@ -126,6 +126,7 @@ class Executor final {
   // For clone_flags refer to Linux' 'man 2 clone'.
   absl::StatusOr<SandboxeeProcess> StartSubProcess(
       int clone_flags, const Namespace* ns = nullptr,
+      bool allow_speculation = false,
       MonitorType type = FORKSERVER_MONITOR_PTRACE);
 
   // Whether the Executor has been started yet

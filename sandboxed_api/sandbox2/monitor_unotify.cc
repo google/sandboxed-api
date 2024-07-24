@@ -64,7 +64,7 @@ struct seccomp_notif_sizes {
 #define SECCOMP_IOWR(nr, type) _IOWR(SECCOMP_IOC_MAGIC, nr, type)
 #endif
 
-/* Flags for seccomp notification fd ioctl. */
+// Flags for seccomp notification fd ioctl.
 #define SECCOMP_IOCTL_NOTIF_RECV SECCOMP_IOWR(0, struct seccomp_notif)
 #endif
 

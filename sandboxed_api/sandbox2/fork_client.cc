@@ -16,6 +16,8 @@
 
 #include <sys/types.h>
 
+#include <cstdint>
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"

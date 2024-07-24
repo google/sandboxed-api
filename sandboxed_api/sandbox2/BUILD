@@ -41,6 +41,24 @@ cc_library(
 )
 
 cc_library(
+    name = "allow_seccomp_speculation",
+    hdrs = ["allow_seccomp_speculation.h"],
+    copts = sapi_platform_copts(),
+    visibility = [
+        "//sandboxed_api/sandbox2:__pkg__",
+        "//sandboxed_api/sandbox2/examples/tool:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "testonly_allow_seccomp_speculation",
+    testonly = True,
+    hdrs = ["allow_seccomp_speculation.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "trace_all_syscalls",
     hdrs = ["trace_all_syscalls.h"],
     copts = sapi_platform_copts(),
@@ -573,6 +591,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":allow_all_syscalls",
+        ":allow_seccomp_speculation",
         ":allow_unrestricted_networking",
         ":mounts",
         ":namespace",

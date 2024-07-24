@@ -147,7 +147,7 @@ int LaunchForkserver(void* vargs) {
 absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   SAPI_RAW_LOG(INFO, "Starting global forkserver");
 
-  // Allow passing of a spearate forkserver_bin via flag
+  // Allow passing of a separate forkserver_bin via flag
   int exec_fd = -1;
   std::string bin_path = absl::GetFlag(FLAGS_sandbox2_forkserver_binary_path);
   if (!bin_path.empty()) {

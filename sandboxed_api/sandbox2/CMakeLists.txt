@@ -26,6 +26,15 @@ target_link_libraries(sandbox2_allow_all_syscalls PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2:allow_seccomp_speculation
+add_library(sandbox2_allow_seccomp_speculation ${SAPI_LIB_TYPE}
+  allow_seccomp_speculation.h
+)
+add_library(sandbox2::allow_seccomp_speculation ALIAS sandbox2_allow_seccomp_speculation)
+target_link_libraries(sandbox2_allow_seccomp_speculation PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2:trace_all_syscalls
 add_library(sandbox2_trace_all_syscalls ${SAPI_LIB_TYPE}
   trace_all_syscalls.h

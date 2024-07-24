@@ -38,6 +38,7 @@
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/ipc.h"
+#include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 
@@ -84,9 +85,9 @@ std::vector<std::string> Executor::CopyEnviron() {
   return util::CharPtrArray(environ).ToStringVector();
 }
 
-absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(int32_t clone_flags,
-                                                           const Namespace* ns,
-                                                           MonitorType type) {
+absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
+    int32_t clone_flags, const Namespace* ns, bool allow_speculation,
+    MonitorType type) {
   if (started_) {
     return absl::FailedPreconditionError(
         "This executor has already been started");
@@ -148,6 +149,7 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(int32_t clone_flags,
 
   request.set_clone_flags(clone_flags);
   request.set_monitor_type(type);
+  request.set_allow_speculation(allow_speculation);
 
   SandboxeeProcess process;
 

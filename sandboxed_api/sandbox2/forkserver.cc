@@ -323,7 +323,8 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   signaling_fd.Close();
   status_fd.Close();
 
-  Client c(comms_);
+  Client client(comms_);
+  client.allow_speculation_ = request.allow_speculation();
 
   // Prepare the arguments before sandboxing (if needed), as doing it after
   // sandoxing can cause syscall violations (e.g. related to memory management).
@@ -342,12 +343,12 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
     // The following client calls are basically SandboxMeHere. We split it so
     // that we can set up the envp after we received the file descriptors but
     // before we enable the syscall filter.
-    c.PrepareEnvironment(&execve_fd);
+    client.PrepareEnvironment(&execve_fd);
     if (comms_->GetConnectionFD() != Comms::kSandbox2ClientCommsFD) {
       envs.push_back(absl::StrCat(Comms::kSandbox2CommsFDEnvVar, "=",
                                   comms_->GetConnectionFD()));
     }
-    envs.push_back(c.GetFdMapEnvVar());
+    envs.push_back(client.GetFdMapEnvVar());
   }
 
   // Convert args and envs before enabling sandbox (it'll allocate which might
@@ -356,7 +357,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   util::CharPtrArray envp = util::CharPtrArray::FromStringVector(envs);
 
   if (should_sandbox) {
-    c.EnableSandbox();
+    client.EnableSandbox();
   }
 
   if (will_execve) {
@@ -407,7 +408,7 @@ pid_t ForkServer::ServeRequest() {
   SAPI_RAW_PCHECK(
       socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, socketpair_fds) == 0,
       "creating signaling socketpair");
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < 2; ++i) {
     int val = 1;
     SAPI_RAW_PCHECK(setsockopt(socketpair_fds[i], SOL_SOCKET, SO_PASSCRED, &val,
                                sizeof(val)) == 0,

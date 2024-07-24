@@ -44,6 +44,7 @@ namespace sandbox2 {
 
 class AllowAllSyscalls;
 class TraceAllSyscalls;
+class SeccompSpeculation;
 class UnrestrictedNetworking;
 class LoadUserBpfCodeFromFile;
 
@@ -131,7 +132,25 @@ class PolicyBuilder final {
   // namespace. Note that this only disables the network namespace. To
   // actually allow networking, you would also need to allow networking
   // syscalls. Calling this function will enable use of namespaces
-  PolicyBuilder& Allow(UnrestrictedNetworking tag);
+  PolicyBuilder& Allow(UnrestrictedNetworking);
+
+  // Allows the sandboxee to benefit from speculative execution. By default and
+  // on recent (6.x) kernels, additional mitigations are enabled to prevent
+  // speculative execution attacks. This call disables those mitigations to
+  // reclaim some of the performance overhead.
+  //
+  // NOTE: The performance benefits of using this API are highly dependent on
+  // the host CPU architecture and the workload running inside the sandbox.
+  // The Linux kernel will disable both the IBPB and STIBP mitigations for the
+  // the sandboxee on CPUs that support this.
+  // On newer AMD processors, such as Milan or Genoa, this leads to having fewer
+  // branch mispredictions and thus improved performance. However, forcing STIBP
+  // to be enabled on the machine level is even better, as those CPUs optimize
+  // for this.
+  // This is an advanced API, so users should make sure they understand the
+  // risks. Do not use in environments with untrusted code and/or data. If
+  // unsure, ask ise-sandboxing@ first.
+  PolicyBuilder& Allow(SeccompSpeculation);
 
   // Appends code to allow a specific syscall
   PolicyBuilder& AllowSyscall(uint32_t num);
@@ -716,8 +735,8 @@ class PolicyBuilder final {
 
   // Changes the default action to ALLOW.
   // All syscalls not handled explicitly by the policy will thus be allowed.
-  // Do not use in environment with untrusted code and/or data, ask
-  // sandbox-team@ first if unsure.
+  // Do not use in environments with untrusted code and/or data. If unsure, ask
+  // ise-sandboxing@ first.
   PolicyBuilder& DefaultAction(AllowAllSyscalls);
 
   // Changes the default action to SANDBOX2_TRACE.
@@ -804,6 +823,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   bool allow_unrestricted_networking_ = false;
+  bool allow_speculation_ = false;
   bool allow_mount_propagation_ = false;
   std::string hostname_ = std::string(kDefaultHostname);
 

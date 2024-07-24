@@ -67,4 +67,7 @@ message ForkRequest {
 
   // Monitor type used by the sandbox
   optional MonitorType monitor_type = 9;
+
+  // Whether to allow speculative execution inside the sandboxee
+  optional bool allow_speculation = 10;
 }
