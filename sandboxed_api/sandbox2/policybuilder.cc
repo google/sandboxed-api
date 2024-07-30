@@ -136,7 +136,8 @@ PolicyBuilder& PolicyBuilder::Allow(SeccompSpeculation) {
 }
 
 PolicyBuilder& PolicyBuilder::AllowSyscall(uint32_t num) {
-  if (handled_syscalls_.insert(num).second) {
+  if (handled_syscalls_.insert(num).second &&
+      allowed_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ALLOW)});
   }
   return *this;
@@ -158,7 +159,8 @@ PolicyBuilder& PolicyBuilder::BlockSyscallsWithErrno(
 }
 
 PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
-  if (handled_syscalls_.insert(num).second) {
+  if (handled_syscalls_.insert(num).second &&
+      blocked_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ERRNO(error))});
     if (num == __NR_bpf) {
       user_policy_handles_bpf_ = true;
@@ -1353,6 +1355,7 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
     uint8_t jt = out.size() - do_policy_loc;
     out.push_front(BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, *it, jt, jf));
   }
+  custom_policy_syscalls_.insert(nums.begin(), nums.end());
   user_policy_.insert(user_policy_.end(), out.begin(), out.end());
   return *this;
 }
@@ -1725,6 +1728,18 @@ PolicyBuilder& PolicyBuilder::SetRootWritable() {
 void PolicyBuilder::StoreDescription(PolicyBuilderDescription* pb_description) {
   for (const auto& handled_syscall : handled_syscalls_) {
     pb_description->add_handled_syscalls(handled_syscall);
+  }
+  for (const auto& allowed_syscall : allowed_syscalls_) {
+    pb_description->add_allowed_syscalls(allowed_syscall);
+  }
+  for (const auto& blocked_syscall : blocked_syscalls_) {
+    pb_description->add_blocked_syscalls(blocked_syscall);
+  }
+  for (const auto& custom_policy_syscall : custom_policy_syscalls_) {
+    pb_description->add_custom_policy_syscalls(custom_policy_syscall);
+  }
+  if (default_action_) {
+    pb_description->set_default_action_k(default_action_->k);
   }
 }
 

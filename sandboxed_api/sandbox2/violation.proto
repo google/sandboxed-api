@@ -111,9 +111,19 @@ message SyscallDescription {
 }
 
 message PolicyBuilderDescription {
+  // Contains the syscall numbers that are allowed or blocked.
   repeated int32 handled_syscalls = 1;
   repeated string bind_mounts = 2;
   string built_at_sloc = 3;
+  // Contains the syscall numbers that are allowed.
+  repeated int32 allowed_syscalls = 4;
+  // Contains the syscall numbers that are blocked.
+  repeated int32 blocked_syscalls = 5;
+  // Contains the syscall numbers that have a custom policy applied.
+  repeated int32 custom_policy_syscalls = 6;
+  // If set, contains the SECCOMP_RET value that is returned at the end of the
+  // policy as the default action.
+  optional uint32 default_action_k = 7;
 }
 
 message NamespaceDescription {
