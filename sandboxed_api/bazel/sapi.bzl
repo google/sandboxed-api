@@ -254,7 +254,8 @@ def sapi_library(
         generator_version = 1,
         visibility = None,
         compatible_with = None,
-        default_copts = []):
+        default_copts = [],
+        exec_properties = {}):
     """Provides the implementation of a Sandboxed API library.
 
     Args:
@@ -294,6 +295,7 @@ def sapi_library(
         in addition to default-supported environments.
       default_copts: List of package level default copts, an additional
         attribute since copts already has default value.
+      exec_properties: Dict of executable properties to be passed to the generated binary targets.
     """
 
     common = {
