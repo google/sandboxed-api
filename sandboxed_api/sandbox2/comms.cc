@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -618,8 +619,13 @@ bool Comms::RecvTLVGeneric(uint32_t* tag, T* value) {
 }
 
 bool Comms::RecvTLV(uint32_t* tag, size_t* length, void* buffer,
-                    size_t buffer_size) {
+                    size_t buffer_size, std::optional<uint32_t> expected_tag) {
   if (!RecvTL(tag, length)) {
+    return false;
+  }
+
+  if (expected_tag.has_value() && *tag != *expected_tag) {
+    SAPI_RAW_LOG(ERROR, "Expected tag: 0x%08x, got: 0x%x", *expected_tag, *tag);
     return false;
   }
 
@@ -639,14 +645,10 @@ bool Comms::RecvTLV(uint32_t* tag, size_t* length, void* buffer,
 bool Comms::RecvInt(void* buffer, size_t len, uint32_t tag) {
   uint32_t received_tag;
   size_t received_length;
-  if (!RecvTLV(&received_tag, &received_length, buffer, len)) {
+  if (!RecvTLV(&received_tag, &received_length, buffer, len, tag)) {
     return false;
   }
 
-  if (received_tag != tag) {
-    SAPI_RAW_LOG(ERROR, "Expected tag: 0x%08x, got: 0x%x", tag, received_tag);
-    return false;
-  }
   if (received_length != len) {
     SAPI_RAW_LOG(ERROR, "Expected length: %zu, got: %zu", len, received_length);
     return false;

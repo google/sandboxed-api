@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -144,7 +145,8 @@ class Comms {
   // by std::string.
   bool RecvTLV(uint32_t* tag, std::string* value);
   // Receives a TLV value into a specified buffer without allocating memory.
-  bool RecvTLV(uint32_t* tag, size_t* length, void* buffer, size_t buffer_size);
+  bool RecvTLV(uint32_t* tag, size_t* length, void* buffer, size_t buffer_size,
+               std::optional<uint32_t> expected_tag = std::nullopt);
 
   // Sends/receives various types of data.
   bool RecvUint8(uint8_t* v) { return RecvIntGeneric(v, kTagUint8); }
