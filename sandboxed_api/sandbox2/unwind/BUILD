@@ -36,10 +36,7 @@ cc_library(
     name = "unwind",
     srcs = ["unwind.cc"],
     hdrs = ["unwind.h"],
-    copts = sapi_platform_copts([
-        # TODO(cblichmann): Remove this, fix bazel/external/libunwind.BUILD
-        "-Iexternal/org_gnu_libunwind/include",
-    ]),
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":ptrace_hook",

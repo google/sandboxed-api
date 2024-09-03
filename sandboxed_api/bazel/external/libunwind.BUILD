@@ -130,7 +130,11 @@ cc_library(
     hdrs = [
         "include/config.h",
         "include/libunwind.h",
+        "include/libunwind-aarch64.h",
+        "include/libunwind-common.h",
+        "include/libunwind-dynamic.h",
         "include/libunwind-ptrace.h",
+        "include/libunwind-x86_64.h",
     ],
     copts = LIBUNWIND_COPTS + [
         # Assume our inferior doesn't have frame pointers, regardless of
@@ -139,6 +143,7 @@ cc_library(
         "-fno-common",
         "-Wno-cpp",  # Warning in src/ptrace/_UPT_get_dyn_info_list_addr.c
     ],
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
     deps = [
         ":included_sources",
