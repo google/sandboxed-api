@@ -48,6 +48,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
+#include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -167,7 +168,7 @@ int main(int argc, char* argv[]) {
   builder.DefaultAction(sandbox2::AllowAllSyscalls());
 
   if (absl::GetFlag(FLAGS_sandbox2tool_need_networking)) {
-    builder.AllowUnrestrictedNetworking();
+    builder.Allow(sandbox2::UnrestrictedNetworking());
   }
   if (absl::GetFlag(FLAGS_sandbox2tool_mount_tmp)) {
     builder.AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */);

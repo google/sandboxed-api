@@ -1204,6 +1204,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::log
             absl::status
             absl::statusor
+            sandbox2::allow_unrestricted_networking
             sandbox2::bpf_helper
             sandbox2::policy
             sandbox2::policybuilder

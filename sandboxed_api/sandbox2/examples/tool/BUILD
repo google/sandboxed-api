@@ -36,6 +36,7 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:allow_all_syscalls",
+        "//sandboxed_api/sandbox2:allow_unrestricted_networking",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",

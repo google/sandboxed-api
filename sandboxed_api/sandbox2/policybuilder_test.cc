@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
@@ -108,7 +109,7 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   builder.AddFile("/usr/bin/find"); assert_same();
   builder.AddDirectory("/bin"); assert_same();
   builder.AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */); assert_same();
-  builder.AllowUnrestrictedNetworking(); assert_same();
+  builder.Allow(UnrestrictedNetworking()); assert_same();
   // clang-format on
 }
 

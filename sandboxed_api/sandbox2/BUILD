@@ -1128,6 +1128,7 @@ cc_test(
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
     deps = [
+        ":allow_unrestricted_networking",
         ":policy",
         ":policybuilder",
         ":violation_cc_proto",
