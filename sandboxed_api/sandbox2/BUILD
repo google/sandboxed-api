@@ -973,6 +973,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:minimal",
         "//sandboxed_api/sandbox2/testcases:minimal_dynamic",
         "//sandboxed_api/sandbox2/testcases:policy",
+        "//sandboxed_api/sandbox2/testcases:posix_timers",
     ],
     tags = ["no_qemu_user_mode"],
     deps = [

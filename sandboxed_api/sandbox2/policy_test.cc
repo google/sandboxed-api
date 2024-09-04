@@ -156,6 +156,79 @@ TEST(PolicyTest, IsattyAllowed) {
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
 }
 
+PolicyBuilder PosixTimersPolicyBuilder(absl::string_view path) {
+  return PolicyBuilder()
+      // Required by google infra / logging.
+      .AllowDynamicStartup()
+      .AllowWrite()
+      .AllowSyscall(__NR_getcwd)
+      .AllowMmap()
+      .AllowMlock()
+      .AllowMkdir()
+      .AllowGetIDs()
+      .AllowExit()
+      .AllowRestartableSequences(PolicyBuilder::kAllowSlowFences)
+      .AllowSyscall(__NR_rt_sigtimedwait)
+      // Features used by the binary.
+      .AllowHandleSignals()
+      .AllowGetPIDs()
+      .AllowTime()
+      .AllowSleep()
+      .AllowAlarm()
+      // Posix timers themselves.
+      .AllowPosixTimers();
+}
+
+TEST(PolicyTest, PosixTimersWorkIfAllowed) {
+  SKIP_SANITIZERS;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/posix_timers");
+  for (absl::string_view kind : {"SIGEV_NONE", "SIGEV_SIGNAL",
+                                 "SIGEV_THREAD_ID", "syscall(SIGEV_THREAD)"}) {
+    std::vector<std::string> args = {path, "--sigev_notify_kind",
+                                     std::string(kind)};
+
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              PosixTimersPolicyBuilder(path).TryBuild());
+    auto executor = std::make_unique<Executor>(path, args);
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    Result result = sandbox.Run();
+    EXPECT_EQ(result.final_status(), Result::OK) << kind;
+  }
+}
+
+TEST(PolicyTest, PosixTimersCannotCreateThreadsIfThreadsAreProhibited) {
+  SKIP_SANITIZERS;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/posix_timers");
+  std::vector<std::string> args = {
+      path,
+      // SIGEV_THREAD creates a thread as an implementation detail.
+      "--sigev_notify_kind=SIGEV_THREAD",
+  };
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PosixTimersPolicyBuilder(path).TryBuild());
+  auto executor = std::make_unique<Executor>(path, args);
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  Result result = sandbox.Run();
+  EXPECT_EQ(result.final_status(), Result::VIOLATION);
+}
+
+TEST(PolicyTest, PosixTimersCanCreateThreadsIfThreadsAreAllowed) {
+  SKIP_SANITIZERS;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/posix_timers");
+  std::vector<std::string> args = {path, "--sigev_notify_kind=SIGEV_THREAD"};
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, PosixTimersPolicyBuilder(path)
+                                             .AllowFork()
+                                             // For Arm.
+                                             .AllowSyscall(__NR_madvise)
+                                             .TryBuild());
+  auto executor = std::make_unique<Executor>(path, args);
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  Result result = sandbox.Run();
+  EXPECT_EQ(result.final_status(), Result::OK);
+}
+
 std::unique_ptr<Policy> MinimalTestcasePolicy(absl::string_view path = "") {
   PolicyBuilder builder;
 

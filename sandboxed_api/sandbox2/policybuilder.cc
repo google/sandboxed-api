@@ -779,6 +779,16 @@ PolicyBuilder& PolicyBuilder::AllowAlarm() {
       __NR_setitimer});
 }
 
+PolicyBuilder& PolicyBuilder::AllowPosixTimers() {
+  return AllowSyscalls({
+      __NR_timer_create,
+      __NR_timer_delete,
+      __NR_timer_settime,
+      __NR_timer_gettime,
+      __NR_timer_getoverrun,
+  });
+}
+
 PolicyBuilder& PolicyBuilder::AllowHandleSignals() {
   return AllowSyscalls({
       __NR_restart_syscall,

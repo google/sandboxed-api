@@ -281,3 +281,23 @@ cc_binary(
     srcs = ["util_communicate.cc"],
     copts = sapi_platform_copts(),
 )
+
+cc_binary(
+    name = "posix_timers",
+    testonly = True,
+    srcs = ["posix_timers.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    linkopts = ["-lrt"],
+    deps = [
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+    ],
+)

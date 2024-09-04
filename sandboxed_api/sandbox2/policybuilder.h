@@ -432,6 +432,15 @@ class PolicyBuilder final {
   // - setitimer
   PolicyBuilder& AllowAlarm();
 
+  // Appends code to allow setting posix timers.
+  // Allows these syscalls:
+  // - timer_create
+  // - timer_delete
+  // - timer_settime
+  // - timer_gettime
+  // - timer_getoverrun
+  PolicyBuilder& AllowPosixTimers();
+
   // Appends code to allow setting up signal handlers, returning from them, etc.
   // Allows these syscalls:
   // - rt_sigaction

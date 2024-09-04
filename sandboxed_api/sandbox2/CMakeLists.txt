@@ -1038,6 +1038,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_minimal
     sandbox2::testcase_minimal_dynamic
     sandbox2::testcase_policy
+    sandbox2::testcase_posix_timers
   )
   target_link_libraries(sandbox2_policy_test PRIVATE
     absl::strings

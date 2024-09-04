@@ -348,3 +348,26 @@ set_target_properties(sandbox2_testcase_util_communicate PROPERTIES
 target_link_libraries(sandbox2_testcase_util_communicate PRIVATE
   sapi::base
 )
+
+# sandboxed_api/sandbox2/testcases:posix_timers
+add_executable(sandbox2_testcase_posix_timers
+  posix_timers.cc
+)
+add_executable(sandbox2::testcase_posix_timers ALIAS sandbox2_testcase_posix_timers)
+set_target_properties(sandbox2_testcase_posix_timers PROPERTIES
+  OUTPUT_NAME posix_timers
+)
+target_link_libraries(sandbox2_testcase_posix_timers PRIVATE
+  -static
+  -lrt
+  absl::check
+  absl::flags
+  absl::flags_parse
+  absl::log
+  absl::log_globals
+  absl::log_initialize
+  absl::log_severity
+  absl::strings
+  absl::time
+  sapi::base
+)
