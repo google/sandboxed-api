@@ -27,8 +27,7 @@ cc_library(
     hdrs = ["allow_all_syscalls.h"],
     copts = sapi_platform_copts(),
     visibility = [
-        "//sandboxed_api/sandbox2:__pkg__",
-        "//sandboxed_api/sandbox2/examples/tool:__pkg__",
+        "//visibility:public",
     ],
 )
 
@@ -45,8 +44,7 @@ cc_library(
     hdrs = ["allow_seccomp_speculation.h"],
     copts = sapi_platform_copts(),
     visibility = [
-        "//sandboxed_api/sandbox2:__pkg__",
-        "//sandboxed_api/sandbox2/examples/tool:__pkg__",
+        "//visibility:public",
     ],
 )
 
@@ -63,7 +61,7 @@ cc_library(
     hdrs = ["trace_all_syscalls.h"],
     copts = sapi_platform_copts(),
     visibility = [
-        "//sandboxed_api/sandbox2:__pkg__",
+        "//visibility:public",
     ],
 )
 
@@ -80,9 +78,7 @@ cc_library(
     hdrs = ["allow_unrestricted_networking.h"],
     copts = sapi_platform_copts(),
     visibility = [
-        "//sandboxed_api/sandbox2:__pkg__",
-        "//sandboxed_api/sandbox2/examples/tool:__pkg__",
-        "//sandboxed_api/sandbox2/performance:__pkg__",
+        "//visibility:public",
     ],
 )
 
