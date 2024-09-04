@@ -683,6 +683,7 @@ class PolicyBuilder final {
   // namespace. Note that this only disables the network namespace. To
   // actually allow networking, you would also need to allow networking
   // syscalls. Calling this function will enable use of namespaces.
+  ABSL_DEPRECATED("Use Allow(sandbox2::UnrestrictedNetworking()) instead")
   PolicyBuilder& AllowUnrestrictedNetworking();
 
   // Enables the use of namespaces.
