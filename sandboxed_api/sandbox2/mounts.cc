@@ -638,11 +638,22 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   int res = mount(source.c_str(), target.c_str(), fs_type, flags, option_str);
   if (res == -1) {
     if (errno == ENOENT) {
-      // File does not exist (anymore). This is e.g. the case when we're trying
-      // to gather stack-traces on SAPI crashes. The sandboxee application is a
+      // File does not exist (anymore). This may be the case when trying to
+      // gather stack-traces on SAPI crashes. The sandboxee application is a
       // memfd file that is not existing anymore.
-      SAPI_RAW_LOG(WARNING, "Could not mount %s: file does not exist",
-                   source.c_str());
+      // Check which file/dir of the call is actually missing. Do not follow
+      // symlinks here as it's valid to "mount over" a dangling symlink.
+      bool have_source =
+          file_util::fileops::Exists(source, /*fully_resolve=*/false);
+      bool have_target =
+          file_util::fileops::Exists(target, /*fully_resolve=*/false);
+      SAPI_RAW_LOG(WARNING,
+                   "Could not mount %s (source) to %s (target): %s%s%s%s exist",
+                   source.c_str(), target.c_str(),
+                   have_source || have_target ? "" : "neither ",
+                   have_source ? "" : "source",
+                   have_source || have_target ? "" : " nor ",
+                   have_target ? "" : "target");
       return;
     }
     SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed (flags=%s)", source, target,
