@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
+#include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -244,7 +245,7 @@ TEST(NamespaceTest, TestInterfacesNoNetwork) {
 TEST(NamespaceTest, TestInterfacesWithNetwork) {
   const std::string path = GetTestcaseBinPath("namespace");
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
-                                             .AllowUnrestrictedNetworking()
+                                             .Allow(UnrestrictedNetworking())
                                              .TryBuild());
 
   std::vector<std::string> result =

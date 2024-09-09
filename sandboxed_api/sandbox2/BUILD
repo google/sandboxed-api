@@ -768,6 +768,7 @@ cc_test(
         ":namespace",
         ":sandbox2",
         ":testonly_allow_all_syscalls",
+        ":testonly_allow_unrestricted_networking",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:fileops",

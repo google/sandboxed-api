@@ -22,6 +22,7 @@
 #include <cstdlib>
 
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/util/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
 namespace curl {
@@ -62,7 +63,7 @@ class CurlSapiSandbox : public curl::CurlSandbox {
         .AllowSyscall(__NR_socket)
         .AllowSyscall(__NR_sysinfo)
         .AddDirectory("/lib")
-        .AllowUnrestrictedNetworking()
+        .Allow(sandbox2::UnrestrictedNetworking())
         .BuildOrDie();
   }
 };
