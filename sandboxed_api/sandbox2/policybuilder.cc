@@ -1614,7 +1614,7 @@ PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t size) {
   return *this;
 }
 
-// Use Allow(UnrestrictedNetworking()) instead.
+// Use Allow(sandbox2::UnrestrictedNetworking()) instead.
 PolicyBuilder& PolicyBuilder::AllowUnrestrictedNetworking() {
   return Allow(UnrestrictedNetworking());
 }
