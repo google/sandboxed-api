@@ -43,6 +43,7 @@ class Client {
   static constexpr uint32_t kSandbox2ClientUnotify = 0x0A0B0C03;
 
   explicit Client(Comms* comms);
+  virtual ~Client() = default;
 
   Client(const Client&) = delete;
   Client& operator=(const Client&) = delete;
