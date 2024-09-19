@@ -641,19 +641,21 @@ void MountWithDefaults(const std::string& source, const std::string& target,
       // File does not exist (anymore). This may be the case when trying to
       // gather stack-traces on SAPI crashes. The sandboxee application is a
       // memfd file that is not existing anymore.
-      // Check which file/dir of the call is actually missing. Do not follow
-      // symlinks here as it's valid to "mount over" a dangling symlink.
+      // Check which file/dir of the call is actually missing.
       bool have_source =
-          file_util::fileops::Exists(source, /*fully_resolve=*/false);
+          file_util::fileops::Exists(source, /*fully_resolve=*/true);
       bool have_target =
-          file_util::fileops::Exists(target, /*fully_resolve=*/false);
-      SAPI_RAW_LOG(WARNING,
-                   "Could not mount %s (source) to %s (target): %s%s%s%s exist",
-                   source.c_str(), target.c_str(),
-                   have_source || have_target ? "" : "neither ",
-                   have_source ? "" : "source",
-                   have_source || have_target ? "" : " nor ",
-                   have_target ? "" : "target");
+          file_util::fileops::Exists(target, /*fully_resolve=*/true);
+      const char* detail = "unknown error, source and target exist";
+      if (!have_source && !have_target) {
+        detail = "neither source nor target exist";
+      } else if (!have_source) {
+        detail = "source does not exist";
+      } else if (!have_target) {
+        detail = "target does not exist";
+      }
+      SAPI_RAW_LOG(WARNING, "Could not mount %s (source) to %s (target): %s",
+                   source.c_str(), target.c_str(), detail);
       return;
     }
     SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed (flags=%s)", source, target,
