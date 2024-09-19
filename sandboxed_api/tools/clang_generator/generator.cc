@@ -306,6 +306,19 @@ bool GeneratorFactory::runInvocation(
            "long{return 0;}",
            "__builtin_ia32_vec_init_v8qi=[](auto, auto, auto, auto, auto, "
            "auto, auto, auto)->long long{return 0;}",
+           // AVX
+           "__builtin_ia32_vpopcntb_128=",
+           "__builtin_ia32_vpopcntb_256=",
+           "__builtin_ia32_vpopcntb_512=",
+           "__builtin_ia32_vpopcntd_128=",
+           "__builtin_ia32_vpopcntd_256=",
+           "__builtin_ia32_vpopcntd_512=",
+           "__builtin_ia32_vpopcntq_128=",
+           "__builtin_ia32_vpopcntq_256=",
+           "__builtin_ia32_vpopcntq_512=",
+           "__builtin_ia32_vpopcntw_128=",
+           "__builtin_ia32_vpopcntw_256=",
+           "__builtin_ia32_vpopcntw_512=",
        }) {
     options.addMacroDef(def);
     // To avoid code to include header with compiler intrinsics, undefine a few
