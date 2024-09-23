@@ -533,8 +533,8 @@ absl::Status TryAttach(const absl::flat_hash_set<int>& tasks,
       PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC |
       PTRACE_O_TRACEEXIT | PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL;
   auto format_ptrace_error = [](int task, absl::string_view message) {
-    return absl::StrCat("ptrace(PTRACE_SEIZE, ", task, ", ", "0x",
-                        absl::Hex(kPtraceOptions), " ", message);
+    return absl::StrCat("ptrace(PTRACE_SEIZE, ", task, ", 0, ", "0x",
+                        absl::Hex(kPtraceOptions), "): ", message);
   };
 
   absl::flat_hash_set<int> cur_tasks = tasks;
@@ -552,7 +552,7 @@ absl::Status TryAttach(const absl::flat_hash_set<int>& tasks,
         if (errno == EPERM) {
           // Sometimes when a task is exiting we can get an EPERM from ptrace.
           // Let's try again up until the timeout in this situation.
-          PLOG(WARNING) << format_ptrace_error(task, "trying again...");
+          PLOG(WARNING) << format_ptrace_error(task, "Retrying after EPERM");
           retry_tasks.insert(task);
           continue;
         }
@@ -560,11 +560,11 @@ absl::Status TryAttach(const absl::flat_hash_set<int>& tasks,
           // A task may have exited since we captured the task list, we will
           // allow things to continue after we log a warning.
           PLOG(WARNING) << format_ptrace_error(
-              task, "skipping exited task. Continuing with other tasks.");
+              task, "Skipping exited task. Continuing with other tasks.");
           continue;
         }
         // Any other errno will be considered a failure.
-        return absl::ErrnoToStatus(errno, format_ptrace_error(task, "failed"));
+        return absl::ErrnoToStatus(errno, format_ptrace_error(task, "Failure"));
       }
       tasks_attached.insert(task);
     }
