@@ -55,8 +55,15 @@ message MountTree {
     }
   }
 
-  // The entries are mappings from the next path component to the subtree.
-  map<string, MountTree> entries = 1;
+  // The entries are mappings from the next path component to the subtree. This
+  // is not a map<string, MountTree> to ensure that we keep a stable and
+  // deterministic order of mounts. Protobuf makes no guarantees about the order
+  // of map entries and may even randomize in certain build configurations.
+  message MountMapEntry {
+    string path_component = 1;
+    MountTree sub_tree = 2;
+  }
+  repeated MountMapEntry entries = 1;
 
   // The node of the current path. If not set, we'll just create a directory at
   // this position.
