@@ -25,11 +25,9 @@
 #include <cstdint>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -39,7 +37,6 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
-#include "google/protobuf/repeated_ptr_field.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
@@ -203,26 +200,6 @@ bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
   }
 }
 
-// Finds a path component in a RepeatedPtrField<MountMapEntry>. Returns nullptr
-// if the component was not found.
-MountTree::MountMapEntry* FindPathComponentOrNull(
-    absl::string_view part,
-    ::google::protobuf::RepeatedPtrField<MountTree_MountMapEntry>* entries) {
-  auto it = absl::c_find_if(
-      *entries, [&part](auto e) { return part == e.path_component(); });
-  return it != entries->end() ? &*it : nullptr;
-}
-
-const MountTree::MountMapEntry* FindPathComponentOrNull(
-    absl::string_view part,
-    const ::google::protobuf::RepeatedPtrField<MountTree_MountMapEntry>* entries) {
-  return FindPathComponentOrNull(
-      part,
-      // Safe, entries is not modified.
-      const_cast<::google::protobuf::RepeatedPtrField<MountTree_MountMapEntry>*>(
-          entries));
-}
-
 }  // namespace internal
 
 absl::Status Mounts::Remove(absl::string_view path) {
@@ -248,13 +225,12 @@ absl::Status Mounts::Remove(absl::string_view path) {
       return absl::NotFoundError(
           absl::StrCat("File node is mounted at parent of: ", path));
     }
-    auto* entry =
-        internal::FindPathComponentOrNull(part, curtree->mutable_entries());
-    if (entry == nullptr) {
+    auto it = curtree->mutable_entries()->find(std::string(part));
+    if (it == curtree->mutable_entries()->end()) {
       return absl::NotFoundError(
           absl::StrCat("Path does not exist in mounts: ", path));
     }
-    curtree = entry->mutable_sub_tree();
+    curtree = &it->second;
   }
   curtree->clear_node();
   curtree->clear_entries();
@@ -309,14 +285,9 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   MountTree* curtree = &mount_tree_;
   for (absl::string_view part : parts) {
-    auto* entry =
-        internal::FindPathComponentOrNull(part, curtree->mutable_entries());
-    if (entry == nullptr) {
-      entry = curtree->mutable_entries()->Add();
-      entry->set_path_component(part);
-    }
-    curtree = entry->mutable_sub_tree();
-
+    curtree = &(curtree->mutable_entries()
+                    ->insert({std::string(part), MountTree()})
+                    .first->second);
     if (curtree->has_node() && curtree->node().has_file_node()) {
       return absl::FailedPreconditionError(
           absl::StrCat("Cannot insert ", path,
@@ -324,13 +295,9 @@ absl::Status Mounts::Insert(absl::string_view path,
     }
   }
 
-  auto* entry =
-      internal::FindPathComponentOrNull(final_part, curtree->mutable_entries());
-  if (entry == nullptr) {
-    entry = curtree->mutable_entries()->Add();
-    entry->set_path_component(final_part);
-  }
-  curtree = entry->mutable_sub_tree();
+  curtree = &(curtree->mutable_entries()
+                  ->insert({final_part, MountTree()})
+                  .first->second);
 
   if (curtree->has_node()) {
     if (internal::IsEquivalentNode(curtree->node(), new_node)) {
@@ -399,16 +366,15 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
   while (!tail.empty()) {
     std::pair<absl::string_view, absl::string_view> parts =
         absl::StrSplit(tail, absl::MaxSplits('/', 1));
-
-    auto* entry =
-        internal::FindPathComponentOrNull(parts.first, &curtree->entries());
-    if (entry == nullptr) {
+    const std::string cur(parts.first);
+    const auto it = curtree->entries().find(cur);
+    if (it == curtree->entries().end()) {
       if (curtree->node().has_dir_node()) {
         return sapi::file::JoinPath(curtree->node().dir_node().outside(), tail);
       }
       return absl::NotFoundError("Path could not be resolved in the mounts");
     }
-    curtree = &entry->sub_tree();
+    curtree = &it->second;
     tail = parts.second;
   }
   switch (curtree->node().node_case()) {
@@ -782,9 +748,9 @@ void CreateMounts(const MountTree& tree, const std::string& path,
   }
 
   // Traverse the subtrees.
-  for (const auto& entry : tree.entries()) {
-    std::string new_path = sapi::file::JoinPath(path, entry.path_component());
-    CreateMounts(entry.sub_tree(), new_path, create_backing_files);
+  for (const auto& kv : tree.entries()) {
+    std::string new_path = sapi::file::JoinPath(path, kv.first);
+    CreateMounts(kv.second, new_path, create_backing_files);
   }
 }
 
@@ -815,10 +781,10 @@ void RecursivelyListMountsImpl(const MountTree& tree,
         absl::StrCat("tmpfs: ", node.tmpfs_node().tmpfs_options()));
   }
 
-  for (const auto& entry : tree.entries()) {
-    RecursivelyListMountsImpl(
-        entry.sub_tree(), absl::StrCat(tree_path, "/", entry.path_component()),
-        outside_entries, inside_entries);
+  for (const auto& subentry : tree.entries()) {
+    RecursivelyListMountsImpl(subentry.second,
+                              absl::StrCat(tree_path, "/", subentry.first),
+                              outside_entries, inside_entries);
   }
 }
 

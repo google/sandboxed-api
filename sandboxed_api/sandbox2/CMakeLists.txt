@@ -642,8 +642,7 @@ add_library(sandbox2_mounts ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::mounts ALIAS sandbox2_mounts)
 target_link_libraries(sandbox2_mounts
-  PRIVATE absl::algorithm_container
-          absl::flat_hash_set
+  PRIVATE absl::flat_hash_set
           absl::str_format
           protobuf::libprotobuf
           sapi::config
