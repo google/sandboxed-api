@@ -56,7 +56,14 @@ message MountTree {
   }
 
   // The entries are mappings from the next path component to the subtree.
-  map<string, MountTree> entries = 1;
+  message MountMapEntry {
+    MountTree sub_tree = 1;
+    // Helps to keep a stable and deterministic order of mounts. Protobuf makes
+    // no guarantees about the order of map entries and may even randomize in
+    // certain build configurations.
+    int64 index = 2;
+  }
+  map<string, MountMapEntry> entries = 1;
 
   // The node of the current path. If not set, we'll just create a directory at
   // this position.
