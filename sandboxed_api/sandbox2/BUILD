@@ -855,7 +855,6 @@ cc_test(
 sapi_proto_library(
     name = "forkserver_proto",
     srcs = ["forkserver.proto"],
-    copts = sapi_platform_copts(),
     deps = [":mount_tree_proto"],
 )
 
