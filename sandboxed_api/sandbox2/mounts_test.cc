@@ -25,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
@@ -41,7 +40,6 @@ using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
-using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::StrEq;
 using ::testing::UnorderedElementsAreArray;
@@ -425,24 +423,6 @@ TEST(MountTreeTest, TestNodeEquivalence) {
   EXPECT_FALSE(internal::IsEquivalentNode(nodes[6], nodes[7]));
   // Compare root node with file node
   EXPECT_FALSE(internal::IsEquivalentNode(nodes[6], nodes[0]));
-}
-
-TEST(MountTreeTest, Order) {
-  Mounts mounts;
-  ASSERT_THAT(mounts.AddDirectoryAt("/A", "/a"), IsOk());
-  ASSERT_THAT(mounts.AddDirectoryAt("/B", "/d/b"), IsOk());
-  ASSERT_THAT(mounts.AddDirectoryAt("/C/D/E", "/d/c/e/f/h"), IsOk());
-  ASSERT_THAT(mounts.AddFileAt("/J/G/H", "/d/c/e/f/h/j"), IsOk());
-  ASSERT_THAT(mounts.AddDirectoryAt("/K/L/M", "/d/c/e/f/h/k"), IsOk());
-
-  std::vector<std::string> inside;
-  std::vector<std::string> outside;
-  mounts.RecursivelyListMounts(&inside, &outside);
-
-  EXPECT_THAT(inside,
-              ElementsAre("/A/", "/B/", "/C/D/E/", "/J/G/H", "/K/L/M/"));
-  EXPECT_THAT(outside, ElementsAre("R /a/", "R /d/b/", "R /d/c/e/f/h/",
-                                   "R /d/c/e/f/h/j", "R /d/c/e/f/h/k/"));
 }
 
 TEST(MountsResolvePathTest, Files) {

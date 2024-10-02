@@ -16,7 +16,6 @@
 #define SANDBOXED_API_SANDBOX2_MOUNTTREE_H_
 
 #include <cstddef>
-#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +33,6 @@ bool IsSameFile(const std::string& path1, const std::string& path2);
 bool IsWritable(const MountTree::Node& node);
 bool HasSameTarget(const MountTree::Node& n1, const MountTree::Node& n2);
 bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2);
-
 }  // namespace internal
 
 class Mounts {
@@ -99,10 +97,11 @@ class Mounts {
   absl::StatusOr<std::string> ResolvePath(absl::string_view path) const;
 
  private:
+  friend class MountTreeTest;
+
   absl::Status Insert(absl::string_view path, const MountTree::Node& node);
 
   MountTree mount_tree_;
-  int64_t mount_index_ = 0;  // Used to keep track of the mount insertion order
 };
 
 }  // namespace sandbox2

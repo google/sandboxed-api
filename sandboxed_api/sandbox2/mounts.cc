@@ -20,7 +20,6 @@
 #include <sys/statvfs.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -231,7 +230,7 @@ absl::Status Mounts::Remove(absl::string_view path) {
       return absl::NotFoundError(
           absl::StrCat("Path does not exist in mounts: ", path));
     }
-    curtree = it->second.mutable_sub_tree();
+    curtree = &it->second;
   }
   curtree->clear_node();
   curtree->clear_entries();
@@ -281,28 +280,24 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   std::vector<absl::string_view> parts =
       absl::StrSplit(absl::StripPrefix(fixed_path, "/"), '/');
+  std::string final_part(parts.back());
+  parts.pop_back();
 
   MountTree* curtree = &mount_tree_;
-  int i = 0;
-  while (true) {
-    std::string part(parts[i]);
-    auto [it, did_insert] = curtree->mutable_entries()->insert(
-        {std::string(part), MountTree::MountMapEntry()});
-    auto& entry = it->second;
-    if (did_insert) {
-      entry.set_index(++mount_index_);
-    }
-    curtree = entry.mutable_sub_tree();
-    if (i == parts.size() - 1) {  // Final part
-      break;
-    }
-    ++i;
+  for (absl::string_view part : parts) {
+    curtree = &(curtree->mutable_entries()
+                    ->insert({std::string(part), MountTree()})
+                    .first->second);
     if (curtree->has_node() && curtree->node().has_file_node()) {
       return absl::FailedPreconditionError(
           absl::StrCat("Cannot insert ", path,
                        " since a file is mounted as a parent directory"));
     }
   }
+
+  curtree = &(curtree->mutable_entries()
+                  ->insert({final_part, MountTree()})
+                  .first->second);
 
   if (curtree->has_node()) {
     if (internal::IsEquivalentNode(curtree->node(), new_node)) {
@@ -379,7 +374,7 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
       }
       return absl::NotFoundError("Path could not be resolved in the mounts");
     }
-    curtree = &it->second.sub_tree();
+    curtree = &it->second;
     tail = parts.second;
   }
   switch (curtree->node().node_case()) {
@@ -692,21 +687,6 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   }
 }
 
-using MapEntry = std::pair<const std::string, MountTree::MountMapEntry>;
-
-std::vector<const MapEntry*> GetSortedEntries(const MountTree& tree) {
-  std::vector<const MapEntry*> ordered_entries;
-  ordered_entries.reserve(tree.entries_size());
-  for (const auto& entry : tree.entries()) {
-    ordered_entries.push_back(&entry);
-  }
-  std::sort(ordered_entries.begin(), ordered_entries.end(),
-            [](const MapEntry* a, const MapEntry* b) {
-              return a->second.index() < b->second.index();
-            });
-  return ordered_entries;
-}
-
 // Traverses the MountTree to create all required files and perform the mounts.
 void CreateMounts(const MountTree& tree, const std::string& path,
                   bool create_backing_files) {
@@ -768,10 +748,9 @@ void CreateMounts(const MountTree& tree, const std::string& path,
   }
 
   // Traverse the subtrees.
-  for (const MapEntry* entry : GetSortedEntries(tree)) {
-    auto& [key, value] = *entry;
-    std::string new_path = sapi::file::JoinPath(path, key);
-    CreateMounts(value.sub_tree(), new_path, create_backing_files);
+  for (const auto& kv : tree.entries()) {
+    std::string new_path = sapi::file::JoinPath(path, kv.first);
+    CreateMounts(kv.second, new_path, create_backing_files);
   }
 }
 
@@ -802,10 +781,9 @@ void RecursivelyListMountsImpl(const MountTree& tree,
         absl::StrCat("tmpfs: ", node.tmpfs_node().tmpfs_options()));
   }
 
-  for (const MapEntry* entry : GetSortedEntries(tree)) {
-    auto& [key, value] = *entry;
-    RecursivelyListMountsImpl(value.sub_tree(),
-                              absl::StrCat(tree_path, "/", key),
+  for (const auto& subentry : tree.entries()) {
+    RecursivelyListMountsImpl(subentry.second,
+                              absl::StrCat(tree_path, "/", subentry.first),
                               outside_entries, inside_entries);
   }
 }

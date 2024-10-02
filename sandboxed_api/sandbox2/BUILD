@@ -728,7 +728,6 @@ cc_test(
     copts = sapi_platform_copts(),
     data = ["//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
     deps = [
-        ":mount_tree_cc_proto",
         ":mounts",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_base",
