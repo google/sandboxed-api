@@ -782,6 +782,8 @@ class PolicyBuilder final {
   // Returns the current status of the PolicyBuilder.
   absl::Status GetStatus() { return last_status_; }
 
+  const Mounts& mounts() const { return mounts_; }
+
  private:
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
