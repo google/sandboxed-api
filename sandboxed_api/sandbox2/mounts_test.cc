@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
@@ -183,7 +184,7 @@ TEST(MountTreeTest, TestMultipleInsertion) {
 
 TEST(MountTreeTest, TestEvilNullByte) {
   Mounts mounts;
-  // create the filename with a null byte this way as g4 fix forces newlines
+  // Create the filename with a null byte this way as g4 fix forces newlines
   // otherwise.
   std::string filename = "/a/b";
   filename[2] = '\0';
@@ -214,20 +215,18 @@ TEST(MountTreeTest, TestMinimalDynamicBinary) {
 
 TEST(MountTreeTest, TestList) {
   struct TestCase {
-    const char* path;
-    const bool is_ro;
+    absl::string_view path;
+    bool is_ro;
   };
-  // clang-format off
   constexpr TestCase kTestCases[] = {
       // NOTE: Directories have a trailing '/'; files don't.
-      {"/a/b", true},
-      {"/a/c/", true},
-      {"/a/c/d/e/f/g", true},
-      {"/h", true},
-      {"/i/j/k", false},
-      {"/i/l/", false},
+      {"/a/b", true},          // File
+      {"/a/c/", true},         // Directory
+      {"/a/c/d/e/f/g", true},  // File
+      {"/h", true},            // File
+      {"/i/j/k", false},       // File
+      {"/i/l/", false},        // Directory
   };
-  // clang-format on
 
   Mounts mounts;
 
@@ -254,30 +253,24 @@ TEST(MountTreeTest, TestList) {
   std::vector<std::string> inside_entries;
   mounts.RecursivelyListMounts(&outside_entries, &inside_entries);
 
-  // clang-format off
-  EXPECT_THAT(
-      inside_entries,
-      UnorderedElementsAreArray({
-          "R /a/b",
-          "R /a/c/",
-          "R /a/c/d/e/f/g",
-          "R /h",
-          "W /i/j/k",
-          "W /i/l/",
-          "/d",
-      }));
-  EXPECT_THAT(
-      outside_entries,
-      UnorderedElementsAreArray({
-          absl::StrCat("/some/dir/", "a/b"),
-          absl::StrCat("/some/dir/", "a/c/"),
-          absl::StrCat("/some/dir/", "a/c/d/e/f/g"),
-          absl::StrCat("/some/dir/", "h"),
-          absl::StrCat("/some/dir/", "i/j/k"),
-          absl::StrCat("/some/dir/", "i/l/"),
-          absl::StrCat("tmpfs: size=", 1024*1024),
-      }));
-  // clang-format on
+  EXPECT_THAT(inside_entries, UnorderedElementsAreArray({
+                                  "R /a/b",
+                                  "R /a/c/",
+                                  "R /a/c/d/e/f/g",
+                                  "R /h",
+                                  "W /i/j/k",
+                                  "W /i/l/",
+                                  "/d",
+                              }));
+  EXPECT_THAT(outside_entries, UnorderedElementsAreArray({
+                                   absl::StrCat("/some/dir/", "a/b"),
+                                   absl::StrCat("/some/dir/", "a/c/"),
+                                   absl::StrCat("/some/dir/", "a/c/d/e/f/g"),
+                                   absl::StrCat("/some/dir/", "h"),
+                                   absl::StrCat("/some/dir/", "i/j/k"),
+                                   absl::StrCat("/some/dir/", "i/l/"),
+                                   absl::StrCat("tmpfs: size=", 1024 * 1024),
+                               }));
 }
 
 TEST(MountTreeTest, TestIsWritable) {
