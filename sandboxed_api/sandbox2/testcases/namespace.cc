@@ -147,7 +147,15 @@ int main(int argc, char* argv[]) {
       result.push_back(hostname);
       break;
     }
-
+    case 8: {
+      constexpr char kNsNetPath[] = "/proc/self/ns/net";
+      std::string buf(100, '\0');
+      if (readlink(kNsNetPath, buf.data(), buf.size()) == -1) {
+        return -1;
+      }
+      result.push_back(buf);
+      break;
+    }
     default:
       return 1;
   }

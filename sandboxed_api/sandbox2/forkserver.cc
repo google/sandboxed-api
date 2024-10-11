@@ -439,6 +439,11 @@ pid_t ForkServer::ServeRequest() {
                       "joining initial user namespace");
       SAPI_RAW_PCHECK(setns(initial_mntns_fd_, CLONE_NEWNS) != -1,
                       "joining initial mnt namespace");
+      if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
+        SAPI_RAW_PCHECK(setns(initial_netns_fd_, CLONE_NEWNET) != -1,
+                        "joining initial net namespace");
+        close(initial_netns_fd_);
+      }
       close(initial_userns_fd_);
       close(initial_mntns_fd_);
       // Do not create new userns it will be unshared later
@@ -600,7 +605,8 @@ void ForkServer::CreateInitialNamespaces() {
   SAPI_RAW_PCHECK(create_efd.get() != -1, "creating eventfd");
   FDCloser open_efd(eventfd(0, EFD_CLOEXEC));
   SAPI_RAW_PCHECK(open_efd.get() != -1, "creating eventfd");
-  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | SIGCHLD);
+  pid_t pid =
+      util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWNET | SIGCHLD);
   if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
     SAPI_RAW_LOG(FATAL,
                  "failed to fork initial namespaces process: parent process is "
@@ -630,6 +636,9 @@ void ForkServer::CreateInitialNamespaces() {
   initial_mntns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/mnt").c_str(),
                            O_RDONLY | O_CLOEXEC);
   SAPI_RAW_PCHECK(initial_mntns_fd_ != -1, "getting initial mntns fd");
+  initial_netns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/net").c_str(),
+                           O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_PCHECK(initial_netns_fd_ != -1, "getting initial netns fd");
   SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(open_efd.get(), &value,
                                            sizeof(value))) == sizeof(value),
                   "synchronizing initial namespaces creation");

@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/sandbox2/namespace.h"
+#include "sandboxed_api/sandbox2/namespace.h"  // IWYU pragma: keep
 
+#include <asm-generic/unistd.h>
 #include <unistd.h>
 
 #include <cstdint>
@@ -27,6 +28,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -253,6 +255,60 @@ TEST(NamespaceTest, TestInterfacesWithNetwork) {
   // Loopback network interface 'lo' and more.
   EXPECT_THAT(result, Contains("lo"));
   EXPECT_THAT(result, SizeIs(Gt(1)));
+}
+
+TEST(NamespaceTest, TestNetNsModeForkServerShared) {
+  constexpr uint32_t kReadlink[] = {
+#ifdef __NR_readlink
+      __NR_readlink,
+#endif
+      __NR_readlinkat};
+
+  std::unique_ptr<sandbox2::Policy> policy;
+  const std::string path = GetTestcaseBinPath("namespace");
+  std::initializer_list<std::string> args = {path, "8"};
+
+  // Sandbox2 run without a ForkServer shared net_ns
+  SAPI_ASSERT_OK_AND_ASSIGN(policy, CreateDefaultPermissiveTestPolicy(path)
+                                        .AllowSyscalls(kReadlink)
+                                        .AddDirectory("/proc")
+                                        .TryBuild());
+  std::vector<std::string> result_individual_netns_run =
+      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  EXPECT_THAT(result_individual_netns_run, SizeIs(1));
+
+  // Two Sandbox2 runs with a ForkServer shared net_ns
+  SAPI_ASSERT_OK_AND_ASSIGN(policy, CreateDefaultPermissiveTestPolicy(path)
+                                        .AllowSyscalls(kReadlink)
+                                        .AddDirectory("/proc")
+                                        .UseForkServerSharedNetNs()
+                                        .TryBuild());
+  std::vector<std::string> result_one =
+      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  EXPECT_THAT(result_one.size(), Eq(1));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(policy, CreateDefaultPermissiveTestPolicy(path)
+                                        .AllowSyscalls(kReadlink)
+                                        .AddDirectory("/proc")
+                                        .UseForkServerSharedNetNs()
+                                        .TryBuild());
+  std::vector<std::string> result_two =
+      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  EXPECT_THAT(result_two.size(), Eq(1));
+
+  EXPECT_THAT(result_one, Eq(result_two));
+  EXPECT_THAT(result_one, Ne(result_individual_netns_run));
+  EXPECT_THAT(result_two, Ne(result_individual_netns_run));
+}
+
+TEST(NamespaceTest, TestIncompatibleNetNsModes) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  auto policy = CreateDefaultPermissiveTestPolicy(path)
+                    .Allow(UnrestrictedNetworking())
+                    .UseForkServerSharedNetNs()
+                    .TryBuild();
+  EXPECT_THAT(policy.status(),
+              sapi::StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST(NamespaceTest, TestFiles) {
