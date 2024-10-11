@@ -113,8 +113,8 @@ class Sandbox {
                   "Too many arguments to sapi::Sandbox::Call()");
     return Call(func, ret, {std::forward<Args>(args)...});
   }
-  absl::Status Call(const std::string& func, v::Callable* ret,
-                    std::initializer_list<v::Callable*> args);
+  virtual absl::Status Call(const std::string& func, v::Callable* ret,
+                            std::initializer_list<v::Callable*> args);
 
   // Allocates memory in the sandboxee, automatic_free indicates whether the
   // memory should be freed on the remote side when the 'var' goes out of scope.
