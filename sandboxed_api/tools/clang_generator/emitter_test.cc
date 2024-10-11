@@ -147,6 +147,21 @@ TEST_F(EmitterTest, TypedefNames) {
                   "struct tagC { int member; }", "typedef struct tagC C"));
 }
 
+TEST_F(EmitterTest, TypedefAnonymousWithFieldStructure) {
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(struct A { int number; };
+             typedef struct { A member; } B;
+             extern "C" void Foo(B*);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("struct A { int number; }",
+                          "typedef struct { A member; } B"));
+}
+
 TEST_F(EmitterTest, NestedStruct) {
   EmitterForTesting emitter;
   ASSERT_THAT(

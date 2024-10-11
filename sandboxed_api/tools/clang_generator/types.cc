@@ -51,6 +51,19 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     return;
   }
 
+  if (const auto* record_type = qual->getAs<clang::RecordType>()) {
+    const clang::RecordDecl* decl = record_type->getDecl();
+    for (const clang::FieldDecl* field : decl->fields()) {
+      CollectRelatedTypes(field->getType());
+    }
+    // Do not collect structs/unions if they are declared within another
+    // record. The enclosing type is enough to reconstruct the AST when
+    // writing the header.
+    const clang::RecordDecl* outer = decl->getOuterLexicalRecordContext();
+    decl = outer ? outer : decl;
+    collected_.insert(clang::QualType(decl->getTypeForDecl(), 0));
+  }
+
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
     clang::TypedefNameDecl* typedef_decl = typedef_type->getDecl();
     if (!typedef_decl->getAnonDeclWithTypedefName()) {
@@ -97,20 +110,6 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
       }
     }
     collected_.insert(qual);
-    return;
-  }
-
-  if (const auto* record_type = qual->getAs<clang::RecordType>()) {
-    const clang::RecordDecl* decl = record_type->getDecl();
-    for (const clang::FieldDecl* field : decl->fields()) {
-      CollectRelatedTypes(field->getType());
-    }
-    // Do not collect structs/unions if they are declared within another
-    // record. The enclosing type is enough to reconstruct the AST when
-    // writing the header.
-    const clang::RecordDecl* outer = decl->getOuterLexicalRecordContext();
-    decl = outer ? outer : decl;
-    collected_.insert(clang::QualType(decl->getTypeForDecl(), 0));
     return;
   }
 }
