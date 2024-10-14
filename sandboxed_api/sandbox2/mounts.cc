@@ -280,24 +280,20 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   std::vector<absl::string_view> parts =
       absl::StrSplit(absl::StripPrefix(fixed_path, "/"), '/');
-  std::string final_part(parts.back());
-  parts.pop_back();
 
   MountTree* curtree = &mount_tree_;
-  for (absl::string_view part : parts) {
-    curtree = &(curtree->mutable_entries()
-                    ->insert({std::string(part), MountTree()})
-                    .first->second);
+  for (int i = 0; true; ++i) {
+    auto it = curtree->mutable_entries()->emplace(parts[i], MountTree()).first;
+    curtree = &it->second;
+    if (i == parts.size() - 1) {  // Final part
+      break;
+    }
     if (curtree->has_node() && curtree->node().has_file_node()) {
       return absl::FailedPreconditionError(
           absl::StrCat("Cannot insert ", path,
                        " since a file is mounted as a parent directory"));
     }
   }
-
-  curtree = &(curtree->mutable_entries()
-                  ->insert({final_part, MountTree()})
-                  .first->second);
 
   if (curtree->has_node()) {
     if (internal::IsEquivalentNode(curtree->node(), new_node)) {
@@ -586,8 +582,7 @@ uint64_t GetMountFlagsFor(const std::string& path) {
 }
 
 std::string MountFlagsToString(uint64_t flags) {
-#define SAPI_MAP(x) \
-  { x, #x }
+#define SAPI_MAP(x) {x, #x}
   static constexpr std::pair<uint64_t, absl::string_view> kMap[] = {
       SAPI_MAP(MS_RDONLY),      SAPI_MAP(MS_NOSUID),
       SAPI_MAP(MS_NODEV),       SAPI_MAP(MS_NOEXEC),
