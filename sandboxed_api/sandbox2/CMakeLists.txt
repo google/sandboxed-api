@@ -544,7 +544,6 @@ target_link_libraries(sandbox2_policybuilder
          absl::span
          absl::strings
          absl::statusor
-         sandbox2::forkserver_proto
          sandbox2::mounts
          sandbox2::network_proxy_filtering
          sandbox2::policy
@@ -672,8 +671,7 @@ target_link_libraries(sandbox2_namespace
           sapi::fileops
           sapi::base
           sapi::raw_logging
-  PUBLIC sandbox2::forkserver_proto
-         sandbox2::violation_proto
+  PUBLIC sandbox2::violation_proto
          sandbox2::mounts
 )
 
@@ -882,11 +880,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_namespace_test PRIVATE
     absl::check
-    absl::status
     absl::statusor
     absl::strings
     sandbox2::allow_all_syscalls
     sandbox2::allow_unrestricted_networking
+    sapi::config
     sapi::fileops
     sandbox2::namespace
     sandbox2::sandbox2

@@ -24,7 +24,6 @@
 #include <cstdint>
 #include <string>
 
-#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 
@@ -40,13 +39,11 @@ class Namespace final {
                                    bool allow_mount_propagation);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
 
-  Namespace(Mounts mounts, std::string hostname, NetNsMode netns_config,
-            bool allow_mount_propagation = false);
+  Namespace(bool allow_unrestricted_networking, Mounts mounts,
+            std::string hostname, bool allow_mount_propagation);
 
   // Stores information about this namespace in the protobuf structure.
   void GetNamespaceDescription(NamespaceDescription* pb_description) const;
-
-  NetNsMode netns_config() const { return netns_config_; }
 
   int32_t clone_flags() const { return clone_flags_; }
 
@@ -62,8 +59,7 @@ class Namespace final {
                          CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNET;
   Mounts mounts_;
   std::string hostname_;
-  bool allow_mount_propagation_;
-  NetNsMode netns_config_;
+  bool allow_mount_propagation_ = false;
 };
 
 }  // namespace sandbox2

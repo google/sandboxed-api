@@ -41,26 +41,6 @@ enum MonitorType {
   FORKSERVER_MONITOR_UNOTIFY = 2;
 }
 
-// Enum representing the net_ns mode, used by policybuilder, forkserver, and
-// executor.
-enum NetNsMode {
-  NETNS_MODE_UNSPECIFIED = 0;
-
-  // Create a new netns for each sandbox (default).
-  NETNS_MODE_PER_SANDBOXEE = 1;
-
-  // Do not create a netns.
-  // This will disable the network namespace isolation
-  // from the host and expose its network interfaces to the sandboxee (generally
-  // granting internet access).
-  // Networking syscalls must be allowed in the policy in order to use the
-  // network.
-  NETNS_MODE_NONE = 2;
-
-  // Create a netns shared by all sandboxees started by a forkserver.
-  NETNS_MODE_SHARED_PER_FORKSERVER = 3;
-}
-
 message ForkRequest {
   // List of arguments, starting with argv[0]
   repeated bytes args = 1;
@@ -89,7 +69,4 @@ message ForkRequest {
 
   // Whether to allow speculative execution inside the sandboxee
   optional bool allow_speculation = 10;
-
-  // Net namespace mode
-  optional NetNsMode netns_mode = 11;
 }

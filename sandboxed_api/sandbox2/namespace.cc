@@ -34,8 +34,6 @@
 #include <vector>
 
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/sandbox2/forkserver.pb.h"
-#include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -197,16 +195,12 @@ void LogFilesystem(const std::string& dir) {
 
 }  // namespace
 
-Namespace::Namespace(Mounts mounts, std::string hostname,
-                     NetNsMode netns_config, bool allow_mount_propagation)
+Namespace::Namespace(bool allow_unrestricted_networking, Mounts mounts,
+                     std::string hostname, bool allow_mount_propagation)
     : mounts_(std::move(mounts)),
       hostname_(std::move(hostname)),
-      allow_mount_propagation_(allow_mount_propagation),
-      netns_config_(netns_config) {
-  // Remove the CLONE_NEWNET flag to allow networking, or for the shared netns.
-  // In the latter case, the flag will be added later on.
-  if (netns_config_ == NETNS_MODE_NONE ||
-      netns_config_ == NETNS_MODE_SHARED_PER_FORKSERVER) {
+      allow_mount_propagation_(allow_mount_propagation) {
+  if (allow_unrestricted_networking) {
     clone_flags_ &= ~CLONE_NEWNET;
   }
 }

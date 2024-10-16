@@ -58,7 +58,6 @@
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/allow_seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
-#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -127,16 +126,7 @@ bool IsOnReadOnlyDev(const std::string& path) {
 
 PolicyBuilder& PolicyBuilder::Allow(UnrestrictedNetworking) {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
-
-  if (netns_mode_ != NETNS_MODE_UNSPECIFIED) {
-    SetError(absl::FailedPreconditionError(absl::StrCat(
-        "Incompatible with other network namespaces modes. A sandbox can have "
-        "only one network namespace mode. Attempted to configure: ",
-        NetNsMode_Name(netns_mode_))));
-    return *this;
-  }
-
-  netns_mode_ = NETNS_MODE_NONE;
+  allow_unrestricted_networking_ = true;
   return *this;
 }
 
@@ -1457,16 +1447,13 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   }
 
   if (use_namespaces_) {
-    // If no specific netns mode is set, default to per-sandboxee.
-    if (netns_mode_ == NETNS_MODE_UNSPECIFIED) {
-      netns_mode_ = NETNS_MODE_PER_SANDBOXEE;
-    }
-    if (netns_mode_ == NETNS_MODE_NONE && hostname_ != kDefaultHostname) {
+    if (allow_unrestricted_networking_ && hostname_ != kDefaultHostname) {
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    policy->namespace_ = Namespace(std::move(mounts_), hostname_, netns_mode_,
-                                   allow_mount_propagation_);
+    policy->namespace_ =
+        Namespace(allow_unrestricted_networking_, std::move(mounts_), hostname_,
+                  allow_mount_propagation_);
   }
 
   policy->allow_speculation_ = allow_speculation_;
@@ -1630,21 +1617,6 @@ PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t size) {
 // Use Allow(sandbox2::UnrestrictedNetworking()) instead.
 PolicyBuilder& PolicyBuilder::AllowUnrestrictedNetworking() {
   return Allow(UnrestrictedNetworking());
-}
-
-PolicyBuilder& PolicyBuilder::UseForkServerSharedNetNs() {
-  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
-
-  if (netns_mode_ != NETNS_MODE_UNSPECIFIED) {
-    SetError(absl::FailedPreconditionError(absl::StrCat(
-        "Incompatible with other network namespaces modes. A sandbox can have "
-        "only one network namespace mode. Attempted to configure: ",
-        NetNsMode_Name(netns_mode_))));
-    return *this;
-  }
-
-  netns_mode_ = NETNS_MODE_SHARED_PER_FORKSERVER;
-  return *this;
 }
 
 PolicyBuilder& PolicyBuilder::SetHostname(absl::string_view hostname) {
