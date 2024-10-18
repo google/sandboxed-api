@@ -90,6 +90,7 @@ class ForkServer {
   Comms* comms_;
   int initial_mntns_fd_ = -1;
   int initial_userns_fd_ = -1;
+  int initial_netns_fd_ = -1;
 };
 
 }  // namespace sandbox2

@@ -34,6 +34,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -695,6 +696,16 @@ class PolicyBuilder final {
   ABSL_DEPRECATED("Use Allow(sandbox2::UnrestrictedNetworking()) instead.")
   PolicyBuilder& AllowUnrestrictedNetworking();
 
+  // Enables a shared network namespace for all sandboxees that are started by
+  // the same forkserver.
+  //
+  // This results in sandboxed processes to run in the same shared network
+  // namespace instead of creating a separate network namespace for each
+  // sandboxed process started by the ForkServer process.
+  //
+  // IMPORTANT: This is incompatible with AllowUnrestrictedNetworking.
+  PolicyBuilder& UseForkServerSharedNetNs();
+
   // Enables the use of namespaces.
   //
   // Namespaces are enabled by default.
@@ -834,7 +845,7 @@ class PolicyBuilder final {
   Mounts mounts_;
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
-  bool allow_unrestricted_networking_ = false;
+  NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
   bool allow_speculation_ = false;
   bool allow_mount_propagation_ = false;
   std::string hostname_ = std::string(kDefaultHostname);

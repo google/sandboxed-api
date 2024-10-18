@@ -109,6 +109,7 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   builder.AddFile("/usr/bin/find"); assert_same();
   builder.AddDirectory("/bin"); assert_same();
   builder.AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */); assert_same();
+  builder.UseForkServerSharedNetNs(); assert_same();
   builder.Allow(UnrestrictedNetworking()); assert_same();
   // clang-format on
 }
