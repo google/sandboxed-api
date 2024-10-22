@@ -266,7 +266,7 @@ void UnotifyMonitor::Run() {
     }
     if (pfds[2].revents & POLLIN) {
       uint64_t value = 0;
-      read(monitor_notify_fd_.get(), &value, sizeof(value));
+      (void)read(monitor_notify_fd_.get(), &value, sizeof(value));
       continue;
     }
     if (pfds[0].revents & POLLIN) {
@@ -358,7 +358,8 @@ void UnotifyMonitor::NotifyMonitor() {
     return;
   }
   uint64_t value = 1;
-  write(monitor_notify_fd_.get(), &value, sizeof(value));
+  PCHECK(write(monitor_notify_fd_.get(), &value, sizeof(value)) ==
+         sizeof(value));
 }
 
 bool UnotifyMonitor::KillSandboxee() {

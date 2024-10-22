@@ -164,12 +164,12 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd) {
 
     if (info.si_pid == main_pid) {
       if (pipe_fd.get() >= 0) {
-        write(pipe_fd.get(), &info.si_code, sizeof(info.si_code));
-        write(pipe_fd.get(), &info.si_status, sizeof(info.si_status));
+        (void)write(pipe_fd.get(), &info.si_code, sizeof(info.si_code));
+        (void)write(pipe_fd.get(), &info.si_status, sizeof(info.si_status));
 
         rusage usage{};
         getrusage(RUSAGE_CHILDREN, &usage);
-        write(pipe_fd.get(), &usage, sizeof(usage));
+        (void)write(pipe_fd.get(), &usage, sizeof(usage));
       }
       _exit(0);
     }

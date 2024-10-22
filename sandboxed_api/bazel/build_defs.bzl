@@ -18,6 +18,7 @@ _SAPI_LINUX_COPTS = [
     "-Wno-deprecated-declarations",
     "-Wno-narrowing",
     "-Wno-sign-compare",
+    "-Wunused-result",
 ]
 
 def sapi_platform_copts(copts = []):
