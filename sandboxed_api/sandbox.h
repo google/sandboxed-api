@@ -76,8 +76,7 @@ class Sandbox {
 
   virtual ~Sandbox();
 
-  void SetForkClientContext(
-      ForkClientContext* fork_client_context ABSL_ATTRIBUTE_LIFETIME_BOUND);
+  void SetForkClientContext(ForkClientContext* fork_client_context);
 
   // Initializes a new sandboxing session.
   absl::Status Init(bool use_unotify_monitor = false);
