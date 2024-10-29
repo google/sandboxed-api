@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 _DEFAULT_VISIBILITY = [
-    "//sandboxed_api:__subpackages__",
+    "@com_google_sandboxed_api//sandboxed_api:__subpackages__",
 ]
 
 package(default_visibility = _DEFAULT_VISIBILITY)
@@ -53,14 +53,14 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = _DEFAULT_VISIBILITY + [":minielf_users"],
     deps = [
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:endian",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -76,12 +76,12 @@ cc_test(
     deps = [
         ":maps_parser",
         ":minielf",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:file_helpers",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -91,8 +91,8 @@ cc_library(
     hdrs = ["syscall_trap.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api:config",
         "@com_google_absl//absl/log:check",
+        "@com_google_sandboxed_api//sandboxed_api:config",
     ],
 )
 
@@ -114,8 +114,8 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":maps_parser",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )

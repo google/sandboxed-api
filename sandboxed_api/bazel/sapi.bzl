@@ -14,10 +14,10 @@
 
 """Starlark rules for projects using Sandboxed API."""
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load(
-    "//sandboxed_api/bazel:proto.bzl",
+    "@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl",
     _sapi_proto_library = "sapi_proto_library",
 )
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
@@ -222,7 +222,7 @@ sapi_interface = rule(
         ),
         "_generator_v2": make_exec_label(
             # TODO(cblichmann): Add prebuilt version of Clang based generator
-            "//sandboxed_api/tools/clang_generator:generator_tool",
+            "@com_google_sandboxed_api//sandboxed_api/tools/clang_generator:generator_tool",
         ),
         "_cc_toolchain": attr.label(
             default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
@@ -324,7 +324,7 @@ def sapi_library(
     else:
         lib_hdrs += [generated_header]
 
-    default_deps = ["//sandboxed_api/sandbox2"]
+    default_deps = ["@com_google_sandboxed_api//sandboxed_api/sandbox2"]
 
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
@@ -340,9 +340,9 @@ def sapi_library(
                 "@com_google_absl//absl/base:core_headers",
                 "@com_google_absl//absl/status",
                 "@com_google_absl//absl/status:statusor",
-                "//sandboxed_api:sapi",
-                "//sandboxed_api/util:status",
-                "//sandboxed_api:vars",
+                "@com_google_sandboxed_api//sandboxed_api:sapi",
+                "@com_google_sandboxed_api//sandboxed_api/util:status",
+                "@com_google_sandboxed_api//sandboxed_api:vars",
             ] + deps +
             ([":" + name + "_embed"] if embed else []) +
             (default_deps if add_default_deps else []),
@@ -360,7 +360,7 @@ def sapi_library(
         malloc = malloc,
         deps = [
             ":" + name + ".lib",
-            "//sandboxed_api:client",
+            "@com_google_sandboxed_api//sandboxed_api:client",
         ],
         copts = default_copts,
         **common

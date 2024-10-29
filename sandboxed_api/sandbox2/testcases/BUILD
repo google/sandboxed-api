@@ -27,10 +27,10 @@
 # any networking and none of the functionality from cstdio/stdio.h (due to
 # auto-loading of locale-specific shared objecs).
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
+    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -41,7 +41,7 @@ cc_binary(
     srcs = ["abort.cc"],
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
-    deps = ["//sandboxed_api/util:raw_logging"],
+    deps = ["@com_google_sandboxed_api//sandboxed_api/util:raw_logging"],
 )
 
 cc_binary(
@@ -59,7 +59,7 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "//sandboxed_api/sandbox2:buffer",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:buffer",
     ],
 )
 
@@ -70,10 +70,10 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "//sandboxed_api/sandbox2:client",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -115,9 +115,9 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "//sandboxed_api/sandbox2:client",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -128,8 +128,8 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "//sandboxed_api:config",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_sandboxed_api//sandboxed_api:config",
     ],
 )
 
@@ -147,11 +147,11 @@ cc_binary(
     srcs = ["close_fds.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/sandbox2:sanitizer",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:sanitizer",
     ],
 )
 
@@ -187,9 +187,9 @@ cc_binary(
     features = ["fully_static_link"],
     deps = [
         ":symbolize_lib",
-        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -200,8 +200,8 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "//sandboxed_api/sandbox2:client",
-        "//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
     ],
 )
 
@@ -228,12 +228,12 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
     ],
 )
 
@@ -243,11 +243,6 @@ cc_binary(
     srcs = ["network_proxy.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/sandbox2:client",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2/network_proxy:client",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
@@ -259,6 +254,11 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:client",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -269,9 +269,9 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:forkingclient",
-        "//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:forkingclient",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 

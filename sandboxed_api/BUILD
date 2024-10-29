@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
+package(default_visibility = ["@com_google_sandboxed_api//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -40,13 +40,13 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -84,14 +84,6 @@ cc_library(
         ":embed_file",
         ":var_type",
         ":vars",
-        "//sandboxed_api/sandbox2",
-        "//sandboxed_api/sandbox2:client",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:runfiles",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -105,6 +97,14 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:runfiles",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -157,10 +157,6 @@ cc_library(
         ":call",
         ":lenval_core",
         ":var_type",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:proto_helper",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -171,6 +167,10 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/utility",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "@com_google_sandboxed_api//sandboxed_api/util:proto_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -184,11 +184,6 @@ cc_library(
         ":call",
         ":lenval_core",
         ":var_type",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:forkingclient",
-        "//sandboxed_api/sandbox2:logsink",
-        "//sandboxed_api/util:proto_arg_cc_proto",
-        "//sandboxed_api/util:proto_helper",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/flags:parse",
@@ -199,6 +194,11 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:forkingclient",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:logsink",
+        "@com_google_sandboxed_api//sandboxed_api/util:proto_arg_cc_proto",
+        "@com_google_sandboxed_api//sandboxed_api/util:proto_helper",
         "@org_sourceware_libffi//:libffi",
     ],
 )
@@ -212,10 +212,6 @@ cc_test(
         ":sapi",
         ":testing",
         ":vars",
-        "//sandboxed_api/examples/stringop:stringop-sapi",
-        "//sandboxed_api/examples/stringop:stringop_params_cc_proto",
-        "//sandboxed_api/examples/sum:sum-sapi",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -224,6 +220,10 @@ cc_test(
         "@com_google_absl//absl/types:span",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/examples/stringop:stringop-sapi",
+        "@com_google_sandboxed_api//sandboxed_api/examples/stringop:stringop_params_cc_proto",
+        "@com_google_sandboxed_api//sandboxed_api/examples/sum:sum-sapi",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -237,9 +237,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":config",
-        "//sandboxed_api/sandbox2:policybuilder",
-        "//sandboxed_api/sandbox2:testonly_allow_all_syscalls",
-        "//sandboxed_api/util:file_base",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:policybuilder",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:testonly_allow_all_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
     ],
 )

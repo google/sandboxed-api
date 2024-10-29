@@ -14,11 +14,11 @@
 
 # Description: sandbox2 is a C++ sandbox technology for Linux.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
+package(default_visibility = ["@com_google_sandboxed_api//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -110,10 +110,10 @@ cc_library(
     deps = [
         ":syscall",
         ":violation_cc_proto",
-        "//sandboxed_api:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api:config",
     ],
 )
 
@@ -127,11 +127,11 @@ cc_test(
         ":sanitizer",
         ":syscall",
         ":util",
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/log:check",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -149,14 +149,14 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":util",
-        "//sandboxed_api:config",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -167,9 +167,9 @@ cc_test(
     tags = ["no_qemu_user_mode"],
     deps = [
         ":syscall",
-        "//sandboxed_api:config",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:config",
     ],
 )
 
@@ -182,9 +182,9 @@ cc_library(
         ":regs",
         ":syscall",
         ":util",
-        "//sandboxed_api:config",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api:config",
     ],
 )
 
@@ -251,12 +251,12 @@ cc_library(
         ":namespace",
         ":syscall",
         ":violation_cc_proto",
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2/network_proxy:filtering",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:string_view",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
     ],
 )
 
@@ -296,11 +296,11 @@ cc_binary(
         ":comms",
         ":forkserver",
         ":sanitizer",
-        "//sandboxed_api/sandbox2/unwind",
-        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/status",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/unwind",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -321,11 +321,6 @@ cc_library(
         ":forkserver_bin_embed",
         ":forkserver_cc_proto",
         ":util",
-        "//sandboxed_api:config",
-        "//sandboxed_api:embed_file",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
@@ -334,6 +329,11 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api:embed_file",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -364,8 +364,6 @@ cc_library(
         ":limits",
         ":namespace",
         ":util",
-        "//sandboxed_api:config",
-        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -373,6 +371,8 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
     ],
 )
 
@@ -420,10 +420,6 @@ cc_library(
         ":syscall",
         ":util",
         ":violation_cc_proto",
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2/network_proxy:client",
-        "//sandboxed_api/sandbox2/network_proxy:filtering",
-        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -437,6 +433,10 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
     ],
 )
 
@@ -455,12 +455,6 @@ cc_library(
         ":policybuilder",
         ":regs",
         ":result",
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2/unwind",
-        "//sandboxed_api/sandbox2/unwind:unwind_cc_proto",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -470,6 +464,12 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/unwind",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/unwind:unwind_cc_proto",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -490,8 +490,6 @@ cc_library(
         ":sanitizer",
         ":syscall",
         ":util",
-        "//sandboxed_api:config",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -506,6 +504,8 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -522,9 +522,6 @@ cc_library(
         ":notify",
         ":policy",
         ":result",
-        "//sandboxed_api:config",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
@@ -535,6 +532,9 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -560,11 +560,6 @@ cc_library(
         ":stack_trace",
         ":syscall",
         ":util",
-        "//sandboxed_api/sandbox2/network_proxy:client",
-        "//sandboxed_api/sandbox2/network_proxy:server",
-        "//sandboxed_api/util:file_helpers",
-        "//sandboxed_api/util:strerror",
-        "//sandboxed_api/util:temp_file",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
@@ -577,6 +572,11 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:server",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
+        "@com_google_sandboxed_api//sandboxed_api/util:strerror",
+        "@com_google_sandboxed_api//sandboxed_api/util:temp_file",
     ],
 )
 
@@ -596,11 +596,6 @@ cc_library(
         ":syscall",
         ":trace_all_syscalls",
         ":violation_cc_proto",
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2/network_proxy:filtering",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -611,6 +606,11 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -628,13 +628,13 @@ cc_library(
         ":policy",
         ":sanitizer",
         ":syscall",
-        "//sandboxed_api/sandbox2/network_proxy:client",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -646,13 +646,13 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":util",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -671,10 +671,6 @@ cc_library(
         ":sanitizer",
         ":syscall",
         ":util",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:strerror",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -682,6 +678,10 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:strerror",
         "@org_kernel_libcap//:libcap",
     ],
 )
@@ -695,11 +695,11 @@ cc_library(
     deps = [
         ":comms",
         ":forkserver_cc_proto",
-        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/synchronization",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
     ],
 )
 
@@ -710,16 +710,16 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":mount_tree_cc_proto",
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2/util:minielf",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:minielf",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -727,16 +727,16 @@ cc_test(
     name = "mounts_test",
     srcs = ["mounts_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
+    data = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
     deps = [
         ":mounts",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:status_matchers",
-        "//sandboxed_api/util:temp_file",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "@com_google_sandboxed_api//sandboxed_api/util:temp_file",
     ],
 )
 
@@ -749,10 +749,10 @@ cc_library(
         ":forkserver_cc_proto",
         ":mounts",
         ":violation_cc_proto",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -761,7 +761,7 @@ cc_test(
     srcs = ["namespace_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:namespace",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:namespace",
     ],
     tags = [
         "requires-net:external",
@@ -771,15 +771,15 @@ cc_test(
         ":sandbox2",
         ":testonly_allow_all_syscalls",
         ":testonly_allow_unrestricted_networking",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status_matchers",
-        "//sandboxed_api/util:temp_file",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "@com_google_sandboxed_api//sandboxed_api/util:temp_file",
     ],
 )
 
@@ -809,12 +809,6 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        "//sandboxed_api:config",
-        "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:file_helpers",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
@@ -822,6 +816,12 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -843,14 +843,14 @@ cc_test(
     name = "buffer_test",
     srcs = ["buffer_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:buffer"],
+    data = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:buffer"],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":buffer",
         ":sandbox2",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -873,10 +873,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":util",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
-        "//sandboxed_api/util:status_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/status",
@@ -884,6 +880,10 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_cc_proto",
     ],
 )
 
@@ -899,13 +899,13 @@ cc_test(
     deps = [
         ":comms",
         ":comms_test_cc_proto",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -913,18 +913,18 @@ cc_test(
     name = "forkserver_test",
     srcs = ["forkserver_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:minimal"],
+    data = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal"],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":forkserver",
         ":forkserver_cc_proto",
         ":global_forkserver",
         ":sandbox2",
-        "//sandboxed_api:testing",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
     ],
 )
 
@@ -933,15 +933,15 @@ cc_test(
     srcs = ["limits_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:limits",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:limits",
     ],
     deps = [
         ":limits",
         ":sandbox2",
-        "//sandboxed_api:config",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -950,18 +950,18 @@ cc_test(
     srcs = ["notify_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:personality",
-        "//sandboxed_api/sandbox2/testcases:pidcomms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:personality",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:pidcomms",
     ],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":comms",
         ":sandbox2",
         ":trace_all_syscalls",
-        "//sandboxed_api:testing",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
     ],
 )
 
@@ -970,22 +970,22 @@ cc_test(
     srcs = ["policy_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:add_policy_on_syscalls",
-        "//sandboxed_api/sandbox2/testcases:malloc_system",
-        "//sandboxed_api/sandbox2/testcases:minimal",
-        "//sandboxed_api/sandbox2/testcases:minimal_dynamic",
-        "//sandboxed_api/sandbox2/testcases:policy",
-        "//sandboxed_api/sandbox2/testcases:posix_timers",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:add_policy_on_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:malloc_system",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal_dynamic",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:policy",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:posix_timers",
     ],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":sandbox2",
-        "//sandboxed_api:config",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -994,12 +994,12 @@ cc_test(
     srcs = ["sandbox2_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:abort",
-        "//sandboxed_api/sandbox2/testcases:custom_fork",
-        "//sandboxed_api/sandbox2/testcases:minimal",
-        "//sandboxed_api/sandbox2/testcases:sleep",
-        "//sandboxed_api/sandbox2/testcases:starve",
-        "//sandboxed_api/sandbox2/testcases:tsync",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:abort",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:custom_fork",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:sleep",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:starve",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:tsync",
     ],
     tags = [
         "local",
@@ -1008,15 +1008,15 @@ cc_test(
     deps = [
         ":fork_client",
         ":sandbox2",
-        "//sandboxed_api:config",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -1025,8 +1025,8 @@ cc_test(
     srcs = ["sanitizer_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:close_fds",
-        "//sandboxed_api/sandbox2/testcases:sanitizer",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:close_fds",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:sanitizer",
     ],
     tags = ["no_qemu_user_mode"],
     deps = [
@@ -1034,12 +1034,12 @@ cc_test(
         ":sandbox2",
         ":sanitizer",
         ":util",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -1048,12 +1048,10 @@ cc_test(
     srcs = ["util_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:util_communicate",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:util_communicate",
     ],
     deps = [
         ":util",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -1061,6 +1059,8 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -1070,15 +1070,12 @@ cc_test(
         "stack_trace_test.cc",
     ],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:symbolize"],
+    data = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:symbolize"],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":global_forkserver",
         ":sandbox2",
         ":stack_trace",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:reflection",
@@ -1087,6 +1084,9 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -1094,14 +1094,14 @@ cc_test(
     name = "ipc_test",
     srcs = ["ipc_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:ipc"],
+    data = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:ipc"],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":comms",
         ":sandbox2",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -1111,7 +1111,7 @@ cc_library(
     hdrs = ["testing.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
-    deps = ["//sandboxed_api:testing"],
+    deps = ["@com_google_sandboxed_api//sandboxed_api:testing"],
 )
 
 sapi_proto_library(
@@ -1131,12 +1131,12 @@ cc_test(
         ":policy",
         ":policybuilder",
         ":violation_cc_proto",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -1146,8 +1146,8 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":bpfdisassembler",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
     ],
 )
 
@@ -1156,17 +1156,17 @@ cc_test(
     srcs = ["network_proxy_test.cc"],
     copts = sapi_platform_copts(),
     data = [
-        "//sandboxed_api/sandbox2/testcases:network_proxy",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:network_proxy",
     ],
     tags = ["no_qemu_user_mode"],
     deps = [
         ":sandbox2",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/sandbox2/network_proxy:testing",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )

@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
-load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
+package(default_visibility = ["@com_google_sandboxed_api//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -80,8 +80,6 @@ cc_binary(
     deps = [
         ":sum-sapi",
         ":sum_params_cc_proto",
-        "//sandboxed_api:sapi",
-        "//sandboxed_api:vars",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:parse",
@@ -92,6 +90,8 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api:sapi",
+        "@com_google_sandboxed_api//sandboxed_api:vars",
     ],
 )
 

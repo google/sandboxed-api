@@ -15,28 +15,18 @@
 workspace(name = "com_google_sandboxed_api")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
-
-# Bazel rules_python
-maybe(
-    http_archive,
-    name = "rules_python",
-    sha256 = "5f5855c2a8af8fa9e09ed26720ed921f1a119f27cb041c5c137c8a5d3c8d9c55",  # 2024-04-05
-    strip_prefix = "rules_python-4a615bec59b51d9d5f0675ec312c5b84e2eb792c",
-    urls = ["https://github.com/bazelbuild/rules_python/archive/4a615bec59b51d9d5f0675ec312c5b84e2eb792c.zip"],
-)
-
-load("@rules_python//python:repositories.bzl", "py_repositories")
-
-py_repositories()
-
 load("//sandboxed_api/bazel:sapi_deps.bzl", "sapi_deps")
 
 # Load Sandboxed API dependencies
 sapi_deps()
 
 load("@bazel_skylib//lib:versions.bzl", "versions")
+
 versions.check(minimum_bazel_version = "5.1.0")
+
+load("@rules_python//python:repositories.bzl", "py_repositories")
+
+py_repositories()
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 

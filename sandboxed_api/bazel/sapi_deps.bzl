@@ -22,14 +22,23 @@ load("//sandboxed_api/bazel:repositories.bzl", "autotools_repository")
 def sapi_deps():
     """Loads common dependencies needed to compile Sandboxed API."""
 
+    # Bazel rules_python
+    maybe(
+        http_archive,
+        name = "rules_python",
+        sha256 = "c6fb25d0ba0246f6d5bd820dd0b2e66b339ccc510242fd4956b9a639b548d113",  # 2024-10-27
+        strip_prefix = "rules_python-0.37.2",
+        urls = ["https://github.com/bazelbuild/rules_python/releases/download/0.37.2/rules_python-0.37.2.tar.gz"],
+    )
+
     # Bazel Skylib
     maybe(
         http_archive,
         name = "bazel_skylib",
-        sha256 = "66ffd9315665bfaafc96b52278f57c7e2dd09f5ede279ea6d39b2be471e7e3aa",
+        sha256 = "bc283cdfcd526a52c3201279cda4bc298652efa898b10b4db0837dc51652756f",  # 2024-06-03
         urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
-            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.7.1/bazel-skylib-1.7.1.tar.gz",
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.7.1/bazel-skylib-1.7.1.tar.gz",
         ],
     )
 
@@ -37,16 +46,16 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "9ba0e97acf7026f7479e24967866ba9560cf3256304b6c8932d2b1ab7d0dfcd2",  # 2024-04-05
-        strip_prefix = "abseil-cpp-61e47a454c81eb07147b0315485f476513cc1230",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/61e47a454c81eb07147b0315485f476513cc1230.zip"],
+        sha256 = "571549a0fa17ebf46f517541bb8d66fe369493963d463409fe61f2b8a44eb2dc",  # 2024-04-05
+        strip_prefix = "abseil-cpp-fa588813c4b2d931737bbe7c4b4f7fa6ed7509db",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/fa588813c4b2d931737bbe7c4b4f7fa6ed7509db.zip"],
     )
     maybe(
         http_archive,
         name = "com_google_absl_py",
-        sha256 = "3d0278d88bbd52993f381d1e20887fa30f0556f6263b3f7bfcad62c69f39b38e",  # 2021-03-09
-        strip_prefix = "abseil-py-9954557f9df0b346a57ff82688438c55202d2188",
-        urls = ["https://github.com/abseil/abseil-py/archive/9954557f9df0b346a57ff82688438c55202d2188.zip"],
+        sha256 = "8a3d0830e4eb4f66c4fa907c06edf6ce1c719ced811a12e26d9d3162f8471758",  # 2024-01-16
+        strip_prefix = "abseil-py-2.1.0",
+        urls = ["https://github.com/abseil/abseil-py/archive/refs/tags/v2.1.0.tar.gz"],
     )
 
     # Abseil-py dependency for Python 2/3 compatiblity
@@ -63,9 +72,9 @@ def sapi_deps():
     maybe(
         http_archive,
         name = "com_google_protobuf",
-        sha256 = "4fc5ff1b2c339fb86cd3a25f0b5311478ab081e65ad258c6789359cd84d421f8",  # 2024-03-27
-        strip_prefix = "protobuf-26.1",
-        urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v26.1/protobuf-26.1.tar.gz"],
+        sha256 = "b2340aa47faf7ef10a0328190319d3f3bee1b24f426d4ce8f4253b6f27ce16db",  # 2024-09-18
+        strip_prefix = "protobuf-28.2",
+        urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v28.2/protobuf-28.2.tar.gz"],
     )
 
     # libcap

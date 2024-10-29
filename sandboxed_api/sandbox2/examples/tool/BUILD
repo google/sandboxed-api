@@ -20,10 +20,10 @@
 # - set limits, wall time, filesystem checks, asynchronous run
 # - test to ensure sandbox executor runs sandboxee without issue
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
+    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -34,12 +34,6 @@ cc_binary(
     srcs = ["sandbox2tool.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/sandbox2",
-        "//sandboxed_api/sandbox2:allow_all_syscalls",
-        "//sandboxed_api/sandbox2:allow_unrestricted_networking",
-        "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
@@ -51,6 +45,12 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:allow_all_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:allow_unrestricted_networking",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
     ],
 )
 

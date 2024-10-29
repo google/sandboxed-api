@@ -93,14 +93,16 @@ class CodeAnalysisTest(parameterized.TestCase):
         for x in translation_unit._walk_preorder()
         if x.kind != cindex.CursorKind.MACRO_DEFINITION
     ]
-    self.assertListEqual(
-        cursor_kinds,
-        [
-            cindex.CursorKind.TRANSLATION_UNIT,
-            cindex.CursorKind.LINKAGE_SPEC,
-            cindex.CursorKind.FUNCTION_DECL,
-            cindex.CursorKind.PARM_DECL,
-        ],
+    for kind in [
+        cindex.CursorKind.TRANSLATION_UNIT,
+        cindex.CursorKind.FUNCTION_DECL,
+        cindex.CursorKind.PARM_DECL,
+    ]:
+      self.assertIn(kind, cursor_kinds)
+    self.assertTrue(
+        cindex.CursorKind.LINKAGE_SPEC in cursor_kinds
+        # Older libclang versions to not have a cursor type for linkage specs
+        or cindex.CursorKind.UNEXPOSED_DECL in cursor_kinds
     )
 
   @parameterized.named_parameters(

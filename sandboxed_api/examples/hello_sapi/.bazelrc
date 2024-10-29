@@ -1,4 +1,4 @@
-# Migration to Bzlmod is not ready yet, waiting for Protobuf to release 27.0
+# Migration to Bzlmod is not ready yet
 common --noenable_bzlmod
 
 # Build in C++17 mode without a custom CROSSTOOL

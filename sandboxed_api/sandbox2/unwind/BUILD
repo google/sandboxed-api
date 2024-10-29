@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
+    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -27,8 +27,8 @@ cc_library(
     hdrs = ["ptrace_hook.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/sandbox2/util:syscall_trap",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:syscall_trap",
     ],
 )
 
@@ -41,17 +41,17 @@ cc_library(
     deps = [
         ":ptrace_hook",
         ":unwind_cc_proto",
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2/util:maps_parser",
-        "//sandboxed_api/sandbox2/util:minielf",
-        "//sandboxed_api/util:file_helpers",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:maps_parser",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:minielf",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
         "@org_gnu_libunwind//:unwind-ptrace",
     ],
 )

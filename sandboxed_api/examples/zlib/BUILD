@@ -14,10 +14,10 @@
 
 # Description: Sandboxed API reimplementation of zlib's zpipe.c example.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
+package(default_visibility = ["@com_google_sandboxed_api//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -42,7 +42,6 @@ cc_binary(
     copts = sapi_platform_copts(),
     deps = [
         ":zlib-sapi",
-        "//sandboxed_api:vars",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:parse",
@@ -51,6 +50,7 @@ cc_binary(
         "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_sandboxed_api//sandboxed_api:vars",
     ],
 )
 

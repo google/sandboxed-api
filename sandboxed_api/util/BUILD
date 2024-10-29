@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
 package(
     default_visibility = [
-        "//sandboxed_api:__subpackages__",
         "//security/bedebox:__subpackages__",
+        "@com_google_sandboxed_api//sandboxed_api:__subpackages__",
     ],
 )
 
@@ -90,9 +90,9 @@ cc_test(
         ":file_helpers",
         ":fileops",
         ":status_matchers",
-        "//sandboxed_api:testing",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
     ],
 )
 
@@ -140,10 +140,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":file_base",
-        ":raw_logging",
         "@bazel_tools//tools/cpp/runfiles",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
     ],
 )
 
@@ -263,9 +263,9 @@ cc_test(
         ":fileops",
         ":status_matchers",
         ":temp_file",
-        "//sandboxed_api:testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api:testing",
     ],
 )

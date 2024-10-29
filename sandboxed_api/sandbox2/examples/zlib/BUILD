@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
+    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -27,9 +27,6 @@ cc_binary(
     copts = sapi_platform_copts(),
     data = [":zpipe"],
     deps = [
-        "//sandboxed_api/sandbox2",
-        "//sandboxed_api/sandbox2/util:bpf_helper",
-        "//sandboxed_api/util:runfiles",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",
@@ -38,6 +35,9 @@ cc_binary(
         "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:runfiles",
     ],
 )
 

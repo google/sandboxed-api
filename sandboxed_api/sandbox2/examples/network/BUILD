@@ -18,10 +18,10 @@
 # - strict syscall policy
 # - sandbox2::Comms for data exchange (IPC)
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
+    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -33,11 +33,6 @@ cc_binary(
     copts = sapi_platform_copts(),
     data = [":network_bin"],
     deps = [
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2/network_proxy:testing",
-        "//sandboxed_api/util:runfiles",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",
@@ -46,6 +41,11 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
+        "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:runfiles",
     ],
 )
 
@@ -55,10 +55,10 @@ cc_binary(
     srcs = ["network_bin.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/sandbox2:client",
-        "//sandboxed_api/sandbox2:comms",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
     ],
 )
 

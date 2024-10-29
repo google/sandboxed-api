@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
+    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -27,11 +27,11 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/util:fileops",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
     ],
 )
 
@@ -42,12 +42,12 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2/util:syscall_trap",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/synchronization",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:syscall_trap",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -57,12 +57,12 @@ cc_library(
     hdrs = ["filtering.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
 
@@ -72,9 +72,9 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
-        "//sandboxed_api/util:status_matchers",
         "@com_google_absl//absl/log:check",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
@@ -83,13 +83,13 @@ cc_library(
     srcs = ["testing.cc"],
     hdrs = ["testing.h"],
     deps = [
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )
