@@ -41,9 +41,9 @@ using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
+using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::StrEq;
-using ::testing::UnorderedElementsAreArray;
 
 constexpr size_t kTmpfsSize = 1024;
 
@@ -253,7 +253,7 @@ TEST(MountTreeTest, TestList) {
   std::vector<std::string> inside_entries;
   mounts.RecursivelyListMounts(&outside_entries, &inside_entries);
 
-  EXPECT_THAT(inside_entries, UnorderedElementsAreArray({
+  EXPECT_THAT(inside_entries, ElementsAreArray({
                                   "R /a/b",
                                   "R /a/c/",
                                   "R /a/c/d/e/f/g",
@@ -262,7 +262,7 @@ TEST(MountTreeTest, TestList) {
                                   "W /i/l/",
                                   "/d",
                               }));
-  EXPECT_THAT(outside_entries, UnorderedElementsAreArray({
+  EXPECT_THAT(outside_entries, ElementsAreArray({
                                    absl::StrCat("/some/dir/", "a/b"),
                                    absl::StrCat("/some/dir/", "a/c/"),
                                    absl::StrCat("/some/dir/", "a/c/d/e/f/g"),

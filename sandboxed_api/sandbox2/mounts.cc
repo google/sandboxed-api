@@ -20,6 +20,7 @@
 #include <sys/statvfs.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -283,7 +284,11 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   MountTree* curtree = &mount_tree_;
   for (int i = 0; true; ++i) {
-    auto it = curtree->mutable_entries()->emplace(parts[i], MountTree()).first;
+    auto [it, did_insert] =
+        curtree->mutable_entries()->emplace(parts[i], MountTree());
+    if (did_insert) {
+      it->second.set_index(++mount_index_);
+    }
     curtree = &it->second;
     if (i == parts.size() - 1) {  // Final part
       break;
@@ -682,6 +687,21 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   }
 }
 
+using MapEntry = std::pair<absl::string_view, const MountTree*>;
+
+std::vector<MapEntry> GetSortedEntries(const MountTree& tree) {
+  std::vector<MapEntry> ordered;
+  ordered.reserve(tree.entries_size());
+  for (auto& entry : tree.entries()) {
+    ordered.emplace_back(entry.first, &entry.second);
+  }
+  std::sort(ordered.begin(), ordered.end(),
+            [](const MapEntry& a, const MapEntry& b) {
+              return a.second->index() < b.second->index();
+            });
+  return ordered;
+}
+
 // Traverses the MountTree to create all required files and perform the mounts.
 void CreateMounts(const MountTree& tree, const std::string& path,
                   bool create_backing_files) {
@@ -743,9 +763,9 @@ void CreateMounts(const MountTree& tree, const std::string& path,
   }
 
   // Traverse the subtrees.
-  for (const auto& kv : tree.entries()) {
-    std::string new_path = sapi::file::JoinPath(path, kv.first);
-    CreateMounts(kv.second, new_path, create_backing_files);
+  for (const auto& [key, value] : GetSortedEntries(tree)) {
+    std::string new_path = sapi::file::JoinPath(path, key);
+    CreateMounts(*value, new_path, create_backing_files);
   }
 }
 
@@ -776,9 +796,9 @@ void RecursivelyListMountsImpl(const MountTree& tree,
         absl::StrCat("tmpfs: ", node.tmpfs_node().tmpfs_options()));
   }
 
-  for (const auto& subentry : tree.entries()) {
-    RecursivelyListMountsImpl(subentry.second,
-                              absl::StrCat(tree_path, "/", subentry.first),
+  for (const auto& [key, value] : GetSortedEntries(tree)) {
+    std::string new_path = sapi::file::JoinPath(tree_path, key);
+    RecursivelyListMountsImpl(*value, absl::StrCat(tree_path, "/", key),
                               outside_entries, inside_entries);
   }
 }
