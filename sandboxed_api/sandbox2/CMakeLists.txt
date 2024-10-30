@@ -65,6 +65,21 @@ target_link_libraries(sandbox2_bpfdisassembler
           sapi::base
 )
 
+# sandboxed_api/sandbox2:bpf_evaluator
+add_library(sandbox2_bpf_evaluator ${SAPI_LIB_TYPE}
+  bpf_evaluator.cc
+  bpf_evaluator.h
+)
+add_library(sandbox2::bpf_evaluator ALIAS sandbox2_bpf_evaluator)
+target_link_libraries(sandbox2_bpf_evaluator
+  PUBLIC absl::span
+         absl::statusor
+  PRIVATE absl::status
+          absl::strings
+          sapi::base
+          sapi::status
+)
+
 # sandboxed_api/sandbox2:regs
 add_library(sandbox2_regs ${SAPI_LIB_TYPE}
   regs.cc
@@ -1234,6 +1249,25 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_bpfdisassembler_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
+
+# sandboxed_api/sandbox2:bpf_evaluator_test
+  add_executable(sandbox2_bpf_evaluator_test
+    bpf_evaluator_test.cc
+  )
+  set_target_properties(sandbox2_bpf_evaluator_test PROPERTIES
+    OUTPUT_NAME bpf_evaluator_test
+  )
+  target_link_libraries(sandbox2_bpf_evaluator_test
+    PRIVATE sandbox2::bpf_evaluator
+            sandbox2::bpf_helper
+            absl::status
+            sapi::status_matchers
+            sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_bpf_evaluator_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )

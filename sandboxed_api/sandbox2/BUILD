@@ -103,6 +103,21 @@ cc_library(
 )
 
 cc_library(
+    name = "bpf_evaluator",
+    srcs = ["bpf_evaluator.cc"],
+    hdrs = ["bpf_evaluator.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
+    ],
+)
+
+cc_library(
     name = "regs",
     srcs = ["regs.cc"],
     hdrs = ["regs.h"],
@@ -1148,6 +1163,19 @@ cc_test(
         ":bpfdisassembler",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+    ],
+)
+
+cc_test(
+    name = "bpf_evaluator_test",
+    srcs = ["bpf_evaluator_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":bpf_evaluator",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
