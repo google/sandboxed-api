@@ -237,9 +237,10 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting real root");
   }
 
-  SAPI_RAW_PCHECK(mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID,
-                        nullptr) != -1,
-                  "Could not mount a new /proc"
+  SAPI_RAW_PCHECK(
+      mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr) !=
+          -1,
+      "Could not mount a new /proc"
   );
 
   if (clone_flags & CLONE_NEWNET) {
