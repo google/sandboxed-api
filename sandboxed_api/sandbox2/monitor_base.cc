@@ -269,12 +269,22 @@ void MonitorBase::SetExitStatusCode(Result::StatusEnum final_status,
   result_.SetExitStatusCode(final_status, reason_code);
 }
 
+absl::Status MonitorBase::SendPolicy(const std::vector<sock_filter>& policy) {
+  if (!comms_->SendBytes(reinterpret_cast<const uint8_t*>(policy.data()),
+                         policy.size() * sizeof(sock_filter))) {
+    return absl::InternalError("Error while sending policy via comms");
+  }
+  return absl::OkStatus();
+}
+
 bool MonitorBase::InitSendPolicy() {
-  if (!policy_->SendPolicy(comms_, type_ == FORKSERVER_MONITOR_UNOTIFY)) {
-    LOG(ERROR) << "Couldn't send policy";
+  bool user_notif = type_ == FORKSERVER_MONITOR_UNOTIFY;
+  auto policy = policy_->GetPolicy(user_notif);
+  absl::Status status = SendPolicy(std::move(policy));
+  if (!status.ok()) {
+    LOG(ERROR) << "Couldn't send policy: " << status;
     return false;
   }
-
   return true;
 }
 

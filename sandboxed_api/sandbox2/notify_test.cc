@@ -25,31 +25,27 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
+#include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/trace_all_syscalls.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
 
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
+using ::sapi::IsOk;
 using ::testing::Eq;
-
-// Allow typical syscalls and call SECCOMP_RET_TRACE for personality syscall,
-// chosen because unlikely to be called by a regular program.
-std::unique_ptr<Policy> NotifyTestcasePolicy(absl::string_view path) {
-  return CreateDefaultPermissiveTestPolicy(path)
-      .AddPolicyOnSyscall(__NR_personality, {SANDBOX2_TRACE})
-      .BuildOrDie();
-}
 
 // If syscall and its arguments don't match the expected ones, return the
 // opposite of the requested values (allow/disallow) to indicate an error.
@@ -86,13 +82,32 @@ class PidCommsNotify : public Notify {
   }
 };
 
+class NotifyTest : public ::testing::TestWithParam<bool> {
+ public:
+  // Allow typical syscalls and call SECCOMP_RET_TRACE for personality syscall,
+  // chosen because unlikely to be called by a regular program.
+  std::unique_ptr<Policy> NotifyTestcasePolicy(absl::string_view path) {
+    sandbox2::PolicyBuilder builder =
+        CreateDefaultPermissiveTestPolicy(path).AddPolicyOnSyscall(
+            __NR_personality, {SANDBOX2_TRACE});
+    if (GetParam()) {
+      builder.CollectStacktracesOnSignal(false);
+    }
+    return builder.BuildOrDie();
+  }
+  absl::Status SetUpSandbox(Sandbox2* sandbox) {
+    return GetParam() ? sandbox->EnableUnotifyMonitor() : absl::OkStatus();
+  }
+};
+
 // Test EventSyscallTrap on personality syscall and allow it.
-TEST(NotifyTest, AllowPersonality) {
+TEST_P(NotifyTest, AllowPersonality) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
   Sandbox2 s2(std::make_unique<Executor>(path, args),
               NotifyTestcasePolicy(path),
               std::make_unique<PersonalityNotify>(/*allow=*/true));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -100,12 +115,13 @@ TEST(NotifyTest, AllowPersonality) {
 }
 
 // Test EventSyscallTrap on personality syscall and disallow it.
-TEST(NotifyTest, DisallowPersonality) {
+TEST_P(NotifyTest, DisallowPersonality) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
   Sandbox2 s2(std::make_unique<Executor>(path, args),
               NotifyTestcasePolicy(path),
               std::make_unique<PersonalityNotify>(/*allow=*/false));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
@@ -113,7 +129,7 @@ TEST(NotifyTest, DisallowPersonality) {
 }
 
 // Test EventStarted by exchanging data after started but before sandboxed.
-TEST(NotifyTest, PrintPidAndComms) {
+TEST_P(NotifyTest, PrintPidAndComms) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/pidcomms");
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
@@ -121,6 +137,7 @@ TEST(NotifyTest, PrintPidAndComms) {
 
   Sandbox2 s2(std::move(executor), NotifyTestcasePolicy(path),
               std::make_unique<PidCommsNotify>());
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -128,7 +145,7 @@ TEST(NotifyTest, PrintPidAndComms) {
 }
 
 // Test EventSyscallTrap on personality syscall through TraceAllSyscalls
-TEST(NotifyTest, TraceAllAllowPersonality) {
+TEST_P(NotifyTest, TraceAllAllowPersonality) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
   std::vector<std::string> args = {path};
   auto policy = CreateDefaultPermissiveTestPolicy(path)
@@ -137,11 +154,19 @@ TEST(NotifyTest, TraceAllAllowPersonality) {
   Sandbox2 s2(std::make_unique<Executor>(path, args),
               NotifyTestcasePolicy(path),
               std::make_unique<PersonalityNotify>(/*allow=*/true));
+
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(22));
 }
+
+INSTANTIATE_TEST_SUITE_P(Notify, NotifyTest, ::testing::Values(false, true),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "UnotifyMonitor"
+                                             : "PtraceMonitor";
+                         });
 
 }  // namespace
 }  // namespace sandbox2

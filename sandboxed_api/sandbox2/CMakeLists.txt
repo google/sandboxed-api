@@ -204,7 +204,6 @@ target_link_libraries(sandbox2_policy
  PRIVATE absl::strings
          sandbox2::bpf_helper
          sandbox2::bpfdisassembler
-         sandbox2::comms
          sandbox2::regs
          sandbox2::syscall
          sapi::base
@@ -440,7 +439,6 @@ target_link_libraries(sandbox2_monitor_base
           absl::cleanup
           absl::flags
           absl::log
-          absl::status
           absl::strings
           absl::time
           absl::vlog_is_on
@@ -453,7 +451,8 @@ target_link_libraries(sandbox2_monitor_base
           sapi::file_helpers
           sapi::temp_file
           sapi::base
-  PUBLIC  absl::statusor
+  PUBLIC  absl::status
+          absl::statusor
           absl::synchronization
           sandbox2::comms
           sandbox2::executor
@@ -521,6 +520,7 @@ target_link_libraries(sandbox2_monitor_unotify
           absl::strings
           absl::time
           sapi::base
+          sandbox2::bpf_evaluator
           sandbox2::client
           sandbox2::forkserver_proto
           sapi::config
@@ -1029,11 +1029,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_pidcomms
   )
   target_link_libraries(sandbox2_notify_test PRIVATE
+    absl::status
     absl::strings
     sandbox2::comms
     sandbox2::regs
     sandbox2::sandbox2
     sandbox2::trace_all_syscalls
+    sapi::status_matchers
     sapi::testing
     sapi::test_main
   )

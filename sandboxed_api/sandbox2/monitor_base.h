@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
@@ -115,8 +116,14 @@ class MonitorBase {
   // Monitor type
   MonitorType type_ = FORKSERVER_MONITOR_PTRACE;
 
- private:
+ protected:
   // Sends Policy to the Client.
+  // Can be overridden by subclasses to save/modify policy before sending.
+  // Returns success/failure status.
+  virtual absl::Status SendPolicy(const std::vector<sock_filter>& policy);
+
+ private:
+  // Instantiates and sends Policy to the Client.
   // Returns success/failure status.
   bool InitSendPolicy();
 

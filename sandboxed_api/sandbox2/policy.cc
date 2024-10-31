@@ -36,19 +36,12 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
-#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
 #ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
 #endif
-
-#ifndef SECCOMP_RET_USER_NOTIF
-#define SECCOMP_RET_USER_NOTIF 0x7fc00000U /* notifies userspace */
-#endif
-
-#define DO_USER_NOTIF BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_USER_NOTIF)
 
 ABSL_FLAG(bool, sandbox2_danger_danger_permit_all, false,
           "Allow all syscalls, useful for testing");
@@ -80,15 +73,6 @@ std::vector<sock_filter> Policy::GetPolicy(bool user_notif) const {
 
   // 3. Finish with default KILL action.
   policy.push_back(KILL);
-
-  // In seccomp_unotify mode replace all KILLs with unotify
-  if (user_notif) {
-    for (sock_filter& filter : policy) {
-      if (filter.code == BPF_RET + BPF_K && filter.k == SECCOMP_RET_KILL) {
-        filter = DO_USER_NOTIF;
-      }
-    }
-  }
 
   VLOG(2) << "Final policy:\n" << bpf::Disasm(policy);
   return policy;
@@ -238,16 +222,6 @@ std::vector<sock_filter> Policy::GetTrackingPolicy() const {
 #endif
       TRACE(sapi::cpu::kUnknown),
   };
-}
-
-bool Policy::SendPolicy(Comms* comms, bool user_notif) const {
-  auto policy = GetPolicy(user_notif);
-  if (!comms->SendBytes(reinterpret_cast<uint8_t*>(policy.data()),
-                        policy.size() * sizeof(sock_filter))) {
-    LOG(ERROR) << "Couldn't send policy";
-    return false;
-  }
-  return true;
 }
 
 void Policy::GetPolicyDescription(PolicyDescription* policy) const {

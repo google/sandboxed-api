@@ -44,7 +44,6 @@ namespace internal {
 inline constexpr uintptr_t kExecveMagic = 0x921c2c34;
 }  // namespace internal
 
-class Comms;
 class MonitorBase;
 class PolicyBuilder;
 
@@ -59,9 +58,6 @@ class Policy final {
   // Stores information about the policy (and the policy builder if existing)
   // in the protobuf structure.
   void GetPolicyDescription(PolicyDescription* policy) const;
-
-  // Sends the policy over the IPC channel.
-  bool SendPolicy(Comms* comms, bool user_notif) const;
 
   // Returns the policy, but modifies it according to FLAGS and internal
   // requirements (message passing via Comms, Executor::WaitForExecve etc.).

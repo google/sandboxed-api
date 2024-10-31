@@ -1,6 +1,8 @@
 #ifndef SANDBOXED_API_SANDBOX2_MONITOR_UNOTIFY_H_
 #define SANDBOXED_API_SANDBOX2_MONITOR_UNOTIFY_H_
 
+#include <linux/audit.h>
+#include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sys/sysinfo.h>
 #include <sys/types.h>
@@ -34,6 +36,13 @@ struct seccomp_notif {
   __u32 pid;
   __u32 flags;
   struct seccomp_data data;
+};
+
+struct seccomp_notif_resp {
+  __u64 id;
+  __s64 val;
+  __s32 error;
+  __u32 flags;
 };
 #endif
 
@@ -71,6 +80,7 @@ class UnotifyMonitor : public MonitorBase {
   void Join() override;
   void Run();
 
+  absl::Status SendPolicy(const std::vector<sock_filter>& policy) override;
   bool InitSetupUnotify();
   bool InitSetupNotifyEventFd();
   // Kills the main traced PID with SIGKILL.
@@ -78,6 +88,8 @@ class UnotifyMonitor : public MonitorBase {
   bool KillSandboxee();
   void KillInit();
 
+  void AllowSyscallViaUnotify();
+  void HandleViolation(const Syscall& syscall);
   void HandleUnotify();
   void SetExitStatusFromStatusPipe();
 
@@ -90,6 +102,8 @@ class UnotifyMonitor : public MonitorBase {
   absl::Notification setup_notification_;
   sapi::file_util::fileops::FDCloser seccomp_notify_fd_;
   sapi::file_util::fileops::FDCloser monitor_notify_fd_;
+  // Original policy as configured by the user.
+  std::vector<sock_filter> original_policy_;
   // Deadline in Unix millis
   std::atomic<int64_t> deadline_millis_{0};
   // False iff external kill is requested
@@ -110,8 +124,12 @@ class UnotifyMonitor : public MonitorBase {
   // Synchronizes monitor thread deletion and notifying the monitor.
   absl::Mutex notify_mutex_;
 
+  static constexpr auto kFreeFn = [](void* ptr) { std::free(ptr); };
   size_t req_size_;
-  std::unique_ptr<seccomp_notif, decltype(std::free)*> req_{nullptr, std::free};
+  std::unique_ptr<seccomp_notif, decltype(kFreeFn)> req_{nullptr, kFreeFn};
+  size_t resp_size_;
+  std::unique_ptr<seccomp_notif_resp, decltype(kFreeFn)> resp_{nullptr,
+                                                               kFreeFn};
 };
 
 }  // namespace sandbox2

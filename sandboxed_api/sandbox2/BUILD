@@ -262,7 +262,6 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":bpfdisassembler",
-        ":comms",
         ":namespace",
         ":syscall",
         ":violation_cc_proto",
@@ -530,6 +529,7 @@ cc_library(
     hdrs = ["monitor_unotify.h"],
     copts = sapi_platform_copts(),
     deps = [
+        ":bpf_evaluator",
         ":client",
         ":executor",
         ":forkserver_cc_proto",
@@ -974,9 +974,11 @@ cc_test(
         ":sandbox2",
         ":trace_all_syscalls",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
 
