@@ -69,7 +69,7 @@ def _use_system_llvm(ctx):
         ["ls", "-1f"] +
         [
             "/usr/lib/llvm-{}/include/llvm/Support/InitLLVM.h".format(ver)
-            for ver in [16, 15, 14, 13, 12, 11]  # Debian
+            for ver in [19, 18, 17, 16, 15, 14, 13, 12, 11]  # Debian
         ] + [
             "/usr/include/llvm/Support/InitLLVM.h",  # Fedora and others
         ],
