@@ -25,7 +25,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -56,7 +55,7 @@ class CharPtrArray {
 
 // Converts an array of char* (terminated by a nullptr, like argv, or environ
 // arrays), to an std::vector<std::string>.
-ABSL_DEPRECATED("Use CharPtrArray(arr).ToStringVector() instead")
+ABSL_DEPRECATE_AND_INLINE()
 inline void CharPtrArrToVecString(char* const* arr,
                                   std::vector<std::string>* vec) {
   *vec = sandbox2::util::CharPtrArray(arr).ToStringVector();

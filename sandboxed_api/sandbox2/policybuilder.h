@@ -226,7 +226,7 @@ class PolicyBuilder final {
   // If `cpu_fence_mode` is `kRequireFastFences`, RSEQ functionality may not
   // be enabled if fast CPU fences are not available.
   PolicyBuilder& AllowRestartableSequences(CpuFenceMode cpu_fence_mode);
-  ABSL_DEPRECATED("Use AllowRestartableSequences() instead")
+  ABSL_DEPRECATE_AND_INLINE()
   PolicyBuilder& AllowRestartableSequencesWithProcFiles(
       CpuFenceMode cpu_fence_mode) {
     return this->AllowRestartableSequences(cpu_fence_mode);

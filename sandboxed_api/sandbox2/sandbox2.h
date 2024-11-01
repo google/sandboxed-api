@@ -90,7 +90,7 @@ class Sandbox2 final {
   // This can be useful in a persistent sandbox scenario, to impose a deadline
   // for responses after each request and reset the deadline in between.
   // Sandboxed API can be used to implement persistent sandboxes.
-  ABSL_DEPRECATED("Use set_walltime_limit() instead")
+  ABSL_DEPRECATE_AND_INLINE()
   void SetWallTimeLimit(time_t limit) const {
     this->set_walltime_limit(absl::Seconds(limit));
   }
