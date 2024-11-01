@@ -35,8 +35,8 @@ cc_library(
     includes = ["llvm-project-include"],
     linkopts = [
         "-lncurses",
-        "-lz",
-        "-L%{llvm_lib_dir}",
+        %{llvm_system_libs}
+        %{llvm_lib_dir}
         "-Wl,--start-group",
         %{llvm_libs}
         "-Wl,--end-group",
@@ -62,52 +62,61 @@ cc_library(name = "tooling_core", deps = ["@llvm-project//llvm:llvm"])
 """
 
 def _use_system_llvm(ctx):
-    found = False
-
     # Look for LLVM in known places
-    llvm_dirs = ctx.execute(
-        ["ls", "-1f"] +
-        [
-            "/usr/lib/llvm-{}/include/llvm/Support/InitLLVM.h".format(ver)
-            for ver in [19, 18, 17, 16, 15, 14, 13, 12, 11]  # Debian
-        ] + [
-            "/usr/include/llvm/Support/InitLLVM.h",  # Fedora and others
-        ],
+    llvm_config_tool = ctx.execute(
+        ["which"] +  # Prints all arguments it finds in the system PATH
+        ["llvm-config-{}".format(ver) for ver in range(20, 10, -1)] +
+        ["llvm-config"],
     ).stdout.splitlines()
-    if llvm_dirs:
-        llvm_dir = llvm_dirs[0].split("/include/llvm/")[0]
-        for suffix in ["llvm", "llvm-c", "clang", "clang-c"]:
-            ctx.symlink(
-                llvm_dir + "/include/" + suffix,
-                "llvm/llvm-project-include/" + suffix,
-            )
+    if not llvm_config_tool:
+        return False
 
-        # Try to find the lib directory
-        lib_dirs = ctx.execute(
-            ["ls", "-d1f"] +
-            [llvm_dir + "/lib64", llvm_dir + "/lib"],
-        ).stdout.splitlines()
-        if lib_dirs:
-            found = True
+    llvm_config = ctx.execute([
+        llvm_config_tool[0],
+        "--link-static",
+        "--includedir",  # Output line 0
+        "--libdir",  # Output line 1
+        "--libs",  # Output line 2
+        "--system-libs",  # Output line 3
+        "engine",
+        "option",
+    ]).stdout.splitlines()
+    if not llvm_config:
+        return False
 
-    if found:
-        # Create stub targets in sub-packages
-        lib_dir = lib_dirs[0]  # buildifier: disable=uninitialized
-        archives = ctx.execute(
-            ["find", ".", "-maxdepth", "1"] +
-            ["(", "-name", "libLLVM*.a", "-o", "-name", "libclang*.a", ")"],
-            working_directory = lib_dir,
-        ).stdout.splitlines()
-        lib_strs = sorted(["\"-l{}\",".format(a[5:-2]) for a in archives])
-
-        ctx.file(
-            "llvm/BUILD.bazel",
-            SYSTEM_LLVM_BAZEL_TEMPLATE
-                .replace("%{llvm_lib_dir}", lib_dir)
-                .replace("%{llvm_libs}", "\n".join(lib_strs)),
+    include_dir = llvm_config[0]
+    for suffix in ["llvm", "llvm-c", "clang", "clang-c"]:
+        ctx.symlink(
+            include_dir + "/" + suffix,
+            "llvm/llvm-project-include/" + suffix,
         )
-        ctx.file("clang/BUILD.bazel", SYSTEM_CLANG_BAZEL)
-    return found
+
+    system_libs = llvm_config[3].split(" ")
+    lib_dir = llvm_config[1].split(" ")[0]
+
+    # Sadly there's no easy way to get to the Clang library archives
+    archives = ctx.execute(
+        ["find", ".", "-maxdepth", "1"] +
+        ["(", "-name", "libLLVM*.a", "-o", "-name", "libclang*.a", ")"],
+        working_directory = lib_dir,
+    ).stdout.splitlines()
+    lib_strs = sorted(["\"-l{}\",".format(a[5:-2]) for a in archives])
+
+    ctx.file(
+        "llvm/BUILD.bazel",
+        SYSTEM_LLVM_BAZEL_TEMPLATE.replace(
+            "%{llvm_system_libs}",
+            "\n".join(["\"{}\",".format(s) for s in system_libs]),
+        ).replace(
+            "%{llvm_lib_dir}",
+            "\"-L{}\",".format(lib_dir),
+        ).replace(
+            "%{llvm_libs}",
+            "\n".join(lib_strs),
+        ),
+    )
+    ctx.file("clang/BUILD.bazel", SYSTEM_CLANG_BAZEL)
+    return True
 
 def _overlay_directories(ctx, src_path, target_path):
     bazel_path = src_path.get_child("utils").get_child("bazel")
