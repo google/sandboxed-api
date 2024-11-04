@@ -19,6 +19,51 @@ load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("//sandboxed_api/bazel:llvm_config.bzl", "llvm_configure")
 load("//sandboxed_api/bazel:repositories.bzl", "autotools_repository")
 
+def sapi_non_module_deps():
+    """Loads non-modularized dependencies."""
+
+    # libcap
+    http_archive(
+        name = "org_kernel_libcap",
+        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libcap.BUILD",
+        sha256 = "260b549c154b07c3cdc16b9ccc93c04633c39f4fb6a4a3b8d1fa5b8a9c3f5fe8",  # 2019-04-16
+        strip_prefix = "libcap-2.27",
+        urls = ["https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.27.tar.gz"],
+    )
+
+    # libffi
+    autotools_repository(
+        name = "org_sourceware_libffi",
+        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libffi.BUILD",
+        sha256 = "653ffdfc67fbb865f39c7e5df2a071c0beb17206ebfb0a9ecb18a18f63f6b263",  # 2019-11-02
+        strip_prefix = "libffi-3.3-rc2",
+        urls = ["https://github.com/libffi/libffi/releases/download/v3.3-rc2/libffi-3.3-rc2.tar.gz"],
+    )
+
+    # libunwind
+    autotools_repository(
+        name = "org_gnu_libunwind",
+        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libunwind.BUILD",
+        configure_args = [
+            "--disable-documentation",
+            "--disable-minidebuginfo",
+            "--disable-shared",
+            "--enable-ptrace",
+        ],
+        sha256 = "4a6aec666991fb45d0889c44aede8ad6eb108071c3554fcdff671f9c94794976",  # 2021-12-01
+        strip_prefix = "libunwind-1.6.2",
+        urls = ["https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz"],
+    )
+
+    # LLVM/libclang
+    maybe(
+        llvm_configure,
+        name = "llvm-project",
+        commit = "2c494f094123562275ae688bd9e946ae2a0b4f8b",  # 2022-03-31
+        sha256 = "59b9431ae22f0ea5f2ce880925c0242b32a9e4f1ae8147deb2bb0fc19b53fa0d",
+        system_libraries = True,  # Prefer system libraries
+    )
+
 def sapi_deps():
     """Loads common dependencies needed to compile Sandboxed API."""
 
@@ -77,39 +122,6 @@ def sapi_deps():
         urls = ["https://github.com/protocolbuffers/protobuf/releases/download/v28.2/protobuf-28.2.tar.gz"],
     )
 
-    # libcap
-    http_archive(
-        name = "org_kernel_libcap",
-        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libcap.BUILD",
-        sha256 = "260b549c154b07c3cdc16b9ccc93c04633c39f4fb6a4a3b8d1fa5b8a9c3f5fe8",  # 2019-04-16
-        strip_prefix = "libcap-2.27",
-        urls = ["https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.27.tar.gz"],
-    )
-
-    # libffi
-    autotools_repository(
-        name = "org_sourceware_libffi",
-        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libffi.BUILD",
-        sha256 = "653ffdfc67fbb865f39c7e5df2a071c0beb17206ebfb0a9ecb18a18f63f6b263",  # 2019-11-02
-        strip_prefix = "libffi-3.3-rc2",
-        urls = ["https://github.com/libffi/libffi/releases/download/v3.3-rc2/libffi-3.3-rc2.tar.gz"],
-    )
-
-    # libunwind
-    autotools_repository(
-        name = "org_gnu_libunwind",
-        build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libunwind.BUILD",
-        configure_args = [
-            "--disable-documentation",
-            "--disable-minidebuginfo",
-            "--disable-shared",
-            "--enable-ptrace",
-        ],
-        sha256 = "4a6aec666991fb45d0889c44aede8ad6eb108071c3554fcdff671f9c94794976",  # 2021-12-01
-        strip_prefix = "libunwind-1.6.2",
-        urls = ["https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz"],
-    )
-
     # GoogleTest/GoogleMock
     maybe(
         http_archive,
@@ -128,11 +140,4 @@ def sapi_deps():
         urls = ["https://github.com/google/benchmark/archive/604f6fd3f4b34a84ec4eb4db81d842fa4db829cd.zip"],
     )
 
-    # LLVM/libclang
-    maybe(
-        llvm_configure,
-        name = "llvm-project",
-        commit = "2c494f094123562275ae688bd9e946ae2a0b4f8b",  # 2022-03-31
-        sha256 = "59b9431ae22f0ea5f2ce880925c0242b32a9e4f1ae8147deb2bb0fc19b53fa0d",
-        system_libraries = True,  # Prefer system libraries
-    )
+    sapi_non_module_deps()
