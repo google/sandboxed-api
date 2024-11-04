@@ -69,6 +69,9 @@ class ForkServer {
   // Creates initial namespaces used as a template for namespaced sandboxees
   void CreateInitialNamespaces();
 
+  // Creates a network namespace to be shared between sandboxees
+  void CreateForkserverSharedNetworkNamespace();
+
   // Prepares arguments for the upcoming execve (if execve was requested).
   static void PrepareExecveArgs(const ForkRequest& request,
                                 std::vector<std::string>* args,

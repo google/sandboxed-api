@@ -142,8 +142,9 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd) {
   }
   code.push_back(DENY);
 
-  struct sock_fprog prog {
-    .len = static_cast<uint16_t>(code.size()), .filter = code.data(),
+  struct sock_fprog prog{
+      .len = static_cast<uint16_t>(code.size()),
+      .filter = code.data(),
   };
 
   SAPI_RAW_CHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
@@ -193,8 +194,8 @@ absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
     char ctrl[CMSG_SPACE(sizeof(struct ucred))];
   } ucred_msg{};
 
-  struct msghdr msgh {};
-  struct iovec iov {};
+  struct msghdr msgh{};
+  struct iovec iov{};
 
   msgh.msg_iov = &iov;
   msgh.msg_iovlen = 1;
@@ -429,6 +430,10 @@ pid_t ForkServer::ServeRequest() {
     if (initial_mntns_fd_ == -1) {
       CreateInitialNamespaces();
     }
+    if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER &&
+        initial_netns_fd_ == -1) {
+      CreateForkserverSharedNetworkNamespace();
+    }
     // We first just fork a child, which will join the initial namespaces
     // Note: Not a regular fork() as one really needs to be single-threaded to
     //       setns and this is not the case with TSAN.
@@ -605,8 +610,7 @@ void ForkServer::CreateInitialNamespaces() {
   SAPI_RAW_PCHECK(create_efd.get() != -1, "creating eventfd");
   FDCloser open_efd(eventfd(0, EFD_CLOEXEC));
   SAPI_RAW_PCHECK(open_efd.get() != -1, "creating eventfd");
-  pid_t pid =
-      util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWNET | SIGCHLD);
+  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | SIGCHLD);
   if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
     SAPI_RAW_LOG(FATAL,
                  "failed to fork initial namespaces process: parent process is "
@@ -636,6 +640,35 @@ void ForkServer::CreateInitialNamespaces() {
   initial_mntns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/mnt").c_str(),
                            O_RDONLY | O_CLOEXEC);
   SAPI_RAW_PCHECK(initial_mntns_fd_ != -1, "getting initial mntns fd");
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(open_efd.get(), &value,
+                                           sizeof(value))) == sizeof(value),
+                  "synchronizing initial namespaces creation");
+}
+
+void ForkServer::CreateForkserverSharedNetworkNamespace() {
+  FDCloser create_efd(eventfd(0, EFD_CLOEXEC));
+  SAPI_RAW_PCHECK(create_efd.get() != -1, "creating eventfd");
+  FDCloser open_efd(eventfd(0, EFD_CLOEXEC));
+  SAPI_RAW_PCHECK(open_efd.get() != -1, "creating eventfd");
+  pid_t pid = util::ForkWithFlags(SIGCHLD);
+  SAPI_RAW_PCHECK(pid != -1, "failed to fork shared netns process");
+  uint64_t value = 1;
+  if (pid == 0) {
+    SAPI_RAW_PCHECK(setns(initial_userns_fd_, CLONE_NEWUSER) == 0,
+                    "joining initial user namespace");
+    SAPI_RAW_PCHECK(unshare(CLONE_NEWNET) == 0, "unsharing netns");
+    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(create_efd.get(), &value,
+                                             sizeof(value))) == sizeof(value),
+                    "synchronizing shared netns creation");
+    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(open_efd.get(), &value,
+                                            sizeof(value))) == sizeof(value),
+                    "synchronizing shared netns creation");
+    util::DumpCoverageData();
+    _exit(0);
+  }
+  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(create_efd.get(), &value,
+                                          sizeof(value))) == sizeof(value),
+                  "synchronizing shared netns creation");
   initial_netns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/net").c_str(),
                            O_RDONLY | O_CLOEXEC);
   SAPI_RAW_PCHECK(initial_netns_fd_ != -1, "getting initial netns fd");
