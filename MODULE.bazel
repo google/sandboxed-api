@@ -46,3 +46,11 @@ bazel_dep(
 )
 bazel_dep(name = "rules_proto", version = "6.0.2")
 bazel_dep(name = "rules_python", version = "0.37.2")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pypi",
+    python_version = "3.11",
+    requirements_lock = "//sandboxed_api/tools/python_generator:requirements_lock.txt",
+)
+use_repo(pip, "pypi")

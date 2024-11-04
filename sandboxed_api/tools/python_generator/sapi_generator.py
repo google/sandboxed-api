@@ -16,16 +16,15 @@
 Parses headers to extract type information from functions and generate a SAPI
 interface wrapper.
 """
+import os  # pylint: disable=unused-import
 import sys
 
 from absl import app
 from absl import flags
 from absl import logging
 
-try:
-  from com_google_sandboxed_api.sandboxed_api.tools.python_generator import code
-except:
-  import code
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from sandboxed_api.tools.python_generator import code
 
 FLAGS = flags.FLAGS
 

@@ -20,8 +20,19 @@ from ctypes import util
 import itertools
 import os
 # pylint: disable=unused-import
-from typing import (Text, List, Optional, Set, Dict, Callable, IO,
-                    Generator as Gen, Tuple, Union, Sequence)  # pyformat: disable
+from typing import (
+    Text,
+    List,
+    Optional,
+    Set,
+    Dict,
+    Callable,
+    IO,
+    Generator as Gen,
+    Tuple,
+    Union,
+    Sequence,
+)
 # pylint: enable=unused-import
 from clang import cindex
 
@@ -42,19 +53,15 @@ def _init_libclang():
   # used as well.
   for version in [
       '',
+      '19',
+      '18',
+      '17',
       '16',
       '15',
       '14',
       '13',
       '12',
       '11',
-      '10',
-      '9',
-      '8',
-      '7',
-      '6.0',
-      '5.0',
-      '4.0',
   ]:
     libname = 'clang' + ('-' + version if version else '')
     libclang = util.find_library(libname)
