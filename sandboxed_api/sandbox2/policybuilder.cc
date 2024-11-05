@@ -315,8 +315,8 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
 
         // PROT_READ | PROT_WRITE
         ARG_32(3),  // flags
-        JNE32(MAP_ANONYMOUS | MAP_PRIVATE, JUMP(&labels, mmap_end)),
-        ALLOW,
+        JEQ32(MAP_ANONYMOUS | MAP_PRIVATE, ALLOW),
+        JUMP(&labels, mmap_end),
 
         // PROT_NONE
         LABEL(&labels, prot_none),
