@@ -191,9 +191,9 @@ std::string GetSpelling(const clang::Decl* decl) {
         // Aggregates capture all C-like structs, but also structs with
         // non-static members that have default initializers.
         record_decl->isAggregate() &&
-        // Make sure to skip types with user-defined methods (including
-        // constructors).
-        record_decl->methods().empty()) {
+        // Make sure to skip non-POD types with user-defined methods
+        // (including constructors).
+        (record_decl->isPOD() || record_decl->methods().empty())) {
       return PrintDecl(decl);
     }
     // For unsupported types or types with no definition, only emit a forward
