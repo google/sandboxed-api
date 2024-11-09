@@ -126,6 +126,15 @@ std::string GetQualTypeName(const clang::ASTContext& context,
       unqual->isMemberFunctionPointerType()) {
     unqual = unqual->getPointeeType();
   }
+
+  if (unqual->isEnumeralType()) {
+    auto decl = unqual->getAsTagDecl();
+    if (decl) {
+      clang::PrintingPolicy policy = context.getPrintingPolicy();
+      policy.SuppressTagKeyword = false;  // keep enum keyword.
+      return clang::TypeName::getFullyQualifiedName(unqual, context, policy);
+    }
+  }
   return clang::TypeName::getFullyQualifiedName(unqual, context,
                                                 context.getPrintingPolicy());
 }

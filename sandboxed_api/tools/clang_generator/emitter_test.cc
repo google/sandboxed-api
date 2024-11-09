@@ -162,6 +162,21 @@ TEST_F(EmitterTest, TypedefAnonymousWithFieldStructure) {
                           "typedef struct { A member; } B"));
 }
 
+TEST_F(EmitterTest, NamedEnumWithoutTypedef) {
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"(enum Color { kRed, kGreen, kBlue };
+             typedef struct { enum Color member; } B;
+             extern "C" void Foo(B*);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("enum Color { kRed, kGreen, kBlue }",
+                          "typedef struct { enum Color member; } B"));
+}
+
 TEST_F(EmitterTest, NestedStruct) {
   EmitterForTesting emitter;
   ASSERT_THAT(
