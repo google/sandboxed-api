@@ -22,6 +22,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_reg.h"
@@ -96,6 +97,10 @@ class RemotePtr : public Ptr {
   explicit RemotePtr(void* remote_addr)
       : Ptr(&pointed_obj_, SyncType::kSyncNone) {
     pointed_obj_.SetRemote(remote_addr);
+  }
+
+  void SetRemote(void* /* remote */) override {
+    LOG(FATAL) << "SetRemote not supported on RemotePtr";
   }
 
  private:
