@@ -18,11 +18,11 @@ load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 
 licenses(["notice"])
 
-# compile_pip_requirements(
-#     name = "requirements",
-#     src = "requirements.in",
-#     requirements_txt = "requirements_lock.txt",
-# )
+compile_pip_requirements(
+    name = "requirements",
+    src = "requirements.in",
+    requirements_txt = "requirements_lock.txt",
+)
 
 py_library(
     name = "code",
