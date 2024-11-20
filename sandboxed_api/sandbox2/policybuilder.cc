@@ -95,7 +95,7 @@ namespace {
 
 namespace file = ::sapi::file;
 
-constexpr std::array<uint32_t, 2> kMmapSyscalls = {
+constexpr uint32_t kMmapSyscalls[] = {
 #ifdef __NR_mmap2
     __NR_mmap2,
 #endif
