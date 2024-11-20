@@ -29,7 +29,6 @@
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/syscall.h"  // IWYU pragma: export
-#include "sandboxed_api/sandbox2/violation.pb.h"
 
 #define SANDBOX2_TRACE         \
   BPF_STMT(BPF_RET + BPF_K,    \
@@ -54,10 +53,6 @@ class Policy final {
 
   Policy(Policy&&) = delete;
   Policy& operator=(Policy&&) = delete;
-
-  // Stores information about the policy (and the policy builder if existing)
-  // in the protobuf structure.
-  void GetPolicyDescription(PolicyDescription* policy) const;
 
   // Returns the policy, but modifies it according to FLAGS and internal
   // requirements (message passing via Comms, Executor::WaitForExecve etc.).
@@ -101,9 +96,6 @@ class Policy final {
   bool collect_stacktrace_on_exit_ = false;
 
   bool allow_speculation_ = false;
-
-  // Optional pointer to a PolicyBuilder description pb object.
-  std::optional<PolicyBuilderDescription> policy_builder_description_;
 
   // The policy set by the user.
   std::vector<sock_filter> user_policy_;

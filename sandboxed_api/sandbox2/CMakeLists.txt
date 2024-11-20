@@ -90,7 +90,6 @@ target_link_libraries(sandbox2_regs
   PUBLIC absl::status
          sapi::config
          sandbox2::syscall
-         sandbox2::violation_proto
   PRIVATE absl::core_headers
           absl::strings
           sapi::strerror
@@ -210,7 +209,6 @@ target_link_libraries(sandbox2_policy
          sapi::config
  PUBLIC sandbox2::network_proxy_filtering
         sandbox2::namespace
-        sandbox2::violation_proto
 )
 
 # sandboxed_api/sandbox2:notify
@@ -386,7 +384,6 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::result
           sandbox2::syscall
           sandbox2::util
-          sandbox2::violation_proto
 )
 
 
@@ -550,7 +547,6 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::bpf_helper
           sandbox2::namespace
           sandbox2::syscall
-          sandbox2::violation_proto
           sapi::file_base
           sapi::status
   PUBLIC absl::check
@@ -688,7 +684,6 @@ target_link_libraries(sandbox2_namespace
           sapi::base
           sapi::raw_logging
   PUBLIC sandbox2::forkserver_proto
-         sandbox2::violation_proto
          sandbox2::mounts
 )
 
@@ -805,21 +800,6 @@ target_link_libraries(sandbox2_comms
          protobuf::libprotobuf
          sapi::fileops
          sapi::status
-)
-
-# sandboxed_api/sandbox2:violation_proto
-sapi_protobuf_generate_cpp(_sandbox2_violation_pb_cc _sandbox2_violation_pb_h
-  violation.proto
-)
-add_library(sandbox2_violation_proto ${SAPI_LIB_TYPE}
-  ${_sandbox2_violation_pb_cc}
-  ${_sandbox2_violation_pb_h}
-)
-add_library(sandbox2::violation_proto ALIAS sandbox2_violation_proto)
-target_link_libraries(sandbox2_violation_proto PRIVATE
-  protobuf::libprotobuf
-  sandbox2::mount_tree_proto
-  sapi::base
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
@@ -1228,7 +1208,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sandbox2::bpf_helper
             sandbox2::policy
             sandbox2::policybuilder
-            sandbox2::violation_proto
             sapi::testing
             sapi::status_matchers
             sapi::test_main

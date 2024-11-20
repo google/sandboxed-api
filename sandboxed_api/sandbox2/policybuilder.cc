@@ -65,7 +65,6 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/path.h"
 
 #if defined(SAPI_X86_64)
@@ -1485,10 +1484,6 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   policy->user_policy_handles_bpf_ = user_policy_handles_bpf_;
   policy->user_policy_handles_ptrace_ = user_policy_handles_ptrace_;
 
-  PolicyBuilderDescription pb_description;
-
-  StoreDescription(&pb_description);
-  policy->policy_builder_description_ = pb_description;
   policy->allowed_hosts_ = std::move(allowed_hosts_);
   already_built_ = true;
   return std::move(policy);
@@ -1761,24 +1756,6 @@ PolicyBuilder& PolicyBuilder::SetRootWritable() {
   mounts_.SetRootWritable();
 
   return *this;
-}
-
-void PolicyBuilder::StoreDescription(PolicyBuilderDescription* pb_description) {
-  for (const auto& handled_syscall : handled_syscalls_) {
-    pb_description->add_handled_syscalls(handled_syscall);
-  }
-  for (const auto& allowed_syscall : allowed_syscalls_) {
-    pb_description->add_allowed_syscalls(allowed_syscall);
-  }
-  for (const auto& blocked_syscall : blocked_syscalls_) {
-    pb_description->add_blocked_syscalls(blocked_syscall);
-  }
-  for (const auto& custom_policy_syscall : custom_policy_syscalls_) {
-    pb_description->add_custom_policy_syscalls(custom_policy_syscall);
-  }
-  if (default_action_) {
-    pb_description->set_default_action_k(default_action_->k);
-  }
 }
 
 PolicyBuilder& PolicyBuilder::AllowIPv4(const std::string& ip_and_mask,

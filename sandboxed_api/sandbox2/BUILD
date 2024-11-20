@@ -124,7 +124,6 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":syscall",
-        ":violation_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -264,7 +263,6 @@ cc_library(
         ":bpfdisassembler",
         ":namespace",
         ":syscall",
-        ":violation_cc_proto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:string_view",
@@ -433,7 +431,6 @@ cc_library(
         ":stack_trace",
         ":syscall",
         ":util",
-        ":violation_cc_proto",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -610,7 +607,6 @@ cc_library(
         ":policy",
         ":syscall",
         ":trace_all_syscalls",
-        ":violation_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -763,7 +759,6 @@ cc_library(
     deps = [
         ":forkserver_cc_proto",
         ":mounts",
-        ":violation_cc_proto",
         "@com_google_absl//absl/strings",
         "@com_google_sandboxed_api//sandboxed_api/util:file_base",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
@@ -1131,14 +1126,6 @@ cc_library(
     deps = ["@com_google_sandboxed_api//sandboxed_api:testing"],
 )
 
-sapi_proto_library(
-    name = "violation_proto",
-    srcs = ["violation.proto"],
-    deps = [
-        ":mount_tree_proto",
-    ],
-)
-
 cc_test(
     name = "policybuilder_test",
     srcs = ["policybuilder_test.cc"],
@@ -1147,7 +1134,6 @@ cc_test(
         ":allow_unrestricted_networking",
         ":policy",
         ":policybuilder",
-        ":violation_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

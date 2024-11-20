@@ -25,7 +25,6 @@
 #include "absl/status/status.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/violation.pb.h"
 
 namespace sandbox2 {
 
@@ -51,9 +50,6 @@ class Regs {
   int64_t GetReturnValue(sapi::cpu::Architecture syscall_arch) const;
 
   pid_t pid() const { return pid_; }
-
-  // Stores register values in a protobuf structure.
-  void StoreRegisterValuesInProtobuf(RegisterValues* values) const;
 
  private:
   friend class StackTracePeer;

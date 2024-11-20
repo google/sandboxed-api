@@ -26,7 +26,6 @@
 
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
-#include "sandboxed_api/sandbox2/violation.pb.h"
 
 namespace sandbox2 {
 
@@ -42,9 +41,6 @@ class Namespace final {
 
   Namespace(Mounts mounts, std::string hostname, NetNsMode netns_config,
             bool allow_mount_propagation = false);
-
-  // Stores information about this namespace in the protobuf structure.
-  void GetNamespaceDescription(NamespaceDescription* pb_description) const;
 
   NetNsMode netns_config() const { return netns_config_; }
 

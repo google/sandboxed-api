@@ -36,7 +36,6 @@
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
-#include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -358,12 +357,6 @@ void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
   SAPI_RAW_PCHECK(
       mount("/", "/", "", MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) == 0,
       "remounting rootfs read-only failed");
-}
-
-void Namespace::GetNamespaceDescription(
-    NamespaceDescription* pb_description) const {
-  pb_description->set_clone_flags(clone_flags_);
-  *pb_description->mutable_mount_tree_mounts() = mounts_.GetMountTree();
 }
 
 }  // namespace sandbox2

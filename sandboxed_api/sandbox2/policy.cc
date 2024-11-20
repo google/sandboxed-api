@@ -224,18 +224,4 @@ std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   };
 }
 
-void Policy::GetPolicyDescription(PolicyDescription* policy) const {
-  policy->set_user_bpf_policy(user_policy_.data(),
-                              user_policy_.size() * sizeof(sock_filter));
-  if (policy_builder_description_) {
-    *policy->mutable_policy_builder_description() =
-        *policy_builder_description_;
-  }
-
-  if (namespace_) {
-    namespace_->GetNamespaceDescription(
-        policy->mutable_namespace_description());
-  }
-}
-
 }  // namespace sandbox2

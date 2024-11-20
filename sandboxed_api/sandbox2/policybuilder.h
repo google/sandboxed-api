@@ -836,8 +836,6 @@ class PolicyBuilder final {
 
   std::vector<sock_filter> ResolveBpfFunc(BpfFunc f);
 
-  void StoreDescription(PolicyBuilderDescription* pb_description);
-
   // This function returns a PolicyBuilder so that we can use it in the status
   // macros
   PolicyBuilder& SetError(const absl::Status& status);

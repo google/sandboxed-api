@@ -30,7 +30,6 @@
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/sandbox2/violation.pb.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
