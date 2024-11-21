@@ -40,6 +40,7 @@ namespace sandbox2 {
 // The sandbox2::Executor class is responsible for both creating and executing
 // new processes which will be sandboxed.
 class Executor final {
+
  public:
   Executor(const Executor&) = delete;
   Executor& operator=(const Executor&) = delete;
