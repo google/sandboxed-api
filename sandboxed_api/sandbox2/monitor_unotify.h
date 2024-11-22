@@ -75,6 +75,12 @@ class UnotifyMonitor : public MonitorBase {
   }
 
  private:
+  // Custom deleter for req_ and resp_ members which need to allocate space
+  // using malloc.
+  struct StdFreeDeleter {
+    void operator()(void* p) { std::free(p); }
+  };
+
   // Waits for events from monitored clients and signals from the main process.
   void RunInternal() override;
   void Join() override;
@@ -115,7 +121,7 @@ class UnotifyMonitor : public MonitorBase {
   bool external_kill_ = false;
   // Network violation occurred and process of killing sandboxee started
   bool network_violation_ = false;
-  // Is the sandboxee timed out
+  // Whether the sandboxee timed out
   bool timed_out_ = false;
 
   // Monitor thread object.
@@ -124,12 +130,10 @@ class UnotifyMonitor : public MonitorBase {
   // Synchronizes monitor thread deletion and notifying the monitor.
   absl::Mutex notify_mutex_;
 
-  static constexpr auto kFreeFn = [](void* ptr) { std::free(ptr); };
   size_t req_size_;
-  std::unique_ptr<seccomp_notif, decltype(kFreeFn)> req_{nullptr, kFreeFn};
+  std::unique_ptr<seccomp_notif, StdFreeDeleter> req_;
   size_t resp_size_;
-  std::unique_ptr<seccomp_notif_resp, decltype(kFreeFn)> resp_{nullptr,
-                                                               kFreeFn};
+  std::unique_ptr<seccomp_notif_resp, StdFreeDeleter> resp_;
 };
 
 }  // namespace sandbox2
