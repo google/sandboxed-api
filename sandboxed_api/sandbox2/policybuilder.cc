@@ -880,9 +880,8 @@ PolicyBuilder& PolicyBuilder::AllowRestartableSequences(
           JNE32(PROT_READ | PROT_WRITE, JUMP(&labels, mmap_end)),
 
           ARG_32(3),  // flags
-          JNE32(MAP_PRIVATE | MAP_ANONYMOUS, JUMP(&labels, mmap_end)),
+          JEQ32(MAP_PRIVATE | MAP_ANONYMOUS, ALLOW),
 
-          ALLOW,
           LABEL(&labels, mmap_end),
       };
     });
