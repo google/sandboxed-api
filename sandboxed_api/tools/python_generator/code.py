@@ -16,9 +16,11 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from ctypes import util
+from ctypes import util  # pylint: disable=unused-import
+import glob  # pylint: disable=unused-import
 import itertools
 import os
+import sys  # pylint: disable=unused-import
 # pylint: disable=unused-import
 from typing import (
     Text,
@@ -34,6 +36,17 @@ from typing import (
     Sequence,
 )
 # pylint: enable=unused-import
+
+# Use Python bindings to libclang that are in installed on the system.
+for p in glob.glob(
+    # Default system path on Debian
+    '/usr/lib/python*/dist-packages'
+) + glob.glob(
+    # Fedora and others
+    '/usr/lib/python*/site-packages'
+):
+  sys.path.append(p)
+
 from clang import cindex
 
 
@@ -41,33 +54,8 @@ _PARSE_OPTIONS = (
     cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
     | cindex.TranslationUnit.PARSE_INCOMPLETE |
     # for include directives
-    cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
-
-
-def _init_libclang():
-  """Finds and initializes the libclang library."""
-  if cindex.Config.loaded:
-    return
-  # Try to find libclang in the standard location and a few versioned paths
-  # that are used on Debian (and others). If LD_LIBRARY_PATH is set, it is
-  # used as well.
-  for version in [
-      '',
-      '19',
-      '18',
-      '17',
-      '16',
-      '15',
-      '14',
-      '13',
-      '12',
-      '11',
-  ]:
-    libname = 'clang' + ('-' + version if version else '')
-    libclang = util.find_library(libname)
-    if libclang:
-      cindex.Config.set_library_file(libclang)
-      break
+    cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+)
 
 
 def get_header_guard(path):
@@ -689,7 +677,6 @@ class Analyzer(object):
   ):
     # type: (Text, List[Text], bool, Optional[List[Text]]) -> List[_TranslationUnit]
     """Processes files with libclang and returns TranslationUnit objects."""
-    _init_libclang()
 
     tus = []
     for path in input_paths:
@@ -718,7 +705,6 @@ class Analyzer(object):
     if test_file_existence and not os.path.isfile(path):
       raise IOError('Path {} does not exist.'.format(path))
 
-    _init_libclang()
     index = cindex.Index.create()  # type: cindex.Index
     # TODO(szwl): hack until I figure out how python swig does that.
     # Headers will be parsed as C++. C libs usually have
@@ -768,7 +754,6 @@ class {0}Sandbox : public ::sapi::Sandbox {{
     """
     self.translation_units = translation_units
     self.functions = None
-    _init_libclang()
 
   def generate(
       self,

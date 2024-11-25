@@ -14,20 +14,12 @@
 
 load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl", "sapi_library")
-load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 
 licenses(["notice"])
-
-compile_pip_requirements(
-    name = "requirements",
-    src = "requirements.in",
-    requirements_txt = "requirements_lock.txt",
-)
 
 py_library(
     name = "code",
     srcs = ["code.py"],
-    deps = ["@pypi//clang:pkg"],
 )
 
 py_test(
@@ -41,7 +33,6 @@ py_test(
         ":code",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
-        "@pypi//clang:pkg",
     ],
 )
 

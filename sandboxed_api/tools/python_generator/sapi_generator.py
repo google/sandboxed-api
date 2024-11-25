@@ -19,8 +19,6 @@ interface wrapper.
 import os  # pylint: disable=unused-import
 import sys
 
-
-
 from absl import app
 from absl import flags
 from absl import logging
@@ -41,7 +39,6 @@ flags.DEFINE_string('sapi_embed_name', '', 'name of the embed object')
 flags.DEFINE_bool(
     'sapi_limit_scan_depth', False,
     'scan only functions from top level file in compilation unit')
-
 
 def extract_includes(path, array):
   try:
