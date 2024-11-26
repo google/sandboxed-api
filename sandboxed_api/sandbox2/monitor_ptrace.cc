@@ -27,7 +27,6 @@
 #include <cerrno>
 #include <cstdint>
 #include <ctime>
-#include <deque>
 #include <fstream>
 #include <ios>
 #include <memory>
@@ -65,6 +64,7 @@
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/sandbox2/util/pid_waiter.h"
 #include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
@@ -84,77 +84,6 @@ ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
 
 namespace sandbox2 {
 namespace {
-
-// Since waitpid() is biased towards newer threads, we run the risk of starving
-// older threads if the newer ones raise a lot of events.
-// To avoid it, we use this class to gather all the waiting threads and then
-// return them one at a time on each call to Wait().
-// In this way, everyone gets their chance.
-class PidWaiter {
- public:
-  // Constructs a PidWaiter where the given priority_pid is checked first.
-  explicit PidWaiter(pid_t priority_pid) : priority_pid_(priority_pid) {}
-
-  // Returns the PID of a thread that needs attention, populating 'status' with
-  // the status returned by the waitpid() call. It returns 0 if no threads
-  // require attention at the moment, or -1 if there was an error, in which case
-  // the error value can be found in 'errno'.
-  int Wait(int* status) {
-    RefillStatuses();
-
-    if (statuses_.empty()) {
-      if (last_errno_ == 0) return 0;
-      errno = last_errno_;
-      last_errno_ = 0;
-      return -1;
-    }
-
-    const auto& entry = statuses_.front();
-    pid_t pid = entry.first;
-    *status = entry.second;
-    statuses_.pop_front();
-    return pid;
-  }
-
- private:
-  bool CheckStatus(pid_t pid) {
-    int status;
-    // It should be a non-blocking operation (hence WNOHANG), so this function
-    // returns quickly if there are no events to be processed.
-    pid_t ret =
-        waitpid(pid, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-    if (ret < 0) {
-      last_errno_ = errno;
-      return true;
-    }
-    if (ret == 0) {
-      return false;
-    }
-    statuses_.emplace_back(ret, status);
-    return true;
-  }
-
-  void RefillStatuses() {
-    constexpr int kMaxIterations = 1000;
-    constexpr int kPriorityCheckPeriod = 100;
-    if (!statuses_.empty()) {
-      return;
-    }
-    for (int i = 0; last_errno_ == 0 && i < kMaxIterations; ++i) {
-      bool should_check_priority = (i % kPriorityCheckPeriod) == 0;
-      if (should_check_priority && CheckStatus(priority_pid_)) {
-        return;
-      }
-      if (!CheckStatus(-1)) {
-        break;
-      }
-    }
-  }
-
-  pid_t priority_pid_;
-  std::deque<std::pair<pid_t, int>> statuses_ = {};
-  int last_errno_ = 0;
-};
 
 // We could use the ProcMapsIterator, however we want the full file content.
 std::string ReadProcMaps(pid_t pid) {

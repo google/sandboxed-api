@@ -119,3 +119,20 @@ cc_test(
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
+
+cc_library(
+    name = "pid_waiter",
+    srcs = ["pid_waiter.cc"],
+    hdrs = ["pid_waiter.h"],
+    copts = sapi_platform_copts(),
+)
+
+cc_test(
+    name = "pid_waiter_test",
+    srcs = ["pid_waiter_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":pid_waiter",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

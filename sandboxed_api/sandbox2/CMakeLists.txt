@@ -486,6 +486,7 @@ target_link_libraries(sandbox2_monitor_ptrace
           sapi::status
           sandbox2::client
           sandbox2::comms
+          sandbox2::pid_waiter
           sandbox2::result
           sandbox2::sanitizer
           sandbox2::util

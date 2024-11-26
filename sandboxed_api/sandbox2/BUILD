@@ -516,6 +516,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:pid_waiter",
         "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )

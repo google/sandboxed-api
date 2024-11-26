@@ -61,6 +61,16 @@ target_link_libraries(sandbox2_util_syscall_trap
           sapi::config
 )
 
+# sandboxed_api/sandbox2/util:pid_waiter
+add_library(sandbox2_util_pid_waiter ${SAPI_LIB_TYPE}
+  pid_waiter.cc
+  pid_waiter.h
+)
+add_library(sandbox2::pid_waiter ALIAS sandbox2_util_pid_waiter)
+target_link_libraries(sandbox2_util_pid_waiter
+  PRIVATE sapi::base
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test
@@ -117,4 +127,16 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_bpf_helper_test)
+
+  # sandboxed_api/sandbox2/util:pid_waiter_test
+  add_executable(sandbox2_pid_waiter_test
+    pid_waiter_test.cc
+  )
+  set_target_properties(sandbox2_pid_waiter_test PROPERTIES
+    OUTPUT_NAME pid_waiter_test
+  )
+  target_link_libraries(sandbox2_pid_waiter_test PRIVATE
+    sandbox2::pid_waiter
+    sapi::test_main
+  )
 endif()
