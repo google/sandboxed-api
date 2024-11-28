@@ -21,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
+#include <utility>
 #include <vector>
 
 #include "benchmark/benchmark.h"
@@ -41,6 +42,9 @@
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/var_array.h"
+#include "sandboxed_api/var_lenval.h"
+#include "sandboxed_api/var_reg.h"
+#include "sandboxed_api/var_struct.h"
 
 namespace sapi {
 namespace {
@@ -363,6 +367,62 @@ TEST(SandboxTest, AllocateAndTransferTestLarge) {
   sapi_buffer_output.SetRemote(sapi_array->GetRemote());
   ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_buffer_output), IsOk());
   EXPECT_THAT(test_string_vector, ContainerEq(buffer_output));
+}
+
+TEST(VarsTest, MoveOperations) {
+  {
+    v::Array<const uint8_t> array_orig(128);  // Allocates locally
+    const uint8_t* data_before = array_orig.GetData();
+
+    v::Array<const uint8_t> array_new(std::move(array_orig));
+    array_orig = std::move(array_new);  // Move back
+
+    const uint8_t* data_after = array_orig.GetData();
+    EXPECT_THAT(data_before, Eq(data_after));
+  }
+  {
+    constexpr absl::string_view kData = "Physcially fit";
+    v::LenVal len_val_orig(kData.data(), kData.size());
+    const uint8_t* data_before = len_val_orig.GetData();
+
+    v::LenVal len_val_new(std::move(len_val_orig));
+    len_val_orig = std::move(len_val_new);  // Move back
+
+    const uint8_t* data_after = len_val_orig.GetData();
+    EXPECT_THAT(data_before, Eq(data_after));
+  }
+  {
+    stringop::StringDuplication underlying_proto;
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto proto_orig,
+        v::Proto<stringop::StringDuplication>::FromMessage(underlying_proto));
+
+    v::Proto<stringop::StringDuplication> proto_new(std::move(proto_orig));
+    proto_orig = std::move(proto_new);  // Move back
+  }
+  {
+    v::Reg<uint64_t> reg_orig(0x414141);
+    uint64_t value_before = reg_orig.GetValue();
+
+    v::Reg<uint64_t> reg_new(std::move(reg_orig));
+    reg_orig = std::move(reg_new);  // Move back
+
+    uint64_t value_after = reg_orig.GetValue();
+    EXPECT_THAT(value_before, Eq(value_after));
+  }
+  {
+    struct MyStruct {
+      int member = 0x414141;
+    };
+    v::Struct<MyStruct> struct_orig;
+    MyStruct* data_before = struct_orig.mutable_data();
+
+    v::Struct<MyStruct> struct_new(std::move(struct_orig));
+    struct_orig = std::move(struct_new);  // Move back
+
+    MyStruct* data_after = struct_orig.mutable_data();
+    EXPECT_THAT(data_before, Eq(data_after));
+  }
 }
 
 }  // namespace

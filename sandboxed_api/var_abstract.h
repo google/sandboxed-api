@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
@@ -96,6 +97,9 @@ class Var : public Pointable {
 
  protected:
   Var() = default;
+
+  Var(Var&& other) { *this = std::move(other); }
+  Var& operator=(Var&& other);
 
   // Set pointer to local storage class.
   void SetLocal(void* local) { local_ = local; }

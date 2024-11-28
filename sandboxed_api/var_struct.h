@@ -30,11 +30,14 @@ namespace sapi::v {
 template <class T>
 class Struct : public Var {
  public:
-  // Forwarding constructor to initalize the struct_ field.
+  // Forwarding constructor to initialize the struct_ field.
   template <typename... Args>
   explicit Struct(Args&&... args) : struct_(std::forward<Args>(args)...) {
     SetLocal(&struct_);
   }
+
+  Struct(Struct&& other) = default;
+  Struct& operator=(Struct&& other) = default;
 
   size_t GetSize() const final { return sizeof(T); }
   Type GetType() const final { return Type::kStruct; }

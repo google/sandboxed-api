@@ -54,6 +54,9 @@ class LenVal : public Var {
 
   explicit LenVal(size_t size) : array_(size), struct_(size, nullptr) {}
 
+  LenVal(LenVal&& other) = default;
+  LenVal& operator=(LenVal&& other) = default;
+
   Type GetType() const final { return Type::kLenVal; }
   std::string GetTypeString() const final { return "LengthValue"; }
   std::string ToString() const final { return "LenVal"; }
@@ -64,6 +67,9 @@ class LenVal : public Var {
   void* GetRemote() const final { return struct_.GetRemote(); }
 
  protected:
+  template <class T>
+  friend class Proto;
+
   size_t GetSize() const final { return 0; }
 
   absl::Status Allocate(RPCChannel* rpc_channel, bool automatic_free) override;
@@ -74,9 +80,6 @@ class LenVal : public Var {
 
   Array<uint8_t> array_;
   Struct<LenValStruct> struct_;
-
-  template <class T>
-  friend class Proto;
 };
 
 }  // namespace sapi::v

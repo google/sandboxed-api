@@ -57,6 +57,20 @@ class Array : public Var {
     arr_ = static_cast<T*>(storage);
   }
 
+  Array(Array&& other) { *this = std::move(other); }
+  Array& operator=(Array&& other) {
+    if (this != &other) {
+      Var::operator=(std::move(other));
+      using std::swap;
+      swap(arr_, other.arr_);
+      swap(nelem_, other.nelem_);
+      swap(total_size_, other.total_size_);
+      swap(buffer_owned_, other.buffer_owned_);
+      other.buffer_owned_ = false;  // If it was owned before, we own it now.
+    }
+    return *this;
+  }
+
   virtual ~Array() {
     if (buffer_owned_) {
       free(const_cast<std::remove_const_t<T>*>(arr_));

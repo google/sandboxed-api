@@ -22,7 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <string>
+#include <utility>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -34,6 +34,20 @@
 #include "sandboxed_api/var_ptr.h"
 
 namespace sapi::v {
+
+Var& Var::operator=(Var&& other) {
+  if (this != &other) {
+    using std::swap;
+    swap(local_, other.local_);
+    swap(remote_, other.remote_);
+    swap(free_rpc_channel_, other.free_rpc_channel_);
+    swap(ptr_none_, other.ptr_none_);
+    swap(ptr_both_, other.ptr_both_);
+    swap(ptr_before_, other.ptr_before_);
+    swap(ptr_after_, other.ptr_after_);
+  }
+  return *this;
+}
 
 Var::~Var() {
   if (free_rpc_channel_ && GetRemote()) {

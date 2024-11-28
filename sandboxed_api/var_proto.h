@@ -61,6 +61,9 @@ class Proto : public Var {
   explicit Proto(const T& proto)
       : wrapped_var_(SerializeProto(proto).value()) {}
 
+  Proto(Proto&& other) = default;
+  Proto& operator=(Proto&& other) = default;
+
   static absl::StatusOr<Proto<T>> FromMessage(const T& proto) {
     SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> len_val, SerializeProto(proto));
     return absl::StatusOr<Proto<T>>(absl::in_place, PrivateToken{},
