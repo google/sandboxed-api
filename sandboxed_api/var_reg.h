@@ -17,12 +17,12 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <string>
 #include <type_traits>
 
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi::v {
 

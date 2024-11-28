@@ -167,6 +167,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/utility",
+        "@com_google_protobuf//:protobuf_lite",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
         "@com_google_sandboxed_api//sandboxed_api/util:proto_helper",
@@ -223,6 +224,8 @@ cc_test(
         "@com_google_sandboxed_api//sandboxed_api/examples/stringop:stringop-sapi",
         "@com_google_sandboxed_api//sandboxed_api/examples/stringop:stringop_params_cc_proto",
         "@com_google_sandboxed_api//sandboxed_api/examples/sum:sum-sapi",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:result",
+        "@com_google_sandboxed_api//sandboxed_api/util:status",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )

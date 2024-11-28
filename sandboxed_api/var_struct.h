@@ -16,13 +16,12 @@
 #define SANDBOXED_API_VAR_STRUCT_H_
 
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <utility>
 
-#include "absl/base/macros.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/var_ptr.h"
+#include "sandboxed_api/var_abstract.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi::v {
 

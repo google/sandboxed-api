@@ -17,7 +17,6 @@
 #ifndef SANDBOXED_API_VAR_PROTO_H_
 #define SANDBOXED_API_VAR_PROTO_H_
 
-#include <cinttypes>
 #include <cstdint>
 #include <ctime>
 #include <memory>
@@ -27,16 +26,18 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/utility/utility.h"
+#include "google/protobuf/message_lite.h"
+#include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/util/proto_helper.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_lenval.h"
-#include "sandboxed_api/var_ptr.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi::v {
 

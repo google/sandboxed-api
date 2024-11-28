@@ -18,11 +18,9 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
 #include <string>
 #include <type_traits>
 
-#include "absl/base/macros.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -31,7 +29,7 @@
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_abstract.h"
-#include "sandboxed_api/var_ptr.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi::v {
 

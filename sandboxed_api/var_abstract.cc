@@ -16,9 +16,6 @@
 
 #include "sandboxed_api/var_abstract.h"
 
-#include <sys/types.h>
-#include <sys/uio.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <memory>
