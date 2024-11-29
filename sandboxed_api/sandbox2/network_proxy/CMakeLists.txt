@@ -22,7 +22,8 @@ target_link_libraries(sandbox2_network_proxy_server
  PRIVATE absl::status
          sapi::fileops
          sapi::base
- PUBLIC sandbox2::comms
+ PUBLIC absl::any_invocable
+        sandbox2::comms
         sandbox2::network_proxy_filtering
 )
 

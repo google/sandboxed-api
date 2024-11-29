@@ -66,6 +66,9 @@ class MonitorBase {
   // that waits for connection requests from the sandboxee.
   void EnableNetworkProxyServer();
 
+  // Notifies the monitor that a network violation occurred.
+  virtual void NotifyNetworkViolation() = 0;
+
   pid_t pid() const { return process_.main_pid; }
 
   const Result& result() const { return result_; }

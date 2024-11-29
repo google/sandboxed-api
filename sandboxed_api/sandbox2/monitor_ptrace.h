@@ -75,6 +75,8 @@ class PtraceMonitor : public MonitorBase {
   void Join() override;
   void Run();
 
+  void NotifyNetworkViolation() override { NotifyMonitor(); }
+
   // Notifies monitor about a state change
   void NotifyMonitor();
 

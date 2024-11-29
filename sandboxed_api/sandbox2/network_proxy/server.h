@@ -15,12 +15,11 @@
 #ifndef SANDBOXED_API_SANDBOX2_NETWORK_PROXY_SERVER_H_
 #define SANDBOXED_API_SANDBOX2_NETWORK_PROXY_SERVER_H_
 
-#include <pthread.h>
-
 #include <atomic>
 #include <memory>
 #include <string>
 
+#include "absl/functional/any_invocable.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 
@@ -33,7 +32,7 @@ namespace sandbox2 {
 class NetworkProxyServer {
  public:
   NetworkProxyServer(int fd, AllowedHosts* allowed_hosts,
-                     pthread_t monitor_thread_id);
+                     absl::AnyInvocable<void()> notify_violation);
 
   NetworkProxyServer(const NetworkProxyServer&) = delete;
   NetworkProxyServer& operator=(const NetworkProxyServer&) = delete;
@@ -61,7 +60,7 @@ class NetworkProxyServer {
 
   std::unique_ptr<Comms> comms_;
   bool fatal_error_;
-  pthread_t monitor_thread_id_;
+  absl::AnyInvocable<void()> notify_violation_fn_;
 
   // Contains list of allowed to connect hosts.
   AllowedHosts* allowed_hosts_;

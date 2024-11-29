@@ -27,6 +27,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

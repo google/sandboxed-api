@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -79,11 +80,11 @@ TEST(NetworkProxyTest, WrongIPv6) {
   EXPECT_THAT(builder.TryBuild(), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-using NetworkProxyTest = ::testing::TestWithParam<bool>;
+using NetworkProxyTest = ::testing::TestWithParam<std::tuple<bool, bool>>;
 
 TEST_P(NetworkProxyTest, ProxyWithHandlerAllowed) {
   SKIP_SANITIZERS;
-  const bool ipv6 = GetParam();
+  const auto [ipv6, use_unotify] = GetParam();
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/network_proxy");
   std::vector<std::string> args = {"network_proxy"};
@@ -104,6 +105,9 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerAllowed) {
       .AllowLlvmCoverage()
       .AddLibrariesForBinary(path);
 
+  if (use_unotify) {
+    builder.CollectStacktracesOnSignal(false);
+  }
   if (ipv6) {
     builder.AllowIPv6("::1");
   } else {
@@ -113,6 +117,9 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerAllowed) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
+  if (use_unotify) {
+    ASSERT_THAT(s2.EnableUnotifyMonitor(), sapi::IsOk());
+  }
   ASSERT_TRUE(s2.RunAsync());
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto server, NetworkProxyTestServer::Start(ipv6));
@@ -125,7 +132,7 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerAllowed) {
 
 TEST_P(NetworkProxyTest, ProxyWithHandlerNotAllowed) {
   SKIP_SANITIZERS;
-  const bool ipv6 = GetParam();
+  const auto [ipv6, use_unotify] = GetParam();
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/network_proxy");
   std::vector<std::string> args = {"network_proxy"};
@@ -145,10 +152,15 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerNotAllowed) {
       .AddNetworkProxyHandlerPolicy()
       .AllowLlvmCoverage()
       .AddLibrariesForBinary(path);
-
+  if (use_unotify) {
+    builder.CollectStacktracesOnSignal(false);
+  }
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
+  if (use_unotify) {
+    ASSERT_THAT(s2.EnableUnotifyMonitor(), sapi::IsOk());
+  }
   ASSERT_TRUE(s2.RunAsync());
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto server, NetworkProxyTestServer::Start(ipv6));
@@ -161,7 +173,7 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerNotAllowed) {
 
 TEST_P(NetworkProxyTest, ProxyWithoutHandlerAllowed) {
   SKIP_SANITIZERS;
-  const bool ipv6 = GetParam();
+  const auto [ipv6, use_unotify] = GetParam();
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/network_proxy");
   std::vector<std::string> args = {"network_proxy", "--noconnect_with_handler"};
@@ -181,7 +193,9 @@ TEST_P(NetworkProxyTest, ProxyWithoutHandlerAllowed) {
       .AddNetworkProxyHandlerPolicy()
       .AllowLlvmCoverage()
       .AddLibrariesForBinary(path);
-
+  if (use_unotify) {
+    builder.CollectStacktracesOnSignal(false);
+  }
   if (ipv6) {
     builder.AllowIPv6("::1");
   } else {
@@ -191,6 +205,9 @@ TEST_P(NetworkProxyTest, ProxyWithoutHandlerAllowed) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
 
   Sandbox2 s2(std::move(executor), std::move(policy));
+  if (use_unotify) {
+    ASSERT_THAT(s2.EnableUnotifyMonitor(), sapi::IsOk());
+  }
   ASSERT_TRUE(s2.RunAsync());
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto server, NetworkProxyTestServer::Start(ipv6));
@@ -237,7 +254,8 @@ TEST(NetworkProxyTest, ProxyNonExistantAddress) {
 }
 
 INSTANTIATE_TEST_SUITE_P(NetworkProxyTest, NetworkProxyTest,
-                         ::testing::Values(true, false));
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Bool()));
 
 }  // namespace
 }  // namespace sandbox2

@@ -426,7 +426,8 @@ void MonitorBase::EnableNetworkProxyServer() {
   int fd = ipc_->ReceiveFd(NetworkProxyClient::kFDName);
 
   network_proxy_server_ = std::make_unique<NetworkProxyServer>(
-      fd, &policy_->allowed_hosts_.value(), pthread_self());
+      fd, &policy_->allowed_hosts_.value(),
+      [this] { NotifyNetworkViolation(); });
 
   network_proxy_thread_ = std::thread(&NetworkProxyServer::Run,
   network_proxy_server_.get());

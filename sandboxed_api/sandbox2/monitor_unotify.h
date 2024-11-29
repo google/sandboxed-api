@@ -74,6 +74,8 @@ class UnotifyMonitor : public MonitorBase {
     }
   }
 
+  void NotifyNetworkViolation() override { NotifyMonitor(); }
+
  private:
   // Custom deleter for req_ and resp_ members which need to allocate space
   // using malloc.

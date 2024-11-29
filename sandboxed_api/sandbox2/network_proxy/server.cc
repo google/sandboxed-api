@@ -15,7 +15,6 @@
 #include "sandboxed_api/sandbox2/network_proxy/server.h"
 
 #include <netinet/in.h>
-#include <pthread.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -28,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -39,12 +39,13 @@ namespace sandbox2 {
 
 namespace file_util = ::sapi::file_util;
 
-NetworkProxyServer::NetworkProxyServer(int fd, AllowedHosts* allowed_hosts,
-                                       pthread_t monitor_thread_id)
+NetworkProxyServer::NetworkProxyServer(
+    int fd, AllowedHosts* allowed_hosts,
+    absl::AnyInvocable<void()> notify_violation_fn)
     : violation_occurred_(false),
       comms_(std::make_unique<Comms>(fd)),
       fatal_error_(false),
-      monitor_thread_id_(monitor_thread_id),
+      notify_violation_fn_(std::move(notify_violation_fn)),
       allowed_hosts_(allowed_hosts) {}
 
 void NetworkProxyServer::ProcessConnectRequest() {
@@ -120,7 +121,7 @@ void NetworkProxyServer::NotifyViolation(const struct sockaddr* saddr) {
     violation_msg_ = std::string(result.status().message());
   }
   violation_occurred_.store(true, std::memory_order_release);
-  pthread_kill(monitor_thread_id_, SIGCHLD);
+  notify_violation_fn_();
 }
 
 }  // namespace sandbox2
