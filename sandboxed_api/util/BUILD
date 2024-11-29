@@ -236,6 +236,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":strerror",
+        ":thread",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
@@ -267,5 +268,14 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:testing",
+    ],
+)
+
+cc_library(
+    name = "thread",
+    hdrs = ["thread.h"],
+    deps = [
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )

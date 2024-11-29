@@ -17,13 +17,14 @@
 #include <atomic>
 #include <cerrno>
 #include <cstring>
+#include <memory>
 #include <string>
-#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sapi {
 namespace {
@@ -67,12 +68,12 @@ TEST(StrErrorTest, MultipleThreads) {
   };
 
   constexpr int kNumThreads = 100;
-  std::vector<std::thread> threads;
+  std::vector<std::unique_ptr<Thread>> threads;
   for (int i = 0; i < kNumThreads; ++i) {
-    threads.push_back(std::thread(thread_fun));
+    threads.push_back(std::make_unique<Thread>(thread_fun));
   }
   for (auto& thread : threads) {
-    thread.join();
+    thread->Join();
   }
 
   EXPECT_THAT(counter, Eq(kNumThreads * kNumCodes));

@@ -23,13 +23,13 @@
 #include <string>
 #include <tuple>
 #include <vector>
-#include <thread>
 
 #include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logserver.h"
 #include "sandboxed_api/sandbox2/logsink.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 
@@ -105,8 +105,7 @@ void IPC::EnableLogServer() {
     LogServer log_server(fd);
     log_server.Run();
   };
-  std::thread log_thread{logger};
-  log_thread.detach();
+  sapi::Thread::StartDetachedThread(logger, "LogServer");
 }
 
 }  // namespace sandbox2

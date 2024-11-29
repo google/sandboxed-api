@@ -66,6 +66,7 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/thread.h"
 
 ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
           "If set, sandbox2 monitor will log stack traces of all monitored "
@@ -200,24 +201,23 @@ bool PtraceMonitor::InterruptSandboxee() {
 
 void PtraceMonitor::NotifyMonitor() {
   absl::ReaderMutexLock lock(&notify_mutex_);
-  if (thread_ != nullptr) {
-    pthread_kill(thread_->native_handle(), SIGCHLD);
+  if (thread_.IsJoinable()) {
+    pthread_kill(thread_.handle(), SIGCHLD);
   }
 }
 
 void PtraceMonitor::Join() {
   absl::MutexLock lock(&notify_mutex_);
-  if (thread_) {
-    thread_->join();
+  if (thread_.IsJoinable()) {
+    thread_.Join();
     CHECK(IsDone()) << "Monitor did not terminate";
     VLOG(1) << "Final execution status: " << result_.ToString();
     CHECK(result_.final_status() != Result::UNSET);
-    thread_.reset();
   }
 }
 
 void PtraceMonitor::RunInternal() {
-  thread_ = std::make_unique<std::thread>(&PtraceMonitor::Run, this);
+  thread_ = sapi::Thread(this, &PtraceMonitor::Run, "sandbox2-Monitor");
 
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for

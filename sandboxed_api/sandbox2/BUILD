@@ -251,6 +251,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
 
@@ -518,6 +519,7 @@ cc_library(
         "@com_google_sandboxed_api//sandboxed_api:config",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:pid_waiter",
         "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
 
@@ -548,6 +550,7 @@ cc_library(
         "@com_google_sandboxed_api//sandboxed_api:config",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
         "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
 
@@ -590,6 +593,7 @@ cc_library(
         "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
         "@com_google_sandboxed_api//sandboxed_api/util:strerror",
         "@com_google_sandboxed_api//sandboxed_api/util:temp_file",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
 
@@ -917,6 +921,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
 
@@ -1030,6 +1035,7 @@ cc_test(
         "@com_google_sandboxed_api//sandboxed_api:config",
         "@com_google_sandboxed_api//sandboxed_api:testing",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
 

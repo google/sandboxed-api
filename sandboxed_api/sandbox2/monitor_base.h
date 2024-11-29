@@ -24,7 +24,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
-#include <thread>
 #include <string>
 #include <vector>
 
@@ -43,6 +42,7 @@
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 
@@ -164,7 +164,7 @@ class MonitorBase {
   // active.
   std::string comms_fd_dev_;
 
-  std::thread network_proxy_thread_;
+  sapi::Thread network_proxy_thread_;
 
   // Is the sandboxee forked from a custom forkserver?
   bool uses_custom_forkserver_;

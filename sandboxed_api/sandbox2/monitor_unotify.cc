@@ -47,6 +47,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/thread.h"
 
 #ifndef SECCOMP_RET_USER_NOTIF
 #define SECCOMP_RET_USER_NOTIF 0x7fc00000U /* notifies userspace */
@@ -173,7 +174,7 @@ UnotifyMonitor::UnotifyMonitor(Executor* executor, Policy* policy,
 }
 
 void UnotifyMonitor::RunInternal() {
-  thread_ = std::make_unique<std::thread>(&UnotifyMonitor::Run, this);
+  thread_ = sapi::Thread(this, &UnotifyMonitor::Run, "sandbox2-Monitor");
 
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for
@@ -455,12 +456,11 @@ void UnotifyMonitor::KillInit() {
 
 void UnotifyMonitor::Join() {
   absl::MutexLock lock(&notify_mutex_);
-  if (thread_) {
-    thread_->join();
+  if (thread_.IsJoinable()) {
+    thread_.Join();
     CHECK(IsDone()) << "Monitor did not terminate";
     VLOG(1) << "Final execution status: " << result_.ToString();
     CHECK(result_.final_status() != Result::UNSET);
-    thread_.reset();
     monitor_notify_fd_.Close();
   }
 }

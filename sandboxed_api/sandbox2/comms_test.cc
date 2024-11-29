@@ -25,7 +25,6 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -37,6 +36,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 namespace {
@@ -65,14 +65,14 @@ void HandleCommunication(const CommunicationHandler& a,
   Comms comms(sv[0]);
 
   // Start handler a.
-  std::thread remote([sv, &a]() {
+  sapi::Thread remote([sv, &a]() {
     Comms my_comms(sv[1]);
     a(&my_comms);
   });
 
   // Accept connection and run handler b.
   b(&comms);
-  remote.join();
+  remote.Join();
 }
 
 TEST(CommsTest, TestSendRecv8) {
@@ -454,7 +454,7 @@ TEST(ListeningCommsTest, AbstractSocket) {
   SAPI_ASSERT_OK_AND_ASSIGN(
       ListeningComms listening_comms,
       ListeningComms::Create(kSocketName, /*abstract_uds=*/true));
-  std::thread remote([]() {
+  sapi::Thread remote([]() {
     SAPI_ASSERT_OK_AND_ASSIGN(
         Comms comms,
         Comms::Connect(std::string(kSocketName), /*abstract_uds=*/true));
@@ -464,7 +464,7 @@ TEST(ListeningCommsTest, AbstractSocket) {
   bool b;
   ASSERT_THAT(comms.RecvBool(&b), IsTrue());
   EXPECT_THAT(b, Eq(true));
-  remote.join();
+  remote.Join();
 }
 
 }  // namespace

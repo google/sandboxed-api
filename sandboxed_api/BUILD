@@ -227,6 +227,7 @@ cc_test(
         "@com_google_sandboxed_api//sandboxed_api/sandbox2:result",
         "@com_google_sandboxed_api//sandboxed_api/util:status",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
 

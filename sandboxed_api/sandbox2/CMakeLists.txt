@@ -191,6 +191,7 @@ target_link_libraries(sandbox2_ipc PRIVATE
   sandbox2::network_proxy_client
   sandbox2::network_proxy_server
   sapi::base
+  sapi::thread
 )
 
 # sandboxed_api/sandbox2:policy
@@ -461,6 +462,7 @@ target_link_libraries(sandbox2_monitor_base
           sandbox2::policy
           sandbox2::result
           sandbox2::syscall
+          sapi::thread
 )
 
 # sandboxed_api/sandbox2:monitor_ptrace
@@ -497,6 +499,7 @@ target_link_libraries(sandbox2_monitor_ptrace
          sandbox2::policy
          sandbox2::regs
          sandbox2::syscall
+         sapi::thread
          absl::synchronization
          absl::flat_hash_map
 )
@@ -528,6 +531,7 @@ target_link_libraries(sandbox2_monitor_unotify
          sandbox2::notify
          sandbox2::policy
          sandbox2::result
+         sapi::thread
          absl::statusor
          absl::synchronization
          sapi::fileops
@@ -945,6 +949,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::comms_test_proto
     sapi::status_matchers
     sapi::test_main
+    sapi::thread
   )
   gtest_discover_tests_xcompile(sandbox2_comms_test)
 
@@ -1080,6 +1085,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::testing
     sapi::status_matchers
     sapi::test_main
+    sapi::thread
   )
   gtest_discover_tests_xcompile(sandbox2_sandbox2_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"

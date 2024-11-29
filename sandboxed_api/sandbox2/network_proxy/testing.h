@@ -16,11 +16,11 @@
 #define SANDBOXED_API_SANDBOX2_EXAMPLES_NETWORK_PROXY_NETWORKPROXY_LIB_H_
 
 #include <memory>
-#include <thread>
 #include <utility>
 
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 
@@ -46,7 +46,7 @@ class NetworkProxyTestServer {
         event_fd_(std::move(event_fd)) {}
   void Spawn();
   void Run();
-  std::thread thread_;
+  sapi::Thread thread_;
   int port_;
   sapi::file_util::fileops::FDCloser server_socket_;
   sapi::file_util::fileops::FDCloser event_fd_;

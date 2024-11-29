@@ -77,6 +77,7 @@ target_link_libraries(sandbox2_network_proxy_testing PRIVATE
   sapi::fileops
   sapi::status
   sapi::base
+  sapi::thread
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)

@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
-#include <thread>
 #include <string>
 #include <vector>
 
@@ -27,6 +26,7 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 
@@ -127,7 +127,7 @@ class UnotifyMonitor : public MonitorBase {
   bool timed_out_ = false;
 
   // Monitor thread object.
-  std::unique_ptr<std::thread> thread_;
+  sapi::Thread thread_;
 
   // Synchronizes monitor thread deletion and notifying the monitor.
   absl::Mutex notify_mutex_;

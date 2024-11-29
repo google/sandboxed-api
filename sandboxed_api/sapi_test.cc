@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT(build/c++11)
 #include <utility>
 #include <vector>
 
@@ -43,6 +42,7 @@
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/util/thread.h"
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
@@ -291,13 +291,13 @@ TEST(SandboxTest, NoRaceInConcurrentTerminate) {
   SumSandbox sandbox;
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
-  std::thread th([&sandbox] {
+  sapi::Thread th([&sandbox] {
     // Sleep so that the call already starts
     absl::SleepFor(absl::Seconds(1));
     sandbox.Terminate(/*attempt_graceful_exit=*/false);
   });
   EXPECT_THAT(api.sleep_for_sec(10), StatusIs(absl::StatusCode::kUnavailable));
-  th.join();
+  th.Join();
   const auto& result = sandbox.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::EXTERNAL_KILL));
 }

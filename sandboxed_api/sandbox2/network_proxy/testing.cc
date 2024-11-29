@@ -23,7 +23,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <thread>
 #include <utility>
 
 #include "absl/base/macros.h"
@@ -33,6 +32,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 namespace {
@@ -92,7 +92,7 @@ void NetworkProxyTestServer::Stop() {
   }
   uint64_t value = 1;
   PCHECK(write(event_fd_.get(), &value, sizeof(value)) == sizeof(value));
-  thread_.join();
+  thread_.Join();
   event_fd_.Close();
   server_socket_.Close();
 }
@@ -115,7 +115,8 @@ void NetworkProxyTestServer::Run() {
 }
 
 void NetworkProxyTestServer::Spawn() {
-  thread_ = std::thread([this] { Run(); });
+  thread_ = sapi::Thread(this, &NetworkProxyTestServer::Run,
+                         "NetworkProxyTestServerThread");
 }
 
 }  // namespace sandbox2

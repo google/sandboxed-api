@@ -21,7 +21,6 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <thread>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
@@ -35,6 +34,7 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 
@@ -161,7 +161,7 @@ class PtraceMonitor : public MonitorBase {
   absl::Time hard_deadline_ = absl::InfiniteFuture();
 
   // Monitor thread object.
-  std::unique_ptr<std::thread> thread_;
+  sapi::Thread thread_;
 
   // Synchronizes monitor thread deletion and notifying the monitor.
   absl::Mutex notify_mutex_;

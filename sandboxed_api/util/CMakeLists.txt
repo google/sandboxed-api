@@ -164,6 +164,17 @@ target_link_libraries(sapi_util_temp_file
          absl::statusor
 )
 
+# sandboxed_api/util:thread
+add_library(sapi_util_thread ${SAPI_LIB_TYPE}
+  thread.h
+)
+add_library(sapi::thread ALIAS sapi_util_thread)
+target_link_libraries(sapi_util_thread
+  PUBLIC absl::any_invocable
+         absl::strings
+         sapi::base
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/util:file_base_test
   add_executable(sapi_file_base_test
@@ -269,6 +280,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     sapi::strerror
     sapi::test_main
+    sapi::thread
   )
   gtest_discover_tests_xcompile(sapi_strerror_test)
 

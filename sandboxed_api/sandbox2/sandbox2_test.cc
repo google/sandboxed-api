@@ -21,7 +21,6 @@
 #include <csignal>
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT(build/c++11)
 #include <utility>
 #include <vector>
 
@@ -41,6 +40,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 namespace {
@@ -195,8 +195,8 @@ TEST_P(Sandbox2Test, SandboxeeNotKilledWhenStartingThreadFinishes) {
                             CreateDefaultTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
-  std::thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });
-  sandbox_start_thread.join();
+  sapi::Thread sandbox_start_thread([&sandbox]() { sandbox.RunAsync(); });
+  sandbox_start_thread.Join();
   Result result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::OK);
 }

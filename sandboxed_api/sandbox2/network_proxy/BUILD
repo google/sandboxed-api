@@ -92,5 +92,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
         "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )

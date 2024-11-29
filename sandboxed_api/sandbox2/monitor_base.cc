@@ -62,6 +62,7 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/temp_file.h"
+#include "sandboxed_api/util/thread.h"
 
 ABSL_FLAG(bool, sandbox2_report_on_sandboxee_signal, true,
           "Report sandbox2 sandboxee deaths caused by signals");
@@ -157,8 +158,8 @@ MonitorBase::~MonitorBase() {
   if (log_file_) {
     std::fclose(log_file_);
   }
-  if (network_proxy_server_) {
-    network_proxy_thread_.join();
+  if (network_proxy_thread_.IsJoinable()) {
+    network_proxy_thread_.Join();
   }
 }
 
@@ -429,8 +430,9 @@ void MonitorBase::EnableNetworkProxyServer() {
       fd, &policy_->allowed_hosts_.value(),
       [this] { NotifyNetworkViolation(); });
 
-  network_proxy_thread_ = std::thread(&NetworkProxyServer::Run,
-  network_proxy_server_.get());
+  network_proxy_thread_ =
+      sapi::Thread(network_proxy_server_.get(), &NetworkProxyServer::Run,
+                   "NetworkProxyServer");
 }
 
 bool MonitorBase::ShouldCollectStackTrace(Result::StatusEnum status) const {

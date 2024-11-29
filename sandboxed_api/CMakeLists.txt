@@ -224,6 +224,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::sum_sapi
     sapi::test_main
     sapi::testing
+    sapi::thread
   )
   gtest_discover_tests_xcompile(sapi_test)
 endif()
