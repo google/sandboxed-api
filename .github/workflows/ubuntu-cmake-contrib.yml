@@ -26,8 +26,10 @@ jobs:
         include:
           - compiler: clang
             compiler-version: 11
+            libclang-version: 11
           - compiler: gcc
             compiler-version: 10
+            libclang-version: 11
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.ignore-errors }}
 
@@ -55,14 +57,20 @@ jobs:
     - name: Install/configure Clang compiler toolchain
       if: matrix.compiler == 'clang'
       run: |
-        sudo apt-get install -qy clang-${{matrix.compiler-version}}
+        sudo apt-get install -qy \
+          clang-${{matrix.compiler-version}} \
+          libclang1-${{matrix.libclang-version}} \
+          python3-clang-${{matrix.libclang-version}}
         echo "CXX=clang++-${{matrix.compiler-version}}" >> $GITHUB_ENV
         echo "CC=clang-${{matrix.compiler-version}}" >> $GITHUB_ENV
 
     - name: Install/configure GCC compiler toolchain
       if: matrix.compiler == 'gcc'
       run: |
-        sudo apt-get install -qy g++-${{matrix.compiler-version}}
+        sudo apt-get install -qy \
+          g++-${{matrix.compiler-version}} \
+          libclang1-${{matrix.libclang-version}} \
+          python3-clang-${{matrix.libclang-version}}
         echo "CXX=g++-${{matrix.compiler-version}}" >> $GITHUB_ENV
         echo "CC=gcc-${{matrix.compiler-version}}" >> $GITHUB_ENV
 
@@ -78,7 +86,7 @@ jobs:
 
     - name: Create Build Environment
       run: |
-        pip3 install absl-py 'clang>=14,<15'
+        pip3 install absl-py
         cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake

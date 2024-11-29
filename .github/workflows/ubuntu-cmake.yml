@@ -16,58 +16,44 @@ jobs:
             compiler: clang
             compiler-version: 14
             libclang-version: 14
-            pip-clang-version: "14.0"
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: clang
             compiler-version: 13
             libclang-version: 13
-            pip-clang-version: "13.0.1"
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: clang
             compiler-version: 12
             libclang-version: 12
-            pip-clang-version: "12.0.1"
             ignore-errors: false
           # Ubuntu 22.04: Use preinstalled GCC 9.5.0, 10.4.0, 11.3.0, 12.1.0
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 12
             libclang-version: 14
-            pip-clang-version: "14.0"
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 11
             libclang-version: 14
-            pip-clang-version: "14.0"
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 10
             libclang-version: 14
-            pip-clang-version: "14.0"
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 9
             libclang-version: 14
-            pip-clang-version: "14.0"
             ignore-errors: false
           # Ubuntu 20.04
           - os: ubuntu-20.04
             compiler: gcc
             compiler-version: 8
             libclang-version: 12
-            pip-clang-version: "12.0.1"
             ignore-errors: false
-          - os: ubuntu-20.04
-            compiler: gcc
-            compiler-version: 7
-            libclang-version: 12
-            pip-clang-version: "12.0.1"
-            ignore-errors: true  # GCC 7 is best effort
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.ignore-errors }}
 
@@ -89,7 +75,8 @@ jobs:
       run: |
         sudo apt-get install -qy \
           clang-${{matrix.compiler-version}} \
-          libclang1-${{matrix.libclang-version}}
+          libclang1-${{matrix.libclang-version}} \
+          python3-clang-${{matrix.libclang-version}}
         echo "CXX=clang++-${{matrix.compiler-version}}" >> $GITHUB_ENV
         echo "CC=clang-${{matrix.compiler-version}}" >> $GITHUB_ENV
 
@@ -98,13 +85,14 @@ jobs:
       run: |
         sudo apt-get install -qy \
           g++-${{matrix.compiler-version}} \
-          libclang1-${{matrix.libclang-version}}
+          libclang1-${{matrix.libclang-version}} \
+          python3-clang-${{matrix.libclang-version}}
         echo "CXX=g++-${{matrix.compiler-version}}" >> $GITHUB_ENV
         echo "CC=gcc-${{matrix.compiler-version}}" >> $GITHUB_ENV
 
     - name: Create Build Environment
       run: |
-        pip3 install absl-py clang==${{matrix.pip-clang-version}}
+        pip3 install absl-py
         mkdir -p "$GITHUB_WORKSPACE/build"
 
     - name: Configure CMake

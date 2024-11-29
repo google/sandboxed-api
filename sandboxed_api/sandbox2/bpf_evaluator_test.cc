@@ -151,10 +151,11 @@ TEST(EvaluatorTest, AllJumps) {
     prog.push_back(jmp);
     prog.push_back(BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW));
     prog.push_back(BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_KILL));
-    SAPI_ASSERT_OK_AND_ASSIGN(uint32_t result,
-                              Evaluate(prog, {.nr = allow_nr}));
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        uint32_t result, Evaluate(prog, {.nr = static_cast<int>(allow_nr)}));
     EXPECT_THAT(result, Eq(SECCOMP_RET_ALLOW));
-    SAPI_ASSERT_OK_AND_ASSIGN(result, Evaluate(prog, {.nr = kill_nr}));
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        result, Evaluate(prog, {.nr = static_cast<int>(kill_nr)}));
     EXPECT_THAT(result, Eq(SECCOMP_RET_KILL));
   }
 }
