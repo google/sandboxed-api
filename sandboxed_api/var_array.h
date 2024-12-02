@@ -144,10 +144,10 @@ class Array : public Var {
   }
 
   // Pointer to the data, owned by the object if buffer_owned_ is 'true'.
-  T* arr_;
-  size_t nelem_;       // Number of elements
-  size_t total_size_;  // Total size in bytes
-  bool buffer_owned_;  // Whether we own the buffer
+  T* arr_ = nullptr;
+  size_t nelem_ = 0;           // Number of elements
+  size_t total_size_ = 0;      // Total size in bytes
+  bool buffer_owned_ = false;  // Whether we own the buffer
 };
 
 // Specialized Array class for representing NUL-terminated C-style strings. The
