@@ -85,16 +85,6 @@ class Sandbox2 final {
   // Returns whether sandboxing task has ended.
   bool IsTerminated() const;
 
-  // Sets a wall time limit on a running sandboxee, 0 to disarm.
-  // Limit is a timeout duration (e.g. 10 secs) not a deadline (e.g. 12:00).
-  // This can be useful in a persistent sandbox scenario, to impose a deadline
-  // for responses after each request and reset the deadline in between.
-  // Sandboxed API can be used to implement persistent sandboxes.
-  ABSL_DEPRECATE_AND_INLINE()
-  void SetWallTimeLimit(time_t limit) const {
-    this->set_walltime_limit(absl::Seconds(limit));
-  }
-
   // Sets a wall time limit on a running sandboxee, absl::ZeroDuration() to
   // disarm. This can be useful in a persistent sandbox scenario, to impose a
   // deadline for responses after each request and reset the deadline in
