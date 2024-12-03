@@ -21,9 +21,6 @@
 #include <memory>
 #include <utility>
 
-#include "absl/time/time.h"
-#include "sandboxed_api/sandbox2/util/deadline_manager.h"
-
 namespace sandbox2 {
 
 // Since waitpid() is biased towards newer threads, we run the risk of
@@ -53,18 +50,11 @@ class PidWaiter {
   // which case the error value can be found in 'errno'.
   int Wait(int* status);
 
-  // Sets the deadline for the next Wait() call.
-  void SetDeadline(absl::Time deadline) {
-    deadline_registration_.SetDeadline(deadline);
-  }
-
  private:
-  bool CheckStatus(pid_t pid, bool blocking = false);
+  bool CheckStatus(pid_t pid);
   void RefillStatuses();
 
   pid_t priority_pid_;
-  DeadlineRegistration deadline_registration_ =
-      DeadlineRegistration(DeadlineManager::instance());
   std::deque<std::pair<pid_t, int>> statuses_;
   std::unique_ptr<WaitPidInterface> wait_pid_iface_;
   int last_errno_ = 0;

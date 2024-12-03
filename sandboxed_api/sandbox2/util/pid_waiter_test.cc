@@ -15,14 +15,11 @@
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 
 #include <cerrno>
-#include <ctime>
 #include <memory>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 
 namespace sandbox2 {
 namespace {
@@ -32,13 +29,6 @@ using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::SetErrnoAndReturn;
-
-constexpr int kPrioStatus = 7 << 8;
-constexpr int kFirstStatus = 5 << 8;
-constexpr int kSecondStatus = 8 << 8;
-constexpr pid_t kPrioPid = 1;
-constexpr pid_t kFirstPid = 2;
-constexpr pid_t kSecondPid = 3;
 
 class MockWaitPid : public PidWaiter::WaitPidInterface {
  public:
@@ -64,9 +54,13 @@ TEST(PidWaiterTest, NoProcess) {
 }
 
 TEST(PidWaiterTest, PriorityRespected) {
+  int kPrioStatus = 7 << 8;
+  int kRegularStatus = 5 << 8;
+  pid_t kPrioPid = 1;
+  pid_t kRegularPid = 2;
   auto mock_wait_pid = std::make_unique<MockWaitPid>();
   EXPECT_CALL(*mock_wait_pid, WaitPid(-1, _, _))
-      .WillOnce(DoAll(SetArgPointee<1>(kFirstStatus), Return(kFirstPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kRegularStatus), Return(kRegularPid)))
       .WillRepeatedly(Return(0));
   EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _))
       .WillOnce(DoAll(SetArgPointee<1>(kPrioStatus), Return(kPrioPid)))
@@ -76,13 +70,18 @@ TEST(PidWaiterTest, PriorityRespected) {
   int status;
   EXPECT_EQ(waiter.Wait(&status), kPrioPid);
   EXPECT_EQ(status, kPrioStatus);
-  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
-  EXPECT_EQ(status, kFirstStatus);
+  EXPECT_EQ(waiter.Wait(&status), kRegularPid);
+  EXPECT_EQ(status, kRegularStatus);
   EXPECT_EQ(waiter.Wait(&status), kPrioPid);
   EXPECT_EQ(status, kPrioStatus);
 }
 
 TEST(PidWaiterTest, BatchesWaits) {
+  int kFirstStatus = 7 << 8;
+  int kSecondStatus = 5 << 8;
+  pid_t kPrioPid = 1;
+  pid_t kFirstPid = 2;
+  pid_t kSecondPid = 3;
   auto mock_wait_pid = std::make_unique<MockWaitPid>();
   EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _))
       .WillRepeatedly(Return(0));
@@ -98,6 +97,11 @@ TEST(PidWaiterTest, BatchesWaits) {
 }
 
 TEST(PidWaiterTest, ReturnsFromBatch) {
+  int kFirstStatus = 7 << 8;
+  int kSecondStatus = 5 << 8;
+  pid_t kPrioPid = 1;
+  pid_t kFirstPid = 2;
+  pid_t kSecondPid = 3;
   auto mock_wait_pid = std::make_unique<MockWaitPid>();
   EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _))
       .WillRepeatedly(Return(0));
@@ -112,27 +116,6 @@ TEST(PidWaiterTest, ReturnsFromBatch) {
   EXPECT_EQ(status, kFirstStatus);
   EXPECT_EQ(waiter.Wait(&status), kSecondPid);
   EXPECT_EQ(status, kSecondStatus);
-}
-
-TEST(PidWaiterTest, DeadlineRespected) {
-  auto mock_wait_pid = std::make_unique<MockWaitPid>();
-  EXPECT_CALL(*mock_wait_pid,
-              WaitPid(_, _, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG))
-      .WillRepeatedly(Return(0));
-  EXPECT_CALL(*mock_wait_pid, WaitPid(_, _, __WNOTHREAD | __WALL | WUNTRACED))
-      .WillRepeatedly([](int pid, int* status, int flags) {
-        struct timespec ts = absl::ToTimespec(absl::Seconds(1));
-        if (nanosleep(&ts, nullptr) == -1) {
-          return -1;
-        }
-        *status = kFirstPid;
-        return kFirstPid;
-      });
-  PidWaiter waiter(kPrioPid, std::move(mock_wait_pid));
-  waiter.SetDeadline(absl::Now() + absl::Milliseconds(100));
-  int status;
-  EXPECT_EQ(waiter.Wait(&status), -1);
-  EXPECT_EQ(errno, EINTR);
 }
 
 }  // namespace
