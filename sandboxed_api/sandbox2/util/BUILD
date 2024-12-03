@@ -91,6 +91,38 @@ cc_library(
 )
 
 cc_library(
+    name = "deadline_manager",
+    srcs = ["deadline_manager.cc"],
+    hdrs = ["deadline_manager.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+    ],
+)
+
+cc_test(
+    name = "deadline_manager_test",
+    srcs = ["deadline_manager_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":deadline_manager",
+        "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+    ],
+)
+
+cc_library(
     name = "maps_parser",
     srcs = ["maps_parser.cc"],
     hdrs = ["maps_parser.h"],

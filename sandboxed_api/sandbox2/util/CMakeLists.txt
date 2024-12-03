@@ -71,6 +71,28 @@ target_link_libraries(sandbox2_util_pid_waiter
   PRIVATE sapi::base
 )
 
+
+# sandboxed_api/sandbox2/util:deadline_manager
+add_library(sandbox2_util_deadline_manager ${SAPI_LIB_TYPE}
+  deadline_manager.cc
+  deadline_manager.h
+)
+add_library(sandbox2::deadline_manager ALIAS sandbox2_util_deadline_manager)
+target_link_libraries(sandbox2_util_deadline_manager
+  PUBLIC absl::btree
+         absl::core_headers
+         absl::function_ref
+         absl::no_destructor
+         absl::strings
+         absl::synchronization
+         absl::time
+         sapi::thread
+  PRIVATE absl::base
+          absl::check
+          sandbox2::util
+          sapi::base
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test
@@ -139,4 +161,19 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::pid_waiter
     sapi::test_main
   )
+
+  # sandboxed_api/sandbox2/util:deadline_manager_test
+  add_executable(sandbox2_deadline_manager_test
+    deadline_manager_test.cc
+  )
+  set_target_properties(sandbox2_deadline_manager_test PROPERTIES
+    OUTPUT_NAME deadline_manager_test
+  )
+  target_link_libraries(sandbox2_deadline_manager_test PRIVATE
+    absl::time
+    sandbox2::deadline_manager
+    sapi::test_main
+    sapi::thread
+  )
+  gtest_discover_tests_xcompile(sandbox2_deadline_manager_test)
 endif()
