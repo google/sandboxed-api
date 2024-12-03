@@ -15,12 +15,9 @@
 load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
 
-package(
-    default_visibility = [
-        "//security/bedebox:__subpackages__",
-        "@com_google_sandboxed_api//sandboxed_api:__subpackages__",
-    ],
-)
+package(default_visibility = [
+    "@com_google_sandboxed_api//sandboxed_api:__subpackages__",
+])
 
 licenses(["notice"])
 

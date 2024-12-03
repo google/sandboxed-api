@@ -14,17 +14,11 @@
 
 load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
-_DEFAULT_VISIBILITY = [
+DEFAULT_VISIBILITY = [
     "@com_google_sandboxed_api//sandboxed_api:__subpackages__",
 ]
 
-package(default_visibility = _DEFAULT_VISIBILITY)
-
-package_group(
-    name = "minielf_users",
-    packages = [
-    ],
-)
+package(default_visibility = DEFAULT_VISIBILITY)
 
 licenses(["notice"])
 
@@ -51,7 +45,7 @@ cc_library(
     srcs = ["minielf.cc"],
     hdrs = ["minielf.h"],
     copts = sapi_platform_copts(),
-    visibility = _DEFAULT_VISIBILITY + [":minielf_users"],
+    visibility = ["//visibility:public"],
     deps = [
         "@com_google_absl//absl/base:endian",
         "@com_google_absl//absl/status",
