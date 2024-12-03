@@ -151,6 +151,10 @@ cc_library(
     srcs = ["pid_waiter.cc"],
     hdrs = ["pid_waiter.h"],
     copts = sapi_platform_copts(),
+    deps = [
+        ":deadline_manager",
+        "@com_google_absl//absl/time",
+    ],
 )
 
 cc_test(
@@ -159,6 +163,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":pid_waiter",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
 )
