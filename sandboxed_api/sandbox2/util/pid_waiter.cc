@@ -81,7 +81,8 @@ void PidWaiter::RefillStatuses() {
     return;
   }
   for (int i = 0; last_errno_ == 0 && i < kMaxIterations; ++i) {
-    bool should_check_priority = (i % kPriorityCheckPeriod) == 0;
+    bool should_check_priority =
+        priority_pid_ != -1 && (i % kPriorityCheckPeriod) == 0;
     if (should_check_priority && CheckStatus(priority_pid_)) {
       return;
     }

@@ -114,6 +114,24 @@ TEST(PidWaiterTest, ReturnsFromBatch) {
   EXPECT_EQ(status, kSecondStatus);
 }
 
+TEST(PidWaiterTest, ChangePriority) {
+  auto mock_wait_pid = std::make_unique<MockWaitPid>();
+  EXPECT_CALL(*mock_wait_pid, WaitPid(kFirstPid, _, _))
+      .WillRepeatedly(DoAll(SetArgPointee<1>(kFirstStatus), Return(kFirstPid)));
+  EXPECT_CALL(*mock_wait_pid, WaitPid(kSecondPid, _, _))
+      .WillRepeatedly(
+          DoAll(SetArgPointee<1>(kSecondStatus), Return(kSecondPid)));
+  PidWaiter waiter(kFirstPid, std::move(mock_wait_pid));
+  int status;
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kFirstStatus);
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kFirstStatus);
+  waiter.SetPriorityPid(kSecondPid);
+  EXPECT_EQ(waiter.Wait(&status), kSecondPid);
+  EXPECT_EQ(status, kSecondStatus);
+}
+
 TEST(PidWaiterTest, DeadlineRespected) {
   auto mock_wait_pid = std::make_unique<MockWaitPid>();
   EXPECT_CALL(*mock_wait_pid,
