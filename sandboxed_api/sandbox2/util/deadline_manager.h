@@ -15,18 +15,20 @@
 #ifndef SANDBOXED_API_SANDBOX2_UTIL_DEADLINE_MANAGER_H_
 #define SANDBOXED_API_SANDBOX2_UTIL_DEADLINE_MANAGER_H_
 
-#include <csignal>
 #include <cstddef>
 #include <memory>
 
 #include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/btree_set.h"
+#include "absl/flags/declare.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/util/thread.h"
+
+ABSL_DECLARE_FLAG(int, sandbox2_deadline_manager_signal);
 
 namespace sandbox2 {
 
@@ -119,11 +121,6 @@ class DeadlineManager {
     }
   };
 
-  static int GetSignalToUse() {
-    // Arbitrary choice - will be likely compile time configurable in the
-    // future.
-    return SIGRTMAX - 1;
-  }
   static void RegisterSignalHandler();
 
   void Register(DeadlineRegistration& registration) {
@@ -140,6 +137,7 @@ class DeadlineManager {
   }
   void Run();
 
+  static int signal_nr_;
   sapi::Thread thread_;
   absl::Mutex queue_mutex_;
   bool cancelled_ ABSL_GUARDED_BY(queue_mutex_) = false;

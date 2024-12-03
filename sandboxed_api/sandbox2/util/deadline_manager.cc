@@ -16,9 +16,11 @@
 
 #include <sys/syscall.h>
 
+#include <csignal>
 #include <memory>
 
 #include "absl/base/call_once.h"
+#include "absl/flags/flag.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/strings/string_view.h"
@@ -27,6 +29,10 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/thread.h"
+
+ABSL_FLAG(int, sandbox2_deadline_manager_signal, SIGRTMAX - 1,
+          "Signal to use for deadline notifications - must be not otherwise "
+          "used by the process (default: SIGRTMAX - 1)");
 
 namespace sandbox2 {
 namespace {
@@ -37,6 +43,8 @@ absl::Time RoundUpTo(absl::Time time, absl::Duration resolution) {
                    absl::Ceil(time - absl::UnixEpoch(), resolution);
 }
 }  // namespace
+
+int DeadlineManager::signal_nr_ = -1;
 
 DeadlineRegistration::DeadlineRegistration(DeadlineManager& manager)
     : manager_(manager) {
@@ -101,11 +109,12 @@ void DeadlineManager::AdjustDeadline(DeadlineRegistration& registration,
 void DeadlineManager::RegisterSignalHandler() {
   static absl::once_flag once;
   absl::call_once(once, [] {
+    signal_nr_ = absl::GetFlag(FLAGS_sandbox2_deadline_manager_signal);
     struct sigaction sa = {};
     sa.sa_flags = 0;
     sa.sa_handler = +[](int sig) {};
     struct sigaction old = {};
-    CHECK_EQ(sigaction(GetSignalToUse(), &sa, &old), 0);
+    CHECK_EQ(sigaction(signal_nr_, &sa, &old), 0);
     // Verify that previously there was no handler set.
     if (old.sa_flags & SA_SIGINFO) {
       CHECK(old.sa_sigaction == nullptr) << "Signal handler already registered";
@@ -141,7 +150,7 @@ void DeadlineManager::Run() {
       absl::MutexLock lock(&entry->mutex);
       entry->expired = true;
       if (entry->in_blocking_fn) {
-        util::Syscall(__NR_tgkill, entry->tid, entry->tid, GetSignalToUse());
+        util::Syscall(__NR_tgkill, entry->tid, entry->tid, signal_nr_);
         entry->deadline = next_notification_time;
         queue_.insert(entry);
       }

@@ -83,6 +83,7 @@ add_library(sandbox2::deadline_manager ALIAS sandbox2_util_deadline_manager)
 target_link_libraries(sandbox2_util_deadline_manager
   PUBLIC absl::btree
          absl::core_headers
+         absl::flags
          absl::function_ref
          absl::no_destructor
          absl::strings
