@@ -100,6 +100,8 @@ void DeadlineManager::AdjustDeadline(DeadlineRegistration& registration,
                                      absl::Time deadline) {
   absl::MutexLock lock(&queue_mutex_);
   queue_.erase(registration.data_.get());
+  absl::MutexLock data_lock(&registration.data_->mutex);
+  registration.data_->expired = false;
   registration.data_->deadline = RoundUpTo(deadline, kResolution);
   if (deadline != absl::InfiniteFuture()) {
     queue_.insert(registration.data_.get());

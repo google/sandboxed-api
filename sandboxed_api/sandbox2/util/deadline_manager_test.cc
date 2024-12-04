@@ -112,5 +112,20 @@ TEST(DeadlineManagerTest, DeadlineReset) {
   EXPECT_GE(elapsed, absl::Milliseconds(200));
 }
 
+TEST(DeadlineManagerTest, CanBeReusedAfterExpiration) {
+  DeadlineManager manager("test");
+  DeadlineRegistration registration(manager);
+  for (int i = 0; i < 3; ++i) {
+    absl::Time start_time = absl::Now();
+    struct timespec ts = absl::ToTimespec(absl::Seconds(1));
+    registration.SetDeadline(start_time + absl::Milliseconds(100));
+    registration.ExecuteBlockingSyscall(
+        [&] { ASSERT_EQ(nanosleep(&ts, nullptr), -1); });
+    absl::Duration elapsed = absl::Now() - start_time;
+    EXPECT_GE(elapsed, absl::Milliseconds(100));
+    EXPECT_LE(elapsed, absl::Milliseconds(200));
+  }
+}
+
 }  // namespace
 }  // namespace sandbox2

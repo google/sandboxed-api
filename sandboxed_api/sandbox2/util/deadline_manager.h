@@ -71,7 +71,7 @@ class DeadlineRegistration {
 
   struct Data {
     absl::Mutex mutex;
-    // Changed only under DeadlineManager::queue_mutex_.
+    // Changed only under both DeadlineManager::queue_mutex_ and Data::mutex.
     absl::Time deadline = absl::InfiniteFuture();
     pid_t ABSL_GUARDED_BY(mutex) tid = -1;
     bool ABSL_GUARDED_BY(mutex) in_blocking_fn = false;
