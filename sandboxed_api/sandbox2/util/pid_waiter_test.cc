@@ -30,6 +30,13 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::SetErrnoAndReturn;
 
+constexpr int kPrioStatus = 7 << 8;
+constexpr int kFirstStatus = 5 << 8;
+constexpr int kSecondStatus = 8 << 8;
+constexpr pid_t kPrioPid = 1;
+constexpr pid_t kFirstPid = 2;
+constexpr pid_t kSecondPid = 3;
+
 class MockWaitPid : public PidWaiter::WaitPidInterface {
  public:
   MOCK_METHOD(int, WaitPid, (pid_t, int*, int), (override));
@@ -54,13 +61,9 @@ TEST(PidWaiterTest, NoProcess) {
 }
 
 TEST(PidWaiterTest, PriorityRespected) {
-  int kPrioStatus = 7 << 8;
-  int kRegularStatus = 5 << 8;
-  pid_t kPrioPid = 1;
-  pid_t kRegularPid = 2;
   auto mock_wait_pid = std::make_unique<MockWaitPid>();
   EXPECT_CALL(*mock_wait_pid, WaitPid(-1, _, _))
-      .WillOnce(DoAll(SetArgPointee<1>(kRegularStatus), Return(kRegularPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kFirstStatus), Return(kFirstPid)))
       .WillRepeatedly(Return(0));
   EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _))
       .WillOnce(DoAll(SetArgPointee<1>(kPrioStatus), Return(kPrioPid)))
@@ -70,18 +73,13 @@ TEST(PidWaiterTest, PriorityRespected) {
   int status;
   EXPECT_EQ(waiter.Wait(&status), kPrioPid);
   EXPECT_EQ(status, kPrioStatus);
-  EXPECT_EQ(waiter.Wait(&status), kRegularPid);
-  EXPECT_EQ(status, kRegularStatus);
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kFirstStatus);
   EXPECT_EQ(waiter.Wait(&status), kPrioPid);
   EXPECT_EQ(status, kPrioStatus);
 }
 
 TEST(PidWaiterTest, BatchesWaits) {
-  int kFirstStatus = 7 << 8;
-  int kSecondStatus = 5 << 8;
-  pid_t kPrioPid = 1;
-  pid_t kFirstPid = 2;
-  pid_t kSecondPid = 3;
   auto mock_wait_pid = std::make_unique<MockWaitPid>();
   EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _))
       .WillRepeatedly(Return(0));
@@ -97,11 +95,6 @@ TEST(PidWaiterTest, BatchesWaits) {
 }
 
 TEST(PidWaiterTest, ReturnsFromBatch) {
-  int kFirstStatus = 7 << 8;
-  int kSecondStatus = 5 << 8;
-  pid_t kPrioPid = 1;
-  pid_t kFirstPid = 2;
-  pid_t kSecondPid = 3;
   auto mock_wait_pid = std::make_unique<MockWaitPid>();
   EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _))
       .WillRepeatedly(Return(0));
@@ -114,6 +107,24 @@ TEST(PidWaiterTest, ReturnsFromBatch) {
   int status;
   EXPECT_EQ(waiter.Wait(&status), kFirstPid);
   EXPECT_EQ(status, kFirstStatus);
+  EXPECT_EQ(waiter.Wait(&status), kSecondPid);
+  EXPECT_EQ(status, kSecondStatus);
+}
+
+TEST(PidWaiterTest, ChangePriority) {
+  auto mock_wait_pid = std::make_unique<MockWaitPid>();
+  EXPECT_CALL(*mock_wait_pid, WaitPid(kFirstPid, _, _))
+      .WillRepeatedly(DoAll(SetArgPointee<1>(kFirstStatus), Return(kFirstPid)));
+  EXPECT_CALL(*mock_wait_pid, WaitPid(kSecondPid, _, _))
+      .WillRepeatedly(
+          DoAll(SetArgPointee<1>(kSecondStatus), Return(kSecondPid)));
+  PidWaiter waiter(kFirstPid, std::move(mock_wait_pid));
+  int status;
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kFirstStatus);
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kFirstStatus);
+  waiter.SetPriorityPid(kSecondPid);
   EXPECT_EQ(waiter.Wait(&status), kSecondPid);
   EXPECT_EQ(status, kSecondStatus);
 }

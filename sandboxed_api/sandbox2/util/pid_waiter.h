@@ -38,7 +38,7 @@ class PidWaiter {
   };
 
   // Constructs a PidWaiter where the given priority_pid is checked first.
-  explicit PidWaiter(pid_t priority_pid);
+  explicit PidWaiter(pid_t priority_pid = -1);
   PidWaiter(pid_t priority_pid,
             std::unique_ptr<WaitPidInterface> wait_pid_iface)
       : priority_pid_(priority_pid),
@@ -49,6 +49,8 @@ class PidWaiter {
   // threads require attention at the moment, or -1 if there was an error, in
   // which case the error value can be found in 'errno'.
   int Wait(int* status);
+
+  void SetPriorityPid(pid_t pid) { priority_pid_ = pid; }
 
  private:
   bool CheckStatus(pid_t pid);
