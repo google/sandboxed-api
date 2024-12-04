@@ -127,5 +127,21 @@ TEST(DeadlineManagerTest, CanBeReusedAfterExpiration) {
   }
 }
 
+TEST(DeadlineManagerTest, WorksInAThread) {
+  DeadlineManager manager("test");
+  DeadlineRegistration registration(manager);
+  sapi::Thread thread([&] {
+    absl::Time start_time = absl::Now();
+    struct timespec ts = absl::ToTimespec(absl::Seconds(1));
+    registration.SetDeadline(start_time + absl::Milliseconds(100));
+    registration.ExecuteBlockingSyscall(
+        [&] { ASSERT_EQ(nanosleep(&ts, nullptr), -1); });
+    absl::Duration elapsed = absl::Now() - start_time;
+    EXPECT_GE(elapsed, absl::Milliseconds(100));
+    EXPECT_LE(elapsed, absl::Milliseconds(200));
+  });
+  thread.Join();
+}
+
 }  // namespace
 }  // namespace sandbox2

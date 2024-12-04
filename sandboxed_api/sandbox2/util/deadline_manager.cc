@@ -152,7 +152,7 @@ void DeadlineManager::Run() {
       absl::MutexLock lock(&entry->mutex);
       entry->expired = true;
       if (entry->in_blocking_fn) {
-        util::Syscall(__NR_tgkill, entry->tid, entry->tid, signal_nr_);
+        util::Syscall(__NR_tgkill, getpid(), entry->tid, signal_nr_);
         entry->deadline = next_notification_time;
         queue_.insert(entry);
       }
