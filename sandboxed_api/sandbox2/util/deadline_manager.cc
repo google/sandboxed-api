@@ -23,6 +23,7 @@
 #include "absl/flags/flag.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
@@ -116,12 +117,14 @@ void DeadlineManager::RegisterSignalHandler() {
     sa.sa_flags = 0;
     sa.sa_handler = +[](int sig) {};
     struct sigaction old = {};
-    CHECK_EQ(sigaction(signal_nr_, &sa, &old), 0);
+    PCHECK(sigaction(signal_nr_, &sa, &old) == 0);
     // Verify that previously there was no handler set.
     if (old.sa_flags & SA_SIGINFO) {
-      CHECK(old.sa_sigaction == nullptr) << "Signal handler already registered";
+      LOG_IF(WARNING, old.sa_sigaction != nullptr)
+          << "Signal handler was already registered";
     } else {
-      CHECK(old.sa_handler == nullptr) << "Signal handler already registered";
+      LOG_IF(WARNING, old.sa_handler != nullptr)
+          << "Signal handler was already registered";
     }
     return true;
   });

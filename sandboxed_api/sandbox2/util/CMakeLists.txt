@@ -92,6 +92,7 @@ target_link_libraries(sandbox2_util_deadline_manager
          sapi::thread
   PRIVATE absl::base
           absl::check
+          absl::log
           sandbox2::util
           sapi::base
 )
