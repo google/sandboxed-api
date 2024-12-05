@@ -50,12 +50,15 @@ int PidWaiter::Wait(int* status) {
   return pid;
 }
 
-bool PidWaiter::CheckStatus(pid_t pid) {
+bool PidWaiter::CheckStatus(pid_t pid, bool blocking) {
   int status;
-  // It should be a non-blocking operation (hence WNOHANG), so this function
-  // returns quickly if there are no events to be processed.
-  pid_t ret = wait_pid_iface_->WaitPid(
-      pid, &status, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
+  int flags = __WNOTHREAD | __WALL | WUNTRACED;
+  if (!blocking) {
+    // It should be a non-blocking operation (hence WNOHANG), so this function
+    // returns quickly if there are no events to be processed.
+    flags |= WNOHANG;
+  }
+  pid_t ret = wait_pid_iface_->WaitPid(pid, &status, flags);
   if (ret < 0) {
     last_errno_ = errno;
     return true;
@@ -82,6 +85,10 @@ void PidWaiter::RefillStatuses() {
     if (!CheckStatus(-1)) {
       break;
     }
+  }
+  if (statuses_.empty() && deadline_registration_.has_value()) {
+    deadline_registration_->ExecuteBlockingSyscall(
+        [&] { CheckStatus(-1, /*blocking=*/true); });
   }
 }
 

@@ -15,11 +15,14 @@
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 
 #include <cerrno>
+#include <ctime>
 #include <memory>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 namespace sandbox2 {
 namespace {
@@ -127,6 +130,27 @@ TEST(PidWaiterTest, ChangePriority) {
   waiter.SetPriorityPid(kSecondPid);
   EXPECT_EQ(waiter.Wait(&status), kSecondPid);
   EXPECT_EQ(status, kSecondStatus);
+}
+
+TEST(PidWaiterTest, DeadlineRespected) {
+  auto mock_wait_pid = std::make_unique<MockWaitPid>();
+  EXPECT_CALL(*mock_wait_pid,
+              WaitPid(_, _, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG))
+      .WillRepeatedly(Return(0));
+  EXPECT_CALL(*mock_wait_pid, WaitPid(_, _, __WNOTHREAD | __WALL | WUNTRACED))
+      .WillRepeatedly([](int pid, int* status, int flags) {
+        struct timespec ts = absl::ToTimespec(absl::Seconds(1));
+        if (nanosleep(&ts, nullptr) == -1) {
+          return -1;
+        }
+        *status = kFirstPid;
+        return kFirstPid;
+      });
+  PidWaiter waiter(kPrioPid, std::move(mock_wait_pid));
+  waiter.SetDeadline(absl::Now() + absl::Milliseconds(100));
+  int status;
+  EXPECT_EQ(waiter.Wait(&status), -1);
+  EXPECT_EQ(errno, EINTR);
 }
 
 }  // namespace

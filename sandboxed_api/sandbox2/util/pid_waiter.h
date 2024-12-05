@@ -19,7 +19,11 @@
 
 #include <deque>
 #include <memory>
+#include <optional>
 #include <utility>
+
+#include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/util/deadline_manager.h"
 
 namespace sandbox2 {
 
@@ -52,11 +56,20 @@ class PidWaiter {
 
   void SetPriorityPid(pid_t pid) { priority_pid_ = pid; }
 
+  // Sets the deadline for the next Wait() call.
+  void SetDeadline(absl::Time deadline) {
+    if (!deadline_registration_.has_value()) {
+      deadline_registration_.emplace(DeadlineManager::instance());
+    }
+    deadline_registration_->SetDeadline(deadline);
+  }
+
  private:
-  bool CheckStatus(pid_t pid);
+  bool CheckStatus(pid_t pid, bool blocking = false);
   void RefillStatuses();
 
   pid_t priority_pid_;
+  std::optional<DeadlineRegistration> deadline_registration_;
   std::deque<std::pair<pid_t, int>> statuses_;
   std::unique_ptr<WaitPidInterface> wait_pid_iface_;
   int last_errno_ = 0;
