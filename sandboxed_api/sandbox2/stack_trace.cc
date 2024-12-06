@@ -37,7 +37,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -47,7 +46,6 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -56,8 +54,8 @@
 ABSL_FLAG(bool, sandbox_disable_all_stack_traces, false,
           "Completely disable stack trace collection for sandboxees");
 
-ABSL_FLAG(bool, sandbox_libunwind_crash_handler, true,
-          "Sandbox libunwind when handling violations (preferred)");
+ABSL_RETIRED_FLAG(bool, sandbox_libunwind_crash_handler, true,
+                  "Sandbox libunwind when handling violations (preferred)");
 
 namespace sandbox2 {
 namespace {
@@ -68,13 +66,6 @@ namespace file_util = ::sapi::file_util;
 // Use a fake pid so that /proc/{pid}/maps etc. also exist in the new pid
 // namespace
 constexpr int kFakePid = 1;
-
-// Similar to GetStackTrace() but without using the sandbox to isolate
-// libunwind.
-absl::StatusOr<std::vector<std::string>> UnsafeGetStackTrace(pid_t pid) {
-  LOG(WARNING) << "Using non-sandboxed libunwind";
-  return RunLibUnwindAndSymbolizer(pid, kDefaultMaxFrames);
-}
 
 bool IsSameFile(const std::string& path, const std::string& other) {
   struct stat buf, other_buf;
@@ -109,7 +100,7 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
     const std::string& exe_path, const Namespace* ns,
     bool uses_custom_forkserver) {
   PolicyBuilder builder;
-  if (uses_custom_forkserver) {
+  if (uses_custom_forkserver || ns == nullptr) {
     // Custom forkserver just forks, the binary is loaded outside of the
     // sandboxee's mount namespace.
     // Add all possible libraries without the need of parsing the binary
@@ -328,10 +319,6 @@ absl::StatusOr<std::vector<std::string>> GetStackTrace(
   if (!regs) {
     return absl::InvalidArgumentError(
         "Could not obtain stacktrace, regs == nullptr");
-  }
-
-  if (!absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler)) {
-    return UnsafeGetStackTrace(regs->pid());
   }
 
   return StackTracePeer::LaunchLibunwindSandbox(

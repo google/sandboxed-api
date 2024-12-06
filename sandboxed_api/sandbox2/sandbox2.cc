@@ -107,11 +107,6 @@ void Sandbox2::Launch() {
     internal::SandboxPeer::spawn_fn_ = Sandbox2Peer::Spawn;
   });
 
-  // This is a technical limitation in our stack trace collection
-  // functionality.
-  LOG_IF(WARNING, !policy_->GetNamespace())
-      << "Using policy without namespaces, disabling stack traces on crash";
-
   monitor_ = CreateMonitor();
   monitor_->Launch();
 }

@@ -73,8 +73,6 @@ ABSL_FLAG(bool, sandbox2_report_on_sandboxee_timeout, true,
 ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
 ABSL_DECLARE_FLAG(std::string, sandbox2_danger_danger_permit_all_and_log);
 
-ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
-
 namespace sandbox2 {
 namespace {
 
@@ -412,9 +410,7 @@ void MonitorBase::LogSyscallViolationExplanation(const Syscall& syscall) const {
 bool MonitorBase::StackTraceCollectionPossible() const {
   // Only get the stacktrace if we are not in the libunwind sandbox (avoid
   // recursion).
-  if ((policy_->GetNamespace() ||
-       absl::GetFlag(FLAGS_sandbox_libunwind_crash_handler) == false) &&
-      executor_->libunwind_recursion_depth() <= 1) {
+  if (executor_->libunwind_recursion_depth() <= 1) {
     return true;
   }
   LOG(ERROR) << "Cannot collect stack trace. Unwind pid "

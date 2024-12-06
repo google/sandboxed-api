@@ -407,10 +407,8 @@ target_link_libraries(sandbox2_stack_trace
           sandbox2::mounts
           sandbox2::policybuilder
           sandbox2::util
-          sandbox2::unwind
           sandbox2::unwind_proto
           sapi::base
-          sapi::config
           sapi::file_base
           sapi::fileops
           sapi::status
@@ -1162,6 +1160,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::status
     absl::strings
     absl::time
+    sandbox2::allow_all_syscalls
     sandbox2::global_forkserver
     sandbox2::sandbox2
     sandbox2::stack_trace

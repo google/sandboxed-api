@@ -26,13 +26,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
-#include "absl/flags/declare.h"
-#include "absl/flags/flag.h"
-#include "absl/flags/reflection.h"
 #include "absl/log/check.h"
 #include "absl/log/scoped_mock_log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -42,8 +40,6 @@
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_matchers.h"
-
-ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);
 
 namespace sandbox2 {
 
@@ -161,49 +157,40 @@ void SymbolizationWorksWithModifiedPolicy(
   SymbolizationWorksCommon(test_case);
 }
 
-TEST_P(StackTraceTest, SymbolizationWorksNonSandboxedLibunwind) {
-  absl::FlagSaver fs;
-  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, false);
-
-  SymbolizationWorksCommon(GetParam());
+TEST_P(StackTraceTest, SymbolizationWorksWithoutnNamespaces) {
+  TestCase test_case = GetParam();
+  auto old_modify_policy = test_case.modify_policy;
+  test_case.modify_policy = [old_modify_policy](PolicyBuilder* builder) {
+    *builder = PolicyBuilder();
+    builder->DefaultAction(AllowAllSyscalls()).DisableNamespaces();
+    if (old_modify_policy) {
+      old_modify_policy(builder);
+    }
+  };
+  SymbolizationWorksCommon(test_case);
 }
 
-TEST_P(StackTraceTest, SymbolizationWorksSandboxedLibunwind) {
-  absl::FlagSaver fs;
-  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
-
+TEST_P(StackTraceTest, SymbolizationWorks) {
   SymbolizationWorksCommon(GetParam());
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {
-  absl::FlagSaver fs;
-  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
-
   SymbolizationWorksWithModifiedPolicy(
       [](PolicyBuilder* builder) { builder->AddDirectory("/proc"); });
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcFileMounted) {
-  absl::FlagSaver fs;
-  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
-
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/proc/sys/vm/overcommit_memory");
   });
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysDirMounted) {
-  absl::FlagSaver fs;
-  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
-
   SymbolizationWorksWithModifiedPolicy(
       [](PolicyBuilder* builder) { builder->AddDirectory("/sys"); });
 }
 
 TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysFileMounted) {
-  absl::FlagSaver fs;
-  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
-
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/sys/devices/system/cpu/online");
   });
@@ -217,9 +204,6 @@ size_t FileCountInDirectory(const std::string& path) {
 }
 
 TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
-  absl::FlagSaver fs;
-  absl::SetFlag(&FLAGS_sandbox_libunwind_crash_handler, true);
-
   // Very first sanitization might create some fds (e.g. for initial
   // namespaces).
   SymbolizationWorksCommon({});
