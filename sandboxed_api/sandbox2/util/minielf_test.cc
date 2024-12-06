@@ -21,7 +21,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
-#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
