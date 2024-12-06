@@ -858,6 +858,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     sapi::file_base
     sandbox2::mounts
+    sandbox2::mount_tree_proto
     sapi::temp_file
     sapi::testing
     sapi::status_matchers

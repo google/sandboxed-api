@@ -743,6 +743,7 @@ cc_test(
     copts = sapi_platform_copts(),
     data = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal_dynamic"],
     deps = [
+        ":mount_tree_cc_proto",
         ":mounts",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

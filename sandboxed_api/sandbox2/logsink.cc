@@ -17,7 +17,6 @@
 #include <unistd.h>
 
 #include <csignal>
-#include <cstdio>
 #include <string>
 
 #include "absl/base/log_severity.h"

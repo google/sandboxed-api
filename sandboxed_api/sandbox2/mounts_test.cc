@@ -26,6 +26,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
