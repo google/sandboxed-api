@@ -14,6 +14,8 @@
 
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 
+#include <sys/wait.h>
+
 #include <cerrno>
 #include <memory>
 

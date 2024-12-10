@@ -182,10 +182,13 @@ TEST_P(Sandbox2Test, SandboxeeTimeoutDisabledStacktraces) {
                                              .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  absl::Time start_time = absl::Now();
   ASSERT_TRUE(sandbox.RunAsync());
   sandbox.set_walltime_limit(absl::Seconds(1));
   auto result = sandbox.AwaitResult();
   EXPECT_EQ(result.final_status(), Result::TIMEOUT);
+  auto elapsed = absl::Now() - start_time;
+  EXPECT_THAT(elapsed, Lt(absl::Seconds(2)));
   EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 
