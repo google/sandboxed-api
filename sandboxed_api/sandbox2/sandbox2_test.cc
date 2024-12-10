@@ -140,12 +140,34 @@ TEST_P(Sandbox2Test, SandboxeeExternalKill) {
   ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   ASSERT_TRUE(sandbox.RunAsync());
   EXPECT_THAT(sandbox.IsTerminated(), IsFalse());
-  sleep(1);
+  absl::SleepFor(absl::Seconds(1));
   sandbox.Kill();
   auto result = sandbox.AwaitResult();
   EXPECT_THAT(sandbox.IsTerminated(), IsTrue());
   EXPECT_EQ(result.final_status(), Result::EXTERNAL_KILL);
   EXPECT_THAT(result.stack_trace(), IsEmpty());
+}
+
+TEST_P(Sandbox2Test, SandboxeeKillDontAwait) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
+
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  absl::Time kill_time;
+  {
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+    ASSERT_TRUE(sandbox.RunAsync());
+    EXPECT_THAT(sandbox.IsTerminated(), IsFalse());
+    absl::SleepFor(absl::Seconds(1));
+    sandbox.Kill();
+    kill_time = absl::Now();
+  }
+  absl::Duration elapsed = absl::Now() - kill_time;
+  EXPECT_THAT(elapsed, Lt(absl::Milliseconds(200)));
 }
 
 // Tests that we do not collect stack traces if it was disabled (signaled).
