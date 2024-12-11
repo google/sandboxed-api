@@ -22,6 +22,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <fstream>
+#include <ios>
 #include <memory>
 #include <string>
 #include <utility>

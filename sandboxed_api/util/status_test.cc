@@ -14,13 +14,13 @@
 
 #include "sandboxed_api/util/status.h"
 
-#include <cstdint>
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/util/status.pb.h"
 
 using ::testing::Eq;
 using ::testing::StrEq;

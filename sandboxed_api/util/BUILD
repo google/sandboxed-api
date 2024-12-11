@@ -109,6 +109,7 @@ cc_library(
         ":status",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -193,6 +194,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":status",
+        ":status_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_googletest//:gtest_main",

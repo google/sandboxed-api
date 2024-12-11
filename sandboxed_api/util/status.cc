@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/util/status.pb.h"
 
 namespace sapi {
 

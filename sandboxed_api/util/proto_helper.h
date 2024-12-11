@@ -24,6 +24,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "google/protobuf/message_lite.h"
 #include "sandboxed_api/util/proto_arg.pb.h"
 #include "sandboxed_api/util/status_macros.h"
 

@@ -15,6 +15,7 @@
 #include "sandboxed_api/util/file_helpers.h"
 
 #include <fstream>
+#include <ios>
 #include <sstream>
 #include <string>
 
