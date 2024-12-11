@@ -177,12 +177,12 @@ class Sandbox {
                                  static_cast<int>(absl::StderrThreshold())));
   }
 
- private:
   // Gets the environment variables passed to the sandboxee.
   virtual void GetEnvs(std::vector<std::string>* envs) const {
     // Do nothing by default.
   }
 
+ private:
   // Returns the sandbox policy. Subclasses can modify the default policy
   // builder, or return a completely new policy.
   virtual std::unique_ptr<sandbox2::Policy> ModifyPolicy(
