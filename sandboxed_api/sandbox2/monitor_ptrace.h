@@ -158,8 +158,10 @@ class PtraceMonitor : public MonitorBase {
   // PidWaiter for waiting for sandboxee events.
   PidWaiter pid_waiter_;
 
+  // Synchronizes joining the monitor thread.
+  absl::Mutex thread_mutex_;
   // Monitor thread object.
-  sapi::Thread thread_;
+  sapi::Thread ABSL_GUARDED_BY(thread_mutex_) thread_;
 
   // Synchronizes deadline setting and notifying the monitor.
   absl::Mutex notify_mutex_;
