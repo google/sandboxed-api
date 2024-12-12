@@ -470,7 +470,8 @@ add_library(sandbox2_monitor_ptrace ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::monitor_ptrace ALIAS sandbox2_monitor_ptrace)
 target_link_libraries(sandbox2_monitor_ptrace
-  PRIVATE absl::cleanup
+  PRIVATE absl::core_headers
+          absl::cleanup
           absl::flat_hash_set
           absl::flags
           absl::log
@@ -485,15 +486,14 @@ target_link_libraries(sandbox2_monitor_ptrace
           sapi::status
           sandbox2::client
           sandbox2::comms
+          sandbox2::pid_waiter
           sandbox2::result
           sandbox2::sanitizer
           sandbox2::util
   PUBLIC absl::check
-         absl::core_headers
          sandbox2::executor
          sandbox2::monitor_base
          sandbox2::notify
-         sandbox2::pid_waiter
          sandbox2::policy
          sandbox2::regs
          sandbox2::syscall
