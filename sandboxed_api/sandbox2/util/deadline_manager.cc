@@ -16,8 +16,10 @@
 
 #include <sys/syscall.h>
 
+#include <algorithm>
 #include <csignal>
 #include <memory>
+#include <vector>
 
 #include "absl/base/call_once.h"
 #include "absl/flags/flag.h"
@@ -137,27 +139,46 @@ void DeadlineManager::Run() {
     return (!queue_.empty() && next_deadline != (*queue_.begin())->deadline) ||
            cancelled_;
   };
-  absl::MutexLock lock(&queue_mutex_);
-  while (!cancelled_) {
-    next_deadline = absl::InfiniteFuture();
-    if (!queue_.empty()) {
-      next_deadline = (*queue_.begin())->deadline;
+  for (;;) {
+    std::vector<DeadlineRegistration::Data*> to_be_notified;
+    {
+      absl::MutexLock lock(&queue_mutex_);
+      if (cancelled_) {
+        break;
+      }
+      next_deadline = absl::InfiniteFuture();
+      if (!queue_.empty()) {
+        next_deadline = (*queue_.begin())->deadline;
+      }
+      if (queue_mutex_.AwaitWithDeadline(
+              absl::Condition(&next_deadline_changed_or_cancelled),
+              next_deadline)) {
+        continue;
+      }
+      absl::Time current = std::max(absl::Now(), next_deadline);
+      while (!queue_.empty() && (*queue_.begin())->deadline <= current) {
+        to_be_notified.push_back(*queue_.begin());
+        queue_.erase(queue_.begin());
+      }
     }
-    if (queue_mutex_.AwaitWithDeadline(
-            absl::Condition(&next_deadline_changed_or_cancelled),
-            next_deadline)) {
-      continue;
-    }
-    absl::Time next_notification_time = RoundUpTo(absl::Now(), kResolution);
-    while (!queue_.empty() && (*queue_.begin())->deadline <= next_deadline) {
-      DeadlineRegistration::Data* entry = *queue_.begin();
-      queue_.erase(queue_.begin());
+    std::vector<DeadlineRegistration::Data*> to_reinsert;
+    absl::Time next_notification_time =
+        RoundUpTo(absl::Now() + kResolution, kResolution);
+    for (DeadlineRegistration::Data* entry : to_be_notified) {
       absl::MutexLock lock(&entry->mutex);
       entry->expired = true;
       if (entry->in_blocking_fn) {
         util::Syscall(__NR_tgkill, getpid(), entry->tid, signal_nr_);
         entry->deadline = next_notification_time;
-        queue_.insert(entry);
+        to_reinsert.push_back(entry);
+      }
+    }
+    {
+      absl::MutexLock lock(&queue_mutex_);
+      for (DeadlineRegistration::Data* entry : to_reinsert) {
+        if (entry->deadline != absl::InfiniteFuture()) {
+          queue_.insert(entry);
+        }
       }
     }
   }
