@@ -82,6 +82,19 @@ class PidCommsNotify : public Notify {
   }
 };
 
+class FinishedNotify : public Notify {
+ public:
+  bool IsFinished() { return finished_; }
+  bool EventStarted(pid_t pid, Comms* comms) override {
+    EXPECT_FALSE(finished_);
+    return true;
+  }
+  void EventFinished(const Result& result) override { finished_ = true; }
+
+ private:
+  bool finished_ = false;
+};
+
 class NotifyTest : public ::testing::TestWithParam<bool> {
  public:
   // Allow typical syscalls and call SECCOMP_RET_TRACE for personality syscall,
@@ -142,6 +155,25 @@ TEST_P(NotifyTest, PrintPidAndComms) {
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(33));
+}
+
+// Test EventFinished by exchanging data after started but before sandboxed.
+TEST_P(NotifyTest, EventFinished) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+
+  auto notify = std::make_unique<FinishedNotify>();
+  FinishedNotify* notify_ptr = notify.get();
+  Sandbox2 s2(std::move(executor), NotifyTestcasePolicy(path),
+              std::move(notify));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+  EXPECT_FALSE(notify_ptr->IsFinished());
+  auto result = s2.Run();
+  EXPECT_TRUE(notify_ptr->IsFinished());
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
 // Test EventSyscallTrap on personality syscall through TraceAllSyscalls
