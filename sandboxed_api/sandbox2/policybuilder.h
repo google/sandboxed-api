@@ -678,6 +678,11 @@ class PolicyBuilder final {
   // inside.  This will also create parent directories inside the namespace if
   // needed.
   //
+  // Note: If the directory contains symlinks, they might still be inaccessible
+  // inside the sandbox (resulting in ENOENT). For example, the symlinks might
+  // point to a location outside the sandbox. Symlinks can be resolved using
+  // sapi::file_util::fileops::ReadLink().
+  //
   // Calling these function will enable use of namespaces.
   PolicyBuilder& AddDirectory(absl::string_view path, bool is_ro = true);
   PolicyBuilder& AddDirectoryAt(absl::string_view outside,
