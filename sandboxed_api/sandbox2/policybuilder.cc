@@ -455,7 +455,15 @@ PolicyBuilder& PolicyBuilder::AllowLlvmCoverage() {
         LABEL(&labels, mmap_end),
     };
   });
-  AddDirectoryIfNamespaced(getenv("COVERAGE_DIR"), /*is_ro=*/false);
+  const char* coverage_dir = std::getenv("COVERAGE_DIR");
+  if (!coverage_dir || absl::string_view(coverage_dir).empty()) {
+    LOG(WARNING)
+        << "Environment variable COVERAGE is set but COVERAGE_DIR is not set. "
+           "No directory to collect coverage data will be added to the "
+           "sandbox.";
+    return *this;
+  }
+  AddDirectoryIfNamespaced(coverage_dir, /*is_ro=*/false);
   return *this;
 }
 

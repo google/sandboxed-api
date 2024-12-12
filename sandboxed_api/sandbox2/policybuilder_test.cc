@@ -176,5 +176,23 @@ TEST(PolicyBuilderTest, AddPolicyOnSyscallJumpOutOfBounds) {
                              {BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1, 2, 0)});
   EXPECT_THAT(builder.TryBuild(), StatusIs(absl::StatusCode::kInvalidArgument));
 }
+
+TEST(PolicyBuilderTest, TestAllowLlvmCoverage) {
+  ASSERT_THAT(setenv("COVERAGE", "1", 0), Eq(0));
+  ASSERT_THAT(setenv("COVERAGE_DIR", "/tmp", 0), Eq(0));
+  PolicyBuilder builder;
+  builder.AllowLlvmCoverage();
+  EXPECT_THAT(builder.TryBuild(), IsOk());
+  ASSERT_THAT(unsetenv("COVERAGE"), Eq(0));
+  ASSERT_THAT(unsetenv("COVERAGE_DIR"), Eq(0));
+}
+
+TEST(PolicyBuilderTest, TestAllowLlvmCoverageWithoutCoverageDir) {
+  ASSERT_THAT(setenv("COVERAGE", "1", 0), Eq(0));
+  PolicyBuilder builder;
+  builder.AllowLlvmCoverage();
+  EXPECT_THAT(builder.TryBuild(), IsOk());
+  ASSERT_THAT(unsetenv("COVERAGE"), Eq(0));
+}
 }  // namespace
 }  // namespace sandbox2
