@@ -224,9 +224,6 @@ sapi_interface = rule(
             # TODO(cblichmann): Add prebuilt version of Clang based generator
             "@com_google_sandboxed_api//sandboxed_api/tools/clang_generator:generator_tool",
         ),
-        "_cc_toolchain": attr.label(
-            default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
-        ),
     },
     toolchains = use_cpp_toolchain(),
 )
