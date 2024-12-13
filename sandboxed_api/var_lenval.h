@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
