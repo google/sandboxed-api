@@ -33,6 +33,7 @@
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/base/log_severity.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/executor.h"
