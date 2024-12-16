@@ -296,7 +296,7 @@ void UnotifyMonitor::Run() {
   while (result_.final_status() == Result::UNSET) {
     int64_t deadline = deadline_millis_.load(std::memory_order_relaxed);
     absl::Duration remaining = absl::FromUnixMillis(deadline) - absl::Now();
-    if (deadline != 0 && remaining < absl::ZeroDuration()) {
+    if (deadline != 0 && remaining <= absl::ZeroDuration()) {
       VLOG(1) << "Sandbox process hit timeout due to the walltime timer";
       timed_out_ = true;
       MaybeGetStackTrace(process_.main_pid, Result::TIMEOUT);
