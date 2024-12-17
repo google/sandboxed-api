@@ -717,7 +717,11 @@ class PolicyBuilder final {
   // This is a no-op.
   ABSL_DEPRECATED("Namespaces are enabled by default; no need to call this")
   PolicyBuilder& EnableNamespaces() {
-    CHECK(use_namespaces_) << "Namespaces cannot be both disabled and enabled";
+    if (!use_namespaces_) {
+      SetError(absl::FailedPreconditionError(
+          "Namespaces cannot be both disabled and enabled"));
+      return *this;
+    }
     requires_namespaces_ = true;
     return *this;
   }
@@ -727,11 +731,14 @@ class PolicyBuilder final {
   // Call in order to use Sandbox2 without namespaces.
   // This is not recommended.
   PolicyBuilder& DisableNamespaces() {
-    CHECK(!requires_namespaces_)
-        << "Namespaces cannot be both disabled and enabled. You're probably "
-           "using features that implicitly enable namespaces (SetHostname, "
-           "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary "
-           "or similar)";
+    if (requires_namespaces_) {
+      SetError(absl::FailedPreconditionError(
+          "Namespaces cannot be both disabled and enabled. You're probably "
+          "using features that implicitly enable namespaces (SetHostname, "
+          "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary "
+          "or similar)"));
+      return *this;
+    }
     use_namespaces_ = false;
     return *this;
   }
