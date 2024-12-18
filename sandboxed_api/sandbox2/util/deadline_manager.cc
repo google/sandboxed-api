@@ -148,7 +148,8 @@ void DeadlineManager::Run() {
             next_deadline)) {
       continue;
     }
-    absl::Time next_notification_time = RoundUpTo(absl::Now(), kResolution);
+    absl::Time next_notification_time =
+        RoundUpTo(absl::Now() + kResolution, kResolution);
     while (!queue_.empty() && (*queue_.begin())->deadline <= next_deadline) {
       DeadlineRegistration::Data* entry = *queue_.begin();
       queue_.erase(queue_.begin());
