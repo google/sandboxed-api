@@ -293,8 +293,8 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   allowed_complex_.tcmalloc = true;
   AllowTime();
   AllowRestartableSequences(kRequireFastFences);
-  AllowSyscalls(
-      {__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore, __NR_membarrier});
+  AllowSyscalls({__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore,
+                 __NR_membarrier, __NR_lseek});
   AllowLimitedMadvise();
   AllowPrctlSetVma();
   AllowPoll();
