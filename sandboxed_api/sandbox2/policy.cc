@@ -84,7 +84,6 @@ std::vector<sock_filter> Policy::GetPolicy(bool user_notif) const {
 // Produces a policy which returns SECCOMP_RET_TRACE instead of SECCOMP_RET_KILL
 // for the __NR_execve syscall, so the tracer can make a decision to allow or
 // disallow it depending on which occurrence of __NR_execve it was.
-// LINT.IfChange
 std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
   bpf_labels l = {0};
 
@@ -205,7 +204,6 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
 
   return policy;
 }
-// LINT.ThenChange(monitor_ptrace.cc)
 
 std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   return {
