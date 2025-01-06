@@ -126,8 +126,8 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
                  << "(ASAN/MSAN/TSAN) sanitizer";
     builder->AllowLlvmSanitizers();
   }
-    builder->AddFile("/etc/localtime")
-        .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size */);
+  builder->AddFile("/etc/localtime")
+      .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size */);
 }
 
 void Sandbox::Terminate(bool attempt_graceful_exit) {
@@ -184,7 +184,7 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
       std::string lib_path;
       int embed_lib_fd = -1;
       const FileToc* embed_lib_toc = fork_client_context_->embed_lib_toc_;
-      if (embed_lib_toc && !sapi::host_os::IsAndroid()) {
+      if (embed_lib_toc) {
         embed_lib_fd = EmbedFile::instance()->GetDupFdForFileToc(embed_lib_toc);
         if (embed_lib_fd == -1) {
           PLOG(ERROR) << "Cannot create executable FD for TOC:'"

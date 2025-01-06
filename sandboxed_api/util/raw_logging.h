@@ -32,10 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/util/strerror.h"
 
-// Exclude ABSL_RAW_LOG when running on Android because it will not be visible
-// in logcat since Android sends anything written to stdout and stderr to
-// /dev/null.
-#if defined(ABSL_RAW_LOG) && !(__ANDROID__)
+#if defined(ABSL_RAW_LOG)
 #define SAPI_RAW_LOG ABSL_RAW_LOG
 #define SAPI_USE_ABSL_RAW_LOG 1
 #else

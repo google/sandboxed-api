@@ -31,10 +31,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/log_severity.h"
 
-#ifdef __ANDROID__
-#include "android/log.h"
-#endif
-
 namespace {
 static const char kTruncated[] = " ... (message truncated)\n";
 
@@ -80,23 +76,6 @@ bool DoRawLog(char** buf, int* size, const char* format, ...) {
   return true;
 }
 
-#ifdef __ANDROID__
-android_LogPriority ConvertSeverity(absl::LogSeverity severity) {
-  switch (severity) {
-    case absl::LogSeverity::kInfo:
-      return ANDROID_LOG_INFO;
-    case absl::LogSeverity::kWarning:
-      return ANDROID_LOG_WARN;
-    case absl::LogSeverity::kError:
-      return ANDROID_LOG_ERROR;
-    case absl::LogSeverity::kFatal:
-      return ANDROID_LOG_FATAL;
-    default:
-      return ANDROID_LOG_INFO;
-  }
-}
-#endif
-
 // Writes the provided buffer directly to stderr, in a safe, low-level manner.
 //
 // In POSIX this means calling write(), which is async-signal safe and does
@@ -122,13 +101,8 @@ void RawLogVA(absl::LogSeverity severity, const char* file, int line,
   } else {
     DoRawLog(&buf, &size, "%s", kTruncated);
   }
-#ifndef __ANDROID__
+
   SafeWriteToStderr(buffer, strlen(buffer));
-#else
-  // Logs to Android's logcat with the TAG SAPI and the log line containing
-  // the code location and the log output.
-  __android_log_print(ConvertSeverity(severity), "SAPI", "%s", buffer);
-#endif
 
   // Abort the process after logging a FATAL message, even if the output itself
   // was suppressed.

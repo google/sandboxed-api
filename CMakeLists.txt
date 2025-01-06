@@ -25,7 +25,6 @@ endif()
 project(SandboxedAPI C CXX ASM)
 include(CTest)
 
-# TODO(cblichmann): Enable for Android once support lands
 if(NOT CMAKE_SYSTEM_NAME MATCHES "Linux")
   message(FATAL_ERROR "Sandboxed API is only supported on Linux")
 endif()
