@@ -118,6 +118,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":deadline_manager",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api/util:thread",

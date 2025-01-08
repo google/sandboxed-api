@@ -16,9 +16,11 @@
 
 #include <sys/syscall.h>
 
+#include <csignal>
 #include <ctime>
 
 #include "gtest/gtest.h"
+#include "absl/flags/flag.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/util/thread.h"
@@ -141,6 +143,28 @@ TEST(DeadlineManagerTest, WorksInAThread) {
     EXPECT_LE(elapsed, absl::Milliseconds(200));
   });
   thread.Join();
+}
+
+TEST(DeadlineManagerTest, DetectsOverridenHandler) {
+  DeadlineManager manager("test");
+  DeadlineRegistration registration(manager);
+  EXPECT_DEATH(
+      {
+        struct sigaction sa = {};
+        sa.sa_flags = SA_RESTART;
+        sa.sa_handler = SIG_IGN;
+        ASSERT_EQ(
+            sigaction(absl::GetFlag(FLAGS_sandbox2_deadline_manager_signal),
+                      &sa, nullptr),
+            0);
+        absl::Time start_time = absl::Now();
+        registration.SetDeadline(start_time + absl::Milliseconds(100));
+        registration.ExecuteBlockingSyscall([] {
+          struct timespec ts = absl::ToTimespec(absl::Seconds(100));
+          ASSERT_EQ(nanosleep(&ts, nullptr), -1);
+        });
+      },
+      "Signal handler flags were overriden");
 }
 
 }  // namespace

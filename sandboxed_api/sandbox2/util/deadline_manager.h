@@ -75,7 +75,7 @@ class DeadlineRegistration {
     absl::Time deadline = absl::InfiniteFuture();
     pid_t ABSL_GUARDED_BY(mutex) tid = -1;
     bool ABSL_GUARDED_BY(mutex) in_blocking_fn = false;
-    bool ABSL_GUARDED_BY(mutex) expired = false;
+    int ABSL_GUARDED_BY(mutex) notification_attempt = 0;
   };
 
   DeadlineManager& manager_;
@@ -122,6 +122,8 @@ class DeadlineManager {
   };
 
   static void RegisterSignalHandler();
+  static void SignalHandler(int signal);
+  static void VerifySignalHandler();
 
   void Register(DeadlineRegistration& registration) {
     absl::MutexLock lock(&registration_mutex_);

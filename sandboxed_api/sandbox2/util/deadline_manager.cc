@@ -37,6 +37,8 @@ ABSL_FLAG(int, sandbox2_deadline_manager_signal, SIGRTMAX - 1,
 
 namespace sandbox2 {
 namespace {
+constexpr int kFailedNotificationsThreshold = 100;
+
 absl::Time RoundUpTo(absl::Time time, absl::Duration resolution) {
   return time == absl::InfiniteFuture()
              ? absl::InfiniteFuture()
@@ -66,7 +68,7 @@ void DeadlineRegistration::ExecuteBlockingSyscall(
   {
     absl::MutexLock lock(&data_->mutex);
     data_->tid = util::Syscall(__NR_gettid);
-    if (data_->expired || data_->deadline <= absl::Now()) {
+    if (data_->notification_attempt > 0 || data_->deadline <= absl::Now()) {
       return;
     }
     data_->in_blocking_fn = true;
@@ -97,12 +99,14 @@ DeadlineManager::~DeadlineManager() {
   }
 }
 
+void DeadlineManager::SignalHandler(int signal) {}
+
 void DeadlineManager::AdjustDeadline(DeadlineRegistration& registration,
                                      absl::Time deadline) {
   absl::MutexLock lock(&queue_mutex_);
   queue_.erase(registration.data_.get());
   absl::MutexLock data_lock(&registration.data_->mutex);
-  registration.data_->expired = false;
+  registration.data_->notification_attempt = 0;
   registration.data_->deadline = RoundUpTo(deadline, kResolution);
   if (deadline != absl::InfiniteFuture()) {
     queue_.insert(registration.data_.get());
@@ -115,7 +119,7 @@ void DeadlineManager::RegisterSignalHandler() {
     signal_nr_ = absl::GetFlag(FLAGS_sandbox2_deadline_manager_signal);
     struct sigaction sa = {};
     sa.sa_flags = 0;
-    sa.sa_handler = +[](int sig) {};
+    sa.sa_handler = DeadlineManager::SignalHandler;
     struct sigaction old = {};
     PCHECK(sigaction(signal_nr_, &sa, &old) == 0);
     // Verify that previously there was no handler set.
@@ -128,6 +132,14 @@ void DeadlineManager::RegisterSignalHandler() {
     }
     return true;
   });
+}
+
+void DeadlineManager::VerifySignalHandler() {
+  struct sigaction old = {};
+  PCHECK(sigaction(signal_nr_, nullptr, &old) == 0);
+  CHECK_EQ(old.sa_flags, 0) << "Signal handler flags were overriden";
+  CHECK(old.sa_handler == DeadlineManager::SignalHandler)
+      << "Signal handler was overriden";
 }
 
 void DeadlineManager::Run() {
@@ -154,7 +166,9 @@ void DeadlineManager::Run() {
       DeadlineRegistration::Data* entry = *queue_.begin();
       queue_.erase(queue_.begin());
       absl::MutexLock lock(&entry->mutex);
-      entry->expired = true;
+      if (++entry->notification_attempt > kFailedNotificationsThreshold) {
+        VerifySignalHandler();
+      }
       if (entry->in_blocking_fn) {
         util::Syscall(__NR_tgkill, getpid(), entry->tid, signal_nr_);
         entry->deadline = next_notification_time;

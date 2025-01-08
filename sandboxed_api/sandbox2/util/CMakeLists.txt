@@ -175,6 +175,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME deadline_manager_test
   )
   target_link_libraries(sandbox2_deadline_manager_test PRIVATE
+    absl::flags
     absl::time
     sandbox2::deadline_manager
     sapi::test_main
