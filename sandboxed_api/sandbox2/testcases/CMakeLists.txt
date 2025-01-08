@@ -151,8 +151,27 @@ set_target_properties(sandbox2_testcase_policy PROPERTIES
 target_link_libraries(sandbox2_testcase_policy PRIVATE
   -static
   absl::core_headers
+  sandbox2::client
+  sandbox2::comms
+  sandbox2::util
   sapi::base
-  sapi::config
+)
+
+# sandboxed_api/sandbox2/testcases:sandbox_detection
+add_executable(sandbox2_testcase_sandbox_detection
+  sandbox_detection.cc
+)
+add_executable(sandbox2::testcase_policy ALIAS sandbox2_testcase_sandbox_detection)
+set_target_properties(sandbox2_testcase_sandbox_detection PROPERTIES
+  OUTPUT_NAME sandbox_detection
+)
+target_link_libraries(sandbox2_testcase_sandbox_detection PRIVATE
+  -static
+  absl::statusor
+  sandbox2::client
+  sandbox2::comms
+  sandbox2::util
+  sapi::base
 )
 
 # sandboxed_api/sandbox2/testcases:sanitizer

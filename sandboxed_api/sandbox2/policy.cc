@@ -37,6 +37,7 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
 #include "sandboxed_api/sandbox2/syscall.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
 #ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
@@ -142,6 +143,14 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
         LOAD_SYSCALL_NR,
     };
   }
+
+  // Insert a custom syscall to signal the sandboxee it's running inside a
+  // sandbox.
+  // Executing a syscall with ID util::kMagicSyscallNo will return
+  // util::kMagicSyscallErr when the call by the sandboxee code is made inside
+  // the sandbox and ENOSYS when it is not inside the sandbox.
+  policy.insert(policy.end(), {SYSCALL(internal::kMagicSyscallNo,
+                                       ERRNO(internal::kMagicSyscallErr))});
 
   // Forbid ptrace because it's unsafe or too risky. The user policy can only
   // block (i.e. return an error instead of killing the process) but not allow

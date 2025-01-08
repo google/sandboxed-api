@@ -58,7 +58,9 @@
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
-namespace sandbox2::util {
+
+namespace sandbox2 {
+namespace util {
 
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
@@ -683,4 +685,30 @@ int Execveat(int dirfd, const char* pathname, const char* const argv[],
   return res;
 }
 
-}  // namespace sandbox2::util
+absl::StatusOr<bool> IsRunningInSandbox2() {
+  // Check if the kMagicSyscallNo syscall is available.
+  int result = Syscall(sandbox2::internal::kMagicSyscallNo);
+  if (result == 0) {
+    // If this happens, then someone has implemented the kMagicSyscallNo syscall
+    // and it is returning 0.
+    return absl::InternalError(
+        "kMagicSyscallNo syscall succeeded unexpectedly");
+  }
+
+  // The caller is not running under a sandbox2.
+  if (errno == ENOSYS) {
+    return false;
+  }
+
+  // The caller is running under a sandbox2.
+  if (errno == sandbox2::internal::kMagicSyscallErr) {
+    return true;
+  }
+
+  // An unexpected errno was returned.
+  return absl::InternalError(absl::StrFormat(
+      "Unexpected errno for syscall kMagicSyscallNo: %d", errno));
+}
+
+}  // namespace util
+}  // namespace sandbox2

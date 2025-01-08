@@ -264,6 +264,7 @@ cc_library(
         ":bpfdisassembler",
         ":namespace",
         ":syscall",
+        ":util",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:string_view",
@@ -994,6 +995,7 @@ cc_test(
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal_dynamic",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:policy",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:posix_timers",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:sandbox_detection",
     ],
     tags = ["no_qemu_user_mode"],
     deps = [

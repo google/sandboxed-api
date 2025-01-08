@@ -346,5 +346,23 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
   EXPECT_THAT(result.reason_code(), Eq(__NR_umask));
 }
 
+// Test that util::kMagicSyscallNo is returns ENOSYS or util::kMagicSyscallErr.
+TEST(PolicyTest, DetectSandboxSyscall) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/sandbox_detection");
+  std::vector<std::string> args = {path};
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->set_enable_sandbox_before_exec(false);
+  Sandbox2 s2(std::move(executor), std::move(policy));
+  auto result = s2.Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
 }  // namespace
 }  // namespace sandbox2

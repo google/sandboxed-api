@@ -29,7 +29,18 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 
-namespace sandbox2::util {
+namespace sandbox2 {
+
+namespace internal {
+
+// Magic values used to detect if the current process is running inside
+// Sandbox2.
+inline constexpr int64_t kMagicSyscallNo = 0xff000fdb;  // 4278194139
+inline constexpr int kMagicSyscallErr = 0x000000fdb;    // 4059
+
+}  // namespace internal
+
+namespace util {
 
 void DumpCoverageData();
 
@@ -154,6 +165,10 @@ absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);
 int Execveat(int dirfd, const char* pathname, const char* const argv[],
              const char* const envp[], int flags, uintptr_t extra_arg = 0);
 
-}  // namespace sandbox2::util
+// Returns true if the current process is running inside Sandbox2.
+absl::StatusOr<bool> IsRunningInSandbox2();
+
+}  // namespace util
+}  // namespace sandbox2
 
 #endif  // SANDBOXED_API_SANDBOX2_UTIL_H_
