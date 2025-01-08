@@ -60,7 +60,6 @@ class PotentiallyBlockingRegion {
     // Do nothing. Not defaulted to avoid "unused variable" warnings.
   }
 };
-
 namespace {
 
 using sapi::file_util::fileops::FDCloser;

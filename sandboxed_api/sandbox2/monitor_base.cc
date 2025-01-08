@@ -298,11 +298,7 @@ bool MonitorBase::InitSendCwd() {
 
 bool MonitorBase::InitApplyLimit(pid_t pid, int resource,
                                  const rlimit64& rlim) const {
-#if defined(__ANDROID__)
-  using RlimitResource = int;
-#else
   using RlimitResource = __rlimit_resource;
-#endif
 
   rlimit64 curr_limit;
   if (prlimit64(pid, static_cast<RlimitResource>(resource), nullptr,

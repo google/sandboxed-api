@@ -29,6 +29,4 @@ def sapi_platform_copts(copts = []):
     """
 
     # Linux only for now.
-    return select({
-        "//conditions:default": _SAPI_LINUX_COPTS,
-    }) + copts
+    return _SAPI_LINUX_COPTS + copts

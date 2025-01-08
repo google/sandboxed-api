@@ -312,7 +312,6 @@ TEST(NamespaceTest, TestIncompatibleNetNsModes) {
 }
 
 TEST(NamespaceTest, TestFiles) {
-  SKIP_ANDROID;
   const std::string path = GetTestcaseBinPath("namespace");
   std::vector<std::string> result =
       RunSandboxeeWithArgsAndPolicy(path, {path, "6", "/"});

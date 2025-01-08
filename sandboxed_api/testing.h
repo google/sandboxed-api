@@ -21,23 +21,6 @@
 #include "sandboxed_api/config.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
-// The macro SKIP_ANDROID can be used in tests to skip running a
-// given test (by emitting 'retrun') when running on Android. Example:
-//
-//    TEST(Foo, Bar) {
-//      SKIP_ANDROID;
-//      [...]
-//      }
-//
-// The reason for this is because certain unit tests require the use of user
-// namespaces which are not present on Android.
-#define SKIP_ANDROID                            \
-  do {                                          \
-    if constexpr (sapi::host_os::IsAndroid()) { \
-      return;                                   \
-    }                                           \
-  } while (0)
-
 // The macro SKIP_SANITIZERS_AND_COVERAGE can be used in tests to skip running
 // a given test (by emitting 'return') when running under one of the sanitizers
 // (ASan, MSan, TSan) or under code coverage. Example:

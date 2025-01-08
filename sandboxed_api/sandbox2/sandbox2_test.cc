@@ -78,8 +78,10 @@ TEST_P(Sandbox2Test, AbortWithoutCoreDumpReturnsSignaled) {
   };
   auto executor = std::make_unique<Executor>(path, args);
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultTestPolicy(path)
-                                             .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy,
+      CreateDefaultTestPolicy(path)
+          .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   auto result = sandbox.Run();

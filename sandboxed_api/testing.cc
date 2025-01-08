@@ -30,10 +30,6 @@ sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
   sandbox2::PolicyBuilder builder;
   // Don't restrict the syscalls at all.
   builder.DefaultAction(sandbox2::AllowAllSyscalls());
-  if (sapi::host_os::IsAndroid()) {
-    builder.DisableNamespaces();
-    return builder;
-  }
   if (IsCoverageRun()) {
     builder.AddDirectory(getenv("COVERAGE_DIR"), /*is_ro=*/false);
   }

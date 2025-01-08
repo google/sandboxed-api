@@ -43,9 +43,9 @@ using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 
 #ifdef SAPI_X86_64
+
 // Test that 32-bit syscalls from 64-bit are disallowed.
 TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
-  SKIP_ANDROID;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
 
   std::vector<std::string> args = {path, "1"};
@@ -62,7 +62,6 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
 
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
 TEST(PolicyTest, AMD64Syscall32FsAllowed) {
-  SKIP_ANDROID;
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::vector<std::string> args = {path, "2"};
 
@@ -138,9 +137,6 @@ TEST(PolicyTest, BpfPtracePermissionDenied) {
 TEST(PolicyTest, IsattyAllowed) {
   SKIP_SANITIZERS;
   PolicyBuilder builder;
-  if constexpr (sapi::host_os::IsAndroid()) {
-    builder.DisableNamespaces().AllowDynamicStartup();
-  }
   builder.AllowStaticStartup()
       .AllowExit()
       .AllowRead()
@@ -231,12 +227,6 @@ TEST(PolicyTest, PosixTimersCanCreateThreadsIfThreadsAreAllowed) {
 
 std::unique_ptr<Policy> MinimalTestcasePolicy(absl::string_view path = "") {
   PolicyBuilder builder;
-
-  if constexpr (sapi::host_os::IsAndroid()) {
-    builder.AllowDynamicStartup();
-    builder.DisableNamespaces();
-  }
-
   builder.AllowStaticStartup().AllowExit().AllowLlvmCoverage();
   return builder.BuildOrDie();
 }
@@ -245,7 +235,6 @@ std::unique_ptr<Policy> MinimalTestcasePolicy(absl::string_view path = "") {
 // If this starts failing, it means something changed, maybe in the way we
 // compile static binaries, and we need to update the policy just above.
 TEST(MinimalTest, MinimalBinaryWorks) {
-  SKIP_ANDROID;
   SKIP_SANITIZERS;
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
@@ -265,14 +254,10 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
   std::vector<std::string> args = {path};
 
   PolicyBuilder builder;
-
-  if constexpr (sapi::host_os::IsAndroid()) {
-    builder.DisableNamespaces();
-  } else {
-    builder.AddLibrariesForBinary(path);
-  }
-
-  builder.AllowDynamicStartup().AllowExit().AllowLlvmCoverage();
+  builder.AddLibrariesForBinary(path)
+      .AllowDynamicStartup()
+      .AllowExit()
+      .AllowLlvmCoverage();
   auto policy = builder.BuildOrDie();
 
   Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
@@ -290,15 +275,6 @@ TEST(MallocTest, SystemMallocWorks) {
   std::vector<std::string> args = {path};
 
   PolicyBuilder builder;
-
-  if constexpr (sapi::host_os::IsAndroid()) {
-    builder.DisableNamespaces();
-    builder.AllowDynamicStartup();
-    builder.AllowSyscalls({
-        __NR_madvise,
-    });
-  }
-
   builder.AllowStaticStartup()
       .AllowSystemMalloc()
       .AllowExit()
@@ -324,11 +300,6 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
   std::vector<std::string> args = {path};
 
   PolicyBuilder builder;
-  if constexpr (sapi::host_os::IsAndroid()) {
-    builder.DisableNamespaces();
-    builder.AllowDynamicStartup();
-  }
-
   builder.AllowStaticStartup()
       .AllowTcMalloc()
       .AllowExit()

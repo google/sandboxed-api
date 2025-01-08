@@ -87,7 +87,6 @@ absl::Status ValidateInterpreter(absl::string_view interpreter) {
       "/lib64/ld64.so.2",            // PPC64
       "/lib/ld-linux-aarch64.so.1",  // AArch64
       "/lib/ld-linux-armhf.so.3",    // Arm
-      "/system/bin/linker64",        // android_arm64
   };
 
   if (!allowed_interpreters.contains(interpreter)) {

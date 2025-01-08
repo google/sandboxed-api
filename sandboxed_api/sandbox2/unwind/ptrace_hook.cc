@@ -29,12 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util/syscall_trap.h"
 
-// Android doesn't use an enum for __ptrace_request, use int instead.
-#if defined(__ANDROID__)
-using PtraceRequest = int;
-#else
 using PtraceRequest = __ptrace_request;
-#endif
 
 namespace sandbox2 {
 namespace {

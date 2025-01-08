@@ -158,10 +158,6 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
                               "--sandbox2_forkserver_binary_path (",
                               bin_path, ")"));
     }
-  } else if constexpr (sapi::host_os::IsAndroid()) {
-    return absl::FailedPreconditionError(
-        "sandbox2_forkserver_binary_path flag has to be set to the location of "
-        "the forkserver binary on Android");
   }
   if (exec_fd < 0) {
     // Extract the fd when it's owned by EmbedFile

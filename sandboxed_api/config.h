@@ -102,7 +102,6 @@ namespace os {
 // Operating Systems known to Sandbox2
 enum Platform : uint16_t {
   kUnknown,
-  kAndroid,
   kLinux,
 };
 
@@ -113,16 +112,12 @@ namespace host_os {
 // Returns the current host OS platform if supported. If not supported,
 // returns platforms::kUnknown.
 constexpr os::Platform Platform() {
-#if defined(__ANDROID__)
-  return os::kAndroid;
-#elif defined(__linux__)
+#if defined(__linux__)
   return os::kLinux;
 #else
   return os::kUnknown;
 #endif
 }
-
-constexpr bool IsAndroid() { return Platform() == os::kAndroid; }
 
 constexpr bool IsLinux() { return Platform() == os::kLinux; }
 
