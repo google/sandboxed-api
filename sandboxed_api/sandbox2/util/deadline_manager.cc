@@ -16,6 +16,7 @@
 
 #include <sys/syscall.h>
 
+#include <algorithm>
 #include <csignal>
 #include <memory>
 
@@ -37,7 +38,7 @@ ABSL_FLAG(int, sandbox2_deadline_manager_signal, SIGRTMAX - 1,
 
 namespace sandbox2 {
 namespace {
-constexpr int kFailedNotificationsThreshold = 100;
+constexpr int kFailedNotificationsThreshold = 32;
 
 absl::Time RoundUpTo(absl::Time time, absl::Duration resolution) {
   return time == absl::InfiniteFuture()
@@ -160,8 +161,6 @@ void DeadlineManager::Run() {
             next_deadline)) {
       continue;
     }
-    absl::Time next_notification_time =
-        RoundUpTo(absl::Now() + kResolution, kResolution);
     while (!queue_.empty() && (*queue_.begin())->deadline <= next_deadline) {
       DeadlineRegistration::Data* entry = *queue_.begin();
       queue_.erase(queue_.begin());
@@ -170,6 +169,13 @@ void DeadlineManager::Run() {
         VerifySignalHandler();
       }
       if (entry->in_blocking_fn) {
+        constexpr int kExponentialBackoffRate = 8;
+        constexpr int kMaxExponentialBackoff = 10;
+        int exp_backoff =
+            1 << std::min(entry->notification_attempt / kExponentialBackoffRate,
+                          kMaxExponentialBackoff);
+        absl::Time next_notification_time =
+            RoundUpTo(absl::Now() + kResolution * exp_backoff, kResolution);
         util::Syscall(__NR_tgkill, getpid(), entry->tid, signal_nr_);
         entry->deadline = next_notification_time;
         queue_.insert(entry);
