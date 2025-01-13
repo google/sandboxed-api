@@ -65,11 +65,13 @@ class TransactionBase {
   }
 
   // Getter/Setter for time_limit_.
-  time_t GetTimeLimit() const { return time_limit_; }
-  void SetTimeLimit(time_t time_limit) { time_limit_ = time_limit; }
-  void SetTimeLimit(absl::Duration time_limit) {
-    time_limit_ = absl::ToTimeT(absl::UnixEpoch() + time_limit);
+  time_t GetTimeLimit() const {
+    return absl::ToTimeT(absl::UnixEpoch() + time_limit_);
   }
+  void SetTimeLimit(time_t time_limit) {
+    time_limit_ = absl::Seconds(time_limit);
+  }
+  void SetTimeLimit(absl::Duration time_limit) { time_limit_ = time_limit; }
 
   bool IsInitialized() const { return initialized_; }
 
@@ -90,8 +92,7 @@ class TransactionBase {
 
  protected:
   explicit TransactionBase(std::unique_ptr<Sandbox> sandbox)
-      : time_limit_(absl::ToTimeT(absl::UnixEpoch() + kDefaultTimeLimit)),
-        sandbox_(std::move(sandbox)) {}
+      : time_limit_(kDefaultTimeLimit), sandbox_(std::move(sandbox)) {}
 
   // Runs the main (retrying) transaction loop.
   absl::Status RunTransactionLoop(const std::function<absl::Status()>& f);
@@ -121,7 +122,7 @@ class TransactionBase {
 
   // Time (wall-time) limit for a single Run() call (in seconds). 0 means: no
   // wall-time limit.
-  time_t time_limit_;
+  absl::Duration time_limit_;
 
   // Has Init() finished with success?
   bool initialized_ = false;
