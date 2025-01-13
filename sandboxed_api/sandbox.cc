@@ -514,17 +514,6 @@ absl::Status Sandbox::SetWallTimeLimit(absl::Duration limit) const {
   return absl::OkStatus();
 }
 
-void Sandbox::Exit() const {
-  if (!is_active()) {
-    return;
-  }
-  s2_->set_walltime_limit(absl::Seconds(1));
-  if (!rpc_channel_->Exit().ok()) {
-    LOG(WARNING) << "rpc_channel->Exit() failed, killing PID: " << pid();
-    s2_->Kill();
-  }
-}
-
 std::unique_ptr<sandbox2::Policy> Sandbox::ModifyPolicy(
     sandbox2::PolicyBuilder* builder) {
   return builder->BuildOrDie();

@@ -202,9 +202,6 @@ class Sandbox {
   // Provides a custom notifier for sandboxee events. May return nullptr.
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
 
-  // Exits the sandboxee.
-  void Exit() const;
-
   // The main sandbox2::Sandbox2 object.
   std::unique_ptr<sandbox2::Sandbox2> s2_;
   // Marks whether Sandbox2 result was already fetched.
