@@ -701,9 +701,17 @@ std::vector<MapEntry> GetSortedEntries(const MountTree& tree) {
   return ordered;
 }
 
+bool IsSymlink(const std::string& path) {
+  struct stat sb;
+  if (stat(path.c_str(), &sb) == -1) {
+    return false;
+  }
+  return S_ISLNK(sb.st_mode);
+}
+
 // Traverses the MountTree to create all required files and perform the mounts.
-void CreateMounts(const MountTree& tree, const std::string& path,
-                  bool create_backing_files) {
+void CreateMounts(const MountTree& tree, const std::string& root_path,
+                  const std::string& path, bool create_backing_files) {
   // First, create the backing files if needed.
   if (create_backing_files) {
     switch (tree.node().node_case()) {
@@ -722,6 +730,17 @@ void CreateMounts(const MountTree& tree, const std::string& path,
         SAPI_RAW_PCHECK(mkdir(path.c_str(), 0700) == 0 || errno == EEXIST, "");
         break;
         // Intentionally no default to make sure we handle all the cases.
+    }
+  }
+
+  if (IsSymlink(path)) {
+    std::string abs_path;
+    if (!file_util::fileops::ReadLinkAbsolute(path, &abs_path)) {
+      SAPI_RAW_LOG(WARNING, "could not resolve mount target path %s",
+                   path.c_str());
+    } else if (!absl::StartsWith(abs_path, absl::StrCat(root_path, "/"))) {
+      SAPI_RAW_LOG(ERROR, "Mount target not within chroot: %s resolved to %s",
+                   path.c_str(), abs_path.c_str());
     }
   }
 
@@ -764,14 +783,14 @@ void CreateMounts(const MountTree& tree, const std::string& path,
   // Traverse the subtrees.
   for (const auto& [key, value] : GetSortedEntries(tree)) {
     std::string new_path = sapi::file::JoinPath(path, key);
-    CreateMounts(*value, new_path, create_backing_files);
+    CreateMounts(*value, root_path, new_path, create_backing_files);
   }
 }
 
 }  // namespace
 
 void Mounts::CreateMounts(const std::string& root_path) const {
-  sandbox2::CreateMounts(mount_tree_, root_path, true);
+  sandbox2::CreateMounts(mount_tree_, root_path, root_path, true);
 }
 
 namespace {
