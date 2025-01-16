@@ -132,7 +132,9 @@ class PolicyBuilder final {
   // Allows unrestricted access to the network by *not* creating a network
   // namespace. Note that this only disables the network namespace. To
   // actually allow networking, you would also need to allow networking
-  // syscalls. Calling this function will enable use of namespaces
+  // syscalls.
+  //
+  // NOTE: Requires namespace support.
   PolicyBuilder& Allow(UnrestrictedNetworking);
 
   // Allows the sandboxee to benefit from speculative execution. By default and
@@ -649,7 +651,7 @@ class PolicyBuilder final {
   // Adds a bind-mount for a file from outside the namespace to inside. This
   // will also create parent directories inside the namespace if needed.
   //
-  // Calling these function will enable use of namespaces.
+  // NOTE: Requires namespace support.
   PolicyBuilder& AddFile(absl::string_view path, bool is_ro = true);
   PolicyBuilder& AddFileAt(absl::string_view outside, absl::string_view inside,
                            bool is_ro = true);
@@ -666,11 +668,15 @@ class PolicyBuilder final {
   // It adds libraries only from standard library dirs and ld_library_path.
   //
   // run `ldd` yourself and use AddFile or AddDirectory.
+  //
+  // NOTE: Requires namespace support.
   PolicyBuilder& AddLibrariesForBinary(absl::string_view path,
                                        absl::string_view ld_library_path = {});
 
   // Similar to AddLibrariesForBinary, but binary is specified with an open
   // fd.
+  //
+  // NOTE: Requires namespace support.
   PolicyBuilder& AddLibrariesForBinary(int fd,
                                        absl::string_view ld_library_path = {});
 
@@ -678,12 +684,12 @@ class PolicyBuilder final {
   // inside.  This will also create parent directories inside the namespace if
   // needed.
   //
-  // Note: If the directory contains symlinks, they might still be inaccessible
+  // If the directory contains symlinks, they might still be inaccessible
   // inside the sandbox (resulting in ENOENT). For example, the symlinks might
   // point to a location outside the sandbox. Symlinks can be resolved using
   // sapi::file_util::fileops::ReadLink().
   //
-  // Calling these function will enable use of namespaces.
+  // NOTE: Requires namespace support.
   PolicyBuilder& AddDirectory(absl::string_view path, bool is_ro = true);
   PolicyBuilder& AddDirectoryAt(absl::string_view outside,
                                 absl::string_view inside, bool is_ro = true);
@@ -691,7 +697,7 @@ class PolicyBuilder final {
   // Adds a tmpfs inside the namespace. This will also create parent
   // directories inside the namespace if needed.
   //
-  // Calling this function will enable use of namespaces.
+  // NOTE: Requires namespace support.
   PolicyBuilder& AddTmpfs(absl::string_view inside, size_t size);
 
   // Allows unrestricted access to the network by *not* creating a network
@@ -707,6 +713,8 @@ class PolicyBuilder final {
   // This results in sandboxed processes to run in the same shared network
   // namespace instead of creating a separate network namespace for each
   // sandboxed process started by the ForkServer process.
+  //
+  // NOTE: Requires namespace support.
   //
   // IMPORTANT: This is incompatible with AllowUnrestrictedNetworking.
   PolicyBuilder& UseForkServerSharedNetNs();
@@ -745,8 +753,9 @@ class PolicyBuilder final {
 
   // Set hostname in the network namespace instead of default "sandbox2".
   //
-  // Calling this function will enable use of namespaces.
   // It is an error to also call AllowUnrestrictedNetworking.
+  //
+  // NOTE: Requires namespace support.
   PolicyBuilder& SetHostname(absl::string_view hostname);
 
   // Enables/disables stack trace collection on violations.
@@ -790,6 +799,8 @@ class PolicyBuilder final {
 
   // Makes root of the filesystem writeable
   // Not recommended
+  //
+  // NOTE: Requires namespace support.
   PolicyBuilder& SetRootWritable();
 
   // Changes mounts propagation from MS_PRIVATE to MS_SLAVE.
