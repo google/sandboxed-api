@@ -70,19 +70,17 @@ std::string GetCWD() {
 
 // Makes a path absolute with respect to base. Returns true on success. Result
 // may be an alias of base or filename.
-bool MakeAbsolute(const std::string& filename, const std::string& base,
+bool MakeAbsolute(absl::string_view filename, absl::string_view base,
                   std::string* result) {
   if (filename.empty()) {
     return false;
   }
   if (filename[0] == '/') {
-    if (result != &filename) {
-      *result = filename;
-    }
+    *result = std::string(filename);
     return true;
   }
 
-  std::string actual_base = base;
+  std::string actual_base = std::string(base);
   if (actual_base.empty() && !GetCWD(&actual_base)) {
     return false;
   }
@@ -96,12 +94,12 @@ bool MakeAbsolute(const std::string& filename, const std::string& base,
       *result = actual_base;
     }
   } else {
-    *result = actual_base + "/" + filename;
+    *result = absl::StrCat(actual_base, "/", filename);
   }
   return true;
 }
 
-std::string MakeAbsolute(const std::string& filename, const std::string& base) {
+std::string MakeAbsolute(absl::string_view filename, absl::string_view base) {
   std::string result;
   return !MakeAbsolute(filename, base, &result) ? "" : result;
 }

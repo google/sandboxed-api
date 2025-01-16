@@ -104,7 +104,7 @@ bool CopyFile(const std::string& old_path, const std::string& new_path,
 
 // Makes filename absolute with respect to base. Returns an empty string on
 // failure.
-std::string MakeAbsolute(const std::string& filename, const std::string& base);
+std::string MakeAbsolute(absl::string_view filename, absl::string_view base);
 
 // Writes data to a file descriptor. The file descriptor should be blocking.
 // Returns true on success.
