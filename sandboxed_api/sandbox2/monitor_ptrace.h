@@ -22,7 +22,6 @@
 #include <cstdint>
 #include <memory>
 
-#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
@@ -35,7 +34,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/util/pid_waiter.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
@@ -64,11 +62,14 @@ class PtraceMonitor : public MonitorBase {
       absl::Time deadline = absl::Now() + limit;
       deadline_millis_.store(absl::ToUnixMillis(deadline),
                              std::memory_order_relaxed);
-      NotifyMonitor();
     }
   }
 
  private:
+  // Timeout used with sigtimedwait (0.5s).
+  static constexpr int kWakeUpPeriodSec = 0L;
+  static constexpr int kWakeUpPeriodNSec = (500L * 1000L * 1000L);
+
   // Waits for events from monitored clients and signals from the main process.
   void RunInternal() override;
   void Join() override;
@@ -126,6 +127,9 @@ class PtraceMonitor : public MonitorBase {
   // Returns false if an error occurred and process could not be interrupted.
   bool InterruptSandboxee();
 
+  // Sets up required signal masks/handlers; prepare mask for sigtimedwait().
+  bool InitSetupSignals();
+
   // ptrace(PTRACE_SEIZE) to the Client.
   // Returns success/failure status.
   bool InitPtraceAttach();
@@ -155,18 +159,12 @@ class PtraceMonitor : public MonitorBase {
   sigset_t sset_;
   // Deadline after which sandboxee get terminated via PTRACE_O_EXITKILL.
   absl::Time hard_deadline_ = absl::InfiniteFuture();
-  // PidWaiter for waiting for sandboxee events.
-  PidWaiter pid_waiter_;
 
-  // Synchronizes joining the monitor thread.
-  absl::Mutex thread_mutex_;
   // Monitor thread object.
-  sapi::Thread ABSL_GUARDED_BY(thread_mutex_) thread_;
+  sapi::Thread thread_;
 
-  // Synchronizes deadline setting and notifying the monitor.
+  // Synchronizes monitor thread deletion and notifying the monitor.
   absl::Mutex notify_mutex_;
-  // True iff monitor thread is notified
-  bool notified_ ABSL_GUARDED_BY(notify_mutex_) = false;
 };
 
 }  // namespace sandbox2

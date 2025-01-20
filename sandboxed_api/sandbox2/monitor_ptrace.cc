@@ -199,13 +199,14 @@ bool PtraceMonitor::InterruptSandboxee() {
 #define __WPTRACEEVENT(x) ((x & 0xff0000) >> 16)
 
 void PtraceMonitor::NotifyMonitor() {
-  absl::MutexLock lock(&notify_mutex_);
-  pid_waiter_.SetDeadline(absl::InfinitePast());
-  notified_ = true;
+  absl::ReaderMutexLock lock(&notify_mutex_);
+  if (thread_.IsJoinable()) {
+    pthread_kill(thread_.handle(), SIGCHLD);
+  }
 }
 
 void PtraceMonitor::Join() {
-  absl::MutexLock lock(&thread_mutex_);
+  absl::MutexLock lock(&notify_mutex_);
   if (thread_.IsJoinable()) {
     thread_.Join();
     CHECK(IsDone()) << "Monitor did not terminate";
@@ -215,10 +216,7 @@ void PtraceMonitor::Join() {
 }
 
 void PtraceMonitor::RunInternal() {
-  {
-    absl::MutexLock lock(&thread_mutex_);
-    thread_ = sapi::Thread(this, &PtraceMonitor::Run, "sandbox2-Monitor");
-  }
+  thread_ = sapi::Thread(this, &PtraceMonitor::Run, "sandbox2-Monitor");
 
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for
@@ -233,6 +231,12 @@ void PtraceMonitor::Run() {
   };
 
   absl::Cleanup setup_notify = [this] { setup_notification_.Notify(); };
+  // It'd be costly to initialize the sigset_t for each sigtimedwait()
+  // invocation, so do it once per Monitor.
+  if (!InitSetupSignals()) {
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SIGNALS);
+    return;
+  }
   // This call should be the last in the init sequence, because it can cause the
   // sandboxee to enter ptrace-stopped state, in which it will not be able to
   // send any messages over the Comms channel.
@@ -246,15 +250,11 @@ void PtraceMonitor::Run() {
   std::move(setup_notify).Invoke();
 
   bool sandboxee_exited = false;
-  pid_waiter_.SetPriorityPid(process_.main_pid);
+  PidWaiter pid_waiter(process_.main_pid);
   int status;
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
   while (result().final_status() == Result::UNSET) {
-    {
-      absl::MutexLock lock(&notify_mutex_);
-      notified_ = false;
-    }
     if (absl::Now() >= hard_deadline_) {
       LOG(WARNING) << "Hard deadline exceeded (timed_out=" << timed_out_
                    << ", external_kill=" << external_kill_
@@ -294,18 +294,13 @@ void PtraceMonitor::Run() {
         break;
       }
     }
-    absl::Time effective_deadline = hard_deadline_;
-    if (deadline != 0 && hard_deadline_ == absl::InfiniteFuture()) {
-      effective_deadline = absl::FromUnixMillis(deadline);
-    }
-    {
-      absl::MutexLock lock(&notify_mutex_);
-      if (!notified_) {
-        pid_waiter_.SetDeadline(effective_deadline);
-      }
-    }
-    pid_t ret = pid_waiter_.Wait(&status);
+
+    pid_t ret = pid_waiter.Wait(&status);
     if (ret == 0) {
+      constexpr timespec ts = {kWakeUpPeriodSec, kWakeUpPeriodNSec};
+      int signo = sigtimedwait(&sset_, nullptr, &ts);
+      LOG_IF(ERROR, signo != -1 && signo != SIGCHLD)
+          << "Unknown signal received: " << signo;
       continue;
     }
 
@@ -314,7 +309,7 @@ void PtraceMonitor::Run() {
         LOG(ERROR) << "PANIC(). The main process has not exited yet, "
                    << "yet we haven't seen its exit event";
         SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_CHILD);
-      } else if (errno != EINTR) {
+      } else {
         PLOG(ERROR) << "waitpid() failed";
       }
       continue;
@@ -378,21 +373,15 @@ void PtraceMonitor::Run() {
                  absl::GetFlag(FLAGS_sandbox2_stack_traces_collection_timeout);
     }
     for (;;) {
+      auto left = deadline - absl::Now();
       if (absl::Now() >= deadline) {
         LOG(WARNING)
             << "Waiting for sandboxee exit timed out. Sandboxee result: "
             << result_.ToString();
         break;
       }
-      {
-        absl::MutexLock lock(&notify_mutex_);
-        pid_waiter_.SetDeadline(deadline);
-      }
-      pid_t ret = pid_waiter_.Wait(&status);
+      pid_t ret = pid_waiter.Wait(&status);
       if (ret == -1) {
-        if (errno == EINTR) {
-          continue;
-        }
         if (!log_stack_traces || ret != ECHILD) {
           PLOG(ERROR) << "waitpid() failed";
         }
@@ -407,6 +396,8 @@ void PtraceMonitor::Run() {
       }
 
       if (ret == 0) {
+        auto ts = absl::ToTimespec(left);
+        sigtimedwait(&sset_, nullptr, &ts);
         continue;
       }
 
@@ -440,6 +431,26 @@ void PtraceMonitor::LogStackTraceOfPid(pid_t pid) {
     LOG(ERROR) << "Failed to get stack trace, PID:" << pid
                << " status:" << stack_trace.status();
   }
+}
+
+bool PtraceMonitor::InitSetupSignals() {
+  if (sigemptyset(&sset_) == -1) {
+    PLOG(ERROR) << "sigemptyset()";
+    return false;
+  }
+
+  // sigtimedwait will react (wake-up) to arrival of this signal.
+  if (sigaddset(&sset_, SIGCHLD) == -1) {
+    PLOG(ERROR) << "sigaddset(SIGCHLD)";
+    return false;
+  }
+
+  if (pthread_sigmask(SIG_BLOCK, &sset_, nullptr) == -1) {
+    PLOG(ERROR) << "pthread_sigmask(SIG_BLOCK, SIGCHLD)";
+    return false;
+  }
+
+  return true;
 }
 
 absl::Status TryAttach(const absl::flat_hash_set<int>& tasks,
