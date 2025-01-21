@@ -1229,6 +1229,7 @@ PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
         LABEL(&labels, prot_exec),
         ARG_32(3),  // flags
         JEQ32(MAP_FILE | MAP_PRIVATE | MAP_DENYWRITE, ALLOW),
+        JEQ32(MAP_FILE | MAP_PRIVATE | MAP_DENYWRITE | MAP_FIXED, ALLOW),
 
         LABEL(&labels, mmap_end),
     };
