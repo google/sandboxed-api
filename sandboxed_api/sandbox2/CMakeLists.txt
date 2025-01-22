@@ -551,7 +551,6 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::namespace
           sandbox2::syscall
           sapi::file_base
-          sapi::fileops
           sapi::status
   PUBLIC absl::check
          absl::core_headers

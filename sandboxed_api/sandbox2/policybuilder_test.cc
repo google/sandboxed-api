@@ -18,15 +18,14 @@
 #include <unistd.h>
 
 #include <cerrno>
-#include <initializer_list>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -41,6 +40,11 @@ class PolicyBuilderPeer {
 
   int policy_size() const { return builder_->user_policy_.size(); }
 
+  static absl::StatusOr<std::string> ValidateAbsolutePath(
+      absl::string_view path) {
+    return PolicyBuilder::ValidateAbsolutePath(path);
+  }
+
  private:
   PolicyBuilder* builder_;
 };
@@ -52,6 +56,7 @@ using ::sapi::StatusIs;
 using ::testing::Eq;
 using ::testing::Lt;
 using ::testing::StartsWith;
+using ::testing::StrEq;
 
 TEST(PolicyBuilderTest, Testpolicy_size) {
   ssize_t last_size = 0;
@@ -108,50 +113,28 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   // clang-format on
 }
 
-TEST(PolicyBuilderTest, ApisWithPathValidation) {
-  const std::initializer_list<std::pair<std::string, absl::StatusCode>>
-      kTestCases = {
-          {"/a", absl::StatusCode::kOk},
-          {"/a/b/c/d", absl::StatusCode::kOk},
-          {"/a/b/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", absl::StatusCode::kOk},
-          {"", absl::StatusCode::kInvalidArgument},
-          // Fails because we reject paths starting with '..'
-          {"..", absl::StatusCode::kInvalidArgument},
-          {"..a", absl::StatusCode::kInvalidArgument},
-          {"../a", absl::StatusCode::kInvalidArgument},
-          // Fails because is not absolute
-          {"a", absl::StatusCode::kInvalidArgument},
-          {"a/b", absl::StatusCode::kInvalidArgument},
-          {"a/b/c", absl::StatusCode::kInvalidArgument},
-          // Fails because '..' in path
-          {"/a/b/c/../d", absl::StatusCode::kInvalidArgument},
-          // Fails because '.' in path
-          {"/a/b/c/./d", absl::StatusCode::kInvalidArgument},
-          // Fails because '//' in path
-          {"/a/b/c//d", absl::StatusCode::kInvalidArgument},
-          // Fails because path ends with '/'
-          {"/a/b/c/d/", absl::StatusCode::kInvalidArgument},
-      };
-  for (auto const& [path, status] : kTestCases) {
-    EXPECT_THAT(PolicyBuilder().AddFile(path).TryBuild(), StatusIs(status));
-    EXPECT_THAT(PolicyBuilder().AddFileAt(path, "/input").TryBuild(),
-                StatusIs(status));
-    EXPECT_THAT(PolicyBuilder().AddDirectory(path).TryBuild(),
-                StatusIs(status));
-    EXPECT_THAT(PolicyBuilder().AddDirectoryAt(path, "/input").TryBuild(),
-                StatusIs(status));
+TEST(PolicyBuilderTest, TestValidateAbsolutePath) {
+  for (auto const& bad_path : {
+           "..",
+           "a",
+           "a/b",
+           "a/b/c",
+           "/a/b/c/../d",
+           "/a/b/c/./d",
+           "/a/b/c//d",
+           "/a/b/c/d/",
+           "/a/bAAAAAAAAAAAAAAAAAAAAAA/c/d/",
+       }) {
+    EXPECT_THAT(PolicyBuilderPeer::ValidateAbsolutePath(bad_path),
+                StatusIs(absl::StatusCode::kInvalidArgument));
   }
 
-  // Fails because it attempts to mount to '/' inside
-  EXPECT_THAT(PolicyBuilder().AddFile("/").TryBuild(),
-              StatusIs(absl::StatusCode::kInternal));
-  EXPECT_THAT(PolicyBuilder().AddDirectory("/").TryBuild(),
-              StatusIs(absl::StatusCode::kInternal));
-
-  // Succeeds because it attempts to mount to '/' inside
-  EXPECT_THAT(PolicyBuilder().AddFileAt("/a", "/input").TryBuild(), IsOk());
-  EXPECT_THAT(PolicyBuilder().AddDirectoryAt("/a", "/input").TryBuild(),
-              IsOk());
+  for (auto const& good_path :
+       {"/", "/a/b/c/d", "/a/b/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}) {
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        std::string path, PolicyBuilderPeer::ValidateAbsolutePath(good_path));
+    EXPECT_THAT(path, StrEq(good_path));
+  }
 }
 
 TEST(PolicyBuilderTest, TestCanOnlyBuildOnce) {
