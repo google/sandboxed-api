@@ -915,14 +915,6 @@ class PolicyBuilder final {
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;
 
-  // Validates that the path is absolute and normalized.
-  static absl::StatusOr<std::string> ValidateAbsolutePath(
-      absl::string_view path);
-
-  // Validates that the path is normalized.
-  //
-  static absl::StatusOr<std::string> ValidatePath(absl::string_view path);
-
   // Similar to AddFile(At)/AddDirectory(At) but it won't force use of
   // namespaces - files will only be added to the namespace if it is not
   // disabled by the time of TryBuild().

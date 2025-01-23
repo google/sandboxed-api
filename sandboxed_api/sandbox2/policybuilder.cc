@@ -94,6 +94,27 @@ namespace {
 
 namespace file = ::sapi::file;
 
+// Validates that the path is absolute and canonical.
+absl::StatusOr<std::string> ValidatePath(absl::string_view path,
+                                         bool allow_relative_path = false) {
+  if (path.empty()) {
+    return absl::InvalidArgumentError("Path must not be empty");
+  }
+
+  if (!file::IsAbsolutePath(path) && !allow_relative_path) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Path must be absolute: ", path));
+  }
+
+  std::string fixed_path = file::CleanPath(path);
+  if (fixed_path != path) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Path is not canonical: ", path));
+  }
+
+  return fixed_path;
+}
+
 constexpr uint32_t kMmapSyscalls[] = {
 #ifdef __NR_mmap2
     __NR_mmap2,
@@ -1346,25 +1367,6 @@ PolicyBuilder& PolicyBuilder::DefaultAction(TraceAllSyscalls) {
   return *this;
 }
 
-absl::StatusOr<std::string> PolicyBuilder::ValidateAbsolutePath(
-    absl::string_view path) {
-  if (!file::IsAbsolutePath(path)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Path is not absolute: '", path, "'"));
-  }
-  return ValidatePath(path);
-}
-
-absl::StatusOr<std::string> PolicyBuilder::ValidatePath(
-    absl::string_view path) {
-  std::string fixed_path = file::CleanPath(path);
-  if (fixed_path != path) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "Path was not normalized. '", path, "' != '", fixed_path, "'"));
-  }
-  return fixed_path;
-}
-
 std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
   bpf_labels l = {0};
 
@@ -1446,7 +1448,7 @@ PolicyBuilder& PolicyBuilder::AddFileIfNamespaced(absl::string_view path,
 PolicyBuilder& PolicyBuilder::AddFileAtIfNamespaced(absl::string_view outside,
                                                     absl::string_view inside,
                                                     bool is_ro) {
-  auto valid_outside = ValidateAbsolutePath(outside);
+  auto valid_outside = ValidatePath(outside);
   if (!valid_outside.ok()) {
     SetError(valid_outside.status());
     return *this;
@@ -1481,7 +1483,7 @@ PolicyBuilder& PolicyBuilder::AddLibrariesForBinary(
     absl::string_view path, absl::string_view ld_library_path) {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
 
-  auto valid_path = ValidatePath(path);
+  auto valid_path = ValidatePath(path, /*allow_relative_path=*/true);
   if (!valid_path.ok()) {
     SetError(valid_path.status());
     return *this;
@@ -1519,7 +1521,7 @@ PolicyBuilder& PolicyBuilder::AddDirectoryIfNamespaced(absl::string_view path,
 
 PolicyBuilder& PolicyBuilder::AddDirectoryAtIfNamespaced(
     absl::string_view outside, absl::string_view inside, bool is_ro) {
-  auto valid_outside = ValidateAbsolutePath(outside);
+  auto valid_outside = ValidatePath(outside);
   if (!valid_outside.ok()) {
     SetError(valid_outside.status());
     return *this;
