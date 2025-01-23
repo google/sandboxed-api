@@ -22,6 +22,7 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sched.h>
+#include <sys/mman.h>
 #include <syscall.h>
 
 #include <cerrno>
@@ -96,7 +97,6 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
         LOAD_ARCH,
         JNE32(Syscall::GetHostAuditArch(), DENY),
         LOAD_SYSCALL_NR,
-        // TODO(b/271400371) Use NOTIF_FLAG_CONTINUE once generally available
         JNE32(__NR_seccomp, JUMP(&l, past_seccomp_l)),
         ARG_32(3),
         JNE32(internal::kExecveMagic, JUMP(&l, past_seccomp_l)),
@@ -160,10 +160,36 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
   }
 
   // If user policy doesn't mention it, then forbid bpf because it's unsafe or
-  // too risky.  This uses LOAD_SYSCALL_NR from above.
+  // too risky. This uses LOAD_SYSCALL_NR from above.
   if (!user_policy_handles_bpf_) {
     policy.insert(policy.end(), {JEQ32(__NR_bpf, DENY)});
   }
+
+  if (!allow_map_exec_) {
+    policy.insert(
+        policy.end(),
+        {
+#ifdef __NR_mmap
+            JNE32(__NR_mmap, JUMP(&l, past_map_exec_l)),
+#endif
+#ifdef __NR_mmap2  // Arm32
+            JNE32(__NR_mmap2, JUMP(&l, past_map_exec_l)),
+#endif
+            JNE32(__NR_mprotect, JUMP(&l, past_map_exec_l)),
+#ifdef __NR_pkey_mprotect
+            JNE32(__NR_pkey_mprotect, JUMP(&l, past_map_exec_l)),
+#endif
+            // Load "prot" argument, which is the same for all four syscalls.
+            ARG_32(2),
+            // Deny executable mappings. This also disallows them for all PKEYS
+            // (not just the default one).
+            JA32(PROT_EXEC, DENY),
+
+            LABEL(&l, past_map_exec_l),
+            LOAD_SYSCALL_NR,
+        });
+  }
+
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000
 #endif

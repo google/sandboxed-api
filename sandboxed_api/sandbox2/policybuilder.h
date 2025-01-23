@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -34,6 +35,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/sandbox2/allow_map_exec.h"  // Temporary
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
@@ -44,10 +46,21 @@ struct bpf_labels;
 namespace sandbox2 {
 
 class AllowAllSyscalls;
-class TraceAllSyscalls;
-class SeccompSpeculation;
-class UnrestrictedNetworking;
 class LoadUserBpfCodeFromFile;
+class MapExec;
+class SeccompSpeculation;
+class TraceAllSyscalls;
+class UnrestrictedNetworking;
+
+namespace builder_internal {
+
+template <typename, typename = void>
+constexpr bool is_type_complete_v = false;
+
+template <typename T>
+constexpr bool is_type_complete_v<T, std::void_t<decltype(sizeof(T))>> = true;
+
+}  // namespace builder_internal
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
@@ -142,14 +155,15 @@ class PolicyBuilder final {
     return (Allow(tags), ...);
   }
 
-  // Allows unrestricted access to the network by *not* creating a network
-  // namespace.
+  // Allows the use of memory mappings that are marked as executable.
   //
-  // This only disables the network namespace. To actually allow networking,
-  // you would also need to allow networking syscalls.
+  // This applies to the mmap and mprotect syscalls and by default, mapped
+  // memory pages are not allowed to be marked as both writable and executable.
   //
-  // NOTE: Requires namespace support.
-  PolicyBuilder& Allow(UnrestrictedNetworking);
+  // The use of this API is usually only necessary for JIT engines. To
+  // actually allow executable mappings, the respective mmap()/mprotect()
+  // syscalls need to be added to the policy as well.
+  PolicyBuilder& Allow(MapExec);
 
   // Allows the sandboxee to benefit from speculative execution.
   //
@@ -170,6 +184,15 @@ class PolicyBuilder final {
   // This is an advanced API, so users should make sure they understand the
   // risks. Do not use in environments with untrusted code and/or data.
   PolicyBuilder& Allow(SeccompSpeculation);
+
+  // Allows unrestricted access to the network by *not* creating a network
+  // namespace.
+  //
+  // This only disables the network namespace. To actually allow networking,
+  // you would also need to allow networking syscalls.
+  //
+  // NOTE: Requires namespace support.
+  PolicyBuilder& Allow(UnrestrictedNetworking);
 
   // Appends code to allow a specific syscall.
   PolicyBuilder& AllowSyscall(uint32_t num);
@@ -293,12 +316,17 @@ class PolicyBuilder final {
   // NOTE: This method is intended as a best effort.
   PolicyBuilder& AllowLlvmCoverage();
 
-  // Appends code to allow mmap. Specifically this allows mmap and mmap2 syscall
-  // on architectures where this syscalls exist.
+  // Appends code to unconditionally allow mmap. Specifically this allows mmap
+  // and mmap2 syscall on architectures where these syscalls exist.
   //
-  // Prefer using `AllowMmapWithoutExec` as allowing mapping executable pages
+  // This function requires that targets :allow_map_exec library to be linked
+  // against. Otherwise, the PolicyBuilder will fail to build the policy.
+  //
+  // Prefer using `AllowMmapWithoutExec()` as allowing mapping executable pages
   // makes exploitation easier.
-  PolicyBuilder& AllowMmap();
+  std::enable_if_t<builder_internal::is_type_complete_v<MapExec>,
+                   PolicyBuilder&>
+  AllowMmap();
 
   // Appends code to allow mmap calls that don't specify PROT_EXEC.
   PolicyBuilder& AllowMmapWithoutExec();
@@ -653,7 +681,9 @@ class PolicyBuilder final {
   //
   // In addition to syscalls allowed by `AllowStaticStartup`, also allow
   // reading, seeking, mmap()-ing and closing files.
-  PolicyBuilder& AllowDynamicStartup();
+  std::enable_if_t<builder_internal::is_type_complete_v<MapExec>,
+                   PolicyBuilder&>
+  AllowDynamicStartup();
 
   // Appends a policy, which will be run on the specified syscall.
   //
@@ -956,6 +986,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
+  bool allow_map_exec_ = true;  //  Temporary default while we migrate users.
   bool allow_speculation_ = false;
   bool allow_mount_propagation_ = false;
   std::string hostname_ = std::string(kDefaultHostname);

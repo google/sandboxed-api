@@ -42,6 +42,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -124,6 +125,23 @@ constexpr uint32_t kMmapSyscalls[] = {
 #endif
 };
 
+constexpr bool CheckMapExec(uint32_t num) {
+  if (num == __NR_mprotect) {
+    return true;
+  }
+#ifdef __NR_pkey_mprotect
+  if (num == __NR_pkey_mprotect) {
+    return true;
+  }
+#endif
+  for (uint32_t mmap_syscall : kMmapSyscalls) {
+    if (num == mmap_syscall) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool CheckBpfBounds(const sock_filter& filter, size_t max_jmp) {
   if (BPF_CLASS(filter.code) == BPF_JMP) {
     if (BPF_OP(filter.code) == BPF_JA) {
@@ -145,6 +163,16 @@ bool IsOnReadOnlyDev(const std::string& path) {
 
 }  // namespace
 
+PolicyBuilder& PolicyBuilder::Allow(MapExec) {
+  allow_map_exec_ = true;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::Allow(SeccompSpeculation) {
+  allow_speculation_ = true;
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::Allow(UnrestrictedNetworking) {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
 
@@ -160,14 +188,15 @@ PolicyBuilder& PolicyBuilder::Allow(UnrestrictedNetworking) {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::Allow(SeccompSpeculation) {
-  allow_speculation_ = true;
-  return *this;
-}
-
 PolicyBuilder& PolicyBuilder::AllowSyscall(uint32_t num) {
   if (handled_syscalls_.insert(num).second &&
       allowed_syscalls_.insert(num).second) {
+    if (!allow_map_exec_ && CheckMapExec(num)) {
+      SetError(absl::FailedPreconditionError(
+          "Allowing unrestricted mmap/mprotect/pkey_mprotect requires "
+          "Allow(MapExec)."));
+      return *this;
+    }
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ALLOW)});
   }
   return *this;
@@ -540,7 +569,8 @@ PolicyBuilder& PolicyBuilder::AllowMprotectWithoutExec() {
                      });
 }
 
-PolicyBuilder& PolicyBuilder::AllowMmap() {
+std::enable_if_t<builder_internal::is_type_complete_v<MapExec>, PolicyBuilder&>
+PolicyBuilder::AllowMmap() {
   return AllowSyscalls(kMmapSyscalls);
 }
 
@@ -1202,7 +1232,13 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
+std::enable_if_t<builder_internal::is_type_complete_v<MapExec>, PolicyBuilder&>
+PolicyBuilder::AllowDynamicStartup() {
+  if (!allow_map_exec_) {
+    SetError(absl::FailedPreconditionError(
+        "Allowing dynamic startup requires Allow(MapExec)."));
+    return *this;
+  }
   if (allowed_complex_.dynamic_startup) {
     return *this;
   }
@@ -1409,6 +1445,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
                                    allow_mount_propagation_);
   }
 
+  policy->allow_map_exec_ = allow_map_exec_;
   policy->allow_speculation_ = allow_speculation_;
   policy->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
   policy->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;

@@ -26,6 +26,15 @@ target_link_libraries(sandbox2_allow_all_syscalls PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2:allow_map_exec
+add_library(sandbox2_allow_map_exec ${SAPI_LIB_TYPE}
+  allow_map_exec.h
+)
+add_library(sandbox2::allow_allow_map_exec ALIAS sandbox2_allow_map_exec)
+target_link_libraries(sandbox2_allow_map_exec PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2:allow_seccomp_speculation
 add_library(sandbox2_allow_seccomp_speculation ${SAPI_LIB_TYPE}
   allow_seccomp_speculation.h

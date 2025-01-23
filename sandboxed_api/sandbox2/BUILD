@@ -26,9 +26,7 @@ cc_library(
     name = "allow_all_syscalls",
     hdrs = ["allow_all_syscalls.h"],
     copts = sapi_platform_copts(),
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -40,12 +38,25 @@ cc_library(
 )
 
 cc_library(
+    name = "allow_map_exec",
+    hdrs = ["allow_map_exec.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_allow_map_exec",
+    testonly = True,
+    hdrs = ["allow_map_exec.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "allow_seccomp_speculation",
     hdrs = ["allow_seccomp_speculation.h"],
     copts = sapi_platform_copts(),
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -60,9 +71,7 @@ cc_library(
     name = "trace_all_syscalls",
     hdrs = ["trace_all_syscalls.h"],
     copts = sapi_platform_copts(),
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -77,9 +86,7 @@ cc_library(
     name = "allow_unrestricted_networking",
     hdrs = ["allow_unrestricted_networking.h"],
     copts = sapi_platform_copts(),
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -412,6 +419,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":allow_map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
         ":client",
         ":comms",
         ":executor",
@@ -603,6 +611,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":allow_all_syscalls",
+        ":allow_map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
         ":allow_seccomp_speculation",
         ":allow_unrestricted_networking",
         ":forkserver_cc_proto",
