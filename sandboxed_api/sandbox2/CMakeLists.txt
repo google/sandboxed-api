@@ -1226,6 +1226,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sandbox2::bpf_helper
             sandbox2::policy
             sandbox2::policybuilder
+            sapi::file_base
+            sapi::fileops
             sapi::testing
             sapi::status_matchers
             sapi::test_main

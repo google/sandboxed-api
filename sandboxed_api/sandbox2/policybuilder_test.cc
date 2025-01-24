@@ -21,6 +21,7 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -31,6 +32,8 @@
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
@@ -47,11 +50,14 @@ class PolicyBuilderPeer {
 
 namespace {
 
+namespace fileops = ::sapi::file_util::fileops;
+
 using ::sapi::IsOk;
 using ::sapi::StatusIs;
 using ::testing::Eq;
 using ::testing::Lt;
 using ::testing::StartsWith;
+using ::testing::StrEq;
 
 TEST(PolicyBuilderTest, Testpolicy_size) {
   ssize_t last_size = 0;
@@ -152,6 +158,66 @@ TEST(PolicyBuilderTest, ApisWithPathValidation) {
   EXPECT_THAT(PolicyBuilder().AddFileAt("/a", "/input").TryBuild(), IsOk());
   EXPECT_THAT(PolicyBuilder().AddDirectoryAt("/a", "/input").TryBuild(),
               IsOk());
+}
+
+TEST(PolicyBuilderTest, TestAnchorPathAbsolute) {
+  const std::initializer_list<
+      std::tuple<absl::string_view, absl::string_view, std::string>>
+      kTestCases = {
+          // relative_path is empty:
+          {"", "/base", ""},  // Error: relative path is empty
+          {"", "", ""},       // Error: relative path is empty
+
+          // relative_path is absolute:
+          {"/a/b/c/d", "/base", "/a/b/c/d"},
+          {"/a/../../../../../etc/passwd", "/base",
+           "/a/../../../../../etc/passwd"},
+          {"/a/b/c/d", "base", "/a/b/c/d"},
+          {"/a/b/c/d", "", "/a/b/c/d"},
+
+          // base is absolute:
+          {"a/b/c/d", "/base", "/base/a/b/c/d"},
+          {"a/b/c/d/", "/base", "/base/a/b/c/d"},
+          {"a/b/c//d", "/base", "/base/a/b/c/d"},
+          {"a/b/../d/", "/base", "/base/a/d"},
+          {"a/./b/c/", "/base", "/base/a/b/c"},
+          {"./a/b/c/", "/base", "/base/a/b/c"},
+          {"..foobar", "/base", "/base/..foobar"},
+          {"a/b/c/d", "/base/../foo/bar",
+           "/foo/bar/a/b/c/d"},         // Not an error because base is trusted.
+          {"a/../../d/", "/base", ""},  // Error: can't guarantee anchor
+          {"../a/b/c/", "/base", ""},   // Error: can't guarantee anchor
+          {"..", "/base", ""},          // Error: can't guarantee anchor
+
+          // base path is empty:
+          {"a/b/c", "", fileops::GetCWD() + "/a/b/c"},
+          {"a/../../../../c", "", ""},  // Error: can't guarantee anchor
+
+          // base is relative:
+          {"a/b/c/d", "base", fileops::GetCWD() + "/base/a/b/c/d"},
+          {"a/b/c/d/", "base", fileops::GetCWD() + "/base/a/b/c/d"},
+          {"a/b/c//d", "base", fileops::GetCWD() + "/base/a/b/c/d"},
+          {"a/b/../d/", "base", fileops::GetCWD() + "/base/a/d"},
+          {"a/./b/c/", "base", fileops::GetCWD() + "/base/a/b/c"},
+          {"./a/b/c/", "base", fileops::GetCWD() + "/base/a/b/c"},
+          {"..foobar", "base", fileops::GetCWD() + "/base/..foobar"},
+          {"a/../../d/", "base", ""},  // Error: can't guarantee anchor
+          {"../a/b/c/", "base", ""},   // Error: can't guarantee anchor
+          {"..", "base", ""},          // Error: can't guarantee anchor
+          {"a/b/c", ".base/foo/", fileops::GetCWD() + "/.base/foo/a/b/c"},
+          {"a/b/c", "./base/foo", fileops::GetCWD() + "/base/foo/a/b/c"},
+          {"a/b/c", "base/foo/../bar", fileops::GetCWD() + "/base/bar/a/b/c"},
+          {"a/b/c", "base/foo//bar/",
+           fileops::GetCWD() + "/base/foo/bar/a/b/c"},
+          {"a/b/c", "..base/foo", fileops::GetCWD() + "/..base/foo/a/b/c"},
+          {"a/b/c", "../base/foo",
+           sapi::file::CleanPath(fileops::GetCWD() + "/../base/foo/a/b/c")},
+          {"a/b/c", "..",
+           sapi::file::CleanPath(fileops::GetCWD() + "/../a/b/c")},
+      };
+  for (auto const& [path, base, result] : kTestCases) {
+    EXPECT_THAT(PolicyBuilder::AnchorPathAbsolute(path, base), StrEq(result));
+  }
 }
 
 TEST(PolicyBuilderTest, TestCanOnlyBuildOnce) {

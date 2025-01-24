@@ -941,6 +941,29 @@ class PolicyBuilder final {
 
   const Mounts& mounts() const { return mounts_; }
 
+  // Returns the absolute path for the given `relative_path`.
+  //
+  // If `relative_path` is absolute, it will be returned as is and `base` will
+  // be ignored.
+  //
+  // If `relative_path` is relative and `base` is not provided, it will be
+  // resolved relative to the current working directory.
+  //
+  // If `relative_path` is relative and an absolute `base` is provided, it will
+  // be resolved relative to `base`.
+  //
+  // If both, `relative_path` and `base` are relative, then first `base` will be
+  // resolved relative to the current working directory, and then
+  // `relative_path` will be resolved relative to `base`.
+  //
+  // In all cases where `relative_path` is relative, non-canonical paths will be
+  // canonicalized and the result must be anchored to the base directory. If the
+  // resulting path is outside the base directory, an error will be returned.
+  //
+  // On ERROR, such as `relative_path` is empty, an empty string is returned.
+  static std::string AnchorPathAbsolute(absl::string_view relative_path,
+                                        absl::string_view base = {});
+
  private:
   friend class PolicyBuilderPeer;  // For testing
   friend class StackTracePeer;

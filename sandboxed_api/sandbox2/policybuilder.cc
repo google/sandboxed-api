@@ -66,6 +66,7 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 
 #if defined(SAPI_X86_64)
@@ -94,6 +95,7 @@ namespace sandbox2 {
 namespace {
 
 namespace file = ::sapi::file;
+namespace fileops = ::sapi::file_util::fileops;
 
 // Validates that the path is absolute and canonical.
 absl::StatusOr<std::string> ValidatePath(absl::string_view path,
@@ -1772,6 +1774,46 @@ PolicyBuilder& PolicyBuilder::SetError(const absl::Status& status) {
   LOG(ERROR) << status;
   last_status_ = status;
   return *this;
+}
+
+std::string PolicyBuilder::AnchorPathAbsolute(absl::string_view relative_path,
+                                              absl::string_view base) {
+  if (relative_path.empty()) {
+    LOG(ERROR) << "Passed relative_path is empty";
+    return "";
+  }
+
+  if (file::IsAbsolutePath(relative_path)) {
+    VLOG(3) << "Nothing to do, relative_path is absolute";
+    return std::string(relative_path);
+  }
+
+  std::string clean_path = file::CleanPath(relative_path);
+  if (absl::StartsWith(clean_path, "../") || clean_path == "..") {
+    LOG(ERROR)
+        << "Anchored path would be outside of base because relative_path: '"
+        << relative_path << "' starts with '..'";
+    return "";
+  }
+
+  if (file::IsAbsolutePath(base)) {
+    return file::CleanPath(file::JoinPath(base, clean_path));
+  }
+
+  std::string cwd = fileops::GetCWD();
+  if (cwd.empty()) {
+    LOG(ERROR) << "Failed to get current working directory";
+    return "";
+  }
+
+  if (base.empty()) {
+    VLOG(1) << "Using current working directory as base is empty";
+    // CWD is guaranteed to exist and clean_path is guaranteed to not start with
+    // '..'.
+    return file::CleanPath(file::JoinPath(cwd, clean_path));
+  }
+
+  return file::CleanPath(file::JoinPath(cwd, base, clean_path));
 }
 
 }  // namespace sandbox2
