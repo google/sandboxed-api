@@ -83,6 +83,7 @@ cc_library(
     name = "testing",
     srcs = ["testing.cc"],
     hdrs = ["testing.h"],
+    copts = sapi_platform_copts(),
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:check",

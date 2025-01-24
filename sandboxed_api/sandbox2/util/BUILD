@@ -26,6 +26,7 @@ cc_library(
     name = "bpf_helper",
     srcs = ["bpf_helper.c"],
     hdrs = ["bpf_helper.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
 )
 

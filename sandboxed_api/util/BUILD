@@ -273,6 +273,7 @@ cc_test(
 cc_library(
     name = "thread",
     hdrs = ["thread.h"],
+    copts = sapi_platform_copts(),
     deps = [
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/strings:string_view",
