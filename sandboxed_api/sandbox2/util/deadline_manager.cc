@@ -18,13 +18,16 @@
 
 #include <algorithm>
 #include <csignal>
+#include <cstdint>
 #include <memory>
+#include <string>
 
 #include "absl/base/call_once.h"
 #include "absl/flags/flag.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
@@ -138,9 +141,18 @@ void DeadlineManager::RegisterSignalHandler() {
 void DeadlineManager::VerifySignalHandler() {
   struct sigaction old = {};
   PCHECK(sigaction(signal_nr_, nullptr, &old) == 0);
-  CHECK_EQ(old.sa_flags, 0) << "Signal handler flags were overriden";
-  CHECK(old.sa_handler == DeadlineManager::SignalHandler)
-      << "Signal handler was overriden";
+  auto describe = [](uintptr_t handler) -> std::string {
+    return absl::StrCat(absl::Hex(handler));
+  };
+  uintptr_t old_handler = (old.sa_flags & SA_SIGINFO)
+                              ? reinterpret_cast<uintptr_t>(old.sa_sigaction)
+                              : reinterpret_cast<uintptr_t>(old.sa_handler);
+  CHECK(old_handler ==
+        reinterpret_cast<uintptr_t>(DeadlineManager::SignalHandler))
+      << "Signal handler was overriden " << describe(old_handler);
+  CHECK((old.sa_flags & SA_RESTART) == 0)
+      << "SA_RESTART signal handler flag was overriden: "
+      << absl::Hex(old.sa_flags);
 }
 
 void DeadlineManager::Run() {

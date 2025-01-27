@@ -21,6 +21,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/util/thread.h"
@@ -151,20 +152,58 @@ TEST(DeadlineManagerTest, DetectsOverridenHandler) {
   EXPECT_DEATH(
       {
         struct sigaction sa = {};
-        sa.sa_flags = SA_RESTART;
+        CHECK_EQ(
+            sigaction(absl::GetFlag(FLAGS_sandbox2_deadline_manager_signal),
+                      nullptr, &sa),
+            0);
         sa.sa_handler = SIG_IGN;
-        ASSERT_EQ(
+        CHECK_EQ(
             sigaction(absl::GetFlag(FLAGS_sandbox2_deadline_manager_signal),
                       &sa, nullptr),
             0);
         absl::Time start_time = absl::Now();
+        absl::Time sleep_until = start_time + absl::Seconds(5);
         registration.SetDeadline(start_time + absl::Milliseconds(100));
-        registration.ExecuteBlockingSyscall([] {
-          struct timespec ts = absl::ToTimespec(absl::Seconds(100));
-          ASSERT_EQ(nanosleep(&ts, nullptr), -1);
+        registration.ExecuteBlockingSyscall([sleep_until] {
+          absl::Duration remaining = sleep_until - absl::Now();
+          while (remaining > absl::ZeroDuration()) {
+            struct timespec ts = absl::ToTimespec(remaining);
+            CHECK_EQ(nanosleep(&ts, nullptr), -1);
+            remaining = sleep_until - absl::Now();
+          }
         });
       },
-      "Signal handler flags were overriden");
+      "Signal handler was overriden");
+}
+
+TEST(DeadlineManagerTest, DetectsOverridenHandlerFlags) {
+  DeadlineManager manager("test");
+  DeadlineRegistration registration(manager);
+  EXPECT_DEATH(
+      {
+        struct sigaction sa = {};
+        CHECK_EQ(
+            sigaction(absl::GetFlag(FLAGS_sandbox2_deadline_manager_signal),
+                      nullptr, &sa),
+            0);
+        sa.sa_flags = SA_RESTART;
+        CHECK_EQ(
+            sigaction(absl::GetFlag(FLAGS_sandbox2_deadline_manager_signal),
+                      &sa, nullptr),
+            0);
+        absl::Time start_time = absl::Now();
+        absl::Time sleep_until = start_time + absl::Seconds(5);
+        registration.SetDeadline(start_time + absl::Milliseconds(100));
+        registration.ExecuteBlockingSyscall([sleep_until] {
+          absl::Duration remaining = sleep_until - absl::Now();
+          while (remaining > absl::ZeroDuration()) {
+            struct timespec ts = absl::ToTimespec(remaining);
+            CHECK_EQ(nanosleep(&ts, nullptr), -1);
+            remaining = sleep_until - absl::Now();
+          }
+        });
+      },
+      "SA_RESTART signal handler flag was overriden");
 }
 
 }  // namespace

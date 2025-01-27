@@ -93,6 +93,7 @@ target_link_libraries(sandbox2_util_deadline_manager
   PRIVATE absl::base
           absl::check
           absl::log
+          absl::strings
           sandbox2::util
           sapi::base
 )
@@ -175,6 +176,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME deadline_manager_test
   )
   target_link_libraries(sandbox2_deadline_manager_test PRIVATE
+    absl::check
     absl::flags
     absl::time
     sandbox2::deadline_manager
