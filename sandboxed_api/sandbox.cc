@@ -155,8 +155,10 @@ void Sandbox::Terminate(bool attempt_graceful_exit) {
     result = s2_->AwaitResult();
   }
 
-  if (result->final_status() == sandbox2::Result::OK &&
-      result->reason_code() == 0) {
+  if ((result->final_status() == sandbox2::Result::OK &&
+       result->reason_code() == 0) ||
+      (!attempt_graceful_exit &&
+       result->final_status() == sandbox2::Result::EXTERNAL_KILL)) {
     VLOG(2) << "Sandbox2 finished with: " << result->ToString();
   } else {
     LOG(WARNING) << "Sandbox2 finished with: " << result->ToString();
