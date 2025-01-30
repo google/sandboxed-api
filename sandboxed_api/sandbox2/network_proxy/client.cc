@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -34,6 +35,8 @@ using ::sapi::file_util::fileops::FDCloser;
 absl::Status NetworkProxyClient::Connect(int sockfd,
                                          const struct sockaddr* addr,
                                          socklen_t addrlen) {
+  int oldflags = fcntl(sockfd, F_GETFL, 0);
+
   // Check if socket is SOCK_STREAM
   int type;
   socklen_t type_size = sizeof(int);
@@ -47,6 +50,9 @@ absl::Status NetworkProxyClient::Connect(int sockfd,
         "Invalid socket, only SOCK_STREAM is allowed");
   }
   SAPI_ASSIGN_OR_RETURN(FDCloser s, ConnectInternal(addr, addrlen));
+  if (fcntl(s.get(), F_SETFL, oldflags) != 0) {
+    return absl::InternalError("Failed to restore socket flags");
+  }
   if (dup2(s.get(), sockfd) == -1) {
     return absl::InternalError("Duplicating socket failed");
   }

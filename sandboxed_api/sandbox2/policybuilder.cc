@@ -1664,6 +1664,7 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
 
   allowed_hosts_ = AllowedHosts();
 
+  AllowSafeFcntl();
   AllowFutexOp(FUTEX_WAKE);
   AllowFutexOp(FUTEX_WAIT);
   AllowFutexOp(FUTEX_WAIT_BITSET);
