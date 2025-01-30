@@ -72,6 +72,10 @@ ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
           "If set, sandbox2 monitor will log stack traces of all monitored "
           "threads/processes that are reported to terminate with a signal.");
 
+ABSL_FLAG(bool, sandbox2_monitor_ptrace_use_deadline_manager, false,
+          "If set, ptrace monitor will use deadline manager to enforce "
+          "deadlines and as notification mechanism.");
+
 ABSL_FLAG(bool, sandbox2_log_unobtainable_stack_traces_errors, true,
           "If set, unobtainable stack trace will be logged as errors.");
 
@@ -143,6 +147,8 @@ PtraceMonitor::PtraceMonitor(Executor* executor, Policy* policy, Notify* notify)
   }
   external_kill_request_flag_.test_and_set(std::memory_order_relaxed);
   dump_stack_request_flag_.test_and_set(std::memory_order_relaxed);
+  use_deadline_manager_ =
+      absl::GetFlag(FLAGS_sandbox2_monitor_ptrace_use_deadline_manager);
 }
 
 bool PtraceMonitor::IsActivelyMonitoring() {
@@ -200,14 +206,18 @@ bool PtraceMonitor::InterruptSandboxee() {
 #define __WPTRACEEVENT(x) ((x & 0xff0000) >> 16)
 
 void PtraceMonitor::NotifyMonitor() {
-  absl::ReaderMutexLock lock(&notify_mutex_);
-  if (thread_.IsJoinable()) {
-    pthread_kill(thread_.handle(), SIGCHLD);
+  if (use_deadline_manager_) {
+    pid_waiter_.Notify();
+  } else {
+    absl::MutexLock lock(&thread_mutex_);
+    if (thread_.IsJoinable()) {
+      pthread_kill(thread_.handle(), SIGCHLD);
+    }
   }
 }
 
 void PtraceMonitor::Join() {
-  absl::MutexLock lock(&notify_mutex_);
+  absl::MutexLock lock(&thread_mutex_);
   if (thread_.IsJoinable()) {
     thread_.Join();
     CHECK(IsDone()) << "Monitor did not terminate";
@@ -217,7 +227,10 @@ void PtraceMonitor::Join() {
 }
 
 void PtraceMonitor::RunInternal() {
-  thread_ = sapi::Thread(this, &PtraceMonitor::Run, "sandbox2-Monitor");
+  {
+    absl::MutexLock lock(&thread_mutex_);
+    thread_ = sapi::Thread(this, &PtraceMonitor::Run, "sandbox2-Monitor");
+  }
 
   // Wait for the Monitor to set-up the sandboxee correctly (or fail while
   // doing that). From here on, it is safe to use the IPC object for
@@ -234,7 +247,7 @@ void PtraceMonitor::Run() {
   absl::Cleanup setup_notify = [this] { setup_notification_.Notify(); };
   // It'd be costly to initialize the sigset_t for each sigtimedwait()
   // invocation, so do it once per Monitor.
-  if (!InitSetupSignals()) {
+  if (!use_deadline_manager_ && !InitSetupSignals()) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SIGNALS);
     return;
   }
@@ -251,7 +264,7 @@ void PtraceMonitor::Run() {
   std::move(setup_notify).Invoke();
 
   bool sandboxee_exited = false;
-  PidWaiter pid_waiter(process_.main_pid);
+  pid_waiter_.SetPriorityPid(process_.main_pid);
   int status;
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
@@ -295,13 +308,21 @@ void PtraceMonitor::Run() {
         break;
       }
     }
-
-    pid_t ret = pid_waiter.Wait(&status);
+    if (use_deadline_manager_) {
+      absl::Time effective_deadline = hard_deadline_;
+      if (deadline != 0 && hard_deadline_ == absl::InfiniteFuture()) {
+        effective_deadline = absl::FromUnixMillis(deadline);
+      }
+      pid_waiter_.SetDeadline(effective_deadline);
+    }
+    pid_t ret = pid_waiter_.Wait(&status);
     if (ret == 0) {
-      constexpr timespec ts = {kWakeUpPeriodSec, kWakeUpPeriodNSec};
-      int signo = sigtimedwait(&sset_, nullptr, &ts);
-      LOG_IF(ERROR, signo != -1 && signo != SIGCHLD)
-          << "Unknown signal received: " << signo;
+      if (!use_deadline_manager_) {
+        constexpr timespec ts = {kWakeUpPeriodSec, kWakeUpPeriodNSec};
+        int signo = sigtimedwait(&sset_, nullptr, &ts);
+        LOG_IF(ERROR, signo != -1 && signo != SIGCHLD)
+            << "Unknown signal received: " << signo;
+      }
       continue;
     }
 
@@ -310,7 +331,7 @@ void PtraceMonitor::Run() {
         LOG(ERROR) << "PANIC(). The main process has not exited yet, "
                    << "yet we haven't seen its exit event";
         SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_CHILD);
-      } else {
+      } else if (!use_deadline_manager_ || errno != EINTR) {
         PLOG(ERROR) << "waitpid() failed";
       }
       continue;
@@ -381,8 +402,14 @@ void PtraceMonitor::Run() {
             << result_.ToString();
         break;
       }
-      pid_t ret = pid_waiter.Wait(&status);
+      if (use_deadline_manager_) {
+        pid_waiter_.SetDeadline(deadline);
+      }
+      pid_t ret = pid_waiter_.Wait(&status);
       if (ret == -1) {
+        if (use_deadline_manager_ && errno == EINTR) {
+          continue;
+        }
         if (!log_stack_traces || ret != ECHILD) {
           PLOG(ERROR) << "waitpid() failed";
         }
@@ -397,8 +424,10 @@ void PtraceMonitor::Run() {
       }
 
       if (ret == 0) {
-        auto ts = absl::ToTimespec(left);
-        sigtimedwait(&sset_, nullptr, &ts);
+        if (!use_deadline_manager_) {
+          auto ts = absl::ToTimespec(left);
+          sigtimedwait(&sset_, nullptr, &ts);
+        }
         continue;
       }
 
