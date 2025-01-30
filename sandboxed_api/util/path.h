@@ -48,10 +48,15 @@ std::pair<absl::string_view, absl::string_view> SplitPath(
 // Collapses duplicate "/"s, resolve ".." and "." path elements, removes
 // trailing "/".
 //
-// NOTE: This respects relative vs. absolute paths, but does not
-// invoke any system calls in order to resolve relative paths to the actual
-// working directory. That is, this is purely a string manipulation, completely
-// independent of process state.
+// This is purely a string manipulation and does not invoke any system calls in
+// order to resolve relative paths to the actual working directory.
+//
+// For absolute paths, this is equivalent to the following:
+//   /path/to/./foo/../bar/../baz/ -> /path/to/bar/baz
+//
+// For relative paths, this is equivalent to the following:
+//   ./path/to/./foo/../bar/../baz/ -> path/to/bar/baz
+//   ../path/to/./foo/../bar/../baz/ -> ../path/to/bar/baz
 std::string CleanPath(absl::string_view path);
 
 }  // namespace sapi::file

@@ -96,6 +96,12 @@ TEST(PathTest, CleanPath) {
   EXPECT_THAT(file::CleanPath("../../a/b/../c"), StrEq("../../a/c"));
   EXPECT_THAT(file::CleanPath("../../a/b/../c/../.."), StrEq("../.."));
   EXPECT_THAT(file::CleanPath("foo/../../../bar"), StrEq("../../bar"));
+  EXPECT_THAT(file::CleanPath("/path/to/./foo/../bar/../baz/"),
+              StrEq("/path/to/baz"));
+  EXPECT_THAT(file::CleanPath("./path/to/./foo/../bar/../baz/"),
+              StrEq("path/to/baz"));
+  EXPECT_THAT(file::CleanPath("../path/to/./foo/../bar/../baz/"),
+              StrEq("../path/to/baz"));
 }
 
 }  // namespace
