@@ -19,6 +19,11 @@
 #include <cerrno>
 #include <memory>
 
+#include "absl/cleanup/cleanup.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/util/deadline_manager.h"
+
 namespace sandbox2 {
 
 namespace {
@@ -75,6 +80,10 @@ bool PidWaiter::CheckStatus(pid_t pid, bool blocking) {
 void PidWaiter::RefillStatuses() {
   constexpr int kMaxIterations = 1000;
   constexpr int kPriorityCheckPeriod = 100;
+  absl::Cleanup notify = [this] {
+    absl::MutexLock lock(&notify_mutex_);
+    notified_ = false;
+  };
   if (!statuses_.empty()) {
     return;
   }
@@ -88,8 +97,22 @@ void PidWaiter::RefillStatuses() {
       break;
     }
   }
-  if (statuses_.empty() && deadline_registration_.has_value()) {
-    deadline_registration_->ExecuteBlockingSyscall(
+  if (statuses_.empty()) {
+    DeadlineRegistration* deadline_registration = nullptr;
+    {
+      absl::MutexLock lock(&notify_mutex_);
+      if (deadline_ == absl::InfinitePast() || notified_) {
+        return;
+      }
+      if (!deadline_registration_.has_value()) {
+        deadline_registration_.emplace(DeadlineManager::instance());
+      }
+      deadline_registration_->SetDeadline(deadline_);
+      // DeadlineRegistration is only constructed once, so it's safe to use it
+      // outside of the lock.
+      deadline_registration = &*deadline_registration_;
+    }
+    deadline_registration->ExecuteBlockingSyscall(
         [&] { CheckStatus(-1, /*blocking=*/true); });
   }
 }

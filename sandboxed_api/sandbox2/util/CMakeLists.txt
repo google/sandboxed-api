@@ -68,7 +68,10 @@ add_library(sandbox2_util_pid_waiter ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::pid_waiter ALIAS sandbox2_util_pid_waiter)
 target_link_libraries(sandbox2_util_pid_waiter
-  PUBLIC absl::time
+  PUBLIC absl::core_headers
+         absl::cleanup
+         absl::synchronization
+         absl::time
          sandbox2::deadline_manager
   PRIVATE sapi::base
 )
@@ -166,6 +169,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::time
     sandbox2::pid_waiter
     sapi::test_main
+    sapi::thread
   )
 
   # sandboxed_api/sandbox2/util:deadline_manager_test

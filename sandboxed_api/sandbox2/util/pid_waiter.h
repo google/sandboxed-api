@@ -22,6 +22,8 @@
 #include <optional>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/util/deadline_manager.h"
 
@@ -58,10 +60,19 @@ class PidWaiter {
 
   // Sets the deadline for the next Wait() call.
   void SetDeadline(absl::Time deadline) {
-    if (!deadline_registration_.has_value()) {
-      deadline_registration_.emplace(DeadlineManager::instance());
+    absl::MutexLock lock(&notify_mutex_);
+    deadline_ = deadline;
+  }
+
+  // Breaks out of the current Wait operation, if there is one running
+  // concurrently. Otherwise, makes the next Wait non-blocking.
+  // Can be called concurrently with Wait and SetDeadline.
+  void Notify() {
+    absl::MutexLock lock(&notify_mutex_);
+    if (deadline_registration_.has_value()) {
+      deadline_registration_->SetDeadline(absl::InfinitePast());
     }
-    deadline_registration_->SetDeadline(deadline);
+    notified_ = true;
   }
 
  private:
@@ -69,10 +80,14 @@ class PidWaiter {
   void RefillStatuses();
 
   pid_t priority_pid_;
-  std::optional<DeadlineRegistration> deadline_registration_;
   std::deque<std::pair<pid_t, int>> statuses_;
   std::unique_ptr<WaitPidInterface> wait_pid_iface_;
   int last_errno_ = 0;
+  absl::Mutex notify_mutex_;
+  absl::Time deadline_ ABSL_GUARDED_BY(notify_mutex_) = absl::InfinitePast();
+  std::optional<DeadlineRegistration> deadline_registration_
+      ABSL_GUARDED_BY(notify_mutex_);
+  bool notified_ ABSL_GUARDED_BY(notify_mutex_) = false;
 };
 
 }  // namespace sandbox2
