@@ -43,11 +43,14 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/synchronization",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:syscall_trap",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
         "@com_google_sandboxed_api//sandboxed_api/util:status",
     ],
 )

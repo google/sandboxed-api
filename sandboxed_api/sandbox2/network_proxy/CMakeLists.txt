@@ -50,15 +50,18 @@ add_library(sandbox2_network_proxy_client ${SAPI_LIB_TYPE}
   client.h
 )
 add_library(sandbox2::network_proxy_client ALIAS sandbox2_network_proxy_client)
-target_link_libraries(sandbox2_network_proxy_client PRIVATE
-  absl::strings
-  absl::synchronization
-  absl::log
-  sandbox2::comms
-  sandbox2::syscall_trap
-  sapi::strerror
-  sapi::base
-  sapi::status
+target_link_libraries(sandbox2_network_proxy_client
+ PUBLIC absl::core_headers
+        absl::status
+        absl::statusor
+        absl::synchronization
+        sandbox2::comms
+        sandbox2::syscall_trap
+        sapi::fileops
+ PRIVATE absl::strings
+         absl::log
+         sapi::base
+         sapi::status
 )
 
 # sandboxed_api/sandbox2/network_proxy:testing
@@ -67,17 +70,17 @@ add_library(sandbox2_network_proxy_testing ${SAPI_LIB_TYPE}
   testing.h
 )
 add_library(sandbox2::network_proxy_testing ALIAS sandbox2_network_proxy_testing)
-target_link_libraries(sandbox2_network_proxy_testing PRIVATE
-  absl::check
-  absl::core_headers
-  absl::memory
-  absl::status
-  absl::statusor
-  absl::strings
-  sapi::fileops
-  sapi::status
-  sapi::base
-  sapi::thread
+target_link_libraries(sandbox2_network_proxy_testing
+ PUBLIC sapi::fileops
+        sapi::thread
+        absl::statusor
+ PRIVATE absl::check
+         absl::core_headers
+         absl::memory
+         absl::status
+         absl::strings
+         sapi::status
+         sapi::base
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)

@@ -19,10 +19,13 @@
 
 #include <cstdint>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util/syscall_trap.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -40,12 +43,14 @@ class NetworkProxyClient {
   // back a connected socket.
   absl::Status Connect(int sockfd, const struct sockaddr* addr,
                        socklen_t addrlen);
+
  private:
-  Comms comms_;
-  absl::Status ReceiveRemoteResult();
+  absl::StatusOr<sapi::file_util::fileops::FDCloser> ConnectInternal(
+      const struct sockaddr* addr, socklen_t addrlen);
 
   // Needed to make the Proxy thread safe.
   absl::Mutex mutex_;
+  Comms comms_ ABSL_GUARDED_BY(mutex_);
 };
 
 class NetworkProxyHandler {
