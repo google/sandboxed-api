@@ -46,6 +46,7 @@ struct bpf_labels;
 namespace sandbox2 {
 
 class AllowAllSyscalls;
+class NamespacesToken;
 class LoadUserBpfCodeFromFile;
 class MapExec;
 class SeccompSpeculation;
@@ -154,6 +155,20 @@ class PolicyBuilder final {
   PolicyBuilder& Allow(T... tags) {
     return (Allow(tags), ...);
   }
+
+  // Disables the use of namespaces.
+  //
+  // The default security posture of Sandbox2 depends on the use of namespaces
+  // and syscall filters. By disabling namespaces, the default security posture
+  // is weakened.
+  //
+  // The consequence of disabling namespaces is that the sandboxee will be able
+  // to access the host's file system, network, and other resources if the
+  // appropriate syscalls are also allowed.
+  //
+  // Disabling namespaces is not recommended and should only be done if
+  // absolutely necessary.
+  PolicyBuilder& DisableNamespaces(NamespacesToken);
 
   // Allows the use of memory mappings that are marked as executable.
   //
@@ -845,18 +860,8 @@ class PolicyBuilder final {
   // This will disable *all* namespaces.
   //
   // IMPORTANT: This is not recommended.
-  PolicyBuilder& DisableNamespaces() {
-    if (requires_namespaces_) {
-      SetError(absl::FailedPreconditionError(
-          "Namespaces cannot be both disabled and enabled. You're probably "
-          "using features that implicitly enable namespaces (SetHostname, "
-          "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary "
-          "or similar)"));
-      return *this;
-    }
-    use_namespaces_ = false;
-    return *this;
-  }
+  ABSL_DEPRECATED("Use DisableNamespaces(NamespacesToken()) instead.")
+  PolicyBuilder& DisableNamespaces();
 
   // Set hostname in the network namespace.
   //

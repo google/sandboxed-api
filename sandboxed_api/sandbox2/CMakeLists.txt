@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+add_subdirectory(allowlists)
 add_subdirectory(examples)
 add_subdirectory(unwind)
 add_subdirectory(util)
@@ -559,6 +560,7 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::bpf_helper
           sandbox2::namespace
           sandbox2::syscall
+          sandbox2::allowlists_namespaces
           sapi::file_base
           sapi::fileops
           sapi::status

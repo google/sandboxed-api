@@ -59,6 +59,7 @@
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/allow_seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
@@ -164,6 +165,23 @@ bool IsOnReadOnlyDev(const std::string& path) {
 }
 
 }  // namespace
+
+PolicyBuilder& PolicyBuilder::DisableNamespaces(NamespacesToken) {
+  if (requires_namespaces_) {
+    SetError(absl::FailedPreconditionError(
+        "Namespaces cannot be both disabled and enabled. You're probably "
+        "using features that implicitly enable namespaces (SetHostname, "
+        "AddFile, AddDirectory, AddDataDependency, AddLibrariesForBinary "
+        "or similar)"));
+    return *this;
+  }
+  use_namespaces_ = false;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::DisableNamespaces() {
+  return DisableNamespaces(NamespacesToken());
+}
 
 PolicyBuilder& PolicyBuilder::Allow(MapExec) {
   allow_map_exec_ = true;

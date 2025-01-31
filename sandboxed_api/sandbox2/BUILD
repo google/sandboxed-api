@@ -631,6 +631,7 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
         "@com_google_sandboxed_api//sandboxed_api/util:file_base",
