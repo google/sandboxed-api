@@ -34,6 +34,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allow_all_syscalls.h"
 #include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -154,7 +155,7 @@ TEST(NamespaceTest, UserNamespaceWorks) {
     std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
         path, {path, "2"},
         PolicyBuilder()
-            .DisableNamespaces()
+            .DisableNamespaces(NamespacesToken())
             .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
             .BuildOrDie());
     EXPECT_THAT(result, ElementsAre(Ne("2")));
@@ -176,7 +177,7 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
     std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
         path, {path, "3"},
         PolicyBuilder()
-            .DisableNamespaces()
+            .DisableNamespaces(NamespacesToken())
             .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
             .BuildOrDie());
     EXPECT_THAT(result,
@@ -213,7 +214,7 @@ TEST(NamespaceTest, HostnameNone) {
   std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
       path, {path, "7"},
       PolicyBuilder()
-          .DisableNamespaces()
+          .DisableNamespaces(NamespacesToken())
           .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
           .BuildOrDie());
   EXPECT_THAT(result, ElementsAre(Ne("sandbox2")));

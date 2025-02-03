@@ -25,3 +25,11 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
 )
+
+cc_library(
+    name = "testonly_namespaces",
+    testonly = True,
+    hdrs = ["namespaces.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)

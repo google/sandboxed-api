@@ -898,6 +898,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     sandbox2::allow_all_syscalls
     sandbox2::allow_unrestricted_networking
+    sandbox2::allowlists_namespaces
     sapi::fileops
     sandbox2::namespace
     sandbox2::sandbox2

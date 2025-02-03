@@ -27,6 +27,7 @@ target_link_libraries(sandbox2_crc4sandbox PRIVATE
   absl::log_globals
   absl::log_initialize
   absl::log_severity
+  sandbox2::allowlists_namespaces
   sandbox2::bpf_helper
   sandbox2::comms
   sapi::runfiles

@@ -43,6 +43,7 @@ cc_binary(
         "@com_google_absl//absl/time",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
         "@com_google_sandboxed_api//sandboxed_api/util:runfiles",
     ],

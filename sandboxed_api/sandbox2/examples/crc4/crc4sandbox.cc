@@ -32,6 +32,7 @@
 #include "absl/base/log_severity.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -50,7 +51,8 @@ namespace {
 
 std::unique_ptr<sandbox2::Policy> GetPolicy() {
   return sandbox2::PolicyBuilder()
-      .DisableNamespaces()  // Safe, as we only allow I/O on existing FDs.
+      .DisableNamespaces(sandbox2::NamespacesToken())  // Safe, as we only allow
+                                                       // I/O on existing FDs.
       .AllowExit()
       .AddPolicyOnSyscalls(
           {

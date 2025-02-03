@@ -803,6 +803,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
         "@com_google_sandboxed_api//sandboxed_api/util:temp_file",
