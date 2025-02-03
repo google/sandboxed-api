@@ -74,7 +74,7 @@ ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
 
 ABSL_FLAG(bool, sandbox2_monitor_ptrace_use_deadline_manager, false,
           "If set, ptrace monitor will use deadline manager to enforce "
-          "deadlines and as notification mechanism.");
+          "deadlines and as notification mechanism");
 
 ABSL_FLAG(bool, sandbox2_log_unobtainable_stack_traces_errors, true,
           "If set, unobtainable stack trace will be logged as errors.");
