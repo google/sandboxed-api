@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -35,7 +36,6 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/syscall.h"
-#include "sandboxed_api/sandbox2/trace_all_syscalls.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 

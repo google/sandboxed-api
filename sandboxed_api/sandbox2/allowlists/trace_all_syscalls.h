@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_TRACE_ALL_SYSCALLS_H_
-#define SANDBOXED_API_SANDBOX2_TRACE_ALL_SYSCALLS_H_
+#ifndef SANDBOXED_API_SANDBOX2_ALLOWLISTS_TRACE_ALL_SYSCALLS_H_
+#define SANDBOXED_API_SANDBOX2_ALLOWLISTS_TRACE_ALL_SYSCALLS_H_
 
-#include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"  // IWYU pragma: export
+namespace sandbox2 {
 
-#endif  // SANDBOXED_API_SANDBOX2_ALLOW_ALL_SYSCALLS_H_
+class TraceAllSyscalls {
+ public:
+  explicit TraceAllSyscalls() = default;
+};
+
+}  // namespace sandbox2
+
+#endif  // SANDBOXED_API_SANDBOX2_ALLOWLISTS_ALLOW_ALL_SYSCALLS_H_

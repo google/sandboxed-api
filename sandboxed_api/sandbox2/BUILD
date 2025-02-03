@@ -67,19 +67,23 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+# TODO b/393541004 - Remove this target after migration ./allowlists
 cc_library(
     name = "trace_all_syscalls",
     hdrs = ["trace_all_syscalls.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
+    deps = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:trace_all_syscalls"],
 )
 
+# TODO b/393541004 - Remove this target after migration to ./allowlists
 cc_library(
     name = "testonly_trace_all_syscalls",
     testonly = True,
     hdrs = ["trace_all_syscalls.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
+    deps = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:trace_all_syscalls"],
 )
 
 cc_library(
@@ -619,7 +623,6 @@ cc_library(
         ":namespace",
         ":policy",
         ":syscall",
-        ":trace_all_syscalls",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -632,6 +635,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_sandboxed_api//sandboxed_api:config",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:trace_all_syscalls",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
         "@com_google_sandboxed_api//sandboxed_api/util:file_base",
@@ -986,12 +990,12 @@ cc_test(
     deps = [
         ":comms",
         ":sandbox2",
-        ":trace_all_syscalls",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:trace_all_syscalls",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )

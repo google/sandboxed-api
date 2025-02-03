@@ -50,8 +50,9 @@ add_library(sandbox2_trace_all_syscalls ${SAPI_LIB_TYPE}
   trace_all_syscalls.h
 )
 add_library(sandbox2::trace_all_syscalls ALIAS sandbox2_trace_all_syscalls)
-target_link_libraries(sandbox2_trace_all_syscalls PRIVATE
-  sapi::base
+target_link_libraries(sandbox2_trace_all_syscalls
+  PUBLIC sandbox2::allowlists_trace_all_syscalls
+  PRIVATE sapi::base
 )
 
 # sandboxed_api/sandbox2:allow_unrestricted_networking
@@ -1033,7 +1034,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::comms
     sandbox2::regs
     sandbox2::sandbox2
-    sandbox2::trace_all_syscalls
+    sandbox2::allowlists_trace_all_syscalls
     sapi::status_matchers
     sapi::testing
     sapi::test_main

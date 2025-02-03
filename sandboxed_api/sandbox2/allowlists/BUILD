@@ -14,6 +14,10 @@
 
 # Description: Collection of allowlist tokens that are used to visibility
 # restrict features in Sandbox2.
+#
+# In order to restrict these functionalities, you will need to remove the
+# default visibility in a target (currently //visibility:public) with the
+# appropriate visibility list for your targets.
 
 load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
@@ -30,6 +34,21 @@ cc_library(
     name = "testonly_namespaces",
     testonly = True,
     hdrs = ["namespaces.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "trace_all_syscalls",
+    hdrs = ["trace_all_syscalls.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_trace_all_syscalls",
+    testonly = True,
+    hdrs = ["trace_all_syscalls.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
 )

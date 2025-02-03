@@ -19,7 +19,18 @@
 add_library(sandbox2_allowlists_namespaces ${SAPI_LIB_TYPE}
   namespaces.h
 )
-add_library(sandbox2::allowlists_namespaces ALIAS sandbox2_allowlists_namespaces)
+add_library(sandbox2::allowlists_namespaces ALIAS
+  sandbox2_allowlists_namespaces)
 target_link_libraries(sandbox2_allowlists_namespaces PRIVATE
+  sapi::base
+)
+
+# sandboxed_api/sandbox2/allowlists:trace_all_syscalls
+add_library(sandbox2_allowlists_trace_all_syscalls ${SAPI_LIB_TYPE}
+  trace_all_syscalls.h
+)
+add_library(sandbox2::allowlists_trace_all_syscalls ALIAS
+  sandbox2_allowlists_trace_all_syscalls)
+target_link_libraries(sandbox2_allowlists_trace_all_syscalls PRIVATE
   sapi::base
 )
