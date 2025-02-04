@@ -31,7 +31,8 @@ sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
   // Don't restrict the syscalls at all.
   builder.DefaultAction(sandbox2::AllowAllSyscalls());
   if (IsCoverageRun()) {
-    builder.AddDirectory(getenv("COVERAGE_DIR"), /*is_ro=*/false);
+    builder.AddDirectory(absl::NullSafeStringView(getenv("COVERAGE_DIR")),
+                         /*is_ro=*/false);
   }
   if constexpr (sapi::sanitizers::IsAny()) {
     builder.AddLibrariesForBinary(bin_path);
