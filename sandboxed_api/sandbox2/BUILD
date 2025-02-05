@@ -67,25 +67,6 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-# TODO b/393541004 - Remove this target after migration ./allowlists
-cc_library(
-    name = "trace_all_syscalls",
-    hdrs = ["trace_all_syscalls.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-    deps = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:trace_all_syscalls"],
-)
-
-# TODO b/393541004 - Remove this target after migration to ./allowlists
-cc_library(
-    name = "testonly_trace_all_syscalls",
-    testonly = True,
-    hdrs = ["trace_all_syscalls.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-    deps = ["@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:trace_all_syscalls"],
-)
-
 cc_library(
     name = "allow_unrestricted_networking",
     hdrs = ["allow_unrestricted_networking.h"],
