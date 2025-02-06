@@ -1042,6 +1042,7 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:testing",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:testonly_namespaces",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],

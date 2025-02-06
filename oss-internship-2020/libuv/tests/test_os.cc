@@ -36,7 +36,7 @@ class UVTestOSSapiSandbox : public uv::UVSandbox {
         .AllowOpen()
         .AllowWrite()
         .AllowSyscalls({__NR_connect, __NR_socket})
-        .DisableNamespaces()
+        .DisableNamespaces(NamespacesToken())
         .BuildOrDie();
   }
 };

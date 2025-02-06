@@ -855,14 +855,6 @@ class PolicyBuilder final {
     return *this;
   }
 
-  // Disables the use of namespaces.
-  //
-  // This will disable *all* namespaces.
-  //
-  // IMPORTANT: This is not recommended.
-  ABSL_DEPRECATED("Use DisableNamespaces(NamespacesToken()) instead.")
-  PolicyBuilder& DisableNamespaces();
-
   // Set hostname in the network namespace.
   //
   // The default hostname is "sandbox2".

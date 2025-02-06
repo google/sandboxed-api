@@ -29,6 +29,7 @@ target_link_libraries(tests
   uv_a
   uv_sapi
   sapi::sapi
+  sandbox2::allowlists_namespaces
 )
 
 gtest_discover_tests(tests)

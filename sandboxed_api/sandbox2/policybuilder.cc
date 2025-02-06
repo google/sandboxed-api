@@ -179,10 +179,6 @@ PolicyBuilder& PolicyBuilder::DisableNamespaces(NamespacesToken) {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::DisableNamespaces() {
-  return DisableNamespaces(NamespacesToken());
-}
-
 PolicyBuilder& PolicyBuilder::Allow(MapExec) {
   allow_map_exec_ = true;
   return *this;

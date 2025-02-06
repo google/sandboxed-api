@@ -1167,6 +1167,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     absl::time
     sandbox2::allowlists_all_syscalls
+    sandbox2::allowlists_namespaces
     sandbox2::global_forkserver
     sandbox2::sandbox2
     sandbox2::stack_trace

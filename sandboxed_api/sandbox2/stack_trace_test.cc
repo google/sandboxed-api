@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -162,7 +163,8 @@ TEST_P(StackTraceTest, SymbolizationWorksWithoutnNamespaces) {
   auto old_modify_policy = test_case.modify_policy;
   test_case.modify_policy = [old_modify_policy](PolicyBuilder* builder) {
     *builder = PolicyBuilder();
-    builder->DefaultAction(AllowAllSyscalls()).DisableNamespaces();
+    builder->DefaultAction(AllowAllSyscalls())
+        .DisableNamespaces(NamespacesToken());
     if (old_modify_policy) {
       old_modify_policy(builder);
     }
