@@ -15,6 +15,15 @@
 # Description: Collection of allowlist tokens that are used to visibility
 # restrict features in Sandbox2.
 
+# sandboxed_api/sandbox2/allowlists:all_syscalls
+add_library(sandbox2_allowlists_all_syscalls ${SAPI_LIB_TYPE}
+  all_syscalls.h
+)
+add_library(sandbox2::allowlists_all_syscalls ALIAS sandbox2_allowlists_all_syscalls)
+target_link_libraries(sandbox2_allowlists_all_syscalls PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2/allowlists:namespaces
 add_library(sandbox2_allowlists_namespaces ${SAPI_LIB_TYPE}
   namespaces.h
@@ -22,6 +31,36 @@ add_library(sandbox2_allowlists_namespaces ${SAPI_LIB_TYPE}
 add_library(sandbox2::allowlists_namespaces ALIAS
   sandbox2_allowlists_namespaces)
 target_link_libraries(sandbox2_allowlists_namespaces PRIVATE
+  sapi::base
+)
+
+# sandboxed_api/sandbox2allowlists:map_exec
+add_library(sandbox2_allowlists_map_exec ${SAPI_LIB_TYPE}
+  map_exec.h
+)
+add_library(sandbox2::allowlists_map_exec ALIAS
+  sandbox2_allowlists_map_exec)
+target_link_libraries(sandbox2_allowlists_map_exec PRIVATE
+  sapi::base
+)
+
+# sandboxed_api/sandbox2/allowlists:seccomp_speculation
+add_library(sandbox2_allowlists_seccomp_speculation ${SAPI_LIB_TYPE}
+  seccomp_speculation.h
+)
+add_library(sandbox2::allowlists_seccomp_speculation ALIAS
+  sandbox2_allowlists_seccomp_speculation)
+target_link_libraries(sandbox2_allowlists_seccomp_speculation PRIVATE
+  sapi::base
+)
+
+# sandboxed_api/sandbox2/allowlists:unrestricted_networking
+add_library(sandbox2_allowlists_unrestricted_networking ${SAPI_LIB_TYPE}
+  unrestricted_networking.h
+)
+add_library(sandbox2::allowlists_unrestricted_networking ALIAS
+  sandbox2_allowlists_unrestricted_networking)
+target_link_libraries(sandbox2_allowlists_unrestricted_networking PRIVATE
   sapi::base
 )
 

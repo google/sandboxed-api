@@ -244,7 +244,7 @@ cc_library(
         ":config",
         "@com_google_absl//absl/strings",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2:policybuilder",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:testonly_allow_all_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
         "@com_google_sandboxed_api//sandboxed_api/util:file_base",
     ],
 )

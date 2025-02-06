@@ -35,7 +35,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "sandboxed_api/sandbox2/allow_map_exec.h"  // Temporary
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"  // Temporary
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
@@ -334,7 +334,7 @@ class PolicyBuilder final {
   // Appends code to unconditionally allow mmap. Specifically this allows mmap
   // and mmap2 syscall on architectures where these syscalls exist.
   //
-  // This function requires that targets :allow_map_exec library to be linked
+  // This function requires that targets :map_exec library to be linked
   // against. Otherwise, the PolicyBuilder will fail to build the policy.
   //
   // Prefer using `AllowMmapWithoutExec()` as allowing mapping executable pages

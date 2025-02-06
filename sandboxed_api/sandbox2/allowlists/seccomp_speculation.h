@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_ALLOW_SECCOMP_SPECULATION_H_
-#define SANDBOXED_API_SANDBOX2_ALLOW_SECCOMP_SPECULATION_H_
+#ifndef SANDBOXED_API_SANDBOX2_ALLOWLISTS_SECCOMP_SPECULATION_H_
+#define SANDBOXED_API_SANDBOX2_ALLOWLISTS_SECCOMP_SPECULATION_H_
 
-#include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"  // IWYU pragma: export
+namespace sandbox2 {
 
-#endif  // SANDBOXED_API_SANDBOX2_ALLOW_SECCOMP_SPECULATION_H_
+class SeccompSpeculation {
+ public:
+  explicit SeccompSpeculation() = default;
+};
+
+}  // namespace sandbox2
+
+#endif  // SANDBOXED_API_SANDBOX2_ALLOWLISTS_SECCOMP_SPECULATION_H_

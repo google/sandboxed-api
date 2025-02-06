@@ -203,7 +203,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
            sapi::file_base
            sapi::base
    PUBLIC sapi::config
-          sandbox2::allow_all_syscalls
+          sandbox2::allowlists_all_syscalls
           sandbox2::policybuilder
   )
 

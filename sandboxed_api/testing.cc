@@ -19,7 +19,7 @@
 
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
-#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/util/path.h"
 

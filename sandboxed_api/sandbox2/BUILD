@@ -23,66 +23,6 @@ package(default_visibility = ["@com_google_sandboxed_api//sandboxed_api:__subpac
 licenses(["notice"])
 
 cc_library(
-    name = "allow_all_syscalls",
-    hdrs = ["allow_all_syscalls.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "testonly_allow_all_syscalls",
-    testonly = True,
-    hdrs = ["allow_all_syscalls.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "allow_map_exec",
-    hdrs = ["allow_map_exec.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "testonly_allow_map_exec",
-    testonly = True,
-    hdrs = ["allow_map_exec.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "allow_seccomp_speculation",
-    hdrs = ["allow_seccomp_speculation.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "testonly_allow_seccomp_speculation",
-    testonly = True,
-    hdrs = ["allow_seccomp_speculation.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "allow_unrestricted_networking",
-    hdrs = ["allow_unrestricted_networking.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "testonly_allow_unrestricted_networking",
-    testonly = True,
-    hdrs = ["allow_unrestricted_networking.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
     name = "bpfdisassembler",
     srcs = ["bpfdisassembler.cc"],
     hdrs = ["bpfdisassembler.h"],
@@ -404,7 +344,6 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":allow_map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
         ":client",
         ":comms",
         ":executor",
@@ -440,6 +379,7 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:client",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
@@ -595,10 +535,6 @@ cc_library(
     hdrs = ["policybuilder.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":allow_all_syscalls",
-        ":allow_map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
-        ":allow_seccomp_speculation",
-        ":allow_unrestricted_networking",
         ":forkserver_cc_proto",
         ":mounts",
         ":namespace",
@@ -615,8 +551,12 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_sandboxed_api//sandboxed_api:config",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:all_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:trace_all_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
         "@com_google_sandboxed_api//sandboxed_api/util:file_base",
@@ -780,8 +720,6 @@ cc_test(
     deps = [
         ":namespace",
         ":sandbox2",
-        ":testonly_allow_all_syscalls",
-        ":testonly_allow_unrestricted_networking",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -789,6 +727,8 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:testing",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:testonly_unrestricted_networking",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
         "@com_google_sandboxed_api//sandboxed_api/util:temp_file",
@@ -1094,7 +1034,6 @@ cc_test(
         ":global_forkserver",
         ":sandbox2",
         ":stack_trace",
-        ":testonly_allow_all_syscalls",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:scoped_mock_log",
@@ -1102,6 +1041,7 @@ cc_test(
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:testing",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
@@ -1136,12 +1076,12 @@ cc_test(
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        ":allow_unrestricted_networking",
         ":policy",
         ":policybuilder",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
         "@com_google_sandboxed_api//sandboxed_api/util:file_base",
         "@com_google_sandboxed_api//sandboxed_api/util:fileops",

@@ -15,13 +15,6 @@
 #ifndef SANDBOXED_API_SANDBOX2_ALLOW_UNRESTRICTED_NETWORKING_H_
 #define SANDBOXED_API_SANDBOX2_ALLOW_UNRESTRICTED_NETWORKING_H_
 
-namespace sandbox2 {
-
-class UnrestrictedNetworking {
- public:
-  explicit UnrestrictedNetworking() = default;
-};
-
-}  // namespace sandbox2
+#include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"  // IWYU pragma: export
 
 #endif  // SANDBOXED_API_SANDBOX2_ALLOW_UNRESTRICTED_NETWORKING_H_

@@ -29,8 +29,8 @@ target_link_libraries(sandbox2_sandbox2tool PRIVATE
   absl::log_severity
   absl::strings
   absl::time
-  sandbox2::allow_all_syscalls
-  sandbox2::allow_unrestricted_networking
+  sandbox2::allowlists_all_syscalls
+  sandbox2::allowlists_unrestricted_networking
   sandbox2::bpf_helper
   sandbox2::sandbox2
   sandbox2::util

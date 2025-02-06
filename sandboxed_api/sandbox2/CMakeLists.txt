@@ -887,8 +887,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::status
     absl::statusor
     absl::strings
-    sandbox2::allow_all_syscalls
-    sandbox2::allow_unrestricted_networking
+    sandbox2::allowlists_all_syscalls
+    sandbox2::allowlists_unrestricted_networking
     sandbox2::allowlists_namespaces
     sapi::fileops
     sandbox2::namespace
@@ -1166,7 +1166,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::status
     absl::strings
     absl::time
-    sandbox2::allow_all_syscalls
+    sandbox2::allowlists_all_syscalls
     sandbox2::global_forkserver
     sandbox2::sandbox2
     sandbox2::stack_trace
@@ -1216,7 +1216,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::log
             absl::status
             absl::statusor
-            sandbox2::allow_unrestricted_networking
+            sandbox2::allowlists_unrestricted_networking
             sandbox2::bpf_helper
             sandbox2::policy
             sandbox2::policybuilder

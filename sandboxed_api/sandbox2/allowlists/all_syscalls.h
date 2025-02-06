@@ -1,4 +1,4 @@
-// Copyright 2024 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_ALLOW_SECCOMP_SPECULATION_H_
-#define SANDBOXED_API_SANDBOX2_ALLOW_SECCOMP_SPECULATION_H_
+#ifndef SANDBOXED_API_SANDBOX2_ALLOWLISTS_ALL_SYSCALLS_H_
+#define SANDBOXED_API_SANDBOX2_ALLOWLISTS_ALL_SYSCALLS_H_
 
-#include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"  // IWYU pragma: export
+namespace sandbox2 {
 
-#endif  // SANDBOXED_API_SANDBOX2_ALLOW_SECCOMP_SPECULATION_H_
+class AllowAllSyscalls {
+ public:
+  explicit AllowAllSyscalls() = default;
+};
+
+}  // namespace sandbox2
+
+#endif  // SANDBOXED_API_SANDBOX2_ALLOWLISTS_ALL_SYSCALLS_H_

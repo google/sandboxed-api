@@ -24,6 +24,66 @@ load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_plat
 licenses(["notice"])
 
 cc_library(
+    name = "all_syscalls",
+    hdrs = ["all_syscalls.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_all_syscalls",
+    testonly = True,
+    hdrs = ["all_syscalls.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "map_exec",
+    hdrs = ["map_exec.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_map_exec",
+    testonly = True,
+    hdrs = ["map_exec.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "seccomp_speculation",
+    hdrs = ["seccomp_speculation.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_seccomp_speculation",
+    testonly = True,
+    hdrs = ["seccomp_speculation.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "unrestricted_networking",
+    hdrs = ["unrestricted_networking.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_unrestricted_networking",
+    testonly = True,
+    hdrs = ["unrestricted_networking.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "namespaces",
     hdrs = ["namespaces.h"],
     copts = sapi_platform_copts(),

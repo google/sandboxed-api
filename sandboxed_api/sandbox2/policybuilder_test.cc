@@ -29,7 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/sandbox2/allow_unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"

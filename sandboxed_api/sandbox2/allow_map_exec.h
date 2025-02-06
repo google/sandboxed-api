@@ -15,13 +15,6 @@
 #ifndef SANDBOXED_API_SANDBOX2_ALLOW_MAP_EXEC_H_
 #define SANDBOXED_API_SANDBOX2_ALLOW_MAP_EXEC_H_
 
-namespace sandbox2 {
-
-class MapExec {
- public:
-  explicit MapExec() = default;
-};
-
-}  // namespace sandbox2
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"  // IWYU pragma: export
 
 #endif  // SANDBOXED_API_SANDBOX2_ALLOW_MAP_EXEC_H_

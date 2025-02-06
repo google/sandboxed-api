@@ -30,7 +30,7 @@
 #include "absl/log/scoped_mock_log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
-#include "sandboxed_api/sandbox2/allow_all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/policy.h"
