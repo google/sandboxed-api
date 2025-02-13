@@ -551,7 +551,12 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::bpf_helper
           sandbox2::namespace
           sandbox2::syscall
+          sandbox2::allowlists_all_syscalls
+          sandbox2::allowlists_map_exec
           sandbox2::allowlists_namespaces
+          sandbox2::allowlists_seccomp_speculation
+          sandbox2::allowlists_trace_all_syscalls
+          sandbox2::allowlists_unrestricted_networking
           sapi::file_base
           sapi::fileops
           sapi::status

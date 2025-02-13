@@ -552,7 +552,6 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_sandboxed_api//sandboxed_api:config",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:all_syscalls",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:load_user_bpf_code_from_file",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
