@@ -76,6 +76,25 @@
 #include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
 #endif
 
+#ifndef BPF_MAP_LOOKUP_ELEM
+#define BPF_MAP_LOOKUP_ELEM 1
+#endif
+#ifndef BPF_OBJ_GET
+#define BPF_OBJ_GET 7
+#endif
+#ifndef BPF_MAP_GET_NEXT_KEY
+#define BPF_MAP_GET_NEXT_KEY 4
+#endif
+#ifndef BPF_MAP_GET_NEXT_ID
+#define BPF_MAP_GET_NEXT_ID 12
+#endif
+#ifndef BPF_MAP_GET_FD_BY_ID
+#define BPF_MAP_GET_FD_BY_ID 14
+#endif
+#ifndef BPF_OBJ_GET_INFO_BY_FD
+#define BPF_OBJ_GET_INFO_BY_FD 15
+#endif
+
 #ifndef MAP_FIXED_NOREPLACE
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
@@ -810,6 +829,23 @@ PolicyBuilder& PolicyBuilder::AllowUtime() {
       __NR_utimensat,
 #endif
   });
+}
+
+PolicyBuilder& PolicyBuilder::AllowSafeBpf() {
+  if (allowed_complex_.safe_bpf) {
+    return *this;
+  }
+  allowed_complex_.safe_bpf = true;
+  user_policy_handles_bpf_ = true;
+  return AddPolicyOnSyscall(__NR_bpf, {
+                                          ARG_32(1),
+                                          JEQ32(BPF_MAP_LOOKUP_ELEM, ALLOW),
+                                          JEQ32(BPF_OBJ_GET, ALLOW),
+                                          JEQ32(BPF_MAP_GET_NEXT_KEY, ALLOW),
+                                          JEQ32(BPF_MAP_GET_NEXT_ID, ALLOW),
+                                          JEQ32(BPF_MAP_GET_FD_BY_ID, ALLOW),
+                                          JEQ32(BPF_OBJ_GET_INFO_BY_FD, ALLOW),
+                                      });
 }
 
 PolicyBuilder& PolicyBuilder::AllowSafeFcntl() {

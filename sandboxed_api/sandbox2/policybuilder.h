@@ -487,6 +487,16 @@ class PolicyBuilder final {
   // - utimes
   PolicyBuilder& AllowUtime();
 
+  // Appends code to allow safe calls to bpf.
+  //
+  // Allows this syscall:
+  // - bpf
+  //
+  // The above is only allowed when the cmd is one of:
+  // BPF_MAP_LOOKUP_ELEM, BPF_OBJ_GET, BPF_MAP_GET_NEXT_KEY,
+  // BPF_MAP_GET_FD_BY_ID, BPF_OBJ_GET_INFO_BY_FD
+  PolicyBuilder& AllowSafeBpf();
+
   // Appends code to allow safe calls to fcntl.
   //
   // Allows these syscalls:
@@ -1045,6 +1055,7 @@ class PolicyBuilder final {
     bool madvise_populate = false;
     bool mmap_without_exec = false;
     bool mprotect_without_exec = false;
+    bool safe_bpf = false;
     bool safe_fcntl = false;
     bool tcgets = false;
     bool slow_fences = false;
