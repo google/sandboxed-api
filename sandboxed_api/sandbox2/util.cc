@@ -474,8 +474,7 @@ absl::StatusOr<size_t> ProcessVmReadInSplitChunks(pid_t pid, uintptr_t ptr,
     std::vector<iovec> remote_iov;
     // Each iovec should be contained to a single page.
     while (!data.empty() && remote_iov.size() < IOV_MAX) {
-      size_t size_in_page =
-          ptr & page_mask ? page_size - ptr & page_mask : page_size;
+      size_t size_in_page = page_size - (ptr & page_mask);
       size_t chunk_size = std::min(data.size(), size_in_page);
       remote_iov.push_back({reinterpret_cast<void*>(ptr), chunk_size});
       local_iov.iov_len += chunk_size;

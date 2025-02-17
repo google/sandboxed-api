@@ -52,7 +52,8 @@ void ExitNormally(int x = 0) {
   IndirectLibcCall([x]() {
     // _exit is marked noreturn, which makes stack traces a bit trickier -
     // work around by using a volatile read
-    if (volatile int y = 1) {
+    volatile int y = 1;
+    if (y) {
       _exit(x);
     }
   });
