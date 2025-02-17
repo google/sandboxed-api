@@ -240,7 +240,20 @@ TEST(PolicyBuilderTest, TestIsCopyable) {
   EXPECT_THAT(copy.TryBuild(), IsOk());
 }
 
-TEST(PolicyBuilderTest, CanBypassPtrace) {
+TEST(PolicyBuilderTest, CannotBypassBpf) {
+  PolicyBuilder builder;
+  builder.AddPolicyOnSyscall(__NR_bpf, {ALLOW})
+      .BlockSyscallWithErrno(__NR_bpf, ENOENT);
+  EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
+}
+
+TEST(PolicyBuilderTest, CannotBypassAfterAllowSafeBpf) {
+  PolicyBuilder builder;
+  builder.AllowSafeBpf().AddPolicyOnSyscall(__NR_bpf, {ALLOW});
+  EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
+}
+
+TEST(PolicyBuilderTest, CannotBypassPtrace) {
   PolicyBuilder builder;
   builder.AddPolicyOnSyscall(__NR_ptrace, {ALLOW})
       .BlockSyscallWithErrno(__NR_ptrace, ENOENT);
