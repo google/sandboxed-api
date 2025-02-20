@@ -26,7 +26,7 @@
 namespace sapi {
 
 sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
-    absl::string_view bin_path) {
+    absl::string_view binary_path) {
   sandbox2::PolicyBuilder builder;
   // Don't restrict the syscalls at all.
   builder.DefaultAction(sandbox2::AllowAllSyscalls());
@@ -35,7 +35,7 @@ sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
                          /*is_ro=*/false);
   }
   if constexpr (sapi::sanitizers::IsAny()) {
-    builder.AddLibrariesForBinary(bin_path);
+    builder.AddLibrariesForBinary(binary_path);
   }
   if constexpr (sapi::sanitizers::IsAny()) {
     builder.AddDirectory("/proc");

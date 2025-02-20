@@ -937,11 +937,13 @@ cc_test(
     tags = ["no_qemu_user_mode"],
     deps = [
         ":sandbox2",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
         "@com_google_sandboxed_api//sandboxed_api:config",
         "@com_google_sandboxed_api//sandboxed_api:testing",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/util:file_base",
         "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
     ],
 )
