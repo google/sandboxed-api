@@ -779,7 +779,11 @@ class PolicyBuilder final {
   //
   // NOTE: This function will abort if an error happened in any of the
   // PolicyBuilder methods. This should only be called once.
-  std::unique_ptr<Policy> BuildOrDie() { return TryBuild().value(); }
+  std::unique_ptr<Policy> BuildOrDie() {
+    absl::StatusOr<std::unique_ptr<Policy>> policy = TryBuild();
+    CHECK_OK(policy);
+    return *std::move(policy);
+  }
 
   // Adds a bind-mount for a file from outside the namespace to inside.
   //
