@@ -120,9 +120,59 @@ TEST(PolicyTest, BpfPtracePermissionDenied) {
           {__NR_ptrace, __NR_bpf}, EPERM));
   Result result = s2.Run();
 
-  // ptrace/bpf is not a violation due to explicit policy.  EPERM is expected.
+  // ptrace/bpf is not a violation due to explicit policy. EPERM is expected.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+// Test that we can allow safe uses of bpf().
+TEST(PolicyTest, BpfAllowSafe) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  {
+    Sandbox2 s2 = CreateTestSandbox(
+        {"policy", "9"},  // Calls TestSafeBpf()
+        CreateDefaultPermissiveTestPolicy(path).AllowSafeBpf());
+    Result result = s2.Run();
+
+    ASSERT_THAT(result.final_status(), Eq(Result::OK));
+    EXPECT_THAT(result.reason_code(), Eq(0));
+  }
+  {
+    Sandbox2 s2 = CreateTestSandbox(
+        {"policy", "5"},  // Calls TestBpf()
+        CreateDefaultPermissiveTestPolicy(path).AllowSafeBpf());
+    Result result = s2.Run();
+
+    ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+    EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
+  }
+}
+
+// Test that bpf can return EPERM even after AllowSafeBpf() is called.
+TEST(PolicyTest, BpfAllowSafeButBlock) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  {
+    Sandbox2 s2 =
+        CreateTestSandbox({"policy", "8"},  // Calls TestBpfBlocked()
+                          CreateDefaultPermissiveTestPolicy(path)
+                              .AllowSafeBpf()
+                              .BlockSyscallWithErrno(__NR_bpf, EPERM));
+    Result result = s2.Run();
+
+    ASSERT_THAT(result.final_status(), Eq(Result::OK));
+    EXPECT_THAT(result.reason_code(), Eq(0));
+  }
+  {
+    Sandbox2 s2 =
+        CreateTestSandbox({"policy", "9"},  // Calls TestSafeBpf()
+                          CreateDefaultPermissiveTestPolicy(path)
+                              .AllowSafeBpf()
+                              .BlockSyscallWithErrno(__NR_bpf, EPERM));
+    Result result = s2.Run();
+
+    ASSERT_THAT(result.final_status(), Eq(Result::OK));
+    EXPECT_THAT(result.reason_code(), Eq(0));
+  }
 }
 
 TEST(PolicyTest, IsattyAllowed) {
@@ -207,7 +257,7 @@ PolicyBuilder MinimalTestcasePolicyBuilder() {
 TEST(MinimalTest, MinimalBinaryWorks) {
   SKIP_SANITIZERS;
   Sandbox2 s2 = CreateTestSandbox({"minimal"}, MinimalTestcasePolicyBuilder());
-  auto result = s2.Run();
+  Result result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
@@ -223,7 +273,7 @@ TEST(MinimalTest, MinimalSharedBinaryWorks) {
                                               .AllowDynamicStartup()
                                               .AllowExit()
                                               .AllowLlvmCoverage());
-  auto result = s2.Run();
+  Result result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
@@ -239,7 +289,7 @@ TEST(MallocTest, SystemMallocWorks) {
                                               .AllowSystemMalloc()
                                               .AllowExit()
                                               .AllowLlvmCoverage());
-  auto result = s2.Run();
+  Result result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
@@ -293,7 +343,7 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
                       {ERRNO(42)})
                   .AddPolicyOnSyscalls({__NR_write}, {ERRNO(43)})
                   .AddPolicyOnSyscall(__NR_umask, {DENY}));
-  auto result = s2.Run();
+  Result result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(__NR_umask));
@@ -310,7 +360,7 @@ TEST(PolicyTest, DetectSandboxSyscall) {
   SAPI_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Policy> policy,
                             CreateDefaultPermissiveTestPolicy(path).TryBuild());
   Sandbox2 s2(std::move(executor), std::move(policy));
-  auto result = s2.Run();
+  Result result = s2.Run();
 
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));

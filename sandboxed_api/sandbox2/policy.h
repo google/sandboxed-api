@@ -96,6 +96,7 @@ class Policy final {
   bool collect_stacktrace_on_exit_ = false;
 
   bool allow_map_exec_ = false;
+  bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;
 
   // The policy set by the user.

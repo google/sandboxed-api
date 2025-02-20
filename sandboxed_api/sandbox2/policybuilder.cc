@@ -76,25 +76,6 @@
 #include <asm/termbits.h>  // On PPC, TCGETS macro needs termios
 #endif
 
-#ifndef BPF_MAP_LOOKUP_ELEM
-#define BPF_MAP_LOOKUP_ELEM 1
-#endif
-#ifndef BPF_OBJ_GET
-#define BPF_OBJ_GET 7
-#endif
-#ifndef BPF_MAP_GET_NEXT_KEY
-#define BPF_MAP_GET_NEXT_KEY 4
-#endif
-#ifndef BPF_MAP_GET_NEXT_ID
-#define BPF_MAP_GET_NEXT_ID 12
-#endif
-#ifndef BPF_MAP_GET_FD_BY_ID
-#define BPF_MAP_GET_FD_BY_ID 14
-#endif
-#ifndef BPF_OBJ_GET_INFO_BY_FD
-#define BPF_OBJ_GET_INFO_BY_FD 15
-#endif
-
 #ifndef MAP_FIXED_NOREPLACE
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
@@ -832,20 +813,8 @@ PolicyBuilder& PolicyBuilder::AllowUtime() {
 }
 
 PolicyBuilder& PolicyBuilder::AllowSafeBpf() {
-  if (allowed_complex_.safe_bpf) {
-    return *this;
-  }
-  allowed_complex_.safe_bpf = true;
-  user_policy_handles_bpf_ = true;
-  return AddPolicyOnSyscall(__NR_bpf, {
-                                          ARG_32(1),
-                                          JEQ32(BPF_MAP_LOOKUP_ELEM, ALLOW),
-                                          JEQ32(BPF_OBJ_GET, ALLOW),
-                                          JEQ32(BPF_MAP_GET_NEXT_KEY, ALLOW),
-                                          JEQ32(BPF_MAP_GET_NEXT_ID, ALLOW),
-                                          JEQ32(BPF_MAP_GET_FD_BY_ID, ALLOW),
-                                          JEQ32(BPF_OBJ_GET_INFO_BY_FD, ALLOW),
-                                      });
+  allow_safe_bpf_ = true;
+  return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AllowSafeFcntl() {
@@ -1477,12 +1446,12 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
                      " > ", kMaxUserPolicyLength, ")."));
   }
 
-  // Using `new` to access a non-public constructor.
-  auto policy = absl::WrapUnique(new Policy());
-
   if (already_built_) {
     return absl::FailedPreconditionError("Can only build policy once.");
   }
+
+  // Using `new` to access a non-public constructor.
+  auto policy = absl::WrapUnique(new Policy());
 
   if (use_namespaces_) {
     // If no specific netns mode is set, default to per-sandboxee.
@@ -1498,6 +1467,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   }
 
   policy->allow_map_exec_ = allow_map_exec_;
+  policy->allow_safe_bpf_ = allow_safe_bpf_;
   policy->allow_speculation_ = allow_speculation_;
   policy->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
   policy->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;

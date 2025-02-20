@@ -247,6 +247,12 @@ TEST(PolicyBuilderTest, CannotBypassBpf) {
   EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
 }
 
+TEST(PolicyBuilderTest, AllowSafeBpf) {
+  PolicyBuilder builder;
+  builder.AllowSafeBpf();
+  EXPECT_THAT(builder.TryBuild(), IsOk());
+}
+
 TEST(PolicyBuilderTest, CannotBypassAfterAllowSafeBpf) {
   PolicyBuilder builder;
   builder.AllowSafeBpf().AddPolicyOnSyscall(__NR_bpf, {ALLOW});
@@ -290,5 +296,6 @@ TEST(PolicyBuilderTest, TestAllowLlvmCoverageWithoutCoverageDir) {
   EXPECT_THAT(builder.TryBuild(), IsOk());
   ASSERT_THAT(unsetenv("COVERAGE"), Eq(0));
 }
+
 }  // namespace
 }  // namespace sandbox2

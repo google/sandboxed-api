@@ -1021,6 +1021,7 @@ class PolicyBuilder final {
   bool requires_namespaces_ = false;
   NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
   bool allow_map_exec_ = true;  //  Temporary default while we migrate users.
+  bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;
   bool allow_mount_propagation_ = false;
   std::string hostname_ = std::string(kDefaultHostname);
@@ -1059,7 +1060,6 @@ class PolicyBuilder final {
     bool madvise_populate = false;
     bool mmap_without_exec = false;
     bool mprotect_without_exec = false;
-    bool safe_bpf = false;
     bool safe_fcntl = false;
     bool tcgets = false;
     bool slow_fences = false;

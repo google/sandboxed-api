@@ -99,6 +99,18 @@ void TestBpf() {
   exit(EXIT_FAILURE);
 }
 
+void TestSafeBpf() {
+#define BPF_MAP_LOOKUP_ELEM 1
+  // This call (if allowed) will return an error. We not interested in that
+  // here, we just want to check whether this call is allowed.
+  errno = 0;
+  syscall(__NR_bpf, BPF_MAP_LOOKUP_ELEM, nullptr, 0);
+  if (errno == EPERM) {
+    printf("System call should not have been blocked\n");
+    exit(EXIT_FAILURE);
+  }
+}
+
 void TestIsatty() { isatty(0); }
 
 int main(int argc, char* argv[]) {
@@ -139,6 +151,9 @@ int main(int argc, char* argv[]) {
       ABSL_FALLTHROUGH_INTENDED;
     case 8:
       TestBpfBlocked();
+      break;
+    case 9:
+      TestSafeBpf();
       break;
     default:
       printf("Unknown test: %d\n", testno);
