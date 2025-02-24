@@ -202,7 +202,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
    PRIVATE absl::strings
            sapi::file_base
            sapi::base
-   PUBLIC sapi::config
+   PUBLIC gtest
+          sapi::config
           sandbox2::allowlists_all_syscalls
           sandbox2::policybuilder
   )
