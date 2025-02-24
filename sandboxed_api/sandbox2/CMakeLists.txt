@@ -18,42 +18,6 @@ add_subdirectory(unwind)
 add_subdirectory(util)
 add_subdirectory(network_proxy)
 
-# sandboxed_api/sandbox2:allow_all_syscalls
-add_library(sandbox2_allow_all_syscalls ${SAPI_LIB_TYPE}
-  allow_all_syscalls.h
-)
-add_library(sandbox2::allow_all_syscalls ALIAS sandbox2_allow_all_syscalls)
-target_link_libraries(sandbox2_allow_all_syscalls PRIVATE
-  sapi::base
-)
-
-# sandboxed_api/sandbox2:allow_map_exec
-add_library(sandbox2_allow_map_exec ${SAPI_LIB_TYPE}
-  allow_map_exec.h
-)
-add_library(sandbox2::allow_allow_map_exec ALIAS sandbox2_allow_map_exec)
-target_link_libraries(sandbox2_allow_map_exec PRIVATE
-  sapi::base
-)
-
-# sandboxed_api/sandbox2:allow_seccomp_speculation
-add_library(sandbox2_allow_seccomp_speculation ${SAPI_LIB_TYPE}
-  allow_seccomp_speculation.h
-)
-add_library(sandbox2::allow_seccomp_speculation ALIAS sandbox2_allow_seccomp_speculation)
-target_link_libraries(sandbox2_allow_seccomp_speculation PRIVATE
-  sapi::base
-)
-
-# sandboxed_api/sandbox2:allow_unrestricted_networking
-add_library(sandbox2_allow_unrestricted_networking ${SAPI_LIB_TYPE}
-  allow_unrestricted_networking.h
-)
-add_library(sandbox2::allow_unrestricted_networking ALIAS sandbox2_allow_unrestricted_networking)
-target_link_libraries(sandbox2_allow_unrestricted_networking PRIVATE
-  sapi::base
-)
-
 # sandboxed_api/sandbox2:bpfdisassembler
 add_library(sandbox2_bpfdisassembler ${SAPI_LIB_TYPE}
   bpfdisassembler.cc
