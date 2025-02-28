@@ -708,6 +708,19 @@ target_compile_options(sandbox2_util PRIVATE
   -Wframe-larger-than=17000
 )
 
+# sandboxed_api/sandbox2:util_c
+add_library(sandbox2_util_c ${SAPI_LIB_TYPE}
+  util_c.cc
+  util_c.h
+)
+add_library(sandbox2::util_c ALIAS sandbox2_util_c)
+target_link_libraries(sandbox2_util_c
+  PRIVATE absl::statusor
+          absl::log
+          sandbox2::util
+          sapi::base
+)
+
 # sandboxed_api/sandbox2:buffer
 add_library(sandbox2_buffer ${SAPI_LIB_TYPE}
   buffer.cc

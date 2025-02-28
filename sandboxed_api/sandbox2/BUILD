@@ -777,6 +777,20 @@ cc_library(
     ],
 )
 
+# Library for C-wrappers of util.h.
+cc_library(
+    name = "util_c",
+    srcs = ["util_c.cc"],
+    hdrs = ["util_c.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":util",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 cc_library(
     name = "buffer",
     srcs = ["buffer.cc"],
