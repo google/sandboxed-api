@@ -52,23 +52,38 @@ std::string GetBinaryFromArgs(const std::vector<std::string>& args) {
              : args[0];
 }
 
-Sandbox2 CreateTestSandbox(const std::vector<std::string>& args,
-                           PolicyBuilder builder) {
-  CHECK(!args.empty());
-  return Sandbox2(std::make_unique<Executor>(GetBinaryFromArgs(args), args),
-                  builder.BuildOrDie());
-}
+class PolicyTest : public ::testing::TestWithParam<bool> {
+ public:
+  std::unique_ptr<Sandbox2> CreateTestSandbox(
+      const std::vector<std::string>& args, PolicyBuilder builder,
+      bool sandbox_pre_execve = true) {
+    CHECK(!args.empty());
+    if (GetParam()) {
+      builder.CollectStacktracesOnSignal(false);
+    }
+    auto executor = std::make_unique<Executor>(GetBinaryFromArgs(args), args);
+    executor->set_enable_sandbox_before_exec(sandbox_pre_execve);
+    auto sandbox =
+        std::make_unique<Sandbox2>(std::move(executor), builder.BuildOrDie());
+    if (GetParam()) {
+      CHECK_OK(sandbox->EnableUnotifyMonitor());
+    }
+    return sandbox;
+  }
 
-Sandbox2 CreatePermissiveTestSandbox(std::vector<std::string> args) {
-  return CreateTestSandbox(
-      args, CreateDefaultPermissiveTestPolicy(GetBinaryFromArgs(args)));
-}
+  std::unique_ptr<Sandbox2> CreatePermissiveTestSandbox(
+      std::vector<std::string> args, bool sandbox_pre_execve = true) {
+    return CreateTestSandbox(
+        args, CreateDefaultPermissiveTestPolicy(GetBinaryFromArgs(args)),
+        sandbox_pre_execve);
+  }
+};
 
 #ifdef SAPI_X86_64
 
 // Test that 32-bit syscalls from 64-bit are disallowed.
-TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
-  Result result = CreatePermissiveTestSandbox({"policy", "1"}).Run();
+TEST_P(PolicyTest, AMD64Syscall32PolicyAllowed) {
+  Result result = CreatePermissiveTestSandbox({"policy", "1"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(1));  // __NR_exit in 32-bit
@@ -76,8 +91,8 @@ TEST(PolicyTest, AMD64Syscall32PolicyAllowed) {
 }
 
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
-TEST(PolicyTest, AMD64Syscall32FsAllowed) {
-  Result result = CreatePermissiveTestSandbox({"policy", "2"}).Run();
+TEST_P(PolicyTest, AMD64Syscall32FsAllowed) {
+  Result result = CreatePermissiveTestSandbox({"policy", "2"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(),
@@ -88,37 +103,37 @@ TEST(PolicyTest, AMD64Syscall32FsAllowed) {
 #endif  // SAPI_X86_64
 
 // Test that ptrace(2) is disallowed.
-TEST(PolicyTest, PtraceDisallowed) {
-  Result result = CreatePermissiveTestSandbox({"policy", "3"}).Run();
+TEST_P(PolicyTest, PtraceDisallowed) {
+  Result result = CreatePermissiveTestSandbox({"policy", "3"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(__NR_ptrace));
 }
 
 // Test that clone(2) with flag CLONE_UNTRACED is disallowed.
-TEST(PolicyTest, CloneUntracedDisallowed) {
-  Result result = CreatePermissiveTestSandbox({"policy", "4"}).Run();
+TEST_P(PolicyTest, CloneUntracedDisallowed) {
+  Result result = CreatePermissiveTestSandbox({"policy", "4"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(__NR_clone));
 }
 
 // Test that bpf(2) is disallowed.
-TEST(PolicyTest, BpfDisallowed) {
-  Result result = CreatePermissiveTestSandbox({"policy", "5"}).Run();
+TEST_P(PolicyTest, BpfDisallowed) {
+  Result result = CreatePermissiveTestSandbox({"policy", "5"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
 }
 
 // Test that ptrace/bpf can return EPERM.
-TEST(PolicyTest, BpfPtracePermissionDenied) {
+TEST_P(PolicyTest, BpfPtracePermissionDenied) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
-  Sandbox2 s2 = CreateTestSandbox(
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
       {"policy", "7"},
       CreateDefaultPermissiveTestPolicy(path).BlockSyscallsWithErrno(
           {__NR_ptrace, __NR_bpf}, EPERM));
-  Result result = s2.Run();
+  Result result = s2->Run();
 
   // ptrace/bpf is not a violation due to explicit policy. EPERM is expected.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
@@ -126,22 +141,22 @@ TEST(PolicyTest, BpfPtracePermissionDenied) {
 }
 
 // Test that we can allow safe uses of bpf().
-TEST(PolicyTest, BpfAllowSafe) {
+TEST_P(PolicyTest, BpfAllowSafe) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   {
-    Sandbox2 s2 = CreateTestSandbox(
+    std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
         {"policy", "9"},  // Calls TestSafeBpf()
         CreateDefaultPermissiveTestPolicy(path).AllowSafeBpf());
-    Result result = s2.Run();
+    Result result = s2->Run();
 
     ASSERT_THAT(result.final_status(), Eq(Result::OK));
     EXPECT_THAT(result.reason_code(), Eq(0));
   }
   {
-    Sandbox2 s2 = CreateTestSandbox(
+    std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
         {"policy", "5"},  // Calls TestBpf()
         CreateDefaultPermissiveTestPolicy(path).AllowSafeBpf());
-    Result result = s2.Run();
+    Result result = s2->Run();
 
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
     EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
@@ -149,42 +164,43 @@ TEST(PolicyTest, BpfAllowSafe) {
 }
 
 // Test that bpf can return EPERM even after AllowSafeBpf() is called.
-TEST(PolicyTest, BpfAllowSafeButBlock) {
+TEST_P(PolicyTest, BpfAllowSafeButBlock) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   {
-    Sandbox2 s2 =
+    std::unique_ptr<Sandbox2> s2 =
         CreateTestSandbox({"policy", "8"},  // Calls TestBpfBlocked()
                           CreateDefaultPermissiveTestPolicy(path)
                               .AllowSafeBpf()
                               .BlockSyscallWithErrno(__NR_bpf, EPERM));
-    Result result = s2.Run();
+    Result result = s2->Run();
 
     ASSERT_THAT(result.final_status(), Eq(Result::OK));
     EXPECT_THAT(result.reason_code(), Eq(0));
   }
   {
-    Sandbox2 s2 =
+    std::unique_ptr<Sandbox2> s2 =
         CreateTestSandbox({"policy", "9"},  // Calls TestSafeBpf()
                           CreateDefaultPermissiveTestPolicy(path)
                               .AllowSafeBpf()
                               .BlockSyscallWithErrno(__NR_bpf, EPERM));
-    Result result = s2.Run();
+    Result result = s2->Run();
 
     ASSERT_THAT(result.final_status(), Eq(Result::OK));
     EXPECT_THAT(result.reason_code(), Eq(0));
   }
 }
 
-TEST(PolicyTest, IsattyAllowed) {
+TEST_P(PolicyTest, IsattyAllowed) {
   SKIP_SANITIZERS;
-  Sandbox2 s2 = CreateTestSandbox({"policy", "6"}, PolicyBuilder()
-                                                       .AllowStaticStartup()
-                                                       .AllowExit()
-                                                       .AllowRead()
-                                                       .AllowWrite()
-                                                       .AllowTCGETS()
-                                                       .AllowLlvmCoverage());
-  Result result = s2.Run();
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({"policy", "6"}, PolicyBuilder()
+                                             .AllowStaticStartup()
+                                             .AllowExit()
+                                             .AllowRead()
+                                             .AllowWrite()
+                                             .AllowTCGETS()
+                                             .AllowLlvmCoverage());
+  Result result = s2->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
 }
@@ -212,38 +228,38 @@ PolicyBuilder PosixTimersPolicyBuilder() {
       .AllowPosixTimers();
 }
 
-TEST(PolicyTest, PosixTimersWorkIfAllowed) {
+TEST_P(PolicyTest, PosixTimersWorkIfAllowed) {
   SKIP_SANITIZERS;
   for (absl::string_view kind : {"SIGEV_NONE", "SIGEV_SIGNAL",
                                  "SIGEV_THREAD_ID", "syscall(SIGEV_THREAD)"}) {
-    Sandbox2 s2 = CreateTestSandbox(
+    std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
         {"posix_timers", "--sigev_notify_kind", std::string(kind)},
         PosixTimersPolicyBuilder());
-    Result result = s2.Run();
+    Result result = s2->Run();
     EXPECT_EQ(result.final_status(), Result::OK) << kind;
   }
 }
 
-TEST(PolicyTest, PosixTimersCannotCreateThreadsIfThreadsAreProhibited) {
+TEST_P(PolicyTest, PosixTimersCannotCreateThreadsIfThreadsAreProhibited) {
   SKIP_SANITIZERS;
-  Sandbox2 s2 = CreateTestSandbox(
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
       {"posix_timers",
        // SIGEV_THREAD creates a thread as an implementation detail.
        "--sigev_notify_kind=SIGEV_THREAD"},
       PosixTimersPolicyBuilder());
-  Result result = s2.Run();
+  Result result = s2->Run();
   EXPECT_EQ(result.final_status(), Result::VIOLATION);
 }
 
-TEST(PolicyTest, PosixTimersCanCreateThreadsIfThreadsAreAllowed) {
+TEST_P(PolicyTest, PosixTimersCanCreateThreadsIfThreadsAreAllowed) {
   SKIP_SANITIZERS;
-  Sandbox2 s2 =
+  std::unique_ptr<Sandbox2> s2 =
       CreateTestSandbox({"posix_timers", "--sigev_notify_kind=SIGEV_THREAD"},
                         PosixTimersPolicyBuilder()
                             .AllowFork()
                             // For Arm.
                             .AllowSyscall(__NR_madvise));
-  Result result = s2.Run();
+  Result result = s2->Run();
   EXPECT_EQ(result.final_status(), Result::OK);
 }
 
@@ -254,42 +270,45 @@ PolicyBuilder MinimalTestcasePolicyBuilder() {
 // Test that we can sandbox a minimal static binary returning 0.
 // If this starts failing, it means something changed, maybe in the way we
 // compile static binaries, and we need to update the policy just above.
-TEST(MinimalTest, MinimalBinaryWorks) {
+TEST_P(PolicyTest, MinimalBinaryWorks) {
   SKIP_SANITIZERS;
-  Sandbox2 s2 = CreateTestSandbox({"minimal"}, MinimalTestcasePolicyBuilder());
-  Result result = s2.Run();
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({"minimal"}, MinimalTestcasePolicyBuilder());
+  Result result = s2->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
 }
 
 // Test that we can sandbox a minimal non-static binary returning 0.
-TEST(MinimalTest, MinimalSharedBinaryWorks) {
+TEST_P(PolicyTest, MinimalSharedBinaryWorks) {
   SKIP_SANITIZERS;
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
-  Sandbox2 s2 = CreateTestSandbox({path}, PolicyBuilder()
-                                              .AddLibrariesForBinary(path)
-                                              .AllowDynamicStartup()
-                                              .AllowExit()
-                                              .AllowLlvmCoverage());
-  Result result = s2.Run();
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({path}, PolicyBuilder()
+                                    .AddLibrariesForBinary(path)
+                                    .AllowDynamicStartup()
+                                    .AllowExit()
+                                    .AllowLlvmCoverage());
+  Result result = s2->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
 }
 
 // Test that the AllowSystemMalloc helper works as expected.
-TEST(MallocTest, SystemMallocWorks) {
+TEST_P(PolicyTest, SystemMallocWorks) {
   SKIP_SANITIZERS;
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/malloc_system");
-  Sandbox2 s2 = CreateTestSandbox({path}, PolicyBuilder()
-                                              .AllowStaticStartup()
-                                              .AllowSystemMalloc()
-                                              .AllowExit()
-                                              .AllowLlvmCoverage());
-  Result result = s2.Run();
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({path}, PolicyBuilder()
+                                    .AllowStaticStartup()
+                                    .AllowSystemMalloc()
+                                    .AllowExit()
+                                    .AllowLlvmCoverage());
+  Result result = s2->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
@@ -300,11 +319,11 @@ TEST(MallocTest, SystemMallocWorks) {
 // almost correct, but that the jump targets were off slightly. This uses the
 // AddPolicyOnSyscall multiple times in a row to make any miscalculation
 // unlikely to pass this check.
-TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
+TEST_P(PolicyTest, AddPolicyOnSyscallsWorks) {
   SKIP_SANITIZERS_AND_COVERAGE;
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/add_policy_on_syscalls");
-  Sandbox2 s2 = CreateTestSandbox(
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
       {path}, PolicyBuilder()
                   .AllowStaticStartup()
                   .AllowTcMalloc()
@@ -343,29 +362,45 @@ TEST(MultipleSyscalls, AddPolicyOnSyscallsWorks) {
                       {ERRNO(42)})
                   .AddPolicyOnSyscalls({__NR_write}, {ERRNO(43)})
                   .AddPolicyOnSyscall(__NR_umask, {DENY}));
-  Result result = s2.Run();
+  Result result = s2->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.reason_code(), Eq(__NR_umask));
 }
 
 // Test that util::kMagicSyscallNo is returns ENOSYS or util::kMagicSyscallErr.
-TEST(PolicyTest, DetectSandboxSyscall) {
+TEST_P(PolicyTest, DetectSandboxSyscall) {
   const std::string path =
       GetTestSourcePath("sandbox2/testcases/sandbox_detection");
-  const std::vector<std::string> args = {path};
-
-  auto executor = std::make_unique<Executor>(path, args);
-  executor->set_enable_sandbox_before_exec(false);
-  SAPI_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Policy> policy,
-                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
-  Sandbox2 s2(std::move(executor), std::move(policy));
-  Result result = s2.Run();
+  std::unique_ptr<Sandbox2> s2 =
+      CreatePermissiveTestSandbox({path}, /*sandbox_pre_execve=*/false);
+  Result result = s2->Run();
 
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
+
+TEST_P(PolicyTest, ExecveatAllowedByDefault) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/execveat");
+
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {path},
+      CreateDefaultPermissiveTestPolicy(path).BlockSyscallWithErrno(
+          __NR_execveat, EPERM),
+      /*sandbox_pre_execve=*/false);
+  Result result = s2->Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+INSTANTIATE_TEST_SUITE_P(Sandbox2, PolicyTest, ::testing::Values(false, true),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "UnotifyMonitor"
+                                             : "PtraceMonitor";
+                         });
 
 }  // namespace
 }  // namespace sandbox2

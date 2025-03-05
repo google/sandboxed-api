@@ -315,3 +315,16 @@ cc_binary(
         "@com_google_absl//absl/time",
     ],
 )
+
+cc_binary(
+    name = "execveat",
+    testonly = True,
+    srcs = ["execveat.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = [
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+    ],
+)

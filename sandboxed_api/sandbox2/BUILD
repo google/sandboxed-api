@@ -941,6 +941,7 @@ cc_test(
     copts = sapi_platform_copts(),
     data = [
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:add_policy_on_syscalls",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:execveat",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:malloc_system",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/testcases:minimal_dynamic",

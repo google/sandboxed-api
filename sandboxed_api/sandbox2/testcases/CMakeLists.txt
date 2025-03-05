@@ -151,9 +151,6 @@ set_target_properties(sandbox2_testcase_policy PROPERTIES
 target_link_libraries(sandbox2_testcase_policy PRIVATE
   -static
   absl::core_headers
-  sandbox2::client
-  sandbox2::comms
-  sandbox2::util
   sapi::base
 )
 
@@ -389,4 +386,20 @@ target_link_libraries(sandbox2_testcase_posix_timers PRIVATE
   absl::strings
   absl::time
   sapi::base
+)
+
+# sandboxed_api/sandbox2/testcases:execveat
+add_executable(sandbox2_testcase_execveat
+  execveat.cc
+)
+add_executable(sandbox2::testcase_execveat ALIAS sandbox2_testcase_execveat)
+set_target_properties(sandbox2_testcase_execveat PROPERTIES
+  OUTPUT_NAME execveat
+)
+target_link_libraries(sandbox2_testcase_execveat PRIVATE
+  -static
+  sapi::base
+  sandbox2::client
+  sandbox2::comms
+  sandbox2::util
 )

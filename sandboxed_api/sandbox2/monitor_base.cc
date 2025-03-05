@@ -279,7 +279,8 @@ absl::Status MonitorBase::SendPolicy(const std::vector<sock_filter>& policy) {
 
 bool MonitorBase::InitSendPolicy() {
   bool user_notif = type_ == FORKSERVER_MONITOR_UNOTIFY;
-  auto policy = policy_->GetPolicy(user_notif);
+  auto policy =
+      policy_->GetPolicy(user_notif, executor_->enable_sandboxing_pre_execve_);
   absl::Status status = SendPolicy(std::move(policy));
   if (!status.ok()) {
     LOG(ERROR) << "Couldn't send policy: " << status;

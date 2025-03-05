@@ -75,7 +75,8 @@ namespace sandbox2 {
 //   1. default policy (GetDefaultPolicy, private),
 //   2. user policy (user_policy_, public),
 //   3. default KILL action (avoid failing open if user policy did not do it).
-std::vector<sock_filter> Policy::GetPolicy(bool user_notif) const {
+std::vector<sock_filter> Policy::GetPolicy(
+    bool user_notif, bool enable_sandboxing_pre_execve) const {
   if (absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all) ||
       !absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all_and_log).empty()) {
     return GetTrackingPolicy();
@@ -83,7 +84,7 @@ std::vector<sock_filter> Policy::GetPolicy(bool user_notif) const {
 
   // Now we can start building the policy.
   // 1. Start with the default policy (e.g. syscall architecture checks).
-  auto policy = GetDefaultPolicy(user_notif);
+  auto policy = GetDefaultPolicy(user_notif, enable_sandboxing_pre_execve);
   VLOG(3) << "Default policy:\n" << bpf::Disasm(policy);
 
   // 2. Append user policy.
@@ -105,7 +106,8 @@ std::vector<sock_filter> Policy::GetPolicy(bool user_notif) const {
 // Produces a policy which returns SECCOMP_RET_TRACE instead of SECCOMP_RET_KILL
 // for the __NR_execve syscall, so the tracer can make a decision to allow or
 // disallow it depending on which occurrence of __NR_execve it was.
-std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
+std::vector<sock_filter> Policy::GetDefaultPolicy(
+    bool user_notif, bool enable_sandboxing_pre_execve) const {
   bpf_labels l = {0};
 
   std::vector<sock_filter> policy;
@@ -122,16 +124,21 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
         ALLOW,
         LABEL(&l, past_seccomp_l),
         LOAD_SYSCALL_NR,
-        JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
-        ARG_32(4),
-        JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
-        ARG_32(5),
-        JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
-        ALLOW,
-        LABEL(&l, past_execveat_l),
-
-        LOAD_SYSCALL_NR,
     };
+    if (enable_sandboxing_pre_execve) {
+      policy.insert(
+          policy.end(),
+          {
+              JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
+              ARG_32(4),
+              JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
+              ARG_32(5),
+              JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
+              ALLOW,
+              LABEL(&l, past_execveat_l),
+              LOAD_SYSCALL_NR,
+          });
+    }
   } else {
     policy = {
         // If compiled arch is different from the runtime one, inform the
@@ -144,23 +151,28 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(bool user_notif) const {
         TRACE(sapi::cpu::kUnknown),
         LABEL(&l, past_arch_check_l),
 
-        // After the policy is uploaded, forkserver will execve the sandboxee.
-        // We need to allow this execve but not others. Since BPF does not have
-        // state, we need to inform the Monitor to decide, and for that we use a
-        // magic value in syscall args 5. Note that this value is not supposed
-        // to be secret, but just an optimization so that the monitor is not
-        // triggered on every call to execveat.
-        LOAD_SYSCALL_NR,
-        JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
-        ARG_32(4),
-        JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
-        ARG_32(5),
-        JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
-        SANDBOX2_TRACE,
-        LABEL(&l, past_execveat_l),
-
         LOAD_SYSCALL_NR,
     };
+    if (enable_sandboxing_pre_execve) {
+      // After the policy is uploaded, forkserver will execve the sandboxee.
+      // We need to allow this execve but not others. Since BPF does not have
+      // state, we need to inform the Monitor to decide, and for that we use a
+      // magic value in syscall args 5. Note that this value is not supposed
+      // to be secret, but just an optimization so that the monitor is not
+      // triggered on every call to execveat.
+      policy.insert(
+          policy.end(),
+          {
+              JNE32(__NR_execveat, JUMP(&l, past_execveat_l)),
+              ARG_32(4),
+              JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
+              ARG_32(5),
+              JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
+              SANDBOX2_TRACE,
+              LABEL(&l, past_execveat_l),
+              LOAD_SYSCALL_NR,
+          });
+    }
   }
 
   // Insert a custom syscall to signal the sandboxee it's running inside a
