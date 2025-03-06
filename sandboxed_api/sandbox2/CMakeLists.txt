@@ -487,7 +487,7 @@ target_link_libraries(sandbox2_monitor_unotify
           sandbox2::bpf_evaluator
           sandbox2::client
           sandbox2::forkserver_proto
-          sapi::config
+          sandbox2::seccomp_unotify
           sapi::status
   PUBLIC sandbox2::executor
          sandbox2::monitor_base

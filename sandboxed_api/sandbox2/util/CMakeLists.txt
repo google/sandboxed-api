@@ -101,6 +101,28 @@ target_link_libraries(sandbox2_util_deadline_manager
           sapi::base
 )
 
+# sandboxed_api/sandbox2/util:seccomp_unotify
+add_library(sandbox2_util_seccomp_unotify ${SAPI_LIB_TYPE}
+  seccomp_unotify.cc
+  seccomp_unotify.h
+)
+add_library(sandbox2::seccomp_unotify ALIAS sandbox2_util_seccomp_unotify)
+target_link_libraries(sandbox2_util_seccomp_unotify
+  PUBLIC absl::status
+         absl::statusor
+         sandbox2::syscall
+         sapi::fileops
+  PRIVATE absl::cleanup
+          absl::log
+          absl::strings
+          absl::synchronization
+          sandbox2::bpf_helper
+          sandbox2::util
+          sapi::base
+          sapi::strerror
+          sapi::thread
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test
@@ -188,4 +210,20 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::thread
   )
   gtest_discover_tests_xcompile(sandbox2_deadline_manager_test)
+
+  # sandboxed_api/sandbox2/util:seccomp_unotify_test
+  add_executable(sandbox2_seccomp_unotify_test
+    seccomp_unotify_test.cc
+  )
+  set_target_properties(sandbox2_seccomp_unotify_test PROPERTIES
+    OUTPUT_NAME seccomp_unotify_test
+  )
+  target_link_libraries(sandbox2_seccomp_unotify_test PRIVATE
+    sandbox2::seccomp_unotify
+    absl::statusor
+    sapi::fileops
+    sapi::status_matchers
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_seccomp_unotify_test)
 endif()

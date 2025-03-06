@@ -1,10 +1,8 @@
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
 
-#include <linux/audit.h>
 #include <linux/seccomp.h>
 #include <poll.h>
 #include <sys/eventfd.h>
-#include <sys/ioctl.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
 #include <sys/sysinfo.h>
@@ -17,8 +15,6 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -36,7 +32,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpf_evaluator.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -45,6 +40,7 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
@@ -53,33 +49,7 @@
 #define SECCOMP_RET_USER_NOTIF 0x7fc00000U /* notifies userspace */
 #endif
 
-#ifndef SECCOMP_USER_NOTIF_FLAG_CONTINUE
-#define SECCOMP_USER_NOTIF_FLAG_CONTINUE 1
-#endif
-
 #define DO_USER_NOTIF BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_USER_NOTIF)
-
-#ifndef SECCOMP_GET_NOTIF_SIZES
-#define SECCOMP_GET_NOTIF_SIZES 3
-
-struct seccomp_notif_sizes {
-  __u16 seccomp_notif;
-  __u16 seccomp_notif_resp;
-  __u16 seccomp_data;
-};
-#endif
-
-#ifndef SECCOMP_IOCTL_NOTIF_RECV
-#ifndef SECCOMP_IOWR
-#define SECCOMP_IOC_MAGIC '!'
-#define SECCOMP_IO(nr) _IO(SECCOMP_IOC_MAGIC, nr)
-#define SECCOMP_IOWR(nr, type) _IOWR(SECCOMP_IOC_MAGIC, nr, type)
-#endif
-
-// Flags for seccomp notification fd ioctl.
-#define SECCOMP_IOCTL_NOTIF_RECV SECCOMP_IOWR(0, struct seccomp_notif)
-#define SECCOMP_IOCTL_NOTIF_SEND SECCOMP_IOWR(1, struct seccomp_notif_resp)
-#endif
 
 namespace sandbox2 {
 
@@ -89,23 +59,6 @@ using ::sapi::file_util::fileops::FDCloser;
 
 int seccomp(unsigned int operation, unsigned int flags, void* args) {
   return syscall(SYS_seccomp, operation, flags, args);
-}
-
-sapi::cpu::Architecture AuditArchToCPUArch(uint32_t arch) {
-  switch (arch) {
-    case AUDIT_ARCH_AARCH64:
-      return sapi::cpu::Architecture::kArm64;
-    case AUDIT_ARCH_ARM:
-      return sapi::cpu::Architecture::kArm;
-    case AUDIT_ARCH_X86_64:
-      return sapi::cpu::Architecture::kX8664;
-    case AUDIT_ARCH_I386:
-      return sapi::cpu::Architecture::kX86;
-    case AUDIT_ARCH_PPC64LE:
-      return sapi::cpu::Architecture::kPPC64LE;
-    default:
-      return sapi::cpu::Architecture::kUnknown;
-  }
 }
 
 absl::Status WaitForFdReadable(int fd, absl::Time deadline) {
@@ -202,53 +155,47 @@ void UnotifyMonitor::HandleViolation(const Syscall& syscall) {
                                      : ViolationType::kArchitectureSwitch;
   LogSyscallViolation(syscall);
   notify_->EventSyscallViolation(syscall, violation_type);
-  MaybeGetStackTrace(req_->pid, Result::VIOLATION);
+  MaybeGetStackTrace(syscall.pid(), Result::VIOLATION);
   SetExitStatusCode(Result::VIOLATION, syscall.nr());
   notify_->EventSyscallViolation(syscall, violation_type);
   result_.SetSyscall(std::make_unique<Syscall>(syscall));
   KillSandboxee();
 }
 
-void UnotifyMonitor::AllowSyscallViaUnotify() {
-  memset(resp_.get(), 0, resp_size_);
-  resp_->id = req_->id;
-  resp_->val = 0;
-  resp_->error = 0;
-  resp_->flags = SECCOMP_USER_NOTIF_FLAG_CONTINUE;
-  if (ioctl(seccomp_notify_fd_.get(), SECCOMP_IOCTL_NOTIF_SEND, resp_.get()) !=
-      0) {
-    if (errno == ENOENT) {
+void UnotifyMonitor::AllowSyscallViaUnotify(seccomp_notif req) {
+  if (!util::SeccompUnotify::IsContinueSupported()) {
+    LOG(ERROR)
+        << "SECCOMP_USER_NOTIF_FLAG_CONTINUE not supported by the kernel.";
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
+    return;
+  }
+  if (absl::Status status = seccomp_unotify_.RespondContinue(req);
+      !status.ok()) {
+    if (absl::IsNotFound(status)) {
       VLOG(1) << "Unotify send failed with ENOENT";
     } else {
-      LOG_IF(ERROR, errno == EINVAL)
-          << "Unotify send failed with EINVAL. Likely "
-             "SECCOMP_USER_NOTIF_FLAG_CONTINUE unsupported by the kernel.";
       SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
     }
   }
 }
 
 void UnotifyMonitor::HandleUnotify() {
-  memset(req_.get(), 0, req_size_);
-  if (ioctl(seccomp_notify_fd_.get(), SECCOMP_IOCTL_NOTIF_RECV, req_.get()) !=
-      0) {
-    if (errno == ENOENT) {
+  absl::StatusOr<seccomp_notif> req_data = seccomp_unotify_.Receive();
+  if (!req_data.ok()) {
+    if (absl::IsNotFound(req_data.status())) {
       VLOG(1) << "Unotify recv failed with ENOENT";
     } else {
       SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
+      return;
     }
-    return;
   }
-  Syscall syscall(AuditArchToCPUArch(req_->data.arch), req_->data.nr,
-                  {req_->data.args[0], req_->data.args[1], req_->data.args[2],
-                   req_->data.args[3], req_->data.args[4], req_->data.args[5]},
-                  req_->pid, 0, req_->data.instruction_pointer);
   absl::StatusOr<uint32_t> policy_ret =
-      bpf::Evaluate(original_policy_, req_->data);
+      bpf::Evaluate(original_policy_, req_data->data);
   if (!policy_ret.ok()) {
     LOG(ERROR) << "Failed to evaluate policy: " << policy_ret.status();
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
   }
+  Syscall syscall(*req_data);
   const sock_filter trace_action = SANDBOX2_TRACE;
   bool should_trace = *policy_ret == trace_action.k;
   Notify::TraceAction trace_response = Notify::TraceAction::kDeny;
@@ -257,7 +204,7 @@ void UnotifyMonitor::HandleUnotify() {
   }
   switch (trace_response) {
     case Notify::TraceAction::kAllow:
-      AllowSyscallViaUnotify();
+      AllowSyscallViaUnotify(*req_data);
       return;
     case Notify::TraceAction::kDeny:
       HandleViolation(syscall);
@@ -290,7 +237,7 @@ void UnotifyMonitor::Run() {
 
   pollfd pfds[] = {
       {.fd = process_.status_fd.get(), .events = POLLIN},
-      {.fd = seccomp_notify_fd_.get(), .events = POLLIN},
+      {.fd = seccomp_unotify_.GetFd(), .events = POLLIN},
       {.fd = monitor_notify_fd_.get(), .events = POLLIN},
   };
   while (result_.final_status() == Result::UNSET) {
@@ -405,16 +352,10 @@ bool UnotifyMonitor::InitSetupUnotify() {
     LOG(ERROR) << "Couldn't recv unotify fd";
     return false;
   }
-  seccomp_notify_fd_ = FDCloser(fd);
-  struct seccomp_notif_sizes sizes = {};
-  if (seccomp(SECCOMP_GET_NOTIF_SIZES, 0, &sizes) == -1) {
-    LOG(ERROR) << "Couldn't get seccomp_notif_sizes";
+  if (absl::Status status = seccomp_unotify_.Init(FDCloser(fd)); !status.ok()) {
+    LOG(ERROR) << "Could not init seccomp_unotify: " << status;
     return false;
   }
-  req_size_ = sizes.seccomp_notif;
-  req_.reset(static_cast<seccomp_notif*>(malloc(req_size_)));
-  resp_size_ = sizes.seccomp_notif_resp;
-  resp_.reset(static_cast<seccomp_notif_resp*>(malloc(resp_size_)));
   return true;
 }
 

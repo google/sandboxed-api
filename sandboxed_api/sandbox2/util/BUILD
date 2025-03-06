@@ -177,3 +177,36 @@ cc_test(
         "@com_google_sandboxed_api//sandboxed_api/util:thread",
     ],
 )
+
+cc_library(
+    name = "seccomp_unotify",
+    srcs = ["seccomp_unotify.cc"],
+    hdrs = ["seccomp_unotify.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":bpf_helper",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:syscall",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:strerror",
+        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+    ],
+)
+
+cc_test(
+    name = "seccomp_unotify_test",
+    srcs = ["seccomp_unotify_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":seccomp_unotify",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+    ],
+)

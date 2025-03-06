@@ -18,6 +18,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_SYSCALL_H__
 #define SANDBOXED_API_SANDBOX2_SYSCALL_H__
 
+#include <linux/seccomp.h>
 #include <sys/types.h>
 
 #include <array>
@@ -30,6 +31,10 @@
 #include "sandboxed_api/sandbox2/syscall_defs.h"
 
 namespace sandbox2 {
+class Regs;
+namespace util {
+class SeccompUnotify;
+}
 
 class Syscall {
  public:
@@ -49,6 +54,7 @@ class Syscall {
   static std::string GetArchDescription(sapi::cpu::Architecture arch);
 
   Syscall() = default;
+  Syscall(const seccomp_notif& req);
   Syscall(sapi::cpu::Architecture arch, uint64_t nr, Args args = {})
       : arch_(arch), nr_(nr), args_(args) {}
 
@@ -66,7 +72,6 @@ class Syscall {
 
  private:
   friend class Regs;
-  friend class UnotifyMonitor;
 
   explicit Syscall(pid_t pid) : pid_(pid) {}
   Syscall(sapi::cpu::Architecture arch, uint64_t nr, Args args, pid_t pid,

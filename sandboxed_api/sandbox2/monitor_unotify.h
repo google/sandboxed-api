@@ -10,7 +10,6 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,6 +24,7 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/thread.h"
 
@@ -96,7 +96,7 @@ class UnotifyMonitor : public MonitorBase {
   bool KillSandboxee();
   void KillInit();
 
-  void AllowSyscallViaUnotify();
+  void AllowSyscallViaUnotify(seccomp_notif req);
   void HandleViolation(const Syscall& syscall);
   void HandleUnotify();
   void SetExitStatusFromStatusPipe();
@@ -108,7 +108,6 @@ class UnotifyMonitor : public MonitorBase {
   void NotifyMonitor();
 
   absl::Notification setup_notification_;
-  sapi::file_util::fileops::FDCloser seccomp_notify_fd_;
   sapi::file_util::fileops::FDCloser monitor_notify_fd_;
   // Original policy as configured by the user.
   std::vector<sock_filter> original_policy_;
@@ -132,10 +131,7 @@ class UnotifyMonitor : public MonitorBase {
   // Synchronizes monitor thread deletion and notifying the monitor.
   absl::Mutex notify_mutex_;
 
-  size_t req_size_;
-  std::unique_ptr<seccomp_notif, StdFreeDeleter> req_;
-  size_t resp_size_;
-  std::unique_ptr<seccomp_notif_resp, StdFreeDeleter> resp_;
+  util::SeccompUnotify seccomp_unotify_;
 };
 
 }  // namespace sandbox2
