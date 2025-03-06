@@ -40,6 +40,7 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -189,13 +190,23 @@ void UnotifyMonitor::HandleUnotify() {
       return;
     }
   }
+  Syscall syscall(*req_data);
+  if (wait_for_execveat() && syscall.nr() == __NR_execveat &&
+      util::SeccompUnotify::IsContinueSupported()) {
+    VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: " << "SYSCALL ::: PID: "
+            << syscall.pid() << ", PROG: '" << util::GetProgName(syscall.pid())
+            << "' : " << syscall.GetDescription();
+    set_wait_for_execveat(false);
+    AllowSyscallViaUnotify(*req_data);
+    return;
+  }
   absl::StatusOr<uint32_t> policy_ret =
       bpf::Evaluate(original_policy_, req_data->data);
   if (!policy_ret.ok()) {
     LOG(ERROR) << "Failed to evaluate policy: " << policy_ret.status();
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
   }
-  Syscall syscall(*req_data);
+
   const sock_filter trace_action = SANDBOX2_TRACE;
   bool should_trace = *policy_ret == trace_action.k;
   Notify::TraceAction trace_response = Notify::TraceAction::kDeny;

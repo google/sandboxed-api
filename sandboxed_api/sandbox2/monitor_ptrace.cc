@@ -138,8 +138,7 @@ void CompleteSyscall(pid_t pid, int signo) {
 }  // namespace
 
 PtraceMonitor::PtraceMonitor(Executor* executor, Policy* policy, Notify* notify)
-    : MonitorBase(executor, policy, notify),
-      wait_for_execve_(executor->enable_sandboxing_pre_execve_) {
+    : MonitorBase(executor, policy, notify) {
   if (executor_->limits()->wall_time_limit() != absl::ZeroDuration()) {
     auto deadline = absl::Now() + executor_->limits()->wall_time_limit();
     deadline_millis_.store(absl::ToUnixMillis(deadline),
@@ -150,13 +149,6 @@ PtraceMonitor::PtraceMonitor(Executor* executor, Policy* policy, Notify* notify)
   use_deadline_manager_ =
       absl::GetFlag(FLAGS_sandbox2_monitor_ptrace_use_deadline_manager);
 }
-
-bool PtraceMonitor::IsActivelyMonitoring() {
-  // If we're still waiting for execve(), then we allow all syscalls.
-  return !wait_for_execve_;
-}
-
-void PtraceMonitor::SetActivelyMonitoring() { wait_for_execve_ = false; }
 
 void PtraceMonitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   pid_t pid = regs->pid();
@@ -346,7 +338,7 @@ void PtraceMonitor::Run() {
       // all remaining processes (if there are any) because of the
       // PTRACE_O_EXITKILL ptrace() flag.
       if (ret == process_.main_pid) {
-        if (IsActivelyMonitoring()) {
+        if (!wait_for_execveat()) {
           SetExitStatusCode(Result::OK, WEXITSTATUS(status));
         } else {
           SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_MONITOR);
@@ -632,7 +624,7 @@ bool PtraceMonitor::InitPtraceAttach() {
 
 void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
   // If the sandboxing is not enabled yet, allow the first __NR_execveat.
-  if (syscall.nr() == __NR_execveat && !IsActivelyMonitoring()) {
+  if (syscall.nr() == __NR_execveat && wait_for_execveat()) {
     VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: " << "SYSCALL ::: PID: "
             << regs->pid() << ", PROG: '" << util::GetProgName(regs->pid())
             << "' : " << syscall.GetDescription();
@@ -783,10 +775,10 @@ void PtraceMonitor::EventPtraceNewProcess(pid_t pid, int event_msg) {
 }
 
 void PtraceMonitor::EventPtraceExec(pid_t pid, int event_msg) {
-  if (!IsActivelyMonitoring()) {
+  if (wait_for_execveat()) {
     VLOG(1) << "PTRACE_EVENT_EXEC seen from PID: " << event_msg
             << ". SANDBOX ENABLED!";
-    SetActivelyMonitoring();
+    set_wait_for_execveat(false);
   } else {
     // ptrace doesn't issue syscall-exit-stops for successful execve/execveat
     // system calls. Check if the monitor wanted to inspect the syscall's return

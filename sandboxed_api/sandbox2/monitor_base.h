@@ -80,6 +80,11 @@ class MonitorBase {
   virtual void SetWallTimeLimit(absl::Duration limit) = 0;
 
  protected:
+  bool wait_for_execveat() const { return wait_for_execveat_; }
+  void set_wait_for_execveat(bool wait_for_execve) {
+    wait_for_execveat_ = wait_for_execve;
+  }
+
   void OnDone();
   // Sets basic info status and reason code in the result object.
   void SetExitStatusCode(Result::StatusEnum final_status,
@@ -168,6 +173,9 @@ class MonitorBase {
 
   // Is the sandboxee forked from a custom forkserver?
   bool uses_custom_forkserver_;
+
+  // Are we waiting for the first execveat syscall?
+  bool wait_for_execveat_ = false;
 };
 
 }  // namespace sandbox2

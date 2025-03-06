@@ -203,6 +203,7 @@ cc_library(
         "@com_google_sandboxed_api//sandboxed_api:config",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:filtering",
         "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
+        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:seccomp_unotify",
     ],
 )
 
@@ -469,6 +470,7 @@ cc_library(
         ":notify",
         ":policy",
         ":result",
+        ":util",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",

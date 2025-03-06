@@ -40,6 +40,7 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 
 #ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
@@ -112,6 +113,10 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
 
   std::vector<sock_filter> policy;
   if (user_notif) {
+    sock_filter execve_action = ALLOW;
+    if (util::SeccompUnotify::IsContinueSupported()) {
+      execve_action = BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_USER_NOTIF);
+    }
     policy = {
         // If compiled arch is different from the runtime one, inform the
         // Monitor.
@@ -134,7 +139,7 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
               JNE32(AT_EMPTY_PATH, JUMP(&l, past_execveat_l)),
               ARG_32(5),
               JNE32(internal::kExecveMagic, JUMP(&l, past_execveat_l)),
-              ALLOW,
+              execve_action,
               LABEL(&l, past_execveat_l),
               LOAD_SYSCALL_NR,
           });

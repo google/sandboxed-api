@@ -170,6 +170,7 @@ target_link_libraries(sandbox2_policy
          sandbox2::bpf_helper
          sandbox2::bpfdisassembler
          sandbox2::regs
+         sandbox2::seccomp_unotify
          sandbox2::syscall
          sapi::base
          sapi::config
@@ -488,6 +489,7 @@ target_link_libraries(sandbox2_monitor_unotify
           sandbox2::client
           sandbox2::forkserver_proto
           sandbox2::seccomp_unotify
+          sandbox2::util
           sapi::status
   PUBLIC sandbox2::executor
          sandbox2::monitor_base

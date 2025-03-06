@@ -381,14 +381,28 @@ TEST_P(PolicyTest, DetectSandboxSyscall) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
-TEST_P(PolicyTest, ExecveatAllowedByDefault) {
+TEST_P(PolicyTest, ExecveatNotAllowedByDefault) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/execveat");
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
-      {path},
+      {path, "1"},
       CreateDefaultPermissiveTestPolicy(path).BlockSyscallWithErrno(
           __NR_execveat, EPERM),
       /*sandbox_pre_execve=*/false);
+  Result result = s2->Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, SecondExecveatNotAllowedByDefault) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/execveat");
+
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {path, "2"},
+      CreateDefaultPermissiveTestPolicy(path).BlockSyscallWithErrno(
+          __NR_execveat, EPERM));
   Result result = s2->Run();
 
   // The test binary should exit with success.

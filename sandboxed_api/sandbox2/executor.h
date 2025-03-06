@@ -37,6 +37,11 @@
 
 namespace sandbox2 {
 
+// Forward declarations for friend declarations.
+class MonitorBase;
+class PtraceMonitor;
+class StackTracePeer;
+
 // The sandbox2::Executor class is responsible for both creating and executing
 // new processes which will be sandboxed.
 class Executor final {

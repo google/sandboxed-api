@@ -24,9 +24,12 @@
 #include "sandboxed_api/sandbox2/util.h"
 
 int main(int argc, char** argv) {
-  sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
-  sandbox2::Client client(&comms);
-  client.SandboxMeHere();
+  int testno = atoi(argv[1]);  // NOLINT
+  if (testno == 1) {
+    sandbox2::Comms comms(sandbox2::Comms::kSandbox2ClientCommsFD);
+    sandbox2::Client client(&comms);
+    client.SandboxMeHere();
+  }
   int result =
       sandbox2::util::Syscall(__NR_execveat, AT_EMPTY_PATH, 0, 0, 0, 0);
   if (result != -1 || errno != EPERM) {

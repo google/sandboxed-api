@@ -134,6 +134,7 @@ MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify)
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),
       uses_custom_forkserver_(executor_->fork_client_ != nullptr) {
+  wait_for_execveat_ = executor->enable_sandboxing_pre_execve_;
   // It's a pre-connected Comms channel, no need to accept new connection.
   CHECK(comms_->IsConnected());
   std::string path =

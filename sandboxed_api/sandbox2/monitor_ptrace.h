@@ -155,8 +155,6 @@ class PtraceMonitor : public MonitorBase {
   bool timed_out_ = false;
   // Should we dump the main sandboxed PID's stack?
   bool should_dump_stack_ = false;
-  // Is the sandboxee actively monitored, or maybe we're waiting for execve()?
-  bool wait_for_execve_;
   // Syscalls that are running, whose result values we want to inspect.
   absl::flat_hash_map<pid_t, Syscall> syscalls_in_progress_;
   sigset_t sset_;
