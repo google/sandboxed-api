@@ -912,7 +912,6 @@ void PtraceMonitor::StateProcessStopped(pid_t pid, int status) {
   }
 
   if (ABSL_PREDICT_FALSE(pid == process_.main_pid && should_dump_stack_ &&
-                         executor_->libunwind_sbox_for_pid_ == 0 &&
                          policy_->GetNamespace())) {
     auto stack_trace = [this,
                         pid]() -> absl::StatusOr<std::vector<std::string>> {
