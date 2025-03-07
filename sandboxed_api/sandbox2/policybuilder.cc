@@ -237,11 +237,13 @@ PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
   if (handled_syscalls_.insert(num).second &&
       blocked_syscalls_.insert(num).second) {
     user_policy_.insert(user_policy_.end(), {SYSCALL(num, ERRNO(error))});
-    if (num == __NR_bpf) {
-      user_policy_handles_bpf_ = true;
-    }
-    if (num == __NR_ptrace) {
-      user_policy_handles_ptrace_ = true;
+    switch (num) {
+      case __NR_bpf:
+        user_policy_handles_bpf_ = true;
+        break;
+      case __NR_ptrace:
+        user_policy_handles_ptrace_ = true;
+        break;
     }
   }
   return *this;
