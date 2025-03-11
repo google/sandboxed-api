@@ -18,13 +18,11 @@
 #ifndef SANDBOXED_API_SANDBOX2_SANDBOX2_H_
 #define SANDBOXED_API_SANDBOX2_SANDBOX2_H_
 
-#include <ctime>
 #include <memory>
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
-#include "absl/log/check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
@@ -45,12 +43,9 @@ class Sandbox2 final {
 
   Sandbox2(std::unique_ptr<Executor> executor, std::unique_ptr<Policy> policy,
            std::unique_ptr<Notify> notify)
-      : executor_(std::move(executor)),
-        policy_(std::move(policy)),
-        notify_(std::move(notify)) {
-    CHECK(executor_ != nullptr);
-    CHECK(policy_ != nullptr);
-  }
+      : executor_(std::move(ABSL_DIE_IF_NULL(executor))),
+        policy_(std::move(ABSL_DIE_IF_NULL(policy))),
+        notify_(std::move(notify)) {}
 
   Sandbox2(const Sandbox2&) = delete;
   Sandbox2& operator=(const Sandbox2&) = delete;
@@ -66,6 +61,7 @@ class Sandbox2 final {
   // Even if set-up fails AwaitResult can still used to get a more specific
   // failure reason.
   bool RunAsync();
+
   // Waits for sandbox execution to finish and returns the execution result.
   ABSL_MUST_USE_RESULT Result AwaitResult();
 
@@ -75,8 +71,8 @@ class Sandbox2 final {
   absl::StatusOr<Result> AwaitResultWithTimeout(absl::Duration timeout);
 
   // Requests termination of the sandboxee.
-  // Sandbox should still waited with AwaitResult(), as it may finish for other
-  // reason before the request is handled.
+  // The sandbox should still waited on using AwaitResult(), as it may finish
+  // for other reasons before the request is handled.
   void Kill();
 
   // Dumps the main sandboxed process's stack trace to log.
@@ -85,7 +81,7 @@ class Sandbox2 final {
   // Returns whether sandboxing task has ended.
   bool IsTerminated() const;
 
-  // Sets a wall time limit on a running sandboxee, absl::ZeroDuration() to
+  // Sets a wall time limit on a running sandboxee. Use absl::ZeroDuration() to
   // disarm. This can be useful in a persistent sandbox scenario, to impose a
   // deadline for responses after each request and reset the deadline in
   // between. Sandboxed API can be used to implement persistent sandboxes.
@@ -94,7 +90,7 @@ class Sandbox2 final {
   // Returns the process id inside the executor.
   pid_t pid() const { return monitor_ != nullptr ? monitor_->pid() : -1; }
 
-  // Gets the comms inside the executor.
+  // Returns the comms object from the executor.
   Comms* comms() {
     return executor_ != nullptr ? executor_->ipc()->comms() : nullptr;
   }
@@ -107,16 +103,9 @@ class Sandbox2 final {
 
   std::unique_ptr<MonitorBase> CreateMonitor();
 
-  // Executor set by user - owned by Sandbox2.
   std::unique_ptr<Executor> executor_;
-
-  // Seccomp policy set by the user - owned by Sandbox2.
-  std::unique_ptr<Policy> policy_;
-
-  // Notify object - owned by Sandbox2.
+  std::unique_ptr<Policy> policy_;  // Seccomp user policy
   std::unique_ptr<Notify> notify_;
-
-  // Monitor object - owned by Sandbox2.
   std::unique_ptr<MonitorBase> monitor_;
 
   bool use_unotify_monitor_ = false;

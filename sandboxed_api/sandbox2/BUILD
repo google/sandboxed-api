@@ -327,9 +327,7 @@ cc_library(
 # sandbox2::Client objects
 cc_library(
     name = "sandbox2",
-    srcs = [
-        "sandbox2.cc",
-    ],
+    srcs = ["sandbox2.cc"],
     hdrs = [
         "client.h",
         "executor.h",
@@ -372,6 +370,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

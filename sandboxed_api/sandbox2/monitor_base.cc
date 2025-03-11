@@ -128,8 +128,8 @@ void LogContainer(const std::vector<std::string>& container) {
 
 MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify)
     : executor_(executor),
-      notify_(notify),
       policy_(policy),
+      notify_(notify),
       // NOLINTNEXTLINE clang-diagnostic-deprecated-declarations
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),

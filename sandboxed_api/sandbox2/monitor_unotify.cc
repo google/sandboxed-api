@@ -58,10 +58,6 @@ namespace {
 
 using ::sapi::file_util::fileops::FDCloser;
 
-int seccomp(unsigned int operation, unsigned int flags, void* args) {
-  return syscall(SYS_seccomp, operation, flags, args);
-}
-
 absl::Status WaitForFdReadable(int fd, absl::Time deadline) {
   pollfd pfds[] = {
       {.fd = fd, .events = POLLIN},

@@ -314,7 +314,9 @@ add_library(sandbox2_sandbox2 ${SAPI_LIB_TYPE}
 add_library(sandbox2::sandbox2 ALIAS sandbox2_sandbox2)
 target_link_libraries(sandbox2_sandbox2
   PRIVATE absl::core_headers
+          absl::check
           absl::flat_hash_set
+          absl::log
           absl::memory
           absl::optional
           absl::str_format
@@ -323,34 +325,35 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::monitor_ptrace
           sandbox2::monitor_unotify
           sapi::base
-  PUBLIC  absl::flat_hash_map
-          absl::status
-          absl::statusor
-          absl::time
-          sapi::config
-          sapi::fileops
-          sapi::temp_file
-          sandbox2::client
-          sandbox2::comms
-          sandbox2::executor
-          sandbox2::fork_client
-          sandbox2::global_forkserver
-          sandbox2::ipc
-          sandbox2::limits
-          sandbox2::logsink
-          sandbox2::monitor_base
-          sandbox2::mounts
-          sandbox2::mount_tree_proto
-          sandbox2::namespace
-          sandbox2::network_proxy_client
-          sandbox2::network_proxy_server
-          sandbox2::notify
-          sandbox2::policy
-          sandbox2::policybuilder
-          sandbox2::regs
-          sandbox2::result
-          sandbox2::syscall
-          sandbox2::util
+  PUBLIC absl::die_if_null
+         absl::flat_hash_map
+         absl::status
+         absl::statusor
+         absl::time
+         sapi::config
+         sapi::fileops
+         sapi::temp_file
+         sandbox2::client
+         sandbox2::comms
+         sandbox2::executor
+         sandbox2::fork_client
+         sandbox2::global_forkserver
+         sandbox2::ipc
+         sandbox2::limits
+         sandbox2::logsink
+         sandbox2::monitor_base
+         sandbox2::mounts
+         sandbox2::mount_tree_proto
+         sandbox2::namespace
+         sandbox2::network_proxy_client
+         sandbox2::network_proxy_server
+         sandbox2::notify
+         sandbox2::policy
+         sandbox2::policybuilder
+         sandbox2::regs
+         sandbox2::result
+         sandbox2::syscall
+         sandbox2::util
 )
 
 
