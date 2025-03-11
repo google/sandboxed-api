@@ -79,4 +79,8 @@ target_link_libraries(hello_transacted PRIVATE
   hello::base
   hello::sapi
   sapi::sapi
+  sandbox2::policy
+  sandbox2::policybuilder
+  sandbox2::util
+  absl::status
 )
