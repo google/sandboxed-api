@@ -198,23 +198,23 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
   // If user policy doesn't mention it, forbid bpf() because it's unsafe or too
   // risky. Users can still allow safe invocations of this syscall by using
   // PolicyBuilder::AllowSafeBpf(). This uses LOAD_SYSCALL_NR from above.
-  if (allow_safe_bpf_) {
-    policy.insert(policy.end(), {
-                                    JNE32(__NR_bpf, JUMP(&l, past_bpf_l)),
-                                    ARG_32(0),
-                                    JEQ32(BPF_MAP_LOOKUP_ELEM, ALLOW),
-                                    JEQ32(BPF_OBJ_GET, ALLOW),
-                                    JEQ32(BPF_MAP_GET_NEXT_KEY, ALLOW),
-                                    JEQ32(BPF_MAP_GET_NEXT_ID, ALLOW),
-                                    JEQ32(BPF_MAP_GET_FD_BY_ID, ALLOW),
-                                    JEQ32(BPF_OBJ_GET_INFO_BY_FD, ALLOW),
-                                    LABEL(&l, past_bpf_l),
-                                    LOAD_SYSCALL_NR,
-                                });
-  }
-  if (!user_policy_handles_bpf_) {
-    policy.insert(policy.end(), {JEQ32(__NR_bpf, DENY)});
-  }
+    if (allow_safe_bpf_) {
+      policy.insert(policy.end(), {
+                                      JNE32(__NR_bpf, JUMP(&l, past_bpf_l)),
+                                      ARG_32(0),
+                                      JEQ32(BPF_MAP_LOOKUP_ELEM, ALLOW),
+                                      JEQ32(BPF_OBJ_GET, ALLOW),
+                                      JEQ32(BPF_MAP_GET_NEXT_KEY, ALLOW),
+                                      JEQ32(BPF_MAP_GET_NEXT_ID, ALLOW),
+                                      JEQ32(BPF_MAP_GET_FD_BY_ID, ALLOW),
+                                      JEQ32(BPF_OBJ_GET_INFO_BY_FD, ALLOW),
+                                      LABEL(&l, past_bpf_l),
+                                      LOAD_SYSCALL_NR,
+                                  });
+    }
+    if (!user_policy_handles_bpf_) {
+      policy.insert(policy.end(), {JEQ32(__NR_bpf, DENY)});
+    }
 
   if (!allow_map_exec_) {
     policy.insert(
