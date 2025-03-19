@@ -31,7 +31,7 @@ cc_library(
         "llvm-project-include/llvm/**/*.def",
         "llvm-project-include/llvm/**/*.h",
         "llvm-project-include/llvm/**/*.inc",
-    ]),
+    ], allow_empty = True),
     includes = ["llvm-project-include"],
     linkopts = [
         "-lncurses",
