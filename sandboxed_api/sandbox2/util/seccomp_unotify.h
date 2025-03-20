@@ -41,6 +41,12 @@ struct seccomp_notif_resp {
   __s32 error;
   __u32 flags;
 };
+
+struct seccomp_notif_sizes {
+  __u16 seccomp_notif;
+  __u16 seccomp_notif_resp;
+  __u16 seccomp_data;
+};
 #endif
 
 namespace sandbox2 {

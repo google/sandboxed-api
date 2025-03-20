@@ -48,12 +48,6 @@
 
 #ifndef SECCOMP_GET_NOTIF_SIZES
 #define SECCOMP_GET_NOTIF_SIZES 3
-
-struct seccomp_notif_sizes {
-  __u16 seccomp_notif;
-  __u16 seccomp_notif_resp;
-  __u16 seccomp_data;
-};
 #endif
 
 #ifndef SECCOMP_IOCTL_NOTIF_RECV
