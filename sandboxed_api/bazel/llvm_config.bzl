@@ -16,7 +16,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
-SYSTEM_LLVM_BAZEL_TEMPLATE = """package(default_visibility = ["//visibility:public"])
+_SYSTEM_LLVM_BAZEL_TEMPLATE = """package(default_visibility = ["//visibility:public"])
 # Create one hidden library with all LLVM headers that depends on all its
 # static library archives. This will be used to provide individual library
 # targets named the same as the upstream Bazel files.
@@ -35,10 +35,10 @@ cc_library(
     includes = ["llvm-project-include"],
     linkopts = [
         "-lncurses",
-        %{llvm_system_libs}
-        %{llvm_lib_dir}
+        {llvm_system_libs}
+        {llvm_lib_dir}
         "-Wl,--start-group",
-        %{llvm_libs}
+        {llvm_libs}
         "-Wl,--end-group",
     ],
     visibility = ["@llvm-project//clang:__pkg__"],
@@ -48,7 +48,7 @@ cc_library(name = "Support", deps = ["@llvm-project//llvm:llvm"])
 cc_library(name = "config", deps = ["@llvm-project//llvm:llvm"])
 """
 
-SYSTEM_CLANG_BAZEL = """package(default_visibility = ["//visibility:public"])
+_SYSTEM_CLANG_BAZEL = """package(default_visibility = ["//visibility:public"])
 # Fake libraries that just depend on a big library with all files.
 cc_library(name = "ast", deps = ["@llvm-project//llvm:llvm"])
 cc_library(name = "basic", deps = ["@llvm-project//llvm:llvm"])
@@ -61,18 +61,45 @@ cc_library(name = "tooling", deps = ["@llvm-project//llvm:llvm"])
 cc_library(name = "tooling_core", deps = ["@llvm-project//llvm:llvm"])
 """
 
-def _use_system_llvm(ctx):
-    # Look for LLVM in known places
-    llvm_config_tool = ctx.execute(
-        ["which"] +  # Prints all arguments it finds in the system PATH
-        ["llvm-config-{}".format(ver) for ver in range(20, 10, -1)] +
-        ["llvm-config"],
-    ).stdout.splitlines()
-    if not llvm_config_tool:
-        return False
+def _locate_llvm_config_tool(repository_ctx):
+    """Searches for the llvm-config tool on the system.
 
-    llvm_config = ctx.execute([
-        llvm_config_tool[0],
+    It will try to find llvm-config starting with `version` (which can be configured) and going down
+    to 10 and lastly trying to find llvm-config (without version number). This assures that we find
+    the latest version of llvm-config.
+
+    Returns:
+        The path to the llvm-config tool.
+    """
+    version = 20
+    if repository_ctx.attr.system_llvm_version_lower_or_equal:
+        version = int(repository_ctx.attr.system_llvm_version_lower_or_equal)
+
+    llvm_config_tool = repository_ctx.execute(
+        ["which"] +  # Prints all arguments it finds in the system PATH
+        ["llvm-config-{}".format(ver) for ver in range(version, 10, -1)] +
+        ["llvm-config"],
+    )
+    if not llvm_config_tool.stdout:
+        fail("Local llvm-config lookup failed")
+    return llvm_config_tool.stdout.splitlines()[0]
+
+def _get_llvm_config_output(repository_ctx, llvm_config_tool):
+    """Runs llvm-config and returns the output.
+
+    Returns:
+        A dict with the following keys:
+            include_dir: The path to the include directory.
+            system_libs: The list of system libraries.
+            lib_dir: The path to the library directory.
+
+    Args:
+        repository_ctx: The context.
+        llvm_config_tool: The path to the llvm-config tool.
+    """
+
+    llvm_config = repository_ctx.execute([
+        llvm_config_tool,
         "--link-static",
         "--includedir",  # Output line 0
         "--libdir",  # Output line 1
@@ -80,45 +107,103 @@ def _use_system_llvm(ctx):
         "--system-libs",  # Output line 3
         "engine",
         "option",
-    ]).stdout.splitlines()
-    if not llvm_config:
-        return False
+    ])
+    if llvm_config.return_code != 0:
+        fail("llvm-config failed: {}".format(llvm_config.stderr))
+    output = llvm_config.stdout.splitlines()
 
-    include_dir = llvm_config[0]
+    return {
+        "include_dir": output[0],
+        "system_libs": output[3].split(" "),
+        "lib_dir": output[1].split(" ")[0],
+    }
+
+def _create_llvm_build_files(repository_ctx, llvm_config):
+    """Creates the BUILD.bazel files for LLVM and Clang.
+
+    Args:
+        repository_ctx: The context.
+        llvm_config: The output dict of _get_llvm_config_output.
+    """
+
+    include_dir = llvm_config["include_dir"]
     for suffix in ["llvm", "llvm-c", "clang", "clang-c"]:
-        ctx.symlink(
+        repository_ctx.symlink(
             include_dir + "/" + suffix,
             "llvm/llvm-project-include/" + suffix,
         )
 
-    system_libs = llvm_config[3].split(" ")
-    lib_dir = llvm_config[1].split(" ")[0]
+    system_libs = llvm_config["system_libs"]
+    lib_dir = llvm_config["lib_dir"]
 
     # Sadly there's no easy way to get to the Clang library archives
-    archives = ctx.execute(
+    archives = repository_ctx.execute(
         ["find", ".", "-maxdepth", "1"] +
         ["(", "-name", "libLLVM*.a", "-o", "-name", "libclang*.a", ")"],
         working_directory = lib_dir,
     ).stdout.splitlines()
-    lib_strs = sorted(["\"-l{}\",".format(a[5:-2]) for a in archives])
+    lib_strs = sorted(['"-l{}",'.format(a[5:-2]) for a in archives])
 
-    ctx.file(
+    paddeed_newline = "\n" + " " * 8
+    repository_ctx.file(
         "llvm/BUILD.bazel",
-        SYSTEM_LLVM_BAZEL_TEMPLATE.replace(
-            "%{llvm_system_libs}",
-            "\n".join(["\"{}\",".format(s) for s in system_libs]),
-        ).replace(
-            "%{llvm_lib_dir}",
-            "\"-L{}\",".format(lib_dir),
-        ).replace(
-            "%{llvm_libs}",
-            "\n".join(lib_strs),
+        _SYSTEM_LLVM_BAZEL_TEMPLATE.format(
+            llvm_system_libs = paddeed_newline.join(['"{}",'.format(s) for s in system_libs]),
+            llvm_lib_dir = '"-L{}",'.format(lib_dir),
+            llvm_libs = paddeed_newline.join(lib_strs),
         ),
     )
-    ctx.file("clang/BUILD.bazel", SYSTEM_CLANG_BAZEL)
+
+def _create_clang_build_files(repository_ctx):
+    """Creates the BUILD.bazel files for Clang."""
+    repository_ctx.file("clang/BUILD.bazel", _SYSTEM_CLANG_BAZEL)
+
+def _verify_llvm_dev_headers_are_installed(repository_ctx, llvm_config_tool):
+    """Verifies that the LLVM dev headers are installed."""
+
+    llvm_major_version = repository_ctx.execute([
+        llvm_config_tool,
+        "--version",
+    ])
+    if llvm_major_version.return_code != 0:
+        fail("llvm-config --version failed:\n{}\n".format(llvm_major_version.stderr))
+
+    major_version = llvm_major_version.stdout.split(".")[0]
+    for lib in ["llvm", "clang"]:
+        llvm_dev_headers = repository_ctx.execute(
+            ["stat"] +
+            ["/usr/lib/llvm-{}/include/{}".format(major_version, lib)],
+        )
+        if llvm_dev_headers.return_code != 0:
+            fail("Locating {} headers failed. You may have to install libclang-{}-dev\n{}\n".format(
+                lib,
+                major_version,
+                llvm_dev_headers.stderr,
+            ))
+
+def _use_system_llvm(repository_ctx):
+    """Looks for local LLVM and then prepares BUILD files.
+
+    Returns:
+        True if LLVM was found, or otherwise Fails.
+    """
+    llvm_config_tool = _locate_llvm_config_tool(repository_ctx)
+    llvm_config = _get_llvm_config_output(repository_ctx, llvm_config_tool)
+    _verify_llvm_dev_headers_are_installed(repository_ctx, llvm_config_tool)
+    _create_llvm_build_files(repository_ctx, llvm_config)
+    _create_clang_build_files(repository_ctx)
     return True
 
 def _overlay_directories(ctx, src_path, target_path):
+    """Executes llvm-project's overlay_directories.py script.
+
+    The script overlays two directories into a target directory using symlinks.
+
+    Args:
+        ctx: The context.
+        src_path: The source directory.
+        target_path: The target directory.
+    """
     bazel_path = src_path.get_child("utils").get_child("bazel")
     overlay_path = bazel_path.get_child("llvm-project-overlay")
     script_path = bazel_path.get_child("overlay_directories.py")
@@ -128,7 +213,7 @@ def _overlay_directories(ctx, src_path, target_path):
         python_bin = ctx.which("python")
 
     if not python_bin:
-        fail("Failed to find python3 binary")
+        fail("Failed to find python3 or python binary")
 
     cmd = [
         python_bin,
@@ -153,15 +238,17 @@ def _overlay_directories(ctx, src_path, target_path):
             stderr = exec_result.stderr,
         ))
 
-DEFAULT_LLVM_COMMIT = "2c494f094123562275ae688bd9e946ae2a0b4f8b"  # 2022-03-31
-DEFAULT_LLVM_SHA256 = "59b9431ae22f0ea5f2ce880925c0242b32a9e4f1ae8147deb2bb0fc19b53fa0d"
-
 def _llvm_configure_impl(ctx):
+    """Implementation of the `llvm_configure` rule."""
+
     commit = ctx.attr.commit
     sha256 = ctx.attr.sha256
+    system_libraries = ctx.attr.system_libraries
+    output_dir = "llvm-raw"
 
-    if ctx.attr.system_libraries:
+    if system_libraries:
         if _use_system_llvm(ctx):
+            # Nothing else to do here. We're using the local system LLVM.
             return
         if not commit:
             fail((
@@ -170,20 +257,18 @@ def _llvm_configure_impl(ctx):
                 "      packages (or later versions) first.\n"
             ))
 
-    if not commit:
-        commit = DEFAULT_LLVM_COMMIT
-        sha256 = DEFAULT_LLVM_SHA256
+    if not commit or not sha256:
+        fail("Failed to download LLVM: commit and sha256 are required.\n")
 
     ctx.download_and_extract(
-        ["https://github.com/llvm/llvm-project/archive/{commit}.tar.gz".format(commit = commit)],
-        "llvm-raw",
-        sha256,
-        "",
-        "llvm-project-" + commit,
+        url = "https://github.com/llvm/llvm-project/archive/{commit}.tar.gz".format(commit = commit),
+        output = output_dir,
+        sha256 = sha256,
+        stripPprefix = "llvm-project-" + commit,
     )
 
-    target_path = ctx.path("llvm-raw").dirname
-    src_path = target_path.get_child("llvm-raw")
+    target_path = ctx.path(output_dir).dirname
+    src_path = target_path.get_child(output_dir)
     _overlay_directories(ctx, src_path, target_path)
 
     # Create a starlark file with the requested LLVM targets
@@ -200,20 +285,6 @@ def _llvm_configure_impl(ctx):
         executable = False,
     )
 
-DEFAULT_TARGETS = ["AArch64", "ARM", "PowerPC", "X86"]
-
-llvm_configure = repository_rule(
-    implementation = _llvm_configure_impl,
-    local = True,
-    configure = True,
-    attrs = {
-        "system_libraries": attr.bool(default = True),
-        "commit": attr.string(),
-        "sha256": attr.string(),
-        "targets": attr.string_list(default = DEFAULT_TARGETS),
-    },
-)
-
 def _llvm_zlib_disable_impl(ctx):
     ctx.file(
         "BUILD.bazel",
@@ -221,21 +292,76 @@ def _llvm_zlib_disable_impl(ctx):
         executable = False,
     )
 
-llvm_zlib_disable = repository_rule(
-    implementation = _llvm_zlib_disable_impl,
-)
-
-def _llvm_terminfo_disable(ctx):
+def _llvm_terminfo_disable_impl(ctx):
     ctx.file(
         "BUILD.bazel",
         """cc_library(name = "terminfo", visibility = ["//visibility:public"])""",
         executable = False,
     )
 
-llvm_terminfo_disable = repository_rule(
-    implementation = _llvm_terminfo_disable,
+DEFAULT_TARGETS = ["AArch64", "ARM", "PowerPC", "X86"]
+
+# We use this `module_extension` directly in MODULE.bazel, configure it with the values and
+# then use `use_repo` to add it to the workspace.
+llvm = module_extension(
+    tag_classes = {
+        "config_params": tag_class(attrs = {
+            "system_llvm_version_lower_or_equal": attr.int(),
+            "commit": attr.string(),
+            "sha256": attr.string(),
+            "system_libraries": attr.bool(default = True),
+            "targets": attr.string_list(default = DEFAULT_TARGETS),
+        }),
+        "disable_llvm_zlib": tag_class(),
+        "disable_llvm_terminfo": tag_class(),
+    },
+    implementation = lambda ctx: _llvm_module_implementation(ctx),
 )
 
-def llvm_disable_optional_support_deps():
-    maybe(llvm_zlib_disable, name = "llvm_zlib")
-    maybe(llvm_terminfo_disable, name = "llvm_terminfo")
+def _llvm_module_implementation(module_ctx):
+    """Implementation of the `llvm_configure` module_extension."""
+    if len(module_ctx.modules) != 1:
+        fail("llvm_configure module_extension must be used with exactly one module")
+    if len(module_ctx.modules[0].tags.config_params) != 1:
+        fail("config_params tag must be used exactly once")
+
+    for config_params in module_ctx.modules[0].tags.config_params:
+        llvm_configure(
+            name = "llvm-project",
+            system_llvm_version_lower_or_equal = config_params.system_llvm_version_lower_or_equal,
+            commit = config_params.commit,
+            sha256 = config_params.sha256,
+            system_libraries = config_params.system_libraries,
+            targets = config_params.targets,
+        )
+
+    for _ in module_ctx.modules[0].tags.disable_llvm_zlib:
+        maybe(llvm_zlib_disable, name = "llvm_zlib")
+    for _ in module_ctx.modules[0].tags.disable_llvm_terminfo:
+        maybe(llvm_terminfo_disable, name = "llvm_terminfo")
+
+# DON'T USE THIS RULE DIRECTLY.
+llvm_configure = repository_rule(
+    implementation = _llvm_configure_impl,
+    local = True,
+    configure = True,
+    attrs = {
+        "system_libraries": attr.bool(default = True),
+        "system_llvm_version_lower_or_equal": attr.int(),
+        "commit": attr.string(),
+        "sha256": attr.string(),
+        "targets": attr.string_list(default = DEFAULT_TARGETS),
+    },
+)
+
+# DO NOT USE THIS RULE DIRECTLY.
+llvm_zlib_disable = repository_rule(
+    implementation = _llvm_zlib_disable_impl,
+    local = True,
+)
+
+# DO NOT USE THIS RULE DIRECTLY.
+llvm_terminfo_disable = repository_rule(
+    implementation = _llvm_terminfo_disable_impl,
+    local = True,
+)

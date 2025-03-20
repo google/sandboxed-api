@@ -40,6 +40,7 @@ cc_library(
     copts = [
         "-w",
         "-Dverbose=-1",
+        "-DZ_HAVE_UNISTD_H",
     ],
     includes = ["."],
     textual_hdrs = [

@@ -50,12 +50,6 @@ bzl_library(
 )
 
 bzl_library(
-    name = "sapi_deps_bzl",
-    srcs = ["sapi_deps.bzl"],
-    visibility = ["//visibility:private"],
-)
-
-bzl_library(
     name = "sapi",
     srcs = ["sapi.bzl"],
     visibility = ["//visibility:private"],

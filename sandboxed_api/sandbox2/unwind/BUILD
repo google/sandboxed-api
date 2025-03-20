@@ -52,7 +52,7 @@ cc_library(
         "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
         "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
         "@com_google_sandboxed_api//sandboxed_api/util:status",
-        "@org_gnu_libunwind//:unwind-ptrace",
+        "@org_gnu_libunwind//:libunwind_ptrace",
     ],
 )
 

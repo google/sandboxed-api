@@ -18,31 +18,65 @@ module(
     bazel_compatibility = [">=7.1.1"],
 )
 
-bazel_dep(
-    name = "abseil-cpp",
-    version = "20240722.0",
-    repo_name = "com_google_absl",
-)
-bazel_dep(
-    name = "abseil-py",
-    version = "2.1.0",
-    repo_name = "com_google_absl_py",
-)
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
-bazel_dep(
-    name = "google_benchmark",
-    version = "1.8.5",
-    repo_name = "com_google_benchmark",
-)
-bazel_dep(
-    name = "googletest",
-    version = "1.15.2",
-    repo_name = "com_google_googletest",
-)
-bazel_dep(
-    name = "protobuf",
-    version = "28.2",
-    repo_name = "com_google_protobuf",
-)
+# Load additional repo rules.
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# Bazel Central Registry (BCR) Modules:
+bazel_dep(name = "abseil-cpp", version = "20240722.0", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-py", version = "2.1.0", repo_name = "com_google_absl_py")
+bazel_dep(name = "bazel_skylib", version = "1.7.1", repo_name = "bazel_skylib")
+bazel_dep(name = "google_benchmark", version = "1.8.5", repo_name = "com_google_benchmark")
+bazel_dep(name = "googletest", version = "1.15.2", repo_name = "com_google_googletest")
+bazel_dep(name = "protobuf", version = "28.2", repo_name = "com_google_protobuf")
 bazel_dep(name = "rules_proto", version = "6.0.2")
 bazel_dep(name = "rules_python", version = "0.37.2")
+bazel_dep(name = "rules_cc", version = "0.1.1")
+bazel_dep(name = "libunwind", version = "1.8.1", repo_name = "org_gnu_libunwind")
+bazel_dep(name = "libffi", version = "3.4.7", repo_name = "org_sourceware_libffi")
+
+# Non-Modularized Dependencies:
+
+# llvm-project
+llvm = use_extension("@com_google_sandboxed_api//sandboxed_api/bazel:llvm_config.bzl", "llvm")
+llvm.config_params(
+    commit = "2c494f094123562275ae688bd9e946ae2a0b4f8b",  # 2022-03-31
+    sha256 = "59b9431ae22f0ea5f2ce880925c0242b32a9e4f1ae8147deb2bb0fc19b53fa0d",
+    system_libraries = True,  # Prefer system libraries
+    targets = [
+        "AArch64",
+        "ARM",
+        "X86",
+    ],
+)
+llvm.disable_llvm_zlib()
+llvm.disable_llvm_terminfo()
+use_repo(llvm, "llvm-project")
+
+# libcap
+http_archive(
+    name = "org_kernel_libcap",
+    build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libcap.BUILD",
+    sha256 = "260b549c154b07c3cdc16b9ccc93c04633c39f4fb6a4a3b8d1fa5b8a9c3f5fe8",  # 2019-04-16
+    strip_prefix = "libcap-2.27",
+    urls = ["https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.27.tar.gz"],
+)
+
+# zlib, only needed for examples
+http_archive(
+    name = "net_zlib",
+    build_file = "//sandboxed_api:bazel/external/zlib.BUILD",
+    patch_args = ["-p1"],
+    # This is a patch that removes the "OF" macro that is used in zlib function
+    # definitions. It is necessary, because libclang, the library used by the
+    # interface generator to parse C/C++ files contains a bug that manifests
+    # itself with macros like this.
+    # We are investigating better ways to avoid this issue. For most "normal"
+    # C and C++ headers, parsing just works.
+    patches = ["//sandboxed_api:bazel/external/zlib.patch"],
+    sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",  # 2020-04-23
+    strip_prefix = "zlib-1.2.11",
+    urls = [
+        "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
+        "https://www.zlib.net/zlib-1.2.11.tar.gz",
+    ],
+)

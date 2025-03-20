@@ -12,40 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Workspace definition used when Bzlmod is enabled
-workspace(name = "com_google_sandboxed_api")
-
-load("@bazel_skylib//lib:versions.bzl", "versions")
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("//sandboxed_api/bazel:sapi_deps.bzl", "sapi_non_module_deps")
-
-versions.check(minimum_bazel_version = "7.1.1")
-
-sapi_non_module_deps()
-
-load(
-    "//sandboxed_api/bazel:llvm_config.bzl",
-    "llvm_disable_optional_support_deps",
-)
-
-llvm_disable_optional_support_deps()
-
-# zlib, only needed for examples
-http_archive(
-    name = "net_zlib",
-    build_file = "//sandboxed_api:bazel/external/zlib.BUILD",
-    patch_args = ["-p1"],
-    # This is a patch that removes the "OF" macro that is used in zlib function
-    # definitions. It is necessary, because libclang, the library used by the
-    # interface generator to parse C/C++ files contains a bug that manifests
-    # itself with macros like this.
-    # We are investigating better ways to avoid this issue. For most "normal"
-    # C and C++ headers, parsing just works.
-    patches = ["//sandboxed_api:bazel/external/zlib.patch"],
-    sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",  # 2020-04-23
-    strip_prefix = "zlib-1.2.11",
-    urls = [
-        "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
-        "https://www.zlib.net/zlib-1.2.11.tar.gz",
-    ],
-)
+# This file marks the root of the Bazel workspace.
+# See MODULE.bazel for external dependencies setup.

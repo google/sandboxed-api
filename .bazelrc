@@ -1,7 +1,5 @@
-# Enable Bazel modules and WORKSPACE.bzlmod by default. Projects using Sandboxed API may still use
-# a regular WORKSPACE with `--noenable_bzlmod --enable_workspace`
+# Enable Bazel modules
 common --enable_bzlmod
-common --enable_workspace
 
 # Build in C++17 mode without a custom CROSSTOOL
 build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
