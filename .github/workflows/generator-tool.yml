@@ -59,7 +59,7 @@ jobs:
         )
 
     - name: Upload Build Artifact
-      uses: actions/upload-artifact@v3.1.2
+      uses: actions/upload-artifact@v4
       with:
         name: sapi_generator_tool-linux
         path: ${{github.workspace}}/build/sapi_generator_tool-linux-x86_64
