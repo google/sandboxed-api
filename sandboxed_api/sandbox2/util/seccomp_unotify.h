@@ -27,6 +27,10 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/util/fileops.h"
 
+#ifndef SECCOMP_RET_USER_NOTIF
+#define SECCOMP_RET_USER_NOTIF 0x7fc00000U /* notifies userspace */
+#endif
+
 #ifndef SECCOMP_IOCTL_NOTIF_RECV
 struct seccomp_notif {
   __u64 id;

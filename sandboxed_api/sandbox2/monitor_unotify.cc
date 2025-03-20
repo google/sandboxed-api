@@ -46,10 +46,6 @@
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 
-#ifndef SECCOMP_RET_USER_NOTIF
-#define SECCOMP_RET_USER_NOTIF 0x7fc00000U /* notifies userspace */
-#endif
-
 #define DO_USER_NOTIF BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_USER_NOTIF)
 
 namespace sandbox2 {
