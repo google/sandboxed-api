@@ -24,10 +24,13 @@ jobs:
 
     env:
       RUN_CMD: docker exec --privileged --tty ${{matrix.compiler}}-build-container
-      RUN_USER_CMD: docker exec --privileged --user=$(id -u):$(id -g) --tty ${{matrix.compiler}}-build-container
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Set up environment
+      run: |
+        echo "RUN_USER_CMD=\"docker exec --privileged --tty ${{matrix.compiler}}-build-container--user=$(id -u):$(id -g)\"" >> $GITHUB_ENV
 
     - name: Cache dependencies
       uses: actions/cache@v3
