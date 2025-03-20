@@ -23,7 +23,8 @@ jobs:
     continue-on-error: ${{ matrix.ignore-errors }}
 
     env:
-      RUN_CMD: docker exec --tty ${{matrix.compiler}}-build-container
+      RUN_CMD: docker exec --privileged --tty ${{matrix.compiler}}-build-container
+      RUN_USER_CMD: docker exec --privileged --user=$(id -u):$(id -g) --tty ${{matrix.compiler}}-build-container
 
     steps:
     - uses: actions/checkout@v3
@@ -58,15 +59,15 @@ jobs:
           git make automake diffutils file patch glibc-static \
           libstdc++-static cmake ninja-build python3 python3-pip \
           python3-clang clang-devel libcap-devel
+        $RUN_CMD pip3 install --progress-bar=off absl-py
 
     - name: Create Build Environment
       run: |
-        $RUN_CMD pip3 install --progress-bar=off absl-py
-        $RUN_CMD cmake -E make_directory $GITHUB_WORKSPACE/build
+        $RUN_USER_CMD cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake
       run: |
-        $RUN_CMD cmake \
+        $RUN_USER_CMD cmake \
           -S $GITHUB_WORKSPACE \
           -B $GITHUB_WORKSPACE/build \
           -G Ninja \
@@ -74,13 +75,13 @@ jobs:
 
     - name: Build
       run: |
-        $RUN_CMD cmake \
+        $RUN_USER_CMD cmake \
           --build $GITHUB_WORKSPACE/build \
           --config $BUILD_TYPE
 
     - name: Test
       run: |
-        $RUN_CMD ctest \
+        $RUN_USER_CMD ctest \
           --test-dir $GITHUB_WORKSPACE/build \
           -C $BUILD_TYPE \
           --output-on-failure \
