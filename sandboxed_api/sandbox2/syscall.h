@@ -54,7 +54,7 @@ class Syscall {
   static std::string GetArchDescription(sapi::cpu::Architecture arch);
 
   Syscall() = default;
-  Syscall(const seccomp_notif& req);
+  Syscall(pid_t pid, const seccomp_data& data);
   Syscall(sapi::cpu::Architecture arch, uint64_t nr, Args args = {})
       : arch_(arch), nr_(nr), args_(args) {}
 

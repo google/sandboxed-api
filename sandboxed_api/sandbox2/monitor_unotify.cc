@@ -186,7 +186,7 @@ void UnotifyMonitor::HandleUnotify() {
       return;
     }
   }
-  Syscall syscall(*req_data);
+  Syscall syscall(req_data->pid, req_data->data);
   if (wait_for_execveat() && syscall.nr() == __NR_execveat &&
       util::SeccompUnotify::IsContinueSupported()) {
     VLOG(1) << "[PERMITTED/BEFORE_EXECVEAT]: " << "SYSCALL ::: PID: "

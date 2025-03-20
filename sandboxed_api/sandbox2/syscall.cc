@@ -52,14 +52,14 @@ sapi::cpu::Architecture AuditArchToCPUArch(uint32_t arch) {
 }
 }  // namespace
 
-Syscall::Syscall(const seccomp_notif& req)
-    : arch_(AuditArchToCPUArch(req.data.arch)),
-      nr_(req.data.nr),
-      args_({req.data.args[0], req.data.args[1], req.data.args[2],
-             req.data.args[3], req.data.args[4], req.data.args[5]}),
-      pid_(req.pid),
+Syscall::Syscall(pid_t pid, const seccomp_data& data)
+    : arch_(AuditArchToCPUArch(data.arch)),
+      nr_(data.nr),
+      args_({data.args[0], data.args[1], data.args[2], data.args[3],
+             data.args[4], data.args[5]}),
+      pid_(pid),
       sp_(0),
-      ip_(req.data.instruction_pointer) {}
+      ip_(data.instruction_pointer) {}
 
 std::string Syscall::GetArchDescription(sapi::cpu::Architecture arch) {
   switch (arch) {

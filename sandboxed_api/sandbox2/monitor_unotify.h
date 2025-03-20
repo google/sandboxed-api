@@ -30,22 +30,6 @@
 
 namespace sandbox2 {
 
-#ifndef SECCOMP_IOCTL_NOTIF_RECV
-struct seccomp_notif {
-  __u64 id;
-  __u32 pid;
-  __u32 flags;
-  struct seccomp_data data;
-};
-
-struct seccomp_notif_resp {
-  __u64 id;
-  __s64 val;
-  __s32 error;
-  __u32 flags;
-};
-#endif
-
 class UnotifyMonitor : public MonitorBase {
  public:
   UnotifyMonitor(Executor* executor, Policy* policy, Notify* notify);

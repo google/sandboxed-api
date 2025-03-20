@@ -27,6 +27,22 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/util/fileops.h"
 
+#ifndef SECCOMP_IOCTL_NOTIF_RECV
+struct seccomp_notif {
+  __u64 id;
+  __u32 pid;
+  __u32 flags;
+  struct seccomp_data data;
+};
+
+struct seccomp_notif_resp {
+  __u64 id;
+  __s64 val;
+  __s32 error;
+  __u32 flags;
+};
+#endif
+
 namespace sandbox2 {
 namespace util {
 
