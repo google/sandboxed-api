@@ -17,9 +17,7 @@ jobs:
           - jsonnet
           - libidn2
           - libraw
-          - libtiff
           - libxls
-          - libzip
           - lodepng
           - pffft
         ignore-errors: [true]
