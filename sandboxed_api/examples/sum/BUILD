@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
-load("@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
-package(default_visibility = ["@com_google_sandboxed_api//sandboxed_api:__subpackages__"])
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -37,7 +37,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":sum_params_cc_proto",
-        "@com_google_absl//absl/log",
+        "@abseil-cpp//absl/log",
     ],
     alwayslink = 1,  # All functions are linked into depending binaries
 )
@@ -80,18 +80,18 @@ cc_binary(
     deps = [
         ":sum-sapi",
         ":sum_params_cc_proto",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_sandboxed_api//sandboxed_api:sapi",
-        "@com_google_sandboxed_api//sandboxed_api:vars",
+        "//sandboxed_api:sapi",
+        "//sandboxed_api:vars",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )
 

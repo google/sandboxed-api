@@ -19,10 +19,10 @@
 # - Using sandbox2::Comms for data exchange (IPC)
 # - Test to ensure sandbox executor runs sandboxee without issue
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
+    "//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -34,18 +34,18 @@ cc_binary(
     copts = sapi_platform_copts(),
     data = [":crc4bin"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/time",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:namespaces",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
-        "@com_google_sandboxed_api//sandboxed_api/util:runfiles",
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/allowlists:namespaces",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:runfiles",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -55,12 +55,12 @@ cc_binary(
     srcs = ["crc4bin.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:util",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 
@@ -74,10 +74,10 @@ cc_test(
         "no_qemu_user_mode",
     ],
     deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api:testing",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
-        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
     ],
 )

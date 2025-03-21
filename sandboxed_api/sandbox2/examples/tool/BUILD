@@ -20,10 +20,10 @@
 # - set limits, wall time, filesystem checks, asynchronous run
 # - test to ensure sandbox executor runs sandboxee without issue
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
+    "//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -34,23 +34,23 @@ cc_binary(
     srcs = ["sandbox2tool.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/flags:usage",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:all_syscalls",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/sandbox2/allowlists:all_syscalls",
+        "//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:fileops",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
     ],
 )
 

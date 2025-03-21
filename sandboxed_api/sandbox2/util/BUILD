@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 DEFAULT_VISIBILITY = [
-    "@com_google_sandboxed_api//sandboxed_api:__subpackages__",
+    "//sandboxed_api:__subpackages__",
 ]
 
 package(default_visibility = DEFAULT_VISIBILITY)
@@ -36,8 +36,8 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":bpf_helper",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -48,14 +48,14 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        "@com_google_absl//absl/base:endian",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_sandboxed_api//sandboxed_api:config",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
-        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
-        "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "//sandboxed_api:config",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:endian",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -71,12 +71,12 @@ cc_test(
     deps = [
         ":maps_parser",
         ":minielf",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api:testing",
-        "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
-        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:file_helpers",
+        "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -86,8 +86,8 @@ cc_library(
     hdrs = ["syscall_trap.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_sandboxed_api//sandboxed_api:config",
+        "//sandboxed_api:config",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 
@@ -97,20 +97,20 @@ cc_library(
     hdrs = ["deadline_manager.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/functional:function_ref",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
-        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:btree",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -120,11 +120,11 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":deadline_manager",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -134,9 +134,9 @@ cc_library(
     hdrs = ["maps_parser.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -146,9 +146,9 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":maps_parser",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -159,10 +159,10 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":deadline_manager",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/cleanup",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -172,9 +172,9 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":pid_waiter",
-        "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -185,16 +185,16 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":bpf_helper",
-        "@com_google_absl//absl/cleanup",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:syscall",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:util",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
-        "@com_google_sandboxed_api//sandboxed_api/util:strerror",
-        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+        "//sandboxed_api/sandbox2:syscall",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:strerror",
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -204,9 +204,9 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":seccomp_unotify",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
-        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest_main",
     ],
 )

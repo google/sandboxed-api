@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("@com_google_sandboxed_api//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 
 licenses(["notice"])
 
@@ -25,11 +25,11 @@ cc_binary(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
-        "@com_google_sandboxed_api//sandboxed_api/util:raw_logging",
-        "@com_google_sandboxed_api//sandboxed_api/util:strerror",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:strerror",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -45,9 +45,9 @@ cc_test(
     data = ["testdata/filewrapper_embedded.bin"],
     deps = [
         ":filewrapper_embedded",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api:testing",
-        "@com_google_sandboxed_api//sandboxed_api/util:file_helpers",
-        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:file_helpers",
+        "//sandboxed_api/util:status_matchers",
+        "@googletest//:gtest_main",
     ],
 )

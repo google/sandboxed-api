@@ -22,22 +22,22 @@ module(
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # Bazel Central Registry (BCR) Modules:
-bazel_dep(name = "abseil-cpp", version = "20240722.0", repo_name = "com_google_absl")
-bazel_dep(name = "abseil-py", version = "2.1.0", repo_name = "com_google_absl_py")
-bazel_dep(name = "bazel_skylib", version = "1.7.1", repo_name = "bazel_skylib")
-bazel_dep(name = "google_benchmark", version = "1.8.5", repo_name = "com_google_benchmark")
-bazel_dep(name = "googletest", version = "1.15.2", repo_name = "com_google_googletest")
+bazel_dep(name = "abseil-cpp", version = "20240722.0")
+bazel_dep(name = "abseil-py", version = "2.1.0")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "google_benchmark", version = "1.8.5")
+bazel_dep(name = "googletest", version = "1.15.2")
 bazel_dep(name = "protobuf", version = "28.2", repo_name = "com_google_protobuf")
 bazel_dep(name = "rules_proto", version = "6.0.2")
 bazel_dep(name = "rules_python", version = "0.37.2")
 bazel_dep(name = "rules_cc", version = "0.1.1")
-bazel_dep(name = "libunwind", version = "1.8.1", repo_name = "org_gnu_libunwind")
-bazel_dep(name = "libffi", version = "3.4.7", repo_name = "org_sourceware_libffi")
+bazel_dep(name = "libunwind", version = "1.8.1")
+bazel_dep(name = "libffi", version = "3.4.7")
 
 # Non-Modularized Dependencies:
 
 # llvm-project
-llvm = use_extension("@com_google_sandboxed_api//sandboxed_api/bazel:llvm_config.bzl", "llvm")
+llvm = use_extension("//sandboxed_api/bazel:llvm_config.bzl", "llvm")
 llvm.config_params(
     commit = "2c494f094123562275ae688bd9e946ae2a0b4f8b",  # 2022-03-31
     sha256 = "59b9431ae22f0ea5f2ce880925c0242b32a9e4f1ae8147deb2bb0fc19b53fa0d",
@@ -55,7 +55,7 @@ use_repo(llvm, "llvm-project")
 # libcap
 http_archive(
     name = "org_kernel_libcap",
-    build_file = "@com_google_sandboxed_api//sandboxed_api:bazel/external/libcap.BUILD",
+    build_file = "//sandboxed_api:bazel/external/libcap.BUILD",
     sha256 = "260b549c154b07c3cdc16b9ccc93c04633c39f4fb6a4a3b8d1fa5b8a9c3f5fe8",  # 2019-04-16
     strip_prefix = "libcap-2.27",
     urls = ["https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.27.tar.gz"],

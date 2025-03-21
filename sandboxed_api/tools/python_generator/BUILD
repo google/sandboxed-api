@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
 licenses(["notice"])
 
@@ -31,8 +31,8 @@ py_test(
     ],
     deps = [
         ":code",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
@@ -42,9 +42,9 @@ py_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":code",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/logging",
     ],
 )
 
@@ -82,11 +82,11 @@ cc_binary(
     copts = sapi_platform_copts(),
     deps = [
         ":tests_sapi_generator",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_sandboxed_api//sandboxed_api:sapi",
-        "@com_google_sandboxed_api//sandboxed_api:vars",
-        "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "//sandboxed_api:sapi",
+        "//sandboxed_api:vars",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 

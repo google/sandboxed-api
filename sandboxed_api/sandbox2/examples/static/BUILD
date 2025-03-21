@@ -19,10 +19,10 @@
 # - communication with file descriptors and MapFd
 # - test to ensure sandbox executor runs sandboxee without issue
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
+    "//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -35,17 +35,17 @@ cc_binary(
     data = [":static_bin"],
     tags = ["no_qemu_user_mode"],
     deps = [
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/time",
-        "@com_google_sandboxed_api//sandboxed_api:config",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:bpf_helper",
-        "@com_google_sandboxed_api//sandboxed_api/util:runfiles",
+        "//sandboxed_api:config",
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/util:runfiles",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/time",
     ],
 )
 

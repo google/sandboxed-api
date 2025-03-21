@@ -14,11 +14,11 @@
 
 # Description: Example using dynamic length structures for Sandboxed API
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("@com_google_sandboxed_api//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
-load("@com_google_sandboxed_api//sandboxed_api/bazel:sapi.bzl", "sapi_library")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:proto.bzl", "sapi_proto_library")
+load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
-package(default_visibility = ["@com_google_sandboxed_api//sandboxed_api:__subpackages__"])
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -36,8 +36,8 @@ cc_library(
     linkstatic = True,
     deps = [
         ":stringop_params_cc_proto",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_sandboxed_api//sandboxed_api:lenval_core",
+        "//sandboxed_api:lenval_core",
+        "@abseil-cpp//absl/base:core_headers",
     ],
     alwayslink = True,
 )
@@ -71,15 +71,15 @@ cc_test(
     deps = [
         ":stringop-sapi",
         ":stringop_params_cc_proto",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api:sapi",
-        "@com_google_sandboxed_api//sandboxed_api:vars",
-        "@com_google_sandboxed_api//sandboxed_api/util:status",
-        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "//sandboxed_api:sapi",
+        "//sandboxed_api:vars",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:string_view",
+        "@googletest//:gtest_main",
     ],
 )

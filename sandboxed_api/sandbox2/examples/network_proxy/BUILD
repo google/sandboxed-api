@@ -14,10 +14,10 @@
 
 # The 'network proxy' example demonstrates how to use network proxy server.
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
+    "//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -29,20 +29,20 @@ cc_binary(
     copts = sapi_platform_copts(),
     data = [":networkproxy_bin"],
     deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/time",
-        "@com_google_sandboxed_api//sandboxed_api:config",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:testing",
-        "@com_google_sandboxed_api//sandboxed_api/util:runfiles",
+        "//sandboxed_api:config",
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/network_proxy:testing",
+        "//sandboxed_api/util:runfiles",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -52,21 +52,21 @@ cc_binary(
     srcs = ["networkproxy_bin.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:client",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/network_proxy:client",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
-        "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/network_proxy:client",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 

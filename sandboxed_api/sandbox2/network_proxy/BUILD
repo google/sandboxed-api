@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 package(default_visibility = [
-    "@com_google_sandboxed_api//sandboxed_api/sandbox2:__subpackages__",
+    "//sandboxed_api/sandbox2:__subpackages__",
 ])
 
 licenses(["notice"])
@@ -27,12 +27,12 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
-        "@com_google_absl//absl/functional:any_invocable",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/util:fileops",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -43,15 +43,15 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2/util:syscall_trap",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
-        "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/util:syscall_trap",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -61,12 +61,12 @@ cc_library(
     hdrs = ["filtering.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_sandboxed_api//sandboxed_api/sandbox2:comms",
-        "@com_google_sandboxed_api//sandboxed_api/util:status",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -76,9 +76,9 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
-        "@com_google_absl//absl/log:check",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_sandboxed_api//sandboxed_api/util:status_matchers",
+        "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/log:check",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -88,14 +88,14 @@ cc_library(
     hdrs = ["testing.h"],
     copts = sapi_platform_copts(),
     deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_sandboxed_api//sandboxed_api/util:fileops",
-        "@com_google_sandboxed_api//sandboxed_api/util:status",
-        "@com_google_sandboxed_api//sandboxed_api/util:thread",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:status",
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )

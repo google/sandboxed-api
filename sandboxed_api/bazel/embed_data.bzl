@@ -90,8 +90,8 @@ def sapi_cc_embed_data(name, srcs = [], namespace = "", **kwargs):
         hdrs = [":%s.h" % name],
         srcs = [":%s.cc" % name],
         deps = [
-            "@com_google_absl//absl/base:core_headers",
-            "@com_google_absl//absl/strings",
+            "@abseil-cpp//absl/base:core_headers",
+            "@abseil-cpp//absl/strings",
         ],
         **kwargs
     )

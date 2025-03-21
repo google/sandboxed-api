@@ -19,7 +19,7 @@
 # default visibility in a target (currently //visibility:public) with the
 # appropriate visibility list for your targets.
 
-load("@com_google_sandboxed_api//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 licenses(["notice"])
 
