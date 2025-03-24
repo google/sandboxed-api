@@ -338,10 +338,12 @@ bool Comms::RecvFD(int* fd) {
 
   ssize_t len = GetRawComms()->RawRecvMsg(&msg);
   if (len < 0) {
-    if (IsFatalError(errno)) {
+    bool fatal = IsFatalError(errno);
+    SAPI_RAW_PLOG(ERROR, "recvmsg(SCM_RIGHTS): %s error",
+                  fatal ? "fatal" : "normal");
+    if (fatal) {
       Terminate();
     }
-    SAPI_RAW_PLOG(ERROR, "recvmsg(SCM_RIGHTS)");
     return false;
   }
   if (len == 0) {
@@ -424,10 +426,12 @@ bool Comms::SendFD(int fd) {
     return false;
   }
   if (len < 0) {
-    if (IsFatalError(errno)) {
+    bool fatal = IsFatalError(errno);
+    SAPI_RAW_PLOG(ERROR, "sendmsg(SCM_RIGHTS): %s error",
+                  fatal ? "fatal" : "normal");
+    if (fatal) {
       Terminate();
     }
-    SAPI_RAW_PLOG(ERROR, "sendmsg(SCM_RIGHTS)");
     return false;
   }
   if (len != sizeof(tlv)) {
@@ -526,8 +530,9 @@ bool Comms::Send(const void* data, size_t len) {
       return false;
     }
     if (s == -1) {
-      SAPI_RAW_PLOG(ERROR, "write");
-      if (IsFatalError(errno)) {
+      bool fatal = IsFatalError(errno);
+      SAPI_RAW_PLOG(ERROR, "write: %s error", fatal ? "fatal" : "normal");
+      if (fatal) {
         Terminate();
       }
       return false;
@@ -554,8 +559,9 @@ bool Comms::Recv(void* data, size_t len) {
   while (total_recv < len) {
     ssize_t s = GetRawComms()->RawRecv(&bytes[total_recv], len - total_recv);
     if (s == -1) {
-      SAPI_RAW_PLOG(ERROR, "read");
-      if (IsFatalError(errno)) {
+      bool fatal = IsFatalError(errno);
+      SAPI_RAW_PLOG(ERROR, "read: %s error", fatal ? "fatal" : "normal");
+      if (fatal) {
         Terminate();
       }
       return false;
