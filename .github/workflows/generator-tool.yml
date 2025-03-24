@@ -66,6 +66,8 @@ jobs:
 
   prerelease:
     needs: build
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     env:
       ARTIFACT_NAME: sapi_generator_tool-linux
