@@ -18,8 +18,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/status/statusor.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -34,10 +37,18 @@ class Buffer final {
   Buffer(const Buffer&) = delete;
   Buffer& operator=(const Buffer&) = delete;
 
-  // Creates a new Buffer that is backed by the specified file descriptor.
-  // The Buffer takes ownership of the descriptor and will close it when
-  // destroyed.
-  static absl::StatusOr<std::unique_ptr<Buffer>> CreateFromFd(int fd);
+  // Creates a new Buffer that is backed by the specified file descriptor, size
+  // is determined by the size of the file.
+  static absl::StatusOr<std::unique_ptr<Buffer>> CreateFromFd(
+      sapi::file_util::fileops::FDCloser fd);
+  // Creates a new Buffer that is backed by the specified file descriptor with
+  // given size.
+  static absl::StatusOr<std::unique_ptr<Buffer>> CreateFromFd(
+      sapi::file_util::fileops::FDCloser fd, size_t size);
+  ABSL_DEPRECATED("Use FDCloser version instead.")
+  static absl::StatusOr<std::unique_ptr<Buffer>> CreateFromFd(int fd) {
+    return CreateFromFd(sapi::file_util::fileops::FDCloser(fd));
+  }
 
   // Creates a new Buffer of the specified size, backed by a temporary file that
   // will be immediately deleted.
@@ -50,13 +61,14 @@ class Buffer final {
   size_t size() const { return size_; }
 
   // Gets the file descriptor backing the buffer.
-  int fd() const { return fd_; }
+  int fd() const { return fd_.get(); }
 
  private:
-  Buffer() = default;
+  Buffer(sapi::file_util::fileops::FDCloser fd, uint8_t* buf, size_t size)
+      : buf_(buf), fd_(std::move(fd)), size_(size) {}
 
   uint8_t* buf_ = nullptr;
-  int fd_ = -1;
+  sapi::file_util::fileops::FDCloser fd_;
   size_t size_ = 0;
 };
 

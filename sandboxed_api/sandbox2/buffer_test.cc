@@ -31,6 +31,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
@@ -38,6 +39,7 @@ namespace {
 
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
+using ::sapi::file_util::fileops::FDCloser;
 using ::testing::Eq;
 using ::testing::Ne;
 
@@ -50,7 +52,10 @@ TEST(BufferTest, TestImplementation) {
   for (int i = 0; i < kSize; i++) {
     raw_buf[i] = 'X';
   }
-  SAPI_ASSERT_OK_AND_ASSIGN(auto buffer2, Buffer::CreateFromFd(buffer->fd()));
+  int duped = dup(buffer->fd());
+  ASSERT_THAT(duped, Ne(-1));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto buffer2,
+                            Buffer::CreateFromFd(FDCloser(duped)));
   uint8_t* raw_buf2 = buffer2->data();
   for (int i = 0; i < kSize; i++) {
     EXPECT_THAT(raw_buf2[i], Eq('X'));
@@ -74,7 +79,7 @@ TEST(BufferTest, TestWithSandboxeeMapFd) {
 
   // Map buffer as fd 3, but careful because MapFd closes the buffer fd and
   // we need to keep it since buffer uses it for mmap, so we must dup.
-  executor->ipc()->MapFd(dup(buffer->fd()), 3);
+  executor->ipc()->MapDupedFd(buffer->fd(), 3);
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   auto result = s2.Run();

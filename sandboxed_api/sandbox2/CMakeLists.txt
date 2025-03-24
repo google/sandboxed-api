@@ -702,7 +702,8 @@ target_link_libraries(sandbox2_util
           sapi::base
           sapi::raw_logging
           sapi::status
-  PUBLIC absl::span
+  PUBLIC absl::log
+         absl::span
          absl::status
          absl::statusor
 )
@@ -733,15 +734,13 @@ add_library(sandbox2_buffer ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::buffer ALIAS sandbox2_buffer)
 target_link_libraries(sandbox2_buffer
-  PRIVATE absl::core_headers
-          absl::memory
+  PRIVATE absl::memory
           absl::status
-          absl::strings
-          sapi::strerror
-          sandbox2::util
           sapi::base
-          sapi::status
-  PUBLIC absl::statusor
+          sandbox2::util
+  PUBLIC absl::core_headers
+         absl::statusor
+         sapi::fileops
 )
 
 # sandboxed_api/sandbox2:forkserver_proto

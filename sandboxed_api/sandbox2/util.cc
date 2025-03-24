@@ -63,7 +63,7 @@ namespace sandbox2 {
 namespace util {
 
 namespace file = ::sapi::file;
-namespace file_util = ::sapi::file_util;
+using ::sapi::file_util::fileops::FDCloser;
 
 namespace {
 
@@ -142,7 +142,8 @@ std::string GetProgName(pid_t pid) {
   // Use ReadLink instead of RealPath, as for fd-based executables (e.g. created
   // via memfd_create()) the RealPath will not work, as the destination file
   // doesn't exist on the local file-system.
-  return file_util::fileops::Basename(file_util::fileops::ReadLink(fname));
+  return sapi::file_util::fileops::Basename(
+      sapi::file_util::fileops::ReadLink(fname));
 }
 
 absl::StatusOr<std::string> GetResolvedFdLink(pid_t pid, uint32_t fd) {
@@ -253,7 +254,7 @@ pid_t ForkWithFlags(int flags) {
   return 0;
 }
 
-bool CreateMemFd(int* fd, const char* name) {
+absl::StatusOr<FDCloser> CreateMemFd(const char* name) {
   // Usually defined in linux/memfd.h. Define it here to avoid dependency on
   // UAPI headers.
   constexpr uintptr_t kMfdCloseOnExec = 0x0001;
@@ -262,16 +263,14 @@ bool CreateMemFd(int* fd, const char* name) {
                        kMfdCloseOnExec | kMfdAllowSealing);
   if (tmp_fd < 0) {
     if (errno == ENOSYS) {
-      SAPI_RAW_LOG(ERROR,
-                   "This system does not seem to support the memfd_create()"
-                   " syscall. Try running on a newer kernel.");
-    } else {
-      SAPI_RAW_PLOG(ERROR, "Could not create tmp file '%s'", name);
+      return absl::InternalError(
+          "This system does not seem to support the memfd_create()"
+          " syscall. Try running on a newer kernel.");
     }
-    return false;
+    return absl::ErrnoToStatus(
+        errno, absl::StrFormat("Could not create tmp file '%s'", name));
   }
-  *fd = tmp_fd;
-  return true;
+  return FDCloser(tmp_fd);
 }
 
 absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
@@ -283,7 +282,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
   if (pipe(cout_pipe) == -1) {
     return absl::ErrnoToStatus(errno, "creating pipe");
   }
-  file_util::fileops::FDCloser cout_closer{cout_pipe[1]};
+  FDCloser cout_closer{cout_pipe[1]};
 
   posix_spawn_file_actions_init(&action);
   struct ActionCleanup {
@@ -505,11 +504,9 @@ absl::StatusOr<size_t> ProcessVmReadInSplitChunks(pid_t pid, uintptr_t ptr,
 }
 
 // Open /proc/pid/mem file descriptor.
-absl::StatusOr<file_util::fileops::FDCloser> OpenProcMem(pid_t pid,
-                                                         bool is_read) {
+absl::StatusOr<FDCloser> OpenProcMem(pid_t pid, bool is_read) {
   auto path = absl::StrFormat("/proc/%d/mem", pid);
-  auto closer = file_util::fileops::FDCloser(
-      open(path.c_str(), is_read ? O_RDONLY : O_WRONLY));
+  auto closer = FDCloser(open(path.c_str(), is_read ? O_RDONLY : O_WRONLY));
   if (closer.get() == -1) {
     return absl::ErrnoToStatus(
         errno, absl::StrFormat("open() failed for PID: %d", pid));
@@ -523,8 +520,7 @@ absl::StatusOr<size_t> ProcMemTransfer(bool is_read, pid_t pid, uintptr_t ptr,
     return 0;
   }
 
-  SAPI_ASSIGN_OR_RETURN(file_util::fileops::FDCloser fd_closer,
-                        OpenProcMem(pid, is_read));
+  SAPI_ASSIGN_OR_RETURN(FDCloser fd_closer, OpenProcMem(pid, is_read));
   size_t total_bytes_transferred = 0;
   while (!data.empty()) {
     ssize_t bytes_transfered =

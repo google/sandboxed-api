@@ -25,9 +25,12 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -99,7 +102,20 @@ long Syscall(long sys_no,  // NOLINT
 pid_t ForkWithFlags(int flags);
 
 // Creates a new memfd.
-bool CreateMemFd(int* fd, const char* name = "buffer_file");
+absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFd(
+    const char* name = "buffer_file");
+
+ABSL_DEPRECATED("Use absl::StausOr<FDCloser> version instead.")
+inline bool CreateMemFd(int* fd, const char* name = "buffer_file") {
+  absl::StatusOr<sapi::file_util::fileops::FDCloser> fd_closer =
+      CreateMemFd(name);
+  if (!fd_closer.ok()) {
+    LOG(ERROR) << "Could not create memfd: " << fd_closer.status();
+    return false;
+  }
+  *fd = fd_closer->Release();
+  return true;
+}
 
 // Executes a the program given by argv and the specified environment and
 // captures any output to stdout/stderr.
