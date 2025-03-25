@@ -23,7 +23,7 @@
 #include <iostream>
 
 // Generated header
-#include "third_party/sandboxed_api/examples/hello_sapi/hello_sapi.sapi.h"
+#include "sandboxed_api/examples/hello_sapi/hello_sapi.sapi.h"
 
 int main() {
   std::cout << "Calling into a sandboxee to add two numbers...\n";

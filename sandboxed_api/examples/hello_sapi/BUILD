@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//third_party/sandboxed_api/bazel:sapi.bzl", "sapi_library")
+load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
-package(
-    default_applicable_licenses = ["//third_party/sandboxed_api:license"],
-    default_visibility = ["//third_party/sandboxed_api:__subpackages__"],
-)
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
 
 licenses(["notice"])
 
@@ -56,10 +53,10 @@ cc_binary(
     srcs = ["hello_transacted.cc"],
     deps = [
         ":hello_sapi",
-        "//third_party/absl/status",
-        "//third_party/sandboxed_api:sapi",
-        "//third_party/sandboxed_api/sandbox2:policy",
-        "//third_party/sandboxed_api/sandbox2:policybuilder",
-        "//third_party/sandboxed_api/util:status",
+        "//sandboxed_api:sapi",
+        "//sandboxed_api/sandbox2:policy",
+        "//sandboxed_api/sandbox2:policybuilder",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/status",
     ],
 )
