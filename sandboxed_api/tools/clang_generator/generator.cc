@@ -319,6 +319,24 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_vpopcntw_128=",
            "__builtin_ia32_vpopcntw_256=",
            "__builtin_ia32_vpopcntw_512=",
+           "__builtin_ia32_vcvttpd2dqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m128i {return __m128i();}",
+           "__builtin_ia32_vcvttpd2udqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m128i {return __m128i();}",
+           "__builtin_ia32_vcvttpd2qqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m256i {return __m256i();}",
+           "__builtin_ia32_vcvttpd2uqqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m256i {return __m256i();}",
+           "__builtin_ia32_vcvttps2dqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m256i {return __m256i();}",
+           "__builtin_ia32_vcvttps2udqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m256i {return __m256i();}",
+           "__builtin_ia32_vcvttps2qqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m256i {return __m256i();}",
+           "__builtin_ia32_vcvttps2uqqs256_round_mask=[](auto, auto, auto, "
+           "auto)->__m256i {return __m256i();}",
+           "__builtin_ia32_vcvttps2uqqs512_round_mask=[](auto, auto, auto, "
+           "auto)->__m512i {return __m512i();}",
        }) {
     options.addMacroDef(def);
     // To avoid code to include header with compiler intrinsics, undefine a few
