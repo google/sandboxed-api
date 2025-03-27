@@ -20,7 +20,7 @@
 #include <memory>
 #include <utility>
 
-#include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 
@@ -45,7 +45,7 @@ class Buffer final {
   // given size.
   static absl::StatusOr<std::unique_ptr<Buffer>> CreateFromFd(
       sapi::file_util::fileops::FDCloser fd, size_t size);
-  ABSL_DEPRECATED("Use FDCloser version instead.")
+  ABSL_DEPRECATE_AND_INLINE()
   static absl::StatusOr<std::unique_ptr<Buffer>> CreateFromFd(int fd) {
     return CreateFromFd(sapi::file_util::fileops::FDCloser(fd));
   }
