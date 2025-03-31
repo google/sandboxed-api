@@ -1038,6 +1038,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_policy_test PRIVATE
     absl::strings
+    sandbox2::allowlists_seccomp_speculation
     sandbox2::bpf_helper
     sapi::config
     sandbox2::sandbox2

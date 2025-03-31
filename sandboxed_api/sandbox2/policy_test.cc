@@ -29,6 +29,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -406,6 +407,28 @@ TEST_P(PolicyTest, SecondExecveatNotAllowedByDefault) {
   Result result = s2->Run();
 
   // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, SpeculationAllowed) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {"policy", "11"},  // Calls TestSpeculationAllowed()
+      CreateDefaultPermissiveTestPolicy(path).Allow(SeccompSpeculation()));
+  Result result = s2->Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, SpeculationBlockedByDefault) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({"policy", "12"},  // Calls TestSpeculationBlocked()
+                        CreateDefaultPermissiveTestPolicy(path));
+  Result result = s2->Run();
+
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
 }

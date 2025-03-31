@@ -14,7 +14,9 @@
 
 // A binary that tries x86_64 compat syscalls, ptrace and clone untraced.
 
+#include <linux/prctl.h>
 #include <sched.h>
+#include <sys/prctl.h>
 #include <sys/ptrace.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -113,6 +115,32 @@ void TestSafeBpf() {
 
 void TestIsatty() { isatty(0); }
 
+void TestSpeculationAllowed() {
+  int res = prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS, 0, 0, 0);
+  if (res == PR_SPEC_ENABLE) {
+    printf("PR_SPEC_STORE_BYPASS enabled when it should not have been\n");
+    exit(EXIT_FAILURE);
+  }
+  res = prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH, 0, 0, 0);
+  if (res == PR_SPEC_ENABLE) {
+    printf("PR_SPEC_INDIRECT_BRANCH enabled when it should not have been\n");
+    exit(EXIT_FAILURE);
+  }
+}
+
+void TestSpeculationBlocked() {
+  int res = prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS, 0, 0, 0);
+  if ((res != -1 && errno == EINVAL) && res != PR_SPEC_ENABLE) {
+    printf("PR_SPEC_STORE_BYPASS disabled when it should not have been\n");
+    exit(EXIT_FAILURE);
+  }
+  res = prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH, 0, 0, 0);
+  if ((res != -1 && errno == EINVAL) && res != PR_SPEC_ENABLE) {
+    printf("PR_SPEC_INDIRECT_BRANCH disabled when it should not have been\n");
+    exit(EXIT_FAILURE);
+  }
+}
+
 int main(int argc, char* argv[]) {
   // Disable buffering.
   setbuf(stdin, nullptr);
@@ -154,6 +182,12 @@ int main(int argc, char* argv[]) {
       break;
     case 9:
       TestSafeBpf();
+      break;
+    case 11:
+      TestSpeculationAllowed();
+      break;
+    case 12:
+      TestSpeculationBlocked();
       break;
     default:
       printf("Unknown test: %d\n", testno);
