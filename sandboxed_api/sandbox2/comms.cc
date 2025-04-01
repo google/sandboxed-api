@@ -252,6 +252,9 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
 bool Comms::RecvString(std::string* v) {
   uint32_t tag;
   if (!RecvTLV(&tag, v)) {
+    if (IsConnected()) {
+      SAPI_RAW_LOG(ERROR, "RecvString failed for (%s)", name_.c_str());
+    }
     return false;
   }
 
@@ -271,6 +274,9 @@ bool Comms::SendString(const std::string& v) {
 bool Comms::RecvBytes(std::vector<uint8_t>* buffer) {
   uint32_t tag;
   if (!RecvTLV(&tag, buffer)) {
+    if (IsConnected()) {
+      SAPI_RAW_LOG(ERROR, "RecvBytes failed for (%s)", name_.c_str());
+    }
     return false;
   }
   if (tag != kTagBytes) {
@@ -446,10 +452,7 @@ bool Comms::RecvProtoBuf(google::protobuf::MessageLite* message) {
   std::vector<uint8_t> bytes;
   if (!RecvTLV(&tag, &bytes)) {
     if (IsConnected()) {
-      SAPI_RAW_PLOG(ERROR, "RecvProtoBuf failed for (%s)", name_);
-    } else {
-      Terminate();
-      SAPI_RAW_VLOG(2, "Connection terminated (%s)", name_.c_str());
+      SAPI_RAW_LOG(ERROR, "RecvProtoBuf failed for (%s)", name_.c_str());
     }
     return false;
   }
