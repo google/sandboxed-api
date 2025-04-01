@@ -204,7 +204,6 @@ void Comms::Terminate() {
   state_ = State::kTerminated;
 
   raw_comms_ = std::unique_ptr<RawComms>();
-  listening_comms_.reset();
 }
 
 bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {

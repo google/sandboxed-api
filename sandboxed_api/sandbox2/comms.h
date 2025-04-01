@@ -50,7 +50,6 @@ class Message;
 namespace sandbox2 {
 
 class Client;
-class ListeningComms;
 
 class Comms {
  public:
@@ -198,7 +197,6 @@ class Comms {
     swap(abstract_uds_, other.abstract_uds_);
     swap(raw_comms_, other.raw_comms_);
     swap(state_, other.state_);
-    swap(listening_comms_, other.listening_comms_);
   }
 
   friend void swap(Comms& x, Comms& y) { return x.Swap(y); }
@@ -243,8 +241,6 @@ class Comms {
   std::string name_;
   bool abstract_uds_ = true;
   std::variant<std::unique_ptr<RawComms>, RawCommsFdImpl> raw_comms_;
-
-  std::unique_ptr<ListeningComms> listening_comms_;
 
   // State of the channel (enum), socket will have to be connected later on.
   State state_ = State::kUnconnected;
