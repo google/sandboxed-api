@@ -70,7 +70,7 @@ void InitSeccompUnotify(sock_fprog prog, Comms* comms,
   std::atomic<int> fd(-1);
   std::atomic<int> tid(-1);
 
-  std::thread th([comms, &fd, &tid]() {
+  std::thread th([comms, seccomp_extra_flags, &fd, &tid]() {
     int notify_fd = -1;
     while (notify_fd == -1) {
       notify_fd = fd.load(std::memory_order_seq_cst);
@@ -82,14 +82,15 @@ void InitSeccompUnotify(sock_fprog prog, Comms* comms,
         .len = 1,
         .filter = &filter,
     };
-    int result = syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0,
-                         reinterpret_cast<uintptr_t>(&allow_prog));
+    int result =
+        syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, seccomp_extra_flags,
+                reinterpret_cast<uintptr_t>(&allow_prog));
     SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
     tid.store(syscall(__NR_gettid), std::memory_order_seq_cst);
   });
   th.detach();
   int result = syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
-                       SECCOMP_FILTER_FLAG_NEW_LISTENER,
+                       SECCOMP_FILTER_FLAG_NEW_LISTENER | seccomp_extra_flags,
                        reinterpret_cast<uintptr_t>(&prog));
   SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
   fd.store(result, std::memory_order_seq_cst);
@@ -329,12 +330,14 @@ void Client::ApplyPolicyAndBecomeTracee() {
   uint32_t message;  // wait for confirmation
   SAPI_RAW_CHECK(comms_->RecvUint32(&message),
                  "receving confirmation from executor");
+  bool allow_speculation = message & kAllowSpeculationBit;
   uint32_t seccomp_extra_flags =
-      allow_speculation_ ? SECCOMP_FILTER_FLAG_SPEC_ALLOW : 0;
-  if (message == kSandbox2ClientUnotify) {
+      allow_speculation ? SECCOMP_FILTER_FLAG_SPEC_ALLOW : 0;
+  uint32_t monitor_type = message & kMonitorTypeMask;
+  if (monitor_type == kSandbox2ClientUnotify) {
     InitSeccompUnotify(prog, comms_, seccomp_extra_flags);
   } else {
-    SAPI_RAW_CHECK(message == kSandbox2ClientDone,
+    SAPI_RAW_CHECK(monitor_type == kSandbox2ClientPtrace,
                    "invalid confirmation from executor");
     InitSeccompRegular(prog, seccomp_extra_flags);
   }

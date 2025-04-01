@@ -36,11 +36,18 @@ class Client {
   // Client is ready to be sandboxed.
   static constexpr uint32_t kClient2SandboxReady = 0x0A0B0C01;
 
-  // Sandbox is ready to monitor the sandboxee.
-  static constexpr uint32_t kSandbox2ClientDone = 0x0A0B0C02;
+  // Sandbox is ready to monitor the sandboxee. Used with PtraceMonitor.
+  static constexpr uint32_t kSandbox2ClientPtrace = 0x0A0B0C02;
 
-  // Sandboxee should setup seccomp_unotify and send back the FD.
+  // Sandboxee should setup seccomp_unotify and send back the FD. Used with
+  // UnotifyMonitor.
   static constexpr uint32_t kSandbox2ClientUnotify = 0x0A0B0C03;
+
+  // Allow speculation in the seccomp policy.
+  static constexpr uint32_t kAllowSpeculationBit = 0x10000000;
+
+  // Mask for the monitor type in the message.
+  static constexpr uint32_t kMonitorTypeMask = 0x0FFFFFFF;
 
   explicit Client(Comms* comms);
   virtual ~Client() = default;
@@ -112,8 +119,6 @@ class Client {
 
   void PrepareEnvironment(int* preserved_fd = nullptr);
   void EnableSandbox();
-
-  bool allow_speculation_ = false;
 };
 
 }  // namespace sandbox2

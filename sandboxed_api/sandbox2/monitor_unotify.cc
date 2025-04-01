@@ -346,7 +346,7 @@ void UnotifyMonitor::SetExitStatusFromStatusPipe() {
 }
 
 bool UnotifyMonitor::InitSetupUnotify() {
-  if (!comms_->SendUint32(Client::kSandbox2ClientUnotify)) {
+  if (!SendMonitorReadyMessageAndFlags(Client::kSandbox2ClientUnotify)) {
     LOG(ERROR) << "Couldn't send Client::kSandbox2ClientUnotify message";
     return false;
   }

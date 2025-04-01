@@ -92,6 +92,11 @@ class MonitorBase {
 
   void OnDone();
 
+  // Sends a message to the client that we're ready to monitor it.
+  // The message contains the monitor type and final sandboxee mode flags
+  // (currently only flag to allow speculation for the seccomped process).
+  bool SendMonitorReadyMessageAndFlags(uint32_t monitor_type);
+
   // Sets basic info status and reason code in the result object.
   void SetExitStatusCode(Result::StatusEnum final_status,
                          uintptr_t reason_code);

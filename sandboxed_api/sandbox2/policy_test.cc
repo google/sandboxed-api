@@ -411,6 +411,7 @@ TEST_P(PolicyTest, SecondExecveatNotAllowedByDefault) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
+#ifdef SAPI_X86_64
 TEST_P(PolicyTest, SpeculationAllowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
@@ -432,6 +433,7 @@ TEST_P(PolicyTest, SpeculationBlockedByDefault) {
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
+#endif  // SAPI_X86_64
 
 INSTANTIATE_TEST_SUITE_P(Sandbox2, PolicyTest, ::testing::Values(false, true),
                          [](const ::testing::TestParamInfo<bool>& info) {

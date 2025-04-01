@@ -18,6 +18,7 @@
 
 #include <fcntl.h>
 #include <linux/filter.h>
+#include <linux/prctl.h>
 #include <linux/seccomp.h>
 #include <sched.h>
 #include <sys/prctl.h>
@@ -124,7 +125,8 @@ Pipe CreatePipe() {
   return {FDCloser(pfds[0]), FDCloser(pfds[1])};
 }
 
-ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd) {
+ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd,
+                                            bool allow_speculation) {
   if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
   }
@@ -157,13 +159,17 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd) {
       .filter = code.data(),
   };
 
+  uint32_t seccomp_extra_flags = 0;
+  if (allow_speculation) {
+    seccomp_extra_flags |= SECCOMP_FILTER_FLAG_SPEC_ALLOW;
+  }
   SAPI_RAW_CHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
                  "Denying new privs");
   SAPI_RAW_CHECK(prctl(PR_SET_KEEPCAPS, 0) == 0, "Dropping caps");
-  SAPI_RAW_CHECK(
-      syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC,
-              reinterpret_cast<uintptr_t>(&prog)) == 0,
-      "Enabling seccomp filter");
+  SAPI_RAW_CHECK(syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
+                         SECCOMP_FILTER_FLAG_TSYNC | seccomp_extra_flags,
+                         reinterpret_cast<uintptr_t>(&prog)) == 0,
+                 "Enabling seccomp filter");
 
   siginfo_t info;
   // Reap children.
@@ -324,7 +330,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
       for (const auto& fd : *open_fds) {
         close(fd);
       }
-      RunInitProcess(child, std::move(status_fd));
+      RunInitProcess(child, std::move(status_fd), request.allow_speculation());
     }
     // Send sandboxee pid
     auto status = SendPid(signaling_fd.get());
@@ -335,7 +341,6 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   status_fd.Close();
 
   Client client(comms_);
-  client.allow_speculation_ = request.allow_speculation();
 
   // Prepare the arguments before sandboxing (if needed), as doing it after
   // sandoxing can cause syscall violations (e.g. related to memory management).

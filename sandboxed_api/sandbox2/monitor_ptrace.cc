@@ -615,8 +615,8 @@ bool PtraceMonitor::InitPtraceAttach() {
   // no matter what is the current state of the sandboxee, and it will allow for
   // our process to continue and unlock the sandboxee with the proper ptrace
   // event handling.
-  if (!comms_->SendUint32(Client::kSandbox2ClientDone)) {
-    LOG(ERROR) << "Couldn't send Client::kSandbox2ClientDone message";
+  if (!SendMonitorReadyMessageAndFlags(Client::kSandbox2ClientPtrace)) {
+    LOG(ERROR) << "Couldn't send Client::kSandbox2ClientPtrace message";
     return false;
   }
   return true;

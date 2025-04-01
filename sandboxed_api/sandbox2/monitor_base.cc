@@ -278,6 +278,14 @@ absl::Status MonitorBase::SendPolicy(const std::vector<sock_filter>& policy) {
   return absl::OkStatus();
 }
 
+bool MonitorBase::SendMonitorReadyMessageAndFlags(uint32_t monitor_type) {
+  uint32_t message = monitor_type;
+  if (policy_->allow_speculation_) {
+    message |= Client::kAllowSpeculationBit;
+  }
+  return comms_->SendUint32(message);
+}
+
 bool MonitorBase::InitSendPolicy() {
   bool user_notif = type_ == FORKSERVER_MONITOR_UNOTIFY;
   auto policy =
