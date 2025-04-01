@@ -203,12 +203,11 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     return absl::InternalError(
         "Could not create temporary directory for unwinding");
   }
-  struct UnwindTempDirectoryCleanup {
-    ~UnwindTempDirectoryCleanup() {
-      file_util::fileops::DeleteRecursively(capture);
+  absl::Cleanup delete_unwind_temp_directory = [&unwind_temp_directory] {
+    if (!file_util::fileops::DeleteRecursively(unwind_temp_directory)) {
+      LOG(ERROR) << "Failed to delete " << unwind_temp_directory;
     }
-    char* capture;
-  } cleanup{unwind_temp_directory};
+  };
 
   // Copy over important files from the /proc directory as we can't mount them.
   const std::string unwind_temp_maps_path =
