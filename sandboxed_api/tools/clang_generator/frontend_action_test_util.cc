@@ -79,6 +79,7 @@ std::vector<std::string> FrontendActionTest::GetCommandLineFlagsForTesting(
           "-I.",  "-Wno-error",    std::string(input_file)};
 }
 
+// Replaces all newlines with spaces and removes consecutive runs of whitespace.
 std::string Uglify(absl::string_view code) {
   std::string result = absl::StrReplaceAll(code, {{"\n", " "}});
   absl::RemoveExtraAsciiWhitespace(&result);

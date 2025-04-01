@@ -31,6 +31,8 @@
 namespace sapi {
 namespace internal {
 
+// Sets up a virtual filesystem, adds code files to it, and runs a clang tool
+// on it.
 absl::Status RunClangTool(
     const std::vector<std::string>& command_line,
     const absl::flat_hash_map<std::string, std::string>& file_contents,
@@ -51,6 +53,7 @@ class FrontendActionTest : public ::testing::Test {
     input_file_ = std::string(value);
   }
 
+  // Returns the command line flags for the specified input file.
   virtual std::vector<std::string> GetCommandLineFlagsForTesting(
       absl::string_view input_file);
 
@@ -76,12 +79,10 @@ class FrontendActionTest : public ::testing::Test {
   absl::flat_hash_map<std::string, std::string> file_contents_;
 };
 
-// Flattens a piece of C++ code into one line and removes consecutive runs of
-// whitespace. This makes it easier to compare code snippets for testing.
-// Note: This is not syntax-aware and will replace characters within strings as
-// well.
-std::string Uglify(absl::string_view code);
-
+// Flattens a vector of C++ code snippets into one line and removes consecutive
+// runs of whitespace. This makes it easier to compare code snippets for
+// testing. Note: This is not syntax-aware and will replace characters within
+// strings as well.
 std::vector<std::string> UglifyAll(const std::vector<std::string>& snippets);
 
 }  // namespace sapi
