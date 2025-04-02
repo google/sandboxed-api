@@ -77,14 +77,16 @@
 #endif
 
 #ifndef MAP_FIXED_NOREPLACE
-#define MAP_FIXED_NOREPLACE 0x100000
+#define MAP_FIXED_NOREPLACE 0x100000  // Linux 4.17+
 #endif
+
 #ifndef MADV_POPULATE_READ
 #define MADV_POPULATE_READ 22  // Linux 5.14+
 #endif
 #ifndef MADV_POPULATE_WRITE  // Linux 5.14+
 #define MADV_POPULATE_WRITE 23
 #endif
+
 #ifndef PR_SET_VMA
 #define PR_SET_VMA 0x53564d41
 #endif
@@ -540,15 +542,16 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
     return *this;
   }
   allowed_complex_.limited_madvise = true;
-  return AddPolicyOnSyscall(__NR_madvise, {
-                                              ARG_32(2),
-                                              JEQ32(MADV_SEQUENTIAL, ALLOW),
-                                              JEQ32(MADV_DONTNEED, ALLOW),
-                                              JEQ32(MADV_REMOVE, ALLOW),
-                                              JEQ32(MADV_HUGEPAGE, ALLOW),
-                                              JEQ32(MADV_NOHUGEPAGE, ALLOW),
-                                              JEQ32(MADV_DONTDUMP, ALLOW),
-                                          });
+  return AddPolicyOnSyscall(
+      __NR_madvise, {
+                        ARG_32(2),
+                        JEQ32(MADV_SEQUENTIAL, ALLOW),
+                        JEQ32(MADV_DONTNEED, ALLOW),
+                        JEQ32(MADV_REMOVE, ALLOW),
+                        JEQ32(MADV_HUGEPAGE, ALLOW),
+                        JEQ32(MADV_NOHUGEPAGE, ALLOW),
+                        JEQ32(MADV_DONTDUMP, ALLOW),
+                    });
 }
 
 PolicyBuilder& PolicyBuilder::AllowMadvisePopulate() {
