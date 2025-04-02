@@ -30,7 +30,7 @@ endif()
 
 FetchContent_Declare(libblosc
   GIT_REPOSITORY https://github.com/Blosc/c-blosc.git
-  GIT_TAG        ad6361f0151f830efb5ae113211c3559ab969886 # 2022-05-31
+  GIT_TAG        051b9d2cb9437e375dead8574f66d80ebce47bee # 2025-03-28
 )
 set(HIDE_SYMBOLS OFF CACHE BOOL "" FORCE)
 set(BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
