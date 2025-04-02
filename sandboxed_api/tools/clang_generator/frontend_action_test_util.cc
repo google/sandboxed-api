@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -36,9 +37,20 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/path.h"
 
 namespace sapi {
 namespace internal {
+
+std::string GetTestFileContents(absl::string_view file) {
+  std::string contents;
+  CHECK_OK(file::GetContents(GetTestSourcePath(file::JoinPath(
+                                 "tools/clang_generator/testdata/", file)),
+                             &contents, file::Defaults()));
+  return contents;
+}
 
 absl::Status RunClangTool(
     const std::vector<std::string>& command_line,

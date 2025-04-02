@@ -148,15 +148,20 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     emitter_test.cc
   )
   target_link_libraries(sapi_generator_test PRIVATE
+    absl::check
     absl::flat_hash_map
     absl::memory
     absl::statusor
     benchmark
+    sapi::file_base
+    sapi::file_helpers
+    sapi::runfiles
     sapi::sapi
     sapi::generator
     sapi::status
     sapi::status_matchers
     sapi::test_main
   )
-  gtest_discover_tests_xcompile(sapi_generator_test)
+  gtest_discover_tests_xcompile(sapi_generator_test
+    ENVIRONMENT "TEST_DATA_DIR=${PROJECT_SOURCE_DIR}/testdata")
 endif()

@@ -16,6 +16,11 @@ load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
 licenses(["notice"])
 
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/*"]),
+)
+
 cc_library(
     name = "generator",
     srcs = [
@@ -67,10 +72,17 @@ cc_test(
         "frontend_action_test_util.h",
     ],
     copts = sapi_platform_copts(),
+    data = [
+        ":testdata",
+    ],
     deps = [
         ":generator",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/util:file_base",
+        "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",

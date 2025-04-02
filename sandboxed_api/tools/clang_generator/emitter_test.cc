@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -33,6 +34,7 @@ namespace sapi {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::MatchesRegex;
 using ::testing::SizeIs;
@@ -41,6 +43,8 @@ using ::testing::StrNe;
 
 class EmitterForTesting : public Emitter {
  public:
+  // Returns the spellings of all rendered_types_ordered_ that have the given
+  // namespace name.
   std::vector<std::string> SpellingsForNS(const std::string& ns_name) {
     std::vector<std::string> result;
     for (const RenderedType* rt : rendered_types_ordered_) {
@@ -58,20 +62,101 @@ class EmitterForTesting : public Emitter {
 
 class EmitterTest : public FrontendActionTest {};
 
-TEST_F(EmitterTest, BasicFunctionality) {
+// Tests that the generator only emits the requested function and ignores the
+// others.
+TEST_F(EmitterTest, SpecificFunctionRequested) {
   GeneratorOptions options;
   options.set_function_names<std::initializer_list<std::string>>(
       {"ExposedFunction"});
 
   EmitterForTesting emitter;
-  ASSERT_THAT(
-      RunFrontendAction(R"(extern "C" void ExposedFunction() {})",
-                        std::make_unique<GeneratorAction>(emitter, options)),
-      IsOk());
+  ASSERT_THAT(RunFrontendActionOnFile(
+                  "simple_functions.cc",
+                  std::make_unique<GeneratorAction>(emitter, options)),
+              IsOk());
   EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
 
   absl::StatusOr<std::string> header = emitter.EmitHeader(options);
-  EXPECT_THAT(header, IsOk());
+  ASSERT_THAT(header, IsOk());
+  EXPECT_THAT(*header, HasSubstr("ExposedFunction"));
+}
+
+// Tests that the generator emits all functions if no specific functions are
+// requested.
+TEST_F(EmitterTest, AllFunctionsSuccess) {
+  constexpr absl::string_view input_file = "simple_functions.cc";
+  GeneratorOptions options;
+  options.set_function_names<std::initializer_list<std::string>>({});
+  options.in_files = {"simple_functions.cc"};
+
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendActionOnFile(
+          input_file, std::make_unique<GeneratorAction>(emitter, options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(2));
+
+  absl::StatusOr<std::string> header = emitter.EmitHeader(options);
+  ASSERT_THAT(header, IsOk());
+  EXPECT_THAT(*header, HasSubstr("ExposedFunction"));
+  EXPECT_THAT(*header, HasSubstr("OtherFunction"));
+}
+
+// Tests that the generator emits all functions if no specific functions are
+// requested, and the input file is not provided.
+TEST_F(EmitterTest, AllFunctionsNoInputFiles) {
+  GeneratorOptions options;
+  options.set_function_names<std::initializer_list<std::string>>({});
+
+  EmitterForTesting emitter;
+  ASSERT_THAT(RunFrontendActionOnFile(
+                  "simple_functions.cc",
+                  std::make_unique<GeneratorAction>(emitter, options)),
+              IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(2));
+
+  absl::StatusOr<std::string> header = emitter.EmitHeader(options);
+  ASSERT_THAT(header, IsOk());
+  EXPECT_THAT(*header, HasSubstr("ExposedFunction"));
+  EXPECT_THAT(*header, HasSubstr("OtherFunction"));
+}
+
+// Tests that the generator emits all functions if no specific functions are
+// requested, the input file is provided, and the limit scan depth is enabled.
+TEST_F(EmitterTest, AllFunctionsLimitScanDepthSuccess) {
+  constexpr absl::string_view input_file = "simple_functions.cc";
+  GeneratorOptions options;
+  options.set_function_names<std::initializer_list<std::string>>({});
+  options.limit_scan_depth = true;
+  options.in_files.emplace(input_file);
+
+  EmitterForTesting emitter;
+  ASSERT_THAT(
+      RunFrontendActionOnFile(
+          input_file, std::make_unique<GeneratorAction>(emitter, options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(2));
+
+  absl::StatusOr<std::string> header = emitter.EmitHeader(options);
+  ASSERT_THAT(header, IsOk());
+  EXPECT_THAT(*header, HasSubstr("ExposedFunction"));
+  EXPECT_THAT(*header, HasSubstr("OtherFunction"));
+}
+
+// Tests that the generator fails to emit all functions if no specific functions
+// are requested, the input file is not provided, and the limit scan depth is
+// enabled.
+TEST_F(EmitterTest, AllFunctionsLimitScanDepthFailure) {
+  GeneratorOptions options;
+  options.set_function_names<std::initializer_list<std::string>>({});
+  options.limit_scan_depth = true;
+
+  EmitterForTesting emitter;
+  ASSERT_THAT(RunFrontendActionOnFile(
+                  "simple_functions.cc",
+                  std::make_unique<GeneratorAction>(emitter, options)),
+              IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
 }
 
 TEST_F(EmitterTest, RelatedTypes) {
