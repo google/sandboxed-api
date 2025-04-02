@@ -72,6 +72,7 @@ cc_library(
     srcs = ["fileops.cc"],
     hdrs = ["fileops.h"],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         ":strerror",
         "@abseil-cpp//absl/strings",
