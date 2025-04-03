@@ -25,6 +25,8 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendAction.h"
@@ -123,10 +125,7 @@ class GeneratorAction : public clang::ASTFrontendAction {
                                                   emitter_, options_);
   }
 
-  bool BeginSourceFileAction(clang::CompilerInstance& ci) override {
-    ci.getPreprocessor().enableIncrementalProcessing();
-    return true;
-  }
+  bool BeginSourceFileAction(clang::CompilerInstance& ci) override;
 
   bool hasCodeCompletionSupport() const override { return false; }
 
