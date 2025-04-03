@@ -107,7 +107,6 @@ target_link_libraries(sapi_generator PUBLIC
   absl::btree
   absl::flat_hash_set
   absl::node_hash_set
-  absl::btree_set
   absl::random_random
   absl::status
   absl::statusor

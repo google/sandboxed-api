@@ -105,8 +105,7 @@ GeneratorOptions GeneratorOptionsFromFlags(
   options.work_dir = file_util::fileops::GetCWD();
   options.set_function_names(*g_sapi_functions);
   for (const auto& input : sources) {
-    // If the input is an absolute path, it is already in the correct format.
-    // Otherwise, craft absolute path relative to the working directory.
+    // Keep absolute paths as is, turn
     options.in_files.insert(absl::StartsWith(input, "/")
                                 ? input
                                 : file::JoinPath(options.work_dir, input));

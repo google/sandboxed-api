@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/btree_map.h"
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
@@ -103,8 +101,6 @@ class EmitterBase {
   // including the correct headers in the emitted header.
   void AddTypeDeclarations(const std::vector<clang::TypeDecl*>& type_decls);
 
-  void AddAngledInclude(absl::string_view include);
-
   // Adds the declarations of previously collected functions to the emitter.
   virtual absl::Status AddFunction(clang::FunctionDecl* decl) = 0;
 
@@ -119,9 +115,6 @@ class EmitterBase {
   // Fully qualified names of functions for the sandboxed API. Keeps track of
   // functions that have been rendered so far.
   absl::flat_hash_set<std::string> rendered_functions_;
-
-  // A set of includes that have been recorded by the preprocessor.
-  absl::btree_set<std::string> recorded_includes_ordered_;
 
  private:
   void EmitType(clang::TypeDecl* type_decl);

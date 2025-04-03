@@ -301,8 +301,4 @@ void EmitterBase::AddTypeDeclarations(
   }
 }
 
-void EmitterBase::AddAngledInclude(absl::string_view include) {
-  recorded_includes_ordered_.insert(absl::StrCat("<", include, ">"));
-}
-
 }  // namespace sapi

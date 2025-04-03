@@ -41,7 +41,6 @@ cc_library(
     deps = [
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:status",
-        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/container:node_hash_set",
         "@abseil-cpp//absl/log",

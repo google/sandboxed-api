@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -241,7 +240,6 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
 absl::StatusOr<std::string> EmitHeader(
     const std::vector<std::string>& function_definitions,
     const std::vector<const RenderedType*>& rendered_types,
-    const absl::btree_set<std::string>& recorded_includes_ordered,
     const GeneratorOptions& options) {
   // Log a warning message if the number of requested functions is not equal to
   // the number of functions generated.
@@ -259,15 +257,6 @@ absl::StatusOr<std::string> EmitHeader(
   const std::string include_guard = GetIncludeGuard(options.out_file);
   absl::StrAppend(&out, kHeaderDescription);
   absl::StrAppendFormat(&out, kHeaderProlog, include_guard);
-
-  // Emit the collected includes.
-  if (!recorded_includes_ordered.empty()) {
-    for (const auto& include : recorded_includes_ordered) {
-      absl::StrAppend(&out, "#include ", include, "\n");
-    }
-  }
-
-  // Emit the common includes.
   absl::StrAppend(&out, kHeaderIncludes);
 
   // When embedding the sandboxee, add embed header include
@@ -344,10 +333,9 @@ absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
 
 absl::StatusOr<std::string> Emitter::EmitHeader(
     const GeneratorOptions& options) {
-  SAPI_ASSIGN_OR_RETURN(
-      const std::string header,
-      ::sapi::EmitHeader(rendered_functions_ordered_, rendered_types_ordered_,
-                         recorded_includes_ordered_, options));
+  SAPI_ASSIGN_OR_RETURN(const std::string header,
+                        ::sapi::EmitHeader(rendered_functions_ordered_,
+                                           rendered_types_ordered_, options));
   return internal::ReformatGoogleStyle(options.out_file, header);
 }
 

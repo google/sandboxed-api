@@ -30,17 +30,12 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/FileEntry.h"
-#include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInvocation.h"
-#include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/PreprocessorOptions.h"
-#include "clang/Lex/Token.h"
 #include "clang/Serialization/PCHContainerOperations.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/Config/llvm-config.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 
@@ -60,65 +55,6 @@ std::string ReplaceFileExtension(absl::string_view path,
 
 }  // namespace
 
-// IncludeRecorder is a clang preprocessor callback that records includes from
-// the input files.
-class IncludeRecorder : public clang::PPCallbacks {
- public:
-  IncludeRecorder(const absl::flat_hash_set<std::string>& in_files,
-                  clang::SourceManager& source_manager, EmitterBase& emitter)
-      : in_files_(in_files),
-        source_manager_(source_manager),
-        emitter_(emitter) {}
-
-  // Will only record includes from the input files and if they are system
-  // headers.
-  void InclusionDirective(
-      clang::SourceLocation hash_loc, const clang::Token& include_tok,
-      clang::StringRef filename, bool is_angled,
-      clang::CharSourceRange filename_range, clang::OptionalFileEntryRef file,
-      clang::StringRef search_path, clang::StringRef relative_path,
-#if LLVM_VERSION_MAJOR >= 19
-      const clang::Module* suggested_module, bool module_imported,
-#else
-      const clang::Module* imported,
-#endif
-      clang::SrcMgr::CharacteristicKind file_type) override;
-
- private:
-  // The set of input files from GeneratorOptions.
-  const absl::flat_hash_set<std::string>& in_files_;
-
-  // The source manager for the current file.
-  clang::SourceManager& source_manager_;
-
-  // The emitter to which the recorded includes are added.
-  EmitterBase& emitter_;
-};
-
-void IncludeRecorder::InclusionDirective(
-    clang::SourceLocation hash_loc, const clang::Token& include_tok,
-    clang::StringRef filename, bool is_angled,
-    clang::CharSourceRange filename_range, clang::OptionalFileEntryRef file,
-    clang::StringRef search_path, clang::StringRef relative_path,
-#if LLVM_VERSION_MAJOR >= 19
-    const clang::Module* suggested_module, bool module_imported,
-#else
-    const clang::Module* imported,
-#endif
-    clang::SrcMgr::CharacteristicKind file_type) {
-  // Absolute path of the current file which is processed by the preprocessor.
-  absl::string_view current_file(
-      ToStringView(source_manager_.getFilename(hash_loc)));
-
-  // We only care about includes from the input files and if they are system
-  // headers.
-  if (in_files_.contains(current_file) && is_angled) {
-    // TODO b/408186477 - Investigate if is_angled should be replaced with
-    // file_type == clang::SrcMgr::C_System.
-    emitter_.AddAngledInclude(filename.str());
-  }
-}
-
 std::string GetOutputFilename(absl::string_view source_file) {
   return ReplaceFileExtension(source_file, ".sapi.h");
 }
@@ -136,17 +72,16 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
     return true;
   }
 
-  bool sandbox_all_functions = options_.function_names.empty();
-
-  // Skip functions that are not requested.
-  if (!sandbox_all_functions &&
+  // Process either all function or just the requested ones
+  bool all_functions = options_.function_names.empty();
+  if (!all_functions &&
       !options_.function_names.contains(ToStringView(decl->getName()))) {
     return true;
   }
 
   // Skip Abseil internal functions when all functions are requested. This still
   // allows them to be specified explicitly.
-  if (sandbox_all_functions &&
+  if (all_functions &&
       absl::StartsWith(decl->getQualifiedNameAsString(), "AbslInternal")) {
     return true;
   }
@@ -155,17 +90,15 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
       decl->getASTContext().getSourceManager();
   clang::SourceLocation decl_start = decl->getBeginLoc();
 
-  // Skip functions from system headers when all functions are requested. This
-  // still allows them to be specified explicitly.
-  if (sandbox_all_functions && source_manager.isInSystemHeader(decl_start)) {
+  // Skip functions from system headers when all functions are requested. Like
+  // above, they can still explicitly be specified.
+  if (all_functions && source_manager.isInSystemHeader(decl_start)) {
     return true;
   }
 
-  if (sandbox_all_functions) {
+  if (all_functions) {
     const std::string filename(absl::StripPrefix(
         ToStringView(source_manager.getFilename(decl_start)), "./"));
-    // Skip functions if limit_scan_depth is enabled and the function is not in
-    // the file that was specified as input.
     if (options_.limit_scan_depth && !options_.in_files.contains(filename)) {
       return true;
     }
@@ -203,12 +136,6 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
       break;
     }
   }
-}
-
-bool GeneratorAction::BeginSourceFileAction(clang::CompilerInstance& ci) {
-  ci.getPreprocessor().addPPCallbacks(std::make_unique<IncludeRecorder>(
-      options_.in_files, ci.getSourceManager(), emitter_));
-  return true;
 }
 
 bool GeneratorFactory::runInvocation(
