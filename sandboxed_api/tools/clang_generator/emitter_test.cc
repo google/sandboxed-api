@@ -497,6 +497,28 @@ TEST_F(EmitterTest, SkipAbseilInternals) {
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), IsEmpty());
 }
 
+TEST_F(EmitterTest, SkipProtobufMessagesInternals) {
+  EmitterForTesting emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"(namespace google::protobuf {
+               class Message {};
+             }
+             class MySpecialType {
+               int x;
+             };
+             class MyMessage : public google::protobuf::Message {
+               MySpecialType member;
+             };
+             extern "C" void TakesAMessage(MyMessage*);)",
+          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("class MyMessage"));
+}
+
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {
   // Copybara will transform the string. This is intentional.
   constexpr absl::string_view kGeneratedHeaderPrefix =

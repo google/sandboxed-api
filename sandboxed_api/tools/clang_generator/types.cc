@@ -22,6 +22,7 @@
 #include "absl/strings/str_cat.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
 #include "llvm/Config/llvm-config.h"
@@ -39,6 +40,23 @@ bool IsFunctionReferenceType(clang::QualType qual) {
 #endif
 }
 
+bool IsProtoBuf(const clang::RecordDecl* decl) {
+  const auto* cxxdecl = llvm::dyn_cast<const clang::CXXRecordDecl>(decl);
+  if (cxxdecl == nullptr) {
+    return false;
+  }
+  if (!cxxdecl->hasDefinition()) {
+    return false;
+  }
+  for (const clang::CXXBaseSpecifier& base : cxxdecl->bases()) {
+    if (base.getType()->getAsCXXRecordDecl()->getQualifiedNameAsString() ==
+        "google::protobuf::Message") {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 void TypeCollector::RecordOrderedDecl(clang::TypeDecl* type_decl) {
@@ -53,8 +71,11 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
 
   if (const auto* record_type = qual->getAs<clang::RecordType>()) {
     const clang::RecordDecl* decl = record_type->getDecl();
-    for (const clang::FieldDecl* field : decl->fields()) {
-      CollectRelatedTypes(field->getType());
+    // Do not collect internals of a protobuf message.
+    if (!IsProtoBuf(decl)) {
+      for (const clang::FieldDecl* field : decl->fields()) {
+        CollectRelatedTypes(field->getType());
+      }
     }
     // Do not collect structs/unions if they are declared within another
     // record. The enclosing type is enough to reconstruct the AST when
