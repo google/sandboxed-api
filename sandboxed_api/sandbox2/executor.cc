@@ -177,6 +177,7 @@ std::unique_ptr<ForkClient> Executor::StartForkServer() {
   set_enable_sandbox_before_exec(false);
   absl::StatusOr<SandboxeeProcess> process = StartSubProcess(0);
   if (!process.ok()) {
+    LOG(ERROR) << "Failed to start fork server: " << process.status();
     return nullptr;
   }
   return std::make_unique<ForkClient>(process->main_pid, ipc_.comms());
