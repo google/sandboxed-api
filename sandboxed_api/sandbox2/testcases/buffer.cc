@@ -21,7 +21,8 @@
 #include <utility>
 
 int main(int argc, char* argv[]) {
-  auto buffer_or = sandbox2::Buffer::CreateFromFd(3);
+  auto buffer_or =
+      sandbox2::Buffer::CreateFromFd(sapi::file_util::fileops::FDCloser(3));
   if (!buffer_or.ok()) {
     return EXIT_FAILURE;
   }
