@@ -626,7 +626,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     self.assertLen(functions, 1)
 
   def testTypeToString(self):
-    body = """
+    body = r"""
       #define SIZE 1024
       typedef unsigned int uint;
 
@@ -706,7 +706,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     generator.generate('Test', 'sapi::Tests', None, None)
 
   def testYaraCase(self):
-    body = """
+    body = r"""
       #define YR_ALIGN(n) __attribute__((aligned(n)))
       #define DECLARE_REFERENCE(type, name) union {    \
         type name;            \
@@ -756,7 +756,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     generator.generate('Test', 'sapi::Tests', None, None)
 
   def testDefineStructBody(self):
-    body = """
+    body = r"""
       #define STRUCT_BODY \
       int a;  \
       char b; \

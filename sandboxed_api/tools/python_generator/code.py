@@ -26,6 +26,7 @@ from typing import (
     Text,
     List,
     Optional,
+    FrozenSet,
     Set,
     Dict,
     Callable,
@@ -73,13 +74,22 @@ def get_header_guard(path):
   return path + '_'
 
 
-def _stringify_tokens(tokens, separator='\n'):
-  # type: (Sequence[cindex.Token], Text) -> Text
+def _stringify_tokens(tokens, separator='\n', continued_lines=frozenset()):
+  # type: (Sequence[cindex.Token], Text, Set[int]) -> Text
   """Converts tokens to text respecting line position (disrespecting column)."""
   previous = OutputLine(0, [])  # not used in output
   lines = []  # type: List[OutputLine]
 
-  for _, group in itertools.groupby(tokens, lambda t: t.location.line):
+  # Group all tokens from a same line together. If a line is terminated by
+  # a backslash (line continuation), merge tokens from the next line too.
+  # This is needed because clang doesn't output backslash-newlines as tokens.
+  def get_token_line(t: cindex.Token):
+    line = t.location.line
+    while (line - 1) in continued_lines:
+      line -= 1
+    return line
+
+  for _, group in itertools.groupby(tokens, get_token_line):
     group_list = list(group)
     line = OutputLine(previous.next_tab, group_list)
 
@@ -364,7 +374,12 @@ class Type(object):
         if x.kind is not cindex.TokenKind.COMMENT
     ]
 
-    return _stringify_tokens(tokens)
+    return _stringify_tokens(
+        tokens,
+        continued_lines=self._tu.get_continued_lines(
+            tokens[0].location.file.name
+        ),
+    )
 
 
 class OutputLine(object):
@@ -581,8 +596,15 @@ class Function(object):
 class _TranslationUnit(object):
   """Class wrapping clang's _TranslationUnit. Provides extra utilities."""
 
-  def __init__(self, path, tu, limit_scan_depth=False, func_names=None):
-    # type: (Text, cindex.TranslationUnit, bool, Optional[List[Text]]) -> None
+  def __init__(
+      self,
+      path,
+      tu,
+      limit_scan_depth=False,
+      func_names=None,
+      unsaved_files=None,
+  ):
+    # type: (Text, cindex.TranslationUnit, bool, Optional[List[Text]], Optional[List]) -> None  # pylint:disable=line-too-long
     """Initializes the translation unit.
 
     Args:
@@ -591,6 +613,7 @@ class _TranslationUnit(object):
       limit_scan_depth: whether scan should be limited to single file
       func_names: list of function names to take into consideration, empty means
         all functions.
+      unsaved_files: [(path: str, content: str)] in-memory contents for files
     """
     self.path = path
     self.limit_scan_depth = limit_scan_depth
@@ -603,6 +626,12 @@ class _TranslationUnit(object):
     self.required_defines = set()
     self.types_to_skip = set()
     self.func_names = func_names or []
+    # Record line numbers of lines that end in line-continuation backslashes.
+    # Clang tokenizer doesn't output them as tokens, but they are needed when
+    # reconstructing preprocessor commands.
+    self._continued_lines = dict()
+    for path, content in unsaved_files or []:
+      self._continued_lines[path] = self._find_continued_lines(content)
 
   def _process(self):
     # type: () -> None
@@ -666,6 +695,24 @@ class _TranslationUnit(object):
     except ValueError:
       return
 
+  def _find_continued_lines(self, content):
+    # type: (Text) -> FrozenSet[int]
+    result = set()
+    for line_num, line in enumerate(content.splitlines(), start=1):
+      if line.rstrip().endswith('\\'):
+        result.add(line_num)
+    return frozenset(result)
+
+  def get_continued_lines(self, path):
+    # type: (Text) -> FrozenSet[int]
+    """Returns numbers of lines with continuation backslashes from the file."""
+    if path not in self._continued_lines:
+      with open(path, 'rt') as source_f:
+        self._continued_lines[path] = self._find_continued_lines(
+            source_f.read()
+        )
+    return self._continued_lines[path]
+
 
 class Analyzer(object):
   """Class responsible for analysis."""
@@ -720,6 +767,7 @@ class Analyzer(object):
         ),
         limit_scan_depth=limit_scan_depth,
         func_names=func_names,
+        unsaved_files=unsaved_files,
     )
 
 
