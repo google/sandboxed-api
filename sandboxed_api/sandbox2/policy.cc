@@ -248,8 +248,12 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
       CLONE_NEWNS | CLONE_NEWUSER | CLONE_NEWNET | CLONE_NEWUTS |
       CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWPID;
   static_assert(kNewNamespacesFlags <= std::numeric_limits<uint32_t>::max());
-  constexpr uintptr_t kUnsafeCloneFlags = kNewNamespacesFlags | CLONE_UNTRACED;
-  static_assert(kUnsafeCloneFlags <= std::numeric_limits<uint32_t>::max());
+
+  static_assert(CLONE_UNTRACED <= std::numeric_limits<uint32_t>::max());
+  // For unotify monitor tracing is not used for policy enforcement, thus it's
+  // fine to allow CLONE_UNTRACED.
+  const uint32_t unsafe_clone_flags =
+      kNewNamespacesFlags | (user_notif ? 0 : CLONE_UNTRACED);
   policy.insert(policy.end(),
                 {
 #ifdef __NR_clone3
@@ -263,7 +267,7 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
                     // Regardless of arch, we only care about the lower 32-bits
                     // of the flags.
                     ARG_32(0),
-                    JA32(kUnsafeCloneFlags, DENY),
+                    JA32(unsafe_clone_flags, DENY),
                     LABEL(&l, past_clone_unsafe_l),
                     // Disallow unshare with unsafe flags.
                     LOAD_SYSCALL_NR,

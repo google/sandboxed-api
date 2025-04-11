@@ -111,12 +111,17 @@ TEST_P(PolicyTest, PtraceDisallowed) {
   EXPECT_THAT(result.reason_code(), Eq(__NR_ptrace));
 }
 
-// Test that clone(2) with flag CLONE_UNTRACED is disallowed.
-TEST_P(PolicyTest, CloneUntracedDisallowed) {
+// Test that clone(2) with flag CLONE_UNTRACED is disallowed with PtraceMonitor.
+TEST_P(PolicyTest, CloneUntrace) {
   Result result = CreatePermissiveTestSandbox({"policy", "4"})->Run();
 
-  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(__NR_clone));
+  if (GetParam()) {
+    ASSERT_THAT(result.final_status(), Eq(Result::OK));
+    EXPECT_THAT(result.reason_code(), Eq(EXIT_FAILURE));
+  } else {
+    ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+    EXPECT_THAT(result.reason_code(), Eq(__NR_clone));
+  }
 }
 
 // Test that bpf(2) is disallowed.
