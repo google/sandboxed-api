@@ -47,7 +47,7 @@ class TypeCollector {
   // This is different from collecting related types, as the emitter also needs
   // to know in which order to emit typedefs vs forward decls, etc. and
   // QualTypes only refer to complete definitions.
-  void RecordOrderedDecl(clang::TypeDecl* type_decl);
+  void RecordOrderedTypeDeclarations(clang::TypeDecl* type_decl);
 
   // Computes the transitive closure of all types that a type depends on. Those
   // are types that need to be declared before a declaration of the type denoted

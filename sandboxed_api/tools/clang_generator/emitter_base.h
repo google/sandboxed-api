@@ -19,6 +19,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
@@ -26,6 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
+#include "sandboxed_api/tools/clang_generator/includes.h"
 
 namespace sapi {
 // TODO b/347118045 - Refactor the naming of internal namespaces across the
@@ -104,6 +107,9 @@ class EmitterBase {
   // Adds the declarations of previously collected functions to the emitter.
   virtual absl::Status AddFunction(clang::FunctionDecl* decl) = 0;
 
+  // Adds an include to the list of includes to be rendered.
+  void AddIncludes(IncludeInfo* include);
+
   // Stores namespaces and a list of spellings for types. Keeps track of types
   // that have been rendered so far. Using a node_hash_set for pointer
   // stability.
@@ -115,6 +121,17 @@ class EmitterBase {
   // Fully qualified names of functions for the sandboxed API. Keeps track of
   // functions that have been rendered so far.
   absl::flat_hash_set<std::string> rendered_functions_;
+
+  // A map of collected includes, keyed by the parse context (i.e. the input
+  // file).
+  absl::btree_map<std::string, std::vector<IncludeInfo>> collected_includes_;
+
+  // A set of the actual include directives to be rendered. It is initialized
+  // with standard includes that are commonly used in generated code.
+  absl::btree_set<std::string> rendered_includes_ordered_ = {
+      "#include <cstdint>",
+      "#include <type_traits>",
+  };
 
  private:
   void EmitType(clang::TypeDecl* type_decl);

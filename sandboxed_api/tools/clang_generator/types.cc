@@ -59,7 +59,7 @@ bool IsProtoBuf(const clang::RecordDecl* decl) {
 
 }  // namespace
 
-void TypeCollector::RecordOrderedDecl(clang::TypeDecl* type_decl) {
+void TypeCollector::RecordOrderedTypeDeclarations(clang::TypeDecl* type_decl) {
   // This implicitly assigns a number (its source order) to each declaration.
   ordered_decls_.push_back(type_decl);
 }

@@ -28,6 +28,7 @@ add_library(sapi_generator
   emitter_base.cc
   generator.h
   generator.cc
+  includes.h
   types.h
   types.cc
 )

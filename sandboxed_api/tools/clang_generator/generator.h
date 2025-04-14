@@ -85,14 +85,14 @@ class GeneratorASTVisitor
   bool VisitTypeDecl(clang::TypeDecl* decl);
   bool VisitFunctionDecl(clang::FunctionDecl* decl);
 
-  TypeCollector& collector() { return collector_; }
+  TypeCollector& type_collector() { return type_collector_; }
 
   const std::vector<clang::FunctionDecl*>& functions() const {
     return functions_;
   }
 
  private:
-  TypeCollector collector_;
+  TypeCollector type_collector_;
   std::vector<clang::FunctionDecl*> functions_;
   const GeneratorOptions& options_;
 };
@@ -123,10 +123,7 @@ class GeneratorAction : public clang::ASTFrontendAction {
                                                   emitter_, options_);
   }
 
-  bool BeginSourceFileAction(clang::CompilerInstance& ci) override {
-    ci.getPreprocessor().enableIncrementalProcessing();
-    return true;
-  }
+  bool BeginSourceFileAction(clang::CompilerInstance& ci);
 
   bool hasCodeCompletionSupport() const override { return false; }
 

@@ -39,6 +39,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/includes.h"
 
 namespace sapi {
 
@@ -298,6 +299,28 @@ void EmitterBase::AddTypeDeclarations(
     const std::vector<clang::TypeDecl*>& type_decls) {
   for (clang::TypeDecl* type_decl : type_decls) {
     EmitType(type_decl);
+  }
+}
+
+std::string EmitInclude(const IncludeInfo& info) {
+  std::string out;
+  if (!info.is_system_header) {
+    return out;
+  }
+
+  if (info.is_angled) {
+    absl::StrAppend(&out, "#include <", info.include, ">");
+    return out;
+  }
+
+  absl::StrAppend(&out, "#include ", info.include, "");
+  return out;
+}
+
+void EmitterBase::AddIncludes(IncludeInfo* include) {
+  std::string include_str = EmitInclude(*include);
+  if (!include_str.empty()) {
+    rendered_includes_ordered_.insert(include_str);
   }
 }
 
