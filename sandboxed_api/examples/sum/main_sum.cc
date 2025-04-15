@@ -32,7 +32,9 @@
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
 #include "sandboxed_api/examples/sum/sum_params.pb.h"
+#include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/vars.h"
 
 namespace {
@@ -120,7 +122,6 @@ absl::Status SumTransaction::Main() {
   long double c = 1.1001L;
   SAPI_ASSIGN_OR_RETURN(long double r, f.addf(a, b, c));
   LOG(INFO) << "Addf(" << a << ", " << b << ", " << c << ") = " << r;
-  // TODO(szwl): floating point comparison.
 
   // Prints "Hello World!!!" via puts()
   const char hwstr[] = "Hello World!!!";

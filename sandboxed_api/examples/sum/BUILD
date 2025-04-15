@@ -82,6 +82,7 @@ cc_binary(
         ":sum_params_cc_proto",
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
+        "//sandboxed_api/util:status",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:log_severity",
         "@abseil-cpp//absl/flags:parse",
