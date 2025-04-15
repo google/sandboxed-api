@@ -2,6 +2,6 @@
 tasks:
   debian10:
     shell_commands:
-    - "sudo apt -y update && sudo apt -y install llvm-11-dev libclang-11-dev libncurses-dev python3-clang-11"
+    - "sudo apt -y update && sudo apt -y install llvm-18-dev libclang-18-dev libncurses-dev python3-clang-18"
     build_targets:
     - "..."

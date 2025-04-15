@@ -13,7 +13,7 @@ jobs:
     - name: Cache dependencies
       uses: actions/cache@v3
       with:
-        key: debian-10.13-clang16
+        key: debian-10.13-clang20
         path: |
           ${{github.workspace}}/build/_deps
 
@@ -36,7 +36,7 @@ jobs:
             wget
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
-        ./llvm.sh 16 all
+        ./llvm.sh 20 all
 
     - name: Configure CMake
       run: |
