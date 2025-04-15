@@ -27,6 +27,8 @@
 #include <utility>
 #include <vector>
 
+// TODO: internal/endian.h will become private with abseil-cpp LTS 202507.
+// Switch to absl::byteswap.
 #include "absl/base/internal/endian.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
