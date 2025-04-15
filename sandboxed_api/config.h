@@ -165,9 +165,20 @@ constexpr bool IsLSan() {
 #endif
 }
 
+constexpr bool IsCfiDiag() {
+// Note, Only diagnostic mode of needs exceptions, CONTROL_FLOW_INTEGRITY is
+// intended for use in production, and doesn't need any sandbox exceptions.
+#ifdef CONTROL_FLOW_INTEGRITY_DIAGNOSTICS
+  return true;
+#else
+  return false;
+#endif
+}
+
 // Returns whether any of the sanitizers is enabled.
 constexpr bool IsAny() {
-  return IsMSan() || IsTSan() || IsASan() || IsHwASan() || IsLSan();
+  return IsMSan() || IsTSan() || IsASan() || IsHwASan() || IsLSan() ||
+         IsCfiDiag();
 }
 
 }  // namespace sanitizers
