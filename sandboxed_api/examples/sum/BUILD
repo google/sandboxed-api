@@ -60,7 +60,6 @@ sapi_library(
         "sleep_for_sec",
         "sumproto",
     ],
-    generator_version = 1,
     input_files = [
         "sum.c",
         "sum_cpp.cc",
