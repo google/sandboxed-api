@@ -71,13 +71,12 @@ def _locate_llvm_config_tool(repository_ctx):
     Returns:
         The path to the llvm-config tool.
     """
-    version = 20
-    if repository_ctx.attr.system_llvm_version_lower_or_equal:
-        version = int(repository_ctx.attr.system_llvm_version_lower_or_equal)
+    max_version = 20
+    min_version = 10
 
     llvm_config_tool = repository_ctx.execute(
         ["which"] +  # Prints all arguments it finds in the system PATH
-        ["llvm-config-{}".format(ver) for ver in range(version, 10, -1)] +
+        ["llvm-config-{}".format(ver) for ver in range(max_version, min_version, -1)] +
         ["llvm-config"],
     )
     if not llvm_config_tool.stdout:
@@ -194,96 +193,16 @@ def _use_system_llvm(repository_ctx):
     _create_clang_build_files(repository_ctx)
     return True
 
-def _overlay_directories(ctx, src_path, target_path):
-    """Executes llvm-project's overlay_directories.py script.
-
-    The script overlays two directories into a target directory using symlinks.
-
-    Args:
-        ctx: The context.
-        src_path: The source directory.
-        target_path: The target directory.
-    """
-    bazel_path = src_path.get_child("utils").get_child("bazel")
-    overlay_path = bazel_path.get_child("llvm-project-overlay")
-    script_path = bazel_path.get_child("overlay_directories.py")
-
-    python_bin = ctx.which("python3")
-    if not python_bin:
-        python_bin = ctx.which("python")
-
-    if not python_bin:
-        fail("Failed to find python3 or python binary")
-
-    cmd = [
-        python_bin,
-        script_path,
-        "--src",
-        src_path,
-        "--overlay",
-        overlay_path,
-        "--target",
-        target_path,
-    ]
-    exec_result = ctx.execute(cmd, timeout = 20)
-
-    if exec_result.return_code != 0:
-        fail(("Failed to execute overlay script: '{cmd}'\n" +
-              "Exited with code {return_code}\n" +
-              "stdout:\n{stdout}\n" +
-              "stderr:\n{stderr}\n").format(
-            cmd = " ".join([str(arg) for arg in cmd]),
-            return_code = exec_result.return_code,
-            stdout = exec_result.stdout,
-            stderr = exec_result.stderr,
-        ))
-
 def _llvm_configure_impl(ctx):
     """Implementation of the `llvm_configure` rule."""
 
-    commit = ctx.attr.commit
-    sha256 = ctx.attr.sha256
-    system_libraries = ctx.attr.system_libraries
-    output_dir = "llvm-raw"
-
-    if system_libraries:
-        if _use_system_llvm(ctx):
-            # Nothing else to do here. We're using the local system LLVM.
-            return
-        if not commit:
-            fail((
-                "Failed to find LLVM and clang system libraries\n\n" +
-                "Note: You may have to install llvm-13-dev and libclang-13-dev\n" +
-                "      packages (or later versions) first.\n"
-            ))
-
-    if not commit or not sha256:
-        fail("Failed to download LLVM: commit and sha256 are required.\n")
-
-    ctx.download_and_extract(
-        url = "https://github.com/llvm/llvm-project/archive/{commit}.tar.gz".format(commit = commit),
-        output = output_dir,
-        sha256 = sha256,
-        stripPprefix = "llvm-project-" + commit,
-    )
-
-    target_path = ctx.path(output_dir).dirname
-    src_path = target_path.get_child(output_dir)
-    _overlay_directories(ctx, src_path, target_path)
-
-    # Create a starlark file with the requested LLVM targets
-    ctx.file(
-        "llvm/targets.bzl",
-        "llvm_targets = " + str(ctx.attr.targets),
-        executable = False,
-    )
-
-    # Set up C++ toolchain options. LLVM requires at least C++ 14.
-    ctx.file(
-        ".bazelrc",
-        "build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17",
-        executable = False,
-    )
+    if _use_system_llvm(ctx):
+        return
+    fail((
+        "Failed to find LLVM and clang system libraries\n\n" +
+        "Note: You may have to install llvm-13-dev and libclang-13-dev\n" +
+        "      packages (or later versions) first.\n"
+    ))
 
 def _llvm_zlib_disable_impl(ctx):
     ctx.file(
@@ -299,19 +218,10 @@ def _llvm_terminfo_disable_impl(ctx):
         executable = False,
     )
 
-DEFAULT_TARGETS = ["AArch64", "ARM", "PowerPC", "X86"]
-
 # We use this `module_extension` directly in MODULE.bazel, configure it with the values and
 # then use `use_repo` to add it to the workspace.
 llvm = module_extension(
     tag_classes = {
-        "config_params": tag_class(attrs = {
-            "system_llvm_version_lower_or_equal": attr.int(),
-            "commit": attr.string(),
-            "sha256": attr.string(),
-            "system_libraries": attr.bool(default = True),
-            "targets": attr.string_list(default = DEFAULT_TARGETS),
-        }),
         "disable_llvm_zlib": tag_class(),
         "disable_llvm_terminfo": tag_class(),
     },
@@ -322,18 +232,10 @@ def _llvm_module_implementation(module_ctx):
     """Implementation of the `llvm_configure` module_extension."""
     if len(module_ctx.modules) != 1:
         fail("llvm_configure module_extension must be used with exactly one module")
-    if len(module_ctx.modules[0].tags.config_params) != 1:
-        fail("config_params tag must be used exactly once")
 
-    for config_params in module_ctx.modules[0].tags.config_params:
-        llvm_configure(
-            name = "llvm-project",
-            system_llvm_version_lower_or_equal = config_params.system_llvm_version_lower_or_equal,
-            commit = config_params.commit,
-            sha256 = config_params.sha256,
-            system_libraries = config_params.system_libraries,
-            targets = config_params.targets,
-        )
+    llvm_configure(
+        name = "llvm-project",
+    )
 
     for _ in module_ctx.modules[0].tags.disable_llvm_zlib:
         maybe(llvm_zlib_disable, name = "llvm_zlib")
@@ -345,13 +247,6 @@ llvm_configure = repository_rule(
     implementation = _llvm_configure_impl,
     local = True,
     configure = True,
-    attrs = {
-        "system_libraries": attr.bool(default = True),
-        "system_llvm_version_lower_or_equal": attr.int(),
-        "commit": attr.string(),
-        "sha256": attr.string(),
-        "targets": attr.string_list(default = DEFAULT_TARGETS),
-    },
 )
 
 # DO NOT USE THIS RULE DIRECTLY.

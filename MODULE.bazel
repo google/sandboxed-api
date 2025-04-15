@@ -38,16 +38,6 @@ bazel_dep(name = "libffi", version = "3.4.7")
 
 # llvm-project
 llvm = use_extension("//sandboxed_api/bazel:llvm_config.bzl", "llvm")
-llvm.config_params(
-    commit = "2c494f094123562275ae688bd9e946ae2a0b4f8b",  # 2022-03-31
-    sha256 = "59b9431ae22f0ea5f2ce880925c0242b32a9e4f1ae8147deb2bb0fc19b53fa0d",
-    system_libraries = True,  # Prefer system libraries
-    targets = [
-        "AArch64",
-        "ARM",
-        "X86",
-    ],
-)
 llvm.disable_llvm_zlib()
 llvm.disable_llvm_terminfo()
 use_repo(llvm, "llvm-project")
