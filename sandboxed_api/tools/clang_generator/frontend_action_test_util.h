@@ -79,13 +79,6 @@ class FrontendActionTest : public ::testing::Test {
                                   std::move(action));
   }
 
-  // Runs the specified frontend action. Provided for compatibility with LLVM <
-  // 10. Takes ownership.
-  absl::Status RunFrontendAction(absl::string_view code,
-                                 clang::FrontendAction* action) {
-    return RunFrontendAction(code, absl::WrapUnique(action));
-  }
-
  private:
   std::string input_file_ = "input.cc";
   absl::flat_hash_map<std::string, std::string> file_contents_;

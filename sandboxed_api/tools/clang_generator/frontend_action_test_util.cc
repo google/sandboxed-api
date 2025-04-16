@@ -70,13 +70,8 @@ absl::Status RunClangTool(
     }
   }
 
-#if LLVM_VERSION_MAJOR >= 10
   clang::tooling::ToolInvocation invocation(command_line, std::move(action),
                                             files.get());
-#else
-  clang::tooling::ToolInvocation invocation(command_line, action.get(),
-                                            files.get());
-#endif
   if (!invocation.run()) {
     return absl::UnknownError("Tool invocation failed");
   }

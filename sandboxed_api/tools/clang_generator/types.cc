@@ -25,20 +25,10 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
-#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
 
 namespace sapi {
 namespace {
-
-bool IsFunctionReferenceType(clang::QualType qual) {
-#if LLVM_VERSION_MAJOR >= 9
-  return qual->isFunctionReferenceType();
-#else
-  const auto* ref = qual->getAs<clang::ReferenceType>();
-  return ref && ref->getPointeeType()->isFunctionType();
-#endif
-}
 
 bool IsProtoBuf(const clang::RecordDecl* decl) {
   const auto* cxxdecl = llvm::dyn_cast<const clang::CXXRecordDecl>(decl);
@@ -96,7 +86,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     return;
   }
 
-  if (qual->isFunctionPointerType() || IsFunctionReferenceType(qual) ||
+  if (qual->isFunctionPointerType() || qual->isFunctionReferenceType() ||
       qual->isMemberFunctionPointerType()) {
     if (const auto* function_type = qual->getPointeeOrArrayElementType()
                                         ->getAs<clang::FunctionProtoType>()) {
@@ -143,7 +133,7 @@ std::string GetQualTypeName(const clang::ASTContext& context,
   clang::QualType unqual = qual.getLocalUnqualifiedType();
 
   // This is to get to the actual name of function pointers.
-  if (unqual->isFunctionPointerType() || IsFunctionReferenceType(unqual) ||
+  if (unqual->isFunctionPointerType() || unqual->isFunctionReferenceType() ||
       unqual->isMemberFunctionPointerType()) {
     unqual = unqual->getPointeeType();
   }
@@ -219,13 +209,7 @@ namespace {
 // type. Keeps top-level typedef types intact.
 clang::QualType MaybeRemoveConst(const clang::ASTContext& context,
                                  clang::QualType qual) {
-  if (
-#if LLVM_VERSION_MAJOR < 13
-      qual->getAs<clang::TypedefType>() == nullptr
-#else
-      !qual->isTypedefNameType()
-#endif
-      && IsPointerOrReference(qual)) {
+  if (!qual->isTypedefNameType() && IsPointerOrReference(qual)) {
     clang::QualType pointee_qual = qual->getPointeeType();
     pointee_qual.removeLocalConst();
     qual = context.getPointerType(pointee_qual);

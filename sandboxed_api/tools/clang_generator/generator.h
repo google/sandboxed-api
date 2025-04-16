@@ -138,15 +138,9 @@ class GeneratorFactory : public clang::tooling::FrontendActionFactory {
       : emitter_(emitter), options_(options) {}
 
  private:
-#if LLVM_VERSION_MAJOR >= 10
   std::unique_ptr<clang::FrontendAction> create() override {
     return std::make_unique<GeneratorAction>(emitter_, options_);
   }
-#else
-  clang::FrontendAction* create() override {
-    return new GeneratorAction(emitter_, options_);
-  }
-#endif
 
   bool runInvocation(
       std::shared_ptr<clang::CompilerInvocation> invocation,

@@ -24,10 +24,10 @@ jobs:
         include:
           - compiler: clang
             compiler-version: 11
-            libclang-version: 11
+            libclang-version: 18
           - compiler: gcc
             compiler-version: 10
-            libclang-version: 11
+            libclang-version: 18
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.ignore-errors }}
 

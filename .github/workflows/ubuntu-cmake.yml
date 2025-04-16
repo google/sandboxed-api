@@ -11,48 +11,42 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Ubuntu 22.04: Use preinstalled Clang 12.0.1, 13.0.1 and 14.0.0
+          # Ubuntu 22.04: Use preinstalled Clang 20.0.0, 19.0.0 and 18.0.0
           - os: ubuntu-22.04
             compiler: clang
             compiler-version: 14
-            libclang-version: 14
+            libclang-version: 18
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: clang
             compiler-version: 13
-            libclang-version: 13
+            libclang-version: 18
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: clang
             compiler-version: 12
-            libclang-version: 12
+            libclang-version: 18
             ignore-errors: false
           # Ubuntu 22.04: Use preinstalled GCC 9.5.0, 10.4.0, 11.3.0, 12.1.0
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 12
-            libclang-version: 14
+            libclang-version: 18
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 11
-            libclang-version: 14
+            libclang-version: 18
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 10
-            libclang-version: 14
+            libclang-version: 18
             ignore-errors: false
           - os: ubuntu-22.04
             compiler: gcc
             compiler-version: 9
-            libclang-version: 14
-            ignore-errors: false
-          # Ubuntu 20.04
-          - os: ubuntu-20.04
-            compiler: gcc
-            compiler-version: 8
-            libclang-version: 12
+            libclang-version: 18
             ignore-errors: false
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.ignore-errors }}

@@ -72,7 +72,7 @@ def _locate_llvm_config_tool(repository_ctx):
         The path to the llvm-config tool.
     """
     max_version = 20
-    min_version = 10
+    min_version = 18
 
     llvm_config_tool = repository_ctx.execute(
         ["which"] +  # Prints all arguments it finds in the system PATH
