@@ -46,6 +46,9 @@ class Sandbox2Peer : public internal::SandboxPeer {
   Sandbox2Peer(std::unique_ptr<Executor> executor,
                std::unique_ptr<Policy> policy)
       : sandbox_(std::move(executor), std::move(policy)) {
+    if (absl::Status status = sandbox_.EnableUnotifyMonitor(); !status.ok()) {
+      LOG(WARNING) << "Failed to enable unotify monitor: " << status;
+    }
     sandbox_.RunAsync();
   }
 

@@ -53,7 +53,7 @@ class StackTraceTestPeer {
   std::unique_ptr<internal::SandboxPeer> SpawnFn(
       std::unique_ptr<Executor> executor, std::unique_ptr<Policy> policy) {
     if (crash_unwind_) {
-      policy = PolicyBuilder().BuildOrDie();
+      policy = PolicyBuilder().CollectStacktracesOnSignal(false).BuildOrDie();
       crash_unwind_ = false;
     }
     return old_spawn_fn_(std::move(executor), std::move(policy));
@@ -268,6 +268,14 @@ TEST(StackTraceTest, RecursiveStackTrace) {
   ASSERT_TRUE(s2.RunAsync());
   auto result = s2.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(Result::SIGNALED));
+}
+
+TEST(StackTraceTest, SymbolizationEnablesMonitor) {
+  absl::ScopedMockLog log;
+  EXPECT_CALL(log, Log(_, _, StartsWith("Failed to enable unotify monitor")))
+      .Times(0);
+  log.StartCapturingLogs();
+  SymbolizationWorksCommon({});
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -173,6 +173,9 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowLlvmCoverage()
       .AllowLlvmSanitizers();
 
+  // Disable stack trace collection on signals, so we can use unotify monitor.
+  builder.CollectStacktracesOnSignal(false);
+
   return builder.TryBuild();
 }
 
