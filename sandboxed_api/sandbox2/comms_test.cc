@@ -262,6 +262,20 @@ TEST(CommsTest, TestSendRecvEmptyTLV2) {
   HandleCommunication(a, b);
 }
 
+TEST(CommsTest, TestSendRecvBarrier) {
+  auto a = [](Comms* comms) {
+    // Waits for a barrier, and then sends one.
+    ASSERT_THAT(comms->RecvBarrier(), IsTrue());
+    ASSERT_THAT(comms->SendBarrier(), IsTrue());
+  };
+  auto b = [](Comms* comms) {
+    // Sends a barrier, and then waits for one.
+    ASSERT_THAT(comms->SendBarrier(), IsTrue());
+    ASSERT_THAT(comms->RecvBarrier(), IsTrue());
+  };
+  HandleCommunication(a, b);
+}
+
 TEST(CommsTest, TestSendRecvProto) {
   auto a = [](Comms* comms) {
     // Receive a ProtoBuf.

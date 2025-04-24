@@ -68,6 +68,7 @@ class Comms {
   static constexpr uint32_t kTagString = 0x80000100;
   static constexpr uint32_t kTagBytes = 0x80000101;
   static constexpr uint32_t kTagProto2 = 0x80000102;
+  static constexpr uint32_t kTagBarrier = 0x80000103;
   static constexpr uint32_t kTagFd = 0X80000201;
 
   // Any payload size above this limit will LOG(WARNING).
@@ -168,6 +169,12 @@ class Comms {
   bool SendBool(bool v) { return SendGeneric(v, kTagBool); }
   bool RecvString(std::string* v);
   bool SendString(const std::string& v);
+  bool RecvBarrier() {
+    uint32_t tag;
+    size_t length;
+    return RecvTLV(&tag, &length, nullptr, 0, kTagBarrier);
+  }
+  bool SendBarrier() { return SendTLV(kTagBarrier, 0, nullptr); }
 
   bool RecvBytes(std::vector<uint8_t>* buffer);
   bool SendBytes(const uint8_t* v, size_t len);
