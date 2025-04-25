@@ -298,6 +298,7 @@ void UnotifyMonitor::Run() {
       break;
     }
     if (pfds[0].revents & POLLHUP) {
+      LOG(ERROR) << "Status pipe hangup";
       SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
       break;
     }
@@ -341,6 +342,7 @@ void UnotifyMonitor::SetExitStatusFromStatusPipe() {
       SetExitStatusCode(Result::SIGNALED, status);
     }
   } else {
+    LOG(ERROR) << "Unexpected exit code: " << code;
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
   }
 }
