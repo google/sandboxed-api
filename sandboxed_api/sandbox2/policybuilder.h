@@ -50,6 +50,7 @@ class AllowAllSyscalls;
 class NamespacesToken;
 class LoadUserBpfCodeFromFile;
 class MapExec;
+class UnsafeCoreDumpPtrace;
 class SeccompSpeculation;
 class TraceAllSyscalls;
 class UnrestrictedNetworking;
@@ -1023,6 +1024,8 @@ class PolicyBuilder final {
   NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
   bool allow_map_exec_ = true;  //  Temporary default while we migrate users.
   bool allow_safe_bpf_ = false;
+  // Temporary while coredump collection is migrated away from ptrace.
+  bool allow_unsafe_coredump_ptrace_ = false;
   bool allow_speculation_ = false;
   bool allow_mount_propagation_ = false;
   std::string hostname_ = std::string(kDefaultHostname);

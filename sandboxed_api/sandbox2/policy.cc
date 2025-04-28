@@ -23,6 +23,7 @@
 #include <linux/seccomp.h>
 #include <sched.h>
 #include <sys/mman.h>
+#include <sys/ptrace.h>
 #include <syscall.h>
 
 #include <cerrno>
@@ -188,6 +189,21 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
   policy.insert(policy.end(), {SYSCALL(internal::kMagicSyscallNo,
                                        ERRNO(internal::kMagicSyscallErr))});
 
+  // If the user has explicitly allowed unsafe ptrace operations needed for
+  // collecting core dumps, then we allow these.
+  if (allow_unsafe_coredump_ptrace_) {
+    policy.insert(policy.end(), {
+                                    JNE32(__NR_ptrace, JUMP(&l, past_ptrace_l)),
+                                    ARG_32(0),
+                                    JEQ32(PTRACE_DETACH, ALLOW),
+                                    JEQ32(PTRACE_PEEKDATA, ALLOW),
+                                    JEQ32(PTRACE_ATTACH, ALLOW),
+                                    JEQ32(PTRACE_GETREGSET, ALLOW),
+                                    JEQ32(PTRACE_PEEKUSER, ALLOW),
+                                    LOAD_SYSCALL_NR,
+                                    LABEL(&l, past_ptrace_l),
+                                });
+  }
   // Forbid ptrace because it's unsafe or too risky. The user policy can only
   // block (i.e. return an error instead of killing the process) but not allow
   // ptrace. This uses LOAD_SYSCALL_NR from above.
