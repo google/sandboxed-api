@@ -365,7 +365,7 @@ cc_library(
         ":syscall",
         ":util",
         "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
+        "//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO: b/371179394 - Remove this after migrating to Allow(MapExec).
         "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/network_proxy:filtering",
         "//sandboxed_api/util:fileops",
@@ -543,7 +543,7 @@ cc_library(
         ":syscall",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/allowlists:all_syscalls",
-        "//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO b/371179394 - Remove this after migrating to Allow(MapExec).
+        "//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO: b/371179394 - Remove this after migrating to Allow(MapExec).
         "//sandboxed_api/sandbox2/allowlists:namespaces",
         "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
         "//sandboxed_api/sandbox2/allowlists:trace_all_syscalls",
