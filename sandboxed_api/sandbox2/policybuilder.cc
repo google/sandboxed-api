@@ -1472,15 +1472,8 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
                                    allow_mount_propagation_);
   }
 
-  if (user_policy_handles_ptrace_ && allow_unsafe_coredump_ptrace_) {
-    return absl::FailedPreconditionError(
-        "Cannot set both user_policy_handles_ptrace_ and "
-        "allow_unsafe_coredump_ptrace_.");
-  }
-
   policy->allow_map_exec_ = allow_map_exec_;
   policy->allow_safe_bpf_ = allow_safe_bpf_;
-  policy->allow_unsafe_coredump_ptrace_ = allow_unsafe_coredump_ptrace_;
   policy->allow_speculation_ = allow_speculation_;
   policy->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
   policy->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;

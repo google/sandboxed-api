@@ -99,7 +99,6 @@ class Policy final {
 
   bool allow_map_exec_ = false;
   bool allow_safe_bpf_ = false;
-  bool allow_unsafe_coredump_ptrace_ = false;
   bool allow_speculation_ = false;
 
   // The policy set by the user.
