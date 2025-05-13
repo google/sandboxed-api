@@ -55,6 +55,7 @@ STRINGOP_FUNCTIONS = [
 sapi_library(
     name = "stringop-sapi",
     functions = STRINGOP_FUNCTIONS,
+    generator_version = 2,
     input_files = ["stringop.cc"],
     lib = ":stringop",
     lib_name = "Stringop",
