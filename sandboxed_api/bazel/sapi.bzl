@@ -117,7 +117,6 @@ def _sapi_interface_impl(ctx):
         extra_flags += ["--extra-arg=-D{}".format(d) for d in cc_ctx.defines.to_list()]
         extra_flags += ["--extra-arg=-isystem{}".format(i) for i in cc_ctx.system_includes.to_list()]
         extra_flags += ["--extra-arg=-iquote{}".format(i) for i in cc_ctx.quote_includes.to_list()]
-        extra_flags += ["--extra-arg=-isystem{}".format(d) for d in cpp_toolchain.built_in_include_directories]
         extra_flags += ["--extra-arg=-I{}".format(d) for d in cc_ctx.includes.to_list()]
     else:
         append_all(extra_flags, "-D", cc_ctx.defines.to_list())
