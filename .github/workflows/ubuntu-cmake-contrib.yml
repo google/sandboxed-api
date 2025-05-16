@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-24.04]
         contrib:
           - brotli
           - c-blosc
@@ -23,7 +23,7 @@ jobs:
         ignore-errors: [true]
         include:
           - compiler: clang
-            compiler-version: 11
+            compiler-version: 14
             libclang-version: 18
           - compiler: gcc
             compiler-version: 10
