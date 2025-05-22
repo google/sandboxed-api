@@ -42,7 +42,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -57,6 +56,7 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"
@@ -591,9 +591,14 @@ PolicyBuilder& PolicyBuilder::AllowMprotectWithoutExec() {
                      });
 }
 
-std::enable_if_t<builder_internal::is_type_complete_v<MapExec>, PolicyBuilder&>
-PolicyBuilder::AllowMmap() {
-  return AllowSyscalls(kMmapSyscalls);
+PolicyBuilder& PolicyBuilder::AllowMprotect(MapExec) {
+  return Allow(MapExec()).AllowSyscall(__NR_mprotect);
+}
+
+PolicyBuilder& PolicyBuilder::AllowMmap() { return AllowMmap(MapExec()); }
+
+PolicyBuilder& PolicyBuilder::AllowMmap(MapExec) {
+  return AllowSyscalls(kMmapSyscalls).AllowSyscall(__NR_mprotect);
 }
 
 PolicyBuilder& PolicyBuilder::AllowMlock() {
@@ -1259,13 +1264,12 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   return *this;
 }
 
-std::enable_if_t<builder_internal::is_type_complete_v<MapExec>, PolicyBuilder&>
-PolicyBuilder::AllowDynamicStartup() {
-  if (!allow_map_exec_) {
-    SetError(absl::FailedPreconditionError(
-        "Allowing dynamic startup requires Allow(MapExec)."));
-    return *this;
-  }
+PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
+  return AllowDynamicStartup(MapExec());
+}
+
+PolicyBuilder& PolicyBuilder::AllowDynamicStartup(MapExec) {
+  Allow(MapExec());
   if (allowed_complex_.dynamic_startup) {
     return *this;
   }

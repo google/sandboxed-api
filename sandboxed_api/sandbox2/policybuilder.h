@@ -23,7 +23,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -54,16 +53,6 @@ class UnsafeCoreDumpPtrace;
 class SeccompSpeculation;
 class TraceAllSyscalls;
 class UnrestrictedNetworking;
-
-namespace builder_internal {
-
-template <typename, typename = void>
-constexpr bool is_type_complete_v = false;
-
-template <typename T>
-constexpr bool is_type_complete_v<T, std::void_t<decltype(sizeof(T))>> = true;
-
-}  // namespace builder_internal
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
@@ -336,17 +325,18 @@ class PolicyBuilder final {
   // Appends code to unconditionally allow mmap. Specifically this allows mmap
   // and mmap2 syscall on architectures where these syscalls exist.
   //
-  // This function requires that targets :map_exec library to be linked
-  // against. Otherwise, the PolicyBuilder will fail to build the policy.
-  //
   // Prefer using `AllowMmapWithoutExec()` as allowing mapping executable pages
   // makes exploitation easier.
-  std::enable_if_t<builder_internal::is_type_complete_v<MapExec>,
-                   PolicyBuilder&>
-  AllowMmap();
+  PolicyBuilder& AllowMmap(MapExec);
+
+  ABSL_DEPRECATED("Use AllowMmap(MapExec) or AllowMmapWithoutExec() instead.")
+  PolicyBuilder& AllowMmap();
 
   // Appends code to allow mmap calls that don't specify PROT_EXEC.
   PolicyBuilder& AllowMmapWithoutExec();
+
+  // Appends code to allow mprotect (also with PROT_EXEC).
+  PolicyBuilder& AllowMprotect(MapExec);
 
   // Appends code to allow mprotect calls that don't specify PROT_EXEC.
   PolicyBuilder& AllowMprotectWithoutExec();
@@ -708,9 +698,10 @@ class PolicyBuilder final {
   //
   // In addition to syscalls allowed by `AllowStaticStartup`, also allow
   // reading, seeking, mmap()-ing and closing files.
-  std::enable_if_t<builder_internal::is_type_complete_v<MapExec>,
-                   PolicyBuilder&>
-  AllowDynamicStartup();
+  PolicyBuilder& AllowDynamicStartup(MapExec);
+
+  ABSL_DEPRECATED("Use AllowDynamicStartup(MapExec) instead.")
+  PolicyBuilder& AllowDynamicStartup();
 
   // Appends a policy, which will be run on the specified syscall.
   //
