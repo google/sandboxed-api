@@ -1,4 +1,4 @@
-![Sandbox](sandboxed_api/docs/images/sapi-lockup-vertical.png)
+![Sandbox](docs/images/sapi-lockup-vertical.png)
 
 Copyright 2019-2023 Google LLC
 
