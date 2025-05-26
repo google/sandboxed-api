@@ -598,7 +598,7 @@ PolicyBuilder& PolicyBuilder::AllowMprotect(MapExec) {
 PolicyBuilder& PolicyBuilder::AllowMmap() { return AllowMmap(MapExec()); }
 
 PolicyBuilder& PolicyBuilder::AllowMmap(MapExec) {
-  return AllowSyscalls(kMmapSyscalls).AllowSyscall(__NR_mprotect);
+  return Allow(MapExec()).AllowSyscalls(kMmapSyscalls);
 }
 
 PolicyBuilder& PolicyBuilder::AllowMlock() {
