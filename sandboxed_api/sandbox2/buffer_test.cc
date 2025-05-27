@@ -14,7 +14,9 @@
 
 #include "sandboxed_api/sandbox2/buffer.h"
 
+#include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <cstdint>
@@ -25,6 +27,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -32,6 +36,7 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
@@ -94,5 +99,45 @@ TEST(BufferTest, TestWithSandboxeeMapFd) {
   struct stat stat_buf;
   EXPECT_THAT(fstat(buffer->fd(), &stat_buf), Ne(-1));
 }
+
+TEST(BufferTest, TestResize) {
+  constexpr int kSize = 1024;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto buffer, Buffer::CreateWithSize(kSize));
+  EXPECT_THAT(buffer->size(), Eq(kSize));
+  uint8_t* raw_buf = buffer->data();
+  for (int i = 0; i < kSize; i++) {
+    raw_buf[i] = 'X';
+  }
+  int fd = buffer->fd();
+  SAPI_ASSERT_OK_AND_ASSIGN(buffer,
+                            Buffer::Expand(std::move(buffer), kSize * 2));
+  EXPECT_THAT(buffer->size(), Eq(kSize * 2));
+  EXPECT_THAT(buffer->data(), Ne(nullptr));
+  EXPECT_THAT(buffer->fd(), Eq(fd));  // fd should not have changed.
+  absl::string_view buf_begin_view(reinterpret_cast<char*>(buffer->data()),
+                                   kSize);
+  EXPECT_THAT(buf_begin_view, Eq(std::string(kSize, 'X')));
+}
+
+TEST(BufferTest, TestResizeDoesNotTruncateFile) {
+  const std::string tmp_file =
+      sapi::file::JoinPath(testing::TempDir(), "1mb.file");
+  FDCloser fdcloser(open(tmp_file.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0600));
+  int fd = fdcloser.get();
+  ASSERT_THAT(fd, Ne(-1));
+  ASSERT_THAT(ftruncate(fd, 1 << 20), Ne(-1));
+  // Map only 4k of the 1mb file.
+  SAPI_ASSERT_OK_AND_ASSIGN(absl::StatusOr<std::unique_ptr<Buffer>> buf,
+                            Buffer::CreateFromFd(std::move(fdcloser), 4096));
+  // Expand the mapped buffer to 8k.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto expanded,
+                            Buffer::Expand(std::move(*buf), 8192));
+  EXPECT_THAT(expanded->size(), Eq(8192));
+  struct stat stat_buf;
+  // File size should not have changed.
+  ASSERT_THAT(stat(tmp_file.c_str(), &stat_buf), Ne(-1));
+  EXPECT_THAT(stat_buf.st_size, Eq(1 << 20));
+}
+
 }  // namespace
 }  // namespace sandbox2

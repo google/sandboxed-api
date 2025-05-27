@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/buffer.h"
 
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -55,6 +56,39 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateFromFd(FDCloser fd,
   }
   // Using `new` to access a non-public constructor.
   return absl::WrapUnique(new Buffer(std::move(fd), buf, size));
+}
+
+absl::StatusOr<std::unique_ptr<Buffer>> Buffer::Expand(
+    std::unique_ptr<Buffer> other, size_t size) {
+  if (!other) {
+    return absl::InvalidArgumentError("Buffer is null");
+  }
+  if (other->buf_ == nullptr) {
+    return absl::FailedPreconditionError("Buffer is not initialized");
+  }
+  if (other->fd_.get() < 0) {
+    return absl::FailedPreconditionError("Buffer is not backed by a valid fd");
+  }
+  if (size < other->size_) {
+    return absl::InvalidArgumentError("Buffer size cannot be reduced");
+  }
+  if (other->size_ == size) {
+    return other;
+  }
+  if (fallocate(other->fd_.get(), 0, 0, size) != 0) {
+    return absl::ErrnoToStatus(errno, "Could not extend buffer fd");
+  }
+  uint8_t* new_buf_ = reinterpret_cast<uint8_t*>(
+      mremap(other->buf_, other->size_, size, MREMAP_MAYMOVE));
+  if (new_buf_ == MAP_FAILED) {
+    // At this point fallocate succeeded, and remapping failed.
+    // The incoming buffer is in an undefined state. It will be destroyed
+    // when this function returns.
+    return absl::ErrnoToStatus(errno, "Could not map buffer fd");
+  }
+  other->buf_ = new_buf_;
+  other->size_ = size;
+  return other;
 }
 
 // Creates a new Buffer of the specified size, backed by a temporary file that

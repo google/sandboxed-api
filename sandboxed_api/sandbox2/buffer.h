@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/macros.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 
@@ -53,6 +54,12 @@ class Buffer final {
   // Creates a new Buffer of the specified size, backed by a temporary file that
   // will be immediately deleted.
   static absl::StatusOr<std::unique_ptr<Buffer>> CreateWithSize(size_t size);
+
+  // Expands the input buffer to the specified size.
+  // Unlike CreateWithSize, this function will pre-allocate the memory.
+  // If size is smaller than the current mapped size, the function will fail.
+  static absl::StatusOr<std::unique_ptr<Buffer>> Expand(
+      std::unique_ptr<Buffer> other, size_t size);
 
   // Returns a pointer to the buffer, which is read/write.
   uint8_t* data() const { return buf_; }
