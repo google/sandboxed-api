@@ -756,9 +756,6 @@ cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
-    # The default is 16384, however we need to do a clone with a
-    # stack-allocated buffer -- and PTHREAD_STACK_MIN also happens to be 16384.
-    # Thus the slight increase.
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
