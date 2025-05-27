@@ -22,6 +22,7 @@
 #include <string>
 
 #include "sapi_libraw.sapi.h"  // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 
 class LibRawSapiSandbox : public LibRawSandbox {
  public:
@@ -32,7 +33,7 @@ class LibRawSapiSandbox : public LibRawSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowOpen()
         .AllowRead()
         .AllowWrite()

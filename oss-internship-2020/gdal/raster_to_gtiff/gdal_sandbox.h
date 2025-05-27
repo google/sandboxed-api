@@ -20,6 +20,7 @@
 #include <string>
 
 #include "gdal_sapi.sapi.h"  // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 
 namespace gdal::sandbox {
 
@@ -36,7 +37,7 @@ class GdalSapiSandbox : public GdalSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowRead()
         .AllowSystemMalloc()
         .AllowWrite()

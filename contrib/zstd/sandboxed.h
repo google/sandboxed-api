@@ -21,13 +21,14 @@
 #include <memory>
 
 #include "sapi_zstd.sapi.h"  // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 
 class ZstdSapiSandbox : public ZstdSandbox {
  public:
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowRead()
         .AllowWrite()
         .AllowSystemMalloc()

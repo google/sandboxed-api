@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "woff2_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace sapi_woff2 {
@@ -28,7 +29,7 @@ class Woff2SapiSandbox : public WOFF2Sandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowSystemMalloc()
         .AllowRead()
         .AllowStat()

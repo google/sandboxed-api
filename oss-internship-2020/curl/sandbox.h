@@ -22,6 +22,7 @@
 #include <cstdlib>
 
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/util/allow_unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
@@ -33,7 +34,7 @@ class CurlSapiSandbox : public curl::CurlSandbox {
       sandbox2::PolicyBuilder*) override {
     // Return a new policy
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowExit()
         .AllowFork()
         .AllowFutexOp(FUTEX_WAIT_PRIVATE)

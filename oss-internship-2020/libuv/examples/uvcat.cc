@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "absl/flags/flag.h"
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {
@@ -32,7 +33,7 @@ class UVSapiUVCatSandbox : public uv::UVSandbox {
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
         .AddFile(filename)
-        .AllowDynamicStartup()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowExit()
         .AllowFork()
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)

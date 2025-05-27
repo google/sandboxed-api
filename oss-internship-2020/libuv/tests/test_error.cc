@@ -17,6 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
@@ -27,7 +28,7 @@ class UVTestErrorSapiSandbox : public uv::UVSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
-        .AllowDynamicStartup()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowExit()
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
         .AllowWrite()
