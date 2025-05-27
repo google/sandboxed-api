@@ -478,7 +478,7 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   AllowSyscall(__NR_sched_getaffinity);
   // https://github.com/llvm/llvm-project/blob/3cabbf60393cc8d55fe635e35e89e5973162de33/compiler-rt/lib/interception/interception.h#L352
 #ifdef __ELF__
-  AllowDynamicStartup();
+  AllowDynamicStartup(MapExec());
 #endif
   // https://github.com/llvm/llvm-project/blob/02c2b472b510ff55679844c087b66e7837e13dc2/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L434
 #ifdef __NR_readlink

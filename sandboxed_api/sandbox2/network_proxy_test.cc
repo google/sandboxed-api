@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/network_proxy/testing.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -95,7 +96,7 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerAllowed) {
   executor->limits()->set_walltime_limit(absl::Seconds(3));
 
   PolicyBuilder builder;
-  builder.AllowDynamicStartup()
+  builder.AllowDynamicStartup(sandbox2::MapExec())
       .AllowWrite()
       .AllowRead()
       .AllowExit()
@@ -143,7 +144,7 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerNotAllowed) {
   executor->limits()->set_walltime_limit(absl::Seconds(3));
 
   PolicyBuilder builder;
-  builder.AllowDynamicStartup()
+  builder.AllowDynamicStartup(sandbox2::MapExec())
       .AllowWrite()
       .AllowRead()
       .AllowExit()
@@ -184,7 +185,7 @@ TEST_P(NetworkProxyTest, ProxyWithoutHandlerAllowed) {
   executor->limits()->set_walltime_limit(absl::Seconds(3));
 
   PolicyBuilder builder;
-  builder.AllowDynamicStartup()
+  builder.AllowDynamicStartup(sandbox2::MapExec())
       .AllowExit()
       .AllowWrite()
       .AllowRead()
@@ -228,7 +229,7 @@ TEST(NetworkProxyTest, ProxyNonExistantAddress) {
   executor->limits()->set_walltime_limit(absl::Seconds(3));
 
   PolicyBuilder builder;
-  builder.AllowDynamicStartup()
+  builder.AllowDynamicStartup(sandbox2::MapExec())
       .AllowExit()
       .AllowWrite()
       .AllowRead()

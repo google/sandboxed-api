@@ -29,6 +29,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -214,7 +215,7 @@ TEST_P(PolicyTest, IsattyAllowed) {
 PolicyBuilder PosixTimersPolicyBuilder() {
   return PolicyBuilder()
       // Required by google infra / logging.
-      .AllowDynamicStartup()
+      .AllowDynamicStartup(sandbox2::MapExec())
       .AllowWrite()
       .AllowSyscall(__NR_getcwd)
       .AllowMmap()
@@ -294,7 +295,7 @@ TEST_P(PolicyTest, MinimalSharedBinaryWorks) {
   std::unique_ptr<Sandbox2> s2 =
       CreateTestSandbox({path}, PolicyBuilder()
                                     .AddLibrariesForBinary(path)
-                                    .AllowDynamicStartup()
+                                    .AllowDynamicStartup(sandbox2::MapExec())
                                     .AllowExit()
                                     .AllowLlvmCoverage());
   Result result = s2->Run();

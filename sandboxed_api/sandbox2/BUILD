@@ -957,6 +957,7 @@ cc_test(
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
+        "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:status_matchers",
@@ -1145,6 +1146,7 @@ cc_test(
     deps = [
         ":sandbox2",
         "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",
         "//sandboxed_api/sandbox2/network_proxy:testing",
         "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/status",
