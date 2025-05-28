@@ -27,9 +27,8 @@
 #include <utility>
 #include <vector>
 
-// TODO: internal/endian.h will become private with abseil-cpp LTS 202507.
-// Switch to absl::byteswap.
-#include "absl/base/internal/endian.h"
+#include "absl/base/nullability.h"
+#include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -123,18 +122,32 @@ class ElfParser {
  private:
   ElfParser() = default;
 
-  // Endianess support functions
-  uint16_t Load16(const void* src) {
-    return elf_little_ ? absl::little_endian::Load16(src)
-                       : absl::big_endian::Load16(src);
+  // Endianness support functions
+  uint16_t Load16(const void* absl_nonnull src) {
+    uint16_t v;
+    memcpy(&v, src, sizeof(v));
+    if constexpr (absl::endian::native == absl::endian::little) {
+      return elf_little_ ? v : absl::byteswap(v);
+    }
+    return elf_little_ ? absl::byteswap(v) : v;
   }
-  uint32_t Load32(const void* src) {
-    return elf_little_ ? absl::little_endian::Load32(src)
-                       : absl::big_endian::Load32(src);
+
+  uint32_t Load32(const void* absl_nonnull src) {
+    uint32_t v;
+    memcpy(&v, src, sizeof(v));
+    if constexpr (absl::endian::native == absl::endian::little) {
+      return elf_little_ ? v : absl::byteswap(v);
+    }
+    return elf_little_ ? absl::byteswap(v) : v;
   }
-  uint64_t Load64(const void* src) {
-    return elf_little_ ? absl::little_endian::Load64(src)
-                       : absl::big_endian::Load64(src);
+
+  uint64_t Load64(const void* absl_nonnull src) {
+    uint64_t v;
+    memcpy(&v, src, sizeof(v));
+    if constexpr (absl::endian::native == absl::endian::little) {
+      return elf_little_ ? v : absl::byteswap(v);
+    }
+    return elf_little_ ? absl::byteswap(v) : v;
   }
 
   template <size_t N>

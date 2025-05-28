@@ -29,6 +29,7 @@ add_library(sandbox2_util_minielf ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::minielf ALIAS sandbox2_util_minielf)
 target_link_libraries(sandbox2_util_minielf PRIVATE
+  absl::bits
   absl::status
   absl::strings
   sandbox2::util
