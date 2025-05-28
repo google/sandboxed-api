@@ -218,7 +218,7 @@ PolicyBuilder PosixTimersPolicyBuilder() {
       .AllowDynamicStartup(sandbox2::MapExec())
       .AllowWrite()
       .AllowSyscall(__NR_getcwd)
-      .AllowMmap()
+      .AllowMmapWithoutExec()
       .AllowMlock()
       .AllowMkdir()
       .AllowGetIDs()
