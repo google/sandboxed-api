@@ -14,6 +14,7 @@
 
 #include <fstream>
 
+#include "absl/status/status_matchers.h"
 #include "contrib/uriparser/sandboxed.h"
 #include "contrib/uriparser/utils/utils_uriparser.h"
 #include "sandboxed_api/util/path.h"
@@ -22,7 +23,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 const struct TestVariant {
   std::string test;

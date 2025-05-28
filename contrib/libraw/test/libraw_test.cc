@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/status/status_matchers.h"
 #include "contrib/libraw/sandboxed.h"
 #include "contrib/libraw/utils/utils_libraw.h"
 #include "sandboxed_api/util/path.h"
@@ -20,7 +21,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 const struct TestVariant {
   std::string filename;

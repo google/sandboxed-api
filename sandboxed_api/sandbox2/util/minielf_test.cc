@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
@@ -31,8 +32,8 @@ extern "C" void ExportedFunction() {
 }
 
 namespace file = ::sapi::file;
+using ::absl_testing::IsOk;
 using ::sapi::GetTestSourcePath;
-using ::sapi::IsOk;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsTrue;

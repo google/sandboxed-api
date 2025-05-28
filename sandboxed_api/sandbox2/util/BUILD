@@ -76,7 +76,7 @@ cc_test(
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/algorithm:container",
-        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
 )
@@ -148,6 +148,7 @@ cc_test(
     deps = [
         ":maps_parser",
         "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
     ],
@@ -207,6 +208,7 @@ cc_test(
         ":seccomp_unotify",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status_matchers",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
     ],

@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "contrib/woff2/woff2_wrapper.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
@@ -33,7 +34,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Eq;
 using ::testing::IsNull;
 using ::testing::Not;

@@ -16,12 +16,13 @@
 #include "contrib/libxls/utils/utils_libxls.h"
 #undef FILE  // TODO(cblichmann): Artifact from generated header
 
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Not;
 
 struct Sheet {

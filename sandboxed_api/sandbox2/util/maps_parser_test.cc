@@ -18,13 +18,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Eq;
 using ::testing::Not;
 using ::testing::Test;

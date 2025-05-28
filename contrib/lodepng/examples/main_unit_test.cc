@@ -15,9 +15,10 @@
 #include "helpers.h"  // NOLINT(build/include)
 #include "sandbox.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::NotNull;

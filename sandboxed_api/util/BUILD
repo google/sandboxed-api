@@ -62,6 +62,7 @@ cc_test(
     deps = [
         ":file_helpers",
         ":status_matchers",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
 )
@@ -89,6 +90,7 @@ cc_test(
         ":fileops",
         ":status_matchers",
         "//sandboxed_api:testing",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
@@ -170,8 +172,7 @@ cc_library(
     ],
 )
 
-# gMock matchers for absl::Status and absl::StatusOr<T> and a gUnit printer
-# extension. Adapted from the version in Asylo.
+# gMock matchers for absl::Status and absl::StatusOr<T>.
 cc_library(
     name = "status_matchers",
     testonly = 1,
@@ -181,6 +182,7 @@ cc_library(
     deps = [
         ":status",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/types:optional",
@@ -211,6 +213,7 @@ cc_test(
         ":status",
         ":status_matchers",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",

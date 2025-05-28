@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -39,8 +40,8 @@
 namespace sandbox2::util {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::sapi::GetTestSourcePath;
-using ::sapi::IsOk;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;

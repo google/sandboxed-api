@@ -23,12 +23,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
+// Temporary include to avoid breaking changes when moving to Abseil's matchers.
+#include "absl/status/status_matchers.h"  // IWYU pragma: export
+#include "absl/status/statusor.h"         // IWYU pragma: keep
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/status_macros.h"  // IWYU pragma: keep
 
-#define SAPI_ASSERT_OK(expr) ASSERT_THAT(expr, ::sapi::IsOk())
+#define SAPI_ASSERT_OK(expr) ASSERT_THAT(expr, ::absl_testing::IsOk())
 
 #define SAPI_ASSERT_OK_AND_ASSIGN(lhs, rexpr) \
   SAPI_ASSERT_OK_AND_ASSIGN_IMPL(             \
@@ -40,95 +42,10 @@
   lhs = std::move(statusor).value()
 
 namespace sapi {
-namespace internal {
 
-class IsOkMatcher {
- public:
-  template <typename StatusT>
-  bool MatchAndExplain(const StatusT& status_container,
-                       ::testing::MatchResultListener* listener) const {
-    if (!status_container.ok()) {
-      *listener << "which is not OK";
-      return false;
-    }
-    return true;
-  }
-
-  void DescribeTo(std::ostream* os) const { *os << "is OK"; }
-
-  void DescribeNegationTo(std::ostream* os) const { *os << "is not OK"; }
-};
-
-class StatusIsMatcher {
- public:
-  StatusIsMatcher(const StatusIsMatcher&) = default;
-
-  StatusIsMatcher(absl::StatusCode code,
-                  absl::optional<absl::string_view> message)
-      : code_(code), message_(message) {}
-
-  template <typename T>
-  bool MatchAndExplain(const T& value,
-                       ::testing::MatchResultListener* listener) const {
-    auto status = GetStatus(value);
-    if (code_ != status.code()) {
-      *listener << "whose error code is "
-                << absl::StatusCodeToString(status.code());
-      return false;
-    }
-    if (message_.has_value() && status.message() != message_.value()) {
-      *listener << "whose error message is '" << message_.value() << "'";
-      return false;
-    }
-    return true;
-  }
-
-  void DescribeTo(std::ostream* os) const {
-    *os << "has a status code that is " << absl::StatusCodeToString(code_);
-    if (message_.has_value()) {
-      *os << ", and has an error message that is '" << message_.value() << "'";
-    }
-  }
-
-  void DescribeNegationTo(std::ostream* os) const {
-    *os << "has a status code that is not " << absl::StatusCodeToString(code_);
-    if (message_.has_value()) {
-      *os << ", and has an error message that is not '" << message_.value()
-          << "'";
-    }
-  }
-
- private:
-  template <typename StatusT,
-            typename std::enable_if<
-                !std::is_void<decltype(std::declval<StatusT>().code())>::value,
-                int>::type = 0>
-  static const StatusT& GetStatus(const StatusT& status) {
-    return status;
-  }
-
-  template <typename StatusOrT,
-            typename StatusT = decltype(std::declval<StatusOrT>().status())>
-  static StatusT GetStatus(const StatusOrT& status_or) {
-    return status_or.status();
-  }
-
-  const absl::StatusCode code_;
-  const absl::optional<std::string> message_;
-};
-
-}  // namespace internal
-
-inline ::testing::PolymorphicMatcher<internal::IsOkMatcher> IsOk() {
-  return ::testing::MakePolymorphicMatcher(internal::IsOkMatcher{});
-}
-
-inline ::testing::PolymorphicMatcher<internal::StatusIsMatcher> StatusIs(
-    absl::StatusCode code,
-    absl::optional<absl::string_view> message = absl::nullopt) {
-  return ::testing::MakePolymorphicMatcher(
-      internal::StatusIsMatcher(code, message));
-}
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 
 }  // namespace sapi
 

@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
 #include "sandboxed_api/util/file_helpers.h"
@@ -24,8 +25,8 @@
 namespace sapi {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::sapi::GetTestSourcePath;
-using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsNull;
 using ::testing::StrEq;

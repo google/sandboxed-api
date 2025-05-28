@@ -20,6 +20,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
@@ -32,7 +33,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::SizeIs;

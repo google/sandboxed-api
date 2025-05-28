@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
@@ -39,7 +40,7 @@ bool RemoveLastPathComponent(const std::string& file, std::string* output);
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;

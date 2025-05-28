@@ -18,12 +18,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 
 namespace file = ::sapi::file;
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Not;
 
 TEST(FileHelpersTest, TestGetNonExistent) {

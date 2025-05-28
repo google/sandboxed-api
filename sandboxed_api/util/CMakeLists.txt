@@ -232,6 +232,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sapi_util_status_matchers
     PUBLIC absl::optional
            absl::status
+           absl::status_matchers
            absl::strings
            gmock
            gtest

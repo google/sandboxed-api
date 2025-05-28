@@ -13,13 +13,14 @@
 // limitations under the License.
 
 #include "test_utils.h"  // NOLINT(build/include)
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace curl::tests {
 namespace {
 
-using ::sapi::IsOk;
-using ::sapi::StatusIs;
+using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::testing::Eq;
 using ::testing::IsTrue;
 

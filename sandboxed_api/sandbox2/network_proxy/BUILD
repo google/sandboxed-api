@@ -78,6 +78,7 @@ cc_test(
         ":filtering",
         "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
 )

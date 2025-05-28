@@ -56,6 +56,7 @@ using ::sapi::IsOk;
 using ::sapi::StatusIs;
 using ::testing::Eq;
 using ::testing::Lt;
+using ::testing::Not;
 using ::testing::StartsWith;
 using ::testing::StrEq;
 

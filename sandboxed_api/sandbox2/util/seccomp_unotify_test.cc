@@ -22,15 +22,15 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-namespace sandbox2 {
-namespace util {
+namespace sandbox2::util {
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::sapi::file_util::fileops::FDCloser;
 using ::testing::_;
 using ::testing::DoAll;
@@ -96,5 +96,4 @@ TEST(SeccompUnotifyTest, Continue) {
 // sapi::google3-end
 
 }  // namespace
-}  // namespace util
-}  // namespace sandbox2
+}  // namespace sandbox2::util

@@ -16,6 +16,7 @@
 
 #include <fstream>
 
+#include "absl/status/status_matchers.h"
 #include "contrib/zopfli/sandboxed.h"
 #include "contrib/zopfli/utils/utils_zopfli.h"
 #include "sandboxed_api/util/path.h"
@@ -24,7 +25,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::IsEmpty;
 using ::testing::Not;
 

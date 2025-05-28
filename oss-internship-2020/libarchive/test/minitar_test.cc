@@ -16,6 +16,7 @@
 
 #include "sapi_minitar.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -23,7 +24,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::sapi::file::JoinPath;
 using ::sapi::file_util::fileops::Exists;
 using ::testing::Eq;

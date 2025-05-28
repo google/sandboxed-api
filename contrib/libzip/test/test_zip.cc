@@ -14,6 +14,7 @@
 
 #include <fstream>
 
+#include "absl/status/status_matchers.h"
 #include "contrib/libzip/sandboxed.h"
 #include "contrib/libzip/utils/utils_zip.h"
 #include "sandboxed_api/util/path.h"
@@ -22,7 +23,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 class ZipBase : public testing::Test {
  protected:

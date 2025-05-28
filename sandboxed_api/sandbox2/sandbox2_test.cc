@@ -27,6 +27,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/notification.h"
@@ -45,9 +46,9 @@
 namespace sandbox2 {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
-using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;

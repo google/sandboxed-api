@@ -15,13 +15,14 @@
 #include <fstream>
 
 #include "../sandboxed.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/temp_file.h"
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 class HunspellTest : public ::testing::Test {
  protected:

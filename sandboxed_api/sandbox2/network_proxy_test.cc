@@ -24,6 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -37,8 +38,8 @@
 namespace sandbox2 {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::sapi::GetTestSourcePath;
-using ::sapi::StatusIs;
 using ::testing::Eq;
 
 TEST(NetworkProxyTest, NoDoublePolicy) {

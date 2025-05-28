@@ -18,10 +18,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/status_matchers.h"
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::Not;
 using ::testing::StrEq;
 

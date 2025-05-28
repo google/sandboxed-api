@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -36,12 +37,12 @@ namespace sandbox2 {
 namespace {
 
 namespace file = ::sapi::file;
+using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::sapi::CreateNamedTempFileAndClose;
 using ::sapi::CreateTempDir;
 using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
-using ::sapi::IsOk;
-using ::sapi::StatusIs;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::StrEq;

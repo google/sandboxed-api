@@ -19,11 +19,12 @@
 #include "helper.h"        // NOLINT(build/include)
 #include "libpng.h"        // NOLINT(build/include)
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/util/status_matchers.h"
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 using ::testing::ContainerEq;
 using ::testing::Eq;
 using ::testing::Ge;

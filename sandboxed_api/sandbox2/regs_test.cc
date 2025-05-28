@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
@@ -27,7 +28,7 @@
 namespace sandbox2 {
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 #define __WPTRACEEVENT(x) ((x & 0xff0000) >> 16)
 

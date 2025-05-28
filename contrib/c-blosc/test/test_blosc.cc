@@ -14,6 +14,7 @@
 
 #include <fstream>
 
+#include "absl/status/status_matchers.h"
 #include "contrib/c-blosc/sandboxed.h"
 #include "contrib/c-blosc/utils/utils_blosc.h"
 #include "sandboxed_api/util/path.h"
@@ -22,7 +23,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 constexpr size_t kDefaultBlockSize = 19059;
 

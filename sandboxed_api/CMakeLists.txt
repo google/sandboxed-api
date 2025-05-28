@@ -214,6 +214,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   )
   target_link_libraries(sapi_test PRIVATE
     absl::status
+    absl::status_matchers
     absl::statusor
     absl::time
     benchmark

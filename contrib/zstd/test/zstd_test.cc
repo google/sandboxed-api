@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "contrib/zstd/sandboxed.h"
 #include "contrib/zstd/utils/utils_zstd.h"
 #include "sandboxed_api/util/path.h"
@@ -28,7 +29,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 std::string GetTestFilePath(const std::string& filename) {
   return sapi::file::JoinPath(getenv("TEST_FILES_DIR"), filename);

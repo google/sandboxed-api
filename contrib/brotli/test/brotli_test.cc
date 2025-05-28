@@ -16,6 +16,7 @@
 
 #include <fstream>
 
+#include "absl/status/status_matchers.h"
 #include "contrib/brotli/sandboxed.h"
 #include "contrib/brotli/utils/utils_brotli.h"
 #include "contrib/brotli/utils/utils_brotli_dec.h"
@@ -25,7 +26,7 @@
 
 namespace {
 
-using ::sapi::IsOk;
+using ::absl_testing::IsOk;
 
 class BrotliBase : public testing::Test {
  protected:
