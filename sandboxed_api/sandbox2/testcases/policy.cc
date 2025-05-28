@@ -14,7 +14,6 @@
 
 // A binary that tries x86_64 compat syscalls, ptrace and clone untraced.
 
-#include <linux/prctl.h>
 #include <sched.h>
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
