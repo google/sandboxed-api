@@ -13,8 +13,8 @@
 # limitations under the License.
 
 FetchContent_Declare(protobuf
-  URL https://github.com/protocolbuffers/protobuf/releases/download/v28.2/protobuf-28.2.tar.gz  # 2024-09-18
-  URL_HASH SHA256=b2340aa47faf7ef10a0328190319d3f3bee1b24f426d4ce8f4253b6f27ce16db
+  URL https://github.com/protocolbuffers/protobuf/archive/refs/tags/v31.0.tar.gz # 2025-05-14
+  URL_HASH SHA256=2b695cb1eaef8e173f884235ee6d55f57186e95d89ebb31361ee55cb5fd1b996
 )
 
 set(protobuf_ABSL_PROVIDER "package" CACHE STRING "" FORCE)

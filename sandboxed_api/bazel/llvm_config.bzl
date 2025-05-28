@@ -75,8 +75,9 @@ def _locate_llvm_config_tool(repository_ctx):
     min_version = 18
 
     llvm_config_tool = repository_ctx.execute(
-        ["which"] +  # Prints all arguments it finds in the system PATH
-        ["llvm-config-{}".format(ver) for ver in range(max_version, min_version, -1)] +
+        # Prints all arguments it finds in the system PATH
+        ["which"] +
+        ["llvm-config-{}".format(ver) for ver in range(max_version, min_version - 1, -1)] +
         ["llvm-config"],
     )
     if not llvm_config_tool.stdout:
