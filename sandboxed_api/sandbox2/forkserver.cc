@@ -513,7 +513,7 @@ pid_t ForkServer::ServeRequest() {
     if (auto pid = ReceivePid(signaling_fds[0].get()); !pid.ok()) {
       SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
     } else {
-      sandboxee_pid = pid.value();
+      sandboxee_pid = *pid;
     }
   }
 
@@ -524,14 +524,14 @@ pid_t ForkServer::ServeRequest() {
     sandboxee_pid = -1;
     // And the actual sandboxee is forked from the init process, so we need to
     // receive the actual PID.
-    if (auto pid_or = ReceivePid(signaling_fds[0].get()); !pid_or.ok()) {
-      SAPI_RAW_LOG(ERROR, "%s", std::string(pid_or.status().message()).c_str());
+    if (auto pid = ReceivePid(signaling_fds[0].get()); !pid.ok()) {
+      SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
       if (init_pid != -1) {
         kill(init_pid, SIGKILL);
       }
       init_pid = -1;
     } else {
-      sandboxee_pid = pid_or.value();
+      sandboxee_pid = *pid;
     }
   }
 
