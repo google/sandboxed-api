@@ -48,11 +48,9 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        "//sandboxed_api:config",
-        "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:raw_logging",
+        ":elf_parser",
         "//sandboxed_api/util:status",
-        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/numeric:bits",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -78,6 +76,25 @@ cc_test(
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "elf_parser",
+    srcs = ["elf_parser.cc"],
+    hdrs = ["elf_parser.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//sandboxed_api:config",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ],
 )
 

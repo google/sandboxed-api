@@ -32,9 +32,24 @@ target_link_libraries(sandbox2_util_minielf PRIVATE
   absl::bits
   absl::status
   absl::strings
-  sandbox2::util
+  sandbox2::elf_parser
   sapi::base
-  sapi::raw_logging
+)
+
+# sandboxed_api/sandbox2/util:elf_parser
+add_library(sandbox2_util_elf_parser ${SAPI_LIB_TYPE}
+  elf_parser.cc
+  elf_parser.h
+)
+add_library(sandbox2::elf_parser ALIAS sandbox2_util_elf_parser)
+target_link_libraries(sandbox2_util_elf_parser
+PUBLIC absl::function_ref
+       absl::status
+       absl::strings
+       sapi::base
+PRIVATE absl::bits
+        sandbox2::util
+        sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2/util:maps_parser
