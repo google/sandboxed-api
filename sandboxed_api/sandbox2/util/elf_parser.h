@@ -83,9 +83,7 @@ class ElfParser {
       absl::FunctionRef<void(uintptr_t, absl::string_view)> symbol_callback);
 
   // Reads all imported libraries from dynamic section.
-  absl::Status ReadImportedLibrariesFromDynamic(
-      const ElfShdr& dynamic,
-      absl::FunctionRef<void(absl::string_view)> library_callback);
+  absl::StatusOr<std::vector<std::string>> ReadImportedLibraries();
   absl::Status ForEachProgram(
       absl::FunctionRef<absl::Status(const ElfPhdr&)> callback);
   absl::Status ForEachSection(
@@ -134,6 +132,9 @@ class ElfParser {
   absl::StatusOr<ElfShdr> ReadSectionHeader(absl::string_view src);
   // Reads all ELF section headers.
   absl::Status ReadSectionHeaders();
+  absl::Status ReadImportedLibrariesFromDynamic(
+      const ElfShdr& dynamic,
+      absl::FunctionRef<void(absl::string_view)> library_callback);
 };
 
 }  // namespace sandbox2

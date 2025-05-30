@@ -367,6 +367,20 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::vector<std::string>> ElfParser::ReadImportedLibraries() {
+  std::vector<std::string> result;
+  SAPI_RETURN_IF_ERROR(ForEachSection([&](const ElfShdr& hdr) -> auto {
+    if (hdr.sh_type == SHT_DYNAMIC) {
+      SAPI_RETURN_IF_ERROR(ReadImportedLibrariesFromDynamic(
+          hdr, [&result](absl::string_view path) {
+            result.push_back(std::string(path));
+          }));
+    }
+    return absl::OkStatus();
+  }));
+  return result;
+}
+
 absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
     const ElfShdr& dynamic,
     absl::FunctionRef<void(absl::string_view)> library_callback) {

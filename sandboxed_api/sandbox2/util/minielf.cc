@@ -52,24 +52,22 @@ absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
     SAPI_ASSIGN_OR_RETURN(result.interpreter_, parser->ReadInterpreter());
   }
 
-  if (features & (ElfFile::kLoadSymbols | ElfFile::kLoadImportedLibraries)) {
+  if (features & ElfFile::kLoadSymbols) {
     SAPI_RETURN_IF_ERROR(
         parser->ForEachSection([&](const ElfShdr& hdr) -> auto {
-          if (hdr.sh_type == SHT_SYMTAB && features & ElfFile::kLoadSymbols) {
+          if (hdr.sh_type == SHT_SYMTAB) {
             SAPI_RETURN_IF_ERROR(parser->ReadSymbolsFromSymtab(
                 hdr, [&result](uintptr_t address, absl::string_view name) {
                   result.symbols_.push_back({address, std::string(name)});
                 }));
           }
-          if (hdr.sh_type == SHT_DYNAMIC &&
-              features & ElfFile::kLoadImportedLibraries) {
-            SAPI_RETURN_IF_ERROR(parser->ReadImportedLibrariesFromDynamic(
-                hdr, [&result](absl::string_view path) {
-                  result.imported_libraries_.push_back(std::string(path));
-                }));
-          }
           return absl::OkStatus();
         }));
+  }
+
+  if (features & ElfFile::kLoadImportedLibraries) {
+    SAPI_ASSIGN_OR_RETURN(result.imported_libraries_,
+                          parser->ReadImportedLibraries());
   }
 
   return std::move(result);
