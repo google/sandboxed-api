@@ -26,10 +26,8 @@
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
 #include "contrib/woff2/woff2_wrapper.h"
-#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "woff2_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {

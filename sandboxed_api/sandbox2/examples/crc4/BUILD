@@ -76,7 +76,6 @@ cc_test(
     deps = [
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],

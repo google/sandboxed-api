@@ -28,7 +28,6 @@
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sapi::file_util {
 

@@ -24,9 +24,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/vars.h"
 
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"

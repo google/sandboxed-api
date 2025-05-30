@@ -18,11 +18,13 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {
+
+using ::absl_testing::IsOk;
 
 class UVTestArraySapiSandbox : public uv::UVSandbox {
  private:
@@ -43,7 +45,7 @@ class UVTestArray : public ::testing::Test {
  protected:
   void SetUp() override {
     sandbox_ = std::make_unique<UVTestArraySapiSandbox>();
-    ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+    ASSERT_THAT(sandbox_->Init(), IsOk());
     api_ = std::make_unique<uv::UVApi>(sandbox_.get());
   }
 
@@ -61,7 +63,7 @@ TEST_F(UVTestArray, LoadAvg) {
   ASSERT_EQ(avg_buf[2], -1);
 
   // Get loadavg
-  ASSERT_THAT(api_->sapi_uv_loadavg(avg.PtrBoth()), sapi::IsOk());
+  ASSERT_THAT(api_->sapi_uv_loadavg(avg.PtrBoth()), IsOk());
 
   // Check that loadavg values are positive
   ASSERT_GE(avg_buf[0], 0);

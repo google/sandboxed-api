@@ -22,11 +22,11 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/util/status.pb.h"
 
-using ::testing::Eq;
-using ::testing::StrEq;
-
 namespace sapi {
 namespace {
+
+using ::testing::Eq;
+using ::testing::StrEq;
 
 StatusProto OkStatusProto() {
   StatusProto proto;

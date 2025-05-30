@@ -35,7 +35,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2::util {
 namespace {

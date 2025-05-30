@@ -16,7 +16,7 @@
 #include "sandbox.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
-#include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/testing.h"
 
 using ::absl_testing::IsOk;
 using ::testing::Eq;

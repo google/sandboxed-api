@@ -24,7 +24,6 @@
 #include "absl/log/log.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {

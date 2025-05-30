@@ -19,7 +19,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 

@@ -72,7 +72,6 @@ cc_test(
         ":minielf",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_helpers",
-        "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
@@ -164,7 +163,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":maps_parser",
-        "//sandboxed_api/util:status_matchers",
+        "//sandboxed_api:testing",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
@@ -223,8 +222,8 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":seccomp_unotify",
+        "//sandboxed_api:testing",
         "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",

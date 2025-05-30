@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -38,16 +39,16 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/status_matchers.h"
 
+namespace sandbox2 {
+namespace {
+
+using ::absl_testing::IsOk;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::Ne;
-
-namespace sandbox2 {
-namespace {
 
 // Runs a new process and returns 0 if the process terminated with 0.
 int RunTestcase(const std::string& path, const std::vector<std::string>& args) {
@@ -89,7 +90,7 @@ TEST(SanitizerTest, TestMarkFDsAsCOE) {
 
   const absl::flat_hash_set<int> keep = {STDIN_FILENO, STDOUT_FILENO,
                                          STDERR_FILENO, null_fd};
-  ASSERT_THAT(sanitizer::MarkAllFDsAsCOEExcept(keep), sapi::IsOk());
+  ASSERT_THAT(sanitizer::MarkAllFDsAsCOEExcept(keep), IsOk());
 
   const std::string path = GetTestSourcePath("sandbox2/testcases/sanitizer");
   std::vector<std::string> args;

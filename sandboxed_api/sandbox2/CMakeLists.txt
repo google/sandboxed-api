@@ -807,7 +807,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_regs_test PRIVATE
     absl::check
     sapi::config
-    sapi::status_matchers
     sandbox2::bpf_helper
     sandbox2::regs
     sandbox2::sanitizer
@@ -850,7 +849,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::mount_tree_proto
     sapi::temp_file
     sapi::testing
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_mounts_test PROPERTIES
@@ -881,7 +879,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::sandbox2
     sapi::testing
     sapi::temp_file
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_namespace_test PROPERTIES
@@ -903,7 +900,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::buffer
     sandbox2::sandbox2
     sapi::testing
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_buffer_test PROPERTIES
@@ -936,7 +932,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     sandbox2::comms
     sandbox2::comms_test_proto
-    sapi::status_matchers
+    sapi::testing
     sapi::test_main
     sapi::thread
   )
@@ -956,6 +952,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_forkserver_test PRIVATE
     absl::check
     absl::strings
+    sandbox2::fork_client
     sandbox2::forkserver
     sandbox2::forkserver_proto
     sandbox2::sandbox2
@@ -984,7 +981,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::limits
     sandbox2::sandbox2
     sapi::testing
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_limits_test PROPERTIES
@@ -1005,13 +1001,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_pidcomms
   )
   target_link_libraries(sandbox2_notify_test PRIVATE
+    absl::status_matchers
     absl::status
     absl::strings
     sandbox2::comms
     sandbox2::regs
     sandbox2::sandbox2
     sandbox2::allowlists_trace_all_syscalls
-    sapi::status_matchers
     sapi::testing
     sapi::test_main
   )
@@ -1037,12 +1033,12 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_posix_timers
   )
   target_link_libraries(sandbox2_policy_test PRIVATE
+    absl::status_matchers
     absl::strings
     sandbox2::allowlists_seccomp_speculation
     sandbox2::bpf_helper
     sapi::config
     sandbox2::sandbox2
-    sapi::status_matchers
     sapi::testing
     sapi::test_main
   )
@@ -1075,7 +1071,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::fork_client
     sandbox2::sandbox2
     sapi::testing
-    sapi::status_matchers
     sapi::test_main
     sapi::thread
   )
@@ -1096,6 +1091,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_close_fds
   )
   target_link_libraries(sandbox2_sanitizer_test PRIVATE
+    absl::status_matchers
     absl::strings
     sandbox2::bpf_helper
     sandbox2::client
@@ -1104,7 +1100,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::sanitizer
     sapi::testing
     sandbox2::util
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_sanitizer_test PROPERTIES
@@ -1130,7 +1125,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::check
     absl::cleanup
     absl::span
-    sapi::status_matchers
     sapi::testing
     sapi::test_main
   )
@@ -1162,7 +1156,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::util
     sapi::fileops
     sapi::testing
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_stack_trace_test PROPERTIES
@@ -1185,7 +1178,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::ipc
     sandbox2::sandbox2
     sapi::testing
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_ipc_test PROPERTIES
@@ -1201,7 +1193,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME policybuilder_test
   )
   target_link_libraries(sandbox2_policybuilder_test
-    PRIVATE absl::strings
+    PRIVATE absl::status_matchers
+            absl::strings
             absl::log
             absl::status
             absl::statusor
@@ -1212,7 +1205,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sapi::file_base
             sapi::fileops
             sapi::testing
-            sapi::status_matchers
             sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_policybuilder_test PROPERTIES
@@ -1248,7 +1240,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     PRIVATE sandbox2::bpf_evaluator
             sandbox2::bpf_helper
             absl::status
-            sapi::status_matchers
+            absl::status_matchers
+            sapi::testing
             sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_bpf_evaluator_test PROPERTIES
@@ -1268,7 +1261,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::time
             sandbox2::sandbox2
             sandbox2::network_proxy_testing
-            sapi::status_matchers
             sapi::testing
             sapi::test_main
   )

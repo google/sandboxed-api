@@ -17,8 +17,8 @@
 #undef FILE  // TODO(cblichmann): Artifact from generated header
 
 #include "absl/status/status_matchers.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace {
 

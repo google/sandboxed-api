@@ -26,7 +26,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status_matchers.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
@@ -36,7 +35,7 @@ using ::testing::IsFalse;
 using ::testing::IsTrue;
 
 static struct sockaddr* PrepareIpv6(const std::string& ip, uint32_t port = 80) {
-  static struct sockaddr_in6 saddr {};
+  static struct sockaddr_in6 saddr{};
   memset(&saddr, 0, sizeof(saddr));
 
   saddr.sin6_family = AF_INET6;
@@ -49,7 +48,7 @@ static struct sockaddr* PrepareIpv6(const std::string& ip, uint32_t port = 80) {
 }
 
 static struct sockaddr* PrepareIpv4(const std::string& ip, uint32_t port = 80) {
-  static struct sockaddr_in saddr {};
+  static struct sockaddr_in saddr{};
   memset(&saddr, 0, sizeof(saddr));
 
   saddr.sin_family = AF_INET;

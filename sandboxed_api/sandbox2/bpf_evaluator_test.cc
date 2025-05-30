@@ -9,12 +9,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
-#include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/testing.h"
 
 namespace sandbox2::bpf {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::Eq;
 
 TEST(EvaluatorTest, SimpleReturn) {
@@ -191,8 +193,7 @@ TEST(EvaluatorTest, InvalidDivision) {
       BPF_STMT(BPF_ALU + BPF_DIV + BPF_K, 0),
       BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
   };
-  EXPECT_THAT(Evaluate(prog, {}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Evaluate(prog, {}), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(EvaluatorTest, InvalidAluOp) {
@@ -201,9 +202,8 @@ TEST(EvaluatorTest, InvalidAluOp) {
       BPF_STMT(BPF_ALU + 0xe0 + BPF_K, 10),
       BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
   };
-  EXPECT_THAT(Evaluate(prog, {}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument,
-                             "Invalid instruction 228"));
+  EXPECT_THAT(Evaluate(prog, {}), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           "Invalid instruction 228"));
 }
 
 TEST(EvaluatorTest, InvalidJump) {
@@ -212,9 +212,8 @@ TEST(EvaluatorTest, InvalidJump) {
       BPF_JUMP(BPF_JMP + 0xe0 + BPF_K, 1, 0, 0),
       BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
   };
-  EXPECT_THAT(Evaluate(prog, {}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument,
-                             "Invalid instruction 229"));
+  EXPECT_THAT(Evaluate(prog, {}), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           "Invalid instruction 229"));
 }
 
 TEST(EvaluatorTest, InvalidInst) {
@@ -222,15 +221,14 @@ TEST(EvaluatorTest, InvalidInst) {
       BPF_STMT(BPF_ST + BPF_X, 1),
       BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
   };
-  EXPECT_THAT(Evaluate(prog, {}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument,
-                             "Invalid instruction 10"));
+  EXPECT_THAT(Evaluate(prog, {}), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           "Invalid instruction 10"));
 }
 
 TEST(EvaluatorTest, EmptyProgram) {
-  EXPECT_THAT(Evaluate({}, {.nr = 1}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument,
-                             "Out of bounds execution"));
+  EXPECT_THAT(
+      Evaluate({}, {.nr = 1}),
+      StatusIs(absl::StatusCode::kInvalidArgument, "Out of bounds execution"));
 }
 
 TEST(EvaluatorTest, NoReturn) {
@@ -238,8 +236,8 @@ TEST(EvaluatorTest, NoReturn) {
       LOAD_SYSCALL_NR,
   };
   EXPECT_THAT(Evaluate(prog, {.nr = 1}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument,
-                             "Fall through to out of bounds execution"));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       "Fall through to out of bounds execution"));
 }
 
 TEST(EvaluatorTest, OutOfBoundsJump) {
@@ -250,7 +248,7 @@ TEST(EvaluatorTest, OutOfBoundsJump) {
   };
   EXPECT_THAT(
       Evaluate(prog, {.nr = 2}),
-      sapi::StatusIs(absl::StatusCode::kInvalidArgument, "Out of bounds jump"));
+      StatusIs(absl::StatusCode::kInvalidArgument, "Out of bounds jump"));
 }
 
 TEST(EvaluatorTest, OutOfMemoryOps) {
@@ -276,7 +274,7 @@ TEST(EvaluatorTest, OutOfMemoryOps) {
   };
   for (const std::vector<sock_filter>& prog : progs) {
     EXPECT_THAT(Evaluate(prog, {}),
-                sapi::StatusIs(absl::StatusCode::kInvalidArgument));
+                StatusIs(absl::StatusCode::kInvalidArgument));
   }
 }
 
@@ -285,9 +283,8 @@ TEST(EvaluatorTest, MisalignedLoad) {
       BPF_STMT(BPF_LD + BPF_W + BPF_ABS, 3),
       BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
   };
-  EXPECT_THAT(Evaluate(prog, {}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument,
-                             "Misaligned read (3)"));
+  EXPECT_THAT(Evaluate(prog, {}), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           "Misaligned read (3)"));
 }
 
 TEST(EvaluatorTest, OutOfBoundsLoad) {
@@ -295,9 +292,8 @@ TEST(EvaluatorTest, OutOfBoundsLoad) {
       BPF_STMT(BPF_LD + BPF_W + BPF_ABS, 4096),
       BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
   };
-  EXPECT_THAT(Evaluate(prog, {}),
-              sapi::StatusIs(absl::StatusCode::kInvalidArgument,
-                             "Out of bounds read (4096)"));
+  EXPECT_THAT(Evaluate(prog, {}), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           "Out of bounds read (4096)"));
 }
 
 }  // namespace

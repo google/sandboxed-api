@@ -18,11 +18,13 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {
+
+using ::absl_testing::IsOk;
 
 class UVTestLoopSapiSandbox : public uv::UVSandbox {
  private:
@@ -42,7 +44,7 @@ class UVTestLoop : public ::testing::Test {
  protected:
   void SetUp() override {
     sandbox_ = std::make_unique<UVTestLoopSapiSandbox>();
-    ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+    ASSERT_THAT(sandbox_->Init(), IsOk());
     api_ = std::make_unique<uv::UVApi>(sandbox_.get());
   }
 
@@ -80,7 +82,7 @@ TEST_F(UVTestLoop, InitLoop) {
   void* loop_voidptr;
   ASSERT_THAT(
       sandbox_->rpc_channel()->Allocate(sizeof(uv_loop_t), &loop_voidptr),
-      sapi::IsOk());
+      IsOk());
   sapi::v::RemotePtr loop(loop_voidptr);
 
   // Initialize, run and close the manually initialized loop
@@ -89,7 +91,7 @@ TEST_F(UVTestLoop, InitLoop) {
   UVLoopClose(loop.PtrNone());
 
   // Free loop memory
-  ASSERT_THAT(sandbox_->rpc_channel()->Free(loop_voidptr), sapi::IsOk());
+  ASSERT_THAT(sandbox_->rpc_channel()->Free(loop_voidptr), IsOk());
 }
 
 TEST_F(UVTestLoop, DefaultLoop) {

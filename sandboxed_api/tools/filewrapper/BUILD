@@ -47,7 +47,6 @@ cc_test(
         ":filewrapper_embedded",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_helpers",
-        "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],

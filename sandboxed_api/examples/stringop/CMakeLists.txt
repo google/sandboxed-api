@@ -79,6 +79,7 @@ if(SAPI_BUILD_TESTING)
     sapi::status
     sapi::stringop_sapi
     sapi::test_main
+    sapi::testing
     sapi::vars
   )
   gtest_discover_tests_xcompile(sapi_main_stringop)

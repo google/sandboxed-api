@@ -17,11 +17,13 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {
+
+using ::absl_testing::IsOk;
 
 class UVTestErrorSapiSandbox : public uv::UVSandbox {
  private:
@@ -40,7 +42,7 @@ class UVTestError : public ::testing::Test {
  protected:
   void SetUp() override {
     sandbox_ = std::make_unique<UVTestErrorSapiSandbox>();
-    ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+    ASSERT_THAT(sandbox_->Init(), IsOk());
     api_ = std::make_unique<uv::UVApi>(sandbox_.get());
   }
 
@@ -48,7 +50,7 @@ class UVTestError : public ::testing::Test {
   void UVStrerror(int error) {
     // Call sapi_uv_strerror
     absl::StatusOr<void*> error_message_ptr = api_->sapi_uv_strerror(error);
-    ASSERT_THAT(error_message_ptr, sapi::IsOk());
+    ASSERT_THAT(error_message_ptr, IsOk());
 
     // Get error message from the sandboxee
     SAPI_ASSERT_OK_AND_ASSIGN(

@@ -40,7 +40,6 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {

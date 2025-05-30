@@ -42,13 +42,13 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/temp_file.h"
 
 namespace sandbox2 {
 namespace {
 
 namespace file_util = ::sapi::file_util;
+using ::absl_testing::StatusIs;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::CreateNamedTempFile;
 using ::sapi::GetTestSourcePath;
@@ -308,8 +308,7 @@ TEST(NamespaceTest, TestIncompatibleNetNsModes) {
                     .Allow(UnrestrictedNetworking())
                     .UseForkServerSharedNetNs()
                     .TryBuild();
-  EXPECT_THAT(policy.status(),
-              sapi::StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(policy.status(), StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST(NamespaceTest, TestFiles) {

@@ -20,7 +20,6 @@
 #include "contrib/zopfli/sandboxed.h"
 #include "contrib/zopfli/utils/utils_zopfli.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/temp_file.h"
 
 namespace {

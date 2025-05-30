@@ -23,15 +23,16 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sapi {
 namespace {
 
+using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::Ne;

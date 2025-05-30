@@ -14,7 +14,7 @@
 
 #include "test_utils.h"  // NOLINT(build/include)
 #include "absl/status/status_matchers.h"
-#include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/testing.h"
 
 namespace curl::tests {
 namespace {

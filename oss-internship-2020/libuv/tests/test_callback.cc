@@ -18,11 +18,13 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {
+
+using ::absl_testing::IsOk;
 
 class UVTestCallbackSapiSandbox : public uv::UVSandbox {
  private:
@@ -32,7 +34,11 @@ class UVTestCallbackSapiSandbox : public uv::UVSandbox {
         .AllowDynamicStartup(sandbox2::MapExec())
         .AllowExit()
         .AllowFutexOp(FUTEX_WAKE_PRIVATE)
-        .AllowSyscalls({__NR_epoll_create1, __NR_eventfd2, __NR_pipe2})
+        .AllowSyscalls({
+            __NR_epoll_create1,
+            __NR_eventfd2,
+            __NR_pipe2,
+        })
         .AllowWrite()
         .BuildOrDie();
   }
@@ -42,7 +48,7 @@ class UVTestCallback : public ::testing::Test {
  protected:
   void SetUp() override {
     sandbox_ = std::make_unique<UVTestCallbackSapiSandbox>();
-    ASSERT_THAT(sandbox_->Init(), sapi::IsOk());
+    ASSERT_THAT(sandbox_->Init(), IsOk());
     api_ = std::make_unique<uv::UVApi>(sandbox_.get());
   }
 
@@ -60,7 +66,7 @@ class UVTestCallback : public ::testing::Test {
     void* timer_cb_voidptr;
     ASSERT_THAT(
         sandbox_->rpc_channel()->Symbol("TimerCallback", &timer_cb_voidptr),
-        sapi::IsOk());
+        IsOk());
     sapi::v::RemotePtr timer_cb(timer_cb_voidptr);
 
     // Set the timer's callback, timeout and repeat
@@ -102,7 +108,7 @@ TEST_F(UVTestCallback, TimerCallback) {
   void* timer_voidptr;
   ASSERT_THAT(
       sandbox_->rpc_channel()->Allocate(sizeof(uv_timer_t), &timer_voidptr),
-      sapi::IsOk());
+      IsOk());
   sapi::v::RemotePtr timer(timer_voidptr);
 
   // Initialize timer and add it to default loop
@@ -113,10 +119,10 @@ TEST_F(UVTestCallback, TimerCallback) {
   sapi::v::Int data(kData);
   void* data_voidptr;
   ASSERT_THAT(sandbox_->rpc_channel()->Allocate(sizeof(int), &data_voidptr),
-              sapi::IsOk());
+              IsOk());
   data.SetRemote(data_voidptr);
   ASSERT_THAT(api_->sapi_uv_handle_set_data(timer.PtrBoth(), data.PtrBefore()),
-              sapi::IsOk());
+              IsOk());
 
   // Start the timer
   UVTimerStart(timer.PtrBoth());
@@ -124,7 +130,7 @@ TEST_F(UVTestCallback, TimerCallback) {
   // Check that data has not changed (because the loop is not running yet)
   // This is done by resetting the local value and then getting the remote one
   data.SetValue(0);
-  ASSERT_THAT(sandbox_->TransferFromSandboxee(&data), sapi::IsOk());
+  ASSERT_THAT(sandbox_->TransferFromSandboxee(&data), IsOk());
   ASSERT_EQ(data.GetValue(), kData);
 
   // Run the loop
@@ -132,7 +138,7 @@ TEST_F(UVTestCallback, TimerCallback) {
   UVRun(loop.PtrNone());
 
   // Check that data has changed (and therefore callback was called correctly)
-  ASSERT_THAT(sandbox_->TransferFromSandboxee(&data), sapi::IsOk());
+  ASSERT_THAT(sandbox_->TransferFromSandboxee(&data), IsOk());
   ASSERT_EQ(data.GetValue(), kData + 1);
 
   // Close the loop

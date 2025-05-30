@@ -17,10 +17,23 @@
 
 #include <string>
 
-#include "gtest/gtest.h"
+#include "gmock/gmock.h"                // IWYU pragma: keep
+#include "gtest/gtest.h"                // IWYU pragma: keep
+#include "absl/status/status_matchers.h"  // IWYU pragma: keep
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/policybuilder.h"
+
+#define SAPI_ASSERT_OK(expr) ASSERT_THAT(expr, ::absl_testing::IsOk())
+
+#define SAPI_ASSERT_OK_AND_ASSIGN(lhs, rexpr) \
+  SAPI_ASSERT_OK_AND_ASSIGN_IMPL(             \
+      SAPI_MACROS_IMPL_CONCAT(_sapi_statusor, __LINE__), lhs, rexpr)
+
+#define SAPI_ASSERT_OK_AND_ASSIGN_IMPL(statusor, lhs, rexpr) \
+  auto statusor = (rexpr);                                   \
+  ASSERT_THAT(statusor.status(), ::absl_testing::IsOk());    \
+  lhs = std::move(statusor).value()
 
 // The macro SKIP_SANITIZERS_AND_COVERAGE can be used in tests to skip running
 // a given test (by emitting 'return') when running under one of the sanitizers

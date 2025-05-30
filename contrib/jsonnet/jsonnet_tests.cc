@@ -22,8 +22,8 @@
 
 #include "gtest/gtest.h"
 #include "contrib/jsonnet/jsonnet_base_sandbox.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace {
 

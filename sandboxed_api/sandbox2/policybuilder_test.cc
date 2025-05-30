@@ -28,13 +28,13 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 
@@ -52,8 +52,8 @@ namespace {
 
 namespace fileops = ::sapi::file_util::fileops;
 
-using ::sapi::IsOk;
-using ::sapi::StatusIs;
+using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::testing::Eq;
 using ::testing::Lt;
 using ::testing::Not;

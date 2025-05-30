@@ -36,7 +36,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"
-#include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {

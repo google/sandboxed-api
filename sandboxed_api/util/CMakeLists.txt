@@ -198,8 +198,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME file_helpers_test
   )
   target_link_libraries(sapi_file_helpers_test PRIVATE
+    absl::status_matchers
     sapi::file_helpers
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_file_helpers_test)
@@ -212,32 +212,16 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME fileops_test
   )
   target_link_libraries(sapi_fileops_test PRIVATE
+    absl::status_matchers
     absl::strings
     sapi::file_helpers
     sapi::fileops
-    sapi::status_matchers
-    sapi::test_main
     sapi::testing
+    sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_fileops_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
-  )
-
-  # sandboxed_api/util:status_matchers
-  add_library(sapi_util_status_matchers ${SAPI_LIB_TYPE}
-    status_matchers.h
-  )
-  add_library(sapi::status_matchers ALIAS sapi_util_status_matchers)
-  target_link_libraries(sapi_util_status_matchers
-    PUBLIC absl::optional
-           absl::status
-           absl::status_matchers
-           absl::strings
-           gmock
-           gtest
-           sapi::base
-           sapi::status
   )
 
   # sandboxed_api/util:status_test
@@ -249,7 +233,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::status
     absl::statusor
     sapi::status
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_status_test)
@@ -263,9 +246,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sapi_status_macros_test PRIVATE
     absl::status
+    absl::status_matchers
     absl::statusor
     absl::type_traits
-    sapi::status_matchers
+    sapi::testing
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_status_macros_test)
@@ -293,12 +277,12 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME temp_file_test
   )
   target_link_libraries(sapi_temp_file_test PRIVATE
+    absl::status_matchers
     sapi::file_base
     sapi::fileops
-    sapi::status_matchers
     sapi::temp_file
-    sapi::test_main
     sapi::testing
+    sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_temp_file_test)
 endif()

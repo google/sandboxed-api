@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
-#include "sandboxed_api/util/status_matchers.h"
+#include "sandboxed_api/testing.h"
 
 namespace curl::tests {
 

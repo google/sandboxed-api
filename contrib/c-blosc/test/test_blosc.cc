@@ -17,8 +17,8 @@
 #include "absl/status/status_matchers.h"
 #include "contrib/c-blosc/sandboxed.h"
 #include "contrib/c-blosc/utils/utils_blosc.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/temp_file.h"
 
 namespace {

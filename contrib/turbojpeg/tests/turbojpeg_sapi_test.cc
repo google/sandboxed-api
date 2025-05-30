@@ -25,10 +25,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
-#include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "turbojpeg_sapi.sapi.h"  // NOLINT(build/include)
 
 namespace {

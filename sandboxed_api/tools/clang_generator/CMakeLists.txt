@@ -150,6 +150,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::check
     absl::flat_hash_map
     absl::memory
+    absl::status_matchers
     absl::statusor
     benchmark
     sapi::file_base
@@ -158,7 +159,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::sapi
     sapi::generator
     sapi::status
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_generator_test

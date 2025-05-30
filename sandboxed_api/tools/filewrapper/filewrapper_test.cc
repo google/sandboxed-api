@@ -20,7 +20,6 @@
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
 #include "sandboxed_api/util/file_helpers.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sapi {
 namespace {

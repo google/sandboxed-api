@@ -37,7 +37,6 @@
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {

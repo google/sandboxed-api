@@ -20,7 +20,6 @@
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 using ::absl_testing::IsOk;
 using ::testing::Not;

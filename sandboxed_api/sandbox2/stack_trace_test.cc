@@ -40,7 +40,6 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 

@@ -33,11 +33,11 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 namespace sandbox2 {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
@@ -120,7 +120,7 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerAllowed) {
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   if (use_unotify) {
-    ASSERT_THAT(s2.EnableUnotifyMonitor(), sapi::IsOk());
+    ASSERT_THAT(s2.EnableUnotifyMonitor(), IsOk());
   }
   ASSERT_TRUE(s2.RunAsync());
 
@@ -161,7 +161,7 @@ TEST_P(NetworkProxyTest, ProxyWithHandlerNotAllowed) {
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   if (use_unotify) {
-    ASSERT_THAT(s2.EnableUnotifyMonitor(), sapi::IsOk());
+    ASSERT_THAT(s2.EnableUnotifyMonitor(), IsOk());
   }
   ASSERT_TRUE(s2.RunAsync());
 
@@ -208,7 +208,7 @@ TEST_P(NetworkProxyTest, ProxyWithoutHandlerAllowed) {
 
   Sandbox2 s2(std::move(executor), std::move(policy));
   if (use_unotify) {
-    ASSERT_THAT(s2.EnableUnotifyMonitor(), sapi::IsOk());
+    ASSERT_THAT(s2.EnableUnotifyMonitor(), IsOk());
   }
   ASSERT_TRUE(s2.RunAsync());
 

@@ -93,11 +93,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_filtering_test PRIVATE
     absl::check
+    absl::status_matchers
     absl::strings
     sandbox2::network_proxy_filtering
     sapi::testing
     sapi::base
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_filtering_test)

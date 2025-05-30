@@ -76,7 +76,6 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
-        "//sandboxed_api/util:status_matchers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",

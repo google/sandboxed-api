@@ -8,8 +8,7 @@
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 
-namespace sandbox2 {
-namespace bpf {
+namespace sandbox2::bpf {
 namespace {
 
 using ::testing::Eq;
@@ -149,5 +148,4 @@ TEST(DisasmTest, Complex) {
 }
 
 }  // namespace
-}  // namespace bpf
-}  // namespace sandbox2
+}  // namespace sandbox2::bpf

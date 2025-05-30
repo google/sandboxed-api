@@ -42,10 +42,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
                  testdata/filewrapper_embedded.bin COPYONLY)
   target_link_libraries(sapi_filewrapper_test PRIVATE
     filewrapper_embedded
+    absl::status_matchers
     sapi::file_helpers
     sapi::fileops
     sapi::testing
-    sapi::status_matchers
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_filewrapper_test PROPERTIES

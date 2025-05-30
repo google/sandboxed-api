@@ -199,7 +199,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   )
   add_library(sapi::testing ALIAS sapi_testing)
   target_link_libraries(sapi_testing
-   PRIVATE absl::strings
+   PRIVATE absl::status_matchers
+           absl::strings
            sapi::file_base
            sapi::base
    PUBLIC gtest
@@ -222,7 +223,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::proto_arg_proto
     sapi::sapi
     sapi::status
-    sapi::status_matchers
     sapi::stringop_sapi
     sapi::sum_sapi
     sapi::test_main

@@ -153,12 +153,12 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
                  testdata/chrome_grte_header COPYONLY)
   target_link_libraries(sandbox2_minielf_test
     PRIVATE absl::algorithm_container
+            absl::status_matchers
             absl::statusor
             sapi::file_helpers
             sandbox2::maps_parser
             sandbox2::minielf
             sapi::testing
-            sapi::status_matchers
             sapi::test_main
     PUBLIC absl::statusor
   )
@@ -177,7 +177,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_maps_parser_test PRIVATE
     absl::statusor
     sandbox2::maps_parser
-    sapi::status_matchers
+    sapi::testing
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_maps_parser_test)
@@ -238,7 +238,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::seccomp_unotify
     absl::statusor
     sapi::fileops
-    sapi::status_matchers
+    sapi::testing
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_seccomp_unotify_test)

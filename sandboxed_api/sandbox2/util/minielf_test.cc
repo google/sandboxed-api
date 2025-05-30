@@ -25,7 +25,6 @@
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
-#include "sandboxed_api/util/status_matchers.h"
 
 extern "C" void ExportedFunction() {
   // Don't do anything - used to generate a symbol.

@@ -61,7 +61,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":file_helpers",
-        ":status_matchers",
+        "//sandboxed_api:testing",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
@@ -88,7 +88,6 @@ cc_test(
     deps = [
         ":file_helpers",
         ":fileops",
-        ":status_matchers",
         "//sandboxed_api:testing",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
@@ -172,24 +171,6 @@ cc_library(
     ],
 )
 
-# gMock matchers for absl::Status and absl::StatusOr<T>.
-cc_library(
-    name = "status_matchers",
-    testonly = 1,
-    hdrs = ["status_matchers.h"],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
-    deps = [
-        ":status",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:string_view",
-        "@abseil-cpp//absl/types:optional",
-        "@googletest//:gtest",
-    ],
-)
-
 # Tests for the Status utility.
 cc_test(
     name = "status_test",
@@ -211,7 +192,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":status",
-        ":status_matchers",
+        "//sandboxed_api:testing",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
@@ -265,10 +246,10 @@ cc_test(
     deps = [
         ":file_base",
         ":fileops",
-        ":status_matchers",
         ":temp_file",
         "//sandboxed_api:testing",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
     ],

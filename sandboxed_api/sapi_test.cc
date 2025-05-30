@@ -41,8 +41,6 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
-#include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/status_matchers.h"
 #include "sandboxed_api/util/thread.h"
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
