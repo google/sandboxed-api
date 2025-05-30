@@ -29,6 +29,7 @@
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
 namespace {

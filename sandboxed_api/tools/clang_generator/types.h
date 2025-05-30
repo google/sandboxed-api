@@ -16,8 +16,10 @@
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_TYPES_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
@@ -47,6 +49,33 @@ inline bool IsPointerOrReference(clang::QualType qual) {
 #endif
 }
 
+// RenderedType objects are used to keep track of types that are going to be
+// emitted in the generated header.
+class RenderedType {
+ public:
+  RenderedType(absl::string_view ns_name, std::string spelling)
+      : ns_name(ns_name), spelling(std::move(spelling)) {}
+
+  bool operator==(const RenderedType& other) const {
+    return ns_name == other.ns_name && spelling == other.spelling;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const RenderedType& rt) {
+    return H::combine(std::move(h), rt.ns_name, rt.spelling);
+  }
+
+  std::string ns_name;
+  std::string spelling;
+};
+
+// Struct to hold the information about a type that is going to be emitted in
+// the generated header.
+struct NamespacedTypeDecl {
+  std::string ns_name;
+  clang::TypeDecl* type_decl;
+};
+
 class TypeCollector {
  public:
   // Records the source order of the given type in the current translation unit.
@@ -70,8 +99,10 @@ class TypeCollector {
   //   SubStruct
   void CollectRelatedTypes(clang::QualType qual);
 
-  // Returns the declarations for the collected types in source order.
-  std::vector<clang::TypeDecl*> GetTypeDeclarations();
+  // Returns a vector of type declarations that were collected, together with
+  // their namespace. The vector is ordered according to the order the
+  // declarations were seen in the source code.
+  std::vector<NamespacedTypeDecl> GetTypeDeclarations();
 
  private:
   std::vector<clang::TypeDecl*> ordered_decls_;

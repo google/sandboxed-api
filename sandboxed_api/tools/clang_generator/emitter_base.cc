@@ -14,9 +14,9 @@
 
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/random/random.h"
@@ -40,6 +40,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/tools/clang_generator/includes.h"
+#include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
 
@@ -116,18 +117,6 @@ absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
 }  // namespace internal
 
 namespace {
-
-// Returns the namespace components of a declaration's qualified name.
-std::vector<std::string> GetNamespacePath(const clang::TypeDecl* decl) {
-  std::vector<std::string> comps;
-  for (const auto* ctx = decl->getDeclContext(); ctx; ctx = ctx->getParent()) {
-    if (const auto* nd = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
-      comps.push_back(nd->getName().str());
-    }
-  }
-  std::reverse(comps.begin(), comps.end());
-  return comps;
-}
 
 // Returns the template arguments for a given record.
 std::string PrintRecordTemplateArguments(const clang::CXXRecordDecl* record) {
@@ -242,53 +231,14 @@ std::string GetIncludeGuard(absl::string_view filename) {
   return guard;
 }
 
-void EmitterBase::EmitType(clang::TypeDecl* type_decl) {
+void EmitterBase::EmitType(absl::string_view ns_name,
+                           clang::TypeDecl* type_decl) {
   if (!type_decl) {
     return;
   }
 
-  // Skip types defined in system headers.
-  // TODO(cblichmann): Instead of this and the hard-coded entities below, we
-  //                   should map types and add the correct (system) headers to
-  //                   the generated output.
-  if (type_decl->getASTContext().getSourceManager().isInSystemHeader(
-          type_decl->getBeginLoc())) {
-    return;
-  }
-
-  const std::vector<std::string> ns_path = GetNamespacePath(type_decl);
-  std::string ns_name;
-  if (!ns_path.empty()) {
-    const auto& ns_root = ns_path.front();
-    // Filter out declarations from the C++ standard library, from SAPI itself
-    // and from other well-known namespaces.
-    if (ns_root == "std" || ns_root == "__gnu_cxx" || ns_root == "sapi") {
-      return;
-    }
-    if (ns_root == "absl") {
-      // Skip Abseil internal namespaces
-      if (ns_path.size() > 1 && absl::EndsWith(ns_path[1], "_internal")) {
-        return;
-      }
-      // Skip types from Abseil that will already be included in the generated
-      // header.
-      if (auto name = ToStringView(type_decl->getName());
-          name == "CordMemoryAccounting" || name == "Duration" ||
-          name == "LogEntry" || name == "LogSeverity" || name == "Span" ||
-          name == "StatusCode" || name == "StatusToStringMode" ||
-          name == "SynchLocksHeld" || name == "SynchWaitParams" ||
-          name == "Time" || name == "string_view" || name == "tid_t") {
-        return;
-      }
-    }
-    // Skip Protocol Buffers namespaces
-    if (ns_root == "google" && ns_path.size() > 1 && ns_path[1] == "protobuf") {
-      return;
-    }
-    ns_name = absl::StrJoin(ns_path, "::");
-  }
-
   std::string spelling = GetSpelling(type_decl);
+
   if (const auto& [it, inserted] = rendered_types_.emplace(ns_name, spelling);
       inserted) {
     rendered_types_ordered_.push_back(&*it);
@@ -296,9 +246,9 @@ void EmitterBase::EmitType(clang::TypeDecl* type_decl) {
 }
 
 void EmitterBase::AddTypeDeclarations(
-    const std::vector<clang::TypeDecl*>& type_decls) {
-  for (clang::TypeDecl* type_decl : type_decls) {
-    EmitType(type_decl);
+    const std::vector<NamespacedTypeDecl>& type_decls) {
+  for (const auto& [ns_name, type_decl] : type_decls) {
+    EmitType(ns_name, type_decl);
   }
 }
 

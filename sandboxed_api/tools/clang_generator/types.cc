@@ -14,37 +14,97 @@
 
 #include "sandboxed_api/tools/clang_generator/types.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/string_view.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceManager.h"
 #include "llvm/Support/Casting.h"
 
 namespace sapi {
 namespace {
 
+// Checks if a record declaration is a google::protobuf::Message.
 bool IsProtoBuf(const clang::RecordDecl* decl) {
-  const auto* cxxdecl = llvm::dyn_cast<const clang::CXXRecordDecl>(decl);
-  if (cxxdecl == nullptr) {
-    return false;
-  }
-  if (!cxxdecl->hasDefinition()) {
-    return false;
-  }
-  for (const clang::CXXBaseSpecifier& base : cxxdecl->bases()) {
-    if (base.getType()->getAsCXXRecordDecl()->getQualifiedNameAsString() ==
-        "google::protobuf::Message") {
-      return true;
+  if (const auto* cxxdecl = llvm::dyn_cast<const clang::CXXRecordDecl>(decl)) {
+    // Skip anything that has no body (i.e. forward declarations)
+    if (!cxxdecl->hasDefinition()) {
+      return false;
+    }
+    // Lookup the base classes and check if google::protobuf::Messages is one of it.
+    for (const clang::CXXBaseSpecifier& base : cxxdecl->bases()) {
+      if (base.getType()->getAsCXXRecordDecl()->getQualifiedNameAsString() ==
+          "google::protobuf::Message") {
+        return true;
+      }
     }
   }
   return false;
+}
+
+// Returns the fully qualified name of a QualType.
+//
+// This function handles some special cases, such as function pointers and
+// enums. In case of enums it preserves the enum keyword in the name.
+std::string GetQualTypeName(const clang::ASTContext& context,
+                            clang::QualType qual) {
+  // Remove any "const", "volatile", etc. except for those added via typedefs.
+  clang::QualType unqual = qual.getLocalUnqualifiedType();
+
+  // This is to get to the actual name of function pointers.
+  if (unqual->isFunctionPointerType() || unqual->isFunctionReferenceType() ||
+      unqual->isMemberFunctionPointerType()) {
+    unqual = unqual->getPointeeType();
+  }
+
+  if (unqual->isEnumeralType()) {
+    auto decl = unqual->getAsTagDecl();
+    if (decl) {
+      // Keep the "enum" keyword in the type name.
+      clang::PrintingPolicy policy = context.getPrintingPolicy();
+      policy.SuppressTagKeyword = false;
+      return clang::TypeName::getFullyQualifiedName(unqual, context, policy);
+    }
+  }
+  // Return the fully qualified name without the "enum", "struct" or "class"
+  // keyword.
+  return clang::TypeName::getFullyQualifiedName(unqual, context,
+                                                context.getPrintingPolicy());
+}
+
+// Returns the namespace components of a declaration's qualified name.
+std::vector<std::string> GetNamespacePath(const clang::TypeDecl* decl) {
+  std::vector<std::string> comps;
+  for (const auto* ctx = decl->getDeclContext(); ctx; ctx = ctx->getParent()) {
+    if (const auto* nd = llvm::dyn_cast<clang::NamespaceDecl>(ctx)) {
+      comps.push_back(nd->getName().str());
+    }
+  }
+  std::reverse(comps.begin(), comps.end());
+  return comps;
+}
+
+// Removes "const" from a qualified type if it denotes a pointer or reference
+// type. Keeps top-level typedef types intact.
+clang::QualType MaybeRemoveConst(const clang::ASTContext& context,
+                                 clang::QualType qual) {
+  if (!qual->isTypedefNameType() && IsPointerOrReference(qual)) {
+    clang::QualType pointee_qual = qual->getPointeeType();
+    pointee_qual.removeLocalConst();
+    qual = context.getPointerType(pointee_qual);
+  }
+  return qual;
 }
 
 }  // namespace
@@ -143,34 +203,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   }
 }
 
-namespace {
-
-std::string GetQualTypeName(const clang::ASTContext& context,
-                            clang::QualType qual) {
-  // Remove any "const", "volatile", etc. except for those added via typedefs.
-  clang::QualType unqual = qual.getLocalUnqualifiedType();
-
-  // This is to get to the actual name of function pointers.
-  if (unqual->isFunctionPointerType() || unqual->isFunctionReferenceType() ||
-      unqual->isMemberFunctionPointerType()) {
-    unqual = unqual->getPointeeType();
-  }
-
-  if (unqual->isEnumeralType()) {
-    auto decl = unqual->getAsTagDecl();
-    if (decl) {
-      clang::PrintingPolicy policy = context.getPrintingPolicy();
-      policy.SuppressTagKeyword = false;  // keep enum keyword.
-      return clang::TypeName::getFullyQualifiedName(unqual, context, policy);
-    }
-  }
-  return clang::TypeName::getFullyQualifiedName(unqual, context,
-                                                context.getPrintingPolicy());
-}
-
-}  // namespace
-
-std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
+std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
   if (ordered_decls_.empty()) {
     return {};
   }
@@ -179,15 +212,25 @@ std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
   // so use a reference here.
   clang::ASTContext& context = ordered_decls_.front()->getASTContext();
 
+  // Set of fully qualified names of the collected types that will be used to
+  // only emit type declarations of required types.
   absl::flat_hash_set<std::string> collected_names;
   for (clang::QualType qual : collected_) {
     const std::string qual_name = GetQualTypeName(context, qual);
     collected_names.insert(qual_name);
   }
 
-  std::vector<clang::TypeDecl*> result;
+  std::vector<NamespacedTypeDecl> result;
   for (clang::TypeDecl* type_decl : ordered_decls_) {
     clang::QualType type_decl_type = context.getTypeDeclType(type_decl);
+
+    // Filter out types defined in system headers.
+    // TODO: b/402658788 - Instead of this and the hard-coded entities below, we
+    //                     should map types and add the correct (system) headers
+    //                     to the generated output.
+    if (context.getSourceManager().isInSystemHeader(type_decl->getBeginLoc())) {
+      continue;
+    }
 
     // Filter out problematic dependent types that we cannot emit properly.
     // CollectRelatedTypes() cannot skip those, as it runs before this
@@ -216,26 +259,50 @@ std::vector<clang::TypeDecl*> TypeCollector::GetTypeDeclarations() {
       continue;
     }
 
-    result.push_back(type_decl);
+    // Filter out types based on certain namespace conditions.
+    const std::vector<std::string> ns_path = GetNamespacePath(type_decl);
+    std::string ns_name;
+    if (!ns_path.empty()) {
+      const auto& ns_root = ns_path.front();
+      // Skip if type is declared in the SAPI namespace.
+      if (ns_root == "sapi") {
+        continue;
+      }
+      // Skip if type is declared in the C++ standard library
+      if (ns_root == "std" || ns_root == "__gnu_cxx") {
+        continue;
+      }
+      // Skip if type is declared in certain Abseil namespaces.
+      if (ns_root == "absl") {
+        // Skip Abseil internal namespaces
+        if (ns_path.size() > 1 && absl::EndsWith(ns_path[1], "_internal")) {
+          continue;
+        }
+        // Skip types from Abseil that will already be included in the generated
+        // header.
+        if (absl::string_view name(type_decl->getName().data(),
+                                   type_decl->getName().size());
+            name == "CordMemoryAccounting" || name == "Duration" ||
+            name == "LogEntry" || name == "LogSeverity" || name == "Span" ||
+            name == "StatusCode" || name == "StatusToStringMode" ||
+            name == "SynchLocksHeld" || name == "SynchWaitParams" ||
+            name == "Time" || name == "string_view" || name == "tid_t") {
+          continue;
+        }
+      }
+      // Skip if type is declared in protobuf namespaces
+      if (ns_root == "google" && ns_path.size() > 1 &&
+          ns_path[1] == "protobuf") {
+        continue;
+      }
+
+      ns_name = absl::StrJoin(ns_path, "::");
+    }
+
+    result.push_back({ns_name, type_decl});
   }
   return result;
 }
-
-namespace {
-
-// Removes "const" from a qualified type if it denotes a pointer or reference
-// type. Keeps top-level typedef types intact.
-clang::QualType MaybeRemoveConst(const clang::ASTContext& context,
-                                 clang::QualType qual) {
-  if (!qual->isTypedefNameType() && IsPointerOrReference(qual)) {
-    clang::QualType pointee_qual = qual->getPointeeType();
-    pointee_qual.removeLocalConst();
-    qual = context.getPointerType(pointee_qual);
-  }
-  return qual;
-}
-
-}  // namespace
 
 std::string MapQualType(const clang::ASTContext& context,
                         clang::QualType qual) {

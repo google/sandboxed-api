@@ -16,7 +16,6 @@
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_EMITTER_BASE_H_
 
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/container/btree_map.h"
@@ -29,6 +28,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/includes.h"
+#include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
 // TODO b/347118045 - Refactor the naming of internal namespaces across the
@@ -74,24 +74,6 @@ inline constexpr absl::string_view kHeaderEpilog =
     R"(
 #endif  // %1$s)";
 
-class RenderedType {
- public:
-  RenderedType(std::string ns_name, std::string spelling)
-      : ns_name(std::move(ns_name)), spelling(std::move(spelling)) {}
-
-  bool operator==(const RenderedType& other) const {
-    return ns_name == other.ns_name && spelling == other.spelling;
-  }
-
-  template <typename H>
-  friend H AbslHashValue(H h, RenderedType rt) {
-    return H::combine(std::move(h), rt.ns_name, rt.spelling);
-  }
-
-  std::string ns_name;
-  std::string spelling;
-};
-
 class EmitterBase {
  public:
   virtual ~EmitterBase() = default;
@@ -102,7 +84,7 @@ class EmitterBase {
   // unnecessary are skipped. Other filtered types include C++ constructs or
   // well-known standard library elements. The latter can be replaced by
   // including the correct headers in the emitted header.
-  void AddTypeDeclarations(const std::vector<clang::TypeDecl*>& type_decls);
+  void AddTypeDeclarations(const std::vector<NamespacedTypeDecl>& type_decls);
 
   // Adds the declarations of previously collected functions to the emitter.
   virtual absl::Status AddFunction(clang::FunctionDecl* decl) = 0;
@@ -134,7 +116,7 @@ class EmitterBase {
   };
 
  private:
-  void EmitType(clang::TypeDecl* type_decl);
+  void EmitType(absl::string_view ns_name, clang::TypeDecl* type_decl);
 };
 
 // Constructs an include guard for the given filename. The generated string
