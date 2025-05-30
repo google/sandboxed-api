@@ -36,7 +36,8 @@ absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
   // Users may create lots of sandboxes at the same time in address-space
   // restricted environments. So we use the slower non-mmap mode to conserve
   // virtual address space.
-  SAPI_ASSIGN_OR_RETURN(auto parser, ElfParser::Create(filename, false));
+  SAPI_ASSIGN_OR_RETURN(auto parser,
+                        ElfParser::Create(filename, /*mmap_file=*/false));
   ElfFile result;
   switch (parser->file_header().e_type) {
     case ET_EXEC:
@@ -53,8 +54,8 @@ absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
   }
 
   if (features & ElfFile::kLoadSymbols) {
-    SAPI_RETURN_IF_ERROR(
-        parser->ForEachSection([&](const ElfShdr& hdr) -> auto {
+    SAPI_RETURN_IF_ERROR(parser->ForEachSection(
+        [&](absl::string_view /*name*/, const ElfShdr& hdr) -> auto {
           if (hdr.sh_type == SHT_SYMTAB) {
             SAPI_RETURN_IF_ERROR(parser->ReadSymbolsFromSymtab(
                 hdr, [&result](uintptr_t address, absl::string_view name) {

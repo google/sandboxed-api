@@ -197,10 +197,17 @@ absl::Status ElfParser::ForEachProgram(
 }
 
 absl::Status ElfParser::ForEachSection(
-    absl::FunctionRef<absl::Status(const ElfShdr&)> callback) {
+    absl::FunctionRef<absl::Status(absl::string_view, const ElfShdr&)>
+        callback) {
   SAPI_RETURN_IF_ERROR(ReadSectionHeaders());
+  SAPI_ASSIGN_OR_RETURN(Buffer strtab,
+                        ReadSectionContents(file_header_.e_shstrndx));
   for (const auto& hdr : section_headers_) {
-    SAPI_RETURN_IF_ERROR(callback(hdr));
+    if (hdr.sh_name >= strtab.data.size()) {
+      return absl::FailedPreconditionError(
+          absl::StrCat("invalid section name reference: ", hdr.sh_name));
+    }
+    SAPI_RETURN_IF_ERROR(callback(ReadString(hdr.sh_name, strtab.data), hdr));
   }
   return absl::OkStatus();
 }
@@ -369,15 +376,16 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(
 
 absl::StatusOr<std::vector<std::string>> ElfParser::ReadImportedLibraries() {
   std::vector<std::string> result;
-  SAPI_RETURN_IF_ERROR(ForEachSection([&](const ElfShdr& hdr) -> auto {
-    if (hdr.sh_type == SHT_DYNAMIC) {
-      SAPI_RETURN_IF_ERROR(ReadImportedLibrariesFromDynamic(
-          hdr, [&result](absl::string_view path) {
-            result.push_back(std::string(path));
-          }));
-    }
-    return absl::OkStatus();
-  }));
+  SAPI_RETURN_IF_ERROR(
+      ForEachSection([&](absl::string_view name, const ElfShdr& hdr) -> auto {
+        if (hdr.sh_type == SHT_DYNAMIC) {
+          SAPI_RETURN_IF_ERROR(ReadImportedLibrariesFromDynamic(
+              hdr, [&result](absl::string_view path) {
+                result.push_back(std::string(path));
+              }));
+        }
+        return absl::OkStatus();
+      }));
   return result;
 }
 

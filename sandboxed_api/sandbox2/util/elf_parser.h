@@ -87,7 +87,8 @@ class ElfParser {
   absl::Status ForEachProgram(
       absl::FunctionRef<absl::Status(const ElfPhdr&)> callback);
   absl::Status ForEachSection(
-      absl::FunctionRef<absl::Status(const ElfShdr&)> callback);
+      absl::FunctionRef<absl::Status(absl::string_view, const ElfShdr&)>
+          callback);
 
   // Reads arbitrary data from the ELF file.
   // The method does bounds checks for offset/size, so callers don't need to.
