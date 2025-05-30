@@ -55,71 +55,89 @@ void TypeCollector::RecordOrderedTypeDeclarations(clang::TypeDecl* type_decl) {
 }
 
 void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
+  // Skip if we have already processed the QualType.
   if (!seen_.insert(qual)) {
     return;
   }
 
+  // For RecordType (struct, class, union); Recursively call CollectRelatedTypes
+  // to collect the types of all fields.
+  //
+  // - ProtoBuf types are skipped.
+  // - Nested types are skipped and the enclosing type is collected which is
+  //   enough to reconstruct the AST when emitting the SAPI header.
   if (const auto* record_type = qual->getAs<clang::RecordType>()) {
     const clang::RecordDecl* decl = record_type->getDecl();
-    // Do not collect internals of a protobuf message.
     if (!IsProtoBuf(decl)) {
       for (const clang::FieldDecl* field : decl->fields()) {
         CollectRelatedTypes(field->getType());
       }
     }
-    // Do not collect structs/unions if they are declared within another
-    // record. The enclosing type is enough to reconstruct the AST when
-    // writing the header.
     const clang::RecordDecl* outer = decl->getOuterLexicalRecordContext();
     decl = outer ? outer : decl;
-    collected_.insert(clang::QualType(decl->getTypeForDecl(), 0));
+    collected_.insert(clang::QualType(decl->getTypeForDecl(), /*Quals=*/0));
   }
 
+  // For TypedefType; Collect the underlying type.
+  //
+  // - For anonymous typedefs, recursively call CollectRelatedTypes.
   if (const auto* typedef_type = qual->getAs<clang::TypedefType>()) {
     clang::TypedefNameDecl* typedef_decl = typedef_type->getDecl();
+    // Skip collection of anonymous types (e.g. anonymous enums) as those
+    // are handled when emitting them via their parent typedef/using
+    // declaration.
     if (!typedef_decl->getAnonDeclWithTypedefName()) {
-      // Do not collect anonymous enums/structs as those are handled when
-      // emitting them via their parent typedef/using declaration.
       CollectRelatedTypes(typedef_decl->getUnderlyingType());
     }
     collected_.insert(qual);
     return;
   }
 
+  // For FunctionPointer; Collect all related types.
+  //
+  // - For FunctionProtoTypes, recursively call CollectRelatedTypes to collect
+  //   the ReturnType and ParamTypes.
   if (qual->isFunctionPointerType() || qual->isFunctionReferenceType() ||
       qual->isMemberFunctionPointerType()) {
     if (const auto* function_type = qual->getPointeeOrArrayElementType()
                                         ->getAs<clang::FunctionProtoType>()) {
-      // Collect the return type, the parameter types as well as the function
-      // pointer type itself.
       CollectRelatedTypes(function_type->getReturnType());
       for (const clang::QualType& param : function_type->getParamTypes()) {
         CollectRelatedTypes(param);
       }
+      // Collect the function pointer itself.
       collected_.insert(qual);
       return;
     }
   }
 
+  // For PointerType or ReferenceTypes, recursively call CollectRelatedTypes to
+  // collect the underlying type of the pointer.
   if (IsPointerOrReference(qual)) {
     CollectRelatedTypes(qual->getPointeeType());
     return;
   }
 
-  // C array with specified constant size (i.e. int a[42])?
+  // For Arraytype, recursively call CollectRelatedTypes to collect the
+  // element's type.
   if (const clang::ArrayType* array_type = qual->getAsArrayTypeUnsafe()) {
     CollectRelatedTypes(array_type->getElementType());
     return;
   }
 
-  if (IsSimple(qual) || qual->isEnumeralType()) {
+  // For Enumtype, recursively call CollectRelatedTypes to collect the
+  // underlying integer type of enum classes as well, as it may be a typedef.
+  if (qual->isEnumeralType()) {
     if (const clang::EnumType* enum_type = qual->getAs<clang::EnumType>()) {
-      // Collect the underlying integer type of enum classes as well, as it may
-      // be a typedef.
       if (const clang::EnumDecl* decl = enum_type->getDecl(); decl->isFixed()) {
         CollectRelatedTypes(decl->getIntegerType());
       }
     }
+  }
+
+  // Lastly, collect type if it's an ArithmeticType, or VoidType. We do this
+  // last to ensure all other type relationships in the clang AST are resolved.
+  if (IsSimple(qual)) {
     collected_.insert(qual);
     return;
   }
