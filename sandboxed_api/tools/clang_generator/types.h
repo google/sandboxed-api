@@ -23,6 +23,7 @@
 #include "clang/AST/Type.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Config/llvm-config.h"
 
 namespace sapi {
 
@@ -37,8 +38,13 @@ inline bool IsSimple(clang::QualType qual) {
   return qual->isArithmeticType() || qual->isVoidType();
 }
 
+// Returns true if type is either a pointer or reference.
 inline bool IsPointerOrReference(clang::QualType qual) {
-  return qual->isAnyPointerType() || qual->isReferenceType();
+#if LLVM_VERSION_MAJOR > 19
+  return qual->isPointerOrReferenceType();
+#else
+  return qual->isPointerType() || qual->isReferenceType();
+#endif
 }
 
 class TypeCollector {
