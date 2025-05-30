@@ -33,7 +33,10 @@ absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
   if (features & ~(ElfFile::kAll)) {
     return absl::InvalidArgumentError("Unknown feature flags specified");
   }
-  SAPI_ASSIGN_OR_RETURN(auto parser, ElfParser::Create(filename));
+  // Users may create lots of sandboxes at the same time in address-space
+  // restricted environments. So we use the slower non-mmap mode to conserve
+  // virtual address space.
+  SAPI_ASSIGN_OR_RETURN(auto parser, ElfParser::Create(filename, false));
   ElfFile result;
   switch (parser->file_header().e_type) {
     case ET_EXEC:

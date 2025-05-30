@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -45,18 +46,42 @@ using ElfSym = std::conditional_t<host_cpu::Is64Bit(), Elf64_Sym, Elf32_Sym>;
 
 class ElfParser {
  public:
+  // The type used to return ELF file data in the following methods.
+  // The string_view holds the data reference and should be used to access the
+  // data.
+  // Duration of validity of the data and use of the vector depend on the mode
+  // in which the parser was opened. If the parser was opened in mmap mode,
+  // the data is valid as long as the parser is alive, and the vector is unused.
+  // Otherwise, the vector contains the actual data, and string_view is valid
+  // as long as the vector is alive.
+  // Most users shouldn't depend on these rules and just use the data as long
+  // as both parser and the buffer are alive.
+  struct Buffer {
+    absl::string_view data;
+    std::string buffer;
+  };
+
   // Creates an ElfParser for the given filename.
+  // If mmap_file is true, the whole file is mmapped for the lifetime of the
+  // parser, which makes parsing faster and voids lots of read syscalls and
+  // data copying. However, it increases virtual memory consumption.
+  // If mmap_file is false, the file is read in small chunks as necessary
+  // using seek+read for each chunk.
   static absl::StatusOr<std::unique_ptr<ElfParser>> Create(
-      absl::string_view filename);
+      absl::string_view filename, bool mmap_file);
+
   ~ElfParser();
 
   const ElfEhdr& file_header() const { return file_header_; }
+
   // Reads interpreter path from the ELF file.
   absl::StatusOr<std::string> ReadInterpreter();
+
   // Reads all symbols from symtab section.
   absl::Status ReadSymbolsFromSymtab(
       const ElfShdr& symtab,
       absl::FunctionRef<void(uintptr_t, absl::string_view)> symbol_callback);
+
   // Reads all imported libraries from dynamic section.
   absl::Status ReadImportedLibrariesFromDynamic(
       const ElfShdr& dynamic,
@@ -65,24 +90,18 @@ class ElfParser {
       absl::FunctionRef<absl::Status(const ElfPhdr&)> callback);
   absl::Status ForEachSection(
       absl::FunctionRef<absl::Status(const ElfShdr&)> callback);
+
+  // Reads arbitrary data from the ELF file.
+  // The method does bounds checks for offset/size, so callers don't need to.
+  absl::StatusOr<Buffer> ReadData(size_t offset, size_t size);
+
   // Reads contents of an ELF section.
-  absl::StatusOr<std::string> ReadSectionContents(int idx);
-  absl::StatusOr<std::string> ReadSectionContents(
-      const ElfShdr& section_header);
+  absl::StatusOr<Buffer> ReadSectionContents(int idx);
+  absl::StatusOr<Buffer> ReadSectionContents(const ElfShdr& section_header);
 
  private:
-  //  Arbitrary cut-off values, so we can parse safely.
-  static constexpr int kMaxProgramHeaderEntries = 500;
-  static constexpr int kMaxSectionHeaderEntries = 500;
-  static constexpr size_t kMaxSectionSize = 500 * 1024 * 1024;
-  static constexpr size_t kMaxStrtabSize = 500 * 1024 * 1024;
-  static constexpr size_t kMaxLibPathSize = 1024;
-  static constexpr int kMaxSymbolEntries = 4 * 1000 * 1000;
-  static constexpr int kMaxDynamicEntries = 10000;
-  static constexpr size_t kMaxInterpreterSize = 1000;
-
-  FILE* elf_ = nullptr;
-  size_t file_size_ = 0;
+  int fd_ = -1;
+  absl::string_view mmap_;
   bool elf_little_ = false;
   ElfEhdr file_header_;
   std::vector<ElfPhdr> program_headers_;
@@ -104,9 +123,7 @@ class ElfParser {
   std::enable_if_t<std::is_integral_v<IntT>, void> Load(IntT* dst,
                                                         const void* src);
   // Lazy constructor.
-  absl::Status Init(absl::string_view filename);
-  // Reads ELF file size.
-  absl::Status ReadFileSize();
+  absl::Status Init(absl::string_view filename, bool mmap_file);
   // Reads ELF header.
   absl::Status ReadFileHeader();
   // Reads a single ELF program header.

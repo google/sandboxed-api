@@ -15,6 +15,10 @@
 #include "sandboxed_api/sandbox2/util/elf_parser.h"
 
 #include <elf.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -42,43 +46,18 @@
 namespace sandbox2 {
 
 namespace {
-constexpr int kElfHeaderSize = sizeof(ElfEhdr);  // Maximum size for binaries
-constexpr char kElfMagic[] =
-    "\x7F"
-    "ELF";
 
-constexpr int kEiClassOffset = 0x04;
-constexpr int kEiClass = host_cpu::Is64Bit() ? ELFCLASS64 : ELFCLASS32;
+//  Arbitrary cut-off values, so we can parse safely.
+constexpr int kMaxProgramHeaderEntries = 500;
+constexpr int kMaxSectionHeaderEntries = 500;
+constexpr size_t kMaxDataSize = 500 * 1024 * 1024;
+constexpr int kMaxSymbolEntries = 4 * 1000 * 1000;
+constexpr int kMaxDynamicEntries = 10000;
+constexpr size_t kMaxInterpreterSize = 1000;
 
-constexpr int kEiDataOffset = 0x05;
-constexpr int kEiDataLittle = 1;  // Little Endian
-constexpr int kEiDataBig = 2;     // Big Endian
-
-constexpr int kEiVersionOffset = 0x06;
-constexpr int kEvCurrent = 1;  // ELF version
-
-// NOLINTNEXTLINE
-absl::Status CheckedFSeek(FILE* f, long offset, int whence) {
-  if (fseek(f, offset, whence)) {
-    return absl::ErrnoToStatus(errno, "Fseek on ELF failed");
-  }
-  return absl::OkStatus();
-}
-
-absl::Status CheckedFRead(void* dst, size_t size, size_t nmemb, FILE* f) {
-  if (std::fread(dst, size, nmemb, f) == nmemb) {
-    return absl::OkStatus();
-  }
-  return absl::ErrnoToStatus(errno, "Reading ELF data failed");
-}
-
-absl::Status CheckedRead(std::string* s, FILE* f) {
-  return CheckedFRead(&(*s)[0], 1, s->size(), f);
-}
-
-absl::string_view ReadName(uint32_t offset, absl::string_view strtab) {
-  auto name = strtab.substr(offset);
-  return name.substr(0, name.find('\0'));
+absl::string_view ReadString(uint32_t offset, absl::string_view strtab) {
+  absl::string_view str = strtab.substr(offset);
+  return str.substr(0, str.find('\0'));
 }
 
 }  //  namespace
@@ -89,57 +68,105 @@ absl::string_view ReadName(uint32_t offset, absl::string_view strtab) {
                      member)])
 
 absl::StatusOr<std::unique_ptr<ElfParser>> ElfParser::Create(
-    absl::string_view filename) {
+    absl::string_view filename, bool mmap_file) {
   std::unique_ptr<ElfParser> parser(new ElfParser());
-  SAPI_RETURN_IF_ERROR(parser->Init(filename));
+  SAPI_RETURN_IF_ERROR(parser->Init(filename, mmap_file));
   return parser;
 }
 
-absl::Status ElfParser::Init(absl::string_view filename) {
-  if (elf_ = std::fopen(std::string(filename).c_str(), "r"); !elf_) {
+absl::Status ElfParser::Init(absl::string_view filename, bool mmap_file) {
+  fd_ = open(std::string(filename).c_str(), O_RDONLY);
+  if (fd_ == -1) {
     return absl::ErrnoToStatus(errno,
-                               absl::StrCat("cannot open file: ", filename));
+                               absl::StrCat("failed to open: ", filename));
   }
-  SAPI_RETURN_IF_ERROR(ReadFileSize());
-  SAPI_RETURN_IF_ERROR(ReadFileHeader());
-  return absl::OkStatus();
+  struct stat statbuf;
+  if (fstat(fd_, &statbuf)) {
+    return absl::ErrnoToStatus(errno,
+                               absl::StrCat("failed to stat: ", filename));
+  }
+  if (mmap_file) {
+    const char* data = static_cast<const char*>(
+        mmap(nullptr, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd_, 0));
+    if (data == MAP_FAILED) {
+      return absl::ErrnoToStatus(errno,
+                                 absl::StrCat("failed to mmap: ", filename));
+    }
+    mmap_ = absl::string_view(data, statbuf.st_size);
+  }
+  return ReadFileHeader();
 }
 
 ElfParser::~ElfParser() {
-  if (elf_) {
-    std::fclose(elf_);
+  if (fd_ != -1) {
+    close(fd_);
+  }
+  if (mmap_.data()) {
+    munmap(const_cast<char*>(mmap_.data()), mmap_.size());
   }
 }
 
-absl::Status ElfParser::ReadFileSize() {
-  std::fseek(elf_, 0, SEEK_END);
-  file_size_ = std::ftell(elf_);
-  if (file_size_ < kElfHeaderSize) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("file too small: ", file_size_, " bytes, at least ",
-                     kElfHeaderSize, " bytes expected"));
+absl::StatusOr<ElfParser::Buffer> ElfParser::ReadData(size_t offset,
+                                                      size_t size) {
+  if (size > kMaxDataSize) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "too big data read (likely too large ELF section): size: ", size,
+        " max size: ", kMaxDataSize));
   }
-  return absl::OkStatus();
+  if (mmap_.data()) {
+    if (offset >= mmap_.size() || size > mmap_.size() ||
+        offset + size > mmap_.size()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("invalid data read: offset: ", offset, " size: ", size,
+                       "file size: ", mmap_.size()));
+    }
+    return Buffer{mmap_.substr(offset, size), std::string()};
+  }
+  if (lseek(fd_, offset, SEEK_SET) == -1) {
+    return absl::ErrnoToStatus(errno, absl::StrCat("failed to lseek"));
+  }
+  std::string buffer(size, '\0');
+  for (size_t read_bytes = 0; read_bytes != size;) {
+    size_t n = read(fd_, buffer.data() + read_bytes, size - read_bytes);
+    if (n == -1) {
+      if (errno == EINTR || errno == EAGAIN) {
+        continue;
+      }
+      return absl::ErrnoToStatus(errno, absl::StrCat("failed to read"));
+    }
+    if (n == 0) {
+      return absl::OutOfRangeError(absl::StrCat("failed to read (EOF)"));
+    }
+    read_bytes += n;
+  }
+  absl::string_view data(buffer);
+  return Buffer{data, std::move(buffer)};
 }
 
 absl::Status ElfParser::ReadFileHeader() {
-  std::string header(kElfHeaderSize, '\0');
-  SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, 0, SEEK_SET));
-  SAPI_RETURN_IF_ERROR(CheckedRead(&header, elf_));
-
-  if (!absl::StartsWith(header, kElfMagic)) {
+  SAPI_ASSIGN_OR_RETURN(Buffer header_buf, ReadData(0, sizeof(ElfEhdr)));
+  absl::string_view header = header_buf.data;
+  if (!absl::StartsWith(header, ELFMAG)) {
     return absl::FailedPreconditionError("magic not found, not an ELF");
   }
 
+  constexpr int kEiClassOffset = 0x04;
+  constexpr int kEiClass = host_cpu::Is64Bit() ? ELFCLASS64 : ELFCLASS32;
   if (header[kEiClassOffset] != kEiClass) {
     return absl::FailedPreconditionError("invalid ELF class");
   }
-  const auto elf_data = header[kEiDataOffset];
+
+  constexpr int kEiDataOffset = 0x05;
+  constexpr int kEiDataLittle = 1;  // Little Endian
+  constexpr int kEiDataBig = 2;     // Big Endian
+  const char elf_data = header[kEiDataOffset];
   elf_little_ = elf_data == kEiDataLittle;
   if (!elf_little_ && elf_data != kEiDataBig) {
     return absl::FailedPreconditionError("invalid endianness");
   }
 
+  constexpr int kEiVersionOffset = 0x06;
+  constexpr int kEvCurrent = 1;  // ELF version
   if (header[kEiVersionOffset] != kEvCurrent) {
     return absl::FailedPreconditionError("invalid ELF version");
   }
@@ -202,10 +229,6 @@ absl::Status ElfParser::ReadSectionHeaders() {
   if (!section_headers_.empty()) {
     return absl::OkStatus();
   }
-  if (file_header_.e_shoff > file_size_) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("invalid section header offset: ", file_header_.e_shoff));
-  }
   if (file_header_.e_shentsize != sizeof(ElfShdr)) {
     return absl::FailedPreconditionError(absl::StrCat(
         "section header entry size incorrect: ", file_header_.e_shentsize,
@@ -216,11 +239,11 @@ absl::Status ElfParser::ReadSectionHeaders() {
         absl::StrCat("too many section header entries: ", file_header_.e_shnum,
                      " limit: ", kMaxSectionHeaderEntries));
   }
-  std::string headers(file_header_.e_shentsize * file_header_.e_shnum, '\0');
-  SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, file_header_.e_shoff, SEEK_SET));
-  SAPI_RETURN_IF_ERROR(CheckedRead(&headers, elf_));
+  SAPI_ASSIGN_OR_RETURN(
+      Buffer headers, ReadData(file_header_.e_shoff, file_header_.e_shentsize *
+                                                         file_header_.e_shnum));
   std::vector<ElfShdr> tmp(file_header_.e_shnum);
-  absl::string_view src = headers;
+  absl::string_view src = headers.data;
   for (int i = 0; i < file_header_.e_shnum; ++i) {
     SAPI_ASSIGN_OR_RETURN(tmp[i], ReadSectionHeader(src));
     src = src.substr(file_header_.e_shentsize);
@@ -229,7 +252,7 @@ absl::Status ElfParser::ReadSectionHeaders() {
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::string> ElfParser::ReadSectionContents(int idx) {
+absl::StatusOr<ElfParser::Buffer> ElfParser::ReadSectionContents(int idx) {
   if (idx < 0 || idx >= section_headers_.size()) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid section header index: ", idx));
@@ -237,22 +260,9 @@ absl::StatusOr<std::string> ElfParser::ReadSectionContents(int idx) {
   return ReadSectionContents(section_headers_.at(idx));
 }
 
-absl::StatusOr<std::string> ElfParser::ReadSectionContents(
+absl::StatusOr<ElfParser::Buffer> ElfParser::ReadSectionContents(
     const ElfShdr& section_header) {
-  auto offset = section_header.sh_offset;
-  if (offset > file_size_) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("invalid section offset: ", offset));
-  }
-  auto size = section_header.sh_size;
-  if (size > kMaxSectionSize) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("section too big: ", size, " limit: ", kMaxSectionSize));
-  }
-  std::string rv(size, '\0');
-  SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, offset, SEEK_SET));
-  SAPI_RETURN_IF_ERROR(CheckedRead(&rv, elf_));
-  return rv;
+  return ReadData(section_header.sh_offset, section_header.sh_size);
 }
 
 absl::StatusOr<ElfPhdr> ElfParser::ReadProgramHeader(absl::string_view src) {
@@ -277,10 +287,6 @@ absl::Status ElfParser::ReadProgramHeaders() {
   if (!program_headers_.empty()) {
     return absl::OkStatus();
   }
-  if (file_header_.e_phoff > file_size_) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("invalid program header offset: ", file_header_.e_phoff));
-  }
   if (file_header_.e_phentsize != sizeof(ElfPhdr)) {
     return absl::FailedPreconditionError(absl::StrCat(
         "section header entry size incorrect: ", file_header_.e_phentsize,
@@ -291,11 +297,11 @@ absl::Status ElfParser::ReadProgramHeaders() {
         absl::StrCat("too many program header entries: ", file_header_.e_phnum,
                      " limit: ", kMaxProgramHeaderEntries));
   }
-  std::string headers(file_header_.e_phentsize * file_header_.e_phnum, '\0');
-  SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, file_header_.e_phoff, SEEK_SET));
-  SAPI_RETURN_IF_ERROR(CheckedRead(&headers, elf_));
+  SAPI_ASSIGN_OR_RETURN(
+      Buffer headers, ReadData(file_header_.e_phoff, file_header_.e_phentsize *
+                                                         file_header_.e_phnum));
   std::vector<ElfPhdr> tmp(file_header_.e_phnum);
-  absl::string_view src = headers;
+  absl::string_view src = headers.data;
   for (int i = 0; i < file_header_.e_phnum; ++i) {
     SAPI_ASSIGN_OR_RETURN(tmp[i], ReadProgramHeader(src));
     src = src.substr(file_header_.e_phentsize);
@@ -329,10 +335,9 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(
         absl::StrCat("invalid symtab's strtab reference: ", symtab.sh_link));
   }
   SAPI_RAW_VLOG(1, "Symbol table with %zu entries found", symbol_entries);
-  SAPI_ASSIGN_OR_RETURN(std::string strtab,
-                        ReadSectionContents(symtab.sh_link));
-  SAPI_ASSIGN_OR_RETURN(std::string symbols, ReadSectionContents(symtab));
-  for (absl::string_view src = symbols; !src.empty();
+  SAPI_ASSIGN_OR_RETURN(Buffer strtab, ReadSectionContents(symtab.sh_link));
+  SAPI_ASSIGN_OR_RETURN(Buffer symbols, ReadSectionContents(symtab));
+  for (absl::string_view src = symbols.data; !src.empty();
        src = src.substr(symtab.sh_entsize)) {
     ElfSym symbol;
     LOAD_MEMBER(symbol, st_name, src.data());
@@ -353,11 +358,11 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(
       return absl::FailedPreconditionError(absl::StrCat(
           "invalid symbol data: section index: ", symbol.st_shndx));
     }
-    if (symbol.st_name >= strtab.size()) {
+    if (symbol.st_name >= strtab.data.size()) {
       return absl::FailedPreconditionError(
           absl::StrCat("invalid name reference: REL", symbol.st_value));
     }
-    symbol_callback(symbol.st_value, ReadName(symbol.st_name, strtab));
+    symbol_callback(symbol.st_value, ReadString(symbol.st_name, strtab.data));
   }
   return absl::OkStatus();
 }
@@ -389,20 +394,9 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
   SAPI_RAW_VLOG(1, "Dynamic section with %zu entries found", entries);
   // strtab may be shared with symbols and therefore huge
   const auto& strtab_section = section_headers_.at(dynamic.sh_link);
-  if (strtab_section.sh_offset > file_size_) {
-    return absl::FailedPreconditionError(absl::StrCat(
-        "invalid symtab's strtab section offset: ", strtab_section.sh_offset));
-  }
-  if (strtab_section.sh_size >= kMaxStrtabSize ||
-      strtab_section.sh_size >= file_size_ ||
-      strtab_section.sh_offset >= file_size_ - strtab_section.sh_size) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("symtab's strtab too big: ", strtab_section.sh_size));
-  }
-  auto strtab_end = strtab_section.sh_offset + strtab_section.sh_size;
-  SAPI_ASSIGN_OR_RETURN(std::string dynamic_entries,
-                        ReadSectionContents(dynamic));
-  for (absl::string_view src = dynamic_entries; !src.empty();
+  SAPI_ASSIGN_OR_RETURN(Buffer strtab, ReadSectionContents(strtab_section));
+  SAPI_ASSIGN_OR_RETURN(Buffer dynamic_entries, ReadSectionContents(dynamic));
+  for (absl::string_view src = dynamic_entries.data; !src.empty();
        src = src.substr(dynamic.sh_entsize)) {
     ElfDyn dyn;
     LOAD_MEMBER(dyn, d_tag, src.data());
@@ -410,18 +404,11 @@ absl::Status ElfParser::ReadImportedLibrariesFromDynamic(
     if (dyn.d_tag != DT_NEEDED) {
       continue;
     }
-    if (dyn.d_un.d_val >= strtab_section.sh_size) {
+    if (dyn.d_un.d_val >= strtab.data.size()) {
       return absl::FailedPreconditionError(
           absl::StrCat("invalid name reference"));
     }
-    auto offset = strtab_section.sh_offset + dyn.d_un.d_val;
-    SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, offset, SEEK_SET));
-    std::string path(
-        std::min(kMaxLibPathSize, static_cast<size_t>(strtab_end - offset)),
-        '\0');
-    size_t size = std::fread(&path[0], 1, path.size(), elf_);
-    path.resize(size);
-    library_callback(path.substr(0, path.find('\0')));
+    library_callback(ReadString(dyn.d_un.d_val, strtab.data));
   }
   return absl::OkStatus();
 }
@@ -435,18 +422,13 @@ absl::StatusOr<std::string> ElfParser::ReadInterpreter() {
   if (it == program_headers_.end()) {
     return "";
   }
-  if (it->p_filesz > ElfParser::kMaxInterpreterSize) {
+  if (it->p_filesz > kMaxInterpreterSize) {
     return absl::FailedPreconditionError(
         absl::StrCat("program interpreter path too long: ", it->p_filesz));
   }
-  SAPI_RETURN_IF_ERROR(CheckedFSeek(elf_, it->p_offset, SEEK_SET));
-  std::string interpreter(it->p_filesz, '\0');
-  SAPI_RETURN_IF_ERROR(CheckedRead(&interpreter, elf_));
-  auto first_nul = interpreter.find_first_of('\0');
-  if (first_nul != std::string::npos) {
-    interpreter.erase(first_nul);
-  }
-  return std::move(interpreter);
+  SAPI_ASSIGN_OR_RETURN(Buffer interpreter,
+                        ReadData(it->p_offset, it->p_filesz));
+  return std::string(ReadString(0, interpreter.data));
 }
 
 uint16_t ElfParser::Load16(const void* src) {
@@ -478,6 +460,7 @@ uint64_t ElfParser::Load64(const void* src) {
 
 template <size_t N>
 void ElfParser::Load(unsigned char (*dst)[N], const void* src) {
+  // TODO(cblichmann): add a test for this.
   memcpy(dst, src, N);
 }
 
