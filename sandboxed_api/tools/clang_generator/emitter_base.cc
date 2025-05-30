@@ -32,6 +32,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/QualTypeNames.h"
+#include "clang/AST/Type.h"
 #include "clang/Format/Format.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -168,30 +169,70 @@ std::string GetSpelling(const clang::Decl* decl) {
   //   - Rewrite typedef to using
   //   - Rewrite function pointers using std::add_pointer_t<>;
 
-  if (const auto* typedef_decl = llvm::dyn_cast<clang::TypedefNameDecl>(decl)) {
-    // Special case: anonymous enum/struct
-    if (auto* tag_decl = typedef_decl->getAnonDeclWithTypedefName()) {
+  // Handle typedef/alias declarations.
+  if (const auto* typedef_name_decl =
+          llvm::dyn_cast<clang::TypedefNameDecl>(decl)) {
+    // Special case: anonymous enum/struct declarations.
+    // We recreate how the anonymous declaration most likely looked in code
+    // here. For example:
+    // 'typedef enum { kRed, kGreen, kBlue } Color;'
+    // will be spelled as is, and not as a separate anonymous enum declaration,
+    // followed by a 'typedef enum Color Color;'
+    if (auto* tag_decl = typedef_name_decl->getAnonDeclWithTypedefName()) {
       return absl::StrCat("typedef ", PrintDecl(tag_decl), " ",
-                          ToStringView(typedef_decl->getName()));
+                          ToStringView(typedef_name_decl->getName()));
+    }
+
+    // Regular case: any other typedef or alias declarations.
+    return PrintDecl(typedef_name_decl);
+  }
+
+  // Handle enum/struct/class/union declarations.
+  if (const auto* tag_decl = llvm::dyn_cast<clang::TagDecl>(decl)) {
+    // Handle enum declarations.
+    if (const auto* enum_decl = llvm::dyn_cast<clang::EnumDecl>(tag_decl)) {
+      return PrintDecl(enum_decl);
+    }
+
+    // Handle struct/class/union declarations.
+    if (const auto* record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
+      // Declarations that are:
+      //  - not forward declarations
+      //  - aggregates (C-like struct, or struct with default initializers)
+      //  - Plain Old Data (POD) type
+      //  - types without no user-defined methods (including constructors)
+      if (record_decl->hasDefinition() && record_decl->isAggregate() &&
+          (record_decl->isPOD() || record_decl->methods().empty())) {
+        return PrintDecl(decl);
+      }
+
+      // Remaining declarations that are:
+      //  - forward declarations
+      //  - non-aggregate types
+      //  - non-POD types with user-defined methods
+      std::string spelling = PrintRecordTemplateArguments(record_decl);
+      switch (record_decl->getTagKind()) {
+        case clang::TagTypeKind::Struct:
+          absl::StrAppend(&spelling, "struct ");
+          break;
+        case clang::TagTypeKind::Class:
+          absl::StrAppend(&spelling, "class ");
+          break;
+        case clang::TagTypeKind::Union:
+          absl::StrAppend(&spelling, "union ");
+          break;
+        case clang::TagTypeKind::Interface:
+        default:
+          llvm::errs() << "CXXRecordDecl has unexpected 'TagTypeKind' "
+                       << static_cast<int>(record_decl->getTagKind()) << ".\n"
+                       << PrintDecl(decl);
+          return "";
+      }
+      return absl::StrCat(spelling, ToStringView(record_decl->getName()));
     }
   }
 
-  if (const auto* record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
-    if (record_decl->hasDefinition() &&
-        // Aggregates capture all C-like structs, but also structs with
-        // non-static members that have default initializers.
-        record_decl->isAggregate() &&
-        // Make sure to skip non-POD types with user-defined methods
-        // (including constructors).
-        (record_decl->isPOD() || record_decl->methods().empty())) {
-      return PrintDecl(decl);
-    }
-    // For unsupported types or types with no definition, only emit a forward
-    // declaration.
-    return absl::StrCat(PrintRecordTemplateArguments(record_decl),
-                        record_decl->isClass() ? "class " : "struct ",
-                        ToStringView(record_decl->getName()));
-  }
+  // Fallback to cover any other case not individually handled above.
   return PrintDecl(decl);
 }
 
