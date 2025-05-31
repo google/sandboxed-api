@@ -75,6 +75,7 @@ absl::StatusOr<std::unique_ptr<ElfParser>> ElfParser::Create(
 }
 
 absl::Status ElfParser::Init(absl::string_view filename, bool mmap_file) {
+  filename_ = filename;
   fd_ = open(std::string(filename).c_str(), O_RDONLY);
   if (fd_ == -1) {
     return absl::ErrnoToStatus(errno,

@@ -72,6 +72,8 @@ class ElfParser {
 
   ~ElfParser();
 
+  const std::string& filename() const { return filename_; }
+
   const ElfEhdr& file_header() const { return file_header_; }
 
   // Reads interpreter path from the ELF file.
@@ -101,6 +103,7 @@ class ElfParser {
  private:
   int fd_ = -1;
   absl::string_view mmap_;
+  std::string filename_;
   bool elf_little_ = false;
   ElfEhdr file_header_;
   std::vector<ElfPhdr> program_headers_;
