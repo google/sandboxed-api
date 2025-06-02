@@ -341,6 +341,12 @@ class PolicyBuilder final {
   // Appends code to allow mprotect calls that don't specify PROT_EXEC.
   PolicyBuilder& AllowMprotectWithoutExec();
 
+  // Appends code to allow pkey_mprotect (also with PROT_EXEC).
+  PolicyBuilder& AllowPkeyMprotect(MapExec);
+
+  // Appends code to allow pkey_mprotect calls that don't specify PROT_EXEC.
+  PolicyBuilder& AllowPkeyMprotectWithoutExec();
+
   // Appends code to allow mlock and munlock calls.
   PolicyBuilder& AllowMlock();
 
@@ -1063,6 +1069,7 @@ class PolicyBuilder final {
     bool log_forwarding = false;
     bool prctl_set_name = false;
     bool prctl_set_vma = false;
+    bool pkey_mprotect_without_exec = false;
   } allowed_complex_;
 
   // List of allowed hosts

@@ -595,6 +595,29 @@ PolicyBuilder& PolicyBuilder::AllowMprotect(MapExec) {
   return Allow(MapExec()).AllowSyscall(__NR_mprotect);
 }
 
+PolicyBuilder& PolicyBuilder::AllowPkeyMprotectWithoutExec() {
+  if (allowed_complex_.pkey_mprotect_without_exec) {
+    return *this;
+  }
+  allowed_complex_.pkey_mprotect_without_exec = true;
+#ifdef __NR_pkey_mprotect
+  AddPolicyOnSyscall(__NR_pkey_mprotect,
+                     {
+                         ARG_32(2),
+                         BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, PROT_EXEC, 1, 0),
+                         ALLOW,
+                     });
+  return *this;
+#endif
+}
+
+PolicyBuilder& PolicyBuilder::AllowPkeyMprotect(MapExec) {
+#ifdef __NR_pkey_mprotect
+  Allow(MapExec()).AllowSyscall(__NR_pkey_mprotect);
+#endif
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AllowMmap() { return AllowMmap(MapExec()); }
 
 PolicyBuilder& PolicyBuilder::AllowMmap(MapExec) {
