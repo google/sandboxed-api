@@ -44,21 +44,6 @@ int main() {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-FORK-SERV')");
   }
 
-  // Don't react (with stack-tracing) to SIGTERM's sent from other processes
-  // (e.g. from the borglet or SubProcess). This ForkServer should go down if
-  // the parent goes down (or if the GlobalForkServerComms is closed), which is
-  // assured by prctl(PR_SET_PDEATHSIG, SIGKILL) being called in the
-  // ForkServer::Initialize(). We don't want to change behavior of non-global
-  // ForkServers, hence it's called here and not in the
-  // ForkServer::Initialize().
-  struct sigaction sa;
-  sa.sa_handler = SIG_IGN;
-  sa.sa_flags = 0;
-  sigemptyset(&sa.sa_mask);
-  if (sigaction(SIGTERM, &sa, nullptr) == -1) {
-    SAPI_RAW_PLOG(WARNING, "sigaction(SIGTERM, sa_handler=SIG_IGN)");
-  }
-
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::ForkServer fork_server(&comms);
   sandbox2::sanitizer::WaitForSanitizer();
