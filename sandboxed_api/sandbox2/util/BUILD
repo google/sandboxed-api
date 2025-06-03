@@ -98,6 +98,27 @@ cc_library(
 )
 
 cc_library(
+    name = "library_resolver",
+    srcs = ["library_resolver.cc"],
+    hdrs = ["library_resolver.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":elf_parser",
+        "//sandboxed_api:config",
+        "//sandboxed_api/util:file_base",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "syscall_trap",
     srcs = ["syscall_trap.cc"],
     hdrs = ["syscall_trap.h"],

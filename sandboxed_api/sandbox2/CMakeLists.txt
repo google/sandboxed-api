@@ -648,6 +648,7 @@ target_link_libraries(sandbox2_mounts
   PUBLIC absl::status
          absl::statusor
          absl::strings
+         sandbox2::library_resolver
          sandbox2::mount_tree_proto
 )
 

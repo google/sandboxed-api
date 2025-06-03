@@ -139,6 +139,27 @@ target_link_libraries(sandbox2_util_seccomp_unotify
           sapi::thread
 )
 
+# sandboxed_api/sandbox2/util:library_resolver
+add_library(sandbox2_util_library_resolver ${SAPI_LIB_TYPE}
+  library_resolver.cc
+  library_resolver.h
+)
+add_library(sandbox2::library_resolver ALIAS sandbox2_util_library_resolver)
+target_link_libraries(sandbox2_util_library_resolver
+  PUBLIC absl::function_ref
+         absl::statusor
+         absl::strings
+         sandbox2::minielf
+  PRIVATE absl::base
+          absl::status
+          sapi::base
+          sapi::config
+          sapi::fileops
+          sapi::file_base
+          sapi::raw_logging
+          sapi::status
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test
