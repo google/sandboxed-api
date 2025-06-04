@@ -42,19 +42,24 @@ using ::testing::StrEq;
 namespace sandbox2 {
 namespace {
 
-TEST(MinielfTest, Chrome70) {
+class MinielfTest : public testing::TestWithParam<bool> {
+ protected:
+  bool mmap_file() const { return GetParam(); }
+};
+
+TEST_P(MinielfTest, Chrome70) {
   SAPI_ASSERT_OK_AND_ASSIGN(
       ElfFile elf,
       ElfFile::ParseFromFile(
           GetTestSourcePath("sandbox2/util/testdata/chrome_grte_header"),
-          ElfFile::kGetInterpreter));
+          ElfFile::kGetInterpreter, mmap_file()));
   EXPECT_THAT(elf.interpreter(), StrEq("/usr/grte/v4/ld64"));
 }
 
-TEST(MinielfTest, SymbolResolutionWorks) {
+TEST_P(MinielfTest, SymbolResolutionWorks) {
   SAPI_ASSERT_OK_AND_ASSIGN(
-      ElfFile elf,
-      ElfFile::ParseFromFile("/proc/self/exe", ElfFile::kLoadSymbols));
+      ElfFile elf, ElfFile::ParseFromFile("/proc/self/exe",
+                                          ElfFile::kLoadSymbols, mmap_file()));
   ASSERT_THAT(elf.position_independent(), IsTrue());
 
   // Load /proc/self/maps to take ASLR into account.
@@ -83,13 +88,15 @@ TEST(MinielfTest, SymbolResolutionWorks) {
   EXPECT_THAT(function_symbol->address, Eq(function_address));
 }
 
-TEST(MinielfTest, ImportedLibraries) {
+TEST_P(MinielfTest, ImportedLibraries) {
   SAPI_ASSERT_OK_AND_ASSIGN(
       ElfFile elf, ElfFile::ParseFromFile(
                        GetTestSourcePath("sandbox2/util/testdata/hello_world"),
-                       ElfFile::kLoadImportedLibraries));
+                       ElfFile::kLoadImportedLibraries, mmap_file()));
   EXPECT_THAT(elf.imported_libraries(), ElementsAre("libc.so.6"));
 }
+
+INSTANTIATE_TEST_SUITE_P(Suite, MinielfTest, testing::Values(false, true));
 
 }  // namespace
 }  // namespace sandbox2

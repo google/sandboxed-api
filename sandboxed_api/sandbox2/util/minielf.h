@@ -38,7 +38,13 @@ class ElfFile {
       kGetInterpreter | kLoadSymbols | kLoadImportedLibraries;
 
   static absl::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
-                                               uint32_t features);
+                                               uint32_t features,
+                                               bool mmap_file);
+
+  static absl::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
+                                               uint32_t features) {
+    return ParseFromFile(filename, features, /*mmap_file=*/false);
+  }
 
   int64_t file_size() const { return file_size_; }
   const std::string& interpreter() const { return interpreter_; }

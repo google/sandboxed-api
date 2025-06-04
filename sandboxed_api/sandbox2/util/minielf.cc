@@ -28,7 +28,8 @@
 namespace sandbox2 {
 
 absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
-                                               uint32_t features) {
+                                               uint32_t features,
+                                               bool mmap_file) {
   // Basic sanity check.
   if (features & ~(ElfFile::kAll)) {
     return absl::InvalidArgumentError("Unknown feature flags specified");
@@ -36,8 +37,7 @@ absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
   // Users may create lots of sandboxes at the same time in address-space
   // restricted environments. So we use the slower non-mmap mode to conserve
   // virtual address space.
-  SAPI_ASSIGN_OR_RETURN(auto parser,
-                        ElfParser::Create(filename, /*mmap_file=*/false));
+  SAPI_ASSIGN_OR_RETURN(auto parser, ElfParser::Create(filename, mmap_file));
   ElfFile result;
   switch (parser->file_header().e_type) {
     case ET_EXEC:
