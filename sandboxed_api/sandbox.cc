@@ -45,6 +45,7 @@
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -176,7 +177,8 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
     return absl::OkStatus();
   }
 
-  sandbox2::ForkClient* fork_client;
+  std::shared_ptr<sandbox2::Executor> fork_client_executor;
+  std::shared_ptr<sandbox2::ForkClient> fork_client;
   {
     absl::MutexLock lock(&fork_client_context_->mu_);
     // Initialize the forkserver if it is not already running.
@@ -210,8 +212,8 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
 
       fork_client_context_->executor_ =
           (embed_lib_fd >= 0)
-              ? std::make_unique<sandbox2::Executor>(embed_lib_fd, args, envs)
-              : std::make_unique<sandbox2::Executor>(lib_path, args, envs);
+              ? std::make_shared<sandbox2::Executor>(embed_lib_fd, args, envs)
+              : std::make_shared<sandbox2::Executor>(lib_path, args, envs);
 
       fork_client_context_->client_ =
           fork_client_context_->executor_->StartForkServer();
@@ -221,7 +223,8 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
         return absl::UnavailableError("Could not start the forkserver");
       }
     }
-    fork_client = fork_client_context_->client_.get();
+    fork_client_executor = fork_client_context_->executor_;
+    fork_client = fork_client_context_->client_;
   }
 
     sandbox2::PolicyBuilder policy_builder;
@@ -232,7 +235,7 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
   auto s2p = ModifyPolicy(&policy_builder);
 
   // Spawn new process from the forkserver.
-  auto executor = std::make_unique<sandbox2::Executor>(fork_client);
+  auto executor = std::make_unique<sandbox2::Executor>(fork_client.get());
 
   executor
       // The client.cc code is capable of enabling sandboxing on its own.

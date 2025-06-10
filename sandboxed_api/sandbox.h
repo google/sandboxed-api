@@ -56,8 +56,8 @@ class ForkClientContext {
   friend class Sandbox;
   const FileToc* embed_lib_toc_;
   absl::Mutex mu_;
-  std::unique_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);
-  std::unique_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
+  std::shared_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);
+  std::shared_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
 };
 
 // The Sandbox class represents the sandboxed library. It provides users with

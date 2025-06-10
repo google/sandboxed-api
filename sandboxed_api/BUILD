@@ -87,6 +87,7 @@ cc_library(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:fork_client",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",

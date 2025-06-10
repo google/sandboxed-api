@@ -73,6 +73,7 @@ target_link_libraries(sapi_sapi
           sapi::file_base
           sapi::runfiles
           sapi::strerror
+          sandbox2::fork_client
           sandbox2::util
           sapi::embed_file
           sapi::var_type
