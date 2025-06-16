@@ -14,6 +14,7 @@
 
 #include <sys/prctl.h>
 
+#include <csignal>
 #include <cstdlib>
 
 #include "absl/base/log_severity.h"
