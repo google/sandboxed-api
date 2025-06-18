@@ -113,6 +113,7 @@ target_link_libraries(sandbox2_util_deadline_manager
           absl::check
           absl::log
           absl::strings
+          sandbox2::flags
           sandbox2::util
           sapi::base
 )
@@ -243,6 +244,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::flags
     absl::time
     sandbox2::deadline_manager
+    sandbox2::flags
     sapi::test_main
     sapi::thread
   )

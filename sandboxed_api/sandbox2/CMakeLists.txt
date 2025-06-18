@@ -169,6 +169,7 @@ target_link_libraries(sandbox2_policy
  PRIVATE absl::strings
          sandbox2::bpf_helper
          sandbox2::bpfdisassembler
+         sandbox2::flags
          sandbox2::regs
          sandbox2::seccomp_unotify
          sandbox2::syscall
@@ -247,6 +248,7 @@ target_link_libraries(sandbox2_global_forkserver
           absl::statusor
           absl::log
           sandbox2::client
+          sandbox2::flags
           sandbox2::forkserver_bin_embed
           sandbox2::util
           sapi::strerror
@@ -372,6 +374,7 @@ target_link_libraries(sandbox2_stack_trace
           absl::strings
           absl::time
           sandbox2::client
+          sandbox2::flags
           sandbox2::limits
           sandbox2::mounts
           sandbox2::policybuilder
@@ -408,6 +411,7 @@ target_link_libraries(sandbox2_monitor_base
           absl::time
           absl::vlog_is_on
           sandbox2::client
+          sandbox2::flags
           sandbox2::limits
           sandbox2::mounts
           sandbox2::namespace
@@ -793,6 +797,19 @@ target_link_libraries(sandbox2_comms
          protobuf::libprotobuf
          sapi::fileops
          sapi::status
+)
+
+# sandboxed_api/sandbox2:flags
+add_library(sandbox2_flags ${SAPI_LIB_TYPE}
+  flags.cc
+  flags.h
+)
+add_library(sandbox2::flags ALIAS sandbox2_flags)
+target_link_libraries(sandbox2_flags
+  PRIVATE absl::flags
+          absl::strings
+          absl::time
+          sapi::base
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)

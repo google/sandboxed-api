@@ -39,7 +39,6 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -57,6 +56,7 @@
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/regs.h"
@@ -67,25 +67,6 @@
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
-
-ABSL_FLAG(bool, sandbox2_log_all_stack_traces, false,
-          "If set, sandbox2 monitor will log stack traces of all monitored "
-          "threads/processes that are reported to terminate with a signal.");
-
-ABSL_FLAG(bool, sandbox2_monitor_ptrace_use_deadline_manager, false,
-          "If set, ptrace monitor will use deadline manager to enforce "
-          "deadlines and as notification mechanism");
-
-ABSL_FLAG(bool, sandbox2_log_unobtainable_stack_traces_errors, true,
-          "If set, unobtainable stack trace will be logged as errors.");
-
-ABSL_FLAG(absl::Duration, sandbox2_stack_traces_collection_timeout,
-          absl::Seconds(1),
-          "How much time should be spent on logging threads' stack traces on "
-          "monitor shut down. Only relevent when collection of all stack "
-          "traces is enabled.");
-
-ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
 
 namespace sandbox2 {
 namespace {

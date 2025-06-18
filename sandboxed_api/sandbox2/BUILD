@@ -194,6 +194,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":bpfdisassembler",
+        ":flags",
         ":namespace",
         ":syscall",
         ":util",
@@ -264,6 +265,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":comms",
+        ":flags",
         ":fork_client",
         ":forkserver_bin_embed",
         ":forkserver_cc_proto",
@@ -394,6 +396,7 @@ cc_library(
     deps = [
         ":comms",
         ":executor",
+        ":flags",
         ":limits",
         ":mounts",
         ":namespace",
@@ -426,6 +429,7 @@ cc_library(
         ":client",
         ":comms",
         ":executor",
+        ":flags",
         ":monitor_base",
         ":notify",
         ":policy",
@@ -496,6 +500,7 @@ cc_library(
         ":client",
         ":comms",
         ":executor",
+        ":flags",
         ":fork_client",
         ":forkserver_cc_proto",
         ":ipc",
@@ -854,6 +859,19 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "flags",
+    srcs = ["flags.cc"],
+    hdrs = ["flags.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 

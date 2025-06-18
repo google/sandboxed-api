@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {

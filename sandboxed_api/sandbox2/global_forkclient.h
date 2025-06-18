@@ -20,25 +20,14 @@
 
 #include <sys/types.h>
 
-#include <bitset>
-#include <cstddef>
-#include <string>
-
 #include "absl/base/thread_annotations.h"
-#include "absl/flags/declare.h"
-#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/flags.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 
 namespace sandbox2 {
-
-enum class GlobalForkserverStartMode {
-  kOnDemand,
-  // MUST be the last element
-  kNumGlobalForkserverStartModes,
-};
 
 class GlobalForkClient {
  public:
@@ -72,42 +61,6 @@ class GlobalForkClient {
   ForkClient fork_client_;
 };
 
-class GlobalForkserverStartModeSet {
- public:
-  static constexpr size_t kSize = static_cast<size_t>(
-      GlobalForkserverStartMode::kNumGlobalForkserverStartModes);
-
-  GlobalForkserverStartModeSet() {}
-  explicit GlobalForkserverStartModeSet(GlobalForkserverStartMode value) {
-    value_[static_cast<size_t>(value)] = true;
-  }
-  GlobalForkserverStartModeSet& operator|=(GlobalForkserverStartMode value) {
-    value_[static_cast<size_t>(value)] = true;
-    return *this;
-  }
-  GlobalForkserverStartModeSet operator|(
-      GlobalForkserverStartMode value) const {
-    GlobalForkserverStartModeSet rv(*this);
-    rv |= value;
-    return rv;
-  }
-  bool contains(GlobalForkserverStartMode value) const {
-    return value_[static_cast<size_t>(value)];
-  }
-  bool empty() { return value_.none(); }
-
- private:
-  std::bitset<kSize> value_;
-};
-
-bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
-                   std::string* error);
-std::string AbslUnparseFlag(GlobalForkserverStartModeSet in);
-
 }  // namespace sandbox2
-
-ABSL_DECLARE_FLAG(sandbox2::GlobalForkserverStartModeSet,
-                  sandbox2_forkserver_start_mode);
-ABSL_DECLARE_FLAG(std::string, sandbox2_forkserver_binary_path);
 
 #endif  // SANDBOXED_API_SANDBOX2_GLOBAL_FORKCLIENT_H_

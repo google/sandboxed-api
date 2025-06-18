@@ -39,6 +39,7 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/namespace.h"
@@ -50,12 +51,6 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
-
-ABSL_FLAG(bool, sandbox_disable_all_stack_traces, false,
-          "Completely disable stack trace collection for sandboxees");
-
-ABSL_RETIRED_FLAG(bool, sandbox_libunwind_crash_handler, true,
-                  "Sandbox libunwind when handling violations (preferred)");
 
 namespace sandbox2 {
 namespace {

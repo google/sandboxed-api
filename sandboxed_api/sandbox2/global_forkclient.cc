@@ -27,7 +27,6 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "absl/base/const_init.h"
 #include "absl/cleanup/cleanup.h"
@@ -35,10 +34,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/config.h"
@@ -53,64 +49,6 @@
 namespace sandbox2 {
 
 namespace file_util = ::sapi::file_util;
-
-namespace {
-
-std::string ToString(GlobalForkserverStartMode mode) {
-  switch (mode) {
-    case GlobalForkserverStartMode::kOnDemand:
-      return "ondemand";
-    default:
-      return "unknown";
-  }
-}
-
-}  // namespace
-
-bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,
-                   std::string* error) {
-  *out = {};
-  if (text == "never") {
-    return true;
-  }
-  for (absl::string_view mode : absl::StrSplit(text, ',')) {
-    mode = absl::StripAsciiWhitespace(mode);
-    if (mode == "ondemand") {
-      *out |= GlobalForkserverStartMode::kOnDemand;
-    } else {
-      *error = absl::StrCat("Invalid forkserver start mode: ", mode);
-      return false;
-    }
-  }
-  return true;
-}
-
-std::string AbslUnparseFlag(GlobalForkserverStartModeSet in) {
-  std::vector<std::string> str_modes;
-  for (size_t i = 0; i < GlobalForkserverStartModeSet::kSize; ++i) {
-    auto mode = static_cast<GlobalForkserverStartMode>(i);
-    if (in.contains(mode)) {
-      str_modes.push_back(ToString(mode));
-    }
-  }
-  if (str_modes.empty()) {
-    return "never";
-  }
-  return absl::StrJoin(str_modes, ",");
-}
-
-}  // namespace sandbox2
-
-ABSL_FLAG(std::string, sandbox2_forkserver_binary_path, "",
-          "Path to forkserver_bin binary");
-ABSL_FLAG(sandbox2::GlobalForkserverStartModeSet,
-          sandbox2_forkserver_start_mode,
-          sandbox2::GlobalForkserverStartModeSet(
-              sandbox2::GlobalForkserverStartMode::kOnDemand)
-          ,
-          "When Sandbox2 Forkserver process should be started");
-
-namespace sandbox2 {
 
 namespace {
 

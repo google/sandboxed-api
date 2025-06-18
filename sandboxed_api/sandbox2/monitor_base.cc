@@ -48,6 +48,7 @@
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/mounts.h"
@@ -64,15 +65,6 @@
 #include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/temp_file.h"
 #include "sandboxed_api/util/thread.h"
-
-ABSL_FLAG(bool, sandbox2_report_on_sandboxee_signal, true,
-          "Report sandbox2 sandboxee deaths caused by signals");
-
-ABSL_FLAG(bool, sandbox2_report_on_sandboxee_timeout, true,
-          "Report sandbox2 sandboxee timeouts");
-
-ABSL_DECLARE_FLAG(bool, sandbox2_danger_danger_permit_all);
-ABSL_DECLARE_FLAG(std::string, sandbox2_danger_danger_permit_all_and_log);
 
 namespace sandbox2 {
 namespace {

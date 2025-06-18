@@ -135,6 +135,7 @@ cc_library(
     hdrs = ["deadline_manager.h"],
     copts = sapi_platform_copts(),
     deps = [
+        "//sandboxed_api/sandbox2:flags",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:thread",
         "@abseil-cpp//absl/base",
@@ -158,6 +159,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":deadline_manager",
+        "//sandboxed_api/sandbox2:flags",
         "//sandboxed_api/util:thread",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",

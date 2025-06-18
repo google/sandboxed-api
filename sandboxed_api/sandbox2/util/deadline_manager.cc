@@ -32,15 +32,13 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/thread.h"
 
-ABSL_FLAG(int, sandbox2_deadline_manager_signal, SIGRTMAX - 1,
-          "Signal to use for deadline notifications - must be not otherwise "
-          "used by the process (default: SIGRTMAX - 1)");
-
 namespace sandbox2 {
 namespace {
+
 constexpr int kFailedNotificationsThreshold = 32;
 
 absl::Time RoundUpTo(absl::Time time, absl::Duration resolution) {
@@ -49,6 +47,7 @@ absl::Time RoundUpTo(absl::Time time, absl::Duration resolution) {
              : absl::UnixEpoch() +
                    absl::Ceil(time - absl::UnixEpoch(), resolution);
 }
+
 }  // namespace
 
 int DeadlineManager::signal_nr_ = -1;

@@ -34,9 +34,9 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
-#include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -64,11 +64,6 @@
 #ifndef BPF_OBJ_GET_INFO_BY_FD
 #define BPF_OBJ_GET_INFO_BY_FD 15
 #endif
-
-ABSL_FLAG(bool, sandbox2_danger_danger_permit_all, false,
-          "Allow all syscalls, useful for testing");
-ABSL_FLAG(std::string, sandbox2_danger_danger_permit_all_and_log, "",
-          "Allow all syscalls and log them into specified file");
 
 namespace sandbox2 {
 
