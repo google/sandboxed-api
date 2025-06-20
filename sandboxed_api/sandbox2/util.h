@@ -105,7 +105,7 @@ pid_t ForkWithFlags(int flags);
 absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFd(
     const char* name = "buffer_file");
 
-ABSL_DEPRECATED("Use absl::StausOr<FDCloser> version instead.")
+ABSL_DEPRECATED("Use absl::StatusOr<FDCloser> version instead.")
 inline bool CreateMemFd(int* fd, const char* name = "buffer_file") {
   absl::StatusOr<sapi::file_util::fileops::FDCloser> fd_closer =
       CreateMemFd(name);
@@ -174,7 +174,7 @@ absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
                                                       size_t size);
 
 // Reads a path string (NUL-terminated, shorter than PATH_MAX) from another
-// process memory
+// process memory.
 absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr);
 
 // Wrapper for execveat(2).

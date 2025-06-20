@@ -1105,7 +1105,6 @@ cc_library(
     testonly = 1,
     hdrs = ["testing.h"],
     copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
     deps = ["//sandboxed_api:testing"],
 )
 
