@@ -90,6 +90,7 @@ cc_library(
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/functional:overload",
         "@abseil-cpp//absl/numeric:bits",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",

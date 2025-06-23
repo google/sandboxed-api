@@ -25,10 +25,12 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/nullability.h"
 #include "absl/functional/function_ref.h"
+#include "absl/functional/overload.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -56,9 +58,25 @@ class ElfParser {
   // as long as the vector is alive.
   // Most users shouldn't depend on these rules and just use the data as long
   // as both parser and the buffer are alive.
-  struct Buffer {
-    absl::string_view data;
-    std::string buffer;
+  class Buffer {
+   public:
+    explicit Buffer(absl::string_view data) : data_(data) {}
+    explicit Buffer(std::string data) : data_(std::move(data)) {}
+    Buffer(const Buffer&) = default;
+    Buffer(Buffer&&) = default;
+    Buffer& operator=(const Buffer&) = default;
+    Buffer& operator=(Buffer&&) = default;
+    absl::string_view data() {
+      return std::visit(
+          absl::Overload([](absl::string_view data) { return data; },
+                         [](const std::string& data) -> absl::string_view {
+                           return data;
+                         }),
+          data_);
+    }
+
+   private:
+    std::variant<absl::string_view, std::string> data_;
   };
 
   // Creates an ElfParser for the given filename.

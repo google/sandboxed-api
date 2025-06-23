@@ -44,6 +44,7 @@ add_library(sandbox2_util_elf_parser ${SAPI_LIB_TYPE}
 add_library(sandbox2::elf_parser ALIAS sandbox2_util_elf_parser)
 target_link_libraries(sandbox2_util_elf_parser
 PUBLIC absl::function_ref
+       absl::overload
        absl::status
        absl::strings
        sapi::base
