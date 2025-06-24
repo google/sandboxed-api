@@ -328,3 +328,38 @@ cc_binary(
         "//sandboxed_api/sandbox2:util",
     ],
 )
+
+cc_binary(
+    name = "terminate_process_group",
+    testonly = True,
+    srcs = ["terminate_process_group.cc"],
+    data = [":terminate_process_group_sandboxee"],
+    deps = [
+        "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:executor",
+        "//sandboxed_api/sandbox2:global_forkserver",
+        "//sandboxed_api/sandbox2:policybuilder",
+        "//sandboxed_api/sandbox2:result",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_binary(
+    name = "terminate_process_group_sandboxee",
+    testonly = True,
+    srcs = ["terminate_process_group_sandboxee.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = [
+        "//sandboxed_api/sandbox2:comms",
+        "@abseil-cpp//absl/log:check",
+    ],
+)

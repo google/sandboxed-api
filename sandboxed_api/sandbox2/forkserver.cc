@@ -127,11 +127,6 @@ Pipe CreatePipe() {
 
 ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd,
                                             bool allow_speculation) {
-  // Run in separate process group, so we're not taken down before sandboxee.
-  if (setpgid(0, 0) != 0) {
-    SAPI_RAW_PLOG(WARNING, "setpgid(0, 0)");
-  }
-
   if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
   }

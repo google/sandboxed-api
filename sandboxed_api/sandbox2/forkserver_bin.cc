@@ -28,6 +28,7 @@
 #include "sandboxed_api/util/raw_logging.h"
 
 int main() {
+  SAPI_RAW_PCHECK(setpgid(0, 0) == 0, "setpgid(0, 0) failed");
   // Make sure the logs go stderr.
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
 

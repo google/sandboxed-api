@@ -403,3 +403,46 @@ target_link_libraries(sandbox2_testcase_execveat PRIVATE
   sandbox2::comms
   sandbox2::util
 )
+
+# sandboxed_api/sandbox2/testcases:terminate_process_group
+add_executable(sandbox2_testcase_terminate_process_group
+  terminate_process_group.cc
+)
+add_executable(sandbox2::testcase_execveat ALIAS sandbox2_testcase_terminate_process_group)
+set_target_properties(sandbox2_testcase_terminate_process_group PROPERTIES
+  OUTPUT_NAME terminate_process_group
+)
+add_dependencies(sandbox2_testcase_terminate_process_group
+  sandbox2::testcase_terminate_process_group_sandboxee
+)
+target_link_libraries(sandbox2_testcase_terminate_process_group PRIVATE
+  sapi::base
+  absl::check
+  absl::flags
+  absl::flags_parse
+  absl::log_globals
+  absl::log_initialize
+  absl::log_severity
+  sandbox2::comms
+  sandbox2::executor
+  sandbox2::global_forkserver
+  sandbox2::policybuilder
+  sandbox2::result
+  sandbox2::sandbox2
+  sapi::testing
+)
+
+# sandboxed_api/sandbox2/testcases:terminate_process_group_sandboxee
+add_executable(sandbox2_testcase_terminate_process_group_sandboxee
+  terminate_process_group_sandboxee.cc
+)
+add_executable(sandbox2::testcase_terminate_process_group_sandboxee ALIAS sandbox2_testcase_terminate_process_group_sandboxee)
+set_target_properties(sandbox2_testcase_terminate_process_group_sandboxee PROPERTIES
+  OUTPUT_NAME terminate_process_group_sandboxee
+)
+target_link_libraries(sandbox2_testcase_terminate_process_group_sandboxee PRIVATE
+  -static
+  sapi::base
+  absl::check
+  sandbox2::comms
+)

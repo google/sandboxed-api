@@ -998,6 +998,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:minimal",
         "//sandboxed_api/sandbox2/testcases:sleep",
         "//sandboxed_api/sandbox2/testcases:starve",
+        "//sandboxed_api/sandbox2/testcases:terminate_process_group",
         "//sandboxed_api/sandbox2/testcases:tsync",
     ],
     tags = [
@@ -1007,12 +1008,13 @@ cc_test(
     deps = [
         ":fork_client",
         ":sandbox2",
+        ":util",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",

@@ -18,6 +18,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <csignal>
 #include <memory>
 #include <string>
@@ -26,6 +27,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
@@ -39,6 +41,7 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/thread.h"
 
@@ -263,6 +266,48 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
 
   auto elapsed = absl::Now() - start;
   EXPECT_THAT(elapsed, Lt(absl::Seconds(10)));
+}
+
+TEST_P(Sandbox2Test, TerminatingProcessGroup) {
+  // Scenario:
+  //   Sandboxer process is moved to a new process group after the sandboxee is
+  //   launched. Afterwards the process group of sandboxer's parent is killed.
+  // Expected result:
+  //   The sandboxee should not be killed, sandboxee's status should be properly
+  //   reported to the sandboxer.
+  int sv[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
+  util::CharPtrArray argv = util::CharPtrArray::FromStringVector({
+      GetTestSourcePath("sandbox2/testcases/terminate_process_group"),
+      absl::StrCat("--comms_fd=", sv[1]),
+      absl::StrCat("--unotify_monitor=", GetParam()),
+  });
+  Comms comms(sv[0]);
+  pid_t pid = fork();
+  if (pid == 0) {
+    close(sv[0]);
+    util::Execveat(AT_FDCWD, argv.data()[0], argv.data(), nullptr, 0);
+    PLOG(FATAL) << "Could not exeveat";
+  }
+  close(sv[1]);
+  bool unused;
+  // Wait for the sandboxee to be started
+  ASSERT_TRUE(comms.RecvBool(&unused));
+  // Kill sandboxer's parent process group.
+  ASSERT_EQ(kill(-pid, SIGTERM), 0);
+  // Wait for sandboxer's parent termination.
+  int status;
+  ASSERT_THAT(waitpid(pid, &status, 0), Eq(pid))
+      << absl::ErrnoToStatus(errno, "waiting for process to be terimnated");
+  ASSERT_TRUE(WIFSIGNALED(status));
+  EXPECT_THAT(WTERMSIG(status), Eq(SIGTERM));
+  // Wait for sandboxee to be potentially killed as a result of the parent
+  // termination.
+  absl::SleepFor(absl::Seconds(1));
+  // Communicate to the sandboxee it can exit.
+  ASSERT_TRUE(comms.SendBool(true));
+  // Wait for notification about clean sandboxee exit.
+  ASSERT_TRUE(comms.RecvBool(&unused));
 }
 
 INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),
