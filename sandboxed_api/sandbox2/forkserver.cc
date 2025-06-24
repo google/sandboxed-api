@@ -333,7 +333,9 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
       // Close all open fds (equals to CloseAllFDsExcept but does not require
       // /proc to be available).
       for (const auto& fd : *open_fds) {
-        close(fd);
+        if (fd != STDERR_FILENO) {
+          close(fd);
+        }
       }
       RunInitProcess(child, std::move(status_fd), request.allow_speculation());
     }
