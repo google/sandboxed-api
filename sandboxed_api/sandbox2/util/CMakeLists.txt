@@ -162,6 +162,16 @@ target_link_libraries(sandbox2_util_library_resolver
           sapi::status
 )
 
+# sandboxed_api/sandbox2/util:demangle
+add_library(sandbox2_demangle ${SAPI_LIB_TYPE}
+  demangle.cc
+  demangle.h
+)
+add_library(sandbox2::demangle ALIAS sandbox2_demangle)
+target_link_libraries(sandbox2_demangle
+  PRIVATE sapi::base
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/sandbox2/util:minielf_test
   add_executable(sandbox2_minielf_test

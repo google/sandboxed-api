@@ -43,6 +43,7 @@ cc_library(
         ":unwind_cc_proto",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/util:demangle",
         "//sandboxed_api/sandbox2/util:maps_parser",
         "//sandboxed_api/sandbox2/util:minielf",
         "//sandboxed_api/util:file_helpers",

@@ -253,3 +253,10 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "demangle",
+    srcs = ["demangle.cc"],
+    hdrs = ["demangle.h"],
+    copts = sapi_platform_copts(),
+)

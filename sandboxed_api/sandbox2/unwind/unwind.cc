@@ -14,7 +14,6 @@
 
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 
-#include <cxxabi.h>
 #include <sys/ptrace.h>
 #include <sys/types.h>
 
@@ -22,7 +21,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <map>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -38,6 +36,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/unwind/ptrace_hook.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
+#include "sandboxed_api/sandbox2/util/demangle.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/file_helpers.h"
@@ -46,19 +45,6 @@
 
 namespace sandbox2 {
 namespace {
-
-std::string DemangleSymbol(const std::string& maybe_mangled) {
-  int status;
-  size_t length;
-  std::unique_ptr<char, decltype(&std::free)> symbol(
-      abi::__cxa_demangle(maybe_mangled.c_str(), /*output_buffer=*/nullptr,
-                          &length, &status),
-      std::free);
-  if (symbol && status == 0) {
-    return std::string(symbol.get(), length);
-  }
-  return maybe_mangled;
-}
 
 absl::StatusOr<uintptr_t> ReadMemory(pid_t pid, uintptr_t addr) {
   errno = 0;
