@@ -66,7 +66,7 @@ class ElfParser {
     Buffer(Buffer&&) = default;
     Buffer& operator=(const Buffer&) = default;
     Buffer& operator=(Buffer&&) = default;
-    absl::string_view data() {
+    absl::string_view data() const {
       return std::visit(
           absl::Overload([](absl::string_view data) { return data; },
                          [](const std::string& data) -> absl::string_view {
