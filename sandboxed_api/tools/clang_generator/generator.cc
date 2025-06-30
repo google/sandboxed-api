@@ -143,9 +143,13 @@ bool GeneratorASTVisitor::VisitTypeDecl(clang::TypeDecl* decl) {
 
 bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
   if (decl->isCXXClassMember() ||  // Skip classes
-      !decl->isExternC() ||        // Skip non external functions
       decl->isTemplated()          // Skip function templates
   ) {
+    return true;
+  }
+
+  // Skip C++ functions unless generating a symbol list.
+  if (!decl->isExternC() && !options_.symbol_list_gen) {
     return true;
   }
 

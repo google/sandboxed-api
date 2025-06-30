@@ -90,6 +90,9 @@ def _sapi_interface_impl(ctx):
     if ctx.attr.limit_scan_depth:
         args.append("--sapi_limit_scan_depth")
 
+    if ctx.attr.symbol_list_gen:
+        args.append("--symbol_list_gen")
+
     # Parse provided files.
 
     # The parser doesn't need the entire set of transitive headers
@@ -189,6 +192,7 @@ sapi_interface = rule(
         "_generator_v1": make_exec_label(
             "//sandboxed_api/tools/python_generator:sapi_generator",
         ),
+        "symbol_list_gen": attr.bool(default = False),
         "_generator_v2": make_exec_label(
             # TODO(cblichmann): Add prebuilt version of Clang based generator
             "//sandboxed_api/tools/clang_generator:generator_tool",
@@ -196,6 +200,34 @@ sapi_interface = rule(
     },
     toolchains = use_cpp_toolchain(),
 )
+
+def symbol_list_gen(name, lib, out, **kwargs):
+    """Generates a list of symbols exported from the library.
+
+    The generated file contains list of exported symbols, one per line.
+    The file can be used with e.g. objcopy utility.
+
+    NOTE: this functionality is experimental and may change in the future.
+
+    Args:
+      name: Name of the target
+      lib: Label of the library target to sandbox
+      out: Output file name with symbol list
+      **kwargs: Additional arguments passed to sapi_interface rule
+    """
+
+    sapi_interface(
+        name = name,
+        lib_name = "unused",
+        lib = lib,
+        out = out,
+        safe_wrapper_generation = False,
+        symbol_list_gen = True,
+        limit_scan_depth = True,
+        generator_at_head = True,
+        generator_version = 2,
+        **kwargs
+    )
 
 def sapi_library(
         name,

@@ -29,6 +29,8 @@ add_library(sapi_generator
   generator.h
   generator.cc
   includes.h
+  symbol_list_emitter.h
+  symbol_list_emitter.cc
   types.h
   types.cc
 )

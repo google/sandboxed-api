@@ -20,3 +20,7 @@
 extern "C" void ExposedFunction() {}
 
 extern "C" void OtherFunction() {}
+
+// C++ functions are not supported in sapi_library,
+// but symbol list generation can handle them.
+void CppFunction() {}

@@ -30,6 +30,7 @@
 #include "sandboxed_api/tools/clang_generator/compilation_database.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/symbol_list_emitter.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -97,6 +98,12 @@ absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_out(
                    "to the basename of the first source file specified."),
     llvm::cl::cat(*g_tool_category));
 
+absl::NoDestructor<llvm::cl::opt<bool>> g_symbol_list_gen(
+    "symbol_list_gen",
+    llvm::cl::desc("Whether to generate a list of symbols exported from the "
+                   "library."),
+    llvm::cl::cat(*g_tool_category));
+
 }  // namespace
 
 GeneratorOptions GeneratorOptionsFromFlags(
@@ -117,6 +124,7 @@ GeneratorOptions GeneratorOptionsFromFlags(
       !g_sapi_out->empty() ? *g_sapi_out : GetOutputFilename(sources.front());
   options.embed_dir = *g_sapi_embed_dir;
   options.embed_name = *g_sapi_embed_name;
+  options.symbol_list_gen = *g_symbol_list_gen;
   return options;
 }
 
@@ -149,6 +157,20 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
     absl::FPrintF(
         stderr,
         "Note: Ignoring deprecated command-line option: sapi_isystem\n");
+  }
+
+  if (options.symbol_list_gen) {
+    SymbolListEmitter emitter;
+    if (int result = tool.run(
+            std::make_unique<GeneratorFactory>(emitter, options).get());
+        result != 0) {
+      return absl::UnknownError("Error: Header generation failed.");
+    }
+
+    SAPI_ASSIGN_OR_RETURN(std::string header, emitter.Emit(options));
+    SAPI_RETURN_IF_ERROR(
+        file::SetContents(options.out_file, header, file::Defaults()));
+    return absl::OkStatus();
   }
 
   // Process SAPI header generation.

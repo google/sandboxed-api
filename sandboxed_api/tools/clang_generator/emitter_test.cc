@@ -29,6 +29,7 @@
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/symbol_list_emitter.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
@@ -519,6 +520,24 @@ TEST_F(EmitterTest, SkipProtobufMessagesInternals) {
 
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("class MyMessage"));
+}
+
+TEST_F(EmitterTest, SymbolListTest) {
+  constexpr absl::string_view input_file = "simple_functions.cc";
+  GeneratorOptions options;
+  options.set_function_names<std::initializer_list<std::string>>({});
+  options.in_files = {"simple_functions.cc"};
+  options.symbol_list_gen = true;
+
+  SymbolListEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendActionOnFile(
+          input_file, std::make_unique<GeneratorAction>(emitter, options)),
+      IsOk());
+
+  absl::StatusOr<std::string> header = emitter.Emit(options);
+  ASSERT_THAT(header, IsOk());
+  EXPECT_EQ(*header, "ExposedFunction\nOtherFunction\n_Z11CppFunctionv\n");
 }
 
 TEST(IncludeGuard, CreatesRandomizedGuardForEmptyFilename) {

@@ -28,6 +28,7 @@ cc_library(
         "emitter.cc",
         "emitter_base.cc",
         "generator.cc",
+        "symbol_list_emitter.cc",
         "types.cc",
     ],
     hdrs = [
@@ -36,6 +37,7 @@ cc_library(
         "emitter_base.h",
         "generator.h",
         "includes.h",
+        "symbol_list_emitter.h",
         "types.h",
     ],
     copts = sapi_platform_copts(),
