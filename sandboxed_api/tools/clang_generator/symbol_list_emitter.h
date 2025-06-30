@@ -15,7 +15,6 @@
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_SYMBOL_LIST_EMITTER_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_SYMBOL_LIST_EMITTER_H_
 
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,9 +24,6 @@
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 
 namespace sapi {
-
-// Forward declaration to avoid circular dependencies.
-struct GeneratorOptions;
 
 class SymbolListEmitter : public EmitterBase {
  public:

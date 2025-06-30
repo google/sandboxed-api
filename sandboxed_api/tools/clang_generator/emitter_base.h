@@ -74,6 +74,9 @@ inline constexpr absl::string_view kHeaderEpilog =
     R"(
 #endif  // %1$s)";
 
+// Forward declaration used by derived classes to avoid circular dependencies.
+struct GeneratorOptions;
+
 class EmitterBase {
  public:
   virtual ~EmitterBase() = default;

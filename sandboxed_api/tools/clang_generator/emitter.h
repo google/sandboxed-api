@@ -26,9 +26,6 @@
 
 namespace sapi {
 
-// Forward declaration to avoid circular dependencies.
-struct GeneratorOptions;
-
 // Responsible for emitting the actual textual representation of the generated
 // Sandboxed API header.
 class Emitter : public EmitterBase {
