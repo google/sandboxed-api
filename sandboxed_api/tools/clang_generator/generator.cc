@@ -169,7 +169,8 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
 
   clang::SourceManager& source_manager =
       decl->getASTContext().getSourceManager();
-  clang::SourceLocation decl_start = decl->getBeginLoc();
+  clang::SourceLocation decl_start =
+      source_manager.getExpansionLoc(decl->getBeginLoc());
 
   // Skip functions from system headers when all functions are requested. Like
   // above, they can still explicitly be specified.
