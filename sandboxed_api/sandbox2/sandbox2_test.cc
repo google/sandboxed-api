@@ -286,7 +286,7 @@ TEST_P(Sandbox2Test, TerminatingProcessGroup) {
   pid_t pid = fork();
   if (pid == 0) {
     close(sv[0]);
-    util::Execveat(AT_FDCWD, argv.data()[0], argv.data(), nullptr, 0);
+    util::Execveat(AT_FDCWD, argv.data()[0], argv.data(), environ, 0);
     PLOG(FATAL) << "Could not exeveat";
   }
   close(sv[1]);
