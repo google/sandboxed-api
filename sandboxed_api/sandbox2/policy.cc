@@ -293,6 +293,11 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
 std::vector<sock_filter> Policy::GetTrackingPolicy() const {
   return {
       LOAD_ARCH,
+      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, Syscall::GetHostAuditArch(), 0, 3),
+      LOAD_SYSCALL_NR,
+      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, internal::kMagicSyscallNo, 0, 1),
+      ERRNO(internal::kMagicSyscallErr),
+      LOAD_ARCH,
 #if defined(SAPI_X86_64)
       JEQ32(AUDIT_ARCH_X86_64, TRACE(sapi::cpu::kX8664)),
       JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),

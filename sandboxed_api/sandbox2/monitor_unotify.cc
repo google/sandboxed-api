@@ -22,11 +22,13 @@
 
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
@@ -35,6 +37,7 @@
 #include "sandboxed_api/sandbox2/bpf_evaluator.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/notify.h"
@@ -197,6 +200,17 @@ void UnotifyMonitor::HandleUnotify() {
   if (!policy_ret.ok()) {
     LOG(ERROR) << "Failed to evaluate policy: " << policy_ret.status();
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
+  }
+
+  if (absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all) || log_file_) {
+    std::string syscall_description = syscall.GetDescription();
+    if (log_file_) {
+      PCHECK(absl::FPrintF(log_file_, "PID: %d %s\n", syscall.pid(),
+                           syscall_description) >= 0);
+    }
+    VLOG(1) << "PID: " << syscall.pid() << " " << syscall_description;
+    AllowSyscallViaUnotify(*req_data);
+    return;
   }
 
   const sock_filter trace_action = SANDBOX2_TRACE;

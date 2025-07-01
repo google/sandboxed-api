@@ -485,15 +485,18 @@ target_link_libraries(sandbox2_monitor_unotify
   PRIVATE absl::check
           absl::cleanup
           absl::core_headers
+          absl::flags
           absl::log
           absl::optional
           absl::span
           absl::status
+          absl::str_format
           absl::strings
           absl::time
           sapi::base
           sandbox2::bpf_evaluator
           sandbox2::client
+          sandbox2::flags
           sandbox2::forkserver_proto
           sandbox2::seccomp_unotify
           sandbox2::util
