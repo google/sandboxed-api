@@ -186,7 +186,7 @@ sapi_interface = rule(
             values = [1],  # Only a single version is defined right now
         ),
         "generator_version": attr.int(
-            default = 1,
+            default = 2,  # Note: always set by sapi_library
             values = [1, 2],
         ),
         "_generator_v1": make_exec_label(
