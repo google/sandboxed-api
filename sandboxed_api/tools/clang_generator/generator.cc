@@ -440,6 +440,10 @@ bool GeneratorFactory::runInvocation(
            "auto)->__m256i {return __m256i();}",
            "__builtin_ia32_vcvttps2uqqs512_round_mask=[](auto, auto, auto, "
            "auto)->__m512i {return __m512i();}",
+
+           // Trick <prfchwintrin.h> from being included by defining its header
+           // guard.
+           "__PRFCHWINTRIN_H",
        }) {
     options.addMacroDef(def);
     // To avoid code to include header with compiler intrinsics, undefine a few
