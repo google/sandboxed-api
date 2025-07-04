@@ -44,6 +44,16 @@ target_link_libraries(sandbox2_allowlists_map_exec PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2allowlists:mount_propagation
+add_library(sandbox2_allowlists_mount_propagation ${SAPI_LIB_TYPE}
+  mount_propagation.h
+)
+add_library(sandbox2::allowlists_mount_propagation ALIAS
+  sandbox2_allowlists_mount_propagation)
+target_link_libraries(sandbox2_allowlists_mount_propagation PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2/allowlists:seccomp_speculation
 add_library(sandbox2_allowlists_seccomp_speculation ${SAPI_LIB_TYPE}
   seccomp_speculation.h

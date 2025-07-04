@@ -552,6 +552,7 @@ cc_library(
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/allowlists:all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:map_exec",  # TODO: b/371179394 - Remove this after migrating to Allow(MapExec).
+        "//sandboxed_api/sandbox2/allowlists:mount_propagation",
         "//sandboxed_api/sandbox2/allowlists:namespaces",
         "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
         "//sandboxed_api/sandbox2/allowlists:trace_all_syscalls",

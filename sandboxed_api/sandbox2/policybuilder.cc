@@ -57,6 +57,7 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
+#include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"
@@ -1790,6 +1791,15 @@ PolicyBuilder& PolicyBuilder::SetRootWritable() {
   mounts_.SetRootWritable();
 
   return *this;
+}
+
+PolicyBuilder& PolicyBuilder::Allow(MountPropagation) {
+  allow_mount_propagation_ = true;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::DangerAllowMountPropagation() {
+  return Allow(MountPropagation());
 }
 
 PolicyBuilder& PolicyBuilder::AllowIPv4(const std::string& ip_and_mask,

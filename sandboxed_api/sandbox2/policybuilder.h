@@ -49,6 +49,7 @@ class AllowAllSyscalls;
 class NamespacesToken;
 class LoadUserBpfCodeFromFile;
 class MapExec;
+class MountPropagation;
 class UnsafeCoreDumpPtrace;
 class SeccompSpeculation;
 class TraceAllSyscalls;
@@ -937,10 +938,9 @@ class PolicyBuilder final {
 
   // Changes mounts propagation from MS_PRIVATE to MS_SLAVE.
   //
-  PolicyBuilder& DangerAllowMountPropagation() {
-    allow_mount_propagation_ = true;
-    return *this;
-  }
+  ABSL_DEPRECATED("Use Allow(sandbox2::MapExec()) instead")
+  PolicyBuilder& DangerAllowMountPropagation();
+  PolicyBuilder& Allow(MountPropagation);
 
   // Allows connections to this IP.
   PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);

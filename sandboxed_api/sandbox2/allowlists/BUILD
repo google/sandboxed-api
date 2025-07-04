@@ -54,6 +54,21 @@ cc_library(
 )
 
 cc_library(
+    name = "mount_propagation",
+    hdrs = ["mount_propagation.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_mount_propagation",
+    testonly = True,
+    hdrs = ["mount_propagation.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "seccomp_speculation",
     hdrs = ["seccomp_speculation.h"],
     copts = sapi_platform_copts(),
