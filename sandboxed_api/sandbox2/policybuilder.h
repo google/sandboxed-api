@@ -1019,7 +1019,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
-  bool allow_map_exec_ = true;  //  Temporary default while we migrate users.
+  bool allow_map_exec_ = true;
   bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;
   bool allow_mount_propagation_ = false;
