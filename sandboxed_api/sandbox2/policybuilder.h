@@ -35,7 +35,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "sandboxed_api/sandbox2/allowlists/map_exec.h"  // Temporary
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
