@@ -297,6 +297,11 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   SAPI_RAW_CHECK(request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
 
+  // Restore the default handler for SIGTERM.
+  if (signal(SIGTERM, SIG_DFL) == SIG_ERR) {
+    SAPI_RAW_PLOG(WARNING, "signal(SIGTERM, SIG_DFL)");
+  }
+
   const bool will_execve = execve_fd != -1;
   const bool should_sandbox = request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX;
 
