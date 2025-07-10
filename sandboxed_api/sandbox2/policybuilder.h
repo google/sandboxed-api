@@ -940,6 +940,9 @@ class PolicyBuilder final {
   ABSL_DEPRECATED("Use Allow(sandbox2::MapExec()) instead")
   PolicyBuilder& DangerAllowMountPropagation();
   PolicyBuilder& Allow(MountPropagation);
+  // Changes mounts propagation from MS_PRIVATE to MS_SHARED for a specific
+  // mount.
+  PolicyBuilder& Allow(MountPropagation, absl::string_view inside);
 
   // Allows connections to this IP.
   PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);

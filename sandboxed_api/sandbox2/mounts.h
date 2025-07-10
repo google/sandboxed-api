@@ -71,9 +71,12 @@ class Mounts {
 
   absl::Status AddTmpfs(absl::string_view inside, size_t sz);
 
+  absl::Status AllowMountPropagation(absl::string_view inside);
+
   absl::Status Remove(absl::string_view path);
 
-  void CreateMounts(const std::string& root_path) const;
+  void CreateMounts(const std::string& root_path,
+                    bool allow_mount_propagation) const;
 
   MountTree GetMountTree() const { return mount_tree_; }
 
@@ -101,6 +104,7 @@ class Mounts {
  private:
   friend class MountTreeTest;
 
+  absl::StatusOr<MountTree::Node> GetNode(absl::string_view path);
   absl::Status Insert(absl::string_view path, const MountTree::Node& node);
 
   MountTree mount_tree_;

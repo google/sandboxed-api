@@ -176,6 +176,21 @@ absl::Status Mounts::Remove(absl::string_view path) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<MountTree::Node> Mounts::GetNode(absl::string_view path) {
+  std::vector<absl::string_view> parts =
+      absl::StrSplit(absl::StripPrefix(path, "/"), '/');
+  MountTree* curtree = &mount_tree_;
+  for (absl::string_view part : parts) {
+    auto it = curtree->mutable_entries()->find(std::string(part));
+    if (it == curtree->mutable_entries()->end()) {
+      return absl::NotFoundError(
+          absl::StrCat("Path does not exist in mounts: ", path));
+    }
+    curtree = &it->second;
+  }
+  return curtree->node();
+}
+
 absl::Status Mounts::Insert(absl::string_view path,
                             const MountTree::Node& new_node) {
   // Some sandboxes allow the inside/outside paths to be partially
@@ -353,6 +368,16 @@ absl::Status Mounts::AddTmpfs(absl::string_view inside, size_t sz) {
   return Insert(inside, node);
 }
 
+absl::Status Mounts::AllowMountPropagation(absl::string_view inside) {
+  SAPI_ASSIGN_OR_RETURN(MountTree::Node node, GetNode(inside));
+  if (!node.has_dir_node()) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Path is not a directory: ", inside));
+  }
+  node.mutable_dir_node()->set_allow_mount_propagation(true);
+  return absl::OkStatus();
+}
+
 namespace {
 
 uint64_t GetMountFlagsFor(const std::string& path) {
@@ -508,7 +533,8 @@ bool IsSymlink(const std::string& path) {
 
 // Traverses the MountTree to create all required files and perform the mounts.
 void CreateMounts(const MountTree& tree, const std::string& root_path,
-                  const std::string& path, bool create_backing_files) {
+                  const std::string& path, bool create_backing_files,
+                  bool allow_mount_propagation) {
   // First, create the backing files if needed.
   if (create_backing_files) {
     switch (tree.node().node_case()) {
@@ -549,8 +575,12 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
       create_backing_files = false;
 
       auto node = tree.node().dir_node();
-      MountWithDefaults(node.outside(), path, "", MS_BIND, nullptr,
-                        !node.writable());
+      MountWithDefaults(
+          node.outside(), path, "",
+          MS_BIND | (node.allow_mount_propagation() || allow_mount_propagation
+                         ? MS_SHARED
+                         : MS_PRIVATE),
+          nullptr, !node.writable());
       break;
     }
     case MountTree::Node::kTmpfsNode: {
@@ -580,14 +610,17 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
   // Traverse the subtrees.
   for (const auto& [key, value] : GetSortedEntries(tree)) {
     std::string new_path = sapi::file::JoinPath(path, key);
-    CreateMounts(*value, root_path, new_path, create_backing_files);
+    CreateMounts(*value, root_path, new_path, create_backing_files,
+                 allow_mount_propagation);
   }
 }
 
 }  // namespace
 
-void Mounts::CreateMounts(const std::string& root_path) const {
-  sandbox2::CreateMounts(mount_tree_, root_path, root_path, true);
+void Mounts::CreateMounts(const std::string& root_path,
+                          bool allow_mount_propagation) const {
+  sandbox2::CreateMounts(mount_tree_, root_path, root_path, true,
+                         allow_mount_propagation);
 }
 
 namespace {

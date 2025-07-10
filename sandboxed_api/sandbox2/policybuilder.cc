@@ -1798,6 +1798,15 @@ PolicyBuilder& PolicyBuilder::Allow(MountPropagation) {
   return *this;
 }
 
+PolicyBuilder& PolicyBuilder::Allow(MountPropagation,
+                                    absl::string_view inside) {
+  if (absl::Status status = mounts_.AllowMountPropagation(inside);
+      !status.ok()) {
+    SetError(status);
+  }
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::DangerAllowMountPropagation() {
   return Allow(MountPropagation());
 }

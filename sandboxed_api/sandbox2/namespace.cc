@@ -64,7 +64,7 @@ int MountFallbackToReadOnly(const char* source, const char* target,
   return rv;
 }
 
-void PrepareChroot(const Mounts& mounts) {
+void PrepareChroot(const Mounts& mounts, bool allow_mount_propagation) {
   // Create a tmpfs mount for the new rootfs.
   SAPI_RAW_CHECK(
       file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
@@ -73,7 +73,7 @@ void PrepareChroot(const Mounts& mounts) {
                   "mounting rootfs failed");
 
   // Walk the tree and perform all the mount operations.
-  mounts.CreateMounts(kSandbox2ChrootPath);
+  mounts.CreateMounts(kSandbox2ChrootPath, allow_mount_propagation);
 
   if (mounts.IsRootReadOnly()) {
     // Remount the chroot read-only
@@ -258,7 +258,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     ActivateLoopbackInterface();
   }
 
-  PrepareChroot(mounts);
+  PrepareChroot(mounts, allow_mount_propagation);
 
   if (avoid_pivot_root) {
     // Keep a reference to /proc/self as it might not be mounted later
@@ -324,14 +324,6 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
 
   SAPI_RAW_PCHECK(chdir("/") == 0,
                   "changing cwd after mntns initialization failed");
-
-  if (allow_mount_propagation) {
-    SAPI_RAW_PCHECK(mount("/", "/", "", MS_SLAVE | MS_REC, nullptr) == 0,
-                    "changing mount propagation to slave failed");
-  } else {
-    SAPI_RAW_PCHECK(mount("/", "/", "", MS_PRIVATE | MS_REC, nullptr) == 0,
-                    "changing mount propagation to private failed");
-  }
 
   if (SAPI_RAW_VLOG_IS_ON(2)) {
     SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");

@@ -34,6 +34,7 @@ message MountTree {
   message DirNode {
     string outside = 2;
     bool writable = 3;
+    bool allow_mount_propagation = 4;
   }
 
   // TmpfsNode mounts a tmpfs with given options.
