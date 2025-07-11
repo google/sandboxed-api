@@ -16,10 +16,6 @@
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
-package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
-])
-
 licenses(["notice"])
 
 # Executor
