@@ -14,6 +14,8 @@
 
 """Embeds binary data in cc_*() rules."""
 
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
+
 _FILEWRAPPER = "//sandboxed_api/tools/filewrapper"
 
 # TODO(cblichmann): Convert this to use a "_cc_toolchain" once Bazel #4370 is
@@ -85,7 +87,7 @@ def sapi_cc_embed_data(name, srcs = [], namespace = "", **kwargs):
             "%s.cc" % name,
         ],
     )
-    native.cc_library(
+    cc_library(
         name = name,
         hdrs = [":%s.h" % name],
         srcs = [":%s.cc" % name],

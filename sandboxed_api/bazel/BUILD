@@ -32,6 +32,9 @@ bzl_library(
     name = "embed_data_bzl",
     srcs = ["embed_data.bzl"],
     visibility = ["//visibility:private"],
+    deps = [
+        "//third_party/bazel_rules/rules_cc/cc:core_rules",
+    ],
 )
 
 bzl_library(
@@ -57,6 +60,7 @@ bzl_library(
         ":build_defs_bzl",
         ":embed_data_bzl",
         ":proto_bzl",
+        "//third_party/bazel_rules/rules_cc/cc:core_rules",
         "@bazel_tools//tools/cpp:toolchain_utils.bzl",
     ],
 )

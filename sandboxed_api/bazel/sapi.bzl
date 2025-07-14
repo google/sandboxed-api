@@ -14,6 +14,8 @@
 
 """Starlark rules for projects using Sandboxed API."""
 
+load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load(
@@ -326,7 +328,7 @@ def sapi_library(
 
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
-    native.cc_library(
+    cc_library(
         name = name,
         srcs = srcs,
         data = [":" + name + ".bin"] + data,
@@ -364,7 +366,7 @@ def sapi_library(
         **common
     )
 
-    native.cc_library(
+    cc_library(
         name = name + ".lib",
         deps = [lib],
         alwayslink = 1,  # All functions are linked into depending binaries
