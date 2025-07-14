@@ -15,6 +15,7 @@
 # The 'network proxy' example demonstrates how to use network proxy server.
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
 
 licenses(["notice"])
 

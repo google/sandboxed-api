@@ -13,6 +13,8 @@
 # limitations under the License.
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
+load("//third_party/bazel_rules/rules_cc/cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = [
     "//sandboxed_api/sandbox2:__subpackages__",

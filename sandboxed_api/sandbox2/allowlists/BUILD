@@ -20,6 +20,7 @@
 # appropriate visibility list for your targets.
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
 
 licenses(["notice"])
 

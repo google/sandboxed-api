@@ -20,6 +20,7 @@
 # - test to ensure sandbox executor runs sandboxee without issue
 
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
+load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
 
 package(default_visibility = [
     "//sandboxed_api/sandbox2:__subpackages__",
