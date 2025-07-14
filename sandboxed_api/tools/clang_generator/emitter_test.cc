@@ -265,34 +265,6 @@ TEST_F(EmitterTest, NamedEnumWithoutTypedef) {
                           "typedef struct { enum Color member; } B"));
 }
 
-TEST_F(EmitterTest, TypedefOpaqueStruct) {
-  EmitterForTesting emitter;
-  ASSERT_THAT(
-      RunFrontendAction(
-          R"(typedef struct png_control* png_controlp;
-             extern "C" void Structize(png_controlp);)",
-          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
-      IsOk());
-  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
-              ElementsAre("struct png_control",
-                          "typedef struct png_control *png_controlp"));
-}
-
-TEST_F(EmitterTest, TypedefAnonymousStructAndPointer) {
-  EmitterForTesting emitter;
-  ASSERT_THAT(
-      RunFrontendAction(
-          R"(typedef struct {
-               void*        opaque;
-             } png_image, *png_imagep;
-             extern "C" void Structize(png_imagep);)",
-          std::make_unique<GeneratorAction>(emitter, GeneratorOptions())),
-      IsOk());
-  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
-              ElementsAre("typedef struct { void *opaque; } png_image",
-                          "typedef png_image *png_imagep"));
-}
-
 TEST_F(EmitterTest, NestedStruct) {
   EmitterForTesting emitter;
   ASSERT_THAT(
@@ -470,7 +442,8 @@ TEST_F(EmitterTest, TypedefTypeDependencies) {
           R"(typedef bool some_other_unused;
              using size_t = long long int;
              typedef struct _Image Image;
-             typedef size_t (*StreamHandler)(Image*, void*, size_t);
+             typedef size_t (*StreamHandler)(const Image*, const void*,
+                                             const size_t);
              enum unrelated_unused { NONE, SOME };
              struct _Image {
                StreamHandler stream;
@@ -481,12 +454,14 @@ TEST_F(EmitterTest, TypedefTypeDependencies) {
       IsOk());
   EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
 
-  EXPECT_THAT(
-      UglifyAll(emitter.SpellingsForNS("")),
-      ElementsAre("using size_t = long long", "struct _Image",
-                  "typedef struct _Image Image",
-                  "typedef size_t (*StreamHandler)(Image *, void *, size_t)",
-                  "struct _Image { StreamHandler stream; int size; }"));
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("using size_t = long long", "struct _Image",
+                          "typedef struct _Image Image",
+                          "typedef size_t (*StreamHandler)(const Image *, "
+                          "const void *, const size_t)",
+                          "struct _Image {"
+                          " StreamHandler stream;"
+                          " int size; }"));
 }
 
 TEST_F(EmitterTest, OmitDependentTypes) {

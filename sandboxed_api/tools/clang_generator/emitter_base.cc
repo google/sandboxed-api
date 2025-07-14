@@ -44,6 +44,51 @@
 #include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
+
+// Text template arguments:
+//   1. Include for embedded sandboxee objects
+constexpr absl::string_view kEmbedInclude = R"(#include "%1$s_embed.h"
+
+)";
+
+// Text template arguments:
+//   1. Class name
+//   2. Embedded object identifier
+constexpr absl::string_view kEmbedClassTemplate = R"(
+// Sandbox with embedded sandboxee and default policy
+class %1$s : public ::sapi::Sandbox {
+ public:
+  %1$s()
+      : ::sapi::Sandbox([]() {
+          static auto* fork_client_context =
+              new ::sapi::ForkClientContext(%2$s_embed_create());
+          return fork_client_context;
+        }()) {}
+};
+
+)";
+
+// Sandboxed API class template.
+// Text template arguments:
+//   1. Class name
+constexpr absl::string_view kClassHeaderTemplate = R"(
+// Sandboxed API
+class %1$s {
+ public:
+  explicit %1$s(::sapi::Sandbox* sandbox) : sandbox_(sandbox) {}
+
+  ABSL_DEPRECATED("Call sandbox() instead")
+  ::sapi::Sandbox* GetSandbox() const { return sandbox(); }
+  ::sapi::Sandbox* sandbox() const { return sandbox_; }
+)";
+
+// Sandboxed API class template footer.
+constexpr absl::string_view kClassFooterTemplate = R"(
+ private:
+  ::sapi::Sandbox* sandbox_;
+};
+)";
+
 namespace internal {
 
 absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
@@ -115,7 +160,7 @@ std::string PrintDecl(const clang::Decl* decl) {
   return os.str();
 }
 
-// Returns the spelling for a given declaration to be emitted to the final
+// Returns the spelling for a given declaration will be emitted to the final
 // header. This may rewrite declarations (like converting typedefs to using,
 // etc.). Note that the resulting spelling will need to be wrapped inside a
 // namespace if the original declaration was inside one.
@@ -135,27 +180,6 @@ std::string GetSpelling(const clang::Decl* decl) {
     // followed by a 'typedef enum Color Color;'
     if (auto* tag_decl = typedef_name_decl->getAnonDeclWithTypedefName()) {
       return absl::StrCat("typedef ", PrintDecl(tag_decl), " ",
-                          ToStringView(typedef_name_decl->getName()));
-    }
-
-    // Special case: pointer/reference to anonymous struct/union.
-    // For example, the declaration
-    // 'typedef struct { void* opaque; } png_image, *png_imagep;'
-    // will result in two typedef being emitted:
-    //   typedef struct { void* opaque; } png_image;
-    //   typedef png_image * png_imagep;
-    // The first one will be emitted due to the case above.
-    // TODO b/402658788 - This does not handle rare cases where a typedef is
-    //                    only declaring a pointer:
-    //   typedef struct { int member; } *MyStructPtr;
-    if (clang::QualType canonical_type =
-            typedef_name_decl->getUnderlyingType().getCanonicalType();
-        IsPointerOrReference(canonical_type) &&
-        // Need to skip function pointers/refs, as they are correctly emitted
-        // already.
-        !canonical_type->isFunctionPointerType() &&
-        !canonical_type->isFunctionReferenceType()) {
-      return absl::StrCat("typedef ", canonical_type.getAsString(),
                           ToStringView(typedef_name_decl->getName()));
     }
 
@@ -218,7 +242,7 @@ std::string GetIncludeGuard(absl::string_view filename) {
   if (filename.empty()) {
     static auto* bit_gen = new absl::BitGen();
     return absl::StrCat(
-        // Copybara will transform this string. This is intentional.
+        // Copybara will transform the string. This is intentional.
         "SANDBOXED_API_GENERATED_HEADER_",
         absl::AsciiStrToUpper(absl::StrCat(
             absl::Hex(absl::Uniform<uint64_t>(*bit_gen), absl::kZeroPad16))),

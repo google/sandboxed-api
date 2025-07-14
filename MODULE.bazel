@@ -30,7 +30,7 @@ bazel_dep(name = "googletest", version = "1.17.0")
 bazel_dep(name = "protobuf", version = "31.0", repo_name = "com_google_protobuf")
 bazel_dep(name = "rules_proto", version = "7.0.2")
 bazel_dep(name = "rules_python", version = "1.0.0")
-bazel_dep(name = "rules_cc", version = "0.1.2")
+bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "libunwind", version = "1.8.1")
 bazel_dep(name = "libffi", version = "3.4.7")
 

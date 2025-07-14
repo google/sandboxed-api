@@ -31,6 +31,8 @@
 #include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
+// TODO b/347118045 - Refactor the naming of internal namespaces across the
+// codebase.
 namespace internal {
 
 // Returns a string of the specified code reformatted to conform to the Google
@@ -98,7 +100,7 @@ class EmitterBase {
   // stability.
   absl::node_hash_set<RenderedType> rendered_types_;
 
-  // A vector to preserve the order of type declarations.
+  // A vector to preserve the order of type declarations needs to be preserved.
   std::vector<const RenderedType*> rendered_types_ordered_;
 
   // Fully qualified names of functions for the sandboxed API. Keeps track of
