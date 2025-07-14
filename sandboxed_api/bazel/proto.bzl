@@ -15,7 +15,7 @@
 """Generates proto targets in various languages."""
 
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 def _cc_proto_library_name_from_proto_name(name):
     """Converts proto name to cc_proto_library name.
