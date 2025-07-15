@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
 
 package(default_visibility = [
     "//sandboxed_api/sandbox2:__subpackages__",

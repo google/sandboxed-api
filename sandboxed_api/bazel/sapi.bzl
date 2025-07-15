@@ -14,8 +14,8 @@
 
 """Starlark rules for projects using Sandboxed API."""
 
-load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
-load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load(

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
-load("//third_party/bazel_rules/rules_cc/cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//sandboxed_api:__subpackages__"])
 

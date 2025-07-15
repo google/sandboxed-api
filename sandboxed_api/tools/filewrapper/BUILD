@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
-load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
-load("//third_party/bazel_rules/rules_cc/cc:cc_test.bzl", "cc_test")
 
 licenses(["notice"])
 

@@ -18,12 +18,8 @@
 # - strict syscall policy
 # - sandbox2::Comms for data exchange (IPC)
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
-
-package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
-])
 
 licenses(["notice"])
 
