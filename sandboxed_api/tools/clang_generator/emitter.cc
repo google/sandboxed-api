@@ -121,12 +121,10 @@ std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
 // Returns a comment for the given function `decl` which represents the
 // unsandboxed function signature.
 absl::StatusOr<std::string> PrintFunctionPrototypeComment(
-    const clang::FunctionDecl* decl) {
-  const clang::ASTContext& context = decl->getASTContext();
-
+    const TypeMapper& type_mapper, const clang::FunctionDecl* decl) {
   std::string out = absl::StrCat(
-      MapQualTypeParameterForCxx(context, decl->getDeclaredReturnType()), " ",
-      decl->getQualifiedNameAsString(), "(");
+      type_mapper.MapQualTypeParameterForCxx(decl->getDeclaredReturnType()),
+      " ", decl->getQualifiedNameAsString(), "(");
 
   std::string print_separator;
   for (int i = 0; i < decl->getNumParams(); ++i) {
@@ -135,7 +133,7 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
     absl::StrAppend(&out, print_separator);
     print_separator = ", ";
     absl::StrAppend(&out,
-                    MapQualTypeParameterForCxx(context, param->getType()));
+                    type_mapper.MapQualTypeParameterForCxx(param->getType()));
     if (std::string name = param->getName().str(); !name.empty()) {
       absl::StrAppend(&out, " ", name);
     }
@@ -152,9 +150,9 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
   return out;
 }
 
-// Emits the given function `decl` as SAPI function with a leading comment
-// documenting the unsandboxed function signature.
-absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
+absl::StatusOr<std::string> Emitter::DoEmitFunction(
+    const clang::FunctionDecl* decl) {
+  TypeMapper type_mapper(decl->getASTContext());
   const clang::QualType return_type = decl->getDeclaredReturnType();
 
   // Skip functions returning record by value.
@@ -165,15 +163,14 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   }
 
   SAPI_ASSIGN_OR_RETURN(std::string prototype,
-                        PrintFunctionPrototypeComment(decl));
+                        PrintFunctionPrototypeComment(type_mapper, decl));
   std::string out;
   absl::StrAppend(&out, "\n", prototype);
 
   auto function_name = ToStringView(decl->getName());
   const bool returns_void = return_type->isVoidType();
-  const clang::ASTContext& context = decl->getASTContext();
 
-  absl::StrAppend(&out, MapQualTypeReturn(context, return_type), " ",
+  absl::StrAppend(&out, type_mapper.MapQualTypeReturn(return_type), " ",
                   function_name, "(");
 
   struct ParameterInfo {
@@ -202,20 +199,20 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
 
     absl::StrAppend(&out, print_separator);
     print_separator = ", ";
-    absl::StrAppend(&out, MapQualTypeParameter(context, param_info.qual), " ",
-                    param_info.name);
+    absl::StrAppend(&out, type_mapper.MapQualTypeParameter(param_info.qual),
+                    " ", param_info.name);
   }
 
   absl::StrAppend(&out, ") {\n");
 
   // Declare the return value of the SAPI function.
-  absl::StrAppend(&out, MapQualType(context, return_type), " v_ret_;\n");
+  absl::StrAppend(&out, type_mapper.MapQualType(return_type), " v_ret_;\n");
 
   // Declare the local variables for the parameters.
   for (const auto& [qual, name] : params) {
     if (!IsPointerOrReference(qual)) {
-      absl::StrAppend(&out, MapQualType(context, qual), " v_", name, "(", name,
-                      ");\n");
+      absl::StrAppend(&out, type_mapper.MapQualType(qual), " v_", name, "(",
+                      name, ");\n");
     }
   }
 
@@ -234,23 +231,19 @@ absl::StatusOr<std::string> EmitFunction(const clang::FunctionDecl* decl) {
   return out;
 }
 
-// Emits the SAPI header.
-absl::StatusOr<std::string> EmitHeader(
-    const std::vector<std::string>& function_definitions,
-    const std::vector<const RenderedType*>& rendered_types,
-    const absl::btree_set<std::string>& rendered_includes,
+absl::StatusOr<std::string> Emitter::DoEmitHeader(
     const GeneratorOptions& options) {
   // Log a warning message if the number of requested functions is not equal to
   // the number of functions generated.
   if (!options.function_names.empty() &&
-      (options.function_names.size() != function_definitions.size())) {
+      (options.function_names.size() != rendered_functions_ordered_.size())) {
     LOG(WARNING) << "Generated output has fewer functions than expected - some "
                     "function signatures might use language features that "
                     "SAPI does not support. For debugging, we recommend you "
                     "compare the list of functions in your sapi_library() rule "
                     "with the generated *.sapi.h file. Expected: "
                  << options.function_names.size()
-                 << ", generated: " << function_definitions.size();
+                 << ", generated: " << rendered_functions_ordered_.size();
   }
   std::string out;
   const std::string include_guard = GetIncludeGuard(options.out_file);
@@ -258,7 +251,7 @@ absl::StatusOr<std::string> EmitHeader(
   absl::StrAppendFormat(&out, kHeaderProlog, include_guard);
 
   // Emit the collected includes.
-  absl::StrAppend(&out, absl::StrJoin(rendered_includes, "\n"));
+  absl::StrAppend(&out, absl::StrJoin(rendered_includes_ordered_, "\n"));
 
   // Emit the common includes.
   absl::StrAppend(&out, kHeaderIncludes);
@@ -283,10 +276,10 @@ absl::StatusOr<std::string> EmitHeader(
   }
 
   // Emit type dependencies
-  if (!rendered_types.empty()) {
+  if (!rendered_types_ordered_.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
     std::string last_ns_name = options.namespace_name;
-    for (const RenderedType* rt : rendered_types) {
+    for (const RenderedType* rt : rendered_types_ordered_) {
       const auto& [ns_name, spelling] = *rt;
       if (last_ns_name != ns_name) {
         if (!last_ns_name.empty() && last_ns_name != options.namespace_name) {
@@ -316,7 +309,7 @@ absl::StatusOr<std::string> EmitHeader(
   // Emit the actual Sandboxed API
   absl::StrAppendFormat(&out, kClassHeaderTemplate,
                         absl::StrCat(options.name, "Api"));
-  absl::StrAppend(&out, absl::StrJoin(function_definitions, "\n"));
+  absl::StrAppend(&out, absl::StrJoin(rendered_functions_ordered_, "\n"));
   absl::StrAppend(&out, kClassFooterTemplate);
 
   // Close out the header: close namespace (if needed) and end include guard
@@ -329,7 +322,7 @@ absl::StatusOr<std::string> EmitHeader(
 
 absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
   if (rendered_functions_.insert(decl->getQualifiedNameAsString()).second) {
-    SAPI_ASSIGN_OR_RETURN(std::string function, EmitFunction(decl));
+    SAPI_ASSIGN_OR_RETURN(std::string function, DoEmitFunction(decl));
     rendered_functions_ordered_.push_back(function);
   }
   return absl::OkStatus();
@@ -337,10 +330,7 @@ absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
 
 absl::StatusOr<std::string> Emitter::EmitHeader(
     const GeneratorOptions& options) {
-  SAPI_ASSIGN_OR_RETURN(
-      const std::string header,
-      ::sapi::EmitHeader(rendered_functions_ordered_, rendered_types_ordered_,
-                         rendered_includes_ordered_, options));
+  SAPI_ASSIGN_OR_RETURN(const std::string header, DoEmitHeader(options));
   return internal::ReformatGoogleStyle(options.out_file, header);
 }
 

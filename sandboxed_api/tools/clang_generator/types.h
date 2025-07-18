@@ -110,27 +110,39 @@ class TypeCollector {
   QualTypeSet seen_;
 };
 
-// Maps a qualified type to a fully qualified SAPI-compatible type name. This
-// is used for the generated code that invokes the actual function call IPC.
-// If no mapping can be found, "int" is assumed.
-std::string MapQualType(const clang::ASTContext& context, clang::QualType qual);
+class TypeMapper {
+ public:
+  explicit TypeMapper(const clang::ASTContext& context)
+      : TypeMapper(context, "") {}
 
-// Maps a qualified type to a fully qualified C++ type name. Transforms C-only
-// constructs such as _Bool to bool.
-std::string MapQualTypeParameterForCxx(const clang::ASTContext& context,
-                                       clang::QualType qual);
+  TypeMapper(const clang::ASTContext& context, std::string ns_to_strip)
+      : context_(context), ns_to_strip_(ns_to_strip) {}
 
-// Maps a qualified type used as a function parameter to a type name compatible
-// with the generated Sandboxed API.
-std::string MapQualTypeParameter(const clang::ASTContext& context,
-                                 clang::QualType qual);
+  // Maps a qualified type to a fully qualified SAPI-compatible type name. This
+  // is used for the generated code that invokes the actual function call IPC.
+  // If no mapping can be found, "int" is assumed.
+  std::string MapQualType(clang::QualType qual) const;
 
-// Maps a qualified type used as a function return type to a type name
-// compatible with the generated Sandboxed API. Uses MapQualTypeParameter() and
-// wraps the type in an "absl::StatusOr<>" if qual is non-void. Otherwise
-// returns "absl::Status".
-std::string MapQualTypeReturn(const clang::ASTContext& context,
-                              clang::QualType qual);
+  // Maps a qualified type to a fully qualified C++ type name. Transforms C-only
+  // constructs such as _Bool to bool.
+  std::string MapQualTypeParameterForCxx(clang::QualType qual) const;
+
+  // Maps a qualified type used as a function parameter to a type name
+  // compatible with the generated Sandboxed API.
+  std::string MapQualTypeParameter(clang::QualType qual) const;
+
+  // Maps a qualified type used as a function return type to a type name
+  // compatible with the generated Sandboxed API. Uses MapQualTypeParameter()
+  // and wraps the type in an "absl::StatusOr<>" if qual is non-void. Otherwise
+  // returns "absl::Status".
+  std::string MapQualTypeReturn(clang::QualType qual) const;
+
+ private:
+  const clang::ASTContext& context_;  // Current AST context
+  // Namespace to strip from the type name. Mainly used for cases where the
+  // requested SAPI namespace is the same as the original namespace.
+  std::string ns_to_strip_;
+};
 
 }  // namespace sapi
 

@@ -304,8 +304,7 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
   return result;
 }
 
-std::string MapQualType(const clang::ASTContext& context,
-                        clang::QualType qual) {
+std::string TypeMapper::MapQualType(clang::QualType qual) const {
   if (const auto* builtin = qual->getAs<clang::BuiltinType>()) {
     switch (builtin->getKind()) {
       case clang::BuiltinType::Void:
@@ -394,20 +393,19 @@ std::string MapQualType(const clang::ASTContext& context,
     // e.g. const pointers do not work well with SAPI.
     return absl::StrCat("::sapi::v::Reg<",
                         clang::TypeName::getFullyQualifiedName(
-                            MaybeRemoveConst(context, qual), context,
-                            context.getPrintingPolicy()),
+                            MaybeRemoveConst(context_, qual), context_,
+                            context_.getPrintingPolicy()),
                         ">");
   }
   // Best-effort mapping to "int", leave a comment.
   return absl::StrCat("::sapi::v::Int /* aka '",
                       clang::TypeName::getFullyQualifiedName(
-                          MaybeRemoveConst(context, qual), context,
-                          context.getPrintingPolicy()),
+                          MaybeRemoveConst(context_, qual), context_,
+                          context_.getPrintingPolicy()),
                       "' */");
 }
 
-std::string MapQualTypeParameterForCxx(const clang::ASTContext& context,
-                                       clang::QualType qual) {
+std::string TypeMapper::MapQualTypeParameterForCxx(clang::QualType qual) const {
   if (const auto* builtin = qual->getAs<clang::BuiltinType>()) {
     if (builtin->getKind() == clang::BuiltinType::Bool) {
       return "bool";  // _Bool -> bool
@@ -416,18 +414,16 @@ std::string MapQualTypeParameterForCxx(const clang::ASTContext& context,
     // - long long -> uint64_t
     // - ...
   }
-  return clang::TypeName::getFullyQualifiedName(qual, context,
-                                                context.getPrintingPolicy());
+  return clang::TypeName::getFullyQualifiedName(qual, context_,
+                                                context_.getPrintingPolicy());
 }
 
-std::string MapQualTypeParameter(const clang::ASTContext& context,
-                                 clang::QualType qual) {
+std::string TypeMapper::MapQualTypeParameter(clang::QualType qual) const {
   return IsPointerOrReference(qual) ? "::sapi::v::Ptr*"
-                                    : MapQualTypeParameterForCxx(context, qual);
+                                    : MapQualTypeParameterForCxx(qual);
 }
 
-std::string MapQualTypeReturn(const clang::ASTContext& context,
-                              clang::QualType qual) {
+std::string TypeMapper::MapQualTypeReturn(clang::QualType qual) const {
   if (qual->isVoidType()) {
     return "::absl::Status";
   }
@@ -436,8 +432,7 @@ std::string MapQualTypeReturn(const clang::ASTContext& context,
   //                   the sandboxee's address space.
   return absl::StrCat(
       "::absl::StatusOr<",
-      MapQualTypeParameterForCxx(context, MaybeRemoveConst(context, qual)),
-      ">");
+      MapQualTypeParameterForCxx(MaybeRemoveConst(context_, qual)), ">");
 }
 
 }  // namespace sapi

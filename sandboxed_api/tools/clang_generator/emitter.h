@@ -23,6 +23,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
+#include "sandboxed_api/tools/clang_generator/generator.h"
 
 namespace sapi {
 
@@ -42,6 +43,13 @@ class Emitter : public EmitterBase {
   // Rendered function bodies, as a vector to preserve source order. This is
   // not strictly necessary, but makes the output look less surprising.
   std::vector<std::string> rendered_functions_ordered_;
+
+ private:
+  // Emits the given function `decl` as SAPI function with a leading comment
+  // documenting the unsandboxed function signature.
+  absl::StatusOr<std::string> DoEmitFunction(const clang::FunctionDecl* decl);
+
+  absl::StatusOr<std::string> DoEmitHeader(const GeneratorOptions& options);
 };
 
 }  // namespace sapi
