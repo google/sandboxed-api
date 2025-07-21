@@ -43,7 +43,6 @@ class Emitter : public EmitterBase {
   // Outputs a formatted header for a list of functions and their related types.
   absl::StatusOr<std::string> EmitHeader();
 
- protected:
   // Rendered function bodies, as a vector to preserve source order. This is
   // not strictly necessary, but makes the output look less surprising.
   std::vector<std::string> rendered_functions_ordered_;

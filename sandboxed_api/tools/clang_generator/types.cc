@@ -23,6 +23,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -57,8 +58,10 @@ bool IsProtoBuf(const clang::RecordDecl* decl) {
 //
 // This function handles some special cases, such as function pointers and
 // enums. In case of enums it preserves the enum keyword in the name.
-std::string GetQualTypeName(const clang::ASTContext& context,
-                            clang::QualType qual) {
+std::string GetFullyQualifiedName(const clang::ASTContext& context,
+                                  clang::QualType qual,
+                                  absl::string_view ns_to_strip = "",
+                                  bool suppress_enum_keyword = true) {
   // Remove any "const", "volatile", etc. except for those added via typedefs.
   clang::QualType unqual = qual.getLocalUnqualifiedType();
 
@@ -68,19 +71,24 @@ std::string GetQualTypeName(const clang::ASTContext& context,
     unqual = unqual->getPointeeType();
   }
 
-  if (unqual->isEnumeralType()) {
-    auto decl = unqual->getAsTagDecl();
-    if (decl) {
-      // Keep the "enum" keyword in the type name.
-      clang::PrintingPolicy policy = context.getPrintingPolicy();
-      policy.SuppressTagKeyword = false;
-      return clang::TypeName::getFullyQualifiedName(unqual, context, policy);
-    }
+  clang::PrintingPolicy policy = context.getPrintingPolicy();
+  if (!suppress_enum_keyword && unqual->isEnumeralType() &&
+      unqual->getAsTagDecl() != nullptr) {
+    // Keep the "enum" keyword in the type name.
+    policy.SuppressTagKeyword = false;
   }
-  // Return the fully qualified name without the "enum", "struct" or "class"
-  // keyword.
-  return clang::TypeName::getFullyQualifiedName(unqual, context,
-                                                context.getPrintingPolicy());
+
+  // Get the fully qualified name without the "struct" or "class" keyword.
+  std::string qual_name =
+      clang::TypeName::getFullyQualifiedName(unqual, context, policy);
+
+  if (!ns_to_strip.empty()) {
+    // Remove the namespace prefix if requested. This is using a textual
+    // replacement for ease of implementation. A fully generic solution would
+    // require to implement a custom printer for the QualType.
+    absl::StrReplaceAll({{absl::StrCat(ns_to_strip, "::"), ""}}, &qual_name);
+  }
+  return qual_name;
 }
 
 // Returns the namespace components of a declaration's qualified name.
@@ -216,7 +224,8 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
   // only emit type declarations of required types.
   absl::flat_hash_set<std::string> collected_names;
   for (clang::QualType qual : collected_) {
-    const std::string qual_name = GetQualTypeName(context, qual);
+    const std::string qual_name = GetFullyQualifiedName(
+        context, qual, /*ns_to_strip=*/"", /*suppress_enum_keyword=*/false);
     collected_names.insert(qual_name);
   }
 
@@ -245,7 +254,9 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
     // different Type pointers, even when referring to one of the same types
     // from the set and thus will not be found. Instead, work around the issue
     // by always using the fully qualified name of the type.
-    const std::string qual_name = GetQualTypeName(context, type_decl_type);
+    const std::string qual_name =
+        GetFullyQualifiedName(context, type_decl_type, /*ns_to_strip=*/"",
+                              /*suppress_enum_keyword=*/false);
     if (!collected_names.contains(qual_name)) {
       continue;
     }
@@ -381,28 +392,28 @@ std::string TypeMapper::MapQualType(clang::QualType qual) const {
     }
   } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
     clang::EnumDecl* enum_decl = enum_type->getDecl();
-    std::string name;
-    if (auto* typedef_name = enum_decl->getTypedefNameForAnonDecl()) {
-      name = typedef_name->getQualifiedNameAsString();
-    } else {
-      name = enum_decl->getQualifiedNameAsString();
+    if (auto* typedef_decl = enum_decl->getTypedefNameForAnonDecl()) {
+      qual = typedef_decl->getUnderlyingType().getDesugaredType(context_);
     }
-    return absl::StrCat("::sapi::v::IntBase<", name, ">");
+    return absl::StrCat("::sapi::v::IntBase<",
+                        GetFullyQualifiedName(context_, qual, ns_to_strip_),
+                        ">");
   } else if (IsPointerOrReference(qual)) {
     // Remove "const" qualifier from a pointer or reference type's pointee, as
     // e.g. const pointers do not work well with SAPI.
-    return absl::StrCat("::sapi::v::Reg<",
-                        clang::TypeName::getFullyQualifiedName(
-                            MaybeRemoveConst(context_, qual), context_,
-                            context_.getPrintingPolicy()),
-                        ">");
+    return absl::StrCat(
+        "::sapi::v::Reg<",
+        GetFullyQualifiedName(context_, MaybeRemoveConst(context_, qual),
+                              ns_to_strip_),
+        ">");
   }
+
   // Best-effort mapping to "int", leave a comment.
-  return absl::StrCat("::sapi::v::Int /* aka '",
-                      clang::TypeName::getFullyQualifiedName(
-                          MaybeRemoveConst(context_, qual), context_,
-                          context_.getPrintingPolicy()),
-                      "' */");
+  return absl::StrCat(
+      "::sapi::v::Int /* aka '",
+      GetFullyQualifiedName(context_, MaybeRemoveConst(context_, qual),
+                            ns_to_strip_),
+      "' */");
 }
 
 std::string TypeMapper::MapQualTypeParameterForCxx(clang::QualType qual) const {
@@ -414,8 +425,7 @@ std::string TypeMapper::MapQualTypeParameterForCxx(clang::QualType qual) const {
     // - long long -> uint64_t
     // - ...
   }
-  return clang::TypeName::getFullyQualifiedName(qual, context_,
-                                                context_.getPrintingPolicy());
+  return GetFullyQualifiedName(context_, qual, ns_to_strip_);
 }
 
 std::string TypeMapper::MapQualTypeParameter(clang::QualType qual) const {

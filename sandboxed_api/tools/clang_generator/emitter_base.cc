@@ -157,7 +157,7 @@ std::string PrintDecl(const clang::Decl* decl) {
   std::string pretty;
   llvm::raw_string_ostream os(pretty);
   decl->print(os);
-  return os.str();
+  return pretty;
 }
 
 // Returns the spelling for a given declaration will be emitted to the final
@@ -308,7 +308,7 @@ std::string EmitInclude(const IncludeInfo& info) {
   return out;
 }
 
-void EmitterBase::AddIncludes(IncludeInfo* include) {
+void EmitterBase::AddIncludes(const IncludeInfo* include) {
   std::string include_str = EmitInclude(*include);
   if (!include_str.empty()) {
     rendered_includes_ordered_.insert(include_str);

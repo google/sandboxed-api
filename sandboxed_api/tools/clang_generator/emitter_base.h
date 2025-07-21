@@ -93,8 +93,17 @@ class EmitterBase {
   virtual absl::Status AddFunction(clang::FunctionDecl* decl) = 0;
 
   // Adds an include to the list of includes to be rendered.
-  void AddIncludes(IncludeInfo* include);
+  void AddIncludes(const IncludeInfo* include);
 
+  const absl::btree_map<std::string, std::vector<IncludeInfo>>&
+  collected_includes() const {
+    return collected_includes_;
+  }
+  absl::btree_map<std::string, std::vector<IncludeInfo>>& collected_includes() {
+    return collected_includes_;
+  }
+
+ protected:
   // Stores namespaces and a list of spellings for types. Keeps track of types
   // that have been rendered so far. Using a node_hash_set for pointer
   // stability.

@@ -206,7 +206,7 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
     return;
   }
 
-  for (auto& [parse_ctx, includes] : emitter_.collected_includes_) {
+  for (auto& [parse_ctx, includes] : emitter_.collected_includes()) {
     for (auto& include : includes) {
       emitter_.AddIncludes(&include);
     }
@@ -237,7 +237,7 @@ bool GeneratorAction::BeginSourceFileAction(clang::CompilerInstance& ci) {
           .getFileEntryRefForID(ci.getSourceManager().getMainFileID())
           ->getName()
           .str(),
-      ci.getSourceManager(), emitter_.collected_includes_));
+      ci.getSourceManager(), emitter_.collected_includes()));
   return true;
 }
 
