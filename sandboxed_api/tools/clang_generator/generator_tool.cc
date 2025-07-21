@@ -162,7 +162,7 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
   if (options.symbol_list_gen) {
     SymbolListEmitter emitter;
     if (int result = tool.run(
-            std::make_unique<GeneratorFactory>(emitter, options).get());
+            std::make_unique<GeneratorFactory>(&emitter, &options).get());
         result != 0) {
       return absl::UnknownError("Error: Header generation failed.");
     }
@@ -174,14 +174,14 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
   }
 
   // Process SAPI header generation.
-  Emitter emitter;
-  if (int result =
-          tool.run(std::make_unique<GeneratorFactory>(emitter, options).get());
+  Emitter emitter(&options);
+  if (int result = tool.run(
+          std::make_unique<GeneratorFactory>(&emitter, &options).get());
       result != 0) {
     return absl::UnknownError("Error: Header generation failed.");
   }
 
-  SAPI_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader(options));
+  SAPI_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader());
   SAPI_RETURN_IF_ERROR(
       file::SetContents(options.out_file, header, file::Defaults()));
   return absl::OkStatus();

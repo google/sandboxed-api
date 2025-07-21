@@ -46,12 +46,12 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/util:file_base",
-        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/container:node_hash_set",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:die_if_null",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",

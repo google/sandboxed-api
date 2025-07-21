@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/die_if_null.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Decl.h"
@@ -114,8 +115,9 @@ class GeneratorASTConsumer : public clang::ASTConsumer {
 
 class GeneratorAction : public clang::ASTFrontendAction {
  public:
-  GeneratorAction(EmitterBase& emitter, const GeneratorOptions& options)
-      : emitter_(emitter), options_(options) {}
+  GeneratorAction(EmitterBase* emitter, const GeneratorOptions* options)
+      : emitter_(*ABSL_DIE_IF_NULL(emitter)),
+        options_(*ABSL_DIE_IF_NULL(options)) {}
 
  private:
   std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
@@ -135,12 +137,13 @@ class GeneratorAction : public clang::ASTFrontendAction {
 class GeneratorFactory : public clang::tooling::FrontendActionFactory {
  public:
   // Does not take ownership
-  GeneratorFactory(EmitterBase& emitter, const GeneratorOptions& options)
-      : emitter_(emitter), options_(options) {}
+  GeneratorFactory(EmitterBase* emitter, const GeneratorOptions* options)
+      : emitter_(*ABSL_DIE_IF_NULL(emitter)),
+        options_(*ABSL_DIE_IF_NULL(options)) {}
 
  private:
   std::unique_ptr<clang::FrontendAction> create() override {
-    return std::make_unique<GeneratorAction>(emitter_, options_);
+    return std::make_unique<GeneratorAction>(&emitter_, &options_);
   }
 
   bool runInvocation(

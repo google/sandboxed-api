@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "clang/AST/Decl.h"
@@ -31,13 +32,16 @@ namespace sapi {
 // Sandboxed API header.
 class Emitter : public EmitterBase {
  public:
+  explicit Emitter(const GeneratorOptions* options)
+      : EmitterBase(), options_(*ABSL_DIE_IF_NULL(options)) {}
+
   // Adds a function to the list of functions to be rendered. In addition, it
   // stores the original and SAPI function information for safe drop-in
   // generation.
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
 
   // Outputs a formatted header for a list of functions and their related types.
-  absl::StatusOr<std::string> EmitHeader(const GeneratorOptions& options);
+  absl::StatusOr<std::string> EmitHeader();
 
  protected:
   // Rendered function bodies, as a vector to preserve source order. This is
@@ -49,7 +53,9 @@ class Emitter : public EmitterBase {
   // documenting the unsandboxed function signature.
   absl::StatusOr<std::string> DoEmitFunction(const clang::FunctionDecl* decl);
 
-  absl::StatusOr<std::string> DoEmitHeader(const GeneratorOptions& options);
+  absl::StatusOr<std::string> DoEmitHeader();
+
+  const GeneratorOptions& options_;
 };
 
 }  // namespace sapi

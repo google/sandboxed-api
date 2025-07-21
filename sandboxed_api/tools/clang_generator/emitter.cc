@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -30,10 +29,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
-#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
@@ -152,7 +149,7 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
 
 absl::StatusOr<std::string> Emitter::DoEmitFunction(
     const clang::FunctionDecl* decl) {
-  TypeMapper type_mapper(decl->getASTContext());
+  TypeMapper type_mapper(decl->getASTContext(), options_.namespace_name);
   const clang::QualType return_type = decl->getDeclaredReturnType();
 
   // Skip functions returning record by value.
@@ -231,22 +228,21 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
   return out;
 }
 
-absl::StatusOr<std::string> Emitter::DoEmitHeader(
-    const GeneratorOptions& options) {
+absl::StatusOr<std::string> Emitter::DoEmitHeader() {
   // Log a warning message if the number of requested functions is not equal to
   // the number of functions generated.
-  if (!options.function_names.empty() &&
-      (options.function_names.size() != rendered_functions_ordered_.size())) {
+  if (!options_.function_names.empty() &&
+      (options_.function_names.size() != rendered_functions_ordered_.size())) {
     LOG(WARNING) << "Generated output has fewer functions than expected - some "
                     "function signatures might use language features that "
                     "SAPI does not support. For debugging, we recommend you "
                     "compare the list of functions in your sapi_library() rule "
                     "with the generated *.sapi.h file. Expected: "
-                 << options.function_names.size()
+                 << options_.function_names.size()
                  << ", generated: " << rendered_functions_ordered_.size();
   }
   std::string out;
-  const std::string include_guard = GetIncludeGuard(options.out_file);
+  const std::string include_guard = GetIncludeGuard(options_.out_file);
   absl::StrAppend(&out, kHeaderDescription);
   absl::StrAppendFormat(&out, kHeaderProlog, include_guard);
 
@@ -257,36 +253,36 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader(
   absl::StrAppend(&out, kHeaderIncludes);
 
   // When embedding the sandboxee, add embed header include
-  if (!options.embed_name.empty()) {
+  if (!options_.embed_name.empty()) {
     // Not using JoinPath() because even on Windows include paths use plain
     // slashes.
     std::string include_file(absl::StripSuffix(
-        absl::StrReplaceAll(options.embed_dir, {{"\\", "/"}}), "/"));
+        absl::StrReplaceAll(options_.embed_dir, {{"\\", "/"}}), "/"));
     if (!include_file.empty()) {
       absl::StrAppend(&include_file, "/");
     }
-    absl::StrAppend(&include_file, options.embed_name);
+    absl::StrAppend(&include_file, options_.embed_name);
     absl::StrAppendFormat(&out, kEmbedInclude, include_file);
   }
 
   // If specified, wrap the generated API in a namespace
-  if (options.has_namespace()) {
+  if (options_.has_namespace()) {
     absl::StrAppendFormat(&out, kNamespaceBeginTemplate,
-                          options.namespace_name);
+                          options_.namespace_name);
   }
 
   // Emit type dependencies
   if (!rendered_types_ordered_.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
-    std::string last_ns_name = options.namespace_name;
+    std::string last_ns_name = options_.namespace_name;
     for (const RenderedType* rt : rendered_types_ordered_) {
       const auto& [ns_name, spelling] = *rt;
       if (last_ns_name != ns_name) {
-        if (!last_ns_name.empty() && last_ns_name != options.namespace_name) {
+        if (!last_ns_name.empty() && last_ns_name != options_.namespace_name) {
           absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
         }
 
-        if (!ns_name.empty() && ns_name != options.namespace_name) {
+        if (!ns_name.empty() && ns_name != options_.namespace_name) {
           absl::StrAppend(&out, "namespace ", ns_name, " {\n");
         }
         last_ns_name = ns_name;
@@ -294,27 +290,27 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader(
 
       absl::StrAppend(&out, spelling, ";\n");
     }
-    if (!last_ns_name.empty() && last_ns_name != options.namespace_name) {
+    if (!last_ns_name.empty() && last_ns_name != options_.namespace_name) {
       absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
     }
   }
 
   // Optionally emit a default sandbox that instantiates an embedded sandboxee
-  if (!options.embed_name.empty()) {
+  if (!options_.embed_name.empty()) {
     absl::StrAppendFormat(
-        &out, kEmbedClassTemplate, absl::StrCat(options.name, "Sandbox"),
-        absl::StrReplaceAll(options.embed_name, {{"-", "_"}}));
+        &out, kEmbedClassTemplate, absl::StrCat(options_.name, "Sandbox"),
+        absl::StrReplaceAll(options_.embed_name, {{"-", "_"}}));
   }
 
   // Emit the actual Sandboxed API
   absl::StrAppendFormat(&out, kClassHeaderTemplate,
-                        absl::StrCat(options.name, "Api"));
+                        absl::StrCat(options_.name, "Api"));
   absl::StrAppend(&out, absl::StrJoin(rendered_functions_ordered_, "\n"));
   absl::StrAppend(&out, kClassFooterTemplate);
 
   // Close out the header: close namespace (if needed) and end include guard
-  if (options.has_namespace()) {
-    absl::StrAppendFormat(&out, kNamespaceEndTemplate, options.namespace_name);
+  if (options_.has_namespace()) {
+    absl::StrAppendFormat(&out, kNamespaceEndTemplate, options_.namespace_name);
   }
   absl::StrAppendFormat(&out, kHeaderEpilog, include_guard);
   return out;
@@ -328,10 +324,9 @@ absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::string> Emitter::EmitHeader(
-    const GeneratorOptions& options) {
-  SAPI_ASSIGN_OR_RETURN(const std::string header, DoEmitHeader(options));
-  return internal::ReformatGoogleStyle(options.out_file, header);
+absl::StatusOr<std::string> Emitter::EmitHeader() {
+  SAPI_ASSIGN_OR_RETURN(const std::string header, DoEmitHeader());
+  return internal::ReformatGoogleStyle(options_.out_file, header);
 }
 
 }  // namespace sapi
