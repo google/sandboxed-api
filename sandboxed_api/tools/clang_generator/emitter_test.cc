@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
@@ -523,6 +524,93 @@ TEST_F(EmitterTest, SkipProtobufMessagesInternals) {
 
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
               ElementsAre("class MyMessage"));
+}
+
+TEST_F(EmitterTest, Namespaced) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(namespace sandboxed {
+                           struct S { int member; };
+                           }  // namespace sandboxed
+                           extern "C" sandboxed::S* Structize();)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("sandboxed")),
+              ElementsAre("struct S { int member; }"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string header, emitter.EmitHeader());
+  // Expect the namespace to be preserved.
+  EXPECT_THAT(header, HasSubstr("::absl::StatusOr<sandboxed::S*> Structize()"));
+}
+
+TEST_F(EmitterTest, StripNamespacePrefix) {
+  GeneratorOptions options;
+  options.namespace_name = "sandboxed";
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(namespace sandboxed {
+                           struct S { int member; };
+                           }  // namespace sandboxed
+                           extern "C" sandboxed::S* Structize();)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("sandboxed")),
+              ElementsAre("struct S { int member; }"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string header, emitter.EmitHeader());
+  // Expect the namespace prefix to be stripped, as `Structize` will also be
+  // emitted in the `sandboxed` namespace.
+  EXPECT_THAT(header, HasSubstr("::absl::StatusOr<S*> Structize()"));
+}
+
+TEST_F(EmitterTest, KeepTextualNamespacePrefix) {
+  GeneratorOptions options;
+  options.namespace_name = "sandboxed";
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(namespace sandboxed_ns {
+                           struct S { int member; };
+                           }  // namespace sandboxed_ns
+                           extern "C" sandboxed_ns::S* Structize();)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("sandboxed_ns")),
+              ElementsAre("struct S { int member; }"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string header, emitter.EmitHeader());
+  // Keep the namespace prefix, `sandboxed` and `sandboxed_ns` are different
+  // namespaces.
+  EXPECT_THAT(header,
+              HasSubstr("::absl::StatusOr<sandboxed_ns::S*> Structize()"));
+}
+
+TEST_F(EmitterTest, StripNamespacePrefixNested) {
+  GeneratorOptions options;
+  options.namespace_name = "sandboxed";
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(namespace sandboxed::nested {
+                           struct S { int member; };
+                           }  // namespace sandboxed::nested
+                           extern "C" sandboxed::nested::S* Structize();)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("sandboxed::nested")),
+              ElementsAre("struct S { int member; }"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string header, emitter.EmitHeader());
+  // Expect the namespace prefix to be stripped, similar to the
+  // StripNamespacePrefix test.
+  EXPECT_THAT(header, HasSubstr("::absl::StatusOr<nested::S*> Structize()"));
 }
 
 TEST_F(EmitterTest, SymbolListTest) {

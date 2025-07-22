@@ -275,24 +275,30 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader() {
   // Emit type dependencies
   if (!rendered_types_ordered_.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
-    std::string last_ns_name = options_.namespace_name;
+    absl::string_view last_ns_name;
+    const std::string ns_prefix = absl::StrCat(options_.namespace_name, "::");
     for (const RenderedType* rt : rendered_types_ordered_) {
-      const auto& [ns_name, spelling] = *rt;
-      if (last_ns_name != ns_name) {
-        if (!last_ns_name.empty() && last_ns_name != options_.namespace_name) {
-          absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
-        }
+      absl::string_view ns_name = rt->ns_name;
+      if (ns_name == options_.namespace_name) {
+        ns_name = "";
+      } else {
+        absl::ConsumePrefix(&ns_name, ns_prefix);
+      }
 
-        if (!ns_name.empty() && ns_name != options_.namespace_name) {
+      if (ns_name != last_ns_name) {
+        if (!last_ns_name.empty()) {
+          absl::StrAppend(&out, "\n}  // namespace ", last_ns_name, "\n");
+        }
+        if (!ns_name.empty()) {
           absl::StrAppend(&out, "namespace ", ns_name, " {\n");
         }
         last_ns_name = ns_name;
       }
 
-      absl::StrAppend(&out, spelling, ";\n");
+      absl::StrAppend(&out, rt->spelling, ";\n");
     }
-    if (!last_ns_name.empty() && last_ns_name != options_.namespace_name) {
-      absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n\n");
+    if (!last_ns_name.empty()) {
+      absl::StrAppend(&out, "\n}  // namespace ", last_ns_name, "\n");
     }
   }
 
