@@ -138,9 +138,9 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
   }
   absl::StrAppend(&out, ")");
 
-  SAPI_ASSIGN_OR_RETURN(
-      std::string formatted,
-      internal::ReformatGoogleStyle(/*filename=*/"input", out, 75));
+  SAPI_ASSIGN_OR_RETURN(std::string formatted,
+                        internal::ReformatGoogleStyle(/*filename=*/"input", out,
+                                                      /*column_limit=*/75));
   out.clear();
   for (const auto& line : absl::StrSplit(formatted, '\n')) {
     absl::StrAppend(&out, "// ", line, "\n");
