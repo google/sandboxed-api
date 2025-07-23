@@ -172,8 +172,8 @@ absl::StatusOr<std::string> ResolveLibraryPaths(
   constexpr int kMaxWorkQueueSize = 1000;
   constexpr int kMaxResolvingDepth = 10;
   constexpr int kMaxResolvedEntries = 1000;
-  constexpr int kMaxLoadedEntries = 400;
-  constexpr int kMaxImportedLibraries = 400;
+  constexpr int kMaxLoadedEntries = 100;
+  constexpr int kMaxImportedLibraries = 200;
 
   absl::flat_hash_set<std::string> imported_libraries;
   std::vector<std::pair<std::string, int>> to_resolve;
