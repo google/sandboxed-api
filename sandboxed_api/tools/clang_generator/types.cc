@@ -34,6 +34,15 @@
 #include "llvm/Support/Casting.h"
 
 namespace sapi {
+
+clang::QualType GetFinalPointeeType(clang::QualType qual) {
+  clang::QualType pointee_type = qual;
+  do {
+    pointee_type = pointee_type->getPointeeType();
+  } while (IsPointerOrReference(pointee_type));
+  return pointee_type;
+}
+
 namespace {
 
 // Checks if a record declaration is a google::protobuf::Message.

@@ -151,10 +151,11 @@ std::string GetSpelling(const clang::Decl* decl) {
     if (clang::QualType canonical_type =
             typedef_name_decl->getUnderlyingType().getCanonicalType();
         IsPointerOrReference(canonical_type) &&
-        // Need to skip function pointers/refs, as they are correctly emitted
-        // already.
+        // Skip function pointers/refs and array types. For arrays, we need to
+        // check the final underlying pointee type.
         !canonical_type->isFunctionPointerType() &&
-        !canonical_type->isFunctionReferenceType()) {
+        !canonical_type->isFunctionReferenceType() &&
+        !GetFinalPointeeType(canonical_type)->isArrayType()) {
       return absl::StrCat("typedef ", canonical_type.getAsString(),
                           ToStringView(typedef_name_decl->getName()));
     }

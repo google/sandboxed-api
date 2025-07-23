@@ -49,6 +49,10 @@ inline bool IsPointerOrReference(clang::QualType qual) {
 #endif
 }
 
+// Returns the final pointee type of a pointer or reference type.
+// For example, for `int**` it returns `int`.
+clang::QualType GetFinalPointeeType(clang::QualType qual);
+
 // RenderedType objects are used to keep track of types that are going to be
 // emitted in the generated header.
 class RenderedType {

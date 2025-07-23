@@ -493,6 +493,25 @@ TEST_F(EmitterTest, TypedefTypeDependencies) {
                   "struct _Image { StreamHandler stream; int size; }"));
 }
 
+TEST_F(EmitterTest, TypedefArrays) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(RunFrontendAction(
+                  R"(typedef short JCOEF;
+                     typedef JCOEF JBLOCK[64];
+                     typedef JBLOCK *JBLOCKROW;
+                     typedef JBLOCKROW *JBLOCKARRAY;
+                     extern "C" void Array(JBLOCKARRAY);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("typedef short JCOEF", "typedef JCOEF JBLOCK[64]",
+                          "typedef JBLOCK *JBLOCKROW",
+                          "typedef JBLOCKROW *JBLOCKARRAY"));
+}
+
 TEST_F(EmitterTest, OmitDependentTypes) {
   GeneratorOptions options;
   EmitterForTesting emitter(&options);
