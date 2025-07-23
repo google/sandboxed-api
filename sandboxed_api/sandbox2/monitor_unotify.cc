@@ -153,7 +153,6 @@ void UnotifyMonitor::HandleViolation(const Syscall& syscall) {
   notify_->EventSyscallViolation(syscall, violation_type);
   MaybeGetStackTrace(syscall.pid(), Result::VIOLATION);
   SetExitStatusCode(Result::VIOLATION, syscall.nr());
-  notify_->EventSyscallViolation(syscall, violation_type);
   result_.SetSyscall(std::make_unique<Syscall>(syscall));
   KillSandboxee();
 }
