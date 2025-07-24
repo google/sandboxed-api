@@ -39,6 +39,9 @@ enum ArgType {
   kSignal,
   kIpcResource,
   kSharedAddress,
+  // Used for syscalls like ioctl or prctl which have an integer subcommand
+  // argument.
+  kSubcommand,
   kGid,
   kUid,
   // These kLenN types indicate that the argument is a length, and which
@@ -84,6 +87,8 @@ constexpr absl::string_view ArgTypeToString(ArgType type) {
       return "ipc resource";
     case kSharedAddress:
       return "shared address";
+    case kSubcommand:
+      return "subcommand";
     case kGid:
       return "gid";
     case kUid:
