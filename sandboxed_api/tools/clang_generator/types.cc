@@ -225,9 +225,10 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
     return {};
   }
 
-  // The AST context is the same for all declarations in this translation unit,
-  // so use a reference here.
+  // The AST context and source manager are the same for all declarations in
+  // this translation unit, so use references here.
   clang::ASTContext& context = ordered_decls_.front()->getASTContext();
+  clang::SourceManager& source_manager = context.getSourceManager();
 
   // Set of fully qualified names of the collected types that will be used to
   // only emit type declarations of required types.
@@ -243,11 +244,22 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
     clang::QualType type_decl_type = context.getTypeDeclType(type_decl);
 
     // Filter out types defined in system headers.
-    // TODO: b/402658788 - Instead of this and the hard-coded entities below, we
-    //                     should map types and add the correct (system) headers
-    //                     to the generated output.
-    if (context.getSourceManager().isInSystemHeader(type_decl->getBeginLoc())) {
-      continue;
+    // TODO(cblichmann): Instead of this and the hard-coded entities below, we
+    //                   should map known system/POSIX types and add the
+    //                   appropriate headers to the generated output.
+    if (auto loc = type_decl->getBeginLoc();
+        source_manager.isInSystemHeader(loc)) {
+      // Skip types defined in actual system headers, but not those that are
+      // marked as being system headers despite not actually being system
+      // headers (as far as the compiler toolchain is concerned). This can
+      // happen when processing files that are covered by a Bazel "includes"
+      // cc_library attribute.
+      // Hack: Regular C/C++ standard headers (i.e., non-POSIX, non-vendor,
+      // non-platform-dependent) are never in sub-directories, so check for a
+      // forward slash.
+      if (!source_manager.getFilename(loc).contains("/")) {
+        continue;
+      }
     }
 
     // Filter out problematic dependent types that we cannot emit properly.
