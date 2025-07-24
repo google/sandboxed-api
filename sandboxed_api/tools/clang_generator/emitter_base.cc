@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -249,6 +250,31 @@ std::string GetIncludeGuard(absl::string_view filename) {
   return guard;
 }
 
+absl::string_view MapCSystemHeaderToCpp(absl::string_view header) {
+  // TODO(cblichmann): Once we're on C++20 everywhere, this function can be made
+  //                   constexpr and use std::binary_search().
+  static auto* c_to_cpp_system =
+      new absl::flat_hash_map<std::string, std::string>({
+          // go/keep-sorted start
+          {"assert.h", "cassert"},     {"complex.h", "ccomplex"},
+          {"ctype.h", "cctype"},       {"errno.h", "cerrno"},
+          {"fenv.h", "cfenv"},         {"float.h", "cfloat"},
+          {"inttypes.h", "cinttypes"}, {"iso646.h", "ciso646"},
+          {"limits.h", "climits"},     {"locale.h", "clocale"},
+          {"math.h", "cmath"},         {"setjmp.h", "csetjmp"},
+          {"signal.h", "csignal"},     {"stdalign.h", "cstdalign"},
+          {"stdarg.h", "cstdarg"},     {"stdbool.h", "cstdbool"},
+          {"stddef.h", "cstddef"},     {"stdint.h", "cstdint"},
+          {"stdio.h", "cstdio"},       {"stdlib.h", "cstdlib"},
+          {"string.h", "cstring"},     {"tgmath.h", "ctgmath"},
+          {"time.h", "ctime"},         {"uchar.h", "cuchar"},
+          {"wchar.h", "cwchar"},       {"wctype.h", "cwctype"},
+          // go/keep-sorted end
+      });
+  auto found = c_to_cpp_system->find(header);
+  return found != c_to_cpp_system->end() ? found->second : header;
+}
+
 void EmitterBase::EmitType(absl::string_view ns_name,
                            clang::TypeDecl* type_decl) {
   if (!type_decl) {
@@ -270,25 +296,18 @@ void EmitterBase::AddTypeDeclarations(
   }
 }
 
-std::string EmitInclude(const IncludeInfo& info) {
-  std::string out;
-  if (!info.is_system_header) {
-    return out;
+std::string EmitSystemInclude(const IncludeInfo& info) {
+  if (!info.is_system_header ||
+      // Skip non-angled includes. These should occur rarely, if ever.
+      !info.is_angled) {
+    return "";
   }
-
-  if (info.is_angled) {
-    absl::StrAppend(&out, "#include <", info.include, ">");
-    return out;
-  }
-
-  absl::StrAppend(&out, "#include ", info.include, "");
-  return out;
+  return absl::StrCat("#include <", MapCSystemHeaderToCpp(info.include), ">");
 }
 
 void EmitterBase::AddIncludes(const IncludeInfo* include) {
-  std::string include_str = EmitInclude(*include);
-  if (!include_str.empty()) {
-    rendered_includes_ordered_.insert(include_str);
+  if (std::string directive = EmitSystemInclude(*include); !directive.empty()) {
+    rendered_includes_ordered_.insert(std::move(directive));
   }
 }
 

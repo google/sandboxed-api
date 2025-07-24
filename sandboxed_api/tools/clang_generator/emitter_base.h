@@ -136,6 +136,10 @@ class EmitterBase {
 //   SANDBOXED_API_EXAMPLES_ZLIB_ZLIB_SAPI_SAPI_H_
 std::string GetIncludeGuard(absl::string_view filename);
 
+// Maps a C system header to its corresponding C++ system header.
+// For example, "stdint.h" will be mapped to "cstdint".
+absl::string_view MapCSystemHeaderToCpp(absl::string_view header);
+
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_TOOLS_CLANG_GENERATOR_EMITTER_BASE_H_
