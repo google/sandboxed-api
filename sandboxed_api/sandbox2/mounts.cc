@@ -445,6 +445,14 @@ std::string MountFlagsToString(uint64_t flags) {
   return absl::StrJoin(flags_list, "|");
 }
 
+bool IsSymlink(const std::string& path) {
+  struct stat sb;
+  if (stat(path.c_str(), &sb) == -1) {
+    return false;
+  }
+  return S_ISLNK(sb.st_mode);
+}
+
 void MountWithDefaults(const std::string& source, const std::string& target,
                        const char* fs_type, uint64_t extra_flags,
                        const char* option_str, bool is_ro) {
@@ -467,16 +475,20 @@ void MountWithDefaults(const std::string& source, const std::string& target,
           file_util::fileops::Exists(source, /*fully_resolve=*/true);
       bool have_target =
           file_util::fileops::Exists(target, /*fully_resolve=*/true);
-      const char* detail = "unknown error, source and target exist";
+      std::string detail = "unknown error, source and target exist";
       if (!have_source && !have_target) {
         detail = "neither source nor target exist";
       } else if (!have_source) {
         detail = "source does not exist";
       } else if (!have_target) {
         detail = "target does not exist";
+        if (IsSymlink(target)) {
+          absl::StrAppend(&detail, " (symlink to ",
+                          file_util::fileops::ReadLink(target), ")");
+        }
       }
       SAPI_RAW_LOG(WARNING, "Could not mount %s (source) to %s (target): %s",
-                   source.c_str(), target.c_str(), detail);
+                   source.c_str(), target.c_str(), detail.c_str());
       return;
     }
     SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed (flags=%s)", source, target,
@@ -521,14 +533,6 @@ std::vector<MapEntry> GetSortedEntries(const MountTree& tree) {
               return a.second->index() < b.second->index();
             });
   return ordered;
-}
-
-bool IsSymlink(const std::string& path) {
-  struct stat sb;
-  if (stat(path.c_str(), &sb) == -1) {
-    return false;
-  }
-  return S_ISLNK(sb.st_mode);
 }
 
 // Traverses the MountTree to create all required files and perform the mounts.
