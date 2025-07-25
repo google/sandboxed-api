@@ -249,6 +249,10 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
     //                   appropriate headers to the generated output.
     if (auto loc = type_decl->getBeginLoc();
         source_manager.isInSystemHeader(loc)) {
+      // Skip types defined in system headers.
+      continue;
+      // Temporarily disable this code to avoid a full rollback.
+#if 0
       // Skip types defined in actual system headers, but not those that are
       // marked as being system headers despite not actually being system
       // headers (as far as the compiler toolchain is concerned). This can
@@ -260,6 +264,7 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
       if (!source_manager.getFilename(loc).contains("/")) {
         continue;
       }
+#endif
     }
 
     // Filter out problematic dependent types that we cannot emit properly.
