@@ -447,7 +447,7 @@ std::string MountFlagsToString(uint64_t flags) {
 
 bool IsSymlink(const std::string& path) {
   struct stat sb;
-  if (stat(path.c_str(), &sb) == -1) {
+  if (lstat(path.c_str(), &sb) == -1) {
     return false;
   }
   return S_ISLNK(sb.st_mode);
