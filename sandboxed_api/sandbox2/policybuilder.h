@@ -45,14 +45,14 @@ struct bpf_labels;
 namespace sandbox2 {
 
 class AllowAllSyscalls;
-class NamespacesToken;
 class LoadUserBpfCodeFromFile;
 class MapExec;
 class MountPropagation;
+class NamespacesToken;
+class UnrestrictedNetworking;
 class UnsafeCoreDumpPtrace;
 class SeccompSpeculation;
 class TraceAllSyscalls;
-class UnrestrictedNetworking;
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
