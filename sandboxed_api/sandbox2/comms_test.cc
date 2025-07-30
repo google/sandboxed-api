@@ -414,7 +414,8 @@ TEST(CommsTest, SendRecvFailsAfterTerminate) {
     int fd;
     EXPECT_THAT(comms->RecvFD(&fd), IsFalse());
     CommsTestMsg msg;
-    EXPECT_THAT(comms->RecvProtoBuf(&msg), IsFalse());
+    EXPECT_THAT(comms->RecvProtoBufWithStatus(&msg),
+                StatusIs(absl::StatusCode::kInternal, "RecvTLV failed"));
   };
   auto b = [](Comms* comms) {};
   HandleCommunication(a, b);
@@ -457,7 +458,9 @@ TEST(CommsTest, RecvFDFailsOnTagMismatch) {
 TEST(CommsTest, RecvProtoBufFailsOnTagMismatch) {
   auto a = [](Comms* comms) {
     CommsTestMsg msg;
-    EXPECT_THAT(comms->RecvProtoBuf(&msg), IsFalse());
+    EXPECT_THAT(comms->RecvProtoBufWithStatus(&msg),
+                StatusIs(absl::StatusCode::kInternal,
+                         "expected tag: 0x80000102, got: 0x2147483904"));
   };
   auto b = [](Comms* comms) {
     ASSERT_THAT(comms->SendString("hello"), IsTrue());

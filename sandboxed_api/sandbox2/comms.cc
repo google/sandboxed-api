@@ -448,20 +448,31 @@ bool Comms::SendFD(int fd) {
 }
 
 bool Comms::RecvProtoBuf(google::protobuf::MessageLite* message) {
+  return RecvProtoBufWithStatus(message).ok();
+}
+
+absl::Status Comms::RecvProtoBufWithStatus(google::protobuf::MessageLite* message) {
   uint32_t tag;
   std::vector<uint8_t> bytes;
   if (!RecvTLV(&tag, &bytes)) {
     if (IsConnected()) {
       SAPI_RAW_LOG(ERROR, "RecvProtoBuf failed for (%s)", name_.c_str());
+      return absl::InternalError(
+          absl::StrFormat("RecvTLV failed for (%s)", name_));
     }
-    return false;
+    return absl::InternalError("RecvTLV failed");
   }
 
   if (tag != kTagProto2) {
     SAPI_RAW_LOG(ERROR, "Expected tag: 0x%x, got: 0x%u", kTagProto2, tag);
-    return false;
+    return absl::InternalError(
+        absl::StrFormat("expected tag: 0x%x, got: 0x%u", kTagProto2, tag));
   }
-  return message->ParseFromArray(bytes.data(), bytes.size());
+  bool ok = message->ParseFromArray(bytes.data(), bytes.size());
+  if (!ok) {
+    return absl::InternalError("failed to parse proto from received bytes");
+  }
+  return absl::OkStatus();
 }
 
 bool Comms::SendProtoBuf(const google::protobuf::MessageLite& message) {
