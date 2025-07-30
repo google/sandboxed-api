@@ -144,12 +144,10 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
         // If compiled arch is different from the runtime one, inform the
         // Monitor.
         LOAD_ARCH,
-        JEQ32(Syscall::GetHostAuditArch(), JUMP(&l, past_arch_check_l)),
 #if defined(SAPI_X86_64)
         JEQ32(AUDIT_ARCH_I386, TRACE(sapi::cpu::kX86)),  // 32-bit sandboxee
 #endif
-        TRACE(sapi::cpu::kUnknown),
-        LABEL(&l, past_arch_check_l),
+        JNE32(Syscall::GetHostAuditArch(), TRACE(sapi::cpu::kUnknown)),
 
         LOAD_SYSCALL_NR,
     };
