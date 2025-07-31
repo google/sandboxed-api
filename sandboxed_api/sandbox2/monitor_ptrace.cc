@@ -239,6 +239,7 @@ void PtraceMonitor::Run() {
   bool sandboxee_exited = false;
   pid_waiter_.SetPriorityPid(process_.main_pid);
   int status;
+  struct rusage rusage;
   // All possible still running children of main process, will be killed due to
   // PTRACE_O_EXITKILL ptrace() flag.
   while (result().final_status() == Result::UNSET) {
@@ -288,7 +289,7 @@ void PtraceMonitor::Run() {
       }
       pid_waiter_.SetDeadline(effective_deadline);
     }
-    pid_t ret = pid_waiter_.Wait(&status);
+    pid_t ret = pid_waiter_.Wait(&status, &rusage);
     if (ret == 0) {
       if (!use_deadline_manager_) {
         constexpr timespec ts = {kWakeUpPeriodSec, kWakeUpPeriodNSec};
@@ -321,6 +322,7 @@ void PtraceMonitor::Run() {
       if (ret == process_.main_pid) {
         if (!wait_for_execveat()) {
           SetExitStatusCode(Result::OK, WEXITSTATUS(status));
+          result_.SetRUsageSandboxee(rusage);
         } else {
           SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_MONITOR);
         }
@@ -334,6 +336,7 @@ void PtraceMonitor::Run() {
       VLOG(1) << "PID: " << ret << " terminated with signal: "
               << util::GetSignalName(WTERMSIG(status));
       if (ret == process_.main_pid) {
+        result_.SetRUsageSandboxee(rusage);
         if (network_violation_) {
           SetExitStatusCode(Result::VIOLATION, Result::VIOLATION_NETWORK);
           result_.SetNetworkViolation(network_proxy_server_->violation_msg_);
@@ -378,7 +381,7 @@ void PtraceMonitor::Run() {
       if (use_deadline_manager_) {
         pid_waiter_.SetDeadline(deadline);
       }
-      pid_t ret = pid_waiter_.Wait(&status);
+      pid_t ret = pid_waiter_.Wait(&status, &rusage);
       if (ret == -1) {
         if (use_deadline_manager_ && errno == EINTR) {
           continue;
@@ -388,11 +391,14 @@ void PtraceMonitor::Run() {
         }
         break;
       }
-      if (!log_stack_traces) {
-        if (ret == process_.main_pid &&
-            (WIFSIGNALED(status) || WIFEXITED(status))) {
+      if (ret == process_.main_pid &&
+          (WIFSIGNALED(status) || WIFEXITED(status))) {
+        result_.SetRUsageSandboxee(rusage);
+        if (!log_stack_traces) {
           break;
         }
+      }
+      if (!log_stack_traces) {
         kill(process_.main_pid, SIGKILL);
       }
 

@@ -30,8 +30,9 @@ namespace {
 
 class OsWaitPid : public PidWaiter::WaitPidInterface {
  public:
-  int WaitPid(pid_t pid, int* status, int flags) override {
-    return waitpid(pid, status, flags);
+  int WaitPid(pid_t pid, int* status, int flags,
+              struct rusage* rusage) override {
+    return wait4(pid, status, flags, rusage);
   }
 };
 
@@ -40,7 +41,7 @@ class OsWaitPid : public PidWaiter::WaitPidInterface {
 PidWaiter::PidWaiter(pid_t priority_pid)
     : PidWaiter(priority_pid, std::make_unique<OsWaitPid>()) {}
 
-int PidWaiter::Wait(int* status) {
+int PidWaiter::Wait(int* status, struct rusage* rusage) {
   RefillStatuses();
 
   if (statuses_.empty()) {
@@ -51,21 +52,25 @@ int PidWaiter::Wait(int* status) {
   }
 
   const auto& entry = statuses_.front();
-  pid_t pid = entry.first;
-  *status = entry.second;
+  pid_t pid = entry.pid;
+  *status = entry.status;
+  if (rusage) {
+    *rusage = entry.rusage;
+  }
   statuses_.pop_front();
   return pid;
 }
 
 bool PidWaiter::CheckStatus(pid_t pid, bool blocking) {
   int status;
+  struct rusage rusage;
   int flags = __WNOTHREAD | __WALL | WUNTRACED;
   if (!blocking) {
     // It should be a non-blocking operation (hence WNOHANG), so this function
     // returns quickly if there are no events to be processed.
     flags |= WNOHANG;
   }
-  pid_t ret = wait_pid_iface_->WaitPid(pid, &status, flags);
+  pid_t ret = wait_pid_iface_->WaitPid(pid, &status, flags, &rusage);
   if (ret < 0) {
     last_errno_ = errno;
     return true;
@@ -73,7 +78,7 @@ bool PidWaiter::CheckStatus(pid_t pid, bool blocking) {
   if (ret == 0) {
     return false;
   }
-  statuses_.emplace_back(ret, status);
+  statuses_.push_back({.pid = ret, .status = status, .rusage = rusage});
   return true;
 }
 

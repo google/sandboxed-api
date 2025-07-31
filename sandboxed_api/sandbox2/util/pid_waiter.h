@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_UTIL_PID_WAITER_H_
 #define SANDBOXED_API_SANDBOX2_UTIL_PID_WAITER_H_
 
+#include <sys/resource.h>
 #include <sys/wait.h>
 
 #include <deque>
@@ -39,7 +40,8 @@ class PidWaiter {
   // Interface for waitpid() to allow mocking it in tests.
   class WaitPidInterface {
    public:
-    virtual int WaitPid(pid_t pid, int* status, int flags) = 0;
+    virtual int WaitPid(pid_t pid, int* status, int flags,
+                        struct rusage* rusage) = 0;
     virtual ~WaitPidInterface() = default;
   };
 
@@ -54,7 +56,7 @@ class PidWaiter {
   // with the status returned by the waitpid() call. It returns 0 if no
   // threads require attention at the moment, or -1 if there was an error, in
   // which case the error value can be found in 'errno'.
-  int Wait(int* status);
+  int Wait(int* status, struct rusage* rusage = nullptr);
 
   void SetPriorityPid(pid_t pid) { priority_pid_ = pid; }
 
@@ -76,11 +78,17 @@ class PidWaiter {
   }
 
  private:
+  struct WaitResult {
+    pid_t pid;
+    int status;
+    struct rusage rusage;
+  };
+
   bool CheckStatus(pid_t pid, bool blocking = false);
   void RefillStatuses();
 
   pid_t priority_pid_;
-  std::deque<std::pair<pid_t, int>> statuses_;
+  std::deque<WaitResult> statuses_;
   std::unique_ptr<WaitPidInterface> wait_pid_iface_;
   int last_errno_ = 0;
   absl::Mutex notify_mutex_;

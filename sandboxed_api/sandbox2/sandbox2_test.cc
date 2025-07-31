@@ -52,6 +52,7 @@ using ::absl_testing::IsOk;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
+using ::testing::Gt;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
@@ -129,6 +130,23 @@ TEST(ExecutorTest, ExecutorFdConstructor) {
 
   EXPECT_THAT(sandbox.IsTerminated(), IsTrue());
   ASSERT_EQ(result.final_status(), Result::OK);
+}
+
+// Test that rusage is returned correctly.
+TEST_P(Sandbox2Test, GetRUsageSandboxee) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  auto executor =
+      std::make_unique<Executor>(path, std::vector<std::string>{path});
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  ASSERT_TRUE(result.GetRUsageSandboxee().has_value());
+  EXPECT_THAT(result.GetRUsageSandboxee()->ru_maxrss, Gt(0));
 }
 
 // Tests that we return the correct state when the sandboxee was killed by an
