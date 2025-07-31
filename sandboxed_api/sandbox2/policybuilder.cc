@@ -87,6 +87,9 @@
 #ifndef MADV_POPULATE_WRITE  // Linux 5.14+
 #define MADV_POPULATE_WRITE 23
 #endif
+#ifndef MADV_COLLAPSE  // Linux 6.1+
+#define MADV_COLLAPSE 25
+#endif
 
 #ifndef PR_SET_VMA
 #define PR_SET_VMA 0x53564d41
@@ -552,6 +555,7 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
                         JEQ32(MADV_HUGEPAGE, ALLOW),
                         JEQ32(MADV_NOHUGEPAGE, ALLOW),
                         JEQ32(MADV_DONTDUMP, ALLOW),
+                        JEQ32(MADV_COLLAPSE, ALLOW),
                     });
 }
 
