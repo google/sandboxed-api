@@ -131,6 +131,8 @@ absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
     return absl::UnavailableError("process_vm_writev: partial success");
   }
 
+  SAPI_RETURN_IF_ERROR(rpc_channel->MarkMemoryInit(GetRemote(), GetSize()));
+
   return absl::OkStatus();
 }
 

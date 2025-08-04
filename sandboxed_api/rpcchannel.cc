@@ -196,4 +196,23 @@ absl::StatusOr<size_t> RPCChannel::Strlen(void* str) {
   return fret.int_val;
 }
 
+absl::Status RPCChannel::MarkMemoryInit(void* addr, size_t size) {
+#ifdef MEMORY_SANITIZER
+  absl::MutexLock lock(&mutex_);
+  comms::ReallocRequest req = {
+      .old_addr = reinterpret_cast<uintptr_t>(addr),
+      .size = size,
+  };
+  if (!comms_->SendTLV(comms::kMsgMarkMemoryInit, sizeof(comms::ReallocRequest),
+                       &req)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  if (!fret.success) {
+    return absl::UnavailableError("MarkMemoryInit() failed on the remote side");
+  }
+#endif
+  return absl::OkStatus();
+}
+
 }  // namespace sapi

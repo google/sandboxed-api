@@ -241,10 +241,6 @@ void HandleAllocMsg(const size_t size, FuncRet* ret) {
   VLOG(1) << "HandleAllocMsg: size=" << size;
 
   const void* allocated = malloc(size);
-  // Memory is copied to the pointer using an API that the memory sanitizer
-  // is blind to (process_vm_writev). Mark the memory as initialized here, so
-  // that the sandboxed code can still be tested using MSAN.
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(allocated, size);
 
   ret->ret_type = v::Type::kPointer;
   ret->int_val = reinterpret_cast<uintptr_t>(allocated);
@@ -257,14 +253,18 @@ void HandleReallocMsg(uintptr_t ptr, size_t size, FuncRet* ret) {
           << ")";
 
   const void* reallocated = realloc(reinterpret_cast<void*>(ptr), size);
-  // Memory is copied to the pointer using an API that the memory sanitizer
-  // is blind to (process_vm_writev). Mark the memory as initialized here, so
-  // that the sandboxed code can still be tested using MSAN.
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(reallocated, size);
 
   ret->ret_type = v::Type::kPointer;
   ret->int_val = reinterpret_cast<uintptr_t>(reallocated);
   ret->success = true;
+}
+
+void HandleMarkMemoryInit(uintptr_t ptr, size_t size, FuncRet* ret) {
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(reinterpret_cast<void*>(ptr), size);
+
+  ret->ret_type = v::Type::kVoid;
+  ret->success = true;
+  ret->int_val = 0ULL;
 }
 
 // Handles requests to free memory previously allocated by HandleAllocMsg() and
@@ -399,6 +399,12 @@ void ServeRequest(sandbox2::Comms* comms) {
       VLOG(1) << "Received Client::kMsgStrlen message";
       HandleStrlen(comms, BytesAs<const char*>(bytes), &ret);
       break;
+    case comms::kMsgMarkMemoryInit:
+      VLOG(1) << "Received Client::kMsgMarkMemoryInit message";
+      {
+        auto req = BytesAs<comms::ReallocRequest>(bytes);
+        HandleMarkMemoryInit(req.old_addr, req.size, &ret);
+      }
       break;
     default:
       LOG(FATAL) << "Received unknown tag: " << tag;

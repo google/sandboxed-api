@@ -43,6 +43,9 @@ class RPCChannel {
   // Reallocates memory.
   absl::Status Reallocate(void* old_addr, size_t size, void** new_addr);
 
+  // Marks the memory as initialized (used with MSAN).
+  absl::Status MarkMemoryInit(void* addr, size_t size);
+
   // Frees memory.
   absl::Status Free(void* addr);
 
