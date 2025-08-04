@@ -81,6 +81,7 @@ class LenVal : public Var {
 
   Array<uint8_t> array_;
   Struct<LenValStruct> struct_;
+  bool struct_synced_ = false;
 };
 
 }  // namespace sapi::v

@@ -42,13 +42,21 @@ absl::Status LenVal::Free(RPCChannel* rpc_channel) {
 absl::Status LenVal::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
   // Sync the structure and the underlying array.
   SAPI_RETURN_IF_ERROR(struct_.TransferToSandboxee(rpc_channel, pid));
+  struct_synced_ = true;
   SAPI_RETURN_IF_ERROR(array_.TransferToSandboxee(rpc_channel, pid));
   return absl::OkStatus();
 }
 
 absl::Status LenVal::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
+  // Array was allocated but it's address never actually sent to remote side.
+  // Deallocate it now to avoid memory leaks.
+  if (!struct_synced_) {
+    SAPI_RETURN_IF_ERROR(array_.Free(rpc_channel));
+  }
+
   // Sync the structure back.
   SAPI_RETURN_IF_ERROR(struct_.TransferFromSandboxee(rpc_channel, pid));
+  struct_synced_ = true;
 
   // Resize the local array if required. Also make sure we own the buffer, this
   // is the only way we can be sure that the buffer is writable.
