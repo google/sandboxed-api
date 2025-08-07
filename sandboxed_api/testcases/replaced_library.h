@@ -20,10 +20,14 @@
 #ifndef SANDBOXED_API_SANDBOX2_TESTCASES_REPLACED_LIBRARY_H_
 #define SANDBOXED_API_SANDBOX2_TESTCASES_REPLACED_LIBRARY_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 #include "absl/strings/string_view.h"
 
+void mylib_scalar_types(int a0, float a1, double a2, int64_t a3, char a4,
+                        bool a5, size_t a6);
 int mylib_add(int x, int y);
 std::string mylib_copy(const std::string& src);
 void mylib_copy(absl::string_view src, std::string& dst);

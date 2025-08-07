@@ -73,11 +73,26 @@ def sort_deps(deps):
     other_deps = [x for x in deps if not x.startswith(":")]
     return sorted(colon_deps) + sorted(other_deps)
 
-def _clang_generator_flags(cc_ctx, cpp_toolchain):
+def _clang_generator_flags(cc_ctx, cpp_toolchain, input_files_paths):
     flags = []
 
-    # TODO(cblichmann): Get language standard from the toolchain
-    flags.append("--extra-arg=-std=c++17")
+    # The gnu compiler is what frequently used in practice,
+    # and it allows to use more langauge extensions (e.g. _Bool type in C).
+    # However, compiling C code with -std=gnu++ does not work,
+    # -std=c++ somehow works for C, and is required to compile mixed C/C++ inputs.
+    # So this is the best we can do.
+    std = "gnu++"
+    for f in input_files_paths:
+        if f.endswith(".c"):
+            std = "c++"
+            break
+
+    # TODO(cblichmann): use the same language standard as the toolchain.
+    # Note: it may be different for different files, but at least we could
+    # infer the max standard version (year) used in the actual compilation.
+    std += "17"
+
+    flags.append("--extra-arg=-std=" + std)
 
     # Disable warnings in parsed code
     flags.append("--extra-arg=-Wno-everything")
@@ -148,15 +163,6 @@ def _sapi_interface_impl(ctx):
     # Append all headers as dependencies
     input_files += cc_ctx.headers.to_list()
 
-    if use_clang_generator:
-        input_files += cpp_toolchain.all_files.to_list()
-        extra_flags += _clang_generator_flags(cc_ctx, cpp_toolchain)
-    else:
-        append_all(extra_flags, "-D", cc_ctx.defines.to_list())
-        append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
-        append_all(extra_flags, "-iquote", cc_ctx.quote_includes.to_list())
-        append_all(extra_flags, "-I", cc_ctx.includes.to_list())
-
     if ctx.attr.input_files:
         for f in ctx.files.input_files:
             input_files.append(f)
@@ -164,6 +170,15 @@ def _sapi_interface_impl(ctx):
     else:
         # Try to find files automatically
         input_files_paths += _lib_direct_headers(ctx.attr.lib, cc_ctx)
+
+    if use_clang_generator:
+        input_files += cpp_toolchain.all_files.to_list()
+        extra_flags += _clang_generator_flags(cc_ctx, cpp_toolchain, input_files_paths)
+    else:
+        append_all(extra_flags, "-D", cc_ctx.defines.to_list())
+        append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
+        append_all(extra_flags, "-iquote", cc_ctx.quote_includes.to_list())
+        append_all(extra_flags, "-I", cc_ctx.includes.to_list())
 
     if use_clang_generator:
         args += extra_flags + input_files_paths
@@ -603,8 +618,9 @@ def _sandboxed_library_gen_impl(ctx):
     args.append("--host_src_out={}".format(ctx.outputs.host_src_out.path))
     args.append("--sapi_out={}".format(ctx.attr.sapi_hdr))
     args.append("--sapi_limit_scan_depth")
-    args += _clang_generator_flags(cc_ctx, cpp_toolchain)
-    args += _lib_direct_headers(ctx.attr.lib, cc_ctx)
+    input_files_paths = _lib_direct_headers(ctx.attr.lib, cc_ctx)
+    args += _clang_generator_flags(cc_ctx, cpp_toolchain, input_files_paths)
+    args += input_files_paths
 
     progress_msg = "Generating sandboxed library {}.".format(ctx.attr.lib_name)
     ctx.actions.run(
