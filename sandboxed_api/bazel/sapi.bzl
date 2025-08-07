@@ -73,8 +73,30 @@ def sort_deps(deps):
     other_deps = [x for x in deps if not x.startswith(":")]
     return sorted(colon_deps) + sorted(other_deps)
 
-def _clang_generator_flags(cc_ctx, cpp_toolchain, input_files_paths):
+def _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths):
     flags = []
+
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cpp_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features + ["module_maps"],
+    )
+    compile_variables = cc_common.create_compile_variables(
+        cc_toolchain = cpp_toolchain,
+        feature_configuration = feature_configuration,
+    )
+    default_copts = cc_common.get_memory_inefficient_command_line(
+        feature_configuration = feature_configuration,
+        action_name = "c++-compile",
+        variables = compile_variables,
+    )
+
+    # Use the defines that would be used by the toolchain normally for C++ compilation.
+    # Add them first so that they are overridden by the user's copts.
+    for copt in default_copts:
+        if copt.startswith("-D"):
+            flags.append("--extra-arg=" + copt)
 
     # The gnu compiler is what frequently used in practice,
     # and it allows to use more langauge extensions (e.g. _Bool type in C).
@@ -173,7 +195,7 @@ def _sapi_interface_impl(ctx):
 
     if use_clang_generator:
         input_files += cpp_toolchain.all_files.to_list()
-        extra_flags += _clang_generator_flags(cc_ctx, cpp_toolchain, input_files_paths)
+        extra_flags += _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths)
     else:
         append_all(extra_flags, "-D", cc_ctx.defines.to_list())
         append_all(extra_flags, "-isystem", cc_ctx.system_includes.to_list())
@@ -200,6 +222,7 @@ def _sapi_interface_impl(ctx):
 # Build rule that generates SAPI interface.
 sapi_interface = rule(
     implementation = _sapi_interface_impl,
+    fragments = ["cpp"],
     attrs = {
         "out": attr.output(mandatory = True),
         "embed_dir": attr.string(),
@@ -619,7 +642,7 @@ def _sandboxed_library_gen_impl(ctx):
     args.append("--sapi_out={}".format(ctx.attr.sapi_hdr))
     args.append("--sapi_limit_scan_depth")
     input_files_paths = _lib_direct_headers(ctx.attr.lib, cc_ctx)
-    args += _clang_generator_flags(cc_ctx, cpp_toolchain, input_files_paths)
+    args += _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths)
     args += input_files_paths
 
     progress_msg = "Generating sandboxed library {}.".format(ctx.attr.lib_name)
@@ -635,6 +658,7 @@ def _sandboxed_library_gen_impl(ctx):
 # Build rule that generates SAPI interface.
 _sandboxed_library_gen = rule(
     implementation = _sandboxed_library_gen_impl,
+    fragments = ["cpp"],
     attrs = {
         "lib": attr.label(providers = [CcInfo]),
         "lib_name": attr.string(),

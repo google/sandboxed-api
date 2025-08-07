@@ -38,11 +38,5 @@ cc_sandboxed_library_test(
     srcs = ["replaced_library_test.cc"],
     lib = ":replaced_library",
     sandboxed_lib = ":replacement_library",
-    # TSan/MSan may change ABI and name mangling, but the clang tool is not invoked
-    # correctly (the same way as the actual build) and produces wrong symbol names.
-    tags = [
-        "nomsan",
-        "notsan",
-    ],
     deps = ["@googletest//:gtest_main"],
 )
