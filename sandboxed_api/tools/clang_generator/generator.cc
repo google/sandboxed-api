@@ -148,8 +148,9 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
     return true;
   }
 
-  // Skip C++ functions unless generating a symbol list.
-  if (!decl->isExternC() && !options_.symbol_list_gen) {
+  // Skip C++ functions in some modes.
+  if (!decl->isExternC() && !options_.symbol_list_gen &&
+      !options_.sandboxed_library_gen) {
     return true;
   }
 

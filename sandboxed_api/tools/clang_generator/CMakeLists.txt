@@ -29,6 +29,8 @@ add_library(sapi_generator
   generator.h
   generator.cc
   includes.h
+  sandboxed_library_emitter.h
+  sandboxed_library_emitter.cc
   symbol_list_emitter.h
   symbol_list_emitter.cc
   types.h

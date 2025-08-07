@@ -30,6 +30,7 @@
 #include "sandboxed_api/tools/clang_generator/compilation_database.h"
 #include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 #include "sandboxed_api/tools/clang_generator/symbol_list_emitter.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
@@ -104,6 +105,29 @@ absl::NoDestructor<llvm::cl::opt<bool>> g_symbol_list_gen(
                    "library."),
     llvm::cl::cat(*g_tool_category));
 
+absl::NoDestructor<llvm::cl::opt<bool>> g_sandboxed_library_gen(
+    "sandboxed_library_gen",
+    llvm::cl::desc("Whether to generate a sandboxed library."),
+    llvm::cl::cat(*g_tool_category));
+
+absl::NoDestructor<llvm::cl::opt<std::string>> g_sandboxee_hdr_out(
+    "sandboxee_hdr_out",
+    llvm::cl::desc("Output path of the generated sandboxed library sandboxee "
+                   "header file."),
+    llvm::cl::cat(*g_tool_category));
+
+absl::NoDestructor<llvm::cl::opt<std::string>> g_sandboxee_src_out(
+    "sandboxee_src_out",
+    llvm::cl::desc("Output path of the generated sandboxed library sandboxee "
+                   "source file."),
+    llvm::cl::cat(*g_tool_category));
+
+absl::NoDestructor<llvm::cl::opt<std::string>> g_host_src_out(
+    "host_src_out",
+    llvm::cl::desc(
+        "Output path of the generated sandboxed library host source file."),
+    llvm::cl::cat(*g_tool_category));
+
 }  // namespace
 
 GeneratorOptions GeneratorOptionsFromFlags(
@@ -125,6 +149,7 @@ GeneratorOptions GeneratorOptionsFromFlags(
   options.embed_dir = *g_sapi_embed_dir;
   options.embed_name = *g_sapi_embed_name;
   options.symbol_list_gen = *g_symbol_list_gen;
+  options.sandboxed_library_gen = *g_sandboxed_library_gen;
   return options;
 }
 
@@ -170,6 +195,28 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
     SAPI_ASSIGN_OR_RETURN(std::string header, emitter.Emit(options));
     SAPI_RETURN_IF_ERROR(
         file::SetContents(options.out_file, header, file::Defaults()));
+    return absl::OkStatus();
+  }
+
+  if (options.sandboxed_library_gen) {
+    SandboxedLibraryEmitter emitter;
+    if (int result = tool.run(
+            std::make_unique<GeneratorFactory>(&emitter, &options).get());
+        result != 0) {
+      return absl::UnknownError("Error: Header generation failed.");
+    }
+
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_hdr,
+                          emitter.EmitSandboxeeHdr(options));
+    SAPI_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_hdr_out, sandboxee_hdr,
+                                           file::Defaults()));
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_src,
+                          emitter.EmitSandboxeeSrc(options));
+    SAPI_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_src_out, sandboxee_src,
+                                           file::Defaults()));
+    SAPI_ASSIGN_OR_RETURN(std::string host_src, emitter.EmitHostSrc(options));
+    SAPI_RETURN_IF_ERROR(
+        file::SetContents(*g_host_src_out, host_src, file::Defaults()));
     return absl::OkStatus();
   }
 

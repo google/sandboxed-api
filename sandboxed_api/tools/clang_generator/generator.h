@@ -66,6 +66,7 @@ struct GeneratorOptions {
   absl::flat_hash_set<std::string> in_files;
   bool limit_scan_depth = false;
   bool symbol_list_gen = false;
+  bool sandboxed_library_gen = false;
 
   // Output options
   std::string work_dir;
