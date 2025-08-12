@@ -61,7 +61,7 @@ absl::Status NetworkProxyClient::Connect(int sockfd,
 
 absl::StatusOr<FDCloser> NetworkProxyClient::ConnectInternal(
     const struct sockaddr* addr, socklen_t addrlen) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   // Send sockaddr struct
   if (!comms_.SendBytes(reinterpret_cast<const uint8_t*>(addr), addrlen)) {
     errno = EIO;
