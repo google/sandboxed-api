@@ -182,7 +182,7 @@ void PtraceMonitor::NotifyMonitor() {
   if (use_deadline_manager_) {
     pid_waiter_.Notify();
   } else {
-    absl::MutexLock lock(thread_mutex_);
+    absl::MutexLock lock(&thread_mutex_);
     if (thread_.IsJoinable()) {
       pthread_kill(thread_.handle(), SIGCHLD);
     }
@@ -190,7 +190,7 @@ void PtraceMonitor::NotifyMonitor() {
 }
 
 void PtraceMonitor::Join() {
-  absl::MutexLock lock(thread_mutex_);
+  absl::MutexLock lock(&thread_mutex_);
   if (thread_.IsJoinable()) {
     thread_.Join();
     CHECK(IsDone()) << "Monitor did not terminate";
@@ -201,7 +201,7 @@ void PtraceMonitor::Join() {
 
 void PtraceMonitor::RunInternal() {
   {
-    absl::MutexLock lock(thread_mutex_);
+    absl::MutexLock lock(&thread_mutex_);
     thread_ = sapi::Thread(this, &PtraceMonitor::Run, "sandbox2-Monitor");
   }
 
