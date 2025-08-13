@@ -159,9 +159,10 @@ bool PtraceMonitor::KillSandboxee() {
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
     return false;
   }
-  constexpr absl::Duration kGracefullKillTimeout = absl::Milliseconds(1000);
   if (hard_deadline_ == absl::InfiniteFuture()) {
-    hard_deadline_ = absl::Now() + kGracefullKillTimeout;
+    hard_deadline_ =
+        absl::Now() +
+        absl::GetFlag(FLAGS_sandbox2_monitor_ptrace_graceful_kill_timeout);
   }
   return true;
 }

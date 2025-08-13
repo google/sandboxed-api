@@ -70,6 +70,8 @@ ABSL_DECLARE_FLAG(bool, sandbox2_log_all_stack_traces);
 ABSL_DECLARE_FLAG(bool, sandbox2_monitor_ptrace_use_deadline_manager);
 ABSL_DECLARE_FLAG(bool, sandbox2_log_unobtainable_stack_traces_errors);
 ABSL_DECLARE_FLAG(absl::Duration, sandbox2_stack_traces_collection_timeout);
+ABSL_DECLARE_FLAG(absl::Duration,
+                  sandbox2_monitor_ptrace_graceful_kill_timeout);
 
 // sandbox2:global_forkserver
 ABSL_DECLARE_FLAG(std::string, sandbox2_forkserver_binary_path);

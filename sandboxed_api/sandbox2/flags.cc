@@ -45,6 +45,10 @@ ABSL_FLAG(absl::Duration, sandbox2_stack_traces_collection_timeout,
           "How much time should be spent on logging threads' stack traces on "
           "monitor shut down. Only relevent when collection of all stack "
           "traces is enabled.");
+ABSL_FLAG(absl::Duration, sandbox2_monitor_ptrace_graceful_kill_timeout,
+          absl::Seconds(1),
+          "Timeout after SIGKILL is sent to the sandboxee until the monitor "
+          "stops and the sandboxee is terminated via PTRACE_O_EXITKILL");
 
 // sandbox2:policy
 ABSL_FLAG(bool, sandbox2_danger_danger_permit_all, false,
