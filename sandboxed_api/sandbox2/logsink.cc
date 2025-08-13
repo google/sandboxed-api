@@ -36,7 +36,7 @@ LogSink::LogSink(int fd) : comms_(fd) { absl::AddLogSink(this); }
 LogSink::~LogSink() { absl::RemoveLogSink(this); }
 
 void LogSink::Send(const absl::LogEntry& e) {
-  absl::MutexLock l(&lock_);
+  absl::MutexLock l(lock_);
 
   LogMessage msg;
   msg.set_severity(static_cast<int>(e.log_severity()));
