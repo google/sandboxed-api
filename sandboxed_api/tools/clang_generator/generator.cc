@@ -315,6 +315,18 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_reduce_mul_d512=[](auto)->long long{return 0;}",
            "__builtin_ia32_reduce_mul_q512=[](auto)->long long{return 0;}",
 
+           // Replaced with __builtin_elementwise_fma
+           "__builtin_ia32_vfmaddps=",
+           "__builtin_ia32_vfmaddpd=",
+           "__builtin_ia32_vfmaddph=",
+           "__builtin_ia32_vfmaddps256=",
+           "__builtin_ia32_vfmaddpd256=",
+           "__builtin_ia32_vfmaddph256=",
+           "__builtin_ia32_vfmaddbf16=",
+           "__builtin_ia32_vfmaddbf16128=",
+           "__builtin_ia32_vfmaddbf16256=",
+           "__builtin_ia32_vfmaddbf16512=",
+
            // SSE2
            "__builtin_ia32_cvtpd2pi=[](auto)->long long{return 0;}",
            "__builtin_ia32_cvtpi2pd=[](auto) -> __m128{return {0, 0, 0, 0};}",
