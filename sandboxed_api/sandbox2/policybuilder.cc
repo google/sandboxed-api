@@ -303,6 +303,24 @@ PolicyBuilder& PolicyBuilder::AllowInotifyInit() {
   });
 }
 
+PolicyBuilder& PolicyBuilder::AllowInotify() {
+  return AllowSyscalls({
+#ifdef __NR_inotify_init
+      __NR_inotify_init,
+#endif
+#ifdef __NR_inotify_init1
+      __NR_inotify_init1,
+#endif
+#ifdef __NR_inotify_add_watch
+      __NR_inotify_add_watch,
+#endif
+#ifdef __NR_inotify_rm_watch
+      __NR_inotify_rm_watch,
+#endif
+      __NR_close,
+  });
+}
+
 PolicyBuilder& PolicyBuilder::AllowSelect() {
   return AllowSyscalls({
 #ifdef __NR_select

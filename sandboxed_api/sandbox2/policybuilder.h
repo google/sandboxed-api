@@ -239,6 +239,16 @@ class PolicyBuilder final {
   // - inotify_init1
   PolicyBuilder& AllowInotifyInit();
 
+  // Appends code to allow the inotify API.
+  //
+  // Allows these syscalls:
+  // - inotify_init
+  // - inotify_init1
+  // - inotify_add_watch
+  // - inotify_rm_watch
+  // - close
+  PolicyBuilder& AllowInotify();
+
   // Appends code to allow synchronous I/O multiplexing.
   //
   // Allows these syscalls:
