@@ -13,8 +13,8 @@
 # limitations under the License.
 
 FetchContent_Declare(absl
-  URL https://github.com/abseil/abseil-cpp/archive/e4c43850ad008b362b53622cb3c88fd915d8f714.zip # 2025-05-23
-  URL_HASH SHA256=00d20e61e2d5dfe86dee88d70897fcdbe593696dfc8ac162873b5fce718557ae
+  URL https://github.com/abseil/abseil-cpp/releases/download/20250814.0/abseil-cpp-20250814.0.tar.gz
+  URL_HASH SHA256=9b2b72d4e8367c0b843fa2bcfa2b08debbe3cee34f7aaa27de55a6cbb3e843db
 )
 set(ABSL_CXX_STANDARD ${SAPI_CXX_STANDARD} CACHE STRING "" FORCE)
 set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
