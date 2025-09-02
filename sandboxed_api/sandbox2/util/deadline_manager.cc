@@ -69,7 +69,7 @@ void DeadlineRegistration::SetDeadline(absl::Time deadline) {
 void DeadlineRegistration::ExecuteBlockingSyscall(
     absl::FunctionRef<void()> blocking_fn) {
   {
-    absl::MutexLock lock(&data_->mutex);
+    absl::MutexLock lock(data_->mutex);
     data_->tid = util::Syscall(__NR_gettid);
     if (data_->notification_attempt > 0 || data_->deadline <= absl::Now()) {
       return;
@@ -78,7 +78,7 @@ void DeadlineRegistration::ExecuteBlockingSyscall(
   }
   blocking_fn();
   {
-    absl::MutexLock lock(&data_->mutex);
+    absl::MutexLock lock(data_->mutex);
     data_->in_blocking_fn = false;
   }
 }
@@ -90,11 +90,11 @@ DeadlineManager::DeadlineManager(absl::string_view name) {
 
 DeadlineManager::~DeadlineManager() {
   {
-    absl::MutexLock lock(&registration_mutex_);
+    absl::MutexLock lock(registration_mutex_);
     CHECK_EQ(registered_deadlines_, 0);
   }
   {
-    absl::MutexLock lock(&queue_mutex_);
+    absl::MutexLock lock(queue_mutex_);
     cancelled_ = true;
   }
   if (thread_.IsJoinable()) {
@@ -106,9 +106,9 @@ void DeadlineManager::SignalHandler(int signal) {}
 
 void DeadlineManager::AdjustDeadline(DeadlineRegistration& registration,
                                      absl::Time deadline) {
-  absl::MutexLock lock(&queue_mutex_);
+  absl::MutexLock lock(queue_mutex_);
   queue_.erase(registration.data_.get());
-  absl::MutexLock data_lock(&registration.data_->mutex);
+  absl::MutexLock data_lock(registration.data_->mutex);
   registration.data_->notification_attempt = 0;
   registration.data_->deadline = RoundUpTo(deadline, kResolution);
   if (deadline != absl::InfiniteFuture()) {
@@ -161,7 +161,7 @@ void DeadlineManager::Run() {
     return (!queue_.empty() && next_deadline != (*queue_.begin())->deadline) ||
            cancelled_;
   };
-  absl::MutexLock lock(&queue_mutex_);
+  absl::MutexLock lock(queue_mutex_);
   while (!cancelled_) {
     next_deadline = absl::InfiniteFuture();
     if (!queue_.empty()) {
@@ -175,7 +175,7 @@ void DeadlineManager::Run() {
     while (!queue_.empty() && (*queue_.begin())->deadline <= next_deadline) {
       DeadlineRegistration::Data* entry = *queue_.begin();
       queue_.erase(queue_.begin());
-      absl::MutexLock lock(&entry->mutex);
+      absl::MutexLock lock(entry->mutex);
       if (++entry->notification_attempt > kFailedNotificationsThreshold) {
         VerifySignalHandler();
       }

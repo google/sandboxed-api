@@ -86,7 +86,7 @@ void PidWaiter::RefillStatuses() {
   constexpr int kMaxIterations = 1000;
   constexpr int kPriorityCheckPeriod = 100;
   absl::Cleanup notify = [this] {
-    absl::MutexLock lock(&notify_mutex_);
+    absl::MutexLock lock(notify_mutex_);
     notified_ = false;
   };
   if (!statuses_.empty()) {
@@ -105,7 +105,7 @@ void PidWaiter::RefillStatuses() {
   if (statuses_.empty()) {
     DeadlineRegistration* deadline_registration = nullptr;
     {
-      absl::MutexLock lock(&notify_mutex_);
+      absl::MutexLock lock(notify_mutex_);
       if (deadline_ == absl::InfinitePast() || notified_) {
         return;
       }
