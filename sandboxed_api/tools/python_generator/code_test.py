@@ -473,7 +473,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
     names = [t._clang_type.spelling for t in generator._get_related_types()]
     self.assertEqual(
-        names, ['struct_6', 'struct_6p', 'function_p3', 'struct_6_def']
+        names, ['struct_6_def', 'struct_6', 'struct_6p', 'function_p3']
     )
 
     # Extra check for generation, in case rendering throws error for this test.

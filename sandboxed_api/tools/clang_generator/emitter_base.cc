@@ -109,10 +109,13 @@ std::string PrintRecordTemplateArguments(const clang::CXXRecordDecl* record) {
 }
 
 // Serializes the given Clang AST declaration back into compilable source code.
-std::string PrintDecl(const clang::Decl* decl) {
+std::string PrintDecl(const clang::Decl* decl,
+                      bool IncludeTagDefinition = false) {
   std::string pretty;
   llvm::raw_string_ostream os(pretty);
-  decl->print(os);
+  clang::PrintingPolicy policy = decl->getASTContext().getPrintingPolicy();
+  policy.IncludeTagDefinition = IncludeTagDefinition;
+  decl->print(os, policy);
   return pretty;
 }
 
@@ -181,7 +184,7 @@ std::string GetSpelling(const clang::Decl* decl) {
       //  - types without no user-defined methods (including constructors)
       if (record_decl->hasDefinition() && record_decl->isAggregate() &&
           (record_decl->isPOD() || record_decl->methods().empty())) {
-        return PrintDecl(decl);
+        return PrintDecl(decl, /*IncludeTagDefinition=*/true);
       }
 
       // Remaining declarations that are:

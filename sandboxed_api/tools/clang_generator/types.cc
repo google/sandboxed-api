@@ -144,7 +144,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   // - Nested types are skipped and the enclosing type is collected which is
   //   enough to reconstruct the AST when emitting the SAPI header.
   if (const auto* record_type = qual->getAs<clang::RecordType>()) {
-    const clang::RecordDecl* decl = record_type->getDecl();
+    const clang::RecordDecl* decl = record_type->getOriginalDecl();
     if (!IsProtoBuf(decl)) {
       for (const clang::FieldDecl* field : decl->fields()) {
         CollectRelatedTypes(field->getType());
@@ -152,7 +152,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     }
     const clang::RecordDecl* outer = decl->getOuterLexicalRecordContext();
     decl = outer ? outer : decl;
-    collected_.insert(clang::QualType(decl->getTypeForDecl(), /*Quals=*/0));
+    collected_.insert(decl->getASTContext().getCanonicalTagType(decl));
   }
 
   // For TypedefType; Collect the underlying type.
@@ -205,8 +205,10 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   // For Enumtype, recursively call CollectRelatedTypes to collect the
   // underlying integer type of enum classes as well, as it may be a typedef.
   if (qual->isEnumeralType()) {
+    qual = qual.getCanonicalType();
     if (const clang::EnumType* enum_type = qual->getAs<clang::EnumType>()) {
-      if (const clang::EnumDecl* decl = enum_type->getDecl(); decl->isFixed()) {
+      if (const clang::EnumDecl* decl = enum_type->getOriginalDecl();
+          decl->isFixed()) {
         CollectRelatedTypes(decl->getIntegerType());
       }
     }
@@ -417,9 +419,10 @@ std::string TypeMapper::MapQualType(clang::QualType qual) const {
         break;
     }
   } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
-    clang::EnumDecl* enum_decl = enum_type->getDecl();
+    clang::EnumDecl* enum_decl = enum_type->getOriginalDecl();
     if (auto* typedef_decl = enum_decl->getTypedefNameForAnonDecl()) {
-      qual = typedef_decl->getUnderlyingType().getDesugaredType(context_);
+      qual = context_.getTypedefType(clang::ElaboratedTypeKeyword::None,
+                                     /*Qualifier=*/std::nullopt, typedef_decl);
     }
     return absl::StrCat("::sapi::v::IntBase<",
                         GetFullyQualifiedName(context_, qual, ns_to_strip_),

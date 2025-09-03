@@ -251,6 +251,10 @@ class Type(object):
     # type: () -> Type
     return Type(self._tu, self._clang_type.get_pointee())
 
+  def get_canonical(self):
+    # type: () -> Type
+    return Type(self._tu, self._clang_type.get_canonical())
+
   def _get_declaration(self):
     # type: () -> cindex.Cursor
     decl = self._clang_type.get_declaration()
@@ -334,7 +338,7 @@ class Type(object):
     decl = self._get_declaration()
     if not decl.is_anonymous() and not skip_self:
       self._tu.search_for_macro_name(decl)
-      result.add(self)
+      result.add(self.get_canonical())
 
     for f in self._clang_type.get_fields():
       self._tu.search_for_macro_name(f)
