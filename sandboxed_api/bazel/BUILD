@@ -62,6 +62,7 @@ bzl_library(
         ":proto_bzl",
         "@bazel_tools//tools/cpp:toolchain_utils.bzl",
         "@rules_cc//cc:core_rules",
+        "@rules_cc//cc/common",
     ],
 )
 
