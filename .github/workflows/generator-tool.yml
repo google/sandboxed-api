@@ -6,14 +6,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: debian:10.13
+    container: debian:12.11
     steps:
     - uses: actions/checkout@v3
 
     - name: Cache dependencies
       uses: actions/cache@v3
       with:
-        key: debian-10.13-clang20
+        key: debian-12.11-clang20
         path: |
           ${{github.workspace}}/build/_deps
 
@@ -29,6 +29,7 @@ jobs:
             git \
             gnupg \
             libc6-dev \
+            libzstd-dev \
             lsb-release \
             make \
             ninja-build \
