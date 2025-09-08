@@ -127,7 +127,7 @@ def _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths):
 
 def _lib_direct_headers(lib, cc_ctx):
     headers = []
-    for h in cc_ctx.direct_headers:
+    for h in cc_ctx.direct_public_headers:
         if h.extension != "h" or "/PROTECTED/" in h.path:
             continue
 
