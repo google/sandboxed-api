@@ -15,7 +15,6 @@
 # Description: Sandboxed API reimplementation of zlib's zpipe.c example.
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
@@ -33,7 +32,7 @@ sapi_library(
         "deflateEnd",
     ],
     generator_version = 1,
-    lib = "@net_zlib//:zlib",
+    lib = "@zlib//:zlib",
     lib_name = "Zlib",
     namespace = "sapi::zlib",
 )
@@ -60,8 +59,6 @@ cc_binary(
 sh_test(
     name = "main_zlib_test",
     srcs = ["main_zlib_test.sh"],
-    data = [
-        ":main_zlib",
-    ],
+    data = [":main_zlib"],
     tags = ["notsan"],
 )

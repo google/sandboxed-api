@@ -45,6 +45,6 @@ cc_binary(
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
     deps = [
-        "@net_zlib//:zlib",
+        "@zlib",
     ],
 )

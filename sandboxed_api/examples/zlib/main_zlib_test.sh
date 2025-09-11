@@ -30,7 +30,7 @@ echo "aaaa" | "$BIN" || die 'FAILED: it should have exited with 0'
 
 echo "This is a test string" | "$BIN" | \
   sha256sum --status -c \
-  <(echo 'fce569e9578b5aa56d9543866fea0beaed83c4959c898dbe4c31a543cd3ffe2b  -') || \
+  <(echo '030ac8adfa86cd729493f25333642ca605463c8d37fe6fa822e3a43829872b31  -') || \
   die 'FAILED: it should match the golden SHA256'
 
 echo 'PASS'
