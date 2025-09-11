@@ -60,6 +60,8 @@
     "https://bcr.bazel.build/modules/jsoncpp/1.9.5/MODULE.bazel": "31271aedc59e815656f5736f282bb7509a97c7ecb43e927ac1a37966e0578075",
     "https://bcr.bazel.build/modules/jsoncpp/1.9.6/MODULE.bazel": "2f8d20d3b7d54143213c4dfc3d98225c42de7d666011528dc8fe91591e2e17b0",
     "https://bcr.bazel.build/modules/jsoncpp/1.9.6/source.json": "a04756d367a2126c3541682864ecec52f92cdee80a35735a3cb249ce015ca000",
+    "https://bcr.bazel.build/modules/libcap/2.27/MODULE.bazel": "93bf71fa6c6d61fed82bac65c9287619fed2720ea7e89614e57ecebbb5c3c619",
+    "https://bcr.bazel.build/modules/libcap/2.27/source.json": "f6a3a6e56d9c99b86b789d9e51654bc6fe84db7dbae46eb404581179afc03b4b",
     "https://bcr.bazel.build/modules/libffi/3.4.7/MODULE.bazel": "837dff6a386f4e91e1078e3b16802ebea919893f08eee4d6a1d85aa7040a0b13",
     "https://bcr.bazel.build/modules/libffi/3.4.7/source.json": "9eafb305e9f5719b29d9fce1fe4bc03fa13724b88e6bf7925993f1ba2b128ab3",
     "https://bcr.bazel.build/modules/libpfm/4.11.0/MODULE.bazel": "45061ff025b301940f1e30d2c16bea596c25b176c8b6b3087e92615adbd52902",
@@ -110,7 +112,6 @@
     "https://bcr.bazel.build/modules/rules_cc/0.0.8/MODULE.bazel": "964c85c82cfeb6f3855e6a07054fdb159aced38e99a5eecf7bce9d53990afa3e",
     "https://bcr.bazel.build/modules/rules_cc/0.0.9/MODULE.bazel": "836e76439f354b89afe6a911a7adf59a6b2518fafb174483ad78a2a2fde7b1c5",
     "https://bcr.bazel.build/modules/rules_cc/0.1.1/MODULE.bazel": "2f0222a6f229f0bf44cd711dc13c858dad98c62d52bd51d8fc3a764a83125513",
-    "https://bcr.bazel.build/modules/rules_cc/0.1.2/MODULE.bazel": "557ddc3a96858ec0d465a87c0a931054d7dcfd6583af2c7ed3baf494407fd8d0",
     "https://bcr.bazel.build/modules/rules_cc/0.2.0/MODULE.bazel": "b5c17f90458caae90d2ccd114c81970062946f49f355610ed89bebf954f5783c",
     "https://bcr.bazel.build/modules/rules_cc/0.2.0/source.json": "5f7f4e578e950adbf194217d4b607237a8197fc53ba46c367b3d61a86ecf35c2",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.10.1/MODULE.bazel": "b9527010e5fef060af92b6724edb3691970a5b1f76f74b21d39f7d433641be60",
@@ -196,7 +197,7 @@
     "//sandboxed_api/bazel:llvm_config.bzl%llvm": {
       "general": {
         "bzlTransitiveDigest": "8xpuNbiHRJ6JhhTWTOuw+qBZRwDuivwU+elNsBmm4yk=",
-        "usagesDigest": "8dFc1w0+l2H6JlobzqIkaYP5BSlpTtPt3I3rPfdc9yE=",
+        "usagesDigest": "NC2hGiWtQuERWECDL4ez8Z83pJf3Z7yQHlluT1ZBWHM=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

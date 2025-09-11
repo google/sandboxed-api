@@ -646,7 +646,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@org_kernel_libcap//:libcap",
+        "@libcap",
     ],
 )
 
