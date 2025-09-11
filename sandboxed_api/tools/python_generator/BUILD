@@ -18,19 +18,19 @@ load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 licenses(["notice"])
 
 py_library(
-    name = "code",
-    srcs = ["code.py"],
+    name = "sapi_code",
+    srcs = ["sapi_code.py"],
 )
 
 py_test(
-    name = "code_test",
+    name = "sapi_code_test",
     size = "small",
     srcs = [
-        "code_test.py",
-        "code_test_util.py",
+        "sapi_code_test.py",
+        "sapi_code_test_util.py",
     ],
     deps = [
-        ":code",
+        ":sapi_code",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
     ],
@@ -41,7 +41,7 @@ py_binary(
     srcs = ["sapi_generator.py"],
     visibility = ["//visibility:public"],
     deps = [
-        ":code",
+        ":sapi_code",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
         "@abseil-py//absl/logging",

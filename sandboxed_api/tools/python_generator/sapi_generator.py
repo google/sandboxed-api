@@ -24,7 +24,7 @@ from absl import flags
 from absl import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from sandboxed_api.tools.python_generator import code
+from sandboxed_api.tools.python_generator import sapi_code
 
 FLAGS = flags.FLAGS
 
@@ -56,10 +56,10 @@ def main(c_flags):
   c_flags.pop(0)
   logging.debug(FLAGS.sapi_functions)
   extract_includes(FLAGS.sapi_isystem, c_flags)
-  tus = code.Analyzer.process_files(
+  tus = sapi_code.Analyzer.process_files(
       FLAGS.sapi_in, c_flags, FLAGS.sapi_limit_scan_depth, FLAGS.sapi_functions
   )
-  generator = code.Generator(tus)
+  generator = sapi_code.Generator(tus)
   result = generator.generate(
       FLAGS.sapi_name,
       FLAGS.sapi_ns,

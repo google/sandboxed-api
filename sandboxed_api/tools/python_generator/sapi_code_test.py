@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for code."""
+"""Tests for sapi_code."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -20,7 +20,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 from clang import cindex
 from com_google_sandboxed_api.sandboxed_api.tools.python_generator import code
-from com_google_sandboxed_api.sandboxed_api.tools.python_generator import code_test_util
+from com_google_sandboxed_api.sandboxed_api.tools.python_generator import sapi_code_test_util
 
 CODE = """
 typedef int(fun*)(int,int);
@@ -44,7 +44,7 @@ def analyze_strings(
     path, unsaved_files, limit_scan_depth=False, func_names=None
 ):
   """Returns Analysis object for in memory content."""
-  return code.Analyzer._analyze_file_for_tu(
+  return sapi_code.Analyzer._analyze_file_for_tu(
       path, None, False, unsaved_files, limit_scan_depth, func_names
   )
 
@@ -117,7 +117,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     translation_unit = analyze_string(function_body)
     for cursor in translation_unit._walk_preorder():
       if cursor.kind == cindex.CursorKind.FUNCTION_DECL:
-        fn = code.Function(translation_unit, cursor)
+        fn = sapi_code.Function(translation_unit, cursor)
         fn.get_absolute_path = lambda: path
         self.assertEqual(fn.get_include_path(prefix), expected)
 
@@ -143,16 +143,20 @@ class CodeAnalysisTest(parameterized.TestCase):
         'types_5',
         'types_6',
     ]
-    generator = code.Generator([analyze_string(body, func_names=functions)])
+    generator = sapi_code.Generator(
+        [analyze_string(body, func_names=functions)]
+    )
     result = generator.generate('Test', 'sapi::Tests', None, None)
-    self.assertMultiLineEqual(code_test_util.CODE_GOLD, result)
+    self.assertMultiLineEqual(sapi_code_test_util.CODE_GOLD, result)
 
   def testElaboratedArgument(self):
     body = """
       struct x { int a; };
       extern "C" int function(struct x a) { return a.a; }
     """
-    generator = code.Generator([analyze_string(body, func_names=['function'])])
+    generator = sapi_code.Generator(
+        [analyze_string(body, func_names=['function'])]
+    )
     with self.assertRaisesRegex(ValueError, r'Elaborate.*mapped.*'):
       generator.generate('Test', 'sapi::Tests', None, None)
 
@@ -161,7 +165,9 @@ class CodeAnalysisTest(parameterized.TestCase):
       typedef struct { int a; char b; } x;
       extern "C" int function(x a) { return a.a; }
     """
-    generator = code.Generator([analyze_string(body, func_names=['function'])])
+    generator = sapi_code.Generator(
+        [analyze_string(body, func_names=['function'])]
+    )
     with self.assertRaisesRegex(ValueError, r'Elaborate.*mapped.*'):
       generator.generate('Test', 'sapi::Tests', None, None)
 
@@ -171,9 +177,9 @@ class CodeAnalysisTest(parameterized.TestCase):
       typedef uint* uintp;
       extern "C" uint function(uintp a) { return *a; }
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     result = generator.generate('Test', 'sapi::Tests', None, None)
-    self.assertMultiLineEqual(code_test_util.CODE_GOLD_MAPPED, result)
+    self.assertMultiLineEqual(sapi_code_test_util.CODE_GOLD_MAPPED, result)
 
   @parameterized.named_parameters(
       ('1:', '/tmp/test.h', '_TMP_TEST_H_'),
@@ -184,7 +190,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       ('6:', 'xx/genfiles/.gen/tmp/te-st.h', '_GEN_TMP_TE_ST_H_'),
   )
   def testGetHeaderGuard(self, path, expected):
-    self.assertEqual(code.get_header_guard(path), expected)
+    self.assertEqual(sapi_code.get_header_guard(path), expected)
 
   @parameterized.named_parameters(
       (
@@ -199,7 +205,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       ),
   )
   def testArgumentNames(self, body, names):
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
     self.assertLen(functions[0].argument_types, len(names))
@@ -210,7 +216,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
   def testStaticFunctions(self):
     body = 'static int function() { return 7; };'
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertEmpty(generator._get_functions())
 
   def testEnumGeneration(self):
@@ -224,16 +230,16 @@ class CodeAnalysisTest(parameterized.TestCase):
         return status;
       }
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     result = generator.generate('Test', 'sapi::Tests', None, None)
-    self.assertMultiLineEqual(code_test_util.CODE_ENUM_GOLD, result)
+    self.assertMultiLineEqual(sapi_code_test_util.CODE_ENUM_GOLD, result)
 
   def testTypeEq(self):
     body = """
     typedef unsigned int uint;
     extern "C" void function(uint a1, uint a2, char a3);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -261,7 +267,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       extern "C" uint function_using_typedefs(uint_p a1, uint_pp a2, data_p a3);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -299,7 +305,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       extern "C" uint function_using_typedefs(struct s* a1, data_s* a2);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -340,7 +346,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" int function_using_structures(struct struct_2* a1, struct_1* a2,
       struct_a* a3);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -386,7 +392,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       extern "C" int function_using_unions(union union_2* a1, union_1* a2);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -419,7 +425,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       extern "C" void function(struct struct_1* a1, funcp a2);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -451,7 +457,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       extern "C" void function_using_type_loop(struct_6p a1);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -494,7 +500,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" int function_using_enums(Enumeration a1, SixOrTen a2, Color a3,
                            Direction a4, Nums a5, enum __rlimit_resource a6);
      """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -515,7 +521,7 @@ class CodeAnalysisTest(parameterized.TestCase):
     body = """
       extern "C" int function_using_enums(char a[10], char *const __argv[]);
      """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -597,7 +603,7 @@ class CodeAnalysisTest(parameterized.TestCase):
         ('/f3.h', file3_code),
         ('/f4.h', file4_code),
     ]
-    generator = code.Generator([analyze_strings('f1.h', files)])
+    generator = sapi_code.Generator([analyze_strings('f1.h', files)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -617,11 +623,11 @@ class CodeAnalysisTest(parameterized.TestCase):
     """
 
     files = [('f1.h', file1_code), ('/f2.h', file2_code)]
-    generator = code.Generator([analyze_strings('f1.h', files)])
+    generator = sapi_code.Generator([analyze_strings('f1.h', files)])
     functions = generator._get_functions()
     self.assertLen(functions, 2)
 
-    generator = code.Generator([analyze_strings('f1.h', files, True)])
+    generator = sapi_code.Generator([analyze_strings('f1.h', files, True)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -660,7 +666,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 \t\tchar c [ SIZE ] ;
 \t} b ;
 } struct_1"""
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     functions = generator._get_functions()
     self.assertLen(functions, 1)
 
@@ -687,7 +693,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       };
       extern "C" int function_1(struct test* a1);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertLen(generator.translation_units, 1)
 
     generator._get_related_types()
@@ -719,7 +725,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       extern "C" int function_1(struct YR_NAMESPACE* a1);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertLen(generator.translation_units, 1)
 
     generator._get_related_types()
@@ -744,7 +750,7 @@ class CodeAnalysisTest(parameterized.TestCase):
         return a + 1;
       };
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertLen(generator.translation_units, 1)
 
     tu = generator.translation_units[0]
@@ -767,7 +773,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" void function(struct test* a1);
     """
 
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertLen(generator.translation_units, 1)
 
     # initialize all internal data
@@ -785,7 +791,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       extern "C" void function(JBLOCK* a);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertLen(generator.translation_units, 1)
 
     # initialize all internal data
@@ -807,7 +813,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" void function1(Instance* a);
       extern "C" void function2(const Instance* a);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertLen(generator.translation_units, 1)
 
     # Initialize all internal data
@@ -825,7 +831,7 @@ class CodeAnalysisTest(parameterized.TestCase):
 
       void Function1(Instance& a, Instance&& a);
     """
-    generator = code.Generator([analyze_string(body)])
+    generator = sapi_code.Generator([analyze_string(body)])
     self.assertLen(generator.translation_units, 1)
 
     # Initialize all internal data
@@ -847,7 +853,7 @@ class CodeAnalysisTest(parameterized.TestCase):
       extern "C" int sum(int a, float b);
     """
     unsaved_files = [(path, content)]
-    generator = code.Generator([analyze_strings(path, unsaved_files)])
+    generator = sapi_code.Generator([analyze_strings(path, unsaved_files)])
     # Initialize all internal data
     generator.generate('Test', 'sapi::Tests', None, None)
 
