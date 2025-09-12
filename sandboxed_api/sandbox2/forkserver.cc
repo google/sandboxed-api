@@ -18,7 +18,6 @@
 
 #include <fcntl.h>
 #include <linux/filter.h>
-#include <linux/prctl.h>
 #include <linux/seccomp.h>
 #include <sched.h>
 #include <sys/prctl.h>
