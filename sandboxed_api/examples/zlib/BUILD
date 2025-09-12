@@ -55,10 +55,28 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "unsandboxed_zlib",
+    srcs = ["unsandboxed_zlib.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@zlib",
+    ],
+)
+
 # Tests input/output conversion of zlib and compares with golden files
 sh_test(
     name = "main_zlib_test",
     srcs = ["main_zlib_test.sh"],
-    data = [":main_zlib"],
+    data = [
+        ":main_zlib",
+        ":unsandboxed_zlib",
+    ],
     tags = ["notsan"],
 )

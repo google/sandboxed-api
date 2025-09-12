@@ -24,13 +24,17 @@ die() {
 [[ -n "$COVERAGE" ]] && exit 0
 
 BIN=$TEST_SRCDIR/com_google_sandboxed_api/sandboxed_api/examples/zlib/main_zlib
+UNSANDBOXED_BIN=$TEST_SRCDIR/com_google_sandboxed_api/sandboxed_api/examples/zlib/unsandboxed_zlib
 TESTDATA="$TEST_SRCDIR/com_google_sandboxed_api/sandboxed_api/examples/zlib/testdata"
 
 echo "aaaa" | "$BIN" || die 'FAILED: it should have exited with 0'
 
-echo "This is a test string" | "$BIN" | \
-  sha256sum --status -c \
-  <(echo '030ac8adfa86cd729493f25333642ca605463c8d37fe6fa822e3a43829872b31  -') || \
-  die 'FAILED: it should match the golden SHA256'
+EXPECTED_SUM=$(echo "This is a test string" | "$UNSANDBOXED_BIN" | \
+  sha256sum | cut -d " " -f 1)
+SUM=$(echo "This is a test string" | "$BIN" | \
+  sha256sum | cut -d " " -f 1)
+[ "$SUM" == "$EXPECTED_SUM" ] || die "FAILED: SHA256 mismatch:
+    actual: $SUM
+  expected: $EXPECTED_SUM"
 
 echo 'PASS'
