@@ -237,6 +237,7 @@ class PolicyBuilder final {
   // Allows these syscalls:
   // - inotify_init
   // - inotify_init1
+  ABSL_DEPRECATED("Use AllowInotify() instead.")
   PolicyBuilder& AllowInotifyInit();
 
   // Appends code to allow the inotify API.
