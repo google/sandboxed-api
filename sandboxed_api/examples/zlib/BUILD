@@ -18,8 +18,6 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
-package(default_visibility = ["//sandboxed_api:__subpackages__"])
-
 licenses(["notice"])
 
 sapi_library(
