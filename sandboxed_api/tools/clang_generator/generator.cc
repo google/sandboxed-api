@@ -490,6 +490,12 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_vpshrdvw128=",
            "__builtin_ia32_vpshrdvw256=",
            "__builtin_ia32_vpshrdvw512=",
+           "__builtin_ia32_vplzcntd_128=",
+           "__builtin_ia32_vplzcntd_256=",
+           "__builtin_ia32_vplzcntd_512=",
+           "__builtin_ia32_vplzcntq_128=",
+           "__builtin_ia32_vplzcntq_256=",
+           "__builtin_ia32_vplzcntq_512=",
 
            // Trick <prfchwintrin.h> from being included by defining its header
            // guard.
