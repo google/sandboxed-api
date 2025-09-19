@@ -281,7 +281,7 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeHdr(
     EmitWrapperDecl(out, *func);
     out += ";\n\n";
   }
-  return Finalize(out, true);
+  return Finalize(out, /*is_header=*/true, /*add_includes=*/true);
 }
 
 absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeSrc(
@@ -315,7 +315,21 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeSrc(
     }
     out += "}\n\n";
   }
-  return Finalize(out, false);
+  return Finalize(out, /*is_header=*/false, /*add_includes=*/true);
+}
+
+absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeMain(
+    const GeneratorOptions& options) const {
+  std::string out;
+  for (const auto* func : SortedFuncs()) {
+    out += absl::Substitute("extern \"C\" void $0();\n", func->name);
+  }
+  out += "\nint main() {\n";
+  for (const auto* func : SortedFuncs()) {
+    out += absl::Substitute("$0();\n", func->name);
+  }
+  out += "}\n";
+  return Finalize(out, /*is_header=*/false, /*add_includes=*/false);
 }
 
 absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
@@ -359,7 +373,7 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
     }
     out += "}\n\n";
   }
-  return Finalize(out, false);
+  return Finalize(out, /*is_header=*/false, /*add_includes=*/true);
 }
 
 void SandboxedLibraryEmitter::EmitFuncDecl(std::string& out, const Func& func) {
@@ -401,16 +415,18 @@ void SandboxedLibraryEmitter::EmitWrapperDecl(std::string& out,
 }
 
 absl::StatusOr<std::string> SandboxedLibraryEmitter::Finalize(
-    const std::string& body, bool is_header) const {
+    const std::string& body, bool is_header, bool add_includes) const {
   std::string out;
   if (is_header) {
     out.append(kHeaderHeader.data(), kHeaderHeader.size());
   }
   out.append(kCommonHeader.data(), kCommonHeader.size());
-  std::vector<std::string> includes(includes_.begin(), includes_.end());
-  std::sort(includes.begin(), includes.end());
-  for (const auto& inc : includes) {
-    out += absl::Substitute("#include $0\n", inc);
+  if (add_includes) {
+    std::vector<std::string> includes(includes_.begin(), includes_.end());
+    std::sort(includes.begin(), includes.end());
+    for (const auto& inc : includes) {
+      out += absl::Substitute("#include $0\n", inc);
+    }
   }
   out += "\n";
   out += body;

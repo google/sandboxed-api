@@ -122,6 +122,13 @@ absl::NoDestructor<llvm::cl::opt<std::string>> g_sandboxee_src_out(
                    "source file."),
     llvm::cl::cat(*g_tool_category));
 
+absl::NoDestructor<llvm::cl::opt<std::string>> g_sandboxee_main_out(
+    "sandboxee_main_out",
+    llvm::cl::desc("Output path of the generated source file containing the "
+                   "stub main function for binary used for system call policy "
+                   "extraction."),
+    llvm::cl::cat(*g_tool_category));
+
 absl::NoDestructor<llvm::cl::opt<std::string>> g_host_src_out(
     "host_src_out",
     llvm::cl::desc(
@@ -214,6 +221,10 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
                           emitter.EmitSandboxeeSrc(options));
     SAPI_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_src_out, sandboxee_src,
                                            file::Defaults()));
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_main,
+                          emitter.EmitSandboxeeMain(options));
+    SAPI_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_main_out,
+                                           sandboxee_main, file::Defaults()));
     SAPI_ASSIGN_OR_RETURN(std::string host_src, emitter.EmitHostSrc(options));
     SAPI_RETURN_IF_ERROR(
         file::SetContents(*g_host_src_out, host_src, file::Defaults()));

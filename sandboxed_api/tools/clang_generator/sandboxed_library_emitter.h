@@ -38,6 +38,8 @@ class SandboxedLibraryEmitter : public EmitterBase {
       const GeneratorOptions& options) const;
   absl::StatusOr<std::string> EmitSandboxeeSrc(
       const GeneratorOptions& options) const;
+  absl::StatusOr<std::string> EmitSandboxeeMain(
+      const GeneratorOptions& options) const;
   absl::StatusOr<std::string> EmitHostSrc(
       const GeneratorOptions& options) const;
 
@@ -57,8 +59,8 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
   static void EmitFuncDecl(std::string& out, const Func& func);
   static void EmitWrapperDecl(std::string& out, const Func& func);
-  absl::StatusOr<std::string> Finalize(const std::string& body,
-                                       bool is_header) const;
+  absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
+                                       bool add_includes) const;
   ArgPtr Convert(absl::string_view name, clang::QualType type);
   std::vector<const Func*> SortedFuncs() const;
 

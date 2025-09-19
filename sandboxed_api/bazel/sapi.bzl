@@ -532,6 +532,7 @@ def cc_sandboxed_library(
         lib_name = wrapper_name,
         sandboxee_hdr_out = name + ".sapi.sandboxee.h.unformatted",
         sandboxee_src_out = name + ".sapi.sandboxee.cc.unformatted",
+        sandboxee_main_out = name + ".sapi.sandboxee_main.cc.unformatted",
         host_src_out = name + ".sapi.host.cc.unformatted",
         sapi_hdr = native.package_name() + "/_sapi_" + name + ".sapi.h",
         **common
@@ -539,6 +540,7 @@ def cc_sandboxed_library(
 
     _clang_format_file(name + ".sapi.sandboxee.h.unformatted", name + ".sapi.sandboxee.h", **common)
     _clang_format_file(name + ".sapi.sandboxee.cc.unformatted", name + ".sapi.sandboxee.cc", **common)
+    _clang_format_file(name + ".sapi.sandboxee_main.cc.unformatted", name + ".sapi.sandboxee_main.cc", **common)
     _clang_format_file(name + ".sapi.host.cc.unformatted", name + ".sapi.host.cc", **common)
 
     cc_library(
@@ -639,6 +641,7 @@ def _sandboxed_library_gen_impl(ctx):
     args.append("--sapi_name={}".format(ctx.attr.lib_name))
     args.append("--sandboxee_hdr_out={}".format(ctx.outputs.sandboxee_hdr_out.path))
     args.append("--sandboxee_src_out={}".format(ctx.outputs.sandboxee_src_out.path))
+    args.append("--sandboxee_main_out={}".format(ctx.outputs.sandboxee_main_out.path))
     args.append("--host_src_out={}".format(ctx.outputs.host_src_out.path))
     args.append("--sapi_out={}".format(ctx.attr.sapi_hdr))
     args.append("--sapi_limit_scan_depth")
@@ -649,7 +652,12 @@ def _sandboxed_library_gen_impl(ctx):
     progress_msg = "Generating sandboxed library {}.".format(ctx.attr.lib_name)
     ctx.actions.run(
         inputs = cc_ctx.headers.to_list() + cpp_toolchain.all_files.to_list(),
-        outputs = [ctx.outputs.sandboxee_hdr_out, ctx.outputs.sandboxee_src_out, ctx.outputs.host_src_out],
+        outputs = [
+            ctx.outputs.sandboxee_hdr_out,
+            ctx.outputs.sandboxee_src_out,
+            ctx.outputs.sandboxee_main_out,
+            ctx.outputs.host_src_out,
+        ],
         arguments = args,
         mnemonic = "SandboxedLibraryGen",
         progress_message = progress_msg,
@@ -665,6 +673,7 @@ _sandboxed_library_gen = rule(
         "lib_name": attr.string(),
         "sandboxee_hdr_out": attr.output(),
         "sandboxee_src_out": attr.output(),
+        "sandboxee_main_out": attr.output(),
         "host_src_out": attr.output(),
         "sapi_hdr": attr.string(),
         "_generator": make_exec_label(
