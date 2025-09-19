@@ -77,9 +77,17 @@ constexpr absl::string_view kHeaderHeader =
 )";
 
 constexpr absl::string_view kHostHeader = R"(
+#include <memory>
+
 #include "$0absl/log/check.h"
 #include "$0sandboxed_api/vars.h"
 #include "$0sandboxed_api/sandbox.h"
+
+__attribute__((weak))
+std::unique_ptr<sandbox2::Policy> $1SandboxModifyPolicy(
+    sandbox2::PolicyBuilder* builder) {
+  return builder->BuildOrDie();
+}
 
 struct $1SandboxImpl : public $1Sandbox {
   static $1SandboxImpl* Instance() {
@@ -91,6 +99,11 @@ struct $1SandboxImpl : public $1Sandbox {
 
   void Check(const absl::Status& status) {
     CHECK_OK(status) << "SAPI sandbox $1 failed";
+  }
+
+  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
+      sandbox2::PolicyBuilder* builder) override {
+    return $1SandboxModifyPolicy(builder);
   }
 };
 

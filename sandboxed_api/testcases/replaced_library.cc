@@ -14,11 +14,24 @@
 
 #include "sandboxed_api/testcases/replaced_library.h"
 
+#include <err.h>
+#include <errno.h>
+#include <sys/epoll.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
 
 #include "absl/strings/string_view.h"
+
+bool mylib_is_sandboxed() {
+  // Magic sandbox2 syscall number.
+  // Note: we don't use sandbox2::unit::IsRunningInSandbox2 b/c it pulls in
+  // too many dependencies and disturbs the policy too much.
+  return syscall(0xff000fdb) == -1 && errno == 0xfdb;
+}
 
 void mylib_scalar_types(int a0, float a1, double a2, int64_t a3, char a4,
                         bool a5, size_t a6) {}
@@ -30,3 +43,38 @@ void mylib_copy(absl::string_view src, std::string& dst) {
 }
 
 int mylib_add(int x, int y) { return x + y; }
+
+// Sanitizer instrumentation may break argument value tracking.
+// In particular, ASan emits a call to __asan_memset to zero ev.
+static __attribute__((noinline, disable_sanitizer_instrumentation)) void
+mylib_epoll_ctl(int cmd) {
+  // Use epoll_ctl as test syscall b/c it's not used otherwise (e.g. by libc)
+  // and has subcommands. Also uninline it to make allowed command tracking
+  // a bit more difficult.
+  epoll_event ev = {};
+  int ret = syscall(SYS_epoll_ctl, -1, cmd, -1, &ev);
+  if (ret == 0 || errno != EBADF)
+    errx(1, "epoll_ctl did not fail as expected: ret=%d, errno=%d", ret, errno);
+}
+
+void mylib_expected_syscall1() { mylib_epoll_ctl(EPOLL_CTL_ADD); }
+
+void mylib_expected_syscall2() { mylib_epoll_ctl(EPOLL_CTL_DEL); }
+
+void mylib_unexpected_syscall1() {
+  epoll_event ev = {};
+  // Hide the syscall number via a volatile access, syscall extractor won't
+  // discover it since it does not track memory accesses. So EPOLL_CTL_MOD
+  // should end up being prohibited (while ADD/DEL should be allowed).
+  static volatile int nr = SYS_epoll_ctl;
+  int ret = syscall(nr, -1, EPOLL_CTL_MOD, -1, &ev);
+  if (ret == 0 || errno != EBADF)
+    errx(1, "epoll_ctl did not fail as expected: ret=%d, errno=%d", ret, errno);
+}
+
+void mylib_unexpected_syscall2() {
+  // This syscall should be prohibited (nothing else in the binary should use
+  // this esoteric syscall).
+  static volatile int nr = SYS_ioprio_get;
+  if (syscall(nr, 1, 0)) errx(1, "ioprio_get failed");
+}

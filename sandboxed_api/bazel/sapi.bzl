@@ -510,10 +510,13 @@ def cc_sandboxed_library(
     #       in the sandbox, and will deconstruct string_view into the pair of arguments.
     # 2. Build cc_library with the sandboxee header and source files
     #    and dependency on the original library.
-    # 3. Create a sapi_library for the sandboxee library created at step 2.
+    # 3. Build fake cc_binary with main function that calls all sandbox entry functions
+    #    (and depends on the sandboxed library).
+    # 4. Run syscall extractor on the binary to extract the system call policy.
+    # 5. Create a sapi_library for the sandboxee library created at step 2.
     #    This library also links in the generated host source file,
     #    so that it implements the original library interface verbatim.
-    # 4. Create a transparent replacement rule that pretends to be a cc_library
+    # 6. Create a transparent replacement rule that pretends to be a cc_library
     #    by assembling CcInfo from compilation context of the original library
     #    and linking context of the sapi_library created at step 3.
     #    Using the compilation context of the original library ensures that during
@@ -562,10 +565,13 @@ def cc_sandboxed_library(
         name = "_sapi_" + name,
         lib = ":_sapi_sandboxee_" + name,
         lib_name = wrapper_name,
-        srcs = [name + ".sapi.host.cc"],
+        srcs = [
+            name + ".sapi.host.cc",
+        ],
         generator_version = 2,
         deps = [
             "//sandboxed_api:lenval_core",
+            "//sandboxed_api/sandbox2/util:bpf_helper",
             "@abseil-cpp//absl/log:check",
         ],
         **common
