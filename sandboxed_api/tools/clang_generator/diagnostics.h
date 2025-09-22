@@ -38,13 +38,10 @@ absl::Status MakeStatusWithDiagnostic(clang::SourceLocation loc,
 absl::optional<clang::SourceLocation> GetDiagnosticLocationFromStatus(
     const absl::Status& status);
 
-clang::DiagnosticBuilder ReportWarning(clang::DiagnosticsEngine& de,
-                                       clang::SourceLocation loc,
-                                       absl::string_view message);
-
-clang::DiagnosticBuilder ReportFatalError(clang::DiagnosticsEngine& de,
-                                          clang::SourceLocation loc,
-                                          absl::string_view message);
+clang::DiagnosticBuilder Report(clang::DiagnosticsEngine& de,
+                                clang::SourceLocation loc,
+                                clang::DiagnosticsEngine::Level level,
+                                absl::string_view message);
 
 }  // namespace sapi
 

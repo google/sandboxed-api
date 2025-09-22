@@ -201,9 +201,9 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
 
 void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   if (!visitor_.TraverseDecl(context.getTranslationUnitDecl())) {
-    ReportFatalError(context.getDiagnostics(),
-                     context.getTranslationUnitDecl()->getBeginLoc(),
-                     "AST traversal exited early.");
+    Report(context.getDiagnostics(),
+           context.getTranslationUnitDecl()->getBeginLoc(),
+           clang::DiagnosticsEngine::Fatal, "AST traversal exited early.");
     return;
   }
 
@@ -220,12 +220,10 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
     if (!status.ok()) {
       clang::SourceLocation loc =
           GetDiagnosticLocationFromStatus(status).value_or(func->getBeginLoc());
-      if (absl::IsCancelled(status)) {
-        ReportWarning(context.getDiagnostics(), loc, status.message());
-        continue;
-      }
-      ReportFatalError(context.getDiagnostics(), loc, status.message());
-      break;
+      clang::DiagnosticsEngine::Level level =
+          absl::IsCancelled(status) ? clang::DiagnosticsEngine::Warning
+                                    : clang::DiagnosticsEngine::Error;
+      Report(context.getDiagnostics(), loc, level, status.message());
     }
   }
 }

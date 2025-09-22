@@ -60,31 +60,14 @@ absl::optional<clang::SourceLocation> GetDiagnosticLocationFromStatus(
   return absl::nullopt;
 }
 
-namespace {
-
-clang::DiagnosticBuilder GetDiagnosticBuilder(
-    clang::DiagnosticsEngine& de, clang::SourceLocation loc,
-    clang::DiagnosticsEngine::Level level, absl::string_view message) {
+clang::DiagnosticBuilder Report(clang::DiagnosticsEngine& de,
+                                clang::SourceLocation loc,
+                                clang::DiagnosticsEngine::Level level,
+                                absl::string_view message) {
   clang::DiagnosticBuilder builder =
       de.Report(loc, de.getCustomDiagID(level, "header generation: %0"));
   builder.AddString(llvm::StringRef(message.data(), message.size()));
   return builder;
-}
-
-}  // namespace
-
-clang::DiagnosticBuilder ReportFatalError(clang::DiagnosticsEngine& de,
-                                          clang::SourceLocation loc,
-                                          absl::string_view message) {
-  return GetDiagnosticBuilder(de, loc, clang::DiagnosticsEngine::Fatal,
-                              message);
-}
-
-clang::DiagnosticBuilder ReportWarning(clang::DiagnosticsEngine& de,
-                                       clang::SourceLocation loc,
-                                       absl::string_view message) {
-  return GetDiagnosticBuilder(de, loc, clang::DiagnosticsEngine::Warning,
-                              message);
 }
 
 }  // namespace sapi
