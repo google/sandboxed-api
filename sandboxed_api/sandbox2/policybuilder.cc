@@ -292,6 +292,17 @@ PolicyBuilder& PolicyBuilder::AllowEpoll() {
   return AllowEpollWait();
 }
 
+PolicyBuilder& PolicyBuilder::AllowInotifyInit() {
+  return AllowSyscalls({
+#ifdef __NR_inotify_init
+      __NR_inotify_init,
+#endif
+#ifdef __NR_inotify_init1
+      __NR_inotify_init1,
+#endif
+  });
+}
+
 PolicyBuilder& PolicyBuilder::AllowInotify() {
   return AllowSyscalls({
 #ifdef __NR_inotify_init
