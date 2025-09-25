@@ -232,14 +232,6 @@ class PolicyBuilder final {
   // - epoll_pwait2
   PolicyBuilder& AllowEpoll();
 
-  // Appends code to allow initializing an inotify instance.
-  //
-  // Allows these syscalls:
-  // - inotify_init
-  // - inotify_init1
-  ABSL_DEPRECATED("Use AllowInotify() instead.")
-  PolicyBuilder& AllowInotifyInit();
-
   // Appends code to allow the inotify API.
   //
   // Allows these syscalls:
