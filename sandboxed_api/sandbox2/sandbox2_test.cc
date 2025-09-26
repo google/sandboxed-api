@@ -273,8 +273,12 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
   auto executor = std::make_unique<Executor>(path, args);
   executor->limits()->set_walltime_limit(absl::Seconds(5));
 
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
-                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy,
+      CreateDefaultPermissiveTestPolicy(path)
+          .CollectStacktracesOnTimeout(
+              false)  // collecting the stack trace might impact timing
+          .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
 
   auto start = absl::Now();
