@@ -421,6 +421,7 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_vec_init_v8qi=[](auto, auto, auto, auto, auto, "
            "auto, auto, auto)->long long{return 0;}",
            // AVX
+           "__builtin_elementwise_ctlz=",
            "__builtin_ia32_prolvd128=",
            "__builtin_ia32_prolvd256=",
            "__builtin_ia32_prolvd512=",
