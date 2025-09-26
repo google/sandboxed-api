@@ -20,7 +20,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <cerrno>
 #include <cstdint>
 #include <memory>
@@ -30,10 +29,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
@@ -46,40 +43,7 @@ namespace sandbox2 {
 
 namespace file_util = ::sapi::file_util;
 
-namespace {
-void DisableCompressStackDepot(ForkRequest& request) {
-  auto disable_compress_stack_depot = [&request](absl::string_view sanitizer) {
-    auto prefix = absl::StrCat(sanitizer, "_OPTIONS=");
-    auto it = std::find_if(request.mutable_envs()->begin(),
-                           request.mutable_envs()->end(),
-                           [&prefix](const std::string& env) {
-                             return absl::StartsWith(env, prefix);
-                           });
-    constexpr absl::string_view option = "compress_stack_depot=0";
-    if (it != request.mutable_envs()->end()) {
-      // If it's already there, the last value will be used.
-      absl::StrAppend(&*it, ":", option);
-      return;
-    }
-    request.add_envs(absl::StrCat(prefix, option));
-  };
-  if constexpr (sapi::sanitizers::IsASan()) {
-    disable_compress_stack_depot("ASAN");
-  }
-  if constexpr (sapi::sanitizers::IsMSan()) {
-    disable_compress_stack_depot("MSAN");
-  }
-  if constexpr (sapi::sanitizers::IsLSan()) {
-    disable_compress_stack_depot("LSAN");
-  }
-  if constexpr (sapi::sanitizers::IsHwASan()) {
-    disable_compress_stack_depot("HWSAN");
-  }
-  if constexpr (sapi::sanitizers::IsTSan()) {
-    disable_compress_stack_depot("TSAN");
-  }
-}
-}  // namespace
+namespace {}  // namespace
 
 std::vector<std::string> Executor::CopyEnviron() {
   return util::CharPtrArray(environ).ToStringVector();
@@ -120,11 +84,6 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
   if (!path_.empty()) {
     request.add_envs(absl::StrCat("LD_ORIGIN_PATH=",
                                   file_util::fileops::StripBasename(path_)));
-  }
-
-  // Disable optimization to avoid related syscalls.
-  if constexpr (sapi::sanitizers::IsAny()) {
-    DisableCompressStackDepot(request);
   }
 
   // If neither the path, nor exec_fd is specified, just assume that we need to

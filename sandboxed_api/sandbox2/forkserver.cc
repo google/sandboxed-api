@@ -40,6 +40,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -262,6 +263,39 @@ bool IsLikelyChrooted() {
   return *self_root_id != *init_root_id;
 }
 
+template <typename C, typename AddFn>
+void DisableCompressStackDepotImpl(C& envs, AddFn&& add_env) {
+  auto disable_compress_stack_depot = [&envs,
+                                       &add_env](absl::string_view sanitizer) {
+    auto prefix = absl::StrCat(sanitizer, "_OPTIONS=");
+    constexpr absl::string_view option = "compress_stack_depot=0";
+    auto it = absl::c_find_if(envs, [&prefix](const std::string& env) {
+      return absl::StartsWith(env, prefix);
+    });
+    if (it != envs.end()) {
+      // If it's already there, the last value will be used.
+      absl::StrAppend(&*it, ":", option);
+      return;
+    }
+    add_env(absl::StrCat(prefix, option));
+  };
+  if constexpr (sapi::sanitizers::IsASan()) {
+    disable_compress_stack_depot("ASAN");
+  }
+  if constexpr (sapi::sanitizers::IsMSan()) {
+    disable_compress_stack_depot("MSAN");
+  }
+  if constexpr (sapi::sanitizers::IsLSan()) {
+    disable_compress_stack_depot("LSAN");
+  }
+  if constexpr (sapi::sanitizers::IsHwASan()) {
+    disable_compress_stack_depot("HWSAN");
+  }
+  if constexpr (sapi::sanitizers::IsTSan()) {
+    disable_compress_stack_depot("TSAN");
+  }
+}
+
 }  // namespace
 
 void ForkServer::PrepareExecveArgs(const ForkRequest& request,
@@ -289,6 +323,12 @@ void ForkServer::PrepareExecveArgs(const ForkRequest& request,
   SAPI_RAW_VLOG(1, "Will execute args:['%s'], environment:['%s']",
                 absl::StrJoin(*args, "', '").c_str(),
                 absl::StrJoin(*envp, "', '").c_str());
+}
+
+void ForkServer::DisableCompressStackDepot(std::vector<std::string>& envs) {
+  DisableCompressStackDepotImpl(envs, [&envs](absl::string_view value) {
+    envs.push_back(std::string(value));
+  });
 }
 
 void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
@@ -406,6 +446,14 @@ pid_t ForkServer::ServeRequest() {
   if (fork_request.mode() == FORKSERVER_FORK_EXECVE ||
       fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
     SAPI_RAW_CHECK(comms_->RecvFD(&exec_fd), "Failed to receive Exec FD");
+  }
+
+  // Disable optimization to avoid related syscalls.
+  if constexpr (sapi::sanitizers::IsAny()) {
+    DisableCompressStackDepotImpl(*fork_request.mutable_envs(),
+                                  [&fork_request](absl::string_view value) {
+                                    fork_request.add_envs(value);
+                                  });
   }
 
   // Make the kernel notify us with SIGCHLD when the process terminates.
