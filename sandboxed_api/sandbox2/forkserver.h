@@ -52,8 +52,6 @@ class ForkServer {
   // Returns values defined as with fork() (-1 means error).
   pid_t ServeRequest();
 
-  static void DisableCompressStackDepot(std::vector<std::string>& envs);
-
  private:
   // Creates and launched the child process.
   void LaunchChild(const ForkRequest& request, int execve_fd, uid_t uid,

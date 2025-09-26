@@ -27,7 +27,6 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "absl/base/const_init.h"
 #include "absl/cleanup/cleanup.h"
@@ -42,7 +41,6 @@
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
-#include "sandboxed_api/sandbox2/forkserver.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
@@ -61,7 +59,6 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 struct ForkserverArgs {
   int exec_fd;
   int comms_fd;
-  const char* const* envp;
 };
 
 int LaunchForkserver(void* vargs) {
@@ -81,7 +78,7 @@ int LaunchForkserver(void* vargs) {
 
   char proc_name[] = "S2-FORK-SERV";
   char* const argv[] = {proc_name, nullptr};
-  util::Execveat(args->exec_fd, "", argv, args->envp, AT_EMPTY_PATH);
+  util::Execveat(args->exec_fd, "", argv, environ, AT_EMPTY_PATH);
   SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
 }
 
@@ -131,13 +128,9 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   absl::Cleanup stack_dealloc = [stack, stack_size] {
     munmap(stack, stack_size);
   };
-  std::vector<std::string> env = util::CharPtrArray(environ).ToStringVector();
-  ForkServer::DisableCompressStackDepot(env);
-  util::CharPtrArray envp = util::CharPtrArray::FromStringVector(env);
   ForkserverArgs args = {
       .exec_fd = exec_fd,
       .comms_fd = sv[0],
-      .envp = envp.data(),
   };
   pid_t pid = clone(LaunchForkserver, &stack[stack_size], clone_flags, &args,
                     nullptr, nullptr, nullptr);
