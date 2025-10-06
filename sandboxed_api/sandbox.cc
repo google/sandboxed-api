@@ -180,7 +180,7 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
   std::shared_ptr<sandbox2::Executor> fork_client_executor;
   std::shared_ptr<sandbox2::ForkClient> fork_client;
   {
-    absl::MutexLock lock(&fork_client_context_->mu_);
+    absl::MutexLock lock(fork_client_context_->mu_);
     // Initialize the forkserver if it is not already running.
     if (!fork_client_context_->client_) {
       // If FileToc was specified, it will be used over any paths to the SAPI
@@ -266,7 +266,7 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
   if (!res) {
     // Allow recovering from a bad fork client state.
     {
-      absl::MutexLock lock(&fork_client_context_->mu_);
+      absl::MutexLock lock(fork_client_context_->mu_);
       fork_client_context_->client_.reset();
     }
     Terminate();

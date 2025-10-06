@@ -102,7 +102,7 @@ int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
 
 int EmbedFile::GetFdForFileToc(const FileToc* toc) {
   // Access to file_tocs_ must be guarded.
-  absl::MutexLock lock{&file_tocs_mutex_};
+  absl::MutexLock lock{file_tocs_mutex_};
 
   // If a file-descriptor for this toc already exists, just return it.
   auto entry = file_tocs_.find(toc);
