@@ -592,6 +592,7 @@ cc_library(
         ":policy",
         ":sanitizer",
         ":syscall",
+        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:raw_logging",

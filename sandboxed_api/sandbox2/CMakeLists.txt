@@ -562,6 +562,7 @@ target_link_libraries(sandbox2_client
           sandbox2::sanitizer
           sandbox2::syscall
           sapi::base
+          sapi::config
           sapi::raw_logging
   PUBLIC absl::flat_hash_map
          absl::status

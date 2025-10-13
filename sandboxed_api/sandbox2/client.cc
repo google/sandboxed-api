@@ -45,6 +45,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
@@ -331,6 +332,18 @@ void Client::ApplyPolicyAndBecomeTracee() {
   SAPI_RAW_CHECK(comms_->RecvUint32(&message),
                  "receving confirmation from executor");
   bool allow_speculation = message & kAllowSpeculationBit;
+  if (!allow_speculation) {
+    if constexpr (sapi::host_cpu::IsX8664() || sapi::host_cpu::IsArm64()) {
+      SAPI_RAW_PCHECK(prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS,
+                            PR_SPEC_FORCE_DISABLE, 0, 0) == 0,
+                      "could not disable store bypass speculation");
+    }
+    if constexpr (sapi::host_cpu::IsX8664()) {
+      SAPI_RAW_PCHECK(prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH,
+                            PR_SPEC_FORCE_DISABLE, 0, 0) == 0,
+                      "could not disable indirect branch speculation");
+    }
+  }
   uint32_t seccomp_extra_flags =
       allow_speculation ? SECCOMP_FILTER_FLAG_SPEC_ALLOW : 0;
   uint32_t monitor_type = message & kMonitorTypeMask;
