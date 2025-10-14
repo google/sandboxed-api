@@ -646,7 +646,6 @@ target_link_libraries(sandbox2_mounts
           protobuf::libprotobuf
           sandbox2::library_resolver
           sapi::base
-          sapi::config
           sapi::file_base
           sapi::fileops
           sapi::raw_logging

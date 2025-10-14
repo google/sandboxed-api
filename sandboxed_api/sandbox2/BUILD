@@ -674,9 +674,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":mount_tree_cc_proto",
-        "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/util:library_resolver",
-        "//sandboxed_api/sandbox2/util:minielf",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
