@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -345,14 +346,14 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
 
 absl::Status Mounts::AddMappingsForBinary(const std::string& path,
                                           absl::string_view ld_library_path) {
-  std::vector<std::string> imported_libraries;
+  absl::flat_hash_set<std::string> imported_libraries;
   SAPI_ASSIGN_OR_RETURN(
       auto interpreter,
       ResolveLibraryPaths(path, ld_library_path, [&](absl::string_view lib) {
-        imported_libraries.push_back(std::string(lib));
+        imported_libraries.insert(std::string(lib));
       }));
   if (!interpreter.empty()) {
-    imported_libraries.push_back(interpreter);
+    imported_libraries.insert(interpreter);
   }
   for (const auto& lib : imported_libraries) {
     SAPI_RETURN_IF_ERROR(AddFile(lib));

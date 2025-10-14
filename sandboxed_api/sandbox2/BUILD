@@ -681,6 +681,7 @@ cc_library(
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
