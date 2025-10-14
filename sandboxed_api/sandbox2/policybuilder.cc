@@ -104,6 +104,22 @@ namespace {
 namespace file = ::sapi::file;
 namespace fileops = ::sapi::file_util::fileops;
 
+bool IsDirectory(const std::string& path) {
+  struct stat sb;
+  if (stat(path.c_str(), &sb) == -1) {
+    return false;
+  }
+  return S_ISDIR(sb.st_mode);
+}
+
+bool IsFile(const std::string& path) {
+  struct stat sb;
+  if (stat(path.c_str(), &sb) == -1) {
+    return false;
+  }
+  return !S_ISDIR(sb.st_mode);
+}
+
 // Validates that the path is absolute and canonical.
 absl::StatusOr<std::string> ValidatePath(absl::string_view path,
                                          bool allow_relative_path = false) {
@@ -521,7 +537,9 @@ PolicyBuilder& PolicyBuilder::AllowLlvmCoverage() {
   AllowMkdir();
   AllowSafeFcntl();
   AllowSyscalls({
-      __NR_munmap, __NR_close, __NR_lseek,
+      __NR_munmap,
+      __NR_close,
+      __NR_lseek,
 #ifdef __NR__llseek
       __NR__llseek,  // Newer glibc on PPC
 #endif
@@ -1538,6 +1556,14 @@ PolicyBuilder& PolicyBuilder::AddFile(absl::string_view path, bool is_ro) {
   return AddFileAt(path, path, is_ro);
 }
 
+PolicyBuilder& PolicyBuilder::AddFileIfExists(absl::string_view path,
+                                              bool is_ro) {
+  if (IsFile(std::string(path))) {
+    AddFile(path, is_ro);
+  }
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AddFileAt(absl::string_view outside,
                                         absl::string_view inside, bool is_ro) {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
@@ -1609,6 +1635,14 @@ PolicyBuilder& PolicyBuilder::AddLibrariesForBinary(
 
 PolicyBuilder& PolicyBuilder::AddDirectory(absl::string_view path, bool is_ro) {
   return AddDirectoryAt(path, path, is_ro);
+}
+
+PolicyBuilder& PolicyBuilder::AddDirectoryIfExists(absl::string_view path,
+                                                   bool is_ro) {
+  if (IsDirectory(std::string(path))) {
+    AddDirectory(path, is_ro);
+  }
+  return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AddDirectoryAt(absl::string_view outside,

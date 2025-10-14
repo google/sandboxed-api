@@ -115,6 +115,28 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   // clang-format on
 }
 
+TEST(PolicyBuilderTest, NonExistingIgnored) {
+  PolicyBuilder pb;
+  pb.AddFileIfExists("/non_existing_file");
+  ASSERT_THAT(pb.mounts().ResolvePath("/non_existing_file"),
+              StatusIs(absl::StatusCode::kNotFound));
+  pb.AddDirectoryIfExists("/non_existing_dir");
+  ASSERT_THAT(pb.mounts().ResolvePath("/non_existing_dir"),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(pb.TryBuild(), IsOk());
+}
+
+TEST(PolicyBuilderTest, WrongTypeIgnored) {
+  PolicyBuilder pb;
+  pb.AddFileIfExists("/usr");  // This is a directory, not a file.
+  ASSERT_THAT(pb.mounts().ResolvePath("/usr"),
+              StatusIs(absl::StatusCode::kNotFound));
+  pb.AddDirectoryIfExists("/etc/passwd");  // This is a file, not a directory.
+  ASSERT_THAT(pb.mounts().ResolvePath("/etc/passwd"),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(pb.TryBuild(), IsOk());
+}
+
 TEST(PolicyBuilderTest, ApisWithPathValidation) {
   const std::initializer_list<std::pair<absl::string_view, absl::StatusCode>>
       kTestCases = {

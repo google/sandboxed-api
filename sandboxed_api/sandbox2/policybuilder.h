@@ -795,6 +795,8 @@ class PolicyBuilder final {
   PolicyBuilder& AddFile(absl::string_view path, bool is_ro = true);
   PolicyBuilder& AddFileAt(absl::string_view outside, absl::string_view inside,
                            bool is_ro = true);
+  // Same as `AddFile`, but no error is raised if the file does not exist.
+  PolicyBuilder& AddFileIfExists(absl::string_view path, bool is_ro = true);
 
   // Adds the libraries and linker required by a binary.
   //
@@ -829,6 +831,10 @@ class PolicyBuilder final {
   PolicyBuilder& AddDirectory(absl::string_view path, bool is_ro = true);
   PolicyBuilder& AddDirectoryAt(absl::string_view outside,
                                 absl::string_view inside, bool is_ro = true);
+  // Same as `AddDirectory`, but no error is raised if the directory does not
+  // exist.
+  PolicyBuilder& AddDirectoryIfExists(absl::string_view path,
+                                      bool is_ro = true);
 
   // Adds a tmpfs inside the namespace.
   //
