@@ -277,7 +277,7 @@ cc_library(
         "//sandboxed_api:embed_file",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/flags:flag",
@@ -286,6 +286,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -316,7 +317,6 @@ cc_library(
         ":limits",
         ":namespace",
         ":util",
-        "//sandboxed_api:config",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",

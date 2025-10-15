@@ -20,14 +20,19 @@
 
 #include <sys/types.h>
 
+#include <string>
+
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/flags.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 
 namespace sandbox2 {
+
+void DisableCompressStackDepot(google::protobuf::RepeatedPtrField<std::string>* envs);
 
 class GlobalForkClient {
  public:

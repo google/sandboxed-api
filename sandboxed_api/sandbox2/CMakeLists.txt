@@ -242,13 +242,15 @@ add_library(sandbox2_global_forkserver ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::global_forkserver ALIAS sandbox2_global_forkserver)
 target_link_libraries(sandbox2_global_forkserver
-  PRIVATE absl::cleanup
+  PRIVATE absl::algorithm_container
+          absl::cleanup
           absl::strings
           absl::status
           absl::statusor
           absl::log
           sandbox2::client
           sandbox2::flags
+          sandbox2::forkserver
           sandbox2::forkserver_bin_embed
           sandbox2::util
           sapi::strerror
@@ -257,7 +259,6 @@ target_link_libraries(sandbox2_global_forkserver
           sapi::embed_file
           sapi::fileops
           sapi::raw_logging
-          sapi::status
   PUBLIC absl::core_headers
          absl::flags
          absl::synchronization
@@ -301,7 +302,6 @@ target_link_libraries(sandbox2_executor
          absl::span
          absl::statusor
          absl::strings
-         sapi::config
          sapi::fileops
          sapi::status
          sandbox2::fork_client

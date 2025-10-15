@@ -27,13 +27,16 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/const_init.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
@@ -59,7 +62,41 @@ GlobalForkserverStartModeSet GetForkserverStartMode() {
 struct ForkserverArgs {
   int exec_fd;
   int comms_fd;
+  const char* const* envp;
 };
+
+template <typename C, typename AddFn>
+void DisableCompressStackDepotImpl(C& envs, AddFn&& add_env) {
+  auto disable_compress_stack_depot = [&envs,
+                                       &add_env](absl::string_view sanitizer) {
+    auto prefix = absl::StrCat(sanitizer, "_OPTIONS=");
+    constexpr absl::string_view option = "compress_stack_depot=0";
+    auto it = absl::c_find_if(envs, [&prefix](const std::string& env) {
+      return absl::StartsWith(env, prefix);
+    });
+    if (it != envs.end()) {
+      // If it's already there, the last value will be used.
+      absl::StrAppend(&*it, ":", option);
+      return;
+    }
+    add_env(absl::StrCat(prefix, option));
+  };
+  if constexpr (sapi::sanitizers::IsASan()) {
+    disable_compress_stack_depot("ASAN");
+  }
+  if constexpr (sapi::sanitizers::IsMSan()) {
+    disable_compress_stack_depot("MSAN");
+  }
+  if constexpr (sapi::sanitizers::IsLSan()) {
+    disable_compress_stack_depot("LSAN");
+  }
+  if constexpr (sapi::sanitizers::IsHwASan()) {
+    disable_compress_stack_depot("HWSAN");
+  }
+  if constexpr (sapi::sanitizers::IsTSan()) {
+    disable_compress_stack_depot("TSAN");
+  }
+}
 
 int LaunchForkserver(void* vargs) {
   auto* args = static_cast<ForkserverArgs*>(vargs);
@@ -78,7 +115,7 @@ int LaunchForkserver(void* vargs) {
 
   char proc_name[] = "S2-FORK-SERV";
   char* const argv[] = {proc_name, nullptr};
-  util::Execveat(args->exec_fd, "", argv, environ, AT_EMPTY_PATH);
+  util::Execveat(args->exec_fd, "", argv, args->envp, AT_EMPTY_PATH);
   SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
 }
 
@@ -128,9 +165,15 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   absl::Cleanup stack_dealloc = [stack, stack_size] {
     munmap(stack, stack_size);
   };
+  std::vector<std::string> env = util::CharPtrArray(environ).ToStringVector();
+  DisableCompressStackDepotImpl(env, [&env](absl::string_view value) {
+    env.push_back(std::string(value));
+  });
+  util::CharPtrArray envp = util::CharPtrArray::FromStringVector(env);
   ForkserverArgs args = {
       .exec_fd = exec_fd,
       .comms_fd = sv[0],
+      .envp = envp.data(),
   };
   pid_t pid = clone(LaunchForkserver, &stack[stack_size], clone_flags, &args,
                     nullptr, nullptr, nullptr);
@@ -166,6 +209,11 @@ void WaitForForkserver(pid_t pid) {
 
 absl::Mutex GlobalForkClient::instance_mutex_(absl::kConstInit);
 GlobalForkClient* GlobalForkClient::instance_ = nullptr;
+
+void DisableCompressStackDepot(google::protobuf::RepeatedPtrField<std::string>* envs) {
+  DisableCompressStackDepotImpl(
+      *envs, [&envs](absl::string_view env) { envs->Add(std::string(env)); });
+}
 
 void GlobalForkClient::EnsureStarted(GlobalForkserverStartMode mode) {
   absl::MutexLock lock(&instance_mutex_);
