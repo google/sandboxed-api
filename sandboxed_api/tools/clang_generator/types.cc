@@ -47,17 +47,23 @@ namespace {
 
 // Checks if a record declaration is a google::protobuf::Message.
 bool IsProtoBuf(const clang::RecordDecl* decl) {
-  if (const auto* cxxdecl = llvm::dyn_cast<const clang::CXXRecordDecl>(decl)) {
-    // Skip anything that has no body (i.e. forward declarations)
-    if (!cxxdecl->hasDefinition()) {
-      return false;
-    }
-    // Lookup the base classes and check if google::protobuf::Messages is one of it.
-    for (const clang::CXXBaseSpecifier& base : cxxdecl->bases()) {
-      if (base.getType()->getAsCXXRecordDecl()->getQualifiedNameAsString() ==
-          "google::protobuf::Message") {
-        return true;
-      }
+  const clang::RecordDecl* definition = decl->getDefinition();
+  if (definition == nullptr) {
+    return false;
+  }
+  const auto* cxxdecl = llvm::dyn_cast<const clang::CXXRecordDecl>(decl);
+  if (cxxdecl == nullptr) {
+    return false;
+  }
+  // Skip anything that has no body (i.e. forward declarations)
+  if (!cxxdecl->hasDefinition()) {
+    return false;
+  }
+  // Lookup the base classes and check if google::protobuf::Messages is one of it.
+  for (const clang::CXXBaseSpecifier& base : cxxdecl->bases()) {
+    if (base.getType()->getAsCXXRecordDecl()->getQualifiedNameAsString() ==
+        "google::protobuf::Message") {
+      return true;
     }
   }
   return false;
