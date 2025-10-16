@@ -35,8 +35,16 @@ class Struct : public Var {
     SetLocal(&struct_);
   }
 
-  Struct(Struct&& other) = default;
-  Struct& operator=(Struct&& other) = default;
+  Struct(Struct&& other) : struct_(std::move(other.struct_)) {
+    *this = std::move(other);
+  }
+
+  Struct& operator=(Struct&& other) {
+    Var::operator=(std::move(other));
+    struct_ = other.struct_;
+    SetLocal(&struct_);
+    return *this;
+  }
 
   size_t GetSize() const final { return sizeof(T); }
   Type GetType() const final { return Type::kStruct; }

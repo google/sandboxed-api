@@ -60,6 +60,15 @@ class Reg : public Callable {
     SetLocal(&value_);
   }
 
+  Reg(Reg<T>&& other) { *this = std::move(other); }
+
+  Reg& operator=(Reg<T>&& other) {
+    Var::operator=(std::move(other));
+    value_ = std::move(other.value_);
+    SetLocal(&value_);
+    return *this;
+  }
+
   // Getter/Setter for the stored value.
   virtual T GetValue() const { return value_; }
   virtual void SetValue(T value) { value_ = value; }
