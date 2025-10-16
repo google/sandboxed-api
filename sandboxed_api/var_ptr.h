@@ -32,6 +32,21 @@ namespace sapi::v {
 // initializers.
 class Ptr : public Reg<Var*> {
  public:
+  enum SyncType {
+    // Do not synchronize the underlying object after/before calls.
+    kSyncNone = 0x0,
+    // Synchronize the underlying object (send the data to the sandboxee)
+    // before the call takes place.
+    kSyncBefore = 0x1,
+    // Synchronize the underlying object (retrieve data from the sandboxee)
+    // after the call has finished.
+    kSyncAfter = 0x2,
+    // Synchronize the underlying object with the remote object, by sending the
+    // data to the sandboxee before the call, and retrieving it from the
+    // sandboxee after the call has finished.
+    kSyncBoth = kSyncBefore | kSyncAfter,
+  };
+
   Ptr() = delete;
 
   explicit Ptr(Var* value, SyncType sync_type) : sync_type_(sync_type) {
