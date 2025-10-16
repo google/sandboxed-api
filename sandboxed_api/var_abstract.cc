@@ -56,28 +56,28 @@ void Var::PtrDeleter::operator()(Ptr* p) { delete p; }
 
 Ptr* Var::PtrNone() {
   if (!ptr_none_) {
-    ptr_none_.reset(new Ptr(this, Ptr::kSyncNone));
+    ptr_none_.reset(new Ptr(this, kSyncNone));
   }
   return ptr_none_.get();
 }
 
 Ptr* Var::PtrBoth() {
   if (!ptr_both_) {
-    ptr_both_.reset(new Ptr(this, Ptr::kSyncBoth));
+    ptr_both_.reset(new Ptr(this, kSyncBoth));
   }
   return ptr_both_.get();
 }
 
 Ptr* Var::PtrBefore() {
   if (!ptr_before_) {
-    ptr_before_.reset(new Ptr(this, Ptr::kSyncBefore));
+    ptr_before_.reset(new Ptr(this, kSyncBefore));
   }
   return ptr_before_.get();
 }
 
 Ptr* Var::PtrAfter() {
   if (!ptr_after_) {
-    ptr_after_.reset(new Ptr(this, Ptr::kSyncAfter));
+    ptr_after_.reset(new Ptr(this, kSyncAfter));
   }
   return ptr_after_.get();
 }
