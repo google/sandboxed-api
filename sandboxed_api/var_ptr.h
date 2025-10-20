@@ -98,7 +98,11 @@ class RemotePtr : public Ptr {
     pointed_obj_.SetRemote(remote_addr);
   }
 
-  void SetRemote(void* remote_addr) { pointed_obj_.SetRemote(remote_addr); }
+  void* GetRemote() const override { return pointed_obj_.GetRemote(); }
+
+  void SetRemote(void* remote_addr) override {
+    pointed_obj_.SetRemote(remote_addr);
+  }
 
  private:
   Reg<void*> pointed_obj_;

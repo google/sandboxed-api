@@ -45,6 +45,7 @@
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
+#include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/var_struct.h"
 
@@ -425,6 +426,14 @@ TEST(VarsTest, MoveOperations) {
     MyStruct* data_after = struct_orig.mutable_data();
     EXPECT_THAT(data_before, Eq(data_after));
   }
+}
+
+TEST(VarsTest, SetGetRemote) {
+  v::RemotePtr ptr(nullptr);
+  int arbitrary_object = 0;
+  void* const arbitrary_nonnull_ptr = &arbitrary_object;
+  ptr.SetRemote(arbitrary_nonnull_ptr);
+  EXPECT_EQ(ptr.GetRemote(), arbitrary_nonnull_ptr);
 }
 
 }  // namespace
