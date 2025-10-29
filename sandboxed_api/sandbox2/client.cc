@@ -335,12 +335,14 @@ void Client::ApplyPolicyAndBecomeTracee() {
   if (!allow_speculation) {
     if constexpr (sapi::host_cpu::IsX8664() || sapi::host_cpu::IsArm64()) {
       SAPI_RAW_PCHECK(prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS,
-                            PR_SPEC_FORCE_DISABLE, 0, 0) == 0,
+                            PR_SPEC_FORCE_DISABLE, 0, 0) == 0 ||
+                          errno != EPERM,
                       "could not disable store bypass speculation");
     }
     if constexpr (sapi::host_cpu::IsX8664()) {
       SAPI_RAW_PCHECK(prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH,
-                            PR_SPEC_FORCE_DISABLE, 0, 0) == 0,
+                            PR_SPEC_FORCE_DISABLE, 0, 0) == 0 ||
+                          errno != EPERM,
                       "could not disable indirect branch speculation");
     }
   }
