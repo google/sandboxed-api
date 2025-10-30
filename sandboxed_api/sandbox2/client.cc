@@ -340,10 +340,10 @@ void Client::ApplyPolicyAndBecomeTracee() {
                       "could not disable store bypass speculation");
     }
     if constexpr (sapi::host_cpu::IsX8664()) {
-      SAPI_RAW_PCHECK(prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH,
-                            PR_SPEC_FORCE_DISABLE, 0, 0) == 0 ||
-                          errno != EPERM,
-                      "could not disable indirect branch speculation");
+      if (prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH,
+                PR_SPEC_FORCE_DISABLE, 0, 0) != 0) {
+        SAPI_RAW_LOG(WARNING, "Could not disable indirect branch speculation");
+      }
     }
   }
   uint32_t seccomp_extra_flags =
