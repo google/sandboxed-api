@@ -301,7 +301,7 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   // Cast is safe, since type is v::Type::kPointer
   auto* p = static_cast<v::Ptr*>(ptr);
   // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
-  if (p->GetSyncType() == v::Pointable::kSyncNone) {
+  if (p->GetSyncType() == v::Ptr::kSyncNone) {
     return absl::OkStatus();
   }
 
@@ -312,10 +312,10 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   }
 
   // Allocation occurs during both before/after synchronization modes. But the
-  // memory is transferred to the sandboxee only if v::Pointable::kSyncBefore
-  // was requested.
+  // memory is transferred to the sandboxee only if v::Ptr::kSyncBefore was
+  // requested.
   // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
-  if ((p->GetSyncType() & v::Pointable::kSyncBefore) == 0) {
+  if ((p->GetSyncType() & v::Ptr::kSyncBefore) == 0) {
     return absl::OkStatus();
   }
 
@@ -334,7 +334,7 @@ absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
   }
   v::Ptr* p = reinterpret_cast<v::Ptr*>(ptr);
   // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
-  if ((p->GetSyncType() & v::Pointable::kSyncAfter) == 0) {
+  if ((p->GetSyncType() & v::Ptr::kSyncAfter) == 0) {
     return absl::OkStatus();
   }
 
