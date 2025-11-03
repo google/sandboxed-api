@@ -91,6 +91,7 @@ add_library(sandbox2::result ALIAS sandbox2_result)
 target_link_libraries(sandbox2_result PRIVATE
   absl::base
   absl::strings
+  absl::str_format
   sapi::config
   sandbox2::regs
   sandbox2::syscall
@@ -443,7 +444,8 @@ add_library(sandbox2_monitor_ptrace ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::monitor_ptrace ALIAS sandbox2_monitor_ptrace)
 target_link_libraries(sandbox2_monitor_ptrace
-  PRIVATE absl::cleanup
+  PRIVATE absl::algorithm_container
+          absl::cleanup
           absl::flat_hash_set
           absl::flags
           absl::log
@@ -482,10 +484,12 @@ add_library(sandbox2_monitor_unotify ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::monitor_unotify ALIAS sandbox2_monitor_unotify)
 target_link_libraries(sandbox2_monitor_unotify
-  PRIVATE absl::check
+  PRIVATE absl::algorithm_container
+          absl::check
           absl::cleanup
           absl::core_headers
           absl::flags
+          absl::flat_hash_set
           absl::log
           absl::optional
           absl::span
@@ -506,6 +510,7 @@ target_link_libraries(sandbox2_monitor_unotify
          sandbox2::notify
          sandbox2::policy
          sandbox2::result
+         sandbox2::sanitizer
          sapi::thread
          absl::statusor
          absl::synchronization
@@ -1159,11 +1164,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_symbolize
   )
   target_link_libraries(sandbox2_stack_trace_test PRIVATE
+    absl::algorithm
     absl::check
     absl::flags
     absl::log_severity
     absl::scoped_mock_log
     absl::status
+    absl::status_matchers
     absl::strings
     absl::time
     sandbox2::allowlists_all_syscalls

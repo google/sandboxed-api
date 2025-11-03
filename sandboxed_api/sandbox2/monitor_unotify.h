@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -87,6 +88,8 @@ class UnotifyMonitor : public MonitorBase {
 
   void MaybeGetStackTrace(pid_t pid, Result::StatusEnum status);
   absl::StatusOr<std::vector<std::string>> GetStackTrace(pid_t pid);
+  absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+  GetThreadStackTraces(pid_t pid);
 
   // Notifies monitor about a state change
   void NotifyMonitor();

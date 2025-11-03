@@ -26,6 +26,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall.h"
@@ -37,6 +38,7 @@ Result& Result::operator=(const Result& other) {
   final_status_ = other.final_status_;
   reason_code_ = other.reason_code_;
   stack_trace_ = other.stack_trace_;
+  thread_stack_traces_ = other.thread_stack_traces_;
   if (other.regs_) {
     regs_ = std::make_unique<Regs>(*other.regs_);
   } else {
@@ -55,6 +57,15 @@ Result& Result::operator=(const Result& other) {
 }
 
 std::string Result::GetStackTrace() const {
+  if (!thread_stack_traces_.empty()) {
+    std::vector<std::string> res;
+    res.reserve(thread_stack_traces_.size());
+    for (const auto& [tid, stack_trace] : thread_stack_traces_) {
+      res.push_back(absl::StrFormat("Task ID [%d]: %s", tid,
+                                    absl::StrJoin(stack_trace, " ")));
+    }
+    return absl::StrJoin(res, " ");
+  }
   return absl::StrJoin(stack_trace_, " ");
 }
 

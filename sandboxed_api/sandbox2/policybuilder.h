@@ -913,6 +913,11 @@ class PolicyBuilder final {
   // NOTE: This is disabled by default.
   PolicyBuilder& CollectStacktracesOnExit(bool enable);
 
+  // Enables/disables stack trace collection for all threads.
+  //
+  // NOTE: This is disabled by default.
+  PolicyBuilder& CollectAllThreadsStacktrace(bool enable);
+
   // Changes the default action to ALLOW.
   //
   // All syscalls not handled explicitly by the policy will thus be
@@ -1042,6 +1047,7 @@ class PolicyBuilder final {
   bool collect_stacktrace_on_timeout_ = true;
   bool collect_stacktrace_on_kill_ = false;
   bool collect_stacktrace_on_exit_ = false;
+  bool collect_stacktraces_for_all_threads_ = false;
 
   // Seccomp fields
   std::vector<sock_filter> user_policy_;

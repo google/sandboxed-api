@@ -25,9 +25,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
 #include "absl/base/log_severity.h"
 #include "absl/log/check.h"
 #include "absl/log/scoped_mock_log.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
@@ -95,7 +97,10 @@ using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::Gt;
 using ::testing::IsEmpty;
+using ::testing::Key;
+using ::testing::SizeIs;
 using ::testing::StartsWith;
 
 struct TestCase {
@@ -267,6 +272,52 @@ TEST(StackTraceTest, RecursiveStackTrace) {
   ASSERT_TRUE(s2.RunAsync());
   auto result = s2.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(Result::SIGNALED));
+}
+
+TEST(StackTraceTest, PtraceMonitorCollectsAllThreadsStackTrace) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
+  std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.CollectStacktracesOnSignal(false);
+  builder.CollectAllThreadsStacktrace(true);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
+  ASSERT_TRUE(s2.RunAsync());
+  auto result = s2.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
+  EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
+  EXPECT_THAT(result.thread_stack_traces(),
+              Contains(Key(result.GetRegs()->pid())));
+  auto it = absl::c_find_if(result.thread_stack_traces(),
+                            [pid = result.GetRegs()->pid()](const auto& pair) {
+                              return pair.first == pid;
+                            });
+  ASSERT_NE(it, result.thread_stack_traces().end());
+  EXPECT_THAT(
+      result.thread_stack_traces(),
+      Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
+}
+
+TEST(StackTraceTest, UnotifyMonitorCollectsAllThreadsStackTrace) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
+  std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.CollectStacktracesOnSignal(false);
+  builder.CollectAllThreadsStacktrace(true);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
+  ASSERT_THAT(s2.EnableUnotifyMonitor(), absl_testing::IsOk());
+  ASSERT_TRUE(s2.RunAsync());
+  auto result = s2.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
+  EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
+  EXPECT_THAT(
+      result.thread_stack_traces(),
+      Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
 }
 
 TEST(StackTraceTest, SymbolizationEnablesMonitor) {

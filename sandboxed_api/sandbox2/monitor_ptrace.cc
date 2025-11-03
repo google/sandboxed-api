@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/optimization.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
@@ -104,6 +105,19 @@ void StopProcess(pid_t pid, int signo) {
   }
 }
 
+void InterruptProcess(pid_t pid, int signo) {
+  if (ptrace(PTRACE_INTERRUPT, pid, 0, signo) != -1) {
+    return;
+  }
+  if (errno == ESRCH) {
+    LOG(WARNING) << "Process " << pid
+                 << " died while trying to PTRACE_INTERRUPT it";
+  } else {
+    PLOG(ERROR) << "ptrace(PTRACE_INTERRUPT, pid=" << pid << ", sig=" << signo
+                << ")";
+  }
+}
+
 void CompleteSyscall(pid_t pid, int signo) {
   if (ptrace(PTRACE_SYSCALL, pid, 0, signo) == -1) {
     if (errno == ESRCH) {
@@ -131,6 +145,77 @@ PtraceMonitor::PtraceMonitor(Executor* executor, Policy* policy, Notify* notify)
       absl::GetFlag(FLAGS_sandbox2_monitor_ptrace_use_deadline_manager);
 }
 
+void PtraceMonitor::SetStackTraceResultInfo(const Regs* regs) {
+  auto stack_trace = GetAndLogStackTrace(regs);
+  if (!stack_trace.ok()) {
+    LOG_IF(ERROR,
+           absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
+        << "Could not obtain stack trace: " << stack_trace.status();
+    return;
+  }
+  result_.set_stack_trace(*stack_trace);
+}
+
+void PtraceMonitor::SetAllThreadsStackTraceResultInfo(const Regs* regs) {
+  absl::StatusOr<absl::flat_hash_set<int>> tasks =
+      sanitizer::GetListOfTasks(regs->pid());
+  for (const auto& task : *tasks) {
+    // Skip the current thread.
+    if (task == regs->pid()) {
+      continue;
+    }
+    InterruptProcess(task, 0);
+  }
+  absl::Cleanup cleanup = [&tasks, regs] {
+    for (int task : *tasks) {
+      if (task == regs->pid()) {
+        continue;
+      }
+      ContinueProcess(task, 0);
+    }
+  };
+  std::vector<Regs> reg_list;
+  if (!tasks.ok()) {
+    LOG(ERROR) << "Could not list tasks: " << tasks.status();
+    return;
+  }
+
+  for (const auto& task : *tasks) {
+    Regs reg(task);
+    if (reg.Fetch().ok()) {
+      if (task == regs->pid()) {
+        // The falting thread is the first one in the list so that printing is
+        // easier.
+        reg_list.insert(reg_list.begin(), reg);
+        continue;
+      }
+      reg_list.push_back(reg);
+    }
+  }
+
+  std::vector<const Regs*> regs_ptrs(reg_list.size());
+  for (const auto& reg : reg_list) {
+    regs_ptrs.push_back(&reg);
+  }
+  absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+      stack_traces = GetAndLogAllThreadsStackTrace(regs_ptrs);
+  if (!stack_traces.ok()) {
+    LOG_IF(ERROR,
+           absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
+        << "Could not obtain stack trace: " << stack_traces.status();
+    return;
+  }
+  result_.set_thread_stack_trace(std::move(*stack_traces));
+  auto it = absl::c_find_if(*stack_traces, [regs](const auto& pair) {
+    return pair.first == regs->pid();
+  });
+  if (it == stack_traces->end()) {
+    LOG(ERROR) << "Could not find stack trace for pid: " << regs->pid();
+    return;
+  }
+  result_.set_stack_trace(it->second);
+}
+
 void PtraceMonitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
   pid_t pid = regs->pid();
   result_.SetRegs(std::move(regs));
@@ -141,15 +226,11 @@ void PtraceMonitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
     return;
   }
 
-  absl::StatusOr<std::vector<std::string>> stack_trace =
-      GetAndLogStackTrace(result_.GetRegs());
-  if (!stack_trace.ok()) {
-    LOG_IF(ERROR,
-           absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
-        << "Could not obtain stack trace: " << stack_trace.status();
-    return;
+  if (policy_->collect_all_threads_stacktrace()) {
+    SetAllThreadsStackTraceResultInfo(result_.GetRegs());
+  } else {
+    SetStackTraceResultInfo(result_.GetRegs());
   }
-  result_.set_stack_trace(*stack_trace);
 }
 
 bool PtraceMonitor::KillSandboxee() {

@@ -20,8 +20,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -43,6 +45,7 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 #include "sandboxed_api/util/fileops.h"
@@ -426,13 +429,91 @@ void UnotifyMonitor::Join() {
 
 void UnotifyMonitor::MaybeGetStackTrace(pid_t pid, Result::StatusEnum status) {
   if (ShouldCollectStackTrace(status)) {
-    auto stack = GetStackTrace(pid);
-    if (stack.ok()) {
-      result_.set_stack_trace(*stack);
+    if (policy_->collect_all_threads_stacktrace()) {
+      auto stack_traces = GetThreadStackTraces(pid);
+      if (stack_traces.ok()) {
+        auto it = absl::c_find_if(*stack_traces, [pid](const auto& pair) {
+          return pair.first == pid;
+        });
+        if (it != stack_traces->end()) {
+          result_.set_stack_trace(it->second);
+        }
+        result_.set_thread_stack_trace(*std::move(stack_traces));
+      } else {
+        LOG(ERROR) << "Getting stack trace: " << stack_traces.status();
+      }
     } else {
-      LOG(ERROR) << "Getting stack trace: " << stack.status();
+      auto stack_trace = GetStackTrace(pid);
+      if (stack_trace.ok()) {
+        result_.set_stack_trace(*stack_trace);
+      } else {
+        LOG(ERROR) << "Getting stack trace: " << stack_trace.status();
+      }
     }
   }
+}
+
+absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+UnotifyMonitor::GetThreadStackTraces(pid_t pid) {
+  absl::StatusOr<absl::flat_hash_set<int>> tasks =
+      sanitizer::GetListOfTasks(pid);
+
+  if (!tasks.ok()) {
+    LOG(ERROR) << "Could not list tasks: " << tasks.status();
+    return tasks.status();
+  }
+
+  absl::Cleanup cleanup = [tasks] {
+    for (int task : *tasks) {
+      if (ptrace(PTRACE_DETACH, task, 0, 0) != 0) {
+        LOG(ERROR)
+            << "Could not detach after obtaining stack trace from task = "
+            << task;
+      }
+    }
+  };
+
+  std::vector<Regs> regs_list;
+  for (int task : *tasks) {
+    if (ptrace(PTRACE_ATTACH, task, 0, 0) != 0) {
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("could not attach to task = ", task));
+    }
+
+    int wstatus = 0;
+    while (!WIFSTOPPED(wstatus)) {
+      pid_t ret =
+          waitpid(task, &wstatus, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
+      if (ret == -1) {
+        return absl::ErrnoToStatus(
+            errno, absl::StrCat("waiting for stop, task = ", task));
+      }
+    }
+
+    Regs reg(task);
+    absl::Status status = reg.Fetch();
+    if (!status.ok()) {
+      if (absl::IsNotFound(status)) {
+        LOG(WARNING) << "failed to fetch regs: " << status;
+        continue;
+      }
+      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
+      return status;
+    }
+    if (reg.pid() == pid) {
+      // The falting thread is the first one in the list so that printing
+      // is easier.
+      regs_list.insert(regs_list.begin(), reg);
+      continue;
+    }
+    regs_list.push_back(reg);
+  }
+
+  std::vector<const Regs*> regs_ptrs(regs_list.size());
+  for (const auto& reg : regs_list) {
+    regs_ptrs.push_back(&reg);
+  }
+  return GetAndLogAllThreadsStackTrace(regs_ptrs);
 }
 
 absl::StatusOr<std::vector<std::string>> UnotifyMonitor::GetStackTrace(

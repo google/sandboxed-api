@@ -73,6 +73,10 @@ absl::StatusOr<std::vector<std::string>> GetStackTrace(
     const Regs* regs, const Namespace* ns, bool uses_custom_forkserver,
     int recursion_depth);
 
+absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+GetStackTracesForAllThreads(const std::vector<const Regs*>& regs,
+                            const Namespace* ns, bool uses_custom_forkserver);
+
 // Returns a stack trace that collapses duplicate stack frames and annotates
 // them with a repetition count.
 // Example:

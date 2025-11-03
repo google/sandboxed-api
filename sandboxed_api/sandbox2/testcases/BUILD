@@ -204,6 +204,7 @@ cc_binary(
     deps = [
         ":symbolize_lib",
         "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:thread",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/strings",
     ],

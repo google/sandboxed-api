@@ -97,6 +97,10 @@ class PtraceMonitor : public MonitorBase {
   // stack trace etc.
   void SetAdditionalResultInfo(std::unique_ptr<Regs> regs);
 
+  void SetStackTraceResultInfo(const Regs* regs);
+
+  void SetAllThreadsStackTraceResultInfo(const Regs* regs);
+
   // Logs the syscall violation and kills the process afterwards.
   void ActionProcessSyscallViolation(Regs* regs, const Syscall& syscall,
                                      ViolationType violation_type);

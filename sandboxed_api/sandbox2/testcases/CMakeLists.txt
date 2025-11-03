@@ -229,6 +229,7 @@ target_link_libraries(sandbox2_testcase_symbolize PRIVATE
   absl::strings
   sapi::base
   sapi::raw_logging
+  sapi::thread
   sandbox2::testcase_symbolize_lib
 )
 

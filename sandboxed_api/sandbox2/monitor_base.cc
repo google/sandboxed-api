@@ -19,7 +19,9 @@
 #include <pthread.h>
 #include <sched.h>
 #include <signal.h>
+#include <sys/ptrace.h>
 #include <sys/resource.h>
+#include <sys/types.h>
 #include <syscall.h>
 
 #include <cerrno>
@@ -456,6 +458,12 @@ absl::StatusOr<std::vector<std::string>> MonitorBase::GetStackTrace(
                                  executor_->libunwind_recursion_depth() + 1);
 }
 
+absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+MonitorBase::GetStackTracesForAllThreads(const std::vector<const Regs*>& regs) {
+  return sandbox2::GetStackTracesForAllThreads(
+      regs, policy_->GetNamespaceOrNull(), uses_custom_forkserver_);
+}
+
 absl::StatusOr<std::vector<std::string>> MonitorBase::GetAndLogStackTrace(
     const Regs* regs) {
   auto stack_trace = GetStackTrace(regs);
@@ -469,6 +477,24 @@ absl::StatusOr<std::vector<std::string>> MonitorBase::GetAndLogStackTrace(
   }
   LOG(INFO) << "]";
 
+  return stack_trace;
+}
+
+absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+MonitorBase::GetAndLogAllThreadsStackTrace(
+    const std::vector<const Regs*>& regs) {
+  auto stack_trace = GetStackTracesForAllThreads(regs);
+  if (!stack_trace.ok()) {
+    return stack_trace.status();
+  }
+
+  for (const auto& [pid, stack_trace] : *stack_trace) {
+    LOG(INFO) << "Stack trace [Task ID: " << pid << "]: [";
+    for (const auto& frame : CompactStackTrace(stack_trace)) {
+      LOG(INFO) << "  " << frame;
+    }
+    LOG(INFO) << "]";
+  }
   return stack_trace;
 }
 }  // namespace sandbox2

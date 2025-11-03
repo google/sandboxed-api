@@ -1537,6 +1537,8 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
   policy->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;
   policy->collect_stacktrace_on_kill_ = collect_stacktrace_on_kill_;
   policy->collect_stacktrace_on_exit_ = collect_stacktrace_on_exit_;
+  policy->collect_stacktraces_for_all_threads_ =
+      collect_stacktraces_for_all_threads_;
   policy->user_policy_ = std::move(user_policy_);
   if (default_action_) {
     policy->user_policy_.push_back(*default_action_);
@@ -1750,6 +1752,11 @@ PolicyBuilder& PolicyBuilder::CollectStacktracesOnKill(bool enable) {
 
 PolicyBuilder& PolicyBuilder::CollectStacktracesOnExit(bool enable) {
   collect_stacktrace_on_exit_ = enable;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::CollectAllThreadsStacktrace(bool enable) {
+  collect_stacktraces_for_all_threads_ = enable;
   return *this;
 }
 

@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -114,9 +115,17 @@ class MonitorBase {
   // Gets stack trace.
   absl::StatusOr<std::vector<std::string>> GetStackTrace(const Regs* regs);
 
+  // Gets stack trace for all threads.
+  absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+  GetStackTracesForAllThreads(const std::vector<const Regs*>& regs);
+
   // Gets and logs stack trace.
   absl::StatusOr<std::vector<std::string>> GetAndLogStackTrace(
       const Regs* regs);
+
+  // Gets and logs stack trace for all threads.
+  absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
+  GetAndLogAllThreadsStackTrace(const std::vector<const Regs*>& regs);
 
   // Internal objects, owned by the Sandbox2 object.
   Executor* executor_;

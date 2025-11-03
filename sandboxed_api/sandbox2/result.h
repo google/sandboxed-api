@@ -118,6 +118,11 @@ class Result {
     stack_trace_ = std::move(value);
   }
 
+  void set_thread_stack_trace(
+      std::vector<std::pair<pid_t, std::vector<std::string>>> value) {
+    thread_stack_traces_ = std::move(value);
+  }
+
   void SetRegs(std::unique_ptr<Regs> regs) { regs_ = std::move(regs); }
 
   void SetSyscall(std::unique_ptr<Syscall> syscall) {
@@ -143,6 +148,11 @@ class Result {
   }
 
   const std::vector<std::string>& stack_trace() const { return stack_trace_; }
+
+  const std::vector<std::pair<pid_t, std::vector<std::string>>>&
+  thread_stack_traces() const {
+    return thread_stack_traces_;
+  }
 
   // Returns the stack trace as a space-delimited string.
   std::string GetStackTrace() const;
@@ -195,6 +205,10 @@ class Result {
   // Might contain stack-trace of the process, especially if it failed with
   // syscall violation, or was terminated by a signal.
   std::vector<std::string> stack_trace_;
+  // Might contain stack-trace of the threads of the process, especially if it
+  // failed with syscall violation, or was terminated by a signal.
+  std::vector<std::pair<pid_t, std::vector<std::string>>> thread_stack_traces_;
+
   // Might contain the register values of the process, similar to the stack.
   // trace
   std::unique_ptr<Regs> regs_;

@@ -24,6 +24,7 @@
 #include "absl/strings/numbers.h"
 #include "sandboxed_api/sandbox2/testcases/symbolize_lib.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/thread.h"
 
 // Sometimes we don't have debug info to properly unwind through libc (a frame
 // is skipped).
@@ -65,6 +66,15 @@ void SleepForXSeconds(int x = 0) {
   IndirectLibcCall([x]() { sleep(x); });
 }
 
+void RunTest(int testno);
+
+ABSL_ATTRIBUTE_NOINLINE
+ABSL_ATTRIBUTE_NO_TAIL_CALL
+void CallRunTestInThread(int testno) {
+  sapi::Thread f([testno]() { RunTest(testno); });
+  f.Join();
+}
+
 ABSL_ATTRIBUTE_NOINLINE
 ABSL_ATTRIBUTE_NO_TAIL_CALL
 void RunTest(int testno) {
@@ -92,6 +102,11 @@ void RunTest(int testno) {
         }
       }
       SleepForXSeconds(10);
+      break;
+    }
+    case 6: {
+      sapi::Thread f([]() { CallRunTestInThread(2); });
+      f.Join();
       break;
     }
     default:

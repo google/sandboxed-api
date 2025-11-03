@@ -79,6 +79,10 @@ class Policy final {
     return collect_stacktrace_on_exit_;
   }
 
+  bool collect_all_threads_stacktrace() const {
+    return collect_stacktraces_for_all_threads_;
+  }
+
  private:
   friend class PolicyBuilder;
   friend class MonitorBase;
@@ -96,6 +100,7 @@ class Policy final {
   bool collect_stacktrace_on_timeout_ = true;
   bool collect_stacktrace_on_kill_ = true;
   bool collect_stacktrace_on_exit_ = false;
+  bool collect_stacktraces_for_all_threads_ = false;
 
   bool allow_map_exec_ = false;
   bool allow_safe_bpf_ = false;
