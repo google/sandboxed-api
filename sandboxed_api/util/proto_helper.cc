@@ -32,12 +32,12 @@ namespace internal {
 absl::Status DeserializeProto(const char* data, size_t len,
                               google::protobuf::MessageLite& output) {
   ProtoArg envelope;
-  if (!envelope.ParseFromArray(data, len)) {
+  if (!envelope.ParseFromString(absl::string_view(data, len))) {
     return absl::InternalError("Unable to parse proto from array");
   }
 
   auto pb_data = envelope.protobuf_data();
-  if (!output.ParseFromArray(pb_data.data(), pb_data.size())) {
+  if (!output.ParseFromString(pb_data)) {
     return absl::InternalError("Unable to parse proto from envelope data");
   }
   return absl::OkStatus();
