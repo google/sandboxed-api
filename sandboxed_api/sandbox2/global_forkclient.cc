@@ -40,6 +40,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/sandbox2/comms.h"
