@@ -318,7 +318,6 @@ def sapi_library(
         copts = sapi_platform_copts(),
         defines = [],
         functions = [],
-        header = "",
         input_files = [],
         deps = [],
         tags = [],
@@ -351,8 +350,6 @@ def sapi_library(
       defines: List of defines to add to the compile line. See
         cc_library.defines.
       functions: A list for function to use from host code
-      header: If set, do not generate a header, but use the specified one
-        (deprecated).
       input_files: List of source files which the SAPI interface generator
         should scan for function declarations
       deps: Extra dependencies to add to the SAPI library
@@ -382,10 +379,7 @@ def sapi_library(
         ]
 
     lib_hdrs = hdrs or []
-    if header:
-        lib_hdrs += [header]
-    else:
-        lib_hdrs += [generated_header]
+    lib_hdrs.append(generated_header)
 
     default_deps = ["//sandboxed_api/sandbox2"]
 

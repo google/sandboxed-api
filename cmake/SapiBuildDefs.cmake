@@ -85,13 +85,11 @@ endmacro()
 #   this can usually be empty/omitted.
 # NAMESPACE C++ namespace identifier to place API class defined by
 #   LIBRARY_NAME into.
-# HEADER If set, does not generate an interface header, but uses the one
-#   specified.
 # API_VERSION Which version of the Sandboxed API to generate. Currently, only
 #   version "1" is defined.
 function(add_sapi_library)
   set(_sapi_opts NOEMBED)
-  set(_sapi_one_value HEADER LIBRARY LIBRARY_NAME NAMESPACE API_VERSION)
+  set(_sapi_one_value LIBRARY LIBRARY_NAME NAMESPACE API_VERSION)
   set(_sapi_multi_value SOURCES FUNCTIONS INPUTS)
   cmake_parse_arguments(PARSE_ARGV 0 _sapi "${_sapi_opts}"
                         "${_sapi_one_value}" "${_sapi_multi_value}")
