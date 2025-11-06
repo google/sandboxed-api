@@ -94,17 +94,6 @@ class Ptr : public Reg<Var*> {
   SyncType sync_type_;
 };
 
-// Good, old nullptr
-class ABSL_DEPRECATED(
-    "Use regular `nullptr` or `NULL` instead. This class will eventually get "
-    "removed") NullPtr : public Ptr {
- public:
-  NullPtr() : Ptr(&void_obj_, SyncType::kSyncNone) {}
-
- private:
-  Reg<void*> void_obj_;
-};
-
 // Pointer, which can only point to remote memory, and is never synchronized.
 class RemotePtr : public Ptr {
  public:
