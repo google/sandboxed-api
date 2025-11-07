@@ -322,23 +322,6 @@ absl::StatusOr<std::vector<std::string>> GetStackTrace(
       regs, ns, uses_custom_forkserver, recursion_depth);
 }
 
-absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
-GetStackTracesForAllThreads(const std::vector<const Regs*>& regs,
-                            const Namespace* ns, bool uses_custom_forkserver) {
-  std::vector<std::pair<pid_t, std::vector<std::string>>>
-      all_threads_stack_traces;
-  all_threads_stack_traces.reserve(regs.size());
-  for (const Regs* reg : regs) {
-    auto stack_trace =
-        GetStackTrace(reg, ns, uses_custom_forkserver, /*recursion_depth=*/0);
-    if (stack_trace.ok()) {
-      all_threads_stack_traces.push_back(
-          std::make_pair(reg->pid(), *std::move(stack_trace)));
-    }
-  }
-  return all_threads_stack_traces;
-}
-
 std::vector<std::string> CompactStackTrace(
     const std::vector<std::string>& stack_trace) {
   std::vector<std::string> compact_trace;

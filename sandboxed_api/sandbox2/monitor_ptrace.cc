@@ -105,19 +105,6 @@ void StopProcess(pid_t pid, int signo) {
   }
 }
 
-void InterruptProcess(pid_t pid, int signo) {
-  if (ptrace(PTRACE_INTERRUPT, pid, 0, signo) != -1) {
-    return;
-  }
-  if (errno == ESRCH) {
-    LOG(WARNING) << "Process " << pid
-                 << " died while trying to PTRACE_INTERRUPT it";
-  } else {
-    PLOG(ERROR) << "ptrace(PTRACE_INTERRUPT, pid=" << pid << ", sig=" << signo
-                << ")";
-  }
-}
-
 void CompleteSyscall(pid_t pid, int signo) {
   if (ptrace(PTRACE_SYSCALL, pid, 0, signo) == -1) {
     if (errno == ESRCH) {
@@ -128,6 +115,28 @@ void CompleteSyscall(pid_t pid, int signo) {
                   << ")";
     }
   }
+}
+
+// Waits for the given task to stop, but leaves the task in a waitable state.
+// Returns an error if the task is not stopped within the given timeout.
+absl::Status WaitForTaskToStop(pid_t pid, absl::Duration timeout) {
+  siginfo_t info;
+  info.si_pid = 0;
+  int ret;
+  auto deadline = absl::Now() + timeout;
+  do {
+    // We need to use waitid() here instead of waitpid() because we can specify
+    // WNOWAIT with waitid(), which will leave the task in a waitable state,
+    // unlike waitpid().
+    ret = waitid(P_PID, pid, &info, WSTOPPED | WNOWAIT | WNOHANG);
+  } while (ret == 0 && info.si_pid != pid && absl::Now() < deadline);
+
+  if (ret < 0 || (ret == 0 && info.si_pid != pid)) {
+    LOG(ERROR) << "waitid failed: could not wait for task: " << pid;
+    return absl::ErrnoToStatus(errno, "waitid failed");
+  }
+
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -159,61 +168,66 @@ void PtraceMonitor::SetStackTraceResultInfo(const Regs* regs) {
 void PtraceMonitor::SetAllThreadsStackTraceResultInfo(const Regs* regs) {
   absl::StatusOr<absl::flat_hash_set<int>> tasks =
       sanitizer::GetListOfTasks(regs->pid());
-  for (const auto& task : *tasks) {
-    // Skip the current thread.
-    if (task == regs->pid()) {
-      continue;
-    }
-    InterruptProcess(task, 0);
-  }
-  absl::Cleanup cleanup = [&tasks, regs] {
-    for (int task : *tasks) {
-      if (task == regs->pid()) {
-        continue;
-      }
-      ContinueProcess(task, 0);
-    }
-  };
-  std::vector<Regs> reg_list;
   if (!tasks.ok()) {
     LOG(ERROR) << "Could not list tasks: " << tasks.status();
     return;
   }
 
-  for (const auto& task : *tasks) {
-    Regs reg(task);
-    if (reg.Fetch().ok()) {
-      if (task == regs->pid()) {
-        // The falting thread is the first one in the list so that printing is
-        // easier.
-        reg_list.insert(reg_list.begin(), reg);
-        continue;
-      }
-      reg_list.push_back(reg);
+  // Remove the current thread from the list, we do not need to interrupt it.
+  tasks->erase(regs->pid());
+
+  // Interrupt all tasks. If a task cannot be interrupted, we just filter it out
+  // and collect stack traces on a best-effort basis.
+  // Also, note that we do not want to continue those tasks after fetching the
+  // stack traces because this will be handled by the main waiting loop, which
+  // also knows how to handle tasks being PTRACE_INTERRUPT-ed.
+  absl::erase_if(*tasks, [](int task) {
+    if (ptrace(PTRACE_INTERRUPT, task, 0, 0) != 0) {
+      LOG(ERROR) << "Could not interrupt task: " << task;
+      return true;
+    }
+    return false;
+  });
+
+  // Similarly, if we fail at waiting for a task to stop, we just filter it out.
+  std::vector<pid_t> fetch_tasks;
+  fetch_tasks.reserve(tasks->size() + 1);
+  fetch_tasks.push_back(regs->pid());
+  auto deadline = absl::Now() + absl::Milliseconds(500);
+  for (pid_t task : *tasks) {
+    if (absl::Now() >= deadline) {
+      LOG(ERROR) << "Could not wait for tasks to stop in time, skipping "
+                    "remaining tasks";
+      break;
+    }
+    // We wait for the task to stop here, but the actual task stops will be
+    // handled by the main waiting loop.
+    if (WaitForTaskToStop(task, absl::Milliseconds(10)).ok()) {
+      fetch_tasks.push_back(task);
     }
   }
 
-  std::vector<const Regs*> regs_ptrs(reg_list.size());
-  for (const auto& reg : reg_list) {
-    regs_ptrs.push_back(&reg);
-  }
-  absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
-      stack_traces = GetAndLogAllThreadsStackTrace(regs_ptrs);
-  if (!stack_traces.ok()) {
-    LOG_IF(ERROR,
-           absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
-        << "Could not obtain stack trace: " << stack_traces.status();
+  if (!tasks.ok()) {
+    LOG(ERROR) << "Could not list tasks: " << tasks.status();
     return;
   }
-  result_.set_thread_stack_trace(std::move(*stack_traces));
-  auto it = absl::c_find_if(*stack_traces, [regs](const auto& pair) {
-    return pair.first == regs->pid();
-  });
-  if (it == stack_traces->end()) {
-    LOG(ERROR) << "Could not find stack trace for pid: " << regs->pid();
-    return;
+
+  std::vector<std::pair<pid_t, std::vector<std::string>>> thread_stack_traces;
+  for (pid_t task : fetch_tasks) {
+    auto stack_trace = GetAndLogStackTraceOfPid(task);
+    if (!stack_trace.ok()) {
+      LOG_IF(ERROR,
+             absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
+          << "Could not obtain stack trace: " << stack_trace.status();
+      continue;
+    }
+    if (task == regs->pid()) {
+      result_.set_stack_trace(*stack_trace);
+    }
+    thread_stack_traces.push_back({task, *std::move(stack_trace)});
   }
-  result_.set_stack_trace(it->second);
+
+  result_.set_thread_stack_trace(std::move(thread_stack_traces));
 }
 
 void PtraceMonitor::SetAdditionalResultInfo(std::unique_ptr<Regs> regs) {
@@ -494,7 +508,7 @@ void PtraceMonitor::Run() {
 
       if (WIFSTOPPED(status)) {
         if (log_stack_traces) {
-          LogStackTraceOfPid(ret);
+          GetAndLogStackTraceOfPid(ret).IgnoreError();
         }
 
         if (__WPTRACEEVENT(status) == PTRACE_EVENT_EXIT) {
@@ -507,21 +521,25 @@ void PtraceMonitor::Run() {
   }
 }
 
-void PtraceMonitor::LogStackTraceOfPid(pid_t pid) {
+absl::StatusOr<std::vector<std::string>>
+PtraceMonitor::GetAndLogStackTraceOfPid(pid_t pid) {
   if (!StackTraceCollectionPossible()) {
-    return;
+    return absl::InternalError("Stack trace collection is not possible");
   }
 
   Regs regs(pid);
   if (auto status = regs.Fetch(); !status.ok()) {
     LOG(ERROR) << "Failed to get regs, PID:" << pid << " status:" << status;
-    return;
+    return absl::InternalError(absl::StrCat("Failed to get regs, PID:", pid,
+                                            " status:", status.message()));
   }
 
-  if (auto stack_trace = GetAndLogStackTrace(&regs); !stack_trace.ok()) {
+  auto stack_trace = GetAndLogStackTrace(&regs);
+  if (!stack_trace.ok()) {
     LOG(ERROR) << "Failed to get stack trace, PID:" << pid
                << " status:" << stack_trace.status();
   }
+  return stack_trace;
 }
 
 bool PtraceMonitor::InitSetupSignals() {

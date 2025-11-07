@@ -110,6 +110,22 @@ absl::Status ReadWholeWithDeadline(int fd, std::vector<iovec> vecs_vec,
   return absl::OkStatus();
 }
 
+// Waits for the given task to stop. Returns an error if the task is not stopped
+// within the given timeout.
+absl::Status WaitForTaskToStop(pid_t pid) {
+  int wstatus = 0;
+  int ret = 0;
+  while (ret == 0) {
+    ret = waitpid(pid, &wstatus, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
+  }
+  if (ret == -1) {
+    return absl::ErrnoToStatus(errno,
+                               absl::StrCat("waiting for stop, task = ", pid));
+  }
+  return WIFSTOPPED(wstatus) ? absl::OkStatus()
+                             : absl::InternalError("task did not stop");
+}
+
 }  // namespace
 
 UnotifyMonitor::UnotifyMonitor(Executor* executor, Policy* policy,
@@ -428,92 +444,70 @@ void UnotifyMonitor::Join() {
 }
 
 void UnotifyMonitor::MaybeGetStackTrace(pid_t pid, Result::StatusEnum status) {
-  if (ShouldCollectStackTrace(status)) {
-    if (policy_->collect_all_threads_stacktrace()) {
-      auto stack_traces = GetThreadStackTraces(pid);
-      if (stack_traces.ok()) {
-        auto it = absl::c_find_if(*stack_traces, [pid](const auto& pair) {
-          return pair.first == pid;
-        });
-        if (it != stack_traces->end()) {
-          result_.set_stack_trace(it->second);
-        }
-        result_.set_thread_stack_trace(*std::move(stack_traces));
-      } else {
-        LOG(ERROR) << "Getting stack trace: " << stack_traces.status();
-      }
-    } else {
-      auto stack_trace = GetStackTrace(pid);
-      if (stack_trace.ok()) {
-        result_.set_stack_trace(*stack_trace);
-      } else {
-        LOG(ERROR) << "Getting stack trace: " << stack_trace.status();
-      }
-    }
+  if (!ShouldCollectStackTrace(status)) {
+    return;
   }
+  auto stack_trace = GetStackTrace(pid);
+  if (!stack_trace.ok()) {
+    LOG(ERROR) << "Getting stack trace: " << stack_trace.status();
+    return;
+  }
+  result_.set_stack_trace(*stack_trace);
+  if (!policy_->collect_all_threads_stacktrace()) {
+    return;
+  }
+  auto stack_traces = GetThreadStackTraces(pid);
+  if (!stack_traces.ok()) {
+    LOG(ERROR) << "Getting stack traces: " << stack_traces.status();
+    return;
+  }
+  // Put the violating thread's stack trace at the front
+  stack_traces->insert(stack_traces->begin(), {pid, std::move(*stack_trace)});
+  result_.set_thread_stack_trace(*std::move(stack_traces));
 }
 
 absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
 UnotifyMonitor::GetThreadStackTraces(pid_t pid) {
-  absl::StatusOr<absl::flat_hash_set<int>> tasks =
-      sanitizer::GetListOfTasks(pid);
+  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> tasks,
+                        sanitizer::GetListOfTasks(pid));
+  tasks.erase(pid);
 
-  if (!tasks.ok()) {
-    LOG(ERROR) << "Could not list tasks: " << tasks.status();
-    return tasks.status();
-  }
-
-  absl::Cleanup cleanup = [tasks] {
-    for (int task : *tasks) {
+  std::vector<pid_t> attached_tasks;
+  absl::Cleanup cleanup = [&attached_tasks] {
+    for (pid_t task : attached_tasks) {
       if (ptrace(PTRACE_DETACH, task, 0, 0) != 0) {
-        LOG(ERROR)
-            << "Could not detach after obtaining stack trace from task = "
-            << task;
+        LOG(ERROR) << "Could not detach from pid = " << task;
       }
     }
   };
 
-  std::vector<Regs> regs_list;
-  for (int task : *tasks) {
+  for (pid_t task : tasks) {
     if (ptrace(PTRACE_ATTACH, task, 0, 0) != 0) {
-      return absl::ErrnoToStatus(
-          errno, absl::StrCat("could not attach to task = ", task));
-    }
-
-    int wstatus = 0;
-    while (!WIFSTOPPED(wstatus)) {
-      pid_t ret =
-          waitpid(task, &wstatus, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-      if (ret == -1) {
-        return absl::ErrnoToStatus(
-            errno, absl::StrCat("waiting for stop, task = ", task));
-      }
-    }
-
-    Regs reg(task);
-    absl::Status status = reg.Fetch();
-    if (!status.ok()) {
-      if (absl::IsNotFound(status)) {
-        LOG(WARNING) << "failed to fetch regs: " << status;
-        continue;
-      }
-      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
-      return status;
-    }
-    if (reg.pid() == pid) {
-      // The falting thread is the first one in the list so that printing
-      // is easier.
-      regs_list.insert(regs_list.begin(), reg);
+      LOG(ERROR) << "Could not attach to pid = " << task;
       continue;
     }
-    regs_list.push_back(reg);
+    attached_tasks.push_back(task);
   }
 
-  std::vector<const Regs*> regs_ptrs(regs_list.size());
-  for (const auto& reg : regs_list) {
-    regs_ptrs.push_back(&reg);
+  std::vector<std::pair<pid_t, std::vector<std::string>>> thread_stack_traces;
+  for (pid_t task : attached_tasks) {
+    Regs regs(task);
+    absl::Status status = regs.Fetch();
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to fetch regs: " << status;
+      continue;
+    }
+    auto stack = GetAndLogStackTrace(&regs);
+    if (!stack.ok()) {
+      LOG_IF(ERROR,
+             absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
+          << "Could not obtain stack trace: " << stack.status();
+      continue;
+    }
+    thread_stack_traces.push_back({task, std::move(*stack)});
   }
-  return GetAndLogAllThreadsStackTrace(regs_ptrs);
+
+  return thread_stack_traces;
 }
 
 absl::StatusOr<std::vector<std::string>> UnotifyMonitor::GetStackTrace(
@@ -522,15 +516,9 @@ absl::StatusOr<std::vector<std::string>> UnotifyMonitor::GetStackTrace(
     return absl::ErrnoToStatus(errno,
                                absl::StrCat("could not attach to pid = ", pid));
   }
-  int wstatus = 0;
-  while (!WIFSTOPPED(wstatus)) {
-    pid_t ret =
-        waitpid(pid, &wstatus, __WNOTHREAD | __WALL | WUNTRACED | WNOHANG);
-    if (ret == -1) {
-      return absl::ErrnoToStatus(errno,
-                                 absl::StrCat("waiting for stop, pid = ", pid));
-    }
-  }
+
+  SAPI_RETURN_IF_ERROR(WaitForTaskToStop(pid));
+
   absl::Cleanup cleanup = [pid] {
     if (ptrace(PTRACE_DETACH, pid, 0, 0) != 0) {
       LOG(ERROR) << "Could not detach after obtaining stack trace from pid = "

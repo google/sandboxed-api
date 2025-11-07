@@ -21,6 +21,8 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
@@ -105,7 +107,7 @@ class PtraceMonitor : public MonitorBase {
   void ActionProcessSyscallViolation(Regs* regs, const Syscall& syscall,
                                      ViolationType violation_type);
 
-  void LogStackTraceOfPid(pid_t pid);
+  absl::StatusOr<std::vector<std::string>> GetAndLogStackTraceOfPid(pid_t pid);
 
   // Ptrace events:
   // Syscall violation processing path.
