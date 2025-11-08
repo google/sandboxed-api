@@ -496,6 +496,26 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_vplzcntq_256=",
            "__builtin_ia32_vplzcntq_512=",
 
+           // AMX-TRANSPOSE
+           "__builtin_ia32_t2rpntlvwz0_internal=",
+           "__builtin_ia32_t2rpntlvwz0rs_internal=",
+           "__builtin_ia32_t2rpntlvwz0rst1_internal=",
+           "__builtin_ia32_t2rpntlvwz0t1_internal=",
+           "__builtin_ia32_t2rpntlvwz1_internal=",
+           "__builtin_ia32_t2rpntlvwz1rs_internal=",
+           "__builtin_ia32_t2rpntlvwz1rst1_internal=",
+           "__builtin_ia32_t2rpntlvwz1t1_internal=",
+           "__builtin_ia32_tconjtcmmimfp16ps_internal=",
+           "__builtin_ia32_tconjtfp16_internal=",
+           "__builtin_ia32_ttcmmimfp16ps_internal=",
+           "__builtin_ia32_ttcmmrlfp16ps_internal=",
+           "__builtin_ia32_ttdpbf16ps_internal=",
+           "__builtin_ia32_ttdpbf16ps_internal=",
+           "__builtin_ia32_ttdpfp16ps_internal=",
+           "__builtin_ia32_ttdpfp16ps_internal=",
+           "__builtin_ia32_ttmmultf32ps_internal=",
+           "__builtin_ia32_ttransposed_internal=",
+
            // Trick <prfchwintrin.h> from being included by defining its header
            // guard.
            "__PRFCHWINTRIN_H",
