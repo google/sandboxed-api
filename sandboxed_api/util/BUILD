@@ -113,6 +113,7 @@ cc_library(
         ":status",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:string_view",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
