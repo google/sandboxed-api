@@ -15,13 +15,8 @@
 #ifndef SANDBOXED_API_VAR_PTR_H_
 #define SANDBOXED_API_VAR_PTR_H_
 
-#include <algorithm>
-#include <cstring>
-#include <memory>
 #include <string>
 
-#include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_reg.h"
@@ -56,7 +51,6 @@ class Ptr {
 
   // Getter/Setter for the sync_type_ field.
   SyncType GetSyncType() { return sync_type_; }
-  void SetSyncType(SyncType sync_type) { sync_type_ = sync_type; }
 
   std::string ToString() const {
     Var* var = pointed_var_;
