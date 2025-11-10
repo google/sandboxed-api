@@ -291,15 +291,10 @@ absl::Status Sandbox::Free(v::Var* var) {
   return var->Free(rpc_channel());
 }
 
-absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
+absl::Status Sandbox::SynchronizePtrBefore(v::Ptr* p) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  if (ptr->GetType() != v::Type::kPointer) {
-    return absl::OkStatus();
-  }
-  // Cast is safe, since type is v::Type::kPointer
-  auto* p = static_cast<v::Ptr*>(ptr);
   // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
   if (p->GetSyncType() == v::Ptr::kSyncNone) {
     return absl::OkStatus();
@@ -325,14 +320,10 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Callable* ptr) {
   return p->GetPointedVar()->TransferToSandboxee(rpc_channel(), pid());
 }
 
-absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
+absl::Status Sandbox::SynchronizePtrAfter(v::Ptr* p) const {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  if (ptr->GetType() != v::Type::kPointer) {
-    return absl::OkStatus();
-  }
-  v::Ptr* p = reinterpret_cast<v::Ptr*>(ptr);
   // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
   if ((p->GetSyncType() & v::Ptr::kSyncAfter) == 0) {
     return absl::OkStatus();
@@ -354,8 +345,9 @@ absl::Status Sandbox::SynchronizePtrAfter(v::Callable* ptr) const {
   return p->GetPointedVar()->TransferFromSandboxee(rpc_channel(), pid());
 }
 
-absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
-                           std::initializer_list<v::Callable*> args) {
+absl::Status Sandbox::Call(
+    const std::string& func, v::Callable* ret,
+    std::initializer_list<internal::PtrOrCallable> args) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
@@ -368,52 +360,52 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
           << " argument(s)";
 
   // Copy all arguments into rfcall.
-  int i = 0;
-  for (auto* arg : args) {
-    if (arg == nullptr) {
-      rfcall.arg_type[i] = v::Type::kPointer;
+  for (int i = 0; i < args.size(); ++i) {
+    const internal::PtrOrCallable& arg = args.begin()[i];
+    if (arg.IsPtr()) {
+      v::Ptr* parg = arg.ptr();
       rfcall.arg_size[i] = sizeof(void*);
-      rfcall.args[i].arg_int = 0;
-      VLOG(1) << "CALL ARG: (" << i << "): nullptr";
-      ++i;
+      rfcall.arg_type[i] = v::Type::kPointer;
+      if (parg == nullptr) {
+        rfcall.args[i].arg_int = 0;
+        VLOG(1) << "CALL ARG: (" << i << "): nullptr";
+        continue;
+      }
+      rfcall.aux_type[i] = parg->GetPointedVar()->GetType();
+      rfcall.aux_size[i] = parg->GetPointedVar()->GetSize();
+
+      // Synchronize all pointers before the call if it's needed.
+      SAPI_RETURN_IF_ERROR(SynchronizePtrBefore(parg));
+      rfcall.args[i].arg_int =
+          reinterpret_cast<uintptr_t>(parg->GetPointedVar()->GetRemote());
+      VLOG(1) << "CALL ARG: (" << i << "): " << parg->ToString();
       continue;
     }
-    rfcall.arg_size[i] = arg->GetSize();
-    rfcall.arg_type[i] = arg->GetType();
 
-    // For pointers, set the auxiliary type and size.
-    if (rfcall.arg_type[i] == v::Type::kPointer) {
-      // Cast is safe, since type is v::Type::kPointer
-      auto* p = static_cast<v::Ptr*>(arg);
-      rfcall.aux_type[i] = p->GetPointedVar()->GetType();
-      rfcall.aux_size[i] = p->GetPointedVar()->GetSize();
-    }
-
-    // Synchronize all pointers before the call if it's needed.
-    SAPI_RETURN_IF_ERROR(SynchronizePtrBefore(arg));
-
-    if (arg->GetType() == v::Type::kFloat) {
-      arg->GetDataFromPtr(&rfcall.args[i].arg_float,
-                          sizeof(rfcall.args[0].arg_float));
+    v::Callable* carg = arg.callable();
+    rfcall.arg_size[i] = carg->GetSize();
+    rfcall.arg_type[i] = carg->GetType();
+    if (carg->GetType() == v::Type::kFloat) {
+      carg->GetDataFromPtr(&rfcall.args[i].arg_float,
+                           sizeof(rfcall.args[0].arg_float));
       // Make MSAN happy with long double.
       ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&rfcall.args[i].arg_float,
                                           sizeof(rfcall.args[0].arg_float));
     } else {
-      arg->GetDataFromPtr(&rfcall.args[i].arg_int,
-                          sizeof(rfcall.args[0].arg_int));
+      carg->GetDataFromPtr(&rfcall.args[i].arg_int,
+                           sizeof(rfcall.args[0].arg_int));
     }
 
     if (rfcall.arg_type[i] == v::Type::kFd) {
       // Cast is safe, since type is v::Type::kFd
-      auto* fd = static_cast<v::Fd*>(arg);
+      auto* fd = static_cast<v::Fd*>(carg);
       if (fd->GetRemoteFd() < 0) {
         SAPI_RETURN_IF_ERROR(TransferToSandboxee(fd));
       }
       rfcall.args[i].arg_int = fd->GetRemoteFd();
     }
-    VLOG(1) << "CALL ARG: (" << i << "), Type: " << arg->GetTypeString()
-            << ", Size: " << arg->GetSize() << ", Val: " << arg->ToString();
-    ++i;
+    VLOG(1) << "CALL ARG: (" << i << "), Type: " << carg->GetTypeString()
+            << ", Size: " << carg->GetSize() << ", Val: " << carg->ToString();
   }
   rfcall.ret_type = ret->GetType();
   rfcall.ret_size = ret->GetSize();
@@ -434,9 +426,9 @@ absl::Status Sandbox::Call(const std::string& func, v::Callable* ret,
   }
 
   // Synchronize all pointers after the call if it's needed.
-  for (auto* arg : args) {
-    if (arg != nullptr) {
-      SAPI_RETURN_IF_ERROR(SynchronizePtrAfter(arg));
+  for (internal::PtrOrCallable arg : args) {
+    if (arg.IsPtr() && arg.ptr() != nullptr) {
+      SAPI_RETURN_IF_ERROR(SynchronizePtrAfter(arg.ptr()));
     }
   }
 
@@ -482,7 +474,9 @@ absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
     return absl::UnavailableError("Sandbox not active");
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto len, rpc_channel()->Strlen(str.GetValue()));
+  void* rptr = str.GetPointedVar()->GetRemote();
+
+  SAPI_ASSIGN_OR_RETURN(auto len, rpc_channel()->Strlen(rptr));
   if (len > max_length) {
     return absl::InvalidArgumentError(
         absl::StrCat("Target string too large: ", len, " > ", max_length));
@@ -491,11 +485,11 @@ absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
   SAPI_ASSIGN_OR_RETURN(
       size_t ret,
       sandbox2::util::ReadBytesFromPidInto(
-          pid_, reinterpret_cast<uintptr_t>(str.GetValue()),
+          pid_, reinterpret_cast<uintptr_t>(rptr),
           absl::MakeSpan(reinterpret_cast<char*>(buffer.data()), len)));
   if (ret != len) {
     LOG(WARNING) << "partial read when reading c-string: process_vm_readv(pid: "
-                 << pid_ << " raddr: " << str.GetValue() << " size: " << len
+                 << pid_ << " raddr: " << rptr << " size: " << len
                  << ") transferred " << ret << " bytes";
     return absl::UnavailableError("process_vm_readv succeeded partially");
   }

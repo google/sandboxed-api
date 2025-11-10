@@ -30,7 +30,7 @@ namespace sapi::v {
 
 // Class representing a pointer. Takes both Var* and regular pointers in the
 // initializers.
-class Ptr : public Reg<Var*> {
+class Ptr {
  public:
   enum SyncType {
     // Do not synchronize the underlying object after/before calls.
@@ -49,35 +49,17 @@ class Ptr : public Reg<Var*> {
 
   Ptr() = delete;
 
-  explicit Ptr(Var* value, SyncType sync_type) : sync_type_(sync_type) {
-    Reg<Var*>::SetValue(value);
-  }
+  explicit Ptr(Var* value, SyncType sync_type)
+      : pointed_var_(value), sync_type_(sync_type) {}
 
-  Var* GetPointedVar() const { return Reg<Var*>::GetValue(); }
-
-  void SetValue(Var* ptr) final { value_->SetRemote(ptr); }
-
-  Var* GetValue() const final {
-    return reinterpret_cast<Var*>(value_->GetRemote());
-  }
-
-  const void* GetDataPtr() final {
-    remote_ptr_cache_ = GetValue();
-    return &remote_ptr_cache_;
-  }
-
-  void SetDataFromPtr(const void* ptr, size_t max_sz) final {
-    void* tmp;
-    memcpy(&tmp, ptr, std::min(sizeof(tmp), max_sz));
-    SetValue(reinterpret_cast<Var*>(tmp));
-  }
+  Var* GetPointedVar() const { return pointed_var_; }
 
   // Getter/Setter for the sync_type_ field.
   SyncType GetSyncType() { return sync_type_; }
   void SetSyncType(SyncType sync_type) { sync_type_ = sync_type; }
 
-  std::string ToString() const final {
-    Var* var = GetPointedVar();
+  std::string ToString() const {
+    Var* var = pointed_var_;
     return absl::StrFormat(
         "Ptr to obj:%p (type:'%s' val:'%s'), local:%p, remote:%p, size:%tx",
         var, var->GetTypeString(), var->ToString(), var->GetLocal(),
@@ -85,10 +67,7 @@ class Ptr : public Reg<Var*> {
   }
 
  private:
-  // GetDataPtr() interface requires of us to return a pointer to the data
-  // (variable) that can be copied. We cannot get pointer to pointer with
-  // Var::GetRemote(), hence we cache it, and return pointer to it.
-  void* remote_ptr_cache_;
+  Var* pointed_var_;
 
   // Shall we synchronize the underlying object before/after call.
   SyncType sync_type_;
@@ -99,12 +78,6 @@ class RemotePtr : public Ptr {
  public:
   explicit RemotePtr(void* remote_addr)
       : Ptr(&pointed_obj_, SyncType::kSyncNone) {
-    pointed_obj_.SetRemote(remote_addr);
-  }
-
-  void* GetRemote() const override { return pointed_obj_.GetRemote(); }
-
-  void SetRemote(void* remote_addr) override {
     pointed_obj_.SetRemote(remote_addr);
   }
 

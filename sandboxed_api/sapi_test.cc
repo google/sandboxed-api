@@ -428,13 +428,5 @@ TEST(VarsTest, MoveOperations) {
   }
 }
 
-TEST(VarsTest, SetGetRemote) {
-  v::RemotePtr ptr(nullptr);
-  int arbitrary_object = 0;
-  void* const arbitrary_nonnull_ptr = &arbitrary_object;
-  ptr.SetRemote(arbitrary_nonnull_ptr);
-  EXPECT_EQ(ptr.GetRemote(), arbitrary_nonnull_ptr);
-}
-
 }  // namespace
 }  // namespace sapi

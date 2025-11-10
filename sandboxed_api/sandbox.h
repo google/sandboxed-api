@@ -45,6 +45,24 @@
 #include "sandboxed_api/vars.h"
 
 namespace sapi {
+namespace internal {
+class PtrOrCallable {
+ public:
+  explicit PtrOrCallable(v::Callable* callable) : callable_(callable) {}
+  explicit PtrOrCallable(v::Ptr* ptr) : ptr_(ptr) {}
+  explicit PtrOrCallable(nullptr_t) : ptr_(nullptr) {}
+
+  bool IsCallable() const { return callable_ != nullptr; }
+  bool IsPtr() const { return !IsCallable(); }
+
+  v::Callable* callable() const { return callable_; }
+  v::Ptr* ptr() const { return ptr_; }
+
+ private:
+  v::Callable* callable_ = nullptr;
+  v::Ptr* ptr_ = nullptr;
+};
+}  // namespace internal
 
 // Context holding, potentially shared, fork client.
 class ForkClientContext {
@@ -101,20 +119,22 @@ class Sandbox {
   int pid() const { return pid_; }
 
   // Synchronizes the underlying memory for the pointer before the call.
-  absl::Status SynchronizePtrBefore(v::Callable* ptr);
+  absl::Status SynchronizePtrBefore(v::Ptr* ptr);
 
   // Synchronizes the underlying memory for pointer after the call.
-  absl::Status SynchronizePtrAfter(v::Callable* ptr) const;
+  absl::Status SynchronizePtrAfter(v::Ptr* ptr) const;
 
   // Makes a call to the sandboxee.
   template <typename... Args>
   absl::Status Call(const std::string& func, v::Callable* ret, Args&&... args) {
     static_assert(sizeof...(Args) <= FuncCall::kArgsMax,
                   "Too many arguments to sapi::Sandbox::Call()");
-    return Call(func, ret, {std::forward<Args>(args)...});
+    return Call(func, ret,
+                {internal::PtrOrCallable(std::forward<Args>(args))...});
   }
-  virtual absl::Status Call(const std::string& func, v::Callable* ret,
-                            std::initializer_list<v::Callable*> args);
+  virtual absl::Status Call(
+      const std::string& func, v::Callable* ret,
+      std::initializer_list<internal::PtrOrCallable> args);
 
   // Allocates memory in the sandboxee, automatic_free indicates whether the
   // memory should be freed on the remote side when the 'var' goes out of scope.
