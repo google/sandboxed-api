@@ -135,23 +135,25 @@ add_library(sapi_vars ${SAPI_LIB_TYPE}
 )
 add_library(sapi::vars ALIAS sapi_vars)
 target_link_libraries(sapi_vars
-  PRIVATE absl::core_headers
-          absl::span
-          absl::status
-          absl::statusor
-          absl::str_format
-          absl::strings
-          absl::synchronization
+  PRIVATE absl::span
           absl::utility
-          sandbox2::comms
           sandbox2::util
           sapi::base
-          sapi::call
-          sapi::lenval_core
-          sapi::status
           sapi::var_type
-  PUBLIC absl::log
+  PUBLIC absl::check
+         absl::core_headers
+         absl::die_if_null
+         absl::log
+         absl::status
+         absl::statusor
+         absl::strings
+         absl::str_format
+         absl::synchronization
+         sandbox2::comms
+         sapi::call
+         sapi::lenval_core
          sapi::proto_helper
+         sapi::status
 )
 
 # sandboxed_api:client

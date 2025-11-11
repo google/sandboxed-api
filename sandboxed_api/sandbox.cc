@@ -371,13 +371,14 @@ absl::Status Sandbox::Call(
         VLOG(1) << "CALL ARG: (" << i << "): nullptr";
         continue;
       }
-      rfcall.aux_type[i] = parg->GetPointedVar()->GetType();
-      rfcall.aux_size[i] = parg->GetPointedVar()->GetSize();
+      if (v::Var* pvar = parg->GetPointedVar(); pvar != nullptr) {
+        rfcall.aux_type[i] = pvar->GetType();
+        rfcall.aux_size[i] = pvar->GetSize();
+      }
 
       // Synchronize all pointers before the call if it's needed.
       SAPI_RETURN_IF_ERROR(SynchronizePtrBefore(parg));
-      rfcall.args[i].arg_int =
-          reinterpret_cast<uintptr_t>(parg->GetPointedVar()->GetRemote());
+      rfcall.args[i].arg_int = parg->GetRemoteValue();
       VLOG(1) << "CALL ARG: (" << i << "): " << parg->ToString();
       continue;
     }
@@ -474,7 +475,7 @@ absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
     return absl::UnavailableError("Sandbox not active");
   }
 
-  void* rptr = str.GetPointedVar()->GetRemote();
+  void* rptr = reinterpret_cast<void*>(str.GetRemoteValue());
 
   SAPI_ASSIGN_OR_RETURN(auto len, rpc_channel()->Strlen(rptr));
   if (len > max_length) {

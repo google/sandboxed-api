@@ -15,11 +15,12 @@
 #ifndef SANDBOXED_API_VAR_PTR_H_
 #define SANDBOXED_API_VAR_PTR_H_
 
+#include <cstdint>
 #include <string>
 
+#include "absl/log/die_if_null.h"
 #include "absl/strings/str_format.h"
 #include "sandboxed_api/var_abstract.h"
-#include "sandboxed_api/var_reg.h"
 
 namespace sapi::v {
 
@@ -42,23 +43,35 @@ class Ptr {
     kSyncBoth = kSyncBefore | kSyncAfter,
   };
 
-  Ptr() = delete;
-
   explicit Ptr(Var* value, SyncType sync_type)
-      : pointed_var_(value), sync_type_(sync_type) {}
+      : pointed_var_(ABSL_DIE_IF_NULL(value)), sync_type_(sync_type) {}
+  virtual ~Ptr() = default;
+
+  Ptr(const Ptr&) = default;
+  Ptr& operator=(const Ptr&) = default;
 
   Var* GetPointedVar() const { return pointed_var_; }
+  virtual uintptr_t GetRemoteValue() const {
+    return reinterpret_cast<uintptr_t>(pointed_var_->GetRemote());
+  }
 
   // Getter/Setter for the sync_type_ field.
   SyncType GetSyncType() { return sync_type_; }
 
   std::string ToString() const {
+    if (pointed_var_ == nullptr) {
+      return absl::StrFormat("RemotePtr @ 0x%x", GetRemoteValue());
+    }
     Var* var = pointed_var_;
     return absl::StrFormat(
         "Ptr to obj:%p (type:'%s' val:'%s'), local:%p, remote:%p, size:%tx",
         var, var->GetTypeString(), var->ToString(), var->GetLocal(),
         var->GetRemote(), var->GetSize());
   }
+
+ protected:
+  struct RemotePtrTag {};
+  explicit Ptr(RemotePtrTag) : pointed_var_(nullptr), sync_type_(kSyncNone) {}
 
  private:
   Var* pointed_var_;
@@ -71,12 +84,15 @@ class Ptr {
 class RemotePtr : public Ptr {
  public:
   explicit RemotePtr(void* remote_addr)
-      : Ptr(&pointed_obj_, SyncType::kSyncNone) {
-    pointed_obj_.SetRemote(remote_addr);
-  }
+      : Ptr(RemotePtrTag()),
+        remote_addr_(reinterpret_cast<uintptr_t>(remote_addr)) {}
+  RemotePtr(const RemotePtr& other) = default;
+  RemotePtr& operator=(const RemotePtr& other) = default;
+
+  uintptr_t GetRemoteValue() const override { return remote_addr_; }
 
  private:
-  Reg<void*> pointed_obj_;
+  uintptr_t remote_addr_;
 };
 
 }  // namespace sapi::v
