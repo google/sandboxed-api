@@ -217,7 +217,7 @@ void DisableCompressStackDepot(google::protobuf::RepeatedPtrField<std::string>* 
 }
 
 void GlobalForkClient::EnsureStarted(GlobalForkserverStartMode mode) {
-  absl::MutexLock lock(&instance_mutex_);
+  absl::MutexLock lock(instance_mutex_);
   EnsureStartedLocked(mode);
 }
 
@@ -248,7 +248,7 @@ void GlobalForkClient::EnsureStartedLocked(GlobalForkserverStartMode mode) {
 }
 
 void GlobalForkClient::ForceStart() {
-  absl::MutexLock lock(&GlobalForkClient::instance_mutex_);
+  absl::MutexLock lock(GlobalForkClient::instance_mutex_);
   SAPI_RAW_CHECK(instance_ == nullptr,
                  "A force start requested when the Global Fork-Server was "
                  "already running");
@@ -261,7 +261,7 @@ void GlobalForkClient::ForceStart() {
 void GlobalForkClient::Shutdown() {
   pid_t pid = -1;
   {
-    absl::MutexLock lock(&GlobalForkClient::instance_mutex_);
+    absl::MutexLock lock(GlobalForkClient::instance_mutex_);
     if (instance_) {
       pid = instance_->fork_client_.pid();
     }
@@ -275,7 +275,7 @@ void GlobalForkClient::Shutdown() {
 
 SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
                                                int exec_fd, int comms_fd) {
-  absl::ReleasableMutexLock lock(&GlobalForkClient::instance_mutex_);
+  absl::ReleasableMutexLock lock(GlobalForkClient::instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   if (!instance_) {
     return SandboxeeProcess();
@@ -296,7 +296,7 @@ SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
 }
 
 pid_t GlobalForkClient::GetPid() {
-  absl::MutexLock lock(&instance_mutex_);
+  absl::MutexLock lock(instance_mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   if (!instance_) {
     return -1;
@@ -305,7 +305,7 @@ pid_t GlobalForkClient::GetPid() {
 }
 
 bool GlobalForkClient::IsStarted() {
-  absl::ReaderMutexLock lock(&instance_mutex_);
+  absl::ReaderMutexLock lock(instance_mutex_);
   return instance_ != nullptr;
 }
 }  // namespace sandbox2

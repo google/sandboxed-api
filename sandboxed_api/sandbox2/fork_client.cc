@@ -40,7 +40,7 @@ SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
                                          int exec_fd, int comms_fd) {
   SandboxeeProcess process;
   // Acquire the channel ownership for this request (transaction).
-  absl::MutexLock l(&comms_mutex_);
+  absl::MutexLock l(comms_mutex_);
 
   if (!comms_->SendProtoBuf(request)) {
     LOG(ERROR) << "Sending PB to the ForkServer failed";

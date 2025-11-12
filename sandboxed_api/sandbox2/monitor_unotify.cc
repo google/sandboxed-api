@@ -406,7 +406,7 @@ bool UnotifyMonitor::InitSetupNotifyEventFd() {
 }
 
 void UnotifyMonitor::NotifyMonitor() {
-  absl::ReaderMutexLock lock(&notify_mutex_);
+  absl::ReaderMutexLock lock(notify_mutex_);
   if (monitor_notify_fd_.get() < 0) {
     return;
   }
@@ -432,7 +432,7 @@ void UnotifyMonitor::KillInit() {
 }
 
 void UnotifyMonitor::Join() {
-  absl::MutexLock lock(&notify_mutex_);
+  absl::MutexLock lock(notify_mutex_);
   if (thread_.IsJoinable()) {
     thread_.Join();
     CHECK(IsDone()) << "Monitor did not terminate";
