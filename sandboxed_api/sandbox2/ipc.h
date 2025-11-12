@@ -23,11 +23,15 @@
 #include <tuple>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
+
+class Executor;
+class IpcPeer;
+class MonitorBase;
+class Sandbox2;
 
 class IPC final {
  public:
@@ -37,9 +41,6 @@ class IPC final {
   IPC& operator=(const IPC&) = delete;
 
   ~IPC() { InternalCleanupFdMap(); }
-
-  ABSL_DEPRECATED("Use Sandbox2::comms() instead")
-  Comms* comms() const { return comms_.get(); }
 
   // Marks local_fd so that it should be sent to the remote process (sandboxee),
   // and duplicated onto remote_fd in it. The local_fd will be closed after
@@ -70,8 +71,11 @@ class IPC final {
 
  private:
   friend class Executor;
-  friend class MonitorBase;
   friend class IpcPeer;  // For testing
+  friend class MonitorBase;
+  friend class Sandbox2;
+
+  Comms* comms() const { return comms_.get(); }
 
   // Uses a pre-connected file descriptor.
   void SetUpServerSideComms(int fd);

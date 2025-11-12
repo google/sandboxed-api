@@ -17,6 +17,8 @@
 
 #include <sys/types.h>
 
+#include <type_traits>
+
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/util/fileops.h"
@@ -41,6 +43,13 @@ class ForkClient {
   ForkClient(const ForkClient&) = delete;
   ForkClient& operator=(const ForkClient&) = delete;
   ~ForkClient();
+
+  // Runs a custom transaction over the Comms channel.
+  template <typename F>
+  typename std::invoke_result_t<F, Comms*> RunCommsTransaction(F&& func) {
+    absl::MutexLock l(&comms_mutex_);
+    return func(comms_);
+  }
 
   // Sends the fork request over the supplied Comms channel.
   SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
