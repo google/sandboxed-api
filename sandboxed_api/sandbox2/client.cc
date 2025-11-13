@@ -70,14 +70,24 @@ void InitSeccompUnotify(sock_fprog prog, Comms* comms,
   // any additional syscalls.
   std::atomic<int> fd(-1);
   std::atomic<int> tid(-1);
+  std::atomic<bool> error(false);
 
-  std::thread th([comms, seccomp_extra_flags, &fd, &tid]() {
+  std::thread th([comms, seccomp_extra_flags, &fd, &tid, &error]() {
     int notify_fd = -1;
     while (notify_fd == -1) {
+      if (error.load(std::memory_order_seq_cst)) {
+        return;
+      }
       notify_fd = fd.load(std::memory_order_seq_cst);
     }
-    SAPI_RAW_CHECK(comms->SendFD(notify_fd), "sending unotify fd");
-    SAPI_RAW_CHECK(close(notify_fd) == 0, "closing unotify fd");
+    if (!comms->SendFD(notify_fd)) {
+      error.store(true, std::memory_order_seq_cst);
+      SAPI_RAW_LOG(FATAL, "sending notify FD");
+    }
+    if (close(notify_fd) != 0) {
+      error.store(true, std::memory_order_seq_cst);
+      SAPI_RAW_LOG(FATAL, "closing unotify fd");
+    }
     sock_filter filter = ALLOW;
     struct sock_fprog allow_prog = {
         .len = 1,
@@ -86,17 +96,24 @@ void InitSeccompUnotify(sock_fprog prog, Comms* comms,
     int result =
         syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, seccomp_extra_flags,
                 reinterpret_cast<uintptr_t>(&allow_prog));
-    SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
+    if (result == -1) {
+      error.store(true, std::memory_order_seq_cst);
+      SAPI_RAW_LOG(FATAL, "setting seccomp filter");
+    }
     tid.store(syscall(__NR_gettid), std::memory_order_seq_cst);
   });
   th.detach();
   int result = syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
                        SECCOMP_FILTER_FLAG_NEW_LISTENER | seccomp_extra_flags,
                        reinterpret_cast<uintptr_t>(&prog));
+  error.store(result == -1, std::memory_order_seq_cst);
   SAPI_RAW_PCHECK(result != -1, "setting seccomp filter");
   fd.store(result, std::memory_order_seq_cst);
   pid_t child = -1;
   while (child == -1) {
+    if (error.load(std::memory_order_seq_cst)) {
+      SAPI_RAW_LOG(FATAL, "error in unotify thread");
+    }
     child = tid.load(std::memory_order_seq_cst);
   }
   // Apply seccomp.
