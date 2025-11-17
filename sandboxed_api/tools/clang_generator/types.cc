@@ -47,10 +47,6 @@ namespace {
 
 // Checks if a record declaration is a google::protobuf::Message.
 bool IsProtoBuf(const clang::RecordDecl* decl) {
-  const clang::RecordDecl* definition = decl->getDefinition();
-  if (definition == nullptr) {
-    return false;
-  }
   const auto* cxxdecl = llvm::dyn_cast<const clang::CXXRecordDecl>(decl);
   if (cxxdecl == nullptr) {
     return false;
@@ -155,6 +151,8 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
 #else
     const clang::RecordDecl* decl = record_type->getDecl();
 #endif
+    const clang::RecordDecl* definition = decl->getDefinition();
+    decl = definition ? definition : decl;
     if (!IsProtoBuf(decl)) {
       for (const clang::FieldDecl* field : decl->fields()) {
         CollectRelatedTypes(field->getType());

@@ -535,6 +535,27 @@ TEST_F(EmitterTest, MacroTypes) {
               ElementsAre("typedef int int8_t __attribute__((mode(__QI__)))"));
 }
 
+TEST_F(EmitterTest, UseRecordDefiniton) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(RunFrontendAction(
+                  R"(struct Foo {
+                      struct Bar* bar;
+                     };
+                     typedef struct Bar Bar;
+                     struct Bar {
+                      int x;
+                     };
+                     extern "C" void Baz(Bar* bar);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("struct Bar", "typedef struct Bar Bar",
+                          "struct Bar { int x; }"));
+}
+
 TEST_F(EmitterTest, OmitDependentTypes) {
   GeneratorOptions options;
   EmitterForTesting emitter(&options);
