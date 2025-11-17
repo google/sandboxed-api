@@ -512,6 +512,29 @@ TEST_F(EmitterTest, TypedefArrays) {
                           "typedef JBLOCKROW *JBLOCKARRAY"));
 }
 
+TEST_F(EmitterTest, MacroTypes) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(RunFrontendAction(
+                  R"(# define __intN_t(N, MODE) \
+      typedef int int##N##_t __attribute__ ((__mode__ (MODE)))
+    # define __u_intN_t(N, MODE) \
+      typedef unsigned int u_int##N##_t __attribute__ ((__mode__ (MODE)))
+    # ifndef __int8_t_defined
+    #  define __int8_t_defined
+    __intN_t (64, __DI__);
+    __intN_t (8, __QI__);
+    # endif
+
+                     extern "C" void Foo(int8_t*);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("typedef int int8_t __attribute__((mode(__QI__)))"));
+}
+
 TEST_F(EmitterTest, OmitDependentTypes) {
   GeneratorOptions options;
   EmitterForTesting emitter(&options);
