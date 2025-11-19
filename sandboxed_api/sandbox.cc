@@ -422,8 +422,8 @@ absl::Status Sandbox::Call(
     ret->SetDataFromPtr(&fret.int_val, sizeof(fret.int_val));
   }
 
-  if (fret.ret_type == v::Type::kFd) {
-    SAPI_RETURN_IF_ERROR(TransferFromSandboxee(reinterpret_cast<v::Fd*>(ret)));
+  if (rfcall.ret_type == v::Type::kFd) {
+    SAPI_RETURN_IF_ERROR(TransferFromSandboxee(ret));
   }
 
   // Synchronize all pointers after the call if it's needed.
