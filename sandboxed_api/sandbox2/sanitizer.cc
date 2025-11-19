@@ -80,7 +80,8 @@ absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs() {
 
   //  Exclude the dirfd which was opened in ListDirectoryEntries.
   for (auto it = fds.begin(), end = fds.end(); it != end; ++it) {
-    if (access(absl::StrCat(kProcSelfFd, "/", *it).c_str(), F_OK) != 0) {
+    if (faccessat(AT_FDCWD, absl::StrCat(kProcSelfFd, "/", *it).c_str(), F_OK,
+                  AT_SYMLINK_NOFOLLOW) != 0) {
       fds.erase(it);
       break;
     }
