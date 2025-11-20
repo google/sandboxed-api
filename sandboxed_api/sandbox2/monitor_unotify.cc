@@ -490,6 +490,10 @@ UnotifyMonitor::GetThreadStackTraces(pid_t pid) {
 
   std::vector<std::pair<pid_t, std::vector<std::string>>> thread_stack_traces;
   for (pid_t task : attached_tasks) {
+    if (absl::Status status = WaitForTaskToStop(task); !status.ok()) {
+      LOG(ERROR) << "Failed to wait for task to stop: " << status;
+      continue;
+    }
     Regs regs(task);
     absl::Status status = regs.Fetch();
     if (!status.ok()) {
