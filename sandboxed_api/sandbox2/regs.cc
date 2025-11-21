@@ -170,7 +170,12 @@ Syscall Regs::ToSyscall(sapi::cpu::Architecture syscall_arch) const {
     };
     auto sp = user_regs_.sp;
     auto ip = user_regs_.pc;
-    return Syscall(syscall_arch, syscall_number_, args, pid_, sp, ip);
+    // NT_ARM_SYSTEM_CALL will be cleared already on newer kernels on process
+    // exit. Assume non-compat syscall and take the syscall number from x8 in
+    // such situation.
+    auto syscall_nr =
+        syscall_number_ == uintptr_t{-1} ? user_regs_.regs[8] : syscall_number_;
+    return Syscall(syscall_arch, syscall_nr, args, pid_, sp, ip);
   }
 #elif defined(SAPI_ARM)
   if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kArm)) {
