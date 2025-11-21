@@ -129,12 +129,9 @@ class Sandbox {
   absl::Status Call(const std::string& func, v::Callable* ret, Args&&... args) {
     static_assert(sizeof...(Args) <= FuncCall::kArgsMax,
                   "Too many arguments to sapi::Sandbox::Call()");
-    return Call(func, ret,
-                {internal::PtrOrCallable(std::forward<Args>(args))...});
+    return WrapCallStatus(Call(
+        func, ret, {internal::PtrOrCallable(std::forward<Args>(args))...}));
   }
-  virtual absl::Status Call(
-      const std::string& func, v::Callable* ret,
-      std::initializer_list<internal::PtrOrCallable> args);
 
   // Allocates memory in the sandboxee, automatic_free indicates whether the
   // memory should be freed on the remote side when the 'var' goes out of scope.
@@ -202,7 +199,15 @@ class Sandbox {
     // Do nothing by default.
   }
 
+  // WrapCallStatus is called with the status returned by a Call. The default
+  // implementation simply returns the status as is.
+  // This can be used to convert certain errors to a different form, for example
+  // to convert sandbox channel errors to a specific status.
+  virtual absl::Status WrapCallStatus(absl::Status status) { return status; }
+
  private:
+  absl::Status Call(const std::string& func, v::Callable* ret,
+                    std::initializer_list<internal::PtrOrCallable> args);
   // Returns the sandbox policy. Subclasses can modify the default policy
   // builder, or return a completely new policy.
   virtual std::unique_ptr<sandbox2::Policy> ModifyPolicy(
