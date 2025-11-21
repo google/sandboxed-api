@@ -28,23 +28,7 @@ namespace sapi::v {
 
 // The superclass for Reg. Specified as a class, so it can be used as a
 // type specifier in methods.
-class Callable : public Var {
- public:
-  // Get pointer to the stored data.
-  virtual const void* GetDataPtr() = 0;
-
-  // Set internal data from ptr.
-  virtual void SetDataFromPtr(const void* ptr, size_t max_sz) = 0;
-
-  // Get data from internal ptr.
-  void GetDataFromPtr(void* ptr, size_t max_sz) {
-    size_t min_sz = std::min<size_t>(GetSize(), max_sz);
-    memcpy(ptr, GetDataPtr(), min_sz);
-  }
-
- protected:
-  Callable() = default;
-};
+using Callable = Var;
 
 // Class Reg represents register-sized variables.
 template <typename T>
@@ -72,13 +56,6 @@ class Reg : public Callable {
   // Getter/Setter for the stored value.
   virtual T GetValue() const { return value_; }
   virtual void SetValue(T value) { value_ = value; }
-
-  const void* GetDataPtr() override {
-    return reinterpret_cast<const void*>(&value_);
-  }
-  void SetDataFromPtr(const void* ptr, size_t max_sz) override {
-    memcpy(&value_, ptr, std::min(GetSize(), max_sz));
-  }
 
   size_t GetSize() const override { return sizeof(T); }
 

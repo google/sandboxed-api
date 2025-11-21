@@ -16,10 +16,8 @@
 #define SANDBOXED_API_VAR_VOID_H_
 
 #include <cstddef>
-#include <memory>
 #include <string>
 
-#include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 
 namespace sapi::v {
@@ -33,9 +31,6 @@ class Void : public Callable {
   Type GetType() const final { return Type::kVoid; }
   std::string GetTypeString() const final { return "Void"; }
   std::string ToString() const final { return "Void"; }
-
-  const void* GetDataPtr() override { return nullptr; }
-  void SetDataFromPtr(const void* ptr, size_t max_sz) override {}
 };
 
 }  // namespace sapi::v

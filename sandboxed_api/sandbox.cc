@@ -19,9 +19,11 @@
 #include <sys/uio.h>
 #include <syscall.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -387,14 +389,14 @@ absl::Status Sandbox::Call(
     rfcall.arg_size[i] = carg->GetSize();
     rfcall.arg_type[i] = carg->GetType();
     if (carg->GetType() == v::Type::kFloat) {
-      carg->GetDataFromPtr(&rfcall.args[i].arg_float,
-                           sizeof(rfcall.args[0].arg_float));
+      memcpy(&rfcall.args[i].arg_float, carg->GetLocal(),
+             std::min(sizeof(rfcall.args[0].arg_float), carg->GetSize()));
       // Make MSAN happy with long double.
       ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&rfcall.args[i].arg_float,
                                           sizeof(rfcall.args[0].arg_float));
-    } else {
-      carg->GetDataFromPtr(&rfcall.args[i].arg_int,
-                           sizeof(rfcall.args[0].arg_int));
+    } else if (carg->GetSize() != 0) {
+      memcpy(&rfcall.args[i].arg_int, carg->GetLocal(),
+             std::min(sizeof(rfcall.args[0].arg_int), carg->GetSize()));
     }
 
     if (rfcall.arg_type[i] == v::Type::kFd) {
@@ -417,9 +419,11 @@ absl::Status Sandbox::Call(
       rpc_channel()->Call(rfcall, comms::kMsgCall, &fret, rfcall.ret_type));
 
   if (fret.ret_type == v::Type::kFloat) {
-    ret->SetDataFromPtr(&fret.float_val, sizeof(fret.float_val));
-  } else {
-    ret->SetDataFromPtr(&fret.int_val, sizeof(fret.int_val));
+    memcpy(ret->GetLocal(), &fret.float_val,
+           std::min(sizeof(ret->GetSize()), sizeof(fret.float_val)));
+  } else if (ret->GetSize() != 0) {
+    memcpy(ret->GetLocal(), &fret.int_val,
+           std::min(sizeof(ret->GetSize()), sizeof(fret.int_val)));
   }
 
   if (rfcall.ret_type == v::Type::kFd) {
