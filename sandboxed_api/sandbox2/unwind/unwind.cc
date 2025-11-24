@@ -19,7 +19,7 @@
 
 #include <cerrno>
 #include <cstdint>
-#include <cstdlib>
+#include <cstring>
 #include <map>
 #include <string>
 #include <utility>
@@ -34,30 +34,32 @@
 #include "libunwind-ptrace.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/unwind/ptrace_hook.h"
+#include "sandboxed_api/sandbox2/regs.h"
+#include "sandboxed_api/sandbox2/unwind/accessors.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util/demangle.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 namespace {
 
-absl::StatusOr<uintptr_t> ReadMemory(pid_t pid, uintptr_t addr) {
-  errno = 0;
-  uintptr_t val = ptrace(PTRACE_PEEKDATA, pid, addr, 0);
-  if (errno != 0) {
-    return absl::ErrnoToStatus(errno, "ptrace() failed");
+absl::StatusOr<uintptr_t> ReadMemory(unw_addr_space_t as, void* ctx,
+                                     uintptr_t addr) {
+  unw_accessors_t* accessors = unw_get_accessors(as);
+  uintptr_t val;
+  if (accessors->access_mem(as, addr, &val, 0, ctx) < 0) {
+    return absl::ErrnoToStatus(errno, "access_mem() failed");
   }
   return val;
 }
 
-absl::StatusOr<std::vector<uintptr_t>> UnwindUsingFramePointer(pid_t pid,
-                                                               int max_frames,
-                                                               uintptr_t fp) {
+absl::StatusOr<std::vector<uintptr_t>> UnwindUsingFramePointer(
+    unw_addr_space_t as, void* ctx, int max_frames, uintptr_t fp) {
 #if defined(SAPI_PPC64_LE)
   constexpr int kIPOffset = 2;
 #else
@@ -66,26 +68,16 @@ absl::StatusOr<std::vector<uintptr_t>> UnwindUsingFramePointer(pid_t pid,
   std::vector<uintptr_t> ips;
   for (int i = 0; fp != 0 && i < max_frames; ++i) {
     SAPI_ASSIGN_OR_RETURN(uintptr_t ip,
-                          ReadMemory(pid, fp + kIPOffset * sizeof(void*)));
+                          ReadMemory(as, ctx, fp + kIPOffset * sizeof(void*)));
     ips.push_back(ip);
-    SAPI_ASSIGN_OR_RETURN(fp, ReadMemory(pid, fp));
+    SAPI_ASSIGN_OR_RETURN(fp, ReadMemory(as, ctx, fp));
   }
   return ips;
 }
 
-absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
-  static unw_addr_space_t as =
-      unw_create_addr_space(&_UPT_accessors, 0 /* byte order */);
-  if (as == nullptr) {
-    return absl::InternalError("unw_create_addr_space() failed");
-  }
-
-  void* context = _UPT_create(pid);
-  if (context == nullptr) {
-    return absl::InternalError("_UPT_create() failed");
-  }
-  absl::Cleanup context_cleanup = [&context] { _UPT_destroy(context); };
-
+absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(unw_addr_space_t as,
+                                                    void* context,
+                                                    int max_frames) {
   unw_cursor_t cursor;
   if (int rc = unw_init_remote(&cursor, as, context); rc < 0) {
     // Could be UNW_EINVAL (8), UNW_EUNSPEC (1) or UNW_EBADREG (3).
@@ -125,7 +117,7 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
         SAPI_RAW_LOG(INFO, "Falling back to frame based unwinding at FP: %lx",
                      fp);
         absl::StatusOr<std::vector<uintptr_t>> fp_ips =
-            UnwindUsingFramePointer(pid, max_frames - ips.size(), fp);
+            UnwindUsingFramePointer(as, context, max_frames - ips.size(), fp);
         if (!fp_ips.ok()) {
           SAPI_RAW_LOG(WARNING, "FP based unwinding failed: %s",
                        std::string(fp_ips.status().message()).c_str());
@@ -139,48 +131,7 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(pid_t pid, int max_frames) {
   return ips;
 }
 
-absl::StatusOr<std::vector<std::string>> SymbolizeStacktrace(
-    pid_t pid, const std::vector<uintptr_t>& ips) {
-  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(pid));
-  std::vector<std::string> stack_trace;
-  stack_trace.reserve(ips.size());
-  // Symbolize stacktrace
-  for (uintptr_t ip : ips) {
-    const std::string symbol =
-        GetSymbolAt(addr_to_symbol, static_cast<uint64_t>(ip));
-    stack_trace.push_back(absl::StrCat(symbol, "(0x", absl::Hex(ip), ")"));
-  }
-  return stack_trace;
-}
-
-}  // namespace
-
-std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr) {
-  auto entry_for_next_symbol = addr_to_symbol.lower_bound(addr);
-  if (entry_for_next_symbol != addr_to_symbol.end() &&
-      entry_for_next_symbol != addr_to_symbol.begin()) {
-    // Matches the addr exactly:
-    if (entry_for_next_symbol->first == addr) {
-      return DemangleSymbol(entry_for_next_symbol->second);
-    }
-
-    // Might be inside a function, return symbol+offset;
-    const auto entry_for_previous_symbol = --entry_for_next_symbol;
-    if (!entry_for_previous_symbol->second.empty()) {
-      return absl::StrCat(DemangleSymbol(entry_for_previous_symbol->second),
-                          "+0x",
-                          absl::Hex(addr - entry_for_previous_symbol->first));
-    }
-  }
-  return "";
-}
-
-absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
-  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
-  std::string maps_content;
-  SAPI_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
-                                               sapi::file::Defaults()));
-
+absl::StatusOr<SymbolMap> LoadSymbolsMap(const std::string& maps_content) {
   SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
                         ParseProcMaps(maps_content));
 
@@ -246,39 +197,128 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
   return addr_to_symbol;
 }
 
-bool RunLibUnwindAndSymbolizer(Comms* comms) {
+absl::StatusOr<std::vector<std::string>> SymbolizeStacktrace(
+    const SymbolMap& map, const std::vector<uintptr_t>& ips) {
+  std::vector<std::string> stack_trace;
+  stack_trace.reserve(ips.size());
+  // Symbolize stacktrace
+  for (uintptr_t ip : ips) {
+    const std::string symbol = GetSymbolAt(map, static_cast<uint64_t>(ip));
+    stack_trace.push_back(absl::StrCat(symbol, "(0x", absl::Hex(ip), ")"));
+  }
+  return stack_trace;
+}
+
+absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizerInternal(
+    unw_addr_space_t as, void* ctx, const std::string& maps_content,
+    int max_frames) {
+  SAPI_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
+                        RunLibUnwind(as, ctx, max_frames));
+  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(maps_content));
+  return SymbolizeStacktrace(addr_to_symbol, ips);
+}
+
+}  // namespace
+
+std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr) {
+  auto entry_for_next_symbol = addr_to_symbol.lower_bound(addr);
+  if (entry_for_next_symbol != addr_to_symbol.end() &&
+      entry_for_next_symbol != addr_to_symbol.begin()) {
+    // Matches the addr exactly:
+    if (entry_for_next_symbol->first == addr) {
+      return DemangleSymbol(entry_for_next_symbol->second);
+    }
+
+    // Might be inside a function, return symbol+offset;
+    const auto entry_for_previous_symbol = --entry_for_next_symbol;
+    if (!entry_for_previous_symbol->second.empty()) {
+      return absl::StrCat(DemangleSymbol(entry_for_previous_symbol->second),
+                          "+0x",
+                          absl::Hex(addr - entry_for_previous_symbol->first));
+    }
+  }
+  return "";
+}
+
+absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
+  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
+  std::string maps_content;
+  SAPI_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
+                                               sapi::file::Defaults()));
+  return LoadSymbolsMap(maps_content);
+}
+
+absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
   UnwindSetup setup;
   if (!comms->RecvProtoBuf(&setup)) {
-    return false;
+    return absl::InternalError("Failed to receive UnwindSetup proto");
   }
+  sandbox2::Regs::PtraceRegisters regs;
+  memcpy(&regs, setup.regs().data(), setup.regs().size());
   int mem_fd;
   if (!comms->RecvFD(&mem_fd)) {
-    return false;
+    return absl::InternalError("Failed to receive mem_fd");
+  }
+  sapi::file_util::fileops::FDCloser mem_fd_closer(mem_fd);
+  std::string maps_content;
+  SAPI_RETURN_IF_ERROR(
+      sapi::file::GetContents(absl::StrCat("/proc/", setup.pid(), "/maps"),
+                              &maps_content, sapi::file::Defaults()));
+
+  SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
+                        ParseProcMaps(maps_content));
+
+  SandboxedUnwindContext ctx{
+      .regs = regs,
+      .maps = std::move(maps),
+      .mem_fd = std::move(mem_fd_closer),
+  };
+
+  unw_addr_space_t as =
+      unw_create_addr_space(GetUnwindAccessors(), 0 /* byte order */);
+  if (as == nullptr) {
+    return absl::InternalError("unw_create_addr_space() failed");
   }
 
-  EnablePtraceEmulationWithUserRegs(setup.pid(), setup.regs(), mem_fd);
+  absl::Cleanup as_cleanup = [&as] { unw_destroy_addr_space(as); };
 
   absl::StatusOr<std::vector<std::string>> stack_trace =
-      RunLibUnwindAndSymbolizer(setup.pid(), setup.default_max_frames());
+      RunLibUnwindAndSymbolizerInternal(as, &ctx, maps_content,
+                                        setup.default_max_frames());
 
   if (!comms->SendStatus(stack_trace.status())) {
-    return false;
+    return absl::InternalError("Failed to send status");
   }
 
   if (!stack_trace.ok()) {
-    return true;
+    return absl::OkStatus();
   }
 
   UnwindResult msg;
   *msg.mutable_stacktrace() = {stack_trace->begin(), stack_trace->end()};
-  return comms->SendProtoBuf(msg);
+  if (!comms->SendProtoBuf(msg)) {
+    return absl::InternalError("Failed to send stack trace");
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizer(
     pid_t pid, int max_frames) {
+  static unw_addr_space_t as =
+      unw_create_addr_space(&_UPT_accessors, 0 /* byte order */);
+  if (as == nullptr) {
+    return absl::InternalError("unw_create_addr_space() failed");
+  }
+
+  void* context = _UPT_create(pid);
+  if (context == nullptr) {
+    return absl::InternalError("_UPT_create() failed");
+  }
+  absl::Cleanup context_cleanup = [&context] { _UPT_destroy(context); };
   SAPI_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
-                        RunLibUnwind(pid, max_frames));
-  return SymbolizeStacktrace(pid, ips);
+                        RunLibUnwind(as, context, max_frames));
+  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(pid));
+  return SymbolizeStacktrace(addr_to_symbol, ips);
 }
 
 }  // namespace sandbox2

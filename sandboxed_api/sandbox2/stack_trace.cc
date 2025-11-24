@@ -153,9 +153,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowSafeFcntl()
       .AllowGetPIDs()
 
-      // Required for our ptrace replacement.
-      .TrapPtrace()
-
       // Add proc maps.
       .AddFileAt(maps_file,
                  file::JoinPath("/proc", absl::StrCat(kFakePid), "maps"))

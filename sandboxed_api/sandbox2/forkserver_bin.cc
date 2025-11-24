@@ -16,6 +16,7 @@
 
 #include <csignal>
 #include <cstdlib>
+#include <string>
 
 #include "absl/base/log_severity.h"
 #include "absl/log/globals.h"
@@ -69,8 +70,12 @@ int main() {
     if (child_pid == 0) {
       sandbox2::Client client(&comms);
       client.SandboxMeHere();
-      return sandbox2::RunLibUnwindAndSymbolizer(&comms) ? EXIT_SUCCESS
-                                                         : EXIT_FAILURE;
+      auto status = sandbox2::RunLibUnwindAndSymbolizer(&comms);
+      if (!status.ok()) {
+        SAPI_RAW_LOG(ERROR, "RunLibUnwindAndSymbolizer failed: %s",
+                     std::string(status.message()).c_str());
+      }
+      return status.ok() ? EXIT_SUCCESS : EXIT_FAILURE;
     }
   }
   SAPI_RAW_VLOG(1, "ForkServer Comms closed. Exiting");

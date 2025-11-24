@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
@@ -37,7 +38,7 @@ std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr);
 absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid);
 
 // Runs libunwind and the symbolizer and sends the results via comms.
-bool RunLibUnwindAndSymbolizer(Comms* comms);
+absl::Status RunLibUnwindAndSymbolizer(Comms* comms);
 
 absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizer(
     pid_t pid, int max_frames);

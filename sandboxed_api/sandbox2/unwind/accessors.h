@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SANDBOXED_API_SANDBOX2_UNWIND_PTRACE_HOOK_H_
-#define SANDBOXED_API_SANDBOX2_UNWIND_PTRACE_HOOK_H_
+#ifndef SANDBOXED_API_SANDBOX2_UNWIND_ACCESSORS_H_
+#define SANDBOXED_API_SANDBOX2_UNWIND_ACCESSORS_H_
 
-#include <unistd.h>
+#include <vector>
 
-#include "absl/strings/string_view.h"
+#include "libunwind.h"
+#include "sandboxed_api/sandbox2/regs.h"
+#include "sandboxed_api/sandbox2/util/maps_parser.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
-// Sets the register values that the ptrace emulation will return.
-void EnablePtraceEmulationWithUserRegs(pid_t pid, absl::string_view regs,
-                                       int mem_fd);
+struct SandboxedUnwindContext {
+  sandbox2::Regs::PtraceRegisters regs;
+  const std::vector<sandbox2::MapsEntry> maps;
+  sapi::file_util::fileops::FDCloser mem_fd;
+};
+
+unw_accessors_t* GetUnwindAccessors();
 
 }  // namespace sandbox2
 
-#endif  // SANDBOXED_API_SANDBOX2_UNWIND_PTRACE_HOOK_H_
+#endif  // SANDBOXED_API_SANDBOX2_UNWIND_ACCESSORS_H_

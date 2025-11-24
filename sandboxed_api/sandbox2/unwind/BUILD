@@ -23,13 +23,28 @@ package(default_visibility = [
 licenses(["notice"])
 
 cc_library(
-    name = "ptrace_hook",
-    srcs = ["ptrace_hook.cc"],
-    hdrs = ["ptrace_hook.h"],
-    copts = sapi_platform_copts(),
+    name = "accessors",
+    srcs = [
+        "accessors.cc",
+        "accessors_internal.c",
+        "accessors_internal.h",
+    ],
+    hdrs = ["accessors.h"],
+    copts = sapi_platform_copts() + [
+        "-Ithird_party/libunwind/include",
+        "-Ithird_party/libunwind/include/tdep",
+        "-Ithird_party/libunwind/src",
+        "-DHAVE_ELF_H",
+        "-DHAVE_LINK_H",
+    ],
     deps = [
-        "//sandboxed_api/sandbox2/util:syscall_trap",
-        "@abseil-cpp//absl/strings",
+        "//sandboxed_api/sandbox2:regs",
+        "//sandboxed_api/sandbox2/util:maps_parser",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:raw_logging",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@libunwind//:libunwind_ptrace",
     ],
 )
 
@@ -40,14 +55,16 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":ptrace_hook",
+        ":accessors",
         ":unwind_cc_proto",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:regs",
         "//sandboxed_api/sandbox2/util:demangle",
         "//sandboxed_api/sandbox2/util:maps_parser",
         "//sandboxed_api/sandbox2/util:minielf",
         "//sandboxed_api/util:file_helpers",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/cleanup",

@@ -32,28 +32,6 @@ namespace sandbox2 {
 // assumes the process is already attached.
 class Regs {
  public:
-  explicit Regs(pid_t pid) : pid_(pid) {}
-
-  // Copies register values from the process
-  absl::Status Fetch();
-
-  // Copies register values to the process
-  absl::Status Store();
-
-  // Causes the process to skip current syscall and return given value instead
-  absl::Status SkipSyscallReturnValue(uintptr_t value);
-
-  // Converts raw register values obtained on syscall entry to syscall info
-  Syscall ToSyscall(sapi::cpu::Architecture syscall_arch) const;
-
-  // Returns the content of the register that holds a syscall's return value
-  int64_t GetReturnValue(sapi::cpu::Architecture syscall_arch) const;
-
-  pid_t pid() const { return pid_; }
-
- private:
-  friend class StackTracePeer;
-
   struct PtraceRegisters {
 #if defined(SAPI_X86_64)
     uint64_t r15;
@@ -117,6 +95,28 @@ class Regs {
     static_assert(false, "Host CPU architecture not supported, see config.h");
 #endif
   };
+
+  explicit Regs(pid_t pid) : pid_(pid) {}
+
+  // Copies register values from the process
+  absl::Status Fetch();
+
+  // Copies register values to the process
+  absl::Status Store();
+
+  // Causes the process to skip current syscall and return given value instead
+  absl::Status SkipSyscallReturnValue(uintptr_t value);
+
+  // Converts raw register values obtained on syscall entry to syscall info
+  Syscall ToSyscall(sapi::cpu::Architecture syscall_arch) const;
+
+  // Returns the content of the register that holds a syscall's return value
+  int64_t GetReturnValue(sapi::cpu::Architecture syscall_arch) const;
+
+  pid_t pid() const { return pid_; }
+
+ private:
+  friend class StackTracePeer;
 
   // PID for which registers are fetched/stored
   pid_t pid_ = 0;

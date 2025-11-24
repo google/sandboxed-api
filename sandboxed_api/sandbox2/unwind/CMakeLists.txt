@@ -12,16 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# sandboxed_api/sandbox2/unwind:ptrace_hook
-add_library(sandbox2_ptrace_hook STATIC
-  ptrace_hook.cc
-  ptrace_hook.h
+add_library(sandbox2_accessors_internal STATIC
+  accessors_internal.c
+  accessors_internal.h
 )
-add_library(sandbox2::ptrace_hook ALIAS sandbox2_ptrace_hook)
-target_link_libraries(sandbox2_ptrace_hook
-  PRIVATE sapi::base
-          sandbox2::syscall_trap
-  PUBLIC absl::strings
+target_compile_definitions(sandbox2_accessors_internal PRIVATE
+  HAVE_ELF_H=1
+  HAVE_LINK_H=1
+)
+add_library(sandbox2::accessors_internal ALIAS sandbox2_accessors_internal)
+target_link_libraries(sandbox2_accessors_internal PRIVATE
+  unwind::unwind_ptrace
+)
+
+# sandboxed_api/sandbox2/unwind:accessors
+add_library(sandbox2_accessors STATIC
+  accessors.cc
+  accessors.h
+)
+add_library(sandbox2::accessors ALIAS sandbox2_accessors)
+target_link_libraries(sandbox2_accessors PRIVATE
+  sandbox2::accessors_internal
+  sandbox2::regs
+  sandbox2::maps_parser
+  sapi::base
+  sapi::raw_logging
+  unwind::unwind_ptrace
 )
 
 # sandboxed_api/sandbox2/unwind:unwind
@@ -39,11 +55,13 @@ target_link_libraries(sandbox2_unwind PRIVATE
   sandbox2::demangle
   sandbox2::maps_parser
   sandbox2::minielf
-  sandbox2::ptrace_hook
+  sandbox2::regs
   sandbox2::unwind_proto
+  sandbox2::accessors
   sapi::base
   sapi::config
   sapi::file_helpers
+  sapi::fileops
   sapi::raw_logging
   sapi::status
   unwind::unwind_ptrace
