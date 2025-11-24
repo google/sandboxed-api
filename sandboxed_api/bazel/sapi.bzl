@@ -383,13 +383,14 @@ def sapi_library(
 
     default_deps = ["//sandboxed_api/sandbox2"]
 
+    sapi_data_deps = [":" + name + ".bin"] if not embed else []
+
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
     cc_library(
         name = name,
         srcs = srcs,
-        # Add the sandboxed binary as a data dependency for ingestion by the symbol server.
-        data = [":" + name + ".bin"] + data,
+        data = sapi_data_deps + data,
         hdrs = lib_hdrs,
         copts = default_copts + copts,
         defines = defines,
