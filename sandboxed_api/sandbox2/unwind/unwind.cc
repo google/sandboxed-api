@@ -260,11 +260,7 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
     return absl::InternalError("Failed to receive mem_fd");
   }
   sapi::file_util::fileops::FDCloser mem_fd_closer(mem_fd);
-  std::string maps_content;
-  SAPI_RETURN_IF_ERROR(
-      sapi::file::GetContents(absl::StrCat("/proc/", setup.pid(), "/maps"),
-                              &maps_content, sapi::file::Defaults()));
-
+  std::string maps_content = setup.maps_content();
   SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
                         ParseProcMaps(maps_content));
 

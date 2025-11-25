@@ -374,6 +374,7 @@ target_link_libraries(sandbox2_stack_trace
           absl::status
           absl::strings
           absl::time
+          sandbox2::bpf_helper
           sandbox2::client
           sandbox2::flags
           sandbox2::limits
@@ -384,6 +385,7 @@ target_link_libraries(sandbox2_stack_trace
           sapi::base
           sapi::file_base
           sapi::fileops
+          sapi::file_helpers
           sapi::status
   PUBLIC absl::check
          absl::statusor

@@ -17,6 +17,7 @@
 #include "sandboxed_api/sandbox2/stack_trace.h"
 
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -48,6 +49,8 @@
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
+#include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -57,10 +60,6 @@ namespace {
 
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
-
-// Use a fake pid so that /proc/{pid}/maps etc. also exist in the new pid
-// namespace
-constexpr int kFakePid = 1;
 
 bool IsSameFile(const std::string& path, const std::string& other) {
   struct stat buf, other_buf;
@@ -81,9 +80,8 @@ bool IsSameFile(const std::string& path, const std::string& other) {
 class StackTracePeer {
  public:
   static absl::StatusOr<std::unique_ptr<Policy>> GetPolicy(
-      const std::string& maps_file, const std::string& app_path,
-      const std::string& exe_path, const Namespace* ns,
-      bool uses_custom_forkserver);
+      const std::string& app_path, const std::string& exe_path,
+      const Namespace* ns, bool uses_custom_forkserver);
 
   static absl::StatusOr<std::vector<std::string>> LaunchLibunwindSandbox(
       const Regs* regs, const Namespace* ns, bool uses_custom_forkserver,
@@ -91,9 +89,8 @@ class StackTracePeer {
 };
 
 absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
-    const std::string& maps_file, const std::string& app_path,
-    const std::string& exe_path, const Namespace* ns,
-    bool uses_custom_forkserver) {
+    const std::string& app_path, const std::string& exe_path,
+    const Namespace* ns, bool uses_custom_forkserver) {
   PolicyBuilder builder;
   if (uses_custom_forkserver || ns == nullptr) {
     // Custom forkserver just forks, the binary is loaded outside of the
@@ -134,7 +131,20 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowSyscall(__NR_recvmsg)
 
       // libunwind
-      .AllowMmapWithoutExec()
+      // Only allow mapping a file for reading into memory, which is needed by
+      // our libunwind's custom accessors to map binary files.
+      .AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
+        return {
+            ARG_32(2),  // prot
+            JNE32(PROT_READ, JUMP(&labels, mmap_end)),
+
+            // PROT_READ
+            ARG_32(3),  // flags
+            JEQ32(MAP_PRIVATE, ALLOW),
+
+            LABEL(&labels, mmap_end),
+        };
+      })
       .AllowStat()
       .AllowSyscall(__NR_lseek)
 #ifdef __NR__llseek
@@ -152,13 +162,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowDup()
       .AllowSafeFcntl()
       .AllowGetPIDs()
-
-      // Add proc maps.
-      .AddFileAt(maps_file,
-                 file::JoinPath("/proc", absl::StrCat(kFakePid), "maps"))
-      .AddFileAt(maps_file,
-                 file::JoinPath("/proc", absl::StrCat(kFakePid), "task",
-                                absl::StrCat(kFakePid), "maps"))
 
       // Add the binary itself.
       .AddFileAt(exe_path, app_path)
@@ -204,16 +207,6 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     }
   };
 
-  // Copy over important files from the /proc directory as we can't mount them.
-  const std::string unwind_temp_maps_path =
-      file::JoinPath(unwind_temp_directory, "maps");
-
-  if (!file_util::fileops::CopyFile(
-          file::JoinPath("/proc", absl::StrCat(pid), "maps"),
-          unwind_temp_maps_path, 0400)) {
-    return absl::InternalError("Could not copy maps file");
-  }
-
   // Get path to the binary.
   // app_path contains the path like it is also in /proc/pid/maps. It is
   // relative to the sandboxee's mount namespace. If it is not existing
@@ -244,14 +237,20 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     }
   }
 
+  // Get the content of /proc/pid/maps.
+  std::string proc_pid_maps =
+      file::JoinPath("/proc", absl::StrCat(pid), "maps");
+  std::string maps_content;
+  SAPI_RETURN_IF_ERROR(
+      sapi::file::GetContents(proc_pid_maps, &maps_content, file::Defaults()));
+
   VLOG(1) << "Resolved binary: " << app_path << " / " << exe_path;
 
   // Add mappings for the binary (as they might not have been added due to the
   // forkserver).
-  SAPI_ASSIGN_OR_RETURN(
-      std::unique_ptr<Policy> policy,
-      StackTracePeer::GetPolicy(unwind_temp_maps_path, app_path, exe_path, ns,
-                                uses_custom_forkserver));
+  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy,
+                        StackTracePeer::GetPolicy(app_path, exe_path, ns,
+                                                  uses_custom_forkserver));
 
   VLOG(1) << "Running libunwind sandbox";
   auto sandbox =
@@ -259,10 +258,10 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
   Comms* comms = sandbox->comms();
 
   UnwindSetup msg;
-  msg.set_pid(kFakePid);
   msg.set_regs(reinterpret_cast<const char*>(&regs->user_regs_),
                sizeof(regs->user_regs_));
   msg.set_default_max_frames(kDefaultMaxFrames);
+  msg.set_maps_content(maps_content);
 
   absl::Cleanup kill_sandbox = [&sandbox]() {
     sandbox->Kill();

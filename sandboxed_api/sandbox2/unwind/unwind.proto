@@ -18,13 +18,14 @@ syntax = "proto3";
 package sandbox2;
 
 message UnwindSetup {
-  // Process ID of the process to unwind. Required.
-  uint64 pid = 1;
+  reserved 1;
   // Register content for the process to unwind
   bytes regs = 2;
   // Optional
   // Maximum number of stack frames to unwind
   uint64 default_max_frames = 3;
+  // Content of /proc/<pid>/maps file for the process to unwind
+  bytes maps_content = 4;
 }
 
 message UnwindResult {
