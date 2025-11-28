@@ -50,7 +50,7 @@ void Fd::CloseLocalFd() {
   SetValue(-1);
 }
 
-absl::Status Fd::TransferToSandboxee(RPCChannel* rpc_channel, pid_t /* pid */) {
+absl::Status Fd::TransferToSandboxee(RPCChannel* rpc_channel) {
   int remote_fd;
 
   SetFreeRPCChannel(rpc_channel);
@@ -72,8 +72,7 @@ absl::Status Fd::TransferToSandboxee(RPCChannel* rpc_channel, pid_t /* pid */) {
   return absl::OkStatus();
 }
 
-absl::Status Fd::TransferFromSandboxee(RPCChannel* rpc_channel,
-                                       pid_t /* pid */) {
+absl::Status Fd::TransferFromSandboxee(RPCChannel* rpc_channel) {
   int local_fd;
 
   SetFreeRPCChannel(rpc_channel);

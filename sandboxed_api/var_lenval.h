@@ -75,9 +75,8 @@ class LenVal : public Var {
 
   absl::Status Allocate(RPCChannel* rpc_channel, bool automatic_free) override;
   absl::Status Free(RPCChannel* rpc_channel) override;
-  absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
-  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
-                                     pid_t pid) override;
+  absl::Status TransferToSandboxee(RPCChannel* rpc_channel) override;
+  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel) override;
 
   Array<uint8_t> array_;
   Struct<LenValStruct> struct_;

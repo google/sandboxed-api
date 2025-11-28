@@ -26,7 +26,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_ptr.h"
 
@@ -106,7 +105,7 @@ absl::Status Var::Free(RPCChannel* rpc_channel) {
   return absl::OkStatus();
 }
 
-absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
+absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel) {
   VLOG(3) << "TransferToSandboxee for: " << ToString()
           << ", local: " << GetLocal() << ", remote: " << GetRemote()
           << ", size: " << GetSize();
@@ -120,23 +119,21 @@ absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) {
 
   SAPI_ASSIGN_OR_RETURN(
       size_t ret,
-      sandbox2::util::WriteBytesToPidFrom(
-          pid, reinterpret_cast<uintptr_t>(GetRemote()),
+      rpc_channel->CopyToSandbox(
+          reinterpret_cast<uintptr_t>(GetRemote()),
           absl::MakeSpan(reinterpret_cast<char*>(GetLocal()), GetSize())));
 
   if (ret != GetSize()) {
-    LOG(WARNING) << "process_vm_writev(pid: " << pid << " laddr: " << GetLocal()
+    LOG(WARNING) << "CopyToSandbox(laddr: " << GetLocal()
                  << " raddr: " << GetRemote() << " size: " << GetSize() << ")"
                  << " transferred " << ret << " bytes";
-    return absl::UnavailableError("process_vm_writev: partial success");
+    return absl::UnavailableError("CopyToSandbox: partial success");
   }
-
-  SAPI_RETURN_IF_ERROR(rpc_channel->MarkMemoryInit(GetRemote(), GetSize()));
 
   return absl::OkStatus();
 }
 
-absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
+absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel) {
   VLOG(3) << "TransferFromSandboxee for: " << ToString()
           << ", local: " << GetLocal() << ", remote: " << GetRemote()
           << ", size: " << GetSize();
@@ -148,14 +145,14 @@ absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel, pid_t pid) {
 
   SAPI_ASSIGN_OR_RETURN(
       size_t ret,
-      sandbox2::util::ReadBytesFromPidInto(
-          pid, reinterpret_cast<uintptr_t>(GetRemote()),
+      rpc_channel->CopyFromSandbox(
+          reinterpret_cast<uintptr_t>(GetRemote()),
           absl::MakeSpan(reinterpret_cast<char*>(GetLocal()), GetSize())));
   if (ret != GetSize()) {
-    LOG(WARNING) << "process_vm_readv(pid: " << pid << " laddr: " << GetLocal()
+    LOG(WARNING) << "CopyFromSandbox(laddr: " << GetLocal()
                  << " raddr: " << GetRemote() << " size: " << GetSize() << ")"
                  << " transferred " << ret << " bytes";
-    return absl::UnavailableError("process_vm_readv succeeded partially");
+    return absl::UnavailableError("CopyFromSandbox succeeded partially");
   }
 
   return absl::OkStatus();

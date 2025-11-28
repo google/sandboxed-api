@@ -111,14 +111,12 @@ class Proto : public Var {
     return absl::OkStatus();
   }
 
-  absl::Status TransferToSandboxee(RPCChannel* rpc_channel,
-                                   pid_t pid) override {
-    return wrapped_var_.TransferToSandboxee(rpc_channel, pid);
+  absl::Status TransferToSandboxee(RPCChannel* rpc_channel) override {
+    return wrapped_var_.TransferToSandboxee(rpc_channel);
   }
 
-  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
-                                     pid_t pid) override {
-    return wrapped_var_.TransferFromSandboxee(rpc_channel, pid);
+  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel) override {
+    return wrapped_var_.TransferFromSandboxee(rpc_channel);
   }
 
  private:

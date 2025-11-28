@@ -22,8 +22,10 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
@@ -110,6 +112,20 @@ absl::Status RPCChannel::Free(void* addr) {
     return absl::UnavailableError("Free() failed on the remote side");
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<size_t> RPCChannel::CopyFromSandbox(uintptr_t ptr,
+                                                   absl::Span<char> data) {
+  return sandbox2::util::ReadBytesFromPidInto(pid_, ptr, data);
+}
+
+absl::StatusOr<size_t> RPCChannel::CopyToSandbox(uintptr_t remote_ptr,
+                                                 absl::Span<const char> data) {
+  SAPI_ASSIGN_OR_RETURN(
+      size_t ret, sandbox2::util::WriteBytesToPidFrom(pid_, remote_ptr, data));
+  SAPI_RETURN_IF_ERROR(
+      MarkMemoryInit(reinterpret_cast<void*>(remote_ptr), data.size()));
+  return ret;
 }
 
 absl::Status RPCChannel::Symbol(const char* symname, void** addr) {

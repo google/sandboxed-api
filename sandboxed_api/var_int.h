@@ -85,11 +85,10 @@ class Fd : public Int {
 
  protected:
   // Sends local fd to sandboxee, takes ownership of the fd.
-  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
-                                     pid_t pid) override;
+  absl::Status TransferFromSandboxee(RPCChannel* rpc_channel) override;
 
   // Retrieves remote file descriptor, does not own fd.
-  absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid) override;
+  absl::Status TransferToSandboxee(RPCChannel* rpc_channel) override;
 
  private:
   int remote_fd_ = -1;

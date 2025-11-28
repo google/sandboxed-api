@@ -78,6 +78,7 @@ target_link_libraries(sapi_sapi
           sapi::embed_file
           sapi::var_type
           sapi::vars
+          sapi::rpcchannel
   PUBLIC absl::check
          absl::core_headers
          sandbox2::client
@@ -115,10 +116,29 @@ target_link_libraries(sapi_var_type PRIVATE
   sapi::base
 )
 
-# sandboxed_api:vars
-add_library(sapi_vars ${SAPI_LIB_TYPE}
+# sandboxed_api:rpcchannel
+add_library(sapi_rpcchannel ${SAPI_LIB_TYPE}
   rpcchannel.cc
   rpcchannel.h
+)
+add_library(sapi::rpcchannel ALIAS sapi_rpcchannel)
+target_link_libraries(sapi_rpcchannel
+  PRIVATE absl::log
+          absl::strings
+          sandbox2::comms
+          sandbox2::util
+          sapi::base
+          sapi::status
+  PUBLIC absl::span
+         absl::status
+         absl::statusor
+         absl::synchronization
+         sapi::call
+         sapi::var_type
+)
+
+# sandboxed_api:vars
+add_library(sapi_vars ${SAPI_LIB_TYPE}
   var_abstract.cc
   var_abstract.h
   var_array.h

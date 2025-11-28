@@ -263,7 +263,7 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
   comms_ = s2_->comms();
   pid_ = s2_->pid();
 
-  rpc_channel_ = std::make_unique<RPCChannel>(comms_);
+  rpc_channel_ = std::make_unique<RPCChannel>(comms_, pid_);
 
   if (!res) {
     // Allow recovering from a bad fork client state.
@@ -319,7 +319,7 @@ absl::Status Sandbox::SynchronizePtrBefore(v::Ptr* p) {
   VLOG(3) << "Synchronization (TO), ptr " << p << ", Type: " << p->GetSyncType()
           << " for var: " << p->GetPointedVar()->ToString();
 
-  return p->GetPointedVar()->TransferToSandboxee(rpc_channel(), pid());
+  return p->GetPointedVar()->TransferToSandboxee(rpc_channel());
 }
 
 absl::Status Sandbox::SynchronizePtrAfter(v::Ptr* p) const {
@@ -344,7 +344,7 @@ absl::Status Sandbox::SynchronizePtrAfter(v::Ptr* p) const {
         p->ToString()));
   }
 
-  return p->GetPointedVar()->TransferFromSandboxee(rpc_channel(), pid());
+  return p->GetPointedVar()->TransferFromSandboxee(rpc_channel());
 }
 
 absl::Status Sandbox::Call(
@@ -454,14 +454,14 @@ absl::Status Sandbox::TransferToSandboxee(v::Var* var) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->TransferToSandboxee(rpc_channel(), pid());
+  return var->TransferToSandboxee(rpc_channel());
 }
 
 absl::Status Sandbox::TransferFromSandboxee(v::Var* var) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
-  return var->TransferFromSandboxee(rpc_channel(), pid());
+  return var->TransferFromSandboxee(rpc_channel());
 }
 
 absl::StatusOr<std::unique_ptr<sapi::v::Array<const uint8_t>>>
@@ -489,13 +489,13 @@ absl::StatusOr<std::string> Sandbox::GetCString(const v::RemotePtr& str,
   std::string buffer(len, '\0');
   SAPI_ASSIGN_OR_RETURN(
       size_t ret,
-      sandbox2::util::ReadBytesFromPidInto(
-          pid_, reinterpret_cast<uintptr_t>(rptr),
+      rpc_channel()->CopyFromSandbox(
+          reinterpret_cast<uintptr_t>(rptr),
           absl::MakeSpan(reinterpret_cast<char*>(buffer.data()), len)));
   if (ret != len) {
-    LOG(WARNING) << "partial read when reading c-string: process_vm_readv(pid: "
-                 << pid_ << " raddr: " << rptr << " size: " << len
-                 << ") transferred " << ret << " bytes";
+    LOG(WARNING) << "partial read when reading c-string: CopyFromSandbox("
+                 << "raddr: " << rptr << " size: " << len << ") transferred "
+                 << ret << " bytes";
     return absl::UnavailableError("process_vm_readv succeeded partially");
   }
 

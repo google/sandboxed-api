@@ -18,17 +18,10 @@
 #include <ctime>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "sandboxed_api/var_type.h"
-
-namespace sandbox2 {
-class Comms;
-}  // namespace sandbox2
 
 namespace sapi {
 class RPCChannel;
@@ -101,11 +94,10 @@ class Var {
 
   // Transfers the variable to the sandboxee's address space, has to be
   // allocated there first.
-  virtual absl::Status TransferToSandboxee(RPCChannel* rpc_channel, pid_t pid);
+  virtual absl::Status TransferToSandboxee(RPCChannel* rpc_channel);
 
   // Transfers the variable from the sandboxee's address space.
-  virtual absl::Status TransferFromSandboxee(RPCChannel* rpc_channel,
-                                             pid_t pid);
+  virtual absl::Status TransferFromSandboxee(RPCChannel* rpc_channel);
 
  private:
   // Needed so that we can use unique_ptr with incomplete type.

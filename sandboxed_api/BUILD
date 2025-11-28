@@ -84,6 +84,7 @@ cc_library(
         ":call",
         ":config",
         ":embed_file",
+        ":rpcchannel",
         ":var_type",
         ":vars",
         "//sandboxed_api/sandbox2",
@@ -137,12 +138,12 @@ cc_library(
 cc_library(
     name = "vars",
     srcs = [
-        "rpcchannel.cc",
         "var_abstract.cc",
         "var_int.cc",
         "var_lenval.cc",
     ],
     hdrs = [
+        # TODO(sroettger): Remove reexport of the rpcchannel.h header.
         "rpcchannel.h",
         "var_abstract.h",
         "var_array.h",
@@ -161,8 +162,6 @@ cc_library(
         ":call",
         ":lenval_core",
         ":var_type",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:proto_helper",
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/base:core_headers",
@@ -177,6 +176,31 @@ cc_library(
         "@abseil-cpp//absl/types:span",
         "@abseil-cpp//absl/utility",
         "@com_google_protobuf//:protobuf_lite",
+    ],
+)
+
+cc_library(
+    name = "rpcchannel",
+    srcs = [
+        "rpcchannel.cc",
+    ],
+    hdrs = [
+        "rpcchannel.h",
+    ],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":call",
+        ":var_type",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
