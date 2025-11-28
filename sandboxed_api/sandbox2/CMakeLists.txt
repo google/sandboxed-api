@@ -652,6 +652,7 @@ target_link_libraries(sandbox2_mounts
   PRIVATE absl::flat_hash_set
           protobuf::libprotobuf
           sandbox2::library_resolver
+          sandbox2::util
           sapi::base
           sapi::file_base
           sapi::fileops
@@ -661,6 +662,7 @@ target_link_libraries(sandbox2_mounts
          absl::statusor
          absl::strings
          sandbox2::mount_tree_proto
+         sapi::config
 )
 
 # sandboxed_api/sandbox2:namespace
