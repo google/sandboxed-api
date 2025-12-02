@@ -21,7 +21,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -38,9 +37,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/mount_tree.pb.h"
-#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/library_resolver.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -50,7 +47,6 @@
 namespace sandbox2 {
 namespace {
 
-using ::sapi::file_util::fileops::FDCloser;
 namespace file_util = ::sapi::file_util;
 
 bool PathContainsNullByte(absl::string_view path) {
@@ -413,10 +409,7 @@ uint64_t GetMountFlagsFor(const std::string& path) {
 }
 
 std::string MountFlagsToString(uint64_t flags) {
-#define SAPI_MAP(x) \
-  {                 \
-    x, #x           \
-  }
+#define SAPI_MAP(x) {x, #x}
   static constexpr std::pair<uint64_t, absl::string_view> kMap[] = {
       SAPI_MAP(MS_RDONLY),      SAPI_MAP(MS_NOSUID),
       SAPI_MAP(MS_NODEV),       SAPI_MAP(MS_NOEXEC),
@@ -528,86 +521,6 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   }
 }
 
-#if defined(SAPI_X86_64) || defined(SAPI_ARM64)
-#ifndef __NR_open_tree
-#define __NR_open_tree 428
-#endif
-#ifndef __NR_move_mount
-#define __NR_move_mount 429
-#endif
-#endif
-
-#ifndef OPEN_TREE_CLONE
-#define OPEN_TREE_CLONE 1
-#endif
-
-#ifndef AT_RECURSIVE
-#define AT_RECURSIVE 0x8000
-#endif
-
-#ifndef MOVE_MOUNT_F_EMPTY_PATH
-#define MOVE_MOUNT_F_EMPTY_PATH 0x00000004
-#endif
-
-void BindMountNoSymlink(const std::string& source, const std::string& target,
-                        uint64_t extra_flags, bool is_ro) {
-  static std::atomic<bool> open_tree_unsupported = false;
-  if (open_tree_unsupported) {
-    return MountWithDefaults(source, target, "none", MS_BIND | extra_flags, "",
-                             is_ro);
-  }
-  FDCloser fd(util::Syscall(__NR_open_tree, AT_FDCWD,
-                            reinterpret_cast<uintptr_t>(source.c_str()),
-                            OPEN_TREE_CLONE | AT_RECURSIVE));
-  if (fd.get() == -1 && errno == ENOENT) {
-    if (errno == ENOENT) {
-      SAPI_RAW_LOG(
-          WARNING,
-          "Could not mount %s (source) to %s (target): source does not exist",
-          source.c_str(), target.c_str());
-      return;
-    }
-    if (errno == ENOSYS) {
-      open_tree_unsupported.store(true, std::memory_order_relaxed);
-      SAPI_RAW_LOG(WARNING,
-                   "open_tree unsupported, falling back to normal mount");
-      return MountWithDefaults(source, target, "none", MS_BIND | extra_flags,
-                               "", is_ro);
-    }
-  }
-  SAPI_RAW_PCHECK(fd.get() != -1, "open_tree %s failed", source.c_str());
-  int rv = util::Syscall(
-      __NR_move_mount, fd.get(), reinterpret_cast<uintptr_t>(""), AT_FDCWD,
-      reinterpret_cast<uintptr_t>(target.c_str()), MOVE_MOUNT_F_EMPTY_PATH);
-  if (rv != 0 && errno == ENOENT) {
-    SAPI_RAW_LOG(
-        WARNING,
-        "Could not mount %s (source) to %s (target): target does not exist",
-        source.c_str(), target.c_str());
-    return;
-  }
-  SAPI_RAW_PCHECK(rv == 0, "move_mount %s to %s failed", source.c_str(),
-                  target.c_str());
-  fd.Close();
-
-  if (is_ro) {
-    uint64_t target_flags = GetMountFlagsFor(target);
-    uint64_t flags = MS_RDONLY;
-    int res = mount("", target.c_str(), "",
-                    MS_BIND | flags | target_flags | MS_REMOUNT, nullptr);
-    SAPI_RAW_PCHECK(res != -1, "remounting %s with flags=%s failed", target,
-                    MountFlagsToString(flags));
-  }
-  // Mount propagation has to be set separately
-  const uint64_t propagation =
-      extra_flags & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE);
-  if (propagation != 0) {
-    int res = mount("", target.c_str(), "", propagation, nullptr);
-    SAPI_RAW_PCHECK(res != -1, "changing %s mount propagation to %s failed",
-                    target, MountFlagsToString(propagation).c_str());
-  }
-}
-
 using MapEntry = std::pair<absl::string_view, const MountTree*>;
 
 std::vector<MapEntry> GetSortedEntries(const MountTree& tree) {
@@ -667,12 +580,12 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
       create_backing_files = false;
 
       auto node = tree.node().dir_node();
-      BindMountNoSymlink(
-          node.outside(), path,
-          node.allow_mount_propagation() || allow_mount_propagation
-              ? MS_SHARED
-              : MS_PRIVATE,
-          !node.writable());
+      MountWithDefaults(
+          node.outside(), path, "",
+          MS_BIND | (node.allow_mount_propagation() || allow_mount_propagation
+                         ? MS_SHARED
+                         : MS_PRIVATE),
+          nullptr, !node.writable());
       break;
     }
     case MountTree::Node::kTmpfsNode: {
@@ -686,7 +599,8 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
     }
     case MountTree::Node::kFileNode: {
       auto node = tree.node().file_node();
-      BindMountNoSymlink(node.outside(), path, 0, !node.writable());
+      MountWithDefaults(node.outside(), path, "", MS_BIND, nullptr,
+                        !node.writable());
 
       // A file node has to be a leaf so we can skip traversing here.
       return;
