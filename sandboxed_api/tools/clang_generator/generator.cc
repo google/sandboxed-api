@@ -524,6 +524,14 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_vfmaddsubps=",
            "__builtin_ia32_vfmaddsubps=",
 
+           // TODO(b/465079915): Remove once r598768 lands in stable crosstool.
+           "__builtin_ia32_sqrtss=",
+           "__builtin_ia32_sqrtps=",
+           "__builtin_ia32_sqrtsd=",
+           "__builtin_ia32_sqrtpd=",
+           "__builtin_ia32_sqrtpd256=",
+           "__builtin_ia32_sqrtps256=",
+
            // Trick <prfchwintrin.h> from being included by defining its header
            // guard.
            "__PRFCHWINTRIN_H",
