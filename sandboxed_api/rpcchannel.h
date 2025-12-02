@@ -20,14 +20,9 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/var_type.h"
-
-namespace sandbox2 {
-class Comms;
-}  // namespace sandbox2
 
 namespace sapi {
 
@@ -35,64 +30,49 @@ namespace sapi {
 // Comms channel.
 class RPCChannel {
  public:
-  explicit RPCChannel(sandbox2::Comms* comms, pid_t pid)
-      : comms_(comms), pid_(pid) {}
   virtual ~RPCChannel() = default;
 
   // Calls a function.
   virtual absl::Status Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
-                            v::Type exp_type);
+                            v::Type exp_type) = 0;
 
   // Allocates memory.
-  virtual absl::Status Allocate(size_t size, void** addr);
+  virtual absl::Status Allocate(size_t size, void** addr) = 0;
 
   // Reallocates memory.
-  virtual absl::Status Reallocate(void* old_addr, size_t size, void** new_addr);
+  virtual absl::Status Reallocate(void* old_addr, size_t size,
+                                  void** new_addr) = 0;
 
   // Frees memory.
-  virtual absl::Status Free(void* addr);
+  virtual absl::Status Free(void* addr) = 0;
 
   // Reads `data`'s length of bytes from `ptr` in the sandboxee, returns number
   // of bytes read or an error.
   virtual absl::StatusOr<size_t> CopyFromSandbox(uintptr_t ptr,
-                                                 absl::Span<char> data);
+                                                 absl::Span<char> data) = 0;
 
   // Writes `data` to `ptr` in the sandboxee, returns number of bytes written or
   // an error.
   virtual absl::StatusOr<size_t> CopyToSandbox(uintptr_t remote_ptr,
-                                               absl::Span<const char> data);
+                                               absl::Span<const char> data) = 0;
 
   // Returns address of a symbol.
-  virtual absl::Status Symbol(const char* symname, void** addr);
+  virtual absl::Status Symbol(const char* symname, void** addr) = 0;
 
   // Makes the remote part exit.
-  virtual absl::Status Exit();
+  virtual absl::Status Exit() = 0;
 
   // Transfers fd to sandboxee.
-  virtual absl::Status SendFD(int local_fd, int* remote_fd);
+  virtual absl::Status SendFD(int local_fd, int* remote_fd) = 0;
 
   // Retrieves fd from sandboxee.
-  virtual absl::Status RecvFD(int remote_fd, int* local_fd);
+  virtual absl::Status RecvFD(int remote_fd, int* local_fd) = 0;
 
   // Closes fd in sandboxee.
-  virtual absl::Status Close(int remote_fd);
+  virtual absl::Status Close(int remote_fd) = 0;
 
   // Returns length of a null-terminated c-style string (invokes strlen).
-  virtual absl::StatusOr<size_t> Strlen(void* str);
-
-  sandbox2::Comms* comms() const { return comms_; }
-
- private:
-  // Marks the memory as initialized (used with MSAN).
-  absl::Status MarkMemoryInit(void* addr, size_t size);
-
-  // Receives the result after a call.
-  absl::StatusOr<FuncRet> Return(v::Type exp_type);
-
-  sandbox2::Comms* comms_;  // Owned by sandbox2;
-  // The pid of the sandboxee.
-  pid_t pid_;
-  absl::Mutex mutex_;
+  virtual absl::StatusOr<size_t> Strlen(void* str) = 0;
 };
 
 }  // namespace sapi

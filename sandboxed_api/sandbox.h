@@ -25,7 +25,6 @@
 
 #include "sandboxed_api/file_toc.h"
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
@@ -35,13 +34,11 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "sandboxed_api/config.h"
-#include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
+#include "sandboxed_api/sandbox2_rpcchannel.h"
 #include "sandboxed_api/vars.h"
 
 namespace sapi {

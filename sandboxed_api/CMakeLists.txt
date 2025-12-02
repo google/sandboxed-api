@@ -52,6 +52,8 @@ target_link_libraries(sapi_embed_file
 add_library(sapi_sapi ${SAPI_LIB_TYPE}
   sandbox.cc
   sandbox.h
+  sandbox2_rpcchannel.cc
+  sandbox2_rpcchannel.h
   transaction.cc
   transaction.h
 )
@@ -81,7 +83,6 @@ target_link_libraries(sapi_sapi
           sapi::rpcchannel
   PUBLIC absl::check
          absl::core_headers
-         sandbox2::client
          sandbox2::sandbox2
          sapi::base
          sapi::status
@@ -118,21 +119,14 @@ target_link_libraries(sapi_var_type PRIVATE
 
 # sandboxed_api:rpcchannel
 add_library(sapi_rpcchannel ${SAPI_LIB_TYPE}
-  rpcchannel.cc
   rpcchannel.h
 )
 add_library(sapi::rpcchannel ALIAS sapi_rpcchannel)
 target_link_libraries(sapi_rpcchannel
-  PRIVATE absl::log
-          absl::strings
-          sandbox2::comms
-          sandbox2::util
-          sapi::base
-          sapi::status
+  PRIVATE sapi::base
   PUBLIC absl::span
          absl::status
          absl::statusor
-         absl::synchronization
          sapi::call
          sapi::var_type
 )
@@ -168,11 +162,11 @@ target_link_libraries(sapi_vars
          absl::statusor
          absl::strings
          absl::str_format
-         absl::synchronization
          sandbox2::comms
          sapi::call
          sapi::lenval_core
          sapi::proto_helper
+         sapi::rpcchannel
          sapi::status
 )
 

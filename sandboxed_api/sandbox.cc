@@ -52,7 +52,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/sandbox2_rpcchannel.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/runfiles.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -263,7 +263,7 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
   comms_ = s2_->comms();
   pid_ = s2_->pid();
 
-  rpc_channel_ = std::make_unique<RPCChannel>(comms_, pid_);
+  rpc_channel_ = std::make_unique<Sandbox2RPCChannel>(comms_, pid_);
 
   if (!res) {
     // Allow recovering from a bad fork client state.
@@ -416,7 +416,7 @@ absl::Status Sandbox::Call(
   // Call & receive data.
   FuncRet fret;
   SAPI_RETURN_IF_ERROR(
-      rpc_channel()->Call(rfcall, comms::kMsgCall, &fret, rfcall.ret_type));
+      rpc_channel_->Call(rfcall, comms::kMsgCall, &fret, rfcall.ret_type));
 
   if (fret.ret_type == v::Type::kFloat) {
     memcpy(ret->GetLocal(), &fret.float_val,

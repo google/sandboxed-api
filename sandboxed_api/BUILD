@@ -69,6 +69,8 @@ cc_library(
     name = "sapi",
     srcs = [
         "sandbox.cc",
+        "sandbox2_rpcchannel.cc",
+        "sandbox2_rpcchannel.h",
         "transaction.cc",
     ],
     hdrs = [
@@ -88,7 +90,6 @@ cc_library(
         ":var_type",
         ":vars",
         "//sandboxed_api/sandbox2",
-        "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:fork_client",
         "//sandboxed_api/sandbox2:util",
@@ -161,6 +162,7 @@ cc_library(
     deps = [
         ":call",
         ":lenval_core",
+        ":rpcchannel",
         ":var_type",
         "//sandboxed_api/util:proto_helper",
         "//sandboxed_api/util:status",
@@ -172,7 +174,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
         "@abseil-cpp//absl/utility",
         "@com_google_protobuf//:protobuf_lite",
@@ -181,25 +182,13 @@ cc_library(
 
 cc_library(
     name = "rpcchannel",
-    srcs = [
-        "rpcchannel.cc",
-    ],
-    hdrs = [
-        "rpcchannel.h",
-    ],
-    copts = sapi_platform_copts(),
-    visibility = ["//visibility:public"],
+    hdrs = ["rpcchannel.h"],
+    visibility = ["//visibility:private"],
     deps = [
         ":call",
         ":var_type",
-        "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/util:status",
-        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
     ],
 )

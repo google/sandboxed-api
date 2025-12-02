@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/rpcchannel.h"
+#include "sandboxed_api/sandbox2_rpcchannel.h"
 
 #include <cstdint>
 #include <cstring>
@@ -27,11 +27,12 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi {
 
-absl::Status RPCChannel::Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
-                              v::Type exp_type) {
+absl::Status Sandbox2RPCChannel::Call(const FuncCall& call, uint32_t tag,
+                                      FuncRet* ret, v::Type exp_type) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(tag, sizeof(call), &call)) {
     return absl::UnavailableError("Sending TLV value failed");
@@ -41,7 +42,7 @@ absl::Status RPCChannel::Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
   return absl::OkStatus();
 }
 
-absl::StatusOr<FuncRet> RPCChannel::Return(v::Type exp_type) {
+absl::StatusOr<FuncRet> Sandbox2RPCChannel::Return(v::Type exp_type) {
   uint32_t tag;
   size_t len;
   FuncRet ret;
@@ -65,7 +66,7 @@ absl::StatusOr<FuncRet> RPCChannel::Return(v::Type exp_type) {
   return ret;
 }
 
-absl::Status RPCChannel::Allocate(size_t size, void** addr) {
+absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgAllocate, sizeof(size), &size)) {
     return absl::UnavailableError("Sending TLV value failed");
@@ -76,8 +77,8 @@ absl::Status RPCChannel::Allocate(size_t size, void** addr) {
   return absl::OkStatus();
 }
 
-absl::Status RPCChannel::Reallocate(void* old_addr, size_t size,
-                                    void** new_addr) {
+absl::Status Sandbox2RPCChannel::Reallocate(void* old_addr, size_t size,
+                                            void** new_addr) {
   absl::MutexLock lock(mutex_);
   comms::ReallocRequest req = {
       .old_addr = reinterpret_cast<uintptr_t>(old_addr),
@@ -100,7 +101,7 @@ absl::Status RPCChannel::Reallocate(void* old_addr, size_t size,
   return absl::OkStatus();
 }
 
-absl::Status RPCChannel::Free(void* addr) {
+absl::Status Sandbox2RPCChannel::Free(void* addr) {
   absl::MutexLock lock(mutex_);
   uintptr_t remote = reinterpret_cast<uintptr_t>(addr);
   if (!comms_->SendTLV(comms::kMsgFree, sizeof(remote), &remote)) {
@@ -114,13 +115,13 @@ absl::Status RPCChannel::Free(void* addr) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<size_t> RPCChannel::CopyFromSandbox(uintptr_t ptr,
-                                                   absl::Span<char> data) {
+absl::StatusOr<size_t> Sandbox2RPCChannel::CopyFromSandbox(
+    uintptr_t ptr, absl::Span<char> data) {
   return sandbox2::util::ReadBytesFromPidInto(pid_, ptr, data);
 }
 
-absl::StatusOr<size_t> RPCChannel::CopyToSandbox(uintptr_t remote_ptr,
-                                                 absl::Span<const char> data) {
+absl::StatusOr<size_t> Sandbox2RPCChannel::CopyToSandbox(
+    uintptr_t remote_ptr, absl::Span<const char> data) {
   SAPI_ASSIGN_OR_RETURN(
       size_t ret, sandbox2::util::WriteBytesToPidFrom(pid_, remote_ptr, data));
   SAPI_RETURN_IF_ERROR(
@@ -128,7 +129,7 @@ absl::StatusOr<size_t> RPCChannel::CopyToSandbox(uintptr_t remote_ptr,
   return ret;
 }
 
-absl::Status RPCChannel::Symbol(const char* symname, void** addr) {
+absl::Status Sandbox2RPCChannel::Symbol(const char* symname, void** addr) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgSymbol, strlen(symname) + 1, symname)) {
     return absl::UnavailableError("Sending TLV value failed");
@@ -139,7 +140,7 @@ absl::Status RPCChannel::Symbol(const char* symname, void** addr) {
   return absl::OkStatus();
 }
 
-absl::Status RPCChannel::Exit() {
+absl::Status Sandbox2RPCChannel::Exit() {
   absl::MutexLock lock(mutex_);
   if (comms_->IsTerminated()) {
     VLOG(2) << "Comms channel already terminated";
@@ -152,7 +153,7 @@ absl::Status RPCChannel::Exit() {
   return absl::OkStatus();
 }
 
-absl::Status RPCChannel::SendFD(int local_fd, int* remote_fd) {
+absl::Status Sandbox2RPCChannel::SendFD(int local_fd, int* remote_fd) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgSendFd, 0, nullptr)) {
     return absl::UnavailableError("Sending TLV value failed");
@@ -169,7 +170,7 @@ absl::Status RPCChannel::SendFD(int local_fd, int* remote_fd) {
   return absl::OkStatus();
 }
 
-absl::Status RPCChannel::RecvFD(int remote_fd, int* local_fd) {
+absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgRecvFd, sizeof(remote_fd), &remote_fd)) {
     return absl::UnavailableError("Sending TLV value failed");
@@ -186,7 +187,7 @@ absl::Status RPCChannel::RecvFD(int remote_fd, int* local_fd) {
   return absl::OkStatus();
 }
 
-absl::Status RPCChannel::Close(int remote_fd) {
+absl::Status Sandbox2RPCChannel::Close(int remote_fd) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgClose, sizeof(remote_fd), &remote_fd)) {
     return absl::UnavailableError("Sending TLV value failed");
@@ -199,7 +200,7 @@ absl::Status RPCChannel::Close(int remote_fd) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<size_t> RPCChannel::Strlen(void* str) {
+absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgStrlen, sizeof(str), &str)) {
     return absl::UnavailableError("Sending TLV value failed");
@@ -212,7 +213,7 @@ absl::StatusOr<size_t> RPCChannel::Strlen(void* str) {
   return fret.int_val;
 }
 
-absl::Status RPCChannel::MarkMemoryInit(void* addr, size_t size) {
+absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
 #ifdef MEMORY_SANITIZER
   absl::MutexLock lock(&mutex_);
   comms::ReallocRequest req = {
