@@ -34,11 +34,18 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
+#include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2_rpcchannel.h"
+#include "sandboxed_api/var_abstract.h"
+#include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/vars.h"
 
 namespace sapi {
