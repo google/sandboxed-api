@@ -77,7 +77,7 @@ class MMappedWrapper {
   void Reset() {
     if (data_ != nullptr) {
       if (munmap(data_, size_) < 0) {
-        SAPI_RAW_LOG(ERROR, "munmap failed: %s", strerror(errno));
+        SAPI_RAW_PLOG(ERROR, "munmap failed");
       }
     }
     data_ = nullptr;
