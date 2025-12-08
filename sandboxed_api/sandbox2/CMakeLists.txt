@@ -387,6 +387,7 @@ target_link_libraries(sandbox2_stack_trace
           sapi::fileops
           sapi::file_helpers
           sapi::status
+          sapi::temp_file
   PUBLIC absl::check
          absl::statusor
          sandbox2::comms

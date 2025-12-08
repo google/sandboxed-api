@@ -54,6 +54,7 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/status_macros.h"
+#include "sandboxed_api/util/temp_file.h"
 
 namespace sandbox2 {
 namespace {
@@ -194,19 +195,6 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
 
   executor->limits()->set_rlimit_cpu(10).set_walltime_limit(absl::Seconds(5));
 
-  // Temporary directory used to provide files from /proc to the unwind sandbox.
-  char unwind_temp_directory_template[] = "/tmp/.sandbox2_unwind_XXXXXX";
-  char* unwind_temp_directory = mkdtemp(unwind_temp_directory_template);
-  if (!unwind_temp_directory) {
-    return absl::InternalError(
-        "Could not create temporary directory for unwinding");
-  }
-  absl::Cleanup delete_unwind_temp_directory = [&unwind_temp_directory] {
-    if (!file_util::fileops::DeleteRecursively(unwind_temp_directory)) {
-      LOG(ERROR) << "Failed to delete " << unwind_temp_directory;
-    }
-  };
-
   // Get path to the binary.
   // app_path contains the path like it is also in /proc/pid/maps. It is
   // relative to the sandboxee's mount namespace. If it is not existing
@@ -226,15 +214,23 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     exe_path = ns ? ns->mounts().ResolvePath(app_path).value_or("") : "";
   }
 
+  std::string exe_copy_path;
+  absl::Cleanup cleanup_exec_copy = [&exe_copy_path] {
+    if (!exe_copy_path.empty()) {
+      unlink(exe_copy_path.c_str());
+    }
+  };
   if (exe_path.empty()) {
     // File was probably removed.
     LOG(WARNING) << "File was removed, using /proc/pid/exe.";
     app_path = std::string(absl::StripSuffix(app_path, " (deleted)"));
+    SAPI_ASSIGN_OR_RETURN(exe_copy_path, sapi::CreateNamedTempFileAndClose(
+                                             "/tmp/.sandbox2_unwind_exe_copy"));
     // Create a copy of /proc/pid/exe, mount that one.
-    exe_path = file::JoinPath(unwind_temp_directory, "exe");
-    if (!file_util::fileops::CopyFile(proc_pid_exe, exe_path, 0700)) {
+    if (!file_util::fileops::CopyFile(proc_pid_exe, exe_copy_path, 0700)) {
       return absl::InternalError("Could not copy /proc/pid/exe");
     }
+    exe_path = exe_copy_path;
   }
 
   // Get the content of /proc/pid/maps.

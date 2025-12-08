@@ -413,6 +413,7 @@ cc_library(
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status",
+        "//sandboxed_api/util:temp_file",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
