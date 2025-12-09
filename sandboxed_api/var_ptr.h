@@ -83,9 +83,10 @@ class Ptr {
 // Pointer, which can only point to remote memory, and is never synchronized.
 class RemotePtr : public Ptr {
  public:
-  explicit RemotePtr(void* remote_addr)
-      : Ptr(RemotePtrTag()),
-        remote_addr_(reinterpret_cast<uintptr_t>(remote_addr)) {}
+  explicit RemotePtr(const void* remote_addr)
+      : RemotePtr(reinterpret_cast<uintptr_t>(remote_addr)) {}
+  explicit RemotePtr(uintptr_t remote_addr)
+      : Ptr(RemotePtrTag()), remote_addr_(remote_addr) {}
   RemotePtr(const RemotePtr& other) = default;
   RemotePtr& operator=(const RemotePtr& other) = default;
 
