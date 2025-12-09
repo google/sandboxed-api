@@ -20,7 +20,9 @@
 #include <ctime>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
@@ -82,10 +84,26 @@ class ForkClientContext {
   std::shared_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
 };
 
+struct SandboxConfig {
+  std::optional<std::vector<std::string>> environment_variables;
+
+  static std::vector<std::string> DefaultEnvironmentVariables() {
+    return {
+    };
+  }
+};
+
 // The Sandbox class represents the sandboxed library. It provides users with
 // means to communicate with it (make function calls, transfer memory).
 class Sandbox {
  public:
+  Sandbox(SandboxConfig config,
+          ForkClientContext* fork_client_context ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : fork_client_context_(fork_client_context), config_(std::move(config)) {}
+
+  Sandbox(SandboxConfig config,
+          const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
   explicit Sandbox(
       ForkClientContext* fork_client_context ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : fork_client_context_(fork_client_context) {}
@@ -93,6 +111,7 @@ class Sandbox {
   explicit Sandbox(const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   explicit Sandbox(std::nullptr_t);
+  Sandbox(SandboxConfig config, std::nullptr_t);
 
   Sandbox(const Sandbox&) = delete;
   Sandbox& operator=(const Sandbox&) = delete;
@@ -198,9 +217,10 @@ class Sandbox {
                                  static_cast<int>(absl::StderrThreshold())));
   }
 
-  // Gets the environment variables passed to the sandboxee.
+  // TODO(sroettger): Remove this method once all callers have been migrated to
+  // the new constructor.
   virtual void GetEnvs(std::vector<std::string>* envs) const {
-    // Do nothing by default.
+    *envs = SandboxConfig::DefaultEnvironmentVariables();
   }
 
   // WrapCallStatus is called with the status returned by a Call. The default
@@ -231,6 +251,17 @@ class Sandbox {
   // Provides a custom notifier for sandboxee events. May return nullptr.
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
 
+  std::vector<std::string> EnvironmentVariables() const {
+    if (config_.environment_variables.has_value()) {
+      return *config_.environment_variables;
+    }
+    std::vector<std::string> envs;
+    // TODO(sroettger): Remove the GetEnvs call once all callers have been
+    // migrated to the new constructor.
+    GetEnvs(&envs);
+    return envs;
+  }
+
   // The main sandbox2::Sandbox2 object.
   std::unique_ptr<sandbox2::Sandbox2> s2_;
   // Marks whether Sandbox2 result was already fetched.
@@ -255,6 +286,8 @@ class Sandbox {
   ForkClientContext* fork_client_context_;
   // Set if the object owns the client context instance.
   std::unique_ptr<ForkClientContext> owned_fork_client_context_;
+
+  SandboxConfig config_;
 };
 
 }  // namespace sapi

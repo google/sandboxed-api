@@ -76,11 +76,16 @@ constexpr absl::string_view kEmbedClassTemplate = R"(
 class %1$s : public ::sapi::Sandbox {
  public:
   %1$s()
-      : ::sapi::Sandbox([]() {
-          static auto* fork_client_context =
-              new ::sapi::ForkClientContext(%2$s_embed_create());
-          return fork_client_context;
-        }()) {}
+      : ::sapi::Sandbox(fork_client_context()) {}
+  %1$s(::sapi::SandboxConfig config)
+      : ::sapi::Sandbox(std::move(config), fork_client_context()) {}
+
+ private:
+  static ::sapi::ForkClientContext* fork_client_context() {
+    static auto* fork_client_context =
+        new ::sapi::ForkClientContext(%2$s_embed_create());
+    return fork_client_context;
+  }
 };
 
 )";

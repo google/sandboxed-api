@@ -65,14 +65,21 @@
 
 namespace sapi {
 
-Sandbox::Sandbox(const FileToc* embed_lib_toc) {
+Sandbox::Sandbox(SandboxConfig config, const FileToc* embed_lib_toc)
+    : config_(std::move(config)) {
   owned_fork_client_context_ =
       std::make_unique<ForkClientContext>(embed_lib_toc);
   fork_client_context_ = owned_fork_client_context_.get();
 }
 
+Sandbox::Sandbox(const FileToc* embed_lib_toc)
+    : Sandbox(SandboxConfig{}, embed_lib_toc) {}
+
 Sandbox::Sandbox(std::nullptr_t)
     : Sandbox(static_cast<const FileToc*>(nullptr)) {}
+
+Sandbox::Sandbox(SandboxConfig config, std::nullptr_t)
+    : Sandbox(std::move(config), static_cast<const FileToc*>(nullptr)) {}
 
 Sandbox::~Sandbox() {
   Terminate();
@@ -208,14 +215,12 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
       std::vector<std::string> args = {lib_path};
       // Additional arguments, if needed.
       GetArgs(&args);
-      std::vector<std::string> envs{};
-      // Additional envvars, if needed.
-      GetEnvs(&envs);
 
       fork_client_context_->executor_ =
-          (embed_lib_fd >= 0)
-              ? std::make_shared<sandbox2::Executor>(embed_lib_fd, args, envs)
-              : std::make_shared<sandbox2::Executor>(lib_path, args, envs);
+          (embed_lib_fd >= 0) ? std::make_shared<sandbox2::Executor>(
+                                    embed_lib_fd, args, EnvironmentVariables())
+                              : std::make_shared<sandbox2::Executor>(
+                                    lib_path, args, EnvironmentVariables());
 
       fork_client_context_->client_ =
           fork_client_context_->executor_->StartForkServer();
