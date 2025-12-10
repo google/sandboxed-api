@@ -165,7 +165,7 @@ constexpr bool IsLSan() {
 }
 
 constexpr bool IsCfiDiag() {
-// Note, Only diagnostic mode of needs exceptions, CONTROL_FLOW_INTEGRITY is
+// Note: Only CFI diagnostic mode needs exceptions, CONTROL_FLOW_INTEGRITY is
 // intended for use in production, and doesn't need any sandbox exceptions.
 #ifdef CONTROL_FLOW_INTEGRITY_DIAGNOSTICS
   return true;
