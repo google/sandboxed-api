@@ -84,8 +84,17 @@ class ForkClientContext {
   std::shared_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
 };
 
+struct Sandbox2Config {
+  // Path of the sandboxee:
+  //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
+  //    will be applied to it,
+  //  - absolute: will be used as is.
+  std::optional<std::string> lib_path;
+};
+
 struct SandboxConfig {
   std::optional<std::vector<std::string>> environment_variables;
+  Sandbox2Config sandbox2;
 
   static std::vector<std::string> DefaultEnvironmentVariables() {
     return {
@@ -237,11 +246,9 @@ class Sandbox {
   virtual std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder* builder);
 
-  // Path of the sandboxee:
-  //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
-  //    will be applied to it,
-  //  - absolute: will be used as is.
-  virtual std::string GetLibPath() const { return ""; }
+  virtual std::string GetLibPath() const {
+    return config_.sandbox2.lib_path.value_or("");
+  }
 
   // Modifies the Executor object if needed.
   virtual void ModifyExecutor(sandbox2::Executor* executor) {
