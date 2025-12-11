@@ -346,7 +346,8 @@ void PutUnwindInfo(unw_addr_space_t as, unw_proc_info_t* pi, void* arg) {
 }
 
 int GetDynInfoListAddr(unw_addr_space_t as, unw_word_t* dil_addr, void* arg) {
-  SAPI_RAW_LOG(INFO, "Unsupported operation: GetDynInfoListAddr");
+  // libunwind-ptrace does not implement this except for IA64.
+  // See: libunwind/src/ptrace/_UPT_get_dyn_info_list_addr.c
   return -UNW_ENOINFO;
 }
 
