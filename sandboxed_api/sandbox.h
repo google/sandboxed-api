@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
@@ -75,14 +76,25 @@ class PtrOrCallable {
 class ForkClientContext {
  public:
   explicit ForkClientContext(const FileToc* embed_lib_toc)
-      : embed_lib_toc_(embed_lib_toc) {}
+      : sandboxee_source_(embed_lib_toc) {}
+  // Path of the sandboxee:
+  //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
+  //    will be applied to it,
+  //  - absolute: will be used as is.
+  explicit ForkClientContext(std::string lib_path)
+      : sandboxee_source_(std::move(lib_path)) {}
 
  private:
   friend class Sandbox;
-  const FileToc* embed_lib_toc_;
-  absl::Mutex mu_;
-  std::shared_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);
-  std::shared_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
+
+  // TODO(sroettger): this is optional until we migrated users of GetLibPath().
+  std::optional<std::variant<const FileToc*, std::string>> sandboxee_source_;
+  struct SharedState {
+    absl::Mutex mu_;
+    std::shared_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);
+    std::shared_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
+  };
+  std::shared_ptr<SharedState> shared_ = std::make_shared<SharedState>();
 };
 
 struct Sandbox2Config {
@@ -91,11 +103,11 @@ struct Sandbox2Config {
   // Can be overridden by Sandbox::ModifyPolicy().
   // TODO(sroettger): remove ModifyPolicy() once all users are migrated.
   std::unique_ptr<sandbox2::Policy> policy;
-  // Path of the sandboxee:
-  //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
-  //    will be applied to it,
-  //  - absolute: will be used as is.
-  std::optional<std::string> lib_path;
+
+  // Includes the path to the sandboxee. Optional only if the generated embedded
+  // sandboxee class is used.
+  std::optional<ForkClientContext> fork_client_context;
+
   bool use_unotify_monitor = false;
   bool enable_log_server = false;
   std::optional<std::string> cwd;
@@ -120,28 +132,26 @@ struct SandboxConfig {
 // means to communicate with it (make function calls, transfer memory).
 class Sandbox {
  public:
-  Sandbox(SandboxConfig config,
-          ForkClientContext* fork_client_context ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : fork_client_context_(fork_client_context), config_(std::move(config)) {}
+  explicit Sandbox(SandboxConfig config);
 
+  // TODO(sroettger): Remove all constructors below once all callers have been
+  // migrated to the new constructor.
+  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
   Sandbox(SandboxConfig config,
           const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
-
-  explicit Sandbox(
-      ForkClientContext* fork_client_context ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : fork_client_context_(fork_client_context) {}
-
+  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
   explicit Sandbox(const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
-
+  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
   explicit Sandbox(std::nullptr_t);
+  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
   Sandbox(SandboxConfig config, std::nullptr_t);
+  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
+  Sandbox(ForkClientContext* fork_client_context);
 
   Sandbox(const Sandbox&) = delete;
   Sandbox& operator=(const Sandbox&) = delete;
 
   virtual ~Sandbox();
-
-  void SetForkClientContext(ForkClientContext* fork_client_context);
 
   // Initializes a new sandboxing session.
   absl::Status Init();
@@ -260,9 +270,7 @@ class Sandbox {
   virtual std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder* builder);
 
-  virtual std::string GetLibPath() const {
-    return config_.sandbox2.lib_path.value_or("");
-  }
+  virtual std::string GetLibPath() const;
 
   // Modifies the Executor object if needed.
   virtual void ModifyExecutor(sandbox2::Executor* executor) {
@@ -285,6 +293,13 @@ class Sandbox {
     return envs;
   }
 
+  const ForkClientContext& fork_client_context() const {
+    return config_.sandbox2.fork_client_context.value();
+  }
+  ForkClientContext::SharedState& fork_client_shared() const {
+    return *fork_client_context().shared_;
+  }
+
   // The main sandbox2::Sandbox2 object.
   std::unique_ptr<sandbox2::Sandbox2> s2_;
   // Marks whether Sandbox2 result was already fetched.
@@ -301,14 +316,6 @@ class Sandbox {
   std::unique_ptr<RPCChannel> rpc_channel_;
   // The main pid of the sandboxee.
   pid_t pid_ = 0;
-
-  // FileTOC with the embedded library, takes precedence over GetLibPath if
-  // present (not nullptr).
-  const FileToc* embed_lib_toc_;
-
-  ForkClientContext* fork_client_context_;
-  // Set if the object owns the client context instance.
-  std::unique_ptr<ForkClientContext> owned_fork_client_context_;
 
   SandboxConfig config_;
 };
