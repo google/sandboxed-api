@@ -179,6 +179,19 @@ static std::string PathToSAPILib(const std::string& lib_path) {
                                         : GetDataDependencyFilePath(lib_path);
 }
 
+void Sandbox::ApplySandbox2Config(sandbox2::Executor* executor) const {
+  const Sandbox2Config& config = config_.sandbox2;
+  if (config.enable_log_server) {
+    executor->ipc()->EnableLogServer();
+  }
+  if (config.cwd.has_value()) {
+    executor->set_cwd(*config.cwd);
+  }
+  if (config.limits.has_value()) {
+    *executor->limits() = *config.limits;
+  }
+}
+
 absl::Status Sandbox::Init() {
   // It's already initialized
   if (is_active()) {
@@ -260,9 +273,7 @@ absl::Status Sandbox::Init() {
 
   // Modify the executor, e.g. by setting custom limits and IPC.
   ModifyExecutor(executor.get());
-  if (config_.sandbox2.enable_log_server) {
-    executor->ipc()->EnableLogServer();
-  }
+  ApplySandbox2Config(executor.get());
 
   s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
                                              std::move(s2p), CreateNotifier());

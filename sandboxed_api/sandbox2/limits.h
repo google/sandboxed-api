@@ -21,9 +21,7 @@
 #include <sys/resource.h>
 
 #include <cstdint>
-#include <ctime>
 
-#include "absl/base/macros.h"
 #include "absl/time/time.h"
 
 namespace sandbox2 {
@@ -32,11 +30,6 @@ class Limits final {
  public:
   Limits() = default;
 
-  Limits(const Limits&) = delete;
-  Limits& operator=(const Limits&) = delete;
-
-  // rlimits getters/setters.
-  //
   // Use RLIM64_INFINITY for unlimited values, but remember that some of those
   // cannot exceed system limits (e.g. RLIMIT_NOFILE).
   const rlimit64& rlimit_as() const { return rlimit_as_; }

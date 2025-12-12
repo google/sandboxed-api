@@ -40,6 +40,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -97,6 +98,8 @@ struct Sandbox2Config {
   std::optional<std::string> lib_path;
   bool use_unotify_monitor = false;
   bool enable_log_server = false;
+  std::optional<std::string> cwd;
+  std::optional<sandbox2::Limits> limits;
 
   // A generic policy which should work with majority of typical libraries,
   // which are single-threaded and require ~30 basic syscalls.
@@ -265,6 +268,8 @@ class Sandbox {
   virtual void ModifyExecutor(sandbox2::Executor* executor) {
     // Do nothing by default.
   }
+
+  void ApplySandbox2Config(sandbox2::Executor* executor) const;
 
   // Provides a custom notifier for sandboxee events. May return nullptr.
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
