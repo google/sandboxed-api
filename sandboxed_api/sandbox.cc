@@ -50,6 +50,7 @@
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -152,6 +153,13 @@ sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
       .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size */);
 
   return builder;
+}
+
+sandbox2::Limits Sandbox2Config::DefaultLimits() {
+  sandbox2::Limits limits;
+  limits.set_rlimit_cpu(RLIM64_INFINITY);
+  limits.set_walltime_limit(absl::ZeroDuration());
+  return limits;
 }
 
 void Sandbox::Terminate(bool attempt_graceful_exit) {
@@ -287,11 +295,9 @@ absl::Status Sandbox::Init() {
       // The client.cc code is capable of enabling sandboxing on its own.
       ->set_enable_sandbox_before_exec(false)
       // By default, set cwd to "/", can be changed in ModifyExecutor().
-      .set_cwd("/")
-      .limits()
-      // Disable time limits.
-      ->set_walltime_limit(absl::ZeroDuration())
-      .set_rlimit_cpu(RLIM64_INFINITY);
+      .set_cwd("/");
+  // Disable time limits.
+  *executor->limits() = Sandbox2Config::DefaultLimits();
 
   // Modify the executor, e.g. by setting custom limits and IPC.
   ModifyExecutor(executor.get());

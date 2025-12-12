@@ -116,6 +116,8 @@ struct Sandbox2Config {
   // A generic policy which should work with majority of typical libraries,
   // which are single-threaded and require ~30 basic syscalls.
   static sandbox2::PolicyBuilder DefaultPolicyBuilder();
+
+  static sandbox2::Limits DefaultLimits();
 };
 
 struct SandboxConfig {
