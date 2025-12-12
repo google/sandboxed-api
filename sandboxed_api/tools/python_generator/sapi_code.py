@@ -788,11 +788,15 @@ class Generator(object):
 class {0}Sandbox : public ::sapi::Sandbox {{
   public:
     {0}Sandbox()
-      : ::sapi::Sandbox([]() {{
-          static auto* fork_client_context =
+      : ::sapi::Sandbox(fork_client_context()) {{}}
+    {0}Sandbox(::sapi::SandboxConfig config)
+      : ::sapi::Sandbox(std::move(config), fork_client_context()) {{}}
+  private:
+    static ::sapi::ForkClientContext* fork_client_context() {{
+      static auto* fork_client_context =
               new ::sapi::ForkClientContext({1}_embed_create());
-          return fork_client_context;
-        }}()) {{}}
+      return fork_client_context;
+  }}
 }};'''
 
   def __init__(self, translation_units):

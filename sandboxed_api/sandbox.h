@@ -85,11 +85,22 @@ class ForkClientContext {
 };
 
 struct Sandbox2Config {
+  // Optional. If not set, the default policy will be used.
+  // See DefaultPolicyBuilder().
+  // Can be overridden by Sandbox::ModifyPolicy().
+  // TODO(sroettger): remove ModifyPolicy() once all users are migrated.
+  std::unique_ptr<sandbox2::Policy> policy;
   // Path of the sandboxee:
   //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
   //    will be applied to it,
   //  - absolute: will be used as is.
   std::optional<std::string> lib_path;
+  bool use_unotify_monitor = false;
+  bool enable_log_server = false;
+
+  // A generic policy which should work with majority of typical libraries,
+  // which are single-threaded and require ~30 basic syscalls.
+  static sandbox2::PolicyBuilder DefaultPolicyBuilder();
 };
 
 struct SandboxConfig {
@@ -130,7 +141,7 @@ class Sandbox {
   void SetForkClientContext(ForkClientContext* fork_client_context);
 
   // Initializes a new sandboxing session.
-  absl::Status Init(bool use_unotify_monitor = false);
+  absl::Status Init();
 
   // Returns whether the current sandboxing session is active.
   bool is_active() const;

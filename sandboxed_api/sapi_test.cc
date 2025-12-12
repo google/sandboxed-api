@@ -303,8 +303,8 @@ TEST(SandboxTest, NoRaceInConcurrentTerminate) {
 }
 
 TEST(SandboxTest, UseUnotifyMonitor) {
-  SumSandbox sandbox;
-  ASSERT_THAT(sandbox.Init(/*use_unotify_monitor=*/true), IsOk());
+  SumSandbox sandbox({.sandbox2 = {.use_unotify_monitor = true}});
+  ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
 
   // Violate the sandbox policy.

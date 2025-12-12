@@ -92,14 +92,11 @@ void Sandbox::SetForkClientContext(ForkClientContext* fork_client_context) {
   owned_fork_client_context_.reset();
 }
 
-// A generic policy which should work with majority of typical libraries, which
-// are single-threaded and require ~30 basic syscalls.
-//
 // IMPORTANT: This policy must be safe to use with
 // `Allow(sandbox2::UnrestrictedNetworking())`.
-void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
-  (*builder)
-      .AllowRead()
+sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
+  sandbox2::PolicyBuilder builder;
+  builder.AllowRead()
       .AllowWrite()
       .AllowExit()
       .AllowGetRlimit()
@@ -128,16 +125,18 @@ void InitDefaultPolicyBuilder(sandbox2::PolicyBuilder* builder) {
       });
 
 #ifdef __NR_arch_prctl  // x86-64 only
-  builder->AllowSyscall(__NR_arch_prctl);
+  builder.AllowSyscall(__NR_arch_prctl);
 #endif
 
   if constexpr (sanitizers::IsAny()) {
     LOG(WARNING) << "Allowing additional calls to support the LLVM "
                  << "(ASAN/MSAN/TSAN) sanitizer";
-    builder->AllowLlvmSanitizers();
+    builder.AllowLlvmSanitizers();
   }
-  builder->AddFile("/etc/localtime")
+  builder.AddFile("/etc/localtime")
       .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size */);
+
+  return builder;
 }
 
 void Sandbox::Terminate(bool attempt_graceful_exit) {
@@ -180,7 +179,7 @@ static std::string PathToSAPILib(const std::string& lib_path) {
                                         : GetDataDependencyFilePath(lib_path);
 }
 
-absl::Status Sandbox::Init(bool use_unotify_monitor) {
+absl::Status Sandbox::Init() {
   // It's already initialized
   if (is_active()) {
     return absl::OkStatus();
@@ -234,12 +233,17 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
     fork_client = fork_client_context_->client_;
   }
 
-    sandbox2::PolicyBuilder policy_builder;
-    InitDefaultPolicyBuilder(&policy_builder);
-  if (use_unotify_monitor) {
-    policy_builder.CollectStacktracesOnSignal(false);
+  std::unique_ptr<sandbox2::Policy> s2p;
+  if (config_.sandbox2.policy) {
+    s2p = std::make_unique<sandbox2::Policy>(*config_.sandbox2.policy);
+  } else {
+      sandbox2::PolicyBuilder policy_builder =
+          Sandbox2Config::DefaultPolicyBuilder();
+    if (config_.sandbox2.use_unotify_monitor) {
+      policy_builder.CollectStacktracesOnSignal(false);
+    }
+    s2p = ModifyPolicy(&policy_builder);
   }
-  auto s2p = ModifyPolicy(&policy_builder);
 
   // Spawn new process from the forkserver.
   auto executor = std::make_unique<sandbox2::Executor>(fork_client.get());
@@ -256,10 +260,13 @@ absl::Status Sandbox::Init(bool use_unotify_monitor) {
 
   // Modify the executor, e.g. by setting custom limits and IPC.
   ModifyExecutor(executor.get());
+  if (config_.sandbox2.enable_log_server) {
+    executor->ipc()->EnableLogServer();
+  }
 
   s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
                                              std::move(s2p), CreateNotifier());
-  if (use_unotify_monitor) {
+  if (config_.sandbox2.use_unotify_monitor) {
     SAPI_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
   }
   s2_awaited_ = false;
