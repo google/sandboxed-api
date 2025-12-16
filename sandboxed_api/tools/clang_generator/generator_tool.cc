@@ -207,10 +207,14 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
 
   if (options.sandboxed_library_gen) {
     SandboxedLibraryEmitter emitter;
-    if (int result = tool.run(
-            std::make_unique<GeneratorFactory>(&emitter, &options).get());
-        result != 0) {
-      return absl::UnknownError("Error: Header generation failed.");
+    bool failed =
+        tool.run(std::make_unique<GeneratorFactory>(&emitter, &options).get());
+    if (absl::Status status = emitter.PostParseAllFiles(); !status.ok()) {
+      return status;
+    }
+    if (failed) {
+      // We've already printed real errors before.
+      return absl::UnknownError("");
     }
 
     SAPI_ASSIGN_OR_RETURN(std::string sandboxee_hdr,
@@ -249,7 +253,9 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
   if (absl::Status status = sapi::GeneratorMain(argc, argv); !status.ok()) {
-    absl::FPrintF(stderr, "%s\n", status.message());
+    if (!status.message().empty()) {
+      absl::FPrintF(stderr, "%s\n", status.message());
+    }
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;

@@ -87,6 +87,7 @@ class GeneratorASTVisitor
 
   bool VisitTypeDecl(clang::TypeDecl* decl);
   bool VisitFunctionDecl(clang::FunctionDecl* decl);
+  bool VisitVarDecl(clang::VarDecl* decl);
 
   TypeCollector& type_collector() { return type_collector_; }
 
@@ -94,9 +95,12 @@ class GeneratorASTVisitor
     return functions_;
   }
 
+  const std::vector<clang::VarDecl*>& vars() const { return vars_; }
+
  private:
   TypeCollector type_collector_;
   std::vector<clang::FunctionDecl*> functions_;
+  std::vector<clang::VarDecl*> vars_;
   const GeneratorOptions& options_;
 };
 

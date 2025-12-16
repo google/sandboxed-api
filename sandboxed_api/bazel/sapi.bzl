@@ -467,6 +467,7 @@ def sapi_library(
 def cc_sandboxed_library(
         name,
         lib,
+        srcs = [],
         tags = [],
         visibility = None,
         compatible_with = None):
@@ -487,6 +488,7 @@ def cc_sandboxed_library(
     Args:
       name: Name of the target
       lib: Label of the cc_library target to sandbox
+      srcs: List of source files to tune syscall policy, and interface bridging.
       tags: Same as cc_library.tags
       visibility: Same as cc_library.visibility
       compatible_with: Same as cc_library.compatible_with
@@ -535,6 +537,7 @@ def cc_sandboxed_library(
         sandboxee_main_out = name + ".sapi.sandboxee_main.cc.unformatted",
         host_src_out = name + ".sapi.host.cc.unformatted",
         sapi_hdr = native.package_name() + "/_sapi_" + name + ".sapi.h",
+        srcs = srcs,
         **common
     )
 
@@ -648,13 +651,23 @@ def _sandboxed_library_gen_impl(ctx):
     args.append("--host_src_out={}".format(ctx.outputs.host_src_out.path))
     args.append("--sapi_out={}".format(ctx.attr.sapi_hdr))
     args.append("--sapi_limit_scan_depth")
-    input_files_paths = _lib_direct_headers(ctx.attr.lib, cc_ctx)
+
+    # Note: the srcs files on the cc_sandboxed_library should go first
+    # b/c they may alter how the library headers are interpreted.
+    input_files_paths = []
+    for f in ctx.files.srcs:
+        input_files_paths.append(f.path)
+    for f in _lib_direct_headers(ctx.attr.lib, cc_ctx):
+        input_files_paths.append(f)
     args += _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths)
     args += input_files_paths
 
     progress_msg = "Generating sandboxed library {}.".format(ctx.attr.lib_name)
     ctx.actions.run(
-        inputs = cc_ctx.headers.to_list() + cpp_toolchain.all_files.to_list(),
+        inputs = ctx.files.srcs +
+                 ctx.attr._annotations[CcInfo].compilation_context.direct_headers +
+                 cc_ctx.headers.to_list() +
+                 cpp_toolchain.all_files.to_list(),
         outputs = [
             ctx.outputs.sandboxee_hdr_out,
             ctx.outputs.sandboxee_src_out,
@@ -679,8 +692,13 @@ _sandboxed_library_gen = rule(
         "sandboxee_main_out": attr.output(),
         "host_src_out": attr.output(),
         "sapi_hdr": attr.string(),
+        "srcs": attr.label_list(allow_files = True),
         "_generator": make_exec_label(
             "//sandboxed_api/tools/clang_generator:generator_tool",
+        ),
+        "_annotations": attr.label(
+            default = "//sandboxed_api:annotations",
+            providers = [CcInfo],
         ),
     },
     toolchains = use_cpp_toolchain(),

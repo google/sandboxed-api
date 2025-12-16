@@ -39,4 +39,8 @@ void mylib_expected_syscall2();
 void mylib_unexpected_syscall1();
 void mylib_unexpected_syscall2();
 
+// This function is not supported, but we will exclude it using
+// SANDBOX_FUNCS/SANDBOX_IGNORE_FUNCS annotations.
+void mylib_func_with_unsupported_arg(union mylib_union* arg);
+
 #endif  // SANDBOXED_API_SANDBOX2_TESTCASES_REPLACED_LIBRARY_H_

@@ -25,12 +25,17 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceManager.h"
+#include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 
@@ -448,6 +453,13 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::Finalize(
 }
 
 absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
+  used_funcs_.insert(decl->getNameAsString());
+  if (ignore_funcs_.contains(decl->getNameAsString()) ||
+      (!sandbox_funcs_.empty() &&
+       !sandbox_funcs_.contains(decl->getNameAsString()))) {
+    return absl::OkStatus();
+  }
+
   std::unique_ptr<Arg> ret;
   clang::QualType ret_type = decl->getReturnType();
   if (!ret_type->isVoidType()) {
@@ -486,6 +498,60 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
       clang::ASTNameGenerator(decl->getASTContext()).getName(decl);
   funcs_[name] =
       std::unique_ptr<Func>(new Func{name, std::move(ret), std::move(args)});
+  return absl::OkStatus();
+}
+
+absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
+  constexpr absl::string_view kSandboxFuncs = "sandbox_funcs_";
+  constexpr absl::string_view kIgnoreFuncs = "sandbox_ignore_funcs_";
+  const bool is_sandbox_funcs =
+      absl::StartsWith(decl->getNameAsString(), kSandboxFuncs);
+  const bool is_ignore_funcs =
+      absl::StartsWith(decl->getNameAsString(), kIgnoreFuncs);
+  if (is_sandbox_funcs || is_ignore_funcs) {
+    if (funcs_loc_) {
+      return absl::AlreadyExistsError(absl::Substitute(
+          "Only one of SANDBOX_FUNCS or SANDBOX_IGNORE_FUNCS can be used "
+          "per file. Previous annotation was at $0",
+          *funcs_loc_));
+    }
+    clang::SourceManager& source_manager =
+        decl->getASTContext().getSourceManager();
+    funcs_loc_ = source_manager.getExpansionLoc(decl->getBeginLoc())
+                     .printToString(source_manager);
+    const auto* init_list =
+        llvm::dyn_cast<clang::InitListExpr>(decl->getAnyInitializer());
+    for (const clang::Expr* init : init_list->inits()) {
+      const std::string func = *init->tryEvaluateString(decl->getASTContext());
+      if (is_sandbox_funcs) {
+        sandbox_funcs_.insert(func);
+      } else {
+        ignore_funcs_.insert(func);
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
+  if (!funcs_loc_) {
+    return absl::OkStatus();
+  }
+  const char* ann = "SANDBOX_FUNCS";
+  absl::flat_hash_set<std::string>* funcs = &sandbox_funcs_;
+  if (!ignore_funcs_.empty()) {
+    ann = "SANDBOX_IGNORE_FUNCS";
+    funcs = &ignore_funcs_;
+  }
+  for (const std::string& func : used_funcs_) {
+    funcs->erase(func);
+  }
+  if (!funcs->empty()) {
+    std::vector<std::string> funcs_vec(funcs->begin(), funcs->end());
+    std::sort(funcs_vec.begin(), funcs_vec.end());
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: unused $1: $2", *funcs_loc_, ann, absl::StrJoin(funcs_vec, ", ")));
+  }
   return absl::OkStatus();
 }
 

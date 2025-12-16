@@ -267,3 +267,10 @@ cc_library(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "annotations",
+    srcs = ["annotations_internal.h"],
+    hdrs = ["annotations.h"],
+    visibility = ["//visibility:public"],
+)

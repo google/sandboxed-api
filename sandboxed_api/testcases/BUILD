@@ -30,6 +30,13 @@ cc_library(
 
 cc_sandboxed_library(
     name = "replacement_library",
+    srcs = ["lwbox_sandbox.cc"],
+    lib = ":replaced_library",
+)
+
+cc_sandboxed_library(
+    name = "replacement_library2",
+    srcs = ["lwbox_ignore.cc"],
     lib = ":replaced_library",
 )
 
@@ -38,5 +45,13 @@ cc_sandboxed_library_test(
     srcs = ["replaced_library_test.cc"],
     lib = ":replaced_library",
     sandboxed_lib = ":replacement_library",
+    deps = ["@googletest//:gtest_main"],
+)
+
+cc_sandboxed_library_test(
+    name = "replaced2_test",
+    srcs = ["replaced_library_test.cc"],
+    lib = ":replaced_library",
+    sandboxed_lib = ":replacement_library2",
     deps = ["@googletest//:gtest_main"],
 )

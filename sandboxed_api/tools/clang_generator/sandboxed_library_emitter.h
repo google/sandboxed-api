@@ -16,6 +16,7 @@
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_SANDBOXED_LIBRARY_EMITTER_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,7 +26,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
-#include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 
 namespace sapi {
@@ -33,6 +33,11 @@ namespace sapi {
 class SandboxedLibraryEmitter : public EmitterBase {
  public:
   class Arg;
+
+  // Called after parsing of all input files.
+  // Can be used to finalize data, or emit errors that can be detected
+  // only after seeing all files.
+  absl::Status PostParseAllFiles();
 
   absl::StatusOr<std::string> EmitSandboxeeHdr(
       const GeneratorOptions& options) const;
@@ -57,6 +62,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
   };
 
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
+  absl::Status AddVar(clang::VarDecl* decl) override;
   static void EmitFuncDecl(std::string& out, const Func& func);
   static void EmitWrapperDecl(std::string& out, const Func& func);
   absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
@@ -66,6 +72,10 @@ class SandboxedLibraryEmitter : public EmitterBase {
 
   absl::flat_hash_set<std::string> includes_;
   absl::flat_hash_map<std::string, std::unique_ptr<Func>> funcs_;
+  absl::flat_hash_set<std::string> sandbox_funcs_;
+  absl::flat_hash_set<std::string> ignore_funcs_;
+  absl::flat_hash_set<std::string> used_funcs_;
+  std::optional<std::string> funcs_loc_;
 };
 
 }  // namespace sapi

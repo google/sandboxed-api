@@ -61,6 +61,17 @@ std::string ReplaceFileExtension(absl::string_view path,
   return absl::StrCat(path.substr(0, pos), new_extension);
 }
 
+void ReportIfError(clang::ASTContext& context, clang::SourceLocation loc,
+                   absl::Status status) {
+  if (status.ok()) {
+    return;
+  }
+  loc = GetDiagnosticLocationFromStatus(status).value_or(loc);
+  clang::DiagnosticsEngine::Level level =
+      absl::IsCancelled(status) ? clang::DiagnosticsEngine::Warning
+                                : clang::DiagnosticsEngine::Error;
+  Report(context.getDiagnostics(), loc, level, status.message());
+}
 }  // namespace
 
 // IncludeRecorder is a clang preprocessor callback that records includes from
@@ -199,6 +210,11 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
   return true;
 }
 
+bool GeneratorASTVisitor::VisitVarDecl(clang::VarDecl* decl) {
+  vars_.push_back(decl);
+  return true;
+}
+
 void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   if (!visitor_.TraverseDecl(context.getTranslationUnitDecl())) {
     Report(context.getDiagnostics(),
@@ -215,16 +231,14 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
 
   emitter_.AddTypeDeclarations(visitor_.type_collector().GetTypeDeclarations());
 
+  for (clang::VarDecl* var : visitor_.vars()) {
+    absl::Status status = emitter_.AddVar(var);
+    ReportIfError(context, var->getBeginLoc(), status);
+  }
+
   for (clang::FunctionDecl* func : visitor_.functions()) {
     absl::Status status = emitter_.AddFunction(func);
-    if (!status.ok()) {
-      clang::SourceLocation loc =
-          GetDiagnosticLocationFromStatus(status).value_or(func->getBeginLoc());
-      clang::DiagnosticsEngine::Level level =
-          absl::IsCancelled(status) ? clang::DiagnosticsEngine::Warning
-                                    : clang::DiagnosticsEngine::Error;
-      Report(context.getDiagnostics(), loc, level, status.message());
-    }
+    ReportIfError(context, func->getBeginLoc(), status);
   }
 }
 

@@ -90,6 +90,12 @@ class EmitterBase {
   // Adds the declarations of previously collected functions to the emitter.
   virtual absl::Status AddFunction(clang::FunctionDecl* decl) = 0;
 
+  // Adds the declarations of previously collected variable declarations to the
+  // emitter.
+  virtual absl::Status AddVar(clang::VarDecl* decl) {
+    return absl::OkStatus();
+  };
+
   // Adds an include to the list of includes to be rendered.
   void AddIncludes(const IncludeInfo* include);
 
