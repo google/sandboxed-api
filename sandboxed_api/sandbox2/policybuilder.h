@@ -1016,8 +1016,13 @@ class PolicyBuilder final {
   // Traps instead of denying ptrace.
   PolicyBuilder& TrapPtrace();
 
+  // Appends given policy at the end of the policy - decision taken by user
+  // policy takes precedence.
+  PolicyBuilder& OverridableAddPolicyOnSyscalls(
+      absl::Span<const uint32_t> nums, absl::Span<const sock_filter> policy);
+
   // Appends code to block a specific syscall and setting errno at the end of
-  // the policy - decision taken by user policy take precedence.
+  // the policy - decision taken by user policy takes precedence.
   PolicyBuilder& OverridableBlockSyscallWithErrno(uint32_t num, int error);
 
   PolicyBuilder& SetMounts(Mounts mounts) {

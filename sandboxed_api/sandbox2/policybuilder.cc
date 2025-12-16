@@ -186,6 +186,73 @@ bool IsOnReadOnlyDev(const std::string& path) {
   return vfs.f_flag & ST_RDONLY;
 }
 
+absl::StatusOr<std::deque<sock_filter>> CreatePolicyOnSyscalls(
+    absl::Span<const uint32_t> nums, absl::Span<const sock_filter> policy) {
+  if (nums.empty()) {
+    return absl::InvalidArgumentError(
+        "Cannot add a policy for empty list of syscalls");
+  }
+  std::deque<sock_filter> out;
+  // Insert and verify the policy.
+  out.insert(out.end(), policy.begin(), policy.end());
+  for (size_t i = 0; i < out.size(); ++i) {
+    sock_filter& filter = out[i];
+    const size_t max_jump = out.size() - i - 1;
+    if (!CheckBpfBounds(filter, max_jump)) {
+      return absl::InvalidArgumentError("bpf jump out of bounds");
+    }
+    // Syscall arch is expected as TRACE value
+    if (filter.code == (BPF_RET | BPF_K) &&
+        (filter.k & SECCOMP_RET_ACTION) == SECCOMP_RET_TRACE &&
+        (filter.k & SECCOMP_RET_DATA) != Syscall::GetHostArch()) {
+      LOG(WARNING) << "SANDBOX2_TRACE should be used in policy instead of "
+                      "TRACE(value)";
+      filter = SANDBOX2_TRACE;
+    }
+  }
+  // Pre-/Postcondition: Syscall number loaded into A register
+  out.push_back(LOAD_SYSCALL_NR);
+  if (out.size() > std::numeric_limits<uint32_t>::max()) {
+    return absl::InvalidArgumentError("syscall policy is too long");
+  }
+  // Create jumps for each syscall.
+  size_t do_policy_loc = out.size();
+  // Iterate in reverse order and prepend instruction, so that jumps can be
+  // calculated easily.
+  constexpr size_t kMaxShortJump = 255;
+  bool last = true;
+  for (auto it = std::rbegin(nums); it != std::rend(nums); ++it) {
+    if (*it == __NR_bpf || *it == __NR_ptrace) {
+      return absl::InvalidArgumentError(
+          "cannot add policy for bpf/ptrace syscall");
+    }
+    // If syscall is not matched try with the next one.
+    uint8_t jf = 0;
+    // If last syscall on the list does not match skip the policy by jumping
+    // over it.
+    if (last) {
+      if (out.size() > kMaxShortJump) {
+        out.push_front(
+            BPF_STMT(BPF_JMP + BPF_JA, static_cast<uint32_t>(out.size())));
+      } else {
+        jf = out.size();
+      }
+      last = false;
+    }
+    // Add a helper absolute jump if needed - the policy/last helper jump is
+    // out of reach of a short jump.
+    if ((out.size() - do_policy_loc) > kMaxShortJump) {
+      out.push_front(BPF_STMT(
+          BPF_JMP + BPF_JA, static_cast<uint32_t>(out.size() - policy.size())));
+      do_policy_loc = out.size();
+      ++jf;
+    }
+    uint8_t jt = out.size() - do_policy_loc;
+    out.push_front(BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, *it, jt, jf));
+  }
+  return out;
+}
+
 }  // namespace
 
 PolicyBuilder& PolicyBuilder::DisableNamespaces(NamespacesToken) {
@@ -268,6 +335,19 @@ PolicyBuilder& PolicyBuilder::BlockSyscallWithErrno(uint32_t num, int error) {
         break;
     }
   }
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::OverridableAddPolicyOnSyscalls(
+    absl::Span<const uint32_t> nums, absl::Span<const sock_filter> policy) {
+  absl::StatusOr<std::deque<sock_filter>> out =
+      CreatePolicyOnSyscalls(nums, policy);
+  if (!out.ok()) {
+    SetError(out.status());
+    return *this;
+  }
+  overridable_policy_.insert(overridable_policy_.end(), out->begin(),
+                             out->end());
   return *this;
 }
 
@@ -1388,74 +1468,14 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(uint32_t num, BpfFunc f) {
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnSyscalls(
     absl::Span<const uint32_t> nums, absl::Span<const sock_filter> policy) {
-  if (nums.empty()) {
-    SetError(absl::InvalidArgumentError(
-        "Cannot add a policy for empty list of syscalls"));
+  absl::StatusOr<std::deque<sock_filter>> out =
+      CreatePolicyOnSyscalls(nums, policy);
+  if (!out.ok()) {
+    SetError(out.status());
     return *this;
-  }
-  std::deque<sock_filter> out;
-  // Insert and verify the policy.
-  out.insert(out.end(), policy.begin(), policy.end());
-  for (size_t i = 0; i < out.size(); ++i) {
-    sock_filter& filter = out[i];
-    const size_t max_jump = out.size() - i - 1;
-    if (!CheckBpfBounds(filter, max_jump)) {
-      SetError(absl::InvalidArgumentError("bpf jump out of bounds"));
-      return *this;
-    }
-    // Syscall arch is expected as TRACE value
-    if (filter.code == (BPF_RET | BPF_K) &&
-        (filter.k & SECCOMP_RET_ACTION) == SECCOMP_RET_TRACE &&
-        (filter.k & SECCOMP_RET_DATA) != Syscall::GetHostArch()) {
-      LOG(WARNING) << "SANDBOX2_TRACE should be used in policy instead of "
-                      "TRACE(value)";
-      filter = SANDBOX2_TRACE;
-    }
-  }
-  // Pre-/Postcondition: Syscall number loaded into A register
-  out.push_back(LOAD_SYSCALL_NR);
-  if (out.size() > std::numeric_limits<uint32_t>::max()) {
-    SetError(absl::InvalidArgumentError("syscall policy is too long"));
-    return *this;
-  }
-  // Create jumps for each syscall.
-  size_t do_policy_loc = out.size();
-  // Iterate in reverse order and prepend instruction, so that jumps can be
-  // calculated easily.
-  constexpr size_t kMaxShortJump = 255;
-  bool last = true;
-  for (auto it = std::rbegin(nums); it != std::rend(nums); ++it) {
-    if (*it == __NR_bpf || *it == __NR_ptrace) {
-      SetError(absl::InvalidArgumentError(
-          "cannot add policy for bpf/ptrace syscall"));
-      return *this;
-    }
-    // If syscall is not matched try with the next one.
-    uint8_t jf = 0;
-    // If last syscall on the list does not match skip the policy by jumping
-    // over it.
-    if (last) {
-      if (out.size() > kMaxShortJump) {
-        out.push_front(
-            BPF_STMT(BPF_JMP + BPF_JA, static_cast<uint32_t>(out.size())));
-      } else {
-        jf = out.size();
-      }
-      last = false;
-    }
-    // Add a helper absolute jump if needed - the policy/last helper jump is
-    // out of reach of a short jump.
-    if ((out.size() - do_policy_loc) > kMaxShortJump) {
-      out.push_front(BPF_STMT(
-          BPF_JMP + BPF_JA, static_cast<uint32_t>(out.size() - policy.size())));
-      do_policy_loc = out.size();
-      ++jf;
-    }
-    uint8_t jt = out.size() - do_policy_loc;
-    out.push_front(BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, *it, jt, jf));
   }
   custom_policy_syscalls_.insert(nums.begin(), nums.end());
-  user_policy_.insert(user_policy_.end(), out.begin(), out.end());
+  user_policy_.insert(user_policy_.end(), out->begin(), out->end());
   return *this;
 }
 
