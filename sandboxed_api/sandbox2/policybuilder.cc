@@ -625,6 +625,9 @@ PolicyBuilder& PolicyBuilder::AllowLlvmCoverage() {
 #endif
   });
   AllowTcMalloc();
+  OverridableAddPolicyOnSyscalls({__NR_prctl},
+                                 {ARG_32(0), JEQ32(PR_GET_PDEATHSIG, ALLOW),
+                                  JEQ32(PR_SET_PDEATHSIG, ERRNO(EPERM))});
   AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
     return {
         ARG_32(2),  // prot
