@@ -28,11 +28,13 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/macros.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -66,12 +68,30 @@
 
 namespace sapi {
 
-Sandbox::Sandbox(SandboxConfig config, const FileToc* embed_lib_toc)
-    : config_(std::move(config)) {
-  owned_fork_client_context_ =
-      std::make_unique<ForkClientContext>(embed_lib_toc);
-  fork_client_context_ = owned_fork_client_context_.get();
+std::string Sandbox::GetLibPath() const {
+  // TODO(sroettger): temporary code for migration. This can only be called if
+  // the fork_client_context doesn't have a lib_path set.
+  CHECK(false);
 }
+
+Sandbox::Sandbox(SandboxConfig config) : config_(std::move(config)) {
+  CHECK(config_.sandbox2.fork_client_context.has_value());
+}
+
+Sandbox::Sandbox(SandboxConfig config, const FileToc* embed_lib_toc)
+    : Sandbox([&config, embed_lib_toc]() {
+        Sandbox2Config& sb2_config = config.sandbox2;
+        if (sb2_config.fork_client_context.has_value()) {
+          sb2_config.fork_client_context->sandboxee_source_ = embed_lib_toc;
+        } else {
+          sb2_config.fork_client_context.emplace(embed_lib_toc);
+        }
+        return std::move(config);
+      }()) {}
+
+Sandbox::Sandbox(ForkClientContext* fork_client_context)
+    : Sandbox(SandboxConfig{
+          .sandbox2 = {.fork_client_context = *fork_client_context}}) {}
 
 Sandbox::Sandbox(const FileToc* embed_lib_toc)
     : Sandbox(SandboxConfig{}, embed_lib_toc) {}
@@ -86,11 +106,6 @@ Sandbox::~Sandbox() {
   Terminate();
   // The forkserver will die automatically when the executor goes out of scope
   // and closes the comms object.
-}
-
-void Sandbox::SetForkClientContext(ForkClientContext* fork_client_context) {
-  fork_client_context_ = fork_client_context;
-  owned_fork_client_context_.reset();
 }
 
 // IMPORTANT: This policy must be safe to use with
@@ -209,15 +224,22 @@ absl::Status Sandbox::Init() {
   std::shared_ptr<sandbox2::Executor> fork_client_executor;
   std::shared_ptr<sandbox2::ForkClient> fork_client;
   {
-    absl::MutexLock lock(fork_client_context_->mu_);
+    absl::MutexLock lock(fork_client_shared().mu_);
     // Initialize the forkserver if it is not already running.
-    if (!fork_client_context_->client_) {
-      // If FileToc was specified, it will be used over any paths to the SAPI
-      // library.
+    if (!fork_client_shared().client_) {
+      // TODO(sroettger): this code is just for migration since callers can
+      // provide the sandboxee path through GetLibPath().
+      if (!fork_client_context().sandboxee_source_.has_value()) {
+        config_.sandbox2.fork_client_context->sandboxee_source_ = GetLibPath();
+      }
+
+      auto sandboxee_source = fork_client_context().sandboxee_source_.value();
+
       std::string lib_path;
       int embed_lib_fd = -1;
-      const FileToc* embed_lib_toc = fork_client_context_->embed_lib_toc_;
-      if (embed_lib_toc) {
+      if (std::holds_alternative<const FileToc*>(sandboxee_source)) {
+        const FileToc* embed_lib_toc =
+            std::get<const FileToc*>(sandboxee_source);
         embed_lib_fd = EmbedFile::instance()->GetDupFdForFileToc(embed_lib_toc);
         if (embed_lib_fd == -1) {
           PLOG(ERROR) << "Cannot create executable FD for TOC:'"
@@ -226,7 +248,7 @@ absl::Status Sandbox::Init() {
         }
         lib_path = embed_lib_toc->name;
       } else {
-        lib_path = PathToSAPILib(GetLibPath());
+        lib_path = PathToSAPILib(std::get<std::string>(sandboxee_source));
         if (lib_path.empty()) {
           LOG(ERROR) << "SAPI library path is empty";
           return absl::FailedPreconditionError("No SAPI library path given");
@@ -236,22 +258,22 @@ absl::Status Sandbox::Init() {
       // Additional arguments, if needed.
       GetArgs(&args);
 
-      fork_client_context_->executor_ =
+      fork_client_shared().executor_ =
           (embed_lib_fd >= 0) ? std::make_shared<sandbox2::Executor>(
                                     embed_lib_fd, args, EnvironmentVariables())
                               : std::make_shared<sandbox2::Executor>(
                                     lib_path, args, EnvironmentVariables());
 
-      fork_client_context_->client_ =
-          fork_client_context_->executor_->StartForkServer();
+      fork_client_shared().client_ =
+          fork_client_shared().executor_->StartForkServer();
 
-      if (!fork_client_context_->client_) {
+      if (!fork_client_shared().client_) {
         LOG(ERROR) << "Could not start forkserver";
         return absl::UnavailableError("Could not start the forkserver");
       }
     }
-    fork_client_executor = fork_client_context_->executor_;
-    fork_client = fork_client_context_->client_;
+    fork_client_executor = fork_client_shared().executor_;
+    fork_client = fork_client_shared().client_;
   }
 
   std::unique_ptr<sandbox2::Policy> s2p;
@@ -297,8 +319,8 @@ absl::Status Sandbox::Init() {
   if (!res) {
     // Allow recovering from a bad fork client state.
     {
-      absl::MutexLock lock(fork_client_context_->mu_);
-      fork_client_context_->client_.reset();
+      absl::MutexLock lock(fork_client_shared().mu_);
+      fork_client_shared().client_.reset();
     }
     Terminate();
     return absl::UnavailableError("Could not start the sandbox");
