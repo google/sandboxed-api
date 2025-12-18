@@ -1053,7 +1053,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_add_policy_on_syscalls
     sandbox2::testcase_execveat
     sandbox2::testcase_malloc_system
-    sandbox2::testcase_mmap
     sandbox2::testcase_minimal
     sandbox2::testcase_minimal_dynamic
     sandbox2::testcase_policy

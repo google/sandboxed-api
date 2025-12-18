@@ -48,7 +48,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
-#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -167,7 +166,6 @@ int main(int argc, char* argv[]) {
   sandbox2::PolicyBuilder builder;
   builder.AddPolicyOnSyscall(__NR_tee, {KILL});
   builder.DefaultAction(sandbox2::AllowAllSyscalls());
-  builder.Allow(sandbox2::MapExec());
 
   if (absl::GetFlag(FLAGS_sandbox2tool_need_networking)) {
     builder.Allow(sandbox2::UnrestrictedNetworking());

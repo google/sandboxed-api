@@ -20,7 +20,6 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
-#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/util/path.h"
 
@@ -36,8 +35,9 @@ sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
                          /*is_ro=*/false);
   }
   if constexpr (sapi::sanitizers::IsAny()) {
-    builder.Allow(sandbox2::MapExec());  // Sanitizers load shared libraries.
     builder.AddLibrariesForBinary(binary_path);
+  }
+  if constexpr (sapi::sanitizers::IsAny()) {
     builder.AddDirectory("/proc");
   }
   builder.AllowTcMalloc();

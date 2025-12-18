@@ -42,6 +42,10 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 
+#ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
+#define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
+#endif
+
 #ifndef BPF_MAP_LOOKUP_ELEM
 #define BPF_MAP_LOOKUP_ELEM 1
 #endif
@@ -59,14 +63,6 @@
 #endif
 #ifndef BPF_OBJ_GET_INFO_BY_FD
 #define BPF_OBJ_GET_INFO_BY_FD 15
-#endif
-
-#ifndef CLONE_NEWCGROUP
-#define CLONE_NEWCGROUP 0x02000000
-#endif
-
-#ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
-#define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
 #endif
 
 namespace sandbox2 {
@@ -218,27 +214,29 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
         policy.end(),
         {
 #ifdef __NR_mmap
-            JEQ32(__NR_mmap, JUMP(&l, check_prot_arg_l)),
+            JNE32(__NR_mmap, JUMP(&l, past_map_exec_l)),
 #endif
 #ifdef __NR_mmap2  // Arm32
-            JEQ32(__NR_mmap2, JUMP(&l, check_prot_arg_l)),
+            JNE32(__NR_mmap2, JUMP(&l, past_map_exec_l)),
 #endif
-            JEQ32(__NR_mprotect, JUMP(&l, check_prot_arg_l)),
+            JNE32(__NR_mprotect, JUMP(&l, past_map_exec_l)),
 #ifdef __NR_pkey_mprotect
-            JEQ32(__NR_pkey_mprotect, JUMP(&l, check_prot_arg_l)),
+            JNE32(__NR_pkey_mprotect, JUMP(&l, past_map_exec_l)),
 #endif
-            JUMP(&l, past_map_exec_l),
-            LABEL(&l, check_prot_arg_l),
             // Load "prot" argument, which is the same for all four syscalls.
             ARG_32(2),
             // Deny executable mappings. This also disallows them for all PKEYS
             // (not just the default one).
             JA32(PROT_EXEC, DENY),
-            LOAD_SYSCALL_NR,  // Only need to load if overwritten by argument.
+
             LABEL(&l, past_map_exec_l),
+            LOAD_SYSCALL_NR,
         });
   }
 
+#ifndef CLONE_NEWCGROUP
+#define CLONE_NEWCGROUP 0x02000000
+#endif
   constexpr uintptr_t kNewNamespacesFlags =
       CLONE_NEWNS | CLONE_NEWUSER | CLONE_NEWNET | CLONE_NEWUTS |
       CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWPID;
