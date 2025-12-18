@@ -49,6 +49,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2_rpcchannel.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/vars.h"
@@ -129,6 +130,11 @@ struct SandboxConfig {
   std::optional<std::vector<std::string>> environment_variables;
   std::optional<absl::flat_hash_map<std::string, std::string>>
       command_line_flags;
+  // File descriptors to map into the sandbox.
+  // The first element of the pair is the host fd, the second is the new fd in
+  // the sandbox.
+  std::optional<std::vector<std::pair<sapi::file_util::fileops::FDCloser, int>>>
+      fd_mappings;
 
   Sandbox2Config sandbox2;
 
@@ -299,6 +305,7 @@ class Sandbox {
   }
 
   void ApplySandbox2Config(sandbox2::Executor* executor) const;
+  void MapFileDescriptors(sandbox2::Executor* executor) const;
 
   // Provides a custom notifier for sandboxee events. May return nullptr.
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }

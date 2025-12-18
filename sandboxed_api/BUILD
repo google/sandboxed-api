@@ -235,6 +235,7 @@ cc_test(
         "//sandboxed_api/examples/stringop:stringop_params_cc_proto",
         "//sandboxed_api/examples/sum:sum-sapi",
         "//sandboxed_api/sandbox2:result",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:thread",
         "@abseil-cpp//absl/log",

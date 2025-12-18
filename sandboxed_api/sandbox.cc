@@ -215,6 +215,15 @@ void Sandbox::ApplySandbox2Config(sandbox2::Executor* executor) const {
   }
 }
 
+void Sandbox::MapFileDescriptors(sandbox2::Executor* executor) const {
+  if (!config_.fd_mappings.has_value()) {
+    return;
+  }
+  for (const auto& [host_fd, sandbox_fd] : *config_.fd_mappings) {
+    executor->ipc()->MapDupedFd(host_fd.get(), sandbox_fd);
+  }
+}
+
 absl::Status Sandbox::Init() {
   // It's already initialized
   if (is_active()) {
@@ -302,6 +311,7 @@ absl::Status Sandbox::Init() {
   // Modify the executor, e.g. by setting custom limits and IPC.
   ModifyExecutor(executor.get());
   ApplySandbox2Config(executor.get());
+  MapFileDescriptors(executor.get());
 
   s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
                                              std::move(s2p), CreateNotifier());

@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -41,11 +42,12 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
-#include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/var_struct.h"
 
@@ -429,4 +431,26 @@ TEST(VarsTest, MoveOperations) {
 }
 
 }  // namespace
+
+TEST(SandboxTest, MapFd) {
+  sapi::file_util::fileops::FDCloser dev_null(open("/dev/null", O_WRONLY));
+  ASSERT_NE(dev_null.get(), -1);
+  std::vector<std::pair<sapi::file_util::fileops::FDCloser, int>> fds;
+  fds.push_back(std::make_pair(std::move(dev_null), STDERR_FILENO));
+
+  SumSandbox sandbox({.fd_mappings = std::move(fds)});
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(int result, api.sum(1, 2));
+  EXPECT_THAT(result, Eq(3));
+
+  // Restart multiple times
+  for (int i = 0; i < 5; ++i) {
+    ASSERT_THAT(sandbox.Restart(true), IsOk());
+    SAPI_ASSERT_OK_AND_ASSIGN(result, api.sum(1, 2));
+    EXPECT_THAT(result, Eq(3));
+  }
+}
+
 }  // namespace sapi
