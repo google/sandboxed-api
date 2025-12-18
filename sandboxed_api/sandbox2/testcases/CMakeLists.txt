@@ -291,6 +291,19 @@ target_link_libraries(sandbox2_testcase_limits PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2/testcases:mmap
+add_executable(sandbox2_testcase_mmap
+  mmap.cc
+)
+add_executable(sandbox2::testcase_mmap ALIAS sandbox2_testcase_mmap)
+set_target_properties(sandbox2_testcase_mmap PROPERTIES
+  OUTPUT_NAME mmap
+)
+target_link_libraries(sandbox2_testcase_mmap PRIVATE
+  -static
+  sapi::base
+)
+
 # sandboxed_api/sandbox2/testcases:namespace
 add_executable(sandbox2_testcase_namespace
   namespace.cc

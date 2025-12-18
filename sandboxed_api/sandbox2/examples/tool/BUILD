@@ -34,6 +34,7 @@ cc_binary(
         "//sandboxed_api/sandbox2",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/sandbox2/allowlists:all_syscalls",
+        "//sandboxed_api/sandbox2/allowlists:map_exec",
         "//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",

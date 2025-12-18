@@ -435,6 +435,58 @@ TEST_P(PolicyTest, SecondExecveatNotAllowedByDefault) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
+TEST_P(PolicyTest, MmapWithExecNotAllowedByDefault) {
+  SKIP_SANITIZERS_AND_COVERAGE;
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({path, "1"}, CreateDefaultPermissiveTestPolicy(path));
+  Result result = s2->Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(), Eq(__NR_mmap));
+}
+
+TEST_P(PolicyTest, MmapWithExecAllowed) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {path, "1"}, CreateDefaultPermissiveTestPolicy(path).Allow(MapExec()));
+  Result result = s2->Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, MprotectWithExecNotAllowedByDefault) {
+  SKIP_SANITIZERS_AND_COVERAGE;
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({path, "2"}, CreateDefaultPermissiveTestPolicy(path));
+  Result result = s2->Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(), Eq(__NR_mprotect));
+}
+
+TEST_P(PolicyTest, MprotectWithExecAllowed) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {path, "2"}, CreateDefaultPermissiveTestPolicy(path).Allow(MapExec()));
+  Result result = s2->Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
 #ifdef SAPI_X86_64
 TEST_P(PolicyTest, SpeculationAllowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/policy");

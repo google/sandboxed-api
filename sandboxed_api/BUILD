@@ -262,6 +262,7 @@ cc_library(
         ":config",
         "//sandboxed_api/sandbox2:policybuilder",
         "//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
+        "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",
         "//sandboxed_api/util:file_base",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",

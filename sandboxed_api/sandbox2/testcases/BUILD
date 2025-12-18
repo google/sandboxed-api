@@ -239,6 +239,14 @@ cc_binary(
 )
 
 cc_binary(
+    name = "mmap",
+    testonly = True,
+    srcs = ["mmap.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+)
+
+cc_binary(
     name = "namespace",
     testonly = True,
     srcs = ["namespace.cc"],

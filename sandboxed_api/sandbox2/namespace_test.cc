@@ -33,8 +33,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -157,6 +159,7 @@ TEST(NamespaceTest, UserNamespaceWorks) {
         PolicyBuilder()
             .DisableNamespaces(NamespacesToken())
             .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
+            .Allow(MapExec())
             .BuildOrDie());
     EXPECT_THAT(result, ElementsAre(Ne("2")));
   }
@@ -179,6 +182,7 @@ TEST(NamespaceTest, UserNamespaceIDMapWritten) {
         PolicyBuilder()
             .DisableNamespaces(NamespacesToken())
             .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
+            .Allow(MapExec())
             .BuildOrDie());
     EXPECT_THAT(result,
                 ElementsAre(absl::StrCat(getuid()), absl::StrCat(getgid())));
@@ -216,6 +220,7 @@ TEST(NamespaceTest, HostnameNone) {
       PolicyBuilder()
           .DisableNamespaces(NamespacesToken())
           .DefaultAction(AllowAllSyscalls())  // Do not restrict syscalls
+          .Allow(MapExec())
           .BuildOrDie());
   EXPECT_THAT(result, ElementsAre(Ne("sandbox2")));
 }
