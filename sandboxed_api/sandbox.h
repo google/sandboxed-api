@@ -29,6 +29,7 @@
 #include "sandboxed_api/file_toc.h"
 #include "absl/base/attributes.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -126,10 +127,20 @@ struct Sandbox2Config {
 
 struct SandboxConfig {
   std::optional<std::vector<std::string>> environment_variables;
+  std::optional<absl::flat_hash_map<std::string, std::string>>
+      command_line_flags;
+
   Sandbox2Config sandbox2;
 
   static std::vector<std::string> DefaultEnvironmentVariables() {
     return {
+    };
+  }
+
+  static absl::flat_hash_map<std::string, std::string> DefaultFlags() {
+    return {
+        {"stderrthreshold",
+         std::to_string(static_cast<int>(absl::StderrThreshold()))},
     };
   }
 };
@@ -251,9 +262,13 @@ class Sandbox {
  protected:
 
   // Gets extra arguments to be passed to the sandboxee.
+  ABSL_DEPRECATED("Pass flags through the sapi::SandboxConfig instead.")
   virtual void GetArgs(std::vector<std::string>* args) const {
-    args->push_back(absl::StrCat("--stderrthreshold=",
-                                 static_cast<int>(absl::StderrThreshold())));
+    auto flags =
+        config_.command_line_flags.value_or(SandboxConfig::DefaultFlags());
+    for (const auto& [key, value] : flags) {
+      args->push_back(absl::StrCat("--", key, "=", value));
+    }
   }
 
   // TODO(sroettger): Remove this method once all callers have been migrated to
