@@ -115,6 +115,17 @@ void TestSafeBpf() {
 
 void TestIsatty() { isatty(0); }
 
+void TestSyscall(int syscall_number, int arg, int expected_errno) {
+  if (syscall(syscall_number, arg) != -1) {
+    printf("Expected syscall %d to fail\n", syscall_number);
+    exit(EXIT_FAILURE);
+  }
+  if (errno != expected_errno) {
+    printf("Expected errno %d, got %d\n", expected_errno, errno);
+    exit(EXIT_FAILURE);
+  }
+}
+
 #ifdef SAPI_X86_64
 void TestSpeculationAllowed() {
   int res = prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS, 0, 0, 0);
@@ -227,6 +238,9 @@ int main(int argc, char* argv[]) {
       TestSpeculationBlocked();
       break;
 #endif  // SAPI_X86_64
+    case 13:
+      TestSyscall(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));  // NOLINT
+      break;
     default:
       printf("Unknown test: %d\n", testno);
       return EXIT_FAILURE;

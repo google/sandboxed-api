@@ -1059,6 +1059,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_posix_timers
   )
   target_link_libraries(sandbox2_policy_test PRIVATE
+    absl::span
     absl::status_matchers
     absl::strings
     sandbox2::allowlists_seccomp_speculation

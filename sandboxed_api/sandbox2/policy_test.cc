@@ -17,6 +17,7 @@
 #include <syscall.h>
 
 #include <cerrno>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -29,6 +30,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
@@ -41,6 +43,21 @@
 #include "sandboxed_api/util/path.h"
 
 namespace sandbox2 {
+class PolicyBuilderPeer {
+ public:
+  static PolicyBuilder& OverridableBlockSyscallWithErrno(PolicyBuilder& builder,
+                                                         uint32_t num,
+                                                         int error) {
+    return builder.OverridableBlockSyscallWithErrno(num, error);
+  }
+
+  static PolicyBuilder& OverridableAddPolicyOnSyscalls(
+      PolicyBuilder& builder, absl::Span<const uint32_t> nums,
+      absl::Span<const sock_filter> policy) {
+    return builder.OverridableAddPolicyOnSyscalls(nums, policy);
+  }
+};
+
 namespace {
 
 using ::absl_testing::IsOk;
@@ -441,6 +458,58 @@ TEST_P(PolicyTest, SpeculationBlockedByDefault) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 #endif  // SAPI_X86_64
+
+PolicyBuilder PolicyTestcasePolicyBuilder() {
+  return MinimalTestcasePolicyBuilder().AllowWrite();
+}
+
+TEST_P(PolicyTest, OverridableBlockSyscallWithErrnoWorks) {
+  SKIP_SANITIZERS;
+  PolicyBuilder policy_builder = PolicyTestcasePolicyBuilder();
+  PolicyBuilderPeer::OverridableBlockSyscallWithErrno(policy_builder, 1337, 2);
+  policy_builder.AddPolicyOnSyscall(1337, {
+                                              ARG_32(0),
+                                              JEQ32(1, ERRNO(1)),
+                                          });
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({"policy", "13", "1337", "1", "1"}, policy_builder);
+  Result result = s2->Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+  s2 = CreateTestSandbox({"policy", "13", "1337", "2", "2"}, policy_builder);
+  result = s2->Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, OverridablePolicyOnSyscallsWorks) {
+  SKIP_SANITIZERS;
+  PolicyBuilder policy_builder = PolicyTestcasePolicyBuilder();
+  PolicyBuilderPeer::OverridableAddPolicyOnSyscalls(policy_builder, {1337},
+                                                    {
+                                                        ARG_32(0),
+                                                        JEQ32(1, ERRNO(1)),
+                                                        JEQ32(2, ERRNO(3)),
+                                                    });
+  policy_builder.AddPolicyOnSyscall(1337, {
+                                              ARG_32(0),
+                                              JEQ32(2, ERRNO(2)),
+                                          });
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({"policy", "13", "1337", "1", "1"}, policy_builder);
+  Result result = s2->Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+
+  s2 = CreateTestSandbox({"policy", "13", "1337", "2", "2"}, policy_builder);
+  result = s2->Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
 
 INSTANTIATE_TEST_SUITE_P(Sandbox2, PolicyTest, ::testing::Values(false, true),
                          [](const ::testing::TestParamInfo<bool>& info) {
