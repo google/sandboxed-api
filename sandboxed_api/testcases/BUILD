@@ -24,6 +24,7 @@ cc_library(
     srcs = ["replaced_library.cc"],
     hdrs = ["replaced_library.h"],
     deps = [
+        "//sandboxed_api:annotations",
         "@abseil-cpp//absl/strings:string_view",
     ],
 )

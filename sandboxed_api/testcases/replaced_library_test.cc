@@ -35,6 +35,11 @@ TEST(Test, Copy) {
   std::string dst = "there";
   mylib_copy({src.data(), src.size() - 1}, dst);
   EXPECT_EQ(dst, "hell");
+
+  char src_buf[5] = {'h', 'e', 'l', 'l', 'o'};
+  char dst_buf[5] = {'t', 'h', 'e', 'r', 'e'};
+  mylib_copy_raw(src_buf + 1, dst_buf + 1, 3);
+  EXPECT_EQ(std::string(dst_buf, sizeof(dst_buf)), "telle");
 }
 
 }  // namespace

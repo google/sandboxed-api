@@ -25,6 +25,7 @@
 #include <string>
 
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/annotations.h"
 
 bool mylib_is_sandboxed();
 
@@ -33,6 +34,9 @@ void mylib_scalar_types(int a0, float a1, double a2, int64_t a3, char a4,
 int mylib_add(int x, int y);
 std::string mylib_copy(const std::string& src);
 void mylib_copy(absl::string_view src, std::string& dst);
+void mylib_copy_raw(const char* src SANDBOX_ELEM_SIZED_BY(size),
+                    char* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size),
+                    size_t size);
 
 void mylib_expected_syscall1();
 void mylib_expected_syscall2();

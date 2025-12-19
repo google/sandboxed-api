@@ -22,6 +22,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 
 #include "absl/strings/string_view.h"
@@ -40,6 +41,10 @@ std::string mylib_copy(const std::string& src) { return src; }
 
 void mylib_copy(absl::string_view src, std::string& dst) {
   dst.assign(src.data(), src.size());
+}
+
+void mylib_copy_raw(const char* src, char* dst, size_t size) {
+  memcpy(dst, src, size);
 }
 
 int mylib_add(int x, int y) { return x + y; }

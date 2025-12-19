@@ -38,4 +38,26 @@
 #define SANDBOX_FUNCS(...) SANDBOX_FUNCS_IMPL(__VA_ARGS__)
 #define SANDBOX_IGNORE_FUNCS(...) SANDBOX_IGNORE_FUNCS_IMPL(__VA_ARGS__)
 
+// Pointer argument annotations that denote direction of the pointee data:
+// data is input for the sandbox function, output of the sandbox function,
+// or both input and output.
+//
+// For example:
+//   void get_dimensions(int* x SANDBOX_OUT_PTR,
+//                       int* y SANDBOX_OUT_PTR,
+//                       int* z SANDBOX_OUT_PTR);
+#define SANDBOX_IN_PTR [[clang::annotate("sandbox", "in_ptr")]]
+#define SANDBOX_OUT_PTR [[clang::annotate("sandbox", "out_ptr")]]
+#define SANDBOX_INOUT_PTR [[clang::annotate("sandbox", "inout_ptr")]]
+
+// Pointer argument annotations that denote the pointee data is an array
+// with the size specified by the given argument.
+//
+// For example:
+//   void my_memcpy(char* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(n),
+//                  const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(n),
+//                  size_t n);
+#define SANDBOX_ELEM_SIZED_BY(elem_size_arg) \
+  [[clang::annotate("sandbox", "elem_sized_by", #elem_size_arg)]]
+
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

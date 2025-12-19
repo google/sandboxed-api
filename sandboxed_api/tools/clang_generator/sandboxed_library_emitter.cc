@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,6 +31,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Mangle.h"
@@ -38,6 +40,7 @@
 #include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 namespace {
@@ -292,6 +295,40 @@ struct StringViewArg : SandboxedLibraryEmitter::Arg {
   }
 };
 
+// Handles in/out/inout pointers (singular and arrays).
+struct PointerArg : SandboxedLibraryEmitter::Arg {
+  PointerArg(absl::string_view name, absl::string_view type, PointerDir ptr_dir,
+             std::optional<std::string> elem_sized_by)
+      : Arg(name, type), ptr_dir_(ptr_dir), elem_sized_by_(elem_sized_by) {}
+
+  const PointerDir ptr_dir_;
+  // If present, this is an array counted by the another argument
+  // with the specified name.
+  const std::optional<std::string> elem_sized_by_;
+
+  std::string EmitHostPreCall() const override {
+    const std::string size_multiplier =
+        elem_sized_by_ ? absl::Substitute(" * $0", *elem_sized_by_) : "";
+    return absl::Substitute(
+        "sapi::v::Array<char> "
+        "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const char*>($0)), "
+        "sizeof(*$0)$1);\n",
+        name_, size_multiplier);
+  }
+  std::string EmitHostArgs() const override {
+    const char* dir = ptr_dir_ == PointerDir::kIn    ? "Before"
+                      : ptr_dir_ == PointerDir::kOut ? "After"
+                                                     : "Both";
+    return absl::Substitute("sapi_tmp_$0.Ptr$1()", name_, dir);
+  }
+  std::string EmitSandboxeeParams() const override {
+    return absl::Substitute("$0 $1", type_, name_);
+  }
+  std::string EmitSandboxeeArgs() const override {
+    return absl::Substitute("$0", name_);
+  }
+};
+
 absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeHdr(
     const GeneratorOptions& options) const {
   std::string out;
@@ -453,22 +490,27 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::Finalize(
 }
 
 absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
-  used_funcs_.insert(decl->getNameAsString());
+  const std::string& func_name = decl->getNameAsString();
+  const std::string& func_type =
+      decl->getType().getCanonicalType().getAsString();
+  auto [it, inserted] = used_funcs_.insert({func_name, func_type});
+  if (!inserted && it->second != func_type) {
+    // TODO(dvyukov): figure out how we want to handle this case
+    // (we see a function with the same name but different signatures).
+    // It can mean incorrect signature in out-of-line annotations,
+    // but it can also mean just an overloaded C++ function
+    // (we have one in our tests).
+  }
   if (ignore_funcs_.contains(decl->getNameAsString()) ||
       (!sandbox_funcs_.empty() &&
        !sandbox_funcs_.contains(decl->getNameAsString()))) {
     return absl::OkStatus();
   }
 
-  std::unique_ptr<Arg> ret;
+  ArgPtr ret;
   clang::QualType ret_type = decl->getReturnType();
   if (!ret_type->isVoidType()) {
-    ret = Convert("sapi_ret_arg", ret_type);
-    if (!ret || ret->EmitRetParams().empty()) {
-      return absl::UnimplementedError(absl::Substitute(
-          "unsupported return type: $0 ($1)", ret_type.getAsString(),
-          ret_type.getCanonicalType().getAsString()));
-    }
+    SAPI_ASSIGN_OR_RETURN(ret, Convert("sapi_ret_arg", ret_type, nullptr));
     for (const std::string& inc : ret->Includes()) {
       includes_.insert(inc);
     }
@@ -482,12 +524,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
       name = absl::StrFormat("sapi_arg%zu", i);
     }
     clang::QualType type = param->getType();
-    std::unique_ptr<Arg> arg = Convert(name, type);
-    if (!arg) {
-      return absl::UnimplementedError(absl::Substitute(
-          "arg $0: unsupported type: $1 ($2)", name, type.getAsString(),
-          type.getCanonicalType().getAsString()));
-    }
+    SAPI_ASSIGN_OR_RETURN(ArgPtr arg, Convert(name, type, param));
     for (const std::string& inc : arg->Includes()) {
       includes_.insert(inc);
     }
@@ -543,7 +580,7 @@ absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
     ann = "SANDBOX_IGNORE_FUNCS";
     funcs = &ignore_funcs_;
   }
-  for (const std::string& func : used_funcs_) {
+  for (const auto& [func, _] : used_funcs_) {
     funcs->erase(func);
   }
   if (!funcs->empty()) {
@@ -555,8 +592,32 @@ absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
   return absl::OkStatus();
 }
 
-SandboxedLibraryEmitter::ArgPtr SandboxedLibraryEmitter::Convert(
-    absl::string_view name, clang::QualType type) {
+absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
+SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
+                                 const clang::ParmVarDecl* param) {
+  Annotations annotations;
+  if (param) {
+    SAPI_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, param));
+  }
+  SAPI_ASSIGN_OR_RETURN(ArgPtr arg,
+                        ConvertImpl(name, type, std::move(annotations)));
+  if (arg && (param || !arg->EmitRetParams().empty())) {
+    return arg;
+  }
+  if (param) {
+    return absl::UnimplementedError(absl::Substitute(
+        "arg $0: unsupported type: $1 ($2)", name, type.getAsString(),
+        type.getCanonicalType().getAsString()));
+  }
+  return absl::UnimplementedError(
+      absl::Substitute("unsupported return type: $0 ($1)", type.getAsString(),
+                       type.getCanonicalType().getAsString()));
+}
+
+absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
+SandboxedLibraryEmitter::ConvertImpl(absl::string_view name,
+                                     clang::QualType type,
+                                     Annotations&& annotations) {
   // We are not interested in typedefs.
   type = type.getCanonicalType();
   std::string type_name = type.getAsString();
@@ -579,7 +640,78 @@ SandboxedLibraryEmitter::ArgPtr SandboxedLibraryEmitter::Convert(
       type_name == "class std::basic_string_view<char>") {
     return std::make_unique<StringViewArg>(name, type_name);
   }
-  return {};
+  if (type->isPointerType()) {
+    if (!type->getPointeeType()->isArithmeticType()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0 has unsupported pointee type", name));
+    }
+    std::optional<PointerDir> ptr_dir;
+    if (type->getPointeeType().isConstQualified()) {
+      ptr_dir = PointerDir::kIn;
+    }
+    if (annotations.ptr_dir) {
+      ptr_dir = annotations.ptr_dir;
+    }
+    if (!ptr_dir) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("pointer argument $0 has unknown direction", name));
+    }
+    std::optional<std::string> elem_sized_by;
+    if (annotations.elem_sized_by) {
+      elem_sized_by = *annotations.elem_sized_by;
+    }
+    return std::make_unique<PointerArg>(name, type_name, *ptr_dir,
+                                        annotations.elem_sized_by);
+  }
+  return nullptr;
+}
+
+absl::StatusOr<SandboxedLibraryEmitter::Annotations>
+SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
+                                          const clang::ParmVarDecl* param) {
+  Annotations annotations;
+  // TODO(dvyukov): add more error checking with good error messages
+  // (duplicate/conflicting/inapplicable annotations, non-existent arg names,
+  // etc).
+  for (const auto& attr : param->attrs()) {
+    const auto* ann_attr = llvm::dyn_cast<clang::AnnotateAttr>(attr);
+    if (!ann_attr || ann_attr->getAnnotation() != "sandbox") {
+      continue;
+    }
+    auto read_arg = [&](size_t idx) -> absl::StatusOr<std::string> {
+      if (ann_attr->args_size() <= idx) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("arg $0: invalid sandbox annotation", name));
+      }
+      std::optional<std::string> arg_str =
+          ann_attr->args_begin()[idx]->tryEvaluateString(
+              param->getASTContext());
+      if (!arg_str) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("arg $0: invalid sandbox annotation", name));
+      }
+      return *arg_str;
+    };
+    SAPI_ASSIGN_OR_RETURN(std::string ann, read_arg(0));
+    size_t num_args = 1;
+    if (ann == "in_ptr") {
+      annotations.ptr_dir = PointerDir::kIn;
+    } else if (ann == "out_ptr") {
+      annotations.ptr_dir = PointerDir::kOut;
+    } else if (ann == "inout_ptr") {
+      annotations.ptr_dir = PointerDir::kInOut;
+    } else if (ann == "elem_sized_by") {
+      num_args = 2;
+      SAPI_ASSIGN_OR_RETURN(annotations.elem_sized_by, read_arg(1));
+    } else {
+      num_args = 0;
+    }
+    if (num_args != ann_attr->args_size()) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("arg $0: invalid sandbox annotation", name));
+    }
+  }
+  return annotations;
 }
 
 std::vector<const SandboxedLibraryEmitter::Func*>
