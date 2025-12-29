@@ -37,6 +37,7 @@ namespace sapi {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -745,6 +746,72 @@ TEST(IncludeGuard, AvoidReservedIdentifiers) {
   EXPECT_THAT(GetIncludeGuard("double__under.h"), StrEq("DOUBLE_UNDER_H_"));
   EXPECT_THAT(GetIncludeGuard("_single.h"), StrEq("SAPI_SINGLE_H_"));
   EXPECT_THAT(GetIncludeGuard("__double.h"), StrEq("SAPI_DOUBLE_H_"));
+}
+
+class SandboxeeTest : public EmitterTest {};
+
+TEST_F(SandboxeeTest, PrototypesAreCorrectlyGenerated) {
+  GeneratorOptions options;
+  options.namespace_name = "sandboxed";
+  options.sandboxee_src_out = "sandboxee_src.cc";
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(namespace sandboxed {
+                           struct S { int member; };
+                           }  // namespace sandboxed
+                           enum E { A, B, C };
+                           typedef unsigned long long MyType;
+                           extern "C" sandboxed::S* Structize();
+                           extern "C" MyType Add(MyType a, MyType b);
+                           extern "C" void Enumify(E e);)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc());
+
+  sandboxee_src = UglifyAll({sandboxee_src})[0];
+
+  EXPECT_THAT(sandboxee_src,
+              HasSubstr("extern \"C\" { "
+                        "void* Structize(); "
+                        "unsigned long long Add(unsigned long long, unsigned "
+                        "long long); "
+                        "void Enumify(unsigned int); "
+                        "}"));
+}
+
+TEST_F(SandboxeeTest, StubsAreCallingSandboxedFunctions) {
+  GeneratorOptions options;
+  options.namespace_name = "sandboxed";
+  options.sandboxee_src_out = "sandboxee_src.cc";
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(namespace sandboxed {
+                           struct S { int member; };
+                           }  // namespace sandboxed
+                           enum E { A, B, C };
+                           typedef unsigned long long MyType;
+                           extern "C" sandboxed::S* Structize();
+                           extern "C" MyType Add(MyType a, MyType b);
+                           extern "C" void Enumify(E e);)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc());
+
+  sandboxee_src = UglifyAll({sandboxee_src})[0];
+
+  EXPECT_THAT(
+      sandboxee_src,
+      ContainsRegex("FuncRet FuncHandlerStructize.*{.*Structize\\(.*\\);.*}"));
+
+  EXPECT_THAT(sandboxee_src,
+              ContainsRegex("FuncRet FuncHandlerAdd.*{.*Add\\(.*\\);.*}"));
+
+  EXPECT_THAT(sandboxee_src, ContainsRegex("FuncRet FuncHandlerEnumify"
+                                           ".*{.*Enumify\\(.*\\);.*}"));
 }
 
 }  // namespace

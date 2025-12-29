@@ -32,6 +32,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/Type.h"
+#include "llvm/Config/llvm-config.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
@@ -115,6 +116,74 @@ constexpr absl::string_view kClassFooterTemplate = R"(
 };
 )";
 
+inline constexpr std::string_view kSandboxeeCommonIncludes = R"(
+#include "absl/base/no_destructor.h"
+#include "absl/base/optimization.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
+#include "absl/strings/string_view.h"
+#include "sandboxed_api/call.h"
+#include "sandboxed_api/function_call_helper.h"
+)";
+
+inline constexpr std::string_view kSandboxeeSrcTemplate = R"(
+extern "C" {
+  %1$s
+}
+
+namespace sapi::client {
+namespace {
+  FuncRet ToFuncError(Error error) {
+    return FuncRet{.int_val = static_cast<uintptr_t>(error), .success = false};
+  }
+
+  %2$s
+}
+
+void HandleCallMsg(const ::sapi::FuncCall& call, ::sapi::FuncRet* ret) {
+  VLOG(1) << "HandleMsgCall, func: '" << call.func
+  << "', # of args: " << call.argc;
+
+  static const absl::NoDestructor<absl::flat_hash_map<std::string,
+    FuncRet (*)(const ::sapi::FunctionCallPreparer& call)>>
+    kSandboxeeFunctions({
+  %3$s
+  });
+
+  auto it = kSandboxeeFunctions->find(call.func);
+  if (ABSL_PREDICT_FALSE(it == kSandboxeeFunctions->end())) {
+    LOG(ERROR) << "Function not found: '" << call.func << "'";
+    *ret = ToFuncError(Error::kInvalidFunctionName);
+    ret->ret_type = call.ret_type;
+    return;
+  }
+
+  ::sapi::FunctionCallPreparer preparer(call);
+  *ret = it->second(preparer);
+}
+
+}  // namespace sapi::client
+)";
+
+inline constexpr std::string_view kFuncHandlerHeaderTemplate = R"(
+// Handles the call to %1$s. This function ensures that the number of arguments
+// passed to the function is correct and then forwards the call to the
+// sandboxee function.
+FuncRet FuncHandler%1$s(const FunctionCallPreparer& call) {
+  if (ABSL_PREDICT_FALSE(call.arg_count() != %2$d)) {
+    LOG(ERROR) << "Function '%1$s' called with "
+               << call.arg_count() << " arguments, expected " << %2$d;
+    return ToFuncError(Error::kInvalidArgCount);
+  }
+)";
+
+inline constexpr std::string_view kHandleFuncHasCompatibleArgTemplate = R"(
+  if (ABSL_PREDICT_FALSE(!call.HasCompatibleArg<%1$s>(%2$d))) {
+    LOG(ERROR) << "Type mismatch for argument %2$d to '%1$s'";
+    return ToFuncError(Error::kInvalidArgType);
+  }
+)";
+
 // Returns a unique name for a parameter. If `decl` has no name, a unique name
 // will be generated in the form of `unnamed<index>_`.
 std::string GetParamName(const clang::ParmVarDecl* decl, int index) {
@@ -153,6 +222,96 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
   for (const auto& line : absl::StrSplit(formatted, '\n')) {
     absl::StrAppend(&out, "// ", line, "\n");
   }
+  return out;
+}
+
+// Returns the C++ type of the given `type` as it would be used in the sandboxee
+// code. Note that this is generally different from the type used in the
+// sapi generated header code since we do not care about user types.
+std::string GetSandboxeeCppType(TypeMapper& type_mapper, clang::QualType type) {
+  type = type.getCanonicalType();
+  if (type->isEnumeralType()) {
+#if LLVM_VERSION_MAJOR >= 22
+    clang::EnumDecl* enum_decl = type->getAsEnumDecl();
+#else
+    clang::EnumDecl* enum_decl = type->getAs<clang::EnumType>()->getDecl();
+    if (enum_decl->getDefinition()) {
+      enum_decl = enum_decl->getDefinition();
+    }
+#endif
+    if (!enum_decl->isComplete()) return "int";
+    type = enum_decl->getIntegerType();
+  }
+  if (type->isPointerType() && !type->getPointeeType()->isBuiltinType()) {
+    return "void *";
+  }
+  return type_mapper.MapQualTypeParameterForCxx(type);
+}
+
+absl::StatusOr<std::string> Emitter::DoEmitSandboxeeStub(
+    const clang::FunctionDecl* decl) {
+  TypeMapper type_mapper(decl->getASTContext(), options_.namespace_name);
+  auto function_name = ToStringView(decl->getName());
+  int arg_count = decl->getNumParams();
+  std::string out;
+  const clang::QualType return_type = decl->getDeclaredReturnType();
+  std::vector<std::string> params;
+  std::vector<std::string> has_compatible_args;
+
+  // Process the function parameter list and generate code for the call to
+  // `FunctionCallPreparer::GetArg`.
+  // Resulting strings will look like: "call.GetArg<T>(n)"
+  if (decl->isVariadic()) {
+    return absl::UnimplementedError("Variadic functions are not supported.");
+  }
+  for (int i = 0; i < decl->getNumParams(); ++i) {
+    const clang::ParmVarDecl* param = decl->getParamDecl(i);
+    std::string param_type = GetSandboxeeCppType(type_mapper, param->getType());
+    params.emplace_back(absl::StrFormat("call.GetArg<%s>(%d)", param_type, i));
+    has_compatible_args.emplace_back(
+        absl::StrFormat(kHandleFuncHasCompatibleArgTemplate, param_type, i));
+  }
+
+  absl::StrAppendFormat(&out, kFuncHandlerHeaderTemplate, function_name,
+                        arg_count);
+
+  absl::StrAppend(&out, absl::StrJoin(has_compatible_args, "\n"));
+
+  // If the sandboxed function returns a value, we need to store that value and
+  // copy it out to `FuncRet` before returning.
+  if (!return_type->isVoidType()) {
+    absl::StrAppendFormat(&out, R"(
+      return ToFuncRet(::%1$s(%2$s));
+    }
+      )",
+                          function_name, absl::StrJoin(params, ", "));
+  } else {
+    absl::StrAppendFormat(&out, R"(
+      ::%1$s(%2$s);
+      return FuncRet {.ret_type = v::Type::kVoid, .success = true};
+    }
+      )",
+                          function_name, absl::StrJoin(params, ", "));
+  }
+
+  return out;
+}
+
+absl::StatusOr<std::string> Emitter::DoEmitPrototypeSandboxeeFunction(
+    const clang::FunctionDecl* decl) {
+  TypeMapper type_mapper(decl->getASTContext(), options_.namespace_name);
+  std::string out;
+  auto function_name = ToStringView(decl->getName());
+  absl::StrAppendFormat(
+      &out, "\n%1$s %2$s(%3$s);\n",
+      GetSandboxeeCppType(type_mapper, decl->getDeclaredReturnType()),
+      function_name,
+      absl::StrJoin(
+          decl->parameters(), ", ",
+          [&type_mapper](std::string* out, const clang::ParmVarDecl* param) {
+            absl::StrAppend(out,
+                            GetSandboxeeCppType(type_mapper, param->getType()));
+          }));
   return out;
 }
 
@@ -234,6 +393,24 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
   absl::StrAppend(&out, "));\nreturn ",
                   (returns_void ? "::absl::OkStatus()" : "v_ret_.GetValue()"),
                   ";\n}\n");
+  return out;
+}
+
+absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
+  std::string out;
+  absl::StrAppend(&out, kSandboxeeCommonIncludes);
+  absl::StrAppend(
+      &out, absl::StrFormat(
+                kSandboxeeSrcTemplate,
+                absl::StrJoin(rendered_sandboxee_prototypes_ordered_, "\n"),
+                absl::StrJoin(rendered_sandboxee_handler_ordered_, "\n"),
+                absl::StrJoin(rendered_functions_unqualified_, ",\n",
+                              [](std::string* out, std::string_view func) {
+                                absl::StrAppend(
+                                    out,
+                                    absl::StrFormat(
+                                        "{\"%1$s\", FuncHandler%1$s}", func));
+                              })));
   return out;
 }
 
@@ -333,7 +510,17 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader() {
 
 absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
   if (rendered_functions_.insert(decl->getQualifiedNameAsString()).second) {
+    rendered_functions_unqualified_.insert(decl->getNameAsString());
     SAPI_ASSIGN_OR_RETURN(std::string function, DoEmitFunction(decl));
+    if (options_.has_sandboxee_src_out()) {
+      SAPI_ASSIGN_OR_RETURN(std::string sandboxee_function,
+                            DoEmitSandboxeeStub(decl));
+      SAPI_ASSIGN_OR_RETURN(std::string prototype_sandboxee_function,
+                            DoEmitPrototypeSandboxeeFunction(decl));
+      rendered_sandboxee_prototypes_ordered_.push_back(
+          prototype_sandboxee_function);
+      rendered_sandboxee_handler_ordered_.push_back(sandboxee_function);
+    }
     rendered_functions_ordered_.push_back(function);
   }
   return absl::OkStatus();
@@ -342,6 +529,11 @@ absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
 absl::StatusOr<std::string> Emitter::EmitHeader() {
   SAPI_ASSIGN_OR_RETURN(const std::string header, DoEmitHeader());
   return internal::ReformatGoogleStyle(options_.out_file, header);
+}
+
+absl::StatusOr<std::string> Emitter::EmitSandboxeeSrc() {
+  SAPI_ASSIGN_OR_RETURN(const std::string src, DoEmitSandboxeeSrc());
+  return internal::ReformatGoogleStyle(options_.sandboxee_src_out, src);
 }
 
 }  // namespace sapi

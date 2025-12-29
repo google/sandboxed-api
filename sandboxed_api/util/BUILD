@@ -108,6 +108,7 @@ cc_library(
     srcs = ["proto_helper.cc"],
     hdrs = ["proto_helper.h"],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         ":proto_arg_cc_proto",
         ":status",

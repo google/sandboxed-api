@@ -119,6 +119,7 @@ cc_library(
     name = "call",
     hdrs = ["call.h"],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [":var_type"],
 )
 
@@ -193,6 +194,25 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "function_call_helper",
+    hdrs = ["function_call_helper.h"],
+    copts = sapi_platform_copts(),
+    # Note that this is not a public API. It is used by the generated code and by the
+    # `call_message_handler` below, but should not be used directly by API users.
+    visibility = ["//visibility:public"],
+    deps = [
+        ":call",
+        ":lenval_core",
+        ":var_type",
+        "//sandboxed_api/util:proto_arg_cc_proto",
+        "//sandboxed_api/util:proto_helper",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
 # A stub to be linked in with SAPI libraries
 cc_library(
     name = "client",
@@ -201,13 +221,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":call",
-        ":lenval_core",
         ":var_type",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:forkingclient",
         "//sandboxed_api/sandbox2:logsink",
-        "//sandboxed_api/util:proto_arg_cc_proto",
-        "//sandboxed_api/util:proto_helper",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:dynamic_annotations",
         "@abseil-cpp//absl/flags:parse",
@@ -215,9 +232,23 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:flags",
         "@abseil-cpp//absl/log:initialize",
-        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "call_message_handler",
+    srcs = ["call_message_handler.cc"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":call",
+        ":function_call_helper",
+        ":var_type",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:initialize",
         "@libffi",
     ],
 )

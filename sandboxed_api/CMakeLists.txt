@@ -170,6 +170,41 @@ target_link_libraries(sapi_vars
          sapi::status
 )
 
+# sandboxed_api:function_call_helper
+add_library(sapi_function_call_helper ${SAPI_LIB_TYPE}
+  function_call_helper.h
+)
+add_library(sapi::function_call_helper ALIAS sapi_function_call_helper)
+target_link_libraries(sapi_function_call_helper
+  PUBLIC absl::log
+          protobuf::libprotobuf
+          sapi::call
+          sapi::lenval_core
+          sapi::proto_arg_proto
+          sapi::proto_helper
+          sapi::var_type
+)
+
+# sapi::call_message_handler
+add_library(sapi_call_message_handler ${SAPI_LIB_TYPE}
+  call_message_handler.cc
+)
+add_library(sapi::call_message_handler ALIAS sapi_call_message_handler)
+target_link_libraries(sapi_call_message_handler PRIVATE
+  absl::check
+  absl::core_headers
+  absl::log
+  absl::log_flags
+  absl::log_initialize
+  absl::statusor
+  absl::strings
+  libffi::libffi
+  sapi::base
+  sapi::call
+  sapi::lenval_core
+  sapi::function_call_helper
+)
+
 # sandboxed_api:client
 add_library(sapi_client ${SAPI_LIB_TYPE}
   client.cc
@@ -192,8 +227,6 @@ target_link_libraries(sapi_client
           sapi::base
           sapi::call
           sapi::lenval_core
-          sapi::proto_arg_proto
-          sapi::proto_helper
           ${CMAKE_DL_LIBS}
 )
 

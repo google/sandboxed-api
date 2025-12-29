@@ -21,10 +21,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
-#include <list>
 #include <string>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -33,208 +31,18 @@
 #include "absl/log/check.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/message.h"
 #include "sandboxed_api/call.h"
-#include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/sandbox2/logsink.h"
-#include "sandboxed_api/util/proto_arg.pb.h"
-#include "sandboxed_api/util/proto_helper.h"
 #include "sandboxed_api/var_type.h"
 
-#include <ffi.h>
-
 namespace sapi {
-namespace {
-
-// Guess the FFI type on the basis of data size and float/non-float/bool.
-ffi_type* GetFFIType(size_t size, v::Type type) {
-  switch (type) {
-    case v::Type::kVoid:
-      return &ffi_type_void;
-    case v::Type::kPointer:
-      return &ffi_type_pointer;
-    case v::Type::kFd:
-      return &ffi_type_sint;
-    case v::Type::kFloat:
-      if (size == sizeof(float)) {
-        return &ffi_type_float;
-      }
-      if (size == sizeof(double)) {
-        return &ffi_type_double;
-      }
-      if (size == sizeof(long double)) {
-        return &ffi_type_longdouble;
-      }
-      LOG(FATAL) << "Unsupported floating-point size: " << size;
-    case v::Type::kInt:
-      switch (size) {
-        case 1:
-          return &ffi_type_uint8;
-        case 2:
-          return &ffi_type_uint16;
-        case 4:
-          return &ffi_type_uint32;
-        case 8:
-          return &ffi_type_uint64;
-        default:
-          LOG(FATAL) << "Unsupported integral size: " << size;
-      }
-    case v::Type::kStruct:
-      LOG(FATAL) << "Structs are not supported as function arguments";
-    case v::Type::kProto:
-      LOG(FATAL) << "Protos are not supported as function arguments";
-    default:
-      LOG(FATAL) << "Unknown type: " << type << " of size: " << size;
-  }
-}
-
-// Provides an interface to prepare the arguments for a function call.
-// In case of protobuf arguments, the class allocates and manages
-// memory for the deserialized protobuf.
-class FunctionCallPreparer {
- public:
-  explicit FunctionCallPreparer(const FuncCall& call) {
-    CHECK(call.argc <= FuncCall::kArgsMax)
-        << "Number of arguments of a sandbox call exceeds limits.";
-    for (int i = 0; i < call.argc; ++i) {
-      arg_types_[i] = GetFFIType(call.arg_size[i], call.arg_type[i]);
-    }
-    ret_type_ = GetFFIType(call.ret_size, call.ret_type);
-    for (int i = 0; i < call.argc; ++i) {
-      if (call.arg_type[i] == v::Type::kPointer &&
-          call.aux_type[i] == v::Type::kProto) {
-        // Deserialize protobuf stored in the LenValueStruct and keep a
-        // reference to both. This way we are able to update the content of the
-        // LenValueStruct (when the sandboxee modifies the protobuf).
-        // This will also make sure that the protobuf is freed afterwards.
-        arg_values_[i] = GetDeserializedProto(
-            reinterpret_cast<LenValStruct*>(call.args[i].arg_int));
-      } else if (call.arg_type[i] == v::Type::kFloat) {
-        arg_values_[i] = reinterpret_cast<const void*>(&call.args[i].arg_float);
-      } else {
-        arg_values_[i] = reinterpret_cast<const void*>(&call.args[i].arg_int);
-      }
-    }
-  }
-
-  ~FunctionCallPreparer() {
-    for (const auto& idx_proto : protos_to_be_destroyed_) {
-      const auto proto = idx_proto.second;
-      LenValStruct* lvs = idx_proto.first;
-      // There is no way to figure out whether the protobuf structure has
-      // changed or not, so we always serialize the protobuf again and replace
-      // the LenValStruct content.
-      std::vector<uint8_t> serialized = SerializeProto(*proto).value();
-      // Reallocate the LV memory to match its length.
-      if (lvs->size != serialized.size()) {
-        void* newdata = realloc(lvs->data, serialized.size());
-        if (!newdata) {
-          LOG(FATAL) << "Failed to reallocate protobuf buffer (size="
-                     << serialized.size() << ")";
-        }
-        lvs->size = serialized.size();
-        lvs->data = newdata;
-      }
-      memcpy(lvs->data, serialized.data(), serialized.size());
-
-      delete proto;
-    }
-  }
-
-  ffi_type* ret_type() const { return ret_type_; }
-  ffi_type** arg_types() const { return const_cast<ffi_type**>(arg_types_); }
-  void** arg_values() const { return const_cast<void**>(arg_values_); }
-
- private:
-  // Deserializes the protobuf argument.
-  google::protobuf::MessageLite** GetDeserializedProto(LenValStruct* src) {
-    ProtoArg proto_arg;
-    if (!proto_arg.ParseFromArray(src->data, src->size)) {
-      LOG(FATAL) << "Unable to parse ProtoArg.";
-    }
-    const google::protobuf::Descriptor* desc =
-        google::protobuf::DescriptorPool::generated_pool()->FindMessageTypeByName(
-            proto_arg.full_name());
-    LOG_IF(FATAL, desc == nullptr) << "Unable to find the descriptor for '"
-                                   << proto_arg.full_name() << "'" << desc;
-    google::protobuf::MessageLite* deserialized_proto =
-        google::protobuf::MessageFactory::generated_factory()->GetPrototype(desc)->New();
-    LOG_IF(FATAL, deserialized_proto == nullptr)
-        << "Unable to create deserialized proto for " << proto_arg.full_name();
-    if (!deserialized_proto->ParseFromString(proto_arg.protobuf_data())) {
-      LOG(FATAL) << "Unable to deserialized proto for "
-                 << proto_arg.full_name();
-    }
-    protos_to_be_destroyed_.push_back({src, deserialized_proto});
-    return &protos_to_be_destroyed_.back().second;
-  }
-
-  // Use list instead of vector to preserve references even with modifications.
-  // Contains pairs of lenval message pointer -> deserialized message
-  // so that we can serialize the argument again after the function call.
-  std::list<std::pair<LenValStruct*, google::protobuf::MessageLite*>>
-      protos_to_be_destroyed_;
-  ffi_type* ret_type_;
-  ffi_type* arg_types_[FuncCall::kArgsMax];
-  const void* arg_values_[FuncCall::kArgsMax];
-};
-
-}  // namespace
 
 namespace client {
 
-// Error codes in the client code:
-enum class Error : uintptr_t {
-  kUnset = 0,
-  kDlOpen,
-  kDlSym,
-  kCall,
-};
-
-// Handles requests to make function calls.
-void HandleCallMsg(const FuncCall& call, FuncRet* ret) {
-  VLOG(1) << "HandleMsgCall, func: '" << call.func
-          << "', # of args: " << call.argc;
-
-  ret->ret_type = call.ret_type;
-
-  void* handle = dlopen(nullptr, RTLD_NOW);
-  if (handle == nullptr) {
-    LOG(ERROR) << "dlopen(nullptr, RTLD_NOW)";
-    ret->success = false;
-    ret->int_val = static_cast<uintptr_t>(Error::kDlOpen);
-    return;
-  }
-
-  auto f = dlsym(handle, call.func);
-  if (f == nullptr) {
-    LOG(ERROR) << "Function '" << call.func << "' not found";
-    ret->success = false;
-    ret->int_val = static_cast<uintptr_t>(Error::kDlSym);
-    return;
-  }
-  FunctionCallPreparer arg_prep(call);
-  ffi_cif cif;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, call.argc, arg_prep.ret_type(),
-                   arg_prep.arg_types()) != FFI_OK) {
-    ret->success = false;
-    ret->int_val = static_cast<uintptr_t>(Error::kCall);
-    return;
-  }
-
-  if (ret->ret_type == v::Type::kFloat) {
-    ffi_call(&cif, FFI_FN(f), &ret->float_val, arg_prep.arg_values());
-  } else {
-    ffi_call(&cif, FFI_FN(f), &ret->int_val, arg_prep.arg_values());
-  }
-
-  ret->success = true;
-}
+void HandleCallMsg(const FuncCall& call, FuncRet* ret);
 
 // Handles requests to allocate memory inside the sandboxee.
 void HandleAllocMsg(const size_t size, FuncRet* ret) {

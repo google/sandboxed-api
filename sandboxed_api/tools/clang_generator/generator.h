@@ -62,6 +62,8 @@ struct GeneratorOptions {
 
   bool has_namespace() const { return !namespace_name.empty(); }
 
+  bool has_sandboxee_src_out() const { return !sandboxee_src_out.empty(); }
+
   absl::flat_hash_set<std::string> function_names;
   absl::flat_hash_set<std::string> in_files;
   bool limit_scan_depth = false;
@@ -75,6 +77,7 @@ struct GeneratorOptions {
   // Output path of the generated header. Used to build the header include
   // guard.
   std::string out_file = "out_file.cc";
+  std::string sandboxee_src_out;  // Output path for the sandboxee's source file
   std::string embed_dir;   // Directory with embedded includes
   std::string embed_name;  // Identifier of the embed object
 };

@@ -46,6 +46,17 @@ constexpr uint32_t kMsgReturn = 0x201;
 
 }  // namespace comms
 
+// Error codes in the client code:
+enum class Error : uintptr_t {
+  kOk = 0,
+  kDlOpen,
+  kDlSym,
+  kCall,
+  kInvalidArgCount,
+  kInvalidFunctionName,
+  kInvalidArgType,
+};
+
 struct FuncCall {
   // Used with HandleCallMsg:
   enum {

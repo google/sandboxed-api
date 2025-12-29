@@ -99,6 +99,12 @@ absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_out(
                    "to the basename of the first source file specified."),
     llvm::cl::cat(*g_tool_category));
 
+absl::NoDestructor<llvm::cl::opt<std::string>> g_sapi_sandboxee_src_out(
+    "sapi_sandboxee_src_out",
+    llvm::cl::desc("Output path of the sandboxee generated source file."
+                   "If empty, no file is generated."),
+    llvm::cl::cat(*g_tool_category));
+
 absl::NoDestructor<llvm::cl::opt<bool>> g_symbol_list_gen(
     "symbol_list_gen",
     llvm::cl::desc("Whether to generate a list of symbols exported from the "
@@ -153,6 +159,9 @@ GeneratorOptions GeneratorOptionsFromFlags(
   options.namespace_name = *g_sapi_ns;
   options.out_file =
       !g_sapi_out->empty() ? *g_sapi_out : GetOutputFilename(sources.front());
+  if (!g_sapi_sandboxee_src_out->empty()) {
+    options.sandboxee_src_out = *g_sapi_sandboxee_src_out;
+  }
   options.embed_dir = *g_sapi_embed_dir;
   options.embed_name = *g_sapi_embed_name;
   options.symbol_list_gen = *g_symbol_list_gen;
@@ -246,6 +255,12 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
   SAPI_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader());
   SAPI_RETURN_IF_ERROR(
       file::SetContents(options.out_file, header, file::Defaults()));
+  if (options.has_sandboxee_src_out()) {
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_header,
+                          emitter.EmitSandboxeeSrc());
+    SAPI_RETURN_IF_ERROR(file::SetContents(options.sandboxee_src_out,
+                                           sandboxee_header, file::Defaults()));
+  }
   return absl::OkStatus();
 }
 

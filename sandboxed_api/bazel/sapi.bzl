@@ -151,19 +151,24 @@ def _clang_format_file(src, out, **kwargs):
 def _sapi_interface_impl(ctx):
     cpp_toolchain = find_cpp_toolchain(ctx)
     generator = select_generator(ctx)
-    use_clang_generator = ctx.attr.generator_version == 2
+    use_clang_generator = ctx.attr.generator_version >= 2
 
     # TODO(szwl): warn if input_files is not set and we didn't find anything
     input_files_paths = []
     input_files = []
 
     args = []
+    outs = [ctx.outputs.out]
     append_arg(args, "--sapi_name", ctx.attr.lib_name)
     append_arg(args, "--sapi_out", ctx.outputs.out.path)
     append_arg(args, "--sapi_embed_dir", ctx.attr.embed_dir)
     append_arg(args, "--sapi_embed_name", ctx.attr.embed_name)
     append_arg(args, "--sapi_functions", ",".join(ctx.attr.functions))
     append_arg(args, "--sapi_ns", ctx.attr.namespace)
+
+    if use_clang_generator and ctx.outputs.sandboxee_src_out:
+        append_arg(args, "--sapi_sandboxee_src_out", ctx.outputs.sandboxee_src_out.path)
+        outs.append(ctx.outputs.sandboxee_src_out)
 
     if ctx.attr.limit_scan_depth:
         args.append("--sapi_limit_scan_depth")
@@ -214,7 +219,7 @@ def _sapi_interface_impl(ctx):
                     "").format(ctx.outputs.out.short_path, len(input_files_paths))
     ctx.actions.run(
         inputs = input_files,
-        outputs = [ctx.outputs.out],
+        outputs = outs,
         arguments = args,
         mnemonic = "SapiInterfaceGen",
         progress_message = progress_msg,
@@ -227,6 +232,7 @@ sapi_interface = rule(
     fragments = ["cpp"],
     attrs = {
         "out": attr.output(mandatory = True),
+        "sandboxee_src_out": attr.output(),
         "embed_dir": attr.string(),
         "embed_name": attr.string(),
         "functions": attr.string_list(
@@ -250,7 +256,7 @@ sapi_interface = rule(
         ),
         "generator_version": attr.int(
             default = 2,  # Note: always set by sapi_library
-            values = [1, 2],
+            values = [1, 2, 3],
         ),
         "_generator_v1": make_exec_label(
             "//sandboxed_api/tools/python_generator:sapi_generator",
@@ -357,7 +363,8 @@ def sapi_library(
       generator_version: Which version the the interface generator to use
         (experimental). Version 1 uses the Python/libclang based `python_generator`,
         version 2 uses the newer C++ implementation that uses the full clang
-        compiler front-end for parsing. Both emit equivalent Sandboxed APIs.
+        compiler front-end for parsing. Version 3 is similar to version 2 but also emits code for
+        the sandboxee binary. Both emit equivalent Sandboxed APIs.
       visibility: Target visibility
       compatible_with: The list of environments this target can be built for,
         in addition to default-supported environments.
@@ -367,7 +374,10 @@ def sapi_library(
     """
 
     common = _common_kwargs(tags, visibility, compatible_with)
-    generated_header = name + ".sapi.h"
+    generated_file_prefix = name + ".sapi"
+    generated_header = generated_file_prefix + ".h"
+    generated_sandboxee_src = generated_file_prefix + ".sandboxee.cc"
+    use_sandboxee_generation = generator_version == 3
 
     # Reference (pull into the archive) required functions only. If the functions'
     # array is empty, pull in the whole archive (may not compile with MSAN).
@@ -409,6 +419,26 @@ def sapi_library(
         **common
     )
 
+    if use_sandboxee_generation:
+        cc_library(
+            name = name + ".sandboxee",
+            srcs = [generated_sandboxee_src],
+            deps = [
+                "@abseil-cpp//absl/base:core_headers",
+                "@abseil-cpp//absl/base:no_destructor",
+                "@abseil-cpp//absl/container:flat_hash_map",
+                "@abseil-cpp//absl/log",
+                "@abseil-cpp//absl/strings:string_view",
+                "//sandboxed_api:call",
+                "//sandboxed_api:function_call_helper",
+            ],
+            copts = default_copts,
+            **common
+        )
+        client_message_handler = ":" + name + ".sandboxee"
+    else:
+        client_message_handler = "//sandboxed_api:call_message_handler"
+
     cc_binary(
         name = name + ".bin",
         linkopts = [
@@ -420,7 +450,7 @@ def sapi_library(
         deps = [
             ":" + name + ".lib",
             "//sandboxed_api:client",
-        ],
+        ] + [client_message_handler],
         copts = default_copts,
         **common
     )
@@ -453,6 +483,7 @@ def sapi_library(
         functions = functions,
         input_files = input_files,
         out = generated_header + ".unformatted",
+        sandboxee_src_out = generated_sandboxee_src + ".unformatted" if use_sandboxee_generation else None,
         embed_name = embed_name,
         embed_dir = embed_dir,
         namespace = namespace,
@@ -463,6 +494,12 @@ def sapi_library(
     )
 
     _clang_format_file(generated_header + ".unformatted", generated_header, **common)
+    if use_sandboxee_generation:
+        _clang_format_file(
+            generated_sandboxee_src + ".unformatted",
+            generated_sandboxee_src,
+            **common
+        )
 
 def cc_sandboxed_library(
         name,

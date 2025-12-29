@@ -120,6 +120,9 @@ class EmitterBase {
   // functions that have been rendered so far.
   absl::flat_hash_set<std::string> rendered_functions_;
 
+  // Unqualified names of functions for the sandboxed API.
+  absl::flat_hash_set<std::string> rendered_functions_unqualified_;
+
   // A map of collected includes, keyed by the parse context (i.e. the input
   // file).
   absl::btree_map<std::string, std::vector<IncludeInfo>> collected_includes_;

@@ -42,17 +42,34 @@ class Emitter : public EmitterBase {
 
   // Outputs a formatted header for a list of functions and their related types.
   absl::StatusOr<std::string> EmitHeader();
+  absl::StatusOr<std::string> EmitSandboxeeSrc();
 
   // Rendered function bodies, as a vector to preserve source order. This is
   // not strictly necessary, but makes the output look less surprising.
   std::vector<std::string> rendered_functions_ordered_;
+
+  std::vector<std::string> rendered_sandboxee_handler_ordered_;
+  std::vector<std::string> rendered_sandboxee_prototypes_ordered_;
 
  private:
   // Emits the given function `decl` as SAPI function with a leading comment
   // documenting the unsandboxed function signature.
   absl::StatusOr<std::string> DoEmitFunction(const clang::FunctionDecl* decl);
 
+  // Emits the given function `decl` as a sandboxee function stub. This is
+  // called for every function that is emitted. The function stub is a
+  // function that is called by the sapi runtime when the corresponding
+  // function is called.
+  absl::StatusOr<std::string> DoEmitSandboxeeStub(
+      const clang::FunctionDecl* decl);
+
+  // Emits the given function `decl` as an external symbol prototype
+  // declaration.
+  absl::StatusOr<std::string> DoEmitPrototypeSandboxeeFunction(
+      const clang::FunctionDecl* decl);
+
   absl::StatusOr<std::string> DoEmitHeader();
+  absl::StatusOr<std::string> DoEmitSandboxeeSrc();
 
   const GeneratorOptions& options_;
 };
