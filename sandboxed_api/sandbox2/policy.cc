@@ -42,10 +42,6 @@
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 
-#ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
-#define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
-#endif
-
 #ifndef BPF_MAP_LOOKUP_ELEM
 #define BPF_MAP_LOOKUP_ELEM 1
 #endif
@@ -63,6 +59,14 @@
 #endif
 #ifndef BPF_OBJ_GET_INFO_BY_FD
 #define BPF_OBJ_GET_INFO_BY_FD 15
+#endif
+
+#ifndef CLONE_NEWCGROUP
+#define CLONE_NEWCGROUP 0x02000000
+#endif
+
+#ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
+#define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
 #endif
 
 namespace sandbox2 {
@@ -213,6 +217,7 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
     policy.insert(
         policy.end(),
         {
+    // TODO: b/453946404 - The below checks are not correct.
 #ifdef __NR_mmap
             JNE32(__NR_mmap, JUMP(&l, past_map_exec_l)),
 #endif
@@ -234,9 +239,6 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
         });
   }
 
-#ifndef CLONE_NEWCGROUP
-#define CLONE_NEWCGROUP 0x02000000
-#endif
   constexpr uintptr_t kNewNamespacesFlags =
       CLONE_NEWNS | CLONE_NEWUSER | CLONE_NEWNET | CLONE_NEWUTS |
       CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWPID;
