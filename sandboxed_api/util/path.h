@@ -52,11 +52,11 @@ std::pair<absl::string_view, absl::string_view> SplitPath(
 // order to resolve relative paths to the actual working directory.
 //
 // For absolute paths, this is equivalent to the following:
-//   /path/to/./foo/../bar/../baz/ -> /path/to/bar/baz
+//   /path/to/./foo/../bar/../baz/ -> /path/to/baz
 //
 // For relative paths, this is equivalent to the following:
-//   ./path/to/./foo/../bar/../baz/ -> path/to/bar/baz
-//   ../path/to/./foo/../bar/../baz/ -> ../path/to/bar/baz
+//   ./path/to/./foo/../bar/../baz/ -> path/to/baz
+//   ../path/to/./foo/../bar/../baz/ -> ../path/to/baz
 std::string CleanPath(absl::string_view path);
 
 }  // namespace sapi::file

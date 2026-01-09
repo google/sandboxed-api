@@ -102,6 +102,8 @@ TEST(PathTest, CleanPath) {
               StrEq("path/to/baz"));
   EXPECT_THAT(file::CleanPath("../path/to/./foo/../bar/../baz/"),
               StrEq("../path/to/baz"));
+  EXPECT_THAT(file::CleanPath("/path/to/./foo/../bar/../baz/"),
+              StrEq("/path/to/baz"));
 }
 
 }  // namespace
