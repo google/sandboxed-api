@@ -14,15 +14,15 @@
 
 module(
     name = "sandboxed_api",
-    version = "20250910.0",
-    bazel_compatibility = [">=8.0.0"],
+    version = "20260109.0",
+    bazel_compatibility = [">=8.5.0"],
 )
 
 # Load additional repo rules.
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # Bazel Central Registry (BCR) Modules:
-bazel_dep(name = "abseil-cpp", version = "20250814.0")
+bazel_dep(name = "abseil-cpp", version = "20260107.0")
 bazel_dep(name = "abseil-py", version = "2.1.0")
 bazel_dep(name = "bazel_skylib", version = "1.8.1")
 bazel_dep(name = "google_benchmark", version = "1.8.5")
@@ -30,7 +30,7 @@ bazel_dep(name = "googletest", version = "1.17.0")
 bazel_dep(name = "protobuf", version = "31.0", repo_name = "com_google_protobuf")
 bazel_dep(name = "rules_proto", version = "7.0.2")
 bazel_dep(name = "rules_python", version = "1.0.0")
-bazel_dep(name = "rules_cc", version = "0.2.0")
+bazel_dep(name = "rules_cc", version = "0.2.9")
 bazel_dep(name = "libcap", version = "2.27")
 bazel_dep(name = "libunwind", version = "1.8.1")
 bazel_dep(name = "libffi", version = "3.4.7")
@@ -43,4 +43,3 @@ llvm = use_extension("//sandboxed_api/bazel:llvm_config.bzl", "llvm")
 llvm.disable_llvm_zlib()
 llvm.disable_llvm_terminfo()
 use_repo(llvm, "llvm-project")
-
