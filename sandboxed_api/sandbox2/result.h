@@ -83,8 +83,6 @@ class Result {
     FAILED_CHILD,
     FAILED_INSPECT,
 
-    // TODO(wiktorg) not used currently (syscall number stored insted) - need to
-    // fix clients first
     // Codes used by status=`VIOLATION`:
     VIOLATION_SYSCALL,
     VIOLATION_ARCH,

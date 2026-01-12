@@ -753,7 +753,10 @@ void PtraceMonitor::ActionProcessSyscallViolation(
     Regs* regs, const Syscall& syscall, ViolationType violation_type) {
   LogSyscallViolation(syscall);
   notify_->EventSyscallViolation(syscall, violation_type);
-  SetExitStatusCode(Result::VIOLATION, syscall.nr());
+  SetExitStatusCode(Result::VIOLATION,
+                    violation_type == ViolationType::kArchitectureSwitch
+                        ? Result::VIOLATION_ARCH
+                        : Result::VIOLATION_SYSCALL);
   result_.SetSyscall(std::make_unique<Syscall>(syscall));
   SetAdditionalResultInfo(std::make_unique<Regs>(*regs));
   // Rewrite the syscall argument to something invalid (-1).

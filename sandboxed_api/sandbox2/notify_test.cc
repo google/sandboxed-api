@@ -138,7 +138,9 @@ TEST_P(NotifyTest, DisallowPersonality) {
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(__NR_personality));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_personality));
 }
 
 // Test EventStarted by exchanging data after started but before sandboxed.

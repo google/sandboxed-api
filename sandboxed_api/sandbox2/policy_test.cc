@@ -106,8 +106,10 @@ TEST_P(PolicyTest, AMD64Syscall32PolicyAllowed) {
   Result result = CreatePermissiveTestSandbox({"policy", "1"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(1));  // __NR_exit in 32-bit
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_ARCH));
   EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(1));  // __NR_exit in 32-bit
 }
 
 // Test that 32-bit syscalls from 64-bit for FS checks are disallowed.
@@ -115,9 +117,11 @@ TEST_P(PolicyTest, AMD64Syscall32FsAllowed) {
   Result result = CreatePermissiveTestSandbox({"policy", "2"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(),
-              Eq(33));  // __NR_access in 32-bit
+
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_ARCH));
   EXPECT_THAT(result.GetSyscallArch(), Eq(sapi::cpu::kX86));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(33));  // __NR_access in 32-bit
 }
 
 #endif  // SAPI_X86_64
@@ -127,7 +131,9 @@ TEST_P(PolicyTest, PtraceDisallowed) {
   Result result = CreatePermissiveTestSandbox({"policy", "3"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(__NR_ptrace));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_ptrace));
 }
 
 // Test that clone(2) with flag CLONE_UNTRACED is disallowed with PtraceMonitor.
@@ -139,7 +145,9 @@ TEST_P(PolicyTest, CloneUntrace) {
     EXPECT_THAT(result.reason_code(), Eq(EXIT_FAILURE));
   } else {
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-    EXPECT_THAT(result.reason_code(), Eq(__NR_clone));
+    EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+    ASSERT_TRUE(result.GetSyscall() != nullptr);
+    EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_clone));
   }
 }
 
@@ -148,7 +156,9 @@ TEST_P(PolicyTest, BpfDisallowed) {
   Result result = CreatePermissiveTestSandbox({"policy", "5"})->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_bpf));
 }
 
 // Test that ptrace/bpf can return EPERM.
@@ -184,7 +194,9 @@ TEST_P(PolicyTest, BpfAllowSafe) {
     Result result = s2->Run();
 
     ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-    EXPECT_THAT(result.reason_code(), Eq(__NR_bpf));
+    EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+    ASSERT_TRUE(result.GetSyscall() != nullptr);
+    EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_bpf));
   }
 }
 
@@ -390,7 +402,9 @@ TEST_P(PolicyTest, AddPolicyOnSyscallsWorks) {
   Result result = s2->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(__NR_umask));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_umask));
 }
 
 // Test that util::kMagicSyscallNo is returns ENOSYS or util::kMagicSyscallErr.
@@ -447,7 +461,9 @@ TEST_P(PolicyTest, DISABLED_MmapWithExecNotAllowedByDefault) {
 
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(__NR_mmap));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_mmap));
 }
 
 TEST_P(PolicyTest, DISABLED_MmapWithExecAllowed) {
@@ -473,7 +489,9 @@ TEST_P(PolicyTest, DISABLED_MprotectWithExecNotAllowedByDefault) {
 
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(__NR_mprotect));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_mprotect));
 }
 
 TEST_P(PolicyTest, DISABLED_MprotectWithExecAllowed) {
