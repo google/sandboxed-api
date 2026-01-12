@@ -66,6 +66,10 @@ class EmitterForTesting : public Emitter {
   const std::vector<std::string>& GetRenderedFunctions() {
     return rendered_functions_ordered_;
   }
+
+  const std::vector<std::string>& GetRenderedSandboxeePrototypes() {
+    return rendered_sandboxee_prototypes_ordered_;
+  }
 };
 
 class EmitterTest : public FrontendActionTest {};
@@ -449,6 +453,16 @@ TEST_F(EmitterTest, TypedefStructByValueSkipsFunction) {
   EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
 }
 
+TEST_F(EmitterTest, VariadicParametersSkipsFunction) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(extern "C" int VariadicFunction(int a, ...);)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
+}
+
 TEST_F(EmitterTest, CollectTypedefPointerType) {
   GeneratorOptions options;
   EmitterForTesting emitter(&options);
@@ -812,6 +826,18 @@ TEST_F(SandboxeeTest, StubsAreCallingSandboxedFunctions) {
 
   EXPECT_THAT(sandboxee_src, ContainsRegex("FuncRet FuncHandlerEnumify"
                                            ".*{.*Enumify\\(.*\\);.*}"));
+}
+
+TEST_F(SandboxeeTest, VariadicParametersSkipsFunction) {
+  GeneratorOptions options;
+  options.namespace_name = "sandboxed";
+  options.sandboxee_src_out = "sandboxee_src.cc";
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(
+      RunFrontendAction(R"(extern "C" int VariadicFunction(int a, ...);)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  EXPECT_THAT(emitter.GetRenderedSandboxeePrototypes(), IsEmpty());
 }
 
 }  // namespace

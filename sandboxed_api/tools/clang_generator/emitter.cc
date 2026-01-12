@@ -258,12 +258,15 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeStub(
   std::vector<std::string> params;
   std::vector<std::string> has_compatible_args;
 
+  // Skip variadic functions.
+  if (decl->isVariadic()) {
+    return MakeStatusWithDiagnostic(decl->getBeginLoc(),
+                                    absl::StatusCode::kCancelled,
+                                    "Variadic functions are not supported.");
+  }
   // Process the function parameter list and generate code for the call to
   // `FunctionCallPreparer::GetArg`.
   // Resulting strings will look like: "call.GetArg<T>(n)"
-  if (decl->isVariadic()) {
-    return absl::UnimplementedError("Variadic functions are not supported.");
-  }
   for (int i = 0; i < decl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = decl->getParamDecl(i);
     std::string param_type = GetSandboxeeCppType(type_mapper, param->getType());
@@ -325,6 +328,13 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
     return MakeStatusWithDiagnostic(
         decl->getBeginLoc(), absl::StatusCode::kCancelled,
         "Returning record by value, skipping function.");
+  }
+
+  // Skip variadic functions.
+  if (decl->isVariadic()) {
+    return MakeStatusWithDiagnostic(decl->getBeginLoc(),
+                                    absl::StatusCode::kCancelled,
+                                    "Variadic functions are not supported.");
   }
 
   SAPI_ASSIGN_OR_RETURN(std::string prototype,
