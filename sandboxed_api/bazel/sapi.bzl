@@ -100,11 +100,10 @@ def _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths):
         if copt.startswith("-D"):
             flags.append("--extra-arg=" + copt)
 
-    # The gnu compiler is what frequently used in practice,
-    # and it allows to use more langauge extensions (e.g. _Bool type in C).
-    # However, compiling C code with -std=gnu++ does not work,
-    # -std=c++ somehow works for C, and is required to compile mixed C/C++ inputs.
-    # So this is the best we can do.
+    # The GNU compiler is what is frequently used in practice, and it allows to
+    # use more language extensions (e.g. _Bool type in C). However, compiling C
+    # code with -std=gnu++ does not work, but -std=c++ does, and is required to
+    # compile mixed C/C++ inputs, so this is the best we can do.
     std = "gnu++"
     for f in input_files_paths:
         if f.endswith(".c"):
@@ -389,6 +388,7 @@ def sapi_library(
         ]
 
     lib_hdrs = hdrs or []
+
     lib_hdrs.append(generated_header)
 
     default_deps = ["//sandboxed_api/sandbox2"]
