@@ -656,9 +656,10 @@ target_link_libraries(sandbox2_mounts
           sapi::base
           sapi::file_base
           sapi::fileops
-          sapi::raw_logging
           sapi::status
-  PUBLIC absl::status
+  PUBLIC absl::log
+         absl::check
+         absl::status
          absl::statusor
          absl::strings
          sandbox2::mount_tree_proto

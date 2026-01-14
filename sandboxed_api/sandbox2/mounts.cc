@@ -29,6 +29,8 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -41,7 +43,6 @@
 #include "sandboxed_api/sandbox2/util/library_resolver.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
@@ -60,7 +61,7 @@ absl::string_view GetOutsidePath(const MountTree::Node& node) {
     case MountTree::Node::kDirNode:
       return node.dir_node().outside();
     default:
-      SAPI_RAW_LOG(FATAL, "Invalid node type");
+      LOG(FATAL) << "Invalid node type";
   }
 }
 
@@ -256,25 +257,22 @@ absl::Status Mounts::Insert(absl::string_view path,
 
   if (curtree->has_node()) {
     if (internal::IsEquivalentNode(curtree->node(), new_node)) {
-      SAPI_RAW_LOG(INFO, "Inserting %s with the same value twice",
-                   std::string(path).c_str());
+      LOG(INFO) << "Inserting " << path << " with the same value twice";
       return absl::OkStatus();
     }
     if (internal::HasSameTarget(curtree->node(), new_node)) {
       if (!internal::IsWritable(curtree->node()) &&
           internal::IsWritable(new_node)) {
-        SAPI_RAW_LOG(INFO,
-                     "Changing %s to writable, was inserted read-only before",
-                     std::string(path).c_str());
+        LOG(INFO) << "Changing " << path
+                  << " to writable, was inserted read-only before";
         *curtree->mutable_node() = new_node;
         return absl::OkStatus();
       }
       if (internal::IsWritable(curtree->node()) &&
           !internal::IsWritable(new_node)) {
-        SAPI_RAW_LOG(INFO,
-                     "Inserting %s read-only is a nop, as it was inserted "
-                     "writable before",
-                     std::string(path).c_str());
+        LOG(INFO) << "Inserting " << path
+                  << " read-only is a nop, as it was inserted "
+                     "writable before";
         return absl::OkStatus();
       }
     }
@@ -384,7 +382,7 @@ namespace {
 uint64_t GetMountFlagsFor(const std::string& path) {
   struct statvfs vfs;
   if (TEMP_FAILURE_RETRY(statvfs(path.c_str(), &vfs)) == -1) {
-    SAPI_RAW_PLOG(ERROR, "statvfs");
+    PLOG(ERROR) << "statvfs";
     return 0;
   }
 
@@ -409,7 +407,10 @@ uint64_t GetMountFlagsFor(const std::string& path) {
 }
 
 std::string MountFlagsToString(uint64_t flags) {
-#define SAPI_MAP(x) {x, #x}
+#define SAPI_MAP(x) \
+  {                 \
+    x, #x           \
+  }
   static constexpr std::pair<uint64_t, absl::string_view> kMap[] = {
       SAPI_MAP(MS_RDONLY),      SAPI_MAP(MS_NOSUID),
       SAPI_MAP(MS_NODEV),       SAPI_MAP(MS_NOEXEC),
@@ -461,9 +462,9 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   if (is_ro) {
     flags |= MS_RDONLY;
   }
-  SAPI_RAW_VLOG(1, R"(mount("%s", "%s", "%s", %s, "%s"))", source.c_str(),
-                target.c_str(), fs_type, MountFlagsToString(flags).c_str(),
-                option_str);
+  VLOG(1) << "mount(\"" << source << "\", \"" << target << "\", \"" << fs_type
+          << "\", " << MountFlagsToString(flags) << ", \""
+          << (option_str ? option_str : "null") << "\")";
 
   int res = mount(source.c_str(), target.c_str(), fs_type, flags, option_str);
   if (res == -1) {
@@ -488,12 +489,12 @@ void MountWithDefaults(const std::string& source, const std::string& target,
                           file_util::fileops::ReadLink(target), ")");
         }
       }
-      SAPI_RAW_LOG(WARNING, "Could not mount %s (source) to %s (target): %s",
-                   source.c_str(), target.c_str(), detail.c_str());
+      LOG(WARNING) << "Could not mount " << source << " (source) to " << target
+                   << " (target): " << detail;
       return;
     }
-    SAPI_RAW_PLOG(FATAL, "mounting %s to %s failed (flags=%s)", source, target,
-                  MountFlagsToString(flags));
+    PLOG(FATAL) << "mounting " << source << " to " << target
+                << " failed (flags=" << MountFlagsToString(flags) << ")";
   }
 
   // Flags are ignored for a bind mount, a remount is needed to set the flags.
@@ -501,14 +502,14 @@ void MountWithDefaults(const std::string& source, const std::string& target,
     // Get actual mount flags.
     uint64_t target_flags = GetMountFlagsFor(target);
     if ((target_flags & MS_RDONLY) != 0 && (flags & MS_RDONLY) == 0) {
-      SAPI_RAW_LOG(FATAL,
-                   "cannot remount %s as read-write as it's on read-only dev",
-                   target.c_str());
+      LOG(FATAL) << "cannot remount " << target
+                 << " as read-write as it's on read-only dev";
     }
     res = mount("", target.c_str(), "", flags | target_flags | MS_REMOUNT,
                 nullptr);
-    SAPI_RAW_PCHECK(res != -1, "remounting %s with flags=%s failed", target,
-                    MountFlagsToString(flags));
+    PCHECK(res != -1) << "remounting " << target
+                      << " with flags=" << MountFlagsToString(flags)
+                      << " failed";
   }
 
   // Mount propagation has to be set separately
@@ -516,8 +517,8 @@ void MountWithDefaults(const std::string& source, const std::string& target,
       extra_flags & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE);
   if (propagation != 0) {
     res = mount("", target.c_str(), "", propagation, nullptr);
-    SAPI_RAW_PCHECK(res != -1, "changing %s mount propagation to %s failed",
-                    target, MountFlagsToString(propagation).c_str());
+    PCHECK(res != -1) << "changing " << target << " mount propagation to "
+                      << MountFlagsToString(propagation) << " failed";
   }
 }
 
@@ -544,18 +545,18 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
   if (create_backing_files) {
     switch (tree.node().node_case()) {
       case MountTree::Node::kFileNode: {
-        SAPI_RAW_VLOG(2, "Creating backing file at %s", path.c_str());
+        VLOG(2) << "Creating backing file at " << path;
         int fd = open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
-        SAPI_RAW_PCHECK(fd != -1, "");
-        SAPI_RAW_PCHECK(close(fd) == 0, "");
+        PCHECK(fd != -1);
+        PCHECK(close(fd) == 0);
         break;
       }
       case MountTree::Node::kDirNode:
       case MountTree::Node::kTmpfsNode:
       case MountTree::Node::kRootNode:
       case MountTree::Node::NODE_NOT_SET:
-        SAPI_RAW_VLOG(2, "Creating directory at %s", path.c_str());
-        SAPI_RAW_PCHECK(mkdir(path.c_str(), 0700) == 0 || errno == EEXIST, "");
+        VLOG(2) << "Creating directory at " << path;
+        PCHECK(mkdir(path.c_str(), 0700) == 0 || errno == EEXIST);
         break;
         // Intentionally no default to make sure we handle all the cases.
     }
@@ -564,11 +565,10 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
   if (IsSymlink(path)) {
     std::string abs_path;
     if (!file_util::fileops::ReadLinkAbsolute(path, &abs_path)) {
-      SAPI_RAW_LOG(WARNING, "could not resolve mount target path %s",
-                   path.c_str());
+      LOG(WARNING) << "could not resolve mount target path " << path;
     } else if (!absl::StartsWith(abs_path, absl::StrCat(root_path, "/"))) {
-      SAPI_RAW_LOG(ERROR, "Mount target not within chroot: %s resolved to %s",
-                   path.c_str(), abs_path.c_str());
+      LOG(ERROR) << "Mount target not within chroot: " << path
+                 << " resolved to " << abs_path;
     }
   }
 
