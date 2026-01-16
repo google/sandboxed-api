@@ -38,7 +38,7 @@ namespace internal {
 
 // Magic values used to detect if the current process is running inside
 // Sandbox2.
-inline constexpr int64_t kMagicSyscallNo = 0xff000fdb;  // 4278194139
+inline constexpr int64_t kMagicSyscallNo = 0x2f000fdb;  // 788533211
 inline constexpr int kMagicSyscallErr = 0x000000fdb;    // 4059
 
 }  // namespace internal

@@ -31,7 +31,7 @@ bool mylib_is_sandboxed() {
   // Magic sandbox2 syscall number.
   // Note: we don't use sandbox2::unit::IsRunningInSandbox2 b/c it pulls in
   // too many dependencies and disturbs the policy too much.
-  return syscall(0xff000fdb) == -1 && errno == 0xfdb;
+  return syscall(0x2f000fdb) == -1 && errno == 0xfdb;
 }
 
 void mylib_scalar_types(int a0, float a1, double a2, int64_t a3, char a4,
