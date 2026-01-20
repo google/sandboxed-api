@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
 
-  sapi::Sandbox sandbox(sapi::zlib::zlib_sapi_embed_create());
+  sapi::zlib::ZlibSandbox sandbox;
   sapi::zlib::ZlibApi api(&sandbox);
   if (auto status = sandbox.Init(); !status.ok()) {
     LOG(FATAL) << "Couldn't initialize Sandboxed API for zlib: "

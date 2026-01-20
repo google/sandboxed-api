@@ -89,18 +89,8 @@ Sandbox::Sandbox(SandboxConfig config, const FileToc* embed_lib_toc)
         return std::move(config);
       }()) {}
 
-Sandbox::Sandbox(ForkClientContext* fork_client_context)
-    : Sandbox(SandboxConfig{
-          .sandbox2 = {.fork_client_context = *fork_client_context}}) {}
-
-Sandbox::Sandbox(const FileToc* embed_lib_toc)
-    : Sandbox(SandboxConfig{}, embed_lib_toc) {}
-
 Sandbox::Sandbox(std::nullptr_t)
-    : Sandbox(static_cast<const FileToc*>(nullptr)) {}
-
-Sandbox::Sandbox(SandboxConfig config, std::nullptr_t)
-    : Sandbox(std::move(config), static_cast<const FileToc*>(nullptr)) {}
+    : Sandbox(SandboxConfig{}, static_cast<const FileToc*>(nullptr)) {}
 
 Sandbox::~Sandbox() {
   Terminate();

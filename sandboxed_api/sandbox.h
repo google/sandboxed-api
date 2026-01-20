@@ -163,13 +163,7 @@ class Sandbox {
   Sandbox(SandboxConfig config,
           const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
   ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
-  explicit Sandbox(const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
-  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
   explicit Sandbox(std::nullptr_t);
-  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
-  Sandbox(SandboxConfig config, std::nullptr_t);
-  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
-  Sandbox(ForkClientContext* fork_client_context);
 
   Sandbox(const Sandbox&) = delete;
   Sandbox& operator=(const Sandbox&) = delete;
@@ -266,7 +260,6 @@ class Sandbox {
   absl::Status SetWallTimeLimit(absl::Duration limit) const;
 
  protected:
-
   // Gets extra arguments to be passed to the sandboxee.
   ABSL_DEPRECATED("Pass flags through the sapi::SandboxConfig instead.")
   virtual void GetArgs(std::vector<std::string>* args) const {
