@@ -270,12 +270,6 @@ class Sandbox {
     }
   }
 
-  // TODO(sroettger): Remove this method once all callers have been migrated to
-  // the new constructor.
-  virtual void GetEnvs(std::vector<std::string>* envs) const {
-    *envs = SandboxConfig::DefaultEnvironmentVariables();
-  }
-
   // WrapCallStatus is called with the status returned by a Call. The default
   // implementation simply returns the status as is.
   // This can be used to convert certain errors to a different form, for example
@@ -304,14 +298,8 @@ class Sandbox {
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
 
   std::vector<std::string> EnvironmentVariables() const {
-    if (config_.environment_variables.has_value()) {
-      return *config_.environment_variables;
-    }
-    std::vector<std::string> envs;
-    // TODO(sroettger): Remove the GetEnvs call once all callers have been
-    // migrated to the new constructor.
-    GetEnvs(&envs);
-    return envs;
+    return config_.environment_variables.value_or(
+        SandboxConfig::DefaultEnvironmentVariables());
   }
 
   const ForkClientContext& fork_client_context() const {
