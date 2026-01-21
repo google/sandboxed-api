@@ -32,31 +32,35 @@ namespace {
 
 class CustomHelloSandbox : public HelloSandbox {
  public:
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder*) override {
+  CustomHelloSandbox() : HelloSandbox(CreateSandboxConfig()) {}
+
+ private:
+  static sapi::SandboxConfig CreateSandboxConfig() {
     // Return a new policy.
-    return sandbox2::PolicyBuilder()
-        .AllowRead()
-        .AllowWrite()
-        .AllowOpen()
-        .AllowSystemMalloc()
-        .AllowHandleSignals()
-        .AllowExit()
-        .AllowStat()
-        .AllowTime()
-        .AllowGetIDs()
-        .AllowGetPIDs()
-        .AllowSyscalls({
-            __NR_tgkill,
-            __NR_recvmsg,
-            __NR_sendmsg,
-            __NR_lseek,
-            __NR_nanosleep,
-            __NR_futex,
-            __NR_close,
-        })
-        .AddFile("/etc/localtime")
-        .BuildOrDie();
+    sapi::SandboxConfig config;
+    config.sandbox2.policy = sandbox2::PolicyBuilder()
+                                 .AllowRead()
+                                 .AllowWrite()
+                                 .AllowOpen()
+                                 .AllowSystemMalloc()
+                                 .AllowHandleSignals()
+                                 .AllowExit()
+                                 .AllowStat()
+                                 .AllowTime()
+                                 .AllowGetIDs()
+                                 .AllowGetPIDs()
+                                 .AllowSyscalls({
+                                     __NR_tgkill,
+                                     __NR_recvmsg,
+                                     __NR_sendmsg,
+                                     __NR_lseek,
+                                     __NR_nanosleep,
+                                     __NR_futex,
+                                     __NR_close,
+                                 })
+                                 .AddFile("/etc/localtime")
+                                 .BuildOrDie();
+    return config;
   }
 };
 
