@@ -322,8 +322,10 @@ absl::Status Sandbox::Init() {
       absl::MutexLock lock(fork_client_shared().mu_);
       fork_client_shared().client_.reset();
     }
-    Terminate();
-    return absl::UnavailableError("Could not start the sandbox");
+    sandbox2::Result result = s2_->AwaitResult();
+    LOG(ERROR) << "Could not start the sandbox: " << result.ToString();
+    return absl::UnavailableError(
+        absl::StrCat("Could not start the sandbox: ", result.ToString()));
   }
   return absl::OkStatus();
 }
