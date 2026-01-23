@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/testcases/replaced_library.h"
+#include "sandboxed_api/tests/testcases/replaced_library.h"
 
 #include <err.h>
 #include <errno.h>

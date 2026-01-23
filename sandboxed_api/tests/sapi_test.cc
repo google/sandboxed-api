@@ -38,6 +38,7 @@
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
+#include "sandboxed_api/tests/sapi_test-sapi.sapi.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/testing.h"
@@ -48,6 +49,7 @@
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
+#include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/var_struct.h"
 
@@ -137,29 +139,56 @@ BENCHMARK(BenchmarkProtobufHandling);
 
 // Measure overhead of synchronizing data.
 void BenchmarkIntDataSynchronization(benchmark::State& state) {
-  auto sandbox = std::make_unique<StringopSandbox>();
-  ASSERT_THAT(sandbox->Init(), IsOk());
+  auto sandbox = StringopSandbox();
+  ASSERT_THAT(sandbox.Init(), IsOk());
 
   long current_val = 0;  // NOLINT
   v::Long long_var;
   // Allocate remote memory.
-  ASSERT_THAT(sandbox->Allocate(&long_var, false), IsOk());
+  ASSERT_THAT(sandbox.Allocate(&long_var, false), IsOk());
 
   for (auto _ : state) {
     // Write current_val to the process.
     long_var.SetValue(current_val);
-    EXPECT_THAT(sandbox->TransferToSandboxee(&long_var), IsOk());
+    EXPECT_THAT(sandbox.TransferToSandboxee(&long_var), IsOk());
     // Invalidate value to make sure that the next call
     // is not simply a noop.
     long_var.SetValue(-1);
     // Read value back.
-    EXPECT_THAT(sandbox->TransferFromSandboxee(&long_var), IsOk());
+    EXPECT_THAT(sandbox.TransferFromSandboxee(&long_var), IsOk());
     EXPECT_THAT(long_var.GetValue(), Eq(current_val));
 
-    current_val++;
+    ++current_val;
   }
 }
 BENCHMARK(BenchmarkIntDataSynchronization);
+
+// Measure overhead of synchronizing `sapi::v::Ptr`s. The numbers are on
+// par with BenchmarkCallOverhead when invoked with "0" (no pointer
+// synchronization).
+void BenchmarkVariableSynchronizationOverhead(benchmark::State& state) {
+  auto sandbox = SapiTestSandbox();
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+  const int expected_sum = (state.range(0) - 1) * state.range(0) / 2;
+  for (auto _ : state) {
+    // We are allocating new sapi::v::Int for each iteration on purpose, since
+    // code analysis indicates that this is a common pattern in some of our
+    // clients' code (i.e. having wrapper functions allocating sapi::v::* on
+    // stack and pass their pointers to sapi functions).
+    std::vector<sapi::v::Ptr*> ptrs(8, nullptr);
+    std::vector<sapi::v::Int> vars(state.range(0));
+    for (int i = 0; i < state.range(0); ++i) {
+      vars[i].SetValue(i);
+      ptrs[i] = vars[i].PtrBefore();
+    }
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        int res, api.accumulate(ptrs[0], ptrs[1], ptrs[2], ptrs[3], ptrs[4],
+                                ptrs[5], ptrs[6], ptrs[7]));
+    EXPECT_EQ(res, expected_sum);
+  }
+}
+BENCHMARK(BenchmarkVariableSynchronizationOverhead)->Range(0, 8);
 
 // Test whether stack trace generation works.
 TEST(SapiTest, HasStackTraces) {

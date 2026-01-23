@@ -14,6 +14,7 @@
 
 add_subdirectory(tools/filewrapper)
 add_subdirectory(sandbox2)
+add_subdirectory(tests)
 add_subdirectory(util)
 if(SAPI_ENABLE_CLANG_TOOL AND NOT SAPI_CLANG_TOOL_EXECUTABLE)
   add_subdirectory(tools/clang_generator)
@@ -259,29 +260,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
           sandbox2::allowlists_all_syscalls
           sandbox2::policybuilder
   )
-
-  # sandboxed_api:sapi_test
-  add_executable(sapi_test
-    sapi_test.cc
-  )
-  target_link_libraries(sapi_test PRIVATE
-    absl::status
-    absl::status_matchers
-    absl::statusor
-    absl::time
-    benchmark
-    sandbox2::result
-    sapi::fileops
-    sapi::proto_arg_proto
-    sapi::sapi
-    sapi::status
-    sapi::stringop_sapi
-    sapi::sum_sapi
-    sapi::test_main
-    sapi::testing
-    sapi::thread
-  )
-  gtest_discover_tests_xcompile(sapi_test)
 endif()
 
 # Install headers and libraries, excluding tools, tests and examples

@@ -253,34 +253,6 @@ cc_library(
     ],
 )
 
-cc_test(
-    name = "sapi_test",
-    srcs = ["sapi_test.cc"],
-    copts = sapi_platform_copts(),
-    tags = ["local"],
-    deps = [
-        ":sapi",
-        ":testing",
-        ":vars",
-        "//sandboxed_api/examples/stringop:stringop-sapi",
-        "//sandboxed_api/examples/stringop:stringop_params_cc_proto",
-        "//sandboxed_api/examples/sum:sum-sapi",
-        "//sandboxed_api/sandbox2:result",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
-        "//sandboxed_api/util:thread",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:string_view",
-        "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
-        "@google_benchmark//:benchmark",
-        "@googletest//:gtest_main",
-    ],
-)
-
 # Utility library for writing tests
 cc_library(
     name = "testing",
