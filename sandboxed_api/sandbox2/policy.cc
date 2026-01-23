@@ -69,6 +69,10 @@
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
 #endif
 
+#ifndef SHM_EXEC
+#define SHM_EXEC 0100000
+#endif
+
 namespace sandbox2 {
 
 // The final policy is the concatenation of:
@@ -235,6 +239,12 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
             JA32(PROT_EXEC, DENY),
 
             LABEL(&l, past_map_exec_l),
+            LOAD_SYSCALL_NR,
+
+            JNE32(__NR_shmat, JUMP(&l, past_shmat_l)),
+            ARG_32(2),
+            JEQ32(SHM_EXEC, DENY),
+            LABEL(&l, past_shmat_l),
             LOAD_SYSCALL_NR,
         });
   }
