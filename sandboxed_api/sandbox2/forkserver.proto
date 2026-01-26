@@ -92,4 +92,7 @@ message ForkRequest {
 
   // Net namespace mode
   optional NetNsMode netns_mode = 11;
+
+  // Whether to allow the sandboxee to mount write-executable filesystems
+  optional bool allow_write_executable = 12;
 }

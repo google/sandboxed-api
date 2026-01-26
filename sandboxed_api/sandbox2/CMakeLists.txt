@@ -541,6 +541,7 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::allowlists_seccomp_speculation
           sandbox2::allowlists_trace_all_syscalls
           sandbox2::allowlists_unrestricted_networking
+          sandbox2::allowlists_write_executable
           sapi::file_base
           sapi::fileops
           sapi::status

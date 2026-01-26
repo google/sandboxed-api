@@ -747,7 +747,8 @@ void ForkServer::InitializeNamespaces(const ForkRequest& request, uid_t uid,
   }
   Namespace::InitializeNamespaces(
       uid, gid, request.clone_flags(), Mounts(request.mount_tree()),
-      request.hostname(), avoid_pivot_root, request.allow_mount_propagation());
+      request.hostname(), avoid_pivot_root, request.allow_mount_propagation(),
+      request.allow_write_executable());
 }
 
 }  // namespace sandbox2

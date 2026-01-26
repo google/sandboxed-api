@@ -457,10 +457,13 @@ bool IsSymlink(const std::string& path) {
 
 void MountWithDefaults(const std::string& source, const std::string& target,
                        const char* fs_type, uint64_t extra_flags,
-                       const char* option_str, bool is_ro) {
+                       const char* option_str, bool is_ro,
+                       bool allow_write_executable) {
   uint64_t flags = MS_REC | MS_NOSUID | extra_flags;
   if (is_ro) {
     flags |= MS_RDONLY;
+  } else if (!allow_write_executable) {
+    flags |= MS_NOEXEC;
   }
   VLOG(1) << "mount(\"" << source << "\", \"" << target << "\", \"" << fs_type
           << "\", " << MountFlagsToString(flags) << ", \""
@@ -505,6 +508,10 @@ void MountWithDefaults(const std::string& source, const std::string& target,
       LOG(FATAL) << "cannot remount " << target
                  << " as read-write as it's on read-only dev";
     }
+    uint64_t source_flags = GetMountFlagsFor(source);
+    if ((source_flags & MS_NOEXEC) == 0) {
+      target_flags &= ~MS_NOEXEC;
+    }
     res = mount("", target.c_str(), "", flags | target_flags | MS_REMOUNT,
                 nullptr);
     PCHECK(res != -1) << "remounting " << target
@@ -540,7 +547,7 @@ std::vector<MapEntry> GetSortedEntries(const MountTree& tree) {
 // Traverses the MountTree to create all required files and perform the mounts.
 void CreateMounts(const MountTree& tree, const std::string& root_path,
                   const std::string& path, bool create_backing_files,
-                  bool allow_mount_propagation) {
+                  bool allow_mount_propagation, bool allow_write_executable) {
   // First, create the backing files if needed.
   if (create_backing_files) {
     switch (tree.node().node_case()) {
@@ -585,7 +592,7 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
           MS_BIND | (node.allow_mount_propagation() || allow_mount_propagation
                          ? MS_SHARED
                          : MS_PRIVATE),
-          nullptr, !node.writable());
+          nullptr, !node.writable(), allow_write_executable);
       break;
     }
     case MountTree::Node::kTmpfsNode: {
@@ -594,13 +601,13 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
 
       auto node = tree.node().tmpfs_node();
       MountWithDefaults("", path, "tmpfs", 0, node.tmpfs_options().c_str(),
-                        /* is_ro */ false);
+                        /* is_ro */ false, allow_write_executable);
       break;
     }
     case MountTree::Node::kFileNode: {
       auto node = tree.node().file_node();
       MountWithDefaults(node.outside(), path, "", MS_BIND, nullptr,
-                        !node.writable());
+                        !node.writable(), allow_write_executable);
 
       // A file node has to be a leaf so we can skip traversing here.
       return;
@@ -616,16 +623,17 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
   for (const auto& [key, value] : GetSortedEntries(tree)) {
     std::string new_path = sapi::file::JoinPath(path, key);
     CreateMounts(*value, root_path, new_path, create_backing_files,
-                 allow_mount_propagation);
+                 allow_mount_propagation, allow_write_executable);
   }
 }
 
 }  // namespace
 
 void Mounts::CreateMounts(const std::string& root_path,
-                          bool allow_mount_propagation) const {
+                          bool allow_mount_propagation,
+                          bool allow_write_executable) const {
   sandbox2::CreateMounts(mount_tree_, root_path, root_path, true,
-                         allow_mount_propagation);
+                         allow_mount_propagation, allow_write_executable);
 }
 
 namespace {

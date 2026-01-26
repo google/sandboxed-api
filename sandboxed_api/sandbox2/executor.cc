@@ -106,6 +106,7 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
     *request.mutable_mount_tree() = ns->mounts().GetMountTree();
     request.set_hostname(ns->hostname());
     request.set_allow_mount_propagation(ns->allow_mount_propagation());
+    request.set_allow_write_executable(ns->allow_write_executable());
   }
 
   request.set_clone_flags(clone_flags);

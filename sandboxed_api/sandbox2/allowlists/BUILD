@@ -70,6 +70,21 @@ cc_library(
 )
 
 cc_library(
+    name = "write_executable",
+    hdrs = ["write_executable.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_write_executable",
+    testonly = True,
+    hdrs = ["write_executable.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "seccomp_speculation",
     hdrs = ["seccomp_speculation.h"],
     copts = sapi_platform_copts(),

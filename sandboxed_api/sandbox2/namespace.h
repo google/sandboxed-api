@@ -36,11 +36,13 @@ class Namespace final {
                                    const Mounts& mounts,
                                    const std::string& hostname,
                                    bool avoid_pivot_root,
-                                   bool allow_mount_propagation);
+                                   bool allow_mount_propagation,
+                                   bool allow_write_executable);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
 
   Namespace(Mounts mounts, std::string hostname, NetNsMode netns_config,
-            bool allow_mount_propagation = false);
+            bool allow_mount_propagation = false,
+            bool allow_write_executable = false);
 
   NetNsMode netns_config() const { return netns_config_; }
 
@@ -53,12 +55,15 @@ class Namespace final {
 
   bool allow_mount_propagation() const { return allow_mount_propagation_; }
 
+  bool allow_write_executable() const { return allow_write_executable_; }
+
  private:
   int32_t clone_flags_ = CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWUTS |
                          CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNET;
   Mounts mounts_;
   std::string hostname_;
   bool allow_mount_propagation_;
+  bool allow_write_executable_;
   NetNsMode netns_config_;
 };
 

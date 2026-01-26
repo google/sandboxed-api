@@ -75,8 +75,8 @@ class Mounts {
 
   absl::Status Remove(absl::string_view path);
 
-  void CreateMounts(const std::string& root_path,
-                    bool allow_mount_propagation) const;
+  void CreateMounts(const std::string& root_path, bool allow_mount_propagation,
+                    bool allow_write_executable) const;
 
   MountTree GetMountTree() const { return mount_tree_; }
 

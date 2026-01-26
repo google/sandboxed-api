@@ -64,7 +64,8 @@ int MountFallbackToReadOnly(const char* source, const char* target,
   return rv;
 }
 
-void PrepareChroot(const Mounts& mounts, bool allow_mount_propagation) {
+void PrepareChroot(const Mounts& mounts, bool allow_mount_propagation,
+                   bool allow_write_executable) {
   // Create a tmpfs mount for the new rootfs.
   SAPI_RAW_CHECK(
       file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
@@ -73,7 +74,8 @@ void PrepareChroot(const Mounts& mounts, bool allow_mount_propagation) {
                   "mounting rootfs failed");
 
   // Walk the tree and perform all the mount operations.
-  mounts.CreateMounts(kSandbox2ChrootPath, allow_mount_propagation);
+  mounts.CreateMounts(kSandbox2ChrootPath, allow_mount_propagation,
+                      allow_write_executable);
 
   if (mounts.IsRootReadOnly()) {
     // Remount the chroot read-only
@@ -197,10 +199,12 @@ void LogFilesystem(const std::string& dir) {
 }  // namespace
 
 Namespace::Namespace(Mounts mounts, std::string hostname,
-                     NetNsMode netns_config, bool allow_mount_propagation)
+                     NetNsMode netns_config, bool allow_mount_propagation,
+                     bool allow_write_executable)
     : mounts_(std::move(mounts)),
       hostname_(std::move(hostname)),
       allow_mount_propagation_(allow_mount_propagation),
+      allow_write_executable_(allow_write_executable),
       netns_config_(netns_config) {
   // Remove the CLONE_NEWNET flag to allow networking, or for the shared netns.
   // In the latter case, the flag will be added later on.
@@ -214,7 +218,8 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts,
                                      const std::string& hostname,
                                      bool avoid_pivot_root,
-                                     bool allow_mount_propagation) {
+                                     bool allow_mount_propagation,
+                                     bool allow_write_executable) {
   if (clone_flags & CLONE_NEWUSER && !avoid_pivot_root) {
     SetupIDMaps(uid, gid);
   }
@@ -258,7 +263,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     ActivateLoopbackInterface();
   }
 
-  PrepareChroot(mounts, allow_mount_propagation);
+  PrepareChroot(mounts, allow_mount_propagation, allow_write_executable);
 
   if (avoid_pivot_root) {
     // Keep a reference to /proc/self as it might not be mounted later

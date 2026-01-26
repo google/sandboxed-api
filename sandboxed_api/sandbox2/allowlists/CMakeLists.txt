@@ -34,7 +34,7 @@ target_link_libraries(sandbox2_allowlists_namespaces PRIVATE
   sapi::base
 )
 
-# sandboxed_api/sandbox2allowlists:map_exec
+# sandboxed_api/sandbox2/allowlists:map_exec
 add_library(sandbox2_allowlists_map_exec ${SAPI_LIB_TYPE}
   map_exec.h
 )
@@ -44,13 +44,23 @@ target_link_libraries(sandbox2_allowlists_map_exec PRIVATE
   sapi::base
 )
 
-# sandboxed_api/sandbox2allowlists:mount_propagation
+# sandboxed_api/sandbox2/allowlists:mount_propagation
 add_library(sandbox2_allowlists_mount_propagation ${SAPI_LIB_TYPE}
   mount_propagation.h
 )
 add_library(sandbox2::allowlists_mount_propagation ALIAS
   sandbox2_allowlists_mount_propagation)
 target_link_libraries(sandbox2_allowlists_mount_propagation PRIVATE
+  sapi::base
+)
+
+# sandboxed_api/sandbox2/allowlists:write_executable
+add_library(sandbox2_allowlists_write_executable ${SAPI_LIB_TYPE}
+  write_executable.h
+)
+add_library(sandbox2::allowlists_write_executable ALIAS
+  sandbox2_allowlists_write_executable)
+target_link_libraries(sandbox2_allowlists_write_executable PRIVATE
   sapi::base
 )
 

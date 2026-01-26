@@ -565,6 +565,7 @@ cc_library(
         "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
         "//sandboxed_api/sandbox2/allowlists:trace_all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
+        "//sandboxed_api/sandbox2/allowlists:write_executable",
         "//sandboxed_api/sandbox2/network_proxy:filtering",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:file_base",

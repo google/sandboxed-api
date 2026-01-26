@@ -53,6 +53,7 @@ class UnrestrictedNetworking;
 class UnsafeCoreDumpPtrace;
 class SeccompSpeculation;
 class TraceAllSyscalls;
+class WriteExecutable;
 
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
@@ -958,6 +959,9 @@ class PolicyBuilder final {
   // mount.
   PolicyBuilder& Allow(MountPropagation, absl::string_view inside);
 
+  // Mounts writeable mappings without MS_NOEXEC.
+  PolicyBuilder& Allow(WriteExecutable);
+
   // Allows connections to this IP.
   PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
   PolicyBuilder& AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
@@ -1044,6 +1048,7 @@ class PolicyBuilder final {
   bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;
   bool allow_mount_propagation_ = false;
+  bool allow_write_executable_ = false;
   std::string hostname_ = std::string(kDefaultHostname);
 
   // Stack trace collection

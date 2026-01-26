@@ -62,6 +62,7 @@
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/allowlists/write_executable.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
@@ -1548,8 +1549,9 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    policy->namespace_ = Namespace(std::move(mounts_), hostname_, netns_mode_,
-                                   allow_mount_propagation_);
+    policy->namespace_ =
+        Namespace(std::move(mounts_), hostname_, netns_mode_,
+                  allow_mount_propagation_, allow_write_executable_);
   }
 
   policy->allow_map_exec_ = allow_map_exec_;
@@ -1884,6 +1886,11 @@ PolicyBuilder& PolicyBuilder::Allow(MountPropagation,
 
 PolicyBuilder& PolicyBuilder::DangerAllowMountPropagation() {
   return Allow(MountPropagation());
+}
+
+PolicyBuilder& PolicyBuilder::Allow(WriteExecutable) {
+  allow_write_executable_ = true;
+  return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AllowIPv4(const std::string& ip_and_mask,
