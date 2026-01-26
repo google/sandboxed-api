@@ -473,10 +473,10 @@ absl::Status Sandbox::Call(
 
   if (fret.ret_type == v::Type::kFloat) {
     memcpy(ret->GetLocal(), &fret.float_val,
-           std::min(sizeof(ret->GetSize()), sizeof(fret.float_val)));
+           std::min(ret->GetSize(), sizeof(fret.float_val)));
   } else if (ret->GetSize() != 0) {
     memcpy(ret->GetLocal(), &fret.int_val,
-           std::min(sizeof(ret->GetSize()), sizeof(fret.int_val)));
+           std::min(ret->GetSize(), sizeof(fret.int_val)));
   }
 
   if (rfcall.ret_type == v::Type::kFd) {
