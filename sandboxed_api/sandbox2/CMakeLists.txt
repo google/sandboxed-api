@@ -460,6 +460,7 @@ target_link_libraries(sandbox2_monitor_ptrace
           absl::vlog_is_on
           sapi::base
           sapi::config
+          sapi::fileops
           sapi::status
           sandbox2::client
           sandbox2::comms

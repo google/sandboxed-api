@@ -446,6 +446,7 @@ cc_library(
         ":util",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/util:pid_waiter",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status",
         "//sandboxed_api/util:thread",
         "@abseil-cpp//absl/algorithm:container",

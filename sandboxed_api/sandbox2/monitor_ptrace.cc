@@ -16,6 +16,7 @@
 
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
 
+#include <fcntl.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
@@ -65,11 +66,14 @@
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 namespace {
+
+using ::sapi::file_util::fileops::FDCloser;
 
 // We could use the ProcMapsIterator, however we want the full file content.
 std::string ReadProcMaps(pid_t pid) {
@@ -561,7 +565,7 @@ bool PtraceMonitor::InitSetupSignals() {
   return true;
 }
 
-absl::Status TryAttach(const absl::flat_hash_set<int>& tasks,
+absl::Status TryAttach(pid_t pid, const absl::flat_hash_set<int>& tasks,
                        absl::Time deadline,
                        absl::flat_hash_set<int>& tasks_attached) {
   constexpr intptr_t kPtraceOptions =
@@ -581,6 +585,15 @@ absl::Status TryAttach(const absl::flat_hash_set<int>& tasks,
     absl::flat_hash_set<int> retry_tasks;
     for (int task : cur_tasks) {
       if (tasks_attached.contains(task)) {
+        continue;
+      }
+      // Keep reference to the task file descriptor to avoid it being recycled,
+      // while we try to ptrace attach.
+      FDCloser fd(
+          open(absl::StrCat("/proc/", pid, "/task/", task).c_str(), O_PATH));
+      if (fd.get() == -1 && errno == ENOENT) {
+        PLOG(WARNING) << "Skipping exited/recycled task (pid: " << task
+                      << "). Continuing with other tasks.";
         continue;
       }
       int ret = ptrace(PTRACE_SEIZE, task, 0, kPtraceOptions);
@@ -634,6 +647,10 @@ bool PtraceMonitor::InitPtraceAttach() {
     }
   }
 
+  // Keep reference to the process to avoid it being recycled, while we try to
+  // ptrace attach.
+  FDCloser fd(open(absl::StrCat("/proc/", process_.main_pid).c_str(), O_PATH));
+
   // Get a list of tasks.
   absl::StatusOr<absl::flat_hash_set<int>> tasks =
       sanitizer::GetListOfTasks(process_.main_pid);
@@ -669,7 +686,8 @@ bool PtraceMonitor::InitPtraceAttach() {
                     "(attempt "
                  << retries << "/" << kMaxRetries << ")";
     }
-    if (absl::Status status = TryAttach(*tasks, deadline, tasks_attached);
+    if (absl::Status status =
+            TryAttach(process_.main_pid, *tasks, deadline, tasks_attached);
         !status.ok()) {
       LOG(ERROR) << status.message();
       return false;
