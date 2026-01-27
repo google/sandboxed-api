@@ -462,8 +462,6 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   uint64_t flags = MS_REC | MS_NOSUID | extra_flags;
   if (is_ro) {
     flags |= MS_RDONLY;
-  } else if (!allow_write_executable) {
-    flags |= MS_NOEXEC;
   }
   VLOG(1) << "mount(\"" << source << "\", \"" << target << "\", \"" << fs_type
           << "\", " << MountFlagsToString(flags) << ", \""
