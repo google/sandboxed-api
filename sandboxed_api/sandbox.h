@@ -155,14 +155,6 @@ class Sandbox {
  public:
   explicit Sandbox(SandboxConfig config);
 
-  // TODO(sroettger): Remove all constructors below once all callers have been
-  // migrated to the new constructor.
-  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
-  Sandbox(SandboxConfig config,
-          const FileToc* embed_lib_toc ABSL_ATTRIBUTE_LIFETIME_BOUND);
-  ABSL_DEPRECATED("Use Sandbox(SandboxConfig) instead")
-  explicit Sandbox(std::nullptr_t);
-
   Sandbox(const Sandbox&) = delete;
   Sandbox& operator=(const Sandbox&) = delete;
 

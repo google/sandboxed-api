@@ -72,20 +72,6 @@ Sandbox::Sandbox(SandboxConfig config) : config_(std::move(config)) {
   CHECK(config_.sandbox2.fork_client_context.has_value());
 }
 
-Sandbox::Sandbox(SandboxConfig config, const FileToc* embed_lib_toc)
-    : Sandbox([&config, embed_lib_toc]() {
-        Sandbox2Config& sb2_config = config.sandbox2;
-        if (sb2_config.fork_client_context.has_value()) {
-          sb2_config.fork_client_context->sandboxee_source_ = embed_lib_toc;
-        } else {
-          sb2_config.fork_client_context.emplace(embed_lib_toc);
-        }
-        return std::move(config);
-      }()) {}
-
-Sandbox::Sandbox(std::nullptr_t)
-    : Sandbox(SandboxConfig{}, static_cast<const FileToc*>(nullptr)) {}
-
 Sandbox::~Sandbox() {
   Terminate();
   // The forkserver will die automatically when the executor goes out of scope
