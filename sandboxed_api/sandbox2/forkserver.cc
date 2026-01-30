@@ -125,7 +125,9 @@ Pipe CreatePipe() {
   return {FDCloser(pfds[0]), FDCloser(pfds[1])};
 }
 
-ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd,
+ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid,
+                                            FDCloser synchronization_fd,
+                                            FDCloser status_fd,
                                             bool allow_speculation) {
   if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
@@ -147,8 +149,9 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd,
       LOAD_SYSCALL_NR,
       SYSCALL(__NR_waitid, ALLOW),
       SYSCALL(__NR_exit, ALLOW),
+      SYSCALL(__NR_close, ALLOW),
   };
-  if (pipe_fd.get() >= 0) {
+  if (status_fd.get() >= 0) {
     code.insert(code.end(),
                 {SYSCALL(__NR_getrusage, ALLOW), SYSCALL(__NR_write, ALLOW)});
   }
@@ -170,6 +173,9 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd,
                          SECCOMP_FILTER_FLAG_TSYNC | seccomp_extra_flags,
                          reinterpret_cast<uintptr_t>(&prog)) == 0,
                  "Enabling seccomp filter");
+  if (!synchronization_fd.Close()) {
+    _exit(1);
+  }
 
   siginfo_t info;
   // Reap children.
@@ -180,13 +186,13 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid, FDCloser pipe_fd,
     }
 
     if (info.si_pid == main_pid) {
-      if (pipe_fd.get() >= 0) {
-        (void)write(pipe_fd.get(), &info.si_code, sizeof(info.si_code));
-        (void)write(pipe_fd.get(), &info.si_status, sizeof(info.si_status));
+      if (status_fd.get() >= 0) {
+        (void)write(status_fd.get(), &info.si_code, sizeof(info.si_code));
+        (void)write(status_fd.get(), &info.si_status, sizeof(info.si_status));
 
         rusage usage{};
         getrusage(RUSAGE_CHILDREN, &usage);
-        (void)write(pipe_fd.get(), &usage, sizeof(usage));
+        (void)write(status_fd.get(), &usage, sizeof(usage));
       }
       _exit(0);
     }
@@ -321,12 +327,14 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
 
   // A custom init process is only needed if a new PID NS is created.
   if (request.clone_flags() & CLONE_NEWPID) {
+    Pipe sync_pipe = CreatePipe();
     // Spawn a child process
     pid_t child = util::ForkWithFlags(SIGCHLD);
     if (child < 0) {
       SAPI_RAW_PLOG(FATAL, "Could not spawn init process");
     }
     if (child != 0) {
+      sync_pipe.read.Close();
       if (status_fd.get() >= 0) {
         open_fds->erase(status_fd.get());
       }
@@ -337,8 +345,14 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
           close(fd);
         }
       }
-      RunInitProcess(child, std::move(status_fd), request.allow_speculation());
+      RunInitProcess(child, std::move(sync_pipe.write), std::move(status_fd),
+                     request.allow_speculation());
     }
+    sync_pipe.write.Close();
+    char dummy = 0;
+    SAPI_RAW_PCHECK(
+        TEMP_FAILURE_RETRY(read(sync_pipe.read.get(), &dummy, 1)) == 0,
+        "synchronizing with init process");
     // Send sandboxee pid
     auto status = SendPid(signaling_fd.get());
     SAPI_RAW_CHECK(status.ok(),
