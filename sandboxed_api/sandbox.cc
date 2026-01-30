@@ -68,12 +68,6 @@
 
 namespace sapi {
 
-std::string Sandbox::GetLibPath() const {
-  // TODO(sroettger): temporary code for migration. This can only be called if
-  // the fork_client_context doesn't have a lib_path set.
-  CHECK(false);
-}
-
 Sandbox::Sandbox(SandboxConfig config) : config_(std::move(config)) {
   CHECK(config_.sandbox2.fork_client_context.has_value());
 }
@@ -226,13 +220,7 @@ absl::Status Sandbox::Init() {
     absl::MutexLock lock(fork_client_shared().mu_);
     // Initialize the forkserver if it is not already running.
     if (!fork_client_shared().client_) {
-      // TODO(sroettger): this code is just for migration since callers can
-      // provide the sandboxee path through GetLibPath().
-      if (!fork_client_context().sandboxee_source_.has_value()) {
-        config_.sandbox2.fork_client_context->sandboxee_source_ = GetLibPath();
-      }
-
-      auto sandboxee_source = fork_client_context().sandboxee_source_.value();
+      auto sandboxee_source = fork_client_context().sandboxee_source_;
 
       std::string lib_path;
       int embed_lib_fd = -1;

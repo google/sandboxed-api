@@ -30,6 +30,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -79,9 +80,7 @@ class ForkClientContext {
  public:
   explicit ForkClientContext(const FileToc* embed_lib_toc)
       : sandboxee_source_(embed_lib_toc) {
-    if (embed_lib_toc == nullptr) {
-      sandboxee_source_.reset();
-    }
+    CHECK(embed_lib_toc != nullptr);
   }
   // Path of the sandboxee:
   //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
@@ -93,8 +92,7 @@ class ForkClientContext {
  private:
   friend class Sandbox;
 
-  // TODO(sroettger): this is optional until we migrated users of GetLibPath().
-  std::optional<std::variant<const FileToc*, std::string>> sandboxee_source_;
+  std::variant<const FileToc*, std::string> sandboxee_source_;
   struct SharedState {
     absl::Mutex mu_;
     std::shared_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);
@@ -283,8 +281,6 @@ class Sandbox {
   // builder, or return a completely new policy.
   virtual std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder* builder);
-
-  virtual std::string GetLibPath() const;
 
   // Modifies the Executor object if needed.
   virtual void ModifyExecutor(sandbox2::Executor* executor) {
