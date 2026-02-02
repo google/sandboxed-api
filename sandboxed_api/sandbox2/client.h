@@ -25,8 +25,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
@@ -65,7 +63,7 @@ class Client {
   // Returns the file descriptor that was mapped to the sandboxee using
   // IPC::ReceiveFd(name).
   int GetMappedFD(const std::string& name);
-  bool HasMappedFD(const std::string& name) const;
+  bool HasMappedFD(const std::string& name);
 
   // Registers a LogSink that forwards all logs to the supervisor.
   void SendLogsToSupervisor();
@@ -77,12 +75,6 @@ class Client {
   // Redirects the connect() syscall to the ConnectHandler() method in
   // the NetworkProxyClient class.
   absl::Status InstallNetworkProxyHandler();
-
-  // Gets the shared memory buffer if it is enabled.
-  absl::StatusOr<const Buffer*> GetSharedMemoryMapping();
-
-  // Returns true if shared memory was enabled.
-  bool IsSharedMemoryEnabled() const;
 
  protected:
   // Comms used for synchronization with the monitor, not owned by the object.
@@ -107,10 +99,6 @@ class Client {
   // file descriptors to the new process. We set an environment variable for
   // this case that is parsed in the Client constructor if present.
   absl::flat_hash_map<std::string, int> fd_map_;
-
-  // The mapping of the shared memory region in the sandboxee's address space.
-  // This is only set if shared memory is enabled.
-  std::unique_ptr<Buffer> shared_memory_mapping_;
 
   std::string GetFdMapEnvVar() const;
 

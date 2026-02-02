@@ -710,11 +710,6 @@ class PolicyBuilder final {
   // reading, seeking, mmap()-ing and closing files.
   PolicyBuilder& AllowDynamicStartup(MapExec);
 
-  // Enables the syscalls necessary to use sandbox2's shared memory feature.
-  //
-  // This allows stat(2), munmap(2), mmap(2) with MAP_SHARED.
-  PolicyBuilder& AllowSharedMemory();
-
   ABSL_DEPRECATED("Use AllowDynamicStartup(MapExec) instead.")
   PolicyBuilder& AllowDynamicStartup();
 
@@ -1102,7 +1097,6 @@ class PolicyBuilder final {
     bool prctl_set_name = false;
     bool prctl_set_vma = false;
     bool pkey_mprotect_without_exec = false;
-    bool shared_memory = false;
   } allowed_complex_;
 
   // List of allowed hosts

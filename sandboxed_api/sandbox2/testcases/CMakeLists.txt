@@ -460,18 +460,3 @@ target_link_libraries(sandbox2_testcase_terminate_process_group_sandboxee PRIVAT
   absl::check
   sandbox2::comms
 )
-
-# sandboxed_api/sandbox2/testcases:shared_memory
-add_executable(sandbox2_testcase_shared_memory
-  shared_memory.cc
-)
-set_target_properties(sandbox2_testcase_shared_memory PROPERTIES
-  OUTPUT_NAME shared_memory)
-add_executable(sandbox2::testcase_shared_memory ALIAS sandbox2_testcase_shared_memory)
-target_link_libraries(sandbox2_testcase_shared_memory PRIVATE
-  -static
-  sandbox2::comms
-  sandbox2::client
-  sapi::base
-  sapi::raw_logging
-)

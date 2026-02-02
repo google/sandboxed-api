@@ -35,36 +35,19 @@ namespace sandbox2 {
 
 void IPC::SetUpServerSideComms(int fd) { comms_ = std::make_unique<Comms>(fd); }
 
-void IPC::MapFd(int local_fd, int remote_fd, absl::string_view name) {
-  VLOG(3) << "Will send: " << local_fd << ", to overwrite: " << remote_fd;
-  fd_map_.push_back(std::make_tuple(local_fd, remote_fd, std::string(name)));
-}
-
-void IPC::MapFd(int local_fd, absl::string_view name) {
-  return MapFd(local_fd, -1, name);
-}
-
 void IPC::MapFd(int local_fd, int remote_fd) {
-  return MapFd(local_fd, remote_fd, "");
+  VLOG(3) << "Will send: " << local_fd << ", to overwrite: " << remote_fd;
+  fd_map_.push_back(std::make_tuple(local_fd, remote_fd, ""));
 }
 
-void IPC::MapDupedFd(int local_fd, int remote_fd, absl::string_view name) {
+void IPC::MapDupedFd(int local_fd, int remote_fd) {
   const int dup_local_fd = dup(local_fd);
   if (dup_local_fd == -1) {
     PLOG(FATAL) << "dup(" << local_fd << ")";
   }
   VLOG(3) << "Will send: " << dup_local_fd << " (dup of " << local_fd
           << "), to overwrite: " << remote_fd;
-  fd_map_.push_back(
-      std::make_tuple(dup_local_fd, remote_fd, std::string(name)));
-}
-
-void IPC::MapDupedFd(int local_fd, absl::string_view name) {
-  return MapDupedFd(local_fd, -1, name);
-}
-
-void IPC::MapDupedFd(int local_fd, int remote_fd) {
-  return MapDupedFd(local_fd, remote_fd, "");
+  fd_map_.push_back(std::make_tuple(dup_local_fd, remote_fd, ""));
 }
 
 int IPC::ReceiveFd(int remote_fd) { return ReceiveFd(remote_fd, ""); }

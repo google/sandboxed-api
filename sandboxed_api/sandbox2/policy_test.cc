@@ -582,46 +582,6 @@ TEST_P(PolicyTest, OverridablePolicyOnSyscallsWorks) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
-TEST_P(PolicyTest, InstallSharedMemoryWithWrongPolicy) {
-  SKIP_SANITIZERS;
-  // The policy doesn't allow installing shared memory, so the sandboxee won't
-  // be able to map the shared memory region.
-  sandbox2::PolicyBuilder builder;
-  builder.AllowStaticStartup();
-  builder.AllowMmapWithoutExec();
-  builder.AllowTcMalloc();
-  builder.AllowExit();
-  auto s2 = CreateTestSandbox({"shared_memory", "2"}, builder);
-  ASSERT_THAT(s2->CreateSharedMemoryMapping(100ULL << 20), IsOk());
-  auto result = s2->Run();
-
-  ASSERT_EQ(result.final_status(), sandbox2::Result::VIOLATION);
-  EXPECT_EQ(result.reason_code(), sandbox2::Result::VIOLATION_SYSCALL);
-  ASSERT_TRUE(result.GetSyscall() != nullptr);
-  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_fstat));
-}
-
-TEST_P(PolicyTest, InstallSharedMemoryWithMinimalPolicy) {
-  SKIP_SANITIZERS;
-  // The policy allows installing shared memory, so the sandboxee will be able
-  // to map the shared memory region, even though we enabled sandbox before
-  // execve.
-  sandbox2::PolicyBuilder builder;
-  builder.AllowStaticStartup();
-  builder.AllowSharedMemory();
-  builder.AllowTcMalloc();
-  builder.AllowExit();
-  auto s2 = CreateTestSandbox({"shared_memory", "2"}, builder);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto res,
-                            s2->CreateSharedMemoryMapping(100ULL << 20));
-  res->data()[0] = 'Z';
-  auto result = s2->Run();
-
-  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
-  EXPECT_EQ(result.reason_code(), 0);
-  EXPECT_EQ(res->data()[0], 'A');
-}
-
 INSTANTIATE_TEST_SUITE_P(Sandbox2, PolicyTest, ::testing::Values(false, true),
                          [](const ::testing::TestParamInfo<bool>& info) {
                            return info.param ? "UnotifyMonitor"

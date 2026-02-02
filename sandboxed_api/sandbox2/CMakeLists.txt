@@ -247,6 +247,7 @@ target_link_libraries(sandbox2_global_forkserver
           absl::cleanup
           absl::strings
           absl::status
+          absl::statusor
           absl::log
           sandbox2::client
           sandbox2::flags
@@ -335,7 +336,6 @@ target_link_libraries(sandbox2_sandbox2
          sapi::config
          sapi::fileops
          sapi::temp_file
-         sandbox2::buffer
          sandbox2::client
          sandbox2::comms
          sandbox2::executor
@@ -567,17 +567,13 @@ add_library(sandbox2::client ALIAS sandbox2_client)
 target_link_libraries(sandbox2_client
   PRIVATE absl::core_headers
           absl::strings
-          absl::statusor
           sandbox2::bpf_helper
-          sandbox2::buffer
           sandbox2::policy
           sandbox2::sanitizer
           sandbox2::syscall
           sapi::base
           sapi::config
-          sapi::fileops
           sapi::raw_logging
-          sapi::status
   PUBLIC absl::flat_hash_map
          absl::status
          sandbox2::comms

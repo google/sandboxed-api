@@ -1461,27 +1461,6 @@ PolicyBuilder& PolicyBuilder::AllowDynamicStartup(MapExec) {
   });
 }
 
-PolicyBuilder& PolicyBuilder::AllowSharedMemory() {
-  if (allowed_complex_.shared_memory) {
-    return *this;
-  }
-  allowed_complex_.shared_memory = true;
-  AddPolicyOnMmap([](bpf_labels& labels) -> std::vector<sock_filter> {
-    return {
-        ARG_32(2),  // prot
-        JNE32(PROT_READ | PROT_WRITE, JUMP(&labels, mmap_end)),
-
-        ARG_32(3),  // flags
-        JEQ32(MAP_SHARED, ALLOW),
-
-        LABEL(&labels, mmap_end),
-    };
-  });
-  AllowSyscalls({__NR_munmap, __NR_close});
-  AllowStat();
-  return *this;
-}
-
 PolicyBuilder& PolicyBuilder::AddPolicyOnSyscall(
     uint32_t num, absl::Span<const sock_filter> policy) {
   return AddPolicyOnSyscalls({num}, policy);
