@@ -51,9 +51,10 @@ class Buffer final {
     return CreateFromFd(sapi::file_util::fileops::FDCloser(fd));
   }
 
-  // Creates a new Buffer of the specified size, backed by a temporary file that
-  // will be immediately deleted.
-  static absl::StatusOr<std::unique_ptr<Buffer>> CreateWithSize(size_t size);
+  // Creates a new Buffer of the specified size, backed by a temporary file
+  // (using memfd_create) that will be immediately deleted.
+  static absl::StatusOr<std::unique_ptr<Buffer>> CreateWithSize(
+      size_t size, const char* name = "buffer_file");
 
   // Expands the input buffer to the specified size.
   // Unlike CreateWithSize, this function will pre-allocate the memory.

@@ -93,8 +93,9 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::Expand(
 
 // Creates a new Buffer of the specified size, backed by a temporary file that
 // will be immediately deleted.
-absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(size_t size) {
-  absl::StatusOr<FDCloser> fd = util::CreateMemFd();
+absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(
+    size_t size, const char* name) {
+  absl::StatusOr<FDCloser> fd = util::CreateMemFd(name);
   if (!fd.ok()) {
     return fd.status();
   }
