@@ -103,15 +103,16 @@ struct $1SandboxImpl : public $1Sandbox {
     return &instance;
   }
 
-  $1SandboxImpl() { Check(Init()); }
+  $1SandboxImpl() : $1Sandbox(CreateSandboxConfig()) { Check(Init()); }
 
   void Check(const absl::Status& status) {
     CHECK_OK(status) << "SAPI sandbox $1 failed";
   }
 
-  std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder* builder) override {
-    return $1SandboxModifyPolicy(builder);
+  static sapi::SandboxConfig CreateSandboxConfig() {
+    sandbox2::PolicyBuilder builder =
+        sapi::Sandbox2Config::DefaultPolicyBuilder();
+    return {.sandbox2 = {.policy = $1SandboxModifyPolicy(&builder)}};
   }
 };
 
