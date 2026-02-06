@@ -104,8 +104,6 @@ class ForkClientContext {
 struct Sandbox2Config {
   // Optional. If not set, the default policy will be used.
   // See DefaultPolicyBuilder().
-  // Can be overridden by Sandbox::ModifyPolicy().
-  // TODO(sroettger): remove ModifyPolicy() once all users are migrated.
   std::unique_ptr<sandbox2::Policy> policy;
 
   // Includes the path to the sandboxee. Optional only if the generated embedded
@@ -250,16 +248,6 @@ class Sandbox {
   absl::Status SetWallTimeLimit(absl::Duration limit) const;
 
  protected:
-  // Gets extra arguments to be passed to the sandboxee.
-  ABSL_DEPRECATED("Pass flags through the sapi::SandboxConfig instead.")
-  virtual void GetArgs(std::vector<std::string>* args) const {
-    auto flags =
-        config_.command_line_flags.value_or(SandboxConfig::DefaultFlags());
-    for (const auto& [key, value] : flags) {
-      args->push_back(absl::StrCat("--", key, "=", value));
-    }
-  }
-
   // WrapCallStatus is called with the status returned by a Call. The default
   // implementation simply returns the status as is.
   // This can be used to convert certain errors to a different form, for example
@@ -269,15 +257,6 @@ class Sandbox {
  private:
   absl::Status Call(const std::string& func, v::Callable* ret,
                     std::initializer_list<internal::PtrOrCallable> args);
-  // Returns the sandbox policy. Subclasses can modify the default policy
-  // builder, or return a completely new policy.
-  virtual std::unique_ptr<sandbox2::Policy> ModifyPolicy(
-      sandbox2::PolicyBuilder* builder);
-
-  // Modifies the Executor object if needed.
-  virtual void ModifyExecutor(sandbox2::Executor* executor) {
-    // Do nothing by default.
-  }
 
   void ApplySandbox2Config(sandbox2::Executor* executor) const;
   void MapFileDescriptors(sandbox2::Executor* executor) const;

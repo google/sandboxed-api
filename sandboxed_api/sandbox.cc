@@ -229,7 +229,11 @@ absl::Status Sandbox::Init() {
       }
       std::vector<std::string> args = {lib_path};
       // Additional arguments, if needed.
-      GetArgs(&args);
+      auto flags =
+          config_.command_line_flags.value_or(SandboxConfig::DefaultFlags());
+      for (const auto& [key, value] : flags) {
+        args.push_back(absl::StrCat("--", key, "=", value));
+      }
 
       fork_client_shared().executor_ =
           (embed_lib_fd >= 0) ? std::make_shared<sandbox2::Executor>(
@@ -253,12 +257,12 @@ absl::Status Sandbox::Init() {
   if (config_.sandbox2.policy) {
     s2p = std::make_unique<sandbox2::Policy>(*config_.sandbox2.policy);
   } else {
-      sandbox2::PolicyBuilder policy_builder =
-          Sandbox2Config::DefaultPolicyBuilder();
+    sandbox2::PolicyBuilder policy_builder =
+        Sandbox2Config::DefaultPolicyBuilder();
     if (config_.sandbox2.use_unotify_monitor) {
       policy_builder.CollectStacktracesOnSignal(false);
     }
-    s2p = ModifyPolicy(&policy_builder);
+    s2p = policy_builder.BuildOrDie();
   }
 
   // Spawn new process from the forkserver.
@@ -273,7 +277,6 @@ absl::Status Sandbox::Init() {
   *executor->limits() = Sandbox2Config::DefaultLimits();
 
   // Modify the executor, e.g. by setting custom limits and IPC.
-  ModifyExecutor(executor.get());
   ApplySandbox2Config(executor.get());
   MapFileDescriptors(executor.get());
 
@@ -543,11 +546,6 @@ absl::Status Sandbox::SetWallTimeLimit(absl::Duration limit) const {
   }
   s2_->set_walltime_limit(limit);
   return absl::OkStatus();
-}
-
-std::unique_ptr<sandbox2::Policy> Sandbox::ModifyPolicy(
-    sandbox2::PolicyBuilder* builder) {
-  return builder->BuildOrDie();
 }
 
 }  // namespace sapi
