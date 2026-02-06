@@ -39,6 +39,7 @@ py_test(
 py_binary(
     name = "sapi_generator",
     srcs = ["sapi_generator.py"],
+    strict_deps = False,
     visibility = ["//visibility:public"],
     deps = [
         ":sapi_code",
