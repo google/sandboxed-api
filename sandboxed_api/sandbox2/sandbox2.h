@@ -18,7 +18,9 @@
 #ifndef SANDBOXED_API_SANDBOX2_SANDBOX2_H_
 #define SANDBOXED_API_SANDBOX2_SANDBOX2_H_
 
+#include <cstddef>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -26,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -35,6 +38,9 @@
 #include "sandboxed_api/sandbox2/result.h"
 
 namespace sandbox2 {
+
+// Size of the shared memory region. 10MB by default.
+static constexpr size_t kSandbox2SharedMemorySize = (10ULL << 20);
 
 class Sandbox2 final {
  public:
@@ -90,6 +96,15 @@ class Sandbox2 final {
   // Returns the process id inside the executor.
   pid_t pid() const { return monitor_ != nullptr ? monitor_->pid() : -1; }
 
+  // Creates and maps a shared memory region for the sandboxee.
+  // Returns a pointer to the buffer, which is writable by the sandboxee.
+  // This function should be called prior to running the sandbox.
+  // Note: using this feature requires the policy to explicitly allow the
+  // system calls used to set up the shared memory. You can call
+  // `PolicyBuilder::AllowSharedMemory()` to add the necessary policy.
+  absl::StatusOr<const Buffer*> CreateSharedMemoryMapping(
+      size_t size = kSandbox2SharedMemorySize);
+
   // Returns the comms object from the executor.
   Comms* comms() {
     return executor_ != nullptr ? executor_->ipc()->comms() : nullptr;
@@ -109,6 +124,9 @@ class Sandbox2 final {
   std::unique_ptr<MonitorBase> monitor_;
 
   bool use_unotify_monitor_ = false;
+
+  // Buffer for the shared memory region.
+  std::unique_ptr<Buffer> shared_memory_buffer_;
 };
 
 }  // namespace sandbox2

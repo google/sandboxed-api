@@ -374,3 +374,15 @@ cc_binary(
         "@abseil-cpp//absl/log:check",
     ],
 )
+
+cc_binary(
+    name = "shared_memory",
+    testonly = True,
+    srcs = ["shared_memory.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = [
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+    ],
+)

@@ -20,7 +20,9 @@
 #include <linux/bpf_common.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <sys/mman.h>
 #include <sys/prctl.h>
+#include <sys/stat.h>
 #include <syscall.h>
 #include <unistd.h>
 
@@ -40,12 +42,14 @@
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
@@ -53,7 +57,9 @@
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/status_macros.h"
 
 #ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
@@ -384,7 +390,7 @@ int Client::GetMappedFD(const std::string& name) {
   return fd;
 }
 
-bool Client::HasMappedFD(const std::string& name) {
+bool Client::HasMappedFD(const std::string& name) const {
   return fd_map_.find(name) != fd_map_.end();
 }
 
@@ -411,6 +417,26 @@ absl::Status Client::InstallNetworkProxyHandler() {
   }
   return NetworkProxyHandler::InstallNetworkProxyHandler(
       GetNetworkProxyClient());
+}
+
+absl::StatusOr<const Buffer*> Client::GetSharedMemoryMapping() {
+  if (shared_memory_mapping_ != nullptr) {
+    return shared_memory_mapping_.get();
+  }
+
+  if (!IsSharedMemoryEnabled()) {
+    return absl::FailedPreconditionError("Shared memory is not enabled");
+  }
+
+  int shared_memory_fd = GetMappedFD("s2_shared_memory");
+  SAPI_ASSIGN_OR_RETURN(shared_memory_mapping_,
+                        Buffer::CreateFromFd(sapi::file_util::fileops::FDCloser(
+                            shared_memory_fd)));
+  return shared_memory_mapping_.get();
+}
+
+bool Client::IsSharedMemoryEnabled() const {
+  return shared_memory_mapping_ != nullptr || HasMappedFD("s2_shared_memory");
 }
 
 }  // namespace sandbox2

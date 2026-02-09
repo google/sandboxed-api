@@ -16,6 +16,10 @@
 
 #include "sandboxed_api/sandbox2/sandbox2.h"
 
+#include <fcntl.h>
+
+#include <cerrno>
+#include <cstddef>
 #include <memory>
 #include <utility>
 
@@ -25,11 +29,13 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/stack_trace.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -135,6 +141,28 @@ absl::Status Sandbox2::EnableUnotifyMonitor() {
   }
   use_unotify_monitor_ = true;
   return absl::OkStatus();
+}
+
+absl::StatusOr<const Buffer*> Sandbox2::CreateSharedMemoryMapping(size_t size) {
+  if (monitor_ != nullptr) {
+    return absl::FailedPreconditionError("Sandbox was already launched");
+  }
+  if (shared_memory_buffer_ != nullptr) {
+    return absl::FailedPreconditionError("Shared memory was already created");
+  }
+  SAPI_ASSIGN_OR_RETURN(auto buffer,
+                        Buffer::CreateWithSize(size, "s2_shared_memory"));
+
+  // Seal the shared memory file descriptor to prevent the sandboxee from
+  // growing or shrinking it.
+  if (fcntl(buffer->fd(), F_ADD_SEALS,
+            F_SEAL_SEAL | F_SEAL_GROW | F_SEAL_SHRINK) < 0) {
+    return absl::ErrnoToStatus(errno,
+                               "Could not seal shared memory file descriptor");
+  }
+  executor_->ipc()->MapDupedFd(buffer->fd(), "s2_shared_memory");
+  shared_memory_buffer_ = std::move(buffer);
+  return shared_memory_buffer_.get();
 }
 
 std::unique_ptr<MonitorBase> Sandbox2::CreateMonitor() {

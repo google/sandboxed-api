@@ -20,6 +20,7 @@
 
 #include <cerrno>
 #include <csignal>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -330,6 +331,26 @@ TEST_P(Sandbox2Test, TerminatingProcessGroup) {
   ASSERT_TRUE(comms.SendBool(true));
   // Wait for notification about clean sandboxee exit.
   ASSERT_TRUE(comms.RecvBool(&unused));
+}
+
+TEST(SharedMemoryTest, SharedMemoryDataTransferWorks) {
+  SKIP_SANITIZERS;
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/shared_memory");
+  std::vector<std::string> args = {path, "2"};
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto res,
+                            s2.CreateSharedMemoryMapping(size_t{100} << 20));
+  res->data()[0] = 'Z';
+  auto result = s2.Run();
+
+  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+  EXPECT_EQ(res->data()[0], 'A');
 }
 
 INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),

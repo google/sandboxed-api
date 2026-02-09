@@ -47,12 +47,30 @@ class IPC final {
   // being sent (in SendFdsOverComms() which is called by the Monitor class when
   // Sandbox2::RunAsync() is called), so local_fd should not be used from that
   // point on. The application must not close local_fd after calling MapFd().
+  // If a name is specified, users can use Client::GetMappedFD api to retrieve
+  // the fd in the sandboxee.
+  void MapFd(int local_fd, int remote_fd, absl::string_view name);
+
+  // Similar to MapFd() above, except that we do not name the remote_fd.
   void MapFd(int local_fd, int remote_fd);
+
+  // Similar to MapFd() above, except that we do not pin the remote_fd in the
+  // sandboxee.
+  void MapFd(int local_fd, absl::string_view name);
 
   // Similar to MapFd(), except local_fd remains available for use in the
   // application even after Sandbox2::RunAsync() is called; the application
   // retains responsibility for closing local_fd and may do so at any time after
   // calling MapDupedFd().
+  // If a name is specified, users can use Client::GetMappedFD api to retrieve
+  // the fd in the sandboxee.
+  void MapDupedFd(int local_fd, int remote_fd, absl::string_view name);
+
+  // Similar to MapDupedFd() above, except that we do not pin the remote_fd in
+  // the sandboxee.
+  void MapDupedFd(int local_fd, absl::string_view name);
+
+  // Similar to MapDupedFd() above, except that we do not name the remote_fd.
   void MapDupedFd(int local_fd, int remote_fd);
 
   // Creates and returns a socketpair endpoint. The other endpoint of the
