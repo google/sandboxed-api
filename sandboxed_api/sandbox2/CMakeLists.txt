@@ -756,6 +756,7 @@ add_library(sandbox2::buffer ALIAS sandbox2_buffer)
 target_link_libraries(sandbox2_buffer
   PRIVATE absl::memory
           absl::status
+          absl::strings
           sapi::base
           sandbox2::util
   PUBLIC absl::core_headers

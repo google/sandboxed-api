@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/base/macros.h"
@@ -70,6 +71,9 @@ class Buffer final {
 
   // Gets the file descriptor backing the buffer.
   int fd() const { return fd_.get(); }
+
+  // Gets the name of the buffer (for debugging purposes).
+  std::string GetName() const;
 
  private:
   Buffer(sapi::file_util::fileops::FDCloser fd, uint8_t* buf, size_t size)

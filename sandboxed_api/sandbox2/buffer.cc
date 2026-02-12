@@ -23,11 +23,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 
@@ -103,6 +105,11 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(
     return absl::ErrnoToStatus(errno, "Could not extend buffer fd");
   }
   return CreateFromFd(*std::move(fd), size);
+}
+
+std::string Buffer::GetName() const {
+  return sapi::file_util::fileops::ReadLink(
+      absl::StrCat("/proc/self/fd/", fd_.get()));
 }
 
 Buffer::~Buffer() {
