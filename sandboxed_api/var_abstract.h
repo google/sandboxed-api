@@ -25,7 +25,7 @@
 
 namespace sapi {
 class RPCChannel;
-class Sandbox;
+class SandboxBase;
 }  // namespace sapi
 
 namespace sapi::v {
@@ -106,7 +106,7 @@ class Var {
   };
 
   // Invokes Allocate()/Free()/Transfer*Sandboxee().
-  friend class ::sapi::Sandbox;
+  friend class ::sapi::SandboxBase;
 
   std::unique_ptr<Ptr, PtrDeleter> ptr_none_;
   std::unique_ptr<Ptr, PtrDeleter> ptr_both_;

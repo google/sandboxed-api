@@ -69,6 +69,7 @@ cc_library(
     name = "sapi",
     srcs = [
         "sandbox.cc",
+        "sandbox2_backend.cc",
         "sandbox2_rpcchannel.cc",
         "sandbox2_rpcchannel.h",
         "transaction.cc",
@@ -78,6 +79,8 @@ cc_library(
         #                 supports this usecase.
         "embed_file.h",
         "sandbox.h",
+        "sandbox2_backend.h",
+        "sandbox_config.h",
         "transaction.h",
     ],
     copts = sapi_platform_copts(),

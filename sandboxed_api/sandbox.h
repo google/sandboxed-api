@@ -17,40 +17,24 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <ctime>
 #include <initializer_list>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
-#include <variant>
-#include <vector>
 
-#include "sandboxed_api/file_toc.h"
 #include "absl/base/attributes.h"
-#include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/base/macros.h"
 #include "absl/log/check.h"
-#include "absl/log/globals.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/executor.h"
-#include "sandboxed_api/sandbox2/fork_client.h"
-#include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/notify.h"
-#include "sandboxed_api/sandbox2/policy.h"
-#include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
-#include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2_rpcchannel.h"
-#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/sandbox2_backend.h"
+#include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/vars.h"
@@ -75,97 +59,22 @@ class PtrOrCallable {
 };
 }  // namespace internal
 
-// Context holding, potentially shared, fork client.
-class ForkClientContext {
- public:
-  explicit ForkClientContext(const FileToc* embed_lib_toc)
-      : sandboxee_source_(embed_lib_toc) {
-    CHECK(embed_lib_toc != nullptr);
-  }
-  // Path of the sandboxee:
-  //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
-  //    will be applied to it,
-  //  - absolute: will be used as is.
-  explicit ForkClientContext(std::string lib_path)
-      : sandboxee_source_(std::move(lib_path)) {}
-
- private:
-  friend class Sandbox;
-
-  std::variant<const FileToc*, std::string> sandboxee_source_;
-  struct SharedState {
-    absl::Mutex mu_;
-    std::shared_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);
-    std::shared_ptr<sandbox2::Executor> executor_ ABSL_GUARDED_BY(mu_);
-  };
-  std::shared_ptr<SharedState> shared_ = std::make_shared<SharedState>();
-};
-
-struct Sandbox2Config {
-  // Optional. If not set, the default policy will be used.
-  // See DefaultPolicyBuilder().
-  std::unique_ptr<sandbox2::Policy> policy;
-
-  // Includes the path to the sandboxee. Optional only if the generated embedded
-  // sandboxee class is used.
-  std::optional<ForkClientContext> fork_client_context;
-
-  bool use_unotify_monitor = false;
-  bool enable_log_server = false;
-  std::optional<std::string> cwd;
-  std::optional<sandbox2::Limits> limits;
-
-  // A generic policy which should work with majority of typical libraries,
-  // which are single-threaded and require ~30 basic syscalls.
-  static sandbox2::PolicyBuilder DefaultPolicyBuilder();
-
-  static sandbox2::Limits DefaultLimits();
-};
-
-struct SandboxConfig {
-  std::optional<std::vector<std::string>> environment_variables;
-  std::optional<absl::flat_hash_map<std::string, std::string>>
-      command_line_flags;
-  // File descriptors to map into the sandbox.
-  // The first element of the pair is the host fd, the second is the new fd in
-  // the sandbox.
-  std::optional<std::vector<std::pair<sapi::file_util::fileops::FDCloser, int>>>
-      fd_mappings;
-
-  Sandbox2Config sandbox2;
-
-  static std::vector<std::string> DefaultEnvironmentVariables() {
-    return {
-    };
-  }
-
-  static absl::flat_hash_map<std::string, std::string> DefaultFlags() {
-    return {
-        {"stderrthreshold",
-         std::to_string(static_cast<int>(absl::StderrThreshold()))},
-    };
-  }
-};
-
 // The Sandbox class represents the sandboxed library. It provides users with
 // means to communicate with it (make function calls, transfer memory).
-class Sandbox {
+class SandboxBase {
  public:
-  explicit Sandbox(SandboxConfig config);
+  SandboxBase() = default;
 
-  Sandbox(const Sandbox&) = delete;
-  Sandbox& operator=(const Sandbox&) = delete;
-
-  virtual ~Sandbox();
+  virtual ~SandboxBase() = default;
 
   // Initializes a new sandboxing session.
-  absl::Status Init();
+  virtual absl::Status Init() = 0;
 
   // Returns whether the current sandboxing session is active.
-  bool is_active() const;
+  virtual bool is_active() const = 0;
 
   // Terminates the current sandboxing session (if it exists).
-  void Terminate(bool attempt_graceful_exit = true);
+  virtual void Terminate(bool attempt_graceful_exit = true) = 0;
 
   // Restarts the sandbox.
   absl::Status Restart(bool attempt_graceful_exit) {
@@ -173,11 +82,7 @@ class Sandbox {
     return Init();
   }
 
-  sandbox2::Comms* comms() const { return comms_; }
-
-  RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
-
-  int pid() const { return pid_; }
+  virtual RPCChannel* rpc_channel() const = 0;
 
   // Synchronizes the underlying memory for the pointer before the call.
   absl::Status SynchronizePtrBefore(v::Ptr* ptr);
@@ -242,10 +147,9 @@ class Sandbox {
   );
 
   // Waits until the sandbox terminated and returns the result.
-  const sandbox2::Result& AwaitResult();
-  const sandbox2::Result& result() const { return result_; }
+  virtual const sandbox2::Result& AwaitResult() = 0;
 
-  absl::Status SetWallTimeLimit(absl::Duration limit) const;
+  virtual absl::Status SetWallTimeLimit(absl::Duration limit) const = 0;
 
  protected:
   // WrapCallStatus is called with the status returned by a Call. The default
@@ -254,47 +158,71 @@ class Sandbox {
   // to convert sandbox channel errors to a specific status.
   virtual absl::Status WrapCallStatus(absl::Status status) { return status; }
 
- private:
   absl::Status Call(const std::string& func, v::Callable* ret,
                     std::initializer_list<internal::PtrOrCallable> args);
 
-  void ApplySandbox2Config(sandbox2::Executor* executor) const;
-  void MapFileDescriptors(sandbox2::Executor* executor) const;
+ private:
+  // TODO(sroettger): Remove this function after migrating all users of
+  // CreateNotifier() to Sandbox2Backend.
+  friend class Sandbox2Backend;
 
-  // Provides a custom notifier for sandboxee events. May return nullptr.
+  ABSL_DEPRECATED("Override CreateNotifier() in Sandbox2Backend instead")
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
-
-  std::vector<std::string> EnvironmentVariables() const {
-    return config_.environment_variables.value_or(
-        SandboxConfig::DefaultEnvironmentVariables());
-  }
-
-  const ForkClientContext& fork_client_context() const {
-    return config_.sandbox2.fork_client_context.value();
-  }
-  ForkClientContext::SharedState& fork_client_shared() const {
-    return *fork_client_context().shared_;
-  }
-
-  // The main sandbox2::Sandbox2 object.
-  std::unique_ptr<sandbox2::Sandbox2> s2_;
-  // Marks whether Sandbox2 result was already fetched.
-  // We cannot just delete s2_ as Terminate might be called from another thread
-  // and comms object can be still in use then.
-  bool s2_awaited_ = false;
-
-  // Result of the most recent sandbox execution
-  sandbox2::Result result_;
-
-  // Comms with the sandboxee.
-  sandbox2::Comms* comms_ = nullptr;
-  // RPCChannel object.
-  std::unique_ptr<RPCChannel> rpc_channel_;
-  // The main pid of the sandboxee.
-  pid_t pid_ = 0;
-
-  SandboxConfig config_;
 };
+
+// The Sandbox class represents the sandboxed library. It provides users with
+// means to communicate with it (make function calls, transfer memory).
+template <typename Backend>
+class SandboxImpl : public SandboxBase {
+ public:
+  explicit SandboxImpl(SandboxConfig config)
+      : SandboxBase(), backend_(this, std::move(config)) {}
+
+  SandboxImpl(const SandboxImpl&) = delete;
+  SandboxImpl& operator=(const SandboxImpl&) = delete;
+
+  virtual ~SandboxImpl() = default;
+
+  // Initializes a new sandboxing session.
+  absl::Status Init() override { return backend().Init(); }
+
+  // Returns whether the current sandboxing session is active.
+  bool is_active() const override { return backend().is_active(); }
+
+  // Terminates the current sandboxing session (if it exists).
+  void Terminate(bool attempt_graceful_exit = true) override {
+    backend().Terminate(attempt_graceful_exit);
+  }
+
+  ABSL_DEPRECATE_AND_INLINE()
+  sandbox2::Comms* comms() const { return backend().comms(); }
+
+  ABSL_DEPRECATE_AND_INLINE()
+  int pid() const { return backend().pid(); }
+
+  ABSL_DEPRECATE_AND_INLINE()
+  absl::Status SetWallTimeLimit(absl::Duration limit) const override {
+    return backend().SetWallTimeLimit(limit);
+  }
+
+  // TODO(sroettger): migrate all callers that need the sandbox2::Result to
+  // backend().AwaitResult() instead and afterwards make this function return
+  // absl::Status.
+  const sandbox2::Result& AwaitResult() override {
+    return backend().AwaitResult();
+  }
+  const sandbox2::Result& result() const { return backend().result(); }
+
+  RPCChannel* rpc_channel() const override { return backend().rpc_channel(); }
+
+  Backend& backend() { return backend_; }
+  const Backend& backend() const { return backend_; }
+
+ private:
+  Backend backend_;
+};
+
+using Sandbox = SandboxImpl<Sandbox2Backend>;
 
 }  // namespace sapi
 

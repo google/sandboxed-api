@@ -53,6 +53,9 @@ target_link_libraries(sapi_embed_file
 add_library(sapi_sapi ${SAPI_LIB_TYPE}
   sandbox.cc
   sandbox.h
+  sandbox2_backend.cc
+  sandbox2_backend.h
+  sandbox_config.h
   sandbox2_rpcchannel.cc
   sandbox2_rpcchannel.h
   transaction.cc
