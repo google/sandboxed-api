@@ -74,12 +74,13 @@ constexpr absl::string_view kEmbedInclude = R"(#include "%1$s_embed.h"
 //   2. Embedded object identifier
 constexpr absl::string_view kEmbedClassTemplate = R"(
 // Sandbox with embedded sandboxee and default policy
-class %1$s : public ::sapi::Sandbox {
+class %1$s : public ::sapi::SandboxImpl<::sapi::Sandbox2Backend> {
  public:
   %1$s()
       : %1$s(::sapi::SandboxConfig{}) {}
   %1$s(::sapi::SandboxConfig config)
-      : ::sapi::Sandbox(ConfigWithForkClientContext(std::move(config))) {}
+      : ::sapi::SandboxImpl<::sapi::Sandbox2Backend>(
+          ConfigWithForkClientContext(std::move(config))) {}
 
  private:
   static ::sapi::SandboxConfig ConfigWithForkClientContext(
@@ -92,6 +93,12 @@ class %1$s : public ::sapi::Sandbox {
   }
 };
 
+)";
+
+// Text template arguments:
+//   1. Class name
+constexpr absl::string_view kSandboxTypedefTemplate = R"(
+using %1$s = ::sapi::SandboxImpl<::sapi::Sandbox2Backend>;
 )";
 
 // Sandboxed API class template.
@@ -498,10 +505,14 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader() {
   }
 
   // Optionally emit a default sandbox that instantiates an embedded sandboxee
+  std::string sandbox_class_name = absl::StrCat(options_.name, "Sandbox");
   if (!options_.embed_name.empty()) {
     absl::StrAppendFormat(
-        &out, kEmbedClassTemplate, absl::StrCat(options_.name, "Sandbox"),
+        &out, kEmbedClassTemplate, sandbox_class_name,
         absl::StrReplaceAll(options_.embed_name, {{"-", "_"}}));
+  } else {
+    // Or a typedef for the sandbox class if no embedded sandboxee is used.
+    absl::StrAppendFormat(&out, kSandboxTypedefTemplate, sandbox_class_name);
   }
 
   // Emit the actual Sandboxed API

@@ -818,12 +818,13 @@ class Generator(object):
   GUARD_END = '#endif  // {}'
   EMBED_INCLUDE = '#include "{}"'
   EMBED_CLASS = """
-class {0}Sandbox : public ::sapi::Sandbox {{
+class {0}Sandbox : public ::sapi::SandboxImpl<::sapi::Sandbox2Backend> {{
   public:
     {0}Sandbox()
       : {0}Sandbox(::sapi::SandboxConfig{{}}) {{}}
     {0}Sandbox(::sapi::SandboxConfig config)
-      : ::sapi::Sandbox(ConfigWithForkClientContext(std::move(config))) {{}}
+      : ::sapi::SandboxImpl<::sapi::Sandbox2Backend>(
+          ConfigWithForkClientContext(std::move(config))) {{}}
   private:
     static ::sapi::SandboxConfig ConfigWithForkClientContext(
       ::sapi::SandboxConfig config) {{
@@ -834,6 +835,9 @@ class {0}Sandbox : public ::sapi::Sandbox {{
       return config;
   }}
 }};"""
+  SANDBOX_CLASS_TYPEDEF = (
+      'using {0}Sandbox = ::sapi::SandboxImpl<::sapi::Sandbox2Backend>;'
+  )
 
   def __init__(self, translation_units):
     # type: (List[cindex.TranslationUnit]) -> None
@@ -1085,6 +1089,10 @@ class {0}Sandbox : public ::sapi::Sandbox {{
       result.append(
           Generator.EMBED_CLASS.format(name, embed_name.replace('-', '_'))
       )
+    else:
+      result.append(Generator.SANDBOX_CLASS_TYPEDEF.format(name))
+
+    result.append('')
 
     result.append('class {}Api {{'.format(name))
     result.append(' public:')
