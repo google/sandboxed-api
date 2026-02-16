@@ -101,18 +101,18 @@ constexpr absl::string_view kClassHeaderTemplate = R"(
 // Sandboxed API
 class %1$s {
  public:
-  explicit %1$s(::sapi::Sandbox* sandbox) : sandbox_(sandbox) {}
+  explicit %1$s(::sapi::SandboxBase* sandbox) : sandbox_(sandbox) {}
 
 
   ABSL_DEPRECATED("Call sandbox() instead")
-  ::sapi::Sandbox* GetSandbox() const { return sandbox(); }
-  ::sapi::Sandbox* sandbox() const { return sandbox_; }
+  ::sapi::SandboxBase* GetSandbox() const { return sandbox(); }
+  ::sapi::SandboxBase* sandbox() const { return sandbox_; }
 )";
 
 // Sandboxed API class template footer.
 constexpr absl::string_view kClassFooterTemplate = R"(
  private:
-  ::sapi::Sandbox* sandbox_;
+  ::sapi::SandboxBase* sandbox_;
 };
 )";
 

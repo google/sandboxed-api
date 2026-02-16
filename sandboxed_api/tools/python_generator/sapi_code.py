@@ -53,9 +53,9 @@ from clang import cindex
 
 _PARSE_OPTIONS = (
     cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
-    | cindex.TranslationUnit.PARSE_INCOMPLETE |
+    | cindex.TranslationUnit.PARSE_INCOMPLETE
     # for include directives
-    cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+    | cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
 )
 
 
@@ -161,8 +161,10 @@ class Type(object):
       true if this Type occurs earlier in the AST than 'other'
     """
     self._validate_tu(other)
-    return (self._tu.order[self._get_declaration().hash] <
-            self._tu.order[other._get_declaration().hash])  # pylint: disable=protected-access
+    return (
+        self._tu.order[self._get_declaration().hash]
+        < self._tu.order[other._get_declaration().hash]
+    )  # pylint: disable=protected-access
 
   def __gt__(self, other):
     # type: (Type) -> bool
@@ -180,8 +182,10 @@ class Type(object):
       true if this Type occurs later in the AST than 'other'
     """
     self._validate_tu(other)
-    return (self._tu.order[self._get_declaration().hash] >
-            self._tu.order[other._get_declaration().hash])  # pylint: disable=protected-access
+    return (
+        self._tu.order[self._get_declaration().hash]
+        > self._tu.order[other._get_declaration().hash]
+    )  # pylint: disable=protected-access
 
   def __hash__(self):
     """Types with the same declaration should hash to the same value."""
@@ -209,23 +213,28 @@ class Type(object):
   def is_sugared_record(self):  # class, struct, union
     # type: () -> bool
     return self._clang_type.get_declaration().kind in (
-        cindex.CursorKind.STRUCT_DECL, cindex.CursorKind.UNION_DECL,
-        cindex.CursorKind.CLASS_DECL)
+        cindex.CursorKind.STRUCT_DECL,
+        cindex.CursorKind.UNION_DECL,
+        cindex.CursorKind.CLASS_DECL,
+    )
 
   def is_struct(self):
     # type: () -> bool
-    return (self._clang_type.get_declaration().kind ==
-            cindex.CursorKind.STRUCT_DECL)
+    return (
+        self._clang_type.get_declaration().kind == cindex.CursorKind.STRUCT_DECL
+    )
 
   def is_class(self):
     # type: () -> bool
-    return (self._clang_type.get_declaration().kind ==
-            cindex.CursorKind.CLASS_DECL)
+    return (
+        self._clang_type.get_declaration().kind == cindex.CursorKind.CLASS_DECL
+    )
 
   def is_union(self):
     # type: () -> bool
-    return (self._clang_type.get_declaration().kind ==
-            cindex.CursorKind.UNION_DECL)
+    return (
+        self._clang_type.get_declaration().kind == cindex.CursorKind.UNION_DECL
+    )
 
   def is_function(self):
     # type: () -> bool
@@ -278,19 +287,21 @@ class Type(object):
       return self._get_related_types_of_typedef(result)
 
     if self.is_elaborated():
-      return Type(self._tu,
-                  self._clang_type.get_named_type()).get_related_types(
-                      result, skip_self)
+      return Type(
+          self._tu, self._clang_type.get_named_type()
+      ).get_related_types(result, skip_self)
 
     # Composite types.
     if self.is_const_array():
       t = Type(self._tu, self._clang_type.get_array_element_type())
       return t.get_related_types(result)
 
-    if self._clang_type.kind in (cindex.TypeKind.POINTER,
-                                 cindex.TypeKind.MEMBERPOINTER,
-                                 cindex.TypeKind.LVALUEREFERENCE,
-                                 cindex.TypeKind.RVALUEREFERENCE):
+    if self._clang_type.kind in (
+        cindex.TypeKind.POINTER,
+        cindex.TypeKind.MEMBERPOINTER,
+        cindex.TypeKind.LVALUEREFERENCE,
+        cindex.TypeKind.RVALUEREFERENCE,
+    ):
       return self.get_pointee().get_related_types(result, skip_self)
 
     # union + struct, class should be filtered out
@@ -351,8 +362,9 @@ class Type(object):
     """Returns all types related to the function."""
     for arg in self._clang_type.argument_types():
       result.update(Type(self._tu, arg).get_related_types(result))
-    related = Type(self._tu,
-                   self._clang_type.get_result()).get_related_types(result)
+    related = Type(self._tu, self._clang_type.get_result()).get_related_types(
+        result
+    )
     result.update(related)
 
     return result
@@ -365,8 +377,7 @@ class Type(object):
 
     if other_extent.start.file is None:
       return False
-    return (other_extent.start in self_extent and
-            other_extent.end in self_extent)
+    return other_extent.start in self_extent and other_extent.end in self_extent
 
   def stringify(self):
     # type: () -> Text
@@ -374,7 +385,8 @@ class Type(object):
     # (szwl): as simple as possible, keeps macros in separate lines not to
     # break things; this will go through clang format nevertheless
     tokens = [
-        x for x in self._get_declaration().get_tokens()
+        x
+        for x in self._get_declaration().get_tokens()
         if x.kind is not cindex.TokenKind.COMMENT
     ]
 
@@ -476,7 +488,8 @@ class ArgumentType(Type):
     if type_.kind == cindex.TypeKind.ENUM:
       return '::sapi::v::IntBase<{}>'.format(self._clang_type.spelling)
     if type_.kind in [
-        cindex.TypeKind.CONSTANTARRAY, cindex.TypeKind.INCOMPLETEARRAY
+        cindex.TypeKind.CONSTANTARRAY,
+        cindex.TypeKind.INCOMPLETEARRAY,
     ]:
       return '::sapi::v::Reg<{}>'.format(self._clang_type.spelling)
 
@@ -487,18 +500,29 @@ class ArgumentType(Type):
       return 'RVALUEREFERENCE::NOT_SUPPORTED'
 
     if type_.kind in [cindex.TypeKind.RECORD, cindex.TypeKind.ELABORATED]:
-      raise ValueError('Elaborate type (eg. struct) in mapped_type is not '
-                       'supported: function {}, arg {}, type {}, location {}'
-                       ''.format(self._function.name, self.pos,
-                                 self._clang_type.spelling,
-                                 self._function.cursor.location))
+      raise ValueError(
+          'Elaborate type (eg. struct) in mapped_type is not '
+          'supported: function {}, arg {}, type {}, location {}'
+          ''.format(
+              self._function.name,
+              self.pos,
+              self._clang_type.spelling,
+              self._function.cursor.location,
+          )
+      )
 
     if type_.kind not in TYPE_MAPPING:
-      raise KeyError('Key {} does not exist in TYPE_MAPPING.'
-                     ' function {}, arg {}, type {}, location {}'
-                     ''.format(type_.kind, self._function.name, self.pos,
-                               self._clang_type.spelling,
-                               self._function.cursor.location))
+      raise KeyError(
+          'Key {} does not exist in TYPE_MAPPING.'
+          ' function {}, arg {}, type {}, location {}'
+          ''.format(
+              type_.kind,
+              self._function.name,
+              self.pos,
+              self._clang_type.spelling,
+              self._function.cursor.location,
+          )
+      )
 
     return TYPE_MAPPING[type_.kind]
 
@@ -506,9 +530,9 @@ class ArgumentType(Type):
 class ReturnType(ArgumentType):
   """Class representing function return type.
 
-     Attributes:
-       return_type: absl::StatusOr<T> where T is original return type, or
-                    absl::Status for functions returning void
+  Attributes:
+    return_type: absl::StatusOr<T> where T is original return type, or
+                 absl::Status for functions returning void
   """
 
   def __init__(self, function, arg_type):
@@ -539,7 +563,8 @@ class Function(object):
     self.name = cursor.spelling  # type: Text
     self.result = ReturnType(self, cursor.result_type)
     self.original_definition = '{} {}'.format(
-        cursor.result_type.spelling, self.cursor.displayname)  # type: Text
+        cursor.result_type.spelling, self.cursor.displayname
+    )  # type: Text
 
     types = self.cursor.get_arguments()
     self.argument_types = [
@@ -657,22 +682,28 @@ class _TranslationUnit(object):
         if cursor.kind.is_declaration():
           self.order[cursor.hash] = i
 
-        if (cursor.kind == cindex.CursorKind.MACRO_DEFINITION and
-            cursor.location.file):
+        if (
+            cursor.kind == cindex.CursorKind.MACRO_DEFINITION
+            and cursor.location.file
+        ):
           self.order[cursor.hash] = i
           self.defines[cursor.spelling] = cursor
 
         # most likely a forward decl of struct
-        if (cursor.kind == cindex.CursorKind.STRUCT_DECL and
-            not cursor.is_definition()):
+        if (
+            cursor.kind == cindex.CursorKind.STRUCT_DECL
+            and not cursor.is_definition()
+        ):
           self.forward_decls[Type(self, cursor.type)] = cursor
-        if (cursor.kind == cindex.CursorKind.FUNCTION_DECL and
-            cursor.linkage != cindex.LinkageKind.INTERNAL):
+        if (
+            cursor.kind == cindex.CursorKind.FUNCTION_DECL
+            and cursor.linkage != cindex.LinkageKind.INTERNAL
+        ):
           # Skip non-interesting functions
           if self.func_names and cursor.spelling not in self.func_names:
             continue
           if self.limit_scan_depth:
-            if (cursor.location and cursor.location.file.name == self.path):
+            if cursor.location and cursor.location.file.name == self.path:
               self.functions.add(Function(self, cursor))
           else:
             self.functions.add(Function(self, cursor))
@@ -778,13 +809,15 @@ class Analyzer(object):
 class Generator(object):
   """Class responsible for code generation."""
 
-  AUTO_GENERATED = ('// AUTO-GENERATED by the Sandboxed API generator.\n'
-                    '// Edits will be discarded when regenerating this file.\n')
+  AUTO_GENERATED = (
+      '// AUTO-GENERATED by the Sandboxed API generator.\n'
+      '// Edits will be discarded when regenerating this file.\n'
+  )
 
-  GUARD_START = ('#ifndef {0}\n' '#define {0}')
+  GUARD_START = '#ifndef {0}\n#define {0}'
   GUARD_END = '#endif  // {}'
   EMBED_INCLUDE = '#include "{}"'
-  EMBED_CLASS = '''
+  EMBED_CLASS = """
 class {0}Sandbox : public ::sapi::Sandbox {{
   public:
     {0}Sandbox()
@@ -800,7 +833,7 @@ class {0}Sandbox : public ::sapi::Sandbox {{
       }}
       return config;
   }}
-}};'''
+}};"""
 
   def __init__(self, translation_units):
     # type: (List[cindex.TranslationUnit]) -> None
@@ -851,7 +884,7 @@ class {0}Sandbox : public ::sapi::Sandbox {{
         'namespaces': namespace.split('::') if namespace else [],
         'embed_dir': embed_dir,
         'embed_name': embed_name,
-        'output_file': output_file
+        'output_file': output_file,
     }
     return self.format_template(**api)
 
@@ -917,8 +950,10 @@ class {0}Sandbox : public ::sapi::Sandbox {{
           define = tu.defines[name]
           tmp_result.append(define)
       for define in sorted(tmp_result, key=sort_condition):
-        result.append('#define ' +
-                      _stringify_tokens(define.get_tokens(), separator=' \\\n'))
+        result.append(
+            '#define '
+            + _stringify_tokens(define.get_tokens(), separator=' \\\n')
+        )
     return result
 
   def _get_forward_decls(self, types):
@@ -967,14 +1002,18 @@ class {0}Sandbox : public ::sapi::Sandbox {{
       call_arguments.insert(0, '')
     result.append('')
     # For OSS, the macro below will be replaced.
-    result.append('    SAPI_RETURN_IF_ERROR(sandbox_->Call("{}", &ret{}));'
-                  ''.format(f.name, ', '.join(call_arguments)))
+    result.append(
+        '    SAPI_RETURN_IF_ERROR(sandbox_->Call("{}", &ret{}));'.format(
+            f.name, ', '.join(call_arguments)
+        )
+    )
 
     return_status = 'return absl::OkStatus();'
     if f.result and not f.result.is_void():
       if f.result and f.result.is_sugared_enum():
-        return_status = ('return static_cast<{}>'
-                         '(ret.GetValue());').format(f.result.type)
+        return_status = ('return static_cast<{}>(ret.GetValue());').format(
+            f.result.type
+        )
       else:
         return_status = 'return ret.GetValue();'
     result.append('    {}'.format(return_status))
@@ -982,8 +1021,16 @@ class {0}Sandbox : public ::sapi::Sandbox {{
 
     return '\n'.join(result)
 
-  def format_template(self, name, functions, related_types, namespaces,
-                      embed_dir, embed_name, output_file):
+  def format_template(
+      self,
+      name,
+      functions,
+      related_types,
+      namespaces,
+      embed_dir,
+      embed_name,
+      output_file,
+  ):
     # pylint: disable=line-too-long
     # type: (Text, List[Function], List[Text], List[Text], Text, Text, Text) -> Text
     # pylint: enable=line-too-long
@@ -1018,7 +1065,9 @@ class {0}Sandbox : public ::sapi::Sandbox {{
       embed_dir = embed_dir or ''
       result.append(
           Generator.EMBED_INCLUDE.format(
-              os.path.join(embed_dir, embed_name) + '_embed.h'))
+              os.path.join(embed_dir, embed_name) + '_embed.h'
+          )
+      )
 
     if namespaces:
       result.append('')
@@ -1034,15 +1083,20 @@ class {0}Sandbox : public ::sapi::Sandbox {{
 
     if embed_name:
       result.append(
-          Generator.EMBED_CLASS.format(name, embed_name.replace('-', '_')))
+          Generator.EMBED_CLASS.format(name, embed_name.replace('-', '_'))
+      )
 
     result.append('class {}Api {{'.format(name))
     result.append(' public:')
-    result.append('  explicit {}Api(::sapi::Sandbox* sandbox)'
-                  ' : sandbox_(sandbox) {{}}'.format(name))
+    result.append(
+        '  explicit {}Api(::sapi::SandboxBase* sandbox)'
+        ' : sandbox_(sandbox) {{}}'.format(name)
+    )
     result.append('  // Deprecated')
-    result.append('  ::sapi::Sandbox* GetSandbox() const { return sandbox(); }')
-    result.append('  ::sapi::Sandbox* sandbox() const { return sandbox_; }')
+    result.append(
+        '  ::sapi::SandboxBase* GetSandbox() const { return sandbox(); }'
+    )
+    result.append('  ::sapi::SandboxBase* sandbox() const { return sandbox_; }')
 
     for f in functions:
       result.append('')
@@ -1050,7 +1104,7 @@ class {0}Sandbox : public ::sapi::Sandbox {{
 
     result.append('')
     result.append(' private:')
-    result.append('  ::sapi::Sandbox* sandbox_;')
+    result.append('  ::sapi::SandboxBase* sandbox_;')
     result.append('};')
     result.append('')
 

@@ -29,10 +29,10 @@ namespace Tests {
 
 class TestApi {
  public:
-  explicit TestApi(::sapi::Sandbox* sandbox) : sandbox_(sandbox) {}
+  explicit TestApi(::sapi::SandboxBase* sandbox) : sandbox_(sandbox) {}
   // Deprecated
-  ::sapi::Sandbox* GetSandbox() const { return sandbox(); }
-  ::sapi::Sandbox* sandbox() const { return sandbox_; }
+  ::sapi::SandboxBase* GetSandbox() const { return sandbox(); }
+  ::sapi::SandboxBase* sandbox() const { return sandbox_; }
 
   // int function_a(int, int)
   absl::StatusOr<int> function_a(int x, int y) {
@@ -112,7 +112,7 @@ class TestApi {
   }
 
  private:
-  ::sapi::Sandbox* sandbox_;
+  ::sapi::SandboxBase* sandbox_;
 };
 
 }  // namespace Tests
@@ -136,10 +136,10 @@ typedef uint * uintp;
 
 class TestApi {
  public:
-  explicit TestApi(::sapi::Sandbox* sandbox) : sandbox_(sandbox) {}
+  explicit TestApi(::sapi::SandboxBase* sandbox) : sandbox_(sandbox) {}
   // Deprecated
-  ::sapi::Sandbox* GetSandbox() const { return sandbox(); }
-  ::sapi::Sandbox* sandbox() const { return sandbox_; }
+  ::sapi::SandboxBase* GetSandbox() const { return sandbox(); }
+  ::sapi::SandboxBase* sandbox() const { return sandbox_; }
 
   // uint function(uintp)
   absl::StatusOr<uint> function(::sapi::v::Ptr* a) {
@@ -150,7 +150,7 @@ class TestApi {
   }
 
  private:
-  ::sapi::Sandbox* sandbox_;
+  ::sapi::SandboxBase* sandbox_;
 };
 
 }  // namespace Tests
@@ -176,10 +176,10 @@ enum ProcessStatus {
 
 class TestApi {
  public:
-  explicit TestApi(::sapi::Sandbox* sandbox) : sandbox_(sandbox) {}
+  explicit TestApi(::sapi::SandboxBase* sandbox) : sandbox_(sandbox) {}
   // Deprecated
-  ::sapi::Sandbox* GetSandbox() const { return sandbox(); }
-  ::sapi::Sandbox* sandbox() const { return sandbox_; }
+  ::sapi::SandboxBase* GetSandbox() const { return sandbox(); }
+  ::sapi::SandboxBase* sandbox() const { return sandbox_; }
 
   // ProcessStatus ProcessDatapoint(ProcessStatus)
   absl::StatusOr<ProcessStatus> ProcessDatapoint(ProcessStatus status) {
@@ -191,7 +191,7 @@ class TestApi {
   }
 
  private:
-  ::sapi::Sandbox* sandbox_;
+  ::sapi::SandboxBase* sandbox_;
 };
 
 }  // namespace Tests
