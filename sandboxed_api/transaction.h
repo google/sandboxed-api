@@ -24,9 +24,9 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox.h"
+#include "sandboxed_api/sandbox2_backend.h"
 
 #define TRANSACTION_FAIL_IF_NOT(x, y)        \
   if (!(x)) {                                \
@@ -34,6 +34,12 @@
   }
 
 namespace sapi {
+
+// This typedef is temporary for migration purposes. It should be used if you
+// need to use Sandbox2 specific features in the transaction. Otherwise use
+// the base SandboxBase class.
+// TODO(sroettger): Replace this with SandboxBase.
+using SandboxForTransaction = SandboxImpl<Sandbox2Backend>;
 
 // The Transaction class allows to perform operations in the sandboxee,
 // repeating them if necessary (if the sandboxing, or IPC failed).
@@ -76,7 +82,7 @@ class TransactionBase {
   bool IsInitialized() const { return initialized_; }
 
   // Getter for the sandbox_.
-  Sandbox* sandbox() const { return sandbox_.get(); }
+  SandboxForTransaction* sandbox() const { return sandbox_.get(); }
 
   // Restarts the sandbox.
   // WARNING: This will invalidate any references to the remote process, make
@@ -91,7 +97,7 @@ class TransactionBase {
   }
 
  protected:
-  explicit TransactionBase(std::unique_ptr<Sandbox> sandbox)
+  explicit TransactionBase(std::unique_ptr<SandboxForTransaction> sandbox)
       : time_limit_(kDefaultTimeLimit), sandbox_(std::move(sandbox)) {}
 
   // Runs the main (retrying) transaction loop.
@@ -128,7 +134,7 @@ class TransactionBase {
   bool initialized_ = false;
 
   // The main sapi::Sandbox object.
-  std::unique_ptr<Sandbox> sandbox_;
+  std::unique_ptr<SandboxForTransaction> sandbox_;
 };
 
 // Regular style transactions, based on inheriting.
@@ -151,24 +157,25 @@ class Transaction : public TransactionBase {
 // Callback style transactions:
 class BasicTransaction final : public TransactionBase {
  private:
-  using InitFunction = std::function<absl::Status(Sandbox*)>;
-  using FinishFunction = std::function<absl::Status(Sandbox*)>;
+  using InitFunction = std::function<absl::Status(SandboxForTransaction*)>;
+  using FinishFunction = std::function<absl::Status(SandboxForTransaction*)>;
 
  public:
-  explicit BasicTransaction(std::unique_ptr<Sandbox> sandbox)
+  explicit BasicTransaction(std::unique_ptr<SandboxForTransaction> sandbox)
       : TransactionBase(std::move(sandbox)),
         init_function_(nullptr),
         finish_function_(nullptr) {}
 
   template <typename F>
-  BasicTransaction(std::unique_ptr<Sandbox> sandbox, F init_function)
+  BasicTransaction(std::unique_ptr<SandboxForTransaction> sandbox,
+                   F init_function)
       : TransactionBase(std::move(sandbox)),
         init_function_(static_cast<InitFunction>(init_function)),
         finish_function_(nullptr) {}
 
   template <typename F, typename G>
-  BasicTransaction(std::unique_ptr<Sandbox> sandbox, F init_function,
-                   G fini_function)
+  BasicTransaction(std::unique_ptr<SandboxForTransaction> sandbox,
+                   F init_function, G fini_function)
       : TransactionBase(std::move(sandbox)),
         init_function_(static_cast<InitFunction>(init_function)),
         finish_function_(static_cast<FinishFunction>(fini_function)) {}
