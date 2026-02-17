@@ -34,9 +34,9 @@ absl::Status TransactionBase::RunTransactionFunctionInSandbox(
 
   // Set the wall-time limit for this transaction run, and clean it up
   // afterwards, no matter what the result.
-  SAPI_RETURN_IF_ERROR(sandbox_->SetWallTimeLimit(time_limit_));
+  SAPI_RETURN_IF_ERROR(sandbox_->backend().SetWallTimeLimit(time_limit_));
   absl::Cleanup time_cleanup = [this] {
-    sandbox_->SetWallTimeLimit(absl::ZeroDuration()).IgnoreError();
+    sandbox_->backend().SetWallTimeLimit(absl::ZeroDuration()).IgnoreError();
   };
 
   if (!initialized_) {
