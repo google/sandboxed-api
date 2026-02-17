@@ -91,15 +91,17 @@
 // corresponding error message.
 #define SAPI_RAW_PLOG(severity, format, ...)                              \
   do {                                                                    \
+    int saved_errno = errno;                                              \
     char sapi_raw_plog_errno_buffer[100];                                 \
     const char* sapi_raw_plog_errno_str =                                 \
-        ::sapi::RawStrError(errno, sapi_raw_plog_errno_buffer,            \
+        ::sapi::RawStrError(saved_errno, sapi_raw_plog_errno_buffer,      \
                             sizeof(sapi_raw_plog_errno_buffer));          \
     char sapi_raw_plog_buffer[::sapi::raw_logging_internal::kLogBufSize]; \
     absl::SNPrintF(sapi_raw_plog_buffer, sizeof(sapi_raw_plog_buffer),    \
                    (format), ##__VA_ARGS__);                              \
     SAPI_RAW_LOG(severity, "%s: %s [%d]", sapi_raw_plog_buffer,           \
-                 sapi_raw_plog_errno_str, errno);                         \
+                 sapi_raw_plog_errno_str, saved_errno);                   \
+    errno = saved_errno;                                                  \
   } while (0)
 
 // If verbose logging is enabled, uses SAPI_RAW_LOG() to log.
