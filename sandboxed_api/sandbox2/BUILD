@@ -672,6 +672,7 @@ cc_library(
     deps = [
         ":comms",
         ":forkserver_cc_proto",
+        ":util",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",

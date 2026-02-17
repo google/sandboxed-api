@@ -15,6 +15,8 @@
 #include "sandboxed_api/sandbox2/fork_client.h"
 
 #include <sys/types.h>
+#include <syscall.h>
+#include <unistd.h>
 
 #include <cstdint>
 
@@ -23,11 +25,24 @@
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
 using ::sapi::file_util::fileops::FDCloser;
+
+namespace {
+
+int pidfd_open(pid_t pid, unsigned int flags) {
+#ifndef __NR_pidfd_open
+  // Same number on all platforms.
+#define __NR_pidfd_open 434
+#endif
+  return util::Syscall(__NR_pidfd_open, pid, flags);
+}
+
+}  // namespace
 
 ForkClient::ForkClient(pid_t pid, Comms* comms, bool is_global)
     : pid_(pid), comms_(comms), is_global_(is_global) {
@@ -68,7 +83,12 @@ SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
     LOG(ERROR) << "Receiving init PID from the ForkServer failed";
     return process;
   }
-  process.init_pid = static_cast<pid_t>(pid);
+  if (pid != 0) {  // No init process if pid is 0
+    process.init_pid = static_cast<pid_t>(pid);
+    process.init_pidfd = FDCloser(pidfd_open(process.init_pid, 0));
+    PCHECK(process.init_pidfd.get() != -1)
+        << "Failed to open pidfd for init process";
+  }
 
   // Receive sandboxee process ID.
   if (!comms_->RecvInt32(&pid)) {
@@ -76,6 +96,10 @@ SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
     return process;
   }
   process.main_pid = static_cast<pid_t>(pid);
+  process.main_pidfd = FDCloser(pidfd_open(process.main_pid, 0));
+  PCHECK(process.main_pidfd.get() != -1)
+      << "Failed to open pidfd for main process";
+
   if (request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY) {
     int fd = -1;
     if (!comms_->RecvFD(&fd)) {
