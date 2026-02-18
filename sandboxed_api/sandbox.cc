@@ -75,6 +75,7 @@ sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
       .AllowSleep()
       .AllowReadlink()
       .AllowAccess()
+      .AllowSharedMemory()
       .AllowSyscalls({
           __NR_recvmsg,
           __NR_sendmsg,

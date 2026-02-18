@@ -30,6 +30,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
+#include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/result.h"

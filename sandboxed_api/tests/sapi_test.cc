@@ -38,10 +38,11 @@
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
-#include "sandboxed_api/tests/sapi_test-sapi.sapi.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/tests/sapi_test-sapi.sapi.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -223,9 +224,18 @@ int LeakFileDescriptor(sapi::Sandbox* sandbox, const char* path) {
   return fd.GetRemoteFd();
 }
 
+class SandboxTest : public ::testing::TestWithParam<bool> {
+ protected:
+  SandboxConfig GetDefaultConfig() {
+    SandboxConfig config;
+    config.sandbox2.enable_shared_memory = GetParam();
+    return config;
+  }
+};
+
 // Make sure that restarting the sandboxee works (= fresh set of FDs).
-TEST(SandboxTest, RestartSandboxFD) {
-  sapi::BasicTransaction st{std::make_unique<SumSandbox>()};
+TEST_P(SandboxTest, RestartSandboxFD) {
+  sapi::BasicTransaction st{std::make_unique<SumSandbox>(GetDefaultConfig())};
 
   auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
     // Open some FDs and check their value.
@@ -243,8 +253,8 @@ TEST(SandboxTest, RestartSandboxFD) {
   EXPECT_THAT(st.Run(test_body), IsOk());
 }
 
-TEST(SandboxTest, RestartTransactionSandboxFD) {
-  sapi::BasicTransaction st{std::make_unique<SumSandbox>()};
+TEST_P(SandboxTest, RestartTransactionSandboxFD) {
+  sapi::BasicTransaction st{std::make_unique<SumSandbox>(GetDefaultConfig())};
 
   int fd_no = -1;
   ASSERT_THAT(st.Run([&fd_no](sapi::Sandbox* sandbox) -> absl::Status {
@@ -269,8 +279,8 @@ TEST(SandboxTest, RestartTransactionSandboxFD) {
 }
 
 // Make sure we can recover from a dying sandbox.
-TEST(SandboxTest, RestartSandboxAfterCrash) {
-  SumSandbox sandbox;
+TEST_P(SandboxTest, RestartSandboxAfterCrash) {
+  SumSandbox sandbox(GetDefaultConfig());
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
 
@@ -288,8 +298,8 @@ TEST(SandboxTest, RestartSandboxAfterCrash) {
   EXPECT_THAT(result, Eq(3));
 }
 
-TEST(SandboxTest, RestartSandboxAfterViolation) {
-  SumSandbox sandbox;
+TEST_P(SandboxTest, RestartSandboxAfterViolation) {
+  SumSandbox sandbox(GetDefaultConfig());
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
 
@@ -307,8 +317,8 @@ TEST(SandboxTest, RestartSandboxAfterViolation) {
   EXPECT_THAT(result, Eq(3));
 }
 
-TEST(SandboxTest, NoRaceInAwaitResult) {
-  StringopSandbox sandbox;
+TEST_P(SandboxTest, NoRaceInAwaitResult) {
+  StringopSandbox sandbox(GetDefaultConfig());
   ASSERT_THAT(sandbox.Init(), IsOk());
   StringopApi api(&sandbox);
 
@@ -318,8 +328,8 @@ TEST(SandboxTest, NoRaceInAwaitResult) {
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));
 }
 
-TEST(SandboxTest, NoRaceInConcurrentTerminate) {
-  SumSandbox sandbox;
+TEST_P(SandboxTest, NoRaceInConcurrentTerminate) {
+  SumSandbox sandbox(GetDefaultConfig());
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
   sapi::Thread th([&sandbox] {
@@ -333,8 +343,10 @@ TEST(SandboxTest, NoRaceInConcurrentTerminate) {
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::EXTERNAL_KILL));
 }
 
-TEST(SandboxTest, UseUnotifyMonitor) {
-  SumSandbox sandbox({.sandbox2 = {.use_unotify_monitor = true}});
+TEST_P(SandboxTest, UseUnotifyMonitor) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.use_unotify_monitor = true;
+  SumSandbox sandbox(std::move(config));
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
 
@@ -352,7 +364,7 @@ TEST(SandboxTest, UseUnotifyMonitor) {
   EXPECT_THAT(result, Eq(3));
 }
 
-TEST(SandboxTest, AllocateAndTransferTest) {
+TEST_P(SandboxTest, AllocateAndTransferTest) {
   std::string test_string("This is a test");
   std::vector<uint8_t> test_string_vector(test_string.begin(),
                                           test_string.end());
@@ -362,7 +374,7 @@ TEST(SandboxTest, AllocateAndTransferTest) {
       test_string_vector.size());
   std::vector<uint8_t> buffer_output(test_string_vector.size());
 
-  SumSandbox sandbox;
+  SumSandbox sandbox(GetDefaultConfig());
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
 
@@ -377,7 +389,7 @@ TEST(SandboxTest, AllocateAndTransferTest) {
   EXPECT_THAT(test_string_vector, ContainerEq(buffer_output));
 }
 
-TEST(SandboxTest, AllocateAndTransferTestLarge) {
+TEST_P(SandboxTest, AllocateAndTransferTestLarge) {
   const size_t kLargeSize = getpagesize() * (IOV_MAX + 1);
   const std::string test_string(kLargeSize, 'A');
   std::vector<uint8_t> test_string_vector(test_string.begin(),
@@ -388,7 +400,7 @@ TEST(SandboxTest, AllocateAndTransferTestLarge) {
       test_string_vector.size());
   std::vector<uint8_t> buffer_output(test_string_vector.size());
 
-  SumSandbox sandbox;
+  SumSandbox sandbox(GetDefaultConfig());
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
 
@@ -459,15 +471,15 @@ TEST(VarsTest, MoveOperations) {
   }
 }
 
-}  // namespace
-
-TEST(SandboxTest, MapFd) {
+TEST_P(SandboxTest, MapFd) {
   sapi::file_util::fileops::FDCloser dev_null(open("/dev/null", O_WRONLY));
   ASSERT_NE(dev_null.get(), -1);
   std::vector<std::pair<sapi::file_util::fileops::FDCloser, int>> fds;
   fds.push_back(std::make_pair(std::move(dev_null), STDERR_FILENO));
 
-  SumSandbox sandbox({.fd_mappings = std::move(fds)});
+  SandboxConfig config = GetDefaultConfig();
+  config.fd_mappings = std::move(fds);
+  SumSandbox sandbox(std::move(config));
   ASSERT_THAT(sandbox.Init(), IsOk());
   SumApi api(&sandbox);
 
@@ -482,4 +494,11 @@ TEST(SandboxTest, MapFd) {
   }
 }
 
+INSTANTIATE_TEST_SUITE_P(SAPI, SandboxTest, ::testing::Values(false, true),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "EnableSharedMemory"
+                                             : "DisableSharedMemory";
+                         });
+
+}  // namespace
 }  // namespace sapi

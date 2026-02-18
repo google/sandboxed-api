@@ -34,7 +34,7 @@ namespace sapi {
 
 // This class exposes functions which provide primitives operating over the
 // Comms channel.
-class Sandbox2RPCChannel final : public RPCChannel {
+class Sandbox2RPCChannel : public RPCChannel {
  public:
   explicit Sandbox2RPCChannel(sandbox2::Comms* comms, pid_t pid)
       : comms_(comms), pid_(pid) {}
@@ -44,7 +44,8 @@ class Sandbox2RPCChannel final : public RPCChannel {
                     v::Type exp_type) override;
 
   // Allocates memory.
-  absl::Status Allocate(size_t size, void** addr) override;
+  absl::Status Allocate(size_t size, void** addr,
+                        bool disable_shared_memory = false) override;
 
   // Reallocates memory.
   absl::Status Reallocate(void* old_addr, size_t size,

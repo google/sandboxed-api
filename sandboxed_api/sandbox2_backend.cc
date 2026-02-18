@@ -14,6 +14,9 @@
 
 #include "sandboxed_api/sandbox2_backend.h"
 
+#include <sys/mman.h>
+
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -29,6 +32,7 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/sandbox.h"
+#include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/notify.h"
@@ -38,6 +42,7 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2_rpcchannel.h"
 #include "sandboxed_api/sandbox_config.h"
+#include "sandboxed_api/shared_memory_rpcchannel.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/runfiles.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -210,6 +215,11 @@ absl::Status Sandbox2Backend::Init() {
 
   s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
                                              std::move(s2p), CreateNotifier());
+  const sandbox2::Buffer* shared_memory_mapping = nullptr;
+  if (config_.sandbox2.enable_shared_memory) {
+    SAPI_ASSIGN_OR_RETURN(shared_memory_mapping,
+                          s2_->CreateSharedMemoryMapping());
+  }
   if (config_.sandbox2.use_unotify_monitor) {
     SAPI_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
   }
@@ -220,6 +230,16 @@ absl::Status Sandbox2Backend::Init() {
   pid_ = s2_->pid();
 
   rpc_channel_ = std::make_unique<Sandbox2RPCChannel>(comms_, pid_);
+  if (config_.sandbox2.enable_shared_memory) {
+    uint64_t remote_base_address;
+    comms_->RecvUint64(&remote_base_address);
+    void* shared_memory_local_ptr = shared_memory_mapping->data();
+    auto shared_memory_remote_ptr =
+        reinterpret_cast<void*>(remote_base_address);
+    rpc_channel_ = std::make_unique<SharedMemoryRPCChannel>(
+        std::move(rpc_channel_), shared_memory_mapping->size(),
+        shared_memory_local_ptr, shared_memory_remote_ptr);
+  }
 
   if (!res) {
     // Allow recovering from a bad fork client state.

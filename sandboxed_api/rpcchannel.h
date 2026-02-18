@@ -37,7 +37,8 @@ class RPCChannel {
                             v::Type exp_type) = 0;
 
   // Allocates memory.
-  virtual absl::Status Allocate(size_t size, void** addr) = 0;
+  virtual absl::Status Allocate(size_t size, void** addr,
+                                bool disable_shared_memory = false) = 0;
 
   // Reallocates memory.
   virtual absl::Status Reallocate(void* old_addr, size_t size,

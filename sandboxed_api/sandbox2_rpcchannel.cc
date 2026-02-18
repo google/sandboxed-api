@@ -66,7 +66,8 @@ absl::StatusOr<FuncRet> Sandbox2RPCChannel::Return(v::Type exp_type) {
   return ret;
 }
 
-absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr) {
+absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr,
+                                          bool disable_shared_memory) {
   absl::MutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgAllocate, sizeof(size), &size)) {
     return absl::UnavailableError("Sending TLV value failed");

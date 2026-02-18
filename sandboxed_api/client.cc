@@ -261,6 +261,13 @@ ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
 
   // Child thread.
   s2client.SandboxMeHere();
+  if (s2client.IsSharedMemoryEnabled()) {
+    auto res = s2client.GetSharedMemoryMapping();
+    if (!res.ok()) {
+      LOG(FATAL) << "Could not get shared memory mapping: " << res.status();
+    }
+    comms.SendUint64(reinterpret_cast<uint64_t>((*res)->data()));
+  }
 
   // Enable log forwarding if enabled by the sandboxer.
   if (s2client.HasMappedFD(sandbox2::LogSink::kLogFDName)) {

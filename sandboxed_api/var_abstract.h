@@ -67,6 +67,11 @@ class Var {
   Ptr* PtrBefore();
   Ptr* PtrAfter();
 
+  // Disallows using shared memory for allocation.
+  // This can be useful when the sandboxee needs to manage the lifetime of the
+  // allocated memory.
+  void DisallowSharedMemory() { disable_shared_memory_ = true; }
+
  protected:
   Var() = default;
 
@@ -121,6 +126,11 @@ class Var {
   // Comms which can be used to free resources allocated in the sandboxer upon
   // this process' end of lifetime.
   RPCChannel* free_rpc_channel_ = nullptr;
+
+  // Whether to prevents from using shared memory for allocation.
+  // This can be useful when the sandboxee needs to manage the lifetime of the
+  // allocated memory.
+  bool disable_shared_memory_ = false;
 };
 
 }  // namespace sapi::v

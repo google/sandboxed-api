@@ -49,6 +49,49 @@ target_link_libraries(sapi_embed_file
          sapi::fileops
 )
 
+# sandboxed_api:sandbox2_rpcchannel
+add_library(sapi_sandbox2_rpcchannel ${SAPI_LIB_TYPE}
+  sandbox2_rpcchannel.cc
+  sandbox2_rpcchannel.h
+)
+add_library(sapi::sandbox2_rpcchannel ALIAS sapi_sandbox2_rpcchannel)
+target_link_libraries(sapi_sandbox2_rpcchannel
+  PRIVATE absl::log
+          absl::log_globals
+          sapi::status
+          absl::status
+          absl::statusor
+          absl::strings
+          absl::span
+          absl::synchronization
+          sapi::base
+          sapi::call
+          sapi::rpcchannel
+          sapi::var_type
+          sandbox2::comms
+          sandbox2::util
+)
+
+# sandboxed_api:shared_memory_rpcchannel
+add_library(sapi_shared_memory_rpcchannel ${SAPI_LIB_TYPE}
+  shared_memory_rpcchannel.cc
+  shared_memory_rpcchannel.h
+)
+add_library(sapi::shared_memory_rpcchannel ALIAS sapi_shared_memory_rpcchannel)
+target_link_libraries(sapi_shared_memory_rpcchannel
+  PRIVATE sapi::sandbox2_rpcchannel
+          absl::btree
+          absl::check
+          absl::core_headers
+          absl::log_globals
+          absl::status
+          absl::statusor
+          absl::span
+          absl::synchronization
+          sapi::base
+          sapi::status
+)
+
 # sandboxed_api:sapi
 add_library(sapi_sapi ${SAPI_LIB_TYPE}
   sandbox.cc
@@ -56,8 +99,6 @@ add_library(sapi_sapi ${SAPI_LIB_TYPE}
   sandbox2_backend.cc
   sandbox2_backend.h
   sandbox_config.h
-  sandbox2_rpcchannel.cc
-  sandbox2_rpcchannel.h
   transaction.cc
   transaction.h
 )
@@ -78,7 +119,10 @@ target_link_libraries(sapi_sapi
           sapi::call
           sapi::file_base
           sapi::runfiles
+          sapi::sandbox2_rpcchannel
+          sapi::shared_memory_rpcchannel
           sapi::strerror
+          sandbox2::buffer
           sandbox2::fork_client
           sandbox2::util
           sapi::embed_file
@@ -244,6 +288,22 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     absl::strings
     sapi::embed_file
     sapi::test_main
+  )
+
+  # sandboxed_api:shared_memory_rpcchannel_test
+  add_executable(shared_memory_rpcchannel_test
+    shared_memory_rpcchannel_test.cc
+  )
+  target_link_libraries(shared_memory_rpcchannel_test
+    PRIVATE absl::check
+            absl::status
+            absl::statusor
+            absl::status_matchers
+            absl::strings
+            benchmark
+            sapi::shared_memory_rpcchannel
+            sapi::test_main
+            sapi::testing
   )
 
   # sandboxed_api:testing

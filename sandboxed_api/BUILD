@@ -64,14 +64,73 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "sandbox2_rpcchannel",
+    srcs = ["sandbox2_rpcchannel.cc"],
+    hdrs = ["sandbox2_rpcchannel.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":call",
+        ":rpcchannel",
+        ":var_type",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "shared_memory_rpcchannel",
+    srcs = ["shared_memory_rpcchannel.cc"],
+    hdrs = ["shared_memory_rpcchannel.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":call",
+        ":rpcchannel",
+        ":var_type",
+        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:btree",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "shared_memory_rpcchannel_test",
+    srcs = ["shared_memory_rpcchannel_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":call",
+        ":rpcchannel",
+        ":shared_memory_rpcchannel",
+        ":testing",
+        ":var_type",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/types:span",
+        "@google_benchmark//:benchmark",
+        "@googletest//:gtest_main",
+    ],
+)
+
 # The main Sandboxed-API library
 cc_library(
     name = "sapi",
     srcs = [
         "sandbox.cc",
         "sandbox2_backend.cc",
-        "sandbox2_rpcchannel.cc",
-        "sandbox2_rpcchannel.h",
         "transaction.cc",
     ],
     hdrs = [
@@ -90,12 +149,14 @@ cc_library(
         ":config",
         ":embed_file",
         ":rpcchannel",
+        ":sandbox2_rpcchannel",
+        ":shared_memory_rpcchannel",
         ":var_type",
         ":vars",
         "//sandboxed_api/sandbox2",
+        "//sandboxed_api/sandbox2:buffer",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:fork_client",
-        "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:runfiles",
@@ -236,7 +297,6 @@ cc_library(
         "@abseil-cpp//absl/log:flags",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 

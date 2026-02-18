@@ -21,12 +21,12 @@
 
 #include "absl/status/status.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
-#include "sandboxed_api/sandbox2_rpcchannel.h"
 #include "sandboxed_api/sandbox_config.h"
 
 namespace sapi {
@@ -50,7 +50,7 @@ class Sandbox2Backend {
 
   sandbox2::Comms* comms() const { return comms_; }
 
-  Sandbox2RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
+  RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
 
   // Waits until the sandbox terminated and returns the result.
   const sandbox2::Result& AwaitResult();
@@ -102,7 +102,7 @@ class Sandbox2Backend {
   // Comms with the sandboxee.
   sandbox2::Comms* comms_ = nullptr;
   // RPCChannel object.
-  std::unique_ptr<Sandbox2RPCChannel> rpc_channel_;
+  std::unique_ptr<RPCChannel> rpc_channel_;
   // The main pid of the sandboxee.
   pid_t pid_ = 0;
 };

@@ -46,14 +46,21 @@ class LenVal : public Var {
   explicit LenVal(const char* data, uint64_t size)
       : array_(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(data)),
                size),
-        struct_(size, nullptr) {}
+        struct_(size, nullptr) {
+    array_.DisallowSharedMemory();
+  }
 
   explicit LenVal(const std::vector<uint8_t>& data)
       : array_(data.size()), struct_(data.size(), nullptr) {
+    array_.DisallowSharedMemory();
     memcpy(array_.GetData(), data.data(), data.size());
   }
 
-  explicit LenVal(size_t size) : array_(size), struct_(size, nullptr) {}
+  explicit LenVal(size_t size) : array_(size), struct_(size, nullptr) {
+    // LenVal arrays are often reallocated/free'd in the sandboxee, so we can't
+    // use shared memory for them.
+    array_.DisallowSharedMemory();
+  }
 
   LenVal(LenVal&& other) = default;
   LenVal& operator=(LenVal&& other) = default;

@@ -83,7 +83,8 @@ Ptr* Var::PtrAfter() {
 
 absl::Status Var::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
   void* addr;
-  SAPI_RETURN_IF_ERROR(rpc_channel->Allocate(GetSize(), &addr));
+  SAPI_RETURN_IF_ERROR(
+      rpc_channel->Allocate(GetSize(), &addr, disable_shared_memory_));
 
   if (!addr) {
     LOG(ERROR) << "Allocate: returned nullptr";
