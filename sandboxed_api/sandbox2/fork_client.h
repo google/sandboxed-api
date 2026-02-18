@@ -32,10 +32,8 @@ class Comms;
 class ForkRequest;
 
 struct SandboxeeProcess {
-  pid_t init_pid = 0;
-  sapi::file_util::fileops::FDCloser init_pidfd;
-  pid_t main_pid = 0;
-  sapi::file_util::fileops::FDCloser main_pidfd;
+  pid_t init_pid = -1;
+  pid_t main_pid = -1;
   sapi::file_util::fileops::FDCloser status_fd;
 };
 
@@ -44,7 +42,6 @@ class ForkClient {
   ForkClient(pid_t pid, Comms* comms) : ForkClient(pid, comms, false) {}
   ForkClient(const ForkClient&) = delete;
   ForkClient& operator=(const ForkClient&) = delete;
-
   ~ForkClient();
 
   // Runs a custom transaction over the Comms channel.

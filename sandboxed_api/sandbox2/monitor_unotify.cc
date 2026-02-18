@@ -125,15 +125,6 @@ absl::Status WaitForTaskToStop(pid_t pid) {
                              : absl::InternalError("task did not stop");
 }
 
-int pidfd_send_signal(int pidfd, int sig, siginfo_t* info, unsigned int flags) {
-#ifndef __NR_pidfd_send_signal
-  // Same number on all platforms.
-#define __NR_pidfd_send_signal 424
-#endif
-  return util::Syscall(__NR_pidfd_send_signal, pidfd, sig,
-                       reinterpret_cast<uintptr_t>(info), flags);
-}
-
 }  // namespace
 
 UnotifyMonitor::UnotifyMonitor(Executor* executor, Policy* policy,
@@ -429,9 +420,8 @@ void UnotifyMonitor::NotifyMonitor() {
 
 bool UnotifyMonitor::KillSandboxee() {
   VLOG(1) << "Sending SIGKILL to the PID: " << process_.main_pid;
-  if (pidfd_send_signal(process_.main_pidfd.get(), SIGKILL, nullptr, 0) != 0) {
+  if (kill(process_.main_pid, SIGKILL) != 0) {
     PLOG(ERROR) << "Could not send SIGKILL to PID " << process_.main_pid;
-    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
     return false;
   }
   return true;
@@ -439,10 +429,7 @@ bool UnotifyMonitor::KillSandboxee() {
 
 void UnotifyMonitor::KillInit() {
   VLOG(1) << "Sending SIGKILL to the PID: " << process_.init_pid;
-  if (process_.init_pid != 0 &&
-      pidfd_send_signal(process_.init_pidfd.get(), SIGKILL, nullptr, 0) != 0 &&
-      errno != ESRCH) {
-    // Ignore ESRCH (process not found), as it is not an error.
+  if (kill(process_.init_pid, SIGKILL) != 0) {
     PLOG(ERROR) << "Could not send SIGKILL to PID " << process_.init_pid;
   }
 }
