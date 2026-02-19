@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -61,6 +62,8 @@ class Sandbox2Backend {
   absl::Status SetWallTimeLimit(absl::Duration limit) const;
 
   int pid() const { return pid_; }
+
+  absl::StatusOr<int> GetPid() const;
 
  private:
   friend class SandboxBase;

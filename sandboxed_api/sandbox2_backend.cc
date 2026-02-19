@@ -257,6 +257,13 @@ absl::Status Sandbox2Backend::Init() {
 
 bool Sandbox2Backend::is_active() const { return s2_ && !s2_->IsTerminated(); }
 
+absl::StatusOr<int> Sandbox2Backend::GetPid() const {
+  if (!is_active() || pid_ < 0) {
+    return absl::UnavailableError("Sandbox not active");
+  }
+  return pid_;
+}
+
 const sandbox2::Result& Sandbox2Backend::AwaitResult() {
   if (s2_ && !s2_awaited_) {
     result_ = s2_->AwaitResult();

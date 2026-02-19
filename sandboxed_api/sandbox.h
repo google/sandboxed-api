@@ -152,6 +152,10 @@ class SandboxBase {
 
   virtual absl::Status SetWallTimeLimit(absl::Duration limit) const = 0;
 
+  // Returns the pid of the sandboxee if available. Can return an error if the
+  // sandboxee is not running or we're using an in-process sandbox.
+  virtual absl::StatusOr<int> GetPid() const = 0;
+
  protected:
   // WrapCallStatus is called with the status returned by a Call. The default
   // implementation simply returns the status as is.
@@ -201,7 +205,8 @@ class SandboxImpl : public SandboxBase {
   ABSL_DEPRECATE_AND_INLINE()
   int pid() const { return backend().pid(); }
 
-  ABSL_DEPRECATE_AND_INLINE()
+  absl::StatusOr<int> GetPid() const override { return backend().GetPid(); }
+
   absl::Status SetWallTimeLimit(absl::Duration limit) const override {
     return backend().SetWallTimeLimit(limit);
   }
