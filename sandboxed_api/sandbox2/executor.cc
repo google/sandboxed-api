@@ -123,6 +123,10 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
                                             client_comms_fd_.get());
   }
 
+  if (process.main_pid == -1) {
+    return absl::InternalError("Failed to start sandboxee process");
+  }
+
   started_ = true;
 
   client_comms_fd_.Close();

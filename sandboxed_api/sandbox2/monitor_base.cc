@@ -211,7 +211,7 @@ void MonitorBase::Launch() {
 
   process_ = *std::move(process);
 
-  if (process_.main_pid <= 0 || (should_have_init && process_.init_pid <= 0)) {
+  if (should_have_init && process_.init_pid <= 0) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_SUBPROCESS);
     return;
   }
