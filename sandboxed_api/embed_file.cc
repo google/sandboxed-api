@@ -68,14 +68,17 @@ int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
     return -1;
   }
   file_util::fileops::FDCloser embed_fd(fd);
+  SAPI_RAW_VLOG(3, "Created memfd file '%s'", toc->name);
 
   if (!file_util::fileops::WriteToFD(embed_fd.get(), toc->data, toc->size)) {
     SAPI_RAW_PLOG(ERROR, "Couldn't write SAPI embed file '%s' to memfd file",
                   toc->name);
     return -1;
   }
+  SAPI_RAW_VLOG(3, "Wrote SAPI embed file '%s' to memfd file (%zd bytes)",
+                toc->name, toc->size);
 
-  // Make the underlying file non-writeable.
+  // Make the underlying file non-writable.
   if (fchmod(embed_fd.get(),
              S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == -1) {
     SAPI_RAW_PLOG(ERROR, "Could't make FD=%d RX-only", embed_fd.get());
@@ -87,6 +90,7 @@ int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
     SAPI_RAW_PLOG(ERROR, "Couldn't apply file seals to FD=%d", embed_fd.get());
     return -1;
   }
+  SAPI_RAW_VLOG(3, "Sealed FD=%d", embed_fd.get());
 
   // Instead of working around problems with CRIU we reopen the file as
   // read-only.
