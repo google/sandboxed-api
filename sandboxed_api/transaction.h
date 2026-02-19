@@ -155,30 +155,37 @@ class Transaction : public TransactionBase {
 };
 
 // Callback style transactions:
-class BasicTransaction final : public TransactionBase {
+// The TypedTransaction class is mostly used if backend-specific features of
+// the sandbox are needed. In general, you should prefer the BasicTransaction
+// declared below.
+template <typename SandboxT>
+class TypedTransaction final : public TransactionBase {
  private:
-  using InitFunction = std::function<absl::Status(SandboxForTransaction*)>;
-  using FinishFunction = std::function<absl::Status(SandboxForTransaction*)>;
+  using InitFunction = std::function<absl::Status(SandboxT*)>;
+  using FinishFunction = std::function<absl::Status(SandboxT*)>;
 
  public:
-  explicit BasicTransaction(std::unique_ptr<SandboxForTransaction> sandbox)
+  explicit TypedTransaction(std::unique_ptr<SandboxT> sandbox)
       : TransactionBase(std::move(sandbox)),
         init_function_(nullptr),
         finish_function_(nullptr) {}
 
   template <typename F>
-  BasicTransaction(std::unique_ptr<SandboxForTransaction> sandbox,
-                   F init_function)
+  TypedTransaction(std::unique_ptr<SandboxT> sandbox, F init_function)
       : TransactionBase(std::move(sandbox)),
         init_function_(static_cast<InitFunction>(init_function)),
         finish_function_(nullptr) {}
 
   template <typename F, typename G>
-  BasicTransaction(std::unique_ptr<SandboxForTransaction> sandbox,
-                   F init_function, G fini_function)
+  TypedTransaction(std::unique_ptr<SandboxT> sandbox, F init_function,
+                   G fini_function)
       : TransactionBase(std::move(sandbox)),
         init_function_(static_cast<InitFunction>(init_function)),
         finish_function_(static_cast<FinishFunction>(fini_function)) {}
+
+  SandboxT* sandbox() const {
+    return static_cast<SandboxT*>(TransactionBase::sandbox());
+  }
 
   // Run any function as body of the transaction that matches our expectations
   // (that is: Returning a Status and accepting a Sandbox object as first
@@ -201,6 +208,8 @@ class BasicTransaction final : public TransactionBase {
     return finish_function_ ? finish_function_(sandbox()) : absl::OkStatus();
   }
 };
+
+using BasicTransaction = TypedTransaction<SandboxForTransaction>;
 
 }  // namespace sapi
 
