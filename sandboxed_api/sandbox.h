@@ -148,7 +148,7 @@ class SandboxBase {
   );
 
   // Waits until the sandbox terminated and returns the result.
-  virtual const sandbox2::Result& AwaitResult() = 0;
+  virtual absl::Status AwaitExitStatus() = 0;
 
   virtual absl::Status SetWallTimeLimit(absl::Duration limit) const = 0;
 
@@ -211,11 +211,12 @@ class SandboxImpl : public SandboxBase {
     return backend().SetWallTimeLimit(limit);
   }
 
-  // TODO(sroettger): migrate all callers that need the sandbox2::Result to
-  // backend().AwaitResult() instead and afterwards make this function return
-  // absl::Status.
-  const sandbox2::Result& AwaitResult() override {
-    return backend().AwaitResult();
+  absl::Status AwaitExitStatus() override {
+    return backend().AwaitExitStatus();
+  }
+  ABSL_DEPRECATE_AND_INLINE()
+  const sandbox2::Result& AwaitResult() {
+    return backend().AwaitSandbox2Result();
   }
   const sandbox2::Result& result() const { return backend().result(); }
 

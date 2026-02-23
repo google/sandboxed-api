@@ -54,7 +54,7 @@ class Sandbox2Backend {
   RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
 
   // Waits until the sandbox terminated and returns the result.
-  const sandbox2::Result& AwaitResult() { return AwaitSandbox2Result(); }
+  absl::Status AwaitExitStatus() { return AwaitSandbox2Result().ToStatus(); }
   const sandbox2::Result& AwaitSandbox2Result();
   const sandbox2::Result& result() const { return result_; }
 

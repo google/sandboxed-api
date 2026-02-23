@@ -63,8 +63,8 @@ absl::Status TransactionBase::RunTransactionLoop(
 
   LOG(ERROR) << "Tried " << (retry_count_ + 1) << " times to run the "
              << "transaction, but it failed. SAPI error: '" << status
-             << "'. Latest sandbox error: '"
-             << sandbox_->AwaitResult().ToString() << "'";
+             << "'. Latest sandbox error: '" << sandbox_->AwaitExitStatus()
+             << "'";
   return status;
 }
 
