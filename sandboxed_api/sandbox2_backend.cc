@@ -264,7 +264,7 @@ absl::StatusOr<int> Sandbox2Backend::GetPid() const {
   return pid_;
 }
 
-const sandbox2::Result& Sandbox2Backend::AwaitResult() {
+const sandbox2::Result& Sandbox2Backend::AwaitSandbox2Result() {
   if (s2_ && !s2_awaited_) {
     result_ = s2_->AwaitResult();
     s2_awaited_ = true;

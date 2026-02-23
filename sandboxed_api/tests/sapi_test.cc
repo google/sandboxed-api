@@ -199,7 +199,7 @@ TEST(SapiTest, HasStackTraces) {
   ASSERT_THAT(sandbox->Init(), IsOk());
   StringopApi api(sandbox.get());
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
-  const auto& result = sandbox->AwaitResult();
+  const auto& result = sandbox->backend().AwaitSandbox2Result();
   EXPECT_THAT(
       result.GetStackTrace(),
       // Check that at least one expected function is present in the stack
@@ -287,7 +287,7 @@ TEST_P(SandboxTest, RestartSandboxAfterCrash) {
   // Crash the sandbox.
   EXPECT_THAT(api.crash(), StatusIs(absl::StatusCode::kUnavailable));
   EXPECT_THAT(api.sum(1, 2).status(), StatusIs(absl::StatusCode::kUnavailable));
-  EXPECT_THAT(sandbox.AwaitResult().final_status(),
+  EXPECT_THAT(sandbox.backend().AwaitSandbox2Result().final_status(),
               Eq(sandbox2::Result::SIGNALED));
 
   // Restart the sandbox.
@@ -306,7 +306,7 @@ TEST_P(SandboxTest, RestartSandboxAfterViolation) {
   // Violate the sandbox policy.
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
   EXPECT_THAT(api.sum(1, 2).status(), StatusIs(absl::StatusCode::kUnavailable));
-  EXPECT_THAT(sandbox.AwaitResult().final_status(),
+  EXPECT_THAT(sandbox.backend().AwaitSandbox2Result().final_status(),
               Eq(sandbox2::Result::VIOLATION));
 
   // Restart the sandbox.
@@ -324,7 +324,7 @@ TEST_P(SandboxTest, NoRaceInAwaitResult) {
 
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
   absl::SleepFor(absl::Milliseconds(200));  // Make sure we lose the race
-  const auto& result = sandbox.AwaitResult();
+  const auto& result = sandbox.backend().AwaitSandbox2Result();
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::VIOLATION));
 }
 
@@ -339,7 +339,7 @@ TEST_P(SandboxTest, NoRaceInConcurrentTerminate) {
   });
   EXPECT_THAT(api.sleep_for_sec(10), StatusIs(absl::StatusCode::kUnavailable));
   th.Join();
-  const auto& result = sandbox.AwaitResult();
+  const auto& result = sandbox.backend().AwaitSandbox2Result();
   EXPECT_THAT(result.final_status(), Eq(sandbox2::Result::EXTERNAL_KILL));
 }
 
@@ -353,7 +353,7 @@ TEST_P(SandboxTest, UseUnotifyMonitor) {
   // Violate the sandbox policy.
   EXPECT_THAT(api.violate(), StatusIs(absl::StatusCode::kUnavailable));
   EXPECT_THAT(api.sum(1, 2).status(), StatusIs(absl::StatusCode::kUnavailable));
-  EXPECT_THAT(sandbox.AwaitResult().final_status(),
+  EXPECT_THAT(sandbox.backend().AwaitSandbox2Result().final_status(),
               Eq(sandbox2::Result::VIOLATION));
 
   // Restart the sandbox.
