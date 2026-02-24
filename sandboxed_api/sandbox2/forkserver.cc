@@ -125,6 +125,26 @@ Pipe CreatePipe() {
   return {FDCloser(pfds[0]), FDCloser(pfds[1])};
 }
 
+struct UnixSocketPair {
+  FDCloser sock[2];
+};
+
+UnixSocketPair CreateUnixSocketPair(bool passcred = false) {
+  int sv[2];
+  SAPI_RAW_PCHECK(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == 0,
+                  "creating socketpair");
+  UnixSocketPair result = {FDCloser(sv[0]), FDCloser(sv[1])};
+  if (passcred) {
+    for (int i = 0; i < 2; ++i) {
+      int val = 1;
+      SAPI_RAW_PCHECK(setsockopt(result.sock[i].get(), SOL_SOCKET, SO_PASSCRED,
+                                 &val, sizeof(val)) == 0,
+                      "setsockopt failed");
+    }
+  }
+  return result;
+}
+
 ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid,
                                             FDCloser synchronization_fd,
                                             FDCloser status_fd,
@@ -436,19 +456,7 @@ pid_t ForkServer::ServeRequest() {
     pipe_fds = CreatePipe();
   }
 
-  int socketpair_fds[2];
-  SAPI_RAW_PCHECK(
-      socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, socketpair_fds) == 0,
-      "creating signaling socketpair");
-  for (int i = 0; i < 2; ++i) {
-    int val = 1;
-    SAPI_RAW_PCHECK(setsockopt(socketpair_fds[i], SOL_SOCKET, SO_PASSCRED, &val,
-                               sizeof(val)) == 0,
-                    "setsockopt failed");
-  }
-
-  FDCloser signaling_fds[] = {FDCloser(socketpair_fds[0]),
-                              FDCloser(socketpair_fds[1])};
+  UnixSocketPair signaling_socketpair = CreateUnixSocketPair(/*passcred=*/true);
 
   // Note: init_pid will be overwritten with the actual init pid if the init
   //       process was started or stays at 0 if that is not needed - no pidns.
@@ -492,7 +500,7 @@ pid_t ForkServer::ServeRequest() {
         _exit(0);
       }
       // Send sandboxee pid
-      absl::Status status = SendPid(signaling_fds[1].get());
+      absl::Status status = SendPid(signaling_socketpair.sock[1].get());
       SAPI_RAW_CHECK(status.ok(),
                      absl::StrCat("sending pid: ", status.message()).c_str());
     }
@@ -509,29 +517,30 @@ pid_t ForkServer::ServeRequest() {
 
   // Child.
   if (sandboxee_pid == 0) {
-    signaling_fds[0].Close();
+    signaling_socketpair.sock[0].Close();
     pipe_fds.read.Close();
     // Make sure we override the forkserver's comms fd
     comms_->Terminate();
     if (exec_fd != -1) {
-      int signaling_fd = signaling_fds[1].Release();
+      int signaling_fd = signaling_socketpair.sock[1].Release();
       int pipe_fd = pipe_fds.write.Release();
       MoveFDs({{&exec_fd, Comms::kSandbox2TargetExecFD},
                {&comms_fd, Comms::kSandbox2ClientCommsFD}},
               {&signaling_fd, &pipe_fd});
-      signaling_fds[1] = FDCloser(signaling_fd);
+      signaling_socketpair.sock[1] = FDCloser(signaling_fd);
       pipe_fds.write = FDCloser(pipe_fd);
     }
     *comms_ = Comms(comms_fd);
-    LaunchChild(fork_request, exec_fd, uid, gid, std::move(signaling_fds[1]),
+    LaunchChild(fork_request, exec_fd, uid, gid,
+                std::move(signaling_socketpair.sock[1]),
                 std::move(pipe_fds.write), avoid_pivot_root);
     return sandboxee_pid;
   }
 
-  signaling_fds[1].Close();
+  signaling_socketpair.sock[1].Close();
 
   if (avoid_pivot_root) {
-    if (auto pid = ReceivePid(signaling_fds[0].get()); !pid.ok()) {
+    if (auto pid = ReceivePid(signaling_socketpair.sock[0].get()); !pid.ok()) {
       SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
     } else {
       sandboxee_pid = *pid;
@@ -545,7 +554,7 @@ pid_t ForkServer::ServeRequest() {
     sandboxee_pid = -1;
     // And the actual sandboxee is forked from the init process, so we need to
     // receive the actual PID.
-    if (auto pid = ReceivePid(signaling_fds[0].get()); !pid.ok()) {
+    if (auto pid = ReceivePid(signaling_socketpair.sock[0].get()); !pid.ok()) {
       SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
       if (init_pid != -1) {
         kill(init_pid, SIGKILL);
