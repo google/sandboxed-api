@@ -68,14 +68,14 @@ using ::testing::NotNull;
 // Functions that will be used during the benchmarks:
 
 // Function causing no load in the sandboxee.
-absl::Status InvokeNop(Sandbox* sandbox) {
+absl::Status InvokeNop(SandboxBase* sandbox) {
   StringopApi api(sandbox);
   return api.nop();
 }
 
 // Function that makes use of our special protobuf (de)-serialization code
 // inside SAPI (including the back-synchronization of the structure).
-absl::Status InvokeStringReversal(Sandbox* sandbox) {
+absl::Status InvokeStringReversal(SandboxBase* sandbox) {
   StringopApi api(sandbox);
   stringop::StringReverse proto;
   proto.set_input("Hello");
@@ -215,7 +215,7 @@ TEST(SapiTest, HasStackTraces) {
 // Various tests:
 
 // Leaks a file descriptor inside the sandboxee.
-int LeakFileDescriptor(sapi::Sandbox* sandbox, const char* path) {
+int LeakFileDescriptor(sapi::SandboxBase* sandbox, const char* path) {
   int raw_fd = open(path, O_RDONLY);
   sapi::v::Fd fd(raw_fd);  // Takes ownership of the raw fd.
   EXPECT_THAT(sandbox->TransferToSandboxee(&fd), IsOk());
@@ -237,7 +237,7 @@ class SandboxTest : public ::testing::TestWithParam<bool> {
 TEST_P(SandboxTest, RestartSandboxFD) {
   sapi::BasicTransaction st{std::make_unique<SumSandbox>(GetDefaultConfig())};
 
-  auto test_body = [](sapi::Sandbox* sandbox) -> absl::Status {
+  auto test_body = [](sapi::SandboxBase* sandbox) -> absl::Status {
     // Open some FDs and check their value.
     int first_remote_fd = LeakFileDescriptor(sandbox, "/proc/self/exe");
     EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"),
@@ -257,13 +257,13 @@ TEST_P(SandboxTest, RestartTransactionSandboxFD) {
   sapi::BasicTransaction st{std::make_unique<SumSandbox>(GetDefaultConfig())};
 
   int fd_no = -1;
-  ASSERT_THAT(st.Run([&fd_no](sapi::Sandbox* sandbox) -> absl::Status {
+  ASSERT_THAT(st.Run([&fd_no](sapi::SandboxBase* sandbox) -> absl::Status {
     fd_no = LeakFileDescriptor(sandbox, "/proc/self/exe");
     return absl::OkStatus();
   }),
               IsOk());
 
-  EXPECT_THAT(st.Run([fd_no](sapi::Sandbox* sandbox) -> absl::Status {
+  EXPECT_THAT(st.Run([fd_no](sapi::SandboxBase* sandbox) -> absl::Status {
     EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Gt(fd_no));
     return absl::OkStatus();
   }),
@@ -271,7 +271,7 @@ TEST_P(SandboxTest, RestartTransactionSandboxFD) {
 
   EXPECT_THAT(st.Restart(), IsOk());
 
-  EXPECT_THAT(st.Run([fd_no](sapi::Sandbox* sandbox) -> absl::Status {
+  EXPECT_THAT(st.Run([fd_no](sapi::SandboxBase* sandbox) -> absl::Status {
     EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"), Eq(fd_no));
     return absl::OkStatus();
   }),

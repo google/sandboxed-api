@@ -72,7 +72,7 @@ int main() {
   sapi::BasicTransaction transaction(std::make_unique<CustomHelloSandbox>());
 
   absl::Status status =
-      transaction.Run([](sapi::Sandbox* sandbox) -> absl::Status {
+      transaction.Run([](sapi::SandboxBase* sandbox) -> absl::Status {
         HelloApi api(sandbox);
         SAPI_ASSIGN_OR_RETURN(int result, api.AddTwoIntegers(1000, 337));
         std::cout << "  1000 + 337 = " << result << "\n";

@@ -43,8 +43,8 @@ class SumParams : public sapi::v::Struct<sum_params> {};
 
 class SumTransaction : public sapi::Transaction {
  public:
-  SumTransaction(std::unique_ptr<sapi::Sandbox> sandbox, bool crash,
-                 bool violate, bool time_out)
+  SumTransaction(std::unique_ptr<SumSandbox> sandbox, bool crash, bool violate,
+                 bool time_out)
       : sapi::Transaction(std::move(sandbox)),
         crash_(crash),
         violate_(violate),
@@ -203,7 +203,7 @@ absl::Status SumTransaction::Main() {
   return absl::OkStatus();
 }
 
-absl::Status test_addition(sapi::Sandbox* sandbox, int a, int b, int c) {
+absl::Status test_addition(sapi::SandboxBase* sandbox, int a, int b, int c) {
   SumApi f(sandbox);
 
   SAPI_ASSIGN_OR_RETURN(int v, f.sum(a, b));
@@ -227,7 +227,7 @@ int main(int argc, char* argv[]) {
   CHECK(st.Run(test_addition, 1336, 1, 7).code() ==
         absl::StatusCode::kFailedPrecondition);
 
-  status = st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
+  status = st.Run([](sapi::SandboxBase* sandbox) -> absl::Status {
     SumApi f(sandbox);
 
     // Sums two int's held in a structure.
@@ -242,7 +242,7 @@ int main(int argc, char* argv[]) {
   });
   CHECK(status.ok()) << status.message();
 
-  status = st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
+  status = st.Run([](sapi::SandboxBase* sandbox) -> absl::Status {
     SumApi f(sandbox);
     SumParams params;
     params.mutable_data()->a = 1111;

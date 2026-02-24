@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
+#include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -42,7 +43,7 @@ using ::testing::StrEq;
 // Tests using a simple transaction (and function pointers):
 TEST(StringopTest, ProtobufStringDuplication) {
   sapi::BasicTransaction st(absl::make_unique<StringopSandbox>());
-  EXPECT_THAT(st.Run([](sapi::Sandbox* sandbox) -> absl::Status {
+  EXPECT_THAT(st.Run([](sapi::SandboxBase* sandbox) -> absl::Status {
     StringopApi api(sandbox);
     stringop::StringDuplication proto;
     proto.set_input("Hello");
