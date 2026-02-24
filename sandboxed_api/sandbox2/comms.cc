@@ -44,6 +44,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "google/protobuf/message_lite.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
@@ -319,33 +320,35 @@ bool Comms::GetPeerCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
   return true;
 }
 
-bool Comms::RecvFD(int* fd) {
-  char fd_msg[8192];
-  cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
-
-  InternalTLV tlv;
-  iovec iov = {.iov_base = &tlv, .iov_len = sizeof(tlv)};
-
-  msghdr msg = {
-      .msg_name = nullptr,
-      .msg_namelen = 0,
-      .msg_iov = &iov,
-      .msg_iovlen = 1,
-      .msg_control = cmsg,
-      .msg_controllen = sizeof(fd_msg),
-      .msg_flags = 0,
-  };
-
+bool Comms::RecvMsg(InternalTLV* tlv, absl::Span<char> data, void* vmsg) {
   if (GetRawComms() == nullptr) {
-    SAPI_RAW_LOG(ERROR, "RecvFD: connection terminated");
+    SAPI_RAW_LOG(ERROR, "RecvMsg: connection terminated");
     return false;
   }
 
-  ssize_t len = GetRawComms()->RawRecvMsg(&msg);
+  iovec iov[2];
+  iov[0].iov_base = tlv;
+  iov[0].iov_len = sizeof(*tlv);
+  size_t total_len = sizeof(*tlv);
+  size_t iov_len = 1;
+  if (!data.empty()) {
+    iov[1].iov_base = data.data();
+    iov[1].iov_len = data.size();
+    total_len += data.size();
+    ++iov_len;
+  }
+
+  msghdr* msg = reinterpret_cast<msghdr*>(vmsg);
+  msg->msg_name = nullptr;
+  msg->msg_namelen = 0;
+  msg->msg_iov = iov;
+  msg->msg_iovlen = iov_len;
+  msg->msg_flags = 0;
+
+  ssize_t len = GetRawComms()->RawRecvMsg(msg);
   if (len < 0) {
     bool fatal = IsFatalError(errno);
-    SAPI_RAW_PLOG(ERROR, "recvmsg(SCM_RIGHTS): %s error",
-                  fatal ? "fatal" : "normal");
+    SAPI_RAW_PLOG(ERROR, "RecvMsg: %s error", fatal ? "fatal" : "normal");
     if (fatal) {
       Terminate();
     }
@@ -353,21 +356,41 @@ bool Comms::RecvFD(int* fd) {
   }
   if (len == 0) {
     Terminate();
-    SAPI_RAW_VLOG(1, "RecvFD: end-point terminated the connection.");
+    SAPI_RAW_VLOG(1, "RecvMsg: end-point terminated the connection.");
     return false;
   }
-  if (len != sizeof(tlv)) {
-    SAPI_RAW_LOG(ERROR, "Expected size: %zu, got %zd", sizeof(tlv), len);
+  if (len != total_len) {
+    SAPI_RAW_LOG(ERROR, "RecvMsg: Expected size: %zu, got %zd", total_len, len);
     return false;
   }
+
   // At this point, we know that op() has been called successfully, therefore
   // msg struct has been fully populated. Apparently MSAN is not aware of
   // syscall(__NR_recvmsg) semantics so we need to suppress the error (here and
   // everywhere below).
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&tlv, sizeof(tlv));
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(tlv, sizeof(*tlv));
+  if (!data.empty()) {
+    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(data.data(), data.size());
+  }
 
+  return true;
+}
+
+bool Comms::RecvFD(int* fd) {
+  char fd_msg[8192];
+  cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+
+  msghdr msg = {
+      .msg_control = cmsg,
+      .msg_controllen = sizeof(fd_msg),
+  };
+  InternalTLV tlv;
+  if (!RecvMsg(&tlv, {}, &msg)) {
+    return false;
+  }
   if (tlv.tag != kTagFd) {
-    SAPI_RAW_LOG(ERROR, "Expected (kTagFD: 0x%x), got: 0x%x", kTagFd, tlv.tag);
+    SAPI_RAW_LOG(ERROR, "RecvFD: Expected (kTagFD: 0x%x), got: 0x%x", kTagFd,
+                 tlv.tag);
     return false;
   }
 
@@ -381,17 +404,66 @@ bool Comms::RecvFD(int* fd) {
                       "CMSG_LEN(sizeof(int)), skipping");
         continue;
       }
+      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
       int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
       *fd = fds[0];
-      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(fd, sizeof(int));
       return true;
     }
     cmsg = CMSG_NXTHDR(&msg, cmsg);
   }
   SAPI_RAW_LOG(ERROR,
-               "Haven't received the SCM_RIGHTS message, process is probably "
+               "RecvFD: No SCM_RIGHTS message received. Process is probably "
                "out of free file descriptors");
   return false;
+}
+
+bool Comms::SendMsg(const InternalTLV& tlv, absl::string_view data, void* cmsg,
+                    size_t cmsg_len) {
+  if (GetRawComms() == nullptr) {
+    SAPI_RAW_LOG(ERROR, "SendMsg: connection terminated");
+    return false;
+  }
+  iovec iov[2];
+  iov[0].iov_base = const_cast<InternalTLV*>(&tlv);
+  iov[0].iov_len = sizeof(tlv);
+  size_t total_len = sizeof(tlv);
+  size_t iov_len = 1;
+  if (!data.empty()) {
+    iov[1].iov_base = const_cast<char*>(data.data());
+    iov[1].iov_len = data.size();
+    total_len += data.size();
+    ++iov_len;
+  }
+
+  msghdr msg;
+  msg.msg_name = nullptr;
+  msg.msg_namelen = 0;
+  msg.msg_iov = iov;
+  msg.msg_iovlen = iov_len;
+  msg.msg_control = cmsg;
+  msg.msg_controllen = cmsg_len;
+  msg.msg_flags = 0;
+
+  ssize_t len = GetRawComms()->RawSendMsg(&msg);
+  if (len == -1 && errno == EPIPE) {
+    Terminate();
+    SAPI_RAW_LOG(ERROR, "SendMsg: Peer disconnected");
+    return false;
+  }
+  if (len < 0) {
+    bool fatal = IsFatalError(errno);
+    SAPI_RAW_PLOG(ERROR, "SendMsg: %s error", fatal ? "fatal" : "normal");
+    if (fatal) {
+      Terminate();
+    }
+    return false;
+  }
+  if (len != total_len) {
+    SAPI_RAW_LOG(ERROR, "SendMsg: Expected to send %zu bytes, sent %zd",
+                 total_len, len);
+    return false;
+  }
+  return true;
 }
 
 bool Comms::SendFD(int fd) {
@@ -400,51 +472,9 @@ bool Comms::SendFD(int fd) {
   cmsg->cmsg_level = SOL_SOCKET;
   cmsg->cmsg_type = SCM_RIGHTS;
   cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-
   int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
   fds[0] = fd;
-
-  InternalTLV tlv = {kTagFd, 0};
-
-  iovec iov;
-  iov.iov_base = &tlv;
-  iov.iov_len = sizeof(tlv);
-
-  msghdr msg;
-  msg.msg_name = nullptr;
-  msg.msg_namelen = 0;
-  msg.msg_iov = &iov;
-  msg.msg_iovlen = 1;
-  msg.msg_control = cmsg;
-  msg.msg_controllen = sizeof(fd_msg);
-  msg.msg_flags = 0;
-
-  if (GetRawComms() == nullptr) {
-    SAPI_RAW_LOG(ERROR, "SendFD: connection terminated");
-    return false;
-  }
-
-  ssize_t len = GetRawComms()->RawSendMsg(&msg);
-  if (len == -1 && errno == EPIPE) {
-    Terminate();
-    SAPI_RAW_LOG(ERROR, "sendmsg(SCM_RIGHTS): Peer disconnected");
-    return false;
-  }
-  if (len < 0) {
-    bool fatal = IsFatalError(errno);
-    SAPI_RAW_PLOG(ERROR, "sendmsg(SCM_RIGHTS): %s error",
-                  fatal ? "fatal" : "normal");
-    if (fatal) {
-      Terminate();
-    }
-    return false;
-  }
-  if (len != sizeof(tlv)) {
-    SAPI_RAW_LOG(ERROR, "Expected to send %zu bytes, sent %zd", sizeof(tlv),
-                 len);
-    return false;
-  }
-  return true;
+  return SendMsg({kTagFd, 0}, "", cmsg, sizeof(fd_msg));
 }
 
 bool Comms::RecvProtoBuf(google::protobuf::MessageLite* message) {

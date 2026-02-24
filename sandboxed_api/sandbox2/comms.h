@@ -40,6 +40,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "google/protobuf/message_lite.h"
 #include "sandboxed_api/util/fileops.h"
 
@@ -310,6 +311,10 @@ class Comms {
   bool SendGeneric(T value, uint32_t tag) {
     return SendTLV(tag, sizeof(T), &value);
   }
+
+  bool RecvMsg(InternalTLV* tlv, absl::Span<char> data, void* vmsg);
+  bool SendMsg(const InternalTLV& tlv, absl::string_view data, void* cmsg,
+               size_t cmsg_len);
 };
 
 class ListeningComms {

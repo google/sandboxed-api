@@ -809,6 +809,7 @@ target_link_libraries(sandbox2_comms
           sapi::raw_logging
           sapi::status_proto
   PUBLIC absl::core_headers
+         absl::span
          absl::status
          protobuf::libprotobuf
          sapi::fileops
