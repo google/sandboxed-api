@@ -71,6 +71,7 @@ class Comms {
   static constexpr uint32_t kTagProto2 = 0x80000102;
   static constexpr uint32_t kTagBarrier = 0x80000103;
   static constexpr uint32_t kTagFd = 0X80000201;
+  static constexpr uint32_t kTagCreds = 0X80000202;
 
   // Any payload size above this limit will LOG(WARNING).
   static constexpr size_t kWarnMsgSize = (256ULL << 20);
@@ -182,6 +183,8 @@ class Comms {
   bool SendBytes(const std::vector<uint8_t>& buffer);
 
   // Receives remote process credentials.
+  bool SendCreds();
+  bool RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid);
   bool GetPeerCreds(pid_t* pid, uid_t* uid, gid_t* gid);
 
   // Receives/sends file descriptors.

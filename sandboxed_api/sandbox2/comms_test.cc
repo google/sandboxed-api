@@ -61,10 +61,16 @@ static absl::string_view NullTestString() {
 // Helper function that handles the communication between the two handler
 // functions.
 void HandleCommunication(const CommunicationHandler& a,
-                         const CommunicationHandler& b) {
+                         const CommunicationHandler& b, bool passcred = false) {
   int sv[2];
   CHECK_NE(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), -1);
-  Comms comms(sv[0]);
+  if (passcred) {
+    for (int i = 0; i < 2; ++i) {
+      int val = 1;
+      CHECK_NE(setsockopt(sv[i], SOL_SOCKET, SO_PASSCRED, &val, sizeof(val)),
+               -1);
+    }
+  }
 
   // Start handler a.
   sapi::Thread remote([sv, &a]() {
@@ -73,7 +79,10 @@ void HandleCommunication(const CommunicationHandler& a,
   });
 
   // Accept connection and run handler b.
-  b(&comms);
+  {
+    Comms comms(sv[0]);
+    b(&comms);
+  }
   remote.Join();
 }
 
@@ -230,6 +239,39 @@ TEST(CommsTest, TestSendRecvFD) {
     ASSERT_THAT(comms->SendFD(STDERR_FILENO), IsTrue());
   };
   HandleCommunication(a, b);
+}
+
+TEST(CommsTest, TestSendRecvCreds) {
+  pid_t pid = getpid();
+  uid_t uid = getuid();
+  gid_t gid = getgid();
+  auto a = [&](Comms* comms) {
+    // Receive FD and test it.
+    pid_t recv_pid;
+    uid_t recv_uid;
+    gid_t recv_gid;
+    ASSERT_THAT(comms->RecvCreds(&recv_pid, &recv_uid, &recv_gid), IsTrue());
+    EXPECT_THAT(recv_pid, Eq(pid));
+    EXPECT_THAT(recv_uid, Eq(uid));
+    EXPECT_THAT(recv_gid, Eq(gid));
+  };
+  auto b = [](Comms* comms) {
+    // Send our STDERR to the thread.
+    ASSERT_THAT(comms->SendCreds(), IsTrue());
+  };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, TestSendRecvCredsFailsWithoutPassCred) {
+  auto a = [](Comms* comms) {
+    // Receive FD and test it.
+    pid_t recv_pid;
+    uid_t recv_uid;
+    gid_t recv_gid;
+    EXPECT_THAT(comms->RecvCreds(&recv_pid, &recv_uid, &recv_gid), IsFalse());
+  };
+  auto b = [](Comms* comms) { ASSERT_THAT(comms->SendCreds(), IsFalse()); };
+  HandleCommunication(a, b, /*passcred=*/false);
 }
 
 TEST(CommsTest, TestSendRecvEmptyTLV) {
@@ -451,8 +493,18 @@ TEST(CommsTest, RecvFDFailsOnTagMismatch) {
     int fd;
     EXPECT_THAT(comms->RecvFD(&fd), IsFalse());
   };
-  auto b = [](Comms* comms) { ASSERT_THAT(comms->SendBytes({}), IsTrue()); };
-  HandleCommunication(a, b);
+  auto b = [](Comms* comms) { ASSERT_THAT(comms->SendCreds(), IsTrue()); };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, RecvCredsFailsOnTagMismatch) {
+  auto a = [](Comms* comms) {
+    EXPECT_THAT(comms->RecvCreds(nullptr, nullptr, nullptr), IsFalse());
+  };
+  auto b = [](Comms* comms) {
+    ASSERT_THAT(comms->SendFD(STDERR_FILENO), IsTrue());
+  };
+  HandleCommunication(a, b, /*passcred=*/true);
 }
 
 TEST(CommsTest, RecvProtoBufFailsOnTagMismatch) {

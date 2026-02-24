@@ -65,6 +65,8 @@ namespace {
 
 using sapi::file_util::fileops::FDCloser;
 
+static constexpr size_t kRecvMsgControlBufferSize = 8192;
+
 bool IsFatalError(int saved_errno) {
   return saved_errno != EAGAIN && saved_errno != EWOULDBLOCK &&
          saved_errno != EFAULT && saved_errno != EINTR &&
@@ -106,6 +108,15 @@ socklen_t CreateSockaddrUn(const std::string& socket_name, bool abstract_uds,
     slen = sizeof(sockaddr_un);
   }
   return slen;
+}
+
+bool GetPassCred(int socket) {
+  int passcred = 0;
+  socklen_t optsize = sizeof(passcred);
+  int rc = getsockopt(socket, SOL_SOCKET, SO_PASSCRED, &passcred, &optsize);
+  SAPI_RAW_PCHECK(rc == 0, "Failed to get value of SO_PASSCRED");
+  SAPI_RAW_CHECK(optsize == sizeof(passcred), "Wrong size of SO_PASSCRED opt");
+  return passcred != 0;
 }
 }  // namespace
 
@@ -377,12 +388,14 @@ bool Comms::RecvMsg(InternalTLV* tlv, absl::Span<char> data, void* vmsg) {
 }
 
 bool Comms::RecvFD(int* fd) {
-  char fd_msg[8192];
-  cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+  union {
+    struct cmsghdr cmh;
+    char buf[kRecvMsgControlBufferSize];
+  } cmsg_buffer{};
 
   msghdr msg = {
-      .msg_control = cmsg,
-      .msg_controllen = sizeof(fd_msg),
+      .msg_control = cmsg_buffer.buf,
+      .msg_controllen = kRecvMsgControlBufferSize,
   };
   InternalTLV tlv;
   if (!RecvMsg(&tlv, {}, &msg)) {
@@ -394,7 +407,7 @@ bool Comms::RecvFD(int* fd) {
     return false;
   }
 
-  cmsg = CMSG_FIRSTHDR(&msg);
+  cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
   while (cmsg) {
     if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
@@ -414,6 +427,54 @@ bool Comms::RecvFD(int* fd) {
   SAPI_RAW_LOG(ERROR,
                "RecvFD: No SCM_RIGHTS message received. Process is probably "
                "out of free file descriptors");
+  return false;
+}
+
+bool Comms::RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
+  union {
+    struct cmsghdr cmh;
+    char buf[kRecvMsgControlBufferSize];
+  } cmsg_buffer{};
+
+  msghdr msg = {
+      .msg_control = cmsg_buffer.buf,
+      .msg_controllen = kRecvMsgControlBufferSize,
+  };
+  InternalTLV tlv;
+  if (!RecvMsg(&tlv, {}, &msg)) {
+    return false;
+  }
+  if (tlv.tag != kTagCreds) {
+    SAPI_RAW_LOG(ERROR, "RecvCreds: Expected (kTagCreds: 0x%x), got: 0x%x",
+                 kTagCreds, tlv.tag);
+    return false;
+  }
+  cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
+  while (cmsg) {
+    if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_CREDENTIALS) {
+      if (cmsg->cmsg_len != CMSG_LEN(sizeof(struct ucred))) {
+        SAPI_RAW_VLOG(1,
+                      "recvmsg(SCM_CREDENTIALS): cmsg->cmsg_len != "
+                      "CMSG_LEN(sizeof(SCM_CREDENTIALS)), skipping");
+        continue;
+      }
+      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
+      struct ucred* creds = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsg));
+      if (pid) {
+        *pid = creds->pid;
+      }
+      if (uid) {
+        *uid = creds->uid;
+      }
+      if (gid) {
+        *gid = creds->gid;
+      }
+      return true;
+    }
+    cmsg = CMSG_NXTHDR(&msg, cmsg);
+  }
+  SAPI_RAW_LOG(ERROR, "RecvCreds: No SCM_CREDENTIALS message received.");
   return false;
 }
 
@@ -475,6 +536,18 @@ bool Comms::SendFD(int fd) {
   int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
   fds[0] = fd;
   return SendMsg({kTagFd, 0}, "", cmsg, sizeof(fd_msg));
+}
+
+bool Comms::SendCreds() {
+  if (GetRawComms() == nullptr) {
+    SAPI_RAW_LOG(ERROR, "SendCreds: connection terminated");
+    return false;
+  }
+  if (!GetPassCred(GetConnectionFD())) {
+    SAPI_RAW_LOG(ERROR, "SendCreds: SO_PASSCRED not enabled on the socket");
+    return false;
+  }
+  return SendMsg({kTagCreds, 0}, "", nullptr, 0);
 }
 
 bool Comms::RecvProtoBuf(google::protobuf::MessageLite* message) {
