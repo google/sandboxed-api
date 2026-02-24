@@ -181,7 +181,7 @@ class Comms {
   bool SendBytes(const std::vector<uint8_t>& buffer);
 
   // Receives remote process credentials.
-  bool RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid);
+  bool GetPeerCreds(pid_t* pid, uid_t* uid, gid_t* gid);
 
   // Receives/sends file descriptors.
   bool RecvFD(int* fd);

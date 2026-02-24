@@ -296,7 +296,7 @@ bool Comms::SendBytes(const std::vector<uint8_t>& buffer) {
   return SendBytes(buffer.data(), buffer.size());
 }
 
-bool Comms::RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
+bool Comms::GetPeerCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
   ucred uc;
   socklen_t sls = sizeof(uc);
   int rc;

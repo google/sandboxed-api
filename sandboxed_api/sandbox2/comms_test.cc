@@ -359,7 +359,7 @@ TEST(CommsTest, TestSendRecvCredentials) {
     pid_t pid;
     uid_t uid;
     gid_t gid;
-    ASSERT_THAT(comms->RecvCreds(&pid, &uid, &gid), IsTrue());
+    ASSERT_THAT(comms->GetPeerCreds(&pid, &uid, &gid), IsTrue());
     EXPECT_THAT(pid, Eq(getpid()));
     EXPECT_THAT(uid, Eq(getuid()));
     EXPECT_THAT(gid, Eq(getgid()));

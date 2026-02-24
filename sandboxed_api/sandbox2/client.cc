@@ -320,7 +320,7 @@ void Client::ApplyPolicyAndBecomeTracee() {
   pid_t cred_pid;
   uid_t cred_uid ABSL_ATTRIBUTE_UNUSED;
   gid_t cred_gid ABSL_ATTRIBUTE_UNUSED;
-  SAPI_RAW_CHECK(comms_->RecvCreds(&cred_pid, &cred_uid, &cred_gid),
+  SAPI_RAW_CHECK(comms_->GetPeerCreds(&cred_pid, &cred_uid, &cred_gid),
                  "receiving credentials");
 
   SAPI_RAW_CHECK(prctl(PR_SET_DUMPABLE, 1) == 0,
