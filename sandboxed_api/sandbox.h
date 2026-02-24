@@ -31,7 +31,6 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2_backend.h"
@@ -198,12 +197,6 @@ class SandboxImpl : public SandboxBase {
   void Terminate(bool attempt_graceful_exit = true) override {
     backend().Terminate(attempt_graceful_exit);
   }
-
-  ABSL_DEPRECATE_AND_INLINE()
-  sandbox2::Comms* comms() const { return backend().comms(); }
-
-  ABSL_DEPRECATE_AND_INLINE()
-  int pid() const { return backend().pid(); }
 
   absl::StatusOr<int> GetPid() const override { return backend().GetPid(); }
 
