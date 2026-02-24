@@ -214,10 +214,6 @@ class SandboxImpl : public SandboxBase {
   absl::Status AwaitExitStatus() override {
     return backend().AwaitExitStatus();
   }
-  ABSL_DEPRECATE_AND_INLINE()
-  const sandbox2::Result& AwaitResult() {
-    return backend().AwaitSandbox2Result();
-  }
   const sandbox2::Result& result() const { return backend().result(); }
 
   RPCChannel* rpc_channel() const override { return backend().rpc_channel(); }
