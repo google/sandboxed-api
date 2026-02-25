@@ -111,7 +111,8 @@ pid_t ForkWithFlags(int flags);
 // Creates a new memfd. The memfd will be created with the following default
 // memfd flags: MFD_CLOEXEC | MFD_ALLOW_SEALING.
 absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFd(
-    const char* name, uintptr_t flag = kMfdCloseOnExec | kMfdAllowSealing);
+    const char* name = "buffer_file",
+    uintptr_t flag = kMfdCloseOnExec | kMfdAllowSealing);
 
 ABSL_DEPRECATED("Use absl::StatusOr<FDCloser> version instead.")
 inline bool CreateMemFd(int* fd, const char* name = "buffer_file") {
