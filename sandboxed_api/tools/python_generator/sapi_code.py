@@ -1062,6 +1062,7 @@ class {0}Sandbox : public ::sapi::SandboxImpl<::sapi::Sandbox2Backend> {{
     result.append('#include "absl/status/status.h"')
     result.append('#include "absl/status/statusor.h"')
     result.append('#include "sandboxed_api/sandbox.h"')
+    result.append('#include "sandboxed_api/sandbox2_backend.h"')
     result.append('#include "sandboxed_api/util/status_macros.h"')
     result.append('#include "sandboxed_api/vars.h"')
 
