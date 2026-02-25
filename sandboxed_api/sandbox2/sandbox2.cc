@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -74,12 +75,14 @@ class Sandbox2Peer : public internal::SandboxPeer {
 
 absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdWithHugePages(
     const char* name, uintptr_t flags) {
-  static bool huge_tlb_supported = true;
+  static std::atomic<bool> huge_tlb_supported = true;
 
   if (huge_tlb_supported) {
     auto res =
         util::CreateMemFd(name, flags | util::kMfdHugeTLB | util::kMfdHuge2Mb);
-    huge_tlb_supported = res.ok();
+    if (!res.ok() && errno == EINVAL) {
+      huge_tlb_supported = false;
+    }
     return res;
   }
   return absl::InternalError("No huge page support.");
