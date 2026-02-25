@@ -50,6 +50,18 @@
 #define SANDBOX_OUT_PTR [[clang::annotate("sandbox", "out_ptr")]]
 #define SANDBOX_INOUT_PTR [[clang::annotate("sandbox", "inout_ptr")]]
 
+// Pointer argument where the data lives in the sandbox, the host can just treat
+// it as a handle with which the sandbox can do what it will, and knows what it
+// refers to. This pointer will then be invalid in the host.
+#define SANDBOX_OPAQUE_PTR [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]
+
+// Pointer argument where the data lives in the host, the sandbox can just treat
+// it as a handle with which the host can do what it will, and knows what it
+// refers to.
+// This pointer will then be invalid in the sandbox.
+#define SANDBOX_HOST_OPAQUE_PTR \
+  [[clang::annotate("sandbox", "host_opaque_ptr")]]
+
 // Pointer argument annotations that denote the pointee data is an array
 // with the size specified by the given argument.
 //
@@ -59,5 +71,26 @@
 //                  size_t n);
 #define SANDBOX_ELEM_SIZED_BY(elem_size_arg) \
   [[clang::annotate("sandbox", "elem_sized_by", #elem_size_arg)]]
+
+// Annotations for sandboxee and host thunks.
+// These just mean that we also emit these into the sandbox / host code.
+// They can be used to hook function calls.
+#define SANDBOX_SANDBOXEE_THUNK(func_name) \
+  [[clang::annotate("sandbox", "sandboxee_thunk", #func_name)]]
+#define SANDBOX_HOST_THUNK(func_name) \
+  [[clang::annotate("sandbox", "host_thunk", #func_name)]]
+
+// These are for verbatim code snippets that are included in the host code.
+#define SANDBOX_HOST_CODE(...)                \
+  [[clang::annotate("sandbox", "host_code")]] \
+  static constexpr char host_code[] = __VA_ARGS__
+
+// These are for verbatim code snippets that are included in the sandboxee code.
+#define SANDBOX_SANDBOXEE_CODE(...)                \
+  [[clang::annotate("sandbox", "sandboxee_code")]] \
+  static constexpr char sandboxee_code[] = __VA_ARGS__
+
+// This is for host variables that can hold some state between calls.
+#define SANDBOX_HOST_STATE_VAR [[clang::annotate("sandbox", "host_state_var")]]
 
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

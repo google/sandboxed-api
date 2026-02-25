@@ -506,6 +506,8 @@ def cc_sandboxed_library(
         lib,
         srcs = [],
         tags = [],
+        host_deps = [],
+        sandboxee_deps = [],
         visibility = None,
         compatible_with = None):
     """Creates a sandboxed drop-in replacement cc_library.
@@ -527,6 +529,8 @@ def cc_sandboxed_library(
       lib: Label of the cc_library target to sandbox
       srcs: List of source files to tune syscall policy, and interface bridging.
       tags: Same as cc_library.tags
+      host_deps: Additional dependencies for the host code.
+      sandboxee_deps: Additional dependencies for the sandboxee code.
       visibility: Same as cc_library.visibility
       compatible_with: Same as cc_library.compatible_with
     """
@@ -572,6 +576,8 @@ def cc_sandboxed_library(
         sandboxee_hdr_out = name + ".sapi.sandboxee.h.unformatted",
         sandboxee_src_out = name + ".sapi.sandboxee.cc.unformatted",
         sandboxee_main_out = name + ".sapi.sandboxee_main.cc.unformatted",
+        host_deps = host_deps,
+        sandboxee_deps = sandboxee_deps,
         host_src_out = name + ".sapi.host.cc.unformatted",
         sapi_hdr = native.package_name() + "/_sapi_" + name + ".sapi.h",
         srcs = srcs,
@@ -594,7 +600,7 @@ def cc_sandboxed_library(
         deps = [
             lib,
             "//sandboxed_api:lenval_core",
-        ],
+        ] + sandboxee_deps,
         **common
     )
 
@@ -610,7 +616,7 @@ def cc_sandboxed_library(
             "//sandboxed_api:lenval_core",
             "//sandboxed_api/sandbox2/util:bpf_helper",
             "@abseil-cpp//absl/log:check",
-        ],
+        ] + host_deps,
         **common
     )
 
@@ -677,7 +683,10 @@ def cc_sandboxed_library_test(
 
 def _sandboxed_library_gen_impl(ctx):
     cpp_toolchain = find_cpp_toolchain(ctx)
-    cc_ctx = ctx.attr.lib[CcInfo].compilation_context
+    compilation_contexts = [ctx.attr.lib[CcInfo].compilation_context]
+    compilation_contexts.extend([d[CcInfo].compilation_context for d in ctx.attr.host_deps])
+    compilation_contexts.extend([d[CcInfo].compilation_context for d in ctx.attr.sandboxee_deps])
+    cc_ctx = cc_common.merge_compilation_contexts(compilation_contexts = compilation_contexts)
 
     args = []
     args.append("--sandboxed_library_gen")
@@ -729,6 +738,8 @@ _sandboxed_library_gen = rule(
         "sandboxee_main_out": attr.output(),
         "host_src_out": attr.output(),
         "sapi_hdr": attr.string(),
+        "host_deps": attr.label_list(providers = [CcInfo]),
+        "sandboxee_deps": attr.label_list(providers = [CcInfo]),
         "srcs": attr.label_list(allow_files = True),
         "_generator": make_exec_label(
             "//sandboxed_api/tools/clang_generator:generator_tool",

@@ -72,6 +72,7 @@ cc_library(
         "@llvm-project//clang:tooling_core",
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:config",
+        "@re2",
     ],
 )
 

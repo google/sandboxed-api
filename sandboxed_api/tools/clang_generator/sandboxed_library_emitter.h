@@ -35,6 +35,16 @@ enum class PointerDir {
   kIn,
   kOut,
   kInOut,
+  // Pointer argument where the data lives in the sandbox, the host can just
+  // treat it as a handle with which the sandbox can do what it will, and knows
+  // what it refers to.
+  // This pointer will then be invalid in the host.
+  kSandboxOpaque,
+  // Pointer argument where the data lives in the host, the sandbox can just
+  // treat it as a handle with which the host can do what it will, and knows
+  // what it refers to.
+  // This pointer will then be invalid in the sandbox.
+  kHostOpaque,
 };
 
 class SandboxedLibraryEmitter : public EmitterBase {
@@ -60,10 +70,21 @@ class SandboxedLibraryEmitter : public EmitterBase {
  private:
   using ArgPtr = std::unique_ptr<Arg>;
 
+  struct Thunk {
+    std::string name;
+    std::string body;
+    std::string declaration;
+  };
+
   struct Func {
     std::string name;
     ArgPtr ret;  // nullptr for void return type
     std::vector<ArgPtr> args;
+
+    // The optional thunks for this function, if they exist, we need to rewire
+    // some code.
+    std::optional<Thunk> host_thunk;
+    std::optional<Thunk> sandboxee_thunk;
 
     ~Func();
   };
@@ -80,13 +101,20 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
                                        bool add_includes) const;
   absl::StatusOr<ArgPtr> Convert(absl::string_view name, clang::QualType type,
-                                 const clang::ParmVarDecl* param);
+                                 const clang::ParmVarDecl* param,
+                                 const clang::FunctionDecl* funcDecl);
   absl::StatusOr<ArgPtr> ConvertImpl(absl::string_view name,
                                      clang::QualType type,
                                      Annotations&& annotations);
   absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
                                                const clang::ParmVarDecl* param);
+  absl::StatusOr<Annotations> ParseAnnotations(
+      absl::string_view name, const clang::FunctionDecl* funcDecl);
   std::vector<const Func*> SortedFuncs() const;
+
+  // Returns a vector of pairs of name and type of the used host state
+  // variables.
+  std::vector<std::pair<std::string, std::string>> HostStateVars() const;
 
   absl::flat_hash_set<std::string> includes_;
   absl::flat_hash_map<std::string, std::unique_ptr<Func>> funcs_;
@@ -94,6 +122,9 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::flat_hash_set<std::string> ignore_funcs_;
   absl::flat_hash_map<std::string, std::string> used_funcs_;
   std::optional<std::string> funcs_loc_;
+  std::vector<std::string> host_state_vars_;
+  std::optional<std::string> host_code_;
+  std::optional<std::string> sandboxee_code_;
 };
 
 }  // namespace sapi
