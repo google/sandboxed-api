@@ -82,7 +82,7 @@ class TransactionBase {
   bool IsInitialized() const { return initialized_; }
 
   // Getter for the sandbox_.
-  SandboxForTransaction* sandbox() const { return sandbox_.get(); }
+  SandboxBase* sandbox() const { return sandbox_.get(); }
 
   // Restarts the sandbox.
   // WARNING: This will invalidate any references to the remote process, make
@@ -97,7 +97,7 @@ class TransactionBase {
   }
 
  protected:
-  explicit TransactionBase(std::unique_ptr<SandboxForTransaction> sandbox)
+  explicit TransactionBase(std::unique_ptr<SandboxBase> sandbox)
       : time_limit_(kDefaultTimeLimit), sandbox_(std::move(sandbox)) {}
 
   // Runs the main (retrying) transaction loop.
@@ -134,7 +134,7 @@ class TransactionBase {
   bool initialized_ = false;
 
   // The main sapi::Sandbox object.
-  std::unique_ptr<SandboxForTransaction> sandbox_;
+  std::unique_ptr<SandboxBase> sandbox_;
 };
 
 // Regular style transactions, based on inheriting.
