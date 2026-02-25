@@ -33,6 +33,7 @@
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2_backend.h"
 #include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_reg.h"
@@ -217,8 +218,7 @@ class SandboxImpl : public SandboxBase {
   Backend backend_;
 };
 
-template <typename Backend>
-using Sandbox = SandboxImpl<Backend>;
+using Sandbox = SandboxImpl<Sandbox2Backend>;
 
 }  // namespace sapi
 
