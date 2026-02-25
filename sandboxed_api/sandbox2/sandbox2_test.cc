@@ -50,6 +50,7 @@ namespace sandbox2 {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
@@ -344,7 +345,7 @@ TEST(SharedMemoryTest, SharedMemoryDataTransferWorks) {
                             CreateDefaultPermissiveTestPolicy(path).TryBuild());
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   SAPI_ASSERT_OK_AND_ASSIGN(auto res,
-                            s2.CreateSharedMemoryMapping(size_t{100} << 20));
+                            s2.CreateSharedMemoryMapping({.size = 100 << 20}));
   res->data()[0] = 'Z';
   auto result = s2.Run();
 

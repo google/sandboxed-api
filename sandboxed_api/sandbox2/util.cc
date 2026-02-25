@@ -254,13 +254,9 @@ pid_t ForkWithFlags(int flags) {
   return 0;
 }
 
-absl::StatusOr<FDCloser> CreateMemFd(const char* name) {
-  // Usually defined in linux/memfd.h. Define it here to avoid dependency on
-  // UAPI headers.
-  constexpr uintptr_t kMfdCloseOnExec = 0x0001;
-  constexpr uintptr_t kMfdAllowSealing = 0x0002;
-  int tmp_fd = Syscall(__NR_memfd_create, reinterpret_cast<uintptr_t>(name),
-                       kMfdCloseOnExec | kMfdAllowSealing);
+absl::StatusOr<FDCloser> CreateMemFd(const char* name, uintptr_t flags) {
+  int tmp_fd =
+      Syscall(__NR_memfd_create, reinterpret_cast<uintptr_t>(name), flags);
   if (tmp_fd < 0) {
     if (errno == ENOSYS) {
       return absl::InternalError(

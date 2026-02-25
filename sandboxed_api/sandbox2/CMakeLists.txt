@@ -207,6 +207,16 @@ target_link_libraries(sandbox2_limits PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2:sandbox_config
+add_library(sandbox2_sandbox_config ${SAPI_LIB_TYPE}
+  sandbox_config.h
+)
+add_library(sandbox2::sandbox_config ALIAS sandbox2_sandbox_config)
+target_link_libraries(sandbox2_sandbox_config PRIVATE
+  absl::core_headers
+  sapi::base
+)
+
 # sandboxed_api/sandbox2:forkserver_bin
 add_executable(sandbox2_forkserver_bin
   forkserver_bin.cc
@@ -338,6 +348,7 @@ target_link_libraries(sandbox2_sandbox2
          sandbox2::buffer
          sandbox2::client
          sandbox2::comms
+         sandbox2::sandbox_config
          sandbox2::executor
          sandbox2::fork_client
          sandbox2::global_forkserver

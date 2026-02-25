@@ -123,6 +123,7 @@ target_link_libraries(sapi_sapi
           sapi::shared_memory_rpcchannel
           sapi::strerror
           sandbox2::buffer
+          sandbox2::sandbox_config
           sandbox2::fork_client
           sandbox2::util
           sapi::embed_file

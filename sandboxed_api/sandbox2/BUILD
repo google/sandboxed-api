@@ -237,6 +237,13 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "sandbox_config",
+    hdrs = ["sandbox_config.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
 cc_binary(
     name = "forkserver_bin",
     srcs = ["forkserver_bin.cc"],
@@ -367,6 +374,7 @@ cc_library(
         ":policybuilder",
         ":regs",
         ":result",
+        ":sandbox_config",
         ":stack_trace",
         ":syscall",
         ":util",

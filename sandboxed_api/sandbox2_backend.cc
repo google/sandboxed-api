@@ -216,9 +216,11 @@ absl::Status Sandbox2Backend::Init() {
   s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
                                              std::move(s2p), CreateNotifier());
   const sandbox2::Buffer* shared_memory_mapping = nullptr;
-  if (config_.sandbox2.enable_shared_memory) {
-    SAPI_ASSIGN_OR_RETURN(shared_memory_mapping,
-                          s2_->CreateSharedMemoryMapping());
+  bool use_shared_memory = config_.sandbox2.shared_memory_config.has_value();
+  if (use_shared_memory) {
+    SAPI_ASSIGN_OR_RETURN(
+        shared_memory_mapping,
+        s2_->CreateSharedMemoryMapping(*config_.sandbox2.shared_memory_config));
   }
   if (config_.sandbox2.use_unotify_monitor) {
     SAPI_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
@@ -230,7 +232,7 @@ absl::Status Sandbox2Backend::Init() {
   pid_ = s2_->pid();
 
   rpc_channel_ = std::make_unique<Sandbox2RPCChannel>(comms_, pid_);
-  if (config_.sandbox2.enable_shared_memory) {
+  if (use_shared_memory) {
     uint64_t remote_base_address;
     comms_->RecvUint64(&remote_base_address);
     void* shared_memory_local_ptr = shared_memory_mapping->data();

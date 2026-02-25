@@ -45,6 +45,13 @@ inline constexpr int kMagicSyscallErr = 0x000000fdb;    // 4059
 
 namespace util {
 
+// Usually defined in linux/memfd.h. Define it here to avoid dependency on
+// UAPI headers.
+constexpr uintptr_t kMfdCloseOnExec = 0x0001;
+constexpr uintptr_t kMfdAllowSealing = 0x0002;
+constexpr uintptr_t kMfdHugeTLB = 0x0004;
+constexpr uintptr_t kMfdHuge2Mb = 0x54000000;
+
 void DumpCoverageData();
 
 // An char ptr array limited by the terminating nullptr entry (like environ
@@ -101,9 +108,10 @@ long Syscall(long sys_no,  // NOLINT
 // Return values as for 'man 2 fork'.
 pid_t ForkWithFlags(int flags);
 
-// Creates a new memfd.
+// Creates a new memfd. The memfd will be created with the following default
+// memfd flags: MFD_CLOEXEC | MFD_ALLOW_SEALING.
 absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFd(
-    const char* name = "buffer_file");
+    const char* name, uintptr_t flag = kMfdCloseOnExec | kMfdAllowSealing);
 
 ABSL_DEPRECATED("Use absl::StatusOr<FDCloser> version instead.")
 inline bool CreateMemFd(int* fd, const char* name = "buffer_file") {

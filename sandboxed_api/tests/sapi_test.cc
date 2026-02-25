@@ -228,7 +228,9 @@ class SandboxTest : public ::testing::TestWithParam<bool> {
  protected:
   SandboxConfig GetDefaultConfig() {
     SandboxConfig config;
-    config.sandbox2.enable_shared_memory = GetParam();
+    if (GetParam()) {
+      config.sandbox2.shared_memory_config.emplace();
+    }
     return config;
   }
 };

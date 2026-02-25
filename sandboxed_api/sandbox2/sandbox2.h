@@ -36,11 +36,10 @@
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/sandbox_config.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
-
-// Size of the shared memory region. 10MB by default.
-static constexpr size_t kSandbox2SharedMemorySize = (10ULL << 20);
 
 class Sandbox2 final {
  public:
@@ -103,7 +102,7 @@ class Sandbox2 final {
   // system calls used to set up the shared memory. You can call
   // `PolicyBuilder::AllowSharedMemory()` to add the necessary policy.
   absl::StatusOr<const Buffer*> CreateSharedMemoryMapping(
-      size_t size = kSandbox2SharedMemorySize);
+      const SharedMemoryConfig& config = SharedMemoryConfig());
 
   // Returns the comms object from the executor.
   Comms* comms() {

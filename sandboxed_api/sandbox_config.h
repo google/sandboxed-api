@@ -34,6 +34,7 @@
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
+#include "sandboxed_api/sandbox2/sandbox_config.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sapi {
@@ -73,9 +74,12 @@ struct Sandbox2Config {
   // sandboxee class is used.
   std::optional<ForkClientContext> fork_client_context;
 
+  // Configuration for the shared memory region. If set to nullopt, the
+  // sandboxee will not map a shared memory region (default).
+  std::optional<sandbox2::SharedMemoryConfig> shared_memory_config;
+
   bool use_unotify_monitor = false;
   bool enable_log_server = false;
-  bool enable_shared_memory = false;
   std::optional<std::string> cwd;
   std::optional<sandbox2::Limits> limits;
 

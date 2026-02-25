@@ -592,7 +592,7 @@ TEST_P(PolicyTest, InstallSharedMemoryWithWrongPolicy) {
   builder.AllowTcMalloc();
   builder.AllowExit();
   auto s2 = CreateTestSandbox({"shared_memory", "2"}, builder);
-  ASSERT_THAT(s2->CreateSharedMemoryMapping(100ULL << 20), IsOk());
+  ASSERT_THAT(s2->CreateSharedMemoryMapping({.size = 100ULL << 20}), IsOk());
   auto result = s2->Run();
 
   ASSERT_EQ(result.final_status(), sandbox2::Result::VIOLATION);
@@ -612,8 +612,8 @@ TEST_P(PolicyTest, InstallSharedMemoryWithMinimalPolicy) {
   builder.AllowTcMalloc();
   builder.AllowExit();
   auto s2 = CreateTestSandbox({"shared_memory", "2"}, builder);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto res,
-                            s2->CreateSharedMemoryMapping(100ULL << 20));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto res, s2->CreateSharedMemoryMapping({.size = 100ULL << 20}));
   res->data()[0] = 'Z';
   auto result = s2->Run();
 

@@ -17,9 +17,11 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -28,13 +30,17 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
 #include "sandboxed_api/sandbox2/result.h"
+#include "sandboxed_api/sandbox2/sandbox_config.h"
 #include "sandboxed_api/sandbox2/stack_trace.h"
+#include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
@@ -65,6 +71,49 @@ class Sandbox2Peer : public internal::SandboxPeer {
  private:
   Sandbox2 sandbox_;
 };
+
+absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdWithHugePages(
+    const char* name, uintptr_t flags) {
+  static bool huge_tlb_supported = true;
+
+  if (huge_tlb_supported) {
+    auto res =
+        util::CreateMemFd(name, flags | util::kMfdHugeTLB | util::kMfdHuge2Mb);
+    huge_tlb_supported = res.ok();
+    return res;
+  }
+  return absl::InternalError("No huge page support.");
+}
+
+absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdForSharedMemory(
+    const SharedMemoryConfig& config) {
+  uintptr_t flags = util::kMfdCloseOnExec | util::kMfdAllowSealing;
+  constexpr size_t kHugePageSize = 2ULL << 20;
+  if (config.enable_huge_pages) {
+    if ((config.size & (kHugePageSize - 1)) != 0) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Shared memory size must be a multiple of huge page size: ",
+          kHugePageSize));
+    }
+    if (auto res = CreateMemFdWithHugePages("s2_shared_memory", flags);
+        res.ok()) {
+      return res;
+    }
+    LOG(WARNING)
+        << "Kernel does not support huge pages, falling back to default "
+           "memfd creation.";
+  }
+  return util::CreateMemFd("s2_shared_memory", flags);
+}
+
+absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateSharedMemoryFile(
+    const SharedMemoryConfig& config) {
+  SAPI_ASSIGN_OR_RETURN(auto fd, CreateMemFdForSharedMemory(config));
+  if (ftruncate(fd.get(), config.size) < 0) {
+    return absl::ErrnoToStatus(errno, "Could not truncate shared memory file");
+  }
+  return fd;
+}
 
 }  // namespace
 
@@ -143,15 +192,16 @@ absl::Status Sandbox2::EnableUnotifyMonitor() {
   return absl::OkStatus();
 }
 
-absl::StatusOr<const Buffer*> Sandbox2::CreateSharedMemoryMapping(size_t size) {
+absl::StatusOr<const Buffer*> Sandbox2::CreateSharedMemoryMapping(
+    const SharedMemoryConfig& config) {
   if (monitor_ != nullptr) {
     return absl::FailedPreconditionError("Sandbox was already launched");
   }
   if (shared_memory_buffer_ != nullptr) {
     return absl::FailedPreconditionError("Shared memory was already created");
   }
-  SAPI_ASSIGN_OR_RETURN(auto buffer,
-                        Buffer::CreateWithSize(size, "s2_shared_memory"));
+  SAPI_ASSIGN_OR_RETURN(auto fd, CreateSharedMemoryFile(config));
+  SAPI_ASSIGN_OR_RETURN(auto buffer, Buffer::CreateFromFd(std::move(fd)));
 
   // Seal the shared memory file descriptor to prevent the sandboxee from
   // growing or shrinking it.

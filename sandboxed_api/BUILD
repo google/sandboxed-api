@@ -157,6 +157,7 @@ cc_library(
         "//sandboxed_api/sandbox2:buffer",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:fork_client",
+        "//sandboxed_api/sandbox2:sandbox_config",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:runfiles",
