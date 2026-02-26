@@ -1053,6 +1053,7 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
+        "@google_benchmark//:benchmark",
         "@googletest//:gtest_main",
     ],
 )

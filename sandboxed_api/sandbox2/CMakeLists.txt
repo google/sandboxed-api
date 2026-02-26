@@ -1115,6 +1115,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     absl::synchronization
     absl::time
+    benchmark
     sapi::config
     sandbox2::fork_client
     sandbox2::sandbox2

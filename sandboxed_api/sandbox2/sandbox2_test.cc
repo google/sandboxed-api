@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
@@ -359,6 +360,22 @@ INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),
                            return info.param ? "UnotifyMonitor"
                                              : "PtraceMonitor";
                          });
+
+void BM_MinimalSandbox(benchmark::State& state) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  const std::unique_ptr<Policy> policy_to_copy =
+      CreateDefaultPermissiveTestPolicy(path).BuildOrDie();
+  for (auto s : state) {
+    auto executor =
+        std::make_unique<Executor>(path, std::vector<std::string>{path});
+    auto policy = std::make_unique<Policy>(*policy_to_copy);
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    auto result = sandbox.Run();
+    EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+BENCHMARK(BM_MinimalSandbox)->UseRealTime()->ThreadRange(1, 64);
 
 }  // namespace
 }  // namespace sandbox2
