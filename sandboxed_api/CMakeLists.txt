@@ -32,6 +32,31 @@ target_link_libraries(sapi_config
   PUBLIC absl::config
 )
 
+# sandboxed_api:sandbox_config
+add_library(sapi_sandbox_config ${SAPI_LIB_TYPE}
+  sandbox_config.cc
+  sandbox_config.h
+)
+add_library(sapi::sandbox_config ALIAS sapi_sandbox_config)
+target_link_libraries(sapi_sandbox_config
+  PRIVATE absl::base
+          absl::core_headers
+          absl::flat_hash_map
+          absl::log
+          absl::log_globals
+          absl::synchronization
+          absl::time
+          sapi::base
+          sapi::fileops
+          sandbox2::executor
+          sandbox2::fork_client
+          sandbox2::limits
+          sandbox2::policy
+          sandbox2::policybuilder
+          sandbox2::sandbox_config
+  PUBLIC absl::check
+)
+
 # sandboxed_api:embed_file
 add_library(sapi_embed_file ${SAPI_LIB_TYPE}
   embed_file.cc
@@ -49,29 +74,6 @@ target_link_libraries(sapi_embed_file
          sapi::fileops
 )
 
-# sandboxed_api:sandbox2_rpcchannel
-add_library(sapi_sandbox2_rpcchannel ${SAPI_LIB_TYPE}
-  sandbox2_rpcchannel.cc
-  sandbox2_rpcchannel.h
-)
-add_library(sapi::sandbox2_rpcchannel ALIAS sapi_sandbox2_rpcchannel)
-target_link_libraries(sapi_sandbox2_rpcchannel
-  PRIVATE absl::log
-          absl::log_globals
-          sapi::status
-          absl::status
-          absl::statusor
-          absl::strings
-          absl::span
-          absl::synchronization
-          sapi::base
-          sapi::call
-          sapi::rpcchannel
-          sapi::var_type
-          sandbox2::comms
-          sandbox2::util
-)
-
 # sandboxed_api:shared_memory_rpcchannel
 add_library(sapi_shared_memory_rpcchannel ${SAPI_LIB_TYPE}
   shared_memory_rpcchannel.cc
@@ -79,7 +81,7 @@ add_library(sapi_shared_memory_rpcchannel ${SAPI_LIB_TYPE}
 )
 add_library(sapi::shared_memory_rpcchannel ALIAS sapi_shared_memory_rpcchannel)
 target_link_libraries(sapi_shared_memory_rpcchannel
-  PRIVATE sapi::sandbox2_rpcchannel
+  PRIVATE sapi::rpcchannel
           absl::btree
           absl::check
           absl::core_headers
@@ -92,13 +94,51 @@ target_link_libraries(sapi_shared_memory_rpcchannel
           sapi::status
 )
 
+# sandboxed_api:sandbox2_backend
+add_library(sapi_sandbox2_backend ${SAPI_LIB_TYPE}
+  sandbox2_backend.cc
+  sandbox2_backend.h
+  sandbox2_rpcchannel.cc
+  sandbox2_rpcchannel.h
+)
+add_library(sapi::sandbox2_backend ALIAS sapi_sandbox2_backend)
+target_link_libraries(sapi_sandbox2_backend
+  PRIVATE absl::any_invocable
+          absl::log
+          absl::log_globals
+          absl::status
+          absl::statusor
+          absl::strings
+          absl::span
+          absl::synchronization
+          absl::time
+          sapi::base
+          sapi::call
+          sapi::embed_file
+          sapi::file_base
+          sapi::runfiles
+          sapi::rpcchannel
+          sapi::sandbox_config
+          sapi::shared_memory_rpcchannel
+          sapi::status
+          sapi::var_type
+          sandbox2::buffer
+          sandbox2::comms
+          sandbox2::executor
+          sandbox2::fork_client
+          sandbox2::notify
+          sandbox2::policy
+          sandbox2::policybuilder
+          sandbox2::result
+          sandbox2::sandbox2
+          sandbox2::util
+  PUBLIC absl::check
+)
+
 # sandboxed_api:sapi
 add_library(sapi_sapi ${SAPI_LIB_TYPE}
   sandbox.cc
   sandbox.h
-  sandbox2_backend.cc
-  sandbox2_backend.h
-  sandbox_config.h
   transaction.cc
   transaction.h
 )
@@ -118,12 +158,8 @@ target_link_libraries(sapi_sapi
           absl::strings
           absl::synchronization
           sapi::call
-          sapi::file_base
-          sapi::runfiles
-          sapi::sandbox2_rpcchannel
           sapi::shared_memory_rpcchannel
           sapi::strerror
-          sandbox2::buffer
           sandbox2::sandbox_config
           sandbox2::fork_client
           sandbox2::util
@@ -135,6 +171,8 @@ target_link_libraries(sapi_sapi
          absl::core_headers
          sandbox2::sandbox2
          sapi::base
+         sapi::sandbox_config
+         sapi::sandbox2_backend
          sapi::status
 )
 

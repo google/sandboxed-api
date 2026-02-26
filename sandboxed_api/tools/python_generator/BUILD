@@ -82,6 +82,7 @@ cc_binary(
     copts = sapi_platform_copts(),
     deps = [
         ":tests_sapi_generator",
+        "//sandboxed_api:sandbox2_backend",
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
         "//sandboxed_api/util:status",

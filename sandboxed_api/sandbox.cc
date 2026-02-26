@@ -37,14 +37,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
-#include "sandboxed_api/config.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/sandbox2/limits.h"
-#include "sandboxed_api/sandbox2/policy.h"
-#include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_array.h"
@@ -54,61 +49,6 @@
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
-
-// IMPORTANT: This policy must be safe to use with
-// `Allow(sandbox2::UnrestrictedNetworking())`.
-sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
-  sandbox2::PolicyBuilder builder;
-  builder.AllowRead()
-      .AllowWrite()
-      .AllowExit()
-      .AllowGetRlimit()
-      .AllowGetIDs()
-      .AllowTCGETS()
-      .AllowTime()
-      .AllowOpen()
-      .AllowStat()
-      .AllowHandleSignals()
-      .AllowSystemMalloc()
-      .AllowSafeFcntl()
-      .AllowGetPIDs()
-      .AllowSleep()
-      .AllowReadlink()
-      .AllowAccess()
-      .AllowSharedMemory()
-      .AllowSyscalls({
-          __NR_recvmsg,
-          __NR_sendmsg,
-          __NR_futex,
-          __NR_close,
-          __NR_lseek,
-          __NR_uname,
-          __NR_kill,
-          __NR_tgkill,
-          __NR_tkill,
-      });
-
-#ifdef __NR_arch_prctl  // x86-64 only
-  builder.AllowSyscall(__NR_arch_prctl);
-#endif
-
-  if constexpr (sanitizers::IsAny()) {
-    LOG(WARNING) << "Allowing additional calls to support the LLVM "
-                 << "(ASAN/MSAN/TSAN) sanitizer";
-    builder.AllowLlvmSanitizers();
-  }
-  builder.AddFile("/etc/localtime")
-      .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size */);
-
-  return builder;
-}
-
-sandbox2::Limits Sandbox2Config::DefaultLimits() {
-  sandbox2::Limits limits;
-  limits.set_rlimit_cpu(RLIM64_INFINITY);
-  limits.set_walltime_limit(absl::ZeroDuration());
-  return limits;
-}
 
 absl::Status SandboxBase::Allocate(v::Var* var, bool automatic_free) {
   if (!is_active()) {

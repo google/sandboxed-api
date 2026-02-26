@@ -395,6 +395,8 @@ def sapi_library(
 
     sapi_data_deps = [":" + name + ".bin"] if not embed else []
 
+    backend_dep = ["//sandboxed_api:sandbox2_backend"]
+
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
     cc_library(
@@ -414,7 +416,8 @@ def sapi_library(
                 "//sandboxed_api:vars",
             ] + deps +
             ([":" + name + "_embed"] if embed else []) +
-            (default_deps if add_default_deps else []),
+            (default_deps if add_default_deps else []) +
+            backend_dep,
         ),
         **common
     )

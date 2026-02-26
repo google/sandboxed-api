@@ -28,6 +28,7 @@ cc_test(
     tags = ["local"],
     deps = [
         ":sapi_test-sapi",
+        "//sandboxed_api:sandbox_config",
         "//sandboxed_api:sapi",
         "//sandboxed_api:testing",
         "//sandboxed_api:vars",
