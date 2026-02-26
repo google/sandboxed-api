@@ -169,9 +169,6 @@ class SandboxBase {
   // TODO(sroettger): Remove this function after migrating all users of
   // CreateNotifier() to Sandbox2Backend.
   friend class Sandbox2Backend;
-
-  ABSL_DEPRECATED("Override CreateNotifier() in Sandbox2Backend instead")
-  virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
 };
 
 // The Sandbox class represents the sandboxed library. It provides users with
@@ -180,7 +177,8 @@ template <typename Backend>
 class SandboxImpl : public SandboxBase {
  public:
   explicit SandboxImpl(SandboxConfig config)
-      : SandboxBase(), backend_(this, std::move(config)) {}
+      : SandboxBase(),
+        backend_(std::move(config), [this] { return CreateNotifier(); }) {}
 
   SandboxImpl(const SandboxImpl&) = delete;
   SandboxImpl& operator=(const SandboxImpl&) = delete;
@@ -216,6 +214,9 @@ class SandboxImpl : public SandboxBase {
 
  private:
   Backend backend_;
+
+  ABSL_DEPRECATED("Override CreateNotifier() in Sandbox2Backend instead")
+  virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
 };
 
 using Sandbox = SandboxImpl<Sandbox2Backend>;

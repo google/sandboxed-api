@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -31,7 +32,6 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/embed_file.h"
-#include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
@@ -49,9 +49,11 @@
 
 namespace sapi {
 
-Sandbox2Backend::Sandbox2Backend(SandboxBase* sandbox_base,
-                                 SandboxConfig config)
-    : config_(std::move(config)), sandbox_base_(sandbox_base) {
+Sandbox2Backend::Sandbox2Backend(
+    SandboxConfig config,
+    absl::AnyInvocable<std::unique_ptr<sandbox2::Notify>()> create_notifier_cb)
+    : config_(std::move(config)),
+      create_notifier_cb_(std::move(create_notifier_cb)) {
   CHECK(config_.sandbox2.fork_client_context.has_value());
 }
 
@@ -97,7 +99,7 @@ void Sandbox2Backend::Terminate(bool attempt_graceful_exit) {
 }
 
 std::unique_ptr<sandbox2::Notify> Sandbox2Backend::CreateNotifier() {
-  return sandbox_base_->CreateNotifier();
+  return create_notifier_cb_();
 }
 
 static std::string PathToSAPILib(const std::string& lib_path) {

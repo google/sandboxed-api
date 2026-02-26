@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
@@ -36,7 +37,10 @@ class SandboxBase;
 
 class Sandbox2Backend {
  public:
-  explicit Sandbox2Backend(SandboxBase* sandbox, SandboxConfig config);
+  explicit Sandbox2Backend(
+      SandboxConfig config,
+      absl::AnyInvocable<std::unique_ptr<sandbox2::Notify>()>
+          create_notifier_cb);
 
   virtual ~Sandbox2Backend();
 
@@ -89,7 +93,7 @@ class Sandbox2Backend {
 
   // TODO(sroettger): Remove this pointer after migrating all users of
   // CreateNotifier().
-  SandboxBase* sandbox_base_;
+  absl::AnyInvocable<std::unique_ptr<sandbox2::Notify>()> create_notifier_cb_;
 
   // The main sandbox2::Sandbox2 object.
   std::unique_ptr<sandbox2::Sandbox2> s2_;

@@ -105,6 +105,7 @@ add_library(sapi_sapi ${SAPI_LIB_TYPE}
 add_library(sapi::sapi ALIAS sapi_sapi)
 target_link_libraries(sapi_sapi
   PRIVATE absl::base
+          absl::any_invocable
           absl::cleanup
           absl::dynamic_annotations
           absl::flat_hash_map
