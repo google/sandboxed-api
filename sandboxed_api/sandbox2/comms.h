@@ -51,6 +51,7 @@ class Message;
 namespace sandbox2 {
 
 class Client;
+class ForkServer;
 
 class Comms {
  public:
@@ -241,6 +242,7 @@ class Comms {
 
  private:
   friend class Client;
+  friend class ForkServer;
 
   // State of the channel
   enum class State {

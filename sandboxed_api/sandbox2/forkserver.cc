@@ -71,49 +71,6 @@ namespace {
 using ::sapi::StrError;
 using ::sapi::file_util::fileops::FDCloser;
 
-// "Moves" FDs in move_fds from current to target FD number while keeping FDs
-// in keep_fds open - potentially moving them to another FD number as well in
-// case of colisions.
-// Ignores invalid (-1) fds.
-void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
-             std::initializer_list<int*> keep_fds) {
-  absl::flat_hash_map<int, int*> fd_map;
-  for (int* fd : keep_fds) {
-    if (*fd != -1) {
-      fd_map.emplace(*fd, fd);
-    }
-  }
-
-  for (auto [old_fd, new_fd] : move_fds) {
-    if (*old_fd != -1) {
-      fd_map.emplace(*old_fd, old_fd);
-    }
-  }
-
-  for (auto [old_fd, new_fd] : move_fds) {
-    if (*old_fd == -1 || *old_fd == new_fd) {
-      continue;
-    }
-
-    // Make sure we won't override another fd
-    if (auto it = fd_map.find(new_fd); it != fd_map.end()) {
-      int fd = dup(new_fd);
-      SAPI_RAW_CHECK(fd != -1, "Duplicating an FD failed.");
-      *it->second = fd;
-      fd_map.emplace(fd, it->second);
-      fd_map.erase(it);
-    }
-
-    if (dup2(*old_fd, new_fd) == -1) {
-      SAPI_RAW_PLOG(FATAL, "Moving temporary to proper FD failed.");
-    }
-
-    close(*old_fd);
-    fd_map.erase(*old_fd);
-    *old_fd = new_fd;
-  }
-}
-
 struct Pipe {
   FDCloser read;
   FDCloser write;
@@ -219,47 +176,6 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid,
   }
 }
 
-absl::Status SendPid(int signaling_fd) {
-  // Send our PID (the actual sandboxee process) via SCM_CREDENTIALS.
-  // The ancillary message will be attached to the message as SO_PASSCRED is set
-  // on the socket.
-  char dummy = ' ';
-  if (TEMP_FAILURE_RETRY(send(signaling_fd, &dummy, 1, 0)) != 1) {
-    return absl::ErrnoToStatus(errno, "Sending PID: send()");
-  }
-  return absl::OkStatus();
-}
-
-absl::StatusOr<pid_t> ReceivePid(int signaling_fd) {
-  union {
-    struct cmsghdr cmh;
-    char ctrl[CMSG_SPACE(sizeof(struct ucred))];
-  } ucred_msg{};
-
-  struct msghdr msgh{};
-  struct iovec iov{};
-
-  msgh.msg_iov = &iov;
-  msgh.msg_iovlen = 1;
-  msgh.msg_control = ucred_msg.ctrl;
-  msgh.msg_controllen = sizeof(ucred_msg);
-
-  char dummy;
-  iov.iov_base = &dummy;
-  iov.iov_len = sizeof(char);
-
-  if (TEMP_FAILURE_RETRY(recvmsg(signaling_fd, &msgh, MSG_WAITALL)) != 1) {
-    return absl::ErrnoToStatus(errno, "Receiving pid failed: recvmsg");
-  }
-  struct cmsghdr* cmsgp = CMSG_FIRSTHDR(&msgh);
-  if (cmsgp->cmsg_len != CMSG_LEN(sizeof(struct ucred)) ||
-      cmsgp->cmsg_level != SOL_SOCKET || cmsgp->cmsg_type != SCM_CREDENTIALS) {
-    return absl::InternalError("Receiving pid failed");
-  }
-  auto* ucredp = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsgp));
-  return ucredp->pid;
-}
-
 absl::StatusOr<std::string> GetRootMountId(const std::string& proc_id) {
   std::ifstream mounts(absl::StrCat("/proc/", proc_id, "/mountinfo"));
   if (!mounts.good()) {
@@ -290,6 +206,49 @@ bool IsLikelyChrooted() {
 
 }  // namespace
 
+void ForkServer::MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
+                         std::initializer_list<int*> keep_fds, Comms& comms) {
+  absl::flat_hash_map<int, int*> fd_map;
+  for (int* fd : keep_fds) {
+    if (*fd != -1) {
+      fd_map.emplace(*fd, fd);
+    }
+  }
+
+  for (auto [old_fd, new_fd] : move_fds) {
+    if (*old_fd != -1) {
+      fd_map.emplace(*old_fd, old_fd);
+    }
+  }
+
+  for (auto [old_fd, new_fd] : move_fds) {
+    if (*old_fd == -1 || *old_fd == new_fd) {
+      continue;
+    }
+
+    // Make sure we won't override another fd
+    if (auto it = fd_map.find(new_fd); it != fd_map.end()) {
+      int fd = dup(new_fd);
+      SAPI_RAW_CHECK(fd != -1, "Duplicating an FD failed.");
+      *it->second = fd;
+      fd_map.emplace(fd, it->second);
+      fd_map.erase(it);
+    }
+
+    if (comms.GetConnectionFD() == new_fd) {
+      comms.MoveToAnotherFd();
+    }
+
+    if (dup2(*old_fd, new_fd) == -1) {
+      SAPI_RAW_PLOG(FATAL, "Moving temporary to proper FD failed.");
+    }
+
+    close(*old_fd);
+    fd_map.erase(*old_fd);
+    *old_fd = new_fd;
+  }
+}
+
 void ForkServer::PrepareExecveArgs(const ForkRequest& request,
                                    std::vector<std::string>* args,
                                    std::vector<std::string>* envp) {
@@ -317,9 +276,9 @@ void ForkServer::PrepareExecveArgs(const ForkRequest& request,
                 absl::StrJoin(*envp, "', '").c_str());
 }
 
-void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
-                             uid_t uid, gid_t gid, FDCloser signaling_fd,
-                             FDCloser status_fd, bool avoid_pivot_root) const {
+void ForkServer::LaunchSandboxee(const ForkRequest& request, int execve_fd,
+                                 Comms& setup_comms, FDCloser status_fd,
+                                 bool avoid_pivot_root) const {
   SAPI_RAW_CHECK(request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
 
@@ -339,7 +298,7 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   }
   SanitizeEnvironment();
 
-  InitializeNamespaces(request, uid, gid, avoid_pivot_root);
+  InitializeNamespaces(request, orig_uid_, orig_gid_, avoid_pivot_root);
 
   auto caps = cap_init();
   SAPI_RAW_CHECK(cap_set_proc(caps) == 0, "while dropping capabilities");
@@ -348,6 +307,8 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   // A custom init process is only needed if a new PID NS is created.
   if (request.clone_flags() & CLONE_NEWPID) {
     Pipe sync_pipe = CreatePipe();
+    // Send init pid
+    SAPI_RAW_CHECK(setup_comms.SendCreds(), "Failed to send init_pid");
     // Spawn a child process
     pid_t child = util::ForkWithFlags(SIGCHLD);
     if (child < 0) {
@@ -367,18 +328,17 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
       }
       RunInitProcess(child, std::move(sync_pipe.write), std::move(status_fd),
                      request.allow_speculation());
+      // NOT REACHED
     }
     sync_pipe.write.Close();
     char dummy = 0;
     SAPI_RAW_PCHECK(
         TEMP_FAILURE_RETRY(read(sync_pipe.read.get(), &dummy, 1)) == 0,
         "synchronizing with init process");
-    // Send sandboxee pid
-    auto status = SendPid(signaling_fd.get());
-    SAPI_RAW_CHECK(status.ok(),
-                   absl::StrCat("sending pid: ", status.message()).c_str());
   }
-  signaling_fd.Close();
+  // Send sandboxee pid
+  SAPI_RAW_CHECK(setup_comms.SendCreds(), "Failed to send sandboxee_pid");
+  setup_comms.Terminate();
   status_fd.Close();
 
   Client client(comms_);
@@ -422,6 +382,76 @@ void ForkServer::LaunchChild(const ForkRequest& request, int execve_fd,
   }
 }
 
+void ForkServer::SetupSandboxeeProcess(const ForkRequest& fork_request,
+                                       FDCloser comms_fd, FDCloser exec_fd,
+                                       Comms& setup_comms) {
+  Pipe pipe_fds;
+  if (fork_request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY) {
+    pipe_fds = CreatePipe();
+    SAPI_RAW_CHECK(setup_comms.SendFD(pipe_fds.read.get()),
+                   "Failed to send status pipe");
+    pipe_fds.read.Close();
+  }
+
+  // Make the kernel notify us with SIGCHLD when the process terminates.
+  // We use sigaction(SIGCHLD, flags=SA_NOCLDWAIT) in combination with
+  // this to make sure the zombie process is reaped immediately.
+  int clone_flags = fork_request.clone_flags() | SIGCHLD;
+  bool avoid_pivot_root = clone_flags & (CLONE_NEWUSER | CLONE_NEWNS);
+  if (avoid_pivot_root) {
+    SAPI_RAW_PCHECK(setns(initial_userns_fd_, CLONE_NEWUSER) != -1,
+                    "joining initial user namespace");
+    SAPI_RAW_PCHECK(setns(initial_mntns_fd_, CLONE_NEWNS) != -1,
+                    "joining initial mnt namespace");
+    if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
+      SAPI_RAW_PCHECK(setns(initial_netns_fd_, CLONE_NEWNET) != -1,
+                      "joining initial net namespace");
+      close(initial_netns_fd_);
+    }
+    // Do not create new userns it will be unshared later
+    pid_t sandboxee_pid =
+        util::ForkWithFlags((clone_flags & ~CLONE_NEWUSER) | CLONE_PARENT);
+    if (sandboxee_pid == -1) {
+      SAPI_RAW_LOG(ERROR, "util::ForkWithFlags(%x)", clone_flags);
+    }
+    if (sandboxee_pid != 0) {
+      _exit(0);
+    }
+  }
+
+  if (initial_netns_fd_ != -1) {
+    close(initial_netns_fd_);
+  }
+  close(initial_userns_fd_);
+  close(initial_mntns_fd_);
+
+  // Make sure we override the forkserver's comms fd
+  comms_->Terminate();
+  int raw_comms_fd = comms_fd.Release();
+  int raw_exec_fd = exec_fd.Release();
+  if (raw_exec_fd != -1) {
+    int setup_fd = setup_comms.GetConnectionFD();
+    int pipe_fd = pipe_fds.write.Release();
+    MoveFDs({{&raw_exec_fd, Comms::kSandbox2TargetExecFD},
+             {&raw_comms_fd, Comms::kSandbox2ClientCommsFD}},
+            {&setup_fd, &pipe_fd}, setup_comms);
+    pipe_fds.write = FDCloser(pipe_fd);
+  }
+  *comms_ = Comms(raw_comms_fd);
+  LaunchSandboxee(fork_request, raw_exec_fd, setup_comms,
+                  std::move(pipe_fds.write), avoid_pivot_root);
+}
+
+void ForkServer::SaveIDs() {
+  // Store uid and gid since they will change if CLONE_NEWUSER is set.
+  if (orig_uid_ == -1) {
+    orig_uid_ = getuid();
+  }
+  if (orig_gid_ == -1) {
+    orig_gid_ = getgid();
+  }
+}
+
 pid_t ForkServer::ServeRequest() {
   ForkRequest fork_request;
   if (!comms_->RecvProtoBuf(&fork_request)) {
@@ -430,39 +460,25 @@ pid_t ForkServer::ServeRequest() {
     }
     SAPI_RAW_LOG(FATAL, "Failed to receive ForkServer request");
   }
-  int comms_fd;
-  SAPI_RAW_CHECK(comms_->RecvFD(&comms_fd), "Failed to receive Comms FD");
+
+  int raw_comms_fd = -1;
+  SAPI_RAW_CHECK(comms_->RecvFD(&raw_comms_fd), "Failed to receive Comms FD");
+  FDCloser comms_fd(raw_comms_fd);
 
   SAPI_RAW_CHECK(fork_request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
 
-  int exec_fd = -1;
+  int raw_exec_fd = -1;
   if (fork_request.mode() == FORKSERVER_FORK_EXECVE ||
       fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-    SAPI_RAW_CHECK(comms_->RecvFD(&exec_fd), "Failed to receive Exec FD");
+    SAPI_RAW_CHECK(comms_->RecvFD(&raw_exec_fd), "Failed to receive Exec FD");
   }
+  FDCloser exec_fd(raw_exec_fd);
 
-  // Make the kernel notify us with SIGCHLD when the process terminates.
-  // We use sigaction(SIGCHLD, flags=SA_NOCLDWAIT) in combination with
-  // this to make sure the zombie process is reaped immediately.
-  int clone_flags = fork_request.clone_flags() | SIGCHLD;
+  SaveIDs();
 
-  // Store uid and gid since they will change if CLONE_NEWUSER is set.
-  uid_t uid = getuid();
-  uid_t gid = getgid();
-
-  Pipe pipe_fds;
-  if (fork_request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY) {
-    pipe_fds = CreatePipe();
-  }
-
-  UnixSocketPair signaling_socketpair = CreateUnixSocketPair(/*passcred=*/true);
-
-  // Note: init_pid will be overwritten with the actual init pid if the init
-  //       process was started or stays at 0 if that is not needed - no pidns.
-  pid_t init_pid = 0;
-  pid_t sandboxee_pid = -1;
-  bool avoid_pivot_root = clone_flags & (CLONE_NEWUSER | CLONE_NEWNS);
+  bool avoid_pivot_root =
+      fork_request.clone_flags() & (CLONE_NEWUSER | CLONE_NEWNS);
   if (avoid_pivot_root) {
     // Create initial namespaces only when they're first needed.
     // This allows sandbox2 to be still used without any namespaces support
@@ -473,115 +489,29 @@ pid_t ForkServer::ServeRequest() {
         initial_netns_fd_ == -1) {
       CreateForkserverSharedNetworkNamespace();
     }
-    // We first just fork a child, which will join the initial namespaces
-    // Note: Not a regular fork() as one really needs to be single-threaded to
-    //       setns and this is not the case with TSAN.
-    pid_t pid = util::ForkWithFlags(SIGCHLD);
-    SAPI_RAW_PCHECK(pid != -1, "fork failed");
-    if (pid == 0) {
-      SAPI_RAW_PCHECK(setns(initial_userns_fd_, CLONE_NEWUSER) != -1,
-                      "joining initial user namespace");
-      SAPI_RAW_PCHECK(setns(initial_mntns_fd_, CLONE_NEWNS) != -1,
-                      "joining initial mnt namespace");
-      if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
-        SAPI_RAW_PCHECK(setns(initial_netns_fd_, CLONE_NEWNET) != -1,
-                        "joining initial net namespace");
-        close(initial_netns_fd_);
-      }
-      close(initial_userns_fd_);
-      close(initial_mntns_fd_);
-      // Do not create new userns it will be unshared later
-      sandboxee_pid =
-          util::ForkWithFlags((clone_flags & ~CLONE_NEWUSER) | CLONE_PARENT);
-      if (sandboxee_pid == -1) {
-        SAPI_RAW_LOG(ERROR, "util::ForkWithFlags(%x)", clone_flags);
-      }
-      if (sandboxee_pid != 0) {
-        _exit(0);
-      }
-      // Send sandboxee pid
-      absl::Status status = SendPid(signaling_socketpair.sock[1].get());
-      SAPI_RAW_CHECK(status.ok(),
-                     absl::StrCat("sending pid: ", status.message()).c_str());
-    }
-  } else {
-    sandboxee_pid = util::ForkWithFlags(clone_flags);
-    if (sandboxee_pid == -1) {
-      SAPI_RAW_LOG(ERROR, "util::ForkWithFlags(%x)", clone_flags);
-    }
-    if (sandboxee_pid == 0) {
-      close(initial_userns_fd_);
-      close(initial_mntns_fd_);
-    }
   }
 
-  // Child.
-  if (sandboxee_pid == 0) {
-    signaling_socketpair.sock[0].Close();
-    pipe_fds.read.Close();
-    // Make sure we override the forkserver's comms fd
-    comms_->Terminate();
-    if (exec_fd != -1) {
-      int signaling_fd = signaling_socketpair.sock[1].Release();
-      int pipe_fd = pipe_fds.write.Release();
-      MoveFDs({{&exec_fd, Comms::kSandbox2TargetExecFD},
-               {&comms_fd, Comms::kSandbox2ClientCommsFD}},
-              {&signaling_fd, &pipe_fd});
-      signaling_socketpair.sock[1] = FDCloser(signaling_fd);
-      pipe_fds.write = FDCloser(pipe_fd);
-    }
-    *comms_ = Comms(comms_fd);
-    LaunchChild(fork_request, exec_fd, uid, gid,
-                std::move(signaling_socketpair.sock[1]),
-                std::move(pipe_fds.write), avoid_pivot_root);
-    return sandboxee_pid;
-  }
+  // Create a new comms channel to coordinate the child setup.
+  Comms setup_comms = [this] {
+    UnixSocketPair setup_socketpair = CreateUnixSocketPair(/*passcred=*/true);
+    SAPI_RAW_PCHECK(comms_->SendFD(setup_socketpair.sock[1].get()),
+                    "Failed to send setup socket");
+    return Comms(setup_socketpair.sock[0].Release());
+  }();
 
-  signaling_socketpair.sock[1].Close();
-
-  if (avoid_pivot_root) {
-    if (auto pid = ReceivePid(signaling_socketpair.sock[0].get()); !pid.ok()) {
-      SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
-    } else {
-      sandboxee_pid = *pid;
-    }
+  // We fork a child early on to do the rest of the setup.
+  // Note: Not a regular fork() as one really needs to be single-threaded to
+  //       setns and this is not the case with TSAN.
+  pid_t pid = util::ForkWithFlags(SIGCHLD);
+  SAPI_RAW_PCHECK(pid != -1, "fork failed");
+  if (pid == 0) {
+    SetupSandboxeeProcess(fork_request, std::move(comms_fd), std::move(exec_fd),
+                          setup_comms);
   }
-
-  if (fork_request.clone_flags() & CLONE_NEWPID) {
-    // The pid of the init process is equal to the child process that we've
-    // previously forked.
-    init_pid = sandboxee_pid;
-    sandboxee_pid = -1;
-    // And the actual sandboxee is forked from the init process, so we need to
-    // receive the actual PID.
-    if (auto pid = ReceivePid(signaling_socketpair.sock[0].get()); !pid.ok()) {
-      SAPI_RAW_LOG(ERROR, "%s", std::string(pid.status().message()).c_str());
-      if (init_pid != -1) {
-        kill(init_pid, SIGKILL);
-      }
-      init_pid = -1;
-    } else {
-      sandboxee_pid = *pid;
-    }
-  }
-
-  // Parent.
-  pipe_fds.write.Close();
-  close(comms_fd);
-  if (exec_fd >= 0) {
-    close(exec_fd);
-  }
-  SAPI_RAW_CHECK(comms_->SendInt32(init_pid),
-                 absl::StrCat("Failed to send init PID: ", init_pid).c_str());
-  SAPI_RAW_CHECK(
-      comms_->SendInt32(sandboxee_pid),
-      absl::StrCat("Failed to send sandboxee PID: ", sandboxee_pid).c_str());
-
-  if (pipe_fds.read.get() >= 0) {
-    SAPI_RAW_CHECK(comms_->SendFD(pipe_fds.read.get()),
-                   "Failed to send status pipe");
-  }
-  return sandboxee_pid;
+  // Note: this won't be exactly sandboxee pid in case of avoid_pivot_root, but
+  // seems no user is really using it, so let's keep it for now and change API
+  // to reflect it later.
+  return pid;
 }
 
 bool ForkServer::IsTerminated() const { return comms_->IsTerminated(); }
@@ -641,9 +571,7 @@ void ForkServer::CreateInitialNamespaces() {
   // Spawn a new process to create initial user and mount namespaces to be used
   // as a base for each namespaced sandboxee.
 
-  // Store uid and gid to create mappings after CLONE_NEWUSER
-  uid_t uid = getuid();
-  gid_t gid = getgid();
+  SaveIDs();
 
   // Socket to synchronize so that we open ns fds before process dies
   Pipe create_pipe = CreatePipe();
@@ -659,7 +587,7 @@ void ForkServer::CreateInitialNamespaces() {
   if (pid == 0) {
     create_pipe.read.Close();
     open_pipe.write.Close();
-    Namespace::InitializeInitialNamespaces(uid, gid);
+    Namespace::InitializeInitialNamespaces(orig_uid_, orig_gid_);
     SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(create_pipe.write.get(), &value,
                                              sizeof(value))) == sizeof(value),
                     "synchronizing initial namespaces creation");

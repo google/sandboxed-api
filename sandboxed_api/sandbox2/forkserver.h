@@ -20,7 +20,9 @@
 
 #include <sys/types.h>
 
+#include <initializer_list>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -34,6 +36,8 @@ class ForkRequest;
 
 class ForkServer {
  public:
+  static constexpr int kSetupInitiated = 0x0C0A0B01;
+
   ForkServer(const ForkServer&) = delete;
   ForkServer& operator=(const ForkServer&) = delete;
 
@@ -53,11 +57,16 @@ class ForkServer {
   pid_t ServeRequest();
 
  private:
-  // Creates and launched the child process.
-  void LaunchChild(const ForkRequest& request, int execve_fd, uid_t uid,
-                   gid_t gid, sapi::file_util::fileops::FDCloser signaling_fd,
-                   sapi::file_util::fileops::FDCloser status_fd,
-                   bool avoid_pivot_root) const;
+  // Creates the sandboxee process.
+  void SetupSandboxeeProcess(const ForkRequest& fork_request,
+                             sapi::file_util::fileops::FDCloser comms_fd,
+                             sapi::file_util::fileops::FDCloser exec_fd,
+                             Comms& setup_comms);
+  // Launches the sandboxee process.
+  void LaunchSandboxee(const ForkRequest& request, int execve_fd,
+                       Comms& setup_comms,
+                       sapi::file_util::fileops::FDCloser status_fd,
+                       bool avoid_pivot_root) const;
 
   // Prepares the Fork-Server (worker side, not the requester side) for work by
   // sanitizing the environment:
@@ -65,6 +74,10 @@ class ForkServer {
   // - become subreaper - PR_SET_CHILD_SUBREAPER (man prctl),
   // - don't convert children processes into zombies if they terminate.
   bool Initialize();
+
+  // Saves the original uid and gid of the process as they might change if
+  // CLONE_NEWUSER is set.
+  void SaveIDs();
 
   // Creates initial namespaces used as a template for namespaced sandboxees
   void CreateInitialNamespaces();
@@ -88,9 +101,18 @@ class ForkServer {
   static void InitializeNamespaces(const ForkRequest& request, uid_t uid,
                                    gid_t gid, bool avoid_pivot_root);
 
+  // "Moves" FDs in move_fds from current to target FD number while keeping FDs
+  // in keep_fds open - potentially moving them to another FD number as well in
+  // case of colisions. Also makes sure comms stays connected.
+  // Ignores invalid (-1) fds.
+  static void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
+                      std::initializer_list<int*> keep_fds, Comms& comms);
+
   // Comms channel which is used to send requests to this class. Not owned by
   // the object.
   Comms* comms_;
+  uid_t orig_uid_ = -1;
+  gid_t orig_gid_ = -1;
   int initial_mntns_fd_ = -1;
   int initial_userns_fd_ = -1;
   int initial_netns_fd_ = -1;
