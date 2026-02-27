@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -275,24 +276,37 @@ void GlobalForkClient::Shutdown() {
 
 SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
                                                int exec_fd, int comms_fd) {
-  absl::ReleasableMutexLock lock(GlobalForkClient::instance_mutex_);
-  EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
-  if (!instance_) {
+  absl::StatusOr<ForkClient::PendingRequest> pending_request;
+  {
+    absl::ReleasableMutexLock lock(GlobalForkClient::instance_mutex_);
+    EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
+    if (!instance_) {
+      return SandboxeeProcess();
+    }
+    pending_request =
+        instance_->fork_client_.InitiateRequest(request, exec_fd, comms_fd);
+    if (instance_->comms_.IsTerminated()) {
+      LOG(ERROR) << "Global forkserver connection terminated";
+      pid_t server_pid = instance_->fork_client_.pid();
+      delete instance_;
+      instance_ = nullptr;
+      // Don't wait for process exit while still holding the lock and
+      // potentially blocking other threads.
+      lock.Release();
+      WaitForForkserver(server_pid);
+    }
+  }
+  if (!pending_request.ok()) {
+    LOG(ERROR) << pending_request.status();
     return SandboxeeProcess();
   }
-  SandboxeeProcess process =
-      instance_->fork_client_.SendRequest(request, exec_fd, comms_fd);
-  if (instance_->comms_.IsTerminated()) {
-    LOG(ERROR) << "Global forkserver connection terminated";
-    pid_t server_pid = instance_->fork_client_.pid();
-    delete instance_;
-    instance_ = nullptr;
-    // Don't wait for process exit while still holding the lock and potentially
-    // blocking other threads.
-    lock.Release();
-    WaitForForkserver(server_pid);
+  absl::StatusOr<SandboxeeProcess> process =
+      std::move(*pending_request).Finalize();
+  if (!process.ok()) {
+    LOG(ERROR) << process.status();
+    return SandboxeeProcess();
   }
-  return process;
+  return *std::move(process);
 }
 
 pid_t GlobalForkClient::GetPid() {

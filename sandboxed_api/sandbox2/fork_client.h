@@ -18,9 +18,12 @@
 #include <sys/types.h>
 
 #include <type_traits>
+#include <utility>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
@@ -28,7 +31,6 @@ namespace sandbox2 {
 // Envvar indicating that this process should not start the fork-server.
 constexpr inline char kForkServerDisableEnv[] = "SANDBOX2_NOFORKSERVER";
 
-class Comms;
 class ForkRequest;
 
 struct SandboxeeProcess {
@@ -39,9 +41,31 @@ struct SandboxeeProcess {
 
 class ForkClient {
  public:
+  class PendingRequest {
+   public:
+    PendingRequest(PendingRequest&&) = default;
+    PendingRequest& operator=(PendingRequest&&) = default;
+
+    absl::StatusOr<SandboxeeProcess> Finalize() &&;
+
+   private:
+    friend class ForkClient;
+
+    PendingRequest(Comms setup_comms, bool has_init_pid, bool needs_status_fd)
+        : setup_comms_(std::move(setup_comms)),
+          has_init_pid_(has_init_pid),
+          needs_status_fd_(needs_status_fd) {}
+
+    Comms setup_comms_;
+    bool has_init_pid_;
+    bool needs_status_fd_;
+  };
+
   ForkClient(pid_t pid, Comms* comms) : ForkClient(pid, comms, false) {}
+
   ForkClient(const ForkClient&) = delete;
   ForkClient& operator=(const ForkClient&) = delete;
+
   ~ForkClient();
 
   // Runs a custom transaction over the Comms channel.
@@ -55,9 +79,14 @@ class ForkClient {
   SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
                                int comms_fd);
 
+  // Initiates the fork request.
+  absl::StatusOr<PendingRequest> InitiateRequest(const ForkRequest& request,
+                                                 int exec_fd, int comms_fd);
+
   pid_t pid() { return pid_; }
 
  private:
+
   friend class GlobalForkClient;
 
   ForkClient(pid_t pid, Comms* comms, bool is_global);

@@ -652,10 +652,13 @@ add_library(sandbox2_fork_client ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::fork_client ALIAS sandbox2_fork_client)
 target_link_libraries(sandbox2_fork_client
-  PRIVATE sandbox2::comms
+  PRIVATE absl::status
           sandbox2::forkserver_proto
   PUBLIC absl::core_headers
+         absl::statusor
+         absl::strings
          absl::synchronization
+         sandbox2::comms
          sapi::base
          sapi::fileops
 )
