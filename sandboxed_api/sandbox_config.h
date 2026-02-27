@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX_CONFIG_H_
 #define SANDBOXED_API_SANDBOX_CONFIG_H_
 
+#include <cstddef>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -66,6 +67,10 @@ class ForkClientContext {
 };
 
 struct Sandbox2Config {
+  // By default, we use a small 128KiB shared memory region to avoid potential
+  // performance degradation when transferring large objects to the sandboxee.
+  static constexpr size_t kDefaultSAPISharedMemorySize = (128ULL << 10);
+
   // Optional. If not set, the default policy will be used.
   // See DefaultPolicyBuilder().
   std::unique_ptr<sandbox2::Policy> policy;

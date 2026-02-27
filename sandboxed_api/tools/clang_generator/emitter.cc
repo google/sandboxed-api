@@ -89,6 +89,16 @@ class %1$s : public ::sapi::SandboxImpl<::sapi::Sandbox2Backend> {
     if (!config.sandbox2.fork_client_context.has_value()) {
       static ::sapi::ForkClientContext fork_client_context(%2$s_embed_create());
       config.sandbox2.fork_client_context = fork_client_context;
+      // If we're using SAPI's default fork server, we can enable shared memory
+      // by default. Otherwise, other clients will have to enable it and handle
+      // that manually in their fork server implementation.
+      // Similarly, if a custom policy is provided, we assume that users will
+      // manually enable shared memory if they need it.
+      if (!config.sandbox2.policy &&
+          !config.sandbox2.shared_memory_config.has_value()) {
+        config.sandbox2.shared_memory_config =
+            {.size = ::sapi::Sandbox2Config::kDefaultSAPISharedMemorySize};
+      }
     }
     return config;
   }
