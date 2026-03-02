@@ -607,10 +607,11 @@ TEST_P(PolicyTest, InstallSharedMemoryWithMinimalPolicy) {
   // to map the shared memory region, even though we enabled sandbox before
   // execve.
   sandbox2::PolicyBuilder builder;
-  builder.AllowStaticStartup();
-  builder.AllowSharedMemory();
-  builder.AllowTcMalloc();
-  builder.AllowExit();
+  builder.AllowStaticStartup()
+      .AllowSharedMemory()
+      .AllowTcMalloc()
+      .AllowExit()
+      .AllowLlvmCoverage();
   auto s2 = CreateTestSandbox({"shared_memory", "2"}, builder);
   SAPI_ASSERT_OK_AND_ASSIGN(
       auto res, s2->CreateSharedMemoryMapping({.size = 100ULL << 20}));
