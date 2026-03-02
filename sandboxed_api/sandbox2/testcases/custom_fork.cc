@@ -14,21 +14,11 @@
 
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
-#include "sandboxed_api/util/raw_logging.h"
 
 int main(int argc, char* argv[]) {
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::ForkingClient s2client(&comms);
 
-  for (;;) {
-    pid_t pid = s2client.WaitAndFork();
-    if (pid == -1) {
-      SAPI_RAW_LOG(FATAL, "Could not spawn a new sandboxee");
-    }
-    if (pid == 0) {
-      // Start sandboxing here
-      s2client.SandboxMeHere();
-      return 0;
-    }
-  }
+  s2client.EnterForkLoop();
+  s2client.SandboxMeHere();
 }

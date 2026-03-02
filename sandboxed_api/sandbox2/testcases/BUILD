@@ -296,7 +296,6 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:forkingclient",
-        "//sandboxed_api/util:raw_logging",
     ],
 )
 

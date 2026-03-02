@@ -51,22 +51,7 @@ int main(int argc, char* argv[]) {
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::ForkingClient s2client(&comms);
 
-  for (;;) {
-    // Start a new process, if the sandboxer requests us to do so. No need to
-    // wait for the new process, as the call to sandbox2::Client::Fork will
-    // indirectly call sigaction(SIGCHLD, sa_flags=SA_NOCLDWAIT) in the parent.
-    pid_t pid = s2client.WaitAndFork();
-    if (pid == -1) {
-      SAPI_RAW_CHECK(false, "Could not spawn a new sandboxee");
-    }
-    // Child - return to the main(), to continue with code which is supposed to
-    // be sandboxed. From now on the comms channel (in the child) is set up over
-    // a new file descriptor pair, reachable from a separate Executor in the
-    // sandboxer.
-    if (pid == 0) {
-      break;
-    }
-  }
+  s2client.EnterForkLoop();
 
   // Start sandboxing here
   s2client.SandboxMeHere();

@@ -364,7 +364,6 @@ target_link_libraries(sandbox2_testcase_custom_fork PRIVATE
   sandbox2::comms
   sandbox2::forkingclient
   sapi::base
-  sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2/testcases:util_communicate
