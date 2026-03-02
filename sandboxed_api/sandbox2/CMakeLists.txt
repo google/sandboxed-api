@@ -713,7 +713,8 @@ target_link_libraries(sandbox2_forkingclient
           absl::log
           sandbox2::sanitizer
           sapi::base
-  PUBLIC sandbox2::client
+  PUBLIC absl::core_headers
+         sandbox2::client
          sandbox2::comms
          sandbox2::forkserver
 )

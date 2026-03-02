@@ -784,6 +784,7 @@ cc_library(
         ":comms",
         ":forkserver",
         ":sanitizer",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
     ],

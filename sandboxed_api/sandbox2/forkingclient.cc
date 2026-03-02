@@ -47,4 +47,14 @@ pid_t ForkingClient::WaitAndFork() {
   return pid;
 }
 
+void ForkingClient::EnterForkLoop() {
+  for (;;) {
+    pid_t pid = WaitAndFork();
+    CHECK_NE(pid, -1);
+    if (pid == 0) {
+      break;
+    }
+  }
+}
+
 }  // namespace sandbox2
