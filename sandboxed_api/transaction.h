@@ -26,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox.h"
-#include "sandboxed_api/sandbox2_backend.h"
 
 #define TRANSACTION_FAIL_IF_NOT(x, y)        \
   if (!(x)) {                                \
@@ -34,12 +33,6 @@
   }
 
 namespace sapi {
-
-// This typedef is temporary for migration purposes. It should be used if you
-// need to use Sandbox2 specific features in the transaction. Otherwise use
-// the base SandboxBase class.
-// TODO(sroettger): Replace this with SandboxBase.
-using SandboxForTransaction = SandboxImpl<Sandbox2Backend>;
 
 // The Transaction class allows to perform operations in the sandboxee,
 // repeating them if necessary (if the sandboxing, or IPC failed).
@@ -209,7 +202,7 @@ class TypedTransaction final : public TransactionBase {
   }
 };
 
-using BasicTransaction = TypedTransaction<SandboxForTransaction>;
+using BasicTransaction = TypedTransaction<SandboxBase>;
 
 }  // namespace sapi
 
