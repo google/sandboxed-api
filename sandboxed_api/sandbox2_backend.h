@@ -60,7 +60,6 @@ class Sandbox2Backend {
   // Waits until the sandbox terminated and returns the result.
   absl::Status AwaitExitStatus() { return AwaitSandbox2Result().ToStatus(); }
   const sandbox2::Result& AwaitSandbox2Result();
-  const sandbox2::Result& result() const { return result_; }
 
   absl::Status SetWallTimeLimit(absl::Duration limit) const;
 

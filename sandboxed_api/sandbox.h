@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -32,7 +31,6 @@
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/notify.h"
-#include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2_backend.h"
 #include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/var_abstract.h"
@@ -205,7 +203,6 @@ class SandboxImpl : public SandboxBase {
   absl::Status AwaitExitStatus() override {
     return backend().AwaitExitStatus();
   }
-  const sandbox2::Result& result() const { return backend().result(); }
 
   RPCChannel* rpc_channel() const override { return backend().rpc_channel(); }
 
