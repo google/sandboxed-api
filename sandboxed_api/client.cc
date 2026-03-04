@@ -248,18 +248,9 @@ ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
   sandbox2::ForkingClient s2client(&comms);
 
-  // Forkserver loop.
-  while (true) {
-    pid_t pid = s2client.WaitAndFork();
-    if (pid == -1) {
-      LOG(FATAL) << "Could not spawn a new sandboxee";
-    }
-    if (pid == 0) {
-      break;
-    }
-  }
+  s2client.EnterForkLoop();
 
-  // Child thread.
+  // Child process.
   s2client.SandboxMeHere();
   if (s2client.IsSharedMemoryEnabled()) {
     auto res = s2client.GetSharedMemoryMapping();
