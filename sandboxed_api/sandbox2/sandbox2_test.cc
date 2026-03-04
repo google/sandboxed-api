@@ -20,7 +20,6 @@
 
 #include <cerrno>
 #include <csignal>
-#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
