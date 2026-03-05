@@ -31,6 +31,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "libunwind-ptrace.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -141,11 +142,11 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(const std::string& maps_content) {
   for (const MapsEntry& entry : maps) {
     if (!entry.is_executable ||
         entry.inode == 0 ||  // Only parse file-backed entries
-        entry.path.empty() ||
-        absl::EndsWith(entry.path, " (deleted)")  // Skip deleted files
-    ) {
+        entry.path.empty()) {
       continue;
     }
+
+    bool is_deleted = absl::EndsWith(entry.path, " (deleted)");
 
     // Store details about start + end of this map.
     // The maps entries are ordered and thus sorted with increasing adresses.
@@ -161,9 +162,17 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(const std::string& maps_content) {
     absl::StatusOr<ElfFile> elf =
         ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
     if (!elf.ok()) {
-      SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
-                   entry.path.c_str(),
-                   std::string(elf.status().message()).c_str());
+      if (is_deleted) {
+        elf = ElfFile::ParseFromFile(
+            std::string(absl::StripSuffix(entry.path, " (deleted)")),
+            ElfFile::kLoadSymbols);
+      } else {
+        SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
+                     entry.path.c_str(),
+                     std::string(elf.status().message()).c_str());
+      }
+    }
+    if (!elf.ok()) {
       continue;
     }
 

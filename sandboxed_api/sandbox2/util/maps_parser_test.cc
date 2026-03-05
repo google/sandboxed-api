@@ -19,7 +19,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
 #include "sandboxed_api/testing.h"
 
 namespace sandbox2 {
@@ -85,8 +84,17 @@ TEST(MapsParserTest, FailsOnInvalidFile) {
 55555575d000-55555577e000 rw-p 00000000 00:00 0                          [heap]
 7ffff7fe4000+7ffff7fe5000 r--p 00000000 fdX01 932780                     /usr/lib/locale/en_US.utf8/LC_TIME
 )InvalidMapsFile";
-  auto status_or = ParseProcMaps(kInvalidMapsFile);
-  ASSERT_THAT(status_or.status(), Not(IsOk()));
+  ASSERT_THAT(ParseProcMaps(kInvalidMapsFile), Not(IsOk()));
+}
+
+TEST(MapsParserTest, HandlesSpacesInPaths) {
+  static constexpr char kSpacesInPaths[] = R"SpacesInPaths(
+555555554000-55555555c000 r-xp 00000000 fd:01 3277961                    /bin/this (deleted)
+)SpacesInPaths";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::vector<MapsEntry> entries,
+                            ParseProcMaps(kSpacesInPaths));
+  EXPECT_THAT(entries.size(), Eq(1));
+  EXPECT_THAT(entries[0].path, Eq("/bin/this (deleted)"));
 }
 
 }  // namespace

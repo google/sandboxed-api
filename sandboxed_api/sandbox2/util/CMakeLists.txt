@@ -208,7 +208,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME maps_parser_test
   )
   target_link_libraries(sandbox2_maps_parser_test PRIVATE
-    absl::statusor
     sandbox2::maps_parser
     sapi::testing
     sapi::test_main

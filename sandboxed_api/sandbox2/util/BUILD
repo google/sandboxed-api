@@ -191,7 +191,6 @@ cc_test(
         ":maps_parser",
         "//sandboxed_api:testing",
         "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
     ],
 )
