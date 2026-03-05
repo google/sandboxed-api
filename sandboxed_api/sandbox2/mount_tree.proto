@@ -67,7 +67,4 @@ message MountTree {
   // guarantees about the order of map entries and may even randomize in certain
   // build configurations.
   int64 index = 3;
-
-  // Whether to ignore non-existing files/directories when creating the mounts.
-  optional bool ignore_non_existing = 4;
 }
