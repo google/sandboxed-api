@@ -243,6 +243,7 @@ absl::Status Mounts::Insert(absl::string_view path,
         curtree->mutable_entries()->emplace(parts[i], MountTree());
     if (did_insert) {
       it->second.set_index(++mount_index_);
+      it->second.set_ignore_non_existing(true);
     }
     curtree = &it->second;
     if (i == parts.size() - 1) {  // Final part
@@ -458,7 +459,7 @@ bool IsSymlink(const std::string& path) {
 void MountWithDefaults(const std::string& source, const std::string& target,
                        const char* fs_type, uint64_t extra_flags,
                        const char* option_str, bool is_ro,
-                       bool allow_write_executable) {
+                       bool allow_write_executable, bool ignore_enoent) {
   uint64_t flags = MS_REC | MS_NOSUID | extra_flags;
   if (is_ro) {
     flags |= MS_RDONLY;
@@ -494,7 +495,9 @@ void MountWithDefaults(const std::string& source, const std::string& target,
       }
       LOG(WARNING) << "Could not mount " << source << " (source) to " << target
                    << " (target): " << detail;
-      return;
+      if (ignore_enoent) {
+        return;
+      }
     }
     PLOG(FATAL) << "mounting " << source << " to " << target
                 << " failed (flags=" << MountFlagsToString(flags) << ")";
@@ -592,7 +595,8 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
           MS_BIND | (node.allow_mount_propagation() || allow_mount_propagation
                          ? MS_SHARED
                          : MS_PRIVATE),
-          nullptr, !node.writable(), allow_write_executable);
+          nullptr, !node.writable(), allow_write_executable,
+          tree.ignore_non_existing());
       break;
     }
     case MountTree::Node::kTmpfsNode: {
@@ -601,13 +605,15 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
 
       auto node = tree.node().tmpfs_node();
       MountWithDefaults("", path, "tmpfs", 0, node.tmpfs_options().c_str(),
-                        /* is_ro */ false, allow_write_executable);
+                        /* is_ro */ false, allow_write_executable,
+                        tree.ignore_non_existing());
       break;
     }
     case MountTree::Node::kFileNode: {
       auto node = tree.node().file_node();
       MountWithDefaults(node.outside(), path, "", MS_BIND, nullptr,
-                        !node.writable(), allow_write_executable);
+                        !node.writable(), allow_write_executable,
+                        tree.ignore_non_existing());
 
       // A file node has to be a leaf so we can skip traversing here.
       return;
