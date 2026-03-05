@@ -35,6 +35,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace host_cpu = ::sapi::host_cpu;
 
@@ -87,6 +88,8 @@ class ElfParser {
   // using seek+read for each chunk.
   static absl::StatusOr<std::unique_ptr<ElfParser>> Create(
       absl::string_view filename, bool mmap_file);
+  static absl::StatusOr<std::unique_ptr<ElfParser>> Create(
+      sapi::file_util::fileops::FDCloser fd, bool mmap_file);
 
   ~ElfParser();
 
@@ -119,7 +122,7 @@ class ElfParser {
   absl::StatusOr<Buffer> ReadSectionContents(const ElfShdr& section_header);
 
  private:
-  int fd_ = -1;
+  sapi::file_util::fileops::FDCloser fd_;
   absl::string_view mmap_;
   std::string filename_;
   bool elf_little_ = false;
@@ -143,7 +146,8 @@ class ElfParser {
   std::enable_if_t<std::is_integral_v<IntT>, void> Load(IntT* dst,
                                                         const void* src);
   // Lazy constructor.
-  absl::Status Init(absl::string_view filename, bool mmap_file);
+  absl::Status Init(std::string filename, sapi::file_util::fileops::FDCloser fd,
+                    bool mmap_file);
   // Reads ELF header.
   absl::Status ReadFileHeader();
   // Reads a single ELF program header.

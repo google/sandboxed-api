@@ -14,8 +14,11 @@
 
 #include "sandboxed_api/sandbox2/util/minielf.h"
 
+#include <fcntl.h>
+
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -25,6 +28,7 @@
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/fileops.h"
 
 extern "C" void ExportedFunction() {
   // Don't do anything - used to generate a symbol.
@@ -33,6 +37,7 @@ extern "C" void ExportedFunction() {
 namespace file = ::sapi::file;
 using ::absl_testing::IsOk;
 using ::sapi::GetTestSourcePath;
+using ::sapi::file_util::fileops::FDCloser;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsTrue;
@@ -53,6 +58,16 @@ TEST_P(MinielfTest, Chrome70) {
       ElfFile::ParseFromFile(
           GetTestSourcePath("sandbox2/util/testdata/chrome_grte_header"),
           ElfFile::kGetInterpreter, mmap_file()));
+  EXPECT_THAT(elf.interpreter(), StrEq("/usr/grte/v4/ld64"));
+}
+
+TEST_P(MinielfTest, FromFD) {
+  FDCloser fd(open(
+      GetTestSourcePath("sandbox2/util/testdata/chrome_grte_header").c_str(),
+      O_RDONLY));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      ElfFile elf, ElfFile::ParseFromFd(std::move(fd), ElfFile::kGetInterpreter,
+                                        mmap_file()));
   EXPECT_THAT(elf.interpreter(), StrEq("/usr/grte/v4/ld64"));
 }
 

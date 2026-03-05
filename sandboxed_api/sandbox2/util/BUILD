@@ -51,9 +51,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":elf_parser",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:status",
-        "@abseil-cpp//absl/functional:function_ref",
-        "@abseil-cpp//absl/numeric:bits",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -74,6 +73,7 @@ cc_test(
         ":minielf",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_helpers",
+        "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
@@ -88,6 +88,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//sandboxed_api:config",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/base:nullability",

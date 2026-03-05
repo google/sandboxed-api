@@ -23,6 +23,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util/elf_parser.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
@@ -30,16 +31,30 @@ namespace sandbox2 {
 absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
                                                uint32_t features,
                                                bool mmap_file) {
-  // Basic sanity check.
-  if (features & ~(ElfFile::kAll)) {
-    return absl::InvalidArgumentError("Unknown feature flags specified");
-  }
   // Users may create lots of sandboxes at the same time in address-space
   // restricted environments. So we use the slower non-mmap mode to conserve
   // virtual address space.
   SAPI_ASSIGN_OR_RETURN(auto parser, ElfParser::Create(filename, mmap_file));
+  return Parse(*parser, features);
+}
+
+absl::StatusOr<ElfFile> ElfFile::ParseFromFd(
+    sapi::file_util::fileops::FDCloser fd, uint32_t features, bool mmap_file) {
+  // Users may create lots of sandboxes at the same time in address-space
+  // restricted environments. So we use the slower non-mmap mode to conserve
+  // virtual address space.
+  SAPI_ASSIGN_OR_RETURN(auto parser,
+                        ElfParser::Create(std::move(fd), mmap_file));
+  return Parse(*parser, features);
+}
+
+absl::StatusOr<ElfFile> ElfFile::Parse(ElfParser& parser, uint32_t features) {
+  // Basic sanity check.
+  if (features & ~(ElfFile::kAll)) {
+    return absl::InvalidArgumentError("Unknown feature flags specified");
+  }
   ElfFile result;
-  switch (parser->file_header().e_type) {
+  switch (parser.file_header().e_type) {
     case ET_EXEC:
       result.position_independent_ = false;
       break;
@@ -50,14 +65,14 @@ absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
       return absl::FailedPreconditionError("not an executable: ");
   }
   if (features & ElfFile::kGetInterpreter) {
-    SAPI_ASSIGN_OR_RETURN(result.interpreter_, parser->ReadInterpreter());
+    SAPI_ASSIGN_OR_RETURN(result.interpreter_, parser.ReadInterpreter());
   }
 
   if (features & ElfFile::kLoadSymbols) {
-    SAPI_RETURN_IF_ERROR(parser->ForEachSection(
+    SAPI_RETURN_IF_ERROR(parser.ForEachSection(
         [&](absl::string_view /*name*/, const ElfShdr& hdr) -> auto {
           if (hdr.sh_type == SHT_SYMTAB) {
-            SAPI_RETURN_IF_ERROR(parser->ReadSymbolsFromSymtab(
+            SAPI_RETURN_IF_ERROR(parser.ReadSymbolsFromSymtab(
                 hdr, [&result](uintptr_t address, absl::string_view name) {
                   result.symbols_.push_back({address, std::string(name)});
                 }));
@@ -68,7 +83,7 @@ absl::StatusOr<ElfFile> ElfFile::ParseFromFile(const std::string& filename,
 
   if (features & ElfFile::kLoadImportedLibraries) {
     SAPI_ASSIGN_OR_RETURN(result.imported_libraries_,
-                          parser->ReadImportedLibraries());
+                          parser.ReadImportedLibraries());
   }
 
   return std::move(result);

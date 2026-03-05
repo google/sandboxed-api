@@ -20,6 +20,8 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "sandboxed_api/sandbox2/util/elf_parser.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -39,12 +41,10 @@ class ElfFile {
 
   static absl::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
                                                uint32_t features,
-                                               bool mmap_file);
-
-  static absl::StatusOr<ElfFile> ParseFromFile(const std::string& filename,
-                                               uint32_t features) {
-    return ParseFromFile(filename, features, /*mmap_file=*/false);
-  }
+                                               bool mmap_file = false);
+  static absl::StatusOr<ElfFile> ParseFromFd(
+      sapi::file_util::fileops::FDCloser fd, uint32_t features,
+      bool mmap_file = false);
 
   int64_t file_size() const { return file_size_; }
   const std::string& interpreter() const { return interpreter_; }
@@ -55,7 +55,7 @@ class ElfFile {
   bool position_independent() const { return position_independent_; }
 
  private:
-  friend class ElfParser;
+  static absl::StatusOr<ElfFile> Parse(ElfParser& parser, uint32_t features);
 
   bool position_independent_;
   int64_t file_size_ = 0;

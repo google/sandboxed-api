@@ -34,6 +34,7 @@ target_link_libraries(sandbox2_util_minielf PRIVATE
   absl::strings
   sandbox2::elf_parser
   sapi::base
+  sapi::fileops
 )
 
 # sandboxed_api/sandbox2/util:elf_parser
@@ -188,6 +189,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     PRIVATE absl::algorithm_container
             absl::status_matchers
             absl::statusor
+            sapi::fileops
             sapi::file_helpers
             sandbox2::maps_parser
             sandbox2::minielf

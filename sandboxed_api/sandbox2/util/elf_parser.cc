@@ -40,12 +40,14 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
 namespace {
+using ::sapi::file_util::fileops::FDCloser;
 
 //  Arbitrary cut-off values, so we can parse safely.
 constexpr int kMaxProgramHeaderEntries = 500;
@@ -70,28 +72,40 @@ absl::string_view ReadString(uint32_t offset, absl::string_view strtab) {
 absl::StatusOr<std::unique_ptr<ElfParser>> ElfParser::Create(
     absl::string_view filename, bool mmap_file) {
   std::unique_ptr<ElfParser> parser(new ElfParser());
-  SAPI_RETURN_IF_ERROR(parser->Init(filename, mmap_file));
-  return parser;
-}
-
-absl::Status ElfParser::Init(absl::string_view filename, bool mmap_file) {
-  filename_ = filename;
-  fd_ = open(std::string(filename).c_str(), O_RDONLY);
-  if (fd_ == -1) {
+  FDCloser fd(open(std::string(filename).c_str(), O_RDONLY));
+  if (fd.get() == -1) {
     return absl::ErrnoToStatus(errno,
                                absl::StrCat("failed to open: ", filename));
   }
+  SAPI_RETURN_IF_ERROR(
+      parser->Init(std::string(filename), std::move(fd), mmap_file));
+  return parser;
+}
+
+absl::StatusOr<std::unique_ptr<ElfParser>> ElfParser::Create(FDCloser fd,
+                                                             bool mmap_file) {
+  std::unique_ptr<ElfParser> parser(new ElfParser());
+  std::string filename = absl::StrCat("/proc/self/fd/", fd.get());
+  SAPI_RETURN_IF_ERROR(
+      parser->Init(std::move(filename), std::move(fd), mmap_file));
+  return parser;
+}
+
+absl::Status ElfParser::Init(std::string filename, FDCloser fd,
+                             bool mmap_file) {
+  filename_ = std::move(filename);
+  fd_ = std::move(fd);
   struct stat statbuf;
-  if (fstat(fd_, &statbuf)) {
+  if (fstat(fd_.get(), &statbuf)) {
     return absl::ErrnoToStatus(errno,
-                               absl::StrCat("failed to stat: ", filename));
+                               absl::StrCat("failed to stat: ", filename_));
   }
   if (mmap_file) {
     const char* data = static_cast<const char*>(
-        mmap(nullptr, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd_, 0));
+        mmap(nullptr, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd_.get(), 0));
     if (data == MAP_FAILED) {
       return absl::ErrnoToStatus(errno,
-                                 absl::StrCat("failed to mmap: ", filename));
+                                 absl::StrCat("failed to mmap: ", filename_));
     }
     mmap_ = absl::string_view(data, statbuf.st_size);
   }
@@ -99,9 +113,6 @@ absl::Status ElfParser::Init(absl::string_view filename, bool mmap_file) {
 }
 
 ElfParser::~ElfParser() {
-  if (fd_ != -1) {
-    close(fd_);
-  }
   if (mmap_.data()) {
     munmap(const_cast<char*>(mmap_.data()), mmap_.size());
   }
@@ -123,12 +134,12 @@ absl::StatusOr<ElfParser::Buffer> ElfParser::ReadData(size_t offset,
     }
     return Buffer(mmap_.substr(offset, size));
   }
-  if (lseek(fd_, offset, SEEK_SET) == -1) {
+  if (lseek(fd_.get(), offset, SEEK_SET) == -1) {
     return absl::ErrnoToStatus(errno, absl::StrCat("failed to lseek"));
   }
   std::string buffer(size, '\0');
   for (size_t read_bytes = 0; read_bytes != size;) {
-    size_t n = read(fd_, buffer.data() + read_bytes, size - read_bytes);
+    size_t n = read(fd_.get(), buffer.data() + read_bytes, size - read_bytes);
     if (n == -1) {
       if (errno == EINTR || errno == EAGAIN) {
         continue;
