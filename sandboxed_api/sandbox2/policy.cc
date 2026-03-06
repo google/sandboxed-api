@@ -221,29 +221,29 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
     policy.insert(
         policy.end(),
         {
-    // TODO: b/453946404 - The below checks are not correct.
 #ifdef __NR_mmap
-            JNE32(__NR_mmap, JUMP(&l, past_map_exec_l)),
+            JEQ32(__NR_mmap, JUMP(&l, check_prot_arg_l)),
 #endif
 #ifdef __NR_mmap2  // Arm32
-            JNE32(__NR_mmap2, JUMP(&l, past_map_exec_l)),
+            JEQ32(__NR_mmap2, JUMP(&l, check_prot_arg_l)),
 #endif
-            JNE32(__NR_mprotect, JUMP(&l, past_map_exec_l)),
+            JEQ32(__NR_mprotect, JUMP(&l, check_prot_arg_l)),
 #ifdef __NR_pkey_mprotect
-            JNE32(__NR_pkey_mprotect, JUMP(&l, past_map_exec_l)),
+            JEQ32(__NR_pkey_mprotect, JUMP(&l, check_prot_arg_l)),
 #endif
+            JUMP(&l, past_map_exec_l),
+            LABEL(&l, check_prot_arg_l),
             // Load "prot" argument, which is the same for all four syscalls.
             ARG_32(2),
             // Deny executable mappings. This also disallows them for all PKEYS
             // (not just the default one).
             JA32(PROT_EXEC, DENY),
-
+            LOAD_SYSCALL_NR,  // Only need to load if overwritten by argument.
             LABEL(&l, past_map_exec_l),
-            LOAD_SYSCALL_NR,
 
             JNE32(__NR_shmat, JUMP(&l, past_shmat_l)),
             ARG_32(2),
-            JEQ32(SHM_EXEC, DENY),
+            JA32(SHM_EXEC, DENY),
             LABEL(&l, past_shmat_l),
             LOAD_SYSCALL_NR,
         });
