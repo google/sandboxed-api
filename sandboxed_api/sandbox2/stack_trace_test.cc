@@ -29,6 +29,7 @@
 #include "absl/base/log_severity.h"
 #include "absl/log/check.h"
 #include "absl/log/scoped_mock_log.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
@@ -41,8 +42,11 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
+#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -104,6 +108,8 @@ using ::testing::Key;
 using ::testing::SizeIs;
 using ::testing::StartsWith;
 
+using ::sapi::file_util::fileops::FDCloser;
+
 struct TestCase {
   std::string testname = "CrashMe";
   int testno = 1;
@@ -113,9 +119,27 @@ struct TestCase {
   std::string full_function_description = "CrashMe(char)";
   std::function<void(PolicyBuilder*)> modify_policy;
   absl::Duration wall_time_limit = absl::ZeroDuration();
+  bool exec_memfd = false;
 };
 
 class StackTraceTest : public ::testing::TestWithParam<TestCase> {};
+
+absl::StatusOr<FDCloser> CopyExecToMemFd(const std::string& path) {
+  SAPI_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFd("exec"));
+  std::string data;
+  SAPI_RETURN_IF_ERROR(
+      sapi::file::GetContents(path, &data, sapi::file::Defaults()));
+  if (!file_util::fileops::WriteToFD(fd.get(), data.data(), data.size())) {
+    return absl::InternalError("Failed to write to memfd");
+  }
+  // Make the underlying file non-writable.
+  if (fchmod(fd.get(),
+             S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == -1) {
+    return absl::InternalError(
+        absl::StrCat("Could't make FD=", fd.get(), " RX-only"));
+  }
+  return fd;
+}
 
 // Test that symbolization of stack traces works.
 void SymbolizationWorksCommon(TestCase param) {
@@ -129,7 +153,13 @@ void SymbolizationWorksCommon(TestCase param) {
   }
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
 
-  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
+  auto executor = std::make_unique<Executor>(path, args);
+  if (param.exec_memfd) {
+    SAPI_ASSERT_OK_AND_ASSIGN(FDCloser exec_fd, CopyExecToMemFd(path));
+    executor = std::make_unique<Executor>(exec_fd.Release(), args);
+  }
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
   ASSERT_TRUE(s2.RunAsync());
   s2.set_walltime_limit(param.wall_time_limit);
   auto result = s2.AwaitResult();
@@ -384,6 +414,14 @@ INSTANTIATE_TEST_SUITE_P(
             .final_status = Result::VIOLATION,
             .function_name = "ViolatePolicy",
             .full_function_description = "ViolatePolicy(int)",
+        },
+        TestCase{
+            .testname = "MemFdCrash",
+            .testno = 1,
+            .final_status = Result::SIGNALED,
+            .function_name = "CrashMe",
+            .full_function_description = "CrashMe(char)",
+            .exec_memfd = true,
         }),
     [](const ::testing::TestParamInfo<TestCase>& info) {
       return info.param.testname;

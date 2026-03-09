@@ -1213,8 +1213,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::stack_trace
     sandbox2::util
     sapi::fileops
+    sapi::file_helpers
     sapi::testing
     sapi::test_main
+    sapi::status
   )
   gtest_discover_tests_xcompile(sandbox2_stack_trace_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
