@@ -474,3 +474,17 @@ target_link_libraries(sandbox2_testcase_shared_memory PRIVATE
   sapi::base
   sapi::raw_logging
 )
+
+# sandboxed_api/sandbox2/testcases:pthreads
+add_executable(sandbox2_testcase_pthreads
+  pthreads.cc
+)
+add_executable(sandbox2::testcase_pthreads ALIAS sandbox2_testcase_pthreads)
+set_target_properties(sandbox2_testcase_pthreads PROPERTIES
+  OUTPUT_NAME pthreads
+)
+target_link_libraries(sandbox2_testcase_pthreads PRIVATE
+  sandbox2::comms
+  sandbox2::forkingclient
+  sapi::base
+)

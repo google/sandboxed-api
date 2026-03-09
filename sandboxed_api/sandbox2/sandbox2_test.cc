@@ -37,6 +37,8 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -266,6 +268,44 @@ TEST_P(Sandbox2Test, CustomForkserverWorks) {
   ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   Result result = sandbox.Run();
   EXPECT_EQ(result.final_status(), Result::OK);
+}
+
+TEST_P(Sandbox2Test, PthreadsWork) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/pthreads");
+  std::vector<std::string> args = {path};
+  auto fork_executor = std::make_unique<Executor>(path, args);
+  std::unique_ptr<ForkClient> fork_client = fork_executor->StartForkServer();
+  ASSERT_THAT(fork_client.get(), Ne(nullptr));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+
+  Sandbox2 sandbox(std::make_unique<Executor>(fork_client.get()),
+                   std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  Result result = sandbox.Run();
+  EXPECT_EQ(result.final_status(), Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
+TEST(Sandbox2Test, PthreadsWorkNoNamespaces) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/pthreads");
+  std::vector<std::string> args = {path};
+  auto fork_executor = std::make_unique<Executor>(path, args);
+  std::unique_ptr<ForkClient> fork_client = fork_executor->StartForkServer();
+  ASSERT_THAT(fork_client.get(), Ne(nullptr));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DefaultAction(sandbox2::AllowAllSyscalls())
+                                .DisableNamespaces(NamespacesToken())
+                                .TryBuild());
+
+  Sandbox2 sandbox(std::make_unique<Executor>(fork_client.get()),
+                   std::move(policy));
+  Result result = sandbox.Run();
+  EXPECT_EQ(result.final_status(), Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
 }
 
 TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {

@@ -1110,6 +1110,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_abort
     sandbox2::testcase_custom_fork
     sandbox2::testcase_minimal
+    sandbox2::testcase_pthreads
     sandbox2::testcase_sleep
     sandbox2::testcase_tsync
   )
@@ -1121,6 +1122,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::time
     benchmark
     sapi::config
+    sandbox2::allowlists_all_syscalls
+    sandbox2::allowlists_namespaces
     sandbox2::fork_client
     sandbox2::sandbox2
     sapi::testing

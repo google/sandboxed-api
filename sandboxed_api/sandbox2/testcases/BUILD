@@ -385,3 +385,15 @@ cc_binary(
         "//sandboxed_api/sandbox2:comms",
     ],
 )
+
+cc_binary(
+    name = "pthreads",
+    testonly = True,
+    srcs = ["pthreads.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = [
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:forkingclient",
+    ],
+)

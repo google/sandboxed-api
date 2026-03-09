@@ -310,7 +310,14 @@ void ForkServer::LaunchSandboxee(const ForkRequest& request, int execve_fd,
     // Send init pid
     SAPI_RAW_CHECK(setup_comms.SendCreds(), "Failed to send init_pid");
     // Spawn a child process
-    pid_t child = util::ForkWithFlags(SIGCHLD);
+    pid_t child;
+    if (will_execve) {
+      child = util::ForkWithFlags(SIGCHLD);
+    } else {
+      // Use regular fork() so that pthread's state is properly initialized in
+      // the child process.
+      child = fork();
+    }
     if (child < 0) {
       SAPI_RAW_PLOG(FATAL, "Could not spawn init process");
     }
@@ -500,9 +507,16 @@ pid_t ForkServer::ServeRequest() {
   }();
 
   // We fork a child early on to do the rest of the setup.
-  // Note: Not a regular fork() as one really needs to be single-threaded to
-  //       setns and this is not the case with TSAN.
-  pid_t pid = util::ForkWithFlags(SIGCHLD);
+  pid_t pid;
+  if (avoid_pivot_root || exec_fd.get() != -1) {
+    // Note: Not a regular fork() as one really needs to be single-threaded to
+    //       setns and this is not the case with TSAN.
+    pid = util::ForkWithFlags(SIGCHLD);
+  } else {
+    // Use regular fork() so that pthread's state is properly initialized in
+    // the child process.
+    pid = fork();
+  }
   SAPI_RAW_PCHECK(pid != -1, "fork failed");
   if (pid == 0) {
     SetupSandboxeeProcess(fork_request, std::move(comms_fd), std::move(exec_fd),
