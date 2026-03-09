@@ -31,13 +31,19 @@ add_library(sandbox2_accessors STATIC
   accessors.h
 )
 add_library(sandbox2::accessors ALIAS sandbox2_accessors)
-target_link_libraries(sandbox2_accessors PRIVATE
-  sandbox2::accessors_internal
-  sandbox2::regs
+target_link_libraries(sandbox2_accessors
+ PUBLIC
   sandbox2::maps_parser
+  sandbox2::regs
+  sapi::fileops
+  unwind::unwind_ptrace
+ PRIVATE
+  absl::status
+  absl::statusor
+  absl::strings
+  sandbox2::accessors_internal
   sapi::base
   sapi::raw_logging
-  unwind::unwind_ptrace
 )
 
 # sandboxed_api/sandbox2/unwind:unwind

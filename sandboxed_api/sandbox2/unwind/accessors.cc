@@ -30,6 +30,8 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
+#include "absl/strings/strip.h"
 #include "libunwind.h"
 #include "sandboxed_api/sandbox2/regs.h"
 #include "sandboxed_api/sandbox2/unwind/accessors_internal.h"
@@ -325,18 +327,23 @@ int FindProcInfo(unw_addr_space_t as, unw_word_t ip, unw_proc_info_t* pi,
     return -UNW_ENOINFO;
   }
 
+  std::string path = it->path;
+  if (absl::EndsWith(path, " (deleted)") &&
+      !sapi::file_util::fileops::Exists(path, /*full_path=*/true)) {
+    path = absl::StripSuffix(path, " (deleted)");
+  }
+
   absl::StatusOr<MMappedWrapper> mapped_image =
-      MMappedWrapper::MapFile(it->path.c_str());
+      MMappedWrapper::MapFile(path.c_str());
   if (!mapped_image.ok()) {
-    SAPI_RAW_LOG(ERROR, "Failed to map elf image for path %s: %s",
-                 it->path.c_str(),
+    SAPI_RAW_LOG(ERROR, "Failed to map elf image for path %s: %s", path.c_str(),
                  std::string(mapped_image.status().message()).c_str());
     return -UNW_ENOINFO;
   }
 
   int ret = Sandbox2FindUnwindTable(
-      as, mapped_image->data(), mapped_image->size(), it->path.c_str(),
-      it->start, it->pgoff, ip, pi, need_unwind_info, ctx);
+      as, mapped_image->data(), mapped_image->size(), path.c_str(), it->start,
+      it->pgoff, ip, pi, need_unwind_info, ctx);
   return ret;
 }
 

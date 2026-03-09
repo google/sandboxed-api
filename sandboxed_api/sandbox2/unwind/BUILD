@@ -44,6 +44,7 @@ cc_library(
         "//sandboxed_api/util:raw_logging",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@libunwind//:libunwind_ptrace",
     ],
 )
