@@ -61,6 +61,7 @@ namespace {
 
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
+using ::sapi::file_util::fileops::FDCloser;
 
 bool IsSameFile(const std::string& path, const std::string& other) {
   struct stat buf, other_buf;
@@ -81,7 +82,6 @@ bool IsSameFile(const std::string& path, const std::string& other) {
 class StackTracePeer {
  public:
   static absl::StatusOr<std::unique_ptr<Policy>> GetPolicy(
-      const std::string& app_path, const std::string& exe_path,
       const Namespace* ns, bool uses_custom_forkserver);
 
   static absl::StatusOr<std::vector<std::string>> LaunchLibunwindSandbox(
@@ -90,7 +90,6 @@ class StackTracePeer {
 };
 
 absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
-    const std::string& app_path, const std::string& exe_path,
     const Namespace* ns, bool uses_custom_forkserver) {
   PolicyBuilder builder;
   if (uses_custom_forkserver || ns == nullptr) {
@@ -117,7 +116,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
     CHECK(ns != nullptr);
     Mounts mounts = ns->mounts();
     mounts.Remove("/proc").IgnoreError();
-    mounts.Remove(app_path).IgnoreError();
     builder.SetMounts(std::move(mounts));
   }
   builder.AllowOpen()
@@ -164,8 +162,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
       .AllowSafeFcntl()
       .AllowGetPIDs()
 
-      // Add the binary itself.
-      .AddFileAt(exe_path, app_path)
       .AllowLlvmCoverage()
       .AllowLlvmSanitizers();
 
@@ -184,7 +180,7 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     int recursion_depth) {
   const pid_t pid = regs->pid();
 
-  sapi::file_util::fileops::FDCloser memory_fd(
+  FDCloser memory_fd(
       open(absl::StrCat("/proc/", pid, "/mem").c_str(), O_RDONLY));
   if (memory_fd.get() == -1) {
     return absl::InternalError("Opening sandboxee process memory failed");
@@ -199,38 +195,16 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
   // app_path contains the path like it is also in /proc/pid/maps. It is
   // relative to the sandboxee's mount namespace. If it is not existing
   // (anymore) it will have a ' (deleted)' suffix.
-  std::string app_path;
+
   std::string proc_pid_exe = file::JoinPath("/proc", absl::StrCat(pid), "exe");
-  if (!file_util::fileops::ReadLinkAbsolute(proc_pid_exe, &app_path)) {
+  std::string app_path = file_util::fileops::ReadLink(proc_pid_exe);
+  if (app_path.empty()) {
     return absl::InternalError("Could not obtain absolute path to the binary");
   }
-
-  std::string exe_path;
-  if (IsSameFile(app_path, proc_pid_exe)) {
-    exe_path = app_path;
-  } else {
-    // The exe_path will have a mountable path of the application, even if it
-    // was removed. Resolve app_path backing file.
-    exe_path = ns ? ns->mounts().ResolvePath(app_path).value_or("") : "";
-  }
-
-  std::string exe_copy_path;
-  absl::Cleanup cleanup_exec_copy = [&exe_copy_path] {
-    if (!exe_copy_path.empty()) {
-      unlink(exe_copy_path.c_str());
-    }
-  };
-  if (exe_path.empty()) {
-    // File was probably removed.
-    LOG(WARNING) << "File was removed, using /proc/pid/exe.";
-    app_path = std::string(absl::StripSuffix(app_path, " (deleted)"));
-    SAPI_ASSIGN_OR_RETURN(exe_copy_path, sapi::CreateNamedTempFileAndClose(
-                                             "/tmp/.sandbox2_unwind_exe_copy"));
-    // Create a copy of /proc/pid/exe, mount that one.
-    if (!file_util::fileops::CopyFile(proc_pid_exe, exe_copy_path, 0700)) {
-      return absl::InternalError("Could not copy /proc/pid/exe");
-    }
-    exe_path = exe_copy_path;
+  FDCloser exe_fd(open(proc_pid_exe.c_str(), O_RDONLY));
+  if (exe_fd.get() == -1) {
+    return absl::InternalError(
+        absl::StrCat("Could not open /proc/", pid, "/exe"));
   }
 
   // Get the content of /proc/pid/maps.
@@ -240,13 +214,12 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
   SAPI_RETURN_IF_ERROR(
       sapi::file::GetContents(proc_pid_maps, &maps_content, file::Defaults()));
 
-  VLOG(1) << "Resolved binary: " << app_path << " / " << exe_path;
+  VLOG(1) << "Resolved binary: " << app_path;
 
   // Add mappings for the binary (as they might not have been added due to the
   // forkserver).
   SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy,
-                        StackTracePeer::GetPolicy(app_path, exe_path, ns,
-                                                  uses_custom_forkserver));
+                        StackTracePeer::GetPolicy(ns, uses_custom_forkserver));
 
   VLOG(1) << "Running libunwind sandbox";
   auto sandbox =
@@ -258,6 +231,7 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
                sizeof(regs->user_regs_));
   msg.set_default_max_frames(kDefaultMaxFrames);
   msg.set_maps_content(maps_content);
+  msg.set_app_path(app_path);
 
   absl::Cleanup kill_sandbox = [&sandbox]() {
     sandbox->Kill();
@@ -270,6 +244,9 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
   }
   if (!comms->SendFD(memory_fd.get())) {
     return absl::InternalError("Sending sandboxee's memory fd failed");
+  }
+  if (!comms->SendFD(exe_fd.get())) {
+    return absl::InternalError("Sending sandboxee's exe fd failed");
   }
   absl::Status status;
   if (!comms->RecvStatus(&status)) {

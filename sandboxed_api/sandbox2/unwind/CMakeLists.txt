@@ -54,6 +54,7 @@ add_library(sandbox2_unwind STATIC
 add_library(sandbox2::unwind ALIAS sandbox2_unwind)
 target_link_libraries(sandbox2_unwind PRIVATE
   absl::cleanup
+  absl::function_ref
   absl::status
   absl::statusor
   absl::strings

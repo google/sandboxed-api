@@ -42,21 +42,18 @@ namespace sandbox2 {
 
 namespace {
 
+using ::sapi::file_util::fileops::FDCloser;
+
 class MMappedWrapper {
  public:
-  static absl::StatusOr<MMappedWrapper> MapFile(const char* path) {
+  static absl::StatusOr<MMappedWrapper> MapFile(FDCloser fd) {
     struct stat stat;
-
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) return absl::ErrnoToStatus(errno, "open failed");
-
-    sapi::file_util::fileops::FDCloser mapped_fd(fd);
-    if (fstat(fd, &stat) < 0) {
+    if (fstat(fd.get(), &stat) < 0) {
       return absl::ErrnoToStatus(errno, "fstat failed");
     }
 
     size_t size = stat.st_size;
-    void* data = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    void* data = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd.get(), 0);
     if (data == MAP_FAILED) {
       return absl::ErrnoToStatus(errno, "mmap failed");
     }
@@ -328,13 +325,24 @@ int FindProcInfo(unw_addr_space_t as, unw_word_t ip, unw_proc_info_t* pi,
   }
 
   std::string path = it->path;
-  if (absl::EndsWith(path, " (deleted)") &&
-      !sapi::file_util::fileops::Exists(path, /*full_path=*/true)) {
+  // Special handling for the main binary - just use the passed fd.
+  FDCloser fd(open(path.c_str(), O_RDONLY));
+  if (fd.get() == -1 && path == ctx->app_path) {
+    int dup_exe_fd = dup(ctx->exe_fd.get());
+    SAPI_RAW_PCHECK(dup_exe_fd != -1, "Duplicating exe_fd failed");
+    fd = FDCloser(dup_exe_fd);
+  }
+  if (fd.get() == -1 && errno == ENOENT && absl::EndsWith(path, " (deleted)")) {
     path = absl::StripSuffix(path, " (deleted)");
+    fd = FDCloser(open(path.c_str(), O_RDONLY));
+  }
+  if (fd.get() == -1) {
+    SAPI_RAW_PLOG(ERROR, "Failed to open file for path %s", path.c_str());
+    return -UNW_ENOINFO;
   }
 
   absl::StatusOr<MMappedWrapper> mapped_image =
-      MMappedWrapper::MapFile(path.c_str());
+      MMappedWrapper::MapFile(std::move(fd));
   if (!mapped_image.ok()) {
     SAPI_RAW_LOG(ERROR, "Failed to map elf image for path %s: %s", path.c_str(),
                  std::string(mapped_image.status().message()).c_str());

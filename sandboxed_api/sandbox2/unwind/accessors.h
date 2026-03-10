@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_UNWIND_ACCESSORS_H_
 #define SANDBOXED_API_SANDBOX2_UNWIND_ACCESSORS_H_
 
+#include <string>
 #include <vector>
 
 #include "libunwind.h"
@@ -28,6 +29,8 @@ struct SandboxedUnwindContext {
   sandbox2::Regs::PtraceRegisters regs;
   const std::vector<sandbox2::MapsEntry> maps;
   sapi::file_util::fileops::FDCloser mem_fd;
+  sapi::file_util::fileops::FDCloser exe_fd;
+  std::string app_path;
 };
 
 unw_accessors_t* GetUnwindAccessors();

@@ -69,6 +69,7 @@ cc_library(
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

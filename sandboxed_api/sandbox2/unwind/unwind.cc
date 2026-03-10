@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -48,6 +49,8 @@
 
 namespace sandbox2 {
 namespace {
+
+using ::sapi::file_util::fileops::FDCloser;
 
 absl::StatusOr<uintptr_t> ReadMemory(unw_addr_space_t as, void* ctx,
                                      uintptr_t addr) {
@@ -132,7 +135,20 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(unw_addr_space_t as,
   return ips;
 }
 
-absl::StatusOr<SymbolMap> LoadSymbolsMap(const std::string& maps_content) {
+absl::StatusOr<ElfFile> LoadSymbols(const std::string& path) {
+  if (absl::EndsWith(path, " (deleted)") &&
+      !sapi::file_util::fileops::Exists(path, /*fully_resolve=*/true)) {
+    return ElfFile::ParseFromFile(
+        std::string(absl::StripSuffix(path, " (deleted)")),
+        ElfFile::kLoadSymbols);
+  }
+  return ElfFile::ParseFromFile(path, ElfFile::kLoadSymbols);
+}
+
+absl::StatusOr<SymbolMap> LoadSymbolsMap(
+    const std::string& maps_content,
+    absl::FunctionRef<absl::StatusOr<ElfFile>(const std::string&)>
+        load_symbols = LoadSymbols) {
   SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
                         ParseProcMaps(maps_content));
 
@@ -159,20 +175,13 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(const std::string& maps_content) {
     addr_to_symbol[entry.start] = map;
     addr_to_symbol[entry.end] = "";
 
-    absl::StatusOr<ElfFile> elf =
-        ElfFile::ParseFromFile(entry.path, ElfFile::kLoadSymbols);
+    absl::StatusOr<ElfFile> elf = load_symbols(entry.path);
     if (!elf.ok()) {
-      if (is_deleted) {
-        elf = ElfFile::ParseFromFile(
-            std::string(absl::StripSuffix(entry.path, " (deleted)")),
-            ElfFile::kLoadSymbols);
-      } else {
+      if (!is_deleted) {
         SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
                      entry.path.c_str(),
                      std::string(elf.status().message()).c_str());
       }
-    }
-    if (!elf.ok()) {
       continue;
     }
 
@@ -218,15 +227,6 @@ absl::StatusOr<std::vector<std::string>> SymbolizeStacktrace(
   return stack_trace;
 }
 
-absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizerInternal(
-    unw_addr_space_t as, void* ctx, const std::string& maps_content,
-    int max_frames) {
-  SAPI_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
-                        RunLibUnwind(as, ctx, max_frames));
-  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(maps_content));
-  return SymbolizeStacktrace(addr_to_symbol, ips);
-}
-
 }  // namespace
 
 std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr) {
@@ -264,11 +264,16 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
   }
   sandbox2::Regs::PtraceRegisters regs;
   memcpy(&regs, setup.regs().data(), setup.regs().size());
-  int mem_fd;
-  if (!comms->RecvFD(&mem_fd)) {
+  int raw_mem_fd;
+  if (!comms->RecvFD(&raw_mem_fd)) {
     return absl::InternalError("Failed to receive mem_fd");
   }
-  sapi::file_util::fileops::FDCloser mem_fd_closer(mem_fd);
+  FDCloser mem_fd(raw_mem_fd);
+  int raw_exe_fd;
+  if (!comms->RecvFD(&raw_exe_fd)) {
+    return absl::InternalError("Failed to receive exe_fd");
+  }
+  FDCloser exe_fd(raw_exe_fd);
   std::string maps_content = setup.maps_content();
   SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
                         ParseProcMaps(maps_content));
@@ -276,7 +281,9 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
   SandboxedUnwindContext ctx{
       .regs = regs,
       .maps = std::move(maps),
-      .mem_fd = std::move(mem_fd_closer),
+      .mem_fd = std::move(mem_fd),
+      .exe_fd = std::move(exe_fd),
+      .app_path = setup.app_path(),
   };
 
   unw_addr_space_t as =
@@ -287,9 +294,25 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
 
   absl::Cleanup as_cleanup = [&as] { unw_destroy_addr_space(as); };
 
+  auto load_symbols =
+      [&ctx](const std::string& path) -> absl::StatusOr<ElfFile> {
+    if (path == ctx.app_path) {
+      FDCloser exe_fd_copy(dup(ctx.exe_fd.get()));
+      if (exe_fd_copy.get() == -1) {
+        return absl::ErrnoToStatus(errno, "dup() failed");
+      }
+      return ElfFile::ParseFromFd(std::move(exe_fd_copy),
+                                  ElfFile::kLoadSymbols);
+    }
+    return ElfFile::ParseFromFile(path, ElfFile::kLoadSymbols);
+  };
+
+  SAPI_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
+                        RunLibUnwind(as, &ctx, setup.default_max_frames()));
+  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol,
+                        LoadSymbolsMap(maps_content, load_symbols));
   absl::StatusOr<std::vector<std::string>> stack_trace =
-      RunLibUnwindAndSymbolizerInternal(as, &ctx, maps_content,
-                                        setup.default_max_frames());
+      SymbolizeStacktrace(addr_to_symbol, ips);
 
   if (!comms->SendStatus(stack_trace.status())) {
     return absl::InternalError("Failed to send status");

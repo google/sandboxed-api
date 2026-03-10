@@ -26,6 +26,8 @@ message UnwindSetup {
   uint64 default_max_frames = 3;
   // Content of /proc/<pid>/maps file for the process to unwind
   bytes maps_content = 4;
+  // Path to the binary executable of the process to unwind
+  string app_path = 5;
 }
 
 message UnwindResult {
