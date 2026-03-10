@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -171,16 +172,16 @@ class SandboxBase {
 // The Sandbox class represents the sandboxed library. It provides users with
 // means to communicate with it (make function calls, transfer memory).
 template <typename Backend>
-class SandboxImpl : public SandboxBase {
+class Sandbox : public SandboxBase {
  public:
-  explicit SandboxImpl(SandboxConfig config)
+  explicit Sandbox(SandboxConfig config)
       : SandboxBase(),
         backend_(std::move(config), [this] { return CreateNotifier(); }) {}
 
-  SandboxImpl(const SandboxImpl&) = delete;
-  SandboxImpl& operator=(const SandboxImpl&) = delete;
+  Sandbox(const Sandbox&) = delete;
+  Sandbox& operator=(const Sandbox&) = delete;
 
-  virtual ~SandboxImpl() = default;
+  virtual ~Sandbox() = default;
 
   // Initializes a new sandboxing session.
   absl::Status Init() override { return backend().Init(); }
@@ -216,7 +217,8 @@ class SandboxImpl : public SandboxBase {
 };
 
 template <typename Backend>
-using Sandbox = SandboxImpl<Backend>;
+using SandboxImpl [[deprecated("Use Sandbox instead")]] ABSL_REFACTOR_INLINE =
+    Sandbox<Backend>;
 
 }  // namespace sapi
 
