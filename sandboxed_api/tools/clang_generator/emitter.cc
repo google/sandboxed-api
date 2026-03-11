@@ -97,7 +97,7 @@ class %1$s : public ::sapi::SandboxImpl<::sapi::Sandbox2Backend> {
       if (!config.sandbox2.policy &&
           !config.sandbox2.shared_memory_config.has_value()) {
         config.sandbox2.shared_memory_config =
-            {.size = ::sapi::Sandbox2Config::kDefaultSAPISharedMemorySize};
+            {.enable_huge_pages = true};
       }
     }
     return config;
