@@ -17,6 +17,7 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 #include <atomic>
@@ -73,51 +74,29 @@ class Sandbox2Peer : public internal::SandboxPeer {
   Sandbox2 sandbox_;
 };
 
-absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdWithHugePages(
-    const char* name, uintptr_t flags) {
-  static std::atomic<bool> huge_tlb_supported = true;
-
-  if (huge_tlb_supported) {
-    auto res =
-        util::CreateMemFd(name, flags | util::kMfdHugeTLB | util::kMfdHuge2Mb);
-    if (!res.ok() && errno == EINVAL) {
-      huge_tlb_supported = false;
-    }
-    return res;
-  }
-  return absl::InternalError("No huge page support.");
-}
-
 absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdForSharedMemory(
     const SharedMemoryConfig& config) {
   uintptr_t flags = util::kMfdCloseOnExec | util::kMfdAllowSealing;
-  constexpr size_t kHugePageSize = 2ULL << 20;
-  if (config.enable_huge_pages) {
-    if ((config.size & (kHugePageSize - 1)) != 0) {
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Shared memory size must be a multiple of huge page size: ",
-          kHugePageSize));
-    }
-    if (auto res = CreateMemFdWithHugePages("s2_shared_memory", flags);
-        res.ok()) {
-      return res;
-    }
-    LOG(WARNING)
-        << "Kernel does not support huge pages, falling back to default "
-           "memfd creation.";
-  }
+  // On non-prodkernels, we will just try to use THP using madvise.
   return util::CreateMemFd("s2_shared_memory", flags);
 }
 
-absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateSharedMemoryFile(
+absl::StatusOr<std::unique_ptr<sandbox2::Buffer>> CreateSharedMemoryBuffer(
     const SharedMemoryConfig& config) {
   SAPI_ASSIGN_OR_RETURN(auto fd, CreateMemFdForSharedMemory(config));
   if (ftruncate(fd.get(), config.size) < 0) {
     return absl::ErrnoToStatus(errno, "Could not truncate shared memory file");
   }
-  return fd;
-}
 
+  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Buffer> buffer,
+                        Buffer::CreateFromFd(std::move(fd)));
+  if (config.enable_huge_pages) {
+    if (madvise(buffer->data(), buffer->size(), MADV_HUGEPAGE) < 0) {
+      return absl::ErrnoToStatus(errno, "Could not madvise huge pages");
+    }
+  }
+  return buffer;
+}
 }  // namespace
 
 absl::StatusOr<Result> Sandbox2::AwaitResultWithTimeout(
@@ -203,8 +182,7 @@ absl::StatusOr<const Buffer*> Sandbox2::CreateSharedMemoryMapping(
   if (shared_memory_buffer_ != nullptr) {
     return absl::FailedPreconditionError("Shared memory was already created");
   }
-  SAPI_ASSIGN_OR_RETURN(auto fd, CreateSharedMemoryFile(config));
-  SAPI_ASSIGN_OR_RETURN(auto buffer, Buffer::CreateFromFd(std::move(fd)));
+  SAPI_ASSIGN_OR_RETURN(auto buffer, CreateSharedMemoryBuffer(config));
 
   // Seal the shared memory file descriptor to prevent the sandboxee from
   // growing or shrinking it.
