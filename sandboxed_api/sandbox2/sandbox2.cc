@@ -22,7 +22,6 @@
 
 #include <atomic>
 #include <cerrno>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -32,7 +31,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
