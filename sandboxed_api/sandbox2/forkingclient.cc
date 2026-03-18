@@ -26,19 +26,23 @@
 
 namespace sandbox2 {
 
-pid_t ForkingClient::WaitAndFork() {
+void ForkingClient::InitializeForkServer() {
+  if (fork_server_worker_) {
+    return;
+  }
   // We don't instantiate the Fork-Server until the first Fork() call takes
   // place (in order to conserve resources, and avoid calling Fork-Server
   // initialization routines).
-  if (!fork_server_worker_) {
-    sanitizer::WaitForSanitizer();
-    // Perform that check once only, because it's quite CPU-expensive.
-    int n = sanitizer::GetNumberOfThreads(getpid());
-    CHECK_NE(n, -1) << "sanitizer::GetNumberOfThreads failed";
-    CHECK_EQ(n, 1) << "Too many threads (" << n
-                   << ") during sandbox2::Client::WaitAndFork()";
-    fork_server_worker_ = std::make_unique<ForkServer>(comms_);
-  }
+  sanitizer::WaitForSanitizer();
+  // Perform that check once only, because it's quite CPU-expensive.
+  int n = sanitizer::GetNumberOfThreads(getpid());
+  CHECK_NE(n, -1) << "sanitizer::GetNumberOfThreads failed";
+  CHECK_EQ(n, 1) << "Too many threads (" << n
+                 << ") during sandbox2::Client::WaitAndFork()";
+  fork_server_worker_ = std::make_unique<ForkServer>(comms_);
+}
+
+pid_t ForkingClient::WaitAndForkInternal() {
   pid_t pid = fork_server_worker_->ServeRequest();
   if (pid == -1 && fork_server_worker_->IsTerminated()) {
     VLOG(1) << "ForkServer Comms closed. Exiting";
@@ -47,9 +51,15 @@ pid_t ForkingClient::WaitAndFork() {
   return pid;
 }
 
+pid_t ForkingClient::WaitAndFork() {
+  InitializeForkServer();
+  return WaitAndForkInternal();
+}
+
 void ForkingClient::EnterForkLoop() {
+  InitializeForkServer();
   for (;;) {
-    pid_t pid = WaitAndFork();
+    pid_t pid = WaitAndForkInternal();
     CHECK_NE(pid, -1);
     if (pid == 0) {
       break;
