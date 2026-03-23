@@ -406,6 +406,9 @@ cc_library(
 cc_library(
     name = "annotations",
     srcs = ["annotations_internal.h"],
-    hdrs = ["annotations.h"],
+    hdrs = [
+        "annotations.h",
+        "annotations_unimplemented.h",
+    ],
     visibility = ["//visibility:public"],
 )
