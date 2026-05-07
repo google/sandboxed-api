@@ -106,6 +106,10 @@ absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFd(
     const char* name = "buffer_file",
     uintptr_t flag = kMfdCloseOnExec | kMfdAllowSealing);
 
+absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdWithSize(
+    size_t size, const char* name = "buffer_file",
+    uintptr_t flags = kMfdCloseOnExec | kMfdAllowSealing);
+
 ABSL_DEPRECATED("Use absl::StatusOr<FDCloser> version instead.")
 inline bool CreateMemFd(int* fd, const char* name = "buffer_file") {
   absl::StatusOr<sapi::file_util::fileops::FDCloser> fd_closer =

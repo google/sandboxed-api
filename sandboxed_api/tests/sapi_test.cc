@@ -231,6 +231,7 @@ class SandboxTest : public ::testing::TestWithParam<bool> {
     SandboxConfig config;
     if (GetParam()) {
       config.sandbox2.shared_memory_config.emplace();
+      config.sandbox2.enable_shared_memory_comms = true;
     }
     return config;
   }

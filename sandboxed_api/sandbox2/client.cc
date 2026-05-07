@@ -198,8 +198,14 @@ void Client::EnableSandbox() {
   ApplyPolicyAndBecomeTracee();
 }
 
+void Client::ReceiveCommsUpgrade() {
+  auto status = comms_->RecvSharedMemUpgrade();
+  SAPI_RAW_CHECK(status.ok(), "receiving comms upgrade");
+}
+
 void Client::SandboxMeHere() {
   PrepareEnvironment();
+  ReceiveCommsUpgrade();
   EnableSandbox();
 }
 

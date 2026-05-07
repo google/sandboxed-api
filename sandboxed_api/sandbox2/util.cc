@@ -269,6 +269,15 @@ absl::StatusOr<FDCloser> CreateMemFd(const char* name, uintptr_t flags) {
   return FDCloser(tmp_fd);
 }
 
+absl::StatusOr<FDCloser> CreateMemFdWithSize(size_t size, const char* name,
+                                             uintptr_t flags) {
+  SAPI_ASSIGN_OR_RETURN(FDCloser tmp_fd, CreateMemFd(name, flags));
+  if (ftruncate(tmp_fd.get(), size) < 0) {
+    return absl::ErrnoToStatus(errno, "ftruncate");
+  }
+  return tmp_fd;
+}
+
 absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
                                 const std::vector<std::string>& envv,
                                 std::string* output) {

@@ -2024,4 +2024,11 @@ std::string PolicyBuilder::AnchorPathAbsolute(absl::string_view relative_path,
   return file::CleanPath(file::JoinPath(cwd, base, clean_path));
 }
 
+PolicyBuilder& PolicyBuilder::AllowSharedMemoryComms() {
+  AllowSharedMemory();
+  AllowFutexOp(FUTEX_WAIT);
+  AllowFutexOp(FUTEX_WAKE);
+  return *this;
+}
+
 }  // namespace sandbox2

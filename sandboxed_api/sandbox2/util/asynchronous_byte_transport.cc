@@ -132,6 +132,7 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/sandbox2/util/potentially_blocking_region.h"
 #include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
@@ -139,10 +140,12 @@ namespace sandbox2 {
 namespace {
 
 int FutexWait(std::atomic<uint32_t>* futex, uint32_t val) {
+  PotentiallyBlockingRegion region;
   return TEMP_FAILURE_RETRY(util::Syscall(
       __NR_futex, reinterpret_cast<intptr_t>(futex), FUTEX_WAIT, val, 0));
 }
 int FutexWake(std::atomic<uint32_t>* futex, uint32_t count) {
+  PotentiallyBlockingRegion region;
   return TEMP_FAILURE_RETRY(util::Syscall(__NR_futex,
                                           reinterpret_cast<intptr_t>(futex),
                                           FUTEX_WAKE, count, 0, 0, 0));
