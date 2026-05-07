@@ -110,7 +110,6 @@ class Sandbox2 final {
   }
 
   absl::Status EnableUnotifyMonitor();
-  absl::Status EnableSharedMemoryComms();
 
  private:
   // Launches the Monitor.
@@ -124,7 +123,6 @@ class Sandbox2 final {
   std::unique_ptr<MonitorBase> monitor_;
 
   bool use_unotify_monitor_ = false;
-  bool enable_shared_memory_comms_ = false;
 
   // Buffer for the shared memory region.
   std::unique_ptr<Buffer> shared_memory_buffer_;

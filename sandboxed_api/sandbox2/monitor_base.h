@@ -50,8 +50,7 @@ namespace sandbox2 {
 class MonitorBase {
  public:
   // executor, policy and notify are not owned by the Monitor
-  MonitorBase(Executor* executor, Policy* policy, Notify* notify,
-              bool enable_shared_memory_comms = false);
+  MonitorBase(Executor* executor, Policy* policy, Notify* notify);
 
   MonitorBase(const MonitorBase&) = delete;
   MonitorBase& operator=(const MonitorBase&) = delete;
@@ -164,11 +163,6 @@ class MonitorBase {
   // based on the registers.
   void LogSyscallViolationExplanation(const Syscall& syscall) const;
 
-  // Sends shared memory comms upgrade request to the sandboxee if shared memory
-  // comms is enabled. Otherwise, sends a message indicating that comms upgrade
-  // is not needed.
-  bool InitSendCommsUpgrade();
-
   virtual void RunInternal() = 0;
   virtual void Join() = 0;
 
@@ -190,9 +184,6 @@ class MonitorBase {
 
   // Are we waiting for the first execveat syscall?
   bool wait_for_execveat_ = false;
-
-  // Whether shared memory comms should be enabled.
-  bool enable_shared_memory_comms_ = false;
 };
 
 }  // namespace sandbox2

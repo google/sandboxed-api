@@ -186,18 +186,8 @@ target_link_libraries(sandbox2_util_asynchronous_byte_transport
          absl::span
          absl::time
          sandbox2::buffer
-         sandbox2::potentially_blocking_region
          sandbox2::util
          sapi::raw_logging
-  PRIVATE sapi::base
-)
-
-# sandboxed_api/sandbox2/util:potentially_blocking_region
-add_library(sandbox2_util_potentially_blocking_region ${SAPI_LIB_TYPE}
-  potentially_blocking_region.h
-)
-add_library(sandbox2::potentially_blocking_region ALIAS sandbox2_util_potentially_blocking_region)
-target_link_libraries(sandbox2_util_potentially_blocking_region
   PRIVATE sapi::base
 )
 

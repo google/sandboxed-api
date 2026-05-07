@@ -882,9 +882,6 @@ class PolicyBuilder final {
     return *this;
   }
 
-  // Allows shared memory as a communication channel with the sandboxee.
-  PolicyBuilder& AllowSharedMemoryComms();
-
   // Set hostname in the network namespace.
   //
   // The default hostname is "sandbox2".

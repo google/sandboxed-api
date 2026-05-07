@@ -85,7 +85,6 @@ struct Sandbox2Config {
 
   bool use_unotify_monitor = false;
   bool enable_log_server = false;
-  bool enable_shared_memory_comms = false;
   std::optional<std::string> cwd;
   std::optional<sandbox2::Limits> limits;
 

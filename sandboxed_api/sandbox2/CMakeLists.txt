@@ -773,7 +773,6 @@ target_link_libraries(sandbox2_buffer
           absl::status
           absl::strings
           sapi::base
-          sapi::status
           sandbox2::util
   PUBLIC absl::core_headers
          absl::statusor
@@ -816,13 +815,10 @@ add_library(sandbox2_comms ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::comms ALIAS sandbox2_comms)
 target_link_libraries(sandbox2_comms
-  PRIVATE absl::log
-          absl::status
+  PRIVATE absl::status
           absl::statusor
           absl::str_format
           absl::strings
-          sandbox2::asynchronous_byte_transport
-          sandbox2::potentially_blocking_region
           sandbox2::util
           sapi::base
           sapi::raw_logging

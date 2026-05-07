@@ -224,9 +224,6 @@ absl::Status Sandbox2Backend::Init() {
         shared_memory_mapping,
         s2_->CreateSharedMemoryMapping(*config_.sandbox2.shared_memory_config));
   }
-  if (config_.sandbox2.enable_shared_memory_comms) {
-    SAPI_RETURN_IF_ERROR(s2_->EnableSharedMemoryComms());
-  }
   if (config_.sandbox2.use_unotify_monitor) {
     SAPI_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
   }

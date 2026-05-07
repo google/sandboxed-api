@@ -104,10 +104,6 @@ class Executor final {
 
   int libunwind_recursion_depth() { return libunwind_recursion_depth_; }
 
-  bool is_pre_execve_sandboxing_enabled() const {
-    return enable_sandboxing_pre_execve_;
-  }
-
  private:
   friend class MonitorBase;
   friend class StackTracePeer;

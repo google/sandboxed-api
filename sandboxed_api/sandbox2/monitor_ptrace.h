@@ -44,8 +44,7 @@ namespace sandbox2 {
 
 class PtraceMonitor : public MonitorBase {
  public:
-  PtraceMonitor(Executor* executor, Policy* policy, Notify* notify,
-                bool enable_shared_memory_comms = false);
+  PtraceMonitor(Executor* executor, Policy* policy, Notify* notify);
   ~PtraceMonitor() { Join(); }
 
   void Kill() override {

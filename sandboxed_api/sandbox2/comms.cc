@@ -21,15 +21,9 @@
 
 #include "sandboxed_api/sandbox2/comms.h"
 
-#include <fcntl.h>
-#include <poll.h>
-#include <sys/eventfd.h>
-#include <sys/mman.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/uio.h>
 #include <sys/un.h>
-#include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
 
@@ -42,12 +36,9 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/base/dynamic_annotations.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
@@ -55,19 +46,21 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "google/protobuf/message_lite.h"
-#include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/sandbox2/util/asynchronous_byte_transport.h"
-#include "sandboxed_api/sandbox2/util/potentially_blocking_region.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status.pb.h"
 #include "sandboxed_api/util/status_macros.h"
-#include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
 
+class PotentiallyBlockingRegion {
+ public:
+  ~PotentiallyBlockingRegion() {
+    // Do nothing. Not defaulted to avoid "unused variable" warnings.
+  }
+};
 namespace {
 
 using sapi::file_util::fileops::FDCloser;
@@ -125,20 +118,21 @@ bool GetPassCred(int socket) {
   SAPI_RAW_CHECK(optsize == sizeof(passcred), "Wrong size of SO_PASSCRED opt");
   return passcred != 0;
 }
-
-std::string GetDefaultCommsName(int socket_fd) {
-  // Generate a unique and meaningful socket name for this FD.
-  // Note: getpid()/gettid() are non-blocking syscalls.
-  return absl::StrFormat("sandbox2::Comms:FD=%d/PID=%d/TID=%ld", socket_fd,
-                         getpid(), syscall(__NR_gettid));
-}
-
 }  // namespace
 
-Comms::Comms(int socket_fd, absl::string_view name)
-    : name_(name.empty() ? GetDefaultCommsName(socket_fd) : std::string(name)),
-      raw_comms_(RawCommsFdImpl(socket_fd)),
-      state_(State::kConnected) {}
+Comms::Comms(int fd, absl::string_view name) : raw_comms_(RawCommsFdImpl(fd)) {
+  // Generate a unique and meaningful socket name for this FD.
+  // Note: getpid()/gettid() are non-blocking syscalls.
+  if (name.empty()) {
+    name_ = absl::StrFormat("sandbox2::Comms:FD=%d/PID=%d/TID=%ld", fd,
+                            getpid(), syscall(__NR_gettid));
+  } else {
+    name_ = std::string(name);
+  }
+
+  // File descriptor is already connected.
+  state_ = State::kConnected;
+}
 
 Comms::Comms(Comms::DefaultConnectionTag) : Comms(GetDefaultCommsFd()) {}
 
@@ -533,7 +527,16 @@ bool Comms::SendMsg(const InternalTLV& tlv, absl::string_view data, void* cmsg,
   return true;
 }
 
-bool Comms::SendFD(int fd) { return SendFD(fd, kTagFd); }
+bool Comms::SendFD(int fd) {
+  char fd_msg[CMSG_SPACE(sizeof(int))] = {0};
+  cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+  cmsg->cmsg_level = SOL_SOCKET;
+  cmsg->cmsg_type = SCM_RIGHTS;
+  cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+  int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+  fds[0] = fd;
+  return SendMsg({kTagFd, 0}, "", cmsg, sizeof(fd_msg));
+}
 
 bool Comms::SendCreds() {
   if (GetRawComms() == nullptr) {
@@ -624,92 +627,6 @@ ssize_t Comms::RawCommsFdImpl::RawRecvMsg(void* msg) {
   // Use syscall, otherwise we would need to allow socketcall() on PPC.
   return TEMP_FAILURE_RETRY(util::Syscall(__NR_recvmsg, connection_fd_.get(),
                                           reinterpret_cast<uintptr_t>(msg), 0));
-}
-
-// This class is used to monitor the socket fd for the SharedMemComms.
-// It is needed to monitor the socket fd for disconnection, as the
-// AsynchronousByteTransport does not provide a way to detect disconnection.
-class Comms::SharedMemComms::SocketObserver {
- public:
-  explicit SocketObserver(Comms::SharedMemComms* comms, int socket_fd);
-  void Run();
-  ~SocketObserver();
-
- private:
-  int socket_fd_;
-  sapi::file_util::fileops::FDCloser event_fd_;
-  Comms::SharedMemComms* comms_;
-  sapi::Thread thread_;
-};
-
-Comms::SharedMemComms::SocketObserver::SocketObserver(
-    Comms::SharedMemComms* comms, int socket_fd)
-    : socket_fd_(socket_fd), comms_(comms) {
-  event_fd_ = FDCloser(eventfd(0, EFD_CLOEXEC));
-  SAPI_RAW_CHECK(event_fd_.get() != -1, "Failed to create eventfd");
-  thread_ = sapi::Thread(this, &SocketObserver::Run, "SocketObserver");
-}
-
-void Comms::SharedMemComms::SocketObserver::Run() {
-  struct pollfd pollfd[2] = {
-      {socket_fd_, 0, 0},
-      {event_fd_.get(), POLLIN, 0},
-  };
-  while (true) {
-    int res = TEMP_FAILURE_RETRY(poll(pollfd, 2, -1));
-    if (res < 0) {
-      SAPI_RAW_PLOG(ERROR, "poll failed");
-      return;
-    }
-    if (pollfd[0].revents & (POLLHUP | POLLERR)) {
-      comms_->Terminate();
-      return;
-    }
-    if (pollfd[1].revents != 0) {
-      return;
-    }
-  }
-}
-
-Comms::SharedMemComms::SocketObserver::~SocketObserver() {
-  uint64_t one = 1;
-  write(event_fd_.get(), &one, sizeof(one));
-  thread_.Join();
-};
-
-Comms::SharedMemComms::~SharedMemComms() { Terminate(); }
-
-ssize_t Comms::SharedMemComms::RawSend(const void* data, size_t len) {
-  auto status = transport_->Send(
-      absl::Span<const uint8_t>(static_cast<const uint8_t*>(data), len));
-  if (!status.ok()) {
-    LOG(ERROR) << "RawSend failed: " << status;
-    return -1;
-  }
-  return len;
-}
-
-ssize_t Comms::SharedMemComms::RawRecv(void* data, size_t len) {
-  auto status =
-      transport_->Recv(absl::Span<uint8_t>(static_cast<uint8_t*>(data), len));
-  if (!status.ok()) {
-    LOG(ERROR) << "RawRecv failed: " << status;
-    return -1;
-  }
-  return len;
-}
-
-Comms::SharedMemComms::SharedMemComms(
-    std::unique_ptr<RawComms> lower_comms,
-    std::unique_ptr<AsynchronousByteTransport> transport, bool server_side)
-    : lower_comms_(std::move(lower_comms)),
-      transport_(std::move(transport)),
-      socket_observer_(server_side ? std::make_unique<SocketObserver>(
-                                         this, lower_comms_->GetConnectionFD())
-                                   : nullptr) {}
-
-void Comms::SharedMemComms::MoveToAnotherFd() {
-  SAPI_RAW_LOG(FATAL, "SharedMemComms::MoveToAnotherFd is unsupported");
 }
 
 bool Comms::Send(const void* data, size_t len) {
@@ -879,137 +796,6 @@ void Comms::MoveToAnotherFd() {
   SAPI_RAW_CHECK(GetRawComms() != nullptr,
                  "Cannot move comms fd as it's not connected");
   GetRawComms()->MoveToAnotherFd();
-}
-
-bool Comms::SendFD(int fd, uint32_t tag) {
-  char fd_msg[CMSG_SPACE(sizeof(int))] = {0};
-  cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
-  cmsg->cmsg_level = SOL_SOCKET;
-  cmsg->cmsg_type = SCM_RIGHTS;
-  cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-  int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
-  fds[0] = fd;
-  return SendMsg({tag, 0}, "", cmsg, sizeof(fd_msg));
-}
-
-absl::Status Comms::SendSharedMemUpgradeRequest(bool should_upgrade) {
-  if (!std::holds_alternative<RawCommsFdImpl>(raw_comms_)) {
-    SAPI_RAW_LOG(ERROR, "Comms is already upgraded to shared memory");
-    return absl::InternalError("Comms is already upgraded to shared memory");
-  }
-
-  if (!should_upgrade) {
-    if (!SendMsg({kTagCommsNoUpgrade, 0}, "", nullptr, 0)) {
-      return absl::InternalError("Failed to send comms no upgrade tag");
-    }
-    return absl::OkStatus();
-  }
-
-  SAPI_ASSIGN_OR_RETURN(auto memfd,
-                        util::CreateMemFdWithSize(kSharedMemoryCommsSize));
-  int fd = memfd.get();
-  if (fcntl(fd, F_ADD_SEALS, F_SEAL_SEAL | F_SEAL_GROW | F_SEAL_SHRINK) < 0) {
-    return absl::InternalError("Failed to seal memfd");
-  }
-
-  SAPI_ASSIGN_OR_RETURN(auto buffer,
-                        sandbox2::Buffer::CreateFromFd(std::move(memfd)));
-
-  SAPI_ASSIGN_OR_RETURN(
-      auto transport,
-      AsynchronousByteTransport::CreateHostSide(std::move(buffer)));
-
-  if (!SendFD(fd, kTagCommsUpgrade)) {
-    return absl::InternalError("Failed to send memfd");
-  }
-
-  raw_comms_ = std::make_unique<SharedMemComms>(
-      std::make_unique<RawCommsFdImpl>(
-          std::move(std::get<RawCommsFdImpl>(raw_comms_))),
-      std::move(transport), true);
-
-  return absl::OkStatus();
-}
-
-bool Comms::RecvSharedMemUpgradeResponse(int* fd) {
-  union {
-    struct cmsghdr cmh;
-    char buf[kRecvMsgControlBufferSize];
-  } cmsg_buffer{};
-
-  msghdr msg = {
-      .msg_control = cmsg_buffer.buf,
-      .msg_controllen = kRecvMsgControlBufferSize,
-  };
-  InternalTLV tlv;
-  if (!RecvMsg(&tlv, {}, &msg)) {
-    return false;
-  }
-  if (tlv.tag != kTagCommsNoUpgrade && tlv.tag != kTagCommsUpgrade) {
-    SAPI_RAW_LOG(ERROR,
-                 "RecvFD: Expected (kTagCommsNoUpgrade: 0x%x or "
-                 "kTagCommsUpgrade: 0x%x), got: 0x%x",
-                 kTagCommsNoUpgrade, kTagCommsUpgrade, tlv.tag);
-    return false;
-  }
-
-  if (tlv.tag == kTagCommsNoUpgrade) {
-    // No upgrade requested.
-    *fd = -1;
-    return true;
-  }
-
-  cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
-  while (cmsg) {
-    if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
-      if (cmsg->cmsg_len != CMSG_LEN(sizeof(int))) {
-        SAPI_RAW_VLOG(1,
-                      "recvmsg(SCM_RIGHTS): cmsg->cmsg_len != "
-                      "CMSG_LEN(sizeof(int)), skipping");
-        continue;
-      }
-      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
-      int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
-      *fd = fds[0];
-      return true;
-    }
-    cmsg = CMSG_NXTHDR(&msg, cmsg);
-  }
-  SAPI_RAW_LOG(ERROR,
-               "RecvFD: No SCM_RIGHTS message received. Process is probably "
-               "out of free file descriptors");
-  return false;
-}
-
-absl::Status Comms::RecvSharedMemUpgrade() {
-  if (!std::holds_alternative<RawCommsFdImpl>(raw_comms_)) {
-    SAPI_RAW_LOG(ERROR, "Comms is already upgraded to shared memory");
-    return absl::InternalError("Comms is already upgraded to shared memory");
-  }
-
-  int memfd;
-  if (!RecvSharedMemUpgradeResponse(&memfd)) {
-    return absl::InternalError("Failed to receive memfd");
-  }
-
-  if (memfd == -1) {
-    return absl::OkStatus();
-  }
-
-  SAPI_ASSIGN_OR_RETURN(auto buffer,
-                        sandbox2::Buffer::CreateFromFd(
-                            sapi::file_util::fileops::FDCloser(memfd)));
-
-  SAPI_ASSIGN_OR_RETURN(
-      auto transport,
-      AsynchronousByteTransport::CreateSandboxeeSide(std::move(buffer)));
-
-  raw_comms_ = std::make_unique<SharedMemComms>(
-      std::make_unique<RawCommsFdImpl>(
-          std::move(std::get<RawCommsFdImpl>(raw_comms_))),
-      std::move(transport), false);
-  return absl::OkStatus();
 }
 
 }  // namespace sandbox2

@@ -16,7 +16,6 @@
 
 #include "sandboxed_api/sandbox2/monitor_base.h"
 
-#include <fcntl.h>
 #include <pthread.h>
 #include <sched.h>
 #include <signal.h>
@@ -120,16 +119,14 @@ void LogContainer(const std::vector<std::string>& container) {
 
 }  // namespace
 
-MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify,
-                         bool enable_shared_memory_comms)
+MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify)
     : executor_(executor),
       policy_(policy),
       notify_(notify),
       // NOLINTNEXTLINE clang-diagnostic-deprecated-declarations
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),
-      uses_custom_forkserver_(executor_->fork_client_ != nullptr),
-      enable_shared_memory_comms_(enable_shared_memory_comms) {
+      uses_custom_forkserver_(executor_->fork_client_ != nullptr) {
   wait_for_execveat_ = executor->enable_sandboxing_pre_execve_;
   // It's a pre-connected Comms channel, no need to accept new connection.
   CHECK(comms_->IsConnected());
@@ -231,10 +228,6 @@ void MonitorBase::Launch() {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CWD);
     return;
   }
-  if (!InitSendCommsUpgrade()) {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_COMMS_UPGRADE);
-    return;
-  }
   if (!InitSendPolicy()) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_POLICY);
     return;
@@ -247,21 +240,6 @@ void MonitorBase::Launch() {
 
   RunInternal();
   std::move(monitor_done).Cancel();
-}
-
-bool MonitorBase::InitSendCommsUpgrade() {
-  if (executor_->enable_sandboxing_pre_execve_) {
-    // If we are sandboxing pre-execve, the client will handle the comms
-    // upgrade themself.
-    return true;
-  }
-  auto status =
-      comms_->SendSharedMemUpgradeRequest(enable_shared_memory_comms_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to send shared memory comms upgrade: " << status;
-    return false;
-  }
-  return true;
 }
 
 absl::StatusOr<Result> MonitorBase::AwaitResultWithTimeout(

@@ -135,7 +135,6 @@ class Client {
 
   void PrepareEnvironment(int* preserved_fd = nullptr);
   void EnableSandbox();
-  void ReceiveCommsUpgrade();
 };
 
 }  // namespace sandbox2

@@ -33,8 +33,7 @@ namespace sandbox2 {
 
 class UnotifyMonitor : public MonitorBase {
  public:
-  UnotifyMonitor(Executor* executor, Policy* policy, Notify* notify,
-                 bool enable_shared_memory_comms = false);
+  UnotifyMonitor(Executor* executor, Policy* policy, Notify* notify);
   ~UnotifyMonitor() { Join(); }
 
   void Kill() override {

@@ -269,7 +269,6 @@ cc_library(
     hdrs = ["asynchronous_byte_transport.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":potentially_blocking_region",
         "//sandboxed_api/sandbox2:buffer",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:raw_logging",
@@ -280,12 +279,6 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
-)
-
-cc_library(
-    name = "potentially_blocking_region",
-    hdrs = ["potentially_blocking_region.h"],
-    copts = sapi_platform_copts(),
 )
 
 cc_test(

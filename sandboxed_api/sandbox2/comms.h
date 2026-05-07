@@ -26,7 +26,6 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -43,7 +42,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "google/protobuf/message_lite.h"
-#include "sandboxed_api/sandbox2/util/asynchronous_byte_transport.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace proto2 {
@@ -75,14 +73,9 @@ class Comms {
   static constexpr uint32_t kTagBarrier = 0x80000103;
   static constexpr uint32_t kTagFd = 0X80000201;
   static constexpr uint32_t kTagCreds = 0X80000202;
-  static constexpr uint32_t kTagCommsUpgrade = 0x80000203;
-  static constexpr uint32_t kTagCommsNoUpgrade = 0x80000204;
 
   // Any payload size above this limit will LOG(WARNING).
   static constexpr size_t kWarnMsgSize = (256ULL << 20);
-
-  // The size of the shared memory region used for upgrading the comms.
-  static constexpr size_t kSharedMemoryCommsSize = (128ULL << 10);
 
   // A high file descriptor number to be used with certain fork server request
   // modes to map the target executable. This is considered to be an
@@ -121,9 +114,9 @@ class Comms {
   Comms(const Comms&) = delete;
   Comms& operator=(const Comms&) = delete;
 
-  // Instantiates a pre-connected object. This will use the socket based comms.
+  // Instantiates a pre-connected object.
   // Takes ownership over fd, which will be closed on object's destruction.
-  explicit Comms(int socket_fd, absl::string_view name = "");
+  explicit Comms(int fd, absl::string_view name = "");
 
   // Instantiates a pre-connected object using the default connection params.
   explicit Comms(DefaultConnectionTag);
@@ -134,7 +127,7 @@ class Comms {
   // Comms object to TERMINATED.
   void Terminate();
 
-  // Returns the already connected socket FD.
+  // Returns the already connected FD.
   int GetConnectionFD() const;
 
   bool IsConnected() const { return state_ == State::kConnected; }
@@ -221,15 +214,6 @@ class Comms {
 
   friend void swap(Comms& x, Comms& y) { return x.Swap(y); }
 
-  // Sends a message indicating whether the comms should be upgraded to shared
-  // memory. If so, also sends the memfd to use for the upgrade.
-  absl::Status SendSharedMemUpgradeRequest(bool should_upgrade);
-
-  // Receives a message indicating whether the comms should be upgraded to
-  // shared memory. If so, also receives the memfd to use for the upgrade and
-  // upgrades the comms to shared memory.
-  absl::Status RecvSharedMemUpgrade();
-
  protected:
   class RawComms {
    public:
@@ -254,41 +238,6 @@ class Comms {
 
    private:
     sapi::file_util::fileops::FDCloser connection_fd_;
-  };
-
-  class SharedMemComms : public RawComms {
-   public:
-    SharedMemComms(std::unique_ptr<RawComms> lower_comms,
-                   std::unique_ptr<AsynchronousByteTransport> transport,
-                   bool server_side);
-    ~SharedMemComms() override;
-    SharedMemComms(SharedMemComms&&) = default;
-    void MoveToAnotherFd() override;
-    ssize_t RawSendMsg(const void* msg) override {
-      return lower_comms_->RawSendMsg(msg);
-    }
-    ssize_t RawRecvMsg(void* msg) override {
-      return lower_comms_->RawRecvMsg(msg);
-    }
-    int GetConnectionFD() const override {
-      return lower_comms_->GetConnectionFD();
-    }
-    void Terminate() {
-      if (terminated_.test_and_set(std::memory_order_relaxed)) {
-        return;
-      }
-      transport_->Terminate();
-    }
-    ssize_t RawSend(const void* data, size_t len) override;
-    ssize_t RawRecv(void* data, size_t len) override;
-
-   private:
-    class SocketObserver;
-
-    std::unique_ptr<RawComms> lower_comms_;
-    std::unique_ptr<AsynchronousByteTransport> transport_;
-    std::unique_ptr<SocketObserver> socket_observer_;
-    std::atomic_flag terminated_ = false;
   };
 
  private:
@@ -343,13 +292,6 @@ class Comms {
 
   // Moves the comms fd to an other free file descriptor.
   void MoveToAnotherFd();
-
-  bool SendFD(int fd, uint32_t tag);
-
-  // If the comms is upgraded to shared memory, this will receive the memfd and
-  // return true. If the comms is not upgraded, it will return true but set the
-  // fd to -1. Otherwise, it will return false.
-  bool RecvSharedMemUpgradeResponse(int* fd);
 
   // Support for EINTR and size completion.
   bool Send(const void* data, size_t len);

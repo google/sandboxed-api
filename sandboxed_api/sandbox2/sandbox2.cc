@@ -172,18 +172,6 @@ absl::Status Sandbox2::EnableUnotifyMonitor() {
   return absl::OkStatus();
 }
 
-absl::Status Sandbox2::EnableSharedMemoryComms() {
-  if (monitor_ != nullptr) {
-    return absl::FailedPreconditionError("Sandbox was already launched");
-  }
-  if (executor_->is_pre_execve_sandboxing_enabled()) {
-    return absl::FailedPreconditionError(
-        "Shared memory comms should be enabled manually in pre-execve mode");
-  }
-  enable_shared_memory_comms_ = true;
-  return absl::OkStatus();
-}
-
 absl::StatusOr<const Buffer*> Sandbox2::CreateSharedMemoryMapping(
     const SharedMemoryConfig& config) {
   if (monitor_ != nullptr) {
