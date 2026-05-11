@@ -232,8 +232,9 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     }
   }
 
-  // Lastly, collect type if it's an ArithmeticType, or VoidType. We do this
-  // last to ensure all other type relationships in the clang AST are resolved.
+  // Lastly, collect type if it's an ArithmeticType, VoidType, or EnumeralType.
+  // We do this last to ensure all other type relationships in the clang AST
+  // are resolved.
   if (IsSimple(qual)) {
     collected_.insert(qual);
     return;

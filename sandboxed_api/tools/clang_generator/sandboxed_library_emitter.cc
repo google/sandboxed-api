@@ -162,6 +162,8 @@ struct $1SandboxImpl : public $1Sandbox {
 // in the original interface can be disassembled into/assembled from
 // multiple arguments in the sandboxee wrapper interface)
 // without knowing details of all possible argument types.
+// NOTE: Classes in this hierarchy should not hold AST elements
+// (like clang::QualType), as they will not be valid during Emit calls.
 class SandboxedLibraryEmitter::Arg {
  public:
   Arg(absl::string_view name, absl::string_view type)
@@ -367,13 +369,58 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
   }
 };
 
-// Handles in/out/inout pointers (singular and arrays).
+// Basic information about a pointer's pointee's type.
+class PointeeTypeInfo {
+ public:
+  enum class TypeClass {
+    kArithmetic,
+    kRecord,
+    kOther,
+  };
+
+  explicit PointeeTypeInfo(clang::QualType type)
+      : type_class_(ClassifyPointeeType(type)),
+        pointee_type_name_(type->getPointeeType().getAsString()),
+        unqualified_pointee_type_name_(
+            type->getPointeeType().getUnqualifiedType().getAsString()) {}
+
+  TypeClass type_class() const { return type_class_; }
+
+  absl::string_view pointee_type_name() const { return pointee_type_name_; }
+
+  absl::string_view unqualified_pointee_type_name() const {
+    return unqualified_pointee_type_name_;
+  }
+
+ private:
+  static TypeClass ClassifyPointeeType(clang::QualType type) {
+    if (type->getPointeeType()->isArithmeticType()) {
+      return TypeClass::kArithmetic;
+    } else if (type->getPointeeType()->isRecordType()) {
+      return TypeClass::kRecord;
+    } else {
+      return TypeClass::kOther;
+    }
+  }
+
+  const TypeClass type_class_;
+  std::string pointee_type_name_;
+  std::string unqualified_pointee_type_name_;
+};
+
+// Handles in/out/inout pointers to arithmetic types and trivially copyable
+// structs (singular and arrays).
 struct PointerArg : SandboxedLibraryEmitter::Arg {
-  PointerArg(absl::string_view name, absl::string_view type, PointerDir ptr_dir,
+  PointerArg(absl::string_view name, absl::string_view type,
+             PointeeTypeInfo pointee_type, PointerDir ptr_dir,
              std::optional<std::string> elem_sized_by)
-      : Arg(name, type), ptr_dir_(ptr_dir), elem_sized_by_(elem_sized_by) {}
+      : Arg(name, type),
+        ptr_dir_(ptr_dir),
+        pointee_type_(pointee_type),
+        elem_sized_by_(elem_sized_by) {}
 
   const PointerDir ptr_dir_;
+  const PointeeTypeInfo pointee_type_;
   // If present, this is an array counted by the another argument
   // with the specified name.
   const std::optional<std::string> elem_sized_by_;
@@ -382,17 +429,56 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
     if (ptr_dir_ == PointerDir::kSandboxOpaque) {
       return absl::Substitute("sapi::v::RemotePtr sapi_tmp_$0($0);\n", name_);
     }
-
-    const std::string size_multiplier =
-        elem_sized_by_ ? absl::Substitute(" * $0", *elem_sized_by_) : "";
-    // TODO(cffsmith): Make this nicer, maybe just sapi::Int and then perform a
-    // manual copy?
-    return absl::Substitute(
-        "sapi::v::Array<char> "
-        "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const char*>($0)), "
-        "sizeof(*$0)$1);\n",
-        name_, size_multiplier);
+    switch (pointee_type_.type_class()) {
+      case PointeeTypeInfo::TypeClass::kArithmetic: {
+        const std::string size_multiplier =
+            elem_sized_by_ ? absl::Substitute(" * $0", *elem_sized_by_) : "";
+        // TODO(cffsmith): Make this nicer, maybe just sapi::Int and then
+        // perform a manual copy?
+        return absl::Substitute(
+            "sapi::v::Array<char> "
+            "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const char*>($0)), "
+            "sizeof(*$0)$1);\n",
+            name_, size_multiplier);
+      }
+      case PointeeTypeInfo::TypeClass::kRecord: {
+        // For trivially copyable structs, we could just copy the bytes like the
+        // arithmetic types above.
+        // However, we would like to extend structs to also support
+        // non-trivially copyable structs. That will involve recursive
+        // allocation, copying, and freeing. Specializing a bit here as a start.
+        if (elem_sized_by_) {
+          return absl::Substitute("sapi::v::Array<$0> sapi_tmp_$1($1, $2);\n",
+                                  pointee_type_.pointee_type_name(), name_,
+                                  *elem_sized_by_);
+        } else {
+          return absl::Substitute("sapi::v::Struct<$0> sapi_tmp_$1(*$1);\n",
+                                  pointee_type_.unqualified_pointee_type_name(),
+                                  name_);
+        }
+      }
+      case PointeeTypeInfo::TypeClass::kOther: {
+        if (ptr_dir_ == PointerDir::kHostOpaque) return "";
+        LOG(FATAL) << "Unsupported pointer direction for other pointee types "
+                   << type_ << " for param " << name_;
+      }
+    }
   }
+
+  std::string EmitHostPostCall() const override {
+    if (ptr_dir_ != PointerDir::kOut && ptr_dir_ != PointerDir::kInOut) {
+      return "";
+    }
+    // In the non-Array case, the synchronization writes to $0 directly.
+    // However, in the separate temp sapi::v::Struct case it synchronizes to
+    // that temp var and we need to manually copy back to $0.
+    if (pointee_type_.type_class() == PointeeTypeInfo::TypeClass::kRecord &&
+        !elem_sized_by_) {
+      return absl::Substitute("*$0 = sapi_tmp_$0.data();\n", name_);
+    }
+    return "";
+  }
+
   std::string EmitHostArgs() const override {
     switch (ptr_dir_) {
       case PointerDir::kIn:
@@ -1062,6 +1148,12 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
     return absl::InvalidArgumentError(absl::Substitute(
         "argument $0: cannot have both param and funcDecl", name));
   }
+  if (!param && !funcDecl) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "argument $0: must have at least one of param and funcDecl", name));
+  }
+  const clang::ASTContext& context =
+      funcDecl ? funcDecl->getASTContext() : param->getASTContext();
   if (param) {
     SAPI_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, param));
   }
@@ -1076,7 +1168,8 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
   }
 
   SAPI_ASSIGN_OR_RETURN(ArgPtr arg,
-                        ConvertImpl(name, type, std::move(annotations)));
+                        ConvertImpl(context, name, type, param != nullptr,
+                                    std::move(annotations)));
   if (arg && ((param || funcDecl) || !arg->EmitRetParams().empty())) {
     return arg;
   }
@@ -1090,9 +1183,33 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
                        type.getCanonicalType().getAsString()));
 }
 
+// Returns true if the type is trivially copyable and wouldn't involve complex
+// lifetimes or aliasing (e.g., struct with pointer fields that are outputs).
+bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
+                                   clang::QualType type) {
+  if (type.isNull()) {
+    return false;
+  }
+  if (type->isArithmeticType() || type->isEnumeralType()) {
+    return true;
+  }
+
+  if (auto* record_decl = type->getAsRecordDecl();
+      record_decl != nullptr && type.isTriviallyCopyableType(context)) {
+    for (const clang::FieldDecl* field : record_decl->fields()) {
+      if (!IsDeeplyTriviallyCopyableType(context, field->getType())) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
-SandboxedLibraryEmitter::ConvertImpl(absl::string_view name,
-                                     clang::QualType type,
+SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
+                                     absl::string_view name,
+                                     clang::QualType type, bool is_param,
                                      Annotations&& annotations) {
   // We are not interested in typedefs.
   type = type.getCanonicalType();
@@ -1126,13 +1243,18 @@ SandboxedLibraryEmitter::ConvertImpl(absl::string_view name,
             "pointer argument $0 is opaque and should not be sized (kind $1)",
             name, annotations.size_type.index()));
       }
-      return std::make_unique<PointerArg>(name, type_name, *annotations.ptr_dir,
-                                          std::nullopt);
+      return std::make_unique<PointerArg>(name, type_name,
+                                          PointeeTypeInfo(type),
+                                          *annotations.ptr_dir, std::nullopt);
     }
-
-    if (!type->getPointeeType()->isArithmeticType()) {
+    if (is_param) {
+      if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType())) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "pointer argument $0 has unsupported pointee type", name));
+      }
+    } else if (!type->getPointeeType()->isArithmeticType()) {
       return absl::InvalidArgumentError(absl::Substitute(
-          "pointer argument $0 has unsupported pointee type", name));
+          "return pointer $0 has unsupported pointee type", name));
     }
     std::optional<PointerDir> ptr_dir;
     if (type->getPointeeType().isConstQualified()) {
@@ -1149,12 +1271,14 @@ SandboxedLibraryEmitter::ConvertImpl(absl::string_view name,
         absl::Overload{[&](const std::monostate&)
                            -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
                          return std::make_unique<PointerArg>(
-                             name, type_name, *ptr_dir, std::nullopt);
+                             name, type_name, PointeeTypeInfo(type), *ptr_dir,
+                             std::nullopt);
                        },
                        [&](const ElemSizedBy& elem_sized_by)
                            -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
                          return std::make_unique<PointerArg>(
-                             name, type_name, *ptr_dir, elem_sized_by.expr);
+                             name, type_name, PointeeTypeInfo(type), *ptr_dir,
+                             elem_sized_by.expr);
                        },
                        [&](const NullTerminated&)
                            -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {

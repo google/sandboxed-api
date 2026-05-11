@@ -35,9 +35,11 @@ using QualTypeSet =
 
 // Returns whether a type is "simple". Simple types are arithmetic types,
 // i.e. signed and unsigned integer, character and bool types, as well as
-// "void".
+// "void". Enum classes are also considered simple types as the underlying type
+// should be an integral type.
 inline bool IsSimple(clang::QualType qual) {
-  return qual->isArithmeticType() || qual->isVoidType();
+  return qual->isArithmeticType() || qual->isVoidType() ||
+         qual->isEnumeralType();
 }
 
 // Returns true if type is either a pointer or reference.

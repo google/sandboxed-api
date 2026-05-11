@@ -4,6 +4,9 @@
 // same file, we need a separate annotation file for SANDBOX_FUNCS.
 SANDBOX_FUNCS(mylib_is_sandboxed, mylib_scalar_types, mylib_add, mylib_copy,
               mylib_copy_raw, mylib_strlen, mylib_take_enum,
+              mylib_in_prim_struct_pointer, mylib_out_prim_struct_pointer,
+              mylib_inout_prim_struct_pointer, mylib_in_prim_struct_array,
+              mylib_out_prim_struct_array, mylib_inout_prim_struct_array,
               mylib_expected_syscall1, mylib_expected_syscall2,
               mylib_unexpected_syscall1, mylib_unexpected_syscall2,
               mylib_func_with_todo);

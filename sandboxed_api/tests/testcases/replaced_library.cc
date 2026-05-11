@@ -27,6 +27,7 @@
 
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/tests/testcases/replaced_library_enum.h"
+#include "sandboxed_api/tests/testcases/replaced_library_struct.h"
 
 bool mylib_is_sandboxed() {
   // Magic sandbox2 syscall number.
@@ -53,6 +54,69 @@ void mylib_copy_raw(const char* src, char* dst, size_t size) {
 size_t mylib_strlen(const char* str) { return strlen(str); }
 
 int mylib_add(int x, int y) { return x + y; }
+
+double mylib_in_prim_struct_pointer(const PrimitiveStruct* p) {
+  return p->i8 + p->i16 + p->i32 + p->sz + p->f32 + p->f64 +
+         (p->u_is_int ? p->u.i32 : p->u.f64) + p->nested.a + p->nested.b +
+         static_cast<double>(p->enum_type) +
+         static_cast<double>(p->enum_class_type);
+}
+
+void mylib_out_prim_struct_pointer(PrimitiveStruct* p) {
+  memset(p, 0, sizeof(*p));
+  p->i8 = 1;
+  p->i16 = 2;
+  p->i32 = 3;
+  p->sz = 4;
+  p->f32 = 5.0;
+  p->f64 = 6.0;
+  p->u_is_int = false;
+  p->u.f64 = 7.0;
+  p->nested.a = 8;
+  p->nested.b = 9;
+  p->enum_type = ENUM_A;
+  p->enum_class_type = EnumClassType::EC_B;
+}
+
+void mylib_inout_prim_struct_pointer(PrimitiveStruct* p) {
+  p->i8 *= 2;
+  p->i16 *= 2;
+  p->i32 *= 2;
+  p->sz *= 2;
+  p->f32 *= 2.0;
+  p->f64 *= 2.0;
+  if (p->u_is_int) {
+    p->u.i32 *= 2;
+  } else {
+    p->u.f64 *= 2.0;
+  }
+  p->nested.a *= 2;
+  p->nested.b *= 2;
+  p->enum_type = (p->enum_type == ENUM_A) ? ENUM_B : ENUM_A;
+  p->enum_class_type = (p->enum_class_type == EnumClassType::EC_A)
+                           ? EnumClassType::EC_B
+                           : EnumClassType::EC_A;
+}
+
+double mylib_in_prim_struct_array(const PrimitiveStruct* p, size_t num) {
+  double sum = 0.0;
+  for (size_t i = 0; i < num; ++i) {
+    sum += mylib_in_prim_struct_pointer(&p[i]);
+  }
+  return sum;
+}
+
+void mylib_out_prim_struct_array(PrimitiveStruct* p, size_t num) {
+  for (size_t i = 0; i < num; ++i) {
+    mylib_out_prim_struct_pointer(&p[i]);
+  }
+}
+
+void mylib_inout_prim_struct_array(PrimitiveStruct* p, size_t num) {
+  for (size_t i = 0; i < num; ++i) {
+    mylib_inout_prim_struct_pointer(&p[i]);
+  }
+}
 
 // Sanitizer instrumentation may break argument value tracking.
 // In particular, ASan emits a call to __asan_memset to zero ev.

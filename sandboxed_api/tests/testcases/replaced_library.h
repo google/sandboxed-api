@@ -28,6 +28,7 @@
 #include "sandboxed_api/annotations.h"
 #include "sandboxed_api/annotations_unimplemented.h"
 #include "sandboxed_api/tests/testcases/replaced_library_enum.h"
+#include "sandboxed_api/tests/testcases/replaced_library_struct.h"
 
 bool mylib_is_sandboxed();
 
@@ -43,6 +44,19 @@ void mylib_copy_raw(const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(size),
 size_t mylib_strlen(const char* str SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
 
 MyLibEnum mylib_take_enum(MyLibEnum e);
+
+double mylib_in_prim_struct_pointer(const PrimitiveStruct* p SANDBOX_IN_PTR);
+void mylib_out_prim_struct_pointer(PrimitiveStruct* p SANDBOX_OUT_PTR);
+void mylib_inout_prim_struct_pointer(PrimitiveStruct* p SANDBOX_INOUT_PTR);
+
+double mylib_in_prim_struct_array(const PrimitiveStruct* p SANDBOX_IN_PTR
+                                      SANDBOX_ELEM_SIZED_BY(num),
+                                  size_t num);
+void mylib_out_prim_struct_array(
+    PrimitiveStruct* p SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(num), size_t num);
+void mylib_inout_prim_struct_array(PrimitiveStruct* p SANDBOX_INOUT_PTR
+                                       SANDBOX_ELEM_SIZED_BY(num),
+                                   size_t num);
 
 void mylib_expected_syscall1();
 void mylib_expected_syscall2();

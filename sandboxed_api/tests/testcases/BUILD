@@ -24,6 +24,7 @@ cc_sandboxed_library(
     hdrs = [
         "replaced_library.h",
         "replaced_library_enum.h",
+        "replaced_library_struct.h",
     ],
     annotations = ["lwbox_sandbox.cc"],
     deps = [
@@ -38,6 +39,7 @@ cc_sandboxed_library(
     hdrs = [
         "replaced_library.h",
         "replaced_library_enum.h",
+        "replaced_library_struct.h",
     ],
     annotations = ["lwbox_ignore.cc"],
     deps = [

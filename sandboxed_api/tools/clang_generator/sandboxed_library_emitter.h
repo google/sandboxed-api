@@ -112,8 +112,9 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::StatusOr<ArgPtr> Convert(absl::string_view name, clang::QualType type,
                                  const clang::ParmVarDecl* param,
                                  const clang::FunctionDecl* funcDecl);
-  absl::StatusOr<ArgPtr> ConvertImpl(absl::string_view name,
-                                     clang::QualType type,
+  absl::StatusOr<ArgPtr> ConvertImpl(const clang::ASTContext& context,
+                                     absl::string_view name,
+                                     clang::QualType type, bool is_param,
                                      Annotations&& annotations);
   absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
                                                const clang::ParmVarDecl* param);
