@@ -71,7 +71,7 @@ absl::Status ValidateInterpreter(absl::string_view interpreter) {
 
   if (!allowed_interpreters.contains(interpreter)) {
     return absl::InvalidArgumentError(
-        absl::StrCat("Interpreter not on the whitelist: ", interpreter));
+        absl::StrCat("Interpreter not on the allowlist: ", interpreter));
   }
   return absl::OkStatus();
 }
