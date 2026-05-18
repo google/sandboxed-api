@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -29,6 +30,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/attributes.h"
 #include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -44,10 +46,13 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
+using ::testing::AnyOf;
 using ::testing::Eq;
+using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
+using ::testing::Lt;
 using ::testing::Not;
 
 using CommunicationHandler = std::function<void(Comms* comms)>;
@@ -241,6 +246,44 @@ TEST(CommsTest, TestSendRecvFD) {
   HandleCommunication(a, b);
 }
 
+TEST(CommsTest, RecvFDHandlesMalformedCmsgLen) {
+  constexpr int kMalformedCmsgLen = 2 * sizeof(int);
+  auto a = [](Comms* comms) {
+    int fd = -1;
+    // Should return false and not hang.
+    EXPECT_THAT(comms->RecvFD(&fd), IsFalse());
+    EXPECT_THAT(fd, Eq(-1));
+  };
+  auto b = [](Comms* comms) {
+    int fd = comms->GetConnectionFD();
+
+    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
+      uint32_t tag;
+      size_t len;
+    } tlv = {Comms::kTagFd, 0};
+
+    iovec iov[1];
+    iov[0].iov_base = &tlv;
+    iov[0].iov_len = sizeof(tlv);
+
+    char fd_msg[CMSG_SPACE(kMalformedCmsgLen)] = {0};
+    auto* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(kMalformedCmsgLen);
+
+    msghdr msg = {
+        .msg_iov = iov,
+        .msg_iovlen = 1,
+        .msg_control = fd_msg,
+        .msg_controllen = sizeof(fd_msg),
+    };
+
+    ASSERT_THAT(sendmsg(fd, &msg, 0), Ge(0));
+  };
+  HandleCommunication(a, b);
+}
+
 TEST(CommsTest, TestSendRecvCreds) {
   pid_t pid = getpid();
   uid_t uid = getuid();
@@ -258,6 +301,52 @@ TEST(CommsTest, TestSendRecvCreds) {
   auto b = [](Comms* comms) {
     // Send our STDERR to the thread.
     ASSERT_THAT(comms->SendCreds(), IsTrue());
+  };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, RecvCredsHandlesMalformedCmsgLen) {
+  constexpr int kMalformedCmsgLen = 5;
+  ASSERT_THAT(kMalformedCmsgLen, Lt(sizeof(struct ucred)));
+  auto a = [](Comms* comms) {
+    pid_t pid = 0;
+    uid_t uid = 0;
+    gid_t gid = 0;
+    // Should return false and not hang.
+    EXPECT_THAT(comms->RecvCreds(&pid, &uid, &gid), IsFalse());
+  };
+  auto b = [](Comms* comms) {
+    int fd = comms->GetConnectionFD();
+
+    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
+      uint32_t tag;
+      size_t len;
+    } tlv = {Comms::kTagCreds, 0};
+
+    iovec iov[1];
+    iov[0].iov_base = &tlv;
+    iov[0].iov_len = sizeof(tlv);
+
+    char creds_msg[CMSG_SPACE(kMalformedCmsgLen)] = {0};
+    cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(creds_msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_CREDENTIALS;
+    cmsg->cmsg_len = CMSG_LEN(kMalformedCmsgLen);
+
+    msghdr msg = {
+        .msg_iov = iov,
+        .msg_iovlen = 1,
+        .msg_control = creds_msg,
+        .msg_controllen = sizeof(creds_msg),
+    };
+
+    // Note: The kernel might reject manual SCM_CREDENTIALS if they don't match,
+    // or if they are malformed. If sendmsg fails with EINVAL, that's also a way
+    // the system prevents malformed messages.
+    errno = 0;
+    sendmsg(fd, &msg, 0);
+    EXPECT_THAT(errno, AnyOf(Eq(EINVAL),  // Kernel rejects malformed message.
+                             Eq(0)));
   };
   HandleCommunication(a, b, /*passcred=*/true);
 }

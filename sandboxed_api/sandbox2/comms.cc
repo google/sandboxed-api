@@ -411,16 +411,15 @@ bool Comms::RecvFD(int* fd) {
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
   while (cmsg) {
     if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
-      if (cmsg->cmsg_len != CMSG_LEN(sizeof(int))) {
-        SAPI_RAW_VLOG(1,
-                      "recvmsg(SCM_RIGHTS): cmsg->cmsg_len != "
-                      "CMSG_LEN(sizeof(int)), skipping");
-        continue;
+      if (cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
+        ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
+        int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+        *fd = fds[0];
+        return true;
       }
-      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
-      int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
-      *fd = fds[0];
-      return true;
+      SAPI_RAW_VLOG(1,
+                    "recvmsg(SCM_RIGHTS): cmsg->cmsg_len != "
+                    "CMSG_LEN(sizeof(int)), skipping");
     }
     cmsg = CMSG_NXTHDR(&msg, cmsg);
   }
@@ -453,24 +452,23 @@ bool Comms::RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
   while (cmsg) {
     if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_CREDENTIALS) {
-      if (cmsg->cmsg_len != CMSG_LEN(sizeof(struct ucred))) {
-        SAPI_RAW_VLOG(1,
-                      "recvmsg(SCM_CREDENTIALS): cmsg->cmsg_len != "
-                      "CMSG_LEN(sizeof(SCM_CREDENTIALS)), skipping");
-        continue;
+      if (cmsg->cmsg_len == CMSG_LEN(sizeof(struct ucred))) {
+        ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
+        struct ucred* creds = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsg));
+        if (pid) {
+          *pid = creds->pid;
+        }
+        if (uid) {
+          *uid = creds->uid;
+        }
+        if (gid) {
+          *gid = creds->gid;
+        }
+        return true;
       }
-      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
-      struct ucred* creds = reinterpret_cast<struct ucred*>(CMSG_DATA(cmsg));
-      if (pid) {
-        *pid = creds->pid;
-      }
-      if (uid) {
-        *uid = creds->uid;
-      }
-      if (gid) {
-        *gid = creds->gid;
-      }
-      return true;
+      SAPI_RAW_VLOG(1,
+                    "recvmsg(SCM_CREDENTIALS): cmsg->cmsg_len != "
+                    "CMSG_LEN(sizeof(SCM_CREDENTIALS)), skipping");
     }
     cmsg = CMSG_NXTHDR(&msg, cmsg);
   }

@@ -924,6 +924,7 @@ cc_test(
         ":comms_test_cc_proto",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:fixed_array",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
