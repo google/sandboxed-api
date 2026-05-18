@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/syscall.h"
 
 namespace sandbox2 {
 
@@ -173,8 +174,9 @@ Syscall Regs::ToSyscall(sapi::cpu::Architecture syscall_arch) const {
     // NT_ARM_SYSTEM_CALL will be cleared already on newer kernels on process
     // exit. Assume non-compat syscall and take the syscall number from x8 in
     // such situation.
-    auto syscall_nr =
-        syscall_number_ == uintptr_t{-1} ? user_regs_.regs[8] : syscall_number_;
+    auto syscall_nr = syscall_number_ == static_cast<uintptr_t>(-1)
+                          ? user_regs_.regs[8]
+                          : syscall_number_;
     return Syscall(syscall_arch, syscall_nr, args, pid_, sp, ip);
   }
 #elif defined(SAPI_ARM)

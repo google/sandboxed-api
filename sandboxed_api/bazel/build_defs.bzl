@@ -14,11 +14,9 @@
 
 """General build definitions useful for the whole project."""
 
-_SAPI_LINUX_COPTS = [
-    "-Wno-deprecated-declarations",
-    "-Wno-narrowing",
-    "-Wno-sign-compare",
-    "-Wunused-result",
+# buildifier: disable=unused-variable
+_SAPI_CLANG_COPTS = [
+    "-fbracket-depth=768",
 ]
 
 def sapi_platform_copts(copts = []):
@@ -28,5 +26,7 @@ def sapi_platform_copts(copts = []):
       copts: additional compiler options to include.
     """
 
-    # Linux only for now.
-    return _SAPI_LINUX_COPTS + copts
+    return select({
+        "//sandboxed_api:compiler_is_clang": _SAPI_CLANG_COPTS,
+        "//conditions:default": [],
+    }) + copts

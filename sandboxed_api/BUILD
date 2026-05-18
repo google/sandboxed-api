@@ -22,11 +22,19 @@ licenses(["notice"])
 
 exports_files(["LICENSE"])
 
+config_setting(
+    name = "compiler_is_clang",
+    flag_values = {
+        "@bazel_tools//tools/cpp:compiler": "clang",
+    },
+)
+
 cc_library(
     name = "config",
     srcs = ["config.cc"],
     hdrs = ["config.h"],
     copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/base:config",
     ],
@@ -208,9 +216,7 @@ cc_library(
         "sandbox2_rpcchannel.cc",
         "sandbox2_rpcchannel.h",
     ],
-    hdrs = [
-        "sandbox2_backend.h",
-    ],
+    hdrs = ["sandbox2_backend.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
@@ -315,6 +321,7 @@ cc_library(
 cc_library(
     name = "rpcchannel",
     hdrs = ["rpcchannel.h"],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:private"],
     deps = [
         ":call",
@@ -410,6 +417,7 @@ cc_library(
         "annotations.h",
         "annotations_unimplemented.h",
     ],
+    copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
 )
 
@@ -419,9 +427,8 @@ cc_library(
         "passthrough_rpcchannel.cc",
         "passthrough_rpcchannel.h",
     ],
-    hdrs = [
-        "passthrough_backend.h",
-    ],
+    hdrs = ["passthrough_backend.h"],
+    copts = sapi_platform_copts(),
     deps = [
         ":call",
         ":rpcchannel",
