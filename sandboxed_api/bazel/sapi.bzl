@@ -279,7 +279,6 @@ def symbol_list_gen(name, lib, out, **kwargs):
         safe_wrapper_generation = False,
         symbol_list_gen = True,
         limit_scan_depth = True,
-        generator_at_head = True,
         generator_version = 2,
         **kwargs
     )
