@@ -39,6 +39,8 @@ bool mylib_is_sandboxed() {
 void mylib_scalar_types(int a0, float a1, double a2, int64_t a3, char a4,
                         bool a5, size_t a6) {}
 
+int mylib_add(int x, int y) { return x + y; }
+
 MyLibEnum mylib_take_enum(MyLibEnum e) { return e; }
 
 std::string mylib_copy(const std::string& src) { return src; }
@@ -53,7 +55,61 @@ void mylib_copy_raw(const char* src, char* dst, size_t size) {
 
 size_t mylib_strlen(const char* str) { return strlen(str); }
 
-int mylib_add(int x, int y) { return x + y; }
+const char* mylib_get_const_c_str(int i) {
+  if (i == 0) {
+    return "zero";
+  } else if (i == 1) {
+    return "one";
+  } else if (i == 2) {
+    return "two";
+  } else {
+    return "other";
+  }
+}
+
+const char* mylib_get_other_c_str(int i) {
+  if (i == 0) {
+    return "zero";
+  } else {
+    return "nonzero";
+  }
+}
+
+void mylib_get_inoutparam_c_str(const char** in_out) {
+  if (in_out == nullptr || *in_out == nullptr) {
+    return;
+  }
+  if (strcmp(*in_out, "odd") == 0) {
+    *in_out = "even";
+  } else {
+    *in_out = "odd";
+  }
+}
+
+void mylib_get_outparam_c_str(int i, const char** dst) {
+  if (dst == nullptr) {
+    return;
+  }
+  if (i == 0) {
+    *dst = "zero";
+  } else {
+    *dst = "nonzero";
+  }
+}
+
+void mylib_get_in_outparam_c_str(const char* src, const char** dst,
+                                 const char** dst2) {
+  if (src == nullptr || dst == nullptr || dst2 == nullptr) {
+    return;
+  }
+  if (strcmp(src, "odd") == 0) {
+    *dst = "even";
+    *dst2 = "flipped_to_even";
+  } else {
+    *dst = "odd";
+    *dst2 = "flipped_to_odd";
+  }
+}
 
 double mylib_in_prim_struct_pointer(const PrimitiveStruct* p) {
   return p->i8 + p->i16 + p->i32 + p->sz + p->f32 + p->f64 +

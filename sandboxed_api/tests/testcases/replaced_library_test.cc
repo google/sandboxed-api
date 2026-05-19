@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/tests/testcases/replaced_library.h"
 
+#include <cstring>
 #include <limits>
 #include <string>
 
@@ -55,6 +56,65 @@ TEST(Test, NullTerminatedStrlen) {
 
   char buf[12] = {'h', 'e', 'l', 'l', 'o', '\n', 't', 'h', 'e', 'r', 'e', '\0'};
   EXPECT_EQ(mylib_strlen(buf), 11);
+}
+
+TEST(Test, ReturnGlobalConstCStr) {
+  const char* cstr_zero_a = mylib_get_const_c_str(0);
+  EXPECT_EQ(std::strcmp(cstr_zero_a, "zero"), 0);
+  EXPECT_EQ(std::strcmp(mylib_get_const_c_str(1), "one"), 0);
+  EXPECT_EQ(std::strcmp(mylib_get_const_c_str(2), "two"), 0);
+  EXPECT_EQ(std::strcmp(mylib_get_const_c_str(3), "other"), 0);
+  EXPECT_EQ(std::strcmp(mylib_get_const_c_str(4), "other"), 0);
+
+  // Also a call with the same argument as an earlier call.
+  const char* cstr_zero_b = mylib_get_const_c_str(0);
+  EXPECT_EQ(std::strcmp(cstr_zero_b, "zero"), 0);
+  // May not be required to have the same address, but could be something
+  // libraries end up relying on.
+  EXPECT_EQ(cstr_zero_a, cstr_zero_b);
+
+  // Try a different function that also returns a const char*.
+  EXPECT_EQ(std::strcmp(mylib_get_other_c_str(0), "zero"), 0);
+  EXPECT_EQ(std::strcmp(mylib_get_other_c_str(1), "nonzero"), 0);
+}
+
+TEST(Test, InOutparamGlobalConstCStr) {
+  mylib_get_inoutparam_c_str(nullptr);
+
+  const char* in_out = nullptr;
+  mylib_get_inoutparam_c_str(&in_out);
+  EXPECT_EQ(in_out, nullptr);
+
+  in_out = "odd";
+  mylib_get_inoutparam_c_str(&in_out);
+  EXPECT_EQ(std::strcmp(in_out, "even"), 0);
+  mylib_get_inoutparam_c_str(&in_out);
+  EXPECT_EQ(std::strcmp(in_out, "odd"), 0);
+
+  mylib_get_outparam_c_str(0, nullptr);
+
+  const char* out_0a = nullptr;
+  mylib_get_outparam_c_str(0, &out_0a);
+  EXPECT_EQ(std::strcmp(out_0a, "zero"), 0);
+  const char* out_1 = nullptr;
+  mylib_get_outparam_c_str(1, &out_1);
+  EXPECT_EQ(std::strcmp(out_1, "nonzero"), 0);
+
+  const char* out_0b = nullptr;
+  mylib_get_outparam_c_str(0, &out_0b);
+  EXPECT_EQ(std::strcmp(out_0b, "zero"), 0);
+  EXPECT_EQ(out_0a, out_0b);
+}
+
+TEST(Test, MultipleInOutparamGlobalConstCStr) {
+  const char* out = nullptr;
+  const char* out2 = nullptr;
+  mylib_get_in_outparam_c_str("odd", &out, &out2);
+  EXPECT_EQ(std::strcmp(out, "even"), 0);
+  EXPECT_EQ(std::strcmp(out2, "flipped_to_even"), 0);
+  mylib_get_in_outparam_c_str("even", &out, &out2);
+  EXPECT_EQ(std::strcmp(out, "odd"), 0);
+  EXPECT_EQ(std::strcmp(out2, "flipped_to_odd"), 0);
 }
 
 TEST(Test, InPrimStructPointer) {

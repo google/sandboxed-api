@@ -620,6 +620,8 @@ def cc_sandboxed_library(
         deps = [
             "_unsandboxed_" + name,
             "//sandboxed_api:lenval_core",
+            "@abseil-cpp//absl/container:node_hash_map",
+            "@abseil-cpp//absl/synchronization:synchronization",
         ] + sandboxee_deps,
         **common
     )
@@ -637,6 +639,8 @@ def cc_sandboxed_library(
             "//sandboxed_api:lenval_core",
             "//sandboxed_api/sandbox2/util:bpf_helper",
             "@abseil-cpp//absl/log:check",
+            "@abseil-cpp//absl/container:node_hash_map",
+            "@abseil-cpp//absl/synchronization:synchronization",
         ] + host_deps,
         **common
     )

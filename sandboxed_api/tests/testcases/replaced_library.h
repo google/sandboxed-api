@@ -35,6 +35,9 @@ bool mylib_is_sandboxed();
 void mylib_scalar_types(int a0, float a1, double a2, int64_t a3, char a4,
                         bool a5, size_t a6);
 int mylib_add(int x, int y);
+
+MyLibEnum mylib_take_enum(MyLibEnum e);
+
 std::string mylib_copy(const std::string& src);
 void mylib_copy(absl::string_view src, std::string& dst);
 void mylib_copy_raw(const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(size),
@@ -43,7 +46,23 @@ void mylib_copy_raw(const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(size),
 
 size_t mylib_strlen(const char* str SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
 
-MyLibEnum mylib_take_enum(MyLibEnum e);
+SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_GLOBAL const char*
+mylib_get_const_c_str(int i);
+SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_GLOBAL const char*
+mylib_get_other_c_str(int i);
+
+void mylib_get_inoutparam_c_str(
+    const char** in_out SANDBOX_INOUT_PTR SANDBOX_NULL_TERMINATED
+        SANDBOX_LIFETIME_GLOBAL);
+void mylib_get_outparam_c_str(int i, const char** dst SANDBOX_OUT_PTR
+                                         SANDBOX_NULL_TERMINATED
+                                             SANDBOX_LIFETIME_GLOBAL);
+void mylib_get_in_outparam_c_str(
+    const char* src SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    const char** dst SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED
+        SANDBOX_LIFETIME_GLOBAL,
+    const char** dst2 SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED
+        SANDBOX_LIFETIME_GLOBAL);
 
 double mylib_in_prim_struct_pointer(const PrimitiveStruct* p SANDBOX_IN_PTR);
 void mylib_out_prim_struct_pointer(PrimitiveStruct* p SANDBOX_OUT_PTR);

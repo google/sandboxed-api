@@ -73,11 +73,23 @@
   [[clang::annotate("sandbox", "elem_sized_by", #elem_size_arg)]]
 
 // Pointer argument annotations that denote the pointee data is a
-// null-terminated C string. Only `const char*` parameters are supported.
-// The annotation does not support return types for now.
+// null-terminated C string.
+// - `const char*` parameters are supported
+// - `const char*` return values are also supported, but need a lifetime
+//   annotation (like SANDBOX_LIFETIME_GLOBAL) to indicate how to manage a host
+//   copy (if a copy is needed).
 //
-// For example:
+// Input example:
 //   int my_open(const char* path SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+// Output examples:
+// as a return value:
+//   SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_GLOBAL
+//   const char* status_to_error(int error_code);
+// or, as an outparam:
+//   void status_to_error(int error_code,
+//                        const char** error_msg SANDBOX_OUT_PTR
+//                                               SANDBOX_NULL_TERMINATED
+//                                               SANDBOX_LIFETIME_GLOBAL);
 #define SANDBOX_NULL_TERMINATED \
   [[clang::annotate("sandbox", "null_terminated")]]
 
@@ -101,5 +113,16 @@
 
 // This is for host variables that can hold some state between calls.
 #define SANDBOX_HOST_STATE_VAR [[clang::annotate("sandbox", "host_state_var")]]
+
+// Indicate that an output pointer points to global memory in the sandbox.
+// If we transparently copy the data into the host, it should also have a global
+// lifetime.
+//
+// Support is still in progress, and we currently only support NULL_TERMINATED
+// return values and outparam pointers.
+//
+// See the example under SANDBOX_NULL_TERMINATED.
+#define SANDBOX_LIFETIME_GLOBAL \
+  [[clang::annotate("sandbox", "lifetime_sandbox_global")]]
 
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

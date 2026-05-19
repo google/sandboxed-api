@@ -67,7 +67,7 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_IN_PTR",          "SANDBOX_OUT_PTR",
       "SANDBOX_INOUT_PTR",       "SANDBOX_OPAQUE_PTR",
       "SANDBOX_HOST_OPAQUE_PTR", "SANDBOX_HOST_STATE_VAR",
-      "SANDBOX_NULL_TERMINATED",
+      "SANDBOX_NULL_TERMINATED", "SANDBOX_LIFETIME_GLOBAL",
   };
   std::string output = input;
   for (const auto& macro : *macros_no_args) {
@@ -175,6 +175,7 @@ class SandboxedLibraryEmitter::Arg {
   }
 
   virtual std::vector<std::string> Includes() const { return {}; };
+  virtual std::vector<std::string> HostStateVars() const { return {}; }
   virtual std::string EmitHostPreCall() const { return ""; }
   virtual std::string EmitHostPostCall() const { return ""; }
   virtual std::string EmitHostArgs() const = 0;
@@ -346,27 +347,164 @@ struct StringViewArg : SandboxedLibraryEmitter::Arg {
   }
 };
 
-// A null-terminated C string. These are always "input" to the library.
+// A null-terminated C string.
+// Currently supports:
+// - inputs, or
+// - outputs with a global lifetime (vs malloc/free, etc.).
 struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
-  ConstCStrArg(absl::string_view name, PointerDir ptr_dir)
-      : Arg(name, "const char*") {
-    if (ptr_dir != PointerDir::kIn) {
-      LOG(FATAL) << "ConstCStrArg pointer direction must be kIn";
+  ConstCStrArg(absl::string_view name, absl::string_view type,
+               PointerDir ptr_dir, std::optional<PointerLifetime> lifetime)
+      : Arg(name, type), ptr_dir_(ptr_dir), lifetime_(lifetime) {
+    if (ptr_dir_ != PointerDir::kIn &&
+        lifetime_ != PointerLifetime::kSandboxGlobal) {
+      LOG(FATAL) << "ConstCStrArg outparams must have kSandboxGlobal lifetime";
     }
   }
 
+  std::vector<std::string> Includes() const override {
+    if (lifetime_ == PointerLifetime::kSandboxGlobal) {
+      // TODO(jvoung): Make the hash map and mutex includes are only needed
+      // for the host (for HostStateVars), and not the sandboxee.
+      return {
+          "<string>",
+          absl::Substitute("\"$0absl/container/node_hash_map.h\"",
+                           kIncludePrefix),
+          absl::Substitute("\"$0absl/synchronization/mutex.h\"",
+                           kIncludePrefix),
+      };
+    }
+    return {};
+  }
+
+  std::vector<std::string> HostStateVars() const override {
+    if (lifetime_ == PointerLifetime::kSandboxGlobal) {
+      return {"absl::Mutex sapi_internal_global_cstr_mutex;",
+              "absl::node_hash_map<const void*, std::string> "
+              "sapi_internal_global_cstr_map;"};
+    }
+    return {};
+  }
+
   std::string EmitHostPreCall() const override {
-    return absl::Substitute("sapi::v::ConstCStr sapi_tmp_$0($0);\n", name_);
+    if (ptr_dir_ == PointerDir::kIn) {
+      return absl::Substitute("  sapi::v::ConstCStr sapi_tmp_$0($0);\n", name_);
+    } else if (ptr_dir_ == PointerDir::kOut) {
+      // For outputs (char**), we want to get the raw library pointer (char*)
+      // from the library:
+      return absl::Substitute(
+          "  sapi::v::Reg<const char*> sapi_tmp_$0(nullptr);\n", name_);
+    } else if (ptr_dir_ == PointerDir::kInOut) {
+      return absl::Substitute(
+          R"(  std::unique_ptr<sapi::v::ConstCStr> sapi_cstr_$0;
+  const char* remote_$0 = nullptr;
+  if ($0 != nullptr && *$0 != nullptr) {
+    sapi_cstr_$0 = std::make_unique<sapi::v::ConstCStr>(*$0);
+    sandbox->Check(sandbox->Allocate(sapi_cstr_$0.get(),
+                   /*automatic_free=*/true));
+    sandbox->Check(sandbox->TransferToSandboxee(sapi_cstr_$0.get()));
+    remote_$0 = reinterpret_cast<const char*>(sapi_cstr_$0->GetRemote());
   }
+  sapi::v::Reg<const char*> sapi_tmp_$0(remote_$0);
+)",
+          name_);
+    } else {
+      LOG(FATAL) << "ConstCStrArg has unknown ptr_dir_";
+    }
+  }
+
   std::string EmitHostArgs() const override {
-    return absl::Substitute("sapi_tmp_$0.PtrBefore()", name_);
+    if (ptr_dir_ == PointerDir::kIn) {
+      return absl::Substitute("sapi_tmp_$0.PtrBefore()", name_);
+    } else if (ptr_dir_ == PointerDir::kOut) {
+      return absl::Substitute("sapi_tmp_$0.PtrAfter()", name_);
+    } else {
+      return absl::Substitute("sapi_tmp_$0.PtrBoth()", name_);
+    }
   }
+
+  std::string EmitHostPostCall() const override {
+    if (ptr_dir_ == PointerDir::kIn) {
+      return "";
+    }
+    // And then, on the host, we will use the raw library pointer
+    // (char* set by the library) to copy, or look up an earlier copy.
+    // NOTE: If the sandbox violates the "const" and mutates the value, we'll
+    // incorrectly re-use an older copy, but at least it will consistently use
+    // this stale copy on the host side, rather than have TOCTTOU issues.
+    return absl::Substitute(R"(  if ($0 != nullptr) {
+    const char* remote_ptr = sapi_tmp_$0.GetValue();
+    if (!remote_ptr) {
+      *$0 = nullptr;
+    } else {
+      bool found = false;
+      {
+        absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+        auto it = sapi_internal_global_cstr_map.find(remote_ptr);
+        if (it != sapi_internal_global_cstr_map.end()) {
+          *$0 = it->second.c_str();
+          found = true;
+        }
+      }
+      if (!found) {
+        absl::StatusOr<std::string> remote_str = sandbox->GetCString(
+            sapi::v::RemotePtr(remote_ptr));
+        sandbox->Check(remote_str.status());
+        absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+        auto [it, inserted] = sapi_internal_global_cstr_map.insert(
+            {remote_ptr, *std::move(remote_str)});
+        *$0 = it->second.c_str();
+      }
+    }
+  }
+)",
+                            name_);
+  }
+
   std::string EmitSandboxeeParams() const override {
     return absl::Substitute("$0 $1", type_, name_);
   }
   std::string EmitSandboxeeArgs() const override {
     return absl::Substitute("$0", name_);
   }
+
+  std::string EmitRetParams() const override {
+    return absl::Substitute("$0* $1", type_, name_);
+  }
+  std::string EmitRetPreCall() const override {
+    return absl::Substitute("sapi::v::Reg<$0> sapi_ret_arg;\n", type_);
+  }
+  std::string EmitRetArgs() const override { return "sapi_ret_arg.PtrAfter()"; }
+  std::string EmitSandboxeeRet() const override {
+    return absl::Substitute("*$0 = sapi_ret_val;\n", name_);
+  }
+
+  std::string EmitHostRet() const override {
+    std::string out;
+    absl::StrAppend(
+        &out, absl::Substitute(R"(  $0 remote_ptr = sapi_ret_arg.GetValue();
+  if (!remote_ptr) return nullptr;
+  {
+    absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+    auto it = sapi_internal_global_cstr_map.find(remote_ptr);
+    if (it != sapi_internal_global_cstr_map.end()) {
+      return it->second.c_str();
+    }
+  }
+  absl::StatusOr<std::string> remote_str = sandbox->GetCString(
+      sapi::v::RemotePtr(remote_ptr));
+  sandbox->Check(remote_str.status());
+  absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+  auto [it, inserted] = sapi_internal_global_cstr_map.insert(
+      {remote_ptr, *std::move(remote_str)});
+  return it->second.c_str();
+)",
+                               type_));
+    return out;
+  }
+
+ private:
+  const PointerDir ptr_dir_;
+  const std::optional<PointerLifetime> lifetime_;
 };
 
 // Basic information about a pointer's pointee's type.
@@ -659,7 +797,17 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
   for (const auto& src : host_state_vars_) {
     absl::StrAppend(&out, src, "\n");
   }
-  absl::StrAppend(&out, "\n");
+
+  // Emit the host state variables needed for each `Arg`.
+  absl::StrAppend(&out, "namespace {\n");
+  std::vector<std::string> sorted_arg_host_state_vars(
+      arg_host_state_vars_.begin(), arg_host_state_vars_.end());
+  std::sort(sorted_arg_host_state_vars.begin(),
+            sorted_arg_host_state_vars.end());
+  for (const auto& src : sorted_arg_host_state_vars) {
+    absl::StrAppend(&out, src, "\n");
+  }
+  absl::StrAppend(&out, "}  // namespace\n\n");
 
   for (const auto* func : SortedFuncs()) {
     // Emit the host thunk on the host side if we have one.
@@ -1011,6 +1159,9 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     for (const std::string& inc : ret->Includes()) {
       includes_.insert(inc);
     }
+    for (const std::string& arg_host_var : ret->HostStateVars()) {
+      arg_host_state_vars_.insert(arg_host_var);
+    }
   }
 
   std::vector<ArgPtr> args;
@@ -1024,6 +1175,9 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     SAPI_ASSIGN_OR_RETURN(ArgPtr arg, Convert(name, type, param, nullptr));
     for (const std::string& inc : arg->Includes()) {
       includes_.insert(inc);
+    }
+    for (const std::string& arg_host_var : arg->HostStateVars()) {
+      arg_host_state_vars_.insert(arg_host_var);
     }
     args.push_back(std::move(arg));
   }
@@ -1206,6 +1360,19 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
   return false;
 }
 
+// Returns true if the type is a supported NullTerminated input or return type.
+bool IsSupportedArgRetNullTerminatedType(clang::QualType type) {
+  return type->isPointerType() && type->getPointeeType()->isCharType() &&
+         type->getPointeeType().isConstQualified();
+}
+
+// Returns true if the type is a supported NullTerminated outparam type.
+bool IsSupportedOutParamNullTerminatedType(clang::QualType type) {
+  return type->isPointerType() && type->getPointeeType()->isPointerType() &&
+         type->getPointeeType()->getPointeeType()->isCharType() &&
+         type->getPointeeType()->getPointeeType().isConstQualified();
+}
+
 absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
 SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                                      absl::string_view name,
@@ -1248,7 +1415,10 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                                           *annotations.ptr_dir, std::nullopt);
     }
     if (is_param) {
-      if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType())) {
+      if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType()) &&
+          !(std::holds_alternative<NullTerminated>(annotations.size_type) &&
+            annotations.lifetime == PointerLifetime::kSandboxGlobal &&
+            IsSupportedOutParamNullTerminatedType(type))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type", name));
       }
@@ -1268,36 +1438,58 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
           absl::Substitute("pointer argument $0 has unknown direction", name));
     }
     return std::visit(
-        absl::Overload{[&](const std::monostate&)
-                           -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
-                         return std::make_unique<PointerArg>(
-                             name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                             std::nullopt);
-                       },
-                       [&](const ElemSizedBy& elem_sized_by)
-                           -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
-                         return std::make_unique<PointerArg>(
-                             name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                             elem_sized_by.expr);
-                       },
-                       [&](const NullTerminated&)
-                           -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
-                         if (ptr_dir != PointerDir::kIn) {
-                           return absl::InvalidArgumentError(absl::Substitute(
-                               "pointer argument $0 is null-terminated but not "
-                               "an input pointer ($1)",
-                               name, *ptr_dir));
-                         }
-                         // For now only handle `const char*` (vs `char*`)
-                         if (!type->getPointeeType()->isCharType() ||
-                             !type->getPointeeType().isConstQualified()) {
-                           return absl::InvalidArgumentError(absl::Substitute(
-                               "pointer argument $0 is null-terminated but not "
-                               "a const char*",
-                               name));
-                         }
-                         return std::make_unique<ConstCStrArg>(name, *ptr_dir);
-                       }},
+        absl::Overload{
+            [&](const std::monostate&)
+                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+              return std::make_unique<PointerArg>(name, type_name,
+                                                  PointeeTypeInfo(type),
+                                                  *ptr_dir, std::nullopt);
+            },
+            [&](const ElemSizedBy& elem_sized_by)
+                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+              return std::make_unique<PointerArg>(name, type_name,
+                                                  PointeeTypeInfo(type),
+                                                  *ptr_dir, elem_sized_by.expr);
+            },
+            [&](const NullTerminated&)
+                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+              // Return values, or input-only null-terminated pointers (char*):
+              if (!is_param || ptr_dir == PointerDir::kIn) {
+                if (!IsSupportedArgRetNullTerminatedType(type)) {
+                  return absl::InvalidArgumentError(absl::Substitute(
+                      "$0 $1 is null-terminated but not a const char*",
+                      is_param ? "pointer argument" : "return pointer", name));
+                }
+                if (ptr_dir == PointerDir::kIn ||
+                    annotations.lifetime == PointerLifetime::kSandboxGlobal) {
+                  return std::make_unique<ConstCStrArg>(
+                      name, type_name, *ptr_dir, annotations.lifetime);
+                }
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "function $0: null_terminated annotation for "
+                    "return values requires a lifetime annotation.",
+                    name));
+              }
+              // Outparams (char**):
+              if (ptr_dir != PointerDir::kIn) {
+                if (annotations.lifetime == PointerLifetime::kSandboxGlobal) {
+                  if (!IsSupportedOutParamNullTerminatedType(type)) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "pointer argument $0 with lifetime_sandbox_global must "
+                        "be a const char**",
+                        name));
+                  }
+                  return std::make_unique<ConstCStrArg>(
+                      name, type_name, *ptr_dir, annotations.lifetime);
+                }
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "pointer argument $0: null_terminated annotation for "
+                    "output requires a lifetime annotation.",
+                    name));
+              }
+              return absl::InvalidArgumentError(absl::Substitute(
+                  "unsupported null_terminated pointer $0", name));
+            }},
         annotations.size_type);
   }
   return nullptr;
@@ -1314,7 +1506,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     size_t num_args = 1;
 
     // We can only have either opaque pointers, or out pointers as return
-    // values. I.e.either the returned pointer is just a sandbox-internal
+    // values. I.e. either the returned pointer is just a sandbox-internal
     // opaque handle, or it is a pointer to some sandbox structure that needs
     // copying back to the host.
     if (ann.name == "sandbox_opaque_ptr") {
@@ -1324,6 +1516,11 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "sandboxee_thunk" || ann.name == "host_thunk") {
       // Ignore these here, they are handled in AddFunction.
       num_args = 2;  // (name, func_name)
+    } else if (ann.name == "null_terminated") {
+      absl::Status status = annotations.SetNullTerminated();
+      SAPI_RETURN_IF_ERROR(status);
+    } else if (ann.name == "lifetime_sandbox_global") {
+      annotations.lifetime = PointerLifetime::kSandboxGlobal;
     } else {
       return absl::InvalidArgumentError(
           absl::Substitute("function $0: $1 annotation is not supported "
@@ -1361,19 +1558,15 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       annotations.ptr_dir = PointerDir::kHostOpaque;
     } else if (ann.name == "elem_sized_by") {
       num_args = 2;
-      if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "arg $0: cannot be both null-terminated and elem_sized_by", name));
-      }
       if (!ann.args.empty()) {
-        annotations.size_type = ElemSizedBy{ann.args[0]};
+        absl::Status status = annotations.SetElemSizedBy(ann.args[0]);
+        SAPI_RETURN_IF_ERROR(status);
       }
     } else if (ann.name == "null_terminated") {
-      if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "arg $0: cannot be both null-terminated and elem_sized_by", name));
-      }
-      annotations.size_type = NullTerminated{};
+      absl::Status status = annotations.SetNullTerminated();
+      SAPI_RETURN_IF_ERROR(status);
+    } else if (ann.name == "lifetime_sandbox_global") {
+      annotations.lifetime = PointerLifetime::kSandboxGlobal;
     } else {
       num_args = 0;
     }

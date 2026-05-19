@@ -48,6 +48,10 @@ enum class PointerDir {
   kHostOpaque,
 };
 
+enum class PointerLifetime {
+  kSandboxGlobal,
+};
+
 class SandboxedLibraryEmitter : public EmitterBase {
  public:
   class Arg;
@@ -99,6 +103,24 @@ class SandboxedLibraryEmitter : public EmitterBase {
   struct Annotations {
     std::optional<PointerDir> ptr_dir;
     std::variant<std::monostate, ElemSizedBy, NullTerminated> size_type;
+    std::optional<PointerLifetime> lifetime;
+
+    absl::Status SetElemSizedBy(absl::string_view expr) {
+      if (std::holds_alternative<std::monostate>(size_type)) {
+        size_type = ElemSizedBy{std::string(expr)};
+        return absl::OkStatus();
+      }
+      return absl::InvalidArgumentError(
+          "Cannot be sized by multiple types: elem_sized_by and other");
+    }
+    absl::Status SetNullTerminated() {
+      if (std::holds_alternative<std::monostate>(size_type)) {
+        size_type = NullTerminated{};
+        return absl::OkStatus();
+      }
+      return absl::InvalidArgumentError(
+          "Cannot be sized by multiple types: null_terminated and other");
+    }
   };
 
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
@@ -122,15 +144,12 @@ class SandboxedLibraryEmitter : public EmitterBase {
       absl::string_view name, const clang::FunctionDecl* funcDecl);
   std::vector<const Func*> SortedFuncs() const;
 
-  // Returns a vector of pairs of name and type of the used host state
-  // variables.
-  std::vector<std::pair<std::string, std::string>> HostStateVars() const;
-
   absl::flat_hash_set<std::string> includes_;
   absl::flat_hash_map<std::string, std::unique_ptr<Func>> funcs_;
   absl::flat_hash_set<std::string> sandbox_funcs_;
   absl::flat_hash_set<std::string> ignore_funcs_;
   absl::flat_hash_map<std::string, std::string> used_funcs_;
+  absl::flat_hash_set<std::string> arg_host_state_vars_;
   std::optional<std::string> funcs_loc_;
   std::vector<std::string> host_state_vars_;
   std::optional<std::string> host_code_;
