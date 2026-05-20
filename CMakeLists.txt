@@ -30,13 +30,13 @@ if(NOT CMAKE_SYSTEM_NAME MATCHES "Linux")
 endif()
 
 # SAPI-wide setting for the language level
-set(SAPI_CXX_STANDARD 17)
+set(SAPI_CXX_STANDARD 20)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD ${SAPI_CXX_STANDARD})
 elseif(CMAKE_CXX_STANDARD LESS ${SAPI_CXX_STANDARD})
   message(FATAL_ERROR
-    "Sandboxed API requires C++17. To ensure ABI compatibility"
+    "Sandboxed API requires C++20. To ensure ABI compatibility"
     " build and link all targets of the project with the same"
     " version of C++."
   )

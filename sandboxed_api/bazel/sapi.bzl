@@ -108,7 +108,7 @@ def _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths):
     # TODO(cblichmann): use the same language standard as the toolchain.
     # Note: it may be different for different files, but at least we could
     # infer the max standard version (year) used in the actual compilation.
-    std += "17"
+    std += "20"
 
     flags.append("--extra-arg=-std=" + std)
 

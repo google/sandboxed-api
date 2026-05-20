@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -212,23 +213,6 @@ std::vector<std::string> SyscallTable::GetArgumentsDescription(
 
 namespace syscalls {
 namespace {
-
-// TODO(C++20) Use std::is_sorted
-template <typename Container, typename Compare>
-constexpr bool IsSorted(const Container& container, Compare comp) {
-  auto it = std::begin(container);
-  if (it == std::end(container)) {
-    return true;
-  }
-  auto last = it;
-  for (++it; it != std::end(container); ++it) {
-    if (!comp(*last, *it)) {
-      return false;
-    }
-    last = it;
-  }
-  return true;
-}
 
 // Syscall description table for Linux x86_64
 constexpr std::array kSyscallDataX8664 = {
@@ -624,7 +608,8 @@ constexpr std::array kSyscallDataX8664 = {
     // clang-format on
 };
 
-static_assert(IsSorted(kSyscallDataX8664, SyscallTable::Entry::BySyscallNr),
+static_assert(std::is_sorted(kSyscallDataX8664.begin(),
+                             kSyscallDataX8664.end()),
               "Syscalls should be sorted");
 
 constexpr std::array kSyscallDataX8632 = {
@@ -1020,7 +1005,8 @@ constexpr std::array kSyscallDataX8632 = {
     // clang-format on
 };
 
-static_assert(IsSorted(kSyscallDataX8632, SyscallTable::Entry::BySyscallNr),
+static_assert(std::is_sorted(kSyscallDataX8632.begin(),
+                             kSyscallDataX8632.end()),
               "Syscalls should be sorted");
 
 // http://lxr.free-electrons.com/source/arch/powerpc/include/uapi/asm/unistd.h
@@ -1431,7 +1417,8 @@ constexpr std::array kSyscallDataPPC64LE = {
     // clang-format on
 };
 
-static_assert(IsSorted(kSyscallDataPPC64LE, SyscallTable::Entry::BySyscallNr),
+static_assert(std::is_sorted(kSyscallDataPPC64LE.begin(),
+                             kSyscallDataPPC64LE.end()),
               "Syscalls should be sorted");
 
 // https://github.com/torvalds/linux/blob/v5.8/include/uapi/asm-generic/unistd.h
@@ -1744,7 +1731,8 @@ constexpr std::array kSyscallDataArm64 = {
     // clang-format on
 };
 
-static_assert(IsSorted(kSyscallDataArm64, SyscallTable::Entry::BySyscallNr),
+static_assert(std::is_sorted(kSyscallDataArm64.begin(),
+                             kSyscallDataArm64.end()),
               "Syscalls should be sorted");
 
 constexpr std::array kSyscallDataArm32 = {
@@ -2138,7 +2126,8 @@ constexpr std::array kSyscallDataArm32 = {
     // clang-format on
 };
 
-static_assert(IsSorted(kSyscallDataArm32, SyscallTable::Entry::BySyscallNr),
+static_assert(std::is_sorted(kSyscallDataArm32.begin(),
+                             kSyscallDataArm32.end()),
               "Syscalls should be sorted");
 
 }  // namespace

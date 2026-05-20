@@ -82,7 +82,7 @@ absl::Status RunClangTool(
 
 std::vector<std::string> FrontendActionTest::GetCommandLineFlagsForTesting(
     absl::string_view input_file) {
-  return {"tool", "-fsyntax-only", "--std=c++17",
+  return {"tool", "-fsyntax-only", "--std=c++20",
           "-I.",  "-Wno-error",    std::string(input_file)};
 }
 

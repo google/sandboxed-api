@@ -15,7 +15,6 @@
 #include "sandboxed_api/util/status.h"
 
 #include <string>
-#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -37,11 +36,8 @@ void SaveStatusToProto(const absl::Status& status, StatusProto* out) {
 absl::Status MakeStatusFromProto(const StatusProto& proto) {
   absl::Status status(static_cast<absl::StatusCode>(proto.code()),
                       proto.message());
-  // Note: Using C++17 structured bindings instead of `entry` crashes Clang 6.0
-  // on Ubuntu 18.04 (bionic).
-  for (const auto& entry : proto.payloads()) {
-    status.SetPayload(/*type_url=*/entry.first,
-                      /*payload=*/absl::Cord(entry.second));
+  for (const auto& [type_url, payload] : proto.payloads()) {
+    status.SetPayload(type_url, absl::Cord(payload));
   }
   return status;
 }

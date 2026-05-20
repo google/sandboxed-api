@@ -143,7 +143,6 @@ function(add_sapi_library)
     "${SAPI_BINARY_DIR}/sapi_force_cxx_linkage.cc"
   )
   target_link_libraries("${_sapi_bin}" PRIVATE
-    -fuse-ld=gold
     -Wl,--whole-archive "${_sapi_LIBRARY}" -Wl,--no-whole-archive
     # Needs to be whole-archive due to how it Abseil registers flags
     -Wl,--whole-archive absl::log_flags -Wl,--no-whole-archive

@@ -18,6 +18,7 @@
 #include <sys/types.h>
 
 #include <array>
+#include <compare>  // IWYU pragma: keep
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -225,17 +226,15 @@ class SyscallTable {
  public:
   // Single syscall definition
   struct Entry {
+    friend constexpr auto operator<=>(const Entry& lhs,
+                                      const Entry& rhs) = default;
+
     // Returns the number of arguments which given syscall takes.
     int GetNumArgs() const {
       if (num_args < 0 || num_args > syscalls::kMaxArgs) {
         return syscalls::kMaxArgs;
       }
       return num_args;
-    }
-
-    static constexpr bool BySyscallNr(const SyscallTable::Entry& a,
-                                      const SyscallTable::Entry& b) {
-      return a.nr < b.nr;
     }
 
     int nr;

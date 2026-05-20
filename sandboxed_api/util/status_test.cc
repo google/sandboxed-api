@@ -59,5 +59,11 @@ TEST(StatusTest, SaveStatusWithMessage) {
   EXPECT_THAT(proto.message(), StrEq(invalid_proto.message()));
 }
 
+TEST(StatusTest, MakeStatusFromProto) {
+  EXPECT_THAT(MakeStatusFromProto(OkStatusProto()), Eq(absl::OkStatus()));
+  EXPECT_THAT(MakeStatusFromProto(InvalidArgumentStatusProto("Bad foo")),
+              Eq(absl::InvalidArgumentError("Bad foo")));
+}
+
 }  // namespace
 }  // namespace sapi
