@@ -95,18 +95,6 @@ absl::Status SumTransaction::Main() {
   LOG(INFO) << "1234 + 5678 = " << p.data().ret;
   TRANSACTION_FAIL_IF_NOT(p.data().ret == 6912, "1234 + 5678 != 6912");
 
-  // Gets symbol address and prints its value.
-  int* ssaddr;
-  SAPI_RETURN_IF_ERROR(
-      sandbox()->Symbol("sumsymbol", reinterpret_cast<void**>(&ssaddr)));
-  sapi::v::Int sumsymbol;
-  sumsymbol.SetRemote(ssaddr);
-  SAPI_RETURN_IF_ERROR(sandbox()->TransferFromSandboxee(&sumsymbol));
-  LOG(INFO) << "sumsymbol value (exp: 5): " << sumsymbol.GetValue()
-            << ", address: " << ssaddr;
-  TRANSACTION_FAIL_IF_NOT(sumsymbol.GetValue() == 5,
-                          "sumsymbol.GetValue() != 5");
-
   // Sums all int's inside an array.
   int arr[10];
   sapi::v::Array<int> iarr(arr, ABSL_ARRAYSIZE(arr));

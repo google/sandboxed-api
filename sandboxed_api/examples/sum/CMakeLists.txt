@@ -45,20 +45,22 @@ target_link_libraries(sapi_sum
 
 # sandboxed_api/examples/sum/lib:sum-sapi
 add_sapi_library(sum-sapi
-  FUNCTIONS sum
-            sums
-            addf
-            sub
-            mul
-            divs
-            muld
+  FUNCTIONS addf
             crash
-            violate
-            sumarr
-            testptr
+            divs
+            mul
+            muld
+            puts # From libc: int puts(const char *s)
             read_int
+            read # From libc: ssize_t read(int fd, void *buf, uint64_t count)
             sleep_for_sec
+            sub
+            sum
+            sumarr
             sumproto
+            sums
+            testptr
+            violate
   INPUTS sum.c
          sum_cpp.cc
   LIBRARY sapi_sum

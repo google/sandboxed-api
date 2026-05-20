@@ -46,22 +46,23 @@ cc_library(
 sapi_library(
     name = "sum-sapi",
     functions = [
-        "sum",
-        "sums",
         "addf",
-        "sub",
-        "mul",
-        "divs",
-        "muld",
         "crash",
-        "violate",
-        "sumarr",
-        "testptr",
+        "divs",
+        "mul",
+        "muld",
+        "puts",  # From libc: int puts(const char *s)
         "read_int",
+        "read",  # From libc: ssize_t read(int fd, void *buf, uint64_t count)
         "sleep_for_sec",
+        "sub",
+        "sum",
+        "sumarr",
         "sumproto",
+        "sums",
+        "testptr",
+        "violate",
     ],
-    generator_version = 2,
     input_files = [
         "sum.c",
         "sum_cpp.cc",

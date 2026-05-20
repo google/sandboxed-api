@@ -21,7 +21,7 @@ namespace sapi::v {
 
 enum class Type {
   kVoid,     // Void
-  kInt,      // Intergal types
+  kInt,      // Integral types
   kFloat,    // Floating-point types
   kPointer,  // Pointer to an arbitrary data type
   kStruct,   // Structures

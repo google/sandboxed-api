@@ -819,12 +819,12 @@ TEST_F(SandboxeeTest, StubsAreCallingSandboxedFunctions) {
 
   EXPECT_THAT(
       sandboxee_src,
-      ContainsRegex("FuncRet FuncHandlerStructize.*{.*Structize\\(.*\\);.*}"));
+      ContainsRegex("FuncRet HandleCall_Structize.*{.*Structize\\(.*\\);.*}"));
 
   EXPECT_THAT(sandboxee_src,
-              ContainsRegex("FuncRet FuncHandlerAdd.*{.*Add\\(.*\\);.*}"));
+              ContainsRegex("FuncRet HandleCall_Add.*{.*Add\\(.*\\);.*}"));
 
-  EXPECT_THAT(sandboxee_src, ContainsRegex("FuncRet FuncHandlerEnumify"
+  EXPECT_THAT(sandboxee_src, ContainsRegex("FuncRet HandleCall_Enumify"
                                            ".*{.*Enumify\\(.*\\);.*}"));
 }
 

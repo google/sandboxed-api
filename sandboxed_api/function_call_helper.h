@@ -97,7 +97,7 @@ class FunctionCallPreparer {
     if constexpr (std::is_pointer_v<T>) {
       return arg_type_[idx] == v::Type::kPointer;
     } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
-      return arg_type_[idx] == v::Type::kInt;
+      return arg_type_[idx] == v::Type::kInt || arg_type_[idx] == v::Type::kFd;
     } else if constexpr (std::is_floating_point_v<T>) {
       return arg_type_[idx] == v::Type::kFloat;
     }
@@ -137,26 +137,6 @@ class FunctionCallPreparer {
   v::Type arg_type_[FuncCall::kArgsMax];
   size_t argc_;
 };
-
-template <typename T>
-FuncRet ToFuncRet(T val) {
-  FuncRet ret = {.success = true};
-  if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
-    ret.ret_type = v::Type::kInt;
-  } else if constexpr (std::is_floating_point_v<T>) {
-    ret.ret_type = v::Type::kFloat;
-  } else if constexpr (std::is_pointer_v<T>) {
-    ret.ret_type = v::Type::kPointer;
-  }
-  if constexpr (std::is_floating_point_v<T>) {
-    static_assert(sizeof(T) <= sizeof(ret.float_val), "float_val is too small");
-    memcpy(&ret.float_val, &val, sizeof(T));
-  } else {
-    static_assert(sizeof(T) <= sizeof(ret.int_val), "int_val is too small");
-    memcpy(&ret.int_val, &val, sizeof(T));
-  }
-  return ret;
-}
 
 }  // namespace sapi
 

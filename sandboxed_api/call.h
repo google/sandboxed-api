@@ -90,15 +90,41 @@ struct FuncCall {
 };
 
 struct FuncRet {
-  // Return type:
-  v::Type ret_type;
-  // Return value.
+  static constexpr FuncRet FromError(Error error) {
+    return FuncRet{.int_val = static_cast<uintptr_t>(error), .success = false};
+  }
+
+  template <typename T>
+  static FuncRet FromValue(T val) {
+    FuncRet ret = {.success = true};
+    if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
+      ret.ret_type = v::Type::kInt;
+    } else if constexpr (std::is_floating_point_v<T>) {
+      ret.ret_type = v::Type::kFloat;
+    } else if constexpr (std::is_pointer_v<T>) {
+      ret.ret_type = v::Type::kPointer;
+    }
+    if constexpr (std::is_floating_point_v<T>) {
+      static_assert(sizeof(T) <= sizeof(ret.float_val),
+                    "float_val too small to represent type");
+      memcpy(&ret.float_val, &val, sizeof(T));
+    } else {
+      static_assert(sizeof(T) <= sizeof(ret.int_val),
+                    "int_val too small to represent type");
+      memcpy(&ret.int_val, &val, sizeof(T));
+    }
+    return ret;
+  }
+
+  v::Type ret_type;  // Return type
+
+  // Return value
   union {
     uintptr_t int_val;
     long double float_val;
   };
-  // Status of the operation: success/failure.
-  bool success;
+
+  bool success;  // Status of the operation: success/failure.
 };
 
 }  // namespace sapi

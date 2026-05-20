@@ -17,8 +17,6 @@
 #include <sys/ptrace.h>
 #include <unistd.h>
 
-int sumsymbol = 5;
-
 typedef struct sum_params_s {
   int a;
   int b;
