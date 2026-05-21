@@ -87,26 +87,13 @@ endmacro()
 #   LIBRARY_NAME into.
 # API_VERSION Which version of the Sandboxed API to generate. Currently, only
 #   version "1" is defined.
-# GENERATOR_VERSION Which version of the SAPI generator to use. Currently, only
-#   version "1", "2", and "3" are defined. Note that if unset, this defaults to
-#   version "2".
 function(add_sapi_library)
   set(_sapi_opts NOEMBED)
-  set(_sapi_one_value LIBRARY LIBRARY_NAME NAMESPACE API_VERSION GENERATOR_VERSION)
+  set(_sapi_one_value LIBRARY LIBRARY_NAME NAMESPACE API_VERSION)
   set(_sapi_multi_value SOURCES FUNCTIONS INPUTS)
   cmake_parse_arguments(PARSE_ARGV 0 _sapi "${_sapi_opts}"
                         "${_sapi_one_value}" "${_sapi_multi_value}")
   set(_sapi_NAME "${ARGV0}")
-
-  if(_sapi_GENERATOR_VERSION AND (_sapi_GENERATOR_VERSION VERSION_LESS "2" OR _sapi_GENERATOR_VERSION VERSION_GREATER "3"))
-    message(FATAL_ERROR "GENERATOR_VERSION must be \"2\" or \"3\"")
-  endif()
-
-  if(_sapi_GENERATOR_VERSION)
-    set(_sapi_use_generator_version ${_sapi_GENERATOR_VERSION})
-  else()
-    set(_sapi_use_generator_version "2")
-  endif()
 
   set(_sapi_gen_header "${_sapi_NAME}.sapi.h")
   set(_sapi_gen_sandboxee_src "${_sapi_NAME}.sapi.sandboxee.cc")
@@ -118,24 +105,20 @@ function(add_sapi_library)
   endif()
 
   # The sandboxee client library.
-  if(_sapi_use_generator_version VERSION_EQUAL "3")
-    set(_sapi_sandboxee_client_target "${_sapi_NAME}_sandboxee_gen")
-    add_library("${_sapi_sandboxee_client_target}" STATIC
-      "${_sapi_gen_sandboxee_src}"
-    )
-    target_link_libraries("${_sapi_sandboxee_client_target}" PUBLIC
-      absl::core_headers
-      absl::flat_hash_map
-      absl::log
-      absl::strings
-      sapi::sapi
-      sapi::call
-      sapi::function_call_helper
-    )
-    set(_sapi_sandboxee_client_lib "${_sapi_sandboxee_client_target}")
-  else()
-    set(_sapi_sandboxee_client_lib "sapi::client_message_handler")
-  endif()
+  set(_sapi_sandboxee_client_target "${_sapi_NAME}_sandboxee_gen")
+  add_library("${_sapi_sandboxee_client_target}" STATIC
+    "${_sapi_gen_sandboxee_src}"
+  )
+  target_link_libraries("${_sapi_sandboxee_client_target}" PUBLIC
+    absl::core_headers
+    absl::flat_hash_map
+    absl::log
+    absl::strings
+    sapi::sapi
+    sapi::call
+    sapi::function_call_helper
+  )
+  set(_sapi_sandboxee_client_lib "${_sapi_sandboxee_client_target}")
 
   # The sandboxed binary
   set(_sapi_bin "${_sapi_NAME}.bin")
@@ -177,6 +160,7 @@ function(add_sapi_library)
   list(APPEND _sapi_generator_args
     "--sapi_name=${_sapi_LIBRARY_NAME}"
     "--sapi_out=${_sapi_gen_header}"
+    "--sapi_sandboxee_src_out=${_sapi_gen_sandboxee_src}"
     "--sapi_embed_dir=${_sapi_embed_dir}"
     "--sapi_embed_name=${_sapi_embed_name}"
     "--sapi_functions=${_sapi_funcs}"
@@ -186,11 +170,7 @@ function(add_sapi_library)
   if(_sapi_API_VERSION)
     list(APPEND _sapi_generator_args "--sapi_api_version=${_sapi_API_VERSION}")
   endif()
-  if(_sapi_use_generator_version VERSION_EQUAL "3")
-    list(APPEND _sapi_generator_args
-      "--sapi_sandboxee_src_out=${_sapi_gen_sandboxee_src}"
-    )
-  endif()
+
   set(_sapi_isystem_args ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
   list(TRANSFORM _sapi_isystem_args PREPEND --extra-arg-before=-isystem)
   if(SAPI_CLANG_TOOL_EXECUTABLE)
@@ -204,12 +184,8 @@ function(add_sapi_library)
     ${_sapi_isystem_args}
     ${_sapi_full_inputs}
   )
-  list(APPEND _sapi_custom_command_output "${_sapi_gen_header}")
-  if (_sapi_use_generator_version VERSION_EQUAL "3")
-    list(APPEND _sapi_custom_command_output "${_sapi_gen_sandboxee_src}")
-  endif()
   add_custom_command(
-    OUTPUT ${_sapi_custom_command_output}
+    OUTPUT "${_sapi_gen_header}" "${_sapi_gen_sandboxee_src}"
     COMMAND ${_sapi_generator_command}
     COMMENT "Generating interface"
     DEPENDS ${_sapi_INPUTS}

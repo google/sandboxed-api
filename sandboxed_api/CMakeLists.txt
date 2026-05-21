@@ -311,7 +311,6 @@ target_link_libraries(sapi_client_message_handler PRIVATE
   absl::log_initialize
   absl::statusor
   absl::strings
-  libffi::libffi
   sapi::base
   sapi::call
   sapi::lenval_core
@@ -333,7 +332,6 @@ target_link_libraries(sapi_client
           absl::log_initialize
           absl::statusor
           absl::strings
-          libffi::libffi
           sandbox2::comms
           sandbox2::forkingclient
           sandbox2::logsink

@@ -23,13 +23,12 @@ include(FetchContent)
 
 # Use static libraries
 set(_sapi_saved_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
-if (SAPI_ENABLE_SHARED_LIBS)
+if(SAPI_ENABLE_SHARED_LIBS)
   set(SAPI_LIB_TYPE SHARED)
   set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_SHARED_LIBRARY_SUFFIX})
   set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
   # Imply linking with system-wide libs
   set(SAPI_DOWNLOAD_LIBCAP OFF CACHE BOOL "" FORCE)
-  set(SAPI_DOWNLOAD_LIBFFI OFF CACHE BOOL "" FORCE)
   set(SAPI_DOWNLOAD_PROTOBUF OFF CACHE BOOL "" FORCE)
   set(SAPI_DOWNLOAD_ZLIB OFF CACHE BOOL "" FORCE)
   add_compile_definitions(SAPI_LIB_IS_SHARED=1)
@@ -70,13 +69,6 @@ if(SAPI_DOWNLOAD_LIBCAP)
   sapi_check_target(libcap::libcap)
 else()
   find_package(Libcap REQUIRED)
-endif()
-
-if(SAPI_DOWNLOAD_LIBFFI)
-  include(cmake/libffi.cmake)
-  sapi_check_target(libffi::libffi)
-else()
-  find_package(Libffi REQUIRED)
 endif()
 
 if(SAPI_DOWNLOAD_PROTOBUF)

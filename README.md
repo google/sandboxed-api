@@ -69,7 +69,6 @@ sudo apt-get install -qy --no-install-recommends \
       libcap-dev \
       libclang-19-dev \
       libclang-rt-19-dev \
-      libffi-dev \
       libncurses-dev \
       libzstd-dev \
       linux-libc-dev \
@@ -91,7 +90,7 @@ sudo apt-get install -qy --no-install-recommends \
 
 #### LLVM
 
-SAPI offers a header generator based on
+SAPI offers a clang tool header generator based on
 [LLVM Libtooling](tools/clang_generator/BUILD).
 
 We aim to provide support for at least the latest three LLVM releases and

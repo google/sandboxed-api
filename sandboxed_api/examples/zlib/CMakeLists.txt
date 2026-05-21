@@ -18,7 +18,7 @@ add_sapi_library(zlib-sapi
             deflate
             deflateEnd
   INPUTS "${ZLIB_INCLUDE_DIRS}/zlib.h"
-  LIBRARY ZLIB::ZLIB
+  LIBRARY ZLIB::ZLIBSTATIC
   LIBRARY_NAME Zlib
   NAMESPACE "sapi::zlib"
 )
