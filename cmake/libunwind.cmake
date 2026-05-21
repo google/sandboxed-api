@@ -16,31 +16,30 @@ FetchContent_Declare(libunwind
   URL https://github.com/libunwind/libunwind/releases/download/v1.8.3/libunwind-1.8.3.tar.gz
   URL_HASH SHA256=be30d910e67f58d82e753231f1357f326a1a088acf126b21ff77e60aab19b90b
 )
-FetchContent_GetProperties(libunwind)
-if(NOT libunwind_POPULATED)
-  FetchContent_Populate(libunwind)
-  set(libunwind_STATUS_FILE "${libunwind_SOURCE_DIR}/config.status")
-  if(EXISTS "${libunwind_STATUS_FILE}")
-    file(SHA256 "${libunwind_STATUS_FILE}" _sapi_CONFIG_STATUS)
+
+FetchContent_MakeAvailable(libunwind)
+
+set(libunwind_STATUS_FILE "${libunwind_SOURCE_DIR}/config.status")
+if(EXISTS "${libunwind_STATUS_FILE}")
+  file(SHA256 "${libunwind_STATUS_FILE}" _sapi_CONFIG_STATUS)
+endif()
+if(NOT _sapi_CONFIG_STATUS STREQUAL "${libunwind_CONFIG_STATUS}")
+  message("-- Running ./configure for libunwind...")
+  execute_process(
+    COMMAND ./configure --disable-dependency-tracking
+                        --disable-documentation
+                        --disable-minidebuginfo
+                        --disable-shared
+                        --enable-ptrace
+                        --quiet
+    WORKING_DIRECTORY "${libunwind_SOURCE_DIR}"
+    RESULT_VARIABLE _sapi_libunwind_config_result
+  )
+  if(NOT _sapi_libunwind_config_result EQUAL "0")
+    message(FATAL_ERROR "Configuration of libunwind dependency failed")
   endif()
-  if(NOT _sapi_CONFIG_STATUS STREQUAL "${libunwind_CONFIG_STATUS}")
-    message("-- Running ./configure for libunwind...")
-    execute_process(
-      COMMAND ./configure --disable-dependency-tracking
-                          --disable-documentation
-                          --disable-minidebuginfo
-                          --disable-shared
-                          --enable-ptrace
-                          --quiet
-      WORKING_DIRECTORY "${libunwind_SOURCE_DIR}"
-      RESULT_VARIABLE _sapi_libunwind_config_result
-    )
-    if(NOT _sapi_libunwind_config_result EQUAL "0")
-      message(FATAL_ERROR "Configuration of libunwind dependency failed")
-    endif()
-    file(SHA256 "${libunwind_SOURCE_DIR}/config.status" _sapi_CONFIG_STATUS)
-    set(libunwind_CONFIG_STATUS "${_sapi_CONFIG_STATUS}" CACHE INTERNAL "")
-  endif()
+  file(SHA256 "${libunwind_SOURCE_DIR}/config.status" _sapi_CONFIG_STATUS)
+  set(libunwind_CONFIG_STATUS "${_sapi_CONFIG_STATUS}" CACHE INTERNAL "")
 endif()
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
