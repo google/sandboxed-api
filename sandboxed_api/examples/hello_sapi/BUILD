@@ -33,7 +33,6 @@ sapi_library(
     functions = [
         "AddTwoIntegers",
     ],
-    generator_version = 2,
     input_files = ["hello_lib.cc"],
     lib = ":hello_lib",
     lib_name = "Hello",
