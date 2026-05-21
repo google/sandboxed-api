@@ -14,13 +14,15 @@
 
 cmake_minimum_required(VERSION 3.25..4.2)
 
-if(POLICY CMP0083)
-  cmake_policy(SET CMP0083 NEW)  # Add PIE flags when requested
-endif()
-
-if(POLICY CMP0177)
-  cmake_policy(SET CMP0177 NEW)  # Normalize install() paths
-endif()
+foreach(policy IN ITEMS
+  CMP0083  # Add PIE flags when requested
+  CMP0177  # Normalize install() paths
+  CMP0174  # cmake_parse_arguments() empty vars
+)
+  if(POLICY ${policy})
+    cmake_policy(SET ${policy} NEW)
+  endif()
+endforeach()
 
 project(SandboxedAPI C CXX ASM)
 include(CTest)

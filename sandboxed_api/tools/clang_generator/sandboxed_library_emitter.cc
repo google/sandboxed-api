@@ -589,16 +589,18 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
           return absl::Substitute("sapi::v::Array<$0> sapi_tmp_$1($1, $2);\n",
                                   pointee_type_.pointee_type_name(), name_,
                                   *elem_sized_by_);
-        } else {
-          return absl::Substitute("sapi::v::Struct<$0> sapi_tmp_$1(*$1);\n",
-                                  pointee_type_.unqualified_pointee_type_name(),
-                                  name_);
         }
+        return absl::Substitute("sapi::v::Struct<$0> sapi_tmp_$1(*$1);\n",
+                                pointee_type_.unqualified_pointee_type_name(),
+                                name_);
       }
       case PointeeTypeInfo::TypeClass::kOther: {
-        if (ptr_dir_ == PointerDir::kHostOpaque) return "";
+        if (ptr_dir_ == PointerDir::kHostOpaque) {
+          return "";
+        }
         LOG(FATAL) << "Unsupported pointer direction for other pointee types "
                    << type_ << " for param " << name_;
+        return "";  // NOT REACHED
       }
     }
   }
