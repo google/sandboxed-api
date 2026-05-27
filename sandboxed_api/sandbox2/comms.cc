@@ -36,11 +36,13 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/base/dynamic_annotations.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -569,8 +571,12 @@ absl::Status Comms::RecvProtoBufWithStatus(google::protobuf::MessageLite* messag
     return absl::InternalError(
         absl::StrFormat("expected tag: 0x%x, got: 0x%u", kTagProto2, tag));
   }
-  bool ok = message->ParseFromArray(bytes.data(), bytes.size());
-  if (!ok) {
+
+  absl::string_view bytes_view(reinterpret_cast<const char*>(bytes.data()),
+                               bytes.size());
+  absl::Cord cord =
+      absl::MakeCordFromExternal(bytes_view, [bytes = std::move(bytes)]() {});
+  if (!message->ParseFromString(cord)) {
     return absl::InternalError("failed to parse proto from received bytes");
   }
   return absl::OkStatus();

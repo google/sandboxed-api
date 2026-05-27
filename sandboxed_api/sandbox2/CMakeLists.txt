@@ -815,7 +815,8 @@ add_library(sandbox2_comms ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::comms ALIAS sandbox2_comms)
 target_link_libraries(sandbox2_comms
-  PRIVATE absl::status
+  PRIVATE absl::cord
+          absl::status
           absl::statusor
           absl::str_format
           absl::strings
