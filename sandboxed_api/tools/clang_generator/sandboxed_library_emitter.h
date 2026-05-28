@@ -52,6 +52,16 @@ enum class PointerLifetime {
   kSandboxGlobal,
 };
 
+struct ElemSizedBy {
+  std::string expr;
+};
+struct ByteSizedBy {
+  std::string expr;
+};
+struct NullTerminated {};
+using ArraySizedByType =
+    std::variant<std::monostate, ElemSizedBy, ByteSizedBy, NullTerminated>;
+
 class SandboxedLibraryEmitter : public EmitterBase {
  public:
   class Arg;
@@ -94,15 +104,9 @@ class SandboxedLibraryEmitter : public EmitterBase {
     ~Func();
   };
 
-  struct ElemSizedBy {
-    std::string expr;
-  };
-
-  struct NullTerminated {};
-
   struct Annotations {
     std::optional<PointerDir> ptr_dir;
-    std::variant<std::monostate, ElemSizedBy, NullTerminated> size_type;
+    ArraySizedByType size_type;
     std::optional<PointerLifetime> lifetime;
 
     absl::Status SetElemSizedBy(absl::string_view expr) {
@@ -112,6 +116,14 @@ class SandboxedLibraryEmitter : public EmitterBase {
       }
       return absl::InvalidArgumentError(
           "Cannot be sized by multiple types: elem_sized_by and other");
+    }
+    absl::Status SetByteSizedBy(absl::string_view expr) {
+      if (std::holds_alternative<std::monostate>(size_type)) {
+        size_type = ByteSizedBy{std::string(expr)};
+        return absl::OkStatus();
+      }
+      return absl::InvalidArgumentError(
+          "Cannot be sized by multiple types: byte_sized_by and other");
     }
     absl::Status SetNullTerminated() {
       if (std::holds_alternative<std::monostate>(size_type)) {

@@ -61,3 +61,22 @@ cc_sandboxed_library_test(
     lib = ":replacement_library2",
     deps = ["@googletest//:gtest_main"],
 )
+
+cc_sandboxed_library(
+    name = "replacement_library_complex_size",
+    srcs = ["replaced_library_complex_size.cc"],
+    hdrs = [
+        "replaced_library_complex_size.h",
+    ],
+    annotations = ["lwbox_complex_size_sandbox.cc"],
+    deps = [
+        "//sandboxed_api:annotations",
+    ],
+)
+
+cc_sandboxed_library_test(
+    name = "replacement_complex_size_test",
+    srcs = ["replaced_library_complex_size_test.cc"],
+    lib = ":replacement_library_complex_size",
+    deps = ["@googletest//:gtest_main"],
+)

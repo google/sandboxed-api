@@ -79,6 +79,7 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_SANDBOXEE_THUNK",
       "SANDBOX_HOST_THUNK",
       "SANDBOX_ELEM_SIZED_BY",
+      "SANDBOX_BYTE_SIZED_BY",
   };
   // We also remove the full argument to the macro, e.g.
   // SANDBOX_ELEM_SIZED_BY(foo) will be removed entirely.
@@ -513,6 +514,7 @@ class PointeeTypeInfo {
   enum class TypeClass {
     kArithmetic,
     kRecord,
+    kVoid,
     kOther,
   };
 
@@ -536,6 +538,8 @@ class PointeeTypeInfo {
       return TypeClass::kArithmetic;
     } else if (type->getPointeeType()->isRecordType()) {
       return TypeClass::kRecord;
+    } else if (type->getPointeeType()->isVoidType()) {
+      return TypeClass::kVoid;
     } else {
       return TypeClass::kOther;
     }
@@ -551,17 +555,16 @@ class PointeeTypeInfo {
 struct PointerArg : SandboxedLibraryEmitter::Arg {
   PointerArg(absl::string_view name, absl::string_view type,
              PointeeTypeInfo pointee_type, PointerDir ptr_dir,
-             std::optional<std::string> elem_sized_by)
+             ArraySizedByType sized_by_type)
       : Arg(name, type),
         ptr_dir_(ptr_dir),
         pointee_type_(pointee_type),
-        elem_sized_by_(elem_sized_by) {}
+        sized_by_type_(sized_by_type) {}
 
   const PointerDir ptr_dir_;
   const PointeeTypeInfo pointee_type_;
-  // If present, this is an array counted by the another argument
-  // with the specified name.
-  const std::optional<std::string> elem_sized_by_;
+  // If present, this is an array that is sized-by the given type.
+  const ArraySizedByType sized_by_type_;
 
   std::string EmitHostPreCall() const override {
     if (ptr_dir_ == PointerDir::kSandboxOpaque) {
@@ -569,15 +572,28 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
     }
     switch (pointee_type_.type_class()) {
       case PointeeTypeInfo::TypeClass::kArithmetic: {
-        const std::string size_multiplier =
-            elem_sized_by_ ? absl::Substitute(" * $0", *elem_sized_by_) : "";
+        std::string size_expr = std::visit(
+            absl::Overload(
+                [this](std::monostate) {
+                  return absl::Substitute("sizeof(*$0)", name_);
+                },
+                [this](const ElemSizedBy& arg) {
+                  return absl::Substitute("sizeof(*$0) * ($1)", name_,
+                                          arg.expr);
+                },
+                [](const ByteSizedBy& arg) { return arg.expr; },
+                [](const NullTerminated& arg) -> std::string {
+                  LOG(FATAL) << "Not expecting null-terminated PointerArg "
+                                "(should be CStrArg)";
+                }),
+            sized_by_type_);
         // TODO(cffsmith): Make this nicer, maybe just sapi::Int and then
         // perform a manual copy?
         return absl::Substitute(
             "sapi::v::Array<char> "
             "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const char*>($0)), "
-            "sizeof(*$0)$1);\n",
-            name_, size_multiplier);
+            "$1);\n",
+            name_, size_expr);
       }
       case PointeeTypeInfo::TypeClass::kRecord: {
         // For trivially copyable structs, we could just copy the bytes like the
@@ -585,14 +601,43 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
         // However, we would like to extend structs to also support
         // non-trivially copyable structs. That will involve recursive
         // allocation, copying, and freeing. Specializing a bit here as a start.
-        if (elem_sized_by_) {
-          return absl::Substitute("sapi::v::Array<$0> sapi_tmp_$1($1, $2);\n",
-                                  pointee_type_.pointee_type_name(), name_,
-                                  *elem_sized_by_);
+        return std::visit(
+            absl::Overload(
+                [this](std::monostate) {
+                  return absl::Substitute(
+                      "sapi::v::Struct<$0> sapi_tmp_$1(*$1);\n",
+                      pointee_type_.unqualified_pointee_type_name(), name_);
+                },
+                [this](const ElemSizedBy& arg) {
+                  return absl::Substitute(
+                      "sapi::v::Array<$0> sapi_tmp_$1($1, $2);\n",
+                      pointee_type_.pointee_type_name(), name_, arg.expr);
+                },
+                [this](const ByteSizedBy& arg) {
+                  return absl::Substitute(
+                      "sapi::v::Array<char> "
+                      "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const "
+                      "char*>($0)), $1);\n",
+                      name_, arg.expr);
+                },
+                [](const NullTerminated& arg) -> std::string {
+                  LOG(FATAL) << "Not expecting null-terminated PointerArg "
+                                "(should be CStrArg)";
+                }),
+            sized_by_type_);
+      }
+      case PointeeTypeInfo::TypeClass::kVoid: {
+        if (std::holds_alternative<ByteSizedBy>(sized_by_type_)) {
+          return absl::Substitute(
+              "sapi::v::Array<char> "
+              "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const "
+              "char*>($0)), $1);\n",
+              name_, std::get<ByteSizedBy>(sized_by_type_).expr);
         }
-        return absl::Substitute("sapi::v::Struct<$0> sapi_tmp_$1(*$1);\n",
-                                pointee_type_.unqualified_pointee_type_name(),
-                                name_);
+        if (std::holds_alternative<ElemSizedBy>(sized_by_type_))
+          LOG(FATAL) << "Cannot determine elem-size for void*. Did you mean "
+                        "to use SANDBOX_BYTE_SIZED_BY?";
+        LOG(FATAL) << "Unsupported size type for void*";
       }
       case PointeeTypeInfo::TypeClass::kOther: {
         if (ptr_dir_ == PointerDir::kHostOpaque) {
@@ -613,7 +658,7 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
     // However, in the separate temp sapi::v::Struct case it synchronizes to
     // that temp var and we need to manually copy back to $0.
     if (pointee_type_.type_class() == PointeeTypeInfo::TypeClass::kRecord &&
-        !elem_sized_by_) {
+        std::holds_alternative<std::monostate>(sized_by_type_)) {
       return absl::Substitute("*$0 = sapi_tmp_$0.data();\n", name_);
     }
     return "";
@@ -1375,6 +1420,10 @@ bool IsSupportedOutParamNullTerminatedType(clang::QualType type) {
          type->getPointeeType()->getPointeeType().isConstQualified();
 }
 
+bool IsSupportedArgByteSizedByType(clang::QualType type) {
+  return type->isPointerType() && type->getPointeeType()->isVoidType();
+}
+
 absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
 SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                                      absl::string_view name,
@@ -1406,18 +1455,20 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
     // Check whether this pointer even needs syncing or is an opaque handle.
     if (annotations.ptr_dir == PointerDir::kSandboxOpaque ||
         annotations.ptr_dir == PointerDir::kHostOpaque) {
-      // Shouldn't be elem_sized_by or null_terminated.
+      // Shouldn't be sized by in any way.
       if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 is opaque and should not be sized (kind $1)",
             name, annotations.size_type.index()));
       }
-      return std::make_unique<PointerArg>(name, type_name,
-                                          PointeeTypeInfo(type),
-                                          *annotations.ptr_dir, std::nullopt);
+      return std::make_unique<PointerArg>(
+          name, type_name, PointeeTypeInfo(type), *annotations.ptr_dir,
+          std::monostate{});
     }
     if (is_param) {
       if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType()) &&
+          !(std::holds_alternative<ByteSizedBy>(annotations.size_type) &&
+            IsSupportedArgByteSizedByType(type)) &&
           !(std::holds_alternative<NullTerminated>(annotations.size_type) &&
             annotations.lifetime == PointerLifetime::kSandboxGlobal &&
             IsSupportedOutParamNullTerminatedType(type))) {
@@ -1445,13 +1496,19 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(name, type_name,
                                                   PointeeTypeInfo(type),
-                                                  *ptr_dir, std::nullopt);
+                                                  *ptr_dir, std::monostate{});
             },
             [&](const ElemSizedBy& elem_sized_by)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(name, type_name,
                                                   PointeeTypeInfo(type),
-                                                  *ptr_dir, elem_sized_by.expr);
+                                                  *ptr_dir, elem_sized_by);
+            },
+            [&](const ByteSizedBy& byte_sized_by)
+                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+              return std::make_unique<PointerArg>(name, type_name,
+                                                  PointeeTypeInfo(type),
+                                                  *ptr_dir, byte_sized_by);
             },
             [&](const NullTerminated&)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
@@ -1562,6 +1619,12 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       num_args = 2;
       if (!ann.args.empty()) {
         absl::Status status = annotations.SetElemSizedBy(ann.args[0]);
+        SAPI_RETURN_IF_ERROR(status);
+      }
+    } else if (ann.name == "byte_sized_by") {
+      num_args = 2;
+      if (!ann.args.empty()) {
+        absl::Status status = annotations.SetByteSizedBy(ann.args[0]);
         SAPI_RETURN_IF_ERROR(status);
       }
     } else if (ann.name == "null_terminated") {

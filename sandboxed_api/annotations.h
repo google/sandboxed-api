@@ -62,8 +62,16 @@
 #define SANDBOX_HOST_OPAQUE_PTR \
   [[clang::annotate("sandbox", "host_opaque_ptr")]]
 
-// Pointer argument annotations that denote the pointee data is an array
-// with the size specified by the given argument.
+// Pointer argument annotation that denotes that the pointee data is an array
+// with size `elem_size_arg` elements of the pointee type.
+// The expression for `elem_size_arg` can be:
+// - a constant
+// - a reference to another parameter by name
+// - simple, side-effect-free arithmetic expressions.
+//   NOTE: at the moment, the user is responsible for making sure there is
+//   no overflow in such calculations.
+// This is similar to "__counted_by" in Clang's proposed `-fbounds-safety`
+// annotations.
 //
 // For example:
 //   void my_memcpy(char* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(n),
@@ -72,7 +80,19 @@
 #define SANDBOX_ELEM_SIZED_BY(elem_size_arg) \
   [[clang::annotate("sandbox", "elem_sized_by", #elem_size_arg)]]
 
-// Pointer argument annotations that denote the pointee data is a
+// Pointer argument annotation that denotes that the pointee data is an array
+// with the size `byte_size_arg` bytes (not number of elements).
+// Similar to "__sized_by" in Clang's proposed `-fbounds-safety` annotations.
+// The allowed expressions for `byte_size_arg` are the same as for
+// SANDBOX_ELEM_SIZED_BY.
+//
+// For example:
+//   void my_memset(void* dst SANDBOX_OUT_PTR SANDBOX_BYTE_SIZED_BY(n),
+//                  int c, size_t n);
+#define SANDBOX_BYTE_SIZED_BY(byte_size_arg) \
+  [[clang::annotate("sandbox", "byte_sized_by", #byte_size_arg)]]
+
+// Pointer argument annotation that denotes that the pointee data is a
 // null-terminated C string.
 // - `const char*` parameters are supported
 // - `const char*` return values are also supported, but need a lifetime
