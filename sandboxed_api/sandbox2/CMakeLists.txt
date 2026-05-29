@@ -981,6 +981,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::fixed_array
     absl::log
     absl::strings
+    benchmark
     sandbox2::comms
     sandbox2::comms_test_proto
     sapi::testing

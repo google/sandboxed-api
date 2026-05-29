@@ -15,8 +15,10 @@
 // A proto for comms_test
 
 syntax = "proto3";
+
 package sandbox2;
 
 message CommsTestMsg {
   repeated string value = 1;
-};
+  bytes payload = 2 [ctype = CORD];
+}

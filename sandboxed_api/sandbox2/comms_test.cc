@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -28,6 +29,7 @@
 #include <string>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/attributes.h"
@@ -608,6 +610,57 @@ TEST(CommsTest, RecvProtoBufFailsOnTagMismatch) {
   };
   HandleCommunication(a, b);
 }
+
+// Benchmarks RecvProtoBuf across a range of payload sizes. A sender thread
+// continuously transmits the proto so the loop measures RecvTLV + parsing.
+//
+// NOTE: this is a coupled producer/consumer benchmark. At small/medium payload
+// sizes, a faster receiver can cause wall-time regressions when it starts
+// blocking on the sender. Prefer instruction/cycle/allocation counts as
+// reliable signals.
+void BM_RecvProtoBuf(benchmark::State& state) {
+  const int payload_size = state.range(0);
+
+  int sv[2];
+  CHECK_NE(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), -1);
+
+  // `payload` uses `[ctype = CORD]` to exercise the Cord-based parse path.
+  CommsTestMsg msg;
+  msg.set_payload(std::string(payload_size, 'x'));
+
+  std::atomic<bool> stop(false);
+  sapi::Thread sender([&]() {
+    Comms sender_comms(sv[1]);
+    while (!stop.load(std::memory_order_relaxed)) {
+      if (!sender_comms.SendProtoBuf(msg)) {
+        break;
+      }
+    }
+  });
+
+  Comms receiver(sv[0]);
+  CommsTestMsg recv_msg;
+  for (auto s : state) {
+    CHECK(receiver.RecvProtoBuf(&recv_msg));
+    benchmark::DoNotOptimize(recv_msg);
+  }
+
+  // Signal the sender to stop and drain any in-flight message so it can exit.
+  stop.store(true, std::memory_order_relaxed);
+  receiver.Terminate();
+  sender.Join();
+
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                          payload_size);
+  state.SetItemsProcessed(state.iterations());
+}
+BENCHMARK(BM_RecvProtoBuf)
+    ->RangeMultiplier(8)
+    ->Range(1 << 6, 128 << 20)
+    ->Arg(1024)
+    ->Arg(2048)
+    ->Arg(3072)
+    ->UseRealTime();
 
 TEST(ListeningCommsTest, AbstractSocket) {
   static constexpr absl::string_view kSocketName = "s2_test_comms";
