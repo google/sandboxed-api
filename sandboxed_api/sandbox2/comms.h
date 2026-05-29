@@ -16,9 +16,8 @@
 // data between processes. It uses the TLV encoding and provides some useful
 // helpers.
 //
-// The endianess is platform-specific, but as it can be used over abstract
-// sockets only, that's not a problem. Is some poor soul decides to rewrite it
-// to work over AF_INET(6), the endianess will have to be dealt with (somehow).
+// The endianness is platform-specific, but as it can be used over abstract
+// sockets only, that's not a problem.
 
 #ifndef SANDBOXED_API_SANDBOX2_COMMS_H_
 #define SANDBOXED_API_SANDBOX2_COMMS_H_
