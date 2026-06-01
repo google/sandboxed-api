@@ -25,10 +25,12 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
@@ -52,11 +54,21 @@ enum class PointerLifetime {
   kSandboxGlobal,
 };
 
+// Metadata for sized-by annotations for pointers to arrays.
+
+// If a host-owned array is sized by an outparam, the size will be controlled
+// by the sandbox. We will need to know the maximum size that the host allocated
+// for the outparam to perform bounds-checking.
+struct SizedByOutparamData {
+  std::string capacity_expr;
+};
 struct ElemSizedBy {
   std::string expr;
+  std::optional<SizedByOutparamData> sized_by_outparam_data;
 };
 struct ByteSizedBy {
   std::string expr;
+  std::optional<SizedByOutparamData> sized_by_outparam_data;
 };
 struct NullTerminated {};
 using ArraySizedByType =
@@ -109,29 +121,42 @@ class SandboxedLibraryEmitter : public EmitterBase {
     ArraySizedByType size_type;
     std::optional<PointerLifetime> lifetime;
 
-    absl::Status SetElemSizedBy(absl::string_view expr) {
+    absl::Status CheckSizeNotSet(absl::string_view annotation_name) const {
       if (std::holds_alternative<std::monostate>(size_type)) {
-        size_type = ElemSizedBy{std::string(expr)};
         return absl::OkStatus();
       }
       return absl::InvalidArgumentError(
-          "Cannot be sized by multiple types: elem_sized_by and other");
+          absl::StrCat("Cannot be sized by multiple types: ", annotation_name,
+                       " and other"));
+    }
+    absl::Status SetElemSizedBy(absl::string_view expr) {
+      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by"));
+      size_type = ElemSizedBy{std::string(expr)};
+      return absl::OkStatus();
+    }
+    absl::Status SetElemSizedByOutparam(absl::string_view size_expr,
+                                        absl::string_view capacity_expr) {
+      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by_outparam"));
+      size_type = ElemSizedBy{std::string(size_expr),
+                              SizedByOutparamData{std::string(capacity_expr)}};
+      return absl::OkStatus();
     }
     absl::Status SetByteSizedBy(absl::string_view expr) {
-      if (std::holds_alternative<std::monostate>(size_type)) {
-        size_type = ByteSizedBy{std::string(expr)};
-        return absl::OkStatus();
-      }
-      return absl::InvalidArgumentError(
-          "Cannot be sized by multiple types: byte_sized_by and other");
+      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by"));
+      size_type = ByteSizedBy{std::string(expr)};
+      return absl::OkStatus();
+    }
+    absl::Status SetByteSizedByOutparam(absl::string_view size_expr,
+                                        absl::string_view capacity_expr) {
+      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by_outparam"));
+      size_type = ByteSizedBy{std::string(size_expr),
+                              SizedByOutparamData{std::string(capacity_expr)}};
+      return absl::OkStatus();
     }
     absl::Status SetNullTerminated() {
-      if (std::holds_alternative<std::monostate>(size_type)) {
-        size_type = NullTerminated{};
-        return absl::OkStatus();
-      }
-      return absl::InvalidArgumentError(
-          "Cannot be sized by multiple types: null_terminated and other");
+      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("null_terminated"));
+      size_type = NullTerminated{};
+      return absl::OkStatus();
     }
   };
 

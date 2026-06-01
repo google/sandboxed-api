@@ -78,5 +78,8 @@ cc_sandboxed_library_test(
     name = "replacement_complex_size_test",
     srcs = ["replaced_library_complex_size_test.cc"],
     lib = ":replacement_library_complex_size",
-    deps = ["@googletest//:gtest_main"],
+    deps = [
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest_main",
+    ],
 )

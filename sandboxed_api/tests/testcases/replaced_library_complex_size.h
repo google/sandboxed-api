@@ -28,4 +28,26 @@ void mylib_copy_image(const char* src, char* dst, size_t width, size_t height);
 // Byte size fill (ignore the type of the pointer)
 void mylib_fill_bytes(void* dst, char fill_value, size_t bytes);
 
+// Tests an size argument that is an input pointer (instead of a scalar)
+void mylib_copy_with_inptr_len(int* dst, const int* src, const size_t* len);
+
+// Tests an output pointer for the size. Copies some data to dst (trusting that
+// there is sufficient capacity), and sets number of amount copied to `*len`.
+void mylib_set_with_outptr_len(int buf_num, int* dst, size_t* len);
+
+// A copy of `mylib_set_with_outptr_len` that is more friendly to sandboxing.
+// It makes explicit the capacity of the dst buffer as another parameter.
+void mylib_set_with_outptr_len_capacity(int buf_num, int* dst, size_t capacity,
+                                        size_t* len);
+
+// Similar to `mylib_set_with_outptr_len_capacity`, with byte sizes.
+void mylib_set_with_outptr_bytes_capacity(int buf_num, void* dst,
+                                          size_t capacity, size_t* num_bytes);
+
+// Tests an input/output pointer for the size. Updates the data in `src_dst`,
+// based on the incoming data in `src_dst`. The `src_dst` has capacity
+// `capacity` in bytes and starts with `*len` bytes already filled. After the
+// call, there will be `*len` bytes filled.
+void mylib_set_with_inoutptr_len(int* src_dst, size_t capacity, size_t* len);
+
 #endif  // SANDBOXED_API_SANDBOX2_TESTCASES_REPLACED_LIBRARY_COMPLEX_SIZE_H_

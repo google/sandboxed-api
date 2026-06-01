@@ -28,6 +28,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -76,10 +77,9 @@ std::string StripAnnotations(const std::string& input) {
   }
 
   static const auto* macros_args = new std::vector<std::string>{
-      "SANDBOX_SANDBOXEE_THUNK",
-      "SANDBOX_HOST_THUNK",
-      "SANDBOX_ELEM_SIZED_BY",
-      "SANDBOX_BYTE_SIZED_BY",
+      "SANDBOX_SANDBOXEE_THUNK",        "SANDBOX_HOST_THUNK",
+      "SANDBOX_ELEM_SIZED_BY",          "SANDBOX_BYTE_SIZED_BY",
+      "SANDBOX_ELEM_SIZED_BY_OUTPARAM", "SANDBOX_BYTE_SIZED_BY_OUTPARAM",
   };
   // We also remove the full argument to the macro, e.g.
   // SANDBOX_ELEM_SIZED_BY(foo) will be removed entirely.
@@ -125,6 +125,9 @@ constexpr absl::string_view kHostHeader = R"(
 #include <memory>
 
 #include "$0absl/log/check.h"
+#include "$0absl/status/status.h"
+#include "$0absl/strings/str_cat.h"
+#include "$0absl/types/span.h"
 #include "$0sandboxed_api/vars.h"
 #include "$0sandboxed_api/sandbox.h"
 
@@ -144,6 +147,19 @@ struct $1SandboxImpl : public $1Sandbox {
 
   void Check(const absl::Status& status) {
     CHECK_OK(status) << "SAPI sandbox $1 failed";
+  }
+
+  size_t CheckedMultiply(size_t x, size_t y) {
+#if __has_builtin(__builtin_mul_overflow)
+    size_t result;
+    CHECK(!__builtin_mul_overflow(x, y, &result));
+    return result;
+#else
+    size_t result = x * y;
+    if (y != 0)
+      CHECK_EQ(result / y, x);
+    return result;
+#endif
   }
 
   static sapi::SandboxConfig CreateSandboxConfig() {
@@ -169,6 +185,8 @@ class SandboxedLibraryEmitter::Arg {
  public:
   Arg(absl::string_view name, absl::string_view type)
       : name_(name), type_(type) {}
+
+  absl::string_view GetName() const { return name_; }
 
   const std::string& EmitRetType() const { return type_; }
   std::string EmitHostParams() const {
@@ -203,6 +221,11 @@ class SandboxedLibraryEmitter::Arg {
     LOG(FATAL) << "not implemented for " << name_ << " " << type_;
   }
   virtual ~Arg() = default;
+
+  // Search through and link any related arguments to this one, if needed.
+  virtual absl::Status LinkArgsIfNeeded(const std::vector<ArgPtr>& args) {
+    return absl::OkStatus();
+  }
 
  protected:
   const std::string name_;
@@ -565,35 +588,41 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
   const PointeeTypeInfo pointee_type_;
   // If present, this is an array that is sized-by the given type.
   const ArraySizedByType sized_by_type_;
+  // If true, the `sized_by_type_` requires dereferencing another output (or
+  // in-out) pointer parameter.
+  bool is_size_based_on_deref_out_param_ = false;
+
+  bool IsSizeBasedOnDerefOutParam() const {
+    return is_size_based_on_deref_out_param_;
+  }
+
+  // Returns code / an expression that evaluates to the capacity of the pointee
+  // in bytes.
+  std::string GetCapacityAsBytesExpr() const;
+
+  // Returns code / an expression that evaluates to the size/length of
+  // the data in the pointee in bytes. (should be <= capacity).
+  std::string GetSizeAsBytesExpr() const;
+
+  absl::Status LinkArgsIfNeeded(
+      const std::vector<std::unique_ptr<Arg>>& args) override;
 
   std::string EmitHostPreCall() const override {
     if (ptr_dir_ == PointerDir::kSandboxOpaque) {
       return absl::Substitute("sapi::v::RemotePtr sapi_tmp_$0($0);\n", name_);
     }
+    std::string code;
     switch (pointee_type_.type_class()) {
       case PointeeTypeInfo::TypeClass::kArithmetic: {
-        std::string size_expr = std::visit(
-            absl::Overload(
-                [this](std::monostate) {
-                  return absl::Substitute("sizeof(*$0)", name_);
-                },
-                [this](const ElemSizedBy& arg) {
-                  return absl::Substitute("sizeof(*$0) * ($1)", name_,
-                                          arg.expr);
-                },
-                [](const ByteSizedBy& arg) { return arg.expr; },
-                [](const NullTerminated& arg) -> std::string {
-                  LOG(FATAL) << "Not expecting null-terminated PointerArg "
-                                "(should be CStrArg)";
-                }),
-            sized_by_type_);
+        std::string capacity_expr = GetCapacityAsBytesExpr();
         // TODO(cffsmith): Make this nicer, maybe just sapi::Int and then
         // perform a manual copy?
-        return absl::Substitute(
+        code = absl::Substitute(
             "sapi::v::Array<char> "
             "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const char*>($0)), "
             "$1);\n",
-            name_, size_expr);
+            name_, capacity_expr);
+        break;
       }
       case PointeeTypeInfo::TypeClass::kRecord: {
         // For trivially copyable structs, we could just copy the bytes like the
@@ -601,7 +630,7 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
         // However, we would like to extend structs to also support
         // non-trivially copyable structs. That will involve recursive
         // allocation, copying, and freeing. Specializing a bit here as a start.
-        return std::visit(
+        code = std::visit(
             absl::Overload(
                 [this](std::monostate) {
                   return absl::Substitute(
@@ -609,30 +638,49 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
                       pointee_type_.unqualified_pointee_type_name(), name_);
                 },
                 [this](const ElemSizedBy& arg) {
+                  std::string num_elems;
+                  if (arg.sized_by_outparam_data.has_value()) {
+                    num_elems = absl::Substitute(
+                        "($0) / sizeof(*$1)",
+                        arg.sized_by_outparam_data->capacity_expr, name_);
+                  } else {
+                    num_elems = arg.expr;
+                  }
                   return absl::Substitute(
                       "sapi::v::Array<$0> sapi_tmp_$1($1, $2);\n",
-                      pointee_type_.pointee_type_name(), name_, arg.expr);
+                      pointee_type_.pointee_type_name(), name_, num_elems);
                 },
                 [this](const ByteSizedBy& arg) {
+                  std::string bytes_size =
+                      arg.sized_by_outparam_data.has_value()
+                          ? arg.sized_by_outparam_data->capacity_expr
+                          : arg.expr;
                   return absl::Substitute(
                       "sapi::v::Array<char> "
                       "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const "
                       "char*>($0)), $1);\n",
-                      name_, arg.expr);
+                      name_, bytes_size);
                 },
                 [](const NullTerminated& arg) -> std::string {
                   LOG(FATAL) << "Not expecting null-terminated PointerArg "
                                 "(should be CStrArg)";
                 }),
             sized_by_type_);
+        break;
       }
       case PointeeTypeInfo::TypeClass::kVoid: {
         if (std::holds_alternative<ByteSizedBy>(sized_by_type_)) {
-          return absl::Substitute(
+          const auto& arg = std::get<ByteSizedBy>(sized_by_type_);
+          std::string capacity_expr =
+              arg.sized_by_outparam_data.has_value()
+                  ? arg.sized_by_outparam_data->capacity_expr
+                  : arg.expr;
+          code = absl::Substitute(
               "sapi::v::Array<char> "
               "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const "
               "char*>($0)), $1);\n",
-              name_, std::get<ByteSizedBy>(sized_by_type_).expr);
+              name_, capacity_expr);
+          break;
         }
         if (std::holds_alternative<ElemSizedBy>(sized_by_type_))
           LOG(FATAL) << "Cannot determine elem-size for void*. Did you mean "
@@ -648,19 +696,77 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
         return "";  // NOT REACHED
       }
     }
+
+    // If this pointer has a size based on dereferencing an output pointer,
+    // then we'll later need to manually CopyFromSandbox post call.
+    // That means, we won't use PtrAfter and we will use PtrNone.
+    // PtrAfter helps allocate the space for a sandbox copy, but we aren't using
+    // that, so we'll need to manually allocate:
+    if (IsSizeBasedOnDerefOutParam()) {
+      absl::StrAppend(
+          &code,
+          absl::Substitute("if ($0 != nullptr) {\n"
+                           "  sandbox->Check(sandbox->Allocate(&sapi_tmp_$0, "
+                           "      /*automatic_free=*/true));\n"
+                           "}\n",
+                           name_));
+      if (ptr_dir_ == PointerDir::kInOut) {
+        // Additionally, for in-out pointers, we'll need to copy in the initial
+        // data (up to size). We allocated up to capacity, to ensure there
+        // is enough space for the output later.
+        std::string init_size_expr = GetSizeAsBytesExpr();
+        absl::StrAppend(
+            &code,
+            absl::Substitute(
+                "if ($0 != nullptr) {\n"
+                "  sandbox->Check(sandbox->rpc_channel()->CopyToSandbox(\n"
+                "      "
+                "reinterpret_cast<uintptr_t>(sapi_tmp_$0.GetRemote()),\n"
+                "      absl::MakeSpan(reinterpret_cast<const char*>($0), "
+                "$1)).status());\n"
+                "}\n",
+                name_, init_size_expr));
+      }
+    }
+    return code;
   }
 
   std::string EmitHostPostCall() const override {
     if (ptr_dir_ != PointerDir::kOut && ptr_dir_ != PointerDir::kInOut) {
       return "";
     }
-    // In the non-Array case, the synchronization writes to $0 directly.
-    // However, in the separate temp sapi::v::Struct case it synchronizes to
-    // that temp var and we need to manually copy back to $0.
+    // In the Array case, the PtrAfter or PtrBoth synchronization writes to $0
+    // directly. However, in the non-Array case, we use a separate temp
+    // sapi::v::Struct. The PtrAfter/PtrBoth only synchronizes to that temp
+    // Struct, and we need to manually copy back from there to $0.
     if (pointee_type_.type_class() == PointeeTypeInfo::TypeClass::kRecord &&
         std::holds_alternative<std::monostate>(sized_by_type_)) {
       return absl::Substitute("*$0 = sapi_tmp_$0.data();\n", name_);
     }
+    // If this an Array case where the size is based on dereferencing an
+    // outparam, we'll need to manually copy. By this point, the outparam
+    // should have the post-call value copied back to the host, so we can use
+    // that value for the amount to copy.
+    if (IsSizeBasedOnDerefOutParam()) {
+      std::string size_expr = GetSizeAsBytesExpr();
+      std::string cap_expr = GetCapacityAsBytesExpr();
+      return absl::Substitute(
+          "if ($0 != nullptr) {\n"
+          "  size_t final_size = $1;\n"
+          "  size_t cap_size = $2;\n"
+          "  if (final_size > cap_size) {\n"
+          "    sandbox->Check(absl::OutOfRangeError(absl::StrCat(\"Sandboxee "
+          "returned size (\", final_size, \") exceeding capacity (\", "
+          "cap_size, \") for param $0\")));\n"
+          "  }\n"
+          "  sandbox->Check(sandbox->rpc_channel()->CopyFromSandbox(\n"
+          "      reinterpret_cast<uintptr_t>(sapi_tmp_$0.GetRemote()),\n"
+          "      absl::MakeSpan(reinterpret_cast<char*>($0), "
+          "final_size)).status());\n"
+          "}\n",
+          name_, size_expr, cap_expr);
+    }
+
     return "";
   }
 
@@ -669,8 +775,17 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
       case PointerDir::kIn:
         return absl::Substitute("sapi_tmp_$0.PtrBefore()", name_);
       case PointerDir::kOut:
+        if (IsSizeBasedOnDerefOutParam()) {
+          // We manually copy in EmitHostPostCall, so don't use PtrAfter().
+          return absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
+        }
         return absl::Substitute("sapi_tmp_$0.PtrAfter()", name_);
       case PointerDir::kInOut:
+        if (IsSizeBasedOnDerefOutParam()) {
+          // We manually allocated and copied in EmitHostPreCall, and we'll
+          // manually copy in EmitHostPostCall.
+          return absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
+        }
         return absl::Substitute("sapi_tmp_$0.PtrBoth()", name_);
       case PointerDir::kSandboxOpaque:
         // Don't do anything here, we just transparently pass this through
@@ -723,6 +838,126 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
     return "return sapi_ret_arg.GetValue();";
   }
 };
+
+std::string PointerArg::GetCapacityAsBytesExpr() const {
+  return std::visit(
+      absl::Overload(
+          [this](std::monostate) {
+            return absl::Substitute("sizeof(*$0)", name_);
+          },
+          [this](const ElemSizedBy& arg) {
+            if (arg.sized_by_outparam_data.has_value()) {
+              // Capacity is always in bytes.
+              return arg.sized_by_outparam_data->capacity_expr;
+            }
+            return absl::Substitute(
+                "sandbox->CheckedMultiply(sizeof(*$0), ($1))", name_, arg.expr);
+          },
+          [](const ByteSizedBy& arg) {
+            return arg.sized_by_outparam_data.has_value()
+                       ? arg.sized_by_outparam_data->capacity_expr
+                       : arg.expr;
+          },
+          [](const NullTerminated& arg) -> std::string {
+            LOG(FATAL) << "Not expecting null-terminated PointerArg "
+                          "(should be CStrArg)";
+          }),
+      sized_by_type_);
+}
+
+std::string PointerArg::GetSizeAsBytesExpr() const {
+  return std::visit(
+      absl::Overload(
+          [this](std::monostate) {
+            return absl::Substitute("sizeof(*$0)", name_);
+          },
+          [this](const ElemSizedBy& arg) {
+            return absl::Substitute(
+                "sandbox->CheckedMultiply(sizeof(*$0), ($1))", name_, arg.expr);
+          },
+          [](const ByteSizedBy& arg) { return arg.expr; },
+          [](const NullTerminated& arg) -> std::string {
+            LOG(FATAL) << "Not expecting null-terminated PointerArg "
+                          "(should be CStrArg)";
+          }),
+      sized_by_type_);
+}
+
+absl::Status PointerArg::LinkArgsIfNeeded(
+    const std::vector<std::unique_ptr<Arg>>& args) {
+  bool must_be_sized_by_outparam = std::visit(
+      absl::Overload([](std::monostate) { return false; },
+                     [](const ElemSizedBy& arg) {
+                       return arg.sized_by_outparam_data.has_value();
+                     },
+                     [](const ByteSizedBy& arg) {
+                       return arg.sized_by_outparam_data.has_value();
+                     },
+                     [](const NullTerminated& arg) { return false; }),
+      sized_by_type_);
+
+  std::string size_expr = std::visit(
+      absl::Overload([](std::monostate) { return std::string(); },
+                     [](const ElemSizedBy& arg) { return arg.expr; },
+                     [](const ByteSizedBy& arg) { return arg.expr; },
+                     [](const NullTerminated& arg) { return std::string(); }),
+      sized_by_type_);
+
+  // Check if size_expr is roughly just "*param". We strip surrounding spaces
+  // and parentheses, to cover some simple equivalent cases.
+  auto StripSpacesAndParens = [](std::string& s) {
+    absl::RemoveExtraAsciiWhitespace(&s);
+    while (!s.empty() && s.front() == '(' && s.back() == ')') {
+      s = s.substr(1, s.size() - 2);
+      absl::RemoveExtraAsciiWhitespace(&s);
+    }
+  };
+  StripSpacesAndParens(size_expr);
+  std::string param_name = size_expr;
+  if (!param_name.empty() && param_name.front() == '*') {
+    param_name = param_name.substr(1);
+    StripSpacesAndParens(param_name);
+  } else {
+    // Not just `*param`.
+    // - this could be simple cases like "param" or "width * height", in which
+    // case we proceed as a non-outparam based size.
+    // - TODO(jvoung): reject more complex outparam-based expressions like
+    // `**param` or `param->next`.
+    return absl::OkStatus();
+  }
+
+  // Now, try to find a match for param_name in the args.
+  for (const auto& arg : args) {
+    if (arg->GetName() != param_name) {
+      continue;
+    }
+    // Found a match!
+    // Do a few sanity checks, and check if param is actually an outparam.
+    const PointerArg* derefed_param =
+        dynamic_cast<const PointerArg*>(arg.get());
+    if (!derefed_param) {
+      return absl::InternalError(absl::Substitute(
+          "Param $0 used in a sized_by expression ($1) is not a pointer.",
+          param_name, size_expr));
+    }
+    is_size_based_on_deref_out_param_ =
+        (derefed_param->ptr_dir_ == PointerDir::kOut ||
+         derefed_param->ptr_dir_ == PointerDir::kInOut);
+    if (must_be_sized_by_outparam && !is_size_based_on_deref_out_param_) {
+      return absl::InternalError(
+          absl::Substitute("Param $0 used in a sized_by expression ($1) must "
+                           "have OUT or INOUT direction.",
+                           param_name, size_expr));
+    }
+    break;
+  }
+  if (must_be_sized_by_outparam && !is_size_based_on_deref_out_param_) {
+    return absl::InternalError(absl::Substitute(
+        "Param $0 used in a sized_by expression ($1) not found in args.",
+        param_name, size_expr));
+  }
+  return absl::OkStatus();
+}
 
 void SandboxedLibraryEmitter::EmitLibraryHeaders(
     const GeneratorOptions& options, std::string& out) const {
@@ -1229,6 +1464,10 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     args.push_back(std::move(arg));
   }
 
+  for (const auto& arg : args) {
+    SAPI_RETURN_IF_ERROR(arg->LinkArgsIfNeeded(args));
+  }
+
   std::string name =
       clang::ASTNameGenerator(decl->getASTContext()).getName(decl);
   funcs_[name] =
@@ -1625,6 +1864,20 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       num_args = 2;
       if (!ann.args.empty()) {
         absl::Status status = annotations.SetByteSizedBy(ann.args[0]);
+        SAPI_RETURN_IF_ERROR(status);
+      }
+    } else if (ann.name == "elem_sized_by_outparam") {
+      num_args = 3;
+      if (!ann.args.empty()) {
+        absl::Status status =
+            annotations.SetElemSizedByOutparam(ann.args[0], ann.args[1]);
+        SAPI_RETURN_IF_ERROR(status);
+      }
+    } else if (ann.name == "byte_sized_by_outparam") {
+      num_args = 3;
+      if (!ann.args.empty()) {
+        absl::Status status =
+            annotations.SetByteSizedByOutparam(ann.args[0], ann.args[1]);
         SAPI_RETURN_IF_ERROR(status);
       }
     } else if (ann.name == "null_terminated") {

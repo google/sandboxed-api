@@ -437,6 +437,8 @@ def sapi_library(
                 "@abseil-cpp//absl/base:core_headers",
                 "@abseil-cpp//absl/status",
                 "@abseil-cpp//absl/status:statusor",
+                "@abseil-cpp//absl/strings",
+                "@abseil-cpp//absl/types:span",
                 "//sandboxed_api:sapi",
                 "//sandboxed_api/util:status",
                 "//sandboxed_api:vars",

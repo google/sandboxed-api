@@ -92,6 +92,35 @@
 #define SANDBOX_BYTE_SIZED_BY(byte_size_arg) \
   [[clang::annotate("sandbox", "byte_sized_by", #byte_size_arg)]]
 
+// Pointer argument annotation that denotes that the pointee data is an array
+// with size determined by an outparam (SANDBOX_OUT_PTR or SANDBOX_INOUT_PTR).
+// The array:
+// - is caller/host-owned, like `char*`. It is not an outparam like `char**`.
+// - `capacity_expr` describes the capacity, in bytes, of the host-owned array.
+// - `size_outparam` describes the number of elements. It should be a simple
+//   expression including the "*", e.g., `*len` where `len` is the name of the
+//   outparam. We currently only support a single outparam, not multiple.
+//
+// Importantly, the sandbox controls the size!
+// To validate, we ask the caller to provide the capacity.
+//
+// For example:
+//   int compress(
+//       const char *src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(src_len),
+//       size_t src_len,
+//       char* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*len, cap),
+//       size_t* len SANDBOX_OUT_PTR,
+//       size_t cap);
+#define SANDBOX_ELEM_SIZED_BY_OUTPARAM(size_outparam, capacity_expr)     \
+  [[clang::annotate("sandbox", "elem_sized_by_outparam", #size_outparam, \
+                    #capacity_expr)]]
+
+// A pointer argument annotation like SANDBOX_ELEM_SIZED_BY_OUTPARAM, but for
+// byte sizes (similar to SANDBOX_BYTE_SIZED_BY).
+#define SANDBOX_BYTE_SIZED_BY_OUTPARAM(size_outparam, capacity_expr)     \
+  [[clang::annotate("sandbox", "byte_sized_by_outparam", #size_outparam, \
+                    #capacity_expr)]]
+
 // Pointer argument annotation that denotes that the pointee data is a
 // null-terminated C string.
 // - `const char*` parameters are supported
