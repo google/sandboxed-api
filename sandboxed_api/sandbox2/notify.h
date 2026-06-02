@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include <cerrno>
 #include <cstdint>
 
 #include "absl/base/attributes.h"
@@ -70,15 +71,42 @@ class Notify {
   virtual bool EventSyscallTrap(const Syscall& syscall) { return false; }
 
   // Actions to perform after calling EventSyscallTrace.
-  enum class TraceAction {
-    // Deny the syscall.
-    kDeny,
-    // Allow the syscall.
-    kAllow,
-    // Allow the syscall so its return value can be inspected through a
-    // subsequent call to EventSyscallReturn.
-    // Requires Linux kernel 4.8 or later.
-    kInspectAfterReturn
+  class TraceAction {
+   public:
+    enum Value {
+      // Deny the syscall.
+      kDeny,
+      // Allow the syscall.
+      kAllow,
+      // Allow the syscall so its return value can be inspected through a
+      // subsequent call to EventSyscallReturn.
+      // Requires Linux kernel 4.8 or later.
+      kInspectAfterReturn,
+      // Emulate the syscall by blocking it and returning a generic errno to the
+      // sandboxee.
+      kRespondWithErrno
+    };
+
+    // Implicit constructor for backward compatibility
+    TraceAction(Value value) : value_(value), errno_(0) {}
+
+    // Rich constructor
+    TraceAction(Value value, int err) : value_(value), errno_(err) {}
+
+    // Factory helper for clean creation syntax
+    static TraceAction RespondWithErrno(int err) {
+      return TraceAction(kRespondWithErrno, err);
+    }
+
+    Value value() const { return value_; }
+    int errno_code() const { return errno_; }
+
+    // Operator == for backward compatibility
+    bool operator==(Value v) const { return value_ == v; }
+
+   private:
+    Value value_;
+    int errno_;
   };
 
   // Called when a policy called TRACE. The syscall is allowed or denied

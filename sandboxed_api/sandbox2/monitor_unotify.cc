@@ -207,6 +207,15 @@ void UnotifyMonitor::AllowSyscallViaUnotify(seccomp_notif req) {
   }
 }
 
+void UnotifyMonitor::RespondErrnoViaUnotify(seccomp_notif req, int error_code) {
+  if (absl::Status status = seccomp_unotify_.RespondErrno(req, error_code);
+      !status.ok()) {
+    LOG(ERROR) << "Failed to respond with errno: " << error_code << ", "
+               << status;
+    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
+  }
+}
+
 void UnotifyMonitor::HandleUnotify() {
   absl::StatusOr<seccomp_notif> req_data = seccomp_unotify_.Receive();
   if (!req_data.ok()) {
@@ -251,18 +260,22 @@ void UnotifyMonitor::HandleUnotify() {
   if (should_trace) {
     trace_response = notify_->EventSyscallTrace(syscall);
   }
-  switch (trace_response) {
+  switch (trace_response.value()) {
     case Notify::TraceAction::kAllow:
       AllowSyscallViaUnotify(*req_data);
       return;
     case Notify::TraceAction::kDeny:
       HandleViolation(syscall);
       return;
+    case Notify::TraceAction::kRespondWithErrno:
+      RespondErrnoViaUnotify(*req_data, trace_response.errno_code());
+      return;
     case Notify::TraceAction::kInspectAfterReturn:
       LOG(FATAL) << "TraceAction::kInspectAfterReturn not supported by unotify "
                     "monitor";
     default:
-      LOG(FATAL) << "Unknown TraceAction: " << static_cast<int>(trace_response);
+      LOG(FATAL) << "Unknown TraceAction: "
+                 << static_cast<int>(trace_response.value());
   }
 }
 

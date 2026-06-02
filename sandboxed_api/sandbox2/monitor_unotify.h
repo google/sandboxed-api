@@ -81,6 +81,7 @@ class UnotifyMonitor : public MonitorBase {
   void KillInit();
 
   void AllowSyscallViaUnotify(seccomp_notif req);
+  void RespondErrnoViaUnotify(seccomp_notif req, int error_code);
   void HandleViolation(const Syscall& syscall);
   void HandleUnotify();
   void SetExitStatusFromStatusPipe();

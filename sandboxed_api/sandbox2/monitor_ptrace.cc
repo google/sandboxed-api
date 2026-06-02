@@ -763,6 +763,20 @@ void PtraceMonitor::ActionProcessSyscall(Regs* regs, const Syscall& syscall) {
     CompleteSyscall(regs->pid(), 0);
     return;
   }
+  if (trace_response == Notify::TraceAction::kRespondWithErrno) {
+    // Block the system call from execution and spoof the return value with a
+    // negative errno code. On Linux, negative register values are used to
+    // signal system call failures, which the sandboxee's libc translates
+    // into a -1 return value and sets the thread-local `errno`.
+    auto status = regs->SkipSyscallReturnValue(-trace_response.errno_code());
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to skip syscall return value: " << status;
+      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
+      return;
+    }
+    ContinueProcess(regs->pid(), 0);
+    return;
+  }
 
   if (absl::GetFlag(FLAGS_sandbox2_danger_danger_permit_all) || log_file_) {
     std::string syscall_description = syscall.GetDescription();
