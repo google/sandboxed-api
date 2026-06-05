@@ -1394,9 +1394,9 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
                                       });
 #endif
 
-  if constexpr (sapi::host_cpu::IsArm64()) {
-    OverridableBlockSyscallWithErrno(__NR_readlinkat, ENOENT);
-  }
+#ifdef __NR_readlinkat
+  OverridableBlockSyscallWithErrno(__NR_readlinkat, ENOENT);
+#endif
 #ifdef __NR_readlink
   OverridableBlockSyscallWithErrno(__NR_readlink, ENOENT);
 #endif
