@@ -25,13 +25,12 @@ namespace sandbox2 {
 
 std::string DemangleSymbol(const std::string& maybe_mangled) {
   int status;
-  size_t length;
   std::unique_ptr<char, decltype(&std::free)> symbol(
       abi::__cxa_demangle(maybe_mangled.c_str(), /*output_buffer=*/nullptr,
-                          &length, &status),
+                          nullptr, &status),
       std::free);
   if (symbol && status == 0) {
-    return std::string(symbol.get(), length);
+    return std::string(symbol.get());
   }
   return maybe_mangled;
 }
