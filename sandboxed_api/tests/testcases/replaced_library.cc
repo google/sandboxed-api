@@ -113,7 +113,8 @@ void mylib_get_in_outparam_c_str(const char* src, const char** dst,
 
 double mylib_in_prim_struct_pointer(const PrimitiveStruct* p) {
   return p->i8 + p->i16 + p->i32 + p->sz + p->f32 + p->f64 +
-         (p->u_is_int ? p->u.i32 : p->u.f64) + p->nested.a + p->nested.b +
+         (p->u_is_int ? p->u.i32 : p->u.f64) + p->non_trailing_array[0] +
+         p->non_trailing_array[1] + p->nested.a + p->nested.b +
          static_cast<double>(p->enum_type) +
          static_cast<double>(p->enum_class_type);
 }
@@ -128,6 +129,8 @@ void mylib_out_prim_struct_pointer(PrimitiveStruct* p) {
   p->f64 = 6.0;
   p->u_is_int = false;
   p->u.f64 = 7.0;
+  p->non_trailing_array[0] = 1;
+  p->non_trailing_array[1] = 0;
   p->nested.a = 8;
   p->nested.b = 9;
   p->enum_type = ENUM_A;
@@ -146,6 +149,8 @@ void mylib_inout_prim_struct_pointer(PrimitiveStruct* p) {
   } else {
     p->u.f64 *= 2.0;
   }
+  p->non_trailing_array[0] *= 2;
+  p->non_trailing_array[1] *= 2;
   p->nested.a *= 2;
   p->nested.b *= 2;
   p->enum_type = (p->enum_type == ENUM_A) ? ENUM_B : ENUM_A;

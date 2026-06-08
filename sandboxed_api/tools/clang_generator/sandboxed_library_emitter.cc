@@ -1634,9 +1634,26 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
     return true;
   }
 
-  if (auto* record_decl = type->getAsRecordDecl();
-      record_decl != nullptr && type.isTriviallyCopyableType(context)) {
+  if (auto* record_decl = type->getAsRecordDecl(); record_decl != nullptr) {
+    if (!type.isTriviallyCopyableType(context) ||
+        record_decl->hasFlexibleArrayMember()) {
+      return false;
+    }
     for (const clang::FieldDecl* field : record_decl->fields()) {
+      // Allow constant array fields, as long as the element type is
+      // trivially copyable. A trailing array member like int arr[1]
+      // could still be a considered a flexible array member under
+      // some compiler extensions. However, that could be too restrictive
+      // to disallow. We just allow it here, and if more needs to be copied
+      // then the developer should add a thunk or customize the copying.
+      if (auto* const_array_type =
+              context.getAsConstantArrayType(field->getType())) {
+        if (!IsDeeplyTriviallyCopyableType(
+                context, const_array_type->getElementType())) {
+          return false;
+        }
+        continue;
+      }
       if (!IsDeeplyTriviallyCopyableType(context, field->getType())) {
         return false;
       }

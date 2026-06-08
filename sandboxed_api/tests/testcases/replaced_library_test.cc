@@ -118,22 +118,15 @@ TEST(Test, MultipleInOutparamGlobalConstCStr) {
 }
 
 TEST(Test, InPrimStructPointer) {
-  PrimitiveStruct s_union_i32 = {
-      0, 1, 2, 3, 4.0, 5.0, true, {6}, {7, 8}, ENUM_A, EnumClassType::EC_B};
-  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_i32), 39.0);
+  PrimitiveStruct s_union_i32 = {0,      1,      2,      3,
+                                 4.0,    5.0,    true,   {6},
+                                 {1, 2}, {7, 8}, ENUM_A, EnumClassType::EC_B};
+  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_i32), 42.0);
 
-  PrimitiveStruct s_union_f64 = {0,
-                                 1,
-                                 2,
-                                 3,
-                                 4.0,
-                                 5.0,
-                                 false,
-                                 {.f64 = 8.5},
-                                 {7, 8},
-                                 ENUM_B,
-                                 EnumClassType::EC_A};
-  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_f64), 41.5);
+  PrimitiveStruct s_union_f64 = {0,      1,      2,      3,
+                                 4.0,    5.0,    false,  {.f64 = 8.5},
+                                 {1, 2}, {7, 8}, ENUM_B, EnumClassType::EC_A};
+  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_f64), 44.5);
 
   PrimitiveStruct s_neg_inf = {0,
                                1,
@@ -144,22 +137,16 @@ TEST(Test, InPrimStructPointer) {
                                false,
                                {.f64 = 9.0},
                                {7, 8},
+                               {1, 2},
                                ENUM_A,
                                EnumClassType::EC_B};
   EXPECT_EQ(mylib_in_prim_struct_pointer(&s_neg_inf),
             -std::numeric_limits<float>::infinity());
 
-  PrimitiveStruct s_nan = {0,
-                           1,
-                           2,
-                           3,
-                           4.0,
-                           5.0,
-                           false,
-                           {.f64 = std::numeric_limits<double>::quiet_NaN()},
-                           {7, 8},
-                           ENUM_A,
-                           EnumClassType::EC_B};
+  PrimitiveStruct s_nan = {
+      0,      1,      2,      3,
+      4.0,    5.0,    false,  {.f64 = std::numeric_limits<double>::quiet_NaN()},
+      {1, 2}, {7, 8}, ENUM_A, EnumClassType::EC_B};
   EXPECT_THAT(mylib_in_prim_struct_pointer(&s_nan), testing::IsNan());
 }
 
@@ -182,7 +169,7 @@ TEST(Test, OutPrimStructPointer) {
 }
 
 TEST(Test, InOutPrimStructPointer) {
-  PrimitiveStruct s = {0, 1, 2, 3, 4.0, 5.0, true, {6}, {7, 8}, ENUM_A};
+  PrimitiveStruct s = {0, 1, 2, 3, 4.0, 5.0, true, {6}, {2, 1}, {7, 8}, ENUM_A};
   mylib_inout_prim_struct_pointer(&s);
 
   EXPECT_EQ(s.i8, 0);
@@ -193,6 +180,8 @@ TEST(Test, InOutPrimStructPointer) {
   EXPECT_EQ(s.f64, 10.0);
   EXPECT_EQ(s.u_is_int, true);
   EXPECT_EQ(s.u.i32, 12);
+  EXPECT_EQ(s.non_trailing_array[0], 4);
+  EXPECT_EQ(s.non_trailing_array[1], 2);
   EXPECT_EQ(s.nested.a, 14);
   EXPECT_EQ(s.nested.b, 16);
   EXPECT_EQ(s.enum_type, ENUM_B);
@@ -200,20 +189,31 @@ TEST(Test, InOutPrimStructPointer) {
 }
 
 TEST(Test, InPrimStructArray) {
-  PrimitiveStruct structs[2] = {
-      {0, 1, 2, 3, 4.0, 5.0, true, {6}, {7, 8}, ENUM_A, EnumClassType::EC_B},
-      {0,
-       2,
-       4,
-       6,
-       8.0,
-       10.0,
-       false,
-       {.f64 = 11.5},
-       {14, 16},
-       ENUM_B,
-       EnumClassType::EC_A}};
-  EXPECT_EQ(mylib_in_prim_struct_array(structs, 2), 113.5);
+  PrimitiveStruct structs[2] = {{0,
+                                 1,
+                                 2,
+                                 3,
+                                 4.0,
+                                 5.0,
+                                 true,
+                                 {6},
+                                 {1, 2},
+                                 {7, 8},
+                                 ENUM_A,
+                                 EnumClassType::EC_B},
+                                {0,
+                                 2,
+                                 4,
+                                 6,
+                                 8.0,
+                                 10.0,
+                                 false,
+                                 {.f64 = 11.5},
+                                 {3, 4},
+                                 {14, 16},
+                                 ENUM_B,
+                                 EnumClassType::EC_A}};
+  EXPECT_EQ(mylib_in_prim_struct_array(structs, 2), 123.5);
 }
 
 TEST(Test, OutPrimStructArray) {
@@ -237,19 +237,30 @@ TEST(Test, OutPrimStructArray) {
 }
 
 TEST(Test, InOutPrimStructArray) {
-  PrimitiveStruct s[2] = {
-      {0, 1, 2, 3, 4.0, 5.0, true, {6}, {7, 8}, ENUM_A, EnumClassType::EC_B},
-      {0,
-       2,
-       4,
-       6,
-       8.0,
-       10.0,
-       false,
-       {.f64 = 11.5},
-       {14, 16},
-       ENUM_B,
-       EnumClassType::EC_A}};
+  PrimitiveStruct s[2] = {{0,
+                           1,
+                           2,
+                           3,
+                           4.0,
+                           5.0,
+                           true,
+                           {6},
+                           {1, 2},
+                           {7, 8},
+                           ENUM_A,
+                           EnumClassType::EC_B},
+                          {0,
+                           2,
+                           4,
+                           6,
+                           8.0,
+                           10.0,
+                           false,
+                           {.f64 = 11.5},
+                           {3, 4},
+                           {14, 16},
+                           ENUM_B,
+                           EnumClassType::EC_A}};
   mylib_inout_prim_struct_array(s, 2);
 
   EXPECT_EQ(s[0].i8, 0);
@@ -260,6 +271,8 @@ TEST(Test, InOutPrimStructArray) {
   EXPECT_EQ(s[0].f64, 10.0);
   EXPECT_EQ(s[0].u_is_int, true);
   EXPECT_EQ(s[0].u.i32, 12);
+  EXPECT_EQ(s[0].non_trailing_array[0], 2);
+  EXPECT_EQ(s[0].non_trailing_array[1], 4);
   EXPECT_EQ(s[0].nested.a, 14);
   EXPECT_EQ(s[0].nested.b, 16);
   EXPECT_EQ(s[0].enum_type, ENUM_B);
@@ -273,6 +286,8 @@ TEST(Test, InOutPrimStructArray) {
   EXPECT_EQ(s[1].f64, 20.0);
   EXPECT_EQ(s[1].u_is_int, false);
   EXPECT_EQ(s[1].u.f64, 23.0);
+  EXPECT_EQ(s[1].non_trailing_array[0], 6);
+  EXPECT_EQ(s[1].non_trailing_array[1], 8);
   EXPECT_EQ(s[1].nested.a, 28);
   EXPECT_EQ(s[1].nested.b, 32);
   EXPECT_EQ(s[1].enum_type, ENUM_A);

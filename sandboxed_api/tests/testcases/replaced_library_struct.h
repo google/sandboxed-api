@@ -50,6 +50,9 @@ struct PrimitiveStruct {
     double f64;
   } u;
 
+  // A non-trailing array, so that it isn't possibly a flexible array member.
+  int non_trailing_array[2];
+
   NestedStruct nested;
   EnumType enum_type;
   EnumClassType enum_class_type;
