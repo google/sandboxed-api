@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/source_location.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
@@ -780,14 +781,16 @@ class PolicyBuilder final {
   // happened.
   //
   // NOTE: This should only be called once.
-  absl::StatusOr<std::unique_ptr<Policy>> TryBuild();
+  absl::StatusOr<std::unique_ptr<Policy>> TryBuild(
+      absl::SourceLocation loc = absl::SourceLocation::current());
 
   // Builds the policy returning a unique_ptr to it.
   //
   // NOTE: This function will abort if an error happened in any of the
   // PolicyBuilder methods. This should only be called once.
-  std::unique_ptr<Policy> BuildOrDie() {
-    absl::StatusOr<std::unique_ptr<Policy>> policy = TryBuild();
+  std::unique_ptr<Policy> BuildOrDie(
+      absl::SourceLocation loc = absl::SourceLocation::current()) {
+    absl::StatusOr<std::unique_ptr<Policy>> policy = TryBuild(loc);
     CHECK_OK(policy);
     return *std::move(policy);
   }

@@ -1554,7 +1554,8 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
   return policy;
 }
 
-absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild() {
+absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
+    absl::SourceLocation loc) {
   if (!last_status_.ok()) {
     return last_status_;
   }

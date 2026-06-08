@@ -339,6 +339,7 @@ target_link_libraries(sandbox2_sandbox2
           sapi::base
   PUBLIC absl::die_if_null
          absl::flat_hash_map
+         absl::source_location
          absl::status
          absl::statusor
          absl::time
@@ -561,6 +562,7 @@ target_link_libraries(sandbox2_policybuilder
          absl::core_headers
          absl::flat_hash_set
          absl::span
+         absl::source_location
          absl::strings
          absl::statusor
          sandbox2::forkserver_proto
