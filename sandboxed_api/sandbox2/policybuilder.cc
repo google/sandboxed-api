@@ -1644,6 +1644,17 @@ PolicyBuilder& PolicyBuilder::AddFileAtIfNamespaced(absl::string_view outside,
     return *this;
   }
 
+  if (!IsFile(*valid_outside)) {
+    if (IsDirectory(*valid_outside)) {
+      SetError(absl::InvalidArgumentError(absl::StrCat(
+          "Cannot add ", outside, " as it is a directory not a file")));
+    } else {
+      SetError(absl::InvalidArgumentError(
+          absl::StrCat("Cannot add ", outside, " as it does not exist")));
+    }
+    return *this;
+  }
+
   if (absl::StartsWith(*valid_outside, "/proc/self")) {
     SetError(absl::InvalidArgumentError(
         absl::StrCat("Cannot add /proc/self mounts, you need to mount the "
@@ -1721,6 +1732,17 @@ PolicyBuilder& PolicyBuilder::AddDirectoryAtIfNamespaced(
   auto valid_outside = ValidatePath(outside);
   if (!valid_outside.ok()) {
     SetError(valid_outside.status());
+    return *this;
+  }
+
+  if (!IsDirectory(*valid_outside)) {
+    if (IsFile(*valid_outside)) {
+      SetError(absl::InvalidArgumentError(absl::StrCat(
+          "Cannot add ", outside, " as it is a file not a directory")));
+    } else {
+      SetError(absl::InvalidArgumentError(
+          absl::StrCat("Cannot add ", outside, " as it does not exist")));
+    }
     return *this;
   }
 

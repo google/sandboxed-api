@@ -138,30 +138,34 @@ TEST(PolicyBuilderTest, WrongTypeIgnored) {
 }
 
 TEST(PolicyBuilderTest, ApisWithPathValidation) {
-  const std::initializer_list<std::pair<absl::string_view, absl::StatusCode>>
-      kTestCases = {
-          {"/a", absl::StatusCode::kOk},
-          {"/a/b/c/d", absl::StatusCode::kOk},
-          {"/a/b/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", absl::StatusCode::kOk},
-          {"", absl::StatusCode::kInvalidArgument},
-          // Fails because we reject paths starting with '..'
-          {"..", absl::StatusCode::kInvalidArgument},
-          {"..a", absl::StatusCode::kInvalidArgument},
-          {"../a", absl::StatusCode::kInvalidArgument},
-          // Fails because is not absolute
-          {"a", absl::StatusCode::kInvalidArgument},
-          {"a/b", absl::StatusCode::kInvalidArgument},
-          {"a/b/c", absl::StatusCode::kInvalidArgument},
-          // Fails because '..' in path
-          {"/a/b/c/../d", absl::StatusCode::kInvalidArgument},
-          // Fails because '.' in path
-          {"/a/b/c/./d", absl::StatusCode::kInvalidArgument},
-          // Fails because '//' in path
-          {"/a/b/c//d", absl::StatusCode::kInvalidArgument},
-          // Fails because path ends with '/'
-          {"/a/b/c/d/", absl::StatusCode::kInvalidArgument},
-      };
-  for (auto const& [path, status] : kTestCases) {
+  // Fails because /usr is a directory, not a file.
+  EXPECT_THAT(PolicyBuilder().AddFile("/usr").TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(PolicyBuilder().AddFileAt("/usr", "/input").TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  // Fails because /usr/bin/find is a file, not a directory.
+  EXPECT_THAT(PolicyBuilder().AddDirectory("/usr/bin/find").TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      PolicyBuilder().AddDirectoryAt("/usr/bin/find", "/input").TryBuild(),
+      StatusIs(absl::StatusCode::kInvalidArgument));
+  const std::initializer_list<absl::string_view> kInvalidPathTestCases = {
+      "",
+      // Fails because we reject paths starting with '..'
+      "..", "..a", "../a",
+      // Fails because is not absolute
+      "a", "a/b", "a/b/c",
+      // Fails because '..' in path
+      "/a/b/c/../d",
+      // Fails because '.' in path
+      "/a/b/c/./d",
+      // Fails because '//' in path
+      "/a/b/c//d",
+      // Fails because path ends with '/'
+      "/a/b/c/d/",
+  };
+  for (absl::string_view path : kInvalidPathTestCases) {
+    absl::StatusCode status = absl::StatusCode::kInvalidArgument;
     EXPECT_THAT(PolicyBuilder().AddFile(path).TryBuild(), StatusIs(status));
     EXPECT_THAT(PolicyBuilder().AddFileAt(path, "/input").TryBuild(),
                 StatusIs(status));
@@ -171,16 +175,32 @@ TEST(PolicyBuilderTest, ApisWithPathValidation) {
                 StatusIs(status));
   }
 
+  // Succeeds because it attempts to mount a file
+  EXPECT_THAT(PolicyBuilder().AddFile("/usr/bin/find").TryBuild(), IsOk());
+  EXPECT_THAT(PolicyBuilder().AddFileAt("/usr/bin/find", "/input").TryBuild(),
+              IsOk());
+
   // Fails because it attempts to mount to '/' inside
   EXPECT_THAT(PolicyBuilder().AddFile("/").TryBuild(),
-              StatusIs(absl::StatusCode::kInternal));
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(PolicyBuilder().AddDirectory("/").TryBuild(),
               StatusIs(absl::StatusCode::kInternal));
 
   // Succeeds because it attempts to mount to '/' inside
-  EXPECT_THAT(PolicyBuilder().AddFileAt("/a", "/input").TryBuild(), IsOk());
-  EXPECT_THAT(PolicyBuilder().AddDirectoryAt("/a", "/input").TryBuild(),
+  EXPECT_THAT(PolicyBuilder().AddDirectoryAt("/usr", "/input").TryBuild(),
               IsOk());
+}
+
+TEST(PolicyBuilderTest, AddIfExists) {
+  EXPECT_THAT(PolicyBuilder().AddFile("/nonexistent_file").TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(PolicyBuilder().AddFileIfExists("/nonexistent_file").TryBuild(),
+              IsOk());
+  EXPECT_THAT(PolicyBuilder().AddDirectory("/nonexistent_dir").TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      PolicyBuilder().AddDirectoryIfExists("/nonexistent_dir").TryBuild(),
+      IsOk());
 }
 
 TEST(PolicyBuilderTest, TestAnchorPathAbsolute) {
