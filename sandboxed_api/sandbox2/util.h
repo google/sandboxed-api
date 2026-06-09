@@ -52,6 +52,11 @@ constexpr uintptr_t kMfdAllowSealing = 0x0002;
 constexpr uintptr_t kMfdHugeTLB = 0x0004;
 constexpr uintptr_t kMfdHuge2Mb = 0x54000000;
 
+// Minimum stack size for a thread in POSIX threads. Some glibc versions may
+// use a dynamic value using __sysconf(SC_PTHREAD_STACK_MIN), so we define a
+// static one here.
+constexpr size_t kPthreadStackMin = 16384;
+
 void DumpCoverageData();
 
 // An char ptr array limited by the terminating nullptr entry (like environ

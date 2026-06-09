@@ -222,7 +222,7 @@ int ChildFunc(void* arg) {
 ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS
 ABSL_ATTRIBUTE_NOINLINE
 pid_t CloneAndJump(int flags, jmp_buf* env_ptr) {
-  uint8_t stack_buf[PTHREAD_STACK_MIN] ABSL_CACHELINE_ALIGNED;
+  uint8_t stack_buf[kPthreadStackMin] ABSL_CACHELINE_ALIGNED;
   static_assert(sapi::host_cpu::IsX8664() || sapi::host_cpu::IsPPC64LE() ||
                     sapi::host_cpu::IsArm64() || sapi::host_cpu::IsArm(),
                 "Host CPU architecture not supported, see config.h");

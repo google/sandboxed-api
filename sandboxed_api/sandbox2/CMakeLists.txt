@@ -745,9 +745,9 @@ target_link_libraries(sandbox2_util
          absl::statusor
 )
 target_compile_options(sandbox2_util PRIVATE
-  # The default is 16384, however we need to do a clone with a
-  # stack-allocated buffer -- and PTHREAD_STACK_MIN also happens to be 16384.
-  # Thus the slight increase.
+  # The default is 16384, however we need to do a clone with a stack-allocated
+  # buffer -- and PTHREAD_STACK_MIN/kPthreadStackMin also is 16384, so we need
+  # a bit more.
   -Wframe-larger-than=17000
 )
 

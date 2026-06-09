@@ -152,21 +152,19 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   }
 
   // Fork the fork-server, and clean-up the resources (close remote sockets).
-  const size_t stack_size = PTHREAD_STACK_MIN;
+  constexpr size_t kStackSize = util::kPthreadStackMin;
   int clone_flags = CLONE_VM | CLONE_VFORK | SIGCHLD;
   // CLONE_VM does not play well with TSan.
   if constexpr (sapi::sanitizers::IsTSan()) {
     clone_flags &= ~CLONE_VM & ~CLONE_VFORK;
   }
   char* stack =
-      static_cast<char*>(mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
+      static_cast<char*>(mmap(NULL, kStackSize, PROT_READ | PROT_WRITE,
                               MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0));
   if (stack == MAP_FAILED) {
     return absl::ErrnoToStatus(errno, "Allocating stack failed");
   }
-  absl::Cleanup stack_dealloc = [stack, stack_size] {
-    munmap(stack, stack_size);
-  };
+  absl::Cleanup stack_dealloc = [stack] { munmap(stack, kStackSize); };
   std::vector<std::string> env = util::CharPtrArray(environ).ToStringVector();
   DisableCompressStackDepotImpl(env, [&env](absl::string_view value) {
     env.push_back(std::string(value));
@@ -177,7 +175,7 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
       .comms_fd = sv[0],
       .envp = envp.data(),
   };
-  pid_t pid = clone(LaunchForkserver, &stack[stack_size], clone_flags, &args,
+  pid_t pid = clone(LaunchForkserver, &stack[kStackSize], clone_flags, &args,
                     nullptr, nullptr, nullptr);
   if (pid == -1) {
     return absl::ErrnoToStatus(errno, "Forking forkserver process failed");
