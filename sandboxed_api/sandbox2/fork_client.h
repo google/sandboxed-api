@@ -46,7 +46,7 @@ class ForkClient {
     PendingRequest(PendingRequest&&) = default;
     PendingRequest& operator=(PendingRequest&&) = default;
 
-    absl::StatusOr<SandboxeeProcess> Finalize() &&;
+    absl::StatusOr<SandboxeeProcess> Finalize(int exec_fd, int comms_fd) &&;
 
    private:
     friend class ForkClient;
@@ -80,8 +80,7 @@ class ForkClient {
                                int comms_fd);
 
   // Initiates the fork request.
-  absl::StatusOr<PendingRequest> InitiateRequest(const ForkRequest& request,
-                                                 int exec_fd, int comms_fd);
+  absl::StatusOr<PendingRequest> InitiateRequest(const ForkRequest& request);
 
   pid_t pid() { return pid_; }
 

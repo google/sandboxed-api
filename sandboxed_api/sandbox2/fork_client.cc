@@ -39,7 +39,7 @@ ForkClient::~ForkClient() {
 }
 
 absl::StatusOr<ForkClient::PendingRequest> ForkClient::InitiateRequest(
-    const ForkRequest& request, int exec_fd, int comms_fd) {
+    const ForkRequest& request) {
   int raw_setup_fd = -1;
   // Acquire the channel ownership for this request (transaction).
 
@@ -47,19 +47,6 @@ absl::StatusOr<ForkClient::PendingRequest> ForkClient::InitiateRequest(
 
   if (!comms_->SendProtoBuf(request)) {
     return absl::InternalError("Sending PB to the ForkServer failed");
-  }
-  CHECK(comms_fd != -1) << "comms_fd was not properly set up";
-  if (!comms_->SendFD(comms_fd)) {
-    return absl::InternalError(absl::StrCat("Sending Comms FD (", comms_fd,
-                                            ") to the ForkServer failed"));
-  }
-  if (request.mode() == FORKSERVER_FORK_EXECVE ||
-      request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-    CHECK(exec_fd != -1) << "exec_fd cannot be -1 in execve mode";
-    if (!comms_->SendFD(exec_fd)) {
-      return absl::InternalError(absl::StrCat("Sending Exec FD (", exec_fd,
-                                              ") to the ForkServer failed"));
-    }
   }
 
   if (!comms_->RecvFD(&raw_setup_fd)) {
@@ -73,14 +60,19 @@ absl::StatusOr<ForkClient::PendingRequest> ForkClient::InitiateRequest(
 
 SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
                                          int exec_fd, int comms_fd) {
-  absl::StatusOr<PendingRequest> pending_request =
-      InitiateRequest(request, exec_fd, comms_fd);
+  if (request.mode() == FORKSERVER_FORK_EXECVE ||
+      request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
+    CHECK(exec_fd != -1) << "exec_fd cannot be -1 in execve mode";
+  } else {
+    CHECK(exec_fd == -1) << "exec_fd should be -1 in non-execve mode";
+  }
+  absl::StatusOr<PendingRequest> pending_request = InitiateRequest(request);
   if (!pending_request.ok()) {
     LOG(ERROR) << pending_request.status();
     return SandboxeeProcess();
   }
   absl::StatusOr<SandboxeeProcess> result =
-      std::move(*pending_request).Finalize();
+      std::move(*pending_request).Finalize(exec_fd, comms_fd);
   if (!result.ok()) {
     LOG(ERROR) << result.status();
     return SandboxeeProcess();
@@ -88,8 +80,21 @@ SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
   return *std::move(result);
 }
 
-absl::StatusOr<SandboxeeProcess> ForkClient::PendingRequest::Finalize() && {
+absl::StatusOr<SandboxeeProcess> ForkClient::PendingRequest::Finalize(
+    int exec_fd, int comms_fd) && {
   SandboxeeProcess process;
+  CHECK(comms_fd != -1) << "comms_fd was not properly set up";
+  if (!setup_comms_.SendFD(comms_fd)) {
+    return absl::InternalError(absl::StrCat("Sending Comms FD (", comms_fd,
+                                            ") to the ForkServer failed"));
+  }
+  if (exec_fd != -1) {
+    if (!setup_comms_.SendFD(exec_fd)) {
+      return absl::InternalError(absl::StrCat("Sending Exec FD (", exec_fd,
+                                              ") to the ForkServer failed"));
+    }
+  }
+
   if (needs_status_fd_) {
     int fd = -1;
     if (!setup_comms_.RecvFD(&fd)) {

@@ -467,20 +467,8 @@ pid_t ForkServer::ServeRequest() {
     }
     SAPI_RAW_LOG(FATAL, "Failed to receive ForkServer request");
   }
-
-  int raw_comms_fd = -1;
-  SAPI_RAW_CHECK(comms_->RecvFD(&raw_comms_fd), "Failed to receive Comms FD");
-  FDCloser comms_fd(raw_comms_fd);
-
   SAPI_RAW_CHECK(fork_request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
-
-  int raw_exec_fd = -1;
-  if (fork_request.mode() == FORKSERVER_FORK_EXECVE ||
-      fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-    SAPI_RAW_CHECK(comms_->RecvFD(&raw_exec_fd), "Failed to receive Exec FD");
-  }
-  FDCloser exec_fd(raw_exec_fd);
 
   SaveIDs();
 
@@ -508,7 +496,8 @@ pid_t ForkServer::ServeRequest() {
 
   // We fork a child early on to do the rest of the setup.
   pid_t pid;
-  if (avoid_pivot_root || exec_fd.get() != -1) {
+  if (avoid_pivot_root || fork_request.mode() == FORKSERVER_FORK_EXECVE ||
+      fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
     // Note: Not a regular fork() as one really needs to be single-threaded to
     //       setns and this is not the case with TSAN.
     pid = util::ForkWithFlags(SIGCHLD);
@@ -519,6 +508,21 @@ pid_t ForkServer::ServeRequest() {
   }
   SAPI_RAW_PCHECK(pid != -1, "fork failed");
   if (pid == 0) {
+    int raw_comms_fd = -1;
+    SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_comms_fd),
+                   "Failed to receive Comms FD");
+    FDCloser comms_fd(raw_comms_fd);
+
+    SAPI_RAW_CHECK(fork_request.mode() != FORKSERVER_FORK_UNSPECIFIED,
+                   "Forkserver mode is unspecified");
+
+    int raw_exec_fd = -1;
+    if (fork_request.mode() == FORKSERVER_FORK_EXECVE ||
+        fork_request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
+      SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_exec_fd),
+                     "Failed to receive Exec FD");
+    }
+    FDCloser exec_fd(raw_exec_fd);
     SetupSandboxeeProcess(fork_request, std::move(comms_fd), std::move(exec_fd),
                           setup_comms);
   }

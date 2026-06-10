@@ -281,8 +281,7 @@ SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
     if (!instance_) {
       return SandboxeeProcess();
     }
-    pending_request =
-        instance_->fork_client_.InitiateRequest(request, exec_fd, comms_fd);
+    pending_request = instance_->fork_client_.InitiateRequest(request);
     if (instance_->comms_.IsTerminated()) {
       LOG(ERROR) << "Global forkserver connection terminated";
       pid_t server_pid = instance_->fork_client_.pid();
@@ -299,7 +298,7 @@ SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
     return SandboxeeProcess();
   }
   absl::StatusOr<SandboxeeProcess> process =
-      std::move(*pending_request).Finalize();
+      std::move(*pending_request).Finalize(exec_fd, comms_fd);
   if (!process.ok()) {
     LOG(ERROR) << process.status();
     return SandboxeeProcess();
