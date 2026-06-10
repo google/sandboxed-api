@@ -537,6 +537,7 @@ cc_library(
         ":stack_trace",
         ":syscall",
         ":util",
+        ":version",
         "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/network_proxy:server",
         "//sandboxed_api/util:file_helpers",
@@ -610,6 +611,7 @@ cc_library(
         ":policy",
         ":sanitizer",
         ":syscall",
+        ":version",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/util:bpf_helper",
@@ -657,6 +659,7 @@ cc_library(
         ":sanitizer",
         ":syscall",
         ":util",
+        ":version",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
@@ -681,6 +684,7 @@ cc_library(
     deps = [
         ":comms",
         ":forkserver_cc_proto",
+        ":version",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
@@ -1225,5 +1229,48 @@ cc_test(
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
+    ],
+)
+
+filegroup(
+    name = "sandbox2_sources",
+    srcs = glob(
+        [
+            "**/*.cc",
+            "**/*.h",
+        ],
+        exclude = [
+            "**/*_test.cc",
+            "**/testcases/**",
+            "version.cc",
+            "version.h",
+            "version.cc.in",
+        ],
+    ),
+)
+
+# LINT.IfChange
+genrule(
+    name = "version_cc",
+    srcs = [
+        ":sandbox2_sources",
+        "version.cc.in",
+    ],
+    outs = ["version.cc"],
+    cmd = """
+        final_hash=$$(sha256sum $(locations :sandbox2_sources) | sort -k 2 | sha256sum | cut -d' ' -f1)
+        sed "s/@SANDBOX_VERSION@/$$final_hash/g" $(location version.cc.in) > $@
+    """,
+)
+# LINT.ThenChange(//depot/google3/third_party/sandboxed_api/sandbox2/CMakeLists.txt)
+
+cc_library(
+    name = "version",
+    srcs = ["version.cc"],
+    hdrs = ["version.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/strings",
     ],
 )

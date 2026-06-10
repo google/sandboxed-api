@@ -198,6 +198,8 @@ std::string Result::ReasonCodeEnumToString(ReasonCodeEnum value) {
       return "FAILED_CWD";
     case sandbox2::Result::FAILED_POLICY:
       return "FAILED_POLICY";
+    case sandbox2::Result::FAILED_VERSION_CHECK:
+      return "FAILED_VERSION_CHECK";
     case sandbox2::Result::FAILED_STORE:
       return "FAILED_STORE";
     case sandbox2::Result::FAILED_FETCH:

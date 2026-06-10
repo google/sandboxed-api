@@ -150,6 +150,9 @@ class MonitorBase {
   // Returns success/failure status.
   bool WaitForSandboxReady();
 
+  // Verifies that the sandboxee version matches the host version.
+  bool InitVerifyVersion();
+
   // Sends information about data exchange channels.
   bool InitSendIPC();
 

@@ -436,6 +436,7 @@ target_link_libraries(sandbox2_monitor_base
           sapi::file_helpers
           sapi::temp_file
           sapi::base
+          sandbox2::version
   PUBLIC  absl::status
           absl::statusor
           absl::synchronization
@@ -591,6 +592,7 @@ target_link_libraries(sandbox2_client
           sapi::fileops
           sapi::raw_logging
           sapi::status
+          sandbox2::version
   PUBLIC absl::flat_hash_map
          absl::status
          sandbox2::comms
@@ -642,6 +644,7 @@ target_link_libraries(sandbox2_forkserver
           sandbox2::util
           sapi::base
           sapi::raw_logging
+          sandbox2::version
   PUBLIC absl::core_headers
          absl::log
          sapi::fileops
@@ -656,6 +659,7 @@ add_library(sandbox2::fork_client ALIAS sandbox2_fork_client)
 target_link_libraries(sandbox2_fork_client
   PRIVATE absl::status
           sandbox2::forkserver_proto
+          sandbox2::version
   PUBLIC absl::core_headers
          absl::statusor
          absl::strings
@@ -846,6 +850,41 @@ target_link_libraries(sandbox2_flags
           absl::time
           sapi::base
 )
+
+file(GLOB_RECURSE SANDBOX2_SOURCES
+  RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+  "*.cc"
+  "*.h"
+)
+list(FILTER SANDBOX2_SOURCES EXCLUDE REGEX ".*_test\\.cc$")
+list(FILTER SANDBOX2_SOURCES EXCLUDE REGEX "^testcases/.*")
+list(FILTER SANDBOX2_SOURCES EXCLUDE REGEX "^version\\..*")
+
+set(SANDBOX2_SOURCES_ABS "")
+foreach(FILE ${SANDBOX2_SOURCES})
+  list(APPEND SANDBOX2_SOURCES_ABS "${CMAKE_CURRENT_SOURCE_DIR}/${FILE}")
+endforeach()
+
+string(REPLACE ";" " " SANDBOX2_SOURCES_STR "${SANDBOX2_SOURCES_ABS}")
+
+add_custom_command(
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/version.cc"
+  COMMAND bash -c "final_hash=\$(sha256sum ${SANDBOX2_SOURCES_STR} | sort -k 2 | sha256sum | cut -d' ' -f1) && sed \"s/@SANDBOX_VERSION@/\$final_hash/g\" \"${CMAKE_CURRENT_SOURCE_DIR}/version.cc.in\" > \"${CMAKE_CURRENT_BINARY_DIR}/version.cc\""
+  DEPENDS ${SANDBOX2_SOURCES_ABS} "${CMAKE_CURRENT_SOURCE_DIR}/version.cc.in"
+  COMMENT "Generating version.cc via source hashing"
+  VERBATIM
+)
+
+# version library
+add_library(sandbox2_version STATIC
+  version.h
+  "${CMAKE_CURRENT_BINARY_DIR}/version.cc"
+)
+add_library(sandbox2::version ALIAS sandbox2_version)
+target_link_libraries(sandbox2_version
+  PUBLIC absl::strings
+  PRIVATE sapi::base)
+
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(testcases)

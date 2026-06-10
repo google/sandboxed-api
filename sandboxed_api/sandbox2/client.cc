@@ -57,6 +57,7 @@
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/sandbox2/version.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -189,6 +190,10 @@ std::string Client::GetFdMapEnvVar() const {
 }
 
 void Client::PrepareEnvironment(int* preserved_fd) {
+  absl::string_view version = GetVersion();
+  if (!comms_->SendTLV(Comms::kTagVersion, version.size(), version.data())) {
+    SAPI_RAW_LOG(FATAL, "Failed to send version to host");
+  }
   SetUpIPC(preserved_fd);
   SetUpCwd();
 }

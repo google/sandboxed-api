@@ -70,6 +70,7 @@ class Comms {
   static constexpr uint32_t kTagBytes = 0x80000101;
   static constexpr uint32_t kTagProto2 = 0x80000102;
   static constexpr uint32_t kTagBarrier = 0x80000103;
+  static constexpr uint32_t kTagVersion = 0x80000104;
   static constexpr uint32_t kTagFd = 0X80000201;
   static constexpr uint32_t kTagCreds = 0X80000202;
 

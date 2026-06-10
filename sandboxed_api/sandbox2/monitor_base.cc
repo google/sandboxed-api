@@ -62,6 +62,7 @@
 #include "sandboxed_api/sandbox2/stack_trace.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/sandbox2/version.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/strerror.h"
 #include "sandboxed_api/util/temp_file.h"
@@ -220,6 +221,10 @@ void MonitorBase::Launch() {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_NOTIFY);
     return;
   }
+  if (!InitVerifyVersion()) {
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_VERSION_CHECK);
+    return;
+  }
   if (!InitSendIPC()) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
     return;
@@ -333,6 +338,27 @@ bool MonitorBase::InitApplyLimits() {
          InitApplyLimit(process_.main_pid, RLIMIT_NOFILE,
                         limits->rlimit_nofile()) &&
          InitApplyLimit(process_.main_pid, RLIMIT_CORE, limits->rlimit_core());
+}
+
+bool MonitorBase::InitVerifyVersion() {
+  uint32_t tag;
+  std::string remote_version;
+  if (!comms_->RecvTLV(&tag, &remote_version)) {
+    LOG(ERROR) << "Failed to receive version from sandboxee";
+    return false;
+  }
+  if (tag != Comms::kTagVersion) {
+    LOG(ERROR) << "Expected version tag (" << Comms::kTagVersion
+               << ") from sandboxee, got: " << tag;
+    return false;
+  }
+  absl::string_view local_version = GetVersion();
+  if (remote_version != local_version) {
+    LOG(ERROR) << "Sandbox version mismatch with sandboxee. Host version: "
+               << local_version << ", Sandboxee version: " << remote_version;
+    return false;
+  }
+  return true;
 }
 
 bool MonitorBase::InitSendIPC() { return ipc_->SendFdsOverComms(); }
