@@ -191,6 +191,15 @@ class Comms {
   // Receives/sends file descriptors.
   bool RecvFD(int* fd);
   bool SendFD(int fd);
+  // Convenience wrapper for RecvFD() that creates an FDCloser.
+  bool RecvFD(sapi::file_util::fileops::FDCloser* fd) {
+    int raw_fd;
+    bool ok = RecvFD(&raw_fd);
+    if (ok) {
+      *fd = sapi::file_util::fileops::FDCloser(raw_fd);
+    }
+    return ok;
+  }
 
   // Receives/sends protobufs.
   bool RecvProtoBuf(google::protobuf::MessageLite* message);
