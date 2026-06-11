@@ -32,7 +32,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -44,6 +43,7 @@
 #include "sandboxed_api/sandbox2/util/library_resolver.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 namespace {
@@ -346,7 +346,7 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
 absl::Status Mounts::AddMappingsForBinary(const std::string& path,
                                           absl::string_view ld_library_path) {
   absl::flat_hash_set<std::string> imported_libraries;
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       auto interpreter,
       ResolveLibraryPaths(path, ld_library_path, [&](absl::string_view lib) {
         imported_libraries.insert(std::string(lib));
@@ -355,7 +355,7 @@ absl::Status Mounts::AddMappingsForBinary(const std::string& path,
     imported_libraries.insert(interpreter);
   }
   for (const auto& lib : imported_libraries) {
-    ABSL_RETURN_IF_ERROR(AddFile(lib));
+    SAPI_RETURN_IF_ERROR(AddFile(lib));
   }
 
   return absl::OkStatus();
@@ -369,7 +369,7 @@ absl::Status Mounts::AddTmpfs(absl::string_view inside, size_t sz) {
 }
 
 absl::Status Mounts::AllowMountPropagation(absl::string_view inside) {
-  ABSL_ASSIGN_OR_RETURN(MountTree::Node node, GetNode(inside));
+  SAPI_ASSIGN_OR_RETURN(MountTree::Node node, GetNode(inside));
   if (!node.has_dir_node()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Path is not a directory: ", inside));

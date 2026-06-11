@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "absl/log/die_if_null.h"
-#include "absl/status/statusor.h"
 #include "contrib/libraw/sandboxed.h"
 
 enum LibRaw_errors {

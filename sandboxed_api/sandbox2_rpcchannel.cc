@@ -19,7 +19,6 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
@@ -27,6 +26,7 @@
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
@@ -37,7 +37,7 @@ absl::Status Sandbox2RPCChannel::Call(const FuncCall& call, uint32_t tag,
   if (!comms_->SendTLV(tag, sizeof(call), &call)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(exp_type));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(exp_type));
   *ret = fret;
   return absl::OkStatus();
 }
@@ -73,7 +73,7 @@ absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr,
     return absl::UnavailableError("Sending TLV value failed");
   }
 
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kPointer));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kPointer));
   *addr = reinterpret_cast<void*>(fret.int_val);
   return absl::OkStatus();
 }
@@ -109,7 +109,7 @@ absl::Status Sandbox2RPCChannel::Free(void* addr) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
   if (!fret.success) {
     return absl::UnavailableError("Free() failed on the remote side");
   }
@@ -123,9 +123,9 @@ absl::StatusOr<size_t> Sandbox2RPCChannel::CopyFromSandbox(
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::CopyToSandbox(
     uintptr_t remote_ptr, absl::Span<const char> data) {
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       size_t ret, sandbox2::util::WriteBytesToPidFrom(pid_, remote_ptr, data));
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       MarkMemoryInit(reinterpret_cast<void*>(remote_ptr), data.size()));
   return ret;
 }
@@ -136,7 +136,7 @@ absl::Status Sandbox2RPCChannel::Symbol(const char* symname, void** addr) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kPointer));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kPointer));
   *addr = reinterpret_cast<void*>(fret.int_val);
   return absl::OkStatus();
 }
@@ -163,7 +163,7 @@ absl::Status Sandbox2RPCChannel::SendFD(int local_fd, int* remote_fd) {
     return absl::UnavailableError("Sending FD failed");
   }
 
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
   if (!fret.success) {
     return absl::UnavailableError("SendFD failed on the remote side");
   }
@@ -181,7 +181,7 @@ absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
     return absl::UnavailableError("Receving FD failed");
   }
 
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
   if (!fret.success) {
     return absl::UnavailableError("RecvFD failed on the remote side");
   }
@@ -194,7 +194,7 @@ absl::Status Sandbox2RPCChannel::Close(int remote_fd) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
   if (!fret.success) {
     return absl::UnavailableError("Close() failed on the remote side");
   }
@@ -207,7 +207,7 @@ absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
   if (!fret.success) {
     return absl::UnavailableError("Close() failed on the remote side");
   }
@@ -225,7 +225,7 @@ absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
                        &req)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
-  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
   if (!fret.success) {
     return absl::UnavailableError("MarkMemoryInit() failed on the remote side");
   }

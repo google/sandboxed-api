@@ -20,8 +20,6 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/initialize.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
@@ -46,36 +44,36 @@ class UVSapiIdleBasicSandbox : public uv::UVSandbox {
 absl::Status IdleBasic() {
   // Initialize sandbox2 and sapi
   UVSapiIdleBasicSandbox sandbox;
-  ABSL_RETURN_IF_ERROR(sandbox.Init());
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
   uv::UVApi api(&sandbox);
 
   // Get remote pointer to the IdleCallback method
   void* function_ptr;
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       sandbox.rpc_channel()->Symbol("IdleCallback", &function_ptr));
   sapi::v::RemotePtr idle_callback(function_ptr);
 
   // Allocate memory for the uv_idle_t object
   void* idle_voidptr;
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       sandbox.rpc_channel()->Allocate(sizeof(uv_idle_t), &idle_voidptr));
   sapi::v::RemotePtr idler(idle_voidptr);
 
   int return_code;
 
   // Get default loop
-  ABSL_ASSIGN_OR_RETURN(void* loop_voidptr, api.sapi_uv_default_loop());
+  SAPI_ASSIGN_OR_RETURN(void* loop_voidptr, api.sapi_uv_default_loop());
   sapi::v::RemotePtr loop(loop_voidptr);
 
   // Initialize idler
-  ABSL_ASSIGN_OR_RETURN(return_code, api.sapi_uv_idle_init(&loop, &idler));
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_idle_init(&loop, &idler));
   if (return_code != 0) {
     return absl::UnavailableError("sapi_uv_idle_init returned error " +
                                   return_code);
   }
 
   // Start idler
-  ABSL_ASSIGN_OR_RETURN(return_code,
+  SAPI_ASSIGN_OR_RETURN(return_code,
                         api.sapi_uv_idle_start(&idler, &idle_callback));
   if (return_code != 0) {
     return absl::UnavailableError("sapi_uv_idle_start returned error " +
@@ -83,16 +81,16 @@ absl::Status IdleBasic() {
   }
 
   // Run loop
-  ABSL_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
   if (return_code != 0) {
     return absl::UnavailableError("uv_run returned error " + return_code);
   }
 
   // Close idler
-  ABSL_RETURN_IF_ERROR(api.sapi_uv_close(&idler, nullptr));
+  SAPI_RETURN_IF_ERROR(api.sapi_uv_close(&idler, nullptr));
 
   // Close loop
-  ABSL_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_close(&loop));
+  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_close(&loop));
   // UV_EBUSY is accepted because it is the return code of uv_loop_close
   // in the original example
   if (return_code != 0 && return_code != UV_EBUSY) {

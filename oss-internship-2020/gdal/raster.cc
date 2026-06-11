@@ -20,8 +20,6 @@
 
 #include "gdal_sapi.sapi.h"  // NOLINT(build/include)
 #include "absl/log/log.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/util/fileops.h"
 
@@ -62,12 +60,12 @@ absl::Status GdalMain(std::string filename) {
   // Reading GDALDataset from a (local, specific) file.
   GdalSapiSandbox sandbox(filename);
 
-  ABSL_RETURN_IF_ERROR(sandbox.Init());
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
   GDALApi api(&sandbox);
 
   sapi::v::CStr s(filename.data());
 
-  ABSL_RETURN_IF_ERROR(api.GDALAllRegister());
+  SAPI_RETURN_IF_ERROR(api.GDALAllRegister());
   auto open = api.GDALOpen(s.PtrBoth(), GDALAccess::GA_ReadOnly);
 
   LOG(INFO) << "Dataset pointer adress: " << open.value() << std::endl;
@@ -102,7 +100,7 @@ absl::Status GdalMain(std::string filename) {
   // analyzing the returning object.
   // Same for GDALReturnsIO from below.
   CPLErr err;
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       err,
       api.GDALGetGeoTransform(&ptr_dataset, adf_geo_transform_array.PtrBoth()));
 
@@ -129,7 +127,7 @@ absl::Status GdalMain(std::string filename) {
   }
 
   sapi::v::RemotePtr ptr_band(band.value());
-  ABSL_RETURN_IF_ERROR(api.GDALGetBlockSize(
+  SAPI_RETURN_IF_ERROR(api.GDALGetBlockSize(
       &ptr_band, nBlockXSizeArray.PtrBoth(), nBlockYSizeArray.PtrBoth()));
 
   LOG(INFO) << "Block = " << n_blockX_size[0] << " x " << n_blockY_size[0]
@@ -149,7 +147,7 @@ absl::Status GdalMain(std::string filename) {
 
   // We will use CPLErr type of returning value, as before with
   // GDALGetGeoTransorm.
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       err, api.GDALRasterIO(&ptr_band, GF_Read, 0, 0, nX_size.value(),
                             nY_size.value(), raster_data_array.PtrBoth(),
                             nX_size.value(), nY_size.value(), GDT_Byte, 0, 0));

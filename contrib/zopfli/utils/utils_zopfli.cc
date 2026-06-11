@@ -18,9 +18,6 @@
 
 #include <fstream>
 
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
-
 absl::Status Compress(ZopfliApi& api, std::ifstream& instream,
                       std::ofstream& outstream, ZopfliFormat format) {
   // Get size of Stream
@@ -37,19 +34,19 @@ absl::Status Compress(ZopfliApi& api, std::ifstream& instream,
 
   // Compress
   sapi::v::Struct<ZopfliOptions> options;
-  ABSL_RETURN_IF_ERROR(api.ZopfliInitOptions(options.PtrAfter()));
+  SAPI_RETURN_IF_ERROR(api.ZopfliInitOptions(options.PtrAfter()));
 
   sapi::v::GenericPtr outptr;
   sapi::v::IntBase<size_t> outsize(0);
 
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       api.ZopfliCompress(options.PtrBefore(), format, inbuf.PtrBefore(), ssize,
                          outptr.PtrAfter(), outsize.PtrBoth()));
 
   // Get and save data
   sapi::v::Array<int8_t> outbuf(outsize.GetValue());
   outbuf.SetRemote(reinterpret_cast<void*>(outptr.GetValue()));
-  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferFromSandboxee(&outbuf));
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferFromSandboxee(&outbuf));
 
   outstream.write(reinterpret_cast<char*>(outbuf.GetData()), outbuf.GetSize());
   if (!outstream.good()) {
@@ -60,13 +57,13 @@ absl::Status Compress(ZopfliApi& api, std::ifstream& instream,
 
 absl::Status CompressFD(ZopfliApi& api, sapi::v::Fd& infd, sapi::v::Fd& outfd,
                         ZopfliFormat format) {
-  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
-  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
 
   sapi::v::Struct<ZopfliOptions> options;
-  ABSL_RETURN_IF_ERROR(api.ZopfliInitOptions(options.PtrAfter()));
+  SAPI_RETURN_IF_ERROR(api.ZopfliInitOptions(options.PtrAfter()));
 
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       int ret, api.ZopfliCompressFD(options.PtrBefore(), format,
                                     infd.GetRemoteFd(), outfd.GetRemoteFd()));
 

@@ -30,20 +30,18 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/buffer.h"
-#include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
-#include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox_config.h"
 #include "sandboxed_api/sandbox2/stack_trace.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -83,12 +81,12 @@ absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdForSharedMemory(
 
 absl::StatusOr<std::unique_ptr<sandbox2::Buffer>> CreateSharedMemoryBuffer(
     const SharedMemoryConfig& config) {
-  ABSL_ASSIGN_OR_RETURN(auto fd, CreateMemFdForSharedMemory(config));
+  SAPI_ASSIGN_OR_RETURN(auto fd, CreateMemFdForSharedMemory(config));
   if (ftruncate(fd.get(), config.size) < 0) {
     return absl::ErrnoToStatus(errno, "Could not truncate shared memory file");
   }
 
-  ABSL_ASSIGN_OR_RETURN(std::unique_ptr<Buffer> buffer,
+  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Buffer> buffer,
                         Buffer::CreateFromFd(std::move(fd)));
   if (config.enable_huge_pages) {
     if (madvise(buffer->data(), buffer->size(), MADV_HUGEPAGE) < 0) {
@@ -182,7 +180,7 @@ absl::StatusOr<const Buffer*> Sandbox2::CreateSharedMemoryMapping(
   if (shared_memory_buffer_ != nullptr) {
     return absl::FailedPreconditionError("Shared memory was already created");
   }
-  ABSL_ASSIGN_OR_RETURN(auto buffer, CreateSharedMemoryBuffer(config));
+  SAPI_ASSIGN_OR_RETURN(auto buffer, CreateSharedMemoryBuffer(config));
 
   // Seal the shared memory file descriptor to prevent the sandboxee from
   // growing or shrinking it.

@@ -20,21 +20,20 @@
 #include "../curl_util.h"    // NOLINT(build/include)
 #include "../sandbox.h"      // NOLINT(build/include)
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
 absl::Status Example1() {
   // Initialize sandbox2 and sapi
   curl::CurlSapiSandbox sandbox;
-  ABSL_RETURN_IF_ERROR(sandbox.Init());
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
   curl::CurlApi api(&sandbox);
 
   // Initialize the curl session
   curl::CURL* curl_handle;
-  ABSL_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
   sapi::v::RemotePtr curl(curl_handle);
   if (!curl_handle) {
     return absl::UnknownError("curl_easy_init failed: Invalid curl handle");
@@ -44,7 +43,7 @@ absl::Status Example1() {
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   if (curl_code != 0) {
@@ -53,7 +52,7 @@ absl::Status Example1() {
   }
 
   // Set the library to follow a redirection
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code,
       api.curl_easy_setopt_long(&curl, curl::CURLOPT_FOLLOWLOCATION, 1l));
   if (curl_code != 0) {
@@ -62,7 +61,7 @@ absl::Status Example1() {
   }
 
   // Disable authentication of peer certificate
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code,
       api.curl_easy_setopt_long(&curl, curl::CURLOPT_SSL_VERIFYPEER, 0l));
   if (curl_code != 0) {
@@ -71,14 +70,14 @@ absl::Status Example1() {
   }
 
   // Perform the request
-  ABSL_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
     return absl::UnknownError(absl::StrCat("curl_easy_perform failed: ",
                                            curl::StrError(&api, curl_code)));
   }
 
   // Cleanup curl
-  ABSL_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
+  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
 
   return absl::OkStatus();
 }

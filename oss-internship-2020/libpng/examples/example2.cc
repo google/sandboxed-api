@@ -17,8 +17,6 @@
 
 #include "../sandboxed.h"     // NOLINT(build/include)
 #include "../tests/libpng.h"  // NOLINT(build/include)
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 
 struct Data {
   int width;
@@ -37,7 +35,7 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
     return absl::InternalError("Error opening input file");
   }
 
-  ABSL_RETURN_IF_ERROR((&api)->sandbox()->TransferToSandboxee(&fd));
+  SAPI_RETURN_IF_ERROR((&api)->sandbox()->TransferToSandboxee(&fd));
 
   if (fd.GetRemoteFd() < 0) {
     return absl::InternalError("Error receiving remote FD");
@@ -45,7 +43,7 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
 
   absl::StatusOr<void*> status_or_file;
   sapi::v::ConstCStr rb_var("rb");
-  ABSL_ASSIGN_OR_RETURN(status_or_file,
+  SAPI_ASSIGN_OR_RETURN(status_or_file,
                         api.png_fdopen(fd.GetRemoteFd(), rb_var.PtrBefore()));
 
   sapi::v::RemotePtr file(status_or_file.value());
@@ -54,10 +52,10 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
   }
 
   sapi::v::Array<char> header(8);
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       api.png_fread(header.PtrBoth(), 1, header.GetSize(), &file));
 
-  ABSL_ASSIGN_OR_RETURN(int return_value,
+  SAPI_ASSIGN_OR_RETURN(int return_value,
                         api.png_sig_cmp(header.PtrBoth(), 0, header.GetSize()));
   if (return_value != 0) {
     return absl::InternalError(absl::StrCat(infile, " is not a PNG file"));
@@ -65,7 +63,7 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
 
   absl::StatusOr<png_structp> status_or_png_structp;
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       status_or_png_structp,
       api.png_create_read_struct_wrapper(ver_string_var.PtrBefore(), nullptr));
 
@@ -75,7 +73,7 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
   }
 
   absl::StatusOr<png_infop> status_or_png_infop;
-  ABSL_ASSIGN_OR_RETURN(status_or_png_infop,
+  SAPI_ASSIGN_OR_RETURN(status_or_png_infop,
                         api.png_create_info_struct(&struct_ptr));
 
   sapi::v::RemotePtr info_ptr(status_or_png_infop.value());
@@ -83,39 +81,39 @@ absl::StatusOr<Data> ReadPng(LibPNGApi& api, absl::string_view infile) {
     return absl::InternalError("png_create_info_struct failed");
   }
 
-  ABSL_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  ABSL_RETURN_IF_ERROR(api.png_init_io_wrapper(&struct_ptr, &file));
-  ABSL_RETURN_IF_ERROR(api.png_set_sig_bytes(&struct_ptr, header.GetSize()));
-  ABSL_RETURN_IF_ERROR(api.png_read_info(&struct_ptr, &info_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_init_io_wrapper(&struct_ptr, &file));
+  SAPI_RETURN_IF_ERROR(api.png_set_sig_bytes(&struct_ptr, header.GetSize()));
+  SAPI_RETURN_IF_ERROR(api.png_read_info(&struct_ptr, &info_ptr));
 
   Data data;
-  ABSL_ASSIGN_OR_RETURN(data.width,
+  SAPI_ASSIGN_OR_RETURN(data.width,
                         api.png_get_image_width(&struct_ptr, &info_ptr));
 
-  ABSL_ASSIGN_OR_RETURN(data.height,
+  SAPI_ASSIGN_OR_RETURN(data.height,
                         api.png_get_image_height(&struct_ptr, &info_ptr));
 
-  ABSL_ASSIGN_OR_RETURN(data.color_type,
+  SAPI_ASSIGN_OR_RETURN(data.color_type,
                         api.png_get_color_type(&struct_ptr, &info_ptr));
 
-  ABSL_ASSIGN_OR_RETURN(data.bit_depth,
+  SAPI_ASSIGN_OR_RETURN(data.bit_depth,
                         api.png_get_bit_depth(&struct_ptr, &info_ptr));
 
-  ABSL_ASSIGN_OR_RETURN(data.number_of_passes,
+  SAPI_ASSIGN_OR_RETURN(data.number_of_passes,
                         api.png_set_interlace_handling(&struct_ptr));
 
-  ABSL_RETURN_IF_ERROR(api.png_read_update_info(&struct_ptr, &info_ptr));
-  ABSL_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_read_update_info(&struct_ptr, &info_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
 
-  ABSL_ASSIGN_OR_RETURN(data.rowbytes,
+  SAPI_ASSIGN_OR_RETURN(data.rowbytes,
                         api.png_get_rowbytes(&struct_ptr, &info_ptr));
   data.row_pointers =
       std::make_unique<sapi::v::Array<uint8_t>>(data.height * data.rowbytes);
 
-  ABSL_RETURN_IF_ERROR(api.png_read_image_wrapper(
+  SAPI_RETURN_IF_ERROR(api.png_read_image_wrapper(
       &struct_ptr, data.row_pointers->PtrAfter(), data.height, data.rowbytes));
 
-  ABSL_RETURN_IF_ERROR(api.png_fclose(&file));
+  SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
   return data;
 }
 
@@ -125,14 +123,14 @@ absl::Status WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
     return absl::InternalError("Error opening output file");
   }
 
-  ABSL_RETURN_IF_ERROR((&api)->sandbox()->TransferToSandboxee(&fd));
+  SAPI_RETURN_IF_ERROR((&api)->sandbox()->TransferToSandboxee(&fd));
   if (fd.GetRemoteFd() < 0) {
     return absl::InternalError("Error receiving remote FD");
   }
 
   absl::StatusOr<void*> status_or_file;
   sapi::v::ConstCStr wb_var("wb");
-  ABSL_ASSIGN_OR_RETURN(status_or_file,
+  SAPI_ASSIGN_OR_RETURN(status_or_file,
                         api.png_fdopen(fd.GetRemoteFd(), wb_var.PtrBefore()));
 
   sapi::v::RemotePtr file(status_or_file.value());
@@ -142,7 +140,7 @@ absl::Status WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
 
   absl::StatusOr<png_structp> status_or_png_structp;
   sapi::v::ConstCStr ver_string_var(PNG_LIBPNG_VER_STRING);
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       status_or_png_structp,
       api.png_create_write_struct_wrapper(ver_string_var.PtrBefore(), nullptr));
 
@@ -152,7 +150,7 @@ absl::Status WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
   }
 
   absl::StatusOr<png_infop> status_or_png_infop;
-  ABSL_ASSIGN_OR_RETURN(status_or_png_infop,
+  SAPI_ASSIGN_OR_RETURN(status_or_png_infop,
                         api.png_create_info_struct(&struct_ptr));
 
   sapi::v::RemotePtr info_ptr(status_or_png_infop.value());
@@ -160,25 +158,25 @@ absl::Status WritePng(LibPNGApi& api, absl::string_view outfile, Data& data) {
     return absl::InternalError("png_create_info_struct failed");
   }
 
-  ABSL_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  ABSL_RETURN_IF_ERROR(api.png_init_io_wrapper(&struct_ptr, &file));
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_init_io_wrapper(&struct_ptr, &file));
 
-  ABSL_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(
       api.png_set_IHDR(&struct_ptr, &info_ptr, data.width, data.height,
                        data.bit_depth, data.color_type, PNG_INTERLACE_NONE,
                        PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE));
 
-  ABSL_RETURN_IF_ERROR(api.png_write_info(&struct_ptr, &info_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_write_info(&struct_ptr, &info_ptr));
 
-  ABSL_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  ABSL_RETURN_IF_ERROR(api.png_write_image_wrapper(
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_write_image_wrapper(
       &struct_ptr, data.row_pointers->PtrBefore(), data.height, data.rowbytes));
 
-  ABSL_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
-  ABSL_RETURN_IF_ERROR(api.png_write_end(&struct_ptr, nullptr));
+  SAPI_RETURN_IF_ERROR(api.png_setjmp(&struct_ptr));
+  SAPI_RETURN_IF_ERROR(api.png_write_end(&struct_ptr, nullptr));
 
-  ABSL_RETURN_IF_ERROR(api.png_fclose(&file));
+  SAPI_RETURN_IF_ERROR(api.png_fclose(&file));
   return absl::OkStatus();
 }
 
@@ -187,10 +185,10 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   sandbox.AddFile(infile);
   sandbox.AddFile(outfile);
 
-  ABSL_RETURN_IF_ERROR(sandbox.Init());
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
   LibPNGApi api(&sandbox);
 
-  ABSL_ASSIGN_OR_RETURN(Data data, ReadPng(api, infile));
+  SAPI_ASSIGN_OR_RETURN(Data data, ReadPng(api, infile));
 
   if (data.color_type != PNG_COLOR_TYPE_RGBA &&
       data.color_type != PNG_COLOR_TYPE_RGB) {
@@ -216,7 +214,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
     }
   }
 
-  ABSL_RETURN_IF_ERROR(WritePng(api, outfile, data));
+  SAPI_RETURN_IF_ERROR(WritePng(api, outfile, data));
   return absl::OkStatus();
 }
 

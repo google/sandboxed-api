@@ -45,7 +45,6 @@
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -68,6 +67,7 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
@@ -1048,7 +1048,7 @@ void PtraceMonitor::StateProcessStopped(pid_t pid, int status) {
     auto stack_trace = [this,
                         pid]() -> absl::StatusOr<std::vector<std::string>> {
       Regs regs(pid);
-      ABSL_RETURN_IF_ERROR(regs.Fetch());
+      SAPI_RETURN_IF_ERROR(regs.Fetch());
       return GetStackTrace(&regs);
     }();
 

@@ -18,14 +18,12 @@
 #include <iostream>
 #include <string>
 
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "contrib/libxls/sandboxed.h"
 
 absl::Status GetError(LibxlsApi* api, xls_error_t error_code) {
-  ABSL_ASSIGN_OR_RETURN(const char* c_errstr, api->xls_getError(error_code));
+  SAPI_ASSIGN_OR_RETURN(const char* c_errstr, api->xls_getError(error_code));
   sapi::v::RemotePtr sapi_errstr(const_cast<char*>(c_errstr));
-  ABSL_ASSIGN_OR_RETURN(std::string errstr,
+  SAPI_ASSIGN_OR_RETURN(std::string errstr,
                         api->GetSandbox()->GetCString(sapi_errstr));
 
   return absl::UnavailableError(errstr);
@@ -44,7 +42,7 @@ absl::StatusOr<LibXlsWorkbook> LibXlsWorkbook::Open(LibxlsSapiSandbox* sandbox,
   sapi::v::CStr sapi_filename(filename.c_str());
   sapi::v::CStr sapi_encode(encode.c_str());
 
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       xlsWorkBook * wb,
       api.xls_open_file(sapi_filename.PtrBefore(), sapi_encode.PtrBefore(),
                         sapi_error.PtrAfter()));
@@ -55,7 +53,7 @@ absl::StatusOr<LibXlsWorkbook> LibXlsWorkbook::Open(LibxlsSapiSandbox* sandbox,
 
   sapi::v::Struct<xlsWorkBook> sapi_wb;
   sapi_wb.SetRemote(wb);
-  ABSL_RETURN_IF_ERROR(sandbox->TransferFromSandboxee(&sapi_wb));
+  SAPI_RETURN_IF_ERROR(sandbox->TransferFromSandboxee(&sapi_wb));
 
   return LibXlsWorkbook(sandbox, wb, sapi_wb.data().sheets.count);
 }
@@ -77,7 +75,7 @@ absl::StatusOr<LibXlsSheet> LibXlsWorkbook::OpenSheet(uint32_t index) {
 
   LibxlsApi api(sandbox_);
   sapi::v::RemotePtr sapi_rwb(rwb_);
-  ABSL_ASSIGN_OR_RETURN(xlsWorkSheet * ws,
+  SAPI_ASSIGN_OR_RETURN(xlsWorkSheet * ws,
                         api.xls_getWorkSheet(&sapi_rwb, index));
   if (ws == nullptr) {
     return absl::UnavailableError("Unable to open sheet");
@@ -85,7 +83,7 @@ absl::StatusOr<LibXlsSheet> LibXlsWorkbook::OpenSheet(uint32_t index) {
 
   sapi::v::Struct<xlsWorkSheet> sapi_ws;
   sapi_ws.SetRemote(ws);
-  ABSL_ASSIGN_OR_RETURN(xls_error_t error_code,
+  SAPI_ASSIGN_OR_RETURN(xls_error_t error_code,
                         api.xls_parseWorkSheet(sapi_ws.PtrAfter()));
   if (error_code != 0) {
     return GetError(&api, error_code);
@@ -122,7 +120,7 @@ absl::StatusOr<LibXlsCell> LibXlsSheet::GetNewCell(
     case XLS_RECORD_BLANK:
       return LibXlsCell{XLS_RECORD_BLANK, 0.0};
     case XLS_RECORD_FORMULA:
-      ABSL_ASSIGN_OR_RETURN(std::string cell_str, GetStr(sapi_cell));
+      SAPI_ASSIGN_OR_RETURN(std::string cell_str, GetStr(sapi_cell));
       if (cell_str == "bool") {
         return LibXlsCell{XLS_RECORD_BOOL, d > 0};
       } else if (cell_str == "error") {
@@ -144,13 +142,13 @@ absl::StatusOr<LibXlsCell> LibXlsSheet::GetCell(uint32_t row, uint32_t col) {
 
   LibxlsApi api(sandbox_);
   sapi::v::RemotePtr sapi_rws(rws_);
-  ABSL_ASSIGN_OR_RETURN(xlsCell * cell, api.xls_cell(&sapi_rws, row, col));
+  SAPI_ASSIGN_OR_RETURN(xlsCell * cell, api.xls_cell(&sapi_rws, row, col));
   if (cell == nullptr) {
     return absl::UnavailableError("Unable to get cell");
   }
   sapi::v::Struct<xlsCell> sapi_cell;
   sapi_cell.SetRemote(cell);
-  ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&sapi_cell));
+  SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&sapi_cell));
 
   return GetNewCell(sapi_cell);
 }

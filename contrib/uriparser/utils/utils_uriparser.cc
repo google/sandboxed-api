@@ -23,8 +23,6 @@
 #include <string>
 
 #include "absl/cleanup/cleanup.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 
 UriParser::~UriParser() {
   if (GetStatus().ok()) {
@@ -35,17 +33,17 @@ UriParser::~UriParser() {
 absl::Status UriParser::GetStatus() { return status_; }
 
 absl::Status UriParser::ParseUri() {
-  ABSL_RETURN_IF_ERROR(sandbox_->Allocate(&uri_, true));
+  SAPI_RETURN_IF_ERROR(sandbox_->Allocate(&uri_, true));
 
   sapi::v::Struct<UriParserStateA> state;
   state.mutable_data()->uri = reinterpret_cast<UriUriA*>(uri_.GetRemote());
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       int ret, api_.uriParseUriA(state.PtrBefore(), c_uri_.PtrBefore()));
   if (ret != 0) {
     return absl::UnavailableError("Unable to parse uri");
   }
 
-  ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&uri_));
+  SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&uri_));
 
   return absl::OkStatus();
 }
@@ -62,7 +60,7 @@ absl::StatusOr<std::string> UriParser::FetchUriText(UriTextRangeA* ptr) {
 
   // Sometimes uriparser dosen't allocate new memory
   // and sometimes it does.
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       std::string uri,
       sandbox_->GetCString(sapi::v::RemotePtr(const_cast<char*>(ptr->first))));
 
@@ -89,12 +87,12 @@ absl::StatusOr<std::string> UriParser::GetHostIP() {
   if (uri_.mutable_data()->hostData.ip4) {
     sapi::v::Struct<UriIp4> ip4;
     ip4.SetRemote(uri_.mutable_data()->hostData.ip4);
-    ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&ip4));
+    SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&ip4));
     inet_ntop(AF_INET, ip4.mutable_data()->data, ipstr, sizeof(ipstr));
   } else if (uri_.mutable_data()->hostData.ip6) {
     sapi::v::Struct<UriIp6> ip6;
     ip6.SetRemote(uri_.mutable_data()->hostData.ip6);
-    ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&ip6));
+    SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&ip6));
     inet_ntop(AF_INET6, ip6.mutable_data()->data, ipstr, sizeof(ipstr));
   }
 
@@ -125,9 +123,9 @@ absl::StatusOr<std::vector<std::string>> UriParser::GetPath() {
   path_segment.SetRemote(pathHead);
 
   while (path_segment.GetRemote() != nullptr) {
-    ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&path_segment));
+    SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&path_segment));
 
-    ABSL_ASSIGN_OR_RETURN(std::string seg,
+    SAPI_ASSIGN_OR_RETURN(std::string seg,
                           FetchUriText(&path_segment.mutable_data()->text));
     if (!seg.empty()) {
       ret.push_back(seg);
@@ -140,14 +138,14 @@ absl::StatusOr<std::vector<std::string>> UriParser::GetPath() {
 }
 
 absl::Status UriParser::NormalizeSyntax() {
-  ABSL_ASSIGN_OR_RETURN(int dirty_parts,
+  SAPI_ASSIGN_OR_RETURN(int dirty_parts,
                         api_.uriNormalizeSyntaxMaskRequiredA(uri_.PtrNone()));
 
   return NormalizeSyntax(dirty_parts);
 }
 
 absl::Status UriParser::NormalizeSyntax(int norm_mask) {
-  ABSL_ASSIGN_OR_RETURN(int ret,
+  SAPI_ASSIGN_OR_RETURN(int ret,
                         api_.uriNormalizeSyntaxExA(uri_.PtrAfter(), norm_mask));
 
   if (ret != 0) {
@@ -163,7 +161,7 @@ absl::StatusOr<std::string> UriParser::GetUri(sapi::v::Struct<UriUriA>* uri) {
   sapi::v::Int size;
   int ret;
 
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       ret, api_.uriToStringCharsRequiredA(uri->PtrNone(), size.PtrAfter()));
   if (ret != 0) {
     return absl::UnavailableError("Unable to get size");
@@ -171,7 +169,7 @@ absl::StatusOr<std::string> UriParser::GetUri(sapi::v::Struct<UriUriA>* uri) {
 
   sapi::v::Array<char> buf(size.GetValue() + 1);
 
-  ABSL_ASSIGN_OR_RETURN(ret, api_.uriToStringA(buf.PtrAfter(), uri->PtrNone(),
+  SAPI_ASSIGN_OR_RETURN(ret, api_.uriToStringA(buf.PtrAfter(), uri->PtrNone(),
                                                buf.GetSize(), nullptr));
   if (ret != 0) {
     return absl::UnavailableError("Unable to Recomposing URI");
@@ -182,7 +180,7 @@ absl::StatusOr<std::string> UriParser::GetUri(sapi::v::Struct<UriUriA>* uri) {
 
 absl::StatusOr<std::string> UriParser::GetUriEscaped(bool space_to_plus,
                                                      bool normalize_breaks) {
-  ABSL_ASSIGN_OR_RETURN(std::string uri, GetUri());
+  SAPI_ASSIGN_OR_RETURN(std::string uri, GetUri());
 
   // Be sure to allocate *6 times* the space of the input buffer for
   // *6 times* for _normalizeBreaks == URI_TRUE_
@@ -191,7 +189,7 @@ absl::StatusOr<std::string> UriParser::GetUriEscaped(bool space_to_plus,
   sapi::v::Array<char> bufout(space);
   sapi::v::ConstCStr bufin(uri.c_str());
 
-  ABSL_RETURN_IF_ERROR(api_.uriEscapeA(bufin.PtrBefore(), bufout.PtrAfter(),
+  SAPI_RETURN_IF_ERROR(api_.uriEscapeA(bufin.PtrBefore(), bufout.PtrAfter(),
                                        space_to_plus, normalize_breaks));
 
   return std::string(bufout.GetData());
@@ -201,7 +199,7 @@ absl::StatusOr<std::string> UriParser::GetUriWithBase(const std::string& base) {
   UriParser base_uri(sandbox_, base);
 
   sapi::v::Struct<UriUriA> newuri;
-  ABSL_ASSIGN_OR_RETURN(int ret,
+  SAPI_ASSIGN_OR_RETURN(int ret,
                         api_.uriAddBaseUriA(newuri.PtrAfter(), uri_.PtrNone(),
                                             base_uri.uri_.PtrBefore()));
   if (ret != 0) {
@@ -219,7 +217,7 @@ absl::StatusOr<std::string> UriParser::GetUriWithoutBase(
   UriParser base_uri(sandbox_, base);
 
   sapi::v::Struct<UriUriA> newuri;
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       int ret,
       api_.uriRemoveBaseUriA(newuri.PtrAfter(), uri_.PtrNone(),
                              base_uri.uri_.PtrBefore(), domain_root_mode));
@@ -247,7 +245,7 @@ UriParser::GetQueryElements() {
   sapi::v::RemotePtr afterLast(
       const_cast<char*>(uri_.mutable_data()->query.afterLast));
 
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       int ret,
       api_.uriDissectQueryMallocA(query_ptr.PtrAfter(), query_count.PtrAfter(),
                                   &first, &afterLast));
@@ -263,17 +261,17 @@ UriParser::GetQueryElements() {
   obj.SetRemote(query_ptr[0]);
 
   for (int i = 0; i < query_count.GetValue(); ++i) {
-    ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&obj));
+    SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&obj));
     obj.SetRemote(nullptr);
 
     void* key_p = const_cast<char*>(obj.mutable_data()->key);
     void* value_p = const_cast<char*>(obj.mutable_data()->value);
 
-    ABSL_ASSIGN_OR_RETURN(std::string key_s,
+    SAPI_ASSIGN_OR_RETURN(std::string key_s,
                           sandbox_->GetCString(sapi::v::RemotePtr(key_p)));
     std::string value_s;
     if (value_p != nullptr) {
-      ABSL_ASSIGN_OR_RETURN(value_s,
+      SAPI_ASSIGN_OR_RETURN(value_s,
                             sandbox_->GetCString(sapi::v::RemotePtr(value_p)));
     } else {
       value_s = "";

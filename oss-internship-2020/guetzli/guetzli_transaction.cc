@@ -22,7 +22,6 @@
 #include <iostream>
 #include <memory>
 
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 
 namespace guetzli::sandbox {
@@ -34,8 +33,8 @@ absl::Status GuetzliTransaction::Main() {
     return absl::FailedPreconditionError("Error opening input file");
   }
 
-  ABSL_ASSIGN_OR_RETURN(image_type_, GetImageTypeFromFd(in_fd.GetValue()));
-  ABSL_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&in_fd));
+  SAPI_ASSIGN_OR_RETURN(image_type_, GetImageTypeFromFd(in_fd.GetValue()));
+  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&in_fd));
 
   if (in_fd.GetRemoteFd() < 0) {
     return absl::FailedPreconditionError(
@@ -65,7 +64,7 @@ absl::Status GuetzliTransaction::Main() {
     return absl::FailedPreconditionError("Error creating temp output file");
   }
 
-  ABSL_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&out_fd));
+  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&out_fd));
 
   if (out_fd.GetRemoteFd() < 0) {
     return absl::FailedPreconditionError(
@@ -78,7 +77,7 @@ absl::Status GuetzliTransaction::Main() {
     return absl::FailedPreconditionError("Error writing file inside sandbox");
   }
 
-  ABSL_RETURN_IF_ERROR(LinkOutFile(out_fd.GetValue()));
+  SAPI_RETURN_IF_ERROR(LinkOutFile(out_fd.GetValue()));
 
   return absl::OkStatus();
 }

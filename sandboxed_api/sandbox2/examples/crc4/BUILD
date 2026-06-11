@@ -79,7 +79,6 @@ cc_test(
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2:util",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
     ],
 )

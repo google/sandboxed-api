@@ -14,8 +14,6 @@
 
 #include "contrib/brotli/utils/utils_brotli.h"
 
-#include "absl/status/statusor.h"
-
 std::streamsize GetStreamSize(std::ifstream& stream) {
   stream.seekg(0, std::ios_base::end);
   std::streamsize ssize = stream.tellg();

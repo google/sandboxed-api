@@ -21,7 +21,6 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -29,6 +28,7 @@
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/vars.h"
 
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
@@ -53,12 +53,12 @@ TEST(StringopTest, ProtobufStringDuplication) {
       return pp.status();
     }
     {
-      ABSL_ASSIGN_OR_RETURN(int return_value,
+      SAPI_ASSIGN_OR_RETURN(int return_value,
                             api.pb_duplicate_string(pp->PtrBoth()));
       TRANSACTION_FAIL_IF_NOT(return_value, "pb_duplicate_string() failed");
     }
 
-    ABSL_ASSIGN_OR_RETURN(auto pb_result, pp->GetMessage());
+    SAPI_ASSIGN_OR_RETURN(auto pb_result, pp->GetMessage());
     LOG(INFO) << "Result PB: " << pb_result;
     TRANSACTION_FAIL_IF_NOT(pb_result.output() == "HelloHello",
                             "Incorrect output");

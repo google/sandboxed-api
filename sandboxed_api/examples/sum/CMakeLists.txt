@@ -89,6 +89,7 @@ target_link_libraries(sapi_main_sum PRIVATE
   absl::strings
   sapi::base
   sapi::sapi
+  sapi::status
   sapi::sum_sapi
   sapi::vars
 )

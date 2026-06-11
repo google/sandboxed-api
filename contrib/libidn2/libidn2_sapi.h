@@ -22,7 +22,6 @@
 
 #include "libidn2_sapi.sapi.h"  // NOLINT(build/include)
 #include "absl/log/die_if_null.h"
-#include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 
 class Idn2SapiSandbox : public IDN2Sandbox {

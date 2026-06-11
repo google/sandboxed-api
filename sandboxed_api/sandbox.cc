@@ -33,7 +33,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -41,6 +40,7 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/rpcchannel.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_int.h"
@@ -76,7 +76,7 @@ absl::Status SandboxBase::SynchronizePtrBefore(v::Ptr* p) {
   if (p->GetPointedVar()->GetRemote() == nullptr) {
     // Allocate the memory, and make it automatically free-able, upon this
     // object's (p->GetPointedVar()) end of life-time.
-    ABSL_RETURN_IF_ERROR(Allocate(p->GetPointedVar(), /*automatic_free=*/true));
+    SAPI_RETURN_IF_ERROR(Allocate(p->GetPointedVar(), /*automatic_free=*/true));
   }
 
   // Allocation occurs during both before/after synchronization modes. But the
@@ -150,7 +150,7 @@ absl::Status SandboxBase::Call(
       }
 
       // Synchronize all pointers before the call if it's needed.
-      ABSL_RETURN_IF_ERROR(SynchronizePtrBefore(parg));
+      SAPI_RETURN_IF_ERROR(SynchronizePtrBefore(parg));
       rfcall.args[i].arg_int = parg->GetRemoteValue();
       VLOG(1) << "CALL ARG: (" << i << "): " << parg->ToString();
       continue;
@@ -174,7 +174,7 @@ absl::Status SandboxBase::Call(
       // Cast is safe, since type is v::Type::kFd
       auto* fd = static_cast<v::Fd*>(carg);
       if (fd->GetRemoteFd() < 0) {
-        ABSL_RETURN_IF_ERROR(TransferToSandboxee(fd));
+        SAPI_RETURN_IF_ERROR(TransferToSandboxee(fd));
       }
       rfcall.args[i].arg_int = fd->GetRemoteFd();
     }
@@ -186,7 +186,7 @@ absl::Status SandboxBase::Call(
 
   // Call & receive data.
   FuncRet fret;
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       rpc_channel()->Call(rfcall, comms::kMsgCall, &fret, rfcall.ret_type));
 
   if (fret.ret_type == v::Type::kFloat) {
@@ -198,13 +198,13 @@ absl::Status SandboxBase::Call(
   }
 
   if (rfcall.ret_type == v::Type::kFd) {
-    ABSL_RETURN_IF_ERROR(TransferFromSandboxee(ret));
+    SAPI_RETURN_IF_ERROR(TransferFromSandboxee(ret));
   }
 
   // Synchronize all pointers after the call if it's needed.
   for (internal::PtrOrCallable arg : args) {
     if (arg.IsPtr() && arg.ptr() != nullptr) {
-      ABSL_RETURN_IF_ERROR(SynchronizePtrAfter(arg.ptr()));
+      SAPI_RETURN_IF_ERROR(SynchronizePtrAfter(arg.ptr()));
     }
   }
 
@@ -239,8 +239,8 @@ absl::StatusOr<std::unique_ptr<sapi::v::Array<const uint8_t>>>
 SandboxBase::AllocateAndTransferToSandboxee(absl::Span<const uint8_t> buffer) {
   auto sapi_buffer = std::make_unique<sapi::v::Array<const uint8_t>>(
       buffer.data(), buffer.size());
-  ABSL_RETURN_IF_ERROR(Allocate(sapi_buffer.get(), /*automatic_free=*/true));
-  ABSL_RETURN_IF_ERROR(TransferToSandboxee(sapi_buffer.get()));
+  SAPI_RETURN_IF_ERROR(Allocate(sapi_buffer.get(), /*automatic_free=*/true));
+  SAPI_RETURN_IF_ERROR(TransferToSandboxee(sapi_buffer.get()));
   return sapi_buffer;
 }
 
@@ -252,13 +252,13 @@ absl::StatusOr<std::string> SandboxBase::GetCString(const v::RemotePtr& str,
 
   void* rptr = reinterpret_cast<void*>(str.GetRemoteValue());
 
-  ABSL_ASSIGN_OR_RETURN(auto len, rpc_channel()->Strlen(rptr));
+  SAPI_ASSIGN_OR_RETURN(auto len, rpc_channel()->Strlen(rptr));
   if (len > max_length) {
     return absl::InvalidArgumentError(
         absl::StrCat("Target string too large: ", len, " > ", max_length));
   }
   std::string buffer(len, '\0');
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       size_t ret,
       rpc_channel()->CopyFromSandbox(
           reinterpret_cast<uintptr_t>(rptr),

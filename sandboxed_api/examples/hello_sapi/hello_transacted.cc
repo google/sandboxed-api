@@ -20,14 +20,13 @@
 #include <memory>
 
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 // Generated header
 #include "sandboxed_api/examples/hello_sapi/hello_sapi.sapi.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
-#include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/transaction.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
@@ -75,7 +74,7 @@ int main() {
   absl::Status status =
       transaction.Run([](sapi::SandboxBase* sandbox) -> absl::Status {
         HelloApi api(sandbox);
-        ABSL_ASSIGN_OR_RETURN(int result, api.AddTwoIntegers(1000, 337));
+        SAPI_ASSIGN_OR_RETURN(int result, api.AddTwoIntegers(1000, 337));
         std::cout << "  1000 + 337 = " << result << "\n";
         return absl::OkStatus();
       });

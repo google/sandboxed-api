@@ -18,9 +18,8 @@
 #include <fcntl.h>
 
 #include "absl/log/die_if_null.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "contrib/libzip/sandboxed.h"
+#include "sandboxed_api/util/status_macros.h"
 
 class LibZip {
  public:

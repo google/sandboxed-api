@@ -20,9 +20,8 @@
 #include "../curl_util.h"    // NOLINT(build/include)
 #include "../sandbox.h"      // NOLINT(build/include)
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
@@ -61,13 +60,13 @@ absl::Status Example3(const std::string& ssl_certificate,
                       const std::string& ca_certificates) {
   // Initialize sandbox2 and sapi
   CurlSapiSandboxEx3 sandbox(ssl_certificate, ssl_key, ca_certificates);
-  ABSL_RETURN_IF_ERROR(sandbox.Init());
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
   curl::CurlApi api(&sandbox);
 
   int curl_code;
 
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
-  ABSL_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
   if (curl_code != 0) {
     return absl::UnavailableError(absl::StrCat(
         "curl_global_init failed: ", curl::StrError(&api, curl_code)));
@@ -75,7 +74,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
   // Initialize curl easy handle
   curl::CURL* curl_handle;
-  ABSL_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
   sapi::v::RemotePtr curl(curl_handle);
   if (!curl_handle) {
     return absl::UnavailableError("curl_easy_init failed: Invalid curl handle");
@@ -83,7 +82,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
   // Specify URL to get (using HTTPS)
   sapi::v::ConstCStr url("https://example.com");
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   if (curl_code != 0) {
@@ -93,7 +92,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
   // Set the SSL certificate type to "PEM"
   sapi::v::ConstCStr ssl_cert_type("PEM");
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLCERTTYPE,
                                           ssl_cert_type.PtrBefore()));
   if (curl_code != 0) {
@@ -103,7 +102,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
   // Set the certificate for client authentication
   sapi::v::ConstCStr sapi_ssl_certificate(ssl_certificate.c_str());
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLCERT,
                                           sapi_ssl_certificate.PtrBefore()));
   if (curl_code != 0) {
@@ -113,7 +112,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
   // Set the private key for client authentication
   sapi::v::ConstCStr sapi_ssl_key(ssl_key.c_str());
-  ABSL_ASSIGN_OR_RETURN(curl_code,
+  SAPI_ASSIGN_OR_RETURN(curl_code,
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_SSLKEY,
                                                  sapi_ssl_key.PtrBefore()));
   if (curl_code != 0) {
@@ -123,7 +122,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
   // Set the password used to protect the private key
   sapi::v::ConstCStr sapi_ssl_key_password(ssl_key_password.c_str());
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_KEYPASSWD,
                                           sapi_ssl_key_password.PtrBefore()));
   if (curl_code != 0) {
@@ -133,7 +132,7 @@ absl::Status Example3(const std::string& ssl_certificate,
 
   // Set the file with the certificates vaildating the server
   sapi::v::ConstCStr sapi_ca_certificates(ca_certificates.c_str());
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_CAINFO,
                                           sapi_ca_certificates.PtrBefore()));
   if (curl_code != 0) {
@@ -142,7 +141,7 @@ absl::Status Example3(const std::string& ssl_certificate,
   }
 
   // Verify the authenticity of the server
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code,
       api.curl_easy_setopt_long(&curl, curl::CURLOPT_SSL_VERIFYPEER, 1L));
   if (curl_code != 0) {
@@ -151,17 +150,17 @@ absl::Status Example3(const std::string& ssl_certificate,
   }
 
   // Perform the request
-  ABSL_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
+  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
     return absl::UnavailableError(absl::StrCat(
         "curl_easy_perform failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Cleanup curl easy handle
-  ABSL_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
+  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
 
   // Cleanup curl
-  ABSL_RETURN_IF_ERROR(api.curl_global_cleanup());
+  SAPI_RETURN_IF_ERROR(api.curl_global_cleanup());
 
   return absl::OkStatus();
 }

@@ -23,10 +23,10 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "google/protobuf/message_lite.h"
 #include "sandboxed_api/util/proto_arg.pb.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
@@ -45,7 +45,7 @@ absl::StatusOr<T> DeserializeProto(const char* data, size_t len) {
   static_assert(std::is_base_of<google::protobuf::MessageLite, T>::value,
                 "Template argument must be a proto message");
   T result;
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       internal::DeserializeProto(data, len, /*output=*/result));
   return result;
 }

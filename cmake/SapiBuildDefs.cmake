@@ -206,6 +206,7 @@ function(add_sapi_library)
     absl::status
     absl::statusor
     sapi::sapi
+    sapi::status
     sapi::vars
   )
   if(NOT _sapi_NOEMBED)

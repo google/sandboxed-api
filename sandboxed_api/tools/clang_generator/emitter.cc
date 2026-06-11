@@ -22,7 +22,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -39,6 +38,7 @@
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/tools/clang_generator/types.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
@@ -60,7 +60,7 @@ constexpr absl::string_view kHeaderIncludes =
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox.h"
-#include "absl/status/status_macros.h"
+#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/vars.h"
 
 )";
@@ -285,7 +285,7 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
   }
   absl::StrAppend(&out, ")");
 
-  ABSL_ASSIGN_OR_RETURN(std::string formatted,
+  SAPI_ASSIGN_OR_RETURN(std::string formatted,
                         internal::ReformatGoogleStyle(/*filename=*/"input", out,
                                                       /*column_limit=*/75));
   out.clear();
@@ -407,7 +407,7 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
                                     "Variadic functions are not supported.");
   }
 
-  ABSL_ASSIGN_OR_RETURN(std::string prototype,
+  SAPI_ASSIGN_OR_RETURN(std::string prototype,
                         PrintFunctionPrototypeComment(type_mapper, decl));
   std::string out;
   absl::StrAppend(&out, "\n", prototype);
@@ -462,7 +462,7 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
   }
 
   // Call the sandboxed function.
-  absl::StrAppend(&out, "\nABSL_RETURN_IF_ERROR(sandbox_->Call(\"",
+  absl::StrAppend(&out, "\nSAPI_RETURN_IF_ERROR(sandbox_->Call(\"",
                   function_name, "\", &v_ret_");
   for (const auto& [qual, name] : params) {
     absl::StrAppend(&out, ", ", IsPointerOrReference(qual) ? "" : "&v_", name);
@@ -637,11 +637,11 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader() {
 absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
   if (rendered_functions_.insert(decl->getQualifiedNameAsString()).second) {
     rendered_functions_unqualified_.insert(decl->getNameAsString());
-    ABSL_ASSIGN_OR_RETURN(std::string function, DoEmitFunction(decl));
+    SAPI_ASSIGN_OR_RETURN(std::string function, DoEmitFunction(decl));
     if (options_.has_sandboxee_src_out()) {
-      ABSL_ASSIGN_OR_RETURN(std::string sandboxee_function,
+      SAPI_ASSIGN_OR_RETURN(std::string sandboxee_function,
                             DoEmitSandboxeeStub(decl));
-      ABSL_ASSIGN_OR_RETURN(std::string prototype_sandboxee_function,
+      SAPI_ASSIGN_OR_RETURN(std::string prototype_sandboxee_function,
                             DoEmitPrototypeSandboxeeFunction(decl));
       rendered_sandboxee_prototypes_ordered_.push_back(
           prototype_sandboxee_function);
@@ -653,12 +653,12 @@ absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
 }
 
 absl::StatusOr<std::string> Emitter::EmitHeader() {
-  ABSL_ASSIGN_OR_RETURN(const std::string header, DoEmitHeader());
+  SAPI_ASSIGN_OR_RETURN(const std::string header, DoEmitHeader());
   return internal::ReformatGoogleStyle(options_.out_file, header);
 }
 
 absl::StatusOr<std::string> Emitter::EmitSandboxeeSrc() {
-  ABSL_ASSIGN_OR_RETURN(const std::string src, DoEmitSandboxeeSrc());
+  SAPI_ASSIGN_OR_RETURN(const std::string src, DoEmitSandboxeeSrc());
   return internal::ReformatGoogleStyle(options_.sandboxee_src_out, src);
 }
 

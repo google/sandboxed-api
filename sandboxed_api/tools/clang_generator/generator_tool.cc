@@ -19,7 +19,6 @@
 
 #include "absl/base/no_destructor.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -35,6 +34,7 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 namespace {
@@ -219,8 +219,8 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
       return absl::UnknownError("Error: Header generation failed.");
     }
 
-    ABSL_ASSIGN_OR_RETURN(std::string header, emitter.Emit(options));
-    ABSL_RETURN_IF_ERROR(
+    SAPI_ASSIGN_OR_RETURN(std::string header, emitter.Emit(options));
+    SAPI_RETURN_IF_ERROR(
         file::SetContents(options.out_file, header, file::Defaults()));
     return absl::OkStatus();
   }
@@ -237,20 +237,20 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
       return absl::UnknownError("");
     }
 
-    ABSL_ASSIGN_OR_RETURN(std::string sandboxee_hdr,
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_hdr,
                           emitter.EmitSandboxeeHdr(options));
-    ABSL_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_hdr_out, sandboxee_hdr,
+    SAPI_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_hdr_out, sandboxee_hdr,
                                            file::Defaults()));
-    ABSL_ASSIGN_OR_RETURN(std::string sandboxee_src,
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_src,
                           emitter.EmitSandboxeeSrc(options));
-    ABSL_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_src_out, sandboxee_src,
+    SAPI_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_src_out, sandboxee_src,
                                            file::Defaults()));
-    ABSL_ASSIGN_OR_RETURN(std::string sandboxee_main,
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_main,
                           emitter.EmitSandboxeeMain(options));
-    ABSL_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_main_out,
+    SAPI_RETURN_IF_ERROR(file::SetContents(*g_sandboxee_main_out,
                                            sandboxee_main, file::Defaults()));
-    ABSL_ASSIGN_OR_RETURN(std::string host_src, emitter.EmitHostSrc(options));
-    ABSL_RETURN_IF_ERROR(
+    SAPI_ASSIGN_OR_RETURN(std::string host_src, emitter.EmitHostSrc(options));
+    SAPI_RETURN_IF_ERROR(
         file::SetContents(*g_host_src_out, host_src, file::Defaults()));
     return absl::OkStatus();
   }
@@ -263,13 +263,13 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
     return absl::UnknownError("Error: Header generation failed.");
   }
 
-  ABSL_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader());
-  ABSL_RETURN_IF_ERROR(
+  SAPI_ASSIGN_OR_RETURN(std::string header, emitter.EmitHeader());
+  SAPI_RETURN_IF_ERROR(
       file::SetContents(options.out_file, header, file::Defaults()));
   if (options.has_sandboxee_src_out()) {
-    ABSL_ASSIGN_OR_RETURN(std::string sandboxee_header,
+    SAPI_ASSIGN_OR_RETURN(std::string sandboxee_header,
                           emitter.EmitSandboxeeSrc());
-    ABSL_RETURN_IF_ERROR(file::SetContents(options.sandboxee_src_out,
+    SAPI_RETURN_IF_ERROR(file::SetContents(options.sandboxee_src_out,
                                            sandboxee_header, file::Defaults()));
   }
   return absl::OkStatus();

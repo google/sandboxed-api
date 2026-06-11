@@ -25,7 +25,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
 #include "contrib/woff2/woff2_wrapper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"

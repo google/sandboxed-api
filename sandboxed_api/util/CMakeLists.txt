@@ -73,6 +73,7 @@ target_link_libraries(sapi_util_proto_helper
          absl::status
          absl::statusor
          sapi::proto_arg_proto
+         sapi::status
 )
 
 
@@ -134,8 +135,7 @@ target_link_libraries(sapi_util_status
           sapi::base
           sapi::strerror
           protobuf::libprotobuf
-  PUBLIC absl::statusor
-  sapi::status_proto
+  PUBLIC sapi::status_proto
 )
 
 # sandboxed_api/util:strerror
@@ -157,6 +157,7 @@ add_library(sapi_util_temp_file ${SAPI_LIB_TYPE}
 add_library(sapi::temp_file ALIAS sapi_util_temp_file)
 target_link_libraries(sapi_util_temp_file
   PRIVATE absl::strings
+          sapi::status
           sapi::strerror
           sapi::base
   PUBLIC absl::status
@@ -229,8 +230,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   set_target_properties(sapi_status_test PROPERTIES OUTPUT_NAME status_test)
   target_link_libraries(sapi_status_test PRIVATE
-    absl::check
-    absl::log
     absl::status
     absl::statusor
     sapi::status

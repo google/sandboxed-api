@@ -349,6 +349,7 @@ target_link_libraries(sandbox2_testcase_network_proxy PRIVATE
   sapi::base
   sapi::file_base
   sapi::fileops
+  sapi::status
 )
 
 # sandboxed_api/sandbox2/testcases:custom_fork

@@ -46,8 +46,7 @@ if(SAPI_BUILD_EXAMPLES)
     sapi::temp_file
     sapi::fileops
     sapi::vars
-    absl::status
-  absl::statusor
+    sapi::status
   )
 endif()
 
@@ -64,8 +63,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::sapi
     sapi::temp_file
     sapi::fileops
-    absl::status
-  absl::statusor
+    sapi::status
     sapi::test_main
     sapi::vars
   )

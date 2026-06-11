@@ -91,6 +91,7 @@ target_link_libraries(sapi_shared_memory_rpcchannel
           absl::span
           absl::synchronization
           sapi::base
+          sapi::status
 )
 
 # sandboxed_api:passthrough_backend
@@ -143,6 +144,7 @@ target_link_libraries(sapi_sandbox2_backend
           sapi::rpcchannel
           sapi::sandbox_config
           sapi::shared_memory_rpcchannel
+          sapi::status
           sapi::var_type
           sandbox2::buffer
           sandbox2::comms
@@ -174,6 +176,8 @@ target_link_libraries(sapi_sapi
           absl::log
           absl::log_globals
           absl::span
+          absl::status
+          absl::statusor
           absl::str_format
           absl::strings
           absl::synchronization
@@ -189,13 +193,12 @@ target_link_libraries(sapi_sapi
           sapi::rpcchannel
   PUBLIC absl::check
          absl::core_headers
-         absl::status
-         absl::statusor
          sandbox2::sandbox2
          sapi::base
          sapi::sandbox_config
          sapi::passthrough_backend
          sapi::sandbox2_backend
+         sapi::status
 )
 
 # sandboxed_api:call
@@ -277,6 +280,7 @@ target_link_libraries(sapi_vars
          sapi::lenval_core
          sapi::proto_helper
          sapi::rpcchannel
+         sapi::status
 )
 
 # sandboxed_api:function_call_helper

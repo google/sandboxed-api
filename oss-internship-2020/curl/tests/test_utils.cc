@@ -25,8 +25,8 @@
 #include <memory>
 #include <thread>  // NOLINT(build/c++11)
 
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace curl::tests {
 
@@ -37,11 +37,11 @@ std::thread CurlTestUtils::server_thread_;
 absl::Status CurlTestUtils::CurlTestSetUp() {
   // Initialize sandbox2 and SAPI
   sandbox_ = std::make_unique<curl::CurlSapiSandbox>();
-  ABSL_RETURN_IF_ERROR(sandbox_->Init());
+  SAPI_RETURN_IF_ERROR(sandbox_->Init());
   api_ = std::make_unique<curl::CurlApi>(sandbox_.get());
 
   // Initialize curl
-  ABSL_ASSIGN_OR_RETURN(curl::CURL * curl_handle, api_->curl_easy_init());
+  SAPI_ASSIGN_OR_RETURN(curl::CURL * curl_handle, api_->curl_easy_init());
   if (!curl_handle) {
     return absl::UnavailableError("curl_easy_init returned nullptr");
   }
@@ -51,7 +51,7 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
 
   // Specify request URL
   sapi::v::ConstCStr sapi_url(kUrl);
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code, api_->curl_easy_setopt_ptr(curl_.get(), curl::CURLOPT_URL,
                                             sapi_url.PtrBefore()));
   if (curl_code != curl::CURLE_OK) {
@@ -60,7 +60,7 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
   }
 
   // Set port
-  ABSL_ASSIGN_OR_RETURN(curl_code, api_->curl_easy_setopt_long(
+  SAPI_ASSIGN_OR_RETURN(curl_code, api_->curl_easy_setopt_long(
                                        curl_.get(), curl::CURLOPT_PORT, port_));
   if (curl_code != curl::CURLE_OK) {
     return absl::UnavailableError(absl::StrCat(
@@ -69,12 +69,12 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
 
   // Generate pointer to the WriteToMemory callback
   void* function_ptr;
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       sandbox_->rpc_channel()->Symbol("WriteToMemory", &function_ptr));
   sapi::v::RemotePtr remote_function_ptr(function_ptr);
 
   // Set WriteToMemory as the write function
-  ABSL_ASSIGN_OR_RETURN(curl_code, api_->curl_easy_setopt_ptr(
+  SAPI_ASSIGN_OR_RETURN(curl_code, api_->curl_easy_setopt_ptr(
                                        curl_.get(), curl::CURLOPT_WRITEFUNCTION,
                                        &remote_function_ptr));
   if (curl_code != curl::CURLE_OK) {
@@ -84,7 +84,7 @@ absl::Status CurlTestUtils::CurlTestSetUp() {
 
   // Pass memory chunk object to the callback
   chunk_ = std::make_unique<sapi::v::LenVal>(0);
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       curl_code, api_->curl_easy_setopt_ptr(
                      curl_.get(), curl::CURLOPT_WRITEDATA, chunk_->PtrBoth()));
   if (curl_code != curl::CURLE_OK) {
@@ -102,14 +102,14 @@ absl::Status CurlTestUtils::CurlTestTearDown() {
 
 absl::StatusOr<std::string> CurlTestUtils::PerformRequest() {
   // Perform the request
-  ABSL_ASSIGN_OR_RETURN(int curl_code, api_->curl_easy_perform(curl_.get()));
+  SAPI_ASSIGN_OR_RETURN(int curl_code, api_->curl_easy_perform(curl_.get()));
   if (curl_code != curl::CURLE_OK) {
     return absl::UnavailableError(absl::StrCat(
         "curl_easy_perform returned with the error code ", curl_code));
   }
 
   // Get pointer to the memory chunk
-  ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(chunk_.get()));
+  SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(chunk_.get()));
   return std::string(reinterpret_cast<char*>(chunk_->GetData()));
 }
 

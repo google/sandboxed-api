@@ -25,8 +25,6 @@
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "contrib/libzip/sandboxed.h"
 #include "contrib/libzip/utils/utils_zip.h"
 
@@ -36,9 +34,9 @@ ABSL_FLAG(std::string, add_file, "", "add file");
 ABSL_FLAG(std::string, delete, "", "delete");
 
 absl::Status ListFiles(LibZip& zip) {
-  ABSL_ASSIGN_OR_RETURN(int64_t num, zip.GetNumberEntries());
+  SAPI_ASSIGN_OR_RETURN(int64_t num, zip.GetNumberEntries());
   for (uint64_t i = 0; i < num; i++) {
-    ABSL_ASSIGN_OR_RETURN(std::string name, zip.GetName(i));
+    SAPI_ASSIGN_OR_RETURN(std::string name, zip.GetName(i));
     std::cout << name << "\n";
   }
 
@@ -46,7 +44,7 @@ absl::Status ListFiles(LibZip& zip) {
 }
 
 absl::Status UnzipToStdout(LibZip& zip, const std::string& filename) {
-  ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> buf, zip.ReadFile(filename));
+  SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> buf, zip.ReadFile(filename));
 
   std::cout << buf.data();
 
@@ -61,7 +59,7 @@ absl::Status AddFile(LibZip& zip, const std::string& filename) {
   }
 
   // The fd will be consumed
-  ABSL_ASSIGN_OR_RETURN(uint64_t index, zip.AddFile(filename, fd));
+  SAPI_ASSIGN_OR_RETURN(uint64_t index, zip.AddFile(filename, fd));
 
   return absl::OkStatus();
 }
@@ -69,9 +67,9 @@ absl::Status AddFile(LibZip& zip, const std::string& filename) {
 absl::Status DeleteFile(LibZip& zip, const std::string& filename) {
   int64_t index = -1;
 
-  ABSL_ASSIGN_OR_RETURN(int64_t num, zip.GetNumberEntries());
+  SAPI_ASSIGN_OR_RETURN(int64_t num, zip.GetNumberEntries());
   for (uint64_t i = 0; i < num; i++) {
-    ABSL_ASSIGN_OR_RETURN(std::string name, zip.GetName(i));
+    SAPI_ASSIGN_OR_RETURN(std::string name, zip.GetName(i));
     if (name == filename) {
       index = i;
       break;

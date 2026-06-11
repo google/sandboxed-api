@@ -160,6 +160,7 @@ target_link_libraries(sandbox2_util_library_resolver
           sapi::fileops
           sapi::file_base
           sapi::raw_logging
+          sapi::status
 )
 
 # sandboxed_api/sandbox2/util:demangle

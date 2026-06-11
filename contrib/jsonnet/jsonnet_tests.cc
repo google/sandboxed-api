@@ -21,7 +21,6 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "contrib/jsonnet/jsonnet_base_sandbox.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"

@@ -15,7 +15,6 @@
 #include <fstream>
 
 #include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
 #include "contrib/libzip/sandboxed.h"
 #include "contrib/libzip/utils/utils_zip.h"
 #include "sandboxed_api/testing.h"

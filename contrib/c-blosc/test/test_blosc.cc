@@ -15,7 +15,6 @@
 #include <fstream>
 
 #include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
 #include "contrib/c-blosc/sandboxed.h"
 #include "contrib/c-blosc/utils/utils_blosc.h"
 #include "sandboxed_api/testing.h"

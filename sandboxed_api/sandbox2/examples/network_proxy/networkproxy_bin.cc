@@ -33,7 +33,6 @@
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -41,6 +40,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 
@@ -105,7 +105,7 @@ absl::Status ConnectWithHandler(int s, const struct sockaddr_in6& saddr) {
 }
 
 absl::StatusOr<int> ConnectToServer(int port) {
-  ABSL_ASSIGN_OR_RETURN(struct sockaddr_in6 saddr, CreateAddres(port));
+  SAPI_ASSIGN_OR_RETURN(struct sockaddr_in6 saddr, CreateAddres(port));
 
   sapi::file_util::fileops::FDCloser s(socket(AF_INET6, SOCK_STREAM, 0));
   if (s.get() < 0) {
@@ -113,9 +113,9 @@ absl::StatusOr<int> ConnectToServer(int port) {
   }
 
   if (absl::GetFlag(FLAGS_connect_with_handler)) {
-    ABSL_RETURN_IF_ERROR(ConnectWithHandler(s.get(), saddr));
+    SAPI_RETURN_IF_ERROR(ConnectWithHandler(s.get(), saddr));
   } else {
-    ABSL_RETURN_IF_ERROR(ConnectManually(s.get(), saddr));
+    SAPI_RETURN_IF_ERROR(ConnectManually(s.get(), saddr));
   }
 
   LOG(INFO) << "Connected to the server";

@@ -18,9 +18,8 @@
 #include <vector>
 
 #include "absl/log/die_if_null.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "contrib/brotli/sandboxed.h"
+#include "sandboxed_api/util/status_macros.h"
 
 class BrotliEncoder {
  public:

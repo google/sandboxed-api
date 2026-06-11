@@ -18,8 +18,6 @@
 #include <iostream>
 #include <string>
 
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "contrib/c-blosc/sandboxed.h"
 
 constexpr size_t kFileMaxSize = 1024 * 1024 * 1024;  // 1GB
@@ -45,19 +43,19 @@ absl::Status Compress(CbloscApi& api, std::ifstream& in_stream,
   }
 
   int ret;
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       ret, api.blosc_set_compressor(
                sapi::v::ConstCStr(compressor.c_str()).PtrBefore()));
   if (ret < 0) {
     return absl::UnavailableError("Unable to set compressor");
   }
 
-  ABSL_ASSIGN_OR_RETURN(ret, api.blosc_set_nthreads(nthreads));
+  SAPI_ASSIGN_OR_RETURN(ret, api.blosc_set_nthreads(nthreads));
   if (ret < 0) {
     return absl::UnavailableError("Unable to set nthreads");
   }
 
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       ssize_t outsize, api.blosc_compress(clevel, 1, sizeof(uint8_t),
                                           inbuf.GetSize(), inbuf.PtrBefore(),
                                           outbuf.PtrAfter(), outbuf.GetSize()));
@@ -84,20 +82,20 @@ absl::Status Decompress(CbloscApi& api, std::ifstream& in_stream,
   }
 
   int ret;
-  ABSL_ASSIGN_OR_RETURN(ret, api.blosc_set_nthreads(nthreads));
+  SAPI_ASSIGN_OR_RETURN(ret, api.blosc_set_nthreads(nthreads));
   if (ret < 0) {
     return absl::UnavailableError("Unable to set nthreads");
   }
 
   // To not transfer memory twice (for blosc_cbuffer_sizes and decopmress),
   // tranfer memory before using it.
-  ABSL_RETURN_IF_ERROR(api.GetSandbox()->Allocate(&inbuf, true));
-  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&inbuf));
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->Allocate(&inbuf, true));
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&inbuf));
 
   sapi::v::IntBase<size_t> nbytes;
   sapi::v::IntBase<size_t> cbytes;
   sapi::v::IntBase<size_t> blocksize;
-  ABSL_RETURN_IF_ERROR(
+  SAPI_RETURN_IF_ERROR(
       api.blosc_cbuffer_sizes(inbuf.PtrNone(), nbytes.PtrAfter(),
                               cbytes.PtrAfter(), blocksize.PtrAfter()));
   if (nbytes.GetValue() == 0) {
@@ -108,7 +106,7 @@ absl::Status Decompress(CbloscApi& api, std::ifstream& in_stream,
   }
 
   sapi::v::Array<uint8_t> outbuf(nbytes.GetValue());
-  ABSL_ASSIGN_OR_RETURN(ssize_t outsize,
+  SAPI_ASSIGN_OR_RETURN(ssize_t outsize,
                         api.blosc_decompress(inbuf.PtrNone(), outbuf.PtrAfter(),
                                              outbuf.GetSize()));
   if (outsize <= 0) {

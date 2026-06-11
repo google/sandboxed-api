@@ -42,7 +42,6 @@
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -61,6 +60,7 @@
 #include "sandboxed_api/sandbox2/version.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/status_macros.h"
 
 #ifndef SECCOMP_FILTER_FLAG_NEW_LISTENER
 #define SECCOMP_FILTER_FLAG_NEW_LISTENER (1UL << 3)
@@ -444,7 +444,7 @@ absl::StatusOr<const Buffer*> Client::GetSharedMemoryMapping() {
   }
 
   int shared_memory_fd = GetMappedFD("s2_shared_memory");
-  ABSL_ASSIGN_OR_RETURN(shared_memory_mapping_,
+  SAPI_ASSIGN_OR_RETURN(shared_memory_mapping_,
                         Buffer::CreateFromFd(sapi::file_util::fileops::FDCloser(
                             shared_memory_fd)));
   return shared_memory_mapping_.get();

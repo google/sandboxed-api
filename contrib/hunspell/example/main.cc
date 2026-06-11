@@ -21,15 +21,13 @@
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "contrib/hunspell/sandboxed.h"
 
 absl::Status PrintSuggest(HunspellApi& api, sapi::v::RemotePtr& hunspellrp,
                           sapi::v::ConstCStr& word) {
   sapi::v::GenericPtr outptr;
 
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       int nlist,
       api.Hunspell_suggest(&hunspellrp, outptr.PtrAfter(), word.PtrBefore()));
 
@@ -41,12 +39,12 @@ absl::Status PrintSuggest(HunspellApi& api, sapi::v::RemotePtr& hunspellrp,
   sapi::v::Array<char*> ptr_list(nlist);
   ptr_list.SetRemote(reinterpret_cast<void*>(outptr.GetValue()));
 
-  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferFromSandboxee(&ptr_list));
+  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferFromSandboxee(&ptr_list));
 
   std::cout << "Suggestions:\n";
   for (int i = 0; i < nlist; i++) {
     sapi::v::RemotePtr sugrp(ptr_list[i]);
-    ABSL_ASSIGN_OR_RETURN(std::string sugestion,
+    SAPI_ASSIGN_OR_RETURN(std::string sugestion,
                           api.GetSandbox()->GetCString(sugrp));
     std::cout << sugestion[i] << "\n";
   }

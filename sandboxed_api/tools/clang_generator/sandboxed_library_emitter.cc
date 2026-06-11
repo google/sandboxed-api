@@ -27,7 +27,6 @@
 #include "absl/functional/overload.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -51,6 +50,7 @@
 #include "re2/re2.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 namespace {
@@ -1369,11 +1369,11 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
         auto body = StripAnnotations(getBody(decl, true));
 
         // Replace calls to the sandboxee thunk with the generated wrapper.
-        // ABSL_RETURN_IF_ERROR(
+        // SAPI_RETURN_IF_ERROR(
         // ReplaceCalls(body, func->sandboxee_thunk->name, func_name));
         auto decl_name = decl->getNameAsString();
         // Replace the name of the function with the original function name.
-        ABSL_RETURN_IF_ERROR(ReplaceDeclaration(body, decl_name, func_name));
+        SAPI_RETURN_IF_ERROR(ReplaceDeclaration(body, decl_name, func_name));
 
         func->host_thunk = Thunk{
             .name = decl->getNameAsString(),
@@ -1436,7 +1436,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   if (!ret_type->isVoidType()) {
     // Parse return type annotations check function decl for annotations?
     // Consider using annotate_type instead of annotate?.
-    ABSL_ASSIGN_OR_RETURN(ret,
+    SAPI_ASSIGN_OR_RETURN(ret,
                           Convert("sapi_ret_arg", ret_type, nullptr, decl));
     for (const std::string& inc : ret->Includes()) {
       includes_.insert(inc);
@@ -1454,7 +1454,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
       name = absl::StrFormat("sapi_arg%zu", i);
     }
     clang::QualType type = param->getType();
-    ABSL_ASSIGN_OR_RETURN(ArgPtr arg, Convert(name, type, param, nullptr));
+    SAPI_ASSIGN_OR_RETURN(ArgPtr arg, Convert(name, type, param, nullptr));
     for (const std::string& inc : arg->Includes()) {
       includes_.insert(inc);
     }
@@ -1465,7 +1465,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   }
 
   for (const auto& arg : args) {
-    ABSL_RETURN_IF_ERROR(arg->LinkArgsIfNeeded(args));
+    SAPI_RETURN_IF_ERROR(arg->LinkArgsIfNeeded(args));
   }
 
   std::string name =
@@ -1595,10 +1595,10 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
   const clang::ASTContext& context =
       funcDecl ? funcDecl->getASTContext() : param->getASTContext();
   if (param) {
-    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, param));
+    SAPI_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, param));
   }
   if (funcDecl) {
-    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, funcDecl));
+    SAPI_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, funcDecl));
   }
 
   if (type->isPointerType() && annotations.ptr_dir == std::nullopt) {
@@ -1607,7 +1607,7 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
                          name, type.getAsString()));
   }
 
-  ABSL_ASSIGN_OR_RETURN(ArgPtr arg,
+  SAPI_ASSIGN_OR_RETURN(ArgPtr arg,
                         ConvertImpl(context, name, type, param != nullptr,
                                     std::move(annotations)));
   if (arg && ((param || funcDecl) || !arg->EmitRetParams().empty())) {
@@ -1814,7 +1814,7 @@ absl::StatusOr<SandboxedLibraryEmitter::Annotations>
 SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
                                           const clang::FunctionDecl* funcDecl) {
   Annotations annotations;
-  ABSL_ASSIGN_OR_RETURN(auto parsed_annotations,
+  SAPI_ASSIGN_OR_RETURN(auto parsed_annotations,
                         GetSandboxAnnotations(funcDecl));
 
   for (const auto& ann : parsed_annotations) {
@@ -1833,7 +1833,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       num_args = 2;  // (name, func_name)
     } else if (ann.name == "null_terminated") {
       absl::Status status = annotations.SetNullTerminated();
-      ABSL_RETURN_IF_ERROR(status);
+      SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       annotations.lifetime = PointerLifetime::kSandboxGlobal;
     } else {
@@ -1857,7 +1857,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
   // TODO(dvyukov): add more error checking with good error messages
   // (duplicate/conflicting/inapplicable annotations, non-existent arg names,
   // etc).
-  ABSL_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(param));
+  SAPI_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(param));
 
   for (const auto& ann : parsed_annotations) {
     size_t num_args = 1;
@@ -1875,31 +1875,31 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       num_args = 2;
       if (!ann.args.empty()) {
         absl::Status status = annotations.SetElemSizedBy(ann.args[0]);
-        ABSL_RETURN_IF_ERROR(status);
+        SAPI_RETURN_IF_ERROR(status);
       }
     } else if (ann.name == "byte_sized_by") {
       num_args = 2;
       if (!ann.args.empty()) {
         absl::Status status = annotations.SetByteSizedBy(ann.args[0]);
-        ABSL_RETURN_IF_ERROR(status);
+        SAPI_RETURN_IF_ERROR(status);
       }
     } else if (ann.name == "elem_sized_by_outparam") {
       num_args = 3;
       if (!ann.args.empty()) {
         absl::Status status =
             annotations.SetElemSizedByOutparam(ann.args[0], ann.args[1]);
-        ABSL_RETURN_IF_ERROR(status);
+        SAPI_RETURN_IF_ERROR(status);
       }
     } else if (ann.name == "byte_sized_by_outparam") {
       num_args = 3;
       if (!ann.args.empty()) {
         absl::Status status =
             annotations.SetByteSizedByOutparam(ann.args[0], ann.args[1]);
-        ABSL_RETURN_IF_ERROR(status);
+        SAPI_RETURN_IF_ERROR(status);
       }
     } else if (ann.name == "null_terminated") {
       absl::Status status = annotations.SetNullTerminated();
-      ABSL_RETURN_IF_ERROR(status);
+      SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       annotations.lifetime = PointerLifetime::kSandboxGlobal;
     } else {

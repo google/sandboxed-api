@@ -19,8 +19,6 @@
 #include <iostream>
 
 #include "absl/log/log.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 
 static constexpr std::size_t kMaxDomainNameLength = 256;
@@ -28,7 +26,7 @@ static constexpr int kMinPossibleKnownError = -10000;
 
 absl::StatusOr<std::string> IDN2Lib::ProcessErrors(
     const absl::StatusOr<int>& untrusted_res, sapi::v::GenericPtr& ptr) {
-  ABSL_RETURN_IF_ERROR(untrusted_res.status());
+  SAPI_RETURN_IF_ERROR(untrusted_res.status());
   int res = untrusted_res.value();
   if (res < 0) {
     if (res == IDN2_MALLOC) {
@@ -41,7 +39,7 @@ absl::StatusOr<std::string> IDN2Lib::ProcessErrors(
   }
   sapi::v::RemotePtr p(reinterpret_cast<void*>(ptr.GetValue()));
   auto maybe_untrusted_name = sandbox_->GetCString(p, kMaxDomainNameLength);
-  ABSL_RETURN_IF_ERROR(sandbox_->Free(&p));
+  SAPI_RETURN_IF_ERROR(sandbox_->Free(&p));
   if (!maybe_untrusted_name.ok()) {
     return maybe_untrusted_name.status();
   }

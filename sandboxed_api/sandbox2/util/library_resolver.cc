@@ -24,7 +24,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -34,6 +33,7 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 namespace {
@@ -109,7 +109,7 @@ std::string GetPlatform(absl::string_view interpreter) {
 absl::StatusOr<std::string> ResolveLibraryPaths(
     const std::string& path, absl::string_view ld_library_path,
     absl::FunctionRef<void(absl::string_view)> callback) {
-  ABSL_ASSIGN_OR_RETURN(std::unique_ptr<ElfParser> file,
+  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<ElfParser> file,
                         ElfParser::Create(path, false));
   return ResolveLibraryPaths(
       *file, false, ld_library_path,
@@ -122,7 +122,7 @@ absl::StatusOr<std::string> ResolveLibraryPaths(
     ElfParser& file, bool mmap_libs, absl::string_view ld_library_path,
     absl::FunctionRef<void(absl::string_view, std::unique_ptr<ElfParser>&&)>
         callback) {
-  ABSL_ASSIGN_OR_RETURN(std::string interpreter, file.ReadInterpreter());
+  SAPI_ASSIGN_OR_RETURN(std::string interpreter, file.ReadInterpreter());
   if (interpreter.empty()) {
     SAPI_RAW_VLOG(1, "The file %s is not a dynamic executable",
                   file.filename().c_str());
@@ -131,7 +131,7 @@ absl::StatusOr<std::string> ResolveLibraryPaths(
 
   SAPI_RAW_VLOG(1, "The file %s is using interpreter %s",
                 file.filename().c_str(), interpreter.c_str());
-  ABSL_RETURN_IF_ERROR(ValidateInterpreter(interpreter));
+  SAPI_RETURN_IF_ERROR(ValidateInterpreter(interpreter));
 
   std::vector<std::string> search_paths;
   // 1. LD_LIBRARY_PATH
@@ -178,7 +178,7 @@ absl::StatusOr<std::string> ResolveLibraryPaths(
   absl::flat_hash_set<std::string> imported_libraries;
   std::vector<std::pair<std::string, int>> to_resolve;
   {
-    ABSL_ASSIGN_OR_RETURN(auto imported_libs, file.ReadImportedLibraries());
+    SAPI_ASSIGN_OR_RETURN(auto imported_libs, file.ReadImportedLibraries());
     if (imported_libs.size() > kMaxWorkQueueSize) {
       return absl::FailedPreconditionError(
           "Exceeded max entries pending resolving limit");
@@ -238,9 +238,9 @@ absl::StatusOr<std::string> ResolveLibraryPaths(
     if (loaded > kMaxLoadedEntries) {
       return absl::FailedPreconditionError("Exceeded max loaded entries limit");
     }
-    ABSL_ASSIGN_OR_RETURN(std::unique_ptr<ElfParser> lib_elf,
+    SAPI_ASSIGN_OR_RETURN(std::unique_ptr<ElfParser> lib_elf,
                           ElfParser::Create(resolved_lib, mmap_libs));
-    ABSL_ASSIGN_OR_RETURN(auto imported_libs, lib_elf->ReadImportedLibraries());
+    SAPI_ASSIGN_OR_RETURN(auto imported_libs, lib_elf->ReadImportedLibraries());
     if (imported_libs.size() > kMaxWorkQueueSize - to_resolve.size()) {
       return absl::FailedPreconditionError(
           "Exceeded max entries pending resolving limit");

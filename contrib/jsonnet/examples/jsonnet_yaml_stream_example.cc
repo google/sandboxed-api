@@ -19,8 +19,6 @@
 #include "absl/log/check.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
-#include "absl/status/status_macros.h"
-#include "absl/status/statusor.h"
 #include "contrib/jsonnet/jsonnet_base_sandbox.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -31,24 +29,24 @@ absl::Status JsonnetMain(std::string in_file, std::string out_file) {
 
   // Initialize sandbox.
   JsonnetBaseSandbox sandbox(in_file, out_file);
-  ABSL_RETURN_IF_ERROR(sandbox.Init());
+  SAPI_RETURN_IF_ERROR(sandbox.Init());
 
   JsonnetApi api(&sandbox);
 
   // Initialize library's main structure.
-  ABSL_ASSIGN_OR_RETURN(JsonnetVm * jsonnet_vm, api.c_jsonnet_make());
+  SAPI_ASSIGN_OR_RETURN(JsonnetVm * jsonnet_vm, api.c_jsonnet_make());
   sapi::v::RemotePtr vm_pointer(jsonnet_vm);
 
   // Read input file.
   std::string in_file_in_sandboxee(JoinPath("/input", Basename(in_file)));
   sapi::v::ConstCStr in_file_var(in_file_in_sandboxee.c_str());
-  ABSL_ASSIGN_OR_RETURN(char* input,
+  SAPI_ASSIGN_OR_RETURN(char* input,
                         api.c_read_input(false, in_file_var.PtrBefore()));
 
   // Process jsonnet data.
   sapi::v::RemotePtr input_pointer(input);
   sapi::v::Int error;
-  ABSL_ASSIGN_OR_RETURN(char* output, api.c_jsonnet_evaluate_snippet_stream(
+  SAPI_ASSIGN_OR_RETURN(char* output, api.c_jsonnet_evaluate_snippet_stream(
                                           &vm_pointer, in_file_var.PtrBefore(),
                                           &input_pointer, error.PtrAfter()));
   CHECK(!error.GetValue())
@@ -61,16 +59,16 @@ absl::Status JsonnetMain(std::string in_file, std::string out_file) {
   sapi::v::ConstCStr out_file_var(out_file_in_sandboxee.c_str());
   sapi::v::RemotePtr output_pointer(output);
 
-  ABSL_ASSIGN_OR_RETURN(
+  SAPI_ASSIGN_OR_RETURN(
       bool success,
       api.c_write_output_file(&output_pointer, out_file_var.PtrBefore()));
   CHECK(success) << "Writing to output file failed: " << success;
 
   // Clean up.
-  ABSL_ASSIGN_OR_RETURN(char* result,
+  SAPI_ASSIGN_OR_RETURN(char* result,
                         api.c_jsonnet_realloc(&vm_pointer, &output_pointer, 0));
-  ABSL_RETURN_IF_ERROR(api.c_jsonnet_destroy(&vm_pointer));
-  ABSL_RETURN_IF_ERROR(api.c_free_input(&input_pointer));
+  SAPI_RETURN_IF_ERROR(api.c_jsonnet_destroy(&vm_pointer));
+  SAPI_RETURN_IF_ERROR(api.c_free_input(&input_pointer));
 
   return absl::OkStatus();
 }

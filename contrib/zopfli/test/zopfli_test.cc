@@ -17,7 +17,6 @@
 #include <fstream>
 
 #include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
 #include "contrib/zopfli/sandboxed.h"
 #include "contrib/zopfli/utils/utils_zopfli.h"
 #include "sandboxed_api/util/path.h"

@@ -10,10 +10,10 @@
 #include <optional>
 
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2::bpf {
 namespace {
@@ -175,7 +175,7 @@ absl::Status Interpreter::EvaluateSingleInstruction() {
     case BPF_ALU | BPF_RSH | BPF_X:
     case BPF_ALU | BPF_NEG: {
       uint32_t val = BPF_SRC(inst.code) == BPF_K ? inst.k : x_reg_;
-      ABSL_ASSIGN_OR_RETURN(accumulator_,
+      SAPI_ASSIGN_OR_RETURN(accumulator_,
                             EvaluateAlu(BPF_OP(inst.code), accumulator_, val));
       break;
     }
@@ -191,7 +191,7 @@ absl::Status Interpreter::EvaluateSingleInstruction() {
     case BPF_JMP | BPF_JGT | BPF_X:
     case BPF_JMP | BPF_JSET | BPF_X: {
       uint32_t val = BPF_SRC(inst.code) == BPF_K ? inst.k : x_reg_;
-      ABSL_ASSIGN_OR_RETURN(bool cond,
+      SAPI_ASSIGN_OR_RETURN(bool cond,
                             EvaluateCmp(BPF_OP(inst.code), accumulator_, val));
       offset = cond ? inst.jt : inst.jf;
       break;
@@ -218,7 +218,7 @@ absl::StatusOr<uint32_t> Interpreter::Evaluate() {
   pc_ = 0;
   result_ = std::nullopt;
   while (!result_.has_value()) {
-    ABSL_RETURN_IF_ERROR(EvaluateSingleInstruction());
+    SAPI_RETURN_IF_ERROR(EvaluateSingleInstruction());
   }
   return *result_;
 }
