@@ -145,6 +145,7 @@ cc_binary(
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:util",
+        "//third_party/grte:static_libs",
         "@abseil-cpp//absl/status:statusor",
     ],
 )
@@ -205,6 +206,7 @@ cc_binary(
         ":symbolize_lib",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:thread",
+        "//third_party/grte:static_libs",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/strings",
     ],
@@ -314,6 +316,7 @@ cc_binary(
     features = ["fully_static_link"],
     linkopts = ["-lrt"],
     deps = [
+        "//third_party/grte:static_libs",
         "@abseil-cpp//absl/base:log_severity",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
@@ -383,6 +386,7 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
+        "//third_party/grte:static_libs",
     ],
 )
 
