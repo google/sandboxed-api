@@ -140,8 +140,8 @@ void KillProcess(pid_t pid) {
 }  // namespace
 
 UnotifyMonitor::UnotifyMonitor(Executor* executor, Policy* policy,
-                               Notify* notify)
-    : MonitorBase(executor, policy, notify) {
+                               Notify* notify, bool enable_shared_memory_comms)
+    : MonitorBase(executor, policy, notify, enable_shared_memory_comms) {
   type_ = FORKSERVER_MONITOR_UNOTIFY;
   if (executor_->limits()->wall_time_limit() != absl::ZeroDuration()) {
     auto deadline = absl::Now() + executor_->limits()->wall_time_limit();

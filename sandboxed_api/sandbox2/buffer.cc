@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -97,14 +98,8 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::Expand(
 // will be immediately deleted.
 absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(
     size_t size, const char* name) {
-  absl::StatusOr<FDCloser> fd = util::CreateMemFd(name);
-  if (!fd.ok()) {
-    return fd.status();
-  }
-  if (ftruncate(fd->get(), size) != 0) {
-    return absl::ErrnoToStatus(errno, "Could not extend buffer fd");
-  }
-  return CreateFromFd(*std::move(fd), size);
+  SAPI_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFdWithSize(size, name));
+  return CreateFromFd(std::move(fd), size);
 }
 
 std::string Buffer::GetName() const {
