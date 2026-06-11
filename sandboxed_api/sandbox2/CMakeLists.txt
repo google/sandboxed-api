@@ -42,7 +42,6 @@ target_link_libraries(sandbox2_bpf_evaluator
   PRIVATE absl::status
           absl::strings
           sapi::base
-          sapi::status
 )
 
 # sandboxed_api/sandbox2:regs
@@ -59,7 +58,7 @@ target_link_libraries(sandbox2_regs
           absl::strings
           sapi::strerror
           sapi::base
-          sapi::status
+          absl::statusor
 )
 
 # sandboxed_api/sandbox2:syscall
@@ -78,7 +77,6 @@ target_link_libraries(sandbox2_syscall
           absl::strings
           sandbox2::util
           sapi::base
-          sapi::status
   PUBLIC absl::log
 )
 
@@ -97,7 +95,8 @@ target_link_libraries(sandbox2_result PRIVATE
   sandbox2::syscall
   sandbox2::util
   sapi::base
-  sapi::status
+  absl::status
+  absl::statusor
 )
 
 # sandboxed_api/sandbox2:logserver_proto
@@ -313,7 +312,6 @@ target_link_libraries(sandbox2_executor
          absl::statusor
          absl::strings
          sapi::fileops
-         sapi::status
          sandbox2::fork_client
          sandbox2::global_forkserver
 )
@@ -398,7 +396,6 @@ target_link_libraries(sandbox2_stack_trace
           sapi::file_base
           sapi::fileops
           sapi::file_helpers
-          sapi::status
           sapi::temp_file
   PUBLIC absl::check
          absl::statusor
@@ -474,7 +471,6 @@ target_link_libraries(sandbox2_monitor_ptrace
           sapi::base
           sapi::config
           sapi::fileops
-          sapi::status
           sandbox2::client
           sandbox2::comms
           sandbox2::result
@@ -521,7 +517,6 @@ target_link_libraries(sandbox2_monitor_unotify
           sandbox2::forkserver_proto
           sandbox2::seccomp_unotify
           sandbox2::util
-          sapi::status
   PUBLIC sandbox2::executor
          sandbox2::monitor_base
          sandbox2::notify
@@ -558,7 +553,6 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::allowlists_write_executable
           sapi::file_base
           sapi::fileops
-          sapi::status
   PUBLIC absl::check
          absl::core_headers
          absl::flat_hash_set
@@ -591,7 +585,6 @@ target_link_libraries(sandbox2_client
           sapi::config
           sapi::fileops
           sapi::raw_logging
-          sapi::status
           sandbox2::version
   PUBLIC absl::flat_hash_map
          absl::status
@@ -682,7 +675,6 @@ target_link_libraries(sandbox2_mounts
           sapi::base
           sapi::file_base
           sapi::fileops
-          sapi::status
   PUBLIC absl::log
          absl::check
          absl::status
@@ -742,7 +734,6 @@ target_link_libraries(sandbox2_util
           sapi::fileops
           sapi::base
           sapi::raw_logging
-          sapi::status
   PUBLIC absl::log
          absl::span
          absl::status
@@ -823,6 +814,7 @@ add_library(sandbox2::comms ALIAS sandbox2_comms)
 target_link_libraries(sandbox2_comms
   PRIVATE absl::cord
           absl::status
+          absl::status_builder
           absl::statusor
           absl::str_format
           absl::strings
@@ -1259,7 +1251,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::file_helpers
     sapi::testing
     sapi::test_main
-    sapi::status
+    absl::statusor
   )
   gtest_discover_tests_xcompile(sandbox2_stack_trace_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"

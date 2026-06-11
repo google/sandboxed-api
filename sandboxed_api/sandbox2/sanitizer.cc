@@ -28,13 +28,13 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status_macros.h"
 
 #if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
     defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
@@ -75,7 +75,7 @@ absl::StatusOr<absl::flat_hash_set<int>> ListNumericalDirectoryEntries(
 }  // namespace
 
 absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs() {
-  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds,
+  ABSL_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds,
                         ListNumericalDirectoryEntries(kProcSelfFd));
 
   //  Exclude the dirfd which was opened in ListDirectoryEntries.
@@ -95,7 +95,7 @@ absl::StatusOr<absl::flat_hash_set<int>> GetListOfTasks(int pid) {
 }
 
 absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions) {
-  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
+  ABSL_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
 
   for (const auto& fd : fds) {
     if (fd_exceptions.find(fd) != fd_exceptions.end()) {
@@ -109,7 +109,7 @@ absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions) {
 
 absl::Status MarkAllFDsAsCOEExcept(
     const absl::flat_hash_set<int>& fd_exceptions) {
-  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
+  ABSL_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
 
   for (const auto& fd : fds) {
     if (fd_exceptions.find(fd) != fd_exceptions.end()) {

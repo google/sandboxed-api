@@ -26,12 +26,12 @@
 #include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
@@ -78,7 +78,7 @@ void SimpleAllocator::SplitBlock(SimpleAllocator::Metadata* block,
 }
 
 absl::StatusOr<void*> SimpleAllocator::Allocate(size_t size) {
-  SAPI_ASSIGN_OR_RETURN(size, AlignSize(size));
+  ABSL_ASSIGN_OR_RETURN(size, AlignSize(size));
 
   absl::MutexLock lock(mutex_);
 
@@ -103,7 +103,7 @@ absl::StatusOr<void*> SimpleAllocator::Allocate(size_t size) {
 
 absl::StatusOr<void*> SimpleAllocator::Reallocate(void* old_addr, size_t size) {
   size_t old_size;
-  SAPI_ASSIGN_OR_RETURN(size, AlignSize(size));
+  ABSL_ASSIGN_OR_RETURN(size, AlignSize(size));
   {
     absl::MutexLock lock(mutex_);
 
@@ -139,9 +139,9 @@ absl::StatusOr<void*> SimpleAllocator::Reallocate(void* old_addr, size_t size) {
     }
   }
   void* new_addr;
-  SAPI_ASSIGN_OR_RETURN(new_addr, Allocate(size));
+  ABSL_ASSIGN_OR_RETURN(new_addr, Allocate(size));
   memcpy(new_addr, old_addr, std::min(old_size, size));
-  SAPI_RETURN_IF_ERROR(Free(old_addr));
+  ABSL_RETURN_IF_ERROR(Free(old_addr));
   return new_addr;
 }
 
@@ -289,7 +289,7 @@ absl::StatusOr<size_t> SharedMemoryRPCChannel::CopyToSandbox(
   }
   // The remote_ptr must be in the shared memory region.
   void* local_addr = ToLocalAddr(remote_ptr);
-  SAPI_RETURN_IF_ERROR(EnsureWithinAllocationBounds(local_addr, data.size()));
+  ABSL_RETURN_IF_ERROR(EnsureWithinAllocationBounds(local_addr, data.size()));
   memcpy(local_addr, data.data(), data.size());
   return data.size();
 }
@@ -301,7 +301,7 @@ absl::StatusOr<size_t> SharedMemoryRPCChannel::CopyFromSandbox(
   }
   // The remote_ptr must be in the shared memory region.
   void* local_addr = ToLocalAddr(remote_ptr);
-  SAPI_RETURN_IF_ERROR(EnsureWithinAllocationBounds(local_addr, data.size()));
+  ABSL_RETURN_IF_ERROR(EnsureWithinAllocationBounds(local_addr, data.size()));
   memcpy(data.data(), local_addr, data.size());
   return data.size();
 }
@@ -351,9 +351,9 @@ absl::Status SharedMemoryRPCChannel::Call(const FuncCall& call, uint32_t tag,
 
 absl::Status SharedMemoryRPCChannel::ReallocateInNonSharedMemory(
     void* local_addr, size_t size, void** new_addr) {
-  SAPI_ASSIGN_OR_RETURN(auto old_metadata,
+  ABSL_ASSIGN_OR_RETURN(auto old_metadata,
                         allocator_.GetAllocationMetadata(local_addr));
-  SAPI_RETURN_IF_ERROR(rpcchannel_->Allocate(size, new_addr));
+  ABSL_RETURN_IF_ERROR(rpcchannel_->Allocate(size, new_addr));
   if (auto ret = rpcchannel_->CopyToSandbox(
           reinterpret_cast<uintptr_t>(*new_addr),
           absl::MakeSpan(reinterpret_cast<char*>(old_metadata->addr),
@@ -361,7 +361,7 @@ absl::Status SharedMemoryRPCChannel::ReallocateInNonSharedMemory(
       !ret.ok()) {
     // Copying data failed, so we just want to free the allocation on the
     // remote side so that the operation doesn't have any side-effects.
-    SAPI_RETURN_IF_ERROR(rpcchannel_->Free(*new_addr));
+    ABSL_RETURN_IF_ERROR(rpcchannel_->Free(*new_addr));
     return ret.status();
   }
   return allocator_.Free(local_addr);
@@ -387,7 +387,7 @@ void* SharedMemoryRPCChannel::ToRemoteAddr(uintptr_t local_addr) {
 // implementation.
 absl::Status SharedMemoryRPCChannel::EnsureWithinAllocationBounds(
     void* local_ptr, size_t size) {
-  SAPI_ASSIGN_OR_RETURN(auto metadata,
+  ABSL_ASSIGN_OR_RETURN(auto metadata,
                         allocator_.GetAllocationMetadata(local_ptr));
   size_t offset = reinterpret_cast<uintptr_t>(local_ptr) -
                   reinterpret_cast<uintptr_t>(metadata->addr);

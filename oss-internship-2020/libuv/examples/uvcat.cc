@@ -19,6 +19,8 @@
 #include <iostream>
 
 #include "absl/flags/flag.h"
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
@@ -54,29 +56,29 @@ class UVSapiUVCatSandbox : public uv::UVSandbox {
 absl::Status UVCat(std::string filearg) {
   // Initialize sandbox2 and sapi
   UVSapiUVCatSandbox sandbox(filearg);
-  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  ABSL_RETURN_IF_ERROR(sandbox.Init());
   uv::UVApi api(&sandbox);
 
   // Get remote pointer to the OnOpen method
   void* function_ptr;
-  SAPI_RETURN_IF_ERROR(sandbox.rpc_channel()->Symbol("OnOpen", &function_ptr));
+  ABSL_RETURN_IF_ERROR(sandbox.rpc_channel()->Symbol("OnOpen", &function_ptr));
   sapi::v::RemotePtr on_open(function_ptr);
 
   // Get remote pointer to the open_req variable
   void* open_req_voidptr;
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       sandbox.rpc_channel()->Symbol("open_req", &open_req_voidptr));
   sapi::v::RemotePtr open_req(open_req_voidptr);
 
   // Get default loop
-  SAPI_ASSIGN_OR_RETURN(void* loop_voidptr, api.sapi_uv_default_loop());
+  ABSL_ASSIGN_OR_RETURN(void* loop_voidptr, api.sapi_uv_default_loop());
   sapi::v::RemotePtr loop(loop_voidptr);
 
   int return_code;
 
   // Open file using the OnOpen callback (which will also read and print it)
   sapi::v::ConstCStr filename(filearg.c_str());
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       return_code, api.sapi_uv_fs_open(&loop, &open_req, filename.PtrBefore(),
                                        O_RDONLY, 0, &on_open));
   if (return_code != 0) {
@@ -84,13 +86,13 @@ absl::Status UVCat(std::string filearg) {
   }
 
   // Run loop
-  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
+  ABSL_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
   if (return_code != 0) {
     return absl::UnavailableError("uv_run returned error " + return_code);
   }
 
   // Cleanup the request
-  SAPI_RETURN_IF_ERROR(api.sapi_uv_fs_req_cleanup(&open_req));
+  ABSL_RETURN_IF_ERROR(api.sapi_uv_fs_req_cleanup(&open_req));
 
   return absl::OkStatus();
 }

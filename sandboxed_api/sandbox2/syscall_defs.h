@@ -27,13 +27,13 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 namespace syscalls {
@@ -163,7 +163,7 @@ class ArgData {
           "specified length [%llu] is not enough for to sizeof(%s) == %llu",
           *length_, typeid(T).name(), sizeof(T)));
     }
-    SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> b,
+    ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> b,
                           util::ReadBytesFromPid(pid_, value_, sizeof(T)));
     return BytesToStruct<T>(b);
   }
@@ -183,7 +183,7 @@ class ArgData {
       length = (kMaxAllowedBytes / sizeof(T)) * sizeof(T);
     }
 
-    SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> b,
+    ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> b,
                           util::ReadBytesFromPid(pid_, value_, length));
     absl::Span<const uint8_t> bytes = absl::MakeSpan(b);
     if (bytes.size() < length) {
@@ -191,7 +191,7 @@ class ArgData {
     }
     std::vector<T> ret;
     for (size_t i = 0; i < bytes.size(); i += sizeof(T)) {
-      SAPI_ASSIGN_OR_RETURN(T t, BytesToStruct<T>(bytes.subspan(i, sizeof(T))));
+      ABSL_ASSIGN_OR_RETURN(T t, BytesToStruct<T>(bytes.subspan(i, sizeof(T))));
       ret.push_back(t);
     }
 

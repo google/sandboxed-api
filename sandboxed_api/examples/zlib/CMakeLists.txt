@@ -41,6 +41,5 @@ target_link_libraries(sapi_main_zlib PRIVATE
   absl::status
   absl::statusor
   sapi::sapi
-  sapi::status
   sapi::zlib_sapi
 )

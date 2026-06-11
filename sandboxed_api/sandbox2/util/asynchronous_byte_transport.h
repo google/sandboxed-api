@@ -22,10 +22,10 @@
 #include <memory>
 
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/buffer.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -101,7 +101,7 @@ class AsynchronousByteTransport {
   // is terminated.
   absl::Status Exchange(absl::Span<const uint8_t> data_to_send,
                         absl::Span<uint8_t> data_to_recv) {
-    SAPI_RETURN_IF_ERROR(Write(data_to_send, /*will_then_read=*/true));
+    ABSL_RETURN_IF_ERROR(Write(data_to_send, /*will_then_read=*/true));
     return Read(data_to_recv);
   }
 

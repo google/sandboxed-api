@@ -18,8 +18,8 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi::v {
 
@@ -33,7 +33,7 @@ Fd::~Fd() {
 }
 
 absl::Status Fd::CloseRemoteFd(RPCChannel* rpc_channel) {
-  SAPI_RETURN_IF_ERROR(rpc_channel->Close(GetRemoteFd()));
+  ABSL_RETURN_IF_ERROR(rpc_channel->Close(GetRemoteFd()));
 
   SetRemoteFd(-1);
   return absl::OkStatus();
@@ -66,7 +66,7 @@ absl::Status Fd::TransferToSandboxee(RPCChannel* rpc_channel) {
         "Cannot transfer FD: Sandboxee already has a valid FD");
   }
 
-  SAPI_RETURN_IF_ERROR(rpc_channel->SendFD(GetValue(), &remote_fd));
+  ABSL_RETURN_IF_ERROR(rpc_channel->SendFD(GetValue(), &remote_fd));
   SetRemoteFd(remote_fd);
 
   return absl::OkStatus();
@@ -88,7 +88,7 @@ absl::Status Fd::TransferFromSandboxee(RPCChannel* rpc_channel) {
         "Cannot transfer FD back: Sandboxee has no valid FD");
   }
 
-  SAPI_RETURN_IF_ERROR(rpc_channel->RecvFD(GetRemoteFd(), &local_fd));
+  ABSL_RETURN_IF_ERROR(rpc_channel->RecvFD(GetRemoteFd(), &local_fd));
   SetValue(local_fd);
 
   return absl::OkStatus();

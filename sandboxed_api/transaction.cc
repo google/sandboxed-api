@@ -20,8 +20,8 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/time/time.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
@@ -30,17 +30,17 @@ constexpr absl::Duration TransactionBase::kDefaultTimeLimit;
 absl::Status TransactionBase::RunTransactionFunctionInSandbox(
     const std::function<absl::Status()>& f) {
   // Run Main(), invoking Init() if this hasn't been yet done.
-  SAPI_RETURN_IF_ERROR(sandbox_->Init());
+  ABSL_RETURN_IF_ERROR(sandbox_->Init());
 
   // Set the wall-time limit for this transaction run, and clean it up
   // afterwards, no matter what the result.
-  SAPI_RETURN_IF_ERROR(sandbox_->SetWallTimeLimit(time_limit_));
+  ABSL_RETURN_IF_ERROR(sandbox_->SetWallTimeLimit(time_limit_));
   absl::Cleanup time_cleanup = [this] {
     sandbox_->SetWallTimeLimit(absl::ZeroDuration()).IgnoreError();
   };
 
   if (!initialized_) {
-    SAPI_RETURN_IF_ERROR(Init());
+    ABSL_RETURN_IF_ERROR(Init());
     initialized_ = true;
   }
 

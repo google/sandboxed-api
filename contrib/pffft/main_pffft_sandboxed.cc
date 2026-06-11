@@ -25,6 +25,8 @@
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/vars.h"
 
 class PffftSapiSandbox : public PffftSandbox {
@@ -71,7 +73,7 @@ absl::Status PffftMain() {
   LOG(INFO) << "Initializing sandbox...\n";
 
   PffftSapiSandbox sandbox;
-  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  ABSL_RETURN_IF_ERROR(sandbox.Init());
 
   PffftApi api(&sandbox);
 
@@ -118,22 +120,22 @@ absl::Status PffftMain() {
 
         if (simd_size_iter == 0) simd_size_iter = 1;
         if (complex) {
-          SAPI_RETURN_IF_ERROR(api.cffti(n, work_array.PtrBoth()));
+          ABSL_RETURN_IF_ERROR(api.cffti(n, work_array.PtrBoth()));
         } else {
-          SAPI_RETURN_IF_ERROR(api.rffti(n, work_array.PtrBoth()));
+          ABSL_RETURN_IF_ERROR(api.rffti(n, work_array.PtrBoth()));
         }
         t0 = UclockSec();
 
         for (int iter = 0; iter < simd_size_iter; ++iter) {
           if (complex) {
-            SAPI_RETURN_IF_ERROR(
+            ABSL_RETURN_IF_ERROR(
                 api.cfftf(n, x_array.PtrBoth(), work_array.PtrBoth()));
-            SAPI_RETURN_IF_ERROR(
+            ABSL_RETURN_IF_ERROR(
                 api.cfftb(n, x_array.PtrBoth(), work_array.PtrBoth()));
           } else {
-            SAPI_RETURN_IF_ERROR(
+            ABSL_RETURN_IF_ERROR(
                 api.rfftf(n, x_array.PtrBoth(), work_array.PtrBoth()));
-            SAPI_RETURN_IF_ERROR(
+            ABSL_RETURN_IF_ERROR(
                 api.rfftb(n, x_array.PtrBoth(), work_array.PtrBoth()));
           }
         }
@@ -147,7 +149,7 @@ absl::Status PffftMain() {
 
       // PFFFT benchmark
       {
-        SAPI_ASSIGN_OR_RETURN(
+        ABSL_ASSIGN_OR_RETURN(
             PFFFT_Setup * s,
             api.pffft_new_setup(n, complex ? PFFFT_COMPLEX : PFFFT_REAL));
 
@@ -155,16 +157,16 @@ absl::Status PffftMain() {
 
         t0 = UclockSec();
         for (int iter = 0; iter < max_iter; ++iter) {
-          SAPI_RETURN_IF_ERROR(
+          ABSL_RETURN_IF_ERROR(
               api.pffft_transform(&s_reg, x_array.PtrBoth(), z_array.PtrBoth(),
                                   y_array.PtrBoth(), PFFFT_FORWARD));
-          SAPI_RETURN_IF_ERROR(
+          ABSL_RETURN_IF_ERROR(
               api.pffft_transform(&s_reg, x_array.PtrBoth(), z_array.PtrBoth(),
                                   y_array.PtrBoth(), PFFFT_FORWARD));
         }
 
         t1 = UclockSec();
-        SAPI_RETURN_IF_ERROR(api.pffft_destroy_setup(&s_reg));
+        ABSL_RETURN_IF_ERROR(api.pffft_destroy_setup(&s_reg));
 
         flops = (max_iter * 2) * ((complex ? 5 : 2.5) * static_cast<double>(n) *
                                   log(static_cast<double>(n)) / M_LN2);

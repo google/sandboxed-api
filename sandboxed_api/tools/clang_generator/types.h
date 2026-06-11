@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"

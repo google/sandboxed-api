@@ -20,9 +20,10 @@
 #include "../curl_util.h"    // NOLINT(build/include)
 #include "../sandbox.h"      // NOLINT(build/include)
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/transaction.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
@@ -45,20 +46,20 @@ absl::Status CurlTransaction::Main() {
   curl::CurlApi api(sandbox());
 
   // Initialize the curl session
-  SAPI_ASSIGN_OR_RETURN(void* curl_remote, api.curl_easy_init());
+  ABSL_ASSIGN_OR_RETURN(void* curl_remote, api.curl_easy_init());
   sapi::v::RemotePtr curl(curl_remote);
   TRANSACTION_FAIL_IF_NOT(curl.GetValue(), "curl_easy_init failed");
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       int setopt_url_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   TRANSACTION_FAIL_IF_NOT(setopt_url_code == curl::CURLE_OK,
                           "curl_easy_setopt_ptr failed");
 
   // Perform the request
-  SAPI_ASSIGN_OR_RETURN(int perform_code, api.curl_easy_perform(&curl));
+  ABSL_ASSIGN_OR_RETURN(int perform_code, api.curl_easy_perform(&curl));
   TRANSACTION_FAIL_IF_NOT(setopt_url_code == curl::CURLE_OK,
                           "curl_easy_perform failed");
 

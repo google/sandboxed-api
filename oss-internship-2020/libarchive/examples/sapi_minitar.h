@@ -21,6 +21,7 @@
 
 #include "libarchive_sapi.sapi.h"  // NOLINT(build/include)
 #include "sandbox.h"               // NOLINT(build/include)
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/temp_file.h"

@@ -17,6 +17,7 @@
 #include "libpng.h"        // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/temp_file.h"

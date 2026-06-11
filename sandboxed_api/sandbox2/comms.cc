@@ -41,6 +41,7 @@
 
 #include "absl/base/dynamic_annotations.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/numbers.h"
@@ -53,7 +54,6 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status.pb.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -147,7 +147,7 @@ int Comms::GetConnectionFD() const {
 absl::StatusOr<ListeningComms> ListeningComms::Create(
     absl::string_view socket_name, bool abstract_uds) {
   ListeningComms comms(std::string(socket_name), abstract_uds);
-  SAPI_RETURN_IF_ERROR(comms.Listen());
+  ABSL_RETURN_IF_ERROR(comms.Listen());
   return comms;
 }
 

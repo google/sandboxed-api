@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sandboxed_api/util/status_macros.h"
+#include "absl/status/status_macros.h"
 
 #include <memory>
 
@@ -31,9 +31,9 @@ using ::absl_testing::StatusIs;
 
 TEST(ReturnIfError, ReturnsOnErrorStatus) {
   auto func = []() -> absl::Status {
-    SAPI_RETURN_IF_ERROR(absl::OkStatus());
-    SAPI_RETURN_IF_ERROR(absl::OkStatus());
-    SAPI_RETURN_IF_ERROR(absl::UnknownError("EXPECTED"));
+    ABSL_RETURN_IF_ERROR(absl::OkStatus());
+    ABSL_RETURN_IF_ERROR(absl::OkStatus());
+    ABSL_RETURN_IF_ERROR(absl::UnknownError("EXPECTED"));
     return absl::UnknownError("ERROR");
   };
 
@@ -42,8 +42,8 @@ TEST(ReturnIfError, ReturnsOnErrorStatus) {
 
 TEST(ReturnIfError, ReturnsOnErrorFromLambda) {
   auto func = []() -> absl::Status {
-    SAPI_RETURN_IF_ERROR([] { return absl::OkStatus(); }());
-    SAPI_RETURN_IF_ERROR([] { return absl::UnknownError("EXPECTED"); }());
+    ABSL_RETURN_IF_ERROR([] { return absl::OkStatus(); }());
+    ABSL_RETURN_IF_ERROR([] { return absl::UnknownError("EXPECTED"); }());
     return absl::UnknownError("ERROR");
   };
 
@@ -53,16 +53,16 @@ TEST(ReturnIfError, ReturnsOnErrorFromLambda) {
 TEST(AssignOrReturn, AssignsMultipleVariablesInSequence) {
   auto func = []() -> absl::Status {
     int value1;
-    SAPI_ASSIGN_OR_RETURN(value1, absl::StatusOr<int>(1));
+    ABSL_ASSIGN_OR_RETURN(value1, absl::StatusOr<int>(1));
     EXPECT_EQ(1, value1);
     int value2;
-    SAPI_ASSIGN_OR_RETURN(value2, absl::StatusOr<int>(2));
+    ABSL_ASSIGN_OR_RETURN(value2, absl::StatusOr<int>(2));
     EXPECT_EQ(2, value2);
     int value3;
-    SAPI_ASSIGN_OR_RETURN(value3, absl::StatusOr<int>(3));
+    ABSL_ASSIGN_OR_RETURN(value3, absl::StatusOr<int>(3));
     EXPECT_EQ(3, value3);
     int value4;
-    SAPI_ASSIGN_OR_RETURN(value4,
+    ABSL_ASSIGN_OR_RETURN(value4,
                           absl::StatusOr<int>(absl::UnknownError("EXPECTED")));
     return absl::UnknownError(absl::StrCat("ERROR: assigned value ", value4));
   };
@@ -73,11 +73,11 @@ TEST(AssignOrReturn, AssignsMultipleVariablesInSequence) {
 TEST(AssignOrReturn, AssignsRepeatedlyToSingleVariable) {
   auto func = []() -> absl::Status {
     int value = 1;
-    SAPI_ASSIGN_OR_RETURN(value, absl::StatusOr<int>(2));
+    ABSL_ASSIGN_OR_RETURN(value, absl::StatusOr<int>(2));
     EXPECT_EQ(2, value);
-    SAPI_ASSIGN_OR_RETURN(value, absl::StatusOr<int>(3));
+    ABSL_ASSIGN_OR_RETURN(value, absl::StatusOr<int>(3));
     EXPECT_EQ(3, value);
-    SAPI_ASSIGN_OR_RETURN(value,
+    ABSL_ASSIGN_OR_RETURN(value,
                           absl::StatusOr<int>(absl::UnknownError("EXPECTED")));
     return absl::UnknownError("ERROR");
   };
@@ -88,7 +88,7 @@ TEST(AssignOrReturn, AssignsRepeatedlyToSingleVariable) {
 TEST(AssignOrReturn, MovesUniquePtr) {
   auto func = []() -> absl::Status {
     std::unique_ptr<int> ptr;
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         ptr, absl::StatusOr<std::unique_ptr<int>>(std::make_unique<int>(1)));
     EXPECT_EQ(*ptr, 1);
     return absl::UnknownError("EXPECTED");
@@ -100,7 +100,7 @@ TEST(AssignOrReturn, MovesUniquePtr) {
 TEST(AssignOrReturn, DoesNotAssignUniquePtrOnErrorStatus) {
   auto func = []() -> absl::Status {
     std::unique_ptr<int> ptr;
-    SAPI_ASSIGN_OR_RETURN(ptr, absl::StatusOr<std::unique_ptr<int>>(
+    ABSL_ASSIGN_OR_RETURN(ptr, absl::StatusOr<std::unique_ptr<int>>(
                                    absl::UnknownError("EXPECTED")));
     EXPECT_EQ(ptr, nullptr);
     return absl::OkStatus();
@@ -112,10 +112,10 @@ TEST(AssignOrReturn, DoesNotAssignUniquePtrOnErrorStatus) {
 TEST(AssignOrReturn, MovesUniquePtrRepeatedlyToSingleVariable) {
   auto func = []() -> absl::Status {
     std::unique_ptr<int> ptr;
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         ptr, absl::StatusOr<std::unique_ptr<int>>(std::make_unique<int>(1)));
     EXPECT_EQ(*ptr, 1);
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         ptr, absl::StatusOr<std::unique_ptr<int>>(std::make_unique<int>(2)));
     EXPECT_EQ(*ptr, 2);
     return absl::UnknownError("EXPECTED");

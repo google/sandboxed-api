@@ -37,6 +37,7 @@
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -44,7 +45,6 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 ABSL_FLAG(bool, ipv6, false, "Use IPv6.");
@@ -132,9 +132,9 @@ absl::StatusOr<FDCloser> ConnectToServer(int port) {
   }
 
   if (absl::GetFlag(FLAGS_connect_with_handler)) {
-    SAPI_RETURN_IF_ERROR(ConnectWithHandler(s.get(), addr));
+    ABSL_RETURN_IF_ERROR(ConnectWithHandler(s.get(), addr));
   } else {
-    SAPI_RETURN_IF_ERROR(ConnectWithoutHandler(s.get(), addr));
+    ABSL_RETURN_IF_ERROR(ConnectWithoutHandler(s.get(), addr));
   }
 
   LOG(INFO) << "Connected to the server";

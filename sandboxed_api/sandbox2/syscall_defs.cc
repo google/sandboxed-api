@@ -34,6 +34,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -42,7 +43,6 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -52,12 +52,12 @@ absl::StatusOr<std::string> syscalls::ArgData::GetDescriptionImpl() const {
   std::string formatted;
   switch (type_) {
     case kPath: {
-      SAPI_ASSIGN_OR_RETURN(std::string str, ReadAsString());
+      ABSL_ASSIGN_OR_RETURN(std::string str, ReadAsString());
       formatted = absl::StrFormat("'%s'", absl::CHexEscape(str));
       break;
     }
     case kString: {
-      SAPI_ASSIGN_OR_RETURN(std::string str, ReadAsString());
+      ABSL_ASSIGN_OR_RETURN(std::string str, ReadAsString());
       formatted = absl::StrFormat("\"%s\"", absl::CHexEscape(str));
       break;
     }

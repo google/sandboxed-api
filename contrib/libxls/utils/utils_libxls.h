@@ -18,6 +18,7 @@
 #include <fcntl.h>
 
 #include "absl/log/die_if_null.h"
+#include "absl/status/statusor.h"
 #include "contrib/libxls/sandboxed.h"
 
 #define XLS_RECORD_FORMULA 0x0006

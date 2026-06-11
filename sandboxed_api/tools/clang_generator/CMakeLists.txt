@@ -117,7 +117,6 @@ target_link_libraries(sapi_generator PUBLIC
   absl::strings
   re2
   sapi::fileops
-  sapi::status
   ${_sapi_generator_clang_libs}
   ${_sapi_generator_llvm_libs}
 )
@@ -129,8 +128,10 @@ add_executable(sapi_generator_tool
 )
 target_link_libraries(sapi_generator_tool PRIVATE
   absl::base
+  absl::die_if_null
   absl::no_destructor
   absl::status
+  absl::status_builder
   absl::strings
   sapi::base
   sapi::file_base
@@ -166,7 +167,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::sapi
     sapi::testing
     sapi::generator
-    sapi::status
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_generator_test

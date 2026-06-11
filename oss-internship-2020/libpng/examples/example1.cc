@@ -16,6 +16,8 @@
 
 #include "../sandboxed.h"     // NOLINT(build/include)
 #include "../tests/libpng.h"  // NOLINT(build/include)
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/vars.h"
 
 absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
@@ -23,7 +25,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
   sandbox.AddFile(infile);
   sandbox.AddFile(outfile);
 
-  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  ABSL_RETURN_IF_ERROR(sandbox.Init());
   LibPNGApi api(&sandbox);
 
   sapi::v::Struct<png_image> image;
@@ -32,7 +34,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
   image.mutable_data()->version = PNG_IMAGE_VERSION;
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       int result, api.png_image_begin_read_from_file(image.PtrBoth(),
                                                      infile_var.PtrBefore()));
   if (!result) {
@@ -44,7 +46,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
 
   sapi::v::Array<uint8_t> buffer(PNG_IMAGE_SIZE(*image.mutable_data()));
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       result, api.png_image_finish_read(image.PtrBoth(), nullptr,
                                         buffer.PtrBoth(), 0, nullptr));
   if (!result) {
@@ -52,7 +54,7 @@ absl::Status LibPNGMain(const std::string& infile, const std::string& outfile) {
         absl::StrCat("finish read error: ", image.mutable_data()->message));
   }
 
-  SAPI_ASSIGN_OR_RETURN(result, api.png_image_write_to_file(
+  ABSL_ASSIGN_OR_RETURN(result, api.png_image_write_to_file(
                                     image.PtrBoth(), outfile_var.PtrBefore(), 0,
                                     buffer.PtrBoth(), 0, nullptr));
   if (!result) {

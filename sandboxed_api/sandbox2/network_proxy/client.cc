@@ -24,10 +24,11 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/util/syscall_trap.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 using ::sapi::file_util::fileops::FDCloser;
@@ -49,7 +50,7 @@ absl::Status NetworkProxyClient::Connect(int sockfd,
     return absl::InvalidArgumentError(
         "Invalid socket, only SOCK_STREAM is allowed");
   }
-  SAPI_ASSIGN_OR_RETURN(FDCloser s, ConnectInternal(addr, addrlen));
+  ABSL_ASSIGN_OR_RETURN(FDCloser s, ConnectInternal(addr, addrlen));
   if (fcntl(s.get(), F_SETFL, oldflags) != 0) {
     return absl::InternalError("Failed to restore socket flags");
   }

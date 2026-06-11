@@ -36,7 +36,6 @@ cc_binary(
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/network_proxy:testing",
         "//sandboxed_api/util:runfiles",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:globals",

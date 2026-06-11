@@ -57,7 +57,8 @@ cc_binary(
         "//sandboxed_api:sapi",
         "//sandboxed_api/sandbox2:policy",
         "//sandboxed_api/sandbox2:policybuilder",
-        "//sandboxed_api/util:status",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )

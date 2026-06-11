@@ -70,7 +70,6 @@ target_link_libraries(sandbox2_unwind PRIVATE
   sapi::file_helpers
   sapi::fileops
   sapi::raw_logging
-  sapi::status
   unwind::unwind_ptrace
 )
 

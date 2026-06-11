@@ -17,7 +17,8 @@
 #include <vector>
 
 #include "check_tag.h"  // NOLINT(build/include)
-#include "tiffio.h"     // NOLINT(build/include)
+#include "absl/status/statusor.h"
+#include "tiffio.h"  // NOLINT(build/include)
 
 using ::sapi::IsOk;
 using ::testing::Eq;

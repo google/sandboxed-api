@@ -19,6 +19,8 @@
 #include <iostream>
 
 #include "absl/flags/flag.h"
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "uv_sapi.sapi.h"  // NOLINT(build/include)
 
@@ -41,19 +43,19 @@ class UVSapiHelloworldSandbox : public uv::UVSandbox {
 absl::Status HelloWorld() {
   // Initialize sandbox2 and sapi
   UVSapiHelloworldSandbox sandbox;
-  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  ABSL_RETURN_IF_ERROR(sandbox.Init());
   uv::UVApi api(&sandbox);
 
   // Allocate memory for the uv_loop_t object
   void* loop_voidptr;
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       sandbox.rpc_channel()->Allocate(sizeof(uv_loop_t), &loop_voidptr));
   sapi::v::RemotePtr loop(loop_voidptr);
 
   int return_code;
 
   // Initialize loop
-  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_init(&loop));
+  ABSL_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_init(&loop));
   if (return_code != 0) {
     return absl::UnavailableError("uv_loop_init returned error " + return_code);
   }
@@ -61,13 +63,13 @@ absl::Status HelloWorld() {
   std::cout << "The loop is about to quit" << std::endl;
 
   // Run loop
-  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
+  ABSL_ASSIGN_OR_RETURN(return_code, api.sapi_uv_run(&loop, UV_RUN_DEFAULT));
   if (return_code != 0) {
     return absl::UnavailableError("uv_run returned error " + return_code);
   }
 
   // Close loop
-  SAPI_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_close(&loop));
+  ABSL_ASSIGN_OR_RETURN(return_code, api.sapi_uv_loop_close(&loop));
   if (return_code != 0) {
     return absl::UnavailableError("uv_loop_close returned error " +
                                   return_code);

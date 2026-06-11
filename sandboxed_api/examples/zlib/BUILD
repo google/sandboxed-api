@@ -59,7 +59,6 @@ cc_binary(
     srcs = ["unsandboxed_zlib.cc"],
     copts = sapi_platform_copts(),
     deps = [
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:log_severity",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log",

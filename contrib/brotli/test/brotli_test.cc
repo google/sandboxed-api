@@ -17,6 +17,7 @@
 #include <fstream>
 
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "contrib/brotli/sandboxed.h"
 #include "contrib/brotli/utils/utils_brotli.h"
 #include "contrib/brotli/utils/utils_brotli_dec.h"

@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
@@ -44,7 +44,7 @@ absl::StatusOr<std::pair<std::string, int>> CreateNamedTempFile(
 
 absl::StatusOr<std::string> CreateNamedTempFileAndClose(
     absl::string_view prefix) {
-  SAPI_ASSIGN_OR_RETURN(auto result, CreateNamedTempFile(prefix));
+  ABSL_ASSIGN_OR_RETURN(auto result, CreateNamedTempFile(prefix));
   close(result.second);
   return std::move(result.first);
 }

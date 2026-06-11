@@ -19,6 +19,8 @@
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "contrib/brotli/sandboxed.h"
 #include "contrib/brotli/utils/utils_brotli.h"
 #include "contrib/brotli/utils/utils_brotli_dec.h"
@@ -34,10 +36,10 @@ absl::Status CompressInMemory(BrotliSandbox& sandbox,
     return absl::UnavailableError("Unable to init brotli encoder");
   }
 
-  SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_in, ReadFile(in_file_s));
-  SAPI_RETURN_IF_ERROR(enc.Compress(buf_in));
-  SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_out, enc.TakeOutput());
-  SAPI_RETURN_IF_ERROR(WriteFile(out_file_s, buf_out));
+  ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_in, ReadFile(in_file_s));
+  ABSL_RETURN_IF_ERROR(enc.Compress(buf_in));
+  ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_out, enc.TakeOutput());
+  ABSL_RETURN_IF_ERROR(WriteFile(out_file_s, buf_out));
 
   return absl::OkStatus();
 }
@@ -50,13 +52,13 @@ absl::Status DecompressInMemory(BrotliSandbox& sandbox,
     return absl::UnavailableError("Unable to init brotli decoder");
   }
 
-  SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_in, ReadFile(in_file_s));
-  SAPI_ASSIGN_OR_RETURN(BrotliDecoderResult ret, dec.Decompress(buf_in));
+  ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_in, ReadFile(in_file_s));
+  ABSL_ASSIGN_OR_RETURN(BrotliDecoderResult ret, dec.Decompress(buf_in));
   if (ret != BROTLI_DECODER_RESULT_SUCCESS) {
     return absl::UnavailableError("Compressed file corrupt");
   }
-  SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_out, dec.TakeOutput());
-  SAPI_RETURN_IF_ERROR(WriteFile(out_file_s, buf_out));
+  ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> buf_out, dec.TakeOutput());
+  ABSL_RETURN_IF_ERROR(WriteFile(out_file_s, buf_out));
 
   return absl::OkStatus();
 }

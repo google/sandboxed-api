@@ -20,15 +20,16 @@
 #include "../curl_util.h"    // NOLINT(build/include)
 #include "../sandbox.h"      // NOLINT(build/include)
 #include "curl_sapi.sapi.h"  // NOLINT(build/include)
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
 absl::Status Example4() {
   // Initialize sandbox2 and sapi
   curl::CurlSapiSandbox sandbox;
-  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  ABSL_RETURN_IF_ERROR(sandbox.Init());
   curl::CurlApi api(&sandbox);
 
   // Number of running handles
@@ -37,7 +38,7 @@ absl::Status Example4() {
   int curl_code;
 
   // Initialize curl (CURL_GLOBAL_DEFAULT = 3)
-  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
+  ABSL_ASSIGN_OR_RETURN(curl_code, api.curl_global_init(3l));
   if (curl_code != 0) {
     return absl::UnavailableError(absl::StrCat(
         "curl_global_init failed: ", curl::StrError(&api, curl_code)));
@@ -45,7 +46,7 @@ absl::Status Example4() {
 
   // Initialize http_handle
   curl::CURL* curl_handle;
-  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  ABSL_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
   sapi::v::RemotePtr http_handle(curl_handle);
   if (!curl_handle) {
     return absl::UnavailableError("curl_easy_init failed: Invalid curl handle");
@@ -53,7 +54,7 @@ absl::Status Example4() {
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       curl_code, api.curl_easy_setopt_ptr(&http_handle, curl::CURLOPT_URL,
                                           url.PtrBefore()));
   if (curl_code != 0) {
@@ -63,7 +64,7 @@ absl::Status Example4() {
 
   // Initialize multi_handle
   curl::CURLM* curlm_handle;
-  SAPI_ASSIGN_OR_RETURN(curlm_handle, api.curl_multi_init());
+  ABSL_ASSIGN_OR_RETURN(curlm_handle, api.curl_multi_init());
   sapi::v::RemotePtr multi_handle(curlm_handle);
   if (!curlm_handle) {
     return absl::UnavailableError(
@@ -71,7 +72,7 @@ absl::Status Example4() {
   }
 
   // Add http_handle to the multi stack
-  SAPI_ASSIGN_OR_RETURN(curl_code,
+  ABSL_ASSIGN_OR_RETURN(curl_code,
                         api.curl_multi_add_handle(&multi_handle, &http_handle));
   if (curl_code != 0) {
     return absl::UnavailableError(absl::StrCat(
@@ -82,7 +83,7 @@ absl::Status Example4() {
     sapi::v::Int numfds(0);
 
     // Perform the request
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         curl_code,
         api.curl_multi_perform(&multi_handle, still_running.PtrBoth()));
     if (curl_code != 0) {
@@ -92,7 +93,7 @@ absl::Status Example4() {
 
     if (still_running.GetValue()) {
       // Wait for an event or timeout
-      SAPI_ASSIGN_OR_RETURN(
+      ABSL_ASSIGN_OR_RETURN(
           curl_code, api.curl_multi_poll_sapi(&multi_handle, nullptr, 0, 1000,
                                               numfds.PtrBoth()));
       if (curl_code != 0) {
@@ -103,7 +104,7 @@ absl::Status Example4() {
   }
 
   // Remove http_handle from the multi stack
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       curl_code, api.curl_multi_remove_handle(&multi_handle, &http_handle));
   if (curl_code != 0) {
     return absl::UnavailableError(absl::StrCat(
@@ -111,17 +112,17 @@ absl::Status Example4() {
   }
 
   // Cleanup http_handle
-  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&http_handle));
+  ABSL_RETURN_IF_ERROR(api.curl_easy_cleanup(&http_handle));
 
   // Cleanup multi_handle
-  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_multi_cleanup(&multi_handle));
+  ABSL_ASSIGN_OR_RETURN(curl_code, api.curl_multi_cleanup(&multi_handle));
   if (curl_code != 0) {
     return absl::UnavailableError(absl::StrCat(
         "curl_multi_cleanup failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Cleanup curl
-  SAPI_RETURN_IF_ERROR(api.curl_global_cleanup());
+  ABSL_RETURN_IF_ERROR(api.curl_global_cleanup());
 
   return absl::OkStatus();
 }

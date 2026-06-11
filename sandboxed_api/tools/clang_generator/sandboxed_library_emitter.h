@@ -24,13 +24,13 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
@@ -130,31 +130,31 @@ class SandboxedLibraryEmitter : public EmitterBase {
                        " and other"));
     }
     absl::Status SetElemSizedBy(absl::string_view expr) {
-      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by"));
+      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by"));
       size_type = ElemSizedBy{std::string(expr)};
       return absl::OkStatus();
     }
     absl::Status SetElemSizedByOutparam(absl::string_view size_expr,
                                         absl::string_view capacity_expr) {
-      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by_outparam"));
+      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by_outparam"));
       size_type = ElemSizedBy{std::string(size_expr),
                               SizedByOutparamData{std::string(capacity_expr)}};
       return absl::OkStatus();
     }
     absl::Status SetByteSizedBy(absl::string_view expr) {
-      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by"));
+      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by"));
       size_type = ByteSizedBy{std::string(expr)};
       return absl::OkStatus();
     }
     absl::Status SetByteSizedByOutparam(absl::string_view size_expr,
                                         absl::string_view capacity_expr) {
-      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by_outparam"));
+      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by_outparam"));
       size_type = ByteSizedBy{std::string(size_expr),
                               SizedByOutparamData{std::string(capacity_expr)}};
       return absl::OkStatus();
     }
     absl::Status SetNullTerminated() {
-      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("null_terminated"));
+      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("null_terminated"));
       size_type = NullTerminated{};
       return absl::OkStatus();
     }

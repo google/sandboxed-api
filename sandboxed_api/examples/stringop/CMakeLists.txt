@@ -76,7 +76,6 @@ if(SAPI_BUILD_TESTING)
     absl::statusor
     absl::strings
     sapi::sapi
-    sapi::status
     sapi::stringop_sapi
     sapi::test_main
     sapi::testing

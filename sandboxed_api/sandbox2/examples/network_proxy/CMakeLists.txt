@@ -60,6 +60,5 @@ target_link_libraries(sandbox2_networkproxy_bin PRIVATE absl::status
   sapi::fileops
   sandbox2::network_proxy_client
   sapi::base
-  sapi::status
   sapi::strerror
 )

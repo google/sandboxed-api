@@ -41,7 +41,6 @@ target_link_libraries(sandbox2_network_proxy_filtering
   PUBLIC absl::statusor
          absl::log
          sapi::strerror
-         sapi::status
 )
 
 # sandboxed_api/sandbox2/network_proxy:client
@@ -61,7 +60,6 @@ target_link_libraries(sandbox2_network_proxy_client
  PRIVATE absl::strings
          absl::log
          sapi::base
-         sapi::status
 )
 
 # sandboxed_api/sandbox2/network_proxy:testing
@@ -79,7 +77,6 @@ target_link_libraries(sandbox2_network_proxy_testing
          absl::memory
          absl::status
          absl::strings
-         sapi::status
          sapi::base
 )
 
