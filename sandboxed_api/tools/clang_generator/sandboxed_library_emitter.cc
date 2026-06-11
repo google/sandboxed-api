@@ -462,7 +462,7 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
     } else {
       bool found = false;
       {
-        absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+        absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
         auto it = sapi_internal_global_cstr_map.find(remote_ptr);
         if (it != sapi_internal_global_cstr_map.end()) {
           *$0 = it->second.c_str();
@@ -473,7 +473,7 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
         absl::StatusOr<std::string> remote_str = sandbox->GetCString(
             sapi::v::RemotePtr(remote_ptr));
         sandbox->Check(remote_str.status());
-        absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+        absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
         auto [it, inserted] = sapi_internal_global_cstr_map.insert(
             {remote_ptr, *std::move(remote_str)});
         *$0 = it->second.c_str();
@@ -508,7 +508,7 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
         &out, absl::Substitute(R"(  $0 remote_ptr = sapi_ret_arg.GetValue();
   if (!remote_ptr) return nullptr;
   {
-    absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+    absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
     auto it = sapi_internal_global_cstr_map.find(remote_ptr);
     if (it != sapi_internal_global_cstr_map.end()) {
       return it->second.c_str();
@@ -517,7 +517,7 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
   absl::StatusOr<std::string> remote_str = sandbox->GetCString(
       sapi::v::RemotePtr(remote_ptr));
   sandbox->Check(remote_str.status());
-  absl::MutexLock lock(&sapi_internal_global_cstr_mutex);
+  absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
   auto [it, inserted] = sapi_internal_global_cstr_map.insert(
       {remote_ptr, *std::move(remote_str)});
   return it->second.c_str();
