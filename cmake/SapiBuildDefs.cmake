@@ -204,7 +204,10 @@ function(add_sapi_library)
   )
   target_link_libraries("${_sapi_NAME}" PUBLIC
     absl::status
+    absl::status_macros
     absl::statusor
+    absl::strings
+    absl::span
     sapi::sapi
     sapi::status
     sapi::vars

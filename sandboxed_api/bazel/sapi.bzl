@@ -435,8 +435,9 @@ def sapi_library(
         deps = sort_deps(
             [
                 "@abseil-cpp//absl/base:core_headers",
-                "@abseil-cpp//absl/status",
+                "@abseil-cpp//absl/status:status_macros",
                 "@abseil-cpp//absl/status:statusor",
+                "@abseil-cpp//absl/status",
                 "@abseil-cpp//absl/strings",
                 "@abseil-cpp//absl/types:span",
                 "//sandboxed_api:sapi",
