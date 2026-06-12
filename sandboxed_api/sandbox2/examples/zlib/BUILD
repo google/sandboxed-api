@@ -44,7 +44,5 @@ cc_binary(
     srcs = ["zpipe.c"],
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
-    deps = [
-        "@zlib",
-    ],
+    deps = ["@zlib"],
 )

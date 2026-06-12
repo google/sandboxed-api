@@ -60,9 +60,7 @@ cc_binary(
     srcs = ["buffer.cc"],
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
-    deps = [
-        "//sandboxed_api/sandbox2:buffer",
-    ],
+    deps = ["//sandboxed_api/sandbox2:buffer"],
 )
 
 cc_binary(
