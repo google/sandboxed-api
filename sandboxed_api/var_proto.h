@@ -30,7 +30,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/utility/utility.h"
 #include "google/protobuf/message_lite.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/util/proto_helper.h"
@@ -67,7 +66,7 @@ class Proto : public Var {
 
   static absl::StatusOr<Proto<T>> FromMessage(const T& proto) {
     SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> len_val, SerializeProto(proto));
-    return absl::StatusOr<Proto<T>>(absl::in_place, PrivateToken{},
+    return absl::StatusOr<Proto<T>>(std::in_place, PrivateToken{},
                                     std::move(len_val));
   }
 

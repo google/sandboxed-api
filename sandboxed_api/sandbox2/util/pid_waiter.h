@@ -62,7 +62,7 @@ class PidWaiter {
 
   // Sets the deadline for the next Wait() call.
   void SetDeadline(absl::Time deadline) {
-    absl::MutexLock lock(&notify_mutex_);
+    absl::MutexLock lock(notify_mutex_);
     deadline_ = deadline;
   }
 
@@ -70,7 +70,7 @@ class PidWaiter {
   // concurrently. Otherwise, makes the next Wait non-blocking.
   // Can be called concurrently with Wait and SetDeadline.
   void Notify() {
-    absl::MutexLock lock(&notify_mutex_);
+    absl::MutexLock lock(notify_mutex_);
     if (deadline_registration_.has_value()) {
       deadline_registration_->SetDeadline(absl::InfinitePast());
     }

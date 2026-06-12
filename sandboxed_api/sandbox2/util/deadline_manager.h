@@ -123,16 +123,16 @@ class DeadlineManager {
   static void VerifySignalHandler();
 
   void Register(DeadlineRegistration& registration) {
-    absl::MutexLock lock(&registration_mutex_);
+    absl::MutexLock lock(registration_mutex_);
     ++registered_deadlines_;
   }
 
   void Unregister(DeadlineRegistration& registration) {
     {
-      absl::MutexLock lock(&queue_mutex_);
+      absl::MutexLock lock(queue_mutex_);
       queue_.erase(registration.data_.get());
     }
-    absl::MutexLock lock(&registration_mutex_);
+    absl::MutexLock lock(registration_mutex_);
     --registered_deadlines_;
   }
 

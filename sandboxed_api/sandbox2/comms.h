@@ -271,7 +271,11 @@ class Comms {
                    std::unique_ptr<AsynchronousByteTransport> transport,
                    bool server_side);
     ~SharedMemComms() override;
-    SharedMemComms(SharedMemComms&&) = default;
+
+    // Not movable due to atomic members.
+    SharedMemComms(SharedMemComms&&) = delete;
+    SharedMemComms& operator=(SharedMemComms&&) = delete;
+
     void MoveToAnotherFd() override;
     ssize_t RawSendMsg(const void* msg) override {
       return lower_comms_->RawSendMsg(msg);

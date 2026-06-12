@@ -42,17 +42,19 @@ namespace sandbox2 {
 // Example Usage:
 // ```cpp
 // // 1. Create a shared buffer
-// SAPI_ASSERT_OK_AND_ASSIGN(auto buffer, sandbox2::Buffer::CreateWithSize(64 <<
+// ABSL_ASSERT_OK_AND_ASSIGN(auto buffer, sandbox2::Buffer::CreateWithSize(64 <<
 // 10));
 //
 // // 2. Create the host side transport
-// SAPI_ASSERT_OK_AND_ASSIGN(auto host_transport,
-//                           AsynchronousByteTransport::CreateHostSide(std::move(buffer)));
+// ABSL_ASSERT_OK_AND_ASSIGN(auto host_transport,
+//                           AsynchronousByteTransport::CreateHostSide(
+//                               std::move(buffer)));
 //
 // // 3. Create the sandboxee side transport (typically in a separate process)
-// SAPI_ASSERT_OK_AND_ASSIGN(
+// ABSL_ASSERT_OK_AND_ASSIGN(
 //     auto sandboxee_transport,
-//     AsynchronousByteTransport::CreateSandboxeeSide(std::move(sandboxee_buffer)));
+//     AsynchronousByteTransport::CreateSandboxeeSide(
+//         std::move(sandboxee_buffer)));
 //
 // // 4. Send and receive data
 // // Host process:
@@ -60,7 +62,7 @@ namespace sandbox2 {
 //
 // // Sandboxee process:
 // absl::Status status =
-// sandboxee_transport->Recv(absl::MakeSpan(receive_buffer));
+//     sandboxee_transport->Recv(absl::MakeSpan(receive_buffer));
 // ```
 class AsynchronousByteTransport {
  public:
@@ -69,8 +71,9 @@ class AsynchronousByteTransport {
     kFutex,
   };
 
-  AsynchronousByteTransport(AsynchronousByteTransport&&) = default;
-  AsynchronousByteTransport& operator=(AsynchronousByteTransport&&) = default;
+  // Not movable due to atomic members.
+  AsynchronousByteTransport(AsynchronousByteTransport&&) = delete;
+  AsynchronousByteTransport& operator=(AsynchronousByteTransport&&) = delete;
 
   // Creates the host side of the transport. There should only be one host side
   // and one sandboxee side. If `synchronization_type` is not specified,

@@ -71,7 +71,7 @@ class ForkClient {
   // Runs a custom transaction over the Comms channel.
   template <typename F>
   typename std::invoke_result_t<F, Comms*> RunCommsTransaction(F&& func) {
-    absl::MutexLock l(&comms_mutex_);
+    absl::MutexLock lock(comms_mutex_);
     return func(comms_);
   }
 
