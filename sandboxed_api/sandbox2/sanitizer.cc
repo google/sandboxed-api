@@ -47,6 +47,10 @@
 #include <sanitizer/common_interface_defs.h>
 #endif
 
+#ifndef __NR_close_range
+#define __NR_close_range 436
+#endif
+
 namespace sandbox2::sanitizer {
 namespace {
 
