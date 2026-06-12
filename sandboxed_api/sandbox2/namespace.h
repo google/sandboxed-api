@@ -58,6 +58,9 @@ class Namespace final {
   bool allow_write_executable() const { return allow_write_executable_; }
 
  private:
+  // Unshares a new user namespace and sets up idmaps.
+  static void UnshareNestedUserNamespace(int proc_self_fd);
+
   int32_t clone_flags_ = CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWUTS |
                          CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNET;
   Mounts mounts_;

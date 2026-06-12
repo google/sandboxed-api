@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -41,13 +42,14 @@
 #include "sandboxed_api/util/raw_logging.h"
 
 namespace sandbox2 {
-
+namespace {
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
 
+using ::sapi::file_util::fileops::FDCloser;
+
 static constexpr char kSandbox2ChrootPath[] = "/tmp/.sandbox2chroot";
 
-namespace {
 int MountFallbackToReadOnly(const char* source, const char* target,
                             const char* filesystem, uintptr_t flags,
                             const void* data) {
@@ -85,9 +87,9 @@ void PrepareChroot(const Mounts& mounts, bool allow_mount_propagation,
   }
 }
 
-void TryDenySetgroups() {
-  file_util::fileops::FDCloser fd(
-      TEMP_FAILURE_RETRY(open("/proc/self/setgroups", O_WRONLY | O_CLOEXEC)));
+void TryDenySetgroups(int proc_self_fd) {
+  FDCloser fd(TEMP_FAILURE_RETRY(
+      openat(proc_self_fd, "setgroups", O_WRONLY | O_CLOEXEC)));
   // We ignore errors since they are most likely due to an old kernel.
   if (fd.get() == -1) {
     return;
@@ -96,19 +98,28 @@ void TryDenySetgroups() {
   dprintf(fd.get(), "deny");
 }
 
-void WriteIDMap(const char* map_path, int32_t uid) {
-  file_util::fileops::FDCloser fd(
-      TEMP_FAILURE_RETRY(open(map_path, O_WRONLY | O_CLOEXEC)));
-  SAPI_RAW_PCHECK(fd.get() != -1, "Couldn't open %s", map_path);
+void WriteIDMap(int proc_self_fd, const char* map_file, int32_t uid) {
+  FDCloser fd(
+      TEMP_FAILURE_RETRY(openat(proc_self_fd, map_file, O_WRONLY | O_CLOEXEC)));
+  SAPI_RAW_PCHECK(fd.get() != -1, "Couldn't open %s", map_file);
 
   SAPI_RAW_PCHECK(dprintf(fd.get(), "1000 %d 1", uid) >= 0,
-                  "Could not write %d to %s", uid, map_path);
+                  "Could not write %d to %s", uid, map_file);
+}
+
+void SetupIDMaps(int proc_self_fd, uid_t uid, gid_t gid) {
+  TryDenySetgroups(proc_self_fd);
+  WriteIDMap(proc_self_fd, "uid_map", uid);
+  WriteIDMap(proc_self_fd, "gid_map", gid);
 }
 
 void SetupIDMaps(uid_t uid, gid_t gid) {
-  TryDenySetgroups();
-  WriteIDMap("/proc/self/uid_map", uid);
-  WriteIDMap("/proc/self/gid_map", gid);
+  FDCloser proc_self_fd(
+      TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH | O_CLOEXEC)));
+  SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
+  TryDenySetgroups(proc_self_fd.get());
+  WriteIDMap(proc_self_fd.get(), "uid_map", uid);
+  WriteIDMap(proc_self_fd.get(), "gid_map", gid);
 }
 
 void ActivateLoopbackInterface() {
@@ -121,7 +132,7 @@ void ActivateLoopbackInterface() {
   int fd = socket(AF_INET6, SOCK_DGRAM, 0);
   SAPI_RAW_PCHECK(fd != -1, "creating socket for activating loopback failed");
 
-  file_util::fileops::FDCloser fd_closer{fd};
+  FDCloser fd_closer{fd};
 
   // First get the existing flags.
   SAPI_RAW_PCHECK(ioctl(fd, SIOCGIFFLAGS, &ifreq) != -1,
@@ -214,6 +225,13 @@ Namespace::Namespace(Mounts mounts, std::string hostname,
   }
 }
 
+void Namespace::UnshareNestedUserNamespace(int proc_self_fd) {
+  uid_t uid = getuid();
+  gid_t gid = getgid();
+  SAPI_RAW_PCHECK(unshare(CLONE_NEWUSER) == 0, "unsharing user namespace");
+  SetupIDMaps(proc_self_fd, uid, gid);
+}
+
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts,
                                      const std::string& hostname,
@@ -229,12 +247,12 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     return;
   }
 
-  std::unique_ptr<file_util::fileops::FDCloser> root_fd;
+  std::optional<FDCloser> root_fd;
   if (avoid_pivot_root) {
     // We want to bind-mount chrooted to real root, so that symlinks work.
     // Reference to main root is kept to escape later from the chroot
-    root_fd = std::make_unique<file_util::fileops::FDCloser>(
-        TEMP_FAILURE_RETRY(open("/", O_PATH)));
+    root_fd =
+        file_util::fileops::FDCloser(TEMP_FAILURE_RETRY(open("/", O_PATH)));
     SAPI_RAW_CHECK(root_fd->get() != -1, "creating fd for main root");
 
     SAPI_RAW_PCHECK(chroot("/realroot") != -1, "chrooting to real root");
@@ -267,8 +285,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
 
   if (avoid_pivot_root) {
     // Keep a reference to /proc/self as it might not be mounted later
-    file_util::fileops::FDCloser proc_self_fd(
-        TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH)));
+    FDCloser proc_self_fd(TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH)));
     SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
 
     // Return to the main root
@@ -277,8 +294,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting main root");
 
     // Get a refrence to /realroot to umount it later
-    file_util::fileops::FDCloser realroot_fd(
-        TEMP_FAILURE_RETRY(open("/realroot", O_PATH)));
+    FDCloser realroot_fd(TEMP_FAILURE_RETRY(open("/realroot", O_PATH)));
 
     // Move the chroot out of realroot to /
     std::string chroot_path = file::JoinPath("/realroot", kSandbox2ChrootPath);
@@ -293,26 +309,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     SAPI_RAW_PCHECK(umount2(".", MNT_DETACH) != -1, "detaching old root");
 
     if (clone_flags & CLONE_NEWUSER) {
-      // Also CLONE_NEWNS so that / mount becomes locked
-      SAPI_RAW_PCHECK(unshare(CLONE_NEWUSER | CLONE_NEWNS) != -1,
-                      "unshare(CLONE_NEWUSER | CLONE_NEWNS)");
-      // Setup ID maps using reference to /proc/self obatined earlier
-      file_util::fileops::FDCloser setgroups_fd(TEMP_FAILURE_RETRY(
-          openat(proc_self_fd.get(), "setgroups", O_WRONLY | O_CLOEXEC)));
-      // We ignore errors since they are most likely due to an old kernel.
-      if (setgroups_fd.get() != -1) {
-        dprintf(setgroups_fd.get(), "deny");
-      }
-      file_util::fileops::FDCloser uid_map_fd(
-          TEMP_FAILURE_RETRY(openat(proc_self_fd.get(), "uid_map", O_WRONLY)));
-      SAPI_RAW_PCHECK(uid_map_fd.get() != -1, "Couldn't open uid_map");
-      SAPI_RAW_PCHECK(dprintf(uid_map_fd.get(), "1000 1000 1") >= 0,
-                      "Could not write uid_map");
-      file_util::fileops::FDCloser gid_map_fd(
-          TEMP_FAILURE_RETRY(openat(proc_self_fd.get(), "gid_map", O_WRONLY)));
-      SAPI_RAW_PCHECK(gid_map_fd.get() != -1, "Couldn't open gid_map");
-      SAPI_RAW_PCHECK(dprintf(gid_map_fd.get(), "1000 1000 1") >= 0,
-                      "Could not write gid_map");
+      UnshareNestedUserNamespace(proc_self_fd.get());
     }
   } else {
     // This requires some explanation: It's actually possible to pivot_root('/',
