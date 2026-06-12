@@ -210,9 +210,13 @@ void UnotifyMonitor::AllowSyscallViaUnotify(seccomp_notif req) {
 void UnotifyMonitor::RespondErrnoViaUnotify(seccomp_notif req, int error_code) {
   if (absl::Status status = seccomp_unotify_.RespondErrno(req, error_code);
       !status.ok()) {
-    LOG(ERROR) << "Failed to respond with errno: " << error_code << ", "
-               << status;
-    SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
+    if (absl::IsNotFound(status)) {
+      VLOG(1) << "Unotify send failed with ENOENT (request aborted)";
+    } else {
+      LOG(ERROR) << "Failed to respond with errno: " << error_code << ", "
+                 << status;
+      SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_NOTIFY);
+    }
   }
 }
 
