@@ -195,7 +195,7 @@ set_target_properties(sandbox2_testcase_close_fds PROPERTIES
 target_link_libraries(sandbox2_testcase_close_fds PRIVATE
   sapi::base
   absl::check
-  absl::status
+  absl::log
   absl::strings
   absl::flat_hash_set
   sandbox2::sanitizer

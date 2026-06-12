@@ -18,9 +18,12 @@
 #ifndef SANDBOXED_API_SANDBOX2_SANITIZER_H_
 #define SANDBOXED_API_SANDBOX2_SANITIZER_H_
 
+#include <initializer_list>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 
 namespace sandbox2 {
 namespace sanitizer {
@@ -31,6 +34,8 @@ absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs();
 // Closes all file descriptors in the current process except the ones in
 // fd_exceptions.
 absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions);
+void CloseAllFDsExcept(absl::Span<const int> fd_exceptions);
+void CloseAllFDsExcept(std::initializer_list<int> fd_exceptions);
 
 // Marks all file descriptors as close-on-exec, except the ones in
 // fd_exceptions.

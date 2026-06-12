@@ -37,13 +37,7 @@ int ForkserverMain() {
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
 
   // Close all non-essential FDs to keep newly opened FD numbers consistent.
-  if (absl::Status status = sanitizer::CloseAllFDsExcept(
-          {0, 1, 2, Comms::kSandbox2ClientCommsFD});
-      !status.ok()) {
-    SAPI_RAW_LOG(WARNING, "Closing non-essential FDs failed: %.*s",
-                 static_cast<int>(status.message().size()),
-                 status.message().data());
-  }
+  sanitizer::CloseAllFDsExcept({0, 1, 2, Comms::kSandbox2ClientCommsFD});
 
   // Make the process' name easily recognizable with ps/pstree.
   if (prctl(PR_SET_NAME, "S2-FORK-SERV", 0, 0, 0) != 0) {

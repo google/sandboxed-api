@@ -614,6 +614,7 @@ target_link_libraries(sandbox2_sanitizer
           sapi::raw_logging
           sapi::base
   PUBLIC absl::flat_hash_set
+         absl::span
          absl::status
          absl::statusor
 )

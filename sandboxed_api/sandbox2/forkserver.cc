@@ -290,12 +290,6 @@ void ForkServer::LaunchSandboxee(const ForkRequest& request, int execve_fd,
   const bool will_execve = execve_fd != -1;
   const bool should_sandbox = request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX;
 
-  absl::StatusOr<absl::flat_hash_set<int>> open_fds = sanitizer::GetListOfFDs();
-  if (!open_fds.ok()) {
-    SAPI_RAW_LOG(WARNING, "Could not get list of current open FDs: %s",
-                 std::string(open_fds.status().message()).c_str());
-    open_fds = absl::flat_hash_set<int>();
-  }
   SanitizeEnvironment();
 
   InitializeNamespaces(request, orig_uid_, orig_gid_, avoid_pivot_root);
@@ -323,16 +317,8 @@ void ForkServer::LaunchSandboxee(const ForkRequest& request, int execve_fd,
     }
     if (child != 0) {
       sync_pipe.read.Close();
-      if (status_fd.get() >= 0) {
-        open_fds->erase(status_fd.get());
-      }
-      // Close all open fds (equals to CloseAllFDsExcept but does not require
-      // /proc to be available).
-      for (const auto& fd : *open_fds) {
-        if (fd != STDERR_FILENO) {
-          close(fd);
-        }
-      }
+      sanitizer::CloseAllFDsExcept(
+          {STDERR_FILENO, status_fd.get(), sync_pipe.write.get()});
       RunInitProcess(child, std::move(sync_pipe.write), std::move(status_fd),
                      request.allow_speculation());
       // NOT REACHED

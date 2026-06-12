@@ -21,9 +21,12 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <csignal>
+#include <initializer_list>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
@@ -31,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -72,6 +76,38 @@ absl::StatusOr<absl::flat_hash_set<int>> ListNumericalDirectoryEntries(
   return result;
 }
 
+void CloseRange(unsigned int start, unsigned int end, int flags) {
+  // Except of EINVAL's and unshare failures with CLOSE_RANGE_UNSHARE (which we
+  // likely won't use) this never fails. So let's just check-fail for simplicity
+  // here.
+  if (syscall(__NR_close_range, start, end, flags) != 0) {
+    SAPI_RAW_PLOG(FATAL, "CloseRange(%d, %d, %d) failed", start, end, flags);
+  }
+}
+
+void CloseAllFDsExceptWithFlags(absl::Span<const int> fd_exceptions,
+                                int flags) {
+  if (fd_exceptions.empty()) {
+    return CloseRange(0, ~0U, flags);
+  }
+  std::vector<int> sorted_fd_exceptions(fd_exceptions.begin(),
+                                        fd_exceptions.end());
+  std::sort(sorted_fd_exceptions.begin(), sorted_fd_exceptions.end());
+  unsigned int last_fd = 0;
+  for (int fd : sorted_fd_exceptions) {
+    if (fd < 0) {
+      continue;
+    }
+    if (last_fd < fd) {
+      CloseRange(last_fd, fd - 1, flags);
+    }
+    last_fd = static_cast<unsigned int>(fd) + 1;
+  }
+  if (last_fd) {
+    CloseRange(last_fd, ~0U, flags);
+  }
+}
+
 }  // namespace
 
 absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs() {
@@ -94,16 +130,17 @@ absl::StatusOr<absl::flat_hash_set<int>> GetListOfTasks(int pid) {
   return ListNumericalDirectoryEntries(task_dir);
 }
 
-absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions) {
-  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
+void CloseAllFDsExcept(absl::Span<const int> fd_exceptions) {
+  CloseAllFDsExceptWithFlags(fd_exceptions, 0);
+}
 
-  for (const auto& fd : fds) {
-    if (fd_exceptions.find(fd) != fd_exceptions.end()) {
-      continue;
-    }
-    SAPI_RAW_VLOG(2, "Closing FD:%d", fd);
-    close(fd);
-  }
+void CloseAllFDsExcept(std::initializer_list<int> fd_exceptions) {
+  CloseAllFDsExceptWithFlags(absl::Span<const int>(fd_exceptions), 0);
+}
+
+absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions) {
+  CloseAllFDsExceptWithFlags(
+      std::vector<int>(fd_exceptions.begin(), fd_exceptions.end()), 0);
   return absl::OkStatus();
 }
 

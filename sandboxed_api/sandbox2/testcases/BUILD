@@ -163,8 +163,8 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2:sanitizer",
         "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],
 )

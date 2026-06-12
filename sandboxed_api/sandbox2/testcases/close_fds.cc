@@ -5,7 +5,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
-#include "absl/status/status.h"
+#include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 
@@ -25,8 +25,18 @@ int main(int argc, char* argv[]) {
     CHECK(absl::SimpleAtoi(argv[i], &fd));
     exceptions.insert(fd);
   }
-  CHECK(sandbox2::sanitizer::CloseAllFDsExcept(exceptions).ok());
+  CHECK_OK(sandbox2::sanitizer::CloseAllFDsExcept(exceptions));
+  int ret = 0;
   for (int i = 0; i < INR_OPEN_MAX; i++) {
-    CHECK_EQ(IsFdOpen(i), exceptions.find(i) != exceptions.end());
+    if (exceptions.find(i) != exceptions.end()) {
+      if (!IsFdOpen(i)) {
+        LOG(ERROR) << "FD " << i << " should be left open";
+        ret = 1;
+      }
+    } else if (IsFdOpen(i)) {
+      LOG(ERROR) << "FD " << i << " should be closed";
+      ret = 1;
+    }
   }
+  return ret;
 }
