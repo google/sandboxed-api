@@ -676,7 +676,9 @@ void Comms::SharedMemComms::SocketObserver::Run() {
 
 Comms::SharedMemComms::SocketObserver::~SocketObserver() {
   uint64_t one = 1;
-  write(event_fd_.get(), &one, sizeof(one));
+  SAPI_RAW_CHECK(TEMP_FAILURE_RETRY(
+                     write(event_fd_.get(), &one, sizeof(one))) == sizeof(one),
+                 "Failed to write to eventfd");
   thread_.Join();
 };
 
