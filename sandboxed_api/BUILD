@@ -371,6 +371,7 @@ cc_library(
         "@abseil-cpp//absl/log:flags",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
