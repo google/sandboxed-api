@@ -88,12 +88,7 @@ class Sandbox2RPCChannel : public RPCChannel {
   // Marks the memory as initialized (used with MSAN).
   absl::Status MarkMemoryInit(void* addr, size_t size);
 
-  // Exchanges a message and receives the result after a call.
-  absl::StatusOr<FuncRet> Exchange(uint32_t tag, const void* data, size_t len,
-                                   v::Type exp_type);
-
-  // Receives the result after a call (used for special cases like
-  // SendFD/RecvFD).
+  // Receives the result after a call.
   absl::StatusOr<FuncRet> Return(v::Type exp_type);
 
   sandbox2::Comms* comms_;  // Owned by sandbox2;

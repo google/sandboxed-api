@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -35,43 +34,12 @@ namespace sapi {
 absl::Status Sandbox2RPCChannel::Call(const FuncCall& call, uint32_t tag,
                                       FuncRet* ret, v::Type exp_type) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(*ret, Exchange(tag, &call, sizeof(call), exp_type));
+  if (!comms_->SendTLV(tag, sizeof(call), &call)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(exp_type));
+  *ret = fret;
   return absl::OkStatus();
-}
-
-absl::StatusOr<FuncRet> Sandbox2RPCChannel::Exchange(uint32_t tag,
-                                                     const void* data,
-                                                     size_t len,
-                                                     v::Type exp_type) {
-  uint32_t recv_tag;
-  std::vector<uint8_t> recv_value;
-  if (!comms_->ExchangeTLV(
-          tag, absl::MakeSpan(static_cast<const uint8_t*>(data), len),
-          &recv_tag, &recv_value)) {
-    return absl::UnavailableError("Exchanging TLV value failed");
-  }
-  if (recv_tag != comms::kMsgReturn) {
-    LOG(ERROR) << "recv_tag != kMsgReturn (" << recv_tag
-               << " != " << comms::kMsgReturn << ")";
-    return absl::UnavailableError("Received unexpected tag");
-  }
-  if (recv_value.size() != sizeof(FuncRet)) {
-    LOG(ERROR) << "recv_value.size() != sizeof(FuncRet) (" << recv_value.size()
-               << " != " << sizeof(FuncRet) << ")";
-    return absl::UnavailableError("Received incorrect length");
-  }
-  FuncRet ret;
-  memcpy(&ret, recv_value.data(), sizeof(FuncRet));
-  if (ret.ret_type != exp_type) {
-    LOG(ERROR) << "FuncRet->type != exp_type (" << ret.ret_type
-               << " != " << exp_type << ")";
-    return absl::UnavailableError("Received TLV has incorrect return type");
-  }
-  if (!ret.success) {
-    LOG(ERROR) << "FuncRet->success == false";
-    return absl::UnavailableError("Function call failed");
-  }
-  return ret;
 }
 
 absl::StatusOr<FuncRet> Sandbox2RPCChannel::Return(v::Type exp_type) {
@@ -101,8 +69,11 @@ absl::StatusOr<FuncRet> Sandbox2RPCChannel::Return(v::Type exp_type) {
 absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr,
                                           bool disable_shared_memory) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(auto fret, Exchange(comms::kMsgAllocate, &size,
-                                            sizeof(size), v::Type::kPointer));
+  if (!comms_->SendTLV(comms::kMsgAllocate, sizeof(size), &size)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kPointer));
   *addr = reinterpret_cast<void*>(fret.int_val);
   return absl::OkStatus();
 }
@@ -115,8 +86,12 @@ absl::Status Sandbox2RPCChannel::Reallocate(void* old_addr, size_t size,
       .size = size,
   };
 
-  auto fret_or =
-      Exchange(comms::kMsgReallocate, &req, sizeof(req), v::Type::kPointer);
+  if (!comms_->SendTLV(comms::kMsgReallocate, sizeof(comms::ReallocRequest),
+                       &req)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+
+  auto fret_or = Return(v::Type::kPointer);
   if (!fret_or.ok()) {
     *new_addr = nullptr;
     return absl::UnavailableError(
@@ -130,9 +105,14 @@ absl::Status Sandbox2RPCChannel::Reallocate(void* old_addr, size_t size,
 absl::Status Sandbox2RPCChannel::Free(void* addr) {
   absl::MutexLock lock(mutex_);
   uintptr_t remote = reinterpret_cast<uintptr_t>(addr);
-  SAPI_RETURN_IF_ERROR(
-      Exchange(comms::kMsgFree, &remote, sizeof(remote), v::Type::kVoid)
-          .status());
+  if (!comms_->SendTLV(comms::kMsgFree, sizeof(remote), &remote)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  if (!fret.success) {
+    return absl::UnavailableError("Free() failed on the remote side");
+  }
   return absl::OkStatus();
 }
 
@@ -152,9 +132,11 @@ absl::StatusOr<size_t> Sandbox2RPCChannel::CopyToSandbox(
 
 absl::Status Sandbox2RPCChannel::Symbol(const char* symname, void** addr) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(
-      auto fret, Exchange(comms::kMsgSymbol, symname, strlen(symname) + 1,
-                          v::Type::kPointer));
+  if (!comms_->SendTLV(comms::kMsgSymbol, strlen(symname) + 1, symname)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kPointer));
   *addr = reinterpret_cast<void*>(fret.int_val);
   return absl::OkStatus();
 }
@@ -208,29 +190,45 @@ absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
 
 absl::Status Sandbox2RPCChannel::Close(int remote_fd) {
   absl::MutexLock lock(mutex_);
-  SAPI_RETURN_IF_ERROR(
-      Exchange(comms::kMsgClose, &remote_fd, sizeof(remote_fd), v::Type::kVoid)
-          .status());
+  if (!comms_->SendTLV(comms::kMsgClose, sizeof(remote_fd), &remote_fd)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  if (!fret.success) {
+    return absl::UnavailableError("Close() failed on the remote side");
+  }
   return absl::OkStatus();
 }
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(
-      auto fret, Exchange(comms::kMsgStrlen, &str, sizeof(str), v::Type::kInt));
+  if (!comms_->SendTLV(comms::kMsgStrlen, sizeof(str), &str)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
+  if (!fret.success) {
+    return absl::UnavailableError("Close() failed on the remote side");
+  }
   return fret.int_val;
 }
 
 absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
 #ifdef MEMORY_SANITIZER
-  absl::MutexLock lock(mutex_);
+  absl::MutexLock lock(&mutex_);
   comms::ReallocRequest req = {
       .old_addr = reinterpret_cast<uintptr_t>(addr),
       .size = size,
   };
-  SAPI_RETURN_IF_ERROR(
-      Exchange(comms::kMsgMarkMemoryInit, &req, sizeof(req), v::Type::kVoid)
-          .status());
+  if (!comms_->SendTLV(comms::kMsgMarkMemoryInit, sizeof(comms::ReallocRequest),
+                       &req)) {
+    return absl::UnavailableError("Sending TLV value failed");
+  }
+  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  if (!fret.success) {
+    return absl::UnavailableError("MarkMemoryInit() failed on the remote side");
+  }
 #endif
   return absl::OkStatus();
 }

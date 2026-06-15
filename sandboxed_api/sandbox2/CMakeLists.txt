@@ -1026,7 +1026,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::check
     absl::fixed_array
     absl::log
-    absl::span
     absl::strings
     benchmark
     sandbox2::comms

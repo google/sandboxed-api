@@ -268,79 +268,6 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
   return true;
 }
 
-bool Comms::ExchangeTLV(uint32_t send_tag, absl::Span<const uint8_t> send_value,
-                        uint32_t* recv_tag, std::vector<uint8_t>* recv_value) {
-  if (send_value.size() > GetMaxMsgSize()) {
-    SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%zu > %zu)",
-                 send_value.size(), GetMaxMsgSize());
-    return false;
-  }
-
-  const InternalTLV tl = {
-      .tag = send_tag,
-      .len = send_value.size(),
-  };
-
-  const size_t inline_size =
-      std::min(send_value.size(), kSendTLVTempBufferSize - sizeof(tl));
-  uint8_t tlv[kSendTLVTempBufferSize];
-  memcpy(tlv, &tl, sizeof(tl));
-  memcpy(&tlv[sizeof(tl)], send_value.data(), inline_size);
-
-  InternalTLV recv_tl;
-  if (inline_size < send_value.size()) {
-    if (!Send(&tlv, sizeof(tl) + inline_size)) {
-      return false;
-    }
-    if (!Exchange(send_value.data() + inline_size,
-                  send_value.size() - inline_size, &recv_tl, sizeof(recv_tl))) {
-      return false;
-    }
-  } else {
-    if (!Exchange(&tlv, sizeof(tl) + inline_size, &recv_tl, sizeof(recv_tl))) {
-      return false;
-    }
-  }
-
-  *recv_tag = recv_tl.tag;
-  if (recv_tl.len > GetMaxMsgSize()) {
-    SAPI_RAW_LOG(ERROR,
-                 "Maximum TLV message size exceeded on receive: (%zu > %zu)",
-                 recv_tl.len, GetMaxMsgSize());
-    return false;
-  }
-
-  recv_value->resize(recv_tl.len);
-  if (recv_tl.len > 0) {
-    if (!Recv(recv_value->data(), recv_value->size())) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool Comms::Exchange(const void* send_data, size_t send_len, void* recv_data,
-                     size_t recv_len) {
-  if (GetRawComms() == nullptr) {
-    SAPI_RAW_LOG(ERROR, "Exchange: connection terminated");
-    return false;
-  }
-  std::optional<ssize_t> exchanged_len =
-      GetRawComms()->RawExchange(send_data, send_len, recv_data, recv_len);
-  if (!exchanged_len.has_value()) {
-    // RawExchange is not implemented by the underlying RawComms, so we fall
-    // back to the legacy implementation of calling Send() and Recv()
-    // separately.
-    return Send(send_data, send_len) && Recv(recv_data, recv_len);
-  }
-
-  if (exchanged_len.value() < 0) {
-    Terminate();
-    return false;
-  }
-  return exchanged_len.value() == recv_len;
-}
-
 bool Comms::RecvString(std::string* v) {
   uint32_t tag;
   if (!RecvTLV(&tag, v)) {
@@ -775,21 +702,6 @@ ssize_t Comms::SharedMemComms::RawRecv(void* data, size_t len) {
     return -1;
   }
   return len;
-}
-
-std::optional<ssize_t> Comms::SharedMemComms::RawExchange(const void* send_data,
-                                                          size_t send_len,
-                                                          void* recv_data,
-                                                          size_t recv_len) {
-  auto status = transport_->Exchange(
-      absl::Span<const uint8_t>(static_cast<const uint8_t*>(send_data),
-                                send_len),
-      absl::Span<uint8_t>(static_cast<uint8_t*>(recv_data), recv_len));
-  if (!status.ok()) {
-    LOG(ERROR) << "RawExchange failed: " << status;
-    return -1;
-  }
-  return recv_len;
 }
 
 Comms::SharedMemComms::SharedMemComms(

@@ -32,7 +32,6 @@
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
@@ -139,8 +138,12 @@ static T BytesAs(const std::vector<uint8_t>& bytes) {
   return rv;
 }
 
-FuncRet ProcessRequest(sandbox2::Comms* comms, uint32_t tag,
-                       const std::vector<uint8_t>& bytes) {
+void ServeRequest(sandbox2::Comms* comms) {
+  uint32_t tag;
+  std::vector<uint8_t> bytes;
+
+  CHECK(comms->RecvTLV(&tag, &bytes));
+
   FuncRet ret{};  // Brace-init zeroes struct padding
 
   switch (tag) {
@@ -213,7 +216,8 @@ FuncRet ProcessRequest(sandbox2::Comms* comms, uint32_t tag,
             << "), Success: " << (ret.success ? "Yes" : "No");
   }
 
-  return ret;
+  CHECK(comms->SendTLV(comms::kMsgReturn, sizeof(ret),
+                       reinterpret_cast<uint8_t*>(&ret)));
 }
 
 }  // namespace client
@@ -248,16 +252,8 @@ ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
   }
 
   // Run SAPI stub.
-  uint32_t tag;
-  std::vector<uint8_t> bytes;
-  CHECK(comms.RecvTLV(&tag, &bytes));
-
   while (true) {
-    sapi::FuncRet ret = sapi::client::ProcessRequest(&comms, tag, bytes);
-    CHECK(comms.ExchangeTLV(
-        sapi::comms::kMsgReturn,
-        absl::MakeSpan(reinterpret_cast<const uint8_t*>(&ret), sizeof(ret)),
-        &tag, &bytes));
+    sapi::client::ServeRequest(&comms);
   }
   LOG(FATAL) << "Unreachable";
 }
