@@ -81,6 +81,7 @@ class ForkServer {
 
   // Creates initial namespaces used as a template for namespaced sandboxees
   void CreateInitialNamespaces();
+  void CreateInitialNamespacesImpl(Comms setup_comms);
 
   // Creates a network namespace to be shared between sandboxees
   void CreateForkserverSharedNetworkNamespace();
@@ -107,15 +108,16 @@ class ForkServer {
   // Ignores invalid (-1) fds.
   static void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
                       std::initializer_list<int*> keep_fds, Comms& comms);
+  void CreateEmptyNetworkNamespaceImpl(Comms setup_comms);
 
   // Comms channel which is used to send requests to this class. Not owned by
   // the object.
   Comms* comms_;
   uid_t orig_uid_ = -1;
   gid_t orig_gid_ = -1;
-  int initial_mntns_fd_ = -1;
-  int initial_userns_fd_ = -1;
-  int initial_netns_fd_ = -1;
+  sapi::file_util::fileops::FDCloser initial_mntns_fd_;
+  sapi::file_util::fileops::FDCloser initial_userns_fd_;
+  sapi::file_util::fileops::FDCloser shared_netns_fd_;
 };
 
 }  // namespace sandbox2

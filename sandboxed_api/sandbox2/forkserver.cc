@@ -392,14 +392,13 @@ void ForkServer::SetupSandboxeeProcess(const ForkRequest& fork_request,
   int clone_flags = fork_request.clone_flags() | SIGCHLD;
   bool avoid_pivot_root = clone_flags & (CLONE_NEWUSER | CLONE_NEWNS);
   if (avoid_pivot_root) {
-    SAPI_RAW_PCHECK(setns(initial_userns_fd_, CLONE_NEWUSER) != -1,
+    SAPI_RAW_PCHECK(setns(initial_userns_fd_.get(), CLONE_NEWUSER) != -1,
                     "joining initial user namespace");
-    SAPI_RAW_PCHECK(setns(initial_mntns_fd_, CLONE_NEWNS) != -1,
+    SAPI_RAW_PCHECK(setns(initial_mntns_fd_.get(), CLONE_NEWNS) != -1,
                     "joining initial mnt namespace");
     if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
-      SAPI_RAW_PCHECK(setns(initial_netns_fd_, CLONE_NEWNET) != -1,
+      SAPI_RAW_PCHECK(setns(shared_netns_fd_.get(), CLONE_NEWNET) != -1,
                       "joining initial net namespace");
-      close(initial_netns_fd_);
     }
     // Do not create new userns it will be unshared later
     pid_t sandboxee_pid =
@@ -412,11 +411,10 @@ void ForkServer::SetupSandboxeeProcess(const ForkRequest& fork_request,
     }
   }
 
-  if (initial_netns_fd_ != -1) {
-    close(initial_netns_fd_);
-  }
-  close(initial_userns_fd_);
-  close(initial_mntns_fd_);
+  // Close initial namespaces fds in the sandboxee process.
+  initial_userns_fd_.Close();
+  initial_mntns_fd_.Close();
+  shared_netns_fd_.Close();
 
   // Make sure we override the forkserver's comms fd
   comms_->Terminate();
@@ -463,11 +461,11 @@ pid_t ForkServer::ServeRequest() {
   if (avoid_pivot_root) {
     // Create initial namespaces only when they're first needed.
     // This allows sandbox2 to be still used without any namespaces support
-    if (initial_mntns_fd_ == -1) {
+    if (initial_mntns_fd_.get() == -1) {
       CreateInitialNamespaces();
     }
     if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER &&
-        initial_netns_fd_ == -1) {
+        shared_netns_fd_.get() == -1) {
       CreateForkserverSharedNetworkNamespace();
     }
   }
@@ -572,85 +570,78 @@ bool ForkServer::Initialize() {
 }
 
 void ForkServer::CreateInitialNamespaces() {
-  // Spawn a new process to create initial user and mount namespaces to be used
-  // as a base for each namespaced sandboxee.
-
-  SaveIDs();
-
-  // Socket to synchronize so that we open ns fds before process dies
-  Pipe create_pipe = CreatePipe();
-  Pipe open_pipe = CreatePipe();
-  pid_t pid = util::ForkWithFlags(CLONE_NEWUSER | CLONE_NEWNS | SIGCHLD);
-  if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
-    SAPI_RAW_LOG(FATAL,
-                 "failed to fork initial namespaces process: parent process is "
-                 "likely chrooted");
-  }
-  SAPI_RAW_PCHECK(pid != -1, "failed to fork initial namespaces process");
-  char value = ' ';
+  UnixSocketPair setup_socketpair = CreateUnixSocketPair(/*passcred=*/true);
+  // Cannot use regular fork, because we need to be single-threaded to setns.
+  // This won't be the case with some sanitizers (e.g. TSAN).
+  pid_t pid = util::ForkWithFlags(0);
+  SAPI_RAW_PCHECK(pid != -1, "fork failed");
   if (pid == 0) {
-    create_pipe.read.Close();
-    open_pipe.write.Close();
-    Namespace::InitializeInitialNamespaces(orig_uid_, orig_gid_);
-    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(create_pipe.write.get(), &value,
-                                             sizeof(value))) == sizeof(value),
-                    "synchronizing initial namespaces creation");
-    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(open_pipe.read.get(), &value,
-                                            sizeof(value))) == sizeof(value),
-                    "synchronizing initial namespaces creation");
-    SAPI_RAW_PCHECK(chroot("/realroot") == 0,
-                    "chrooting prior to dumping coverage");
+    setup_socketpair.sock[0].Close();
+    // Run the initialization in the child process.
+    CreateInitialNamespacesImpl(Comms(setup_socketpair.sock[1].Release()));
     util::DumpCoverageData();
     _exit(0);
   }
-  open_pipe.read.Close();
-  create_pipe.write.Close();
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(create_pipe.read.get(), &value,
-                                          sizeof(value))) == sizeof(value),
-                  "synchronizing initial namespaces creation");
-  initial_userns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/user").c_str(),
-                            O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_PCHECK(initial_userns_fd_ != -1, "getting initial userns fd");
-  initial_mntns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/mnt").c_str(),
-                           O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_PCHECK(initial_mntns_fd_ != -1, "getting initial mntns fd");
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(open_pipe.write.get(), &value,
-                                           sizeof(value))) == sizeof(value),
-                  "synchronizing initial namespaces creation");
+  Comms setup_comms(setup_socketpair.sock[0].Release());
+  setup_socketpair.sock[1].Close();
+  int raw_userns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_userns_fd), "receiving userns fd");
+  initial_userns_fd_ = FDCloser(raw_userns_fd);
+  int raw_mntns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_mntns_fd), "receiving mntns fd");
+  initial_mntns_fd_ = FDCloser(raw_mntns_fd);
+}
+
+void ForkServer::CreateInitialNamespacesImpl(Comms setup_comms) {
+  uid_t uid = getuid();
+  gid_t gid = getgid();
+  int res = unshare(CLONE_NEWUSER | CLONE_NEWNS);
+  if (res == -1 && errno == EPERM && IsLikelyChrooted()) {
+    SAPI_RAW_LOG(FATAL,
+                 "failed to unshare initial namespaces: parent process is "
+                 "likely chrooted");
+  }
+  SAPI_RAW_PCHECK(res != -1, "unsharing initial namespaces");
+  Namespace::InitializeInitialNamespaces(uid, gid);
+  SAPI_RAW_PCHECK(chroot("/realroot") == 0,
+                  "chrooting prior to dumping coverage");
+  int userns_fd =
+      open(absl::StrCat("/proc/self/ns/user").c_str(), O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_PCHECK(userns_fd != -1, "getting initial userns fd");
+  int mntns_fd =
+      open(absl::StrCat("/proc/self/ns/mnt").c_str(), O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_PCHECK(mntns_fd != -1, "getting initial mntns fd");
+  SAPI_RAW_CHECK(setup_comms.SendFD(userns_fd), "sending mntns fd");
+  SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd), "sending mntns fd");
 }
 
 void ForkServer::CreateForkserverSharedNetworkNamespace() {
-  Pipe create_pipe = CreatePipe();
-  Pipe open_pipe = CreatePipe();
-  pid_t pid = util::ForkWithFlags(SIGCHLD);
-  SAPI_RAW_PCHECK(pid != -1, "failed to fork shared netns process");
-  char value = ' ';
+  UnixSocketPair setup_socketpair = CreateUnixSocketPair(/*passcred=*/true);
+  // Cannot use regular fork, because we need to be single-threaded to setns.
+  // This won't be the case with some sanitizers (e.g. TSAN).
+  pid_t pid = util::ForkWithFlags(0);
+  SAPI_RAW_PCHECK(pid != -1, "fork failed");
   if (pid == 0) {
-    create_pipe.read.Close();
-    open_pipe.write.Close();
-    SAPI_RAW_PCHECK(setns(initial_userns_fd_, CLONE_NEWUSER) == 0,
-                    "joining initial user namespace");
-    SAPI_RAW_PCHECK(unshare(CLONE_NEWNET) == 0, "unsharing netns");
-    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(create_pipe.write.get(), &value,
-                                             sizeof(value))) == sizeof(value),
-                    "synchronizing shared netns creation");
-    SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(open_pipe.read.get(), &value,
-                                            sizeof(value))) == sizeof(value),
-                    "synchronizing shared netns creation");
+    setup_socketpair.sock[0].Close();
+    // Run the initialization in the child process.
+    CreateEmptyNetworkNamespaceImpl(Comms(setup_socketpair.sock[1].Release()));
     util::DumpCoverageData();
     _exit(0);
   }
-  open_pipe.read.Close();
-  create_pipe.write.Close();
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(read(create_pipe.read.get(), &value,
-                                          sizeof(value))) == sizeof(value),
-                  "synchronizing shared netns creation");
-  initial_netns_fd_ = open(absl::StrCat("/proc/", pid, "/ns/net").c_str(),
-                           O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_PCHECK(initial_netns_fd_ != -1, "getting initial netns fd");
-  SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(write(open_pipe.write.get(), &value,
-                                           sizeof(value))) == sizeof(value),
-                  "synchronizing initial namespaces creation");
+  Comms setup_comms(setup_socketpair.sock[0].Release());
+  setup_socketpair.sock[1].Close();
+  int raw_netns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_netns_fd), "receiving netns fd");
+  shared_netns_fd_ = FDCloser(raw_netns_fd);
+}
+
+void ForkServer::CreateEmptyNetworkNamespaceImpl(Comms setup_comms) {
+  SAPI_RAW_PCHECK(setns(initial_userns_fd_.get(), CLONE_NEWUSER) == 0,
+                  "joining initial user namespace");
+  SAPI_RAW_PCHECK(unshare(CLONE_NEWNET) == 0, "unsharing netns");
+  int netns_fd =
+      open(absl::StrCat("/proc/self/ns/net").c_str(), O_RDONLY | O_CLOEXEC);
+  SAPI_RAW_CHECK(setup_comms.SendFD(netns_fd), "sending mntns fd");
 }
 
 void ForkServer::SanitizeEnvironment() const {
