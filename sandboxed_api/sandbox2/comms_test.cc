@@ -39,6 +39,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/thread.h"
@@ -528,6 +529,32 @@ TEST(CommsTest, TestSendRecvBytes) {
     std::vector<uint8_t> response;
     ASSERT_THAT(comms->RecvBytes(&response), IsTrue());
     EXPECT_THAT(request, Eq(response));
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(CommsTest, TestExchangeTLV) {
+  auto a = [](Comms* comms) {
+    uint32_t r_tag;
+    std::vector<uint8_t> r_val;
+    ASSERT_THAT(
+        comms->ExchangeTLV(
+            0x1, absl::MakeSpan(reinterpret_cast<const uint8_t*>("hello"), 5),
+            &r_tag, &r_val),
+        IsTrue());
+    EXPECT_THAT(r_tag, Eq(0x2));
+    EXPECT_THAT(
+        std::string(reinterpret_cast<char*>(r_val.data()), r_val.size()),
+        Eq("world"));
+  };
+  auto b = [](Comms* comms) {
+    uint32_t tag;
+    std::vector<uint8_t> val;
+    ASSERT_THAT(comms->RecvTLV(&tag, &val), IsTrue());
+    EXPECT_THAT(tag, Eq(0x1));
+    EXPECT_THAT(std::string(reinterpret_cast<char*>(val.data()), val.size()),
+                Eq("hello"));
+    ASSERT_THAT(comms->SendTLV(0x2, 5, "world"), IsTrue());
   };
   HandleCommunication(a, b);
 }

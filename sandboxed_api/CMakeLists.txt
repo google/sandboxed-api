@@ -330,6 +330,7 @@ target_link_libraries(sapi_client
           absl::log
           absl::log_flags
           absl::log_initialize
+          absl::span
           absl::statusor
           absl::strings
           sandbox2::comms

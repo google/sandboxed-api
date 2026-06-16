@@ -158,6 +158,10 @@ class Comms {
   bool RecvTLV(uint32_t* tag, size_t* length, void* buffer, size_t buffer_size,
                std::optional<uint32_t> expected_tag = std::nullopt);
 
+  // Exchange a TLV message (Send request, receive response).
+  bool ExchangeTLV(uint32_t send_tag, absl::Span<const uint8_t> send_value,
+                   uint32_t* recv_tag, std::vector<uint8_t>* recv_value);
+
   // Sends/receives various types of data.
   bool RecvUint8(uint8_t* v) { return RecvIntGeneric(v, kTagUint8); }
   bool SendUint8(uint8_t v) { return SendGeneric(v, kTagUint8); }
@@ -247,6 +251,15 @@ class Comms {
     virtual void MoveToAnotherFd() = 0;
     virtual ssize_t RawSend(const void* data, size_t len) = 0;
     virtual ssize_t RawRecv(void* data, size_t len) = 0;
+    // This method first sends the entire send_data and then immediately
+    // receives the entire recv_data. It returns the number of bytes
+    // successfully received. It is expected that the entire send_data is sent
+    // before any data is received. In case of failure, it returns -1.
+    virtual std::optional<ssize_t> RawExchange(const void* send_data,
+                                               size_t send_len, void* recv_data,
+                                               size_t recv_len) {
+      return std::nullopt;
+    }
     virtual ssize_t RawSendMsg(const void* msg) = 0;
     virtual ssize_t RawRecvMsg(void* msg) = 0;
   };
@@ -294,6 +307,9 @@ class Comms {
     }
     ssize_t RawSend(const void* data, size_t len) override;
     ssize_t RawRecv(void* data, size_t len) override;
+    std::optional<ssize_t> RawExchange(const void* send_data, size_t send_len,
+                                       void* recv_data,
+                                       size_t recv_len) override;
 
    private:
     class SocketObserver;
@@ -391,6 +407,11 @@ class Comms {
   bool RecvMsg(InternalTLV* tlv, absl::Span<char> data, void* vmsg);
   bool SendMsg(const InternalTLV& tlv, absl::string_view data, void* cmsg,
                size_t cmsg_len);
+
+  // Send data and immediately receive data, leveraging smart context switching
+  // if supported by the transport.
+  bool Exchange(const void* send_data, size_t send_len, void* recv_data,
+                size_t recv_len);
 };
 
 class ListeningComms {
