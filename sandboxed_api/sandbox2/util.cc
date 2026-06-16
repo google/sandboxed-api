@@ -15,7 +15,6 @@
 #include "sandboxed_api/sandbox2/util.h"
 
 #include <fcntl.h>
-#include <linux/futex.h>
 #include <linux/limits.h>
 #include <sched.h>
 #include <spawn.h>
@@ -28,7 +27,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cerrno>
 #include <csetjmp>
 #include <cstddef>
@@ -237,34 +235,6 @@ pid_t CloneAndJump(int flags, jmp_buf* env_ptr) {
   return r;
 }
 
-struct ChildArgs {
-  jmp_buf env;
-  std::atomic<uint32_t> parent_running;
-};
-
-ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS
-ABSL_ATTRIBUTE_NOINLINE
-int ForkWithFlagsJustRunChildFunc(void* arg) {
-  auto* args = reinterpret_cast<ChildArgs*>(arg);
-  // wait for the parent to exit.
-  while (args->parent_running.load(std::memory_order_relaxed) == 1) {
-    Syscall(__NR_futex, reinterpret_cast<uintptr_t>(&args->parent_running),
-            FUTEX_WAIT, 1);
-  }
-  longjmp(args->env, 1);
-}
-
-ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS
-ABSL_ATTRIBUTE_NOINLINE
-void ForkWithFlagsJustRunChildImpl(ChildArgs* args, void* stack, int flags) {
-  int r = clone(&ForkWithFlagsJustRunChildFunc, stack, flags | CLONE_VM, args,
-                nullptr, nullptr, nullptr);
-  if (r == -1) {
-    return;
-  }
-  _exit(0);
-}
-
 }  // namespace
 
 pid_t ForkWithFlags(int flags) {
@@ -282,42 +252,6 @@ pid_t ForkWithFlags(int flags) {
 
   // Child.
   return 0;
-}
-
-int ForkWithFlagsJustRunChild(int flags) {
-  if constexpr (sapi::sanitizers::IsTSan()) {
-    // TSAN does not like what we're doing here. Fallback to regular
-    // ForkWithFlags.
-    pid_t child = ForkWithFlags(flags);
-    if (child == 0) {
-      return 0;
-    }
-    if (child == -1) {
-      return child;
-    }
-    _exit(0);
-  } else {
-    const int unsupported_flags = CLONE_CHILD_CLEARTID | CLONE_CHILD_SETTID |
-                                  CLONE_PARENT_SETTID | CLONE_SETTLS | CLONE_VM;
-    if (flags & unsupported_flags) {
-      SAPI_RAW_LOG(FATAL, "ForkWithFlags used with unsupported flag");
-    }
-    ChildArgs args;
-    args.parent_running.store(1, std::memory_order_relaxed);
-    Syscall(__NR_set_tid_address,
-            reinterpret_cast<uintptr_t>(&args.parent_running));
-    uint8_t stack_buf[kPthreadStackMin] ABSL_CACHELINE_ALIGNED;
-    static_assert(sapi::host_cpu::IsX8664() || sapi::host_cpu::IsPPC64LE() ||
-                      sapi::host_cpu::IsArm64() || sapi::host_cpu::IsArm(),
-                  "Host CPU architecture not supported, see config.h");
-    // Stack grows down.
-    void* stack = stack_buf + sizeof(stack_buf);
-    if (setjmp(args.env) == 0) {
-      ForkWithFlagsJustRunChildImpl(&args, stack, flags);
-      return -1;
-    }
-    return 0;
-  }
 }
 
 absl::StatusOr<FDCloser> CreateMemFd(const char* name, uintptr_t flags) {

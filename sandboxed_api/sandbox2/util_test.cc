@@ -122,28 +122,6 @@ TEST(ForkWithFlagsTest, UnsupportedFlag) {
   EXPECT_THAT(ForkWithFlags(CLONE_CHILD_CLEARTID), Eq(-1));
 }
 
-TEST(ForkWithFlagsJustRunChildTest, DoesForkNormally) {
-  int pfds[2];
-  ASSERT_THAT(pipe(pfds), Eq(0));
-  pid_t child = fork();
-  ASSERT_THAT(child, Ne(-1));
-  if (child == 0) {
-    ForkWithFlagsJustRunChild(SIGCHLD);
-    pid_t my_pid = Syscall(__NR_getpid);
-    write(pfds[1], &my_pid, sizeof(my_pid));
-    exit(EXIT_SUCCESS);
-  }
-  close(pfds[1]);
-  int status;
-  ASSERT_THAT(TEMP_FAILURE_RETRY(waitpid(child, &status, 0)), Eq(child));
-  EXPECT_TRUE(WIFEXITED(status));
-  EXPECT_THAT(WEXITSTATUS(status), Eq(0));
-  pid_t second;
-  EXPECT_THAT(read(pfds[0], &second, sizeof(second)), Eq(sizeof(second)));
-  close(pfds[0]);
-  EXPECT_THAT(second, Ne(child));
-}
-
 TEST(ReadCPathFromPidSplitPageTest, Normal) {
   std::string test_str(kTestString);
   absl::StatusOr<std::string> read =

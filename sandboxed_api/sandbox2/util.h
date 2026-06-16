@@ -104,9 +104,6 @@ long Syscall(long sys_no,  // NOLINT
 //
 // Return values as for 'man 2 fork'.
 pid_t ForkWithFlags(int flags);
-// Same as above, but only runs the child process. The parent process will exit
-// immediately after the child is started.
-int ForkWithFlagsJustRunChild(int flags);
 
 // Creates a new memfd. The memfd will be created with the following default
 // memfd flags: MFD_CLOEXEC | MFD_ALLOW_SEALING.

@@ -401,9 +401,14 @@ void ForkServer::SetupSandboxeeProcess(const ForkRequest& fork_request,
                       "joining initial net namespace");
     }
     // Do not create new userns it will be unshared later
-    SAPI_RAW_PCHECK(util::ForkWithFlagsJustRunChild(
-                        (clone_flags & ~CLONE_NEWUSER) | CLONE_PARENT) == 0,
-                    "Forking child process");
+    pid_t sandboxee_pid =
+        util::ForkWithFlags((clone_flags & ~CLONE_NEWUSER) | CLONE_PARENT);
+    if (sandboxee_pid == -1) {
+      SAPI_RAW_LOG(ERROR, "util::ForkWithFlags(%x)", clone_flags);
+    }
+    if (sandboxee_pid != 0) {
+      _exit(0);
+    }
   }
 
   // Close initial namespaces fds in the sandboxee process.
