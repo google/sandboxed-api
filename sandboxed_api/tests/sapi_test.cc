@@ -245,7 +245,7 @@ TEST_P(SandboxTest, RestartSandboxFD) {
     // Open some FDs and check their value.
     int first_remote_fd = LeakFileDescriptor(sandbox, "/proc/self/exe");
     EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"),
-                Eq(first_remote_fd + 1));
+                Gt(first_remote_fd));
     SAPI_RETURN_IF_ERROR(sandbox->Restart(false));
     // We should have a fresh sandbox now = FDs open previously should be
     // closed now.

@@ -212,10 +212,12 @@ std::unique_ptr<MonitorBase> Sandbox2::CreateMonitor() {
   }
   if (use_unotify_monitor_) {
     return std::make_unique<UnotifyMonitor>(executor_.get(), policy_.get(),
-                                            notify_.get());
+                                            notify_.get(),
+                                            enable_shared_memory_comms_);
   }
   return std::make_unique<PtraceMonitor>(executor_.get(), policy_.get(),
-                                         notify_.get());
+                                         notify_.get(),
+                                         enable_shared_memory_comms_);
 }
 
 }  // namespace sandbox2
