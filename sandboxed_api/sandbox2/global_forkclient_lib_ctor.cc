@@ -21,7 +21,7 @@
 namespace sandbox2 {
 void StartGlobalForkserverFromLibCtor() {
   if (!getenv(sandbox2::kForkServerDisableEnv)) {
-    GlobalForkClient::ForceStart();
+    GlobalForkClient::GetGlobalData().ForceStart();
   }
 }
 }  // namespace sandbox2

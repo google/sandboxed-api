@@ -286,6 +286,7 @@ cc_library(
         "//sandboxed_api/util:raw_logging",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",

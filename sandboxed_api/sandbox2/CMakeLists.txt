@@ -255,6 +255,7 @@ add_library(sandbox2::global_forkserver ALIAS sandbox2_global_forkserver)
 target_link_libraries(sandbox2_global_forkserver
   PRIVATE absl::algorithm_container
           absl::cleanup
+          absl::no_destructor
           absl::strings
           absl::status
           absl::log

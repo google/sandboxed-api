@@ -31,7 +31,8 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/base/const_init.h"
+#include "absl/base/no_destructor.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
@@ -207,20 +208,18 @@ void WaitForForkserver(pid_t pid) {
 
 }  // namespace
 
-absl::Mutex GlobalForkClient::instance_mutex_(absl::kConstInit);
-GlobalForkClient* GlobalForkClient::instance_ = nullptr;
+GlobalForkClient::GlobalData& GlobalForkClient::GetGlobalData() {
+  static absl::NoDestructor<GlobalForkClient::GlobalData> global_data;
+  return *global_data;
+}
 
 void DisableCompressStackDepot(google::protobuf::RepeatedPtrField<std::string>* envs) {
   DisableCompressStackDepotImpl(
       *envs, [&envs](absl::string_view env) { envs->Add(std::string(env)); });
 }
 
-void GlobalForkClient::EnsureStarted(GlobalForkserverStartMode mode) {
-  absl::MutexLock lock(instance_mutex_);
-  EnsureStartedLocked(mode);
-}
-
-void GlobalForkClient::EnsureStartedLocked(GlobalForkserverStartMode mode) {
+void GlobalForkClient::GlobalData::EnsureStartedLocked(
+    GlobalForkserverStartMode mode) {
   if (instance_) {
     return;
   }
@@ -243,40 +242,39 @@ void GlobalForkClient::EnsureStartedLocked(GlobalForkserverStartMode mode) {
                  forkserver.status().message().data());
     return;
   }
-  instance_ = forkserver->release();
+  instance_ = *std::move(forkserver);
 }
 
-void GlobalForkClient::ForceStart() {
-  absl::MutexLock lock(GlobalForkClient::instance_mutex_);
+void GlobalForkClient::GlobalData::ForceStart() {
+  absl::MutexLock lock(mutex_);
   SAPI_RAW_CHECK(instance_ == nullptr,
                  "A force start requested when the Global Fork-Server was "
                  "already running");
   absl::StatusOr<std::unique_ptr<GlobalForkClient>> forkserver =
       StartGlobalForkServer();
   SAPI_RAW_CHECK(forkserver.ok(), forkserver.status().ToString().c_str());
-  instance_ = forkserver->release();
+  instance_ = *std::move(forkserver);
 }
 
-void GlobalForkClient::Shutdown() {
+void GlobalForkClient::GlobalData::Shutdown() {
   pid_t pid = -1;
   {
-    absl::MutexLock lock(GlobalForkClient::instance_mutex_);
+    absl::MutexLock lock(mutex_);
     if (instance_) {
       pid = instance_->fork_client_.pid();
     }
-    delete instance_;
-    instance_ = nullptr;
+    instance_.reset();
   }
   if (pid != -1) {
     WaitForForkserver(pid);
   }
 }
 
-SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
-                                               int exec_fd, int comms_fd) {
+SandboxeeProcess GlobalForkClient::GlobalData::SendRequest(
+    const ForkRequest& request, int exec_fd, int comms_fd) {
   absl::StatusOr<ForkClient::PendingRequest> pending_request;
   {
-    absl::ReleasableMutexLock lock(GlobalForkClient::instance_mutex_);
+    absl::ReleasableMutexLock lock(mutex_);
     EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
     if (!instance_) {
       return SandboxeeProcess();
@@ -285,8 +283,7 @@ SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
     if (instance_->comms_.IsTerminated()) {
       LOG(ERROR) << "Global forkserver connection terminated";
       pid_t server_pid = instance_->fork_client_.pid();
-      delete instance_;
-      instance_ = nullptr;
+      instance_.reset();
       // Don't wait for process exit while still holding the lock and
       // potentially blocking other threads.
       lock.Release();
@@ -306,8 +303,8 @@ SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
   return *std::move(process);
 }
 
-pid_t GlobalForkClient::GetPid() {
-  absl::MutexLock lock(instance_mutex_);
+pid_t GlobalForkClient::GlobalData::GetPid() {
+  absl::MutexLock lock(mutex_);
   EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
   if (!instance_) {
     return -1;
@@ -315,8 +312,8 @@ pid_t GlobalForkClient::GetPid() {
   return instance_->fork_client_.pid();
 }
 
-bool GlobalForkClient::IsStarted() {
-  absl::ReaderMutexLock lock(instance_mutex_);
+bool GlobalForkClient::GlobalData::IsStarted() {
+  absl::ReaderMutexLock lock(mutex_);
   return instance_ != nullptr;
 }
 }  // namespace sandbox2

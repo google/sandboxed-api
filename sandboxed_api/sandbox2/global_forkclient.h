@@ -20,6 +20,7 @@
 
 #include <sys/types.h>
 
+#include <memory>
 #include <string>
 
 #include "absl/base/thread_annotations.h"
@@ -32,6 +33,8 @@
 
 namespace sandbox2 {
 
+class MonitorBase;
+
 void DisableCompressStackDepot(google::protobuf::RepeatedPtrField<std::string>* envs);
 
 class GlobalForkClient {
@@ -40,27 +43,40 @@ class GlobalForkClient {
       : comms_(fd), fork_client_(pid, &comms_, /*is_global=*/true) {}
 
   static SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
-                                      int comms_fd)
-      ABSL_LOCKS_EXCLUDED(instance_mutex_);
-  static pid_t GetPid() ABSL_LOCKS_EXCLUDED(instance_mutex_);
-
-  static void EnsureStarted() ABSL_LOCKS_EXCLUDED(instance_mutex_) {
-    EnsureStarted(GlobalForkserverStartMode::kOnDemand);
+                                      int comms_fd) {
+    return GetGlobalData().SendRequest(request, exec_fd, comms_fd);
   }
-  static void Shutdown() ABSL_LOCKS_EXCLUDED(instance_mutex_);
-  static bool IsStarted() ABSL_LOCKS_EXCLUDED(instance_mutex_);
+  static pid_t GetPid() { return GetGlobalData().GetPid(); }
+  static void EnsureStarted() {
+    GetGlobalData().EnsureStarted(GlobalForkserverStartMode::kOnDemand);
+  }
+  static void Shutdown() { GetGlobalData().Shutdown(); }
+  static bool IsStarted() { return GetGlobalData().IsStarted(); }
 
  private:
+  class GlobalData {
+   public:
+    GlobalData() = default;
+    SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
+                                 int comms_fd) ABSL_LOCKS_EXCLUDED(mutex_);
+    void EnsureStarted(GlobalForkserverStartMode mode)
+        ABSL_LOCKS_EXCLUDED(mutex_) {
+      absl::MutexLock lock(mutex_);
+      EnsureStartedLocked(mode);
+    }
+    pid_t GetPid() ABSL_LOCKS_EXCLUDED(mutex_);
+    void Shutdown() ABSL_LOCKS_EXCLUDED(mutex_);
+    bool IsStarted() ABSL_LOCKS_EXCLUDED(mutex_);
+    void ForceStart() ABSL_LOCKS_EXCLUDED(mutex_);
+   private:
+    void EnsureStartedLocked(GlobalForkserverStartMode mode)
+        ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    absl::Mutex mutex_;
+    std::unique_ptr<GlobalForkClient> instance_ ABSL_GUARDED_BY(mutex_);
+  };
   friend void StartGlobalForkserverFromLibCtor();
 
-  static void ForceStart() ABSL_LOCKS_EXCLUDED(instance_mutex_);
-  static void EnsureStarted(GlobalForkserverStartMode mode)
-      ABSL_LOCKS_EXCLUDED(instance_mutex_);
-  static void EnsureStartedLocked(GlobalForkserverStartMode mode)
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(instance_mutex_);
-
-  static absl::Mutex instance_mutex_;
-  static GlobalForkClient* instance_ ABSL_GUARDED_BY(instance_mutex_);
+  static GlobalData& GetGlobalData();
 
   Comms comms_;
   ForkClient fork_client_;
