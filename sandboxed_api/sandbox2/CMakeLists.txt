@@ -260,7 +260,6 @@ target_link_libraries(sandbox2_global_forkserver
           absl::log
           sandbox2::client
           sandbox2::flags
-          sandbox2::forkserver
           sandbox2::forkserver_bin_embed
           sandbox2::util
           sapi::strerror
@@ -619,6 +618,36 @@ target_link_libraries(sandbox2_sanitizer
          absl::statusor
 )
 
+# sandboxed_api/sandbox2:forkedprocess
+add_library(sandbox2_forkedprocess ${SAPI_LIB_TYPE}
+  forkedprocess.cc
+  forkedprocess.h
+)
+add_library(sandbox2::forkedprocess ALIAS sandbox2_forkedprocess)
+target_link_libraries(sandbox2_forkedprocess
+  PRIVATE absl::core_headers
+          absl::flat_hash_map
+          absl::status
+          absl::statusor
+          absl::strings
+          libcap::libcap
+          sandbox2::bpf_helper
+          sandbox2::client
+          sandbox2::fork_client
+          sandbox2::mounts
+          sandbox2::namespace
+          sandbox2::policy
+          sandbox2::sanitizer
+          sandbox2::syscall
+          sandbox2::util
+          sapi::base
+          sapi::raw_logging
+  PUBLIC absl::flat_hash_set
+         sandbox2::comms
+         sandbox2::forkserver_proto
+         sapi::fileops
+)
+
 # sandboxed_api/sandbox2:forkserver
 add_library(sandbox2_forkserver ${SAPI_LIB_TYPE}
   forkserver.cc
@@ -626,25 +655,17 @@ add_library(sandbox2_forkserver ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::forkserver ALIAS sandbox2_forkserver)
 target_link_libraries(sandbox2_forkserver
-  PRIVATE absl::flat_hash_map
-          absl::flat_hash_set
-          absl::status
+  PRIVATE absl::status
           absl::statusor
           absl::strings
           libcap::libcap
-          sandbox2::bpf_helper
-          sandbox2::client
           sandbox2::comms
           sandbox2::fork_client
+          sandbox2::forkedprocess
           sandbox2::forkserver_proto
           sandbox2::namespace
-          sandbox2::policy
-          sapi::strerror
-          sandbox2::sanitizer
-          sandbox2::syscall
           sandbox2::util
           sapi::base
-          sapi::raw_logging
           sandbox2::version
   PUBLIC absl::core_headers
          absl::log

@@ -57,17 +57,6 @@ class ForkServer {
   pid_t ServeRequest();
 
  private:
-  // Creates the sandboxee process.
-  void SetupSandboxeeProcess(const ForkRequest& fork_request,
-                             sapi::file_util::fileops::FDCloser comms_fd,
-                             sapi::file_util::fileops::FDCloser exec_fd,
-                             Comms& setup_comms);
-  // Launches the sandboxee process.
-  void LaunchSandboxee(const ForkRequest& request, int execve_fd,
-                       Comms& setup_comms,
-                       sapi::file_util::fileops::FDCloser status_fd,
-                       bool avoid_pivot_root) const;
-
   // Prepares the Fork-Server (worker side, not the requester side) for work by
   // sanitizing the environment:
   // - go down if the parent goes down,
@@ -75,39 +64,12 @@ class ForkServer {
   // - don't convert children processes into zombies if they terminate.
   bool Initialize();
 
-  // Saves the original uid and gid of the process as they might change if
-  // CLONE_NEWUSER is set.
-  void SaveIDs();
-
   // Creates initial namespaces used as a template for namespaced sandboxees
   void CreateInitialNamespaces();
   void CreateInitialNamespacesImpl(Comms setup_comms);
 
   // Creates a network namespace to be shared between sandboxees
   void CreateForkserverSharedNetworkNamespace();
-
-  // Prepares arguments for the upcoming execve (if execve was requested).
-  static void PrepareExecveArgs(const ForkRequest& request,
-                                std::vector<std::string>* args,
-                                std::vector<std::string>* envp);
-
-  // Ensures that no unnecessary file descriptors are lingering after execve().
-  void SanitizeEnvironment() const;
-
-  // Executes the sandboxee, or exit with Executor::kFailedExecve.
-  static void ExecuteProcess(int execve_fd, const char* const* argv,
-                             const char* const* envp) ABSL_ATTRIBUTE_NORETURN;
-
-  // Runs namespace initializers for a sandboxee.
-  static void InitializeNamespaces(const ForkRequest& request, uid_t uid,
-                                   gid_t gid, bool avoid_pivot_root);
-
-  // "Moves" FDs in move_fds from current to target FD number while keeping FDs
-  // in keep_fds open - potentially moving them to another FD number as well in
-  // case of colisions. Also makes sure comms stays connected.
-  // Ignores invalid (-1) fds.
-  static void MoveFDs(std::initializer_list<std::pair<int*, int>> move_fds,
-                      std::initializer_list<int*> keep_fds, Comms& comms);
   void CreateEmptyNetworkNamespaceImpl(Comms setup_comms);
 
   // Comms channel which is used to send requests to this class. Not owned by

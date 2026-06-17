@@ -33,6 +33,8 @@
 
 namespace sandbox2 {
 
+class ForkedProcess;
+
 class Client {
  public:
   // Client is ready to be sandboxed.
@@ -95,7 +97,7 @@ class Client {
  private:
   static constexpr const char* kFDMapEnvVar = "SB2_FD_MAPPINGS";
 
-  friend class ForkServer;
+  friend class ForkedProcess;
 
   // Seccomp-bpf policy received from the monitor.
   std::vector<uint8_t> policy_;

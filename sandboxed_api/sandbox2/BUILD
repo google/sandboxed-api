@@ -646,15 +646,16 @@ cc_library(
 )
 
 cc_library(
-    name = "forkserver",
-    srcs = ["forkserver.cc"],
-    hdrs = ["forkserver.h"],
+    name = "forkedprocess",
+    srcs = ["forkedprocess.cc"],
+    hdrs = ["forkedprocess.h"],
     copts = sapi_platform_copts(),
     deps = [
         ":client",
         ":comms",
         ":fork_client",
         ":forkserver_cc_proto",
+        ":mounts",
         ":namespace",
         ":policy",
         ":sanitizer",
@@ -664,10 +665,32 @@ cc_library(
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:strerror",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@libcap",
+    ],
+)
+
+cc_library(
+    name = "forkserver",
+    srcs = ["forkserver.cc"],
+    hdrs = ["forkserver.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":comms",
+        ":fork_client",
+        ":forkedprocess",
+        ":forkserver_cc_proto",
+        ":namespace",
+        ":util",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:raw_logging",
+        "//sandboxed_api/util:strerror",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
