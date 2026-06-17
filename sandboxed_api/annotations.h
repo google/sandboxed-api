@@ -163,6 +163,9 @@
 // This is for host variables that can hold some state between calls.
 #define SANDBOX_HOST_STATE_VAR [[clang::annotate("sandbox", "host_state_var")]]
 
+/////////////////////////////////////////////////////////////////////////////
+// Lifetime annotations for returned pointers or outparams.
+
 // Indicate that an output pointer points to global memory in the sandbox.
 // If we transparently copy the data into the host, it should also have a global
 // lifetime.
@@ -173,5 +176,105 @@
 // See the example under SANDBOX_NULL_TERMINATED.
 #define SANDBOX_LIFETIME_GLOBAL \
   [[clang::annotate("sandbox", "lifetime_sandbox_global")]]
+
+/////////////////////////////////////////////////////////////////////////////
+// Binding data to objects, getting from the bindings, and clearing.
+// - which can help with host or sandbox copies that need extended lifetimes
+//   from a "getter" -> "destroy".
+// - or, can help store primitive data from the host given at an earlier
+//   point to be used at a later point. E.g. a size during "create" to be
+//   used during "get" or "sync" to synchronize a buffer.
+
+// Bind primitive data to the given "context" (could be an opaque pointer, or
+// some other pointer we want to bind data to).
+// The value is computed *after* the function is called to create the binding.
+// NOTE: this is an annotation on the function creating the binding,
+// vs other annotations that are attached to one of the pointers involved
+// (e.g., the return value pointer, or the context pointer
+// being destroyed).
+//
+// - context: the pointer to the object to bind the data to.
+//   - can be the name of a pointer parameter
+//   - or SANDBOX_RETURN to bind to the return value
+// - type: the type of the data, e.g. size_t.
+// - name: the name of the binding, e.g. "size".
+// - host_computable_expr: an expression to compute the value in the host.
+//
+// The bound value can be retrieved, e.g., with SANDBOX_BIND_SIZED_BY_GET_DATA
+// for use in SANDBOX_COPY_FROM_AND_BIND_OUT_PTR.
+//
+// If the context is null, then we do not bind.
+//
+// For example:
+//
+//   // Creates an image with the given dimensions.
+//   SANDBOX_OPAQUE_PTR
+//   SANDBOX_BIND_DATA(SANDBOX_RETURN, "size_t", "size", width * height)
+//   Image* create_image(int width, int height);
+//
+//   // Gets the dimensions of a decompressed image.
+//   SANDBOX_BIND_DATA(
+//        context, "size_t", "size", dimensions->width * dimensions->height)
+//   void get_dimensions(Image* context SANDBOX_OPAQUE_PTR,
+//                       Dimensions* dimensions SANDBOX_OUT_PTR);
+#define SANDBOX_BIND_DATA(context, type, name, host_computable_expr) \
+  [[clang::annotate("sandbox", "bind_data", #context, #type, #name,  \
+                    #host_computable_expr)]]
+
+// Shortcut for binding data of type `size_t`.
+#define SANDBOX_BIND_SIZE(context, name, host_computable_expr) \
+  SANDBOX_BIND_DATA(context, size_t, name, host_computable_expr)
+
+#define SANDBOX_RETURN "$return"
+
+// Output pointer annotation that denotes that the pointee data is an array
+// which will be accessed by the host. Thus, we should make a host copy of data
+// and not free it until a later point. To extend the lifetime, we bind the
+// host copy to the given "context" (could be an opaque pointer, or some other
+// pointer we want to bind data to), and only free it when the binding is
+// cleared with SANDBOX_CLEAR_BINDINGS.
+//
+// If the output pointer is null, then we do not copy and bind, and leave it as
+// null in the host. We also skip if the context is null (assuming the library
+// would have returned null in that case too).
+//
+// - context: the pointer to the object to bind the host copy to.
+// - name: the name of the binding, e.g. "buffer".
+// - size_by: an expression that indicates the size of the array in bytes.
+//   - can be a constant or simple host-computable expression, e.g.
+//     (SANDBOX_BIND_SIZED_BY_EXPR(sizeof(ctx->inline_buffer)))
+//   - or, is a null-terminated C-string (SANDBOX_BIND_SIZED_BY_NULL_TERMINATED,
+//     note, this is different from SANDBOX_NULL_TERMINATED)
+//   - or, a value that should be looked up from a binding
+//     (SANDBOX_BIND_SIZED_BY_GET_DATA(context, name))
+//
+// For example (continuing from the `create_image` of SANDBOX_BIND_DATA):
+//
+//   SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(
+//       context,
+//       SANDBOX_BIND_SIZED_BY_GET_DATA(context, "size"))
+//   char* get_image_buffer(Image* context SANDBOX_OPAQUE_PTR);
+#define SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(context, size_by)           \
+  [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr", #context, \
+                    SANDBOX_BINDING_GEN_NAME(), size_by)]]
+
+// Annotations for the `size_by` argument of SANDBOX_COPY_FROM_AND_BIND_OUT_PTR.
+#define SANDBOX_BIND_SIZED_BY_EXPR(expr) "expr, " #expr
+#define SANDBOX_BIND_SIZED_BY_NULL_TERMINATED "null_terminated"
+#define SANDBOX_BIND_SIZED_BY_GET_DATA(context, name) \
+  "get_data, " #context ", " #name
+
+// An annotation for a pointer parameter (e.g., a context object), that denotes
+// that this function will destroy/free the pointee. We use this as a hook to
+// also clear all bindings attached to the given pointee, and free any host
+// copies, if necessary.
+// This assumes that the order of freeing doesn't matter.
+// If the context is null, then there should be no bindings to clear.
+//
+// For example:
+//
+//   void destroy_image(Image* context SANDBOX_OPAQUE_PTR
+//                                     SANDBOX_CLEAR_BINDINGS);
+#define SANDBOX_CLEAR_BINDINGS [[clang::annotate("sandbox", "clear_bindings")]]
 
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

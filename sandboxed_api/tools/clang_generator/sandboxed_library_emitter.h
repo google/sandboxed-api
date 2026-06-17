@@ -74,6 +74,28 @@ struct NullTerminated {};
 using ArraySizedByType =
     std::variant<std::monostate, ElemSizedBy, ByteSizedBy, NullTerminated>;
 
+// Binding primitive data to a context pointer.
+struct BindData {
+  std::string context;
+  std::string type;
+  std::string binding_name;
+  std::string host_computable_expr;
+};
+
+// Binding a buffer to a context pointer (to be freed during "clear").
+struct CopyFromAndBindOutPtr {
+  std::string context;
+  std::string binding_name;
+  std::string sized_by;
+};
+
+// Collection of context-bound annotations for a single function or argument.
+struct ContextBoundAnnotations {
+  std::vector<BindData> bind_data;
+  std::optional<CopyFromAndBindOutPtr> copy_from_and_bind;
+  bool clear_bindings = false;
+};
+
 class SandboxedLibraryEmitter : public EmitterBase {
  public:
   class Arg;
@@ -113,6 +135,9 @@ class SandboxedLibraryEmitter : public EmitterBase {
     std::optional<Thunk> host_thunk;
     std::optional<Thunk> sandboxee_thunk;
 
+    ContextBoundAnnotations context_bound;
+    std::string EmitPostCallBindData() const;
+
     ~Func();
   };
 
@@ -120,6 +145,8 @@ class SandboxedLibraryEmitter : public EmitterBase {
     std::optional<PointerDir> ptr_dir;
     ArraySizedByType size_type;
     std::optional<PointerLifetime> lifetime;
+
+    ContextBoundAnnotations context_bound;
 
     absl::Status CheckSizeNotSet(absl::string_view annotation_name) const {
       if (std::holds_alternative<std::monostate>(size_type)) {
@@ -166,6 +193,10 @@ class SandboxedLibraryEmitter : public EmitterBase {
   static void EmitWrapperDecl(std::string& out, const Func& func);
   void EmitLibraryHeaders(const GeneratorOptions& options,
                           std::string& out) const;
+  void RecordContextBindingSupportNeeded(
+      const ContextBoundAnnotations& func_context_bound,
+      const std::vector<ArgPtr>& args);
+  std::string EmitContextBindingsHostSupportCode() const;
   absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
                                        bool add_includes) const;
   absl::StatusOr<ArgPtr> Convert(absl::string_view name, clang::QualType type,
@@ -191,6 +222,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
   std::vector<std::string> host_state_vars_;
   std::optional<std::string> host_code_;
   std::optional<std::string> sandboxee_code_;
+  bool has_context_bindings_ = false;
 };
 
 }  // namespace sapi

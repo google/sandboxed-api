@@ -83,3 +83,30 @@ cc_sandboxed_library_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_sandboxed_library(
+    name = "replacement_library_context_bound",
+    srcs = [
+        "replaced_library_context_bound.cc",
+    ],
+    hdrs = [
+        "replaced_library_context_bound.h",
+        "replaced_library_context_bound_struct.h",
+        # Note: to compute the size of inner pointers, we unfortunately need to expose
+        # the private header (`hdrs` instead of `srcs`).
+        "replaced_library_context_bound_struct_private.h",
+    ],
+    annotations = ["lwbox_context_bound_sandbox.cc"],
+    deps = [
+        "//sandboxed_api:annotations",
+    ],
+)
+
+cc_sandboxed_library_test(
+    name = "replacement_context_bound_test",
+    srcs = ["replaced_library_context_bound_test.cc"],
+    lib = ":replacement_library_context_bound",
+    deps = [
+        "@googletest//:gtest_main",
+    ],
+)

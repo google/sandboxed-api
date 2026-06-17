@@ -33,7 +33,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -69,6 +71,7 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_INOUT_PTR",       "SANDBOX_OPAQUE_PTR",
       "SANDBOX_HOST_OPAQUE_PTR", "SANDBOX_HOST_STATE_VAR",
       "SANDBOX_NULL_TERMINATED", "SANDBOX_LIFETIME_GLOBAL",
+      "SANDBOX_CLEAR_BINDINGS",
   };
   std::string output = input;
   for (const auto& macro : *macros_no_args) {
@@ -77,9 +80,16 @@ std::string StripAnnotations(const std::string& input) {
   }
 
   static const auto* macros_args = new std::vector<std::string>{
-      "SANDBOX_SANDBOXEE_THUNK",        "SANDBOX_HOST_THUNK",
-      "SANDBOX_ELEM_SIZED_BY",          "SANDBOX_BYTE_SIZED_BY",
-      "SANDBOX_ELEM_SIZED_BY_OUTPARAM", "SANDBOX_BYTE_SIZED_BY_OUTPARAM",
+      "SANDBOX_SANDBOXEE_THUNK",
+      "SANDBOX_HOST_THUNK",
+      "SANDBOX_ELEM_SIZED_BY",
+      "SANDBOX_BYTE_SIZED_BY",
+      "SANDBOX_ELEM_SIZED_BY_OUTPARAM",
+      "SANDBOX_BYTE_SIZED_BY_OUTPARAM",
+      "SANDBOX_BIND_DATA",
+      "SANDBOX_BIND_SIZE",
+      "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR_NAMED",
+      "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR",
   };
   // We also remove the full argument to the macro, e.g.
   // SANDBOX_ELEM_SIZED_BY(foo) will be removed entirely.
@@ -170,6 +180,20 @@ struct $1SandboxImpl : public $1Sandbox {
 };
 
 )";
+
+std::string StripQuotes(absl::string_view str) {
+  if (str.size() >= 2 && str.front() == '"' && str.back() == '"') {
+    return std::string(str.substr(1, str.size() - 2));
+  }
+  return std::string(str);
+}
+
+std::string ResolveContextName(absl::string_view context) {
+  if (context == "$return") {
+    return "sapi_ret_arg.GetValue()";
+  }
+  return std::string(context);
+}
 
 }  //  namespace
 
@@ -578,11 +602,13 @@ class PointeeTypeInfo {
 struct PointerArg : SandboxedLibraryEmitter::Arg {
   PointerArg(absl::string_view name, absl::string_view type,
              PointeeTypeInfo pointee_type, PointerDir ptr_dir,
-             ArraySizedByType sized_by_type)
+             ArraySizedByType sized_by_type,
+             ContextBoundAnnotations context_bound = {})
       : Arg(name, type),
         ptr_dir_(ptr_dir),
         pointee_type_(pointee_type),
-        sized_by_type_(sized_by_type) {}
+        sized_by_type_(sized_by_type),
+        context_bound_(std::move(context_bound)) {}
 
   const PointerDir ptr_dir_;
   const PointeeTypeInfo pointee_type_;
@@ -591,6 +617,9 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
   // If true, the `sized_by_type_` requires dereferencing another output (or
   // in-out) pointer parameter.
   bool is_size_based_on_deref_out_param_ = false;
+
+  // Information for context-bound inner pointers that will be used by the host.
+  ContextBoundAnnotations context_bound_;
 
   bool IsSizeBasedOnDerefOutParam() const {
     return is_size_based_on_deref_out_param_;
@@ -606,6 +635,10 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
 
   absl::Status LinkArgsIfNeeded(
       const std::vector<std::unique_ptr<Arg>>& args) override;
+
+  std::string EmitCopyFromAndBindOutPtrCode(
+      const CopyFromAndBindOutPtr& copy_from_and_bind_out_ptr,
+      absl::string_view out_ptr_name) const;
 
   std::string EmitHostPreCall() const override {
     if (ptr_dir_ == PointerDir::kSandboxOpaque) {
@@ -732,42 +765,49 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
   }
 
   std::string EmitHostPostCall() const override {
-    if (ptr_dir_ != PointerDir::kOut && ptr_dir_ != PointerDir::kInOut) {
-      return "";
+    std::string out;
+    if (ptr_dir_ == PointerDir::kOut || ptr_dir_ == PointerDir::kInOut) {
+      // In the Array case, the PtrAfter or PtrBoth synchronization writes to $0
+      // directly. However, in the non-Array case, we use a separate temp
+      // sapi::v::Struct. The PtrAfter/PtrBoth only synchronizes to that temp
+      // Struct, and we need to manually copy back from there to $0.
+      if (pointee_type_.type_class() == PointeeTypeInfo::TypeClass::kRecord &&
+          std::holds_alternative<std::monostate>(sized_by_type_)) {
+        absl::StrAppend(&out,
+                        absl::Substitute("*$0 = sapi_tmp_$0.data();\n", name_));
+      } else if (IsSizeBasedOnDerefOutParam()) {
+        // If this an Array case where the size is based on dereferencing an
+        // outparam, we'll need to manually copy. By this point, the outparam
+        // should have the post-call value copied back to the host, so we can
+        // use that value for the amount to copy.
+        std::string size_expr = GetSizeAsBytesExpr();
+        std::string cap_expr = GetCapacityAsBytesExpr();
+        absl::StrAppend(
+            &out,
+            absl::Substitute(
+                "if ($0 != nullptr) {\n"
+                "  size_t final_size = $1;\n"
+                "  size_t cap_size = $2;\n"
+                "  if (final_size > cap_size) {\n"
+                "    sandbox->Check(absl::OutOfRangeError("
+                "absl::StrCat(\"Sandboxee returned size (\", final_size, "
+                "\") exceeding capacity (\", cap_size, \") for param $0\")));\n"
+                "  }\n"
+                "  sandbox->Check(sandbox->rpc_channel()->CopyFromSandbox(\n"
+                "      reinterpret_cast<uintptr_t>(sapi_tmp_$0.GetRemote()),\n"
+                "      absl::MakeSpan(reinterpret_cast<char*>($0), "
+                "final_size)).status());\n"
+                "}\n",
+                name_, size_expr, cap_expr));
+      }
     }
-    // In the Array case, the PtrAfter or PtrBoth synchronization writes to $0
-    // directly. However, in the non-Array case, we use a separate temp
-    // sapi::v::Struct. The PtrAfter/PtrBoth only synchronizes to that temp
-    // Struct, and we need to manually copy back from there to $0.
-    if (pointee_type_.type_class() == PointeeTypeInfo::TypeClass::kRecord &&
-        std::holds_alternative<std::monostate>(sized_by_type_)) {
-      return absl::Substitute("*$0 = sapi_tmp_$0.data();\n", name_);
+    // Clear any bindings and free memory, if needed.
+    if (context_bound_.clear_bindings) {
+      absl::StrAppend(
+          &out, absl::Substitute("sapi_internal_clear_context_bindings($0);\n",
+                                 name_));
     }
-    // If this an Array case where the size is based on dereferencing an
-    // outparam, we'll need to manually copy. By this point, the outparam
-    // should have the post-call value copied back to the host, so we can use
-    // that value for the amount to copy.
-    if (IsSizeBasedOnDerefOutParam()) {
-      std::string size_expr = GetSizeAsBytesExpr();
-      std::string cap_expr = GetCapacityAsBytesExpr();
-      return absl::Substitute(
-          "if ($0 != nullptr) {\n"
-          "  size_t final_size = $1;\n"
-          "  size_t cap_size = $2;\n"
-          "  if (final_size > cap_size) {\n"
-          "    sandbox->Check(absl::OutOfRangeError(absl::StrCat(\"Sandboxee "
-          "returned size (\", final_size, \") exceeding capacity (\", "
-          "cap_size, \") for param $0\")));\n"
-          "  }\n"
-          "  sandbox->Check(sandbox->rpc_channel()->CopyFromSandbox(\n"
-          "      reinterpret_cast<uintptr_t>(sapi_tmp_$0.GetRemote()),\n"
-          "      absl::MakeSpan(reinterpret_cast<char*>($0), "
-          "final_size)).status());\n"
-          "}\n",
-          name_, size_expr, cap_expr);
-    }
-
-    return "";
+    return out;
   }
 
   std::string EmitHostArgs() const override {
@@ -835,7 +875,14 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
   }
 
   std::string EmitHostRet() const override {
-    return "return sapi_ret_arg.GetValue();";
+    std::string out;
+    if (context_bound_.copy_from_and_bind.has_value()) {
+      absl::StrAppend(&out,
+                      EmitCopyFromAndBindOutPtrCode(
+                          *context_bound_.copy_from_and_bind, "sapi_ret_arg"));
+    }
+    absl::StrAppend(&out, "return sapi_ret_arg.GetValue();");
+    return out;
   }
 };
 
@@ -959,6 +1006,138 @@ absl::Status PointerArg::LinkArgsIfNeeded(
   return absl::OkStatus();
 }
 
+std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
+    const CopyFromAndBindOutPtr& copy_from_and_bind_out_ptr,
+    absl::string_view out_ptr_name) const {
+  std::string ctx_name = ResolveContextName(copy_from_and_bind_out_ptr.context);
+  // Code for calculating the size of the data, and for allocating and
+  // copying. These will be used the first time we create a binding in our
+  // host map. It will run while a lock is held as we look up or insert into
+  // the host map.
+  std::string size_calc;
+  std::string alloc_and_copy_code;
+  // Dispatch on the different sized_by modes.
+  if (absl::StartsWith(copy_from_and_bind_out_ptr.sized_by, "expr, ")) {
+    std::string expr = std::string(absl::StripAsciiWhitespace(
+        absl::StripPrefix(copy_from_and_bind_out_ptr.sized_by, "expr, ")));
+    size_calc = absl::Substitute("size_t sapi_binding_size = $0;\n", expr);
+    alloc_and_copy_code = R"cc(
+      void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+      sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+          sandbox, sapi_sb_ptr, reinterpret_cast<uintptr_t>(sapi_host_copy),
+          sapi_binding_size));
+    )cc";
+  } else if (copy_from_and_bind_out_ptr.sized_by == "null_terminated") {
+    size_calc = "";  // part of alloc_and_copy_code instead
+    alloc_and_copy_code = R"cc(
+      absl::StatusOr<std::string> sapi_remote_str = sandbox->GetCString(
+          sapi::v::RemotePtr(reinterpret_cast<const void*>(sapi_sb_ptr)));
+      sandbox->Check(sapi_remote_str.status());
+      size_t sapi_binding_size = sapi_remote_str->size();
+      void* sapi_host_copy = calloc(sapi_binding_size + 1, sizeof(char));
+      memcpy(sapi_host_copy, sapi_remote_str->data(), sapi_binding_size);
+    )cc";
+  } else if (absl::StartsWith(copy_from_and_bind_out_ptr.sized_by,
+                              "get_data, ")) {
+    std::vector<absl::string_view> parts =
+        absl::StrSplit(copy_from_and_bind_out_ptr.sized_by, ", ");
+    if (parts.size() != 3) {
+      LOG(FATAL) << "Invalid sized_by 'get_data' format: '"
+                 << copy_from_and_bind_out_ptr.sized_by
+                 << "'. Expected format: 'get_data, context, binding_name'";
+    }
+    std::string context_var = ResolveContextName(parts[1]);
+    std::string binding_name = StripQuotes(parts[2]);
+    size_calc = absl::Substitute(
+        R"cc(
+          auto sapi_size_it =
+              sapi_internal_context_binding_prim_map.find({$0, "$1"});
+          CHECK(sapi_size_it != sapi_internal_context_binding_prim_map.end());
+          size_t sapi_binding_size = sapi_size_it->second;
+        )cc",
+        context_var, binding_name);
+    alloc_and_copy_code = R"cc(
+      void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+      sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+          sandbox, sapi_sb_ptr, reinterpret_cast<uintptr_t>(sapi_host_copy),
+          sapi_binding_size));
+    )cc";
+  } else {
+    LOG(FATAL) << "Unknown sized_by mode: "
+               << copy_from_and_bind_out_ptr.sized_by;
+  }
+
+  // On the first call, make a host copy and bind. Otherwise, sync if already
+  // bound. TODO(b/491828958): to start, we abort if the sapi_sb_ptr changed
+  // vs a previous binding. Should we allow overwriting?
+  return absl::Substitute(
+      R"cc({  // Get or create context binding.
+             auto* sapi_returned_sb_ptr = $2.GetValue();
+             if (sapi_returned_sb_ptr != nullptr && $0 != nullptr) {
+               absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
+               auto sapi_it = sapi_internal_context_binding_map.find(
+                   //
+                   {$0, "$1"});
+               if (sapi_it == sapi_internal_context_binding_map.end()) {
+                 uintptr_t sapi_sb_ptr = reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr);
+                 $3
+                     // Alloc for host and copy
+                     $4
+                     // Bind
+                     auto [sapi_new_it, sapi_inserted] =
+                         sapi_internal_context_binding_map.insert(
+                             {{$0, "$1"},
+                              std::make_tuple(sapi_sb_ptr, sapi_binding_size,
+                                              reinterpret_cast<uintptr_t>(
+                                                  sapi_host_copy))});
+                 CHECK(sapi_inserted);
+                 sapi_it = sapi_new_it;
+               } else {
+                 auto& sapi_binding_data = sapi_it->second;
+                 uintptr_t sapi_sb_ptr = std::get<0>(sapi_binding_data);
+                 CHECK_EQ(sapi_sb_ptr, reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr));
+                 sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+                     sandbox, sapi_sb_ptr, std::get<2>(sapi_binding_data),
+                     std::get<1>(sapi_binding_data)));
+               }
+               $2.SetValue(reinterpret_cast<$5>(std::get<2>(sapi_it->second)));
+             }
+           })cc",
+      ctx_name, copy_from_and_bind_out_ptr.binding_name, out_ptr_name,
+      size_calc, alloc_and_copy_code, type_);
+}
+
+std::string SandboxedLibraryEmitter::Func::EmitPostCallBindData() const {
+  std::string out;
+  if (context_bound.bind_data.empty()) return out;
+
+  absl::StrAppend(&out,
+                  R"cc({
+                         absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
+                  )cc");
+
+  for (const auto& bind : context_bound.bind_data) {
+    std::string ctx_name = ResolveContextName(bind.context);
+    // TODO(b/491828958): to start, we abort if the binding already exists.
+    // Should we allow overwriting?
+    absl::StrAppend(
+        &out,
+        absl::Substitute(
+            R"cc(if ($0 != nullptr) {
+                   size_t sapi_bind_val = $1;
+                   auto [sapi_it, sapi_inserted] =
+                       sapi_internal_context_binding_prim_map.insert_or_assign(
+                           std::make_pair($0, "$2"), sapi_bind_val);
+                   CHECK(sapi_inserted);
+                 }
+            )cc",
+            ctx_name, bind.host_computable_expr, bind.binding_name));
+  }
+
+  absl::StrAppend(&out, "  }\n");
+  return out;
+}
+
 void SandboxedLibraryEmitter::EmitLibraryHeaders(
     const GeneratorOptions& options, std::string& out) const {
   std::vector<std::string> sorted_headers(options.library_headers.begin(),
@@ -1080,7 +1259,8 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
     absl::StrAppend(&out, src, "\n");
   }
 
-  // Emit the host state variables needed for each `Arg`.
+  // Emit the host state variables and code needed to support annotations
+  // (params, returns, function-level).
   absl::StrAppend(&out, "namespace {\n");
   std::vector<std::string> sorted_arg_host_state_vars(
       arg_host_state_vars_.begin(), arg_host_state_vars_.end());
@@ -1088,6 +1268,10 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
             sorted_arg_host_state_vars.end());
   for (const auto& src : sorted_arg_host_state_vars) {
     absl::StrAppend(&out, src, "\n");
+  }
+
+  if (has_context_bindings_) {
+    absl::StrAppend(&out, EmitContextBindingsHostSupportCode());
   }
   absl::StrAppend(&out, "}  // namespace\n\n");
 
@@ -1133,6 +1317,7 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
       for (const auto& arg : func->args) {
         absl::StrAppend(&out, arg->EmitHostPostCall());
       }
+      absl::StrAppend(&out, func->EmitPostCallBindData());
       if (func->ret) {
         absl::StrAppend(&out, func->ret->EmitHostRet());
       }
@@ -1140,6 +1325,65 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
     }
   }
   return Finalize(out, /*is_header=*/false, /*add_includes=*/true);
+}
+
+std::string SandboxedLibraryEmitter::EmitContextBindingsHostSupportCode()
+    const {
+  std::string out;
+  // State variables
+  absl::StrAppend(&out,
+                  R"cc(absl::Mutex sapi_internal_context_binding_mutex;)cc");
+  absl::StrAppend(
+      &out,
+      R"cc(absl::node_hash_map<std::pair<const void*, std::string>, size_t>
+               sapi_internal_context_binding_prim_map;)cc");
+  absl::StrAppend(
+      &out,
+      R"cc(absl::node_hash_map<std::pair<const void*, std::string>,
+                               std::tuple<uintptr_t, size_t, uintptr_t>>
+               sapi_internal_context_binding_map;)cc");
+  absl::StrAppend(&out, "\n");
+
+  // Helper functions
+  absl::StrAppend(
+      &out,
+      R"cc(
+        void sapi_internal_clear_context_bindings(const void* context) {
+          if (context == nullptr) return;
+          absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
+          for (auto sapi_it = sapi_internal_context_binding_prim_map.begin();
+               sapi_it != sapi_internal_context_binding_prim_map.end();) {
+            if (sapi_it->first.first == context) {
+              sapi_internal_context_binding_prim_map.erase(sapi_it++);
+            } else {
+              ++sapi_it;
+            }
+          }
+          for (auto sapi_it = sapi_internal_context_binding_map.begin();
+               sapi_it != sapi_internal_context_binding_map.end();) {
+            if (sapi_it->first.first == context) {
+              auto& sapi_binding_data = sapi_it->second;
+              free(reinterpret_cast<void*>(std::get<2>(sapi_binding_data)));
+              sapi_internal_context_binding_map.erase(sapi_it++);
+            } else {
+              ++sapi_it;
+            }
+          }
+        })cc");
+
+  absl::StrAppend(
+      &out,
+      R"cc(
+        absl::Status sapi_internal_sync_from_sandbox_to_host(
+            sapi::SandboxBase* sandbox, uintptr_t remote_ptr,
+            uintptr_t host_ptr, size_t size) {
+          return sandbox->rpc_channel()
+              ->CopyFromSandbox(
+                  remote_ptr,
+                  absl::MakeSpan(reinterpret_cast<char*>(host_ptr), size))
+              .status();
+        })cc");
+  return out;
 }
 
 void SandboxedLibraryEmitter::EmitFuncDecl(std::string& out, const Func& func) {
@@ -1445,6 +1689,12 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
       arg_host_state_vars_.insert(arg_host_var);
     }
   }
+  // We may need to parse function-level annotations, even if the return type
+  // is void. However, we do not need an ArgPtr for the return value.
+  SAPI_ASSIGN_OR_RETURN(Annotations func_decl_annotations,
+                        ParseAnnotations(decl->getNameAsString(), decl));
+  ContextBoundAnnotations func_context_bound =
+      std::move(func_decl_annotations.context_bound);
 
   std::vector<ArgPtr> args;
   for (size_t i = 0; i < decl->getNumParams(); ++i) {
@@ -1468,11 +1718,52 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     SAPI_RETURN_IF_ERROR(arg->LinkArgsIfNeeded(args));
   }
 
+  RecordContextBindingSupportNeeded(func_context_bound, args);
+
   std::string name =
       clang::ASTNameGenerator(decl->getASTContext()).getName(decl);
-  funcs_[name] =
-      std::unique_ptr<Func>(new Func{name, std::move(ret), std::move(args)});
+  funcs_[name] = std::make_unique<Func>(name, std::move(ret), std::move(args),
+                                        // Thunks will be connected later.
+                                        /*host_thunk=*/std::nullopt,
+                                        /*sandboxee_thunk=*/std::nullopt,
+                                        std::move(func_context_bound));
   return absl::OkStatus();
+}
+
+/**
+ * Checks if the function needed any of the context-binding-related host vars
+ * and code. If so, records that we'll need to emit support code later.
+ */
+void SandboxedLibraryEmitter::RecordContextBindingSupportNeeded(
+    const ContextBoundAnnotations& func_context_bound,
+    const std::vector<ArgPtr>& args) {
+  bool has_context_bindings = false;
+  if (!func_context_bound.bind_data.empty()) {
+    has_context_bindings = true;
+  }
+  for (const auto& arg : args) {
+    const PointerArg* ptr_arg = dynamic_cast<const PointerArg*>(arg.get());
+    if (ptr_arg && (ptr_arg->context_bound_.clear_bindings ||
+                    ptr_arg->context_bound_.copy_from_and_bind.has_value())) {
+      has_context_bindings = true;
+    }
+  }
+  if (!has_context_bindings) return;
+
+  // Includes
+  includes_.insert("<tuple>");
+  includes_.insert("<utility>");
+  includes_.insert("<string>");
+  includes_.insert(
+      absl::Substitute("\"$0absl/container/node_hash_map.h\"", kIncludePrefix));
+  includes_.insert(
+      absl::Substitute("\"$0absl/synchronization/mutex.h\"", kIncludePrefix));
+
+  // Otherwise, we'll need vars and code as well. Do that separately, since
+  // (a) we want to control the order in which they are emitted more carefully
+  // (b) it's a bit wasteful to store the same strings into a set for
+  //     every function that needs it.
+  has_context_bindings_ = true;
 }
 
 /**
@@ -1719,7 +2010,7 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
       }
       return std::make_unique<PointerArg>(
           name, type_name, PointeeTypeInfo(type), *annotations.ptr_dir,
-          std::monostate{});
+          std::monostate{}, std::move(annotations.context_bound));
     }
     if (is_param) {
       if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType()) &&
@@ -1750,21 +2041,21 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
         absl::Overload{
             [&](const std::monostate&)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
-              return std::make_unique<PointerArg>(name, type_name,
-                                                  PointeeTypeInfo(type),
-                                                  *ptr_dir, std::monostate{});
+              return std::make_unique<PointerArg>(
+                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
+                  std::monostate{}, std::move(annotations.context_bound));
             },
             [&](const ElemSizedBy& elem_sized_by)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
-              return std::make_unique<PointerArg>(name, type_name,
-                                                  PointeeTypeInfo(type),
-                                                  *ptr_dir, elem_sized_by);
+              return std::make_unique<PointerArg>(
+                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
+                  elem_sized_by, std::move(annotations.context_bound));
             },
             [&](const ByteSizedBy& byte_sized_by)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
-              return std::make_unique<PointerArg>(name, type_name,
-                                                  PointeeTypeInfo(type),
-                                                  *ptr_dir, byte_sized_by);
+              return std::make_unique<PointerArg>(
+                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
+                  byte_sized_by, std::move(annotations.context_bound));
             },
             [&](const NullTerminated&)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
@@ -1836,6 +2127,24 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       annotations.lifetime = PointerLifetime::kSandboxGlobal;
+    } else if (ann.name == "bind_data") {
+      // For now, we only support size_t typed primitives.
+      if (StripQuotes(ann.args[1]) != "size_t") {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function $0: `bind_data` annotation only "
+                             "supports `size_t` typed primitives for now.",
+                             name));
+      }
+      annotations.context_bound.bind_data.push_back(
+          BindData{StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
+                   StripQuotes(ann.args[2]), StripQuotes(ann.args[3])});
+      num_args = 5;
+    } else if (ann.name == "copy_from_and_bind_out_ptr") {
+      annotations.ptr_dir = PointerDir::kOut;
+      annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
+          StripQuotes(ann.args[2])};
+      num_args = 4;
     } else {
       return absl::InvalidArgumentError(
           absl::Substitute("function $0: $1 annotation is not supported "
@@ -1902,6 +2211,9 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       annotations.lifetime = PointerLifetime::kSandboxGlobal;
+    } else if (ann.name == "clear_bindings") {
+      annotations.context_bound.clear_bindings = true;
+      num_args = 1;
     } else {
       num_args = 0;
     }
