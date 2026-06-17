@@ -261,11 +261,6 @@ void Client::SetUpIPC(int* preserved_fd) {
 
   SAPI_RAW_VLOG(1, "Will receive %d file descriptor pairs", num_of_fd_pairs);
 
-  absl::flat_hash_map<int, int*> preserve_fds_map;
-  if (preserved_fd) {
-    preserve_fds_map.emplace(*preserved_fd, preserved_fd);
-  }
-
   for (uint32_t i = 0; i < num_of_fd_pairs; ++i) {
     int32_t requested_fd;
     int32_t fd;
@@ -275,18 +270,14 @@ void Client::SetUpIPC(int* preserved_fd) {
     SAPI_RAW_CHECK(comms_->RecvFD(&fd), "receiving current fd");
     SAPI_RAW_CHECK(comms_->RecvString(&name), "receiving name string");
 
-    if (auto it = preserve_fds_map.find(requested_fd);
-        it != preserve_fds_map.end()) {
-      int old_fd = it->first;
+    if (preserved_fd && *preserved_fd == requested_fd) {
+      int old_fd = *preserved_fd;
       int new_fd = dup(old_fd);
       SAPI_RAW_PCHECK(new_fd != -1, "Failed to duplicate preserved fd=%d",
                       old_fd);
       SAPI_RAW_LOG(INFO, "Moved preserved fd=%d to %d", old_fd, new_fd);
       close(old_fd);
-      int* pfd = it->second;
-      *pfd = new_fd;
-      preserve_fds_map.erase(it);
-      preserve_fds_map.emplace(new_fd, pfd);
+      *preserved_fd = new_fd;
     }
 
     if (requested_fd == comms_->GetConnectionFD()) {

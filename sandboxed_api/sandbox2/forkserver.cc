@@ -361,6 +361,12 @@ void ForkServer::LaunchSandboxee(const ForkRequest& request, int execve_fd,
     envs.push_back(client.GetFdMapEnvVar());
   }
 
+  if (will_execve) {
+    // Make sure the execve_fd is CLOEXEC after the moves.
+    SAPI_RAW_PCHECK(fcntl(execve_fd, F_SETFD, FD_CLOEXEC) == 0,
+                    "setting execve_fd to be CLOEXEC");
+  }
+
   // Convert args and envs before enabling sandbox (it'll allocate which might
   // be blocked).
   util::CharPtrArray argv = util::CharPtrArray::FromStringVector(args);

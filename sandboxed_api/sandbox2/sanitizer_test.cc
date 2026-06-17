@@ -128,6 +128,31 @@ TEST(SanitizerTest, TestSandboxedBinary) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
+// Test that default sanitizer leaves only 0/1/2/1023 (client comms FD)
+// and mapped FDs open but closes the rest.
+TEST(SanitizerTest, TestSandboxedBinaryMapAtExecFD) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sanitizer");
+  std::vector<std::string> args = {
+      absl::StrCat(STDIN_FILENO),
+      absl::StrCat(STDOUT_FILENO),
+      absl::StrCat(STDERR_FILENO),
+      absl::StrCat(Comms::kSandbox2ClientCommsFD),
+      absl::StrCat(Comms::kSandbox2TargetExecFD),
+  };
+  auto executor = std::make_unique<Executor>(path, args);
+  int dev_null = open("/dev/null", O_RDONLY);
+  ASSERT_THAT(dev_null, Ne(-1));
+  executor->ipc()->MapFd(dev_null, Comms::kSandbox2TargetExecFD);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
+  auto result = s2.Run();
+
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
 // Test that sanitizer::CloseAllFDsExcept() closes all file descriptors except
 // the ones listed.
 TEST(SanitizerTest, TestCloseFDs) {
