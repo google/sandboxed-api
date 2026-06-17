@@ -224,9 +224,14 @@ void MonitorBase::Launch() {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_NOTIFY);
     return;
   }
+  // We purposefully ignore the return value of InitVerifyVersion(), in case
+  // there is a version mismatch.
   if (!InitVerifyVersion()) {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_VERSION_CHECK);
-    return;
+    LOG(ERROR)
+        << "We detected a version mismatch between the host and the sandboxee. "
+        << "This indicates a problem with packaging the host and/or the "
+        << "sandboxee binaries at different baselines. This might put users at "
+        << "risk.";
   }
   if (!InitSendIPC()) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
