@@ -1718,7 +1718,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     SAPI_RETURN_IF_ERROR(arg->LinkArgsIfNeeded(args));
   }
 
-  RecordContextBindingSupportNeeded(func_context_bound, args);
+  RecordContextBindingSupportNeeded(func_context_bound, ret, args);
 
   std::string name =
       clang::ASTNameGenerator(decl->getASTContext()).getName(decl);
@@ -1735,20 +1735,29 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
  * and code. If so, records that we'll need to emit support code later.
  */
 void SandboxedLibraryEmitter::RecordContextBindingSupportNeeded(
-    const ContextBoundAnnotations& func_context_bound,
+    const ContextBoundAnnotations& func_context_bound, const ArgPtr& ret,
     const std::vector<ArgPtr>& args) {
-  bool has_context_bindings = false;
-  if (!func_context_bound.bind_data.empty()) {
-    has_context_bindings = true;
-  }
-  for (const auto& arg : args) {
-    const PointerArg* ptr_arg = dynamic_cast<const PointerArg*>(arg.get());
-    if (ptr_arg && (ptr_arg->context_bound_.clear_bindings ||
-                    ptr_arg->context_bound_.copy_from_and_bind.has_value())) {
-      has_context_bindings = true;
+  auto func_has_context_bindings = [&func_context_bound, &ret, &args]() {
+    if (!func_context_bound.bind_data.empty()) {
+      return true;
     }
-  }
-  if (!has_context_bindings) return;
+    auto arg_ptr_has_context_bindings = [](const ArgPtr& arg) {
+      const PointerArg* ptr_arg = dynamic_cast<const PointerArg*>(arg.get());
+      return ptr_arg &&
+             (ptr_arg->context_bound_.clear_bindings ||
+              ptr_arg->context_bound_.copy_from_and_bind.has_value());
+    };
+    if (ret && arg_ptr_has_context_bindings(ret)) {
+      return true;
+    }
+    for (const auto& arg : args) {
+      if (arg_ptr_has_context_bindings(arg)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  if (!func_has_context_bindings()) return;
 
   // Includes
   includes_.insert("<tuple>");

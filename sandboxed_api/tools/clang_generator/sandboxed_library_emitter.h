@@ -194,7 +194,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
   void EmitLibraryHeaders(const GeneratorOptions& options,
                           std::string& out) const;
   void RecordContextBindingSupportNeeded(
-      const ContextBoundAnnotations& func_context_bound,
+      const ContextBoundAnnotations& func_context_bound, const ArgPtr& ret,
       const std::vector<ArgPtr>& args);
   std::string EmitContextBindingsHostSupportCode() const;
   absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
