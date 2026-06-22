@@ -641,8 +641,13 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
       absl::string_view out_ptr_name) const;
 
   std::string EmitHostPreCall() const override {
+    // Declare any SAPI variables we need for the arguments.
     if (ptr_dir_ == PointerDir::kSandboxOpaque) {
       return absl::Substitute("sapi::v::RemotePtr sapi_tmp_$0($0);\n", name_);
+    }
+    if (ptr_dir_ == PointerDir::kHostOpaque) {
+      return absl::Substitute("sapi::v::Reg<$1> sapi_tmp_$0($0);\n", name_,
+                              type_);
     }
     std::string code;
     switch (pointee_type_.type_class()) {
@@ -721,9 +726,6 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
         LOG(FATAL) << "Unsupported size type for void*";
       }
       case PointeeTypeInfo::TypeClass::kOther: {
-        if (ptr_dir_ == PointerDir::kHostOpaque) {
-          return "";
-        }
         LOG(FATAL) << "Unsupported pointer direction for other pointee types "
                    << type_ << " for param " << name_;
         return "";  // NOT REACHED

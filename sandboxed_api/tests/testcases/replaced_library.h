@@ -38,6 +38,9 @@ int mylib_add(int x, int y);
 
 MyLibEnum mylib_take_enum(MyLibEnum e);
 
+// Pass in a host pointer but the sandbox can't do much with it.
+void mylib_take_host_opaque_ptr(void* ptr SANDBOX_HOST_OPAQUE_PTR);
+
 std::string mylib_copy(const std::string& src);
 void mylib_copy(absl::string_view src, std::string& dst);
 void mylib_copy_raw(const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(size),

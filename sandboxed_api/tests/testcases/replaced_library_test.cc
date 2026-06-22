@@ -36,6 +36,13 @@ TEST(Test, Enum) {
   EXPECT_EQ(mylib_take_enum(MYLIB_ENUM_VALUE_1), MYLIB_ENUM_VALUE_1);
 }
 
+TEST(Test, HostOpaquePtr) {
+  static int global_int;
+  int x;
+  mylib_take_host_opaque_ptr(&x);
+  mylib_take_host_opaque_ptr(&global_int);
+}
+
 TEST(Test, Copy) {
   EXPECT_EQ(mylib_copy(""), "");
   EXPECT_EQ(mylib_copy("hello"), "hello");

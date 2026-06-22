@@ -22,6 +22,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -42,6 +43,10 @@ void mylib_scalar_types(int a0, float a1, double a2, int64_t a3, char a4,
 int mylib_add(int x, int y) { return x + y; }
 
 MyLibEnum mylib_take_enum(MyLibEnum e) { return e; }
+
+void mylib_take_host_opaque_ptr(void* ptr) {
+  fprintf(stderr, "mylib_take_host_opaque_ptr: %p\n", ptr);
+}
 
 std::string mylib_copy(const std::string& src) { return src; }
 
