@@ -124,6 +124,30 @@ TEST(Test, MultipleInOutparamGlobalConstCStr) {
   EXPECT_EQ(std::strcmp(out2, "flipped_to_odd"), 0);
 }
 
+TEST(Test, AliasOutparamCharBuffer) {
+  char buf[10] = {0};
+  char* ret = mylib_fill_outbuffer_returning_alias(buf, 'a', sizeof(buf));
+  EXPECT_EQ(ret, buf);
+  EXPECT_EQ(std::memcmp(ret, "aaaaaaaaaa", 10), 0);
+
+  char* ret2 =
+      mylib_fill_outbuffer_returning_alias(buf + 2, 'b', sizeof(buf) - 2);
+  EXPECT_EQ(ret2, ret + 2);
+  EXPECT_EQ(std::memcmp(ret, "aabbbbbbbb", 10), 0);
+}
+
+TEST(Test, AliasOutparamStruct) {
+  PrimitiveStruct s;
+  PrimitiveStruct* ret = mylib_struct_returning_alias(&s, 1);
+  EXPECT_EQ(ret, &s);
+  EXPECT_EQ(ret->i8, 1);
+  EXPECT_EQ(ret->i16, (1) + (1 << 8));
+  EXPECT_EQ(ret->i32, (1) + (1 << 8) + (1 << 16) + (1 << 24));
+
+  PrimitiveStruct* ret2 = mylib_struct_returning_alias(&s, -1);
+  EXPECT_EQ(ret2, nullptr);
+}
+
 TEST(Test, InPrimStructPointer) {
   PrimitiveStruct s_union_i32 = {0,      1,      2,      3,
                                  4.0,    5.0,    true,   {6},

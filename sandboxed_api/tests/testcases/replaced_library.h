@@ -67,6 +67,20 @@ void mylib_get_in_outparam_c_str(
     const char** dst2 SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED
         SANDBOX_LIFETIME_GLOBAL);
 
+// memsets `dst` with `value` up to `size` bytes.
+// Returns `dst` for convenience.
+SANDBOX_ALIAS_PTR(dst)
+char* mylib_fill_outbuffer_returning_alias(char* dst SANDBOX_OUT_PTR
+                                               SANDBOX_BYTE_SIZED_BY(size),
+                                           int value, size_t size);
+
+// Initializes `s` with `value`. Returns `s` for convenience.
+// If `value` is negative, then consider that an error and return nullptr.
+// The return value is not always an alias of `s` (it could be null).
+SANDBOX_ALIAS_PTR(s)
+PrimitiveStruct* mylib_struct_returning_alias(
+    PrimitiveStruct* s SANDBOX_OUT_PTR, int value);
+
 double mylib_in_prim_struct_pointer(const PrimitiveStruct* p SANDBOX_IN_PTR);
 void mylib_out_prim_struct_pointer(PrimitiveStruct* p SANDBOX_OUT_PTR);
 void mylib_inout_prim_struct_pointer(PrimitiveStruct* p SANDBOX_INOUT_PTR);

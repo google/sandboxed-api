@@ -116,6 +116,15 @@ void mylib_get_in_outparam_c_str(const char* src, const char** dst,
   }
 }
 
+char* mylib_fill_outbuffer_returning_alias(char* dst, int value, size_t size) {
+  return static_cast<char*>(memset(dst, value, size));
+}
+
+PrimitiveStruct* mylib_struct_returning_alias(PrimitiveStruct* s, int value) {
+  if (value < 0) return nullptr;
+  return static_cast<PrimitiveStruct*>(memset(s, value, sizeof(*s)));
+}
+
 double mylib_in_prim_struct_pointer(const PrimitiveStruct* p) {
   return p->i8 + p->i16 + p->i32 + p->sz + p->f32 + p->f64 +
          (p->u_is_int ? p->u.i32 : p->u.f64) + p->non_trailing_array[0] +

@@ -177,6 +177,28 @@
 #define SANDBOX_LIFETIME_GLOBAL \
   [[clang::annotate("sandbox", "lifetime_sandbox_global")]]
 
+// Indicate that a returned pointer (unless null) is an alias of an incoming
+// (host-owned) pointer parameter, and thus has the same lifetime as that other
+// pointer. If the return value is null, then we return null instead of the
+// alias (which may or may not be null).
+//
+// Given this lifetime information we do not need to allocate and manage
+// memory for the output. Thus, we do not need to know the size for array
+// outputs. This annotation implies SANDBOX_OUT_PTR (no need to specify both).
+//
+// This is similar to [[clang::lifetimebound]], but we are focused more
+// on avoiding memory management than use-after-free.
+//
+// This often shows up when functions return an outparam for convenience,
+// and the exception for null return values is also common for error handling.
+//
+// For example:
+//
+//   SANDBOX_ALIAS_PTR(p)
+//   MyStruct* InitStructPartA(MyStruct* p SANDBOX_OUT_PTR)
+#define SANDBOX_ALIAS_PTR(param_name) \
+  [[clang::annotate("sandbox", "alias_ptr", #param_name)]]
+
 /////////////////////////////////////////////////////////////////////////////
 // Binding data to objects, getting from the bindings, and clearing.
 // - which can help with host or sandbox copies that need extended lifetimes

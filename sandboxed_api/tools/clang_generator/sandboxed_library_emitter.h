@@ -50,9 +50,12 @@ enum class PointerDir {
   kHostOpaque,
 };
 
-enum class PointerLifetime {
-  kSandboxGlobal,
+struct SandboxGlobalLifetime {};
+struct AliasHostPtrLifetime {
+  std::string param_name;
 };
+using PointerLifetime =
+    std::variant<std::monostate, SandboxGlobalLifetime, AliasHostPtrLifetime>;
 
 // Metadata for sized-by annotations for pointers to arrays.
 
@@ -144,16 +147,16 @@ class SandboxedLibraryEmitter : public EmitterBase {
   struct Annotations {
     std::optional<PointerDir> ptr_dir;
     ArraySizedByType size_type;
-    std::optional<PointerLifetime> lifetime;
+    PointerLifetime lifetime;
 
     ContextBoundAnnotations context_bound;
 
-    absl::Status CheckSizeNotSet(absl::string_view annotation_name) const {
+    absl::Status CheckSizeNotSet(absl::string_view other_annotation) const {
       if (std::holds_alternative<std::monostate>(size_type)) {
         return absl::OkStatus();
       }
       return absl::InvalidArgumentError(
-          absl::StrCat("Cannot be sized by multiple types: ", annotation_name,
+          absl::StrCat("Cannot be sized by multiple types: ", other_annotation,
                        " and other"));
     }
     absl::Status SetElemSizedBy(absl::string_view expr) {
@@ -183,6 +186,25 @@ class SandboxedLibraryEmitter : public EmitterBase {
     absl::Status SetNullTerminated() {
       SAPI_RETURN_IF_ERROR(CheckSizeNotSet("null_terminated"));
       size_type = NullTerminated{};
+      return absl::OkStatus();
+    }
+
+    absl::Status CheckLifetimeNotSet(absl::string_view other_annotation) const {
+      if (std::holds_alternative<std::monostate>(lifetime)) {
+        return absl::OkStatus();
+      }
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Cannot have multiple lifetime annotations: ", other_annotation,
+          " and other"));
+    }
+    absl::Status SetSandboxGlobalLifetime() {
+      SAPI_RETURN_IF_ERROR(CheckLifetimeNotSet("lifetime_sandbox_global"));
+      lifetime = SandboxGlobalLifetime{};
+      return absl::OkStatus();
+    }
+    absl::Status SetAliasHostPtrLifetime(absl::string_view param_name) {
+      SAPI_RETURN_IF_ERROR(CheckLifetimeNotSet("alias_ptr"));
+      lifetime = AliasHostPtrLifetime{std::string(param_name)};
       return absl::OkStatus();
     }
   };

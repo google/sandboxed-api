@@ -39,9 +39,6 @@
 // to the sandboxee.
 #define SANDBOX_CALLBACK [[clang::annotate("sandbox", "callback")]]
 
-// TODO(b/491826267): Annotation for return values that alias a parameter.
-#define SANDBOX_ALIAS_PTR [[clang::annotate("sandbox", "alias_ptr")]]
-
 // TODO(b/491828958): Annotation for when a function returns a pointer to a
 // temporary buffer that is lifetime bound to another pointer.
 #define SANDBOX_LIFETIME_BOUND(opaque_other) \

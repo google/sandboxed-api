@@ -82,6 +82,7 @@ std::string StripAnnotations(const std::string& input) {
   static const auto* macros_args = new std::vector<std::string>{
       "SANDBOX_SANDBOXEE_THUNK",
       "SANDBOX_HOST_THUNK",
+      "SANDBOX_ALIAS_PTR",
       "SANDBOX_ELEM_SIZED_BY",
       "SANDBOX_BYTE_SIZED_BY",
       "SANDBOX_ELEM_SIZED_BY_OUTPARAM",
@@ -399,18 +400,22 @@ struct StringViewArg : SandboxedLibraryEmitter::Arg {
 // Currently supports:
 // - inputs, or
 // - outputs with a global lifetime (vs malloc/free, etc.).
+// TODO(b/491826267): support alias lifetime as well? Right now, we don't
+// yet support INOUT CString arguments (b/491826252), so the only time you
+// return an alias of a parameter is fairly trivial (e.g. return the input
+// unmodified).
 struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
   ConstCStrArg(absl::string_view name, absl::string_view type,
-               PointerDir ptr_dir, std::optional<PointerLifetime> lifetime)
+               PointerDir ptr_dir, PointerLifetime lifetime)
       : Arg(name, type), ptr_dir_(ptr_dir), lifetime_(lifetime) {
     if (ptr_dir_ != PointerDir::kIn &&
-        lifetime_ != PointerLifetime::kSandboxGlobal) {
-      LOG(FATAL) << "ConstCStrArg outparams must have kSandboxGlobal lifetime";
+        !std::holds_alternative<SandboxGlobalLifetime>(lifetime_)) {
+      LOG(FATAL) << "ConstCStrArg outparams must have SANDBOX_LIFETIME_GLOBAL";
     }
   }
 
   std::vector<std::string> Includes() const override {
-    if (lifetime_ == PointerLifetime::kSandboxGlobal) {
+    if (std::holds_alternative<SandboxGlobalLifetime>(lifetime_)) {
       // TODO(jvoung): Make the hash map and mutex includes are only needed
       // for the host (for HostStateVars), and not the sandboxee.
       return {
@@ -425,7 +430,7 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
   }
 
   std::vector<std::string> HostStateVars() const override {
-    if (lifetime_ == PointerLifetime::kSandboxGlobal) {
+    if (std::holds_alternative<SandboxGlobalLifetime>(lifetime_)) {
       return {"absl::Mutex sapi_internal_global_cstr_mutex;",
               "absl::node_hash_map<const void*, std::string> "
               "sapi_internal_global_cstr_map;"};
@@ -552,7 +557,7 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
 
  private:
   const PointerDir ptr_dir_;
-  const std::optional<PointerLifetime> lifetime_;
+  const PointerLifetime lifetime_;
 };
 
 // Basic information about a pointer's pointee's type.
@@ -602,18 +607,20 @@ class PointeeTypeInfo {
 struct PointerArg : SandboxedLibraryEmitter::Arg {
   PointerArg(absl::string_view name, absl::string_view type,
              PointeeTypeInfo pointee_type, PointerDir ptr_dir,
-             ArraySizedByType sized_by_type,
+             ArraySizedByType sized_by_type, PointerLifetime lifetime,
              ContextBoundAnnotations context_bound = {})
       : Arg(name, type),
         ptr_dir_(ptr_dir),
         pointee_type_(pointee_type),
         sized_by_type_(sized_by_type),
+        lifetime_(lifetime),
         context_bound_(std::move(context_bound)) {}
 
   const PointerDir ptr_dir_;
   const PointeeTypeInfo pointee_type_;
   // If present, this is an array that is sized-by the given type.
   const ArraySizedByType sized_by_type_;
+  const PointerLifetime lifetime_;
   // If true, the `sized_by_type_` requires dereferencing another output (or
   // in-out) pointer parameter.
   bool is_size_based_on_deref_out_param_ = false;
@@ -877,6 +884,11 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
   }
 
   std::string EmitHostRet() const override {
+    if (std::holds_alternative<AliasHostPtrLifetime>(lifetime_)) {
+      return absl::Substitute(
+          "return sapi_ret_arg.GetValue() ? $0 : nullptr;",
+          std::get<AliasHostPtrLifetime>(lifetime_).param_name);
+    }
     std::string out;
     if (context_bound_.copy_from_and_bind.has_value()) {
       absl::StrAppend(&out,
@@ -2019,21 +2031,32 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
             "pointer argument $0 is opaque and should not be sized (kind $1)",
             name, annotations.size_type.index()));
       }
+      // Shouldn't need a lifetime annotation.
+      if (!std::holds_alternative<std::monostate>(annotations.lifetime)) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "pointer argument $0 is opaque and should not have a lifetime "
+            "annotation",
+            name));
+      }
       return std::make_unique<PointerArg>(
           name, type_name, PointeeTypeInfo(type), *annotations.ptr_dir,
-          std::monostate{}, std::move(annotations.context_bound));
+          /*sized_by_type=*/std::monostate{}, /*lifetime=*/std::monostate{},
+          std::move(annotations.context_bound));
     }
     if (is_param) {
       if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType()) &&
           !(std::holds_alternative<ByteSizedBy>(annotations.size_type) &&
             IsSupportedArgByteSizedByType(type)) &&
           !(std::holds_alternative<NullTerminated>(annotations.size_type) &&
-            annotations.lifetime == PointerLifetime::kSandboxGlobal &&
+            std::holds_alternative<SandboxGlobalLifetime>(
+                annotations.lifetime) &&
             IsSupportedOutParamNullTerminatedType(type))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type", name));
       }
-    } else if (!type->getPointeeType()->isArithmeticType()) {
+    } else if (!type->getPointeeType()->isArithmeticType() &&
+               !std::holds_alternative<AliasHostPtrLifetime>(
+                   annotations.lifetime)) {
       return absl::InvalidArgumentError(absl::Substitute(
           "return pointer $0 has unsupported pointee type", name));
     }
@@ -2054,19 +2077,22 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                  std::monostate{}, std::move(annotations.context_bound));
+                  std::monostate{}, annotations.lifetime,
+                  std::move(annotations.context_bound));
             },
             [&](const ElemSizedBy& elem_sized_by)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                  elem_sized_by, std::move(annotations.context_bound));
+                  elem_sized_by, annotations.lifetime,
+                  std::move(annotations.context_bound));
             },
             [&](const ByteSizedBy& byte_sized_by)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                  byte_sized_by, std::move(annotations.context_bound));
+                  byte_sized_by, annotations.lifetime,
+                  std::move(annotations.context_bound));
             },
             [&](const NullTerminated&)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
@@ -2078,7 +2104,8 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                       is_param ? "pointer argument" : "return pointer", name));
                 }
                 if (ptr_dir == PointerDir::kIn ||
-                    annotations.lifetime == PointerLifetime::kSandboxGlobal) {
+                    std::holds_alternative<SandboxGlobalLifetime>(
+                        annotations.lifetime)) {
                   return std::make_unique<ConstCStrArg>(
                       name, type_name, *ptr_dir, annotations.lifetime);
                 }
@@ -2089,7 +2116,8 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
               }
               // Outparams (char**):
               if (ptr_dir != PointerDir::kIn) {
-                if (annotations.lifetime == PointerLifetime::kSandboxGlobal) {
+                if (std::holds_alternative<SandboxGlobalLifetime>(
+                        annotations.lifetime)) {
                   if (!IsSupportedOutParamNullTerminatedType(type)) {
                     return absl::InvalidArgumentError(absl::Substitute(
                         "pointer argument $0 with lifetime_sandbox_global must "
@@ -2134,10 +2162,23 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       // Ignore these here, they are handled in AddFunction.
       num_args = 2;  // (name, func_name)
     } else if (ann.name == "null_terminated") {
-      absl::Status status = annotations.SetNullTerminated();
-      SAPI_RETURN_IF_ERROR(status);
+      SAPI_RETURN_IF_ERROR(annotations.SetNullTerminated());
     } else if (ann.name == "lifetime_sandbox_global") {
-      annotations.lifetime = PointerLifetime::kSandboxGlobal;
+      SAPI_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
+    } else if (ann.name == "alias_ptr") {
+      num_args = 2;
+      if (ann.args.empty()) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "function $0: alias_ptr requires a parameter name", name));
+      }
+      SAPI_RETURN_IF_ERROR(annotations.SetAliasHostPtrLifetime(ann.args[0]));
+      if (annotations.ptr_dir.has_value()) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function $0: alias_ptr implies out_ptr, so no "
+                             "direction needs to be specified",
+                             name));
+      }
+      annotations.ptr_dir = PointerDir::kOut;
     } else if (ann.name == "bind_data") {
       // For now, we only support size_t typed primitives.
       if (StripQuotes(ann.args[1]) != "size_t") {
@@ -2221,7 +2262,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       absl::Status status = annotations.SetNullTerminated();
       SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
-      annotations.lifetime = PointerLifetime::kSandboxGlobal;
+      SAPI_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
     } else if (ann.name == "clear_bindings") {
       annotations.context_bound.clear_bindings = true;
       num_args = 1;
