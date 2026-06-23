@@ -563,12 +563,7 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
 // Basic information about a pointer's pointee's type.
 class PointeeTypeInfo {
  public:
-  enum class TypeClass {
-    kArithmetic,
-    kRecord,
-    kVoid,
-    kOther,
-  };
+  enum class TypeClass { kOther, kArithmetic, kRecord, kPointerType, kVoid };
 
   explicit PointeeTypeInfo(clang::QualType type)
       : type_class_(ClassifyPointeeType(type)),
@@ -592,6 +587,8 @@ class PointeeTypeInfo {
       return TypeClass::kRecord;
     } else if (type->getPointeeType()->isVoidType()) {
       return TypeClass::kVoid;
+    } else if (type->getPointeeType()->isPointerType()) {
+      return TypeClass::kPointerType;
     } else {
       return TypeClass::kOther;
     }
@@ -645,7 +642,7 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
 
   std::string EmitCopyFromAndBindOutPtrCode(
       const CopyFromAndBindOutPtr& copy_from_and_bind_out_ptr,
-      absl::string_view out_ptr_name) const;
+      absl::string_view out_ptr_name, absl::string_view out_ptr_type) const;
 
   std::string EmitHostPreCall() const override {
     // Declare any SAPI variables we need for the arguments.
@@ -732,6 +729,18 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
                         "to use SANDBOX_BYTE_SIZED_BY?";
         LOG(FATAL) << "Unsupported size type for void*";
       }
+      case PointeeTypeInfo::TypeClass::kPointerType: {
+        if (ptr_dir_ == PointerDir::kOut &&
+            context_bound_.copy_from_and_bind.has_value()) {
+          code = absl::Substitute("  sapi::v::Reg<$0> sapi_tmp_$1(nullptr);\n",
+                                  pointee_type_.pointee_type_name(), name_);
+          break;
+        }
+        LOG(FATAL)
+            << "Unsupported pointer-to-pointer types (not "
+               "null-terminated w/ global lifetime, and not context-bound) "
+            << type_ << " for param " << name_;
+      }
       case PointeeTypeInfo::TypeClass::kOther: {
         LOG(FATAL) << "Unsupported pointer direction for other pointee types "
                    << type_ << " for param " << name_;
@@ -808,6 +817,17 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
                 "final_size)).status());\n"
                 "}\n",
                 name_, size_expr, cap_expr));
+      } else if (ptr_dir_ == PointerDir::kOut &&
+                 context_bound_.copy_from_and_bind.has_value()) {
+        absl::StrAppend(&out, EmitCopyFromAndBindOutPtrCode(
+                                  *context_bound_.copy_from_and_bind,
+                                  absl::StrCat("sapi_tmp_", name_),
+                                  pointee_type_.pointee_type_name()));
+        absl::StrAppend(&out,
+                        absl::Substitute("  if ($0 != nullptr) {\n"
+                                         "    *$0 = sapi_tmp_$0.GetValue();\n"
+                                         "  }\n",
+                                         name_));
       }
     }
     // Clear any bindings and free memory, if needed.
@@ -891,9 +911,9 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
     }
     std::string out;
     if (context_bound_.copy_from_and_bind.has_value()) {
-      absl::StrAppend(&out,
-                      EmitCopyFromAndBindOutPtrCode(
-                          *context_bound_.copy_from_and_bind, "sapi_ret_arg"));
+      absl::StrAppend(
+          &out, EmitCopyFromAndBindOutPtrCode(
+                    *context_bound_.copy_from_and_bind, "sapi_ret_arg", type_));
     }
     absl::StrAppend(&out, "return sapi_ret_arg.GetValue();");
     return out;
@@ -1022,7 +1042,7 @@ absl::Status PointerArg::LinkArgsIfNeeded(
 
 std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
     const CopyFromAndBindOutPtr& copy_from_and_bind_out_ptr,
-    absl::string_view out_ptr_name) const {
+    absl::string_view out_ptr_name, absl::string_view out_ptr_type) const {
   std::string ctx_name = ResolveContextName(copy_from_and_bind_out_ptr.context);
   // Code for calculating the size of the data, and for allocating and
   // copying. These will be used the first time we create a binding in our
@@ -1090,7 +1110,7 @@ std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
              if (sapi_returned_sb_ptr != nullptr && $0 != nullptr) {
                absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
                auto sapi_it = sapi_internal_context_binding_map.find(
-                   //
+                   // {ctx, binding}
                    {$0, "$1"});
                if (sapi_it == sapi_internal_context_binding_map.end()) {
                  uintptr_t sapi_sb_ptr = reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr);
@@ -1118,7 +1138,7 @@ std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
              }
            })cc",
       ctx_name, copy_from_and_bind_out_ptr.binding_name, out_ptr_name,
-      size_calc, alloc_and_copy_code, type_);
+      size_calc, alloc_and_copy_code, out_ptr_type);
 }
 
 std::string SandboxedLibraryEmitter::Func::EmitPostCallBindData() const {
@@ -1990,6 +2010,15 @@ bool IsSupportedOutParamNullTerminatedType(clang::QualType type) {
          type->getPointeeType()->getPointeeType().isConstQualified();
 }
 
+// Returns true if the type is a supported context-bound outparam type.
+bool IsSupportedOutParamContextBoundType(const clang::ASTContext& context,
+                                         clang::QualType type) {
+  if (!type->isPointerType() || !type->getPointeeType()->isPointerType())
+    return false;
+  auto pointee_pointee_type = type->getPointeeType()->getPointeeType();
+  return IsDeeplyTriviallyCopyableType(context, pointee_pointee_type);
+}
+
 bool IsSupportedArgByteSizedByType(clang::QualType type) {
   return type->isPointerType() && type->getPointeeType()->isVoidType();
 }
@@ -2050,7 +2079,11 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
           !(std::holds_alternative<NullTerminated>(annotations.size_type) &&
             std::holds_alternative<SandboxGlobalLifetime>(
                 annotations.lifetime) &&
-            IsSupportedOutParamNullTerminatedType(type))) {
+            annotations.ptr_dir != PointerDir::kIn &&
+            IsSupportedOutParamNullTerminatedType(type)) &&
+          !(annotations.context_bound.copy_from_and_bind.has_value() &&
+            annotations.ptr_dir == PointerDir::kOut &&
+            IsSupportedOutParamContextBoundType(context, type))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type", name));
       }
@@ -2263,6 +2296,12 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       SAPI_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
+    } else if (ann.name == "copy_from_and_bind_out_ptr") {
+      annotations.ptr_dir = PointerDir::kOut;
+      annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
+          StripQuotes(ann.args[2])};
+      num_args = 4;
     } else if (ann.name == "clear_bindings") {
       annotations.context_bound.clear_bindings = true;
       num_args = 1;

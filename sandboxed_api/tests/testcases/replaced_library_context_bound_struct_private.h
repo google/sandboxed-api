@@ -34,7 +34,8 @@ struct ContextWithSizedByParams {
 
 struct ContextWithSizedAfterDecoding {
   Dimensions decoded_sizes;
-  char* sized_after_decoding;
+  char* char_buff;
+  unsigned int* unsigned_int_buff;
 };
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_PRIVATE_H_

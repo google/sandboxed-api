@@ -57,6 +57,12 @@ void increment_buff_sized_after_decoding(
 const char* get_buff_sized_after_decoding(
     ContextWithSizedAfterDecoding* context);
 
+void get_buff_sized_after_decoding_outparam(
+    ContextWithSizedAfterDecoding* context, char** out_buffer);
+
+void get_unsigned_int_buff_sized_after_decoding_outparam(
+    ContextWithSizedAfterDecoding* context, unsigned int** out_buffer);
+
 void destroy_context_sized_after_decoding(
     ContextWithSizedAfterDecoding* context);
 

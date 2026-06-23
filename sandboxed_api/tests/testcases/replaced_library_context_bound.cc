@@ -97,8 +97,18 @@ ContextWithSizedAfterDecoding* create_context_sized_after_decoding(
   context->decoded_sizes.width = decoded_width;
   context->decoded_sizes.height = decoded_height;
 
-  context->sized_after_decoding = (char*)calloc(decoded_size, sizeof(char));
-  memcpy(context->sized_after_decoding, data_to_decode + 2, decoded_size);
+  context->char_buff = (char*)calloc(decoded_size, sizeof(char));
+  memcpy(context->char_buff, data_to_decode + 2, decoded_size);
+
+  context->unsigned_int_buff = nullptr;
+  if (decoded_size % sizeof(unsigned int) == 0) {
+    int num_ints = decoded_size / sizeof(unsigned int);
+    context->unsigned_int_buff =
+        (unsigned int*)calloc(num_ints, sizeof(unsigned int));
+    for (size_t i = 0; i < num_ints; ++i) {
+      context->unsigned_int_buff[i] = i + 0x80000000;
+    }
+  }
   return context;
 }
 
@@ -119,20 +129,41 @@ void increment_buff_sized_after_decoding(
   size_t decoded_size =
       context->decoded_sizes.width * context->decoded_sizes.height;
   for (size_t i = 0; i < decoded_size; ++i) {
-    context->sized_after_decoding[i]++;
+    context->char_buff[i]++;
   }
 }
 
 const char* get_buff_sized_after_decoding(
     ContextWithSizedAfterDecoding* context) {
   if (context == nullptr) return nullptr;
-  return context->sized_after_decoding;
+  return context->char_buff;
+}
+
+void get_buff_sized_after_decoding_outparam(
+    ContextWithSizedAfterDecoding* context, char** out_buffer) {
+  if (out_buffer == nullptr) return;
+  if (context == nullptr) {
+    *out_buffer = nullptr;
+    return;
+  }
+  *out_buffer = context->char_buff;
+}
+
+void get_unsigned_int_buff_sized_after_decoding_outparam(
+    ContextWithSizedAfterDecoding* context, unsigned int** out_buffer) {
+  if (out_buffer == nullptr) return;
+  if (context == nullptr) {
+    *out_buffer = nullptr;
+    return;
+  }
+  *out_buffer = context->unsigned_int_buff;
 }
 
 void destroy_context_sized_after_decoding(
     ContextWithSizedAfterDecoding* context) {
   if (context == nullptr) return;
-  free(context->sized_after_decoding);
+  free(context->unsigned_int_buff);
+  free(context->char_buff);
   free(context);
 }
 
