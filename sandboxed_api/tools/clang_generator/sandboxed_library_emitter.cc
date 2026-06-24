@@ -433,7 +433,8 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
     if (std::holds_alternative<SandboxGlobalLifetime>(lifetime_)) {
       return {"absl::Mutex sapi_internal_global_cstr_mutex;",
               "absl::node_hash_map<const void*, std::string> "
-              "sapi_internal_global_cstr_map;"};
+              "sapi_internal_global_cstr_map "
+              "ABSL_GUARDED_BY(sapi_internal_global_cstr_mutex);"};
     }
     return {};
   }
@@ -1370,12 +1371,14 @@ std::string SandboxedLibraryEmitter::EmitContextBindingsHostSupportCode()
   absl::StrAppend(
       &out,
       R"cc(absl::node_hash_map<std::pair<const void*, std::string>, size_t>
-               sapi_internal_context_binding_prim_map;)cc");
+               sapi_internal_context_binding_prim_map
+                   ABSL_GUARDED_BY(sapi_internal_context_binding_mutex);)cc");
   absl::StrAppend(
       &out,
       R"cc(absl::node_hash_map<std::pair<const void*, std::string>,
                                std::tuple<uintptr_t, size_t, uintptr_t>>
-               sapi_internal_context_binding_map;)cc");
+               sapi_internal_context_binding_map
+                   ABSL_GUARDED_BY(sapi_internal_context_binding_mutex);)cc");
   absl::StrAppend(&out, "\n");
 
   // Helper functions
@@ -1797,6 +1800,8 @@ void SandboxedLibraryEmitter::RecordContextBindingSupportNeeded(
   includes_.insert("<tuple>");
   includes_.insert("<utility>");
   includes_.insert("<string>");
+  includes_.insert(
+      absl::Substitute("\"$0absl/base/thread_annotations.h\"", kIncludePrefix));
   includes_.insert(
       absl::Substitute("\"$0absl/container/node_hash_map.h\"", kIncludePrefix));
   includes_.insert(
