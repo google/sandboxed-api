@@ -64,7 +64,7 @@ sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
                  << "(ASAN/MSAN/TSAN) sanitizer";
     builder.AllowLlvmSanitizers();
   }
-  builder.AddFile("/etc/localtime")
+  builder.AddFileIfExists("/etc/localtime")
       .AddTmpfs("/tmp", 1ULL << 30 /* 1GiB tmpfs (max size */);
 
   return builder;
