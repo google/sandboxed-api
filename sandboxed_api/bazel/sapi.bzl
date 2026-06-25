@@ -19,7 +19,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
-load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo", "bool_flag")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load(
@@ -656,11 +656,17 @@ def cc_sandboxed_library(
         **common
     )
 
+    bool_flag(
+        name = name + "_enable_sandboxing",
+        build_setting_default = default_sandboxed,
+        **common
+    )
+
     _sandboxed_library_selector(
         name = name,
         unsandboxed_lib = "_unsandboxed_" + name,
         sandboxed_lib = "_sandboxed_" + name,
-        default_sandboxed = default_sandboxed,
+        sandboxing_flag = ":" + name + "_enable_sandboxing",
         **common
     )
 
@@ -679,7 +685,7 @@ _sandboxed_library = rule(
 def _sandboxed_library_selector_impl(ctx):
     # TODO: disable sandboxing in non //tools/cc_target_os:linux-google[-arm] builds,
     # host builds, and other non-interesting cases.
-    enabled = ctx.attr.default_sandboxed
+    enabled = ctx.attr.sandboxing_flag[BuildSettingInfo].value
     if str(ctx.label) in ctx.attr._bin_sandboxing_enable[BuildSettingInfo].value:
         enabled = True
     if str(ctx.label) in ctx.attr._bin_sandboxing_disable[BuildSettingInfo].value:
@@ -694,7 +700,7 @@ _sandboxed_library_selector = rule(
     attrs = {
         "unsandboxed_lib": attr.label(providers = [CcInfo]),
         "sandboxed_lib": attr.label(providers = [CcInfo]),
-        "default_sandboxed": attr.bool(),
+        "sandboxing_flag": attr.label(providers = [BuildSettingInfo]),
         "_bin_sandboxing_enable": attr.label(default = "//sandboxed_api/bazel:lib_sandboxing_enable"),
         "_bin_sandboxing_disable": attr.label(default = "//sandboxed_api/bazel:lib_sandboxing_disable"),
     },
