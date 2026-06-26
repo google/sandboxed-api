@@ -138,4 +138,15 @@ TEST(Test, MultipleContextsLive) {
   destroy_context_sized_after_decoding(context2);
 }
 
+TEST(Test, ContextStoresPartOfInputSize) {
+  ContextStoresPartOfInputSize* context =
+      create_context_stores_part_of_input_size(3);
+  char input_buffer[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+  EXPECT_EQ(
+      hash_input_buffer_with_part_of_size_in_context(context, input_buffer, 4),
+      1 * 1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6 + 7 * 7 + 8 * 8 + 9 * 9 +
+          10 * 10 + 11 * 11 + 12 * 12);
+  destroy_context_stores_part_of_input_size(context);
+}
+
 }  // namespace

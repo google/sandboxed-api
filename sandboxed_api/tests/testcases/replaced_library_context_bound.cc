@@ -167,4 +167,36 @@ void destroy_context_sized_after_decoding(
   free(context);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Context stores part of input buffer size. Otherwise, the input buffer only
+// needs to live until the end of the function call (we don't need to bind
+// its lifetime to the context).
+
+ContextStoresPartOfInputSize* create_context_stores_part_of_input_size(
+    size_t num_channels) {
+  ContextStoresPartOfInputSize* context =
+      static_cast<ContextStoresPartOfInputSize*>(
+          malloc(sizeof(ContextStoresPartOfInputSize)));
+  context->num_channels = num_channels;
+  return context;
+}
+
+size_t hash_input_buffer_with_part_of_size_in_context(
+    ContextStoresPartOfInputSize* context, const char* input_buffer,
+    size_t num_samples) {
+  if (context == nullptr) return 0;
+  // A really bad hash function.
+  size_t hash = 0;
+  size_t length = num_samples * context->num_channels;
+  for (size_t i = 0; i < length; ++i) {
+    hash = hash + ((i + 1) * input_buffer[i]);
+  }
+  return hash;
+}
+
+void destroy_context_stores_part_of_input_size(
+    ContextStoresPartOfInputSize* context) {
+  free(context);
+}
+
 }  // extern "C"

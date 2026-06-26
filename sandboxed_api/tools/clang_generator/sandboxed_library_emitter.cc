@@ -91,6 +91,7 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_BIND_SIZE",
       "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR_NAMED",
       "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR",
+      "SANDBOX_BYTE_SIZED_BY_BINDING",
   };
   // We also remove the full argument to the macro, e.g.
   // SANDBOX_ELEM_SIZED_BY(foo) will be removed entirely.
@@ -194,6 +195,32 @@ std::string ResolveContextName(absl::string_view context) {
     return "sapi_ret_arg.GetValue()";
   }
   return std::string(context);
+}
+
+// Expands the `expr` and replaces all `$binding_name` with context binding
+// lookups. If `locked` is true, then the binding mutex is assumed to be held
+// already.
+std::string CompileBindingExpr(absl::string_view context_var,
+                               absl::string_view expr, bool locked) {
+  std::string result;
+  std::string sub_expr(expr);
+  size_t last_pos = 0;
+  absl::string_view sp(sub_expr);
+  RE2 kBindingNameRegex("\\$([a-zA-Z_][a-zA-Z0-9_]*)");
+  std::string binding_name;
+  std::string lookup_helper =
+      locked ? "sapi_internal_get_context_binding_size_locked"
+             : "sapi_internal_get_context_binding_size";
+  while (RE2::FindAndConsume(&sp, kBindingNameRegex, &binding_name)) {
+    size_t match_pos =
+        sp.data() - sub_expr.data() - (binding_name.length() + 1);
+    absl::StrAppend(&result, sub_expr.substr(last_pos, match_pos - last_pos));
+    absl::SubstituteAndAppend(&result, "$0($1, \"$2\")", lookup_helper,
+                              context_var, binding_name);
+    last_pos = match_pos + binding_name.length() + 1;
+  }
+  result.append(sub_expr.substr(last_pos));
+  return result;
 }
 
 }  //  namespace
@@ -704,6 +731,14 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
                       "char*>($0)), $1);\n",
                       name_, bytes_size);
                 },
+                [this](const SizedByBinding& arg) {
+                  std::string bytes_size = GetCapacityAsBytesExpr();
+                  return absl::Substitute(
+                      "sapi::v::Array<char> "
+                      "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const "
+                      "char*>($0)), $1);\n",
+                      name_, bytes_size);
+                },
                 [](const NullTerminated& arg) -> std::string {
                   LOG(FATAL) << "Not expecting null-terminated PointerArg "
                                 "(should be CStrArg)";
@@ -712,12 +747,9 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
         break;
       }
       case PointeeTypeInfo::TypeClass::kVoid: {
-        if (std::holds_alternative<ByteSizedBy>(sized_by_type_)) {
-          const auto& arg = std::get<ByteSizedBy>(sized_by_type_);
-          std::string capacity_expr =
-              arg.sized_by_outparam_data.has_value()
-                  ? arg.sized_by_outparam_data->capacity_expr
-                  : arg.expr;
+        if (std::holds_alternative<ByteSizedBy>(sized_by_type_) ||
+            std::holds_alternative<SizedByBinding>(sized_by_type_)) {
+          std::string capacity_expr = GetCapacityAsBytesExpr();
           code = absl::Substitute(
               "sapi::v::Array<char> "
               "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<const "
@@ -940,6 +972,11 @@ std::string PointerArg::GetCapacityAsBytesExpr() const {
                        ? arg.sized_by_outparam_data->capacity_expr
                        : arg.expr;
           },
+          [](const SizedByBinding& arg) {
+            std::string context_var = ResolveContextName(arg.context);
+            return CompileBindingExpr(context_var, arg.binding_expr,
+                                      /*locked=*/false);
+          },
           [](const NullTerminated& arg) -> std::string {
             LOG(FATAL) << "Not expecting null-terminated PointerArg "
                           "(should be CStrArg)";
@@ -958,6 +995,11 @@ std::string PointerArg::GetSizeAsBytesExpr() const {
                 "sandbox->CheckedMultiply(sizeof(*$0), ($1))", name_, arg.expr);
           },
           [](const ByteSizedBy& arg) { return arg.expr; },
+          [](const SizedByBinding& arg) {
+            std::string context_var = ResolveContextName(arg.context);
+            return CompileBindingExpr(context_var, arg.binding_expr,
+                                      /*locked=*/false);
+          },
           [](const NullTerminated& arg) -> std::string {
             LOG(FATAL) << "Not expecting null-terminated PointerArg "
                           "(should be CStrArg)";
@@ -975,6 +1017,7 @@ absl::Status PointerArg::LinkArgsIfNeeded(
                      [](const ByteSizedBy& arg) {
                        return arg.sized_by_outparam_data.has_value();
                      },
+                     [](const SizedByBinding& arg) { return false; },
                      [](const NullTerminated& arg) { return false; }),
       sized_by_type_);
 
@@ -982,6 +1025,7 @@ absl::Status PointerArg::LinkArgsIfNeeded(
       absl::Overload([](std::monostate) { return std::string(); },
                      [](const ElemSizedBy& arg) { return arg.expr; },
                      [](const ByteSizedBy& arg) { return arg.expr; },
+                     [](const SizedByBinding& arg) { return std::string(); },
                      [](const NullTerminated& arg) { return std::string(); }),
       sized_by_type_);
 
@@ -1051,56 +1095,62 @@ std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
   // the host map.
   std::string size_calc;
   std::string alloc_and_copy_code;
-  // Dispatch on the different sized_by modes.
-  if (absl::StartsWith(copy_from_and_bind_out_ptr.sized_by, "expr, ")) {
-    std::string expr = std::string(absl::StripAsciiWhitespace(
-        absl::StripPrefix(copy_from_and_bind_out_ptr.sized_by, "expr, ")));
-    size_calc = absl::Substitute("size_t sapi_binding_size = $0;\n", expr);
-    alloc_and_copy_code = R"cc(
-      void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
-      sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-          sandbox, sapi_sb_ptr, reinterpret_cast<uintptr_t>(sapi_host_copy),
-          sapi_binding_size));
-    )cc";
-  } else if (copy_from_and_bind_out_ptr.sized_by == "null_terminated") {
-    size_calc = "";  // part of alloc_and_copy_code instead
-    alloc_and_copy_code = R"cc(
-      absl::StatusOr<std::string> sapi_remote_str = sandbox->GetCString(
-          sapi::v::RemotePtr(reinterpret_cast<const void*>(sapi_sb_ptr)));
-      sandbox->Check(sapi_remote_str.status());
-      size_t sapi_binding_size = sapi_remote_str->size();
-      void* sapi_host_copy = calloc(sapi_binding_size + 1, sizeof(char));
-      memcpy(sapi_host_copy, sapi_remote_str->data(), sapi_binding_size);
-    )cc";
-  } else if (absl::StartsWith(copy_from_and_bind_out_ptr.sized_by,
-                              "get_data, ")) {
-    std::vector<absl::string_view> parts =
-        absl::StrSplit(copy_from_and_bind_out_ptr.sized_by, ", ");
-    if (parts.size() != 3) {
-      LOG(FATAL) << "Invalid sized_by 'get_data' format: '"
-                 << copy_from_and_bind_out_ptr.sized_by
-                 << "'. Expected format: 'get_data, context, binding_name'";
-    }
-    std::string context_var = ResolveContextName(parts[1]);
-    std::string binding_name = StripQuotes(parts[2]);
-    size_calc = absl::Substitute(
-        R"cc(
-          auto sapi_size_it =
-              sapi_internal_context_binding_prim_map.find({$0, "$1"});
-          CHECK(sapi_size_it != sapi_internal_context_binding_prim_map.end());
-          size_t sapi_binding_size = sapi_size_it->second;
-        )cc",
-        context_var, binding_name);
-    alloc_and_copy_code = R"cc(
-      void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
-      sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-          sandbox, sapi_sb_ptr, reinterpret_cast<uintptr_t>(sapi_host_copy),
-          sapi_binding_size));
-    )cc";
-  } else {
-    LOG(FATAL) << "Unknown sized_by mode: "
-               << copy_from_and_bind_out_ptr.sized_by;
-  }
+  std::visit(
+      absl::Overload(
+          [&size_calc, &alloc_and_copy_code](const ByteSizedBy& arg) {
+            size_calc =
+                absl::Substitute("size_t sapi_binding_size = $0;\n", arg.expr);
+            alloc_and_copy_code = R"cc(
+              void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+                  sandbox, sapi_sb_ptr,
+                  reinterpret_cast<uintptr_t>(sapi_host_copy),
+                  sapi_binding_size));
+            )cc";
+          },
+          [this, &size_calc, &alloc_and_copy_code](const ElemSizedBy& arg) {
+            size_calc = absl::Substitute(
+                "size_t sapi_binding_size = "
+                "sandbox->CheckedMultiply(sizeof(*$0), ($1));\n",
+                name_, arg.expr);
+            alloc_and_copy_code = R"cc(
+              void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+                  sandbox, sapi_sb_ptr,
+                  reinterpret_cast<uintptr_t>(sapi_host_copy),
+                  sapi_binding_size));
+            )cc";
+          },
+          [&size_calc, &alloc_and_copy_code](const NullTerminated& arg) {
+            size_calc = "";  // part of alloc_and_copy_code instead
+            alloc_and_copy_code = R"cc(
+              absl::StatusOr<std::string> sapi_remote_str =
+                  sandbox->GetCString(sapi::v::RemotePtr(
+                      reinterpret_cast<const void*>(sapi_sb_ptr)));
+              sandbox->Check(sapi_remote_str.status());
+              size_t sapi_binding_size = sapi_remote_str->size();
+              void* sapi_host_copy = calloc(sapi_binding_size + 1, sizeof(char));
+              memcpy(sapi_host_copy, sapi_remote_str->data(), sapi_binding_size);
+            )cc";
+          },
+          [&size_calc, &alloc_and_copy_code](const SizedByBinding& arg) {
+            std::string context_var = ResolveContextName(arg.context);
+            std::string size_expr = CompileBindingExpr(
+                context_var, arg.binding_expr, /*locked=*/true);
+            size_calc =
+                absl::Substitute("size_t sapi_binding_size = $0;\n", size_expr);
+            alloc_and_copy_code = R"cc(
+              void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+                  sandbox, sapi_sb_ptr,
+                  reinterpret_cast<uintptr_t>(sapi_host_copy),
+                  sapi_binding_size));
+            )cc";
+          },
+          [](std::monostate) {
+            LOG(FATAL) << "Expected a sized context-bound pointer.";
+          }),
+      sized_by_type_);
 
   // On the first call, make a host copy and bind. Otherwise, sync if already
   // bound. TODO(b/491828958): to start, we abort if the sapi_sb_ptr changed
@@ -1419,7 +1469,28 @@ std::string SandboxedLibraryEmitter::EmitContextBindingsHostSupportCode()
                   remote_ptr,
                   absl::MakeSpan(reinterpret_cast<char*>(host_ptr), size))
               .status();
-        })cc");
+        }
+
+        size_t sapi_internal_get_context_binding_size(const void* context,
+                                                      absl::string_view name) {
+          if (context == nullptr) return 0;
+          absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
+          auto sapi_it = sapi_internal_context_binding_prim_map.find(
+              {context, std::string(name)});
+          CHECK(sapi_it != sapi_internal_context_binding_prim_map.end());
+          return sapi_it->second;
+        }
+
+        size_t sapi_internal_get_context_binding_size_locked(
+            const void* context, absl::string_view name)
+            ABSL_EXCLUSIVE_LOCKS_REQUIRED(sapi_internal_context_binding_mutex) {
+          if (context == nullptr) return 0;
+          auto sapi_it = sapi_internal_context_binding_prim_map.find(
+              {context, std::string(name)});
+          CHECK(sapi_it != sapi_internal_context_binding_prim_map.end());
+          return sapi_it->second;
+        }
+      )cc");
   return out;
 }
 
@@ -2079,7 +2150,8 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
     }
     if (is_param) {
       if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType()) &&
-          !(std::holds_alternative<ByteSizedBy>(annotations.size_type) &&
+          !((std::holds_alternative<ByteSizedBy>(annotations.size_type) ||
+             std::holds_alternative<SizedByBinding>(annotations.size_type)) &&
             IsSupportedArgByteSizedByType(type)) &&
           !(std::holds_alternative<NullTerminated>(annotations.size_type) &&
             std::holds_alternative<SandboxGlobalLifetime>(
@@ -2132,8 +2204,24 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                   byte_sized_by, annotations.lifetime,
                   std::move(annotations.context_bound));
             },
-            [&](const NullTerminated&)
+            [&](const SizedByBinding& sized_by_binding)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+              return std::make_unique<PointerArg>(
+                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
+                  sized_by_binding, annotations.lifetime,
+                  std::move(annotations.context_bound));
+            },
+            [&](const NullTerminated& null_terminated)
+                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+              if (annotations.context_bound.copy_from_and_bind.has_value()) {
+                // For context-bound null-terminated outputs, we handle that
+                // through PointerArg instead of ConstCStrArg. We could consider
+                // merging PointerArg and ConstCStrArg in the future.
+                return std::make_unique<PointerArg>(
+                    name, type_name, PointeeTypeInfo(type), *ptr_dir,
+                    null_terminated, annotations.lifetime,
+                    std::move(annotations.context_bound));
+              }
               // Return values, or input-only null-terminated pointers (char*):
               if (!is_param || ptr_dir == PointerDir::kIn) {
                 if (!IsSupportedArgRetNullTerminatedType(type)) {
@@ -2199,8 +2287,39 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "sandboxee_thunk" || ann.name == "host_thunk") {
       // Ignore these here, they are handled in AddFunction.
       num_args = 2;  // (name, func_name)
+    } else if (ann.name == "elem_sized_by") {
+      if (ann.args.size() != 1) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `elem_sized_by` annotation "
+                             "requires one argument",
+                             name));
+      }
+      num_args = 2;
+      absl::Status status = annotations.SetElemSizedBy(ann.args[0]);
+      SAPI_RETURN_IF_ERROR(status);
+    } else if (ann.name == "byte_sized_by") {
+      if (ann.args.size() != 1) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `byte_sized_by` annotation "
+                             "requires one argument",
+                             name));
+      }
+      num_args = 2;
+      absl::Status status = annotations.SetByteSizedBy(ann.args[0]);
+      SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "null_terminated") {
       SAPI_RETURN_IF_ERROR(annotations.SetNullTerminated());
+    } else if (ann.name == "sized_by_binding") {
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `sized_by_binding` annotation "
+                             "requires two arguments",
+                             name));
+      }
+      num_args = 3;
+      absl::Status status = annotations.SetSizedByBinding(
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
+      SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       SAPI_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
     } else if (ann.name == "alias_ptr") {
@@ -2230,11 +2349,16 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
                    StripQuotes(ann.args[2]), StripQuotes(ann.args[3])});
       num_args = 5;
     } else if (ann.name == "copy_from_and_bind_out_ptr") {
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function $0: `copy_from_and_bind_out_ptr` "
+                             "annotation requires two arguments",
+                             name));
+      }
+      num_args = 3;
       annotations.ptr_dir = PointerDir::kOut;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
-          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
-          StripQuotes(ann.args[2])};
-      num_args = 4;
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
     } else {
       return absl::InvalidArgumentError(
           absl::Substitute("function $0: $1 annotation is not supported "
@@ -2246,6 +2370,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
           absl::Substitute("arg $0: invalid sandbox annotation", name));
     }
   }
+  SAPI_RETURN_IF_ERROR(CheckParsedAnnotations(annotations));
   return annotations;
 }
 
@@ -2299,14 +2424,30 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "null_terminated") {
       absl::Status status = annotations.SetNullTerminated();
       SAPI_RETURN_IF_ERROR(status);
+    } else if (ann.name == "sized_by_binding") {
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `sized_by_binding` annotation "
+                             "requires two arguments",
+                             name));
+      }
+      num_args = 3;
+      absl::Status status = annotations.SetSizedByBinding(
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
+      SAPI_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       SAPI_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
     } else if (ann.name == "copy_from_and_bind_out_ptr") {
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function $0: `copy_from_and_bind_out_ptr` "
+                             "annotation requires two arguments",
+                             name));
+      }
+      num_args = 3;
       annotations.ptr_dir = PointerDir::kOut;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
-          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
-          StripQuotes(ann.args[2])};
-      num_args = 4;
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
     } else if (ann.name == "clear_bindings") {
       annotations.context_bound.clear_bindings = true;
       num_args = 1;
@@ -2318,7 +2459,20 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
           absl::Substitute("arg $0: invalid sandbox annotation", name));
     }
   }
+  SAPI_RETURN_IF_ERROR(CheckParsedAnnotations(annotations));
   return annotations;
+}
+
+absl::Status SandboxedLibraryEmitter::CheckParsedAnnotations(
+    const Annotations& annotations) const {
+  if (annotations.context_bound.copy_from_and_bind.has_value() &&
+      std::holds_alternative<std::monostate>(annotations.size_type)) {
+    return absl::InvalidArgumentError(
+        "copy_from_and_bind_out_ptr annotation requires a sized_by "
+        "annotation");
+  }
+
+  return absl::OkStatus();
 }
 
 std::vector<const SandboxedLibraryEmitter::Func*>

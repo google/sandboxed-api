@@ -21,6 +21,7 @@
 struct ContextWithSandboxOwnedBuffer;
 struct ContextWithSizedByParams;
 struct ContextWithSizedAfterDecoding;
+struct ContextStoresPartOfInputSize;
 
 struct Dimensions {
   size_t width;

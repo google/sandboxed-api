@@ -15,6 +15,8 @@
 #ifndef SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_PRIVATE_H_
 #define SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_PRIVATE_H_
 
+#include <cstddef>
+
 #include "sandboxed_api/tests/testcases/replaced_library_context_bound_struct.h"
 
 // Private structs, exposed in a private header for this test.
@@ -36,6 +38,10 @@ struct ContextWithSizedAfterDecoding {
   Dimensions decoded_sizes;
   char* char_buff;
   unsigned int* unsigned_int_buff;
+};
+
+struct ContextStoresPartOfInputSize {
+  size_t num_channels;
 };
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_PRIVATE_H_

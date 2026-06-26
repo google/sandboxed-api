@@ -66,6 +66,21 @@ void get_unsigned_int_buff_sized_after_decoding_outparam(
 void destroy_context_sized_after_decoding(
     ContextWithSizedAfterDecoding* context);
 
+////////////////////////////////////////////////////////////////////////////////
+// Context stores part of input buffer size. Otherwise, the input buffer only
+// needs to live until the end of the function call (we don't need to bind
+// its lifetime to the context).
+
+ContextStoresPartOfInputSize* create_context_stores_part_of_input_size(
+    size_t num_channels);
+
+size_t hash_input_buffer_with_part_of_size_in_context(
+    ContextStoresPartOfInputSize* context, const char* input_buffer,
+    size_t num_samples);
+
+void destroy_context_stores_part_of_input_size(
+    ContextStoresPartOfInputSize* context);
+
 // TODO(b/491828958): a version where a buffer could be host-owned or not.
 
 }  // extern "C"

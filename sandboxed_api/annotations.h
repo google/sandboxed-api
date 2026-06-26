@@ -142,6 +142,14 @@
 #define SANDBOX_NULL_TERMINATED \
   [[clang::annotate("sandbox", "null_terminated")]]
 
+// Pointer annotation that denotes that the pointee data is an array with a
+// size (in bytes) that should be looked up from an earlier binding to a
+// `context` object (see SANDBOX_BIND_SIZE).
+// We allow simple expressions involving binding names prefixed with '$'
+// (e.g., simply "$binding_name", or "2 * param * $binding_name").
+#define SANDBOX_BYTE_SIZED_BY_BINDING(context, binding_expr) \
+  [[clang::annotate("sandbox", "sized_by_binding", #context, #binding_expr)]]
+
 // Annotations for sandboxee and host thunks.
 // These just mean that we also emit these into the sandbox / host code.
 // They can be used to hook function calls.
@@ -222,8 +230,7 @@
 // - name: the name of the binding, e.g. "size".
 // - host_computable_expr: an expression to compute the value in the host.
 //
-// The bound value can be retrieved, e.g., with SANDBOX_BIND_SIZED_BY_GET_DATA
-// for use in SANDBOX_COPY_FROM_AND_BIND_OUT_PTR.
+// The bound value can be retrieved, e.g., with SANDBOX_BYTE_SIZED_BY_BINDING.
 //
 // If the context is null, then we do not bind.
 //
@@ -262,29 +269,19 @@
 //
 // - context: the pointer to the object to bind the host copy to.
 // - name: the name of the binding, e.g. "buffer".
-// - size_by: an expression that indicates the size of the array in bytes.
-//   - can be a constant or simple host-computable expression, e.g.
-//     (SANDBOX_BIND_SIZED_BY_EXPR(sizeof(ctx->inline_buffer)))
-//   - or, is a null-terminated C-string (SANDBOX_BIND_SIZED_BY_NULL_TERMINATED,
-//     note, this is different from SANDBOX_NULL_TERMINATED)
-//   - or, a value that should be looked up from a binding
-//     (SANDBOX_BIND_SIZED_BY_GET_DATA(context, name))
+//
+// We also expect the pointer to have a size annotation, e.g.
+// SANDBOX_BYTE_SIZED_BY, SANDBOX_NULL_TERMINATED, or
+// SANDBOX_BYTE_SIZED_BY_BINDING.
 //
 // For example (continuing from the `create_image` of SANDBOX_BIND_DATA):
 //
-//   SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(
-//       context,
-//       SANDBOX_BIND_SIZED_BY_GET_DATA(context, "size"))
+//   SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(context)
+//   SANDBOX_BYTE_SIZED_BY_BINDING(context, "$size"))
 //   char* get_image_buffer(Image* context SANDBOX_OPAQUE_PTR);
-#define SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(context, size_by)           \
+#define SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(context)                    \
   [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr", #context, \
-                    SANDBOX_BINDING_GEN_NAME(), size_by)]]
-
-// Annotations for the `size_by` argument of SANDBOX_COPY_FROM_AND_BIND_OUT_PTR.
-#define SANDBOX_BIND_SIZED_BY_EXPR(expr) "expr, " #expr
-#define SANDBOX_BIND_SIZED_BY_NULL_TERMINATED "null_terminated"
-#define SANDBOX_BIND_SIZED_BY_GET_DATA(context, name) \
-  "get_data, " #context ", " #name
+                    SANDBOX_BINDING_GEN_NAME())]]
 
 // An annotation for a pointer parameter (e.g., a context object), that denotes
 // that this function will destroy/free the pointee. We use this as a hook to

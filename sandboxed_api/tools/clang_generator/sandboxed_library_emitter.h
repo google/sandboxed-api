@@ -74,8 +74,16 @@ struct ByteSizedBy {
   std::optional<SizedByOutparamData> sized_by_outparam_data;
 };
 struct NullTerminated {};
-using ArraySizedByType =
-    std::variant<std::monostate, ElemSizedBy, ByteSizedBy, NullTerminated>;
+// Size is derived from an opaque context object (`BindData`).
+struct SizedByBinding {
+  std::string context;
+  // A simple expression involving a binding name (prefixed with '$') and
+  // host-computable values (e.g., "$binding_name", or "2 * param *
+  // $binding_name").
+  std::string binding_expr;
+};
+using ArraySizedByType = std::variant<std::monostate, ElemSizedBy, ByteSizedBy,
+                                      NullTerminated, SizedByBinding>;
 
 // Binding primitive data to a context pointer.
 struct BindData {
@@ -89,7 +97,6 @@ struct BindData {
 struct CopyFromAndBindOutPtr {
   std::string context;
   std::string binding_name;
-  std::string sized_by;
 };
 
 // Collection of context-bound annotations for a single function or argument.
@@ -188,6 +195,13 @@ class SandboxedLibraryEmitter : public EmitterBase {
       size_type = NullTerminated{};
       return absl::OkStatus();
     }
+    absl::Status SetSizedByBinding(absl::string_view context,
+                                   absl::string_view binding_name) {
+      SAPI_RETURN_IF_ERROR(CheckSizeNotSet("sized_by_binding"));
+      size_type =
+          SizedByBinding{std::string(context), std::string(binding_name)};
+      return absl::OkStatus();
+    }
 
     absl::Status CheckLifetimeNotSet(absl::string_view other_annotation) const {
       if (std::holds_alternative<std::monostate>(lifetime)) {
@@ -232,6 +246,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
                                                const clang::ParmVarDecl* param);
   absl::StatusOr<Annotations> ParseAnnotations(
       absl::string_view name, const clang::FunctionDecl* funcDecl);
+  absl::Status CheckParsedAnnotations(const Annotations& annotations) const;
   std::vector<const Func*> SortedFuncs() const;
 
   absl::flat_hash_set<std::string> includes_;
