@@ -221,6 +221,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":call",
+        ":config",
         ":embed_file",
         ":rpcchannel",
         ":sandbox_config",

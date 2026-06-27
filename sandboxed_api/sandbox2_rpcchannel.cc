@@ -25,6 +25,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/status_macros.h"
@@ -222,16 +223,16 @@ absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
 }
 
 absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
-#ifdef MEMORY_SANITIZER
-  absl::MutexLock lock(mutex_);
-  comms::ReallocRequest req = {
-      .old_addr = reinterpret_cast<uintptr_t>(addr),
-      .size = size,
-  };
-  SAPI_RETURN_IF_ERROR(
-      Exchange(comms::kMsgMarkMemoryInit, &req, sizeof(req), v::Type::kVoid)
-          .status());
-#endif
+  if constexpr (sapi::sanitizers::IsMSan()) {
+    absl::MutexLock lock(mutex_);
+    comms::ReallocRequest req = {
+        .old_addr = reinterpret_cast<uintptr_t>(addr),
+        .size = size,
+    };
+    SAPI_RETURN_IF_ERROR(
+        Exchange(comms::kMsgMarkMemoryInit, &req, sizeof(req), v::Type::kVoid)
+            .status());
+  }
   return absl::OkStatus();
 }
 

@@ -635,13 +635,16 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":util",
+        "//sandboxed_api:config",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
 )

@@ -26,19 +26,22 @@
 #include <csignal>
 #include <initializer_list>
 #include <string>
-#include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status_macros.h"
 
 #if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
     defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
@@ -115,7 +118,7 @@ void CloseAllFDsExceptWithFlags(absl::Span<const int> fd_exceptions,
 }  // namespace
 
 absl::StatusOr<absl::flat_hash_set<int>> GetListOfFDs() {
-  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds,
+  ABSL_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds,
                         ListNumericalDirectoryEntries(kProcSelfFd));
 
   //  Exclude the dirfd which was opened in ListDirectoryEntries.
@@ -150,7 +153,7 @@ absl::Status CloseAllFDsExcept(const absl::flat_hash_set<int>& fd_exceptions) {
 
 absl::Status MarkAllFDsAsCOEExcept(
     const absl::flat_hash_set<int>& fd_exceptions) {
-  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
+  ABSL_ASSIGN_OR_RETURN(absl::flat_hash_set<int> fds, GetListOfFDs());
 
   for (const auto& fd : fds) {
     if (fd_exceptions.find(fd) != fd_exceptions.end()) {
@@ -190,14 +193,20 @@ int GetNumberOfThreads(int pid) {
 }
 
 void WaitForSanitizer() {
+  if constexpr (!sapi::sanitizers::IsAny() || sapi::sanitizers::IsCfiDiag()) {
+    return;
+  }
+
+  static bool ABSL_ATTRIBUTE_UNUSED sanitizer_init_once = []() {
 #if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
     defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
     defined(ABSL_HAVE_LEAK_SANITIZER) ||      \
     defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
-  static bool ABSL_ATTRIBUTE_UNUSED dummy_once = []() {
     __sanitizer_sandbox_on_notify(nullptr);
+#endif
     return true;
   }();
+
   const pid_t pid = getpid();
   int threads;
   for (int retry = 0; retry < 10; ++retry) {
@@ -207,7 +216,6 @@ void WaitForSanitizer() {
     }
     absl::SleepFor(absl::Milliseconds(100));
   }
-#endif
 }
 
 absl::Status SanitizeCurrentProcess(

@@ -608,6 +608,7 @@ add_library(sandbox2_sanitizer ${SAPI_LIB_TYPE}
 add_library(sandbox2::sanitizer ALIAS sandbox2_sanitizer)
 target_link_libraries(sandbox2_sanitizer
   PRIVATE absl::strings
+          absl::time
           sandbox2::util
           sapi::fileops
           sapi::strerror
@@ -616,6 +617,7 @@ target_link_libraries(sandbox2_sanitizer
   PUBLIC absl::flat_hash_set
          absl::span
          absl::status
+         absl::status_macros
          absl::statusor
 )
 
