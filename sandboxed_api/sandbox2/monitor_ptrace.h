@@ -19,8 +19,10 @@
 #define SANDBOXED_API_SANDBOX2_MONITOR_PTRACE_H_
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -45,7 +47,7 @@ namespace sandbox2 {
 class PtraceMonitor : public MonitorBase {
  public:
   PtraceMonitor(Executor* executor, Policy* policy, Notify* notify,
-                bool enable_shared_memory_comms = false);
+                std::optional<size_t> shared_memory_comms_size = std::nullopt);
   ~PtraceMonitor() { Join(); }
 
   void Kill() override {

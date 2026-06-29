@@ -21,9 +21,11 @@
 #include <sys/resource.h>
 #include <sys/types.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -51,7 +53,7 @@ class MonitorBase {
  public:
   // executor, policy and notify are not owned by the Monitor
   MonitorBase(Executor* executor, Policy* policy, Notify* notify,
-              bool enable_shared_memory_comms = false);
+              std::optional<size_t> shared_memory_comms_size = std::nullopt);
 
   MonitorBase(const MonitorBase&) = delete;
   MonitorBase& operator=(const MonitorBase&) = delete;
@@ -194,8 +196,9 @@ class MonitorBase {
   // Are we waiting for the first execveat syscall?
   bool wait_for_execveat_ = false;
 
-  // Whether shared memory comms should be enabled.
-  bool enable_shared_memory_comms_ = false;
+  // Size of the shared memory comms buffer. If set, the comms will be upgraded
+  // to shared memory.
+  std::optional<size_t> shared_memory_comms_size_ = std::nullopt;
 };
 
 }  // namespace sandbox2

@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -31,6 +32,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
@@ -172,7 +174,7 @@ absl::Status Sandbox2::EnableUnotifyMonitor() {
   return absl::OkStatus();
 }
 
-absl::Status Sandbox2::EnableSharedMemoryComms() {
+absl::Status Sandbox2::EnableSharedMemoryComms(size_t shared_memory_size) {
   if (monitor_ != nullptr) {
     return absl::FailedPreconditionError("Sandbox was already launched");
   }
@@ -180,7 +182,12 @@ absl::Status Sandbox2::EnableSharedMemoryComms() {
     return absl::FailedPreconditionError(
         "Shared memory comms should be enabled manually in pre-execve mode");
   }
-  enable_shared_memory_comms_ = true;
+  if (shared_memory_size < kDefaultCommsSharedMemorySize) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Shared memory size must be at least ",
+                     kDefaultCommsSharedMemorySize, " bytes"));
+  }
+  shared_memory_comms_size_ = shared_memory_size;
   return absl::OkStatus();
 }
 
@@ -213,11 +220,10 @@ std::unique_ptr<MonitorBase> Sandbox2::CreateMonitor() {
   if (use_unotify_monitor_) {
     return std::make_unique<UnotifyMonitor>(executor_.get(), policy_.get(),
                                             notify_.get(),
-                                            enable_shared_memory_comms_);
+                                            shared_memory_comms_size_);
   }
-  return std::make_unique<PtraceMonitor>(executor_.get(), policy_.get(),
-                                         notify_.get(),
-                                         enable_shared_memory_comms_);
+  return std::make_unique<PtraceMonitor>(
+      executor_.get(), policy_.get(), notify_.get(), shared_memory_comms_size_);
 }
 
 }  // namespace sandbox2

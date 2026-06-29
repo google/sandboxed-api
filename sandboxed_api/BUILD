@@ -79,6 +79,7 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":call",
+        ":config",
         ":rpcchannel",
         ":var_type",
         "//sandboxed_api/sandbox2:comms",

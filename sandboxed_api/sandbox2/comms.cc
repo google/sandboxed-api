@@ -985,21 +985,22 @@ bool Comms::SendFD(int fd, uint32_t tag) {
   return SendMsg({tag, 0}, "", cmsg, sizeof(fd_msg));
 }
 
-absl::Status Comms::SendSharedMemUpgradeRequest(bool should_upgrade) {
+absl::Status Comms::SendSharedMemUpgradeRequest(
+    std::optional<size_t> shared_memory_comms_size) {
   if (!std::holds_alternative<RawCommsFdImpl>(raw_comms_)) {
     SAPI_RAW_LOG(ERROR, "Comms is already upgraded to shared memory");
     return absl::InternalError("Comms is already upgraded to shared memory");
   }
 
-  if (!should_upgrade) {
+  if (!shared_memory_comms_size.has_value()) {
     if (!SendMsg({kTagCommsNoUpgrade, 0}, "", nullptr, 0)) {
       return absl::InternalError("Failed to send comms no upgrade tag");
     }
     return absl::OkStatus();
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto memfd,
-                        util::CreateMemFdWithSize(kSharedMemoryCommsSize));
+  SAPI_ASSIGN_OR_RETURN(
+      auto memfd, util::CreateMemFdWithSize(shared_memory_comms_size.value()));
   int fd = memfd.get();
   if (fcntl(fd, F_ADD_SEALS, F_SEAL_SEAL | F_SEAL_GROW | F_SEAL_SHRINK) < 0) {
     return absl::InternalError("Failed to seal memfd");

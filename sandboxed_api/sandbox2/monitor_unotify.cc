@@ -15,8 +15,9 @@
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -140,8 +141,9 @@ void KillProcess(pid_t pid) {
 }  // namespace
 
 UnotifyMonitor::UnotifyMonitor(Executor* executor, Policy* policy,
-                               Notify* notify, bool enable_shared_memory_comms)
-    : MonitorBase(executor, policy, notify, enable_shared_memory_comms) {
+                               Notify* notify,
+                               std::optional<size_t> shared_memory_comms_size)
+    : MonitorBase(executor, policy, notify, shared_memory_comms_size) {
   type_ = FORKSERVER_MONITOR_UNOTIFY;
   if (executor_->limits()->wall_time_limit() != absl::ZeroDuration()) {
     auto deadline = absl::Now() + executor_->limits()->wall_time_limit();

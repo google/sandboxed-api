@@ -20,7 +20,7 @@
 
 #include <cstddef>
 #include <memory>
-#include <string>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -40,6 +40,8 @@
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
+
+constexpr size_t kDefaultCommsSharedMemorySize = (size_t{128} << 10);
 
 class Sandbox2 final {
  public:
@@ -110,7 +112,8 @@ class Sandbox2 final {
   }
 
   absl::Status EnableUnotifyMonitor();
-  absl::Status EnableSharedMemoryComms();
+  absl::Status EnableSharedMemoryComms(
+      size_t shared_memory_size = kDefaultCommsSharedMemorySize);
 
  private:
   // Launches the Monitor.
@@ -124,7 +127,7 @@ class Sandbox2 final {
   std::unique_ptr<MonitorBase> monitor_;
 
   bool use_unotify_monitor_ = false;
-  bool enable_shared_memory_comms_ = false;
+  std::optional<size_t> shared_memory_comms_size_ = std::nullopt;
 
   // Buffer for the shared memory region.
   std::unique_ptr<Buffer> shared_memory_buffer_;

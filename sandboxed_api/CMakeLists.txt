@@ -138,6 +138,7 @@ target_link_libraries(sapi_sandbox2_backend
           absl::time
           sapi::base
           sapi::call
+          sapi::config
           sapi::embed_file
           sapi::file_base
           sapi::runfiles

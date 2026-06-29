@@ -122,7 +122,7 @@ void LogContainer(const std::vector<std::string>& container) {
 }  // namespace
 
 MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify,
-                         bool enable_shared_memory_comms)
+                         std::optional<size_t> shared_memory_comms_size)
     : executor_(executor),
       policy_(policy),
       notify_(notify),
@@ -130,7 +130,7 @@ MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify,
       comms_(executor_->ipc()->comms()),
       ipc_(executor_->ipc()),
       uses_custom_forkserver_(executor_->fork_client_ != nullptr),
-      enable_shared_memory_comms_(enable_shared_memory_comms) {
+      shared_memory_comms_size_(shared_memory_comms_size) {
   wait_for_execveat_ = executor->enable_sandboxing_pre_execve_;
   // It's a pre-connected Comms channel, no need to accept new connection.
   CHECK(comms_->IsConnected());
@@ -265,8 +265,7 @@ bool MonitorBase::InitSendCommsUpgrade() {
     // upgrade themself.
     return true;
   }
-  auto status =
-      comms_->SendSharedMemUpgradeRequest(enable_shared_memory_comms_);
+  auto status = comms_->SendSharedMemUpgradeRequest(shared_memory_comms_size_);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to send shared memory comms upgrade: " << status;
     return false;

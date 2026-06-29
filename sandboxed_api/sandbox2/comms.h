@@ -80,9 +80,6 @@ class Comms {
   // Any payload size above this limit will LOG(WARNING).
   static constexpr size_t kWarnMsgSize = (256ULL << 20);
 
-  // The size of the shared memory region used for upgrading the comms.
-  static constexpr size_t kSharedMemoryCommsSize = (128ULL << 10);
-
   // A high file descriptor number to be used with certain fork server request
   // modes to map the target executable. This is considered to be an
   // implementation detail.
@@ -235,7 +232,9 @@ class Comms {
 
   // Sends a message indicating whether the comms should be upgraded to shared
   // memory. If so, also sends the memfd to use for the upgrade.
-  absl::Status SendSharedMemUpgradeRequest(bool should_upgrade);
+  // If shared_memory_comms_size is nullopt, the comms will not be upgraded.
+  absl::Status SendSharedMemUpgradeRequest(
+      std::optional<size_t> shared_memory_comms_size);
 
   // Receives a message indicating whether the comms should be upgraded to
   // shared memory. If so, also receives the memfd to use for the upgrade and

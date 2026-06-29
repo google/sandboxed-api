@@ -8,8 +8,10 @@
 #include <sys/types.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +36,7 @@ namespace sandbox2 {
 class UnotifyMonitor : public MonitorBase {
  public:
   UnotifyMonitor(Executor* executor, Policy* policy, Notify* notify,
-                 bool enable_shared_memory_comms = false);
+                 std::optional<size_t> shared_memory_comms_size = std::nullopt);
   ~UnotifyMonitor() { Join(); }
 
   void Kill() override {
