@@ -44,4 +44,11 @@ struct ContextStoresPartOfInputSize {
   size_t num_channels;
 };
 
+struct ContextWithHostOwnedBuffer {
+  char* host_owned_buffer;
+  size_t host_owned_buffer_capacity;
+  size_t num_chunks;
+  int cur_iterator;
+};
+
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_PRIVATE_H_

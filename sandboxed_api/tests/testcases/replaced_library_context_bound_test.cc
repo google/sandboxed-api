@@ -149,4 +149,50 @@ TEST(Test, ContextStoresPartOfInputSize) {
   destroy_context_stores_part_of_input_size(context);
 }
 
+TEST(Test, ContextWithHostOwnedInBufferInput) {
+  char data[7] = "012345";
+  size_t data_size = strlen(data);
+  ContextWithHostOwnedBuffer* context =
+      create_context_with_host_owned_in_buffer(data, data_size,
+                                               /*num_chunks=*/4);
+  EXPECT_EQ(
+      std::string(get_next_chunk_host_owned_out_buffer(context), data_size),
+      "123456");
+  EXPECT_EQ(
+      std::string(get_next_chunk_host_owned_out_buffer(context), data_size),
+      "234567");
+  EXPECT_EQ(
+      std::string(get_next_chunk_host_owned_out_buffer(context), data_size),
+      "345678");
+  EXPECT_EQ(
+      std::string(get_next_chunk_host_owned_out_buffer(context), data_size),
+      "456789");
+  EXPECT_EQ(get_next_chunk_host_owned_out_buffer(context), nullptr);
+  destroy_context_with_host_owned_buffer(context);
+}
+
+TEST(Test, ContextWithHostOwnedOutBufferInput) {
+  char out_buffer[4];
+  size_t data_size = sizeof(out_buffer);
+  ContextWithHostOwnedBuffer* context =
+      create_context_with_host_owned_out_buffer(out_buffer, data_size,
+                                                /*num_chunks=*/3);
+  // The out buffer is also initialized during the create, so we should
+  // expect to see the initialization.
+  EXPECT_EQ(std::string(out_buffer, data_size), "0000");
+
+  // 3 chunks of 4 bytes each.
+  EXPECT_EQ(
+      std::string(get_next_chunk_host_owned_out_buffer(context), data_size),
+      "1111");
+  EXPECT_EQ(
+      std::string(get_next_chunk_host_owned_out_buffer(context), data_size),
+      "2222");
+  EXPECT_EQ(
+      std::string(get_next_chunk_host_owned_out_buffer(context), data_size),
+      "3333");
+  EXPECT_EQ(get_next_chunk_host_owned_out_buffer(context), nullptr);
+  destroy_context_with_host_owned_buffer(context);
+}
+
 }  // namespace

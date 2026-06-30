@@ -87,11 +87,11 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_BYTE_SIZED_BY",
       "SANDBOX_ELEM_SIZED_BY_OUTPARAM",
       "SANDBOX_BYTE_SIZED_BY_OUTPARAM",
+      "SANDBOX_BYTE_SIZED_BY_BINDING",
       "SANDBOX_BIND_DATA",
       "SANDBOX_BIND_SIZE",
-      "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR_NAMED",
       "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR",
-      "SANDBOX_BYTE_SIZED_BY_BINDING",
+      "SANDBOX_RETAIN_AND_BIND",
   };
   // We also remove the full argument to the macro, e.g.
   // SANDBOX_ELEM_SIZED_BY(foo) will be removed entirely.
@@ -668,9 +668,20 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
   absl::Status LinkArgsIfNeeded(
       const std::vector<std::unique_ptr<Arg>>& args) override;
 
+  // Emits code to copy from the given out-pointer, and bind its lifetime to the
+  // context.
   std::string EmitCopyFromAndBindOutPtrCode(
       const CopyFromAndBindOutPtr& copy_from_and_bind_out_ptr,
       absl::string_view out_ptr_name, absl::string_view out_ptr_type) const;
+
+  // Emits code for before a function call, to help retain a parameter buffer.
+  std::string EmitParamRetainPreCall(
+      const RetainAndBind& retain_and_bind) const;
+
+  // Emits code for after a function call, to help retain a parameter buffer by
+  // binding it to the context.
+  std::string EmitParamRetainPostCall(
+      const RetainAndBind& retain_and_bind) const;
 
   std::string EmitHostPreCall() const override {
     // Declare any SAPI variables we need for the arguments.
@@ -681,6 +692,13 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
       return absl::Substitute("sapi::v::Reg<$1> sapi_tmp_$0($0);\n", name_,
                               type_);
     }
+    // If this is a retained pointer, we need to allocate space for the sandbox
+    // copy, and (if necessary) copy in the data.
+    if (context_bound_.retain_and_bind.has_value()) {
+      return EmitParamRetainPreCall(*context_bound_.retain_and_bind);
+    }
+    // Otherwise, just use sapi::v::Array, etc, which will allocate space for
+    // a sandbox copy. The copy will be automatically freed after the call.
     std::string code;
     switch (pointee_type_.type_class()) {
       case PointeeTypeInfo::TypeClass::kArithmetic: {
@@ -817,9 +835,12 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
 
   std::string EmitHostPostCall() const override {
     std::string out;
-    if (ptr_dir_ == PointerDir::kOut || ptr_dir_ == PointerDir::kInOut) {
-      // In the Array case, the PtrAfter or PtrBoth synchronization writes to $0
-      // directly. However, in the non-Array case, we use a separate temp
+    if (context_bound_.retain_and_bind.has_value()) {
+      absl::StrAppend(&out,
+                      EmitParamRetainPostCall(*context_bound_.retain_and_bind));
+    } else if (ptr_dir_ == PointerDir::kOut || ptr_dir_ == PointerDir::kInOut) {
+      // In the Array case, the PtrAfter or PtrBoth synchronization writes to
+      // $0 directly. However, in the non-Array case, we use a separate temp
       // sapi::v::Struct. The PtrAfter/PtrBoth only synchronizes to that temp
       // Struct, and we need to manually copy back from there to $0.
       if (pointee_type_.type_class() == PointeeTypeInfo::TypeClass::kRecord &&
@@ -866,13 +887,17 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
     // Clear any bindings and free memory, if needed.
     if (context_bound_.clear_bindings) {
       absl::StrAppend(
-          &out, absl::Substitute("sapi_internal_clear_context_bindings($0);\n",
-                                 name_));
+          &out,
+          absl::Substitute(
+              "sapi_internal_clear_context_bindings(sandbox, $0);\n", name_));
     }
     return out;
   }
 
   std::string EmitHostArgs() const override {
+    if (context_bound_.retain_and_bind.has_value()) {
+      return absl::Substitute("&sapi_tmp_$0", name_);
+    }
     switch (ptr_dir_) {
       case PointerDir::kIn:
         return absl::Substitute("sapi_tmp_$0.PtrBefore()", name_);
@@ -1192,6 +1217,106 @@ std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
       size_calc, alloc_and_copy_code, out_ptr_type);
 }
 
+std::string PointerArg::EmitParamRetainPreCall(
+    const RetainAndBind& retain_and_bind) const {
+  std::string size_calc;
+  std::string suffix = name_;
+  std::visit(absl::Overload(
+                 [&size_calc, &suffix](const ByteSizedBy& arg) {
+                   size_calc = absl::Substitute("sapi_binding_size_$0 = $1;\n",
+                                                suffix, arg.expr);
+                 },
+                 [&size_calc, &suffix](const ElemSizedBy& arg) {
+                   size_calc = absl::Substitute(
+                       "sapi_binding_size_$0 = "
+                       "sandbox->CheckedMultiply(sizeof(*$0), ($1));\n",
+                       suffix, arg.expr);
+                 },
+                 [&size_calc, &suffix](const NullTerminated& arg) {
+                   size_calc = absl::Substitute(
+                       "sapi_binding_size_$0 = "
+                       "strlen(reinterpret_cast<const char*>($0)) + 1;\n",
+                       suffix);
+                 },
+                 [&size_calc, &suffix](const SizedByBinding& arg) {
+                   std::string context_var = ResolveContextName(arg.context);
+                   std::string size_expr = CompileBindingExpr(
+                       context_var, arg.binding_expr, /*locked=*/false);
+                   size_calc = absl::Substitute("sapi_binding_size_$0 = $1;\n",
+                                                suffix, size_expr);
+                 },
+                 [](std::monostate) {
+                   LOG(FATAL) << "Expected a sized context-bound pointer.";
+                 }),
+             sized_by_type_);
+
+  std::string copy_code;
+  if (ptr_dir_ == PointerDir::kIn || ptr_dir_ == PointerDir::kInOut) {
+    copy_code = absl::Substitute(
+        R"cc(
+          sandbox->Check(
+              sandbox->rpc_channel()
+                  ->CopyToSandbox(
+                      reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+                      absl::MakeSpan(reinterpret_cast<const char*>($0),
+                                     sapi_binding_size_$0))
+                  .status());
+        )cc",
+        name_);
+  }
+  return absl::Substitute(
+      R"cc(
+        void* sapi_sb_copy_$0 = nullptr;
+        size_t sapi_binding_size_$0 = 0;
+        if ($0 != nullptr) {
+          // Compute size
+          $1
+              // Allocate
+              sandbox->Check(sandbox->rpc_channel()->Allocate(
+                  sapi_binding_size_$0, &sapi_sb_copy_$0));
+          $2
+        }
+        sapi::v::RemotePtr sapi_tmp_$0(sapi_sb_copy_$0);
+      )cc",
+      name_, size_calc, copy_code);
+}
+
+std::string PointerArg::EmitParamRetainPostCall(
+    const RetainAndBind& retain_and_bind) const {
+  std::string out;
+  if (ptr_dir_ == PointerDir::kOut || ptr_dir_ == PointerDir::kInOut) {
+    // Sync after the call.
+    absl::SubstituteAndAppend(
+        &out,
+        R"cc(
+          if (sapi_sb_copy_$0 != nullptr) {
+            sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+                sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+                reinterpret_cast<uintptr_t>($0), sapi_binding_size_$0));
+          }
+        )cc",
+        name_);
+  }
+  // Add binding to the map.
+  std::string ctx_name = ResolveContextName(retain_and_bind.context);
+  absl::SubstituteAndAppend(
+      &out,
+      R"cc(
+        if (sapi_sb_copy_$0 != nullptr && $1 != nullptr) {
+          absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
+          auto [sapi_new_it, sapi_inserted] =
+              sapi_internal_context_retained_binding_map.insert(
+                  {{$1, "$2"},
+                   std::make_tuple(reinterpret_cast<uintptr_t>($0),
+                                   reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+                                   sapi_binding_size_$0)});
+          CHECK(sapi_inserted);
+        }
+      )cc",
+      name_, ctx_name, retain_and_bind.binding_name);
+  return out;
+}
+
 std::string SandboxedLibraryEmitter::Func::EmitPostCallBindData() const {
   std::string out;
   if (context_bound.bind_data.empty()) return out;
@@ -1429,13 +1554,20 @@ std::string SandboxedLibraryEmitter::EmitContextBindingsHostSupportCode()
                                std::tuple<uintptr_t, size_t, uintptr_t>>
                sapi_internal_context_binding_map
                    ABSL_GUARDED_BY(sapi_internal_context_binding_mutex);)cc");
+  absl::StrAppend(
+      &out,
+      R"cc(absl::node_hash_map<std::pair<const void*, std::string>,
+                               std::tuple<uintptr_t, uintptr_t, size_t>>
+               sapi_internal_context_retained_binding_map
+                   ABSL_GUARDED_BY(sapi_internal_context_binding_mutex);)cc");
   absl::StrAppend(&out, "\n");
 
   // Helper functions
   absl::StrAppend(
       &out,
       R"cc(
-        void sapi_internal_clear_context_bindings(const void* context) {
+        void sapi_internal_clear_context_bindings(sapi::SandboxBase* sandbox,
+                                                  const void* context) {
           if (context == nullptr) return;
           absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
           for (auto sapi_it = sapi_internal_context_binding_prim_map.begin();
@@ -1452,6 +1584,20 @@ std::string SandboxedLibraryEmitter::EmitContextBindingsHostSupportCode()
               auto& sapi_binding_data = sapi_it->second;
               free(reinterpret_cast<void*>(std::get<2>(sapi_binding_data)));
               sapi_internal_context_binding_map.erase(sapi_it++);
+            } else {
+              ++sapi_it;
+            }
+          }
+          for (auto sapi_it =
+                   sapi_internal_context_retained_binding_map.begin();
+               sapi_it != sapi_internal_context_retained_binding_map.end();) {
+            if (sapi_it->first.first == context) {
+              auto& sapi_binding_data = sapi_it->second;
+              CHECK(sandbox->rpc_channel()
+                        ->Free(reinterpret_cast<void*>(
+                            std::get<1>(sapi_binding_data)))
+                        .ok());
+              sapi_internal_context_retained_binding_map.erase(sapi_it++);
             } else {
               ++sapi_it;
             }
@@ -1853,7 +1999,8 @@ void SandboxedLibraryEmitter::RecordContextBindingSupportNeeded(
       const PointerArg* ptr_arg = dynamic_cast<const PointerArg*>(arg.get());
       return ptr_arg &&
              (ptr_arg->context_bound_.clear_bindings ||
-              ptr_arg->context_bound_.copy_from_and_bind.has_value());
+              ptr_arg->context_bound_.copy_from_and_bind.has_value() ||
+              ptr_arg->context_bound_.retain_and_bind.has_value());
     };
     if (ret && arg_ptr_has_context_bindings(ret)) {
       return true;
@@ -2448,6 +2595,16 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       annotations.ptr_dir = PointerDir::kOut;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
+    } else if (ann.name == "retain_and_bind") {
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `retain_and_bind` annotation "
+                             "requires two arguments",
+                             name));
+      }
+      num_args = 3;
+      annotations.context_bound.retain_and_bind =
+          RetainAndBind{StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
     } else if (ann.name == "clear_bindings") {
       annotations.context_bound.clear_bindings = true;
       num_args = 1;
@@ -2470,6 +2627,11 @@ absl::Status SandboxedLibraryEmitter::CheckParsedAnnotations(
     return absl::InvalidArgumentError(
         "copy_from_and_bind_out_ptr annotation requires a sized_by "
         "annotation");
+  }
+  if (annotations.context_bound.retain_and_bind.has_value() &&
+      std::holds_alternative<std::monostate>(annotations.size_type)) {
+    return absl::InvalidArgumentError(
+        "retain_and_bind annotation requires a sized_by annotation");
   }
 
   return absl::OkStatus();

@@ -81,7 +81,21 @@ size_t hash_input_buffer_with_part_of_size_in_context(
 void destroy_context_stores_part_of_input_size(
     ContextStoresPartOfInputSize* context);
 
-// TODO(b/491828958): a version where a buffer could be host-owned or not.
+////////////////////////////////////////////////////////////////////////////////
+// Buffer owned by host that is retained and bound to context.
+
+// Use the incoming data as the initial value.
+ContextWithHostOwnedBuffer* create_context_with_host_owned_in_buffer(
+    char* data, size_t data_capacity, size_t num_chunks);
+
+// Overwrite the incoming data with some new initial value.
+ContextWithHostOwnedBuffer* create_context_with_host_owned_out_buffer(
+    char* data, size_t data_capacity, size_t num_chunks);
+
+char* get_next_chunk_host_owned_out_buffer(ContextWithHostOwnedBuffer* context);
+
+void destroy_context_with_host_owned_buffer(
+    ContextWithHostOwnedBuffer* context);
 
 }  // extern "C"
 

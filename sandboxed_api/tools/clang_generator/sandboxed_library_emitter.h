@@ -93,8 +93,15 @@ struct BindData {
   std::string host_computable_expr;
 };
 
-// Binding a buffer to a context pointer (to be freed during "clear").
+// Binding an output buffer's lifetime to a context pointer (to be freed during
+// "clear").
 struct CopyFromAndBindOutPtr {
+  std::string context;
+  std::string binding_name;
+};
+
+// Retaining a parameter buffer and binding its lifetime to a context pointer.
+struct RetainAndBind {
   std::string context;
   std::string binding_name;
 };
@@ -103,6 +110,7 @@ struct CopyFromAndBindOutPtr {
 struct ContextBoundAnnotations {
   std::vector<BindData> bind_data;
   std::optional<CopyFromAndBindOutPtr> copy_from_and_bind;
+  std::optional<RetainAndBind> retain_and_bind;
   bool clear_bindings = false;
 };
 

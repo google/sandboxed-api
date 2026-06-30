@@ -18,7 +18,11 @@ SANDBOX_FUNCS(
     increment_buff_sized_after_decoding, destroy_context_sized_after_decoding,
     create_context_stores_part_of_input_size,
     hash_input_buffer_with_part_of_size_in_context,
-    destroy_context_stores_part_of_input_size);
+    destroy_context_stores_part_of_input_size,
+    create_context_with_host_owned_in_buffer,
+    create_context_with_host_owned_out_buffer,
+    get_next_chunk_host_owned_out_buffer,
+    destroy_context_with_host_owned_buffer);
 
 // Constant-sized and Null-terminated buffers.
 
@@ -116,6 +120,35 @@ size_t hash_input_buffer_with_part_of_size_in_context(
 
 void destroy_context_stores_part_of_input_size(
     ContextStoresPartOfInputSize* context SANDBOX_OPAQUE_PTR
+        SANDBOX_CLEAR_BINDINGS);
+
+// Buffer owned by host that is retained and bound to context.
+
+SANDBOX_BIND_SIZE(SANDBOX_RETURN, "size", data_capacity)
+SANDBOX_OPAQUE_PTR
+ContextWithHostOwnedBuffer* create_context_with_host_owned_in_buffer(
+    char* data SANDBOX_IN_PTR SANDBOX_RETAIN_AND_BIND(SANDBOX_RETURN)
+        SANDBOX_BYTE_SIZED_BY(data_capacity),
+    size_t data_capacity, size_t num_chunks);
+
+SANDBOX_BIND_SIZE(SANDBOX_RETURN, "size", data_capacity)
+SANDBOX_OPAQUE_PTR
+ContextWithHostOwnedBuffer* create_context_with_host_owned_out_buffer(
+    char* data SANDBOX_OUT_PTR SANDBOX_RETAIN_AND_BIND(SANDBOX_RETURN)
+        SANDBOX_BYTE_SIZED_BY(data_capacity),
+    size_t data_capacity, size_t num_chunks);
+
+// Note: the returned buffer is a separate copy for the
+// "COPY_FROM_AND_BIND_OUT_PTR" than the "SANDBOX_RETAIN_AND_BIND" in buffer.
+// At the moment, we aren't using any binding label/key to indicate that they
+// should be bound to the same buffer and alias.
+SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(context)
+SANDBOX_BYTE_SIZED_BY_BINDING(context, "$size")
+char* get_next_chunk_host_owned_out_buffer(
+    ContextWithHostOwnedBuffer* context SANDBOX_OPAQUE_PTR);
+
+void destroy_context_with_host_owned_buffer(
+    ContextWithHostOwnedBuffer* context SANDBOX_OPAQUE_PTR
         SANDBOX_CLEAR_BINDINGS);
 
 }  // extern "C"

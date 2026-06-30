@@ -39,11 +39,6 @@
 // to the sandboxee.
 #define SANDBOX_CALLBACK [[clang::annotate("sandbox", "callback")]]
 
-// TODO(b/491828958): Annotation for when a function returns a pointer to a
-// temporary buffer that is lifetime bound to another pointer.
-#define SANDBOX_LIFETIME_BOUND(opaque_other) \
-  [[clang::annotate("sandbox", "lifetime_bound", #opaque_other)]]
-
 // This annotation is only used for testing purposes. Please do not use it.
 #define SANDBOX_UNIMPLEMENTED_TEST \
   [[clang::annotate("sandbox", "unimplemented_test")]]

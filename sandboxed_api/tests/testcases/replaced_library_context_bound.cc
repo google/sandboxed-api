@@ -1,5 +1,6 @@
 #include "sandboxed_api/tests/testcases/replaced_library_context_bound.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
@@ -196,6 +197,55 @@ size_t hash_input_buffer_with_part_of_size_in_context(
 
 void destroy_context_stores_part_of_input_size(
     ContextStoresPartOfInputSize* context) {
+  free(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Buffer owned by host that is retained and bound to context.
+
+ContextWithHostOwnedBuffer* create_context_with_host_owned_in_buffer(
+    char* data, size_t data_capacity, size_t num_chunks) {
+  if (data == nullptr || data_capacity == 0) return nullptr;
+  ContextWithHostOwnedBuffer* context =
+      static_cast<ContextWithHostOwnedBuffer*>(
+          malloc(sizeof(ContextWithHostOwnedBuffer)));
+  context->host_owned_buffer = data;
+  context->host_owned_buffer_capacity = data_capacity;
+  context->num_chunks = num_chunks;
+  context->cur_iterator = 0;
+
+  return context;
+}
+
+ContextWithHostOwnedBuffer* create_context_with_host_owned_out_buffer(
+    char* data, size_t data_capacity, size_t num_chunks) {
+  ContextWithHostOwnedBuffer* context =
+      create_context_with_host_owned_in_buffer(data, data_capacity, num_chunks);
+  if (context == nullptr) return nullptr;
+
+  // Also initialize the host-owned buffer.
+  size_t chunk_size = context->host_owned_buffer_capacity;
+  for (size_t i = 0; i < chunk_size; ++i) {
+    data[i] = '0' + (context->cur_iterator % 10);
+  }
+  return context;
+}
+
+char* get_next_chunk_host_owned_out_buffer(
+    ContextWithHostOwnedBuffer* context) {
+  if (context->cur_iterator >= context->num_chunks) {
+    return nullptr;
+  }
+  size_t chunk_size = context->host_owned_buffer_capacity;
+  for (size_t i = 0; i < chunk_size; ++i) {
+    context->host_owned_buffer[i] += 1;
+  }
+  context->cur_iterator++;
+  return context->host_owned_buffer;
+}
+
+void destroy_context_with_host_owned_buffer(
+    ContextWithHostOwnedBuffer* context) {
   free(context);
 }
 
