@@ -391,8 +391,8 @@ void ForkedProcess::SetupNamespaces(FDCloser initial_userns_fd,
   SAPI_RAW_PCHECK(unshare(unshare_flags) == 0, "unsharing namespaces");
   Namespace::InitializeNamespaces(
       uid, gid, request_.clone_flags(), Mounts(request_.mount_tree()),
-      request_.hostname(), /*avoid_pivot_root=*/true,
-      request_.allow_mount_propagation(), request_.allow_write_executable());
+      request_.hostname(), request_.allow_mount_propagation(),
+      request_.allow_write_executable());
   if (has_newpid) {
     LaunchInit();
   }

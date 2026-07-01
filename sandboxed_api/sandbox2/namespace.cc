@@ -234,29 +234,21 @@ void Namespace::UnshareNestedUserNamespace(int proc_self_fd) {
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts,
                                      const std::string& hostname,
-                                     bool avoid_pivot_root,
                                      bool allow_mount_propagation,
                                      bool allow_write_executable) {
-  if (clone_flags & CLONE_NEWUSER && !avoid_pivot_root) {
-    SetupIDMaps(uid, gid);
-  }
-
   if (!(clone_flags & CLONE_NEWNS)) {
     // CLONE_NEWNS is always set if we're running in namespaces.
     return;
   }
 
-  std::optional<FDCloser> root_fd;
-  if (avoid_pivot_root) {
-    // We want to bind-mount chrooted to real root, so that symlinks work.
-    // Reference to main root is kept to escape later from the chroot
-    root_fd =
-        file_util::fileops::FDCloser(TEMP_FAILURE_RETRY(open("/", O_PATH)));
-    SAPI_RAW_CHECK(root_fd->get() != -1, "creating fd for main root");
+  // We want to bind-mount chrooted to real root, so that symlinks work.
+  // Reference to main root is kept to escape later from the chroot
+  FDCloser root_fd =
+      file_util::fileops::FDCloser(TEMP_FAILURE_RETRY(open("/", O_PATH)));
+  SAPI_RAW_CHECK(root_fd.get() != -1, "creating fd for main root");
 
-    SAPI_RAW_PCHECK(chroot("/realroot") != -1, "chrooting to real root");
-    SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting real root");
-  }
+  SAPI_RAW_PCHECK(chroot("/realroot") != -1, "chrooting to real root");
+  SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting real root");
 
   SAPI_RAW_PCHECK(
       mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr) !=
@@ -282,45 +274,32 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
 
   PrepareChroot(mounts, allow_mount_propagation, allow_write_executable);
 
-  if (avoid_pivot_root) {
-    // Keep a reference to /proc/self as it might not be mounted later
-    FDCloser proc_self_fd(TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH)));
-    SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
+  // Keep a reference to /proc/self as it might not be mounted later
+  FDCloser proc_self_fd(TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH)));
+  SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
 
-    // Return to the main root
-    SAPI_RAW_PCHECK(fchdir(root_fd->get()) != -1, "chdir to main root");
-    SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting to main root");
-    SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting main root");
+  // Return to the main root
+  SAPI_RAW_PCHECK(fchdir(root_fd.get()) != -1, "chdir to main root");
+  SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting to main root");
+  SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting main root");
 
-    // Get a refrence to /realroot to umount it later
-    FDCloser realroot_fd(TEMP_FAILURE_RETRY(open("/realroot", O_PATH)));
+  // Get a refrence to /realroot to umount it later
+  FDCloser realroot_fd(TEMP_FAILURE_RETRY(open("/realroot", O_PATH)));
 
-    // Move the chroot out of realroot to /
-    std::string chroot_path = file::JoinPath("/realroot", kSandbox2ChrootPath);
-    SAPI_RAW_PCHECK(chdir(chroot_path.c_str()) != -1, "chdir to chroot");
-    SAPI_RAW_PCHECK(mount(".", "/", "", MS_MOVE, nullptr) == 0,
-                    "moving rootfs failed");
-    SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting moved chroot");
-    SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chroot");
+  // Move the chroot out of realroot to /
+  std::string chroot_path = file::JoinPath("/realroot", kSandbox2ChrootPath);
+  SAPI_RAW_PCHECK(chdir(chroot_path.c_str()) != -1, "chdir to chroot");
+  SAPI_RAW_PCHECK(mount(".", "/", "", MS_MOVE, nullptr) == 0,
+                  "moving rootfs failed");
+  SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting moved chroot");
+  SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chroot");
 
-    // Umount the realroot so that no reference is left
-    SAPI_RAW_PCHECK(fchdir(realroot_fd.get()) != -1, "fchdir to /realroot");
-    SAPI_RAW_PCHECK(umount2(".", MNT_DETACH) != -1, "detaching old root");
+  // Umount the realroot so that no reference is left
+  SAPI_RAW_PCHECK(fchdir(realroot_fd.get()) != -1, "fchdir to /realroot");
+  SAPI_RAW_PCHECK(umount2(".", MNT_DETACH) != -1, "detaching old root");
 
-    if (clone_flags & CLONE_NEWUSER) {
-      UnshareNestedUserNamespace(proc_self_fd.get());
-    }
-  } else {
-    // This requires some explanation: It's actually possible to pivot_root('/',
-    // '/'). After this operation has been completed, the old root is mounted
-    // over the new root, and it's OK to simply umount('/') now, and to have
-    // new_root as '/'. This allows us not care about providing any special
-    // directory for old_root, which is sometimes not easy, given that e.g. /tmp
-    // might not always be present inside new_root.
-    SAPI_RAW_PCHECK(syscall(__NR_pivot_root, kSandbox2ChrootPath,
-                            kSandbox2ChrootPath) != -1,
-                    "pivot root");
-    SAPI_RAW_PCHECK(umount2("/", MNT_DETACH) != -1, "detaching old root");
+  if (clone_flags & CLONE_NEWUSER) {
+    UnshareNestedUserNamespace(proc_self_fd.get());
   }
 
   SAPI_RAW_PCHECK(chdir("/") == 0,

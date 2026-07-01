@@ -35,7 +35,6 @@ class Namespace final {
   static void InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                    const Mounts& mounts,
                                    const std::string& hostname,
-                                   bool avoid_pivot_root,
                                    bool allow_mount_propagation,
                                    bool allow_write_executable);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
