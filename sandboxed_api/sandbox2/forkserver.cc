@@ -230,12 +230,9 @@ void ForkServer::CreateInitialNamespaces() {
   }
   Comms setup_comms(setup_socketpair.sock[0].Release());
   setup_socketpair.sock[1].Close();
-  int raw_userns_fd;
-  SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_userns_fd), "receiving userns fd");
-  initial_userns_fd_ = FDCloser(raw_userns_fd);
-  int raw_mntns_fd;
-  SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_mntns_fd), "receiving mntns fd");
-  initial_mntns_fd_ = FDCloser(raw_mntns_fd);
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&initial_userns_fd_),
+                 "receiving userns fd");
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&initial_mntns_fd_), "receiving mntns fd");
 }
 
 void ForkServer::CreateInitialNamespacesImpl(Comms setup_comms) {
@@ -251,14 +248,14 @@ void ForkServer::CreateInitialNamespacesImpl(Comms setup_comms) {
   Namespace::InitializeInitialNamespaces(uid, gid);
   SAPI_RAW_PCHECK(chroot("/realroot") == 0,
                   "chrooting prior to dumping coverage");
-  int userns_fd =
-      open(absl::StrCat("/proc/self/ns/user").c_str(), O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_PCHECK(userns_fd != -1, "getting initial userns fd");
-  int mntns_fd =
-      open(absl::StrCat("/proc/self/ns/mnt").c_str(), O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_PCHECK(mntns_fd != -1, "getting initial mntns fd");
-  SAPI_RAW_CHECK(setup_comms.SendFD(userns_fd), "sending mntns fd");
-  SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd), "sending mntns fd");
+  FDCloser userns_fd(
+      open(absl::StrCat("/proc/self/ns/user").c_str(), O_RDONLY | O_CLOEXEC));
+  SAPI_RAW_PCHECK(userns_fd.get() != -1, "getting initial userns fd");
+  FDCloser mntns_fd(
+      open(absl::StrCat("/proc/self/ns/mnt").c_str(), O_RDONLY | O_CLOEXEC));
+  SAPI_RAW_PCHECK(mntns_fd.get() != -1, "getting initial mntns fd");
+  SAPI_RAW_CHECK(setup_comms.SendFD(userns_fd.get()), "sending mntns fd");
+  SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd.get()), "sending mntns fd");
 }
 
 void ForkServer::CreateForkserverSharedNetworkNamespace() {
@@ -280,18 +277,17 @@ void ForkServer::CreateForkserverSharedNetworkNamespace() {
   }
   Comms setup_comms(setup_socketpair.sock[0].Release());
   setup_socketpair.sock[1].Close();
-  int raw_netns_fd;
-  SAPI_RAW_CHECK(setup_comms.RecvFD(&raw_netns_fd), "receiving netns fd");
-  shared_netns_fd_ = FDCloser(raw_netns_fd);
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&shared_netns_fd_), "receiving netns fd");
 }
 
 void ForkServer::CreateEmptyNetworkNamespaceImpl(Comms setup_comms) {
   SAPI_RAW_PCHECK(setns(initial_userns_fd_.get(), CLONE_NEWUSER) == 0,
                   "joining initial user namespace");
   SAPI_RAW_PCHECK(unshare(CLONE_NEWNET) == 0, "unsharing netns");
-  int netns_fd =
-      open(absl::StrCat("/proc/self/ns/net").c_str(), O_RDONLY | O_CLOEXEC);
-  SAPI_RAW_CHECK(setup_comms.SendFD(netns_fd), "sending mntns fd");
+  FDCloser netns_fd(
+      open(absl::StrCat("/proc/self/ns/net").c_str(), O_RDONLY | O_CLOEXEC));
+  SAPI_RAW_PCHECK(netns_fd.get() != -1, "getting netns fd");
+  SAPI_RAW_CHECK(setup_comms.SendFD(netns_fd.get()), "sending mntns fd");
 }
 
 }  // namespace sandbox2
