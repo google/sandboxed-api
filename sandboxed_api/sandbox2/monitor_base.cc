@@ -233,6 +233,7 @@ void MonitorBase::Launch() {
         << "sandboxee binaries at different baselines. This might put users at "
         << "risk.";
   }
+
   if (!InitSendIPC()) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
     return;
@@ -256,6 +257,7 @@ void MonitorBase::Launch() {
   std::move(process_cleanup).Cancel();
 
   RunInternal();
+
   std::move(monitor_done).Cancel();
 }
 
