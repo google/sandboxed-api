@@ -16,20 +16,40 @@
 
 #include <sys/types.h>
 
+#include <string>
 #include <utility>
 
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
-
+namespace {
 using ::sapi::file_util::fileops::FDCloser;
+
+void ReportLatency(const SetupLatencyBreakdown& latency_breakdown) {
+  if (!absl::GetFlag(FLAGS_sandbox2_log_setup_latency_breakdown)) {
+    return;
+  }
+  LOG(INFO) << "Setup latency breakdown:";
+  for (int i = 0; i < SetupLatencyBreakdown::kNumSetupSteps; ++i) {
+    LOG(INFO) << "  "
+              << SetupLatencyBreakdown::SetupStepToString(
+                     static_cast<SetupLatencyBreakdown::SetupStep>(i))
+              << ": "
+              << latency_breakdown.GetLatency(
+                     static_cast<SetupLatencyBreakdown::SetupStep>(i));
+  }
+}
+}  // namespace
 
 ForkClient::ForkClient(pid_t pid, Comms* comms, bool is_global)
     : pid_(pid), comms_(comms), is_global_(is_global) {
@@ -117,6 +137,15 @@ absl::StatusOr<SandboxeeProcess> ForkClient::PendingRequest::Finalize(
     return absl::InternalError(
         "Receiving sandboxee PID from the ForkServer failed");
   }
+
+  // Receive setup latency tracer data and report it.
+  if (SetupLatencyBreakdown latency_breakdown;
+      latency_breakdown.Receive(setup_comms_)) {
+    ReportLatency(latency_breakdown);
+  } else {
+    LOG(WARNING) << "Failed to receive setup latency tracer data";
+  }
+
   return process;
 }
 

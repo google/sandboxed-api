@@ -67,6 +67,11 @@ ABSL_FLAG(int, sandbox2_deadline_manager_signal, SIGRTMAX - 1,
           "Signal to use for deadline notifications - must be not otherwise "
           "used by the process (default: SIGRTMAX - 1)");
 
+// sandbox2:fork_client
+ABSL_FLAG(bool, sandbox2_log_setup_latency_breakdown, false,
+          "If set, sandbox2 will log the setup latency breakdown for each "
+          "started sandboxee");
+
 namespace sandbox2 {
 
 bool AbslParseFlag(absl::string_view text, GlobalForkserverStartModeSet* out,

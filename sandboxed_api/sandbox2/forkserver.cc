@@ -47,7 +47,9 @@
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkedprocess.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/latency_stop_watch.h"
 #include "sandboxed_api/sandbox2/namespace.h"
+#include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -117,6 +119,8 @@ pid_t ForkServer::ServeRequest() {
     }
     SAPI_RAW_LOG(FATAL, "Failed to receive ForkServer request");
   }
+  SetupLatencyBreakdown latency_breakdown;
+  LatencyStopWatch latency_stop_watch;
   SAPI_RAW_CHECK(fork_request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
   if (fork_request.clone_flags() & CLONE_NEWNS) {
@@ -125,6 +129,8 @@ pid_t ForkServer::ServeRequest() {
   if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
     CreateForkserverSharedNetworkNamespace();
   }
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kSharedNamespacesCreation,
+                               latency_stop_watch.LapTime());
 
   // Create a new comms channel to coordinate the child setup.
   Comms setup_comms = [this] {
@@ -133,6 +139,8 @@ pid_t ForkServer::ServeRequest() {
                     "Failed to send setup socket");
     return Comms(setup_socketpair.sock[0].Release());
   }();
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kSetupCommsCreation,
+                               latency_stop_watch.LapTime());
 
   // We fork a child early on to do the rest of the setup.
   const bool has_namespaces = fork_request.clone_flags() & CLONE_NEWUSER;
@@ -148,9 +156,12 @@ pid_t ForkServer::ServeRequest() {
   }
   SAPI_RAW_PCHECK(pid != -1, "fork failed");
   if (pid == 0) {
+    latency_breakdown.SetLatency(SetupLatencyBreakdown::kSetupProcessFork,
+                                 latency_stop_watch.LapTime());
     // Make sure we don't use the forkserver's comms in the forked process.
     comms_->Terminate();
-    ForkedProcess forked(fork_request, std::move(setup_comms));
+    ForkedProcess forked(fork_request, std::move(setup_comms),
+                         latency_breakdown);
     *comms_ =
         forked.Setup(std::move(initial_userns_fd_),
                      std::move(initial_mntns_fd_), std::move(shared_netns_fd_));

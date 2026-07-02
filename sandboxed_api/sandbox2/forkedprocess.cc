@@ -44,10 +44,12 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/latency_stop_watch.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
+#include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
 #include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -379,6 +381,8 @@ void ForkedProcess::SetupNamespaces(FDCloser initial_userns_fd,
       // We'll continue just in the child.
       _exit(0);
     }
+    latency_breakdown_.SetLatency(SetupLatencyBreakdown::kInitFork,
+                                  latency_stop_watch_.LapTime());
   }
   SanitizeEnvironment();
   JoinNamespaces(std::move(initial_mntns_fd), std::move(shared_netns_fd));
@@ -388,13 +392,23 @@ void ForkedProcess::SetupNamespaces(FDCloser initial_userns_fd,
   if (request_.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
     unshare_flags &= ~CLONE_NEWNET;
   }
+
+  latency_breakdown_.SetLatency(SetupLatencyBreakdown::kTillNamespacesUnshare,
+                                latency_stop_watch_.LapTime());
   SAPI_RAW_PCHECK(unshare(unshare_flags) == 0, "unsharing namespaces");
+  latency_breakdown_.SetLatency(SetupLatencyBreakdown::kNamespacesUnshare,
+                                latency_stop_watch_.LapTime());
   Namespace::InitializeNamespaces(
       uid, gid, request_.clone_flags(), Mounts(request_.mount_tree()),
       request_.hostname(), request_.allow_mount_propagation(),
       request_.allow_write_executable());
+  latency_breakdown_.SetLatency(
+      SetupLatencyBreakdown::kNamespacesInitialization,
+      latency_stop_watch_.LapTime());
   if (has_newpid) {
     LaunchInit();
+    latency_breakdown_.SetLatency(SetupLatencyBreakdown::kInitLaunch,
+                                  latency_stop_watch_.LapTime());
   }
 }
 
@@ -434,6 +448,9 @@ Comms ForkedProcess::Setup(FDCloser initial_userns_fd,
   DropAllCapabilities();
   // Send sandboxee pid.
   SAPI_RAW_CHECK(setup_comms_.SendCreds(), "Failed to send sandboxee_pid");
+  latency_breakdown_.SetLatency(SetupLatencyBreakdown::kTillAlmostDone,
+                                latency_stop_watch_.LapTime());
+  latency_breakdown_.Send(setup_comms_);
   setup_comms_.Terminate();
   if (will_exec) {
     LaunchSandboxee();

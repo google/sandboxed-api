@@ -89,4 +89,7 @@ ABSL_DECLARE_FLAG(bool, sandbox_libunwind_crash_handler);  // retired flag
 // sandbox2/util:deadline_manager
 ABSL_DECLARE_FLAG(int, sandbox2_deadline_manager_signal);
 
+// sandbox2:fork_client
+ABSL_DECLARE_FLAG(bool, sandbox2_log_setup_latency_breakdown);
+
 #endif  // SANDBOXED_API_SANDBOX2_FLAGS_H_

@@ -21,14 +21,19 @@
 
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/latency_stop_watch.h"
+#include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
 class ForkedProcess {
  public:
-  ForkedProcess(ForkRequest request, Comms setup_comms)
-      : request_(std::move(request)), setup_comms_(std::move(setup_comms)) {}
+  ForkedProcess(ForkRequest request, Comms setup_comms,
+                SetupLatencyBreakdown latency_breakdown)
+      : request_(std::move(request)),
+        setup_comms_(std::move(setup_comms)),
+        latency_breakdown_(std::move(latency_breakdown)) {}
   // Returns the comms channel for the newly setup sandboxee.
   Comms Setup(sapi::file_util::fileops::FDCloser initial_userns_fd,
               sapi::file_util::fileops::FDCloser initial_mntns_fd,
@@ -52,6 +57,8 @@ class ForkedProcess {
 
   ForkRequest request_;
   Comms setup_comms_;
+  SetupLatencyBreakdown latency_breakdown_;
+  LatencyStopWatch latency_stop_watch_;
   std::vector<std::string> args_;
   std::vector<std::string> envp_;
   sapi::file_util::fileops::FDCloser comms_fd_;

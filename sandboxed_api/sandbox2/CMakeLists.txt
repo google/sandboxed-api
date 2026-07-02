@@ -637,10 +637,12 @@ target_link_libraries(sandbox2_forkedprocess
           sandbox2::bpf_helper
           sandbox2::client
           sandbox2::fork_client
+          sandbox2::latency_stop_watch
           sandbox2::mounts
           sandbox2::namespace
           sandbox2::policy
           sandbox2::sanitizer
+          sandbox2::setup_latency_breakdown
           sandbox2::syscall
           sandbox2::util
           sapi::base
@@ -666,7 +668,9 @@ target_link_libraries(sandbox2_forkserver
           sandbox2::fork_client
           sandbox2::forkedprocess
           sandbox2::forkserver_proto
+          sandbox2::latency_stop_watch
           sandbox2::namespace
+          sandbox2::setup_latency_breakdown
           sandbox2::util
           sapi::base
           sandbox2::version
@@ -683,7 +687,9 @@ add_library(sandbox2_fork_client ${SAPI_LIB_TYPE}
 add_library(sandbox2::fork_client ALIAS sandbox2_fork_client)
 target_link_libraries(sandbox2_fork_client
   PRIVATE absl::status
+          sandbox2::flags
           sandbox2::forkserver_proto
+          sandbox2::setup_latency_breakdown
           sandbox2::version
   PUBLIC absl::core_headers
          absl::statusor
@@ -914,6 +920,29 @@ target_link_libraries(sandbox2_version
   PUBLIC absl::strings
   PRIVATE sapi::base)
 
+# sandboxed_api/sandbox2:setup_latency_breakdown
+add_library(sandbox2_setup_latency_breakdown STATIC
+  setup_latency_breakdown.cc
+  setup_latency_breakdown.h
+)
+add_library(sandbox2::setup_latency_breakdown ALIAS sandbox2_setup_latency_breakdown)
+target_link_libraries(sandbox2_setup_latency_breakdown
+  PRIVATE sapi::base
+  PUBLIC sandbox2::comms
+         sapi::raw_logging
+         absl::time
+)
+
+# sandboxed_api/sandbox2:latency_stop_watch
+add_library(sandbox2_latency_stop_watch STATIC
+  latency_stop_watch.cc
+  latency_stop_watch.h
+)
+add_library(sandbox2::latency_stop_watch ALIAS sandbox2_latency_stop_watch)
+target_link_libraries(sandbox2_latency_stop_watch
+  PRIVATE sapi::base
+  PUBLIC absl::time
+)
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_subdirectory(testcases)
@@ -1398,6 +1427,22 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_bpfdisassembler_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
+
+  # sandboxed_api/sandbox2:latency_stop_watch_test
+  add_executable(sandbox2_latency_stop_watch_test
+    latency_stop_watch_test.cc
+  )
+  set_target_properties(sandbox2_latency_stop_watch_test PROPERTIES
+    OUTPUT_NAME latency_stop_watch_test
+  )
+  target_link_libraries(sandbox2_latency_stop_watch_test
+    PRIVATE sandbox2::latency_stop_watch
+            sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_latency_stop_watch_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )

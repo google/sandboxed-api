@@ -659,21 +659,20 @@ cc_library(
         ":comms",
         ":fork_client",
         ":forkserver_cc_proto",
+        ":latency_stop_watch",
         ":mounts",
         ":namespace",
         ":policy",
         ":sanitizer",
+        ":setup_latency_breakdown",
         ":syscall",
         ":util",
-        ":version",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@libcap",
     ],
@@ -689,7 +688,9 @@ cc_library(
         ":fork_client",
         ":forkedprocess",
         ":forkserver_cc_proto",
+        ":latency_stop_watch",
         ":namespace",
+        ":setup_latency_breakdown",
         ":util",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
@@ -711,10 +712,12 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":comms",
+        ":flags",
         ":forkserver_cc_proto",
-        ":version",
+        ":setup_latency_breakdown",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
@@ -1307,5 +1310,38 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "setup_latency_breakdown",
+    srcs = ["setup_latency_breakdown.cc"],
+    hdrs = ["setup_latency_breakdown.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":comms",
+        "//sandboxed_api/util:raw_logging",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "latency_stop_watch",
+    srcs = ["latency_stop_watch.cc"],
+    hdrs = ["latency_stop_watch.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "latency_stop_watch_test",
+    srcs = ["latency_stop_watch_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":latency_stop_watch",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
     ],
 )

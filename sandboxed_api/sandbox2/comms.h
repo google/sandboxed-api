@@ -76,6 +76,7 @@ class Comms {
   static constexpr uint32_t kTagCreds = 0X80000202;
   static constexpr uint32_t kTagCommsUpgrade = 0x80000203;
   static constexpr uint32_t kTagCommsNoUpgrade = 0x80000204;
+  static constexpr uint32_t kTagLatencyBreakdown = 0x80000205;
 
   // Any payload size above this limit will LOG(WARNING).
   static constexpr size_t kWarnMsgSize = (256ULL << 20);
