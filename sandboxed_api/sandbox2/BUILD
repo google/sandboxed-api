@@ -657,7 +657,6 @@ cc_library(
     deps = [
         ":client",
         ":comms",
-        ":fork_client",
         ":forkserver_cc_proto",
         ":latency_stop_watch",
         ":mounts",
@@ -685,7 +684,6 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":comms",
-        ":fork_client",
         ":forkedprocess",
         ":forkserver_cc_proto",
         ":latency_stop_watch",

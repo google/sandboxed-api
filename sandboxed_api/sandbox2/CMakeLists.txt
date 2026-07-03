@@ -636,7 +636,6 @@ target_link_libraries(sandbox2_forkedprocess
           libcap::libcap
           sandbox2::bpf_helper
           sandbox2::client
-          sandbox2::fork_client
           sandbox2::latency_stop_watch
           sandbox2::mounts
           sandbox2::namespace
@@ -665,7 +664,6 @@ target_link_libraries(sandbox2_forkserver
           absl::strings
           libcap::libcap
           sandbox2::comms
-          sandbox2::fork_client
           sandbox2::forkedprocess
           sandbox2::forkserver_proto
           sandbox2::latency_stop_watch

@@ -50,6 +50,8 @@ class Message;
 }  // namespace proto2
 
 namespace sandbox2 {
+// Envvar indicating that this process should not start the fork-server.
+constexpr inline char kForkServerDisableEnv[] = "SANDBOX2_NOFORKSERVER";
 
 class Client;
 

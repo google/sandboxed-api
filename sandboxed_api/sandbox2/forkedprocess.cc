@@ -42,7 +42,6 @@
 #include "libcap/include/sys/capability.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
-#include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/latency_stop_watch.h"
 #include "sandboxed_api/sandbox2/mounts.h"
