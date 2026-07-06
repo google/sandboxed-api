@@ -24,15 +24,12 @@
 #include <string>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/flags.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
-#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 
@@ -46,8 +43,9 @@ class GlobalForkClient {
       : comms_(fd), fork_client_(pid, &comms_, /*is_global=*/true) {}
 
   static SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
-                                      int comms_fd,
-                                      ForkClient* fork_client = nullptr);
+                                      int comms_fd) {
+    return GetGlobalData().SendRequest(request, exec_fd, comms_fd);
+  }
   static pid_t GetPid() { return GetGlobalData().GetPid(); }
   static void EnsureStarted() {
     GetGlobalData().EnsureStarted(GlobalForkserverStartMode::kOnDemand);
@@ -59,10 +57,8 @@ class GlobalForkClient {
   class GlobalData {
    public:
     GlobalData() = default;
-    absl::StatusOr<ForkClient::PendingRequest> InitiateRequest(
-        const ForkRequest& request) ABSL_LOCKS_EXCLUDED(mutex_);
-    absl::Status SetupOptions(ForkClient::PendingRequest::Options& options,
-                              const ForkRequest& request);
+    SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
+                                 int comms_fd) ABSL_LOCKS_EXCLUDED(mutex_);
     void EnsureStarted(GlobalForkserverStartMode mode)
         ABSL_LOCKS_EXCLUDED(mutex_) {
       absl::MutexLock lock(mutex_);
@@ -75,17 +71,8 @@ class GlobalForkClient {
    private:
     void EnsureStartedLocked(GlobalForkserverStartMode mode)
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-    absl::Status SetupInitialNamespacesLocked()
-        ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-    absl::Status SetupSharedNetnsNamespacesLocked()
-        ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::Mutex mutex_;
     std::unique_ptr<GlobalForkClient> instance_ ABSL_GUARDED_BY(mutex_);
-    sapi::file_util::fileops::FDCloser initial_userns_fd_
-        ABSL_GUARDED_BY(mutex_);
-    sapi::file_util::fileops::FDCloser initial_mntns_fd_
-        ABSL_GUARDED_BY(mutex_);
-    sapi::file_util::fileops::FDCloser shared_netns_fd_ ABSL_GUARDED_BY(mutex_);
   };
   friend void StartGlobalForkserverFromLibCtor();
 

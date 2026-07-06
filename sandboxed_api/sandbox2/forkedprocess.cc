@@ -345,32 +345,28 @@ void ForkedProcess::LaunchSandboxee() {
   ExecuteProcess(execve_fd, argv.data(), envp.data());
 }
 
-void ForkedProcess::JoinInitialUserNamespace() {
-  FDCloser initial_userns_fd;
-  SAPI_RAW_CHECK(setup_comms_.RecvFD(&initial_userns_fd),
-                 "Failed to receive initial user namespace FD");
+void ForkedProcess::JoinInitialUserNamespace(FDCloser initial_userns_fd) {
+  SAPI_RAW_CHECK(initial_userns_fd.get() >= 0, "initial userns fd not set");
   SAPI_RAW_PCHECK(setns(initial_userns_fd.get(), CLONE_NEWUSER) == 0,
                   "joining initial user namespace");
 }
 
-void ForkedProcess::JoinNamespaces() {
-  FDCloser initial_mntns_fd;
-  SAPI_RAW_CHECK(setup_comms_.RecvFD(&initial_mntns_fd),
-                 "Failed to receive initial mount namespace FD");
+void ForkedProcess::JoinNamespaces(FDCloser initial_mntns_fd,
+                                   FDCloser shared_netns_fd) {
+  SAPI_RAW_CHECK(initial_mntns_fd.get() >= 0, "initial mntns fd not set");
   SAPI_RAW_PCHECK(setns(initial_mntns_fd.get(), CLONE_NEWNS) == 0,
                   "joining initial mount namespace");
-
   if (request_.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
-    FDCloser shared_netns_fd;
-    SAPI_RAW_CHECK(setup_comms_.RecvFD(&shared_netns_fd),
-                   "Failed to receive shared network namespace FD");
+    SAPI_RAW_CHECK(shared_netns_fd.get() >= 0, "shared netns fd not set");
     SAPI_RAW_PCHECK(setns(shared_netns_fd.get(), CLONE_NEWNET) == 0,
                     "joining shared network namespace");
   }
 }
 
-void ForkedProcess::SetupNamespaces() {
-  JoinInitialUserNamespace();
+void ForkedProcess::SetupNamespaces(FDCloser initial_userns_fd,
+                                    FDCloser initial_mntns_fd,
+                                    FDCloser shared_netns_fd) {
+  JoinInitialUserNamespace(std::move(initial_userns_fd));
   const uid_t uid = getuid();
   const gid_t gid = getgid();
   const bool has_newpid = request_.clone_flags() & CLONE_NEWPID;
@@ -388,7 +384,7 @@ void ForkedProcess::SetupNamespaces() {
                                   latency_stop_watch_.LapTime());
   }
   SanitizeEnvironment();
-  JoinNamespaces();
+  JoinNamespaces(std::move(initial_mntns_fd), std::move(shared_netns_fd));
   int32_t unshare_flags =
       request_.clone_flags() &
       (CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWUTS);
@@ -416,14 +412,21 @@ void ForkedProcess::SetupNamespaces() {
 }
 
 void ForkedProcess::ReceiveFDs(bool will_exec) {
-  SAPI_RAW_CHECK(setup_comms_.RecvFD(&comms_fd_), "Failed to receive Comms FD");
+  int raw_comms_fd = -1;
+  SAPI_RAW_CHECK(setup_comms_.RecvFD(&raw_comms_fd),
+                 "Failed to receive Comms FD");
+  comms_fd_ = FDCloser(raw_comms_fd);
+  int raw_exec_fd = -1;
   if (will_exec) {
-    SAPI_RAW_CHECK(setup_comms_.RecvFD(&execve_fd_),
+    SAPI_RAW_CHECK(setup_comms_.RecvFD(&raw_exec_fd),
                    "Failed to receive Exec FD");
   }
+  execve_fd_ = FDCloser(raw_exec_fd);
 }
 
-Comms ForkedProcess::Setup() {
+Comms ForkedProcess::Setup(FDCloser initial_userns_fd,
+                           FDCloser initial_mntns_fd,
+                           FDCloser shared_netns_fd) {
   // Restore the default handler for SIGTERM.
   if (signal(SIGTERM, SIG_DFL) == SIG_ERR) {
     SAPI_RAW_PLOG(WARNING, "signal(SIGTERM, SIG_DFL)");
@@ -436,7 +439,8 @@ Comms ForkedProcess::Setup() {
   ReceiveFDs(will_exec);
   if (has_namespaces) {
     // Will also SanitizeEnvironment() in the init process.
-    SetupNamespaces();
+    SetupNamespaces(std::move(initial_userns_fd), std::move(initial_mntns_fd),
+                    std::move(shared_netns_fd));
   } else {
     SanitizeEnvironment();
   }

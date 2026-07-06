@@ -37,7 +37,6 @@
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -271,14 +270,14 @@ void GlobalForkClient::GlobalData::Shutdown() {
   }
 }
 
-absl::StatusOr<ForkClient::PendingRequest>
-GlobalForkClient::GlobalData::InitiateRequest(const ForkRequest& request) {
+SandboxeeProcess GlobalForkClient::GlobalData::SendRequest(
+    const ForkRequest& request, int exec_fd, int comms_fd) {
   absl::StatusOr<ForkClient::PendingRequest> pending_request;
   {
     absl::ReleasableMutexLock lock(mutex_);
     EnsureStartedLocked(GlobalForkserverStartMode::kOnDemand);
     if (!instance_) {
-      return absl::InternalError("Global forkserver not started");
+      return SandboxeeProcess();
     }
     pending_request = instance_->fork_client_.InitiateRequest(request);
     if (instance_->comms_.IsTerminated()) {
@@ -291,88 +290,17 @@ GlobalForkClient::GlobalData::InitiateRequest(const ForkRequest& request) {
       WaitForForkserver(server_pid);
     }
   }
-  return pending_request;
-}
-
-absl::Status GlobalForkClient::GlobalData::SetupInitialNamespacesLocked() {
-  ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
-                        instance_->fork_client_.SendInitializeRequest(
-                            ForkRequest::INITIALIZE_INITIAL_NAMESPACES));
-
-  if (!setup_comms.RecvFD(&initial_userns_fd_)) {
-    return absl::InternalError("Receiving initial user namespace fd failed");
-  }
-  if (!setup_comms.RecvFD(&initial_mntns_fd_)) {
-    initial_userns_fd_.Close();
-    return absl::InternalError("Receiving initial mount namespace fd failed");
-  }
-  return absl::OkStatus();
-}
-
-absl::Status GlobalForkClient::GlobalData::SetupSharedNetnsNamespacesLocked() {
-  ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
-                        instance_->fork_client_.SendInitializeRequest(
-                            ForkRequest::INITIALIZE_EMPTY_NETNS));
-  if (!setup_comms.SendFD(initial_userns_fd_.get())) {
-    return absl::InternalError(
-        "Sending initial user namespace fd for empty netns failed");
-  }
-  if (!setup_comms.RecvFD(&shared_netns_fd_)) {
-    return absl::InternalError("Receiving empty netns fd failed");
-  }
-  return absl::OkStatus();
-}
-
-absl::Status GlobalForkClient::GlobalData::SetupOptions(
-    ForkClient::PendingRequest::Options& options, const ForkRequest& request) {
-  if (!(request.clone_flags() & CLONE_NEWUSER)) {
-    return absl::OkStatus();
-  }
-  absl::MutexLock lock(mutex_);
-  if (initial_userns_fd_.get() == -1) {
-    ABSL_RETURN_IF_ERROR(SetupInitialNamespacesLocked());
-  }
-  SAPI_RAW_CHECK(initial_mntns_fd_.get() != -1,
-                 "Initial mntns fd not initialized");
-  // The FDs are never closed after the initialization, so it is fine to use
-  // them outside of the lock. The lock guards just the initialization.
-  options.initial_userns_fd = initial_userns_fd_.get();
-  options.initial_mntns_fd = initial_mntns_fd_.get();
-  if (request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
-    if (shared_netns_fd_.get() == -1) {
-      ABSL_RETURN_IF_ERROR(SetupSharedNetnsNamespacesLocked());
-    }
-    options.shared_netns_fd = shared_netns_fd_.get();
-  }
-  return absl::OkStatus();
-}
-
-SandboxeeProcess GlobalForkClient::SendRequest(const ForkRequest& request,
-                                               int exec_fd, int comms_fd,
-                                               ForkClient* fork_client) {
-  absl::StatusOr<ForkClient::PendingRequest> pending_request =
-      fork_client != nullptr ? fork_client->InitiateRequest(request)
-                             : GetGlobalData().InitiateRequest(request);
   if (!pending_request.ok()) {
-    LOG(ERROR) << "InitiateRequest failed: "
-               << pending_request.status().message();
+    LOG(ERROR) << pending_request.status();
     return SandboxeeProcess();
   }
-  ForkClient::PendingRequest::Options options;
-  options.exec_fd = exec_fd;
-  options.comms_fd = comms_fd;
-  absl::Status status = GetGlobalData().SetupOptions(options, request);
-  if (!status.ok()) {
-    LOG(ERROR) << "SetupOptions failed: " << status.message();
+  absl::StatusOr<SandboxeeProcess> process =
+      std::move(*pending_request).Finalize(exec_fd, comms_fd);
+  if (!process.ok()) {
+    LOG(ERROR) << process.status();
     return SandboxeeProcess();
   }
-  absl::StatusOr<SandboxeeProcess> sandboxee_process =
-      std::move(*pending_request).Finalize(options);
-  if (!sandboxee_process.ok()) {
-    LOG(ERROR) << "Finalize failed: " << sandboxee_process.status().message();
-    return SandboxeeProcess();
-  }
-  return *std::move(sandboxee_process);
+  return *std::move(process);
 }
 
 pid_t GlobalForkClient::GlobalData::GetPid() {

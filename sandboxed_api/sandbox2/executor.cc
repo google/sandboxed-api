@@ -116,8 +116,8 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
   SandboxeeProcess process;
 
   if (fork_client_) {
-    process = GlobalForkClient::SendRequest(
-        request, exec_fd_.get(), client_comms_fd_.get(), fork_client_);
+    process = fork_client_->SendRequest(request, exec_fd_.get(),
+                                        client_comms_fd_.get());
   } else {
     process = GlobalForkClient::SendRequest(request, exec_fd_.get(),
                                             client_comms_fd_.get());
