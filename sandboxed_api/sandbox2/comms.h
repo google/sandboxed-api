@@ -324,6 +324,8 @@ class Comms {
  private:
   friend class Client;
 
+  class ProtoCopyingOutputStream;
+
   // State of the channel
   enum class State {
     kUnconnected = 0,

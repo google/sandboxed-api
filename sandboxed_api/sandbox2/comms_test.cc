@@ -430,6 +430,23 @@ TEST(CommsTest, TestSendRecvProto) {
   HandleCommunication(a, b);
 }
 
+TEST(CommsTest, TestSendRecvProtoMultiBlock) {
+  // kMaxProtoBlockSize is 256KiB, so this data should span multiple blocks.
+  const std::string data(2 * (256 << 10) + 123, 'x');
+  auto a = [&data](Comms* comms) {
+    CommsTestMsg msg;
+    ASSERT_THAT(comms->RecvProtoBuf(&msg), IsTrue());
+    ASSERT_THAT(msg.value_size(), Eq(1));
+    EXPECT_THAT(msg.value(0), Eq(data));
+  };
+  auto b = [&data](Comms* comms) {
+    CommsTestMsg msg;
+    msg.add_value(data);
+    ASSERT_THAT(comms->SendProtoBuf(msg), IsTrue());
+  };
+  HandleCommunication(a, b);
+}
+
 TEST(CommsTest, TestSendRecvStatusOK) {
   auto a = [](Comms* comms) {
     // Receive a good status.
@@ -688,6 +705,35 @@ BENCHMARK(BM_RecvProtoBuf)
     ->Arg(2048)
     ->Arg(3072)
     ->UseRealTime();
+
+// Benchmarks SendProtoBuf across a range of payload sizes. The proto is sent to
+// /dev/null with no reader, so cpu time tracks wall time and peak memory
+// reflects only the send path.
+void BM_SendProtoBuf(benchmark::State& state) {
+  const int payload_size = state.range(0);
+
+  const int fd = open("/dev/null", O_WRONLY);
+  CHECK_NE(fd, -1);
+  Comms comms(fd);
+
+  // `payload` uses `[ctype = CORD]` to exercise the Cord-based serialize path.
+  CommsTestMsg msg;
+  msg.set_payload(std::string(payload_size, 'x'));
+
+  for (auto s : state) {
+    CHECK(comms.SendProtoBuf(msg));
+  }
+
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                          payload_size);
+  state.SetItemsProcessed(state.iterations());
+}
+BENCHMARK(BM_SendProtoBuf)
+    ->RangeMultiplier(8)
+    ->Range(1 << 6, 128 << 20)
+    ->Arg(1024)
+    ->Arg(2048)
+    ->Arg(3072);
 
 TEST(ListeningCommsTest, AbstractSocket) {
   static constexpr absl::string_view kSocketName = "s2_test_comms";

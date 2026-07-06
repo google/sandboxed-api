@@ -55,6 +55,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "google/protobuf/io/coded_stream.h"
+#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/message_lite.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/util.h"
@@ -74,6 +76,7 @@ namespace {
 using sapi::file_util::fileops::FDCloser;
 
 static constexpr size_t kRecvMsgControlBufferSize = 8192;
+static constexpr size_t kMaxProtoBlockSize = 256 << 10;  // 256 KiB
 
 bool IsFatalError(int saved_errno) {
   return saved_errno != EAGAIN && saved_errno != EWOULDBLOCK &&
@@ -651,15 +654,60 @@ absl::Status Comms::RecvProtoBufWithStatus(google::protobuf::MessageLite* messag
   return absl::OkStatus();
 }
 
+// CopyingOutputStream whose Write() forwards to Comms::Send(), so a message can
+// be serialized straight to the wire without first materializing it into a
+// std::string. Send() already loops on partial writes and handles EINTR/EPIPE.
+class Comms::ProtoCopyingOutputStream : public google::protobuf::io::CopyingOutputStream {
+ public:
+  explicit ProtoCopyingOutputStream(Comms* comms) : comms_(comms) {}
+  bool Write(const void* buffer, int size) override {
+    return comms_->Send(buffer, size);
+  }
+
+ private:
+  Comms* comms_;
+};
+
 bool Comms::SendProtoBuf(const google::protobuf::MessageLite& message) {
-  std::string str;
-  if (!message.SerializeToString(&str)) {
-    SAPI_RAW_LOG(ERROR, "Couldn't serialize the ProtoBuf");
+  // ByteSizeLong() caches the size for SerializeWithCachedSizes() below, so
+  // there is no second size pass and no serialized std::string.
+  const size_t length = message.ByteSizeLong();
+  if (length > GetMaxMsgSize()) {
+    SAPI_RAW_LOG(ERROR, "Maximum TLV message size exceeded: (%zu > %zu)",
+                 length, GetMaxMsgSize());
+    return false;
+  }
+  const InternalTLV tl = {
+      .tag = kTagProto2,
+      .len = length,
+  };
+
+  // Serialize header + body straight to Send() in message-sized blocks capped
+  // at kMaxProtoBlockSize to bound peak memory.
+  const int block_size =
+      static_cast<int>(std::min(sizeof(tl) + length, kMaxProtoBlockSize));
+  ProtoCopyingOutputStream copying(this);
+  google::protobuf::io::CopyingOutputStreamAdaptor adaptor(&copying, block_size);
+
+  {
+    // Scope `coded` so it trims/backs-up the adaptor before we Flush() below;
+    // flushing while it is still alive trips a CHECK (BackUp after Next) on
+    // messages that stream across more than one block.
+    google::protobuf::io::CodedOutputStream coded(&adaptor);
+    coded.WriteRaw(&tl, sizeof(tl));
+    message.SerializeWithCachedSizes(&coded);
+    if (coded.HadError()) {
+      SAPI_RAW_LOG(ERROR, "Couldn't serialize the ProtoBuf");
+      return false;
+    }
+  }
+
+  if (!adaptor.Flush()) {
+    SAPI_RAW_LOG(ERROR, "Couldn't flush the ProtoBuf");
     return false;
   }
 
-  return SendTLV(kTagProto2, str.length(),
-                 reinterpret_cast<const uint8_t*>(str.data()));
+  return true;
 }
 
 // *****************************************************************************
