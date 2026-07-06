@@ -1,6 +1,5 @@
 #include "sandboxed_api/tests/testcases/replaced_library_context_bound.h"
 
-#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 

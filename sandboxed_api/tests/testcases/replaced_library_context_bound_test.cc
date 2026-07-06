@@ -1,5 +1,7 @@
 #include "sandboxed_api/tests/testcases/replaced_library_context_bound.h"
 
+#include <cstddef>
+#include <cstring>
 #include <string>
 
 #include "gtest/gtest.h"
