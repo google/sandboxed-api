@@ -35,9 +35,7 @@ class ForkedProcess {
         setup_comms_(std::move(setup_comms)),
         latency_breakdown_(std::move(latency_breakdown)) {}
   // Returns the comms channel for the newly setup sandboxee.
-  Comms Setup(sapi::file_util::fileops::FDCloser initial_userns_fd,
-              sapi::file_util::fileops::FDCloser initial_mntns_fd,
-              sapi::file_util::fileops::FDCloser shared_netns_fd);
+  Comms Setup();
 
  private:
   void ReceiveFDs(bool will_exec);
@@ -45,13 +43,9 @@ class ForkedProcess {
   sapi::file_util::fileops::FDCloser CreateAndSendStatusPipe();
   void LaunchInit();
   void PrepareExecveArgs();
-  void JoinInitialUserNamespace(
-      sapi::file_util::fileops::FDCloser initial_userns_fd);
-  void JoinNamespaces(sapi::file_util::fileops::FDCloser initial_mntns_fd,
-                      sapi::file_util::fileops::FDCloser shared_netns_fd);
-  void SetupNamespaces(sapi::file_util::fileops::FDCloser initial_userns_fd,
-                       sapi::file_util::fileops::FDCloser initial_mntns_fd,
-                       sapi::file_util::fileops::FDCloser shared_netns_fd);
+  void JoinInitialUserNamespace();
+  void JoinNamespaces();
+  void SetupNamespaces();
   void MoveToPredefiedFDs();
   void LaunchSandboxee();
 

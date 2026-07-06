@@ -110,6 +110,23 @@ bool IsLikelyChrooted() {
 
 }  // namespace
 
+void ForkServer::HandleInitializeRequest(const ForkRequest& fork_request,
+                                         Comms setup_comms) {
+  switch (fork_request.initialization_type()) {
+    case ForkRequest::INITIALIZE_INITIAL_NAMESPACES:
+      CreateInitialNamespaces(std::move(setup_comms));
+      break;
+    case ForkRequest::INITIALIZE_EMPTY_NETNS:
+      CreateEmptyNetworkNamespace(std::move(setup_comms));
+      break;
+    default:
+      SAPI_RAW_LOG(FATAL, "Unsupported initialization type: %d",
+                   fork_request.initialization_type());
+  }
+  util::DumpCoverageData();
+  _exit(0);
+}
+
 pid_t ForkServer::ServeRequest() {
   ForkRequest fork_request;
   if (!comms_->RecvProtoBuf(&fork_request)) {
@@ -122,14 +139,6 @@ pid_t ForkServer::ServeRequest() {
   LatencyStopWatch latency_stop_watch;
   SAPI_RAW_CHECK(fork_request.mode() != FORKSERVER_FORK_UNSPECIFIED,
                  "Forkserver mode is unspecified");
-  if (fork_request.clone_flags() & CLONE_NEWNS) {
-    CreateInitialNamespaces();
-  }
-  if (fork_request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
-    CreateForkserverSharedNetworkNamespace();
-  }
-  latency_breakdown.SetLatency(SetupLatencyBreakdown::kSharedNamespacesCreation,
-                               latency_stop_watch.LapTime());
 
   // Create a new comms channel to coordinate the child setup.
   Comms setup_comms = [this] {
@@ -140,6 +149,17 @@ pid_t ForkServer::ServeRequest() {
   }();
   latency_breakdown.SetLatency(SetupLatencyBreakdown::kSetupCommsCreation,
                                latency_stop_watch.LapTime());
+
+  if (fork_request.mode() == FORKSERVER_INITIALIZE) {
+    // Note: Not a regular fork() as one really needs to be single-threaded to
+    //       setns and this is not the case with TSAN.
+    pid_t pid = util::ForkWithFlags(SIGCHLD);
+    SAPI_RAW_PCHECK(pid != -1, "fork failed");
+    if (pid == 0) {
+      HandleInitializeRequest(fork_request, std::move(setup_comms));
+    }
+    return pid;
+  }
 
   // We fork a child early on to do the rest of the setup.
   const bool has_namespaces = fork_request.clone_flags() & CLONE_NEWUSER;
@@ -161,9 +181,7 @@ pid_t ForkServer::ServeRequest() {
     comms_->Terminate();
     ForkedProcess forked(fork_request, std::move(setup_comms),
                          latency_breakdown);
-    *comms_ =
-        forked.Setup(std::move(initial_userns_fd_),
-                     std::move(initial_mntns_fd_), std::move(shared_netns_fd_));
+    *comms_ = forked.Setup();
   }
   return pid;
 }
@@ -221,31 +239,7 @@ bool ForkServer::Initialize() {
   return true;
 }
 
-void ForkServer::CreateInitialNamespaces() {
-  if (initial_userns_fd_.get() >= 0) {
-    // Initial namespaces already created.
-    return;
-  }
-  UnixSocketPair setup_socketpair = CreateUnixSocketPair(/*passcred=*/true);
-  // Cannot use regular fork, because we need to be single-threaded to setns.
-  // This won't be the case with some sanitizers (e.g. TSAN).
-  pid_t pid = util::ForkWithFlags(0);
-  SAPI_RAW_PCHECK(pid != -1, "fork failed");
-  if (pid == 0) {
-    setup_socketpair.sock[0].Close();
-    // Run the initialization in the child process.
-    CreateInitialNamespacesImpl(Comms(setup_socketpair.sock[1].Release()));
-    util::DumpCoverageData();
-    _exit(0);
-  }
-  Comms setup_comms(setup_socketpair.sock[0].Release());
-  setup_socketpair.sock[1].Close();
-  SAPI_RAW_CHECK(setup_comms.RecvFD(&initial_userns_fd_),
-                 "receiving userns fd");
-  SAPI_RAW_CHECK(setup_comms.RecvFD(&initial_mntns_fd_), "receiving mntns fd");
-}
-
-void ForkServer::CreateInitialNamespacesImpl(Comms setup_comms) {
+void ForkServer::CreateInitialNamespaces(Comms setup_comms) {
   uid_t uid = getuid();
   gid_t gid = getgid();
   int res = unshare(CLONE_NEWUSER | CLONE_NEWNS);
@@ -268,30 +262,10 @@ void ForkServer::CreateInitialNamespacesImpl(Comms setup_comms) {
   SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd.get()), "sending mntns fd");
 }
 
-void ForkServer::CreateForkserverSharedNetworkNamespace() {
-  if (shared_netns_fd_.get() >= 0) {
-    // Network namespace already created.
-    return;
-  }
-  UnixSocketPair setup_socketpair = CreateUnixSocketPair(/*passcred=*/true);
-  // Cannot use regular fork, because we need to be single-threaded to setns.
-  // This won't be the case with some sanitizers (e.g. TSAN).
-  pid_t pid = util::ForkWithFlags(0);
-  SAPI_RAW_PCHECK(pid != -1, "fork failed");
-  if (pid == 0) {
-    setup_socketpair.sock[0].Close();
-    // Run the initialization in the child process.
-    CreateEmptyNetworkNamespaceImpl(Comms(setup_socketpair.sock[1].Release()));
-    util::DumpCoverageData();
-    _exit(0);
-  }
-  Comms setup_comms(setup_socketpair.sock[0].Release());
-  setup_socketpair.sock[1].Close();
-  SAPI_RAW_CHECK(setup_comms.RecvFD(&shared_netns_fd_), "receiving netns fd");
-}
-
-void ForkServer::CreateEmptyNetworkNamespaceImpl(Comms setup_comms) {
-  SAPI_RAW_PCHECK(setns(initial_userns_fd_.get(), CLONE_NEWUSER) == 0,
+void ForkServer::CreateEmptyNetworkNamespace(Comms setup_comms) {
+  FDCloser userns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&userns_fd), "getting initial userns fd");
+  SAPI_RAW_PCHECK(setns(userns_fd.get(), CLONE_NEWUSER) == 0,
                   "joining initial user namespace");
   SAPI_RAW_PCHECK(unshare(CLONE_NEWNET) == 0, "unsharing netns");
   FDCloser netns_fd(

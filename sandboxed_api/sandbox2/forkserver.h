@@ -64,22 +64,21 @@ class ForkServer {
   // - don't convert children processes into zombies if they terminate.
   bool Initialize();
 
+  // Handles a fork request of type FORKSERVER_INITIALIZE.
+  void HandleInitializeRequest(const ForkRequest& fork_request,
+                               Comms setup_comms);
+
   // Creates initial namespaces used as a template for namespaced sandboxees
-  void CreateInitialNamespaces();
-  void CreateInitialNamespacesImpl(Comms setup_comms);
+  void CreateInitialNamespaces(Comms setup_comms);
 
   // Creates a network namespace to be shared between sandboxees
-  void CreateForkserverSharedNetworkNamespace();
-  void CreateEmptyNetworkNamespaceImpl(Comms setup_comms);
+  void CreateEmptyNetworkNamespace(Comms setup_comms);
 
   // Comms channel which is used to send requests to this class. Not owned by
   // the object.
   Comms* comms_;
   uid_t orig_uid_ = -1;
   gid_t orig_gid_ = -1;
-  sapi::file_util::fileops::FDCloser initial_mntns_fd_;
-  sapi::file_util::fileops::FDCloser initial_userns_fd_;
-  sapi::file_util::fileops::FDCloser shared_netns_fd_;
 };
 
 }  // namespace sandbox2

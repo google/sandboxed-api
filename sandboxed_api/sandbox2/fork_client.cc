@@ -23,6 +23,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
@@ -58,7 +59,7 @@ ForkClient::ForkClient(pid_t pid, Comms* comms, bool is_global)
 ForkClient::~ForkClient() {
 }
 
-absl::StatusOr<ForkClient::PendingRequest> ForkClient::InitiateRequest(
+absl::StatusOr<Comms> ForkClient::SendRequestAndReceiveSetupComms(
     const ForkRequest& request) {
   int raw_setup_fd = -1;
   // Acquire the channel ownership for this request (transaction).
@@ -73,46 +74,58 @@ absl::StatusOr<ForkClient::PendingRequest> ForkClient::InitiateRequest(
     return absl::InternalError("Receiving setup fd from the ForkServer failed");
   }
 
-  return PendingRequest(Comms(raw_setup_fd),
+  return Comms(raw_setup_fd);
+}
+
+absl::StatusOr<ForkClient::PendingRequest> ForkClient::InitiateRequest(
+    const ForkRequest& request) {
+  ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
+                        SendRequestAndReceiveSetupComms(request));
+
+  return PendingRequest(std::move(setup_comms),
                         request.clone_flags() & CLONE_NEWPID,
                         request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY);
 }
 
-SandboxeeProcess ForkClient::SendRequest(const ForkRequest& request,
-                                         int exec_fd, int comms_fd) {
-  if (request.mode() == FORKSERVER_FORK_EXECVE ||
-      request.mode() == FORKSERVER_FORK_EXECVE_SANDBOX) {
-    CHECK(exec_fd != -1) << "exec_fd cannot be -1 in execve mode";
-  } else {
-    CHECK(exec_fd == -1) << "exec_fd should be -1 in non-execve mode";
-  }
-  absl::StatusOr<PendingRequest> pending_request = InitiateRequest(request);
-  if (!pending_request.ok()) {
-    LOG(ERROR) << pending_request.status();
-    return SandboxeeProcess();
-  }
-  absl::StatusOr<SandboxeeProcess> result =
-      std::move(*pending_request).Finalize(exec_fd, comms_fd);
-  if (!result.ok()) {
-    LOG(ERROR) << result.status();
-    return SandboxeeProcess();
-  }
-  return *std::move(result);
+absl::StatusOr<Comms> ForkClient::SendInitializeRequest(
+    ForkRequest::InitializationType init_type) {
+  ForkRequest request;
+  request.set_mode(FORKSERVER_INITIALIZE);
+  request.set_initialization_type(init_type);
+  return SendRequestAndReceiveSetupComms(request);
 }
 
 absl::StatusOr<SandboxeeProcess> ForkClient::PendingRequest::Finalize(
-    int exec_fd, int comms_fd) && {
+    const ForkClient::PendingRequest::Options& options) && {
   SandboxeeProcess process;
-  CHECK(comms_fd != -1) << "comms_fd was not properly set up";
-  if (!setup_comms_.SendFD(comms_fd)) {
-    return absl::InternalError(absl::StrCat("Sending Comms FD (", comms_fd,
+  CHECK(options.comms_fd != -1) << "comms_fd was not properly set up";
+  if (!setup_comms_.SendFD(options.comms_fd)) {
+    return absl::InternalError(absl::StrCat(
+        "Sending Comms FD (", options.comms_fd, ") to the ForkServer failed"));
+  }
+  if (options.exec_fd != -1 && !setup_comms_.SendFD(options.exec_fd)) {
+    return absl::InternalError(absl::StrCat(
+        "Sending Exec FD (", options.exec_fd, ") to the ForkServer failed"));
+  }
+  if (options.initial_userns_fd != -1 &&
+      !setup_comms_.SendFD(options.initial_userns_fd)) {
+    return absl::InternalError(absl::StrCat("Sending initial userns FD (",
+                                            options.initial_userns_fd,
                                             ") to the ForkServer failed"));
   }
-  if (exec_fd != -1) {
-    if (!setup_comms_.SendFD(exec_fd)) {
-      return absl::InternalError(absl::StrCat("Sending Exec FD (", exec_fd,
-                                              ") to the ForkServer failed"));
-    }
+
+  if (options.initial_mntns_fd != -1 &&
+      !setup_comms_.SendFD(options.initial_mntns_fd)) {
+    return absl::InternalError(absl::StrCat("Sending initial mntns FD (",
+                                            options.initial_mntns_fd,
+                                            ") to the ForkServer failed"));
+  }
+
+  if (options.shared_netns_fd != -1 &&
+      !setup_comms_.SendFD(options.shared_netns_fd)) {
+    return absl::InternalError(absl::StrCat("Sending shared netns FD (",
+                                            options.shared_netns_fd,
+                                            ") to the ForkServer failed"));
   }
 
   if (needs_status_fd_) {
