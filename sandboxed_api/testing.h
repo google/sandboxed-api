@@ -26,9 +26,6 @@
 
 #define SAPI_ASSERT_OK(expr) ASSERT_THAT(expr, ::absl_testing::IsOk())
 
-#define SAPI_MACROS_IMPL_CONCAT_INNER(x, y) x##y
-#define SAPI_MACROS_IMPL_CONCAT(x, y) SAPI_MACROS_IMPL_CONCAT_INNER(x, y)
-
 #define SAPI_ASSERT_OK_AND_ASSIGN(lhs, rexpr) \
   SAPI_ASSERT_OK_AND_ASSIGN_IMPL(             \
       SAPI_MACROS_IMPL_CONCAT(_sapi_statusor, __LINE__), lhs, rexpr)
