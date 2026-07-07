@@ -170,6 +170,7 @@ cc_library(
         ":status_cc_proto",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:cord",
     ],
@@ -185,22 +186,6 @@ cc_test(
         ":status_cc_proto",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:string_view",
-        "@googletest//:gtest_main",
-    ],
-)
-
-# Tests for the Status macros.
-cc_test(
-    name = "status_macros_test",
-    srcs = ["status_macros_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":status",
-        "//sandboxed_api:testing",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )

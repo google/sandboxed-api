@@ -131,6 +131,7 @@ target_link_libraries(sapi_util_status
   PRIVATE absl::cord
           absl::core_headers
           absl::status
+          absl::status_macros
           absl::strings
           sapi::base
           sapi::strerror
@@ -236,23 +237,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_status_test)
-
-  # sandboxed_api/util:status_macros_test
-  add_executable(sapi_status_macros_test
-    status_macros_test.cc
-  )
-  set_target_properties(sapi_status_macros_test PROPERTIES
-    OUTPUT_NAME status_macros_test
-  )
-  target_link_libraries(sapi_status_macros_test PRIVATE
-    absl::status
-    absl::status_matchers
-    absl::statusor
-    absl::type_traits
-    sapi::testing
-    sapi::test_main
-  )
-  gtest_discover_tests_xcompile(sapi_status_macros_test)
 
   # sandboxed_api/util:strerror
   add_executable(sapi_strerror_test

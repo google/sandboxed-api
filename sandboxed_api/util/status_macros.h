@@ -12,42 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file is a custom fork of util/task/status_macros.h. This will become
-// obsolete and will be replaced once Abseil releases absl::Status.
+// This file used to be a custom fork of util/task/status_macros.h.
 
 #ifndef THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_
 #define THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_
 
-#include <utility>
+// IWYU pragma: begin_exports
+#include "absl/status/status_macros.h"  // INLINER_FORWARD_TO
+// IWYU pragma: end_exports
 
-#include "absl/base/optimization.h"
-#include "absl/status/status.h"
-
-// Internal helper for concatenating macro values.
-#define SAPI_MACROS_IMPL_CONCAT_INNER_(x, y) x##y
-#define SAPI_MACROS_IMPL_CONCAT(x, y) SAPI_MACROS_IMPL_CONCAT_INNER_(x, y)
-
-#define SAPI_RETURN_IF_ERROR(expr)                                           \
-  SAPI_RETURN_IF_ERROR_IMPL(SAPI_MACROS_IMPL_CONCAT(_sapi_status, __LINE__), \
-                            expr)
-
-#define SAPI_RETURN_IF_ERROR_IMPL(status, expr) \
-  do {                                          \
-    const auto status = (expr);                 \
-    if (ABSL_PREDICT_FALSE(!status.ok())) {     \
-      return status;                            \
-    }                                           \
-  } while (0)
-
-#define SAPI_ASSIGN_OR_RETURN(lhs, rexpr) \
-  SAPI_ASSIGN_OR_RETURN_IMPL(             \
-      SAPI_MACROS_IMPL_CONCAT(_sapi_statusor, __LINE__), lhs, rexpr)
-
-#define SAPI_ASSIGN_OR_RETURN_IMPL(statusor, lhs, rexpr) \
-  auto statusor = (rexpr);                               \
-  if (ABSL_PREDICT_FALSE(!statusor.ok())) {              \
-    return statusor.status();                            \
-  }                                                      \
-  lhs = std::move(statusor).value()
+#define SAPI_RETURN_IF_ERROR ABSL_RETURN_IF_ERROR
+#define SAPI_ASSIGN_OR_RETURN ABSL_ASSIGN_OR_RETURN
 
 #endif  // THIRD_PARTY_SAPI_UTIL_STATUS_MACROS_H_

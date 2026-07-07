@@ -387,8 +387,8 @@ absl::Status ElfParser::ReadSymbolsFromSymtab(
 
 absl::StatusOr<std::vector<std::string>> ElfParser::ReadImportedLibraries() {
   std::vector<std::string> result;
-  SAPI_RETURN_IF_ERROR(
-      ForEachSection([&](absl::string_view name, const ElfShdr& hdr) -> auto {
+  SAPI_RETURN_IF_ERROR(ForEachSection(
+      [&](absl::string_view name, const ElfShdr& hdr) -> absl::Status {
         if (hdr.sh_type == SHT_DYNAMIC) {
           SAPI_RETURN_IF_ERROR(ReadImportedLibrariesFromDynamic(
               hdr, [&result](absl::string_view path) {

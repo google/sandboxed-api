@@ -70,7 +70,7 @@ absl::StatusOr<ElfFile> ElfFile::Parse(ElfParser& parser, uint32_t features) {
 
   if (features & ElfFile::kLoadSymbols) {
     SAPI_RETURN_IF_ERROR(parser.ForEachSection(
-        [&](absl::string_view /*name*/, const ElfShdr& hdr) -> auto {
+        [&](absl::string_view /*name*/, const ElfShdr& hdr) -> absl::Status {
           if (hdr.sh_type == SHT_SYMTAB) {
             SAPI_RETURN_IF_ERROR(parser.ReadSymbolsFromSymtab(
                 hdr, [&result](uintptr_t address, absl::string_view name) {
