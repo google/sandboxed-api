@@ -119,6 +119,8 @@ struct SandboxConfig {
          std::to_string(static_cast<int>(absl::StderrThreshold()))},
     };
   }
+
+  static SandboxConfig DefaultConfig();
 };
 
 }  // namespace sapi

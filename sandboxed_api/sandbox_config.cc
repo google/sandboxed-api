@@ -76,4 +76,13 @@ sandbox2::Limits Sandbox2Config::DefaultLimits() {
       .set_walltime_limit(absl::ZeroDuration());
 }
 
+SandboxConfig SandboxConfig::DefaultConfig() {
+  SandboxConfig config;
+  config.sandbox2.policy = Sandbox2Config::DefaultPolicyBuilder().BuildOrDie();
+  config.sandbox2.limits = Sandbox2Config::DefaultLimits();
+  // If we're using the sandbox configuration, we can enable shared memory.
+  config.sandbox2.shared_memory_config = {.enable_huge_pages = true};
+  return config;
+}
+
 }  // namespace sapi
