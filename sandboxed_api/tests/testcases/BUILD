@@ -110,3 +110,26 @@ cc_sandboxed_library_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_sandboxed_library(
+    name = "replacement_library_struct_sync",
+    srcs = [
+        "replaced_library_struct_sync.cc",
+    ],
+    hdrs = [
+        "replaced_library_struct_sync.h",
+    ],
+    annotations = ["lwbox_struct_sync.cc"],
+    deps = [
+        "//sandboxed_api:annotations",
+    ],
+)
+
+cc_sandboxed_library_test(
+    name = "replacement_struct_sync_test",
+    srcs = ["replaced_library_struct_sync_test.cc"],
+    lib = ":replacement_library_struct_sync",
+    deps = [
+        "@googletest//:gtest_main",
+    ],
+)

@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/overload.h"
 #include "absl/log/log.h"
@@ -37,8 +38,10 @@
 #include "absl/strings/substitute.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Mangle.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
@@ -1830,6 +1833,15 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   const std::string& func_type =
       decl->getType().getCanonicalType().getAsString();
 
+  // Check if this is a wrapper function containing a record re-definition
+  // with annotated data members.
+  constexpr absl::string_view kStructAnnotationWrapperFunc =
+      "sandbox_struct_annotation_";
+  if (absl::StartsWith(func_name, kStructAnnotationWrapperFunc) &&
+      decl->getReturnType()->isVoidType() && decl->getNumParams() == 0) {
+    return ParseStructAnnotationWrapperFunc(*decl);
+  }
+
   // Check for SANDBOX_HOST_THUNK and SANDBOX_SANDBOXEE_THUNK here.
   // Also check that they are consistent with the other annotations.
   // If it is a HOST thunk, it needs to be attached to the original function.
@@ -1981,6 +1993,114 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
                                         std::move(func_context_bound));
   return absl::OkStatus();
 }
+
+absl::Status SandboxedLibraryEmitter::ParseStructAnnotationWrapperFunc(
+    const clang::FunctionDecl& decl) {
+  const auto* body =
+      llvm::dyn_cast_or_null<clang::CompoundStmt>(decl.getBody());
+  if (body == nullptr || body->size() != 1) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Unexpected format for sandbox_struct_annotation_ : $0",
+        decl.getName().str()));
+  }
+  const auto* decl_stmt = llvm::dyn_cast<clang::DeclStmt>(body->body_front());
+  if (decl_stmt == nullptr || !decl_stmt->isSingleDecl()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Unexpected format for sandbox_struct_annotation_ : $0",
+        decl.getName().str()));
+  }
+  const auto* record_decl =
+      llvm::dyn_cast<clang::RecordDecl>(decl_stmt->getSingleDecl());
+  if (record_decl == nullptr) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Unexpected format for sandbox_struct_annotation_ : $0",
+        decl.getName().str()));
+  }
+  return ParseRecordAnnotations(*record_decl);
+}
+
+namespace {
+
+// Check that the shadow record declaration with annotations matches a real
+// record declaration. This is a real record declaration has the same name,
+// but should be declared in a parent declaration context.
+absl::Status CheckShadowRecordMatchesRealRecord(
+    const clang::RecordDecl& shadow_decl) {
+  llvm::StringRef record_name = shadow_decl.getName();
+  clang::ASTContext& ast_ctx = shadow_decl.getASTContext();
+  clang::IdentifierInfo& id_info = ast_ctx.Idents.get(record_name);
+  clang::DeclarationName dec_name(&id_info);
+
+  const clang::RecordDecl* real_record = nullptr;
+  // Search parent declaration contexts for a matching record declaration.
+  for (const clang::DeclContext* ctx = shadow_decl.getDeclContext();
+       ctx != nullptr; ctx = ctx->getParent()) {
+    auto lookup_result = ctx->lookup(dec_name);
+    for (clang::NamedDecl* nd : lookup_result) {
+      if (const auto* rd = clang::dyn_cast<clang::RecordDecl>(nd)) {
+        if (rd->getCanonicalDecl() != shadow_decl.getCanonicalDecl()) {
+          real_record = rd;
+          break;
+        }
+      }
+    }
+    if (real_record != nullptr) {
+      break;
+    }
+  }
+
+  if (real_record == nullptr) {
+    return absl::NotFoundError(absl::Substitute(
+        "Could not find matching real struct definition for $0",
+        record_name.str()));
+  }
+
+  real_record = real_record->getDefinition();
+  if (real_record == nullptr) {
+    return absl::NotFoundError(absl::Substitute(
+        "Real struct $0 is declared but not defined", record_name.str()));
+  }
+
+  auto real_it = real_record->fields().begin();
+  auto real_end = real_record->fields().end();
+
+  // It is okay to skip some fields in the shadow struct, but the ones that are
+  // present should be in the same order and have matching names and types.
+  for (const clang::FieldDecl* shadow_field : shadow_decl.fields()) {
+    llvm::StringRef field_name = shadow_field->getName();
+    if (field_name.empty()) {
+      continue;
+    }
+
+    const clang::FieldDecl* matched_field = nullptr;
+    for (; real_it != real_end; ++real_it) {
+      if ((*real_it)->getName() == field_name) {
+        matched_field = *real_it;
+        ++real_it;
+        break;
+      }
+    }
+
+    if (matched_field == nullptr) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "field $0 not found in real record $1 (or is out of relative order)",
+          field_name.str(), record_name.str()));
+    }
+
+    clang::QualType shadow_type = shadow_field->getType().getCanonicalType();
+    clang::QualType real_type = matched_field->getType().getCanonicalType();
+    if (shadow_type != real_type) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("Type mismatch for field $0 in record $1: "
+                           "shadow type is '$2', but real type is '$3'",
+                           field_name.str(), record_name.str(),
+                           shadow_type.getAsString(), real_type.getAsString()));
+    }
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
 
 /**
  * Checks if the function needed any of the context-binding-related host vars
@@ -2180,8 +2300,11 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
 
 // Returns true if the type is trivially copyable and wouldn't involve complex
 // lifetimes or aliasing (e.g., struct with pointer fields that are outputs).
-bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
-                                   clang::QualType type) {
+bool IsDeeplyTriviallyCopyableType(
+    const clang::ASTContext& context, clang::QualType type,
+    const absl::flat_hash_map<std::string,
+                              SandboxedLibraryEmitter::RecordAnnotations>&
+        record_annotations) {
   if (type.isNull()) {
     return false;
   }
@@ -2194,7 +2317,30 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
         record_decl->hasFlexibleArrayMember()) {
       return false;
     }
+
+    const SandboxedLibraryEmitter::RecordAnnotations* rec_ann = nullptr;
+    auto it = record_annotations.find(record_decl->getName());
+    if (it != record_annotations.end()) {
+      rec_ann = &it->second;
+    }
+
     for (const clang::FieldDecl* field : record_decl->fields()) {
+      // If the field is annotated as sandbox_opaque_ptr, we'll treat it as
+      // trivially copyable.
+      llvm::StringRef field_name = field->getName();
+      bool is_opaque = false;
+      if (rec_ann != nullptr) {
+        for (const auto& member_ann : rec_ann->member_annotations) {
+          if (member_ann.name == field_name) {
+            is_opaque = (member_ann.ptr_dir == PointerDir::kSandboxOpaque);
+            break;
+          }
+        }
+      }
+      if (is_opaque) {
+        continue;
+      }
+
       // Allow constant array fields, as long as the element type is
       // trivially copyable. A trailing array member like int arr[1]
       // could still be a considered a flexible array member under
@@ -2203,13 +2349,15 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
       // then the developer should add a thunk or customize the copying.
       if (auto* const_array_type =
               context.getAsConstantArrayType(field->getType())) {
-        if (!IsDeeplyTriviallyCopyableType(
-                context, const_array_type->getElementType())) {
+        if (!IsDeeplyTriviallyCopyableType(context,
+                                           const_array_type->getElementType(),
+                                           record_annotations)) {
           return false;
         }
         continue;
       }
-      if (!IsDeeplyTriviallyCopyableType(context, field->getType())) {
+      if (!IsDeeplyTriviallyCopyableType(context, field->getType(),
+                                         record_annotations)) {
         return false;
       }
     }
@@ -2232,12 +2380,16 @@ bool IsSupportedOutParamNullTerminatedType(clang::QualType type) {
 }
 
 // Returns true if the type is a supported context-bound outparam type.
-bool IsSupportedOutParamContextBoundType(const clang::ASTContext& context,
-                                         clang::QualType type) {
+bool IsSupportedOutParamContextBoundType(
+    const clang::ASTContext& context, clang::QualType type,
+    const absl::flat_hash_map<std::string,
+                              SandboxedLibraryEmitter::RecordAnnotations>&
+        record_annotations) {
   if (!type->isPointerType() || !type->getPointeeType()->isPointerType())
     return false;
   auto pointee_pointee_type = type->getPointeeType()->getPointeeType();
-  return IsDeeplyTriviallyCopyableType(context, pointee_pointee_type);
+  return IsDeeplyTriviallyCopyableType(context, pointee_pointee_type,
+                                       record_annotations);
 }
 
 bool IsSupportedArgByteSizedByType(clang::QualType type) {
@@ -2294,7 +2446,8 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
           std::move(annotations.context_bound));
     }
     if (is_param) {
-      if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType()) &&
+      if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
+                                         record_annotations_) &&
           !((std::holds_alternative<ByteSizedBy>(annotations.size_type) ||
              std::holds_alternative<SizedByBinding>(annotations.size_type)) &&
             IsSupportedArgByteSizedByType(type)) &&
@@ -2305,7 +2458,8 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
             IsSupportedOutParamNullTerminatedType(type)) &&
           !(annotations.context_bound.copy_from_and_bind.has_value() &&
             annotations.ptr_dir == PointerDir::kOut &&
-            IsSupportedOutParamContextBoundType(context, type))) {
+            IsSupportedOutParamContextBoundType(context, type,
+                                                record_annotations_))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type", name));
       }
@@ -2632,6 +2786,75 @@ absl::Status SandboxedLibraryEmitter::CheckParsedAnnotations(
         "retain_and_bind annotation requires a sized_by annotation");
   }
 
+  return absl::OkStatus();
+}
+
+absl::Status SandboxedLibraryEmitter::ParseRecordAnnotations(
+    const clang::RecordDecl& decl) {
+  llvm::StringRef record_name = decl.getName();
+  if (record_name.empty()) {
+    return absl::InvalidArgumentError("Not expecting an empty Record name");
+  }
+
+  RecordAnnotations record_annotations;
+  record_annotations.name = record_name;
+
+  for (const clang::FieldDecl* field : decl.fields()) {
+    SAPI_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
+                          GetSandboxAnnotations(field));
+    if (annotations.empty()) {
+      continue;
+    }
+
+    DataMemberAnnotations member;
+    member.name = field->getName();
+    member.ptr_dir = std::nullopt;
+    for (const auto& ann : annotations) {
+      if (ann.name == "sandbox_opaque_ptr") {
+        member.ptr_dir = PointerDir::kSandboxOpaque;
+      } else if (ann.name == "elem_sized_by") {
+        if (ann.args.size() != 1) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: elem_sized_by annotation requires a size expression",
+              member.name));
+        }
+        member.size_type = ElemSizedBy{ann.args[0]};
+      } else if (ann.name == "byte_sized_by") {
+        if (ann.args.size() != 1) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: byte_sized_by annotation requires a size expression",
+              member.name));
+        }
+        member.size_type = ByteSizedBy{ann.args[0]};
+      } else if (ann.name == "null_terminated") {
+        member.size_type = NullTerminated{};
+      } else {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "field $0: annotation $1 is not supported for record members",
+            member.name, ann.name));
+      }
+    }
+
+    // We only expect ptr_dir to be kSandboxOpaque, if specified at all.
+    if (member.ptr_dir.has_value() &&
+        member.ptr_dir != PointerDir::kSandboxOpaque) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "field $0: only no pointer direction, or kSandboxOpaque, is supported"
+          " for record members",
+          member.name));
+    }
+
+    record_annotations.member_annotations.push_back(std::move(member));
+  }
+
+  if (record_annotations.member_annotations.empty()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "No sandbox annotations found for record $0", record_name.str()));
+  }
+
+  SAPI_RETURN_IF_ERROR(CheckShadowRecordMatchesRealRecord(decl));
+
+  record_annotations_[record_name] = std::move(record_annotations);
   return absl::OkStatus();
 }
 

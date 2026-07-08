@@ -150,6 +150,29 @@
 #define SANDBOX_BYTE_SIZED_BY_BINDING(context, binding_expr) \
   [[clang::annotate("sandbox", "sized_by_binding", #context, #binding_expr)]]
 
+// Wraps a re-definition of a struct. The re-definition allows us to attach
+// annotations to each struct data member without patching the original struct
+// definition.
+//
+// For example:
+//   // Original definition (in the library, no annotations):
+//   struct Span { ... };
+//
+//   // Re-definition with annotations:
+//   SANDBOX_ANNOTATE_STRUCT(struct Span {
+//     char* data SANDBOX_ELEM_SIZED_BY(len);
+//     size_t len;
+//   });
+//
+// One may omit irrelevant struct data members. However, the members that are
+// copied over must have the same names and types as in the original struct.
+//
+// One should only annotate properties that are always true, regardless of
+// context, such as size annotations. It does not make sense for annotations
+// that are context-dependent, such as parameter pointer direction or lifetimes.
+#define SANDBOX_ANNOTATE_STRUCT(struct_decl) \
+  SANDBOX_ANNOTATE_STRUCT_IMPL(struct_decl)
+
 // Annotations for sandboxee and host thunks.
 // These just mean that we also emit these into the sandbox / host code.
 // They can be used to hook function calls.

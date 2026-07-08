@@ -118,6 +118,22 @@ class SandboxedLibraryEmitter : public EmitterBase {
  public:
   class Arg;
 
+  // Annotations that apply to all instances of a given Struct/Class type.
+  struct DataMemberAnnotations {
+    std::string name;
+    // For now, we only support sizing annotations for pointer typed members
+    // which represent arrays.
+    ArraySizedByType size_type;
+    // We also support indicating that a pointer is kSandboxOpaque,
+    // and so does not need to be synced beyond a shallow copy.
+    std::optional<PointerDir> ptr_dir;
+  };
+
+  struct RecordAnnotations {
+    std::string name;
+    std::vector<DataMemberAnnotations> member_annotations;
+  };
+
   // Called after parsing of all input files.
   // Can be used to finalize data, or emit errors that can be detected
   // only after seeing all files.
@@ -255,6 +271,10 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::StatusOr<Annotations> ParseAnnotations(
       absl::string_view name, const clang::FunctionDecl* funcDecl);
   absl::Status CheckParsedAnnotations(const Annotations& annotations) const;
+  absl::Status ParseStructAnnotationWrapperFunc(
+      const clang::FunctionDecl& decl);
+  absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl);
+
   std::vector<const Func*> SortedFuncs() const;
 
   absl::flat_hash_set<std::string> includes_;
@@ -267,6 +287,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
   std::vector<std::string> host_state_vars_;
   std::optional<std::string> host_code_;
   std::optional<std::string> sandboxee_code_;
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations_;
   bool has_context_bindings_ = false;
 };
 
