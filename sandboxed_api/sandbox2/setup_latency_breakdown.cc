@@ -39,6 +39,20 @@ std::string SetupLatencyBreakdown::SetupStepToString(SetupStep step) {
       return "Namespaces unshare";
     case kNamespacesInitialization:
       return "Namespaces initialization";
+    case kNsInitChrootToRealRoot:
+      return "Chroot to realroot";
+    case kNsInitProcMount:
+      return "Procfs mount";
+    case kNsInitNetnsInitialization:
+      return "Netns init";
+    case kNsInitPrepareChroot:
+      return "Prepare chroot";
+    case kNsInitChrootBack:
+      return "Chroot to sandboxee";
+    case kNsInitUnmountRealRoot:
+      return "Unmount realroot";
+    case kNsInitNestedUserNamespace:
+      return "Nested userns init";
     case kInitLaunch:
       return "Init process launch";
     case kTillAlmostDone:

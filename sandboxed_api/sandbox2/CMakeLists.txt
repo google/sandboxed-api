@@ -732,8 +732,10 @@ target_link_libraries(sandbox2_namespace
           sapi::fileops
           sapi::base
           sapi::raw_logging
+          sandbox2::latency_stop_watch
   PUBLIC sandbox2::forkserver_proto
          sandbox2::mounts
+         sandbox2::setup_latency_breakdown
 )
 
 # sandboxed_api/sandbox2:forkingclient

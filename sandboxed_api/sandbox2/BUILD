@@ -770,7 +770,9 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         ":forkserver_cc_proto",
+        ":latency_stop_watch",
         ":mounts",
+        ":setup_latency_breakdown",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",

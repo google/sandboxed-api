@@ -26,6 +26,7 @@
 
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
+#include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
 
 namespace sandbox2 {
 
@@ -36,7 +37,8 @@ class Namespace final {
                                    const Mounts& mounts,
                                    const std::string& hostname,
                                    bool allow_mount_propagation,
-                                   bool allow_write_executable);
+                                   bool allow_write_executable,
+                                   SetupLatencyBreakdown& latency_breakdown);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
 
   Namespace(Mounts mounts, std::string hostname, NetNsMode netns_config,

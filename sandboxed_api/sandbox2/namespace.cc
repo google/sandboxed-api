@@ -34,7 +34,9 @@
 
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/latency_stop_watch.h"
 #include "sandboxed_api/sandbox2/mounts.h"
+#include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -234,11 +236,14 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts,
                                      const std::string& hostname,
                                      bool allow_mount_propagation,
-                                     bool allow_write_executable) {
+                                     bool allow_write_executable,
+                                     SetupLatencyBreakdown& latency_breakdown) {
   if (!(clone_flags & CLONE_NEWNS)) {
     // CLONE_NEWNS is always set if we're running in namespaces.
     return;
   }
+
+  LatencyStopWatch latency_stop_watch;
 
   // We want to bind-mount chrooted to real root, so that symlinks work.
   // Reference to main root is kept to escape later from the chroot
@@ -249,11 +254,17 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
   SAPI_RAW_PCHECK(chroot("/realroot") != -1, "chrooting to real root");
   SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting real root");
 
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitChrootToRealRoot,
+                               latency_stop_watch.LapTime());
+
   SAPI_RAW_PCHECK(
       mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr) !=
           -1,
       "Could not mount a new /proc"
   );
+
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitProcMount,
+                               latency_stop_watch.LapTime());
 
   if (clone_flags & CLONE_NEWNET) {
     // Some things can only be done if inside a new network namespace, like
@@ -269,9 +280,14 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
     SAPI_RAW_PCHECK(sethostname(hostname.c_str(), hostname.size()) != -1,
                     "Could not set network namespace hostname '%s'", hostname);
     ActivateLoopbackInterface();
+    latency_breakdown.SetLatency(
+        SetupLatencyBreakdown::kNsInitNetnsInitialization,
+        latency_stop_watch.LapTime());
   }
 
   PrepareChroot(mounts, allow_mount_propagation, allow_write_executable);
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitPrepareChroot,
+                               latency_stop_watch.LapTime());
 
   // Keep a reference to /proc/self as it might not be mounted later
   FDCloser proc_self_fd(TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH)));
@@ -292,13 +308,20 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                   "moving rootfs failed");
   SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting moved chroot");
   SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chroot");
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitChrootBack,
+                               latency_stop_watch.LapTime());
 
   // Umount the realroot so that no reference is left
   SAPI_RAW_PCHECK(fchdir(realroot_fd.get()) != -1, "fchdir to /realroot");
   SAPI_RAW_PCHECK(umount2(".", MNT_DETACH) != -1, "detaching old root");
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitUnmountRealRoot,
+                               latency_stop_watch.LapTime());
 
   if (clone_flags & CLONE_NEWUSER) {
     UnshareNestedUserNamespace(proc_self_fd.get());
+    latency_breakdown.SetLatency(
+        SetupLatencyBreakdown::kNsInitNestedUserNamespace,
+        latency_stop_watch.LapTime());
   }
 
   SAPI_RAW_PCHECK(chdir("/") == 0,

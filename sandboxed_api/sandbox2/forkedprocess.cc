@@ -400,7 +400,7 @@ void ForkedProcess::SetupNamespaces(FDCloser initial_userns_fd,
   Namespace::InitializeNamespaces(
       uid, gid, request_.clone_flags(), Mounts(request_.mount_tree()),
       request_.hostname(), request_.allow_mount_propagation(),
-      request_.allow_write_executable());
+      request_.allow_write_executable(), latency_breakdown_);
   latency_breakdown_.SetLatency(
       SetupLatencyBreakdown::kNamespacesInitialization,
       latency_stop_watch_.LapTime());
