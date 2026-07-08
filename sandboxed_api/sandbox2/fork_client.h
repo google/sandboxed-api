@@ -24,10 +24,10 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
-class ForkRequest;
 
 struct SandboxeeProcess {
   pid_t init_pid = -1;
@@ -39,10 +39,18 @@ class ForkClient {
  public:
   class PendingRequest {
    public:
+    struct Options {
+      int comms_fd = -1;
+      int exec_fd = -1;
+      int initial_userns_fd = -1;
+      int initial_mntns_fd = -1;
+      int shared_netns_fd = -1;
+    };
+
     PendingRequest(PendingRequest&&) = default;
     PendingRequest& operator=(PendingRequest&&) = default;
 
-    absl::StatusOr<SandboxeeProcess> Finalize(int exec_fd, int comms_fd) &&;
+    absl::StatusOr<SandboxeeProcess> Finalize(const Options& options) &&;
 
    private:
     friend class ForkClient;
@@ -71,13 +79,6 @@ class ForkClient {
     return func(comms_);
   }
 
-  // Sends the fork request over the supplied Comms channel.
-  SandboxeeProcess SendRequest(const ForkRequest& request, int exec_fd,
-                               int comms_fd);
-
-  // Initiates the fork request.
-  absl::StatusOr<PendingRequest> InitiateRequest(const ForkRequest& request);
-
   pid_t pid() { return pid_; }
 
  private:
@@ -85,6 +86,17 @@ class ForkClient {
   friend class GlobalForkClient;
 
   ForkClient(pid_t pid, Comms* comms, bool is_global);
+
+  // Initiates the fork request.
+  absl::StatusOr<PendingRequest> InitiateRequest(const ForkRequest& request);
+
+  // Sends an initialization request.
+  // Returns the comms channel to the setup process.
+  absl::StatusOr<Comms> SendInitializeRequest(
+      ForkRequest::InitializationType init_type);
+
+  absl::StatusOr<Comms> SendRequestAndReceiveSetupComms(
+      const ForkRequest& request) ABSL_LOCKS_EXCLUDED(comms_mutex_);
 
   // Pid of the ForkServer.
   pid_t pid_;

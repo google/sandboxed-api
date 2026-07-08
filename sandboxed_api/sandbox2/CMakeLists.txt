@@ -258,6 +258,7 @@ target_link_libraries(sandbox2_global_forkserver
           absl::no_destructor
           absl::strings
           absl::status
+          absl::status_macros
           absl::log
           sandbox2::client
           sandbox2::flags
@@ -631,7 +632,6 @@ target_link_libraries(sandbox2_forkedprocess
   PRIVATE absl::core_headers
           absl::flat_hash_map
           absl::status
-          absl::statusor
           absl::strings
           libcap::libcap
           sandbox2::bpf_helper
@@ -646,8 +646,7 @@ target_link_libraries(sandbox2_forkedprocess
           sandbox2::util
           sapi::base
           sapi::raw_logging
-  PUBLIC absl::flat_hash_set
-         sandbox2::comms
+  PUBLIC sandbox2::comms
          sandbox2::forkserver_proto
          sapi::fileops
 )
@@ -688,8 +687,8 @@ target_link_libraries(sandbox2_fork_client
           sandbox2::flags
           sandbox2::forkserver_proto
           sandbox2::setup_latency_breakdown
-          sandbox2::version
   PUBLIC absl::core_headers
+         absl::status_macros
          absl::statusor
          absl::strings
          absl::synchronization

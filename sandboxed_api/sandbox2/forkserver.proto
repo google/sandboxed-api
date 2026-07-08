@@ -30,6 +30,7 @@ enum Mode {
   // Just fork
   FORKSERVER_FORK = 3;
   reserved 4;
+  FORKSERVER_INITIALIZE = 5;
 }
 
 enum MonitorType {
@@ -62,6 +63,12 @@ enum NetNsMode {
 }
 
 message ForkRequest {
+  enum InitializationType {
+    // Default value
+    INITIALIZE_UNSPECIFIED = 0;
+    INITIALIZE_INITIAL_NAMESPACES = 1;
+    INITIALIZE_EMPTY_NETNS = 2;
+  }
   // List of arguments, starting with argv[0]
   repeated bytes args = 1;
   // List of environment variables which will be passed to the child
@@ -95,4 +102,7 @@ message ForkRequest {
 
   // Whether to allow the sandboxee to mount write-executable filesystems
   optional bool allow_write_executable = 12;
+
+  // What initialization to run. Relevant only for FORKSERVER_INITIALIZE mode.
+  optional InitializationType initialization_type = 13;
 }
