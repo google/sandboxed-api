@@ -44,6 +44,7 @@ sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
       .AllowReadlink()
       .AllowAccess()
       .AllowSharedMemory()
+      .AllowSharedMemoryComms()
       .AllowSyscalls({
           __NR_recvmsg,
           __NR_sendmsg,
@@ -82,6 +83,7 @@ SandboxConfig SandboxConfig::DefaultConfig() {
   config.sandbox2.limits = Sandbox2Config::DefaultLimits();
   // If we're using the sandbox configuration, we can enable shared memory.
   config.sandbox2.shared_memory_config = {.enable_huge_pages = true};
+  config.sandbox2.enable_shared_memory_comms = true;
   return config;
 }
 
