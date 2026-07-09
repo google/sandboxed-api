@@ -242,7 +242,7 @@ class SandboxedLibraryEmitter::Arg {
   absl::string_view GetName() const { return name_; }
 
   const std::string& EmitRetType() const { return type_; }
-  std::string EmitHostParams() const {
+  virtual std::string EmitHostParams() const {
     return absl::Substitute("$0 $1", type_, name_);
   }
 
@@ -587,6 +587,47 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
  private:
   const PointerDir ptr_dir_;
   const PointerLifetime lifetime_;
+};
+
+struct CallbackArg : SandboxedLibraryEmitter::Arg {
+  CallbackArg(absl::string_view name, absl::string_view type)
+      : Arg(name, type) {}
+
+  std::vector<std::string> Includes() const override {
+    return {
+        "<optional>",
+        absl::Substitute("\"$0sandboxed_api/var_callback.h\"", kIncludePrefix),
+    };
+  }
+
+  std::string EmitHostParams() const override {
+    // Using decltype() to specify the callback type here allows us to follow
+    // a "typename variablename" syntax without the need to write a typedef for
+    // the callback type.
+    return absl::Substitute("decltype(static_cast<$0>(nullptr)) $1", type_,
+                            name_);
+  }
+  std::string EmitSandboxeeParams() const override { return EmitHostParams(); }
+
+  std::string EmitHostPreCall() const override {
+    return absl::Substitute(
+        "  std::optional<sapi::v::Callback> sapi_cb_$0;\n"
+        "  if ($0) {\n"
+        "    sapi_cb_$0.emplace($0);\n"
+        "    sandbox->Check(sandbox->Allocate(\n"
+        "        &sapi_cb_$0.value(), /*automatic_free=*/true));\n"
+        "  }\n",
+        name_);
+  }
+
+  std::string EmitHostArgs() const override {
+    return absl::Substitute("sapi_cb_$0 ? sapi_cb_$0->PtrBefore() : nullptr",
+                            name_);
+  }
+
+  std::string EmitSandboxeeArgs() const override {
+    return absl::Substitute("$0", name_);
+  }
 };
 
 // Basic information about a pointer's pointee's type.
@@ -2276,7 +2317,8 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
     SAPI_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, funcDecl));
   }
 
-  if (type->isPointerType() && annotations.ptr_dir == std::nullopt) {
+  if (type->isPointerType() && !type->isFunctionPointerType() &&
+      annotations.ptr_dir == std::nullopt) {
     return absl::InvalidArgumentError(
         absl::Substitute("argument $0 with type $1: missing sandbox annotation",
                          name, type.getAsString()));
@@ -2422,6 +2464,36 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
   if (type_name == "std::string_view" ||
       type_name == "class std::basic_string_view<char>") {
     return std::make_unique<StringViewArg>(name, type_name);
+  }
+  if (type->isFunctionPointerType()) {
+    if (!is_param) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "return function pointer $0 is not supported", name));
+    }
+    const auto* function_type =
+        type->getPointeeType()->getAs<clang::FunctionProtoType>();
+    if (!function_type) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("callback $0 does not have a prototype", name));
+    }
+    for (const auto& param_type : function_type->getParamTypes()) {
+      clang::QualType canonical_param = param_type.getCanonicalType();
+      if (!canonical_param->isIntegralOrEnumerationType()) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 has unsupported non-primitive parameter type: $1",
+            name, canonical_param.getAsString()));
+      }
+    }
+    clang::QualType canonical_ret =
+        function_type->getReturnType().getCanonicalType();
+    if (!canonical_ret->isVoidType() &&
+        !canonical_ret->isIntegralOrEnumerationType() &&
+        !canonical_ret->isPointerType()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 has unsupported non-primitive return type: $1", name,
+          canonical_ret.getAsString()));
+    }
+    return std::make_unique<CallbackArg>(name, type_name);
   }
   if (type->isPointerType()) {
     // Check whether this pointer even needs syncing or is an opaque handle.

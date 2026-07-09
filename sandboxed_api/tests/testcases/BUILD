@@ -133,3 +133,29 @@ cc_sandboxed_library_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_sandboxed_library(
+    name = "replacement_library_callbacks",
+    srcs = [
+        "replaced_library_callbacks.cc",
+    ],
+    hdrs = [
+        "replaced_library_callbacks.h",
+    ],
+    annotations = ["lwbox_callbacks_sandbox.cc"],
+    sandboxee_deps = [
+        "//sandboxed_api:vars",
+    ],
+    deps = [
+        "//sandboxed_api:annotations",
+    ],
+)
+
+cc_sandboxed_library_test(
+    name = "replacement_callbacks_test",
+    srcs = ["replaced_library_callbacks_test.cc"],
+    lib = ":replacement_library_callbacks",
+    deps = [
+        "@googletest//:gtest_main",
+    ],
+)
