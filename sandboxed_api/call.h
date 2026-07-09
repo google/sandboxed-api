@@ -41,8 +41,10 @@ constexpr uint32_t kMsgClose = 0x108;
 constexpr uint32_t kMsgReallocate = 0x109;
 constexpr uint32_t kMsgStrlen = 0x10A;
 constexpr uint32_t kMsgMarkMemoryInit = 0x10B;
+constexpr uint32_t kMsgCallback = 0x10C;
 // Return:
 constexpr uint32_t kMsgReturn = 0x201;
+constexpr uint32_t kMsgCallbackRet = 0x202;
 
 }  // namespace comms
 
@@ -125,6 +127,15 @@ struct FuncRet {
   };
 
   bool success;  // Status of the operation: success/failure.
+};
+
+struct CallbackRequest {
+  uint64_t index;
+  uint64_t args[6];
+};
+
+struct CallbackResponse {
+  uint64_t ret;
 };
 
 }  // namespace sapi

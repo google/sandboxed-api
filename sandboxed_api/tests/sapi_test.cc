@@ -48,6 +48,7 @@
 #include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 #include "sandboxed_api/var_array.h"
+#include "sandboxed_api/var_callback.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_ptr.h"
@@ -496,6 +497,121 @@ TEST_P(SandboxTest, MapFd) {
     SAPI_ASSERT_OK_AND_ASSIGN(result, api.sum(1, 2));
     EXPECT_THAT(result, Eq(3));
   }
+}
+
+TEST_P(SandboxTest, CallbackTest) {
+  SandboxConfig config = GetDefaultConfig();
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  auto host_cb = [](int a, int b) -> int {
+    LOG(INFO) << "Host callback called with: " << a << ", " << b;
+    return a + b;
+  };
+
+  sapi::v::Callback cb(host_cb);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(int result,
+                            api.call_callback(cb.PtrBefore(), 10, 20));
+  EXPECT_THAT(result, Eq(30));
+}
+
+TEST_P(SandboxTest, CallbackSlotReuseTest) {
+  SandboxConfig config = GetDefaultConfig();
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+
+  auto host_cb = [](int a, int b) -> int { return a + b; };
+
+  // Fill all 64 slots
+  std::vector<std::unique_ptr<sapi::v::Callback>> callbacks;
+  for (int i = 0; i < 64; ++i) {
+    auto cb = std::make_unique<sapi::v::Callback>(host_cb);
+    ASSERT_THAT(sandbox.Allocate(cb.get(), /*automatic_free=*/true), IsOk());
+    callbacks.push_back(std::move(cb));
+  }
+
+  // Verify 65th fails
+  {
+    sapi::v::Callback extra_cb(host_cb);
+    EXPECT_THAT(sandbox.Allocate(&extra_cb, /*automatic_free=*/true),
+                StatusIs(absl::StatusCode::kResourceExhausted));
+  }
+
+  // Free one callback (index 42)
+  callbacks.erase(callbacks.begin() + 42);
+
+  // Register a new one, it should succeed by reusing the slot
+  {
+    auto cb = std::make_unique<sapi::v::Callback>(host_cb);
+    EXPECT_THAT(sandbox.Allocate(cb.get(), /*automatic_free=*/true), IsOk());
+    callbacks.push_back(std::move(cb));
+  }
+
+  // Verify 65th still fails
+  {
+    sapi::v::Callback extra_cb(host_cb);
+    EXPECT_THAT(sandbox.Allocate(&extra_cb, /*automatic_free=*/true),
+                StatusIs(absl::StatusCode::kResourceExhausted));
+  }
+}
+
+TEST_P(SandboxTest, CallbackSignPreservationTest) {
+  SandboxConfig config = GetDefaultConfig();
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  auto host_cb = [](int a, int b) -> int {
+    EXPECT_THAT(a, Eq(-10));
+    EXPECT_THAT(b, Eq(-20));
+    return a + b;
+  };
+
+  sapi::v::Callback cb(host_cb);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(int result,
+                            api.call_callback(cb.PtrBefore(), -10, -20));
+  EXPECT_THAT(result, Eq(-30));
+}
+
+TEST_P(SandboxTest, CallbackWithPtrTest) {
+  SandboxConfig config = GetDefaultConfig();
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  sapi::v::Int shared_val(42);
+
+  auto host_cb = [&sandbox](sapi::v::RemotePtr remote_ptr) -> int {
+    sapi::v::Int val;
+    val.SetRemote(reinterpret_cast<void*>(remote_ptr.GetRemoteValue()));
+    EXPECT_THAT(sandbox.TransferFromSandboxee(&val), IsOk());
+    return val.GetValue() * 2;
+  };
+
+  sapi::v::Callback cb(host_cb);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      int result,
+      api.call_callback_with_ptr(cb.PtrBefore(), shared_val.PtrBefore()));
+  EXPECT_THAT(result, Eq(84));
+}
+
+TEST_P(SandboxTest, CallbackLoopTest) {
+  SandboxConfig config = GetDefaultConfig();
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  auto host_cb = [](int a) -> int { return a * 2; };
+
+  sapi::v::Callback cb(host_cb);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(int result,
+                            api.call_callback_loop(cb.PtrBefore(), 5));
+  EXPECT_THAT(result, Eq(20));
 }
 
 TEST_P(SandboxTest, CompareSelfSymbol) {

@@ -28,6 +28,9 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   add_sapi_library(sapi_test-sapi
     FUNCTIONS accumulate
               compare_self_symbol
+              call_callback
+              call_callback_with_ptr
+              call_callback_loop
     INPUTS sapi_test_lib_cpp.cc
     LIBRARY sapi_test_lib
     LIBRARY_NAME SapiTest

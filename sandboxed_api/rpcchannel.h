@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -74,6 +75,25 @@ class RPCChannel {
 
   // Returns length of a null-terminated c-style string (invokes strlen).
   virtual absl::StatusOr<size_t> Strlen(void* str) = 0;
+
+  // Registers a host-side callback function to be called from the sandboxee.
+  // Returns the remote pointer to the trampoline that triggers this callback.
+  //
+  // Limitations:
+  // - Supports a maximum of 6 arguments (enforced by CallbackRequest).
+  // - Floating-point arguments and return values are NOT supported because the
+  //   assembly trampolines only save general-purpose registers and do not
+  //   capture floating-point registers (XMM/VFP) used by the ABI for floats.
+  // - Supported types are limited to integral, enum, pointer, and
+  //   sapi::v::RemotePtr.
+  virtual absl::StatusOr<uintptr_t> RegisterCallback(
+      absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) {
+    return absl::UnimplementedError("Callbacks not supported by this channel");
+  }
+
+  virtual absl::Status UnregisterCallback(uintptr_t remote_ptr) {
+    return absl::UnimplementedError("Callbacks not supported by this channel");
+  }
 };
 
 }  // namespace sapi

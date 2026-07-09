@@ -17,6 +17,7 @@
 
 // IWYU pragma: begin_exports
 #include "sandboxed_api/var_array.h"
+#include "sandboxed_api/var_callback.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
 #include "sandboxed_api/var_proto.h"

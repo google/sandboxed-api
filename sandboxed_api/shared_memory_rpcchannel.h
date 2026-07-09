@@ -24,6 +24,7 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/btree_set.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -127,6 +128,11 @@ class SharedMemoryRPCChannel : public RPCChannel {
 
   absl::Status Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
                     v::Type exp_type) override;
+
+  absl::StatusOr<uintptr_t> RegisterCallback(
+      absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) override;
+
+  absl::Status UnregisterCallback(uintptr_t remote_ptr) override;
 
   ~SharedMemoryRPCChannel() override = default;
 

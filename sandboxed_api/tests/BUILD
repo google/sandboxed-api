@@ -67,6 +67,9 @@ sapi_library(
     functions = [
         "accumulate",
         "compare_self_symbol",
+        "call_callback",
+        "call_callback_with_ptr",
+        "call_callback_loop",
     ],
     input_files = [
         "sapi_test_lib_cpp.cc",

@@ -179,7 +179,12 @@ inline constexpr std::string_view kSandboxeeCommonIncludes = R"(
 //   2. Sandboxee handler functions
 //   3. HandleCallMsg name prefix
 //   4. Sandboxee function names
+//   5. Sandboxee symbol names
 inline constexpr std::string_view kSandboxeeSrcTemplate = R"(
+#if defined(__x86_64__) || defined(__aarch64__)
+extern "C" char sapi_callback_trampolines[];
+#endif
+
 extern "C" {
   %1$s
 
@@ -480,6 +485,16 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
   std::sort(rendered_functions_unqualified_ordered.begin(),
             rendered_functions_unqualified_ordered.end());
 
+  std::vector<std::string> entries;
+  entries.reserve(rendered_functions_unqualified_ordered.size() + 1);
+  for (const auto& func : rendered_functions_unqualified_ordered) {
+    entries.push_back(
+        absl::StrFormat("{\"%1$s\", reinterpret_cast<void*>(&%1$s)}", func));
+  }
+  entries.push_back(R"(#if defined(__x86_64__) || defined(__aarch64__)
+    {"sapi_callback_trampolines", reinterpret_cast<void*>(sapi_callback_trampolines)}
+#endif)");
+
   absl::StrAppend(
       &out, absl::StrFormat(
                 kSandboxeeSrcTemplate,
@@ -493,14 +508,7 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
                                     absl::StrFormat(
                                         "{\"%1$s\", HandleCall_%1$s}", func));
                               }),
-                absl::StrJoin(
-                    rendered_functions_unqualified_ordered, ",\n",
-                    [](std::string* out, std::string_view func) {
-                      absl::StrAppend(
-                          out, absl::StrFormat(
-                                   "{\"%1$s\", reinterpret_cast<void*>(&%1$s)}",
-                                   func));
-                    })));
+                absl::StrJoin(entries, ",\n")));
   return out;
 }
 

@@ -85,8 +85,11 @@ cc_library(
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
@@ -106,6 +109,7 @@ cc_library(
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:btree",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
@@ -241,10 +245,12 @@ cc_library(
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:runfiles",
         "//sandboxed_api/util:status",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
@@ -288,6 +294,7 @@ cc_library(
         "rpcchannel.h",
         "var_abstract.h",
         "var_array.h",
+        "var_callback.h",
         "var_int.h",
         "var_lenval.h",
         "var_proto.h",
@@ -307,15 +314,16 @@ cc_library(
         "//sandboxed_api/util:proto_helper",
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:die_if_null",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
-        "@abseil-cpp//absl/utility",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -328,6 +336,7 @@ cc_library(
     deps = [
         ":call",
         ":var_type",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
@@ -356,7 +365,10 @@ cc_library(
 # A stub to be linked in with SAPI libraries
 cc_library(
     name = "client",
-    srcs = ["client.cc"],
+    srcs = [
+        "client.cc",
+        "trampolines.S",
+    ],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
@@ -375,6 +387,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],
+    alwayslink = True,
 )
 
 cc_library(
@@ -391,6 +404,7 @@ cc_library(
         "@abseil-cpp//absl/log:initialize",
         "@libffi",
     ],
+    alwayslink = True,
 )
 
 # Utility library for writing tests

@@ -128,9 +128,11 @@ add_library(sapi_sandbox2_backend ${SAPI_LIB_TYPE}
 add_library(sapi::sandbox2_backend ALIAS sapi_sandbox2_backend)
 target_link_libraries(sapi_sandbox2_backend
   PRIVATE absl::any_invocable
+          absl::core_headers
           absl::log
           absl::log_globals
           absl::status
+          absl::status_macros
           absl::statusor
           absl::strings
           absl::span
@@ -238,7 +240,8 @@ add_library(sapi_rpcchannel ${SAPI_LIB_TYPE}
 add_library(sapi::rpcchannel ALIAS sapi_rpcchannel)
 target_link_libraries(sapi_rpcchannel
   PRIVATE sapi::base
-  PUBLIC absl::span
+  PUBLIC absl::any_invocable
+         absl::span
          absl::status
          absl::statusor
          sapi::call
@@ -250,6 +253,7 @@ add_library(sapi_vars ${SAPI_LIB_TYPE}
   var_abstract.cc
   var_abstract.h
   var_array.h
+  var_callback.h
   var_int.cc
   var_int.h
   var_lenval.cc
@@ -268,11 +272,13 @@ target_link_libraries(sapi_vars
           sandbox2::util
           sapi::base
           sapi::var_type
-  PUBLIC absl::check
+  PUBLIC absl::any_invocable
+         absl::check
          absl::core_headers
          absl::die_if_null
          absl::log
          absl::status
+         absl::status_macros
          absl::statusor
          absl::strings
          absl::str_format
@@ -321,6 +327,7 @@ target_link_libraries(sapi_client_message_handler PRIVATE
 # sandboxed_api:client
 add_library(sapi_client ${SAPI_LIB_TYPE}
   client.cc
+  trampolines.S
 )
 add_library(sapi::client ALIAS sapi_client)
 target_link_libraries(sapi_client
@@ -360,7 +367,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     shared_memory_rpcchannel_test.cc
   )
   target_link_libraries(shared_memory_rpcchannel_test
-    PRIVATE absl::check
+    PRIVATE absl::any_invocable
+            absl::check
             absl::status
             absl::statusor
             absl::status_matchers

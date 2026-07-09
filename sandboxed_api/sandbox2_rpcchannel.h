@@ -15,9 +15,12 @@
 #ifndef SANDBOXED_API_SANDBOX2_RPCCHANNEL_H_
 #define SANDBOXED_API_SANDBOX2_RPCCHANNEL_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -82,15 +85,27 @@ class Sandbox2RPCChannel : public RPCChannel {
   // Returns length of a null-terminated c-style string (invokes strlen).
   absl::StatusOr<size_t> Strlen(void* str) override;
 
+  absl::StatusOr<uintptr_t> RegisterCallback(
+      absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) override;
+
+  absl::Status UnregisterCallback(uintptr_t remote_ptr) override;
+
   sandbox2::Comms* comms() const { return comms_; }
 
  private:
+  static constexpr size_t kMaxCallbacks = 64;
+  static constexpr size_t kTrampolineSize = 16;
+
   // Marks the memory as initialized (used with MSAN).
   absl::Status MarkMemoryInit(void* addr, size_t size);
 
   // Exchanges a message and receives the result after a call.
   absl::StatusOr<FuncRet> Exchange(uint32_t tag, const void* data, size_t len,
-                                   v::Type exp_type);
+                                   v::Type exp_type)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  absl::StatusOr<uintptr_t> GetTrampolineTableAddr()
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   // Receives the result after a call (used for special cases like
   // SendFD/RecvFD).
@@ -100,6 +115,11 @@ class Sandbox2RPCChannel : public RPCChannel {
   // The pid of the sandboxee.
   pid_t pid_;
   absl::Mutex mutex_;
+
+  std::array<absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)>,
+             kMaxCallbacks>
+      callbacks_ ABSL_GUARDED_BY(mutex_);
+  uintptr_t trampoline_table_addr_ ABSL_GUARDED_BY(mutex_) = 0;
 };
 
 }  // namespace sapi

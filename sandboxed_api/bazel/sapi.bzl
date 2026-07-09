@@ -407,6 +407,7 @@ def sapi_library(
             srcs = [generated_sandboxee_src],
             deps = [
                 ":" + name + ".lib",
+                "//sandboxed_api:client",
                 "@abseil-cpp//absl/base:core_headers",
                 "@abseil-cpp//absl/base:no_destructor",
                 "@abseil-cpp//absl/container:flat_hash_map",
@@ -415,6 +416,7 @@ def sapi_library(
                 "//sandboxed_api:call",
                 "//sandboxed_api:function_call_helper",
             ],
+            alwayslink = 1,
             copts = default_copts,
             **common
         )

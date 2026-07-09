@@ -31,3 +31,19 @@ extern "C" int accumulate(int* a, int* b, int* c, int* d, int* e, int* f,
 extern "C" bool compare_self_symbol(void* self) {
   return self == reinterpret_cast<void*>(&compare_self_symbol);
 }
+
+extern "C" int call_callback(int (*cb)(int, int), int a, int b) {
+  return cb(a, b);
+}
+
+extern "C" int call_callback_with_ptr(int (*cb)(int*), int* ptr) {
+  return cb(ptr);
+}
+
+extern "C" int call_callback_loop(int (*cb)(int), int count) {
+  int sum = 0;
+  for (int i = 0; i < count; ++i) {
+    sum += cb(i);
+  }
+  return sum;
+}

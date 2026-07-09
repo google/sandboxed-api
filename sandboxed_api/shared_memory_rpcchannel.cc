@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/container/btree_set.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -395,6 +396,15 @@ absl::Status SharedMemoryRPCChannel::EnsureWithinAllocationBounds(
     return absl::InternalError("Range is out of bounds.");
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<uintptr_t> SharedMemoryRPCChannel::RegisterCallback(
+    absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) {
+  return rpcchannel_->RegisterCallback(std::move(cb));
+}
+
+absl::Status SharedMemoryRPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
+  return rpcchannel_->UnregisterCallback(remote_ptr);
 }
 
 }  // namespace sapi

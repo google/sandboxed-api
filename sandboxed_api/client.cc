@@ -43,8 +43,17 @@ namespace sapi {
 
 namespace client {
 
-void HandleCallMsg(const FuncCall& call, FuncRet* ret);
-void HandleSymbolMsg(const char* symname, FuncRet* ret);
+sandbox2::Comms* g_comms = nullptr;
+
+// These functions are defined as weak so they can be overridden by the strong
+// symbols generated in the SAPI stub (sandboxee.cc). This breaks the circular
+// dependency between the generic client library and the generated stub.
+ABSL_ATTRIBUTE_WEAK void HandleCallMsg(const FuncCall& call, FuncRet* ret) {
+  LOG(FATAL) << "HandleCallMsg not implemented (stub not linked?)";
+}
+ABSL_ATTRIBUTE_WEAK void HandleSymbolMsg(const char* symname, FuncRet* ret) {
+  LOG(FATAL) << "HandleSymbolMsg not implemented (stub not linked?)";
+}
 
 // Handles requests to allocate memory inside the sandboxee.
 void HandleAllocMsg(const size_t size, FuncRet* ret) {
@@ -223,9 +232,30 @@ void ServeRequest(sandbox2::Comms* comms) {
   FuncRet ret = ProcessRequest(comms, tag, bytes);
   CHECK(comms->SendTLV(comms::kMsgReturn, sizeof(ret), &ret));
 }
-
 }  // namespace client
 }  // namespace sapi
+
+extern "C" uint64_t sapi_client_HandleCallback(uint64_t index, uint64_t* args) {
+  CHECK(sapi::client::g_comms != nullptr) << "g_comms not initialized";
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(args, 6 * sizeof(uint64_t));
+  sapi::CallbackRequest req;
+  req.index = index;
+  memcpy(req.args, args, sizeof(req.args));
+
+  uint32_t recv_tag;
+  std::vector<uint8_t> recv_value;
+  if (!sapi::client::g_comms->ExchangeTLV(
+          sapi::comms::kMsgCallback,
+          absl::MakeSpan(reinterpret_cast<const uint8_t*>(&req), sizeof(req)),
+          &recv_tag, &recv_value)) {
+    LOG(FATAL) << "Callback ExchangeTLV failed";
+  }
+  CHECK_EQ(recv_tag, sapi::comms::kMsgCallbackRet);
+  CHECK_EQ(recv_value.size(), sizeof(sapi::CallbackResponse));
+  sapi::CallbackResponse resp;
+  memcpy(&resp, recv_value.data(), sizeof(sapi::CallbackResponse));
+  return resp.ret;
+}
 
 ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
   absl::ParseCommandLine(argc, argv);
@@ -236,6 +266,7 @@ ABSL_ATTRIBUTE_WEAK int main(int argc, char* argv[]) {
   // called to replace the FD `kSandbox2ClientCommsFD`.
   // We do not use a new comms object here as the destructor would close our FD.
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
+  sapi::client::g_comms = &comms;
   sandbox2::ForkingClient s2client(&comms);
 
   s2client.EnterForkLoop();

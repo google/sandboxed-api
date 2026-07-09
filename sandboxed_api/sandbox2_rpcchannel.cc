@@ -14,12 +14,18 @@
 
 #include "sandboxed_api/sandbox2_rpcchannel.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
+#include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
@@ -51,6 +57,34 @@ absl::StatusOr<FuncRet> Sandbox2RPCChannel::Exchange(uint32_t tag,
           &recv_tag, &recv_value)) {
     return absl::UnavailableError("Exchanging TLV value failed");
   }
+
+  while (recv_tag == comms::kMsgCallback) {
+    if (recv_value.size() != sizeof(CallbackRequest)) {
+      return absl::UnavailableError(
+          "Received incorrect length for CallbackRequest");
+    }
+    CallbackRequest req;
+    memcpy(&req, recv_value.data(), sizeof(CallbackRequest));
+
+    uint64_t ret = 0;
+    if (req.index < callbacks_.size() && callbacks_[req.index]) {
+      ret = callbacks_[req.index](req.args);
+    } else {
+      LOG(ERROR) << "Callback index " << req.index << " not registered or null";
+    }
+
+    CallbackResponse resp;
+    resp.ret = ret;
+
+    if (!comms_->ExchangeTLV(
+            comms::kMsgCallbackRet,
+            absl::MakeSpan(reinterpret_cast<const uint8_t*>(&resp),
+                           sizeof(resp)),
+            &recv_tag, &recv_value)) {
+      return absl::UnavailableError("Callback response ExchangeTLV failed");
+    }
+  }
+
   if (recv_tag != comms::kMsgReturn) {
     LOG(ERROR) << "recv_tag != kMsgReturn (" << recv_tag
                << " != " << comms::kMsgReturn << ")";
@@ -233,6 +267,58 @@ absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
         Exchange(comms::kMsgMarkMemoryInit, &req, sizeof(req), v::Type::kVoid)
             .status());
   }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<uintptr_t> Sandbox2RPCChannel::GetTrampolineTableAddr() {
+  if (trampoline_table_addr_ != 0) {
+    return trampoline_table_addr_;
+  }
+  const std::string_view symname = "sapi_callback_trampolines";
+  ABSL_ASSIGN_OR_RETURN(auto fret,
+                        Exchange(comms::kMsgSymbol, symname.data(),
+                                 symname.length() + 1, v::Type::kPointer));
+  trampoline_table_addr_ = fret.int_val;
+  if (trampoline_table_addr_ == 0) {
+    return absl::NotFoundError(
+        "sapi_callback_trampolines symbol not found in sandboxee");
+  }
+  return trampoline_table_addr_;
+}
+
+absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallback(
+    absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) {
+  absl::MutexLock lock(mutex_);
+  ABSL_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
+                        GetTrampolineTableAddr());
+
+  auto it = std::find(callbacks_.begin(), callbacks_.end(), nullptr);
+  if (it == callbacks_.end()) {
+    return absl::ResourceExhaustedError(absl::StrCat(
+        "All ", kMaxCallbacks, " callback slots are already registered"));
+  }
+  *it = std::move(cb);
+  size_t slot = std::distance(callbacks_.begin(), it);
+  uintptr_t remote_ptr = trampoline_table_addr + slot * kTrampolineSize;
+  return remote_ptr;
+}
+
+absl::Status Sandbox2RPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
+  absl::MutexLock lock(mutex_);
+  SAPI_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
+                        GetTrampolineTableAddr());
+  if (remote_ptr < trampoline_table_addr) {
+    return absl::InvalidArgumentError("Invalid remote_ptr");
+  }
+  size_t offset = remote_ptr - trampoline_table_addr;
+  if (offset % kTrampolineSize != 0) {
+    return absl::InvalidArgumentError("Invalid remote_ptr alignment");
+  }
+  size_t slot = offset / kTrampolineSize;
+  if (slot >= callbacks_.size()) {
+    return absl::InvalidArgumentError("Invalid remote_ptr slot");
+  }
+  callbacks_[slot] = nullptr;
   return absl::OkStatus();
 }
 
