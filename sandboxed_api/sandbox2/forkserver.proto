@@ -68,6 +68,7 @@ message ForkRequest {
     INITIALIZE_UNSPECIFIED = 0;
     INITIALIZE_INITIAL_NAMESPACES = 1;
     INITIALIZE_EMPTY_NETNS = 2;
+    INITIALIZE_SHARED_PID_NAMESPACES = 3;
   }
   // List of arguments, starting with argv[0]
   repeated bytes args = 1;
@@ -105,4 +106,7 @@ message ForkRequest {
 
   // What initialization to run. Relevant only for FORKSERVER_INITIALIZE mode.
   optional InitializationType initialization_type = 13;
+
+  // Whether to use Landlock rather than mount/pid namespaces for this request.
+  optional bool use_landlock = 14;
 }

@@ -350,6 +350,7 @@ target_link_libraries(sandbox2_sandbox2
          sandbox2::buffer
          sandbox2::client
          sandbox2::comms
+         sandbox2::allowlists_enable_landlock
          sandbox2::sandbox_config
          sandbox2::executor
          sandbox2::fork_client
@@ -567,6 +568,7 @@ target_link_libraries(sandbox2_policybuilder
          absl::source_location
          absl::strings
          absl::statusor
+         sandbox2::allowlists_enable_landlock
          sandbox2::forkserver_proto
          sandbox2::mounts
          sandbox2::network_proxy_filtering
@@ -658,11 +660,14 @@ add_library(sandbox2_forkserver ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::forkserver ALIAS sandbox2_forkserver)
 target_link_libraries(sandbox2_forkserver
-  PRIVATE absl::status
+  PRIVATE absl::flags
+          absl::status
           absl::statusor
           absl::strings
           libcap::libcap
+          sandbox2::allowlists_enable_landlock
           sandbox2::comms
+          sandbox2::flags
           sandbox2::forkedprocess
           sandbox2::forkserver_proto
           sandbox2::latency_stop_watch
@@ -683,9 +688,13 @@ add_library(sandbox2_fork_client ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::fork_client ALIAS sandbox2_fork_client)
 target_link_libraries(sandbox2_fork_client
-  PRIVATE absl::status
+  PRIVATE absl::flags
+          absl::log
+          absl::status
+          sandbox2::flags
           sandbox2::flags
           sandbox2::forkserver_proto
+          sandbox2::namespace
           sandbox2::setup_latency_breakdown
   PUBLIC absl::core_headers
          absl::status_macros
@@ -721,12 +730,17 @@ target_link_libraries(sandbox2_mounts
 
 # sandboxed_api/sandbox2:namespace
 add_library(sandbox2_namespace ${SAPI_LIB_TYPE}
+  landlock.cc
+  landlock.h
   namespace.cc
   namespace.h
 )
 add_library(sandbox2::namespace ALIAS sandbox2_namespace)
 target_link_libraries(sandbox2_namespace
-  PRIVATE absl::strings
+  PRIVATE absl::flags
+          absl::strings
+          sandbox2::flags
+          sandbox2::util
           sapi::file_base
           sapi::fileops
           sapi::base
@@ -736,6 +750,8 @@ target_link_libraries(sandbox2_namespace
          sandbox2::mounts
          sandbox2::setup_latency_breakdown
 )
+
+
 
 # sandboxed_api/sandbox2:forkingclient
 add_library(sandbox2_forkingclient ${SAPI_LIB_TYPE}
@@ -1308,8 +1324,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     absl::time
     sandbox2::allowlists_all_syscalls
+    sandbox2::allowlists_enable_landlock
     sandbox2::allowlists_namespaces
+    sandbox2::flags
     sandbox2::global_forkserver
+    sandbox2::namespace
     sandbox2::sandbox2
     sandbox2::stack_trace
     sandbox2::util
@@ -1359,6 +1378,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::log
             absl::status
             absl::statusor
+            sandbox2::allowlists_enable_landlock
             sandbox2::allowlists_unrestricted_networking
             sandbox2::bpf_helper
             sandbox2::policy
@@ -1425,7 +1445,36 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sapi::testing
             sapi::test_main
   )
-  gtest_discover_tests_xcompile(sandbox2_bpfdisassembler_test PROPERTIES
+  gtest_discover_tests_xcompile(sandbox2_network_proxy_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
+
+  # sandboxed_api/sandbox2:landlock_test
+  add_executable(sandbox2_landlock_test
+    landlock_test.cc
+  )
+  set_target_properties(sandbox2_landlock_test PROPERTIES
+    OUTPUT_NAME landlock_test
+  )
+  add_dependencies(sandbox2_landlock_test
+    sandbox2::testcase_custom_fork
+    sandbox2::testcase_namespace
+  )
+  target_link_libraries(sandbox2_landlock_test PRIVATE
+    absl::check
+    absl::strings
+    sandbox2::allowlists_unrestricted_networking
+    sandbox2::comms
+    sandbox2::allowlists_enable_landlock
+    sandbox2::fork_client
+    sandbox2::global_forkserver
+    sandbox2::namespace
+    sandbox2::sandbox2
+    sapi::testing
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_landlock_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )

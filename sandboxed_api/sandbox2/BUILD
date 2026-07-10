@@ -565,6 +565,7 @@ cc_library(
     hdrs = ["policybuilder.h"],
     copts = sapi_platform_copts(),
     deps = [
+        ":flags",
         ":forkserver_cc_proto",
         ":mounts",
         ":namespace",
@@ -572,6 +573,7 @@ cc_library(
         ":syscall",
         "//sandboxed_api:config",
         "//sandboxed_api/sandbox2/allowlists:all_syscalls",
+        "//sandboxed_api/sandbox2/allowlists:enable_landlock",
         "//sandboxed_api/sandbox2/allowlists:map_exec",
         "//sandboxed_api/sandbox2/allowlists:mount_propagation",
         "//sandboxed_api/sandbox2/allowlists:namespaces",
@@ -586,6 +588,7 @@ cc_library(
         "//sandboxed_api/util:status",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
@@ -767,14 +770,21 @@ cc_test(
 
 cc_library(
     name = "namespace",
-    srcs = ["namespace.cc"],
-    hdrs = ["namespace.h"],
+    srcs = [
+        "landlock.cc",
+        "namespace.cc",
+    ],
+    hdrs = [
+        "landlock.h",
+        "namespace.h",
+    ],
     copts = sapi_platform_copts(),
     deps = [
         ":forkserver_cc_proto",
         ":latency_stop_watch",
         ":mounts",
         ":setup_latency_breakdown",
+        ":util",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
@@ -806,6 +816,32 @@ cc_test(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "landlock_test",
+    srcs = ["landlock_test.cc"],
+    copts = sapi_platform_copts(),
+    data = [
+        "//sandboxed_api/sandbox2/testcases:custom_fork",
+        "//sandboxed_api/sandbox2/testcases:namespace",
+    ],
+    tags = [
+        "requires-net:external",
+    ],
+    deps = [
+        ":comms",
+        ":fork_client",
+        ":global_forkserver",
+        ":namespace",
+        ":sandbox2",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2/allowlists:enable_landlock",
+        "//sandboxed_api/sandbox2/allowlists:testonly_unrestricted_networking",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
@@ -1164,10 +1200,12 @@ cc_test(
     tags = ["no_qemu_user_mode"],
     deps = [
         ":global_forkserver",
+        ":namespace",
         ":sandbox2",
         ":stack_trace",
         ":util",
         "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2/allowlists:enable_landlock",
         "//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",
         "//sandboxed_api/sandbox2/allowlists:testonly_namespaces",
@@ -1216,6 +1254,7 @@ cc_test(
     deps = [
         ":policy",
         ":policybuilder",
+        "//sandboxed_api/sandbox2/allowlists:enable_landlock",
         "//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:file_base",

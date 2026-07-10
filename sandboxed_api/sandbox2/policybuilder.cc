@@ -57,6 +57,7 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
@@ -266,6 +267,11 @@ PolicyBuilder& PolicyBuilder::DisableNamespaces(NamespacesToken) {
     return *this;
   }
   use_namespaces_ = false;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::EnableLandlock(sandbox2::EnableLandlock) {
+  use_landlock_ = true;
   return *this;
 }
 
@@ -1554,6 +1560,37 @@ std::vector<sock_filter> PolicyBuilder::ResolveBpfFunc(BpfFunc f) {
   return policy;
 }
 
+namespace {
+absl::Status ValidateLandlockIdentityMounts(const MountTree& root_tree) {
+  std::vector<std::pair<std::string, const MountTree*>> stack = {
+      {"", &root_tree}};
+  while (!stack.empty()) {
+    auto [path, tree] = stack.back();
+    stack.pop_back();
+
+    if (tree->has_node()) {
+      if (tree->node().has_dir_node() &&
+          tree->node().dir_node().outside() != path) {
+        return absl::FailedPreconditionError(absl::StrCat(
+            "Cannot use Landlock with non-identity mounts. ", "path='", path,
+            "', outside='", tree->node().dir_node().outside(), "'"));
+      }
+      if (tree->node().has_file_node() &&
+          tree->node().file_node().outside() != path) {
+        return absl::FailedPreconditionError(absl::StrCat(
+            "Cannot use Landlock with non-identity mounts. ", "path='", path,
+            "', outside='", tree->node().file_node().outside(), "'"));
+      }
+    }
+
+    for (const auto& entry : tree->entries()) {
+      stack.push_back({absl::StrCat(path, "/", entry.first), &entry.second});
+    }
+  }
+  return absl::OkStatus();
+}
+}  // namespace
+
 absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
     absl::SourceLocation loc) {
   if (!last_status_.ok()) {
@@ -1573,7 +1610,16 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
   // Using `new` to access a non-public constructor.
   auto policy = absl::WrapUnique(new Policy());
 
-  if (use_namespaces_) {
+  bool use_landlock = use_landlock_;
+
+  if (use_landlock) {
+    // We need to check that all the mounts are compatible with Landlock, i.e.
+    // are identity mounts, i.e. outside and inside are the same.
+    MountTree mount_tree = mounts_.GetMountTree();
+    SAPI_RETURN_IF_ERROR(ValidateLandlockIdentityMounts(mount_tree));
+  }
+
+  if (use_namespaces_ || use_landlock) {
     // If no specific netns mode is set, default to per-sandboxee.
     if (netns_mode_ == NETNS_MODE_UNSPECIFIED) {
       netns_mode_ = NETNS_MODE_PER_SANDBOXEE;
@@ -1582,9 +1628,11 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    policy->namespace_ =
-        Namespace(std::move(mounts_), hostname_, netns_mode_,
-                  allow_mount_propagation_, allow_write_executable_);
+    // We pass the mounts that we will then parse for namespaces or Landlock.
+    policy->namespace_ = Namespace(
+        std::move(mounts_), hostname_, netns_mode_,
+        /*allow_mount_propagation=*/use_namespaces_ && allow_mount_propagation_,
+        allow_write_executable_, use_landlock);
   }
 
   policy->allow_map_exec_ = allow_map_exec_;

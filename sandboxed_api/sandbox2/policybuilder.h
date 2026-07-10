@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -46,6 +45,7 @@ struct bpf_labels;
 namespace sandbox2 {
 
 class AllowAllSyscalls;
+class EnableLandlock;
 class LoadUserBpfCodeFromFile;
 class MapExec;
 class MountPropagation;
@@ -162,6 +162,12 @@ class PolicyBuilder final {
   // Disabling namespaces is not recommended and should only be done if
   // absolutely necessary.
   PolicyBuilder& DisableNamespaces(NamespacesToken);
+
+  // Enables Landlock filesystem isolation for this policy rather than mount
+  // and PID namespaces.
+  //
+  // Note: Landlock support is experimental and subject to change.
+  PolicyBuilder& EnableLandlock(sandbox2::EnableLandlock);
 
   // Allows the use of memory mappings that are marked as executable.
   //
@@ -1053,6 +1059,7 @@ class PolicyBuilder final {
   Mounts mounts_;
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
+  bool use_landlock_ = false;
   NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
   bool allow_map_exec_ = true;
   bool allow_safe_bpf_ = false;

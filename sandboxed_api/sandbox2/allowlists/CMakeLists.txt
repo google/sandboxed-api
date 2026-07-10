@@ -24,6 +24,16 @@ target_link_libraries(sandbox2_allowlists_all_syscalls PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2/allowlists:enable_landlock
+add_library(sandbox2_allowlists_enable_landlock ${SAPI_LIB_TYPE}
+  enable_landlock.h
+)
+add_library(sandbox2::allowlists_enable_landlock ALIAS
+  sandbox2_allowlists_enable_landlock)
+target_link_libraries(sandbox2_allowlists_enable_landlock PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2/allowlists:namespaces
 add_library(sandbox2_allowlists_namespaces ${SAPI_LIB_TYPE}
   namespaces.h

@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -29,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -54,6 +56,7 @@ namespace fileops = ::sapi::file_util::fileops;
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::Lt;
 using ::testing::Not;
 using ::testing::StartsWith;
@@ -337,6 +340,26 @@ TEST(PolicyBuilderTest, TestAllowLlvmCoverageWithoutCoverageDir) {
   builder.AllowLlvmCoverage();
   EXPECT_THAT(builder.TryBuild(), IsOk());
   ASSERT_THAT(unsetenv("COVERAGE"), Eq(0));
+}
+
+TEST(PolicyBuilderTest, EnableLandlock) {
+  PolicyBuilder builder;
+  builder.EnableLandlock(sandbox2::EnableLandlock());
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_TRUE(policy->GetNamespace()->use_landlock());
+}
+
+TEST(PolicyBuilderTest, EnableLandlockWithNonIdentityMounts) {
+  PolicyBuilder builder;
+  builder.EnableLandlock(sandbox2::EnableLandlock());
+  builder.AddFileAt("/etc/passwd", "/tmp/passwd");
+  EXPECT_THAT(
+      builder.TryBuild(),
+      StatusIs(absl::StatusCode::kFailedPrecondition,
+               HasSubstr("Cannot use Landlock with non-identity mounts")));
 }
 
 }  // namespace

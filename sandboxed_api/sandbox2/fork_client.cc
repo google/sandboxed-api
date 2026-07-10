@@ -82,6 +82,9 @@ absl::StatusOr<ForkClient::PendingRequest> ForkClient::InitiateRequest(
   ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
                         SendRequestAndReceiveSetupComms(request));
 
+  // TODO(cffsmith): Once we add support for UnotifyMonitor in Landlock mode, We
+  // need to check here, as we will have an init process in that case even
+  // though we don't have CLONE_NEWPID.
   return PendingRequest(std::move(setup_comms),
                         request.clone_flags() & CLONE_NEWPID,
                         request.monitor_type() == FORKSERVER_MONITOR_UNOTIFY);
@@ -118,6 +121,20 @@ absl::StatusOr<SandboxeeProcess> ForkClient::PendingRequest::Finalize(
       !setup_comms_.SendFD(options.initial_mntns_fd)) {
     return absl::InternalError(absl::StrCat("Sending initial mntns FD (",
                                             options.initial_mntns_fd,
+                                            ") to the ForkServer failed"));
+  }
+
+  if (options.shared_pidns_mntns_fd != -1 &&
+      !setup_comms_.SendFD(options.shared_pidns_mntns_fd)) {
+    return absl::InternalError(absl::StrCat("Sending shared pidns mntns FD (",
+                                            options.shared_pidns_mntns_fd,
+                                            ") to the ForkServer failed"));
+  }
+
+  if (options.shared_pidns_fd != -1 &&
+      !setup_comms_.SendFD(options.shared_pidns_fd)) {
+    return absl::InternalError(absl::StrCat("Sending shared pidns FD (",
+                                            options.shared_pidns_fd,
                                             ") to the ForkServer failed"));
   }
 

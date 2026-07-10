@@ -37,9 +37,10 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox_config.h"
-#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
+
+class EnableLandlock;
 
 constexpr size_t kDefaultCommsSharedMemorySize = (size_t{128} << 10);
 
@@ -97,6 +98,11 @@ class Sandbox2 final {
   // Returns the process id inside the executor.
   pid_t pid() const { return monitor_ != nullptr ? monitor_->pid() : -1; }
 
+  // Returns the init process id inside the executor.
+  pid_t init_pid() const {
+    return monitor_ != nullptr ? monitor_->init_pid() : -1;
+  }
+
   // Creates and maps a shared memory region for the sandboxee.
   // Returns a pointer to the buffer, which is writable by the sandboxee.
   // This function should be called prior to running the sandbox.
@@ -110,6 +116,8 @@ class Sandbox2 final {
   Comms* comms() {
     return executor_ != nullptr ? executor_->ipc()->comms() : nullptr;
   }
+
+  const Policy& policy() const { return *policy_; }
 
   absl::Status EnableUnotifyMonitor();
   absl::Status EnableSharedMemoryComms(

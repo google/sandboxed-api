@@ -417,6 +417,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":config",
+        "//sandboxed_api/sandbox2:namespace",
         "//sandboxed_api/sandbox2:policybuilder",
         "//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",

@@ -26,9 +26,12 @@ namespace sandbox2 {
 class SetupLatencyBreakdown {
  public:
   enum SetupStep {
+    // --- Common Setup Steps ---
     kSharedNamespacesCreation,
     kSetupCommsCreation,
     kSetupProcessFork,
+
+    // --- Standard Namespace Mode Steps ---
     kInitFork,
     kTillNamespacesUnshare,
     kNamespacesUnshare,
@@ -41,6 +44,16 @@ class SetupLatencyBreakdown {
     kNsInitUnmountRealRoot,
     kNsInitNestedUserNamespace,
     kInitLaunch,
+
+    // --- Shared PID / Landlock Isolation Mode Steps ---
+    kSharedPidInitFork,
+    kSharedPidTillNamespacesUnshare,
+    kSharedPidNamespacesUnshare,
+    kSharedPidNetnsInitialization,
+    kSharedPidNestedUserNamespace,
+    kSharedPidLandlockEnforcement,
+
+    // --- Final Common Step ---
     kTillAlmostDone,
     kNumSetupSteps,
   };

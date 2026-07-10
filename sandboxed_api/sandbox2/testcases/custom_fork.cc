@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkingclient.h"
 
@@ -21,4 +24,13 @@ int main(int argc, char* argv[]) {
 
   s2client.EnterForkLoop();
   s2client.SandboxMeHere();
+
+  for (int i = 1; i < argc; ++i) {
+    int fd = open(argv[i], O_RDONLY);
+    if (fd == -1) {
+      return 1;
+    }
+    close(fd);
+  }
+  return 0;
 }

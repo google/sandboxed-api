@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -34,10 +35,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
+#include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -122,7 +125,28 @@ struct TestCase {
   bool exec_memfd = false;
 };
 
-class StackTraceTest : public ::testing::TestWithParam<TestCase> {};
+enum class IsolationMode {
+  kPtraceWithoutNamespaces,
+  kPtraceWithLandlock,
+  kUnotifyWithNamespaces,
+};
+
+std::string ToString(IsolationMode mode) {
+  switch (mode) {
+    case IsolationMode::kPtraceWithoutNamespaces:
+      return "PtraceWithoutNamespaces";
+    case IsolationMode::kPtraceWithLandlock:
+      return "PtraceWithLandlock";
+    case IsolationMode::kUnotifyWithNamespaces:
+      return "UnotifyWithNamespaces";
+  }
+  return "Unknown";
+}
+
+class StackTraceTest
+    : public ::testing::TestWithParam<std::tuple<TestCase, IsolationMode>> {};
+
+class StackTraceStandaloneTest : public ::testing::Test {};
 
 absl::StatusOr<FDCloser> CopyExecToMemFd(const std::string& path) {
   SAPI_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFd("exec"));
@@ -193,14 +217,30 @@ void SymbolizationWorksWithModifiedPolicy(
   SymbolizationWorksCommon(test_case);
 }
 
-TEST_P(StackTraceTest, SymbolizationWorksWithoutNamespaces) {
-  TestCase test_case = GetParam();
+TEST_P(StackTraceTest, SymbolizationWorks) {
+  const auto& [test_case_param, mode] = GetParam();
+  if (mode == IsolationMode::kPtraceWithLandlock &&
+      !sandbox2::IsLandlockSupported()) {
+    GTEST_SKIP() << "Landlock not supported on this kernel";
+  }
+  if (mode == IsolationMode::kPtraceWithLandlock &&
+      test_case_param.exec_memfd) {
+    // Landlock v7 does not support executing anonymous memfd inodes directly.
+    return;
+  }
+  TestCase test_case = test_case_param;
   auto old_modify_policy = test_case.modify_policy;
-  test_case.modify_policy = [old_modify_policy](PolicyBuilder* builder) {
-    *builder = PolicyBuilder();
-    builder->DefaultAction(AllowAllSyscalls())
-        .Allow(MapExec())
-        .DisableNamespaces(NamespacesToken());
+  test_case.modify_policy = [old_modify_policy, mode](PolicyBuilder* builder) {
+    if (mode == IsolationMode::kPtraceWithoutNamespaces) {
+      *builder = PolicyBuilder();
+      builder->DefaultAction(AllowAllSyscalls())
+          .Allow(MapExec())
+          .DisableNamespaces(NamespacesToken());
+    } else if (mode == IsolationMode::kPtraceWithLandlock) {
+      builder->AddFile(GetTestSourcePath("sandbox2/testcases/symbolize"))
+          .AddDirectory("/proc", /*is_ro=*/true)
+          .EnableLandlock(sandbox2::EnableLandlock());
+    }
     if (old_modify_policy) {
       old_modify_policy(builder);
     }
@@ -208,27 +248,39 @@ TEST_P(StackTraceTest, SymbolizationWorksWithoutNamespaces) {
   SymbolizationWorksCommon(test_case);
 }
 
-TEST_P(StackTraceTest, SymbolizationWorks) {
-  SymbolizationWorksCommon(GetParam());
-}
-
-TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcDirMounted) {
+TEST_F(StackTraceStandaloneTest,
+       SymbolizationWorksSandboxedLibunwindProcDirMounted) {
   SymbolizationWorksWithModifiedPolicy(
       [](PolicyBuilder* builder) { builder->AddDirectory("/proc"); });
 }
 
-TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindProcFileMounted) {
+TEST_F(StackTraceStandaloneTest,
+       SymbolizationWorksSandboxedLibunwindProcDirMountedLandlock) {
+  if (!sandbox2::IsLandlockSupported()) {
+    GTEST_SKIP() << "Landlock not supported on this kernel";
+  }
+  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
+    builder->AddFile(GetTestSourcePath("sandbox2/testcases/symbolize"))
+        .AddDirectory("/proc", /*is_ro=*/true)
+        .EnableLandlock(sandbox2::EnableLandlock());
+  });
+}
+
+TEST_F(StackTraceStandaloneTest,
+       SymbolizationWorksSandboxedLibunwindProcFileMounted) {
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/proc/sys/vm/overcommit_memory");
   });
 }
 
-TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysDirMounted) {
+TEST_F(StackTraceStandaloneTest,
+       SymbolizationWorksSandboxedLibunwindSysDirMounted) {
   SymbolizationWorksWithModifiedPolicy(
       [](PolicyBuilder* builder) { builder->AddDirectory("/sys"); });
 }
 
-TEST(StackTraceTest, SymbolizationWorksSandboxedLibunwindSysFileMounted) {
+TEST_F(StackTraceStandaloneTest,
+       SymbolizationWorksSandboxedLibunwindSysFileMounted) {
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/sys/devices/system/cpu/online");
   });
@@ -241,7 +293,7 @@ size_t FileCountInDirectory(const std::string& path) {
   return fds.size();
 }
 
-TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
+TEST_F(StackTraceStandaloneTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
   // Very first sanitization might create some fds (e.g. for initial
   // namespaces).
   SymbolizationWorksCommon({});
@@ -257,7 +309,7 @@ TEST(StackTraceTest, ForkEnterNsLibunwindDoesNotLeakFDs) {
   EXPECT_THAT(filecount_before, Eq(FileCountInDirectory(forkserver_fd_path)));
 }
 
-TEST(StackTraceTest, CompactStackTrace) {
+TEST_F(StackTraceStandaloneTest, CompactStackTrace) {
   EXPECT_THAT(CompactStackTrace({}), IsEmpty());
   EXPECT_THAT(CompactStackTrace({"_start"}), ElementsAre("_start"));
   EXPECT_THAT(CompactStackTrace({
@@ -282,7 +334,7 @@ TEST(StackTraceTest, CompactStackTrace) {
                           "(previous frame repeated 3 times)"));
 }
 
-TEST(StackTraceTest, RecursiveStackTrace) {
+TEST_F(StackTraceStandaloneTest, RecursiveStackTrace) {
   // Very first sandbox run will initialize spawn_fn_
   SKIP_SANITIZERS;
   ScopedSpawnOverride spawn_override;
@@ -306,7 +358,7 @@ TEST(StackTraceTest, RecursiveStackTrace) {
   EXPECT_THAT(result.final_status(), Eq(Result::SIGNALED));
 }
 
-TEST(StackTraceTest, PtraceMonitorCollectsAllThreadsStackTrace) {
+TEST_F(StackTraceStandaloneTest, PtraceMonitorCollectsAllThreadsStackTrace) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
   std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
   PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
@@ -332,7 +384,7 @@ TEST(StackTraceTest, PtraceMonitorCollectsAllThreadsStackTrace) {
       Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
 }
 
-TEST(StackTraceTest, UnotifyMonitorCollectsAllThreadsStackTrace) {
+TEST_F(StackTraceStandaloneTest, UnotifyMonitorCollectsAllThreadsStackTrace) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
   std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
   PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
@@ -352,7 +404,39 @@ TEST(StackTraceTest, UnotifyMonitorCollectsAllThreadsStackTrace) {
       Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
 }
 
-TEST(StackTraceTest, SymbolizationEnablesMonitor) {
+TEST_F(StackTraceStandaloneTest, LandlockCollectsAllThreadsStackTrace) {
+  if (!sandbox2::IsLandlockSupported()) {
+    GTEST_SKIP() << "Landlock not supported on this kernel";
+  }
+  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
+  std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.AddFile(path)
+      .AddDirectory("/proc", true)
+      .EnableLandlock(sandbox2::EnableLandlock())
+      .CollectStacktracesOnSignal(false)
+      .CollectAllThreadsStacktrace(true);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
+  ASSERT_TRUE(s2.RunAsync());
+  auto result = s2.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
+  EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
+  EXPECT_THAT(result.thread_stack_traces(),
+              Contains(Key(result.GetRegs()->pid())));
+  auto it = absl::c_find_if(result.thread_stack_traces(),
+                            [pid = result.GetRegs()->pid()](const auto& pair) {
+                              return pair.first == pid;
+                            });
+  ASSERT_NE(it, result.thread_stack_traces().end());
+  EXPECT_THAT(
+      result.thread_stack_traces(),
+      Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
+}
+
+TEST_F(StackTraceStandaloneTest, SymbolizationEnablesMonitor) {
   absl::ScopedMockLog log;
   EXPECT_CALL(log, Log(_, _, StartsWith("Failed to enable unotify monitor")))
       .Times(0);
@@ -362,70 +446,75 @@ TEST(StackTraceTest, SymbolizationEnablesMonitor) {
 
 INSTANTIATE_TEST_SUITE_P(
     Instantiation, StackTraceTest,
-    ::testing::Values(
-        TestCase{
-            .testname = "CrashMe",
-            .testno = 1,
-            .final_status = Result::SIGNALED,
-            .full_function_description = "CrashMe(char)",
-        },
-        TestCase{
-            .testname = "ViolatePolicy",
-            .testno = 2,
-            .final_status = Result::VIOLATION,
-            .full_function_description = "ViolatePolicy(int)",
-        },
-        TestCase{
-            .testname = "ExitNormally",
-            .testno = 3,
-            .final_status = Result::OK,
-            .full_function_description = "ExitNormally(int)",
-            .modify_policy =
-                [](PolicyBuilder* builder) {
-                  builder->CollectStacktracesOnExit(true);
-                },
-        },
-        TestCase{
-            .testname = "SleepForXSeconds",
-            .testno = 4,
-            .final_status = Result::TIMEOUT,
-            .full_function_description = "SleepForXSeconds(int)",
-            .wall_time_limit = absl::Seconds(1),
-        },
-        TestCase{
-            .testname = "ViolatePolicyRecursive",
-            .testno = 2,
-            .testmode = 2,
-            .final_status = Result::VIOLATION,
-            .function_name = "ViolatePolicy",
-            .full_function_description = "ViolatePolicy(int)",
-        },
-        TestCase{
-            .testname = "ViolatePolicyRecursiveLib",
-            .testno = 2,
-            .testmode = 3,
-            .final_status = Result::VIOLATION,
-            .function_name = "ViolatePolicy",
-            .full_function_description = "ViolatePolicy(int)",
-        },
-        TestCase{
-            .testname = "ViolatePolicyForked",
-            .testno = 5,
-            .final_status = Result::VIOLATION,
-            .function_name = "ViolatePolicy",
-            .full_function_description = "ViolatePolicy(int)",
-        },
-        TestCase{
-            .testname = "MemFdCrash",
-            .testno = 1,
-            .final_status = Result::SIGNALED,
-            .function_name = "CrashMe",
-            .full_function_description = "CrashMe(char)",
-            .exec_memfd = true,
-        }),
-    [](const ::testing::TestParamInfo<TestCase>& info) {
-      return info.param.testname;
+    ::testing::Combine(
+        ::testing::Values(
+            TestCase{
+                .testname = "CrashMe",
+                .testno = 1,
+                .final_status = Result::SIGNALED,
+                .full_function_description = "CrashMe(char)",
+            },
+            TestCase{
+                .testname = "ViolatePolicy",
+                .testno = 2,
+                .final_status = Result::VIOLATION,
+                .full_function_description = "ViolatePolicy(int)",
+            },
+            TestCase{
+                .testname = "ExitNormally",
+                .testno = 3,
+                .final_status = Result::OK,
+                .full_function_description = "ExitNormally(int)",
+                .modify_policy =
+                    [](PolicyBuilder* builder) {
+                      builder->CollectStacktracesOnExit(true);
+                    },
+            },
+            TestCase{
+                .testname = "SleepForXSeconds",
+                .testno = 4,
+                .final_status = Result::TIMEOUT,
+                .full_function_description = "SleepForXSeconds(int)",
+                .wall_time_limit = absl::Seconds(1),
+            },
+            TestCase{
+                .testname = "ViolatePolicyRecursive",
+                .testno = 2,
+                .testmode = 2,
+                .final_status = Result::VIOLATION,
+                .function_name = "ViolatePolicy",
+                .full_function_description = "ViolatePolicy(int)",
+            },
+            TestCase{
+                .testname = "ViolatePolicyRecursiveLib",
+                .testno = 2,
+                .testmode = 3,
+                .final_status = Result::VIOLATION,
+                .function_name = "ViolatePolicy",
+                .full_function_description = "ViolatePolicy(int)",
+            },
+            TestCase{
+                .testname = "ViolatePolicyForked",
+                .testno = 5,
+                .final_status = Result::VIOLATION,
+                .function_name = "ViolatePolicy",
+                .full_function_description = "ViolatePolicy(int)",
+            },
+            TestCase{
+                .testname = "MemFdCrash",
+                .testno = 1,
+                .final_status = Result::SIGNALED,
+                .function_name = "CrashMe",
+                .full_function_description = "CrashMe(char)",
+                .exec_memfd = true,
+            }),
+        ::testing::Values(IsolationMode::kPtraceWithoutNamespaces,
+                          IsolationMode::kPtraceWithLandlock,
+                          IsolationMode::kUnotifyWithNamespaces)),
+    [](const ::testing::TestParamInfo<std::tuple<TestCase, IsolationMode>>&
+           info) {
+      return absl::StrCat(std::get<0>(info.param).testname, "_",
+                          ToString(std::get<1>(info.param)));
     });
-
 }  // namespace
 }  // namespace sandbox2

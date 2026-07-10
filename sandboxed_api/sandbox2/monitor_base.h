@@ -27,7 +27,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -74,6 +73,8 @@ class MonitorBase {
   virtual void NotifyNetworkViolation() = 0;
 
   pid_t pid() const { return process_.main_pid; }
+
+  pid_t init_pid() const { return process_.init_pid; }
 
   const Result& result() const { return result_; }
 

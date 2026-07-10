@@ -71,14 +71,16 @@ class ForkServer {
   // Creates initial namespaces used as a template for namespaced sandboxees
   void CreateInitialNamespaces(Comms setup_comms);
 
+  // Creates shared PID and mount namespaces used as a template across
+  // sandboxees.
+  void CreateSharedPidNamespaces(Comms setup_comms);
+
   // Creates a network namespace to be shared between sandboxees
   void CreateEmptyNetworkNamespace(Comms setup_comms);
 
   // Comms channel which is used to send requests to this class. Not owned by
   // the object.
   Comms* comms_;
-  uid_t orig_uid_ = -1;
-  gid_t orig_gid_ = -1;
 };
 
 }  // namespace sandbox2

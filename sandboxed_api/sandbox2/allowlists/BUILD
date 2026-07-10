@@ -143,3 +143,12 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
 )
+
+cc_library(
+    name = "enable_landlock",
+    hdrs = ["enable_landlock.h"],
+    copts = sapi_platform_copts(),
+    visibility = [
+        "//sandboxed_api:__subpackages__",
+    ],
+)

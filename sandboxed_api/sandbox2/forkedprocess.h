@@ -45,7 +45,9 @@ class ForkedProcess {
   void PrepareExecveArgs();
   void JoinInitialUserNamespace();
   void JoinNamespaces();
+  void JoinNetworkNamespace();
   void SetupNamespaces();
+  void SetupLandlockNamespaces();
   void MoveToPredefiedFDs();
   void LaunchSandboxee();
 

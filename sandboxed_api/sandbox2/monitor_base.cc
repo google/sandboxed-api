@@ -141,7 +141,7 @@ MonitorBase::MonitorBase(Executor* executor, Policy* policy, Notify* notify,
     PCHECK(log_file_ != nullptr) << "Failed to open log file '" << path << "'";
   }
 
-  if (auto& ns = policy_->namespace_; ns) {
+  if (auto& ns = policy_->namespace_; ns && !ns->use_landlock()) {
     // Check for the Tomoyo LSM, which is active by default in several common
     // distribution kernels (esp. Debian).
     MaybeEnableTomoyoLsmWorkaround(ns->mounts(), comms_fd_dev_);

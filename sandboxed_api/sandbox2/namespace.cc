@@ -21,6 +21,7 @@
 #include <sched.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
+#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <syscall.h>
@@ -34,6 +35,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/latency_stop_watch.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
@@ -211,17 +213,22 @@ void LogFilesystem(const std::string& dir) {
 
 Namespace::Namespace(Mounts mounts, std::string hostname,
                      NetNsMode netns_config, bool allow_mount_propagation,
-                     bool allow_write_executable)
+                     bool allow_write_executable, bool use_landlock)
     : mounts_(std::move(mounts)),
       hostname_(std::move(hostname)),
       allow_mount_propagation_(allow_mount_propagation),
       allow_write_executable_(allow_write_executable),
-      netns_config_(netns_config) {
+      netns_config_(netns_config),
+      use_landlock_(use_landlock) {
   // Remove the CLONE_NEWNET flag to allow networking, or for the shared netns.
   // In the latter case, the flag will be added later on.
   if (netns_config_ == NETNS_MODE_NONE ||
       netns_config_ == NETNS_MODE_SHARED_PER_FORKSERVER) {
     clone_flags_ &= ~CLONE_NEWNET;
+  }
+  // In Landlock mode, we don't use PID or mount namespaces.
+  if (use_landlock_) {
+    clone_flags_ &= ~(CLONE_NEWPID | CLONE_NEWNS);
   }
 }
 
@@ -230,6 +237,35 @@ void Namespace::UnshareNestedUserNamespace(int proc_self_fd) {
   gid_t gid = getgid();
   SAPI_RAW_PCHECK(unshare(CLONE_NEWUSER) == 0, "unsharing user namespace");
   SetupIDMaps(proc_self_fd, uid, gid);
+}
+
+void Namespace::EnforceLandlockIsolation(
+    int32_t clone_flags, const Mounts& mounts, bool allow_write_executable,
+    uid_t uid, gid_t gid, SetupLatencyBreakdown& latency_breakdown) {
+  LatencyStopWatch latency_stop_watch;
+  if (clone_flags & CLONE_NEWNET) {
+    ActivateLoopbackInterface();
+    latency_breakdown.SetLatency(
+        SetupLatencyBreakdown::kSharedPidNetnsInitialization,
+        latency_stop_watch.LapTime());
+  }
+  if (clone_flags & CLONE_NEWUSER) {
+    FDCloser proc_self_fd(open("/proc/self", O_RDONLY | O_CLOEXEC));
+    SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
+    UnshareNestedUserNamespace(proc_self_fd.get());
+    latency_breakdown.SetLatency(
+        SetupLatencyBreakdown::kSharedPidNestedUserNamespace,
+        latency_stop_watch.LapTime());
+  }
+  EnforceLandlock(mounts, allow_write_executable);
+  latency_breakdown.SetLatency(
+      SetupLatencyBreakdown::kSharedPidLandlockEnforcement,
+      latency_stop_watch.LapTime());
+  SAPI_RAW_PCHECK(chdir("/") == 0, "changing cwd");
+  if (SAPI_RAW_VLOG_IS_ON(2)) {
+    SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");
+    LogFilesystem("/");
+  }
 }
 
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
@@ -333,6 +369,18 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
   }
 }
 
+// This function should not allocate any memory!.
+void Namespace::InitializeSharedPidNamespaces() {
+  SAPI_RAW_PCHECK(mount("none", "/", "", MS_PRIVATE | MS_REC, nullptr) == 0,
+                  "making / private failed");
+  SAPI_RAW_PCHECK(
+      mount("proc", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID,
+            "hidepid=ptraceable") == 0,
+      "mounting landlock proc with hidepid=ptraceable failed");
+}
+
+// TODO(cffsmith): Potentially rework or rename this file / class to make it
+// clear that this does more than just namespaces in landlock mode.
 void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
   SetupIDMaps(uid, gid);
   SAPI_RAW_CHECK(

@@ -28,17 +28,31 @@
 // ./binary 4 <file1> <file2> ... <fileN>:
 //    Create provided files, return 0 on OK.
 //    Returns the index of the first non-creatable file on failure.
+// ./binary 9 <file1> <file2> ... <fileN>:
+//    Make sure all provided files exist and are opened using O_RDONLY.
+//    This is needed to test Landlock, as `access()` doesn't trigger Landlock
+//    restrictions. Returns 0 on OK.
+// ./binary 10 <file1> <file2> ... <fileN>:
+//    Reads the contents of the provided files, replacing null bytes with
+//    spaces, and returns the content strings. Returns 0 on OK.
+// ./binary 11:
+//    Returns the list of all PIDs in /proc.
 #include <fcntl.h>
 #include <ifaddrs.h>
+#include <signal.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
+#include <cerrno>
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/fileops.h"
@@ -156,6 +170,62 @@ int main(int argc, char* argv[]) {
       result.push_back(buf);
       break;
     }
+    case 9:
+      // Landlock intercepts open(), but not access() or stat(). Therefore, mode
+      // 0 (which uses access()) would incorrectly return success for a file
+      // blocked by Landlock. Mode 9 explicitly calls open() to properly test
+      // Landlock.
+      for (int i = 2; i < argc; ++i) {
+        int fd = open(argv[i], O_RDONLY);
+        if (fd != -1) {
+          result.push_back(argv[i]);
+          close(fd);
+        }
+      }
+      break;
+    case 10: {
+      for (int i = 2; i < argc; i++) {
+        int fd = open(argv[i], O_RDONLY);
+        if (fd != -1) {
+          std::string s(4096, '\0');
+          ssize_t n = read(fd, s.data(), s.size());
+          if (n >= 0) {
+            s.resize(n);
+            for (char& c : s) {
+              if (c == '\0') c = ' ';
+            }
+            while (!s.empty() && s.back() == ' ') s.pop_back();
+            result.push_back(s);
+          }
+          close(fd);
+        }
+      }
+      break;
+    }
+    case 11: {
+      std::string error;
+      std::vector<std::string> entries;
+      CHECK(ListDirectoryEntries("/proc", &entries, &error)) << error;
+      for (const std::string& entry : entries) {
+        if (entry.find_first_not_of("0123456789") == std::string::npos) {
+          result.push_back(entry);
+        }
+      }
+      break;
+    }
+    case 12: {
+      pid_t target_pid = 1;
+      if (argc > 2) {
+        CHECK(absl::SimpleAtoi(argv[2], &target_pid));
+      }
+      if (kill(target_pid, 0) == -1) {
+        result.push_back(errno == EPERM ? "kill_failed:EPERM"
+                                        : absl::StrCat("kill_failed:", errno));
+      } else {
+        result.push_back("kill_success");
+      }
+      break;
+    }
     default:
       return 1;
   }
@@ -163,6 +233,10 @@ int main(int argc, char* argv[]) {
   CHECK(comms.SendUint64(result.size()));
   for (const std::string& entry : result) {
     CHECK(comms.SendString(entry));
+  }
+  if (mode == 11) {
+    uint32_t ack = 0;
+    comms.RecvUint32(&ack);
   }
   return 0;
 }

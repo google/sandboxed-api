@@ -116,6 +116,9 @@ void ForkServer::HandleInitializeRequest(const ForkRequest& fork_request,
     case ForkRequest::INITIALIZE_INITIAL_NAMESPACES:
       CreateInitialNamespaces(std::move(setup_comms));
       break;
+    case ForkRequest::INITIALIZE_SHARED_PID_NAMESPACES:
+      CreateSharedPidNamespaces(std::move(setup_comms));
+      break;
     case ForkRequest::INITIALIZE_EMPTY_NETNS:
       CreateEmptyNetworkNamespace(std::move(setup_comms));
       break;
@@ -260,6 +263,46 @@ void ForkServer::CreateInitialNamespaces(Comms setup_comms) {
   SAPI_RAW_PCHECK(mntns_fd.get() != -1, "getting initial mntns fd");
   SAPI_RAW_CHECK(setup_comms.SendFD(userns_fd.get()), "sending mntns fd");
   SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd.get()), "sending mntns fd");
+}
+
+void ForkServer::CreateSharedPidNamespaces(Comms setup_comms) {
+  FDCloser userns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&userns_fd), "getting initial userns fd");
+  SAPI_RAW_PCHECK(setns(userns_fd.get(), CLONE_NEWUSER) == 0,
+                  "joining initial user namespace");
+  pid_t pid =
+      util::ForkWithFlags(CLONE_NEWNS | CLONE_NEWPID | CLONE_PARENT | SIGCHLD);
+  if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
+    SAPI_RAW_LOG(FATAL,
+                 "failed to unshare landlock namespaces: parent process is "
+                 "likely chrooted");
+  }
+  SAPI_RAW_PCHECK(pid != -1, "forking landlock init failed");
+  if (pid != 0) {
+    return;
+  }
+
+  Namespace::InitializeSharedPidNamespaces();
+  FDCloser mntns_fd(
+      open(absl::StrCat("/proc/self/ns/mnt").c_str(), O_RDONLY | O_CLOEXEC));
+  SAPI_RAW_PCHECK(mntns_fd.get() != -1, "getting landlock mntns fd");
+  FDCloser pidns_fd(
+      open(absl::StrCat("/proc/self/ns/pid").c_str(), O_RDONLY | O_CLOEXEC));
+  SAPI_RAW_PCHECK(pidns_fd.get() != -1, "getting landlock pidns fd");
+
+  SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd.get()),
+                 "sending landlock mntns fd");
+  SAPI_RAW_CHECK(setup_comms.SendFD(pidns_fd.get()),
+                 "sending landlock pidns fd");
+
+  SAPI_RAW_PCHECK(prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) == 0,
+                  "prctl(PR_SET_PDEATHSIG, SIGKILL)");
+  // We stay alive here to keep the PID namespace active and joinable (as
+  // PID 1 of the namespace). When the parent terminates, PR_SET_PDEATHSIG
+  // delivers SIGKILL to terminate this init process without leaking.
+  while (true) {
+    pause();
+  }
 }
 
 void ForkServer::CreateEmptyNetworkNamespace(Comms setup_comms) {

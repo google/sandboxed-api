@@ -109,6 +109,7 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
     request.set_allow_write_executable(ns->allow_write_executable());
   }
 
+  request.set_use_landlock(ns && ns->use_landlock());
   request.set_clone_flags(clone_flags);
   request.set_monitor_type(type);
   request.set_allow_speculation(allow_speculation);

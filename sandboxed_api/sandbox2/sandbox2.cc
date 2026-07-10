@@ -161,6 +161,12 @@ absl::Status Sandbox2::EnableUnotifyMonitor() {
     return absl::FailedPreconditionError(
         "Unotify monitor can only be used together with namespaces");
   }
+  if (policy_->GetNamespace()->use_landlock()) {
+    return absl::FailedPreconditionError(
+        "Using unotify monitor with Landlock mode is not "
+        "fully supported yet (e.g. orphaned double-forked session "
+        "leaders may outlive sandbox teardown).");
+  }
   if (policy_->collect_stacktrace_on_signal()) {
     return absl::FailedPreconditionError(
         "Unotify monitor cannot collect stack traces on signal");

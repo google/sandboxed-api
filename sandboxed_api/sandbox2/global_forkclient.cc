@@ -257,6 +257,14 @@ void GlobalForkClient::GlobalData::ForceStart() {
   instance_ = *std::move(forkserver);
 }
 
+void GlobalForkClient::GlobalData::CloseNamespacesLocked() {
+  initial_userns_fd_.Close();
+  initial_mntns_fd_.Close();
+  shared_netns_fd_.Close();
+  shared_pidns_mntns_fd_.Close();
+  shared_pidns_fd_.Close();
+}
+
 void GlobalForkClient::GlobalData::Shutdown() {
   pid_t pid = -1;
   {
@@ -265,6 +273,7 @@ void GlobalForkClient::GlobalData::Shutdown() {
       pid = instance_->fork_client_.pid();
     }
     instance_.reset();
+    CloseNamespacesLocked();
   }
   if (pid != -1) {
     WaitForForkserver(pid);
@@ -299,27 +308,61 @@ absl::Status GlobalForkClient::GlobalData::SetupInitialNamespacesLocked() {
                         instance_->fork_client_.SendInitializeRequest(
                             ForkRequest::INITIALIZE_INITIAL_NAMESPACES));
 
-  if (!setup_comms.RecvFD(&initial_userns_fd_)) {
+  file_util::fileops::FDCloser userns_fd;
+  if (!setup_comms.RecvFD(&userns_fd)) {
     return absl::InternalError("Receiving initial user namespace fd failed");
   }
-  if (!setup_comms.RecvFD(&initial_mntns_fd_)) {
-    initial_userns_fd_.Close();
+  file_util::fileops::FDCloser mntns_fd;
+  if (!setup_comms.RecvFD(&mntns_fd)) {
     return absl::InternalError("Receiving initial mount namespace fd failed");
   }
+  initial_userns_fd_ = std::move(userns_fd);
+  initial_mntns_fd_ = std::move(mntns_fd);
+  return absl::OkStatus();
+}
+
+absl::Status GlobalForkClient::GlobalData::SetupSharedPidNamespacesLocked() {
+  if (initial_userns_fd_.get() == -1) {
+    ABSL_RETURN_IF_ERROR(SetupInitialNamespacesLocked());
+  }
+
+  ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
+                        instance_->fork_client_.SendInitializeRequest(
+                            ForkRequest::INITIALIZE_SHARED_PID_NAMESPACES));
+
+  if (!setup_comms.SendFD(initial_userns_fd_.get())) {
+    return absl::InternalError(
+        "Sending initial user namespace fd for shared pidns failed");
+  }
+  file_util::fileops::FDCloser mntns_fd;
+  if (!setup_comms.RecvFD(&mntns_fd)) {
+    return absl::InternalError("Receiving shared pidns mount fd failed");
+  }
+  file_util::fileops::FDCloser pidns_fd;
+  if (!setup_comms.RecvFD(&pidns_fd)) {
+    return absl::InternalError("Receiving shared pidns fd failed");
+  }
+  shared_pidns_mntns_fd_ = std::move(mntns_fd);
+  shared_pidns_fd_ = std::move(pidns_fd);
   return absl::OkStatus();
 }
 
 absl::Status GlobalForkClient::GlobalData::SetupSharedNetnsNamespacesLocked() {
+  if (initial_userns_fd_.get() == -1) {
+    ABSL_RETURN_IF_ERROR(SetupInitialNamespacesLocked());
+  }
   ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
                         instance_->fork_client_.SendInitializeRequest(
                             ForkRequest::INITIALIZE_EMPTY_NETNS));
   if (!setup_comms.SendFD(initial_userns_fd_.get())) {
     return absl::InternalError(
-        "Sending initial user namespace fd for empty netns failed");
+        "Sending user namespace fd for empty netns failed");
   }
-  if (!setup_comms.RecvFD(&shared_netns_fd_)) {
+  file_util::fileops::FDCloser netns_fd;
+  if (!setup_comms.RecvFD(&netns_fd)) {
     return absl::InternalError("Receiving empty netns fd failed");
   }
+  shared_netns_fd_ = std::move(netns_fd);
   return absl::OkStatus();
 }
 
@@ -332,12 +375,25 @@ absl::Status GlobalForkClient::GlobalData::SetupOptions(
   if (initial_userns_fd_.get() == -1) {
     ABSL_RETURN_IF_ERROR(SetupInitialNamespacesLocked());
   }
-  SAPI_RAW_CHECK(initial_mntns_fd_.get() != -1,
-                 "Initial mntns fd not initialized");
-  // The FDs are never closed after the initialization, so it is fine to use
-  // them outside of the lock. The lock guards just the initialization.
-  options.initial_userns_fd = initial_userns_fd_.get();
-  options.initial_mntns_fd = initial_mntns_fd_.get();
+  if (request.use_landlock()) {
+    if (shared_pidns_mntns_fd_.get() == -1) {
+      ABSL_RETURN_IF_ERROR(SetupSharedPidNamespacesLocked());
+    }
+    SAPI_RAW_CHECK(shared_pidns_mntns_fd_.get() != -1,
+                   "Shared pidns mntns fd not initialized");
+    SAPI_RAW_CHECK(shared_pidns_fd_.get() != -1,
+                   "Shared pidns fd not initialized");
+    options.initial_userns_fd = initial_userns_fd_.get();
+    options.shared_pidns_mntns_fd = shared_pidns_mntns_fd_.get();
+    options.shared_pidns_fd = shared_pidns_fd_.get();
+  } else {
+    SAPI_RAW_CHECK(initial_mntns_fd_.get() != -1,
+                   "Initial mntns fd not initialized");
+    // The FDs are never closed after the initialization, so it is fine to use
+    // them outside of the lock. The lock guards just the initialization.
+    options.initial_userns_fd = initial_userns_fd_.get();
+    options.initial_mntns_fd = initial_mntns_fd_.get();
+  }
   if (request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
     if (shared_netns_fd_.get() == -1) {
       ABSL_RETURN_IF_ERROR(SetupSharedNetnsNamespacesLocked());

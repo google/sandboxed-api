@@ -79,6 +79,9 @@ class GlobalForkClient {
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::Status SetupSharedNetnsNamespacesLocked()
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    absl::Status SetupSharedPidNamespacesLocked()
+        ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    void CloseNamespacesLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::Mutex mutex_;
     std::unique_ptr<GlobalForkClient> instance_ ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser initial_userns_fd_
@@ -86,6 +89,9 @@ class GlobalForkClient {
     sapi::file_util::fileops::FDCloser initial_mntns_fd_
         ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser shared_netns_fd_ ABSL_GUARDED_BY(mutex_);
+    sapi::file_util::fileops::FDCloser shared_pidns_mntns_fd_
+        ABSL_GUARDED_BY(mutex_);
+    sapi::file_util::fileops::FDCloser shared_pidns_fd_ ABSL_GUARDED_BY(mutex_);
   };
   friend void StartGlobalForkserverFromLibCtor();
 
