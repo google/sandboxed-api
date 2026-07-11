@@ -538,6 +538,9 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_vfmaddsubps=",
            "__builtin_ia32_vfmaddsubps=",
 
+           // TODO(b/461580283): Remove once r625069 lands in stable crosstool.
+           "__builtin_ia32_tmmultf32ps_internal=",
+
            // TODO(b/465079915): Remove once r598768 lands in stable crosstool.
            "__builtin_ia32_sqrtss=",
            "__builtin_ia32_sqrtps=",
