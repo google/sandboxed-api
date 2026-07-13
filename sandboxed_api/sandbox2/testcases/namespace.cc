@@ -46,6 +46,7 @@
 
 #include <cerrno>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -223,6 +224,22 @@ int main(int argc, char* argv[]) {
                                         : absl::StrCat("kill_failed:", errno));
       } else {
         result.push_back("kill_success");
+      }
+      break;
+    }
+    case 13: {
+      if (truncate(argv[2], 0) == 0) {
+        result.push_back("truncate_success");
+      } else {
+        result.push_back(absl::StrCat("truncate_failed:", errno));
+      }
+      break;
+    }
+    case 14: {
+      if (rename(argv[2], argv[3]) == 0) {
+        result.push_back("refer_success");
+      } else {
+        result.push_back(absl::StrCat("refer_failed:", errno));
       }
       break;
     }

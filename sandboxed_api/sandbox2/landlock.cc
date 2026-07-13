@@ -35,6 +35,7 @@
 #define LANDLOCK_RULE_PATH_BENEATH 1
 #endif
 
+// Define ABI v1 FS flags
 #ifndef LANDLOCK_ACCESS_FS_EXECUTE
 #define LANDLOCK_ACCESS_FS_EXECUTE (1ULL << 0)
 #define LANDLOCK_ACCESS_FS_WRITE_FILE (1ULL << 1)
@@ -49,6 +50,16 @@
 #define LANDLOCK_ACCESS_FS_MAKE_FIFO (1ULL << 10)
 #define LANDLOCK_ACCESS_FS_MAKE_BLOCK (1ULL << 11)
 #define LANDLOCK_ACCESS_FS_MAKE_SYM (1ULL << 12)
+#endif
+
+// Define ABI v2 FS flags
+#ifndef LANDLOCK_ACCESS_FS_REFER
+#define LANDLOCK_ACCESS_FS_REFER (1ULL << 13)
+#endif
+
+// Define ABI v3 FS flags
+#ifndef LANDLOCK_ACCESS_FS_TRUNCATE
+#define LANDLOCK_ACCESS_FS_TRUNCATE (1ULL << 14)
 #endif
 
 // Define ABI v4+ Net flags
@@ -189,7 +200,10 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
     path_beneath.allowed_access |= LANDLOCK_ACCESS_FS_EXECUTE;
   }
   if (writable) {
-    path_beneath.allowed_access |= LANDLOCK_ACCESS_FS_WRITE_FILE;
+    // Include FS_TRUNCATE so writable paths support truncate(), ftruncate(),
+    // and open(O_TRUNC)/creat().
+    path_beneath.allowed_access |=
+        LANDLOCK_ACCESS_FS_WRITE_FILE | LANDLOCK_ACCESS_FS_TRUNCATE;
   }
   if (is_dir) {
     path_beneath.allowed_access |= LANDLOCK_ACCESS_FS_READ_DIR;
@@ -199,7 +213,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
           LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR |
           LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_MAKE_SOCK |
           LANDLOCK_ACCESS_FS_MAKE_FIFO | LANDLOCK_ACCESS_FS_MAKE_BLOCK |
-          LANDLOCK_ACCESS_FS_MAKE_SYM;
+          LANDLOCK_ACCESS_FS_MAKE_SYM | LANDLOCK_ACCESS_FS_REFER;
     }
   }
 
@@ -220,7 +234,8 @@ void EnforceLandlock(const Mounts& mounts) {
           LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR |
           LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_MAKE_SOCK |
           LANDLOCK_ACCESS_FS_MAKE_FIFO | LANDLOCK_ACCESS_FS_MAKE_BLOCK |
-          LANDLOCK_ACCESS_FS_MAKE_SYM | LANDLOCK_ACCESS_FS_IOCTL_DEV,
+          LANDLOCK_ACCESS_FS_MAKE_SYM | LANDLOCK_ACCESS_FS_REFER |
+          LANDLOCK_ACCESS_FS_TRUNCATE | LANDLOCK_ACCESS_FS_IOCTL_DEV,
       .handled_access_net =
           LANDLOCK_ACCESS_NET_BIND_TCP | LANDLOCK_ACCESS_NET_CONNECT_TCP,
       .handled_scoped =
@@ -244,7 +259,11 @@ void EnforceLandlock(const Mounts& mounts) {
 }
 
 bool IsLandlockSupported() {
-#ifdef __NR_landlock_create_ruleset
+  // Queries kernel Landlock ABI version at runtime.
+  // Returns -1 on failure:
+  // - errno == ENOSYS if Landlock is not supported/compiled into the kernel.
+  // - errno == EOPNOTSUPP if Landlock is compiled-in but disabled (e.g., via
+  //            lsm= boot parameter).
   int abi_version = syscall(__NR_landlock_create_ruleset, nullptr, 0, 1);
   if (abi_version < 7) {
     if (abi_version >= 1) {
@@ -254,9 +273,6 @@ bool IsLandlockSupported() {
     return false;
   }
   return true;
-#else
-  return false;
-#endif
 }
 
 }  // namespace sandbox2

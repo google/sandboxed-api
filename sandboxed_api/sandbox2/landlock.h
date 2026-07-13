@@ -22,6 +22,14 @@ namespace sandbox2 {
 // Enforces Landlock access rules based on the requested Sandbox2 mounts.
 //
 // Note: Landlock support is experimental and subject to change.
+// Certain file-related syscall families (e.g., access(2), stat(2), chdir(2),
+// flock(2), chmod(2), chown(2), setxattr(2), utime(2), fcntl(2)) are not
+// currently restricted by kernel Landlock access controls. These unhandled
+// syscalls primarily allow metadata probing (e.g., file existence) or CWD
+// navigation and cannot be used to read, write, or execute unauthorized file
+// contents, and thus do not materially expand the sandbox attack surface.
+// Future Landlock ABI versions will support restricting these syscalls, and
+// Sandbox2 will be updated as new kernel features become available.
 void EnforceLandlock(const Mounts& mounts);
 
 // Returns whether Landlock is supported on the current kernel.

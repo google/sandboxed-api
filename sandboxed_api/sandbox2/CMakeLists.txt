@@ -1465,6 +1465,9 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::global_forkserver
     sandbox2::namespace
     sandbox2::sandbox2
+    sapi::file_base
+    sapi::fileops
+    sapi::temp_file
     sapi::testing
     sapi::test_main
   )

@@ -15,6 +15,7 @@
 #include "sandboxed_api/sandbox2/landlock.h"
 
 #include <asm-generic/unistd.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <cstdint>
@@ -40,6 +41,9 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/temp_file.h"
 
 namespace sandbox2 {
 namespace {
@@ -454,6 +458,50 @@ TEST_F(LandlockTest, GlobalForkserverShutdownAndRestartWorks) {
   Result result_2 = sandbox_2.AwaitResult();
   EXPECT_THAT(result_2.final_status(), Eq(Result::OK));
   EXPECT_THAT(result_2.reason_code(), Eq(0));
+}
+
+TEST_F(LandlockTest, LandlockTruncateAndReferAccess) {
+  const std::string path = GetTestcaseBinPath("namespace");
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string rel_temp_dir,
+                            sapi::CreateTempDir("landlock_test_"));
+  std::string temp_dir = sapi::file_util::fileops::MakeAbsolute(
+      rel_temp_dir, sapi::file_util::fileops::GetCWD());
+
+  std::string dir1 = sapi::file::JoinPath(temp_dir, "dir1");
+  std::string dir2 = sapi::file::JoinPath(temp_dir, "dir2");
+  ASSERT_TRUE(sapi::file_util::fileops::CreateDirectoryRecursively(dir1, 0755));
+  ASSERT_TRUE(sapi::file_util::fileops::CreateDirectoryRecursively(dir2, 0755));
+
+  std::string file1 = sapi::file::JoinPath(dir1, "file1.txt");
+  std::string file2 = sapi::file::JoinPath(dir2, "file2.txt");
+
+  int fd = open(file1.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
+  ASSERT_GE(fd, 0);
+  write(fd, "hello world", 11);
+  close(fd);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_trunc,
+                            CreateLandlockTestPolicy(path)
+                                .AddDirectory(temp_dir, /*is_ro=*/false)
+                                .TryBuild());
+
+  // Test truncate on writable directory path
+  std::vector<std::string> res_trunc = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "13", file1}, std::move(policy_trunc));
+  EXPECT_THAT(res_trunc, ElementsAre("truncate_success"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_refer,
+                            CreateLandlockTestPolicy(path)
+                                .AddDirectory(temp_dir, /*is_ro=*/false)
+                                .TryBuild());
+
+  // Test refer (rename/link) within writable directory
+  std::vector<std::string> res_refer = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "14", file1, file2}, std::move(policy_refer));
+  EXPECT_THAT(res_refer, ElementsAre("refer_success"));
+
+  sapi::file_util::fileops::DeleteRecursively(temp_dir);
 }
 
 }  // namespace
