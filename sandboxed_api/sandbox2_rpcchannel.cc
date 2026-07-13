@@ -150,25 +150,22 @@ absl::Status Sandbox2RPCChannel::Reallocate(void* old_addr, size_t size,
       .size = size,
   };
 
-  auto fret_or =
+  auto fret =
       Exchange(comms::kMsgReallocate, &req, sizeof(req), v::Type::kPointer);
-  if (!fret_or.ok()) {
+  if (!fret.ok()) {
     *new_addr = nullptr;
-    return absl::UnavailableError(
-        absl::StrCat("Reallocate() failed on the remote side: ",
-                     fret_or.status().message()));
+    return absl::UnavailableError(absl::StrCat(
+        "Reallocate() failed on the remote side: ", fret.status().message()));
   }
-  *new_addr = reinterpret_cast<void*>(fret_or->int_val);
+  *new_addr = reinterpret_cast<void*>(fret->int_val);
   return absl::OkStatus();
 }
 
 absl::Status Sandbox2RPCChannel::Free(void* addr) {
   absl::MutexLock lock(mutex_);
   uintptr_t remote = reinterpret_cast<uintptr_t>(addr);
-  SAPI_RETURN_IF_ERROR(
-      Exchange(comms::kMsgFree, &remote, sizeof(remote), v::Type::kVoid)
-          .status());
-  return absl::OkStatus();
+  return Exchange(comms::kMsgFree, &remote, sizeof(remote), v::Type::kVoid)
+      .status();
 }
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::CopyFromSandbox(

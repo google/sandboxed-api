@@ -55,27 +55,10 @@
 #include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
-namespace {
 
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
 using ::sapi::file_util::fileops::FDCloser;
-
-bool IsSameFile(const std::string& path, const std::string& other) {
-  struct stat buf, other_buf;
-  if (stat(path.c_str(), &buf) != 0 || stat(other.c_str(), &other_buf) != 0) {
-    return false;
-  }
-  return buf.st_dev == other_buf.st_dev && buf.st_ino == other_buf.st_ino &&
-         buf.st_mode == other_buf.st_mode &&
-         buf.st_nlink == other_buf.st_nlink && buf.st_uid == other_buf.st_uid &&
-         buf.st_gid == other_buf.st_gid && buf.st_rdev == other_buf.st_rdev &&
-         buf.st_size == other_buf.st_size &&
-         buf.st_blksize == other_buf.st_blksize &&
-         buf.st_blocks == other_buf.st_blocks;
-}
-
-}  // namespace
 
 class StackTracePeer {
  public:
