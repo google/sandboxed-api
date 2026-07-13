@@ -56,7 +56,7 @@ absl::StatusOr<ParsedVersion> ParsedVersion::ParseVersion(
 absl::string_view GetVersion() {
   // The version string format is: "V<version_number>"
   // where version_number is formatted as "${year}${month}${2digit_counter}".
-  static constexpr absl::string_view kSandboxVersion = "V20260701";
+  static constexpr absl::string_view kSandboxVersion = "V20260702";
   return kSandboxVersion;
 }
 

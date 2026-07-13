@@ -26,8 +26,10 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/config.pb.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 
@@ -123,6 +125,10 @@ class Client {
 
   std::string GetFdMapEnvVar() const;
 
+  void MapOneFd(int32_t requested_fd, int32_t fd, absl::string_view name,
+                int* preserved_fd);
+  void PrepareEnvironment(int* preserved_fd, const SandboxingConfig& config);
+
   // Sets up communication channels with the sandbox.
   // preserved_fd contains file descriptor that should be kept open and alive.
   // The FD number might be changed if needed.
@@ -131,6 +137,10 @@ class Client {
 
   // Sets up the current working directory.
   void SetUpCwd();
+
+  // Verifies that the current working directory is properly set up to prevent
+  // sandbox escapes.
+  void VerifyCwd();
 
   // Receives seccomp-bpf policy from the monitor.
   void ReceivePolicy();

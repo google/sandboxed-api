@@ -49,6 +49,7 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/config.pb.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
@@ -234,22 +235,33 @@ void MonitorBase::Launch() {
         << "risk.";
   }
 
-  if (!InitSendIPC()) {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
-    return;
+  if (client_version_number_ >= kProtobufConfigVersion) {
+    if (!InitSetupSandboxConfig()) {
+      return;
+    }
+    if (!InitSendCommsUpgrade()) {
+      SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_COMMS_UPGRADE);
+      return;
+    }
+  } else {
+    if (!InitSendIPC()) {
+      SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
+      return;
+    }
+    if (!InitSendCwd()) {
+      SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CWD);
+      return;
+    }
+    if (!InitSendCommsUpgrade()) {
+      SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_COMMS_UPGRADE);
+      return;
+    }
+    if (!InitSendPolicy()) {
+      SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_POLICY);
+      return;
+    }
   }
-  if (!InitSendCwd()) {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CWD);
-    return;
-  }
-  if (!InitSendCommsUpgrade()) {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_COMMS_UPGRADE);
-    return;
-  }
-  if (!InitSendPolicy()) {
-    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_POLICY);
-    return;
-  }
+
   if (!WaitForSandboxReady()) {
     SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_WAIT);
     return;
@@ -312,6 +324,7 @@ bool MonitorBase::InitSendPolicy() {
   bool user_notif = type_ == FORKSERVER_MONITOR_UNOTIFY;
   auto policy =
       policy_->GetPolicy(user_notif, executor_->enable_sandboxing_pre_execve_);
+  ModifyPolicy(policy);
   absl::Status status = SendPolicy(std::move(policy));
   if (!status.ok()) {
     LOG(ERROR) << "Couldn't send policy: " << status;
@@ -380,7 +393,6 @@ bool MonitorBase::InitVerifyVersion() {
                << ") from sandboxee, got: " << tag;
     return false;
   }
-
   auto parsed_remote = ParsedVersion::ParseVersion(remote_version);
   CHECK(parsed_remote.ok());
   client_version_number_ = parsed_remote->version_number;
@@ -392,7 +404,6 @@ bool MonitorBase::InitVerifyVersion() {
       return false;
     }
   }
-
   absl::string_view local_version = GetVersion();
   if (remote_version != local_version) {
     LOG(ERROR) << "Sandbox version mismatch with sandboxee. Host version: "
@@ -484,6 +495,7 @@ bool MonitorBase::StackTraceCollectionPossible() const {
 
 void MonitorBase::EnableNetworkProxyServer() {
   int fd = ipc_->ReceiveFd(NetworkProxyClient::kFDName);
+  CHECK(policy_->allowed_hosts_.has_value());
 
   network_proxy_server_ = std::make_unique<NetworkProxyServer>(
       fd, &policy_->allowed_hosts_.value(),
@@ -536,4 +548,42 @@ absl::StatusOr<std::vector<std::string>> MonitorBase::GetAndLogStackTrace(
 
   return stack_trace;
 }
+
+bool MonitorBase::InitSetupSandboxConfig() {
+  SandboxingConfig config;
+
+  config.set_cwd(executor_->cwd_);
+
+  bool user_notif = type_ == FORKSERVER_MONITOR_UNOTIFY;
+  auto policy =
+      policy_->GetPolicy(user_notif, executor_->enable_sandboxing_pre_execve_);
+  ModifyPolicy(policy);
+  config.set_policy_bytes(
+      absl::string_view(reinterpret_cast<const char*>(policy.data()),
+                        policy.size() * sizeof(sock_filter)));
+
+  const auto& fd_map = ipc_->fd_map_;
+
+  for (const auto& [local_fd, remote_fd, name] : fd_map) {
+    FdMapping* mapping = config.add_fd_mappings();
+    mapping->set_requested_fd(remote_fd);
+    mapping->set_name(name);
+  }
+
+  if (!comms_->SendProtoBuf(config)) {
+    LOG(ERROR) << "Failed to send SandboxingConfig proto";
+    SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CONFIG);
+    return false;
+  }
+  for (const auto& [local_fd, remote_fd, name] : fd_map) {
+    if (!comms_->SendFD(local_fd)) {
+      LOG(ERROR) << "Failed to send FD in setup loop";
+      SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_IPC);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 }  // namespace sandbox2

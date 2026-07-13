@@ -337,6 +337,7 @@ target_link_libraries(sandbox2_sandbox2
           sandbox2::forkserver_proto
           sandbox2::monitor_ptrace
           sandbox2::monitor_unotify
+          sandbox2::config_proto
           sapi::base
   PUBLIC absl::die_if_null
          absl::flat_hash_map
@@ -435,6 +436,7 @@ target_link_libraries(sandbox2_monitor_base
           sandbox2::namespace
           sandbox2::stack_trace
           sandbox2::util
+          sapi::fileops
           sapi::file_helpers
           sapi::temp_file
           sapi::base
@@ -442,6 +444,7 @@ target_link_libraries(sandbox2_monitor_base
   PUBLIC  absl::status
           absl::statusor
           absl::synchronization
+          sandbox2::config_proto
           sandbox2::comms
           sandbox2::executor
           sandbox2::fork_client
@@ -587,6 +590,7 @@ target_link_libraries(sandbox2_client
           absl::statusor
           sandbox2::bpf_helper
           sandbox2::buffer
+          sandbox2::config_proto
           sandbox2::policy
           sandbox2::sanitizer
           sandbox2::syscall
@@ -857,6 +861,20 @@ add_library(sandbox2_mount_tree_proto ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::mount_tree_proto ALIAS sandbox2_mount_tree_proto)
 target_link_libraries(sandbox2_mount_tree_proto PRIVATE
+  protobuf::libprotobuf
+  sapi::base
+)
+
+# sandboxed_api/sandbox2:config_proto
+sapi_protobuf_generate_cpp(_sandbox2_config_pb_h _sandbox2_config_pb_cc
+  config.proto
+)
+add_library(sandbox2_config_proto ${SAPI_LIB_TYPE}
+  ${_sandbox2_config_pb_cc}
+  ${_sandbox2_config_pb_h}
+)
+add_library(sandbox2::config_proto ALIAS sandbox2_config_proto)
+target_link_libraries(sandbox2_config_proto PRIVATE
   protobuf::libprotobuf
   sapi::base
 )
@@ -1491,7 +1509,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
-
 endif()
 
 configure_file(

@@ -36,6 +36,8 @@ struct ParsedVersion {
 
 absl::string_view GetVersion();
 
+inline constexpr int kProtobufConfigVersion = 20260702;
+
 }  // namespace sandbox2
 
 #endif  // SANDBOXED_API_SANDBOX2_VERSION_H_

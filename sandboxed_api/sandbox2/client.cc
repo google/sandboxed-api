@@ -52,6 +52,7 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/config.pb.h"
 #include "sandboxed_api/sandbox2/logsink.h"
 #include "sandboxed_api/sandbox2/network_proxy/client.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -195,7 +196,6 @@ void Client::PrepareEnvironment(int* preserved_fd) {
   if (!comms_->SendTLV(Comms::kTagVersion, version.size(), version.data())) {
     SAPI_RAW_LOG(FATAL, "Failed to send version to host");
   }
-
   uint32_t tag;
   std::vector<uint8_t> bytes;
   if (!comms_->RecvTLV(&tag, &bytes)) {
@@ -207,18 +207,25 @@ void Client::PrepareEnvironment(int* preserved_fd) {
     auto parsed = ParsedVersion::ParseVersion(host_ver_str);
     SAPI_RAW_CHECK(parsed.ok(), "Malformed host version string received");
     host_version_number_ = parsed->version_number;
-    if (!comms_->RecvTLV(&tag, &bytes)) {
-      SAPI_RAW_LOG(FATAL, "Failed to receive setup tag from host");
-    }
   }
 
-  SAPI_RAW_CHECK(tag == Comms::kTagUint32 && bytes.size() == sizeof(uint32_t),
-                 "unexpected tag/len for V1 IPC setup");
-  uint32_t num_of_fd_pairs = 0;
-  memcpy(&num_of_fd_pairs, bytes.data(), sizeof(num_of_fd_pairs));
-
-  SetUpIPC(preserved_fd, num_of_fd_pairs);
-  SetUpCwd();
+  if (host_version_number_ >= kProtobufConfigVersion) {
+    SandboxingConfig config;
+    SAPI_RAW_CHECK(comms_->RecvProtoBuf(&config), "receiving SandboxingConfig");
+    PrepareEnvironment(preserved_fd, config);
+  } else {
+    // If the host has exchanged a version number, we need to receive the setup
+    // tag.
+    if (host_version_number_ > 0 && !comms_->RecvTLV(&tag, &bytes)) {
+      SAPI_RAW_LOG(FATAL, "Failed to receive setup tag from host");
+    }
+    SAPI_RAW_CHECK(tag == Comms::kTagUint32 && bytes.size() == sizeof(uint32_t),
+                   "unexpected tag/len for V1 IPC setup");
+    uint32_t num_of_fd_pairs = 0;
+    memcpy(&num_of_fd_pairs, bytes.data(), sizeof(num_of_fd_pairs));
+    SetUpIPC(preserved_fd, num_of_fd_pairs);
+    SetUpCwd();
+  }
 }
 
 void Client::EnableSandbox() {
@@ -237,28 +244,30 @@ void Client::SandboxMeHere() {
   EnableSandbox();
 }
 
-void Client::SetUpCwd() {
-  {
-    // Get the current working directory to check if we are in a mount
-    // namespace.
-    // Note: glibc 2.27 no longer returns a relative path in that case, but
-    //       fails with ENOENT and returns a nullptr instead. The code still
-    //       needs to run on lower version for the time being.
-    char cwd_buf[PATH_MAX + 1] = {0};
-    char* cwd = getcwd(cwd_buf, ABSL_ARRAYSIZE(cwd_buf));
-    SAPI_RAW_PCHECK(cwd != nullptr || errno == ENOENT,
-                    "no current working directory");
+void Client::VerifyCwd() {
+  // Get the current working directory to check if we are in a mount
+  // namespace.
+  // Note: glibc 2.27 no longer returns a relative path in that case, but
+  //       fails with ENOENT and returns a nullptr instead. The code still
+  //       needs to run on lower version for the time being.
+  char cwd_buf[PATH_MAX + 1] = {0};
+  char* cwd = getcwd(cwd_buf, ABSL_ARRAYSIZE(cwd_buf));
+  SAPI_RAW_PCHECK(cwd != nullptr || errno == ENOENT,
+                  "no current working directory");
 
-    // Outside of the mount namespace, the path is of the form
-    // '(unreachable)/...'. Only check for the slash, since Linux might make up
-    // other prefixes in the future.
-    if (errno == ENOENT || cwd_buf[0] != '/') {
-      SAPI_RAW_VLOG(1, "chdir into mount namespace, cwd was '%s'", cwd_buf);
-      // If we are in a mount namespace but fail to chdir, then it can lead to a
-      // sandbox escape -- we need to fail with FATAL if the chdir fails.
-      SAPI_RAW_PCHECK(chdir("/") != -1, "corrective chdir");
-    }
+  // Outside of the mount namespace, the path is of the form
+  // '(unreachable)/...'. Only check for the slash, since Linux might make up
+  // other prefixes in the future.
+  if (errno == ENOENT || cwd_buf[0] != '/') {
+    SAPI_RAW_VLOG(1, "chdir into mount namespace, cwd was '%s'", cwd_buf);
+    // If we are in a mount namespace but fail to chdir, then it can lead to a
+    // sandbox escape -- we need to fail with FATAL if the chdir fails.
+    SAPI_RAW_PCHECK(chdir("/") != -1, "corrective chdir");
   }
+}
+
+void Client::SetUpCwd() {
+  VerifyCwd();
 
   // Receive the user-supplied current working directory and change into it.
   std::string cwd;
@@ -276,6 +285,78 @@ void Client::SetUpCwd() {
   }
 }
 
+void Client::MapOneFd(int32_t requested_fd, int32_t fd, absl::string_view name,
+                      int* preserved_fd) {
+  if (preserved_fd && *preserved_fd == requested_fd) {
+    int old_fd = *preserved_fd;
+    int new_fd = dup(old_fd);
+    SAPI_RAW_PCHECK(new_fd != -1, "Failed to duplicate preserved fd=%d",
+                    old_fd);
+    SAPI_RAW_LOG(INFO, "Moved preserved fd=%d to %d", old_fd, new_fd);
+    close(old_fd);
+    *preserved_fd = new_fd;
+  }
+
+  if (requested_fd == comms_->GetConnectionFD()) {
+    comms_->MoveToAnotherFd();
+    SAPI_RAW_LOG(INFO, "Trying to map over comms fd (%d). Remapped comms to %d",
+                 requested_fd, comms_->GetConnectionFD());
+  }
+
+  if (requested_fd != -1 && fd != requested_fd) {
+    if (requested_fd > STDERR_FILENO && fcntl(requested_fd, F_GETFD) != -1) {
+      // Dup2 will silently close the FD if one is already at requested_fd.
+      // If someone is using the deferred sandbox entry, ie. SandboxMeHere,
+      // the application might have something actually using that fd.
+      // Therefore let's log a big warning if that FD is already in use.
+      // Note: this check doesn't happen for STDIN,STDOUT,STDERR.
+      SAPI_RAW_LOG(
+          WARNING,
+          "Cloning received fd %d over %d which is already open and will "
+          "be silently closed. This may lead to unexpected behavior!",
+          fd, requested_fd);
+    }
+
+    SAPI_RAW_VLOG(1, "Cloning received fd=%d onto fd=%d", fd, requested_fd);
+    SAPI_RAW_PCHECK(dup2(fd, requested_fd) != -1, "");
+
+    // Close the newly received FD if it differs from the new one.
+    close(fd);
+    fd = requested_fd;
+  }
+
+  if (!name.empty()) {
+    SAPI_RAW_CHECK(fd_map_.emplace(name, fd).second, "duplicate fd mapping");
+  }
+}
+
+void Client::PrepareEnvironment(int* preserved_fd,
+                                const SandboxingConfig& config) {
+  SAPI_RAW_CHECK(fd_map_.empty(), "fd map not empty");
+  for (const auto& mapping : config.fd_mappings()) {
+    int32_t req_fd = mapping.has_requested_fd() ? mapping.requested_fd() : -1;
+    int fd;
+    SAPI_RAW_CHECK(comms_->RecvFD(&fd), "receiving fd");
+    MapOneFd(req_fd, fd, mapping.name(), preserved_fd);
+  }
+
+  VerifyCwd();
+  if (config.has_cwd() && !config.cwd().empty()) {
+    std::string cwd = std::string(config.cwd());
+    if (chdir(cwd.c_str()) == -1 && SAPI_RAW_VLOG_IS_ON(1)) {
+      SAPI_RAW_PLOG(
+          INFO,
+          "chdir(%s) failed, falling back to previous cwd or / (with "
+          "namespaces). Use Executor::SetCwd() to set a working directory",
+          cwd.c_str());
+    }
+  }
+
+  if (config.has_policy_bytes()) {
+    policy_.assign(config.policy_bytes().begin(), config.policy_bytes().end());
+  }
+}
+
 void Client::SetUpIPC(int* preserved_fd, uint32_t num_of_fd_pairs) {
   SAPI_RAW_CHECK(fd_map_.empty(), "fd map not empty");
 
@@ -289,53 +370,14 @@ void Client::SetUpIPC(int* preserved_fd, uint32_t num_of_fd_pairs) {
     SAPI_RAW_CHECK(comms_->RecvInt32(&requested_fd), "receiving requested fd");
     SAPI_RAW_CHECK(comms_->RecvFD(&fd), "receiving current fd");
     SAPI_RAW_CHECK(comms_->RecvString(&name), "receiving name string");
-
-    if (preserved_fd && *preserved_fd == requested_fd) {
-      int old_fd = *preserved_fd;
-      int new_fd = dup(old_fd);
-      SAPI_RAW_PCHECK(new_fd != -1, "Failed to duplicate preserved fd=%d",
-                      old_fd);
-      SAPI_RAW_LOG(INFO, "Moved preserved fd=%d to %d", old_fd, new_fd);
-      close(old_fd);
-      *preserved_fd = new_fd;
-    }
-
-    if (requested_fd == comms_->GetConnectionFD()) {
-      comms_->MoveToAnotherFd();
-      SAPI_RAW_LOG(INFO,
-                   "Trying to map over comms fd (%d). Remapped comms to %d",
-                   requested_fd, comms_->GetConnectionFD());
-    }
-
-    if (requested_fd != -1 && fd != requested_fd) {
-      if (requested_fd > STDERR_FILENO && fcntl(requested_fd, F_GETFD) != -1) {
-        // Dup2 will silently close the FD if one is already at requested_fd.
-        // If someone is using the deferred sandbox entry, ie. SandboxMeHere,
-        // the application might have something actually using that fd.
-        // Therefore let's log a big warning if that FD is already in use.
-        // Note: this check doesn't happen for STDIN,STDOUT,STDERR.
-        SAPI_RAW_LOG(
-            WARNING,
-            "Cloning received fd %d over %d which is already open and will "
-            "be silently closed. This may lead to unexpected behavior!",
-            fd, requested_fd);
-      }
-
-      SAPI_RAW_VLOG(1, "Cloning received fd=%d onto fd=%d", fd, requested_fd);
-      SAPI_RAW_PCHECK(dup2(fd, requested_fd) != -1, "");
-
-      // Close the newly received FD if it differs from the new one.
-      close(fd);
-      fd = requested_fd;
-    }
-
-    if (!name.empty()) {
-      SAPI_RAW_CHECK(fd_map_.emplace(name, fd).second, "duplicate fd mapping");
-    }
+    MapOneFd(requested_fd, fd, name, preserved_fd);
   }
 }
 
 void Client::ReceivePolicy() {
+  if (host_version_number_ >= kProtobufConfigVersion) {
+    return;
+  }
   std::vector<uint8_t> bytes;
   SAPI_RAW_CHECK(comms_->RecvBytes(&bytes), "receive bytes");
   policy_ = std::move(bytes);

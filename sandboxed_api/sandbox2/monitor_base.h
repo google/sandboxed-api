@@ -88,10 +88,8 @@ class MonitorBase {
   // Applies limits on the sandboxee.
   bool InitApplyLimits();
 
-  // Sends the policy to the client.
   // Can be overridden by subclasses to save/modify policy before sending.
-  // Returns success/failure status.
-  virtual absl::Status SendPolicy(const std::vector<sock_filter>& policy);
+  virtual void ModifyPolicy(std::vector<sock_filter>& policy) {};
 
   bool wait_for_execveat() const { return wait_for_execveat_; }
   void set_wait_for_execveat(bool wait_for_execve) {
@@ -145,6 +143,8 @@ class MonitorBase {
   // Monitor type
   MonitorType type_ = FORKSERVER_MONITOR_PTRACE;
 
+  bool InitSetupSandboxConfig();
+
  private:
   // Instantiates and sends Policy to the Client.
   // Returns success/failure status.
@@ -174,6 +174,10 @@ class MonitorBase {
   // comms is enabled. Otherwise, sends a message indicating that comms upgrade
   // is not needed.
   bool InitSendCommsUpgrade();
+
+  // Sends the policy to the client.
+  // Returns success/failure status.
+  absl::Status SendPolicy(const std::vector<sock_filter>& policy);
 
   virtual void RunInternal() = 0;
   virtual void Join() = 0;

@@ -74,6 +74,7 @@ class Result {
     FAILED_CWD,
     FAILED_POLICY,
     FAILED_VERSION_CHECK,
+    FAILED_CONFIG,
 
     // Codes used by status=`INTERNAL_ERROR`:
     FAILED_STORE,

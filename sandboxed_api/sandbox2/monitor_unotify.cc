@@ -164,18 +164,15 @@ void UnotifyMonitor::RunInternal() {
   setup_notification_.WaitForNotification();
 }
 
-absl::Status UnotifyMonitor::SendPolicy(
-    const std::vector<sock_filter>& policy) {
+void UnotifyMonitor::ModifyPolicy(std::vector<sock_filter>& policy) {
   original_policy_ = policy;
-  std::vector<sock_filter> modified_policy = policy;
   const sock_filter trace_action = SANDBOX2_TRACE;
-  for (sock_filter& filter : modified_policy) {
+  for (sock_filter& filter : policy) {
     if ((filter.code == BPF_RET + BPF_K && filter.k == SECCOMP_RET_KILL) ||
         (filter.code == trace_action.code && filter.k == trace_action.k)) {
       filter = DO_USER_NOTIF;
     }
   }
-  return MonitorBase::SendPolicy(modified_policy);
 }
 
 void UnotifyMonitor::HandleViolation(const Syscall& syscall) {

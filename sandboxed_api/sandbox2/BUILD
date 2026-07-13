@@ -139,6 +139,11 @@ cc_library(
 )
 
 sapi_proto_library(
+    name = "config_proto",
+    srcs = ["config.proto"],
+)
+
+sapi_proto_library(
     name = "logserver_proto",
     srcs = ["logserver.proto"],
 )
@@ -360,6 +365,7 @@ cc_library(
         ":buffer",
         ":client",
         ":comms",
+        ":config_cc_proto",
         ":executor",
         ":fork_client",
         ":forkserver_cc_proto",
@@ -524,6 +530,7 @@ cc_library(
     deps = [
         ":client",
         ":comms",
+        ":config_cc_proto",
         ":executor",
         ":flags",
         ":fork_client",
@@ -543,6 +550,7 @@ cc_library(
         "//sandboxed_api/sandbox2/network_proxy:client",
         "//sandboxed_api/sandbox2/network_proxy:server",
         "//sandboxed_api/util:file_helpers",
+        "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:strerror",
         "//sandboxed_api/util:temp_file",
         "//sandboxed_api/util:thread",
@@ -612,6 +620,7 @@ cc_library(
     deps = [
         ":buffer",
         ":comms",
+        ":config_cc_proto",
         ":logsink",
         ":policy",
         ":sanitizer",
