@@ -1,6 +1,5 @@
 #include "sandboxed_api/tests/testcases/replaced_library_struct_sync.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
