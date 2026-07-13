@@ -917,22 +917,16 @@ endforeach()
 
 string(REPLACE ";" " " SANDBOX2_SOURCES_STR "${SANDBOX2_SOURCES_ABS}")
 
-add_custom_command(
-  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/version.cc"
-  COMMAND bash -c "final_hash=\$(sha256sum ${SANDBOX2_SOURCES_STR} | sort -k 2 | sha256sum | cut -d' ' -f1) && sed \"s/@SANDBOX_VERSION@/\$final_hash/g\" \"${CMAKE_CURRENT_SOURCE_DIR}/version.cc.in\" > \"${CMAKE_CURRENT_BINARY_DIR}/version.cc\""
-  DEPENDS ${SANDBOX2_SOURCES_ABS} "${CMAKE_CURRENT_SOURCE_DIR}/version.cc.in"
-  COMMENT "Generating version.cc via source hashing"
-  VERBATIM
-)
-
 # version library
 add_library(sandbox2_version STATIC
+  version.cc
   version.h
-  "${CMAKE_CURRENT_BINARY_DIR}/version.cc"
 )
 add_library(sandbox2::version ALIAS sandbox2_version)
 target_link_libraries(sandbox2_version
   PUBLIC absl::strings
+  absl::status
+  absl::statusor
   PRIVATE sapi::base)
 
 # sandboxed_api/sandbox2:setup_latency_breakdown

@@ -200,6 +200,9 @@ class MonitorBase {
   // Size of the shared memory comms buffer. If set, the comms will be upgraded
   // to shared memory.
   std::optional<size_t> shared_memory_comms_size_ = std::nullopt;
+
+  // 0 represents legacy V1 client.
+  int client_version_number_ = 0;
 };
 
 }  // namespace sandbox2

@@ -15,9 +15,24 @@
 #ifndef SANDBOXED_API_SANDBOX2_VERSION_H_
 #define SANDBOXED_API_SANDBOX2_VERSION_H_
 
+#include <string>
+
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
 namespace sandbox2 {
+
+struct ParsedVersion {
+  // Parses a version string formatted with one of the following formats:
+  //  - "V<version_number>"
+  //  - "<sha256sum>"
+  //  - "<sha256sum>V<version_number>"
+  static absl::StatusOr<ParsedVersion> ParseVersion(
+      absl::string_view version_string);
+
+  int version_number = 0;  // 0 represents unparsed or legacy V1
+  std::string build_hash;
+};
 
 absl::string_view GetVersion();
 

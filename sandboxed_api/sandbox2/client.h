@@ -118,13 +118,16 @@ class Client {
   // This is only set if shared memory is enabled.
   std::unique_ptr<Buffer> shared_memory_mapping_;
 
+  // 0 represents legacy V1 host.
+  int host_version_number_ = 0;
+
   std::string GetFdMapEnvVar() const;
 
   // Sets up communication channels with the sandbox.
   // preserved_fd contains file descriptor that should be kept open and alive.
   // The FD number might be changed if needed.
   // preserved_fd can be a nullptr.
-  void SetUpIPC(int* preserved_fd);
+  void SetUpIPC(int* preserved_fd, uint32_t num_of_fd_pairs);
 
   // Sets up the current working directory.
   void SetUpCwd();

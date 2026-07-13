@@ -31,6 +31,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -194,7 +195,29 @@ void Client::PrepareEnvironment(int* preserved_fd) {
   if (!comms_->SendTLV(Comms::kTagVersion, version.size(), version.data())) {
     SAPI_RAW_LOG(FATAL, "Failed to send version to host");
   }
-  SetUpIPC(preserved_fd);
+
+  uint32_t tag;
+  std::vector<uint8_t> bytes;
+  if (!comms_->RecvTLV(&tag, &bytes)) {
+    SAPI_RAW_LOG(FATAL, "Failed to receive tag from host");
+  }
+
+  if (tag == Comms::kTagVersion) {
+    std::string host_ver_str(bytes.begin(), bytes.end());
+    auto parsed = ParsedVersion::ParseVersion(host_ver_str);
+    SAPI_RAW_CHECK(parsed.ok(), "Malformed host version string received");
+    host_version_number_ = parsed->version_number;
+    if (!comms_->RecvTLV(&tag, &bytes)) {
+      SAPI_RAW_LOG(FATAL, "Failed to receive setup tag from host");
+    }
+  }
+
+  SAPI_RAW_CHECK(tag == Comms::kTagUint32 && bytes.size() == sizeof(uint32_t),
+                 "unexpected tag/len for V1 IPC setup");
+  uint32_t num_of_fd_pairs = 0;
+  memcpy(&num_of_fd_pairs, bytes.data(), sizeof(num_of_fd_pairs));
+
+  SetUpIPC(preserved_fd, num_of_fd_pairs);
   SetUpCwd();
 }
 
@@ -253,10 +276,7 @@ void Client::SetUpCwd() {
   }
 }
 
-void Client::SetUpIPC(int* preserved_fd) {
-  uint32_t num_of_fd_pairs;
-  SAPI_RAW_CHECK(comms_->RecvUint32(&num_of_fd_pairs),
-                 "receiving number of fd pairs");
+void Client::SetUpIPC(int* preserved_fd, uint32_t num_of_fd_pairs) {
   SAPI_RAW_CHECK(fd_map_.empty(), "fd map not empty");
 
   SAPI_RAW_VLOG(1, "Will receive %d file descriptor pairs", num_of_fd_pairs);

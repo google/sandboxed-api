@@ -380,6 +380,19 @@ bool MonitorBase::InitVerifyVersion() {
                << ") from sandboxee, got: " << tag;
     return false;
   }
+
+  auto parsed_remote = ParsedVersion::ParseVersion(remote_version);
+  CHECK(parsed_remote.ok());
+  client_version_number_ = parsed_remote->version_number;
+  if (client_version_number_ != 0) {
+    absl::string_view local_version = GetVersion();
+    if (!comms_->SendTLV(Comms::kTagVersion, local_version.size(),
+                         local_version.data())) {
+      LOG(ERROR) << "Failed to send host version back to sandboxee";
+      return false;
+    }
+  }
+
   absl::string_view local_version = GetVersion();
   if (remote_version != local_version) {
     LOG(ERROR) << "Sandbox version mismatch with sandboxee. Host version: "

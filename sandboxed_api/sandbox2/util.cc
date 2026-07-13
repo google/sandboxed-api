@@ -330,7 +330,7 @@ absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
   int status;
   SAPI_RAW_PCHECK(TEMP_FAILURE_RETRY(waitpid(pid, &status, 0)) == pid,
                   "Waiting for subprocess");
-  return WEXITSTATUS(status);
+  return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
 std::string GetSignalName(int signo) {

@@ -1328,21 +1328,6 @@ filegroup(
     ),
 )
 
-# LINT.IfChange
-genrule(
-    name = "version_cc",
-    srcs = [
-        ":sandbox2_sources",
-        "version.cc.in",
-    ],
-    outs = ["version.cc"],
-    cmd = """
-        final_hash=$$(sha256sum $(locations :sandbox2_sources) | sort -k 2 | sha256sum | cut -d' ' -f1)
-        sed "s/@SANDBOX_VERSION@/$$final_hash/g" $(location version.cc.in) > $@
-    """,
-)
-# LINT.ThenChange(//depot/google3/third_party/sandboxed_api/sandbox2/CMakeLists.txt)
-
 cc_library(
     name = "version",
     srcs = ["version.cc"],
@@ -1350,6 +1335,8 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
 )
