@@ -36,21 +36,18 @@ class Namespace final {
   static void InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                    const Mounts& mounts,
                                    const std::string& hostname,
-                                   bool allow_mount_propagation,
-                                   bool allow_write_executable,
                                    SetupLatencyBreakdown& latency_breakdown);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
 
   // Enforces Landlock isolation for the given mounts.
   static void EnforceLandlockIsolation(
-      int32_t clone_flags, const Mounts& mounts, bool allow_write_executable,
-      uid_t uid, gid_t gid, SetupLatencyBreakdown& latency_breakdown);
+      int32_t clone_flags, const Mounts& mounts, uid_t uid, gid_t gid,
+      SetupLatencyBreakdown& latency_breakdown);
 
   static void InitializeSharedPidNamespaces();
 
   Namespace(Mounts mounts, std::string hostname, NetNsMode netns_config,
-            bool allow_mount_propagation = false,
-            bool allow_write_executable = false, bool use_landlock = false);
+            bool use_landlock);
 
   NetNsMode netns_config() const { return netns_config_; }
 
@@ -60,10 +57,6 @@ class Namespace final {
   const Mounts& mounts() const { return mounts_; }
 
   const std::string& hostname() const { return hostname_; }
-
-  bool allow_mount_propagation() const { return allow_mount_propagation_; }
-
-  bool allow_write_executable() const { return allow_write_executable_; }
 
   bool use_landlock() const { return use_landlock_; }
 
@@ -75,8 +68,6 @@ class Namespace final {
                          CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNET;
   Mounts mounts_;
   std::string hostname_;
-  bool allow_mount_propagation_;
-  bool allow_write_executable_;
   NetNsMode netns_config_;
   bool use_landlock_;
 };

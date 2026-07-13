@@ -71,3 +71,12 @@ message MountTree {
   // Whether to ignore non-existing files/directories when creating the mounts.
   optional bool ignore_non_existing = 4;
 }
+
+message MountSpecs {
+  // The mount tree used for namespace initialization
+  optional MountTree mount_tree = 1;
+  // Changes mount propagation from MS_PRIVATE to MS_SLAVE if set
+  optional bool allow_mount_propagation = 2;
+  // Whether to allow the sandboxee to mount write-executable filesystems
+  optional bool allow_write_executable = 3;
+}

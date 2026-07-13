@@ -103,10 +103,8 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
   if (ns) {
     clone_flags |= ns->clone_flags();
     request.set_netns_mode(ns->netns_config());
-    *request.mutable_mount_tree() = ns->mounts().GetMountTree();
+    *request.mutable_mount_specs() = ns->mounts().GetMountSpecs();
     request.set_hostname(ns->hostname());
-    request.set_allow_mount_propagation(ns->allow_mount_propagation());
-    request.set_allow_write_executable(ns->allow_write_executable());
   }
 
   request.set_use_landlock(ns && ns->use_landlock());

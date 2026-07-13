@@ -68,8 +68,7 @@ int MountFallbackToReadOnly(const char* source, const char* target,
   return rv;
 }
 
-void PrepareChroot(const Mounts& mounts, bool allow_mount_propagation,
-                   bool allow_write_executable) {
+void PrepareChroot(const Mounts& mounts) {
   // Create a tmpfs mount for the new rootfs.
   SAPI_RAW_CHECK(
       file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
@@ -78,8 +77,7 @@ void PrepareChroot(const Mounts& mounts, bool allow_mount_propagation,
                   "mounting rootfs failed");
 
   // Walk the tree and perform all the mount operations.
-  mounts.CreateMounts(kSandbox2ChrootPath, allow_mount_propagation,
-                      allow_write_executable);
+  mounts.CreateMounts(kSandbox2ChrootPath);
 
   if (mounts.IsRootReadOnly()) {
     // Remount the chroot read-only
@@ -212,12 +210,9 @@ void LogFilesystem(const std::string& dir) {
 }  // namespace
 
 Namespace::Namespace(Mounts mounts, std::string hostname,
-                     NetNsMode netns_config, bool allow_mount_propagation,
-                     bool allow_write_executable, bool use_landlock)
+                     NetNsMode netns_config, bool use_landlock)
     : mounts_(std::move(mounts)),
       hostname_(std::move(hostname)),
-      allow_mount_propagation_(allow_mount_propagation),
-      allow_write_executable_(allow_write_executable),
       netns_config_(netns_config),
       use_landlock_(use_landlock) {
   // Remove the CLONE_NEWNET flag to allow networking, or for the shared netns.
@@ -240,8 +235,8 @@ void Namespace::UnshareNestedUserNamespace(int proc_self_fd) {
 }
 
 void Namespace::EnforceLandlockIsolation(
-    int32_t clone_flags, const Mounts& mounts, bool allow_write_executable,
-    uid_t uid, gid_t gid, SetupLatencyBreakdown& latency_breakdown) {
+    int32_t clone_flags, const Mounts& mounts, uid_t uid, gid_t gid,
+    SetupLatencyBreakdown& latency_breakdown) {
   LatencyStopWatch latency_stop_watch;
   if (clone_flags & CLONE_NEWNET) {
     ActivateLoopbackInterface();
@@ -257,7 +252,7 @@ void Namespace::EnforceLandlockIsolation(
         SetupLatencyBreakdown::kSharedPidNestedUserNamespace,
         latency_stop_watch.LapTime());
   }
-  EnforceLandlock(mounts, allow_write_executable);
+  EnforceLandlock(mounts);
   latency_breakdown.SetLatency(
       SetupLatencyBreakdown::kSharedPidLandlockEnforcement,
       latency_stop_watch.LapTime());
@@ -271,8 +266,6 @@ void Namespace::EnforceLandlockIsolation(
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
                                      const Mounts& mounts,
                                      const std::string& hostname,
-                                     bool allow_mount_propagation,
-                                     bool allow_write_executable,
                                      SetupLatencyBreakdown& latency_breakdown) {
   if (!(clone_flags & CLONE_NEWNS)) {
     // CLONE_NEWNS is always set if we're running in namespaces.
@@ -321,7 +314,7 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
         latency_stop_watch.LapTime());
   }
 
-  PrepareChroot(mounts, allow_mount_propagation, allow_write_executable);
+  PrepareChroot(mounts);
   latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitPrepareChroot,
                                latency_stop_watch.LapTime());
 

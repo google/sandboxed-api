@@ -211,7 +211,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
 }
 }  // namespace
 
-void EnforceLandlock(const Mounts& mounts, bool allow_write_executable) {
+void EnforceLandlock(const Mounts& mounts) {
   struct landlock_ruleset_attr_v7 ruleset_attr = {
       .handled_access_fs =
           LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_WRITE_FILE |
@@ -234,7 +234,7 @@ void EnforceLandlock(const Mounts& mounts, bool allow_write_executable) {
 
   auto mount_tree = mounts.GetMountTree();
   AddRulesRecursively(ruleset_fd.get(), &mount_tree, "/", "", "",
-                      allow_write_executable);
+                      mounts.GetMountSpecs().allow_write_executable());
 
   SAPI_RAW_PCHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
                   "prctl PR_SET_NO_NEW_PRIVS failed");

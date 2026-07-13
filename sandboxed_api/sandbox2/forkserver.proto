@@ -70,6 +70,7 @@ message ForkRequest {
     INITIALIZE_EMPTY_NETNS = 2;
     INITIALIZE_SHARED_PID_NAMESPACES = 3;
   }
+
   // List of arguments, starting with argv[0]
   repeated bytes args = 1;
   // List of environment variables which will be passed to the child
@@ -83,14 +84,11 @@ message ForkRequest {
 
   reserved 5;
 
-  // The mount tree used for namespace initialization
-  optional MountTree mount_tree = 6;
+  // Old mount related fields.
+  reserved 6, 8, 12;
 
   // Hostname in the network namespace
   optional bytes hostname = 7;
-
-  // Changes mount propagation from MS_PRIVATE to MS_SLAVE if set
-  optional bool allow_mount_propagation = 8;
 
   // Monitor type used by the sandbox
   optional MonitorType monitor_type = 9;
@@ -101,12 +99,12 @@ message ForkRequest {
   // Net namespace mode
   optional NetNsMode netns_mode = 11;
 
-  // Whether to allow the sandboxee to mount write-executable filesystems
-  optional bool allow_write_executable = 12;
-
   // What initialization to run. Relevant only for FORKSERVER_INITIALIZE mode.
   optional InitializationType initialization_type = 13;
 
   // Whether to use Landlock rather than mount/pid namespaces for this request.
   optional bool use_landlock = 14;
+
+  // The mount specs to use for namespace initialization
+  optional MountSpecs mount_specs = 15;
 }

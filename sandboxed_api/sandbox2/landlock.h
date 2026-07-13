@@ -22,7 +22,7 @@ namespace sandbox2 {
 // Enforces Landlock access rules based on the requested Sandbox2 mounts.
 //
 // Note: Landlock support is experimental and subject to change.
-void EnforceLandlock(const Mounts& mounts, bool allow_write_executable = false);
+void EnforceLandlock(const Mounts& mounts);
 
 // Returns whether Landlock is supported on the current kernel.
 bool IsLandlockSupported();

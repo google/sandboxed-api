@@ -160,7 +160,7 @@ absl::Status Mounts::Remove(absl::string_view path) {
   std::vector<absl::string_view> parts =
       absl::StrSplit(absl::StripPrefix(fixed_path, "/"), '/');
 
-  MountTree* curtree = &mount_tree_;
+  MountTree* curtree = mount_specs_.mutable_mount_tree();
   for (absl::string_view part : parts) {
     if (curtree->has_node() && curtree->node().has_file_node()) {
       return absl::NotFoundError(
@@ -181,7 +181,7 @@ absl::Status Mounts::Remove(absl::string_view path) {
 absl::StatusOr<MountTree::Node> Mounts::GetNode(absl::string_view path) {
   std::vector<absl::string_view> parts =
       absl::StrSplit(absl::StripPrefix(path, "/"), '/');
-  MountTree* curtree = &mount_tree_;
+  MountTree* curtree = mount_specs_.mutable_mount_tree();
   for (absl::string_view part : parts) {
     auto it = curtree->mutable_entries()->find(std::string(part));
     if (it == curtree->mutable_entries()->end()) {
@@ -237,7 +237,7 @@ absl::Status Mounts::Insert(absl::string_view path,
   std::vector<absl::string_view> parts =
       absl::StrSplit(absl::StripPrefix(fixed_path, "/"), '/');
 
-  MountTree* curtree = &mount_tree_;
+  MountTree* curtree = mount_specs_.mutable_mount_tree();
   for (int i = 0; true; ++i) {
     auto [it, did_insert] =
         curtree->mutable_entries()->emplace(parts[i], MountTree());
@@ -316,7 +316,7 @@ absl::StatusOr<std::string> Mounts::ResolvePath(absl::string_view path) const {
   std::string fixed_path = sapi::file::CleanPath(path);
   absl::string_view tail = absl::StripPrefix(fixed_path, "/");
 
-  const MountTree* curtree = &mount_tree_;
+  const MountTree* curtree = &mount_specs_.mount_tree();
   while (!tail.empty()) {
     std::pair<absl::string_view, absl::string_view> parts =
         absl::StrSplit(tail, absl::MaxSplits('/', 1));
@@ -635,11 +635,10 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
 
 }  // namespace
 
-void Mounts::CreateMounts(const std::string& root_path,
-                          bool allow_mount_propagation,
-                          bool allow_write_executable) const {
-  sandbox2::CreateMounts(mount_tree_, root_path, root_path, true,
-                         allow_mount_propagation, allow_write_executable);
+void Mounts::CreateMounts(const std::string& root_path) const {
+  sandbox2::CreateMounts(mount_specs_.mount_tree(), root_path, root_path, true,
+                         mount_specs_.allow_mount_propagation(),
+                         mount_specs_.allow_write_executable());
 }
 
 namespace {

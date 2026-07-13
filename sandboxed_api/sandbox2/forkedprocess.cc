@@ -405,10 +405,9 @@ void ForkedProcess::SetupNamespaces() {
   SAPI_RAW_PCHECK(unshare(unshare_flags) == 0, "unsharing namespaces");
   latency_breakdown_.SetLatency(SetupLatencyBreakdown::kNamespacesUnshare,
                                 latency_stop_watch_.LapTime());
-  Namespace::InitializeNamespaces(
-      uid, gid, request_.clone_flags(), Mounts(request_.mount_tree()),
-      request_.hostname(), request_.allow_mount_propagation(),
-      request_.allow_write_executable(), latency_breakdown_);
+  Namespace::InitializeNamespaces(uid, gid, request_.clone_flags(),
+                                  Mounts(request_.mount_specs()),
+                                  request_.hostname(), latency_breakdown_);
   latency_breakdown_.SetLatency(
       SetupLatencyBreakdown::kNamespacesInitialization,
       latency_stop_watch_.LapTime());
@@ -464,9 +463,9 @@ void ForkedProcess::SetupLandlockNamespaces() {
       SetupLatencyBreakdown::kSharedPidNamespacesUnshare,
       latency_stop_watch_.LapTime());
 
-  Namespace::EnforceLandlockIsolation(
-      request_.clone_flags() | CLONE_NEWUSER, Mounts(request_.mount_tree()),
-      request_.allow_write_executable(), uid, gid, latency_breakdown_);
+  Namespace::EnforceLandlockIsolation(request_.clone_flags() | CLONE_NEWUSER,
+                                      Mounts(request_.mount_specs()), uid, gid,
+                                      latency_breakdown_);
 
   // TODO(cffsmith): If UnotifyMonitor support is added back to Landlock mode,
   // we will need to launch an init process here to coordinate return values

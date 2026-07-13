@@ -1064,8 +1064,6 @@ class PolicyBuilder final {
   bool allow_map_exec_ = true;
   bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;
-  bool allow_mount_propagation_ = false;
-  bool allow_write_executable_ = false;
   std::string hostname_ = std::string(kDefaultHostname);
 
   // Stack trace collection

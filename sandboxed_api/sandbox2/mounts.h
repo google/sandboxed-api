@@ -42,10 +42,11 @@ class Mounts {
   Mounts() {
     MountTree::Node root;
     root.mutable_root_node()->set_writable(false);
-    *mount_tree_.mutable_node() = root;
+    *mount_specs_.mutable_mount_tree()->mutable_node() = root;
   }
 
-  explicit Mounts(MountTree mount_tree) : mount_tree_(std::move(mount_tree)) {}
+  explicit Mounts(MountSpecs mount_specs)
+      : mount_specs_(std::move(mount_specs)) {}
 
   Mounts(const Mounts&) = default;
   Mounts(Mounts&&) = default;
@@ -75,18 +76,22 @@ class Mounts {
 
   absl::Status Remove(absl::string_view path);
 
-  void CreateMounts(const std::string& root_path, bool allow_mount_propagation,
-                    bool allow_write_executable) const;
+  void CreateMounts(const std::string& root_path) const;
 
-  MountTree GetMountTree() const { return mount_tree_; }
+  const MountTree& GetMountTree() const { return mount_specs_.mount_tree(); }
+  const MountSpecs& GetMountSpecs() const { return mount_specs_; }
 
   void SetRootWritable() {
-    mount_tree_.mutable_node()->mutable_root_node()->set_writable(true);
+    mount_specs_.mutable_mount_tree()
+        ->mutable_node()
+        ->mutable_root_node()
+        ->set_writable(true);
   }
 
   bool IsRootReadOnly() const {
-    return mount_tree_.has_node() && mount_tree_.node().has_root_node() &&
-           !mount_tree_.node().root_node().writable();
+    const MountTree& mount_tree = mount_specs_.mount_tree();
+    return mount_tree.has_node() && mount_tree.node().has_root_node() &&
+           !mount_tree.node().root_node().writable();
   }
 
   // Lists the outside and inside entries of the input tree in the output
@@ -99,6 +104,11 @@ class Mounts {
   void RecursivelyListMounts(std::vector<std::string>* outside_entries,
                              std::vector<std::string>* inside_entries) const;
 
+  void AllowWriteExecutable() { mount_specs_.set_allow_write_executable(true); }
+  void AllowMountPropagation() {
+    mount_specs_.set_allow_mount_propagation(true);
+  }
+
   absl::StatusOr<std::string> ResolvePath(absl::string_view path) const;
 
  private:
@@ -107,7 +117,7 @@ class Mounts {
   absl::StatusOr<MountTree::Node> GetNode(absl::string_view path);
   absl::Status Insert(absl::string_view path, const MountTree::Node& node);
 
-  MountTree mount_tree_;
+  MountSpecs mount_specs_;
   int64_t mount_index_ = 0;  // Used to keep track of the mount insertion order
 };
 

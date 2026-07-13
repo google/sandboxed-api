@@ -1628,11 +1628,8 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    // We pass the mounts that we will then parse for namespaces or Landlock.
-    policy->namespace_ = Namespace(
-        std::move(mounts_), hostname_, netns_mode_,
-        /*allow_mount_propagation=*/use_namespaces_ && allow_mount_propagation_,
-        allow_write_executable_, use_landlock);
+    policy->namespace_ =
+        Namespace(std::move(mounts_), hostname_, netns_mode_, use_landlock);
   }
 
   policy->allow_map_exec_ = allow_map_exec_;
@@ -1973,7 +1970,7 @@ PolicyBuilder& PolicyBuilder::SetRootWritable() {
 }
 
 PolicyBuilder& PolicyBuilder::Allow(MountPropagation) {
-  allow_mount_propagation_ = true;
+  mounts_.AllowMountPropagation();
   return *this;
 }
 
@@ -1991,7 +1988,7 @@ PolicyBuilder& PolicyBuilder::DangerAllowMountPropagation() {
 }
 
 PolicyBuilder& PolicyBuilder::Allow(WriteExecutable) {
-  allow_write_executable_ = true;
+  mounts_.AllowWriteExecutable();
   return *this;
 }
 
