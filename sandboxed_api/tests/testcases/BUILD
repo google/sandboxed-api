@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//sandboxed_api/bazel:sapi.bzl", "cc_sandboxed_library", "cc_sandboxed_library_test")
 
 package(default_visibility = ["//visibility:private"])
@@ -158,4 +159,32 @@ cc_sandboxed_library_test(
     deps = [
         "@googletest//:gtest_main",
     ],
+)
+
+cc_library(
+    name = "replacement_library_thunk_headers",
+    hdrs = ["replaced_library_thunk.h"],
+)
+
+cc_sandboxed_library(
+    name = "replacement_library_thunk",
+    srcs = ["replaced_library_thunk.cc"],
+    hdrs = [
+        "replaced_library_thunk.h",
+    ],
+    annotations = ["lwbox_thunk_sandbox.cc"],
+    host_deps = [
+        ":replacement_library_thunk_headers",
+    ],
+    deps = [
+        "//sandboxed_api:annotations",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_sandboxed_library_test(
+    name = "replacement_thunk_test",
+    srcs = ["replaced_library_thunk_test.cc"],
+    lib = ":replacement_library_thunk",
+    deps = ["@googletest//:gtest_main"],
 )
