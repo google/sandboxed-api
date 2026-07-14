@@ -24,11 +24,13 @@
 #include "sandboxed_api/config.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
-#define SAPI_ASSERT_OK(expr) ASSERT_THAT(expr, ::absl_testing::IsOk())
+// Internal helper for concatenating macro values.
+#define SAPI_TESTING_IMPL_CONCAT_INNER_(x, y) x##y
+#define SAPI_TESTING_IMPL_CONCAT(x, y) SAPI_TESTING_IMPL_CONCAT_INNER_(x, y)
 
 #define SAPI_ASSERT_OK_AND_ASSIGN(lhs, rexpr) \
   SAPI_ASSERT_OK_AND_ASSIGN_IMPL(             \
-      SAPI_MACROS_IMPL_CONCAT(_sapi_statusor, __LINE__), lhs, rexpr)
+      SAPI_TESTING_IMPL_CONCAT(_sapi_statusor, __LINE__), lhs, rexpr)
 
 #define SAPI_ASSERT_OK_AND_ASSIGN_IMPL(statusor, lhs, rexpr) \
   auto statusor = (rexpr);                                   \

@@ -30,6 +30,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -227,11 +228,11 @@ TEST_P(AsynchronousByteTransportTest, SendRecv) {
   test_helper_.RequestRecv(data);
 
   std::vector<uint8_t> data_recv(10);
-  SAPI_ASSERT_OK(GetTransport()->Recv(
+  ABSL_ASSERT_OK(GetTransport()->Recv(
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, std::vector<uint8_t>(10, 'a'));
   data = std::vector<uint8_t>(10, 'b');
-  SAPI_ASSERT_OK(GetTransport()->Send(data));
+  ABSL_ASSERT_OK(GetTransport()->Send(data));
 }
 
 TEST_P(AsynchronousByteTransportTest, SendRecvMultiple) {
@@ -242,11 +243,11 @@ TEST_P(AsynchronousByteTransportTest, SendRecvMultiple) {
 
     test_helper_.RequestSend(data_a);
     std::vector<uint8_t> data_recv(10);
-    SAPI_ASSERT_OK(GetTransport()->Recv(
+    ABSL_ASSERT_OK(GetTransport()->Recv(
         absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
     ASSERT_EQ(data_recv, data_a);
     test_helper_.RequestRecv(data_b);
-    SAPI_ASSERT_OK(GetTransport()->Send(data_b));
+    ABSL_ASSERT_OK(GetTransport()->Send(data_b));
   }
 }
 
@@ -255,11 +256,11 @@ TEST_P(AsynchronousByteTransportTest, SendWillRead) {
   test_helper_.RequestExchange(std::vector<uint8_t>(10, 'b'),
                                std::vector<uint8_t>(10, 'c'));
   std::vector<uint8_t> data_recv(10);
-  SAPI_ASSERT_OK(GetTransport()->Exchange(
+  ABSL_ASSERT_OK(GetTransport()->Exchange(
       std::vector<uint8_t>(10, 'a'),
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, std::vector<uint8_t>(10, 'b'));
-  SAPI_ASSERT_OK(GetTransport()->Send(std::vector<uint8_t>(10, 'c')));
+  ABSL_ASSERT_OK(GetTransport()->Send(std::vector<uint8_t>(10, 'c')));
 }
 
 TEST_P(AsynchronousByteTransportTest, SendRecvMultipleWillRead) {
@@ -273,10 +274,10 @@ TEST_P(AsynchronousByteTransportTest, SendRecvMultipleWillRead) {
     test_helper_.RequestExchange(data_b, data_c);
 
     std::vector<uint8_t> data_recv(10);
-    SAPI_ASSERT_OK(GetTransport()->Exchange(
+    ABSL_ASSERT_OK(GetTransport()->Exchange(
         data_a, absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
     ASSERT_EQ(data_recv, data_b);
-    SAPI_ASSERT_OK(GetTransport()->Send(data_c));
+    ABSL_ASSERT_OK(GetTransport()->Send(data_c));
   }
 }
 
@@ -291,12 +292,12 @@ TEST_P(AsynchronousByteTransportTest, OneSideWillThenRead) {
     test_helper_.RequestRecv(data_a);
     test_helper_.RequestExchange(data_b, data_c);
 
-    SAPI_ASSERT_OK(GetTransport()->Send(data_a));
+    ABSL_ASSERT_OK(GetTransport()->Send(data_a));
     std::vector<uint8_t> data_recv(10);
-    SAPI_ASSERT_OK(GetTransport()->Recv(
+    ABSL_ASSERT_OK(GetTransport()->Recv(
         absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
     ASSERT_EQ(data_recv, data_b);
-    SAPI_ASSERT_OK(GetTransport()->Send(data_c));
+    ABSL_ASSERT_OK(GetTransport()->Send(data_c));
   }
 }
 
@@ -312,15 +313,15 @@ TEST_P(AsynchronousByteTransportTest, SendingMultipleLargeDataWorks) {
   std::vector<uint8_t> data_recv(max_size);
 
   test_helper_.RequestRecv(data_1);
-  SAPI_ASSERT_OK(GetTransport()->Send(data_1));
+  ABSL_ASSERT_OK(GetTransport()->Send(data_1));
   test_helper_.RequestRecv(data_2);
-  SAPI_ASSERT_OK(GetTransport()->Send(data_2));
+  ABSL_ASSERT_OK(GetTransport()->Send(data_2));
   test_helper_.RequestSend(data_3);
-  SAPI_ASSERT_OK(GetTransport()->Recv(
+  ABSL_ASSERT_OK(GetTransport()->Recv(
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, data_3);
   test_helper_.RequestSend(data_4);
-  SAPI_ASSERT_OK(GetTransport()->Recv(
+  ABSL_ASSERT_OK(GetTransport()->Recv(
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, data_4);
 }
@@ -331,7 +332,7 @@ TEST_P(AsynchronousByteTransportTest, SendLargeData) {
   size_t max_size = GetBufferSize() * 4;
   std::vector<uint8_t> data_to_send(max_size, 'a');
   test_helper_.RequestRecv(data_to_send);
-  SAPI_ASSERT_OK(GetTransport()->Send(data_to_send));
+  ABSL_ASSERT_OK(GetTransport()->Send(data_to_send));
 }
 
 TEST_P(AsynchronousByteTransportTest, TerminateBeforeRecvWillNotBlock) {
@@ -363,7 +364,7 @@ TEST_P(AsynchronousByteTransportTest, ReadDataThenTerminate) {
   test_helper_.RequestSend(data);
   test_helper_.RequestTerminate();
   std::vector<uint8_t> data_recv(100);
-  SAPI_ASSERT_OK(GetTransport()->Recv(
+  ABSL_ASSERT_OK(GetTransport()->Recv(
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, data);
   ASSERT_THAT(GetTransport()->Recv(
@@ -373,11 +374,11 @@ TEST_P(AsynchronousByteTransportTest, ReadDataThenTerminate) {
 
 TEST_P(AsynchronousByteTransportTest, ExchangeWhenDataIsAlreadyInTheBuffer) {
   std::vector<uint8_t> data(100, 'a');
-  SAPI_ASSERT_OK(GetTransport()->Send(data));
+  ABSL_ASSERT_OK(GetTransport()->Send(data));
   std::vector<uint8_t> data_to_send(100, 'b');
   test_helper_.RequestExchange(data_to_send, data);
   std::vector<uint8_t> data_recv(100);
-  SAPI_ASSERT_OK(GetTransport()->Recv(
+  ABSL_ASSERT_OK(GetTransport()->Recv(
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, data_to_send);
 }
@@ -387,7 +388,7 @@ TEST_P(AsynchronousByteTransportTest, LastReadAfterConnectionClosedWorks) {
   test_helper_.RequestSend(data);
   test_helper_.RequestTerminate();
   std::vector<uint8_t> data_recv(100);
-  SAPI_ASSERT_OK(GetTransport()->Recv(
+  ABSL_ASSERT_OK(GetTransport()->Recv(
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, data);
 }
@@ -397,7 +398,7 @@ TEST_P(AsynchronousByteTransportTest, TwoReadsAfterConnectionClosedFails) {
   test_helper_.RequestSend(data);
   test_helper_.RequestTerminate();
   std::vector<uint8_t> data_recv(100);
-  SAPI_ASSERT_OK(GetTransport()->Recv(
+  ABSL_ASSERT_OK(GetTransport()->Recv(
       absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
   ASSERT_EQ(data_recv, data);
   ASSERT_THAT(GetTransport()->Recv(
@@ -408,11 +409,11 @@ TEST_P(AsynchronousByteTransportTest, TwoReadsAfterConnectionClosedFails) {
 TEST_P(AsynchronousByteTransportTest,
        ReadMoreThanBufferWillNotTriggerOutOfBounds) {
   std::vector<uint8_t> data(10, 'a');
-  SAPI_ASSERT_OK(GetTransport()->Send(
+  ABSL_ASSERT_OK(GetTransport()->Send(
       absl::Span<const uint8_t>(data.data(), data.size() / 2)));
   test_helper_.RequestRecv(data);
   absl::SleepFor(absl::Milliseconds(10));
-  SAPI_ASSERT_OK(GetTransport()->Send(absl::Span<const uint8_t>(
+  ABSL_ASSERT_OK(GetTransport()->Send(absl::Span<const uint8_t>(
       data.data() + data.size() / 2, data.size() / 2)));
 }
 

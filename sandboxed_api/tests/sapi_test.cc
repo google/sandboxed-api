@@ -620,7 +620,7 @@ TEST_P(SandboxTest, CompareSelfSymbol) {
   ASSERT_THAT(sandbox.Init(), IsOk());
   SapiTestApi api(&sandbox);
   void* symbol = nullptr;
-  SAPI_ASSERT_OK(sandbox.Symbol("compare_self_symbol", &symbol));
+  ABSL_ASSERT_OK(sandbox.Symbol("compare_self_symbol", &symbol));
   EXPECT_THAT(symbol, NotNull());
   sapi::v::RemotePtr remote_symbol(symbol);
   EXPECT_THAT(api.compare_self_symbol(&remote_symbol), IsOkAndHolds(true));

@@ -316,6 +316,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_asynchronous_byte_transport_test PRIVATE
     absl::check
     absl::status
+    absl::status_matchers
     absl::statusor
     absl::synchronization
     absl::time
