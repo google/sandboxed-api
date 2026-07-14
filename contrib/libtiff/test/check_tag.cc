@@ -14,6 +14,8 @@
 
 #include "check_tag.h"  // NOLINT(build/include)
 
+#include "absl/status/statusor.h"
+
 using ::sapi::IsOk;
 using ::testing::Eq;
 using ::testing::IsFalse;

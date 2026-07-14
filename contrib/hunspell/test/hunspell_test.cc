@@ -16,6 +16,7 @@
 
 #include "../sandboxed.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/temp_file.h"

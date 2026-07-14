@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/status/statusor.h"
 #include "contrib/libxls/sandboxed.h"
 #include "contrib/libxls/utils/utils_libxls.h"
 #undef FILE  // TODO(cblichmann): Artifact from generated header
@@ -103,7 +104,7 @@ TEST_P(LibXlsTestFiles, TestValues) {
   std::string test_file_path = GetTestFilePath(tv.filename);
 
   LibxlsSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   SAPI_ASSERT_OK_AND_ASSIGN(LibXlsWorkbook wb,
                             LibXlsWorkbook::Open(&sandbox, test_file_path));
@@ -130,7 +131,7 @@ TEST_F(LibXlsBase, TestFormula) {
   std::string test_file_path = GetTestFilePath("t3.xls");
 
   LibxlsSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   SAPI_ASSERT_OK_AND_ASSIGN(LibXlsWorkbook wb,
                             LibXlsWorkbook::Open(&sandbox, test_file_path));

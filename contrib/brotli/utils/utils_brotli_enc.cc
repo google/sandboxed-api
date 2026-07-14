@@ -17,11 +17,13 @@
 #include <fstream>
 #include <string>
 
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "contrib/brotli/sandboxed.h"
 #include "contrib/brotli/utils/utils_brotli.h"
 
 absl::Status BrotliEncoder::InitStructs() {
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       BrotliEncoderState * state,
       api_.BrotliEncoderCreateInstance(nullptr, nullptr, nullptr));
 
@@ -54,9 +56,9 @@ absl::Status BrotliEncoder::CheckIsInit() {
 
 absl::Status BrotliEncoder::SetParameter(enum BrotliEncoderParameter param,
                                          uint32_t value) {
-  SAPI_RETURN_IF_ERROR(CheckIsInit());
+  ABSL_RETURN_IF_ERROR(CheckIsInit());
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       int ret, api_.BrotliEncoderSetParameter(state_.PtrNone(), param, value));
   if (!ret) {
     return absl::UnavailableError("Unable to set parameter");
@@ -67,7 +69,7 @@ absl::Status BrotliEncoder::SetParameter(enum BrotliEncoderParameter param,
 
 absl::Status BrotliEncoder::Compress(std::vector<uint8_t>& buf_in,
                                      BrotliEncoderOperation op) {
-  SAPI_RETURN_IF_ERROR(CheckIsInit());
+  ABSL_RETURN_IF_ERROR(CheckIsInit());
 
   sapi::v::Array<uint8_t> sapi_buf_in(buf_in.data(), buf_in.size());
   sapi::v::IntBase<size_t> sapi_size_in(buf_in.size());
@@ -78,13 +80,13 @@ absl::Status BrotliEncoder::Compress(std::vector<uint8_t>& buf_in,
   // Un this case we compress whole buffer so we don't use it
   // but we still have to allocate buffer remotely and gets
   // a pointer.
-  SAPI_RETURN_IF_ERROR(sandbox_->Allocate(&sapi_buf_in));
-  SAPI_RETURN_IF_ERROR(sandbox_->TransferToSandboxee(&sapi_buf_in));
+  ABSL_RETURN_IF_ERROR(sandbox_->Allocate(&sapi_buf_in));
+  ABSL_RETURN_IF_ERROR(sandbox_->TransferToSandboxee(&sapi_buf_in));
   sapi::v::GenericPtr sapi_opaque_buf_in(sapi_buf_in.GetRemote());
 
   sapi::v::IntBase<size_t> sapi_avilable_out(0);
 
-  SAPI_ASSIGN_OR_RETURN(bool ret,
+  ABSL_ASSIGN_OR_RETURN(bool ret,
                         api_.BrotliEncoderCompressStream(
                             state_.PtrNone(), op, sapi_size_in.PtrBefore(),
                             sapi_opaque_buf_in.PtrBefore(),
@@ -97,12 +99,12 @@ absl::Status BrotliEncoder::Compress(std::vector<uint8_t>& buf_in,
 }
 
 absl::StatusOr<std::vector<uint8_t>> BrotliEncoder::TakeOutput() {
-  SAPI_RETURN_IF_ERROR(CheckIsInit());
+  ABSL_RETURN_IF_ERROR(CheckIsInit());
 
   sapi::v::IntBase<size_t> sapi_size_out(0);
 
-  SAPI_ASSIGN_OR_RETURN(
-      uint8_t * sapi_out_buf_ptr,
+  ABSL_ASSIGN_OR_RETURN(
+      uint8_t* sapi_out_buf_ptr,
       api_.BrotliEncoderTakeOutput(state_.PtrNone(), sapi_size_out.PtrAfter()));
   if (sapi_out_buf_ptr == nullptr) {
     return std::vector<uint8_t>(0);
@@ -115,7 +117,7 @@ absl::StatusOr<std::vector<uint8_t>> BrotliEncoder::TakeOutput() {
   sapi::v::Array<uint8_t> sapi_buf_out(buf_out.data(), buf_out.size());
   sapi_buf_out.SetRemote(sapi_out_buf_ptr);
 
-  SAPI_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&sapi_buf_out));
+  ABSL_RETURN_IF_ERROR(sandbox_->TransferFromSandboxee(&sapi_buf_out));
 
   return buf_out;
 }

@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "helper.h"  // NOLINT(build/include)
+#include "absl/status/statusor.h"
 #include "tiffio.h"  // NOLINT(build/include)
 
 using ::sapi::IsOk;

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "contrib/libraw/sandboxed.h"
 #include "contrib/libraw/utils/utils_libraw.h"
 #include "sandboxed_api/testing.h"
@@ -70,11 +71,11 @@ TEST_P(LibRawTestFiles, TestOpen) {
   std::string test_file_path = GetTestFilePath(tv.filename);
 
   LibRawSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   LibRaw lr(&sandbox, test_file_path);
-  SAPI_ASSERT_OK(lr.CheckIsInit());
-  SAPI_ASSERT_OK(lr.OpenFile());
+  ABSL_ASSERT_OK(lr.CheckIsInit());
+  ABSL_ASSERT_OK(lr.OpenFile());
 }
 
 TEST_P(LibRawTestFiles, TestUnpack) {
@@ -82,12 +83,12 @@ TEST_P(LibRawTestFiles, TestUnpack) {
   std::string test_file_path = GetTestFilePath(tv.filename);
 
   LibRawSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   LibRaw lr(&sandbox, test_file_path);
-  SAPI_ASSERT_OK(lr.CheckIsInit());
-  SAPI_ASSERT_OK(lr.OpenFile());
-  SAPI_ASSERT_OK(lr.Unpack());
+  ABSL_ASSERT_OK(lr.CheckIsInit());
+  ABSL_ASSERT_OK(lr.OpenFile());
+  ABSL_ASSERT_OK(lr.Unpack());
 }
 
 TEST_P(LibRawTestFiles, TestSize) {
@@ -95,12 +96,12 @@ TEST_P(LibRawTestFiles, TestSize) {
   std::string test_file_path = GetTestFilePath(tv.filename);
 
   LibRawSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   LibRaw lr(&sandbox, test_file_path);
-  SAPI_ASSERT_OK(lr.CheckIsInit());
-  SAPI_ASSERT_OK(lr.OpenFile());
-  SAPI_ASSERT_OK(lr.Unpack());
+  ABSL_ASSERT_OK(lr.CheckIsInit());
+  ABSL_ASSERT_OK(lr.OpenFile());
+  ABSL_ASSERT_OK(lr.Unpack());
 
   SAPI_ASSERT_OK_AND_ASSIGN(ushort raw_height, lr.GetRawHeight());
   SAPI_ASSERT_OK_AND_ASSIGN(ushort raw_width, lr.GetRawWidth());
@@ -114,10 +115,10 @@ TEST_P(LibRawTestFiles, TestCameraList) {
   std::string test_file_path = GetTestFilePath(tv.filename);
 
   LibRawSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   LibRaw lr(&sandbox, test_file_path);
-  SAPI_ASSERT_OK(lr.CheckIsInit());
+  ABSL_ASSERT_OK(lr.CheckIsInit());
 
   SAPI_ASSERT_OK_AND_ASSIGN(std::vector<char*> camera_list, lr.GetCameraList());
 
@@ -129,12 +130,12 @@ TEST_P(LibRawTestFiles, TestColor) {
   std::string test_file_path = GetTestFilePath(tv.filename);
 
   LibRawSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   LibRaw lr(&sandbox, test_file_path);
-  SAPI_ASSERT_OK(lr.CheckIsInit());
-  SAPI_ASSERT_OK(lr.OpenFile());
-  SAPI_ASSERT_OK(lr.Unpack());
+  ABSL_ASSERT_OK(lr.CheckIsInit());
+  ABSL_ASSERT_OK(lr.OpenFile());
+  ABSL_ASSERT_OK(lr.Unpack());
 
   for (int row = 0; row < 4; ++row) {
     for (int col = 0; col < 4; ++col) {
@@ -149,13 +150,13 @@ TEST_P(LibRawTestFiles, TestSubtractBlack) {
   std::string test_file_path = GetTestFilePath(tv.filename);
 
   LibRawSapiSandbox sandbox(test_file_path);
-  SAPI_ASSERT_OK(sandbox.Init());
+  ABSL_ASSERT_OK(sandbox.Init());
 
   LibRaw lr(&sandbox, test_file_path);
-  SAPI_ASSERT_OK(lr.CheckIsInit());
-  SAPI_ASSERT_OK(lr.OpenFile());
-  SAPI_ASSERT_OK(lr.Unpack());
-  SAPI_ASSERT_OK(lr.SubtractBlack());
+  ABSL_ASSERT_OK(lr.CheckIsInit());
+  ABSL_ASSERT_OK(lr.OpenFile());
+  ABSL_ASSERT_OK(lr.Unpack());
+  ABSL_ASSERT_OK(lr.SubtractBlack());
 
   libraw_data_t lr_data = lr.GetImgData();
 

@@ -16,6 +16,8 @@
 #include <iostream>
 #include <string>
 
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "contrib/zstd/sandboxed.h"
 
 constexpr size_t kFileMaxSize = 1024 * 1024 * 1024;  // 1GB
@@ -37,14 +39,14 @@ absl::Status CompressInMemory(ZstdApi& api, std::ifstream& in_stream,
     return absl::UnavailableError("Unable to read file");
   }
 
-  SAPI_ASSIGN_OR_RETURN(size_t size, api.ZSTD_compressBound(inbuf.GetSize()));
+  ABSL_ASSIGN_OR_RETURN(size_t size, api.ZSTD_compressBound(inbuf.GetSize()));
   sapi::v::Array<uint8_t> outbuf(size);
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       size_t outsize,
       api.ZSTD_compress(outbuf.PtrAfter(), size, inbuf.PtrBefore(),
                         inbuf.GetSize(), level));
-  SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(outsize));
+  ABSL_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(outsize));
   if (iserr) {
     return absl::UnavailableError("Unable to compress file");
   }
@@ -67,21 +69,21 @@ absl::Status DecompressInMemory(ZstdApi& api, std::ifstream& in_stream,
     return absl::UnavailableError("Unable to read file");
   }
 
-  SAPI_ASSIGN_OR_RETURN(size_t size, api.ZSTD_getFrameContentSize(
+  ABSL_ASSIGN_OR_RETURN(size_t size, api.ZSTD_getFrameContentSize(
                                          inbuf.PtrBefore(), inbuf.GetSize()));
   if (size > kFileMaxSize) {
     return absl::UnavailableError("File to large");
   }
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(size));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(size));
   if (iserr) {
     return absl::UnavailableError("Unable to decompress file");
   }
   sapi::v::Array<uint8_t> outbuf(size);
 
-  SAPI_ASSIGN_OR_RETURN(size_t desize,
+  ABSL_ASSIGN_OR_RETURN(size_t desize,
                         api.ZSTD_decompress(outbuf.PtrAfter(), size,
                                             inbuf.PtrNone(), inbuf.GetSize()));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(desize));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(desize));
   if (iserr) {
     return absl::UnavailableError("Unable to decompress file");
   }
@@ -99,8 +101,8 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
   int iserr;
 
   // Create necessary buffers.
-  SAPI_ASSIGN_OR_RETURN(size_t inbuf_size, api.ZSTD_CStreamInSize());
-  SAPI_ASSIGN_OR_RETURN(size_t outbuf_size, api.ZSTD_CStreamOutSize());
+  ABSL_ASSIGN_OR_RETURN(size_t inbuf_size, api.ZSTD_CStreamInSize());
+  ABSL_ASSIGN_OR_RETURN(size_t outbuf_size, api.ZSTD_CStreamOutSize());
   sapi::v::Array<uint8_t> inbuf(inbuf_size);
   sapi::v::Array<uint8_t> outbuf(outbuf_size);
 
@@ -110,18 +112,18 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
   }
 
   // Create Zstd context.
-  SAPI_ASSIGN_OR_RETURN(ZSTD_CCtx * cctx, api.ZSTD_createCCtx());
+  ABSL_ASSIGN_OR_RETURN(ZSTD_CCtx * cctx, api.ZSTD_createCCtx());
   sapi::v::RemotePtr rcctx(cctx);
 
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_CCtx_setParameter(
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_CCtx_setParameter(
                                    &rcctx, ZSTD_c_compressionLevel, level));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       iserr, api.ZSTD_CCtx_setParameter(&rcctx, ZSTD_c_checksumFlag, 1));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to set parameter");
   }
@@ -152,10 +154,10 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
       struct_out.mutable_data()->pos = 0;
       struct_out.mutable_data()->size = outbuf.GetSize();
 
-      SAPI_ASSIGN_OR_RETURN(size_t remaining, api.ZSTD_compressStream2(
+      ABSL_ASSIGN_OR_RETURN(size_t remaining, api.ZSTD_compressStream2(
                                                   &rcctx, struct_out.PtrBoth(),
                                                   struct_in.PtrBoth(), mode));
-      SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(remaining));
+      ABSL_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(remaining));
       if (iserr) {
         return absl::UnavailableError("Unable to decompress file");
       }
@@ -185,8 +187,8 @@ absl::Status CompressStream(ZstdApi& api, std::ifstream& in_stream,
 absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_stream,
                               std::ofstream& out_stream) {
   // Create necessary buffers.
-  SAPI_ASSIGN_OR_RETURN(size_t inbuf_size, api.ZSTD_CStreamInSize());
-  SAPI_ASSIGN_OR_RETURN(size_t outbuf_size, api.ZSTD_CStreamOutSize());
+  ABSL_ASSIGN_OR_RETURN(size_t inbuf_size, api.ZSTD_CStreamInSize());
+  ABSL_ASSIGN_OR_RETURN(size_t outbuf_size, api.ZSTD_CStreamOutSize());
   sapi::v::Array<uint8_t> inbuf(inbuf_size);
   sapi::v::Array<uint8_t> outbuf(outbuf_size);
 
@@ -196,7 +198,7 @@ absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_stream,
   }
 
   // Create Zstd context.
-  SAPI_ASSIGN_OR_RETURN(ZSTD_DCtx * dctx, api.ZSTD_createDCtx());
+  ABSL_ASSIGN_OR_RETURN(ZSTD_DCtx * dctx, api.ZSTD_createDCtx());
   sapi::v::RemotePtr rdctx(dctx);
 
   // Decompress.
@@ -217,10 +219,10 @@ absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_stream,
       *struct_out.mutable_data() = {static_cast<uint8_t*>(outbuf.GetRemote()),
                                     (size_t)outbuf.GetSize(), 0};
 
-      SAPI_ASSIGN_OR_RETURN(
+      ABSL_ASSIGN_OR_RETURN(
           size_t ret, api.ZSTD_decompressStream(&rdctx, struct_out.PtrBoth(),
                                                 struct_in.PtrBoth()));
-      SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(ret));
+      ABSL_ASSIGN_OR_RETURN(int iserr, api.ZSTD_isError(ret));
       if (iserr) {
         return absl::UnavailableError("Unable to decompress file");
       }
@@ -244,13 +246,13 @@ absl::Status DecompressStream(ZstdApi& api, std::ifstream& in_stream,
 
 absl::Status CompressInMemoryFD(ZstdApi& api, sapi::v::Fd& infd,
                                 sapi::v::Fd& outfd, int level) {
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       int iserr,
       api.ZSTD_compress_fd(infd.GetRemoteFd(), outfd.GetRemoteFd(), 0));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to compress file");
   }
@@ -263,12 +265,12 @@ absl::Status CompressInMemoryFD(ZstdApi& api, sapi::v::Fd& infd,
 
 absl::Status DecompressInMemoryFD(ZstdApi& api, sapi::v::Fd& infd,
                                   sapi::v::Fd& outfd) {
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
 
-  SAPI_ASSIGN_OR_RETURN(int iserr, api.ZSTD_decompress_fd(infd.GetRemoteFd(),
+  ABSL_ASSIGN_OR_RETURN(int iserr, api.ZSTD_decompress_fd(infd.GetRemoteFd(),
                                                           outfd.GetRemoteFd()));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to compress file");
   }
@@ -281,27 +283,27 @@ absl::Status DecompressInMemoryFD(ZstdApi& api, sapi::v::Fd& infd,
 
 absl::Status CompressStreamFD(ZstdApi& api, sapi::v::Fd& infd,
                               sapi::v::Fd& outfd, int level) {
-  SAPI_ASSIGN_OR_RETURN(ZSTD_CCtx * cctx, api.ZSTD_createCCtx());
+  ABSL_ASSIGN_OR_RETURN(ZSTD_CCtx * cctx, api.ZSTD_createCCtx());
   sapi::v::RemotePtr rcctx(cctx);
 
   int iserr;
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_CCtx_setParameter(
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_CCtx_setParameter(
                                    &rcctx, ZSTD_c_compressionLevel, level));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to set parameter l");
   }
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       iserr, api.ZSTD_CCtx_setParameter(&rcctx, ZSTD_c_checksumFlag, 1));
-  SAPI_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
+  ABSL_ASSIGN_OR_RETURN(iserr, api.ZSTD_isError(iserr));
   if (iserr) {
     return absl::UnavailableError("Unable to set parameter c");
   }
 
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
 
-  SAPI_ASSIGN_OR_RETURN(iserr,
+  ABSL_ASSIGN_OR_RETURN(iserr,
                         api.ZSTD_compressStream_fd(&rcctx, infd.GetRemoteFd(),
                                                    outfd.GetRemoteFd()));
   if (iserr) {
@@ -316,13 +318,13 @@ absl::Status CompressStreamFD(ZstdApi& api, sapi::v::Fd& infd,
 
 absl::Status DecompressStreamFD(ZstdApi& api, sapi::v::Fd& infd,
                                 sapi::v::Fd& outfd) {
-  SAPI_ASSIGN_OR_RETURN(ZSTD_DCtx * dctx, api.ZSTD_createDCtx());
+  ABSL_ASSIGN_OR_RETURN(ZSTD_DCtx * dctx, api.ZSTD_createDCtx());
   sapi::v::RemotePtr rdctx(dctx);
 
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
-  SAPI_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&infd));
+  ABSL_RETURN_IF_ERROR(api.GetSandbox()->TransferToSandboxee(&outfd));
 
-  SAPI_ASSIGN_OR_RETURN(int iserr,
+  ABSL_ASSIGN_OR_RETURN(int iserr,
                         api.ZSTD_decompressStream_fd(&rdctx, infd.GetRemoteFd(),
                                                      outfd.GetRemoteFd()));
   if (iserr) {

@@ -17,6 +17,7 @@
 #include "sapi_minitar.h"  // NOLINT(build/include)
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"

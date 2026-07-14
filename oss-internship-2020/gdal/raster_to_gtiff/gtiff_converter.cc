@@ -14,6 +14,8 @@
 
 #include "gtiff_converter.h"  // NOLINT(build/include)
 
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace gdal::sandbox {
@@ -39,11 +41,11 @@ RasterToGTiffProcessor::RasterToGTiffProcessor(std::string out_file_full_path,
 
 absl::Status RasterToGTiffProcessor::Main() {
   GdalApi api(sandbox());
-  SAPI_RETURN_IF_ERROR(api.GDALAllRegister());
+  ABSL_RETURN_IF_ERROR(api.GDALAllRegister());
 
   sapi::v::CStr driver_name_ptr(kDriverName);
 
-  SAPI_ASSIGN_OR_RETURN(absl::StatusOr<GDALDriverH> driver,
+  ABSL_ASSIGN_OR_RETURN(absl::StatusOr<GDALDriverH> driver,
                         api.GDALGetDriverByName(driver_name_ptr.PtrBefore()));
 
   TRANSACTION_FAIL_IF_NOT(driver.value() != nullptr,
@@ -56,7 +58,7 @@ absl::Status RasterToGTiffProcessor::Main() {
                           ? static_cast<GDALDataType>(data_.bands[0].data_type)
                           : GDALDataType::GDT_Unknown;
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       absl::StatusOr<GDALDatasetH> dataset,
       api.GDALCreate(&driver_ptr, out_file_full_path_ptr.PtrBefore(),
                      data_.width, data_.height, data_.bands.size(), type,
@@ -67,7 +69,7 @@ absl::Status RasterToGTiffProcessor::Main() {
 
   int current_band = 1;
   for (auto& band_data : data_.bands) {
-    SAPI_ASSIGN_OR_RETURN(absl::StatusOr<GDALRasterBandH> band,
+    ABSL_ASSIGN_OR_RETURN(absl::StatusOr<GDALRasterBandH> band,
                           api.GDALGetRasterBand(&dataset_ptr, current_band));
     TRANSACTION_FAIL_IF_NOT(band.value() != nullptr,
                             "Error getting band from dataset");
@@ -76,7 +78,7 @@ absl::Status RasterToGTiffProcessor::Main() {
     sapi::v::Array<int> data_array(band_data.data.data(),
                                    band_data.data.size());
 
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         absl::StatusOr<CPLErr> result,
         api.GDALRasterIO(&band_ptr, GF_Write, 0, 0, band_data.width,
                          band_data.height, data_array.PtrBefore(),
@@ -85,7 +87,7 @@ absl::Status RasterToGTiffProcessor::Main() {
     TRANSACTION_FAIL_IF_NOT(result.value() == CPLErr::CE_None,
                             "Error writing band to dataset");
 
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         result,
         api.GDALSetRasterColorInterpretation(
             &band_ptr, static_cast<GDALColorInterp>(band_data.color_interp)));
@@ -94,7 +96,7 @@ absl::Status RasterToGTiffProcessor::Main() {
                             "Error setting color interpretation");
 
     if (band_data.no_data_value.has_value()) {
-      SAPI_ASSIGN_OR_RETURN(result,
+      ABSL_ASSIGN_OR_RETURN(result,
                             api.GDALSetRasterNoDataValue(
                                 &band_ptr, band_data.no_data_value.value()));
 
@@ -107,7 +109,7 @@ absl::Status RasterToGTiffProcessor::Main() {
 
   if (data_.wkt_projection.length() > 0) {
     sapi::v::ConstCStr wkt_projection_ptr(data_.wkt_projection.c_str());
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         absl::StatusOr<CPLErr> result,
         api.GDALSetProjection(&dataset_ptr, wkt_projection_ptr.PtrBefore()));
     TRANSACTION_FAIL_IF_NOT(result.value() == CPLErr::CE_None,
@@ -117,7 +119,7 @@ absl::Status RasterToGTiffProcessor::Main() {
   if (data_.geo_transform.size() > 0) {
     sapi::v::Array<double> geo_transform_ptr(data_.geo_transform.data(),
                                              data_.geo_transform.size());
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         absl::StatusOr<CPLErr> result,
         api.GDALSetGeoTransform(&dataset_ptr, geo_transform_ptr.PtrBefore()));
 
@@ -125,7 +127,7 @@ absl::Status RasterToGTiffProcessor::Main() {
                             "Error setting geo transform");
   }
 
-  SAPI_RETURN_IF_ERROR(api.GDALClose(&dataset_ptr));
+  ABSL_RETURN_IF_ERROR(api.GDALClose(&dataset_ptr));
 
   return absl::OkStatus();
 }

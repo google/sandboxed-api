@@ -19,26 +19,27 @@
 
 #include "../curl_util.h"  // NOLINT(build/include)
 #include "../sandbox.h"    // NOLINT(build/include)
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace {
 
 absl::Status Example2() {
   // Initialize sandbox2 and sapi
   curl::CurlSapiSandbox sandbox;
-  SAPI_RETURN_IF_ERROR(sandbox.Init());
+  ABSL_RETURN_IF_ERROR(sandbox.Init());
   curl::CurlApi api(&sandbox);
 
   // Generate pointer to WriteMemoryCallback function
   void* function_ptr;
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       sandbox.rpc_channel()->Symbol("WriteToMemory", &function_ptr));
   sapi::v::RemotePtr write_to_memory(function_ptr);
 
   // Initialize the curl session
   curl::CURL* curl_handle;
-  SAPI_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
+  ABSL_ASSIGN_OR_RETURN(curl_handle, api.curl_easy_init());
   sapi::v::RemotePtr curl(curl_handle);
   if (!curl_handle) {
     return absl::UnavailableError("curl_easy_init failed: Invalid curl handle");
@@ -48,7 +49,7 @@ absl::Status Example2() {
 
   // Specify URL to get
   sapi::v::ConstCStr url("http://example.com");
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       curl_code,
       api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_URL, url.PtrBefore()));
   if (curl_code != 0) {
@@ -57,7 +58,7 @@ absl::Status Example2() {
   }
 
   // Set WriteMemoryCallback as the write function
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       curl_code, api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEFUNCTION,
                                           &write_to_memory));
   if (curl_code != 0) {
@@ -67,7 +68,7 @@ absl::Status Example2() {
 
   // Pass 'chunk' struct to the callback function
   sapi::v::LenVal chunk(0);
-  SAPI_ASSIGN_OR_RETURN(curl_code,
+  ABSL_ASSIGN_OR_RETURN(curl_code,
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_WRITEDATA,
                                                  chunk.PtrBoth()));
   if (curl_code != 0) {
@@ -77,7 +78,7 @@ absl::Status Example2() {
 
   // Set a user agent
   sapi::v::ConstCStr user_agent("libcurl-agent/1.0");
-  SAPI_ASSIGN_OR_RETURN(curl_code,
+  ABSL_ASSIGN_OR_RETURN(curl_code,
                         api.curl_easy_setopt_ptr(&curl, curl::CURLOPT_USERAGENT,
                                                  user_agent.PtrBefore()));
   if (curl_code != 0) {
@@ -86,18 +87,18 @@ absl::Status Example2() {
   }
 
   // Perform the request
-  SAPI_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
+  ABSL_ASSIGN_OR_RETURN(curl_code, api.curl_easy_perform(&curl));
   if (curl_code != 0) {
     return absl::UnavailableError(absl::StrCat(
         "curl_easy_perform failed: ", curl::StrError(&api, curl_code)));
   }
 
   // Retrieve memory size
-  SAPI_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&chunk));
+  ABSL_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&chunk));
   std::cout << "memory size: " << chunk.GetDataSize() << " bytes" << std::endl;
 
   // Cleanup curl
-  SAPI_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
+  ABSL_RETURN_IF_ERROR(api.curl_easy_cleanup(&curl));
 
   return absl::OkStatus();
 }

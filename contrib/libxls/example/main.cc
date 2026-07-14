@@ -26,6 +26,7 @@
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
+#include "absl/status/statusor.h"
 #include "contrib/libxls/sandboxed.h"
 #include "contrib/libxls/utils/utils_libxls.h"
 

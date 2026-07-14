@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "contrib/zstd/sandboxed.h"
 #include "contrib/zstd/utils/utils_zstd.h"
 #include "sandboxed_api/testing.h"
