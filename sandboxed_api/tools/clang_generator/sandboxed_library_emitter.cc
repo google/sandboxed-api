@@ -671,7 +671,8 @@ class PointeeTypeInfo {
 
 // Handles in/out/inout pointers to arithmetic types and trivially copyable
 // structs (singular and arrays).
-struct PointerArg : SandboxedLibraryEmitter::Arg {
+class PointerArg : public SandboxedLibraryEmitter::Arg {
+ public:
   PointerArg(absl::string_view name, absl::string_view type,
              PointeeTypeInfo pointee_type, PointerDir ptr_dir,
              ArraySizedByType sized_by_type, PointerLifetime lifetime,
@@ -683,47 +684,8 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
         lifetime_(lifetime),
         context_bound_(std::move(context_bound)) {}
 
-  const PointerDir ptr_dir_;
-  const PointeeTypeInfo pointee_type_;
-  // If present, this is an array that is sized-by the given type.
-  const ArraySizedByType sized_by_type_;
-  const PointerLifetime lifetime_;
-  // If true, the `sized_by_type_` requires dereferencing another output (or
-  // in-out) pointer parameter.
-  bool is_size_based_on_deref_out_param_ = false;
-
-  // Information for context-bound inner pointers that will be used by the host.
-  ContextBoundAnnotations context_bound_;
-
-  bool IsSizeBasedOnDerefOutParam() const {
-    return is_size_based_on_deref_out_param_;
-  }
-
-  // Returns code / an expression that evaluates to the capacity of the pointee
-  // in bytes.
-  std::string GetCapacityAsBytesExpr() const;
-
-  // Returns code / an expression that evaluates to the size/length of
-  // the data in the pointee in bytes. (should be <= capacity).
-  std::string GetSizeAsBytesExpr() const;
-
   absl::Status LinkArgsIfNeeded(
       const std::vector<std::unique_ptr<Arg>>& args) override;
-
-  // Emits code to copy from the given out-pointer, and bind its lifetime to the
-  // context.
-  std::string EmitCopyFromAndBindOutPtrCode(
-      const CopyFromAndBindOutPtr& copy_from_and_bind_out_ptr,
-      absl::string_view out_ptr_name, absl::string_view out_ptr_type) const;
-
-  // Emits code for before a function call, to help retain a parameter buffer.
-  std::string EmitParamRetainPreCall(
-      const RetainAndBind& retain_and_bind) const;
-
-  // Emits code for after a function call, to help retain a parameter buffer by
-  // binding it to the context.
-  std::string EmitParamRetainPostCall(
-      const RetainAndBind& retain_and_bind) const;
 
   std::string EmitHostPreCall() const override {
     // Declare any SAPI variables we need for the arguments.
@@ -1018,6 +980,52 @@ struct PointerArg : SandboxedLibraryEmitter::Arg {
     absl::StrAppend(&out, "return sapi_ret_arg.GetValue();");
     return out;
   }
+
+  bool HasContextBindings() const {
+    return context_bound_.clear_bindings ||
+           context_bound_.copy_from_and_bind.has_value() ||
+           context_bound_.retain_and_bind.has_value();
+  }
+
+ private:
+  bool IsSizeBasedOnDerefOutParam() const {
+    return is_size_based_on_deref_out_param_;
+  }
+
+  // Returns code / an expression that evaluates to the capacity of the pointee
+  // in bytes.
+  std::string GetCapacityAsBytesExpr() const;
+
+  // Returns code / an expression that evaluates to the size/length of
+  // the data in the pointee in bytes. (should be <= capacity).
+  std::string GetSizeAsBytesExpr() const;
+
+  // Emits code to copy from the given out-pointer, and bind its lifetime to the
+  // context.
+  std::string EmitCopyFromAndBindOutPtrCode(
+      const CopyFromAndBindOutPtr& copy_from_and_bind_out_ptr,
+      absl::string_view out_ptr_name, absl::string_view out_ptr_type) const;
+
+  // Emits code for before a function call, to help retain a parameter buffer.
+  std::string EmitParamRetainPreCall(
+      const RetainAndBind& retain_and_bind) const;
+
+  // Emits code for after a function call, to help retain a parameter buffer by
+  // binding it to the context.
+  std::string EmitParamRetainPostCall(
+      const RetainAndBind& retain_and_bind) const;
+
+  const PointerDir ptr_dir_;
+  const PointeeTypeInfo pointee_type_;
+  // If present, this is an array that is sized-by the given type.
+  const ArraySizedByType sized_by_type_;
+  const PointerLifetime lifetime_;
+  // If true, the `sized_by_type_` requires dereferencing another output (or
+  // in-out) pointer parameter.
+  bool is_size_based_on_deref_out_param_ = false;
+
+  // Information for context-bound inner pointers that will be used by the host.
+  ContextBoundAnnotations context_bound_;
 };
 
 std::string PointerArg::GetCapacityAsBytesExpr() const {
@@ -2156,10 +2164,7 @@ void SandboxedLibraryEmitter::RecordContextBindingSupportNeeded(
     }
     auto arg_ptr_has_context_bindings = [](const ArgPtr& arg) {
       const PointerArg* ptr_arg = dynamic_cast<const PointerArg*>(arg.get());
-      return ptr_arg &&
-             (ptr_arg->context_bound_.clear_bindings ||
-              ptr_arg->context_bound_.copy_from_and_bind.has_value() ||
-              ptr_arg->context_bound_.retain_and_bind.has_value());
+      return ptr_arg && ptr_arg->HasContextBindings();
     };
     if (ret && arg_ptr_has_context_bindings(ret)) {
       return true;
