@@ -770,6 +770,7 @@ cc_test(
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:temp_file",
+        "@abseil-cpp//absl/hash:hash_testing",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",

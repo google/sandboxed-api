@@ -141,6 +141,59 @@ bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2) {
   }
 }
 
+bool HashableMountSpecs::MountNodeEquals(const MountTree::Node& n1,
+                                         const MountTree::Node& n2) {
+  if (n1.node_case() != n2.node_case()) {
+    return false;
+  }
+  switch (n1.node_case()) {
+    case MountTree::Node::kFileNode:
+      return n1.file_node().outside() == n2.file_node().outside() &&
+             n1.file_node().writable() == n2.file_node().writable();
+    case MountTree::Node::kDirNode:
+      return n1.dir_node().outside() == n2.dir_node().outside() &&
+             n1.dir_node().writable() == n2.dir_node().writable() &&
+             n1.dir_node().allow_mount_propagation() ==
+                 n2.dir_node().allow_mount_propagation();
+    case MountTree::Node::kRootNode:
+      return n1.root_node().writable() == n2.root_node().writable();
+    case MountTree::Node::kTmpfsNode:
+      return n1.tmpfs_node().tmpfs_options() == n2.tmpfs_node().tmpfs_options();
+    case MountTree::Node::NODE_NOT_SET:
+      return true;
+  }
+}
+
+bool HashableMountSpecs::MountTreeEquals(const MountTree& tree1,
+                                         const MountTree& tree2) {
+  if (tree1.index() != tree2.index()) {
+    return false;
+  }
+  if (tree1.ignore_non_existing() != tree2.ignore_non_existing()) {
+    return false;
+  }
+  if (!MountNodeEquals(tree1.node(), tree2.node())) {
+    return false;
+  }
+  if (tree1.entries().size() != tree2.entries().size()) {
+    return false;
+  }
+  for (const auto& [key, value] : tree1.entries()) {
+    auto it = tree2.entries().find(key);
+    if (it == tree2.entries().end() || !MountTreeEquals(value, it->second)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool HashableMountSpecs::MountSpecsEquals(const MountSpecs& specs1,
+                                          const MountSpecs& specs2) {
+  return specs1.allow_mount_propagation() == specs2.allow_mount_propagation() &&
+         specs1.allow_write_executable() == specs2.allow_write_executable() &&
+         MountTreeEquals(specs1.mount_tree(), specs2.mount_tree());
+}
+
 }  // namespace internal
 
 absl::Status Mounts::Remove(absl::string_view path) {

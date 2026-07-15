@@ -1019,6 +1019,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_minimal_dynamic
   )
   target_link_libraries(sandbox2_mounts_test PRIVATE
+    absl::hash
+    absl::hash_testing
     absl::status
     absl::strings
     sapi::file_base

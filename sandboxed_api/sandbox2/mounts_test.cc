@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/hash/hash_testing.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/match.h"
@@ -469,6 +470,134 @@ TEST(MountsResolvePathTest, Dirs) {
               StatusIs(absl::StatusCode::kNotFound));
   ASSERT_THAT(mounts.ResolvePath("/d/d"),
               StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST(HashableMountSpecsTest, ImplementsAbslHashCorrectly) {
+  MountSpecs specs_default;
+
+  MountSpecs specs_root;
+  specs_root.mutable_mount_tree()->mutable_node()->mutable_root_node();
+
+  MountSpecs specs_root_writable;
+  specs_root_writable.mutable_mount_tree()
+      ->mutable_node()
+      ->mutable_root_node()
+      ->set_writable(true);
+
+  ASSERT_NE(internal::HashableMountSpecs(specs_root),
+            internal::HashableMountSpecs(specs_root_writable));
+
+  MountSpecs specs_changed_index;
+  specs_changed_index.mutable_mount_tree()->set_index(1337);
+
+  MountSpecs specs_mp;
+  specs_mp.set_allow_mount_propagation(true);
+
+  MountSpecs specs_we;
+  specs_we.set_allow_write_executable(true);
+
+  MountSpecs specs_ignore_non_existing;
+  specs_ignore_non_existing.mutable_mount_tree()->set_ignore_non_existing(true);
+
+  MountSpecs specs_file1;
+  MountTree::FileNode file_node;
+  file_node.set_outside("/foo");
+  file_node.set_writable(false);
+  *specs_file1.mutable_mount_tree()->mutable_node()->mutable_file_node() =
+      file_node;
+
+  MountSpecs specs_file2 = specs_file1;
+  file_node.set_outside("/bar");
+  *specs_file2.mutable_mount_tree()->mutable_node()->mutable_file_node() =
+      file_node;
+
+  MountSpecs specs_file1_writable = specs_file1;
+  file_node.set_writable(true);
+  *specs_file1_writable.mutable_mount_tree()
+       ->mutable_node()
+       ->mutable_file_node() = file_node;
+
+  MountSpecs specs_dir1;
+  MountTree::DirNode dir_node;
+  dir_node.set_outside("/dir1");
+  dir_node.set_writable(false);
+  dir_node.set_allow_mount_propagation(true);
+  *specs_dir1.mutable_mount_tree()->mutable_node()->mutable_dir_node() =
+      dir_node;
+
+  MountSpecs specs_dir1_writable = specs_dir1;
+  dir_node.set_writable(true);
+  *specs_dir1_writable.mutable_mount_tree()
+       ->mutable_node()
+       ->mutable_dir_node() = dir_node;
+
+  MountSpecs specs_dir1_allow_mount_propagation = specs_dir1;
+  dir_node.set_allow_mount_propagation(true);
+  *specs_dir1_allow_mount_propagation.mutable_mount_tree()
+       ->mutable_node()
+       ->mutable_dir_node() = dir_node;
+
+  MountSpecs specs_dir2 = specs_dir1;
+  dir_node.set_outside("/dir2");
+  *specs_dir2.mutable_mount_tree()->mutable_node()->mutable_dir_node() =
+      dir_node;
+
+  MountSpecs specs_tmpfs;
+  specs_tmpfs.mutable_mount_tree()
+      ->mutable_node()
+      ->mutable_tmpfs_node()
+      ->set_tmpfs_options("size=1G");
+
+  MountSpecs specs_tmpfs2 = specs_tmpfs;
+  specs_tmpfs.mutable_mount_tree()
+      ->mutable_node()
+      ->mutable_tmpfs_node()
+      ->set_tmpfs_options("size=2G");
+
+  MountSpecs specs_order1;
+  MountSpecs specs_order2;
+  MountTree subtree_a;
+  subtree_a.set_index(10);
+  MountTree subtree_b;
+  subtree_b.set_index(20);
+  auto& entries1 = *specs_order1.mutable_mount_tree()->mutable_entries();
+  entries1["a"] = subtree_a;
+  entries1["b"] = subtree_b;
+  auto& entries2 = *specs_order2.mutable_mount_tree()->mutable_entries();
+  entries2["b"] = subtree_b;
+  entries2["a"] = subtree_a;
+
+  ASSERT_EQ(internal::HashableMountSpecs(specs_order1),
+            internal::HashableMountSpecs(specs_order2));
+
+  MountSpecs specs_diff_entries;
+  auto& entries = *specs_diff_entries.mutable_mount_tree()->mutable_entries();
+  entries["a"] = subtree_a;
+  entries["c"] = subtree_b;
+
+  std::vector<internal::HashableMountSpecs> cases = {
+      internal::HashableMountSpecs(specs_default),
+      internal::HashableMountSpecs(specs_root),
+      internal::HashableMountSpecs(specs_root_writable),
+      internal::HashableMountSpecs(specs_changed_index),
+      internal::HashableMountSpecs(specs_mp),
+      internal::HashableMountSpecs(specs_we),
+      internal::HashableMountSpecs(specs_ignore_non_existing),
+      internal::HashableMountSpecs(specs_file1),
+      internal::HashableMountSpecs(specs_file1_writable),
+      internal::HashableMountSpecs(specs_file2),
+      internal::HashableMountSpecs(specs_dir1),
+      internal::HashableMountSpecs(specs_dir1_writable),
+      internal::HashableMountSpecs(specs_dir1_allow_mount_propagation),
+      internal::HashableMountSpecs(specs_dir2),
+      internal::HashableMountSpecs(specs_tmpfs),
+      internal::HashableMountSpecs(specs_tmpfs2),
+      internal::HashableMountSpecs(specs_order1),
+      internal::HashableMountSpecs(specs_order2),
+      internal::HashableMountSpecs(specs_diff_entries),
+  };
+
+  EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly(cases));
 }
 
 }  // namespace

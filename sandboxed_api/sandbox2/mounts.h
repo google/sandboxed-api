@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_SANDBOX2_MOUNTTREE_H_
 #define SANDBOXED_API_SANDBOX2_MOUNTTREE_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -34,6 +35,80 @@ bool IsSameFile(const std::string& path1, const std::string& path2);
 bool IsWritable(const MountTree::Node& node);
 bool HasSameTarget(const MountTree::Node& n1, const MountTree::Node& n2);
 bool IsEquivalentNode(const MountTree::Node& n1, const MountTree::Node& n2);
+
+class HashableMountSpecs {
+ public:
+  explicit HashableMountSpecs(const MountSpecs& mount_specs)
+      : mount_specs_(mount_specs) {}
+  HashableMountSpecs(const HashableMountSpecs&) = default;
+  HashableMountSpecs(HashableMountSpecs&&) = default;
+  HashableMountSpecs& operator=(const HashableMountSpecs&) = default;
+  HashableMountSpecs& operator=(HashableMountSpecs&&) = default;
+
+  bool operator==(const HashableMountSpecs& other) const {
+    return MountSpecsEquals(mount_specs_, other.mount_specs_);
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const HashableMountSpecs& self) {
+    h = H::combine(std::move(h), self.mount_specs_.allow_mount_propagation(),
+                   self.mount_specs_.allow_write_executable());
+    return MountTreeHash(std::move(h), self.mount_specs_.mount_tree());
+  }
+
+  const MountSpecs& mount_specs() const { return mount_specs_; }
+
+ private:
+  static bool MountNodeEquals(const MountTree::Node& n1,
+                              const MountTree::Node& n2);
+  static bool MountTreeEquals(const MountTree& tree1, const MountTree& tree2);
+  static bool MountSpecsEquals(const MountSpecs& specs1,
+                               const MountSpecs& specs2);
+
+  template <typename H>
+  static H MountNodeHash(H h, const MountTree::Node& node) {
+    h = H::combine(std::move(h), node.node_case());
+    switch (node.node_case()) {
+      case MountTree::Node::kFileNode:
+        h = H::combine(std::move(h), node.file_node().outside(),
+                       node.file_node().writable());
+        break;
+      case MountTree::Node::kDirNode:
+        h = H::combine(std::move(h), node.dir_node().outside(),
+                       node.dir_node().writable(),
+                       node.dir_node().allow_mount_propagation());
+        break;
+      case MountTree::Node::kRootNode:
+        h = H::combine(std::move(h), node.root_node().writable());
+        break;
+      case MountTree::Node::kTmpfsNode:
+        h = H::combine(std::move(h), node.tmpfs_node().tmpfs_options());
+        break;
+      case MountTree::Node::NODE_NOT_SET:
+        break;
+    }
+    return h;
+  }
+
+  template <typename H>
+  static H MountTreeHash(H h, const MountTree& tree) {
+    h = H::combine(std::move(h), tree.index(), tree.ignore_non_existing());
+    h = MountNodeHash(std::move(h), tree.node());
+    std::vector<std::string> keys;
+    keys.reserve(tree.entries().size());
+    for (const auto& [key, _] : tree.entries()) {
+      keys.push_back(key);
+    }
+    std::sort(keys.begin(), keys.end());
+    for (const std::string& key : keys) {
+      h = H::combine(std::move(h), key);
+      h = MountTreeHash(std::move(h), tree.entries().at(key));
+    }
+    return h;
+  }
+
+  MountSpecs mount_specs_;
+};
 
 }  // namespace internal
 
