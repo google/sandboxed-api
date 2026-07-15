@@ -178,7 +178,6 @@ cc_sandboxed_library(
     ],
     deps = [
         "//sandboxed_api:annotations",
-        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 
