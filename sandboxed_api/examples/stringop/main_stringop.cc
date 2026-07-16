@@ -43,7 +43,7 @@ using ::testing::StrEq;
 
 // Tests using a simple transaction (and function pointers):
 TEST(StringopTest, ProtobufStringDuplication) {
-  sapi::BasicTransaction st(absl::make_unique<StringopSandbox>());
+  sapi::BasicTransaction st(std::make_unique<StringopSandbox>());
   EXPECT_THAT(st.Run([](sapi::SandboxBase* sandbox) -> absl::Status {
     StringopApi api(sandbox);
     stringop::StringDuplication proto;
