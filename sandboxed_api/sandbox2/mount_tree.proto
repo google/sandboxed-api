@@ -79,4 +79,6 @@ message MountSpecs {
   optional bool allow_mount_propagation = 2;
   // Whether to allow the sandboxee to mount write-executable filesystems
   optional bool allow_write_executable = 3;
+  // Use a shared mount namespace
+  optional bool use_shared_mount_namespace = 4;
 }

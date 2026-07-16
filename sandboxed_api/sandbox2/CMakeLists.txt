@@ -272,10 +272,13 @@ target_link_libraries(sandbox2_global_forkserver
           sapi::raw_logging
   PUBLIC absl::core_headers
          absl::flags
+         absl::flat_hash_map
          absl::synchronization
          sandbox2::comms
          sandbox2::fork_client
          sandbox2::forkserver_proto
+         sandbox2::mounts
+         sandbox2::mount_tree_proto
 )
 
 # sandboxed_api/sandbox2:start_global_forkserver_lib_constructor
@@ -343,6 +346,7 @@ target_link_libraries(sandbox2_sandbox2
          absl::flat_hash_map
          absl::source_location
          absl::status
+         absl::status_macros
          absl::statusor
          absl::time
          sapi::config
@@ -718,6 +722,7 @@ add_library(sandbox2_mounts ${SAPI_LIB_TYPE}
 add_library(sandbox2::mounts ALIAS sandbox2_mounts)
 target_link_libraries(sandbox2_mounts
   PRIVATE absl::flat_hash_set
+          absl::status_macros
           protobuf::libprotobuf
           sandbox2::library_resolver
           sapi::base

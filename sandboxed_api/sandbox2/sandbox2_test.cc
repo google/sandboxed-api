@@ -374,6 +374,21 @@ TEST_P(Sandbox2Test, TerminatingProcessGroup) {
   ASSERT_TRUE(comms.RecvBool(&unused));
 }
 
+TEST(Sandbox2Test, SharedMountNamespaceWorks) {
+  SKIP_SANITIZERS;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
+                                             .UseForkServerSharedNetNs()
+                                             .TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ABSL_ASSERT_OK(sandbox.EnableSharedMountNamespace());
+  auto result = sandbox.Run();
+  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
 TEST(SharedMemoryTest, SharedMemoryDataTransferWorks) {
   SKIP_SANITIZERS;
   const std::string path =

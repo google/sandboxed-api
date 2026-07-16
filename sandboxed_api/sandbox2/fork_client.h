@@ -43,10 +43,9 @@ class ForkClient {
       int comms_fd = -1;
       int exec_fd = -1;
       int initial_userns_fd = -1;
-      int initial_mntns_fd = -1;
-      int shared_netns_fd = -1;
-      int shared_pidns_mntns_fd = -1;
       int shared_pidns_fd = -1;
+      int mntns_fd = -1;
+      int shared_netns_fd = -1;
     };
 
     PendingRequest(PendingRequest&&) = default;

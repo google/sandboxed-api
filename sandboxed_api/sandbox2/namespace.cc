@@ -117,9 +117,7 @@ void SetupIDMaps(uid_t uid, gid_t gid) {
   FDCloser proc_self_fd(
       TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH | O_CLOEXEC)));
   SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
-  TryDenySetgroups(proc_self_fd.get());
-  WriteIDMap(proc_self_fd.get(), "uid_map", uid);
-  WriteIDMap(proc_self_fd.get(), "gid_map", gid);
+  return SetupIDMaps(proc_self_fd.get(), uid, gid);
 }
 
 void ActivateLoopbackInterface() {
@@ -241,7 +239,7 @@ void Namespace::EnforceLandlockIsolation(
   if (clone_flags & CLONE_NEWNET) {
     ActivateLoopbackInterface();
     latency_breakdown.SetLatency(
-        SetupLatencyBreakdown::kSharedPidNetnsInitialization,
+        SetupLatencyBreakdown::kNsInitNetnsInitialization,
         latency_stop_watch.LapTime());
   }
   if (clone_flags & CLONE_NEWUSER) {
@@ -249,13 +247,12 @@ void Namespace::EnforceLandlockIsolation(
     SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
     UnshareNestedUserNamespace(proc_self_fd.get());
     latency_breakdown.SetLatency(
-        SetupLatencyBreakdown::kSharedPidNestedUserNamespace,
+        SetupLatencyBreakdown::kNsInitNestedUserNamespace,
         latency_stop_watch.LapTime());
   }
   EnforceLandlock(mounts);
-  latency_breakdown.SetLatency(
-      SetupLatencyBreakdown::kSharedPidLandlockEnforcement,
-      latency_stop_watch.LapTime());
+  latency_breakdown.SetLatency(SetupLatencyBreakdown::kLandlockEnforcement,
+                               latency_stop_watch.LapTime());
   SAPI_RAW_PCHECK(chdir("/") == 0, "changing cwd");
   if (SAPI_RAW_VLOG_IS_ON(2)) {
     SAPI_RAW_VLOG(2, "Dumping the sandboxee's filesystem:");
@@ -263,16 +260,19 @@ void Namespace::EnforceLandlockIsolation(
   }
 }
 
-void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
-                                     const Mounts& mounts,
-                                     const std::string& hostname,
+void Namespace::InitializeNamespaces(uid_t uid, gid_t gid,
+                                     const ForkRequest& request,
                                      SetupLatencyBreakdown& latency_breakdown) {
+  int32_t clone_flags = request.clone_flags();
+  std::string hostname = request.hostname();
   if (!(clone_flags & CLONE_NEWNS)) {
     // CLONE_NEWNS is always set if we're running in namespaces.
     return;
   }
 
   LatencyStopWatch latency_stop_watch;
+
+  Mounts mounts(request.mount_specs());
 
   // We want to bind-mount chrooted to real root, so that symlinks work.
   // Reference to main root is kept to escape later from the chroot
@@ -286,14 +286,15 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
   latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitChrootToRealRoot,
                                latency_stop_watch.LapTime());
 
-  SAPI_RAW_PCHECK(
-      mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr) !=
-          -1,
-      "Could not mount a new /proc"
-  );
-
-  latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitProcMount,
-                               latency_stop_watch.LapTime());
+  if (clone_flags & CLONE_NEWPID) {
+    SAPI_RAW_PCHECK(
+        mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID,
+              "hidepid=ptraceable") != -1,
+        "Could not mount a new /proc"
+    );
+    latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitProcMount,
+                                 latency_stop_watch.LapTime());
+  }
 
   if (clone_flags & CLONE_NEWNET) {
     // Some things can only be done if inside a new network namespace, like
@@ -306,9 +307,12 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
         "Could not mount a new /sys"
     );
 
-    SAPI_RAW_PCHECK(sethostname(hostname.c_str(), hostname.size()) != -1,
-                    "Could not set network namespace hostname '%s'", hostname);
-    ActivateLoopbackInterface();
+    if (request.netns_mode() != NETNS_MODE_SHARED_PER_FORKSERVER) {
+      SAPI_RAW_PCHECK(sethostname(hostname.c_str(), hostname.size()) != -1,
+                      "Could not set network namespace hostname '%s'",
+                      hostname);
+      ActivateLoopbackInterface();
+    }
     latency_breakdown.SetLatency(
         SetupLatencyBreakdown::kNsInitNetnsInitialization,
         latency_stop_watch.LapTime());
@@ -375,7 +379,7 @@ void Namespace::InitializeSharedPidNamespaces() {
 // TODO(cffsmith): Potentially rework or rename this file / class to make it
 // clear that this does more than just namespaces in landlock mode.
 void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
-  SetupIDMaps(uid, gid);
+  sandbox2::SetupIDMaps(uid, gid);
   SAPI_RAW_CHECK(
       file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
       "could not create directory for rootfs");
@@ -392,6 +396,10 @@ void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
   SAPI_RAW_PCHECK(
       mount("/", "/", "", MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) == 0,
       "remounting rootfs read-only failed");
+}
+
+void Namespace::SetupIDMaps(int proc_self_fd, uid_t uid, gid_t gid) {
+  return sandbox2::SetupIDMaps(proc_self_fd, uid, gid);
 }
 
 }  // namespace sandbox2

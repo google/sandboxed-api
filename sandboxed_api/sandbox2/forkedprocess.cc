@@ -353,16 +353,28 @@ void ForkedProcess::JoinInitialUserNamespace() {
                   "joining initial user namespace");
 }
 
-void ForkedProcess::JoinNamespaces() {
-  FDCloser initial_mntns_fd;
-  SAPI_RAW_CHECK(setup_comms_.RecvFD(&initial_mntns_fd),
-                 "Failed to receive initial mount namespace FD");
-  SAPI_RAW_PCHECK(setns(initial_mntns_fd.get(), CLONE_NEWNS) == 0,
-                  "joining initial mount namespace");
-
-  if (request_.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
-    JoinNetworkNamespace();
+void ForkedProcess::JoinSharedPidNamespace() {
+  FDCloser shared_pidns_fd;
+  SAPI_RAW_CHECK(setup_comms_.RecvFD(&shared_pidns_fd),
+                 "Failed to receive initial pid namespace FD");
+  SAPI_RAW_PCHECK(setns(shared_pidns_fd.get(), CLONE_NEWPID) == 0,
+                  "joining initial pid namespace");
+  pid_t pid = util::ForkWithFlags(CLONE_PARENT | SIGCHLD);
+  if (pid != 0) {
+    // We'll continue just in the child.
+    _exit(0);
   }
+  SAPI_RAW_PCHECK(pid != -1, "fork failed");
+  latency_breakdown_.SetLatency(SetupLatencyBreakdown::kSharedPidInitFork,
+                                latency_stop_watch_.LapTime());
+}
+
+void ForkedProcess::JoinMountNamespace() {
+  FDCloser mntns_fd;
+  SAPI_RAW_CHECK(setup_comms_.RecvFD(&mntns_fd),
+                 "Failed to receive mount namespace FD");
+  SAPI_RAW_PCHECK(setns(mntns_fd.get(), CLONE_NEWNS) == 0,
+                  "joining mount namespace");
 }
 
 void ForkedProcess::JoinNetworkNamespace() {
@@ -373,8 +385,40 @@ void ForkedProcess::JoinNetworkNamespace() {
                   "joining shared network namespace");
 }
 
+void ForkedProcess::EnforceIsolation(FDCloser proc_self_fd, uid_t uid,
+                                     gid_t gid) {
+  if (request_.use_landlock()) {
+    Namespace::EnforceLandlockIsolation(request_.clone_flags() | CLONE_NEWUSER,
+                                        Mounts(request_.mount_specs()), uid,
+                                        gid, latency_breakdown_);
+
+    // TODO(cffsmith): If UnotifyMonitor support is added back to Landlock mode,
+    // we will need to launch an init process here to coordinate return values
+    // (similar to standard mode's LaunchInit()). Remember to also define and
+    // add a respective setup latency measurement at that point.
+    return;
+  }
+
+  if (request_.mount_specs().use_shared_mount_namespace()) {
+    SAPI_RAW_PCHECK(unshare(CLONE_NEWUSER) == 0, "unsharing user namespace");
+    Namespace::SetupIDMaps(proc_self_fd.get(), uid, gid);
+    return;
+  }
+
+  Namespace::InitializeNamespaces(uid, gid, request_, latency_breakdown_);
+  latency_breakdown_.SetLatency(
+      SetupLatencyBreakdown::kNamespacesInitialization,
+      latency_stop_watch_.LapTime());
+}
+
 void ForkedProcess::SetupNamespaces() {
   JoinInitialUserNamespace();
+  const bool use_shared_pidns =
+      request_.mount_specs().use_shared_mount_namespace() ||
+      request_.use_landlock();
+  if (use_shared_pidns) {
+    JoinSharedPidNamespace();
+  }
   const uid_t uid = getuid();
   const gid_t gid = getgid();
   const bool has_newpid = request_.clone_flags() & CLONE_NEWPID;
@@ -391,86 +435,27 @@ void ForkedProcess::SetupNamespaces() {
     latency_breakdown_.SetLatency(SetupLatencyBreakdown::kInitFork,
                                   latency_stop_watch_.LapTime());
   }
+  FDCloser proc_self_fd(TEMP_FAILURE_RETRY(open("/proc/self", O_PATH)));
   SanitizeEnvironment();
-  JoinNamespaces();
+  JoinMountNamespace();
   int32_t unshare_flags =
       request_.clone_flags() &
       (CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWUTS);
   if (request_.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
     unshare_flags &= ~CLONE_NEWNET;
+    JoinNetworkNamespace();
   }
-
   latency_breakdown_.SetLatency(SetupLatencyBreakdown::kTillNamespacesUnshare,
                                 latency_stop_watch_.LapTime());
   SAPI_RAW_PCHECK(unshare(unshare_flags) == 0, "unsharing namespaces");
   latency_breakdown_.SetLatency(SetupLatencyBreakdown::kNamespacesUnshare,
                                 latency_stop_watch_.LapTime());
-  Namespace::InitializeNamespaces(uid, gid, request_.clone_flags(),
-                                  Mounts(request_.mount_specs()),
-                                  request_.hostname(), latency_breakdown_);
-  latency_breakdown_.SetLatency(
-      SetupLatencyBreakdown::kNamespacesInitialization,
-      latency_stop_watch_.LapTime());
+  EnforceIsolation(std::move(proc_self_fd), uid, gid);
   if (has_newpid) {
     LaunchInit();
     latency_breakdown_.SetLatency(SetupLatencyBreakdown::kInitLaunch,
                                   latency_stop_watch_.LapTime());
   }
-}
-
-void ForkedProcess::SetupLandlockNamespaces() {
-  FDCloser userns_fd;
-  FDCloser mntns_fd;
-  FDCloser pidns_fd;
-  SAPI_RAW_CHECK(setup_comms_.RecvFD(&userns_fd),
-                 "Failed to receive shared pidns user namespace FD");
-  SAPI_RAW_CHECK(setup_comms_.RecvFD(&mntns_fd),
-                 "Failed to receive shared pidns mount namespace FD");
-  SAPI_RAW_CHECK(setup_comms_.RecvFD(&pidns_fd),
-                 "Failed to receive shared pidns namespace FD");
-
-  SAPI_RAW_PCHECK(setns(userns_fd.get(), CLONE_NEWUSER) == 0,
-                  "joining shared pidns user namespace");
-  SAPI_RAW_PCHECK(setns(mntns_fd.get(), CLONE_NEWNS) == 0,
-                  "joining shared pidns mount namespace");
-  SAPI_RAW_PCHECK(setns(pidns_fd.get(), CLONE_NEWPID) == 0,
-                  "joining shared pidns namespace");
-
-  pid_t pid = util::ForkWithFlags(CLONE_PARENT | SIGCHLD);
-  SAPI_RAW_PCHECK(pid != -1, "fork failed");
-  if (pid != 0) {
-    _exit(0);
-  }
-  latency_breakdown_.SetLatency(SetupLatencyBreakdown::kSharedPidInitFork,
-                                latency_stop_watch_.LapTime());
-
-  SanitizeEnvironment();
-  const uid_t uid = getuid();
-  const gid_t gid = getgid();
-  // With Landlock filesystem isolation, we do not unshare mount or pid
-  // namespaces.
-  int32_t unshare_flags =
-      request_.clone_flags() & (CLONE_NEWIPC | CLONE_NEWUTS | CLONE_NEWNET);
-  if (request_.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
-    unshare_flags &= ~CLONE_NEWNET;
-    JoinNetworkNamespace();
-  }
-  latency_breakdown_.SetLatency(
-      SetupLatencyBreakdown::kSharedPidTillNamespacesUnshare,
-      latency_stop_watch_.LapTime());
-  SAPI_RAW_PCHECK(unshare(unshare_flags) == 0, "unsharing namespaces");
-  latency_breakdown_.SetLatency(
-      SetupLatencyBreakdown::kSharedPidNamespacesUnshare,
-      latency_stop_watch_.LapTime());
-
-  Namespace::EnforceLandlockIsolation(request_.clone_flags() | CLONE_NEWUSER,
-                                      Mounts(request_.mount_specs()), uid, gid,
-                                      latency_breakdown_);
-
-  // TODO(cffsmith): If UnotifyMonitor support is added back to Landlock mode,
-  // we will need to launch an init process here to coordinate return values
-  // (similar to standard mode's LaunchInit()). Remember to also define and add
-  // a respective setup latency measurement at that point.
 }
 
 void ForkedProcess::ReceiveFDs(bool will_exec) {
@@ -493,12 +478,8 @@ Comms ForkedProcess::Setup() {
 
   ReceiveFDs(will_exec);
   if (has_namespaces) {
-    if (request_.use_landlock()) {
-      SetupLandlockNamespaces();
-    } else {
-      // Will also SanitizeEnvironment() in the init process.
-      SetupNamespaces();
-    }
+    // Will also SanitizeEnvironment().
+    SetupNamespaces();
   } else {
     SanitizeEnvironment();
   }

@@ -122,6 +122,7 @@ class Sandbox2 final {
   absl::Status EnableUnotifyMonitor();
   absl::Status EnableSharedMemoryComms(
       size_t shared_memory_size = kDefaultCommsSharedMemorySize);
+  absl::Status EnableSharedMountNamespace();
 
  private:
   // Launches the Monitor.

@@ -24,6 +24,7 @@
 #include <string>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -32,6 +33,8 @@
 #include "sandboxed_api/sandbox2/flags.h"  // IWYU pragma: export
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/mount_tree.pb.h"
+#include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
@@ -79,6 +82,9 @@ class GlobalForkClient {
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::Status SetupSharedNetnsNamespacesLocked()
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    absl::StatusOr<sapi::file_util::fileops::FDCloser>
+    SetupSharedMountNamespaceLocked(const MountSpecs& mount_specs)
+        ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::Status SetupSharedPidNamespacesLocked()
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     void CloseNamespacesLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
@@ -92,6 +98,9 @@ class GlobalForkClient {
     sapi::file_util::fileops::FDCloser shared_pidns_mntns_fd_
         ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser shared_pidns_fd_ ABSL_GUARDED_BY(mutex_);
+    absl::flat_hash_map<internal::HashableMountSpecs,
+                        sapi::file_util::fileops::FDCloser>
+        shared_mount_namespaces_ ABSL_GUARDED_BY(mutex_);
   };
   friend void StartGlobalForkserverFromLibCtor();
 

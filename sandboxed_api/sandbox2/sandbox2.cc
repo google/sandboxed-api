@@ -31,6 +31,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
@@ -38,6 +39,7 @@
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
+#include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox_config.h"
 #include "sandboxed_api/sandbox2/stack_trace.h"
@@ -194,6 +196,23 @@ absl::Status Sandbox2::EnableSharedMemoryComms(size_t shared_memory_size) {
                      kDefaultCommsSharedMemorySize, " bytes"));
   }
   shared_memory_comms_size_ = shared_memory_size;
+  return absl::OkStatus();
+}
+
+absl::Status Sandbox2::EnableSharedMountNamespace() {
+  if (monitor_ != nullptr) {
+    return absl::FailedPreconditionError("Sandbox was already launched");
+  }
+  if (!policy_->namespace_) {
+    return absl::FailedPreconditionError(
+        "Shared mount namespace can only be used together with namespaces");
+  }
+  if (policy_->namespace_->use_landlock()) {
+    return absl::FailedPreconditionError(
+        "Shared mount namespace is not supported together with Landlock mode");
+  }
+  Namespace& ns = *policy_->namespace_;
+  ABSL_RETURN_IF_ERROR(ns.mounts().EnableSharedMountNamespace());
   return absl::OkStatus();
 }
 

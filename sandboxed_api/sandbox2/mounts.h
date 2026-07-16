@@ -186,6 +186,8 @@ class Mounts {
 
   absl::StatusOr<std::string> ResolvePath(absl::string_view path) const;
 
+  absl::Status EnableSharedMountNamespace();
+
  private:
   friend class MountTreeTest;
 

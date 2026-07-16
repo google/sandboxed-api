@@ -122,6 +122,9 @@ void ForkServer::HandleInitializeRequest(const ForkRequest& fork_request,
     case ForkRequest::INITIALIZE_EMPTY_NETNS:
       CreateEmptyNetworkNamespace(std::move(setup_comms));
       break;
+    case ForkRequest::INITIALIZE_SHARED_MNTNS:
+      CreateMountNamespace(std::move(setup_comms));
+      break;
     default:
       SAPI_RAW_LOG(FATAL, "Unsupported initialization type: %d",
                    fork_request.initialization_type());
@@ -251,16 +254,15 @@ void ForkServer::CreateInitialNamespaces(Comms setup_comms) {
                  "failed to unshare initial namespaces: parent process is "
                  "likely chrooted");
   }
-  SAPI_RAW_PCHECK(res != -1, "unsharing initial namespaces");
-  Namespace::InitializeInitialNamespaces(uid, gid);
-  SAPI_RAW_PCHECK(chroot("/realroot") == 0,
-                  "chrooting prior to dumping coverage");
   FDCloser userns_fd(
       open(absl::StrCat("/proc/self/ns/user").c_str(), O_RDONLY | O_CLOEXEC));
   SAPI_RAW_PCHECK(userns_fd.get() != -1, "getting initial userns fd");
   FDCloser mntns_fd(
       open(absl::StrCat("/proc/self/ns/mnt").c_str(), O_RDONLY | O_CLOEXEC));
   SAPI_RAW_PCHECK(mntns_fd.get() != -1, "getting initial mntns fd");
+  Namespace::InitializeInitialNamespaces(uid, gid);
+  SAPI_RAW_PCHECK(chroot("/realroot") == 0,
+                  "chrooting prior to dumping coverage");
   SAPI_RAW_CHECK(setup_comms.SendFD(userns_fd.get()), "sending mntns fd");
   SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd.get()), "sending mntns fd");
 }
@@ -315,6 +317,46 @@ void ForkServer::CreateEmptyNetworkNamespace(Comms setup_comms) {
       open(absl::StrCat("/proc/self/ns/net").c_str(), O_RDONLY | O_CLOEXEC));
   SAPI_RAW_PCHECK(netns_fd.get() != -1, "getting netns fd");
   SAPI_RAW_CHECK(setup_comms.SendFD(netns_fd.get()), "sending mntns fd");
+}
+
+void ForkServer::CreateMountNamespace(Comms setup_comms) {
+  FDCloser userns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&userns_fd), "getting initial userns fd");
+  FDCloser pidns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&pidns_fd), "getting initial pidns fd");
+  FDCloser initial_mntns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&initial_mntns_fd),
+                 "getting initial mntns fd");
+  FDCloser shared_netns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&shared_netns_fd),
+                 "getting shared netns fd");
+  SAPI_RAW_PCHECK(setns(userns_fd.get(), CLONE_NEWUSER) == 0,
+                  "joining initial user namespace");
+  SAPI_RAW_PCHECK(setns(pidns_fd.get(), CLONE_NEWPID) == 0,
+                  "joining initial pid namespace");
+  SAPI_RAW_PCHECK(setns(shared_netns_fd.get(), CLONE_NEWNET) == 0,
+                  "joining shared netns namespace");
+  pid_t pid = util::ForkWithFlags(CLONE_PARENT | SIGCHLD);
+  SAPI_RAW_PCHECK(pid != -1, "fork failed");
+  if (pid != 0) {
+    // We'll continue just in the child.
+    _exit(0);
+  }
+  SAPI_RAW_PCHECK(setns(initial_mntns_fd.get(), CLONE_NEWNS) == 0,
+                  "joining initial mount namespace");
+  SAPI_RAW_PCHECK(unshare(CLONE_NEWNS) == 0, "unsharing mntns");
+  // Open early as we don't have /proc after the mntns setup.
+  FDCloser mntns_fd(open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC));
+  SAPI_RAW_PCHECK(mntns_fd.get() != -1, "getting mntns fd");
+  ForkRequest fork_request;
+  SAPI_RAW_CHECK(setup_comms.RecvProtoBuf(fork_request.mutable_mount_specs()),
+                 "getting mount specs");
+  SetupLatencyBreakdown latency_breakdown;
+  fork_request.mutable_mount_specs()->set_use_shared_mount_namespace(false);
+  fork_request.set_clone_flags(CLONE_NEWNS | CLONE_NEWPID | CLONE_NEWNET);
+  fork_request.set_netns_mode(NETNS_MODE_SHARED_PER_FORKSERVER);
+  Namespace::InitializeNamespaces(0, 0, fork_request, latency_breakdown);
+  SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd.get()), "sending mntns fd");
 }
 
 }  // namespace sandbox2

@@ -117,25 +117,16 @@ absl::StatusOr<SandboxeeProcess> ForkClient::PendingRequest::Finalize(
                                             ") to the ForkServer failed"));
   }
 
-  if (options.initial_mntns_fd != -1 &&
-      !setup_comms_.SendFD(options.initial_mntns_fd)) {
-    return absl::InternalError(absl::StrCat("Sending initial mntns FD (",
-                                            options.initial_mntns_fd,
-                                            ") to the ForkServer failed"));
-  }
-
-  if (options.shared_pidns_mntns_fd != -1 &&
-      !setup_comms_.SendFD(options.shared_pidns_mntns_fd)) {
-    return absl::InternalError(absl::StrCat("Sending shared pidns mntns FD (",
-                                            options.shared_pidns_mntns_fd,
-                                            ") to the ForkServer failed"));
-  }
-
   if (options.shared_pidns_fd != -1 &&
       !setup_comms_.SendFD(options.shared_pidns_fd)) {
-    return absl::InternalError(absl::StrCat("Sending shared pidns FD (",
+    return absl::InternalError(absl::StrCat("Sending initial pidns FD (",
                                             options.shared_pidns_fd,
                                             ") to the ForkServer failed"));
+  }
+
+  if (options.mntns_fd != -1 && !setup_comms_.SendFD(options.mntns_fd)) {
+    return absl::InternalError(absl::StrCat(
+        "Sending mntns FD (", options.mntns_fd, ") to the ForkServer failed"));
   }
 
   if (options.shared_netns_fd != -1 &&

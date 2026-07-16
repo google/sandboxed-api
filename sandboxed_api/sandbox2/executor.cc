@@ -105,6 +105,9 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
     request.set_netns_mode(ns->netns_config());
     *request.mutable_mount_specs() = ns->mounts().GetMountSpecs();
     request.set_hostname(ns->hostname());
+    if (request.mount_specs().use_shared_mount_namespace()) {
+      clone_flags &= ~CLONE_NEWNS;
+    }
   }
 
   request.set_use_landlock(ns && ns->use_landlock());

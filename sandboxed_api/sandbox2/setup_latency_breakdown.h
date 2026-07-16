@@ -30,8 +30,6 @@ class SetupLatencyBreakdown {
     kSharedNamespacesCreation,
     kSetupCommsCreation,
     kSetupProcessFork,
-
-    // --- Standard Namespace Mode Steps ---
     kInitFork,
     kTillNamespacesUnshare,
     kNamespacesUnshare,
@@ -44,14 +42,10 @@ class SetupLatencyBreakdown {
     kNsInitUnmountRealRoot,
     kNsInitNestedUserNamespace,
     kInitLaunch,
-
-    // --- Shared PID / Landlock Isolation Mode Steps ---
     kSharedPidInitFork,
-    kSharedPidTillNamespacesUnshare,
-    kSharedPidNamespacesUnshare,
-    kSharedPidNetnsInitialization,
-    kSharedPidNestedUserNamespace,
-    kSharedPidLandlockEnforcement,
+
+    // --- Landlock Isolation Mode Steps ---
+    kLandlockEnforcement,
 
     // --- Final Common Step ---
     kTillAlmostDone,

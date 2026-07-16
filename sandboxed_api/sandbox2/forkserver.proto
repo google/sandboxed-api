@@ -69,6 +69,7 @@ message ForkRequest {
     INITIALIZE_INITIAL_NAMESPACES = 1;
     INITIALIZE_EMPTY_NETNS = 2;
     INITIALIZE_SHARED_PID_NAMESPACES = 3;
+    INITIALIZE_SHARED_MNTNS = 4;
   }
 
   // List of arguments, starting with argv[0]
@@ -107,4 +108,6 @@ message ForkRequest {
 
   // The mount specs to use for namespace initialization
   optional MountSpecs mount_specs = 15;
+
+  optional bool use_shared_mount_namespace = 16;
 }

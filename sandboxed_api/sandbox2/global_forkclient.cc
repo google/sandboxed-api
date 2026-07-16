@@ -50,6 +50,8 @@
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/forkserver_bin_embed.h"
+#include "sandboxed_api/sandbox2/mount_tree.pb.h"
+#include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -264,6 +266,7 @@ void GlobalForkClient::GlobalData::CloseNamespacesLocked() {
   shared_netns_fd_.Close();
   shared_pidns_mntns_fd_.Close();
   shared_pidns_fd_.Close();
+  shared_mount_namespaces_.clear();
 }
 
 void GlobalForkClient::GlobalData::Shutdown() {
@@ -367,6 +370,38 @@ absl::Status GlobalForkClient::GlobalData::SetupSharedNetnsNamespacesLocked() {
   return absl::OkStatus();
 }
 
+absl::StatusOr<file_util::fileops::FDCloser>
+GlobalForkClient::GlobalData::SetupSharedMountNamespaceLocked(
+    const MountSpecs& mount_specs) {
+  ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
+                        instance_->fork_client_.SendInitializeRequest(
+                            ForkRequest::INITIALIZE_SHARED_MNTNS));
+  if (!setup_comms.SendFD(initial_userns_fd_.get())) {
+    return absl::InternalError(
+        "Sending initial user namespace fd for shared mntns failed");
+  }
+  if (!setup_comms.SendFD(shared_pidns_fd_.get())) {
+    return absl::InternalError(
+        "Sending shared pid namespace fd for shared mntns failed");
+  }
+  if (!setup_comms.SendFD(initial_mntns_fd_.get())) {
+    return absl::InternalError(
+        "Sending initial mount namespace fd for shared mntns failed");
+  }
+  if (!setup_comms.SendFD(shared_netns_fd_.get())) {
+    return absl::InternalError(
+        "Sending shared network namespace fd for shared mntns failed");
+  }
+  if (!setup_comms.SendProtoBuf(mount_specs)) {
+    return absl::InternalError("Sending mount specs for shared mntns failed");
+  }
+  file_util::fileops::FDCloser shared_mntns_fd;
+  if (!setup_comms.RecvFD(&shared_mntns_fd)) {
+    return absl::InternalError("Receiving shared mntns fd failed");
+  }
+  return shared_mntns_fd;
+}
+
 absl::Status GlobalForkClient::GlobalData::SetupOptions(
     ForkClient::PendingRequest::Options& options, const ForkRequest& request) {
   if (!(request.clone_flags() & CLONE_NEWUSER)) {
@@ -376,16 +411,21 @@ absl::Status GlobalForkClient::GlobalData::SetupOptions(
   if (initial_userns_fd_.get() == -1) {
     ABSL_RETURN_IF_ERROR(SetupInitialNamespacesLocked());
   }
-  if (request.use_landlock()) {
-    if (shared_pidns_mntns_fd_.get() == -1) {
+  const bool use_shared_pidns =
+      request.use_landlock() ||
+      request.mount_specs().use_shared_mount_namespace();
+  if (use_shared_pidns) {
+    if (shared_pidns_fd_.get() == -1) {
       ABSL_RETURN_IF_ERROR(SetupSharedPidNamespacesLocked());
     }
     SAPI_RAW_CHECK(shared_pidns_mntns_fd_.get() != -1,
                    "Shared pidns mntns fd not initialized");
     SAPI_RAW_CHECK(shared_pidns_fd_.get() != -1,
                    "Shared pidns fd not initialized");
+  }
+  if (request.use_landlock()) {
     options.initial_userns_fd = initial_userns_fd_.get();
-    options.shared_pidns_mntns_fd = shared_pidns_mntns_fd_.get();
+    options.mntns_fd = shared_pidns_mntns_fd_.get();
     options.shared_pidns_fd = shared_pidns_fd_.get();
   } else {
     SAPI_RAW_CHECK(initial_mntns_fd_.get() != -1,
@@ -393,13 +433,24 @@ absl::Status GlobalForkClient::GlobalData::SetupOptions(
     // The FDs are never closed after the initialization, so it is fine to use
     // them outside of the lock. The lock guards just the initialization.
     options.initial_userns_fd = initial_userns_fd_.get();
-    options.initial_mntns_fd = initial_mntns_fd_.get();
+    options.mntns_fd = initial_mntns_fd_.get();
   }
   if (request.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
     if (shared_netns_fd_.get() == -1) {
       ABSL_RETURN_IF_ERROR(SetupSharedNetnsNamespacesLocked());
     }
     options.shared_netns_fd = shared_netns_fd_.get();
+  }
+  if (request.mount_specs().use_shared_mount_namespace()) {
+    options.shared_pidns_fd = shared_pidns_fd_.get();
+    internal::HashableMountSpecs hashable_mount_specs(request.mount_specs());
+    auto [it, inserted] = shared_mount_namespaces_.emplace(
+        hashable_mount_specs, file_util::fileops::FDCloser());
+    if (inserted) {
+      ABSL_ASSIGN_OR_RETURN(
+          it->second, SetupSharedMountNamespaceLocked(request.mount_specs()));
+    }
+    options.mntns_fd = it->second.get();
   }
   return absl::OkStatus();
 }

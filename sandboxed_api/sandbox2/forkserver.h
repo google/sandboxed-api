@@ -78,6 +78,12 @@ class ForkServer {
   // Creates a network namespace to be shared between sandboxees
   void CreateEmptyNetworkNamespace(Comms setup_comms);
 
+  // Creates a pid namespace to be shared between sandboxees
+  void CreateSharedPidNamespace(Comms setup_comms);
+
+  // Creates a mount namespace to be shared between sandboxees
+  void CreateMountNamespace(Comms setup_comms);
+
   // Comms channel which is used to send requests to this class. Not owned by
   // the object.
   Comms* comms_;

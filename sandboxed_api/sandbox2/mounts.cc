@@ -32,6 +32,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -63,6 +64,46 @@ absl::string_view GetOutsidePath(const MountTree::Node& node) {
     default:
       LOG(FATAL) << "Invalid node type";
   }
+}
+
+absl::string_view MaybeGetOutsidePath(const MountTree& tree) {
+  if (!tree.has_node()) {
+    return "";
+  }
+  const MountTree::Node& node = tree.node();
+  switch (node.node_case()) {
+    case MountTree::Node::kFileNode:
+      return node.file_node().outside();
+    case MountTree::Node::kDirNode:
+      return node.dir_node().outside();
+    default:
+      return "";
+  }
+}
+
+bool IsUnderPath(absl::string_view path, absl::string_view prefix) {
+  return path == prefix ||
+         (absl::StartsWith(path, prefix) && path[prefix.size()] == '/');
+}
+
+absl::Status VerifyProcMount(const MountTree& mount_tree) {
+  if (!IsUnderPath(MaybeGetOutsidePath(mount_tree), "/proc")) {
+    return absl::OkStatus();
+  }
+  return absl::FailedPreconditionError(
+      "Shared mount namespace cannot be used with /proc mounts.");
+}
+
+absl::Status VerifySharedMountNamespace(const MountTree& mount_tree) {
+  if (mount_tree.has_node() && mount_tree.node().has_tmpfs_node()) {
+    return absl::FailedPreconditionError(
+        "Shared mount namespace cannot be used with tmpfs mounts.");
+  }
+  ABSL_RETURN_IF_ERROR(VerifyProcMount(mount_tree));
+  for (const auto& [name, subtree] : mount_tree.entries()) {
+    ABSL_RETURN_IF_ERROR(VerifySharedMountNamespace(subtree));
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -428,6 +469,13 @@ absl::Status Mounts::AllowMountPropagation(absl::string_view inside) {
         absl::StrCat("Path is not a directory: ", inside));
   }
   node.mutable_dir_node()->set_allow_mount_propagation(true);
+  return absl::OkStatus();
+}
+
+absl::Status Mounts::EnableSharedMountNamespace() {
+  ABSL_RETURN_IF_ERROR(
+      sandbox2::VerifySharedMountNamespace(mount_specs_.mount_tree()));
+  mount_specs_.set_use_shared_mount_namespace(true);
   return absl::OkStatus();
 }
 

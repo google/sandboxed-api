@@ -32,8 +32,6 @@ std::string SetupLatencyBreakdown::SetupStepToString(SetupStep step) {
       return "Setup comms creation";
     case kSetupProcessFork:
       return "Setup process fork";
-
-    // --- Standard Namespace Mode Steps ---
     case kInitFork:
       return "Init process fork";
     case kTillNamespacesUnshare:
@@ -58,20 +56,12 @@ std::string SetupLatencyBreakdown::SetupStepToString(SetupStep step) {
       return "Nested userns init";
     case kInitLaunch:
       return "Init process launch";
-
-    // --- Shared PID / Landlock Isolation Mode Steps ---
     case kSharedPidInitFork:
-      return "Shared pidns init fork";
-    case kSharedPidTillNamespacesUnshare:
-      return "Shared pidns till namespaces unshare";
-    case kSharedPidNamespacesUnshare:
-      return "Shared pidns namespaces unshare";
-    case kSharedPidNetnsInitialization:
-      return "Shared pidns netns initialization";
-    case kSharedPidNestedUserNamespace:
-      return "Shared pidns nested userns";
-    case kSharedPidLandlockEnforcement:
-      return "Shared pidns Landlock enforcement";
+      return "Shared PID init process fork";
+
+    // --- Landlock Isolation Mode Steps ---
+    case kLandlockEnforcement:
+      return "Landlock enforcement";
 
     // --- Final Common Step ---
     case kTillAlmostDone:

@@ -33,11 +33,11 @@ namespace sandbox2 {
 class Namespace final {
  public:
   // Performs the namespace setup (mounts, write the uid_map, etc.).
-  static void InitializeNamespaces(uid_t uid, gid_t gid, int32_t clone_flags,
-                                   const Mounts& mounts,
-                                   const std::string& hostname,
+  static void InitializeNamespaces(uid_t uid, gid_t gid,
+                                   const ForkRequest& request,
                                    SetupLatencyBreakdown& latency_breakdown);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
+  static void SetupIDMaps(int proc_self_fd, uid_t uid, gid_t gid);
 
   // Enforces Landlock isolation for the given mounts.
   static void EnforceLandlockIsolation(

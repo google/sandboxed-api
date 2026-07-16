@@ -44,8 +44,11 @@ class ForkedProcess {
   void LaunchInit();
   void PrepareExecveArgs();
   void JoinInitialUserNamespace();
-  void JoinNamespaces();
+  void JoinSharedPidNamespace();
+  void JoinMountNamespace();
   void JoinNetworkNamespace();
+  void EnforceIsolation(sapi::file_util::fileops::FDCloser proc_self_fd,
+                        uid_t uid, gid_t gid);
   void SetupNamespaces();
   void SetupLandlockNamespaces();
   void MoveToPredefiedFDs();

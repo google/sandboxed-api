@@ -45,6 +45,7 @@ inline constexpr uintptr_t kExecveMagic = 0x921c2c34;
 
 class MonitorBase;
 class PolicyBuilder;
+class Sandbox2;
 
 class Policy final {
  public:
@@ -86,6 +87,7 @@ class Policy final {
  private:
   friend class PolicyBuilder;
   friend class MonitorBase;
+  friend class Sandbox2;
 
   // Private constructor only called by the PolicyBuilder.
   Policy() = default;
