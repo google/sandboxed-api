@@ -35,13 +35,13 @@ add_library(sandbox2_network_proxy_filtering ${SAPI_LIB_TYPE}
 add_library(sandbox2::network_proxy_filtering ALIAS sandbox2_network_proxy_filtering)
 target_link_libraries(sandbox2_network_proxy_filtering
   PRIVATE absl::status
+          absl::status_macros
           sandbox2::comms
           sapi::fileops
           sapi::base
   PUBLIC absl::statusor
          absl::log
          sapi::strerror
-         sapi::status
 )
 
 # sandboxed_api/sandbox2/network_proxy:client
@@ -61,7 +61,7 @@ target_link_libraries(sandbox2_network_proxy_client
  PRIVATE absl::strings
          absl::log
          sapi::base
-         sapi::status
+         absl::status_macros
 )
 
 # sandboxed_api/sandbox2/network_proxy:testing
@@ -78,8 +78,8 @@ target_link_libraries(sandbox2_network_proxy_testing
          absl::core_headers
          absl::memory
          absl::status
+         absl::status_macros
          absl::strings
-         sapi::status
          sapi::base
 )
 

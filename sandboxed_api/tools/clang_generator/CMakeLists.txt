@@ -108,16 +108,17 @@ endif()
 target_link_libraries(sapi_generator PUBLIC
   sapi::base
   absl::btree
+  absl::die_if_null
   absl::flat_hash_set
   absl::node_hash_set
   absl::overload
   absl::random_random
   absl::status
+  absl::status_macros
   absl::statusor
   absl::strings
   re2
   sapi::fileops
-  sapi::status
   ${_sapi_generator_clang_libs}
   ${_sapi_generator_llvm_libs}
 )
@@ -131,6 +132,7 @@ target_link_libraries(sapi_generator_tool PRIVATE
   absl::base
   absl::no_destructor
   absl::status
+  absl::status_macros
   absl::strings
   sapi::base
   sapi::file_base

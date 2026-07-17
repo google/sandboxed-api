@@ -83,4 +83,5 @@ target_link_libraries(hello_transacted PRIVATE
   sandbox2::policybuilder
   sandbox2::util
   absl::status
+  absl::status_macros
 )

@@ -49,6 +49,7 @@
 #include "absl/base/dynamic_annotations.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/numbers.h"
@@ -66,7 +67,6 @@
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/status.h"
 #include "sandboxed_api/util/status.pb.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
@@ -155,7 +155,7 @@ int Comms::GetConnectionFD() const {
 absl::StatusOr<ListeningComms> ListeningComms::Create(
     absl::string_view socket_name, bool abstract_uds) {
   ListeningComms comms(std::string(socket_name), abstract_uds);
-  SAPI_RETURN_IF_ERROR(comms.Listen());
+  ABSL_RETURN_IF_ERROR(comms.Listen());
   return comms;
 }
 
@@ -1047,17 +1047,17 @@ absl::Status Comms::SendSharedMemUpgradeRequest(
     return absl::OkStatus();
   }
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       auto memfd, util::CreateMemFdWithSize(shared_memory_comms_size.value()));
   int fd = memfd.get();
   if (fcntl(fd, F_ADD_SEALS, F_SEAL_SEAL | F_SEAL_GROW | F_SEAL_SHRINK) < 0) {
     return absl::InternalError("Failed to seal memfd");
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto buffer,
+  ABSL_ASSIGN_OR_RETURN(auto buffer,
                         sandbox2::Buffer::CreateFromFd(std::move(memfd)));
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       auto transport,
       AsynchronousByteTransport::CreateHostSide(std::move(buffer)));
 
@@ -1139,11 +1139,11 @@ absl::Status Comms::RecvSharedMemUpgrade() {
     return absl::OkStatus();
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto buffer,
+  ABSL_ASSIGN_OR_RETURN(auto buffer,
                         sandbox2::Buffer::CreateFromFd(
                             sapi::file_util::fileops::FDCloser(memfd)));
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       auto transport,
       AsynchronousByteTransport::CreateSandboxeeSide(std::move(buffer)));
 

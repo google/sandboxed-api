@@ -31,6 +31,7 @@
 #include "absl/log/check.h"
 #include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
@@ -49,7 +50,6 @@
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -149,9 +149,9 @@ class StackTraceTest
 class StackTraceStandaloneTest : public ::testing::Test {};
 
 absl::StatusOr<FDCloser> CopyExecToMemFd(const std::string& path) {
-  SAPI_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFd("exec"));
+  ABSL_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFd("exec"));
   std::string data;
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       sapi::file::GetContents(path, &data, sapi::file::Defaults()));
   if (!file_util::fileops::WriteToFD(fd.get(), data.data(), data.size())) {
     return absl::InternalError("Failed to write to memfd");

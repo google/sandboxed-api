@@ -24,10 +24,10 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_type.h"
 
@@ -94,12 +94,12 @@ class Array : public Var {
   absl::Status Resize(RPCChannel* rpc_channel, size_t nelems) {
     size_t absolute_size = sizeof(T) * nelems;
     // Resize local buffer.
-    SAPI_RETURN_IF_ERROR(EnsureOwnedLocalBuffer(absolute_size));
+    ABSL_RETURN_IF_ERROR(EnsureOwnedLocalBuffer(absolute_size));
 
     // Resize remote buffer and update local pointer.
     void* new_addr;
 
-    SAPI_RETURN_IF_ERROR(
+    ABSL_RETURN_IF_ERROR(
         rpc_channel->Reallocate(GetRemote(), absolute_size, &new_addr));
     if (!new_addr) {
       return absl::UnavailableError("Reallocate() returned nullptr");

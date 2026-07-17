@@ -27,12 +27,12 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -175,8 +175,8 @@ absl::Status AllowedHosts::AllowIPv4(const std::string& ip_and_mask,
                                      uint32_t port) {
   std::string ip, mask;
   uint32_t cidr;
-  SAPI_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, &mask, &cidr));
-  SAPI_RETURN_IF_ERROR(AllowIPv4(ip, mask, cidr, port));
+  ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, &mask, &cidr));
+  ABSL_RETURN_IF_ERROR(AllowIPv4(ip, mask, cidr, port));
 
   return absl::OkStatus();
 }
@@ -185,8 +185,8 @@ absl::Status AllowedHosts::AllowIPv6(const std::string& ip_and_mask,
                                      uint32_t port) {
   std::string ip;
   uint32_t cidr;
-  SAPI_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, NULL, &cidr));
-  SAPI_RETURN_IF_ERROR(AllowIPv6(ip, cidr, port));
+  ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, NULL, &cidr));
+  ABSL_RETURN_IF_ERROR(AllowIPv6(ip, cidr, port));
   return absl::OkStatus();
 }
 
@@ -197,7 +197,7 @@ absl::Status AllowedHosts::AllowIPv4(const std::string& ip,
   in_addr m{};
 
   if (!mask.empty()) {
-    SAPI_RETURN_IF_ERROR(IPStringToAddr(mask, AF_INET, &m));
+    ABSL_RETURN_IF_ERROR(IPStringToAddr(mask, AF_INET, &m));
 
     if (!IsIPv4MaskCorrect(m.s_addr)) {
       return absl::InvalidArgumentError(
@@ -213,10 +213,10 @@ absl::Status AllowedHosts::AllowIPv4(const std::string& ip,
       cidr = 32;
     }
 
-    SAPI_RETURN_IF_ERROR(CidrToInAddr(cidr, &m));
+    ABSL_RETURN_IF_ERROR(CidrToInAddr(cidr, &m));
   }
 
-  SAPI_RETURN_IF_ERROR(IPStringToAddr(ip, AF_INET, &addr));
+  ABSL_RETURN_IF_ERROR(IPStringToAddr(ip, AF_INET, &addr));
   allowed_IPv4_.emplace_back(addr.s_addr, m.s_addr, htons(port));
 
   return absl::OkStatus();
@@ -229,10 +229,10 @@ absl::Status AllowedHosts::AllowIPv6(const std::string& ip, uint32_t cidr,
   }
 
   in6_addr addr{};
-  SAPI_RETURN_IF_ERROR(IPStringToAddr(ip, AF_INET6, &addr));
+  ABSL_RETURN_IF_ERROR(IPStringToAddr(ip, AF_INET6, &addr));
 
   in6_addr m;
-  SAPI_RETURN_IF_ERROR(CidrToIn6Addr(cidr, &m));
+  ABSL_RETURN_IF_ERROR(CidrToIn6Addr(cidr, &m));
 
   allowed_IPv6_.emplace_back(addr, m, htons(port));
   return absl::OkStatus();

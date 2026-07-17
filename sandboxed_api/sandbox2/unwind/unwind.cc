@@ -28,6 +28,7 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -45,7 +46,6 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 namespace {
@@ -71,10 +71,10 @@ absl::StatusOr<std::vector<uintptr_t>> UnwindUsingFramePointer(
 #endif
   std::vector<uintptr_t> ips;
   for (int i = 0; fp != 0 && i < max_frames; ++i) {
-    SAPI_ASSIGN_OR_RETURN(uintptr_t ip,
+    ABSL_ASSIGN_OR_RETURN(uintptr_t ip,
                           ReadMemory(as, ctx, fp + kIPOffset * sizeof(void*)));
     ips.push_back(ip);
-    SAPI_ASSIGN_OR_RETURN(fp, ReadMemory(as, ctx, fp));
+    ABSL_ASSIGN_OR_RETURN(fp, ReadMemory(as, ctx, fp));
   }
   return ips;
 }
@@ -149,7 +149,7 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(
     const std::string& maps_content,
     absl::FunctionRef<absl::StatusOr<ElfFile>(const std::string&)>
         load_symbols = LoadSymbols) {
-  SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
+  ABSL_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
                         ParseProcMaps(maps_content));
 
   // Get symbols for each file entry in the maps entry.
@@ -252,7 +252,7 @@ std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr) {
 absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
   const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
   std::string maps_content;
-  SAPI_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
+  ABSL_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
                                                sapi::file::Defaults()));
   return LoadSymbolsMap(maps_content);
 }
@@ -275,7 +275,7 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
   }
   FDCloser exe_fd(raw_exe_fd);
   std::string maps_content = setup.maps_content();
-  SAPI_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
+  ABSL_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
                         ParseProcMaps(maps_content));
 
   SandboxedUnwindContext ctx{
@@ -307,9 +307,9 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
     return ElfFile::ParseFromFile(path, ElfFile::kLoadSymbols);
   };
 
-  SAPI_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
+  ABSL_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
                         RunLibUnwind(as, &ctx, setup.default_max_frames()));
-  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol,
+  ABSL_ASSIGN_OR_RETURN(auto addr_to_symbol,
                         LoadSymbolsMap(maps_content, load_symbols));
   absl::StatusOr<std::vector<std::string>> stack_trace =
       SymbolizeStacktrace(addr_to_symbol, ips);
@@ -343,9 +343,9 @@ absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizer(
     return absl::InternalError("_UPT_create() failed");
   }
   absl::Cleanup context_cleanup = [&context] { _UPT_destroy(context); };
-  SAPI_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
+  ABSL_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
                         RunLibUnwind(as, context, max_frames));
-  SAPI_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(pid));
+  ABSL_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(pid));
   return SymbolizeStacktrace(addr_to_symbol, ips);
 }
 

@@ -73,10 +73,11 @@ if(SAPI_BUILD_TESTING)
   target_link_libraries(sapi_main_stringop PRIVATE
     absl::memory
     absl::log
+    absl::status
+    absl::status_macros
     absl::statusor
     absl::strings
     sapi::sapi
-    sapi::status
     sapi::stringop_sapi
     sapi::test_main
     sapi::testing

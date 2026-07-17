@@ -40,9 +40,9 @@ target_link_libraries(sandbox2_bpf_evaluator
   PUBLIC absl::span
          absl::statusor
   PRIVATE absl::status
+          absl::status_macros
           absl::strings
           sapi::base
-          sapi::status
 )
 
 # sandboxed_api/sandbox2:regs
@@ -74,11 +74,11 @@ target_link_libraries(sandbox2_syscall
   PRIVATE absl::algorithm_container
           absl::span
           absl::statusor
+          absl::status_macros
           absl::str_format
           absl::strings
           sandbox2::util
           sapi::base
-          sapi::status
   PUBLIC absl::log
 )
 
@@ -592,6 +592,7 @@ target_link_libraries(sandbox2_client
   PRIVATE absl::core_headers
           absl::strings
           absl::statusor
+          absl::status_macros
           sandbox2::bpf_helper
           sandbox2::buffer
           sandbox2::config_proto
@@ -602,7 +603,6 @@ target_link_libraries(sandbox2_client
           sapi::config
           sapi::fileops
           sapi::raw_logging
-          sapi::status
           sandbox2::version
   PUBLIC absl::flat_hash_map
          absl::status
@@ -728,10 +728,10 @@ target_link_libraries(sandbox2_mounts
           sapi::base
           sapi::file_base
           sapi::fileops
-          sapi::status
   PUBLIC absl::log
          absl::check
          absl::status
+         absl::status_macros
          absl::statusor
          absl::strings
          sandbox2::mount_tree_proto
@@ -797,10 +797,10 @@ target_link_libraries(sandbox2_util
           sapi::fileops
           sapi::base
           sapi::raw_logging
-          sapi::status
   PUBLIC absl::log
          absl::span
          absl::status
+         absl::status_macros
          absl::statusor
 )
 target_compile_options(sandbox2_util PRIVATE
@@ -832,9 +832,9 @@ add_library(sandbox2::buffer ALIAS sandbox2_buffer)
 target_link_libraries(sandbox2_buffer
   PRIVATE absl::memory
           absl::status
+          absl::status_macros
           absl::strings
           sapi::base
-          sapi::status
           sandbox2::util
   PUBLIC absl::core_headers
          absl::statusor
@@ -906,6 +906,7 @@ target_link_libraries(sandbox2_comms
   PUBLIC absl::core_headers
          absl::span
          absl::status
+         absl::status_macros
          protobuf::libprotobuf
          sapi::fileops
          sapi::status
@@ -1339,6 +1340,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::log_severity
     absl::scoped_mock_log
     absl::status
+    absl::status_macros
     absl::status_matchers
     absl::strings
     absl::time
@@ -1355,7 +1357,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::file_helpers
     sapi::testing
     sapi::test_main
-    sapi::status
   )
   gtest_discover_tests_xcompile(sandbox2_stack_trace_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"

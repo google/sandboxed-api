@@ -111,8 +111,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":proto_arg_cc_proto",
-        ":status",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_protobuf//:protobuf_lite",
@@ -236,8 +236,8 @@ cc_library(
     hdrs = ["temp_file.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":status",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],

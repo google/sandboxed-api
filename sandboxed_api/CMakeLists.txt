@@ -147,7 +147,6 @@ target_link_libraries(sapi_sandbox2_backend
           sapi::rpcchannel
           sapi::sandbox_config
           sapi::shared_memory_rpcchannel
-          sapi::status
           sapi::var_type
           sandbox2::buffer
           sandbox2::comms
@@ -180,6 +179,7 @@ target_link_libraries(sapi_sapi
           absl::log_globals
           absl::span
           absl::status
+          absl::status_macros
           absl::statusor
           absl::str_format
           absl::strings

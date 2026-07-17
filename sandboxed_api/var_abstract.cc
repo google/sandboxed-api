@@ -23,10 +23,10 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_ptr.h"
 
 namespace sapi::v {
@@ -83,7 +83,7 @@ Ptr* Var::PtrAfter() {
 
 absl::Status Var::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
   void* addr;
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       rpc_channel->Allocate(GetSize(), &addr, disable_shared_memory_));
 
   if (!addr) {
@@ -100,7 +100,7 @@ absl::Status Var::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
 }
 
 absl::Status Var::Free(RPCChannel* rpc_channel) {
-  SAPI_RETURN_IF_ERROR(rpc_channel->Free(GetRemote()));
+  ABSL_RETURN_IF_ERROR(rpc_channel->Free(GetRemote()));
 
   SetRemote(nullptr);
   return absl::OkStatus();
@@ -118,7 +118,7 @@ absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel) {
         absl::StrCat("Object: ", GetTypeString(), " has no remote object set"));
   }
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       size_t ret,
       rpc_channel->CopyToSandbox(
           reinterpret_cast<uintptr_t>(GetRemote()),
@@ -144,7 +144,7 @@ absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel) {
         absl::StrCat("Object: ", GetTypeString(), " has no local storage set"));
   }
 
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       size_t ret,
       rpc_channel->CopyFromSandbox(
           reinterpret_cast<uintptr_t>(GetRemote()),

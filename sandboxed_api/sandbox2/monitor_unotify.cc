@@ -30,6 +30,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -51,7 +52,6 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 
 #define DO_USER_NOTIF BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_USER_NOTIF)
@@ -90,7 +90,7 @@ absl::Status ReadWholeWithDeadline(int fd, std::vector<iovec> vecs_vec,
                                    absl::Time deadline) {
   absl::Span<iovec> vecs = absl::MakeSpan(vecs_vec);
   while (!vecs.empty()) {
-    SAPI_RETURN_IF_ERROR(WaitForFdReadable(fd, deadline));
+    ABSL_RETURN_IF_ERROR(WaitForFdReadable(fd, deadline));
     ssize_t r = readv(fd, vecs.data(), vecs.size());
     if (r < 0 && errno != EINTR) {
       return absl::ErrnoToStatus(errno, "readv");
@@ -502,7 +502,7 @@ void UnotifyMonitor::MaybeGetStackTrace(pid_t pid, Result::StatusEnum status) {
 
 absl::StatusOr<std::vector<std::pair<pid_t, std::vector<std::string>>>>
 UnotifyMonitor::GetThreadStackTraces(pid_t pid) {
-  SAPI_ASSIGN_OR_RETURN(absl::flat_hash_set<int> tasks,
+  ABSL_ASSIGN_OR_RETURN(absl::flat_hash_set<int> tasks,
                         sanitizer::GetListOfTasks(pid));
   tasks.erase(pid);
 
@@ -555,7 +555,7 @@ absl::StatusOr<std::vector<std::string>> UnotifyMonitor::GetStackTrace(
                                absl::StrCat("could not attach to pid = ", pid));
   }
 
-  SAPI_RETURN_IF_ERROR(WaitForTaskToStop(pid));
+  ABSL_RETURN_IF_ERROR(WaitForTaskToStop(pid));
 
   absl::Cleanup cleanup = [pid] {
     if (ptrace(PTRACE_DETACH, pid, 0, 0) != 0) {

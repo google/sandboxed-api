@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -45,7 +46,6 @@
 #include "sandboxed_api/tests/sapi_test-sapi.sapi.h"
 #include "sandboxed_api/transaction.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_callback.h"
@@ -81,12 +81,11 @@ absl::Status InvokeStringReversal(SandboxBase* sandbox) {
   StringopApi api(sandbox);
   stringop::StringReverse proto;
   proto.set_input("Hello");
-  absl::StatusOr<v::Proto<stringop::StringReverse>> pp(
-      v::Proto<stringop::StringReverse>::FromMessage(proto));
-  SAPI_RETURN_IF_ERROR(pp.status());
-  SAPI_ASSIGN_OR_RETURN(int return_code, api.pb_reverse_string(pp->PtrBoth()));
+  ABSL_ASSIGN_OR_RETURN(auto pp,
+                        v::Proto<stringop::StringReverse>::FromMessage(proto));
+  ABSL_ASSIGN_OR_RETURN(int return_code, api.pb_reverse_string(pp.PtrBoth()));
   TRANSACTION_FAIL_IF_NOT(return_code != 0, "pb_reverse_string failed");
-  SAPI_ASSIGN_OR_RETURN(auto pb_result, pp->GetMessage());
+  ABSL_ASSIGN_OR_RETURN(auto pb_result, pp.GetMessage());
   TRANSACTION_FAIL_IF_NOT(pb_result.output() == "olleH", "Incorrect output");
   return absl::OkStatus();
 }
@@ -247,7 +246,7 @@ TEST_P(SandboxTest, RestartSandboxFD) {
     int first_remote_fd = LeakFileDescriptor(sandbox, "/proc/self/exe");
     EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"),
                 Gt(first_remote_fd));
-    SAPI_RETURN_IF_ERROR(sandbox->Restart(false));
+    ABSL_RETURN_IF_ERROR(sandbox->Restart(false));
     // We should have a fresh sandbox now = FDs open previously should be
     // closed now.
     EXPECT_THAT(LeakFileDescriptor(sandbox, "/proc/self/exe"),

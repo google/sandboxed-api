@@ -28,11 +28,11 @@
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -98,7 +98,7 @@ absl::StatusOr<std::unique_ptr<Buffer>> Buffer::Expand(
 // will be immediately deleted.
 absl::StatusOr<std::unique_ptr<Buffer>> Buffer::CreateWithSize(
     size_t size, const char* name) {
-  SAPI_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFdWithSize(size, name));
+  ABSL_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFdWithSize(size, name));
   return CreateFromFd(std::move(fd), size);
 }
 

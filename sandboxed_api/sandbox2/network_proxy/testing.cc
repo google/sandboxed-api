@@ -29,9 +29,9 @@
 #include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
@@ -79,7 +79,7 @@ NetworkProxyTestServer::Start(bool ipv6) {
   if (event_fd.get() < 0) {
     return absl::InternalError("eventfd() failed");
   }
-  SAPI_ASSIGN_OR_RETURN(FDCloser server_socket, CreateServerSocket(port, ipv6));
+  ABSL_ASSIGN_OR_RETURN(FDCloser server_socket, CreateServerSocket(port, ipv6));
   auto server = absl::WrapUnique(new NetworkProxyTestServer(
       port, std::move(server_socket), std::move(event_fd)));
   server->Spawn();

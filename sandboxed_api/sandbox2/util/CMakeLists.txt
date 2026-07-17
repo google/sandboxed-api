@@ -31,6 +31,7 @@ add_library(sandbox2::minielf ALIAS sandbox2_util_minielf)
 target_link_libraries(sandbox2_util_minielf PRIVATE
   absl::bits
   absl::status
+  absl::status_macros
   absl::strings
   sandbox2::elf_parser
   sapi::base
@@ -44,14 +45,15 @@ add_library(sandbox2_util_elf_parser ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::elf_parser ALIAS sandbox2_util_elf_parser)
 target_link_libraries(sandbox2_util_elf_parser
-PUBLIC absl::function_ref
-       absl::overload
-       absl::status
-       absl::strings
-       sapi::base
-PRIVATE absl::bits
-        sandbox2::util
-        sapi::raw_logging
+  PUBLIC absl::function_ref
+         absl::overload
+         absl::status
+         absl::status_macros
+         absl::strings
+         sapi::base
+  PRIVATE absl::bits
+          sandbox2::util
+          sapi::raw_logging
 )
 
 # sandboxed_api/sandbox2/util:maps_parser
@@ -61,10 +63,10 @@ add_library(sandbox2_util_maps_parser ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::maps_parser ALIAS sandbox2_util_maps_parser)
 target_link_libraries(sandbox2_util_maps_parser
+  PUBLIC absl::statusor
   PRIVATE absl::status
           absl::strings
           sapi::base
-  PUBLIC absl::statusor
 )
 
 # sandboxed_api/sandbox2/util:syscall_trap
@@ -155,12 +157,12 @@ target_link_libraries(sandbox2_util_library_resolver
          sandbox2::minielf
   PRIVATE absl::base
           absl::status
+          absl::status_macros
           sapi::base
           sapi::config
           sapi::fileops
           sapi::file_base
           sapi::raw_logging
-          sapi::status
 )
 
 # sandboxed_api/sandbox2/util:demangle
@@ -182,6 +184,7 @@ add_library(sandbox2::asynchronous_byte_transport ALIAS sandbox2_util_asynchrono
 target_link_libraries(sandbox2_util_asynchronous_byte_transport
   PUBLIC absl::memory
          absl::status
+         absl::status_macros
          absl::statusor
          absl::span
          absl::time

@@ -75,7 +75,6 @@ cc_test(
         "//sandboxed_api:sapi",
         "//sandboxed_api:testing",
         "//sandboxed_api:vars",
-        "//sandboxed_api/util:status",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status",

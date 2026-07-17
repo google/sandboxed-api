@@ -47,6 +47,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   )
   target_link_libraries(sapi_test PRIVATE
     absl::status
+    absl::status_macros
     absl::status_matchers
     absl::statusor
     absl::time
@@ -56,7 +57,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::proto_arg_proto
     sapi::sapi
     sapi::sapi_test_sapi
-    sapi::status
     sapi::stringop_sapi
     sapi::sum_sapi
     sapi::test_main

@@ -71,9 +71,9 @@ target_link_libraries(sapi_util_proto_helper
   PRIVATE sapi::base
   PUBLIC absl::core_headers
          absl::status
+         absl::status_macros
          absl::statusor
          sapi::proto_arg_proto
-         sapi::status
 )
 
 
@@ -157,7 +157,7 @@ add_library(sapi_util_temp_file ${SAPI_LIB_TYPE}
 add_library(sapi::temp_file ALIAS sapi_util_temp_file)
 target_link_libraries(sapi_util_temp_file
   PRIVATE absl::strings
-          sapi::status
+          absl::status_macros
           sapi::strerror
           sapi::base
   PUBLIC absl::status

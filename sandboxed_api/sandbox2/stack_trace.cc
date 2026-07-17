@@ -33,6 +33,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -52,7 +53,6 @@
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 
@@ -202,14 +202,14 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
   std::string proc_pid_maps =
       file::JoinPath("/proc", absl::StrCat(pid), "maps");
   std::string maps_content;
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       sapi::file::GetContents(proc_pid_maps, &maps_content, file::Defaults()));
 
   VLOG(1) << "Resolved binary: " << app_path;
 
   // Add mappings for the binary (as they might not have been added due to the
   // forkserver).
-  SAPI_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy,
+  ABSL_ASSIGN_OR_RETURN(std::unique_ptr<Policy> policy,
                         StackTracePeer::GetPolicy(ns, uses_custom_forkserver));
 
   VLOG(1) << "Running libunwind sandbox";
@@ -244,7 +244,7 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     return absl::InternalError(
         "Receiving status from libunwind sandbox failed");
   }
-  SAPI_RETURN_IF_ERROR(status);
+  ABSL_RETURN_IF_ERROR(status);
 
   UnwindResult result;
   if (!comms->RecvProtoBuf(&result)) {

@@ -49,6 +49,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -1616,7 +1617,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
     // We need to check that all the mounts are compatible with Landlock, i.e.
     // are identity mounts, i.e. outside and inside are the same.
     MountTree mount_tree = mounts_.GetMountTree();
-    SAPI_RETURN_IF_ERROR(ValidateLandlockIdentityMounts(mount_tree));
+    ABSL_RETURN_IF_ERROR(ValidateLandlockIdentityMounts(mount_tree));
   }
 
   if (use_namespaces_ || use_landlock) {

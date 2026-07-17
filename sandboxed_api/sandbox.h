@@ -119,8 +119,8 @@ class SandboxBase {
   //    std::string buffer(size_of_memory_in_sandboxee, ' ');
   //    sapi::v::Array<uint8_t> sapi_buffer(
   //       reinterpret_cast<uint8_t*>(buffer.data()), buffer.size());
-  //    SAPI_RETURN_IF_ERROR(sandbox.Allocate(&sapi_buffer));
-  //    SAPI_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&sapi_buffer));
+  //    ABSL_RETURN_IF_ERROR(sandbox.Allocate(&sapi_buffer));
+  //    ABSL_RETURN_IF_ERROR(sandbox.TransferToSandboxee(&sapi_buffer));
   absl::Status TransferToSandboxee(v::Var* var);
 
   // Transfers memory from the sandboxee's address space to the hostcode.
@@ -134,7 +134,7 @@ class SandboxBase {
   //    sapi::v::Array<uint8_t> sapi_buffer(
   //       reinterpret_cast<uint8_t*>(buffer.data()), buffer.size());
   //    sapi_buffer.SetRemote(addr_of_memory_in_sandboxee);
-  //    SAPI_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&sapi_buffer));
+  //    ABSL_RETURN_IF_ERROR(sandbox.TransferFromSandboxee(&sapi_buffer));
   absl::Status TransferFromSandboxee(v::Var* var);
 
   // Allocates and transfers a buffer to the sandboxee's address space from the
@@ -238,7 +238,7 @@ absl::StatusOr<std::unique_ptr<SandboxT>> MakeSandbox(Args&&... args) {
   static_assert(std::is_base_of_v<SandboxBase, SandboxT>,
                 "SandboxT must be a subclass of SandboxBase");
   auto sandbox = std::make_unique<SandboxT>(std::forward<Args>(args)...);
-  SAPI_RETURN_IF_ERROR(sandbox->Init());
+  ABSL_RETURN_IF_ERROR(sandbox->Init());
   return sandbox;
 }
 

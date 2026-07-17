@@ -28,13 +28,13 @@
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
 #include "sandboxed_api/examples/sum/sum_params.pb.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/transaction.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/vars.h"
 
 namespace {
@@ -68,7 +68,7 @@ class SumTransaction : public sapi::Transaction {
 
 absl::Status SumTransaction::Main() {
   SumApi f(sandbox());
-  SAPI_ASSIGN_OR_RETURN(int v, f.sum(1000, 337));
+  ABSL_ASSIGN_OR_RETURN(int v, f.sum(1000, 337));
   LOG(INFO) << "1000 + 337 = " << v;
   TRANSACTION_FAIL_IF_NOT(v == 1337, "1000 + 337 != 1337");
 
@@ -77,12 +77,12 @@ absl::Status SumTransaction::Main() {
   params.mutable_data()->a = 1111;
   params.mutable_data()->b = 222;
   params.mutable_data()->ret = 0;
-  SAPI_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
+  ABSL_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
   LOG(INFO) << "1111 + 222 = " << params.data().ret;
   TRANSACTION_FAIL_IF_NOT(params.data().ret == 1333, "1111 + 222 != 1333");
 
   params.mutable_data()->b = -1000;
-  SAPI_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
+  ABSL_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
   LOG(INFO) << "1111 - 1000 = " << params.data().ret;
   TRANSACTION_FAIL_IF_NOT(params.data().ret == 111, "1111 - 1000 != 111");
 
@@ -91,7 +91,7 @@ absl::Status SumTransaction::Main() {
   p.mutable_data()->a = 1234;
   p.mutable_data()->b = 5678;
   p.mutable_data()->ret = 0;
-  SAPI_RETURN_IF_ERROR(f.sums(p.PtrBoth()));
+  ABSL_RETURN_IF_ERROR(f.sums(p.PtrBoth()));
   LOG(INFO) << "1234 + 5678 = " << p.data().ret;
   TRANSACTION_FAIL_IF_NOT(p.data().ret == 6912, "1234 + 5678 != 6912");
 
@@ -101,14 +101,14 @@ absl::Status SumTransaction::Main() {
   for (size_t i = 0; i < ABSL_ARRAYSIZE(arr); i++) {
     iarr[i] = i;
   }
-  SAPI_ASSIGN_OR_RETURN(v, f.sumarr(iarr.PtrBefore(), iarr.GetNElem()));
+  ABSL_ASSIGN_OR_RETURN(v, f.sumarr(iarr.PtrBefore(), iarr.GetNElem()));
   LOG(INFO) << "Sum(iarr, 10 elem, from 0 to 9, exp: 45) = " << v;
   TRANSACTION_FAIL_IF_NOT(v == 45, "Sum(iarr, 10 elem, from 0 to 9) != 45");
 
   float a = 0.99999f;
   double b = 1.5423432l;
   long double c = 1.1001L;
-  SAPI_ASSIGN_OR_RETURN(long double r, f.addf(a, b, c));
+  ABSL_ASSIGN_OR_RETURN(long double r, f.addf(a, b, c));
   LOG(INFO) << "Addf(" << a << ", " << b << ", " << c << ") = " << r;
 
   // Prints "Hello World!!!" via puts()
@@ -116,14 +116,14 @@ absl::Status SumTransaction::Main() {
   LOG(INFO) << "Print: '" << hwstr << "' via puts()";
   sapi::v::Array<const char> hwarr(hwstr, sizeof(hwstr));
   sapi::v::Int ret;
-  SAPI_RETURN_IF_ERROR(sandbox()->Call("puts", &ret, hwarr.PtrBefore()));
+  ABSL_RETURN_IF_ERROR(sandbox()->Call("puts", &ret, hwarr.PtrBefore()));
   TRANSACTION_FAIL_IF_NOT(ret.GetValue() == 15, "puts('Hello World!!!') != 15");
 
   sapi::v::Int vp;
   LOG(INFO) << "Test whether pointer is NOT NULL - new pointers";
-  SAPI_RETURN_IF_ERROR(f.testptr(vp.PtrBefore()));
+  ABSL_RETURN_IF_ERROR(f.testptr(vp.PtrBefore()));
   LOG(INFO) << "Test whether pointer is NULL";
-  SAPI_RETURN_IF_ERROR(f.testptr(nullptr));
+  ABSL_RETURN_IF_ERROR(f.testptr(nullptr));
 
   // Protobuf test.
   sumsapi::SumParamsProto proto;
@@ -134,7 +134,7 @@ absl::Status SumTransaction::Main() {
   if (!pp.ok()) {
     return pp.status();
   }
-  SAPI_ASSIGN_OR_RETURN(v, f.sumproto(pp->PtrBefore()));
+  ABSL_ASSIGN_OR_RETURN(v, f.sumproto(pp->PtrBefore()));
   LOG(INFO) << "sumproto(proto {a = 10; b = 20; c = 30}) = " << v;
   TRANSACTION_FAIL_IF_NOT(v == 60,
                           "sumproto(proto {a = 10; b = 20; c = 30}) != 60");
@@ -142,13 +142,13 @@ absl::Status SumTransaction::Main() {
   // Fd transfer test.
   int fdesc = open("/proc/self/exe", O_RDONLY);
   sapi::v::Fd fd(fdesc);
-  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd));
+  ABSL_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd));
   LOG(INFO) << "remote_fd = " << fd.GetRemoteFd();
   TRANSACTION_FAIL_IF_NOT(fd.GetRemoteFd() != -1, "remote_fd == -1");
 
   fdesc = open("/proc/self/comm", O_RDONLY);
   sapi::v::Fd fd2(fdesc);
-  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd2));
+  ABSL_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd2));
   LOG(INFO) << "remote_fd2 = " << fd2.GetRemoteFd();
   TRANSACTION_FAIL_IF_NOT(fd2.GetRemoteFd() != -1, "remote_fd2 == -1");
 
@@ -156,37 +156,37 @@ absl::Status SumTransaction::Main() {
   char buffer[1024] = {0};
   sapi::v::Array<char> buf(buffer, sizeof(buffer));
   sapi::v::UInt size(128);
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
   LOG(INFO) << "Read from /proc/self/comm = [" << buffer << "]";
 
   // Close test.
-  SAPI_RETURN_IF_ERROR(fd2.CloseRemoteFd(sandbox()->rpc_channel()));
+  ABSL_RETURN_IF_ERROR(fd2.CloseRemoteFd(sandbox()->rpc_channel()));
   memset(buffer, 0, sizeof(buffer));
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       sandbox()->Call("read", &ret, &fd2, buf.PtrBoth(), &size));
   LOG(INFO) << "Read from closed /proc/self/comm = [" << buffer << "]";
 
   // Pass fd as function arg example.
   fdesc = open("/proc/self/statm", O_RDONLY);
   sapi::v::Fd fd3(fdesc);
-  SAPI_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd3));
-  SAPI_ASSIGN_OR_RETURN(int r2, f.read_int(fd3.GetRemoteFd()));
+  ABSL_RETURN_IF_ERROR(sandbox()->TransferToSandboxee(&fd3));
+  ABSL_ASSIGN_OR_RETURN(int r2, f.read_int(fd3.GetRemoteFd()));
   LOG(INFO) << "statm value (should not be 0) = " << r2;
 
   if (crash_) {
     // Crashes the sandboxed part with SIGSEGV
     LOG(INFO) << "Crash with SIGSEGV";
-    SAPI_RETURN_IF_ERROR(f.crash());
+    ABSL_RETURN_IF_ERROR(f.crash());
   }
 
   if (violate_) {
     LOG(INFO) << "Cause a sandbox (syscall) violation";
-    SAPI_RETURN_IF_ERROR(f.violate());
+    ABSL_RETURN_IF_ERROR(f.violate());
   }
 
   if (time_out_) {
-    SAPI_RETURN_IF_ERROR(f.sleep_for_sec(kTimeOutVal * 2));
+    ABSL_RETURN_IF_ERROR(f.sleep_for_sec(kTimeOutVal * 2));
   }
   return absl::OkStatus();
 }
@@ -194,7 +194,7 @@ absl::Status SumTransaction::Main() {
 absl::Status test_addition(sapi::SandboxBase* sandbox, int a, int b, int c) {
   SumApi f(sandbox);
 
-  SAPI_ASSIGN_OR_RETURN(int v, f.sum(a, b));
+  ABSL_ASSIGN_OR_RETURN(int v, f.sum(a, b));
   TRANSACTION_FAIL_IF_NOT(v == c, absl::StrCat(a, " + ", b, " != ", c));
   return absl::OkStatus();
 }
@@ -223,7 +223,7 @@ int main(int argc, char* argv[]) {
     params.mutable_data()->a = 1111;
     params.mutable_data()->b = 222;
     params.mutable_data()->ret = 0;
-    SAPI_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
+    ABSL_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
     LOG(INFO) << "1111 + 222 = " << params.data().ret;
     TRANSACTION_FAIL_IF_NOT(params.data().ret == 1333, "1111 + 222 != 1333");
     return absl::OkStatus();
@@ -236,7 +236,7 @@ int main(int argc, char* argv[]) {
     params.mutable_data()->a = 1111;
     params.mutable_data()->b = -1000;
     params.mutable_data()->ret = 0;
-    SAPI_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
+    ABSL_RETURN_IF_ERROR(f.sums(params.PtrBoth()));
     LOG(INFO) << "1111 - 1000 = " << params.data().ret;
     TRANSACTION_FAIL_IF_NOT(params.data().ret == 111, "1111 - 1000 != 111");
 
@@ -245,7 +245,7 @@ int main(int argc, char* argv[]) {
     p.mutable_data()->a = 1234;
     p.mutable_data()->b = 5678;
     p.mutable_data()->ret = 0;
-    SAPI_RETURN_IF_ERROR(f.sums(p.PtrBoth()));
+    ABSL_RETURN_IF_ERROR(f.sums(p.PtrBoth()));
     LOG(INFO) << "1234 + 5678 = " << p.data().ret;
     TRANSACTION_FAIL_IF_NOT(p.data().ret == 6912, "1234 + 5678 != 6912");
     return absl::OkStatus();

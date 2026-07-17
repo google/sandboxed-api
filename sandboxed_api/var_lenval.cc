@@ -19,14 +19,14 @@
 #include <cstddef>
 
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "sandboxed_api/rpcchannel.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi::v {
 
 absl::Status LenVal::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
-  SAPI_RETURN_IF_ERROR(struct_.Allocate(rpc_channel, automatic_free));
-  SAPI_RETURN_IF_ERROR(array_.Allocate(rpc_channel, true));
+  ABSL_RETURN_IF_ERROR(struct_.Allocate(rpc_channel, automatic_free));
+  ABSL_RETURN_IF_ERROR(array_.Allocate(rpc_channel, true));
 
   // Set data pointer.
   struct_.mutable_data()->data = array_.GetRemote();
@@ -34,16 +34,16 @@ absl::Status LenVal::Allocate(RPCChannel* rpc_channel, bool automatic_free) {
 }
 
 absl::Status LenVal::Free(RPCChannel* rpc_channel) {
-  SAPI_RETURN_IF_ERROR(array_.Free(rpc_channel));
-  SAPI_RETURN_IF_ERROR(struct_.Free(rpc_channel));
+  ABSL_RETURN_IF_ERROR(array_.Free(rpc_channel));
+  ABSL_RETURN_IF_ERROR(struct_.Free(rpc_channel));
   return absl::OkStatus();
 }
 
 absl::Status LenVal::TransferToSandboxee(RPCChannel* rpc_channel) {
   // Sync the structure and the underlying array.
-  SAPI_RETURN_IF_ERROR(struct_.TransferToSandboxee(rpc_channel));
+  ABSL_RETURN_IF_ERROR(struct_.TransferToSandboxee(rpc_channel));
   struct_synced_ = true;
-  SAPI_RETURN_IF_ERROR(array_.TransferToSandboxee(rpc_channel));
+  ABSL_RETURN_IF_ERROR(array_.TransferToSandboxee(rpc_channel));
   return absl::OkStatus();
 }
 
@@ -51,17 +51,17 @@ absl::Status LenVal::TransferFromSandboxee(RPCChannel* rpc_channel) {
   // Array was allocated but it's address never actually sent to remote side.
   // Deallocate it now to avoid memory leaks.
   if (!struct_synced_) {
-    SAPI_RETURN_IF_ERROR(array_.Free(rpc_channel));
+    ABSL_RETURN_IF_ERROR(array_.Free(rpc_channel));
   }
 
   // Sync the structure back.
-  SAPI_RETURN_IF_ERROR(struct_.TransferFromSandboxee(rpc_channel));
+  ABSL_RETURN_IF_ERROR(struct_.TransferFromSandboxee(rpc_channel));
   struct_synced_ = true;
 
   // Resize the local array if required. Also make sure we own the buffer, this
   // is the only way we can be sure that the buffer is writable.
   size_t new_size = struct_.data().size;
-  SAPI_RETURN_IF_ERROR(array_.EnsureOwnedLocalBuffer(new_size));
+  ABSL_RETURN_IF_ERROR(array_.EnsureOwnedLocalBuffer(new_size));
 
   // Remote pointer might have changed, update it.
   array_.SetRemote(struct_.data().data);
@@ -69,7 +69,7 @@ absl::Status LenVal::TransferFromSandboxee(RPCChannel* rpc_channel) {
 }
 
 absl::Status LenVal::ResizeData(RPCChannel* rpc_channel, size_t size) {
-  SAPI_RETURN_IF_ERROR(array_.Resize(rpc_channel, size));
+  ABSL_RETURN_IF_ERROR(array_.Resize(rpc_channel, size));
   auto* struct_data = struct_.mutable_data();
   struct_data->data = array_.GetRemote();
   struct_data->size = size;

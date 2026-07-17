@@ -85,11 +85,11 @@ target_link_libraries(sapi_main_sum PRIVATE
   absl::log_initialize
   absl::flags_parse
   absl::status
+  absl::status_macros
   absl::statusor
   absl::strings
   sapi::base
   sapi::sapi
-  sapi::status
   sapi::sum_sapi
   sapi::vars
 )

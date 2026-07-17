@@ -34,7 +34,6 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
@@ -42,7 +41,7 @@ namespace sapi {
 absl::Status Sandbox2RPCChannel::Call(const FuncCall& call, uint32_t tag,
                                       FuncRet* ret, v::Type exp_type) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(*ret, Exchange(tag, &call, sizeof(call), exp_type));
+  ABSL_ASSIGN_OR_RETURN(*ret, Exchange(tag, &call, sizeof(call), exp_type));
   return absl::OkStatus();
 }
 
@@ -136,7 +135,7 @@ absl::StatusOr<FuncRet> Sandbox2RPCChannel::Return(v::Type exp_type) {
 absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr,
                                           bool disable_shared_memory) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(auto fret, Exchange(comms::kMsgAllocate, &size,
+  ABSL_ASSIGN_OR_RETURN(auto fret, Exchange(comms::kMsgAllocate, &size,
                                             sizeof(size), v::Type::kPointer));
   *addr = reinterpret_cast<void*>(fret.int_val);
   return absl::OkStatus();
@@ -175,16 +174,16 @@ absl::StatusOr<size_t> Sandbox2RPCChannel::CopyFromSandbox(
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::CopyToSandbox(
     uintptr_t remote_ptr, absl::Span<const char> data) {
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       size_t ret, sandbox2::util::WriteBytesToPidFrom(pid_, remote_ptr, data));
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       MarkMemoryInit(reinterpret_cast<void*>(remote_ptr), data.size()));
   return ret;
 }
 
 absl::Status Sandbox2RPCChannel::Symbol(const char* symname, void** addr) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       auto fret, Exchange(comms::kMsgSymbol, symname, strlen(symname) + 1,
                           v::Type::kPointer));
   *addr = reinterpret_cast<void*>(fret.int_val);
@@ -213,7 +212,7 @@ absl::Status Sandbox2RPCChannel::SendFD(int local_fd, int* remote_fd) {
     return absl::UnavailableError("Sending FD failed");
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
+  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kInt));
   if (!fret.success) {
     return absl::UnavailableError("SendFD failed on the remote side");
   }
@@ -231,7 +230,7 @@ absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
     return absl::UnavailableError("Receving FD failed");
   }
 
-  SAPI_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+  ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
   if (!fret.success) {
     return absl::UnavailableError("RecvFD failed on the remote side");
   }
@@ -240,7 +239,7 @@ absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
 
 absl::Status Sandbox2RPCChannel::Close(int remote_fd) {
   absl::MutexLock lock(mutex_);
-  SAPI_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       Exchange(comms::kMsgClose, &remote_fd, sizeof(remote_fd), v::Type::kVoid)
           .status());
   return absl::OkStatus();
@@ -248,7 +247,7 @@ absl::Status Sandbox2RPCChannel::Close(int remote_fd) {
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       auto fret, Exchange(comms::kMsgStrlen, &str, sizeof(str), v::Type::kInt));
   return fret.int_val;
 }
@@ -260,7 +259,7 @@ absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
         .old_addr = reinterpret_cast<uintptr_t>(addr),
         .size = size,
     };
-    SAPI_RETURN_IF_ERROR(
+    ABSL_RETURN_IF_ERROR(
         Exchange(comms::kMsgMarkMemoryInit, &req, sizeof(req), v::Type::kVoid)
             .status());
   }
@@ -302,7 +301,7 @@ absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallback(
 
 absl::Status Sandbox2RPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
   absl::MutexLock lock(mutex_);
-  SAPI_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
+  ABSL_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
                         GetTrampolineTableAddr());
   if (remote_ptr < trampoline_table_addr) {
     return absl::InvalidArgumentError("Invalid remote_ptr");

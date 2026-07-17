@@ -28,6 +28,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -45,7 +46,6 @@
 #include "sandboxed_api/shared_memory_rpcchannel.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/runfiles.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sapi {
 
@@ -220,15 +220,15 @@ absl::Status Sandbox2Backend::Init() {
   const sandbox2::Buffer* shared_memory_mapping = nullptr;
   bool use_shared_memory = config_.sandbox2.shared_memory_config.has_value();
   if (use_shared_memory) {
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         shared_memory_mapping,
         s2_->CreateSharedMemoryMapping(*config_.sandbox2.shared_memory_config));
   }
   if (config_.sandbox2.enable_shared_memory_comms) {
-    SAPI_RETURN_IF_ERROR(s2_->EnableSharedMemoryComms());
+    ABSL_RETURN_IF_ERROR(s2_->EnableSharedMemoryComms());
   }
   if (config_.sandbox2.use_unotify_monitor) {
-    SAPI_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
+    ABSL_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
   }
   s2_awaited_ = false;
   auto res = s2_->RunAsync();

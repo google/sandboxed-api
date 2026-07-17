@@ -42,6 +42,7 @@
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
@@ -57,7 +58,6 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
-#include "sandboxed_api/util/status_macros.h"
 
 namespace sandbox2 {
 namespace util {
@@ -271,7 +271,7 @@ absl::StatusOr<FDCloser> CreateMemFd(const char* name, uintptr_t flags) {
 
 absl::StatusOr<FDCloser> CreateMemFdWithSize(size_t size, const char* name,
                                              uintptr_t flags) {
-  SAPI_ASSIGN_OR_RETURN(FDCloser tmp_fd, CreateMemFd(name, flags));
+  ABSL_ASSIGN_OR_RETURN(FDCloser tmp_fd, CreateMemFd(name, flags));
   if (ftruncate(tmp_fd.get(), size) < 0) {
     return absl::ErrnoToStatus(errno, "ftruncate");
   }
@@ -525,7 +525,7 @@ absl::StatusOr<size_t> ProcMemTransfer(bool is_read, pid_t pid, uintptr_t ptr,
     return 0;
   }
 
-  SAPI_ASSIGN_OR_RETURN(FDCloser fd_closer, OpenProcMem(pid, is_read));
+  ABSL_ASSIGN_OR_RETURN(FDCloser fd_closer, OpenProcMem(pid, is_read));
   size_t total_bytes_transferred = 0;
   while (!data.empty()) {
     ssize_t bytes_transfered =
@@ -638,13 +638,13 @@ absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
   std::vector<uint8_t> bytes(size, 0);
   size_t result;
   if (CheckIfProcessVmTransferWorks()) {
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         result,
         ProcessVmReadInSplitChunks(
             pid, ptr,
             absl::MakeSpan(reinterpret_cast<char*>(bytes.data()), size)));
   } else {
-    SAPI_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         result,
         internal::ReadBytesFromPidWithProcMem(
             pid, ptr,
@@ -656,7 +656,7 @@ absl::StatusOr<std::vector<uint8_t>> ReadBytesFromPid(pid_t pid, uintptr_t ptr,
 }
 
 absl::StatusOr<std::string> ReadCPathFromPid(pid_t pid, uintptr_t ptr) {
-  SAPI_ASSIGN_OR_RETURN(std::vector<uint8_t> bytes,
+  ABSL_ASSIGN_OR_RETURN(std::vector<uint8_t> bytes,
                         ReadBytesFromPid(pid, ptr, PATH_MAX));
   auto null_pos = absl::c_find(bytes, '\0');
   std::string path(bytes.begin(), null_pos);
