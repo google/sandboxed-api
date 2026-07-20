@@ -2666,7 +2666,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "elem_sized_by") {
       if (ann.args.size() != 1) {
         return absl::InvalidArgumentError(
-            absl::Substitute("param $0: `elem_sized_by` annotation "
+            absl::Substitute("function return $0: `elem_sized_by` annotation "
                              "requires one argument",
                              name));
       }
@@ -2676,7 +2676,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "byte_sized_by") {
       if (ann.args.size() != 1) {
         return absl::InvalidArgumentError(
-            absl::Substitute("param $0: `byte_sized_by` annotation "
+            absl::Substitute("function return $0: `byte_sized_by` annotation "
                              "requires one argument",
                              name));
       }
@@ -2688,8 +2688,8 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "sized_by_binding") {
       if (ann.args.size() != 2) {
         return absl::InvalidArgumentError(
-            absl::Substitute("param $0: `sized_by_binding` annotation "
-                             "requires two arguments",
+            absl::Substitute("function return $0: `sized_by_binding` "
+                             "annotation requires two arguments",
                              name));
       }
       num_args = 3;
@@ -2702,13 +2702,13 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       num_args = 2;
       if (ann.args.empty()) {
         return absl::InvalidArgumentError(absl::Substitute(
-            "function $0: alias_ptr requires a parameter name", name));
+            "function return $0: alias_ptr requires a parameter name", name));
       }
       ABSL_RETURN_IF_ERROR(annotations.SetAliasHostPtrLifetime(ann.args[0]));
       if (annotations.ptr_dir.has_value()) {
         return absl::InvalidArgumentError(
-            absl::Substitute("function $0: alias_ptr implies out_ptr, so no "
-                             "direction needs to be specified",
+            absl::Substitute("function return $0: alias_ptr implies out_ptr, "
+                             "so no direction needs to be specified",
                              name));
       }
       annotations.ptr_dir = PointerDir::kOut;
@@ -2716,7 +2716,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
       // For now, we only support size_t typed primitives.
       if (StripQuotes(ann.args[1]) != "size_t") {
         return absl::InvalidArgumentError(
-            absl::Substitute("function $0: `bind_data` annotation only "
+            absl::Substitute("function return $0: `bind_data` annotation only "
                              "supports `size_t` typed primitives for now.",
                              name));
       }
@@ -2727,7 +2727,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "copy_from_and_bind_out_ptr") {
       if (ann.args.size() != 2) {
         return absl::InvalidArgumentError(
-            absl::Substitute("function $0: `copy_from_and_bind_out_ptr` "
+            absl::Substitute("function return $0: `copy_from_and_bind_out_ptr` "
                              "annotation requires two arguments",
                              name));
       }
@@ -2737,16 +2737,16 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
     } else {
       return absl::InvalidArgumentError(
-          absl::Substitute("function $0: $1 annotation is not supported "
+          absl::Substitute("function return $0: $1 annotation is not supported "
                            "for function declarations",
                            name, ann.name));
     }
     if (ann.args.size() != num_args - 1) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("arg $0: invalid sandbox annotation", name));
+      return absl::InvalidArgumentError(absl::Substitute(
+          "function return $0: invalid sandbox annotation", name));
     }
   }
-  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(annotations));
+  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(name, annotations));
   return annotations;
 }
 
@@ -2845,22 +2845,23 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
           absl::Substitute("arg $0: invalid sandbox annotation", name));
     }
   }
-  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(annotations));
+  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(name, annotations));
   return annotations;
 }
 
 absl::Status SandboxedLibraryEmitter::CheckParsedAnnotations(
-    const Annotations& annotations) const {
+    absl::string_view name, const Annotations& annotations) const {
   if (annotations.context_bound.copy_from_and_bind.has_value() &&
       std::holds_alternative<std::monostate>(annotations.size_type)) {
-    return absl::InvalidArgumentError(
-        "copy_from_and_bind_out_ptr annotation requires a sized_by "
-        "annotation");
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: copy_from_and_bind_out_ptr annotation requires a sized_by "
+        "annotation",
+        name));
   }
   if (annotations.context_bound.retain_and_bind.has_value() &&
       std::holds_alternative<std::monostate>(annotations.size_type)) {
-    return absl::InvalidArgumentError(
-        "retain_and_bind annotation requires a sized_by annotation");
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: retain_and_bind annotation requires a sized_by annotation", name));
   }
 
   return absl::OkStatus();

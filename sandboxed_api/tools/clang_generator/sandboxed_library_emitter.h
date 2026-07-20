@@ -270,7 +270,8 @@ class SandboxedLibraryEmitter : public EmitterBase {
                                                const clang::ParmVarDecl* param);
   absl::StatusOr<Annotations> ParseAnnotations(
       absl::string_view name, const clang::FunctionDecl* funcDecl);
-  absl::Status CheckParsedAnnotations(const Annotations& annotations) const;
+  absl::Status CheckParsedAnnotations(absl::string_view name,
+                                      const Annotations& annotations) const;
   absl::Status ParseStructAnnotationWrapperFunc(
       const clang::FunctionDecl& decl);
   absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl);
