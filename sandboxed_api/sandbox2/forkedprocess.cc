@@ -218,11 +218,7 @@ void MoveFDs(std::initializer_list<std::pair<FDCloser*, int>> move_fds) {
 }  // namespace
 
 void ForkedProcess::SanitizeEnvironment() {
-  // Mark all file descriptors, except the standard ones (needed
-  // for proper sandboxed process operations), as close-on-exec.
-  absl::Status status = sanitizer::SanitizeCurrentProcess(
-      {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, comms_fd_.get()},
-      /*close_fds=*/false);
+  absl::Status status = sanitizer::SanitizeCurrentProcess();
   SAPI_RAW_CHECK(
       status.ok(),
       absl::StrCat("while sanitizing environment: ", status.message()).c_str());
@@ -306,6 +302,9 @@ void ForkedProcess::LaunchSandboxee() {
   // sandoxing can cause syscall violations (e.g. related to memory management).
   MoveToPredefiedFDs();
   PrepareExecveArgs();
+
+  sanitizer::CloseAllFDsExcept({STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+                                comms_fd_.get(), execve_fd_.get()});
 
   Comms comms(comms_fd_.Release());
   Client client(&comms);
@@ -434,9 +433,9 @@ void ForkedProcess::SetupNamespaces() {
     }
     latency_breakdown_.SetLatency(SetupLatencyBreakdown::kInitFork,
                                   latency_stop_watch_.LapTime());
+    SanitizeEnvironment();
   }
   FDCloser proc_self_fd(TEMP_FAILURE_RETRY(open("/proc/self", O_PATH)));
-  SanitizeEnvironment();
   JoinMountNamespace();
   int32_t unshare_flags =
       request_.clone_flags() &
@@ -477,11 +476,9 @@ Comms ForkedProcess::Setup() {
                          request_.mode() == FORKSERVER_FORK_EXECVE_SANDBOX;
 
   ReceiveFDs(will_exec);
+  SanitizeEnvironment();
   if (has_namespaces) {
-    // Will also SanitizeEnvironment().
     SetupNamespaces();
-  } else {
-    SanitizeEnvironment();
   }
   DropAllCapabilities();
   // Send sandboxee pid.

@@ -218,10 +218,8 @@ void WaitForSanitizer() {
   }
 }
 
-absl::Status SanitizeCurrentProcess(
-    const absl::flat_hash_set<int>& fd_exceptions, bool close_fds) {
-  SAPI_RAW_VLOG(1, "Sanitizing PID: %zu, close_fds: %d", syscall(__NR_getpid),
-                close_fds);
+absl::Status SanitizeCurrentProcess() {
+  SAPI_RAW_VLOG(1, "Sanitizing PID: %zu", syscall(__NR_getpid));
 
   // Put process in a separate session (and a new process group).
   setsid();
@@ -231,7 +229,12 @@ absl::Status SanitizeCurrentProcess(
     return absl::ErrnoToStatus(errno,
                                "prctl(PR_SET_PDEATHSIG, SIGKILL) failed");
   }
+  return absl::OkStatus();
+}
 
+absl::Status SanitizeCurrentProcess(
+    const absl::flat_hash_set<int>& fd_exceptions, bool close_fds) {
+  ABSL_RETURN_IF_ERROR(SanitizeCurrentProcess());
   // Close or mark as close-on-exec open file descriptors.
   return close_fds ? CloseAllFDsExcept(fd_exceptions)
                    : MarkAllFDsAsCOEExcept(fd_exceptions);

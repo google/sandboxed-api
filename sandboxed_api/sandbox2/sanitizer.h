@@ -20,6 +20,7 @@
 
 #include <initializer_list>
 
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -54,9 +55,15 @@ int GetNumberOfThreads(int pid);
 // under a sanitizer.
 void WaitForSanitizer();
 
+// Sanitizes current process. Does not close/mark any file descriptors.
+absl::Status SanitizeCurrentProcess();
+
 // Sanitizes current process (which will not execve a sandboxed binary).
 // File-descriptors in fd_exceptions will be either closed
 // (close_fds == true), or marked as close-on-exec (close_fds == false).
+ABSL_DEPRECATED(
+    "Use SanitizeCurrentProcess() followed by "
+    "CloseAllFDsExcept()/MarkAllFDsAsCOEExcept() instead.")
 absl::Status SanitizeCurrentProcess(
     const absl::flat_hash_set<int>& fd_exceptions, bool close_fds);
 
