@@ -154,6 +154,9 @@
 // annotations to each struct data member without patching the original struct
 // definition.
 //
+// NOTE: Syncing trivially copyable structs is supported without this (no
+// pointer data members to annotate).
+//
 // For example:
 //   // Original definition (in the library, no annotations):
 //   struct Span { ... };
@@ -162,7 +165,7 @@
 //   SANDBOX_ANNOTATE_STRUCT(struct Span {
 //     char* data SANDBOX_ELEM_SIZED_BY(len);
 //     size_t len;
-//   });
+//   };)
 //
 // One may omit irrelevant struct data members. However, the members that are
 // copied over must have the same names and types as in the original struct.
