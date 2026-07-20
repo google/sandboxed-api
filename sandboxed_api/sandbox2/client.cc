@@ -39,7 +39,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -392,8 +391,8 @@ void Client::ApplyPolicyAndBecomeTracee() {
   // Creds can be received w/o synchronization, once the connection is
   // established.
   pid_t cred_pid;
-  uid_t cred_uid ABSL_ATTRIBUTE_UNUSED;
-  gid_t cred_gid ABSL_ATTRIBUTE_UNUSED;
+  uid_t cred_uid [[maybe_unused]];
+  gid_t cred_gid [[maybe_unused]];
   SAPI_RAW_CHECK(comms_->GetPeerCreds(&cred_pid, &cred_uid, &cred_gid),
                  "receiving credentials");
 

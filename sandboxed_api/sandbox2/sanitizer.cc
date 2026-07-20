@@ -23,12 +23,11 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <csignal>
+#include <csignal>  // IWYU pragma: keep
 #include <initializer_list>
 #include <string>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -197,7 +196,7 @@ void WaitForSanitizer() {
     return;
   }
 
-  static bool ABSL_ATTRIBUTE_UNUSED sanitizer_init_once = []() {
+  static bool sanitizer_init_once [[maybe_unused]] = []() {
 #if defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
     defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
     defined(ABSL_HAVE_LEAK_SANITIZER) ||      \

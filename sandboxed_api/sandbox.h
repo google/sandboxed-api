@@ -23,10 +23,10 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -34,7 +34,6 @@
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox_config.h"
-#include "sandboxed_api/util/status_macros.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/vars.h"
@@ -220,8 +219,10 @@ class Sandbox : public SandboxBase {
   const Backend& backend() const { return backend_; }
 
  protected:
-  ABSL_DEPRECATED("Override CreateNotifier() in Sandbox2Backend instead")
-  virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() { return nullptr; }
+  [[deprecated("Override CreateNotifier() in Sandbox2Backend instead")]]
+  virtual std::unique_ptr<sandbox2::Notify> CreateNotifier() {
+    return nullptr;
+  }
 
  private:
   Backend backend_;

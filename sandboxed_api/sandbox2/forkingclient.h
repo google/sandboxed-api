@@ -19,7 +19,6 @@
 
 #include <memory>
 
-#include "absl/base/attributes.h"
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/forkserver.h"
@@ -35,7 +34,7 @@ class ForkingClient : public Client {
   // current Client objects acts as a wrapper of ForkServer (and this process
   // was created to act as a ForkServer).
   // Return values specified as with 'fork' (incl. -1).
-  ABSL_DEPRECATED("Use EnterForkLoop instead")
+  [[deprecated("Use EnterForkLoop instead")]]
   pid_t WaitAndFork();
 
   // Enters the fork loop, where the process waits for incoming ForkRequests and

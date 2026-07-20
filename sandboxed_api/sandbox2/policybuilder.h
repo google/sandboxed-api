@@ -26,7 +26,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -339,7 +338,7 @@ class PolicyBuilder final {
   // makes exploitation easier.
   PolicyBuilder& AllowMmap(MapExec);
 
-  ABSL_DEPRECATED("Use AllowMmap(MapExec) or AllowMmapWithoutExec() instead.")
+  [[deprecated("Use AllowMmap(MapExec) or AllowMmapWithoutExec() instead.")]]
   PolicyBuilder& AllowMmap();
 
   // Appends code to allow mmap calls that don't specify PROT_EXEC.
@@ -729,7 +728,7 @@ class PolicyBuilder final {
   // This allows stat(2), munmap(2), mmap(2) with MAP_SHARED.
   PolicyBuilder& AllowSharedMemory();
 
-  ABSL_DEPRECATED("Use AllowDynamicStartup(MapExec) instead.")
+  [[deprecated("Use AllowDynamicStartup(MapExec) instead.")]]
   PolicyBuilder& AllowDynamicStartup();
 
   // Appends a policy, which will be run on the specified syscall.
@@ -869,7 +868,7 @@ class PolicyBuilder final {
   // namespace. This only disables the network namespace. To actually allow
   // networking, you would also need to allow networking syscalls. Calling this
   // function will enable use of namespaces.
-  ABSL_DEPRECATED("Use Allow(sandbox2::UnrestrictedNetworking()) instead.")
+  [[deprecated("Use Allow(sandbox2::UnrestrictedNetworking()) instead.")]]
   PolicyBuilder& AllowUnrestrictedNetworking();
 
   // Enables a shared network namespace for all sandboxees that are started by
@@ -888,7 +887,7 @@ class PolicyBuilder final {
   //
   // Namespaces are enabled by default.
   // This is a no-op.
-  ABSL_DEPRECATED("Namespaces are enabled by default; no need to call this")
+  [[deprecated("Namespaces are enabled by default; no need to call this")]]
   PolicyBuilder& EnableNamespaces() {
     if (!use_namespaces_) {
       SetError(absl::FailedPreconditionError(

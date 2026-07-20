@@ -14,23 +14,25 @@
 
 #include <cstdlib>
 
-#include "absl/base/attributes.h"
+#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 
 namespace sandbox2 {
+
 void StartGlobalForkserverFromLibCtor() {
   if (!getenv(sandbox2::kForkServerDisableEnv)) {
     GlobalForkClient::GetGlobalData().ForceStart();
   }
 }
+
 }  // namespace sandbox2
 
 // Run the ForkServer from the constructor, when no other threads are present.
 // Because it's possible to start thread-inducing initializers before
 // RunInitializers() (base/googleinit.h) it's not enough to just register
 // a 0000_<name> initializer instead.
-ABSL_ATTRIBUTE_UNUSED
+[[maybe_unused]]
 __attribute__((constructor)) static void StartSandbox2Forkserver() {
   sandbox2::StartGlobalForkserverFromLibCtor();
 }

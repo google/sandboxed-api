@@ -25,7 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -57,7 +56,7 @@ class Proto : public Var {
   Proto(PrivateToken, std::vector<uint8_t> data)
       : wrapped_var_(std::move(data)) {}
 
-  ABSL_DEPRECATED("Use Proto<>::FromMessage() instead")
+  [[deprecated("Use Proto<>::FromMessage() instead")]]
   explicit Proto(const T& proto)
       : wrapped_var_(SerializeProto(proto).value()) {}
 
@@ -85,7 +84,7 @@ class Proto : public Var {
         wrapped_var_.GetDataSize());
   }
 
-  ABSL_DEPRECATED("Use GetMessage() instead")
+  [[deprecated("Use GetMessage() instead")]]
   std::unique_ptr<T> GetProtoCopy() const {
     if (auto proto = GetMessage(); proto.ok()) {
       return std::make_unique<T>(*std::move(proto));

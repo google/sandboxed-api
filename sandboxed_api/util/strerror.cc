@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <string>
 
-#include "absl/base/attributes.h"
 #include "absl/strings/str_format.h"
 
 namespace sapi {
@@ -29,18 +28,14 @@ namespace {
 // Only one of these overloads will be used in any given build, as determined by
 // the return type of strerror_r(): char* (for GNU), or int (for XSI). See 'man
 // strerror_r' for more details.
-ABSL_ATTRIBUTE_UNUSED const char* StrErrorR(char* (*strerror_r)(int, char*,
-                                                                size_t),
-                                            int errnum, char* buf,
-                                            size_t buflen) {
+[[maybe_unused]] const char* StrErrorR(char* (*strerror_r)(int, char*, size_t),
+                                       int errnum, char* buf, size_t buflen) {
   return strerror_r(errnum, buf, buflen);
 }
 
 // The XSI version (most portable).
-ABSL_ATTRIBUTE_UNUSED const char* StrErrorR(int (*strerror_r)(int, char*,
-                                                              size_t),
-                                            int errnum, char* buf,
-                                            size_t buflen) {
+[[maybe_unused]] const char* StrErrorR(int (*strerror_r)(int, char*, size_t),
+                                       int errnum, char* buf, size_t buflen) {
   if (strerror_r(errnum, buf, buflen)) {
     *buf = '\0';
   }

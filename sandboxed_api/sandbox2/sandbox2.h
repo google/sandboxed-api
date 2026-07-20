@@ -23,7 +23,6 @@
 #include <optional>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -59,7 +58,7 @@ class Sandbox2 final {
   Sandbox2& operator=(const Sandbox2&) = delete;
 
   // Runs the sandbox, blocking until there is a result.
-  ABSL_MUST_USE_RESULT Result Run() {
+  [[nodiscard]] Result Run() {
     RunAsync();
     return AwaitResult();
   }
@@ -71,7 +70,7 @@ class Sandbox2 final {
   bool RunAsync();
 
   // Waits for sandbox execution to finish and returns the execution result.
-  ABSL_MUST_USE_RESULT Result AwaitResult();
+  [[nodiscard]] Result AwaitResult();
 
   // Waits for sandbox execution to finish within the timeout.
   // Returns execution result or a DeadlineExceededError if the sandboxee does

@@ -26,7 +26,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "absl/base/attributes.h"
 #include "sandboxed_api/config.h"
 
 #ifdef SAPI_X86_64
@@ -223,7 +222,7 @@ int main(int argc, char* argv[]) {
       break;
     case 7:
       TestPtraceBlocked();
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case 8:
       TestBpfBlocked();
       break;

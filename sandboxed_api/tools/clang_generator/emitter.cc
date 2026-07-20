@@ -56,7 +56,6 @@ constexpr absl::string_view kGeneratorComment =
 //   1. Header guard
 constexpr absl::string_view kHeaderIncludes =
     R"(
-#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -152,7 +151,7 @@ class %1$s {
   explicit %1$s(::sapi::SandboxBase* sandbox) : sandbox_(sandbox) {}
 
 
-  ABSL_DEPRECATED("Call sandbox() instead")
+  [[deprecated("Call sandbox() instead")]]
   ::sapi::SandboxBase* GetSandbox() const { return sandbox(); }
   ::sapi::SandboxBase* sandbox() const { return sandbox_; }
 )";
