@@ -149,15 +149,35 @@ TEST(Test, AliasOutparamStruct) {
 }
 
 TEST(Test, InPrimStructPointer) {
-  PrimitiveStruct s_union_i32 = {0,      1,      2,      3,
-                                 4.0,    5.0,    true,   {6},
-                                 {1, 2}, {7, 8}, ENUM_A, EnumClassType::EC_B};
-  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_i32), 42.0);
+  PrimitiveStruct s_union_i32 = {0,
+                                 1,
+                                 2,
+                                 3,
+                                 4.0,
+                                 5.0,
+                                 true,
+                                 {6},
+                                 /*non_trailing_array=*/{1, 2},
+                                 /*array2d=*/{{1, 2}, {3, 4}},
+                                 /*nested=*/{7, 8},
+                                 ENUM_A,
+                                 EnumClassType::EC_B};
+  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_i32), 52);
 
-  PrimitiveStruct s_union_f64 = {0,      1,      2,      3,
-                                 4.0,    5.0,    false,  {.f64 = 8.5},
-                                 {1, 2}, {7, 8}, ENUM_B, EnumClassType::EC_A};
-  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_f64), 44.5);
+  PrimitiveStruct s_union_f64 = {0,
+                                 1,
+                                 2,
+                                 3,
+                                 4.0,
+                                 5.0,
+                                 false,
+                                 {.f64 = 8.5},
+                                 /*non_trailing_array=*/{1, 2},
+                                 /*array2d=*/{{1, 2}, {3, 4}},
+                                 /*nested=*/{7, 8},
+                                 ENUM_B,
+                                 EnumClassType::EC_A};
+  EXPECT_EQ(mylib_in_prim_struct_pointer(&s_union_f64), 54.5);
 
   PrimitiveStruct s_neg_inf = {0,
                                1,
@@ -167,17 +187,27 @@ TEST(Test, InPrimStructPointer) {
                                5.0,
                                false,
                                {.f64 = 9.0},
-                               {7, 8},
-                               {1, 2},
+                               /*non_trailing_array=*/{7, 8},
+                               /*array2d=*/{{7, 8}, {6, 5}},
+                               /*nested=*/{1, 2},
                                ENUM_A,
                                EnumClassType::EC_B};
   EXPECT_EQ(mylib_in_prim_struct_pointer(&s_neg_inf),
             -std::numeric_limits<float>::infinity());
 
-  PrimitiveStruct s_nan = {
-      0,      1,      2,      3,
-      4.0,    5.0,    false,  {.f64 = std::numeric_limits<double>::quiet_NaN()},
-      {1, 2}, {7, 8}, ENUM_A, EnumClassType::EC_B};
+  PrimitiveStruct s_nan = {0,
+                           1,
+                           2,
+                           3,
+                           4.0,
+                           5.0,
+                           false,
+                           {.f64 = std::numeric_limits<double>::quiet_NaN()},
+                           /*non_trailing_array=*/{1, 2},
+                           /*array2d=*/{{1, 2}, {3, 4}},
+                           /*nested=*/{7, 8},
+                           ENUM_A,
+                           EnumClassType::EC_B};
   EXPECT_THAT(mylib_in_prim_struct_pointer(&s_nan), testing::IsNan());
 }
 
@@ -195,12 +225,30 @@ TEST(Test, OutPrimStructPointer) {
   EXPECT_EQ(s.u.f64, 7.0);
   EXPECT_EQ(s.nested.a, 8);
   EXPECT_EQ(s.nested.b, 9);
+  EXPECT_EQ(s.non_trailing_array[0], 1);
+  EXPECT_EQ(s.non_trailing_array[1], 0);
+  EXPECT_EQ(s.array2d[0][0], 0);
+  EXPECT_EQ(s.array2d[0][1], 1);
+  EXPECT_EQ(s.array2d[1][0], 1);
+  EXPECT_EQ(s.array2d[1][1], 2);
   EXPECT_EQ(s.enum_type, ENUM_A);
   EXPECT_EQ(s.enum_class_type, EnumClassType::EC_B);
 }
 
 TEST(Test, InOutPrimStructPointer) {
-  PrimitiveStruct s = {0, 1, 2, 3, 4.0, 5.0, true, {6}, {2, 1}, {7, 8}, ENUM_A};
+  PrimitiveStruct s = {0,
+                       1,
+                       2,
+                       3,
+                       4.0,
+                       5.0,
+                       true,
+                       {6},
+                       /*non_trailing_array=*/{2, 1},
+                       /*array2d=*/{{2, 1}, {4, 3}},
+                       /*nested=*/{7, 8},
+                       ENUM_A,
+                       EnumClassType::EC_UNKNOWN};
   mylib_inout_prim_struct_pointer(&s);
 
   EXPECT_EQ(s.i8, 0);
@@ -213,6 +261,10 @@ TEST(Test, InOutPrimStructPointer) {
   EXPECT_EQ(s.u.i32, 12);
   EXPECT_EQ(s.non_trailing_array[0], 4);
   EXPECT_EQ(s.non_trailing_array[1], 2);
+  EXPECT_EQ(s.array2d[0][0], 4);
+  EXPECT_EQ(s.array2d[0][1], 2);
+  EXPECT_EQ(s.array2d[1][0], 8);
+  EXPECT_EQ(s.array2d[1][1], 6);
   EXPECT_EQ(s.nested.a, 14);
   EXPECT_EQ(s.nested.b, 16);
   EXPECT_EQ(s.enum_type, ENUM_B);
@@ -228,8 +280,9 @@ TEST(Test, InPrimStructArray) {
                                  5.0,
                                  true,
                                  {6},
-                                 {1, 2},
-                                 {7, 8},
+                                 /*non_trailing_array=*/{1, 2},
+                                 /*array2d=*/{{1, 2}, {3, 4}},
+                                 /*nested=*/{7, 8},
                                  ENUM_A,
                                  EnumClassType::EC_B},
                                 {0,
@@ -240,11 +293,12 @@ TEST(Test, InPrimStructArray) {
                                  10.0,
                                  false,
                                  {.f64 = 11.5},
-                                 {3, 4},
-                                 {14, 16},
+                                 /*non_trailing_array=*/{3, 4},
+                                 /*array2d=*/{{3, 4}, {5, 6}},
+                                 /*nested=*/{14, 16},
                                  ENUM_B,
                                  EnumClassType::EC_A}};
-  EXPECT_EQ(mylib_in_prim_struct_array(structs, 2), 123.5);
+  EXPECT_EQ(mylib_in_prim_struct_array(structs, 2), 151.5);
 }
 
 TEST(Test, OutPrimStructArray) {
@@ -262,6 +316,12 @@ TEST(Test, OutPrimStructArray) {
     EXPECT_EQ(s[i].u.f64, 7.0);
     EXPECT_EQ(s[i].nested.a, 8);
     EXPECT_EQ(s[i].nested.b, 9);
+    EXPECT_EQ(s[i].non_trailing_array[0], 1);
+    EXPECT_EQ(s[i].non_trailing_array[1], 0);
+    EXPECT_EQ(s[i].array2d[0][0], 0);
+    EXPECT_EQ(s[i].array2d[0][1], 1);
+    EXPECT_EQ(s[i].array2d[1][0], 1);
+    EXPECT_EQ(s[i].array2d[1][1], 2);
     EXPECT_EQ(s[i].enum_type, ENUM_A);
     EXPECT_EQ(s[i].enum_class_type, EnumClassType::EC_B);
   }
@@ -276,8 +336,9 @@ TEST(Test, InOutPrimStructArray) {
                            5.0,
                            true,
                            {6},
-                           {1, 2},
-                           {7, 8},
+                           /*non_trailing_array=*/{1, 2},
+                           /*array2d=*/{{1, 2}, {3, 4}},
+                           /*nested=*/{7, 8},
                            ENUM_A,
                            EnumClassType::EC_B},
                           {0,
@@ -288,8 +349,9 @@ TEST(Test, InOutPrimStructArray) {
                            10.0,
                            false,
                            {.f64 = 11.5},
-                           {3, 4},
-                           {14, 16},
+                           /*non_trailing_array=*/{3, 4},
+                           /*array2d=*/{{3, 4}, {5, 6}},
+                           /*nested=*/{14, 16},
                            ENUM_B,
                            EnumClassType::EC_A}};
   mylib_inout_prim_struct_array(s, 2);
@@ -304,6 +366,10 @@ TEST(Test, InOutPrimStructArray) {
   EXPECT_EQ(s[0].u.i32, 12);
   EXPECT_EQ(s[0].non_trailing_array[0], 2);
   EXPECT_EQ(s[0].non_trailing_array[1], 4);
+  EXPECT_EQ(s[0].array2d[0][0], 2);
+  EXPECT_EQ(s[0].array2d[0][1], 4);
+  EXPECT_EQ(s[0].array2d[1][0], 6);
+  EXPECT_EQ(s[0].array2d[1][1], 8);
   EXPECT_EQ(s[0].nested.a, 14);
   EXPECT_EQ(s[0].nested.b, 16);
   EXPECT_EQ(s[0].enum_type, ENUM_B);
@@ -319,6 +385,10 @@ TEST(Test, InOutPrimStructArray) {
   EXPECT_EQ(s[1].u.f64, 23.0);
   EXPECT_EQ(s[1].non_trailing_array[0], 6);
   EXPECT_EQ(s[1].non_trailing_array[1], 8);
+  EXPECT_EQ(s[1].array2d[0][0], 6);
+  EXPECT_EQ(s[1].array2d[0][1], 8);
+  EXPECT_EQ(s[1].array2d[1][0], 10);
+  EXPECT_EQ(s[1].array2d[1][1], 12);
   EXPECT_EQ(s[1].nested.a, 28);
   EXPECT_EQ(s[1].nested.b, 32);
   EXPECT_EQ(s[1].enum_type, ENUM_A);

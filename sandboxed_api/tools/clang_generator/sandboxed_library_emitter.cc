@@ -2359,6 +2359,18 @@ bool IsDeeplyTriviallyCopyableType(
     return true;
   }
 
+  // Allow constant arrays including constant array fields (when
+  // IsDeeplyTriviallyCopyableType is recursively called on a field type), as
+  // long as the element type is trivially copyable. A trailing array member in
+  // a struct like int arr[1] could still be a considered a flexible array
+  // member under some compiler extensions. However, that could be too
+  // restrictive to disallow. If more needs to be copied then the developer
+  // should add a thunk or customize the copying.
+  if (auto* const_array_type = context.getAsConstantArrayType(type)) {
+    return IsDeeplyTriviallyCopyableType(
+        context, const_array_type->getElementType(), record_annotations);
+  }
+
   if (auto* record_decl = type->getAsRecordDecl(); record_decl != nullptr) {
     if (!type.isTriviallyCopyableType(context) ||
         record_decl->hasFlexibleArrayMember()) {
@@ -2388,21 +2400,6 @@ bool IsDeeplyTriviallyCopyableType(
         continue;
       }
 
-      // Allow constant array fields, as long as the element type is
-      // trivially copyable. A trailing array member like int arr[1]
-      // could still be a considered a flexible array member under
-      // some compiler extensions. However, that could be too restrictive
-      // to disallow. We just allow it here, and if more needs to be copied
-      // then the developer should add a thunk or customize the copying.
-      if (auto* const_array_type =
-              context.getAsConstantArrayType(field->getType())) {
-        if (!IsDeeplyTriviallyCopyableType(context,
-                                           const_array_type->getElementType(),
-                                           record_annotations)) {
-          return false;
-        }
-        continue;
-      }
       if (!IsDeeplyTriviallyCopyableType(context, field->getType(),
                                          record_annotations)) {
         return false;
