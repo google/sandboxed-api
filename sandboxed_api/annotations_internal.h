@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Test library for sapi_replacement_library rule.
-// It's supposed to include all patterns that we support for transparent
-// sandboxing. The test for the library runs with normal and sandboxed
-// replacement library.
+// Internal macros to support annotations for transparently sandboxing
+// libraries.
 
 #ifndef SANDBOXED_API_ANNOTATIONS_INTERNAL_H_
 #define SANDBOXED_API_ANNOTATIONS_INTERNAL_H_

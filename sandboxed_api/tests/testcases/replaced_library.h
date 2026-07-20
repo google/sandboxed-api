@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Test library for sapi_replacement_library rule.
-// It's supposed to include all patterns that we support for transparent
-// sandboxing. The test for the library runs with normal and sandboxed
-// replacement library.
+// Test library for cc_sandboxed_library rule.
+// The test for the library runs with normal and sandboxed replacement library.
+// Covers some of the basic patterns, types, and annotations.
+// More complex features are covered in separate test files.
 
 #ifndef SANDBOXED_API_SANDBOX2_TESTCASES_REPLACED_LIBRARY_H_
 #define SANDBOXED_API_SANDBOX2_TESTCASES_REPLACED_LIBRARY_H_
