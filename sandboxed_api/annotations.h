@@ -355,4 +355,74 @@
 //                                     SANDBOX_CLEAR_BINDINGS);
 #define SANDBOX_CLEAR_BINDINGS [[clang::annotate("sandbox", "clear_bindings")]]
 
+/////////////////////////////////////////////////////////////////////////////
+// Annotations for deeply syncing non-trivially copyable structures.
+//
+// Specify access paths from the struct pointer parameter to any pointer fields
+// that need deep syncing. All unspecified pointers are copied shallowly.
+//
+// Current limitations:
+// - Only single-layer dereferencing is supported in access paths.
+// - Pointers are assumed to be host-allocated and non-aliasing.
+//
+// Access paths are grouped with context-sensitive annotations (direction,
+// lifetime, or binding) inside `{ ... }`, separated by commas.
+// Note: Sized-by annotations are invariants specified separately via
+// `SANDBOX_ANNOTATE_STRUCT`.
+//
+// Example 1 -- borrowing a temporary reference to a host buffer:
+//
+//   struct IntVector {
+//     int* data;
+//     size_t len;
+//   };
+//
+//   // Annotate that `data` is an array (not just one elem).
+//   SANDBOX_ANNOTATE_STRUCT(struct IntVector {
+//     char* data SANDBOX_ELEM_SIZED_BY(len);
+//     size_t len;
+//   };)
+//
+//   // Sums the ints in `vec`, modifying them in place.
+//   int sum_and_inc(IntVector* vec
+//                      SANDBOX_IN_PTR
+//                      SANDBOX_STRUCT_SYNC({vec->data, inout_ptr}));
+//
+//   (SANDBOX_IN_PTR describes the top-level `vec` pointer itself, while
+//    `vec->data` is an `inout_ptr` indicating its data is synced in and out.)
+//
+// Example 2 -- retaining and binding a host buffer to a context object:
+//
+//   struct CharSpan {
+//     char* data;
+//     size_t len;
+//   };
+//
+//   // Creates a decoder using the buffer in `span`. The buffer must remain
+//   // valid and unchanged for the lifetime of the returned decoder.
+//   SANDBOX_OPAQUE_PTR
+//   Decoder* create_decoder(
+//       CharSpan* span
+//          SANDBOX_IN_PTR
+//          SANDBOX_STRUCT_SYNC({span->data, in_ptr,
+//                               retain_and_bind(SANDBOX_RETURN)}));
+#define SANDBOX_STRUCT_SYNC(...)                                          \
+  [[clang::annotate("sandbox", "struct_sync", SANDBOX_BINDING_GEN_NAME(), \
+                    SANDBOX_STRUCT_SYNC_ACCESS_PATHS(__VA_ARGS__) "$")]]
+// Note: "$" is just to terminate the list of access paths and avoid a
+// trailing comma in the list of attribute arguments.
+
+// Indicate that we only need a shallow copy of the pointee data.
+// This is useful for complex structs with pointers, when the function does not
+// touch the deeper pointers. Like SANDBOX_STRUCT_SYNC, but with an empty list.
+//
+// For example:
+//
+//   // Initializes the primitive "options" data members in `out` to reasonable
+//   // default values. Does not allocate or fill deeper members of
+//   // `out` like buffers.
+//   void init_output_options(Output* out SANDBOX_OUT_PTR SANDBOX_SHALLOW_SYNC);
+#define SANDBOX_SHALLOW_SYNC \
+  [[clang::annotate("sandbox", "shallow_struct_sync")]]
+
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

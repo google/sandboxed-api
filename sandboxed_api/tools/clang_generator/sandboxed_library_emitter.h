@@ -114,6 +114,18 @@ struct ContextBoundAnnotations {
   bool clear_bindings = false;
 };
 
+// A struct sync annotation for a single access path to a struct pointer
+// data member, reachable from a pointer to struct parameter.
+// E.g., `p->buff`
+// The pointer can represent a single object or an array (which may be sized by
+// another member of the struct `p->size`, as described in
+// `RecordAnnotations`).
+struct StructSync {
+  std::string access_path;
+  PointerDir ptr_dir;
+  ContextBoundAnnotations context_bound;
+};
+
 class SandboxedLibraryEmitter : public EmitterBase {
  public:
   class Arg;
@@ -179,6 +191,8 @@ class SandboxedLibraryEmitter : public EmitterBase {
     std::optional<PointerDir> ptr_dir;
     ArraySizedByType size_type;
     PointerLifetime lifetime;
+    bool shallow_struct_sync = false;
+    std::vector<StructSync> struct_sync;
 
     ContextBoundAnnotations context_bound;
 
@@ -271,7 +285,11 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::StatusOr<Annotations> ParseAnnotations(
       absl::string_view name, const clang::FunctionDecl* funcDecl);
   absl::Status CheckParsedAnnotations(absl::string_view name,
-                                      const Annotations& annotations) const;
+                                      const Annotations& annotations,
+                                      clang::QualType type) const;
+  absl::Status ParseStructSyncAccessPathAnnotations(
+      const std::vector<std::string>& annotation_args,
+      Annotations& annotations) const;
   absl::Status ParseStructAnnotationWrapperFunc(
       const clang::FunctionDecl& decl);
   absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl);

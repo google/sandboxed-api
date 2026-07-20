@@ -36,6 +36,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -72,8 +73,7 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_INOUT_PTR",       "SANDBOX_OPAQUE_PTR",
       "SANDBOX_HOST_OPAQUE_PTR", "SANDBOX_HOST_STATE_VAR",
       "SANDBOX_NULL_TERMINATED", "SANDBOX_LIFETIME_GLOBAL",
-      "SANDBOX_CLEAR_BINDINGS",
-  };
+      "SANDBOX_CLEAR_BINDINGS",  "SANDBOX_SHALLOW_SYNC"};
   std::string output = input;
   for (const auto& macro : *macros_no_args) {
     // We use a regex to match word boundaries
@@ -93,6 +93,7 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_BIND_SIZE",
       "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR",
       "SANDBOX_RETAIN_AND_BIND",
+      "SANDBOX_STRUCT_SYNC",
   };
   // We also remove the full argument to the macro, e.g.
   // SANDBOX_ELEM_SIZED_BY(foo) will be removed entirely.
@@ -189,6 +190,42 @@ std::string StripQuotes(absl::string_view str) {
     return std::string(str.substr(1, str.size() - 2));
   }
   return std::string(str);
+}
+
+// Given an access path like "foo->baz", returns the member name "baz".
+// If there is no "->", returns std::nullopt.
+//
+// TODO(b/491717148): For now, we don't handle expressions with "." and return
+// std::nullopt as well. For example, like "foo->bar.baz" or "foo.bar->baz",
+// since we are getting the struct type from "foo", not "foo->bar" or "foo.bar"
+// (see `GetStructTypeName`).
+std::optional<std::string> MemberNameOfAccessPath(absl::string_view path) {
+  size_t dot_pos = path.rfind('.');
+  if (dot_pos != absl::string_view::npos) {
+    return std::nullopt;
+  }
+  size_t arrow_pos = path.rfind("->");
+  if (arrow_pos != absl::string_view::npos) {
+    return std::string(path.substr(arrow_pos + 2));
+  }
+  return std::nullopt;
+}
+
+// Given an access path like "foo->baz", returns the parent prefix "foo->".
+// If there is no "->", returns std::nullopt.
+//
+// TODO(b/491717148): For now, we don't handle expressions with "." and return
+// std::nullopt as well.
+std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path) {
+  size_t dot_pos = path.rfind('.');
+  if (dot_pos != absl::string_view::npos) {
+    return std::nullopt;
+  }
+  size_t arrow_pos = path.rfind("->");
+  if (arrow_pos != absl::string_view::npos) {
+    return std::string(path.substr(0, arrow_pos + 2));
+  }
+  return std::nullopt;
 }
 
 std::string ResolveContextName(absl::string_view context) {
@@ -669,20 +706,29 @@ class PointeeTypeInfo {
   std::string unqualified_pointee_type_name_;
 };
 
-// Handles in/out/inout pointers to arithmetic types and trivially copyable
-// structs (singular and arrays).
+// Handles in/out/inout pointers to arithmetic types and structs (singular and
+// arrays), with some limitations on structs. Structs can either:
+// - be trivially copyable, with no caveats
+// - or have pointer-typed members that need to be synced (but how to sync
+//   needs to be described with StructSync annotations).
 class PointerArg : public SandboxedLibraryEmitter::Arg {
  public:
   PointerArg(absl::string_view name, absl::string_view type,
              PointeeTypeInfo pointee_type, PointerDir ptr_dir,
              ArraySizedByType sized_by_type, PointerLifetime lifetime,
-             ContextBoundAnnotations context_bound = {})
+             ContextBoundAnnotations context_bound,
+             std::vector<StructSync> struct_sync,
+             const absl::flat_hash_map<
+                 std::string, SandboxedLibraryEmitter::RecordAnnotations>&
+                 record_annotations)
       : Arg(name, type),
         ptr_dir_(ptr_dir),
         pointee_type_(pointee_type),
         sized_by_type_(sized_by_type),
         lifetime_(lifetime),
-        context_bound_(std::move(context_bound)) {}
+        context_bound_(std::move(context_bound)),
+        struct_sync_(std::move(struct_sync)),
+        record_annotations_(record_annotations) {}
 
   absl::Status LinkArgsIfNeeded(
       const std::vector<std::unique_ptr<Arg>>& args) override;
@@ -717,19 +763,20 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
         break;
       }
       case PointeeTypeInfo::TypeClass::kRecord: {
-        // For trivially copyable structs, we could just copy the bytes like the
-        // arithmetic types above.
-        // However, we would like to extend structs to also support
-        // non-trivially copyable structs. That will involve recursive
-        // allocation, copying, and freeing. Specializing a bit here as a start.
         code = std::visit(
             absl::Overload(
                 [this](std::monostate) {
-                  return absl::Substitute(
+                  std::string ret = absl::Substitute(
                       "sapi::v::Struct<$0> sapi_tmp_$1(*$1);\n",
                       pointee_type_.unqualified_pointee_type_name(), name_);
+                  if (!struct_sync_.empty()) {
+                    absl::StrAppend(&ret, EmitStructMemberSyncsPreCall());
+                  }
+                  return ret;
                 },
                 [this](const ElemSizedBy& arg) {
+                  if (!struct_sync_.empty())
+                    LOG(FATAL) << "Not expecting ElemSizedBy with struct sync";
                   std::string num_elems;
                   if (arg.sized_by_outparam_data.has_value()) {
                     num_elems = absl::Substitute(
@@ -743,6 +790,8 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
                       pointee_type_.pointee_type_name(), name_, num_elems);
                 },
                 [this](const ByteSizedBy& arg) {
+                  if (!struct_sync_.empty())
+                    LOG(FATAL) << "Not expecting ByteSizedBy with struct sync";
                   std::string bytes_size =
                       arg.sized_by_outparam_data.has_value()
                           ? arg.sized_by_outparam_data->capacity_expr
@@ -754,6 +803,9 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
                       name_, bytes_size);
                 },
                 [this](const SizedByBinding& arg) {
+                  if (!struct_sync_.empty())
+                    LOG(FATAL)
+                        << "Not expecting SizedByBinding with struct sync";
                   std::string bytes_size = GetCapacityAsBytesExpr();
                   return absl::Substitute(
                       "sapi::v::Array<char> "
@@ -839,6 +891,51 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
 
   std::string EmitHostPostCall() const override {
     std::string out;
+
+    // Post call, for out and in-out structs we'll have something like:
+    //   *p = *sapi_tmp_p.data();
+    //
+    // That overwrites all fields of `*p` with the sandbox copy's data.
+    // However, if any struct members are pointers (e.g., `p->buf`), and if
+    // (a) the sandbox copy had sandbox ptrs
+    // (b) the host copy originally had host ptrs
+    // then the assignment would overwrite the host ptrs with sandbox ptrs.
+    //
+    // To maintain the host pointers, for now, we assume that the function does
+    // not modify the pointers themselves, only what they point to. Then, we
+    // save the host pointers before the call, and restore them after the call.
+    //
+    // If we want to handle modification of the pointers themselves, that would
+    // need more design to mirror what is happening in the sandbox on the host
+    // (are they being reallocated, swapped with some other visible pointer,
+    //  set to nullptr, set to the address of a global variable, etc.?)
+    std::string save_host_ptrs;
+    std::string restore_host_ptrs;
+    bool should_save_host_ptr =
+        (ptr_dir_ == PointerDir::kInOut || ptr_dir_ == PointerDir::kOut);
+    if (!struct_sync_.empty() && should_save_host_ptr) {
+      for (const auto& sync : struct_sync_) {
+        // Allow the sandbox to modify sandbox opaque members, and don't
+        // restore them.
+        if (sync.ptr_dir == PointerDir::kSandboxOpaque) continue;
+        std::optional<std::string> member_name =
+            MemberNameOfAccessPath(sync.access_path);
+        if (!member_name.has_value()) {
+          LOG(FATAL) << "Failed to get member name for " << sync.access_path;
+        }
+        std::string suffix = absl::StrCat(name_, "_", *member_name);
+        absl::SubstituteAndAppend(&save_host_ptrs,
+                                  "const auto sapi_host_ptr_$0 = $1;\n", suffix,
+                                  sync.access_path);
+        // Also allow the sandbox to set to nullptr.
+        absl::SubstituteAndAppend(
+            &restore_host_ptrs,
+            "if ($0 != nullptr) {\n$0 = sapi_host_ptr_$1;\n}\n",
+            sync.access_path, suffix);
+      }
+      absl::StrAppend(&out, save_host_ptrs);
+    }
+
     if (context_bound_.retain_and_bind.has_value()) {
       absl::StrAppend(&out,
                       EmitParamRetainPostCall(*context_bound_.retain_and_bind));
@@ -888,6 +985,17 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
                                          name_));
       }
     }
+
+    if (!struct_sync_.empty()) {
+      // After a possible *0 = sapi_tmp_0.data() copy, we need to restore any
+      // host pointers that were switched to sandbox pointers.
+      if (should_save_host_ptr) {
+        absl::StrAppend(&out, restore_host_ptrs);
+      }
+      // Sync the pointed-to data and retain+bind or free any copies.
+      absl::StrAppend(&out, EmitStructMemberSyncsPostCall());
+    }
+
     // Clear any bindings and free memory, if needed.
     if (context_bound_.clear_bindings) {
       absl::StrAppend(
@@ -1015,6 +1123,20 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
   std::string EmitParamRetainPostCall(
       const RetainAndBind& retain_and_bind) const;
 
+  // Emits code for before a function call, to help allocate and copy in data
+  // for pointer-typed struct data members that need to be synced.
+  std::string EmitStructMemberSyncsPreCall() const;
+
+  // Emits code for after a function call, to help copy out data from pointer-
+  // typed struct data members that need to be synced.
+  // Also frees any sandbox copies that are no longer needed, or binds them to
+  // a context if they need to be retained.
+  std::string EmitStructMemberSyncsPostCall() const;
+
+  // Assuming the PointerArg is a pointer to a struct, this returns the
+  // type name of the struct.
+  std::string GetStructTypeName() const;
+
   const PointerDir ptr_dir_;
   const PointeeTypeInfo pointee_type_;
   // If present, this is an array that is sized-by the given type.
@@ -1026,6 +1148,14 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
 
   // Information for context-bound inner pointers that will be used by the host.
   ContextBoundAnnotations context_bound_;
+
+  // Information about struct inner pointers that need to be synced.
+  const std::vector<StructSync> struct_sync_;
+
+  // Annotations describing invariants of struct members.
+  const absl::flat_hash_map<std::string,
+                            SandboxedLibraryEmitter::RecordAnnotations>&
+      record_annotations_;
 };
 
 std::string PointerArg::GetCapacityAsBytesExpr() const {
@@ -1255,10 +1385,24 @@ std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
                } else {
                  auto& sapi_binding_data = sapi_it->second;
                  uintptr_t sapi_sb_ptr = std::get<0>(sapi_binding_data);
-                 CHECK_EQ(sapi_sb_ptr, reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr));
-                 sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-                     sandbox, sapi_sb_ptr, std::get<2>(sapi_binding_data),
-                     std::get<1>(sapi_binding_data)));
+                 if (sapi_sb_ptr != reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr)) {
+                   // Allow re-binding if the sandbox pointer changed.
+                   // First, free the old host copy.
+                   free(reinterpret_cast<void*>(std::get<2>(sapi_binding_data)));
+                   sapi_sb_ptr = reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr);
+                   // Compute size
+                   $3
+                       // Alloc for host and copy
+                       $4
+                           // Update binding
+                           sapi_binding_data = std::make_tuple(
+                               sapi_sb_ptr, sapi_binding_size,
+                               reinterpret_cast<uintptr_t>(sapi_host_copy));
+                 } else {
+                   sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+                       sandbox, sapi_sb_ptr, std::get<2>(sapi_binding_data),
+                       std::get<1>(sapi_binding_data)));
+                 }
                }
                $2.SetValue(reinterpret_cast<$5>(std::get<2>(sapi_it->second)));
              }
@@ -1365,6 +1509,188 @@ std::string PointerArg::EmitParamRetainPostCall(
       )cc",
       name_, ctx_name, retain_and_bind.binding_name);
   return out;
+}
+
+std::string PointerArg::EmitStructMemberSyncsPreCall() const {
+  std::string ret;
+  std::string struct_name = GetStructTypeName();
+  auto record_annotations_it = record_annotations_.find(struct_name);
+
+  for (const auto& sync : struct_sync_) {
+    std::optional<std::string> member_name =
+        MemberNameOfAccessPath(sync.access_path);
+    if (!member_name.has_value()) {
+      LOG(FATAL) << "Failed to get member name for " << sync.access_path;
+    }
+
+    ArraySizedByType size_type = std::monostate{};
+    if (record_annotations_it != record_annotations_.end()) {
+      for (const auto& member :
+           record_annotations_it->second.member_annotations) {
+        if (member.name == *member_name) {
+          size_type = member.size_type;
+          break;
+        }
+      }
+    }
+
+    std::string suffix = absl::StrCat(name_, "_", *member_name);
+    std::optional<std::string> parent_prefix =
+        ParentPrefixOfAccessPath(sync.access_path);
+    if (!parent_prefix.has_value()) {
+      LOG(FATAL) << "Failed to get parent prefix for " << sync.access_path;
+    }
+    std::string size_calc;
+
+    std::visit(absl::Overload(
+                   [&](const ByteSizedBy& size) {
+                     size_calc =
+                         absl::Substitute("sapi_member_size_$0 = $1$2;\n",
+                                          suffix, *parent_prefix, size.expr);
+                   },
+                   [&](const ElemSizedBy& size) {
+                     size_calc = absl::Substitute(
+                         "sapi_member_size_$0 = "
+                         "sandbox->CheckedMultiply(sizeof(*($1)), ($2$3));\n",
+                         suffix, sync.access_path, *parent_prefix, size.expr);
+                   },
+                   [&](const NullTerminated& size) {
+                     size_calc = absl::Substitute(
+                         "sapi_member_size_$0 = strlen(reinterpret_cast<const "
+                         "char*>($1)) + 1;\n",
+                         suffix, sync.access_path);
+                   },
+                   [&](const SizedByBinding& size) {
+                     std::string context_var = ResolveContextName(size.context);
+                     std::string size_expr =
+                         CompileBindingExpr(context_var, size.binding_expr,
+                                            /*locked=*/false);
+                     size_calc = absl::Substitute("sapi_member_size_$0 = $1;\n",
+                                                  suffix, size_expr);
+                   },
+                   [&](std::monostate) {
+                     size_calc = absl::Substitute(
+                         "sapi_member_size_$0 = sizeof(*($1));\n", suffix,
+                         sync.access_path);
+                   }),
+               size_type);
+
+    std::string copy_code;
+    if (sync.ptr_dir == PointerDir::kIn || sync.ptr_dir == PointerDir::kInOut) {
+      copy_code = absl::Substitute(
+          R"cc(
+            sandbox->Check(
+                sandbox->rpc_channel()
+                    ->CopyToSandbox(
+                        reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+                        absl::MakeSpan(reinterpret_cast<const char*>($1),
+                                       sapi_member_size_$0))
+                    .status());
+          )cc",
+          suffix, sync.access_path);
+    }
+
+    std::string update_host_to_sb_ptr_code = absl::Substitute(
+        R"cc(
+          sapi_tmp_$0.mutable_data()->$1 =
+              reinterpret_cast<decltype(sapi_tmp_$0.mutable_data()->$1)>(
+                  sapi_sb_copy_$2);
+        )cc",
+        name_, *member_name, suffix);
+
+    absl::SubstituteAndAppend(
+        &ret,
+        R"cc(
+          void* sapi_sb_copy_$0 = nullptr;
+          size_t sapi_member_size_$0 = 0;
+          if ($1 != nullptr) {
+            // Compute size
+            $2
+                // Allocate
+                sandbox->Check(sandbox->rpc_channel()->Allocate(
+                    sapi_member_size_$0, &sapi_sb_copy_$0));
+            // copy host to sb if needed
+            $3
+                // update ptr member (host to sb)
+                $4
+          }
+        )cc",
+        suffix, sync.access_path, size_calc, copy_code,
+        update_host_to_sb_ptr_code);
+  }
+  return ret;
+}
+
+std::string PointerArg::EmitStructMemberSyncsPostCall() const {
+  std::string out;
+  for (const auto& sync : struct_sync_) {
+    std::optional<std::string> member_name =
+        MemberNameOfAccessPath(sync.access_path);
+    if (!member_name.has_value()) {
+      LOG(FATAL) << "Failed to get member name for " << sync.access_path;
+    }
+    std::string suffix = absl::StrCat(name_, "_", *member_name);
+    std::string host_ptr_expr = sync.access_path;
+
+    // Sync pointed to data, based on the size (computed in pre-call)
+    if (sync.ptr_dir == PointerDir::kOut ||
+        sync.ptr_dir == PointerDir::kInOut) {
+      absl::SubstituteAndAppend(
+          &out,
+          R"cc(
+            if (sapi_sb_copy_$0 != nullptr) {
+              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
+                  sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+                  reinterpret_cast<uintptr_t>($1), sapi_member_size_$0));
+            }
+          )cc",
+          suffix, host_ptr_expr);
+    }
+
+    // Either retain and bind, or free.
+    if (sync.context_bound.retain_and_bind.has_value()) {
+      std::string ctx_name =
+          ResolveContextName(sync.context_bound.retain_and_bind->context);
+      absl::SubstituteAndAppend(
+          &out,
+          R"cc(
+            if (sapi_sb_copy_$0 != nullptr && $1 != nullptr) {
+              absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
+              auto [sapi_new_it, sapi_inserted] =
+                  sapi_internal_context_retained_binding_map.insert(
+                      {{$1, "$2"},
+                       std::make_tuple(
+                           reinterpret_cast<uintptr_t>($3),
+                           reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+                           sapi_member_size_$0)});
+              CHECK(sapi_inserted);
+            }
+          )cc",
+          suffix, ctx_name, sync.context_bound.retain_and_bind->binding_name,
+          host_ptr_expr);
+    } else {
+      absl::SubstituteAndAppend(&out,
+                                R"cc(
+                                  if (sapi_sb_copy_$0 != nullptr) {
+                                    sandbox->Check(sandbox->rpc_channel()->Free(sapi_sb_copy_$0));
+                                  }
+                                )cc",
+                                suffix);
+    }
+  }
+  return out;
+}
+
+std::string PointerArg::GetStructTypeName() const {
+  std::string struct_name =
+      std::string(pointee_type_.unqualified_pointee_type_name());
+  absl::string_view struct_name_view = struct_name;
+  if (absl::ConsumePrefix(&struct_name_view, "struct ")) {
+    return std::string(struct_name_view);
+  } else if (absl::ConsumePrefix(&struct_name_view, "class ")) {
+    return std::string(struct_name_view);
+  }
+  return struct_name;
 }
 
 std::string SandboxedLibraryEmitter::Func::EmitPostCallBindData() const {
@@ -2517,10 +2843,12 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
       return std::make_unique<PointerArg>(
           name, type_name, PointeeTypeInfo(type), *annotations.ptr_dir,
           /*sized_by_type=*/std::monostate{}, /*lifetime=*/std::monostate{},
-          std::move(annotations.context_bound));
+          std::move(annotations.context_bound),
+          std::move(annotations.struct_sync), record_annotations_);
     }
     if (is_param) {
-      if (!IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
+      if (!annotations.shallow_struct_sync && annotations.struct_sync.empty() &&
+          !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
                                          record_annotations_) &&
           !((std::holds_alternative<ByteSizedBy>(annotations.size_type) ||
              std::holds_alternative<SizedByBinding>(annotations.size_type)) &&
@@ -2561,28 +2889,32 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   std::monostate{}, annotations.lifetime,
-                  std::move(annotations.context_bound));
+                  std::move(annotations.context_bound),
+                  std::move(annotations.struct_sync), record_annotations_);
             },
             [&](const ElemSizedBy& elem_sized_by)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   elem_sized_by, annotations.lifetime,
-                  std::move(annotations.context_bound));
+                  std::move(annotations.context_bound),
+                  std::move(annotations.struct_sync), record_annotations_);
             },
             [&](const ByteSizedBy& byte_sized_by)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   byte_sized_by, annotations.lifetime,
-                  std::move(annotations.context_bound));
+                  std::move(annotations.context_bound),
+                  std::move(annotations.struct_sync), record_annotations_);
             },
             [&](const SizedByBinding& sized_by_binding)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   sized_by_binding, annotations.lifetime,
-                  std::move(annotations.context_bound));
+                  std::move(annotations.context_bound),
+                  std::move(annotations.struct_sync), record_annotations_);
             },
             [&](const NullTerminated& null_terminated)
                 -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
@@ -2593,7 +2925,8 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                 return std::make_unique<PointerArg>(
                     name, type_name, PointeeTypeInfo(type), *ptr_dir,
                     null_terminated, annotations.lifetime,
-                    std::move(annotations.context_bound));
+                    std::move(annotations.context_bound),
+                    std::move(annotations.struct_sync), record_annotations_);
               }
               // Return values, or input-only null-terminated pointers (char*):
               if (!is_param || ptr_dir == PointerDir::kIn) {
@@ -2743,7 +3076,8 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
           "function return $0: invalid sandbox annotation", name));
     }
   }
-  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(name, annotations));
+  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(
+      name, annotations, funcDecl->getReturnType().getCanonicalType()));
   return annotations;
 }
 
@@ -2813,7 +3147,7 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "copy_from_and_bind_out_ptr") {
       if (ann.args.size() != 2) {
         return absl::InvalidArgumentError(
-            absl::Substitute("function $0: `copy_from_and_bind_out_ptr` "
+            absl::Substitute("param $0: `copy_from_and_bind_out_ptr` "
                              "annotation requires two arguments",
                              name));
       }
@@ -2834,6 +3168,13 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
     } else if (ann.name == "clear_bindings") {
       annotations.context_bound.clear_bindings = true;
       num_args = 1;
+    } else if (ann.name == "struct_sync") {
+      num_args = ann.args.size() + 1;
+      ABSL_RETURN_IF_ERROR(
+          ParseStructSyncAccessPathAnnotations(ann.args, annotations));
+    } else if (ann.name == "shallow_struct_sync") {
+      annotations.shallow_struct_sync = true;
+      num_args = 1;
     } else {
       num_args = 0;
     }
@@ -2842,12 +3183,14 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
           absl::Substitute("arg $0: invalid sandbox annotation", name));
     }
   }
-  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(name, annotations));
+  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(
+      name, annotations, param->getType().getCanonicalType()));
   return annotations;
 }
 
 absl::Status SandboxedLibraryEmitter::CheckParsedAnnotations(
-    absl::string_view name, const Annotations& annotations) const {
+    absl::string_view name, const Annotations& annotations,
+    clang::QualType type) const {
   if (annotations.context_bound.copy_from_and_bind.has_value() &&
       std::holds_alternative<std::monostate>(annotations.size_type)) {
     return absl::InvalidArgumentError(absl::Substitute(
@@ -2861,6 +3204,145 @@ absl::Status SandboxedLibraryEmitter::CheckParsedAnnotations(
         "$0: retain_and_bind annotation requires a sized_by annotation", name));
   }
 
+  if (!annotations.struct_sync.empty()) {
+    if (!clang::isa<clang::PointerType>(type) ||
+        !clang::isa<clang::RecordType>(
+            type->getPointeeType().getCanonicalType())) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("$0: struct_sync annotation should only be used "
+                           "for pointers to structs",
+                           name));
+    }
+
+    if (annotations.shallow_struct_sync) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("$0: `shallow_struct_sync` annotation does not "
+                           "need to be combined with `struct_sync` annotation",
+                           name));
+    }
+
+    // We don't yet support an array of struct pointers plus struct_sync.
+    if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "$0: array of struct pointers with struct_sync is not supported",
+          name));
+    }
+  }
+
+  if (annotations.shallow_struct_sync) {
+    if (!clang::isa<clang::PointerType>(type) ||
+        !clang::isa<clang::RecordType>(
+            type->getPointeeType().getCanonicalType())) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("$0: shallow_struct_sync annotation should only be "
+                           "used for pointers to structs",
+                           name));
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status SandboxedLibraryEmitter::ParseStructSyncAccessPathAnnotations(
+    const std::vector<std::string>& annotation_args,
+    Annotations& annotations) const {
+  if (annotation_args.empty()) {
+    return absl::InvalidArgumentError(
+        "struct_sync annotation requires a binding label prefix argument");
+  }
+  absl::string_view binding_prefix = annotation_args[0];
+  size_t i = 1;
+  while (i < annotation_args.size()) {
+    std::string item = StripQuotes(annotation_args[i]);
+    i++;
+    // Check if we hit the end of the list of access paths.
+    if (item == "$") {
+      break;
+    }
+    if (item.empty()) {
+      return absl::InvalidArgumentError(
+          "struct_sync access path group cannot be empty");
+    }
+    // Otherwise, we should parse an access path group "{...}"
+    if (item.front() != '{') {
+      return absl::InvalidArgumentError(
+          "struct_sync access path group must start with '{'");
+    }
+    bool group_ends = false;
+    // Check if it's a single item group, like "{s->field}".
+    if (item.back() == '}') {
+      group_ends = true;
+      item.pop_back();
+    }
+    StructSync sync;
+    sync.access_path = item.substr(1);
+    if (sync.access_path.empty()) {
+      return absl::InvalidArgumentError(
+          "struct_sync access path cannot be empty");
+    }
+    std::optional<std::string> parent_prefix =
+        ParentPrefixOfAccessPath(sync.access_path);
+    std::optional<std::string> member =
+        MemberNameOfAccessPath(sync.access_path);
+    if (!parent_prefix.has_value() || !member.has_value()) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("struct_sync access path format $0 is not supported",
+                           sync.access_path));
+    }
+    // Parse any annotations (pointer direction, binding, etc.)
+    // for this access path.
+    while (!group_ends) {
+      if (i >= annotation_args.size()) {
+        return absl::InvalidArgumentError(
+            "Unexpected end of struct_sync arguments");
+      }
+      std::string annotation = annotation_args[i];
+      i++;
+      if (annotation.empty()) {
+        return absl::InvalidArgumentError(
+            "struct_sync access path attribute cannot be empty");
+      }
+      if (annotation.back() == '}') {
+        group_ends = true;
+        annotation.pop_back();
+      }
+
+      // Parse a few annotations. Others we expect to be annotated
+      // at the struct level (see ParseRecordAnnotations).
+      if (annotation == "in_ptr") {
+        sync.ptr_dir = PointerDir::kIn;
+      } else if (annotation == "out_ptr") {
+        sync.ptr_dir = PointerDir::kOut;
+      } else if (annotation == "inout_ptr") {
+        sync.ptr_dir = PointerDir::kInOut;
+      } else if (absl::StartsWith(annotation, "retain_and_bind(")) {
+        absl::string_view annotation_view = annotation;
+        if (!absl::ConsumePrefix(&annotation_view, "retain_and_bind(") ||
+            !absl::ConsumeSuffix(&annotation_view, ")")) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0 attribute `retain_and_bind` "
+              "requires a context argument: $1",
+              sync.access_path, annotation));
+        }
+        std::string context = StripQuotes(annotation_view);
+        std::string binding_name =
+            absl::StrCat(binding_prefix, "_", sync.access_path);
+        for (char& c : binding_name) {
+          if (!absl::ascii_isalnum(c)) {
+            c = '_';
+          }
+        }
+        sync.context_bound.retain_and_bind =
+            RetainAndBind{context, binding_name};
+      } else {
+        return absl::InvalidArgumentError(
+            absl::Substitute("struct_sync access path attribute $0 is not "
+                             "supported",
+                             annotation));
+      }
+    }
+    annotations.struct_sync.push_back(std::move(sync));
+  }
   return absl::OkStatus();
 }
 

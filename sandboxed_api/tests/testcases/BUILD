@@ -123,6 +123,7 @@ cc_sandboxed_library(
     annotations = ["lwbox_struct_sync.cc"],
     deps = [
         "//sandboxed_api:annotations",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 
