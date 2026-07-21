@@ -35,7 +35,8 @@ class Namespace final {
   // Performs the namespace setup (mounts, write the uid_map, etc.).
   static void InitializeNamespaces(uid_t uid, gid_t gid,
                                    const ForkRequest& request,
-                                   SetupLatencyBreakdown& latency_breakdown);
+                                   SetupLatencyBreakdown& latency_breakdown,
+                                   bool use_hidepid = false);
   static void InitializeInitialNamespaces(uid_t uid, gid_t gid);
   static void SetupIDMaps(int proc_self_fd, uid_t uid, gid_t gid);
 

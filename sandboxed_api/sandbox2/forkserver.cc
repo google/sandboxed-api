@@ -355,7 +355,8 @@ void ForkServer::CreateMountNamespace(Comms setup_comms) {
   fork_request.mutable_mount_specs()->set_use_shared_mount_namespace(false);
   fork_request.set_clone_flags(CLONE_NEWNS | CLONE_NEWPID | CLONE_NEWNET);
   fork_request.set_netns_mode(NETNS_MODE_SHARED_PER_FORKSERVER);
-  Namespace::InitializeNamespaces(0, 0, fork_request, latency_breakdown);
+  Namespace::InitializeNamespaces(0, 0, fork_request, latency_breakdown,
+                                  /*use_hidepid=*/true);
   SAPI_RAW_CHECK(setup_comms.SendFD(mntns_fd.get()), "sending mntns fd");
 }
 

@@ -262,7 +262,8 @@ void Namespace::EnforceLandlockIsolation(
 
 void Namespace::InitializeNamespaces(uid_t uid, gid_t gid,
                                      const ForkRequest& request,
-                                     SetupLatencyBreakdown& latency_breakdown) {
+                                     SetupLatencyBreakdown& latency_breakdown,
+                                     bool use_hidepid) {
   int32_t clone_flags = request.clone_flags();
   std::string hostname = request.hostname();
   if (!(clone_flags & CLONE_NEWNS)) {
@@ -287,9 +288,10 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid,
                                latency_stop_watch.LapTime());
 
   if (clone_flags & CLONE_NEWPID) {
+    const char* mount_options = use_hidepid ? "hidepid=ptraceable" : nullptr;
     SAPI_RAW_PCHECK(
         mount("", "/proc", "proc", MS_NODEV | MS_NOEXEC | MS_NOSUID,
-              "hidepid=ptraceable") != -1,
+              mount_options) != -1,
         "Could not mount a new /proc"
     );
     latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitProcMount,
