@@ -794,6 +794,7 @@ cc_library(
     deps = [
         ":forkserver_cc_proto",
         ":latency_stop_watch",
+        ":mount_tree_cc_proto",
         ":mounts",
         ":setup_latency_breakdown",
         ":util",
