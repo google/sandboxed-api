@@ -44,6 +44,12 @@ int mylib_add(int x, int y) { return x + y; }
 
 MyLibEnum mylib_take_enum(MyLibEnum e) { return e; }
 
+int mylib_nullable_outparam(int i, int* out) {
+  if (out == nullptr) return -1;
+  *out = -i;
+  return 0;
+}
+
 void mylib_take_host_opaque_ptr(void* ptr) {
   fprintf(stderr, "mylib_take_host_opaque_ptr: %p\n", ptr);
 }
@@ -55,6 +61,9 @@ void mylib_copy(absl::string_view src, std::string& dst) {
 }
 
 void mylib_copy_raw(const char* src, char* dst, size_t size) {
+  if (src == nullptr || dst == nullptr) {
+    return;
+  }
   memcpy(dst, src, size);
 }
 

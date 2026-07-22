@@ -32,7 +32,7 @@ TEST(StructSyncTest, RepeatStream) {
   stream.count = &count;
   stream.prev_count = nullptr;
 
-  RepeatStream(&stream);
+  EXPECT_EQ(RepeatStream(&stream), 0);
 
   EXPECT_EQ(stream.in_size, 3);
   EXPECT_EQ(stream.out_size, 6);
@@ -51,7 +51,7 @@ TEST(StructSyncTest, RepeatStream) {
   stream.out_size = 5;
   stream.did_truncate_out = false;
 
-  RepeatStream(&stream);
+  EXPECT_EQ(RepeatStream(&stream), 0);
 
   EXPECT_EQ(stream.in_size, 3);
   EXPECT_EQ(stream.out_size, 5);
@@ -88,6 +88,15 @@ TEST(StructSyncTest, CreateImage) {
   }
 
   DeleteImage(image);
+}
+
+TEST(StructSyncTest, NullSyncAccessPath) {
+  EXPECT_EQ(RepeatStream(nullptr), -1);
+
+  EXPECT_EQ(CreateImage(nullptr, 3, 3), nullptr);
+
+  Span span = {nullptr, 0};
+  EXPECT_EQ(CreateImage(&span, 3, 3), nullptr);
 }
 
 }  // namespace

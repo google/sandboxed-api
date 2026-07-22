@@ -767,7 +767,8 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
             absl::Overload(
                 [this](std::monostate) {
                   std::string ret = absl::Substitute(
-                      "sapi::v::Struct<$0> sapi_tmp_$1(*$1);\n",
+                      "sapi::v::Struct<$0> sapi_tmp_$1("
+                      "$1 != nullptr ? *$1 : ($0){});\n",
                       pointee_type_.unqualified_pointee_type_name(), name_);
                   if (!struct_sync_.empty()) {
                     absl::StrAppend(&ret, EmitStructMemberSyncsPreCall());
@@ -890,8 +891,6 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
   }
 
   std::string EmitHostPostCall() const override {
-    std::string out;
-
     // Post call, for out and in-out structs we'll have something like:
     //   *p = *sapi_tmp_p.data();
     //
@@ -933,11 +932,12 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
             "if ($0 != nullptr) {\n$0 = sapi_host_ptr_$1;\n}\n",
             sync.access_path, suffix);
       }
-      absl::StrAppend(&out, save_host_ptrs);
     }
 
+    // Manually sync back from sandbox to host if needed.
+    std::string copy_back;
     if (context_bound_.retain_and_bind.has_value()) {
-      absl::StrAppend(&out,
+      absl::StrAppend(&copy_back,
                       EmitParamRetainPostCall(*context_bound_.retain_and_bind));
     } else if (ptr_dir_ == PointerDir::kOut || ptr_dir_ == PointerDir::kInOut) {
       // In the Array case, the PtrAfter or PtrBoth synchronization writes to
@@ -946,8 +946,11 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
       // Struct, and we need to manually copy back from there to $0.
       if (pointee_type_.type_class() == PointeeTypeInfo::TypeClass::kRecord &&
           std::holds_alternative<std::monostate>(sized_by_type_)) {
-        absl::StrAppend(&out,
-                        absl::Substitute("*$0 = sapi_tmp_$0.data();\n", name_));
+        absl::StrAppend(&copy_back,
+                        absl::Substitute("if ($0 != nullptr) {\n"
+                                         "  *$0 = sapi_tmp_$0.data();\n"
+                                         "}\n",
+                                         name_));
       } else if (IsSizeBasedOnDerefOutParam()) {
         // If this an Array case where the size is based on dereferencing an
         // outparam, we'll need to manually copy. By this point, the outparam
@@ -956,7 +959,7 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
         std::string size_expr = GetSizeAsBytesExpr();
         std::string cap_expr = GetCapacityAsBytesExpr();
         absl::StrAppend(
-            &out,
+            &copy_back,
             absl::Substitute(
                 "if ($0 != nullptr) {\n"
                 "  size_t final_size = $1;\n"
@@ -974,11 +977,11 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
                 name_, size_expr, cap_expr));
       } else if (ptr_dir_ == PointerDir::kOut &&
                  context_bound_.copy_from_and_bind.has_value()) {
-        absl::StrAppend(&out, EmitCopyFromAndBindOutPtrCode(
-                                  *context_bound_.copy_from_and_bind,
-                                  absl::StrCat("sapi_tmp_", name_),
-                                  pointee_type_.pointee_type_name()));
-        absl::StrAppend(&out,
+        absl::StrAppend(&copy_back, EmitCopyFromAndBindOutPtrCode(
+                                        *context_bound_.copy_from_and_bind,
+                                        absl::StrCat("sapi_tmp_", name_),
+                                        pointee_type_.pointee_type_name()));
+        absl::StrAppend(&copy_back,
                         absl::Substitute("  if ($0 != nullptr) {\n"
                                          "    *$0 = sapi_tmp_$0.GetValue();\n"
                                          "  }\n",
@@ -986,14 +989,27 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
       }
     }
 
+    std::string out;
     if (!struct_sync_.empty()) {
       // After a possible *0 = sapi_tmp_0.data() copy, we need to restore any
       // host pointers that were switched to sandbox pointers.
       if (should_save_host_ptr) {
-        absl::StrAppend(&out, restore_host_ptrs);
+        absl::SubstituteAndAppend(
+            &out,
+            "if ($0 != nullptr) {\n"
+            "  // Save original host pointers\n"
+            "  $1"
+            "  // Sync post-call sandbox data to the struct\n"
+            "  $2"
+            "  // Restore original host pointers\n"
+            "  $3"
+            "}\n",
+            name_, save_host_ptrs, copy_back, restore_host_ptrs);
       }
       // Sync the pointed-to data and retain+bind or free any copies.
       absl::StrAppend(&out, EmitStructMemberSyncsPostCall());
+    } else {
+      absl::StrAppend(&out, copy_back);
     }
 
     // Clear any bindings and free memory, if needed.
@@ -1007,34 +1023,45 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
   }
 
   std::string EmitHostArgs() const override {
+    std::string arg;
     if (context_bound_.retain_and_bind.has_value()) {
-      return absl::Substitute("&sapi_tmp_$0", name_);
+      arg = absl::Substitute("&sapi_tmp_$0", name_);
+    } else {
+      switch (ptr_dir_) {
+        case PointerDir::kIn:
+          arg = absl::Substitute("sapi_tmp_$0.PtrBefore()", name_);
+          break;
+        case PointerDir::kOut:
+          if (IsSizeBasedOnDerefOutParam()) {
+            // We manually copy in EmitHostPostCall, so don't use PtrAfter().
+            arg = absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
+          } else {
+            arg = absl::Substitute("sapi_tmp_$0.PtrAfter()", name_);
+          }
+          break;
+        case PointerDir::kInOut:
+          if (IsSizeBasedOnDerefOutParam()) {
+            // We manually allocated and copied in EmitHostPreCall, and we'll
+            // manually copy in EmitHostPostCall.
+            arg = absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
+          } else {
+            arg = absl::Substitute("sapi_tmp_$0.PtrBoth()", name_);
+          }
+          break;
+        case PointerDir::kSandboxOpaque:
+          // Don't do anything here, we just transparently pass this through
+          // It behaves as an in ptr here.
+          arg = absl::Substitute("&sapi_tmp_$0", name_);
+          break;
+        case PointerDir::kHostOpaque:
+          // Don't do anything here, we just transparently pass this through
+          arg = absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
+          break;
+        default:
+          LOG(FATAL) << "Unsupported pointer direction";
+      }
     }
-    switch (ptr_dir_) {
-      case PointerDir::kIn:
-        return absl::Substitute("sapi_tmp_$0.PtrBefore()", name_);
-      case PointerDir::kOut:
-        if (IsSizeBasedOnDerefOutParam()) {
-          // We manually copy in EmitHostPostCall, so don't use PtrAfter().
-          return absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
-        }
-        return absl::Substitute("sapi_tmp_$0.PtrAfter()", name_);
-      case PointerDir::kInOut:
-        if (IsSizeBasedOnDerefOutParam()) {
-          // We manually allocated and copied in EmitHostPreCall, and we'll
-          // manually copy in EmitHostPostCall.
-          return absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
-        }
-        return absl::Substitute("sapi_tmp_$0.PtrBoth()", name_);
-      case PointerDir::kSandboxOpaque:
-        // Don't do anything here, we just transparently pass this through
-        // It behaves as an in ptr here.
-        return absl::Substitute("&sapi_tmp_$0", name_);
-      case PointerDir::kHostOpaque:
-        // Don't do anything here, we just transparently pass this through
-        return absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
-    }
-    LOG(FATAL) << "Unsupported pointer direction";
+    return absl::Substitute("$0 == nullptr ? nullptr : $1", name_, arg);
   }
 
   std::string EmitRetArgs() const override {
@@ -1603,19 +1630,19 @@ std::string PointerArg::EmitStructMemberSyncsPreCall() const {
         R"cc(
           void* sapi_sb_copy_$0 = nullptr;
           size_t sapi_member_size_$0 = 0;
-          if ($1 != nullptr) {
+          if ($1 != nullptr && $2 != nullptr) {
             // Compute size
-            $2
+            $3
                 // Allocate
                 sandbox->Check(sandbox->rpc_channel()->Allocate(
                     sapi_member_size_$0, &sapi_sb_copy_$0));
             // copy host to sb if needed
-            $3
+            $4
                 // update ptr member (host to sb)
-                $4
+                $5
           }
         )cc",
-        suffix, sync.access_path, size_calc, copy_code,
+        suffix, name_, sync.access_path, size_calc, copy_code,
         update_host_to_sb_ptr_code);
   }
   return ret;

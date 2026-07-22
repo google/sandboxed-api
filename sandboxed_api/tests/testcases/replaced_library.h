@@ -38,6 +38,8 @@ int mylib_add(int x, int y);
 
 MyLibEnum mylib_take_enum(MyLibEnum e);
 
+int mylib_nullable_outparam(int i, int* out SANDBOX_OUT_PTR);
+
 // Pass in a host pointer but the sandbox can't do much with it.
 void mylib_take_host_opaque_ptr(void* ptr SANDBOX_HOST_OPAQUE_PTR);
 

@@ -40,7 +40,8 @@ struct InOutStream {
 
 // Copies input and doubles chars (e.g. "ABC" to "AABBCC") up to `out_size`.
 // Updates `did_truncate_out` on truncation.
-void RepeatStream(InOutStream* stream);
+// Returns 0 on success, -1 on nullptr input.
+int RepeatStream(InOutStream* stream);
 
 // Example of shallow struct syncing.
 void ClearStream(InOutStream* stream);

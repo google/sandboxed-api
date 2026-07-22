@@ -30,7 +30,7 @@ SANDBOX_ANNOTATE_STRUCT(struct InOutStream {
   int* prev_count SANDBOX_OPAQUE_PTR;
 };)
 
-void RepeatStream(InOutStream* stream SANDBOX_INOUT_PTR SANDBOX_STRUCT_SYNC(
+int RepeatStream(InOutStream* stream SANDBOX_INOUT_PTR SANDBOX_STRUCT_SYNC(
     {stream->input, in_ptr}, {stream->output, out_ptr},
     {stream->trunc_error_msg, in_ptr}, {stream->count, inout_ptr}));
 

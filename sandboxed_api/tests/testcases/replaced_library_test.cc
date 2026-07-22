@@ -36,6 +36,14 @@ TEST(Test, Enum) {
   EXPECT_EQ(mylib_take_enum(MYLIB_ENUM_VALUE_1), MYLIB_ENUM_VALUE_1);
 }
 
+TEST(Test, NullableOutparam) {
+  int x;
+  EXPECT_EQ(mylib_nullable_outparam(1, &x), 0);
+  EXPECT_EQ(x, -1);
+
+  EXPECT_EQ(mylib_nullable_outparam(2, nullptr), -1);
+}
+
 TEST(Test, HostOpaquePtr) {
   static int global_int;
   int x;
@@ -55,6 +63,23 @@ TEST(Test, Copy) {
   char dst_buf[5] = {'t', 'h', 'e', 'r', 'e'};
   mylib_copy_raw(src_buf + 1, dst_buf + 1, 3);
   EXPECT_EQ(std::string(dst_buf, sizeof(dst_buf)), "telle");
+}
+
+TEST(Test, NullArrays) {
+  char src_buf[5] = {'h', 'e', 'l', 'l', 'o'};
+  char dst_buf[5] = {'t', 'h', 'e', 'r', 'e'};
+  mylib_copy_raw(nullptr, dst_buf + 1, 3);
+  // If src is nullptr, then
+  // - `mylib_copy_raw` returns immediately
+  // - but the LWBox annotation for dst is SANDBOX_OUT_PTR, which expects the
+  //   `dst` to be written to. If `dst` isn't written to, then the sandbox
+  //   syncs back the content of the uninitialized memory from the remote buffer
+  //   (b/537366797).
+  // So we don't have predictable results for `dst_buf` after this call.
+
+  memcpy(dst_buf, "there", sizeof(dst_buf));
+  mylib_copy_raw(src_buf + 1, nullptr, 3);
+  EXPECT_EQ(std::string(dst_buf, sizeof(dst_buf)), "there");
 }
 
 TEST(Test, NullTerminatedStrlen) {

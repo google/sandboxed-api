@@ -21,7 +21,10 @@ int MungeMixedStruct(MixedStruct* mixed) {
   return result;
 }
 
-void RepeatStream(InOutStream* stream) {
+int RepeatStream(InOutStream* stream) {
+  if (stream == nullptr) {
+    return -1;
+  }
   if (stream->prev_count == nullptr) {
     stream->prev_count = static_cast<int*>(malloc(sizeof(int)));
     *stream->prev_count = 0;
@@ -37,16 +40,20 @@ void RepeatStream(InOutStream* stream) {
       if (out_pos >= stream->out_size) {
         stream->did_truncate_out = true;
         fprintf(stderr, "truncated: %s\n", stream->trunc_error_msg);
-        return;
+        return 0;
       }
       stream->output[out_pos++] = stream->input[i];
     }
   }
+  return 0;
 }
 
 void ClearStream(InOutStream* stream) { free(stream->prev_count); }
 
 Image* CreateImage(const Span* span, size_t width, size_t height) {
+  if (span == nullptr || span->data == nullptr) {
+    return nullptr;
+  }
   if (span->len != width * height) {
     return nullptr;
   }
