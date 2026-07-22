@@ -791,6 +791,10 @@ cc_library(
         "namespace.h",
     ],
     copts = sapi_platform_copts(),
+    visibility = [
+        "//sandboxed_api:__subpackages__",
+        "//video/common/subprocess/sandbox2_allowlists:__pkg__",
+    ],
     deps = [
         ":forkserver_cc_proto",
         ":latency_stop_watch",
