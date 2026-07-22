@@ -45,6 +45,7 @@ sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
       .AllowAccess()
       .AllowSharedMemory()
       .AllowSharedMemoryComms()
+      .AllowKill()
       .AllowSyscalls({
           __NR_recvmsg,
           __NR_sendmsg,
@@ -52,9 +53,6 @@ sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
           __NR_close,
           __NR_lseek,
           __NR_uname,
-          __NR_kill,
-          __NR_tgkill,
-          __NR_tkill,
 #ifdef __NR_arch_prctl  // x86-64 only
           __NR_arch_prctl,
 #endif
