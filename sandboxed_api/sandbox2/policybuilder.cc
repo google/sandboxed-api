@@ -561,7 +561,17 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   // https://github.com/llvm/llvm-project/blob/62ec4ac90738a5f2d209ed28c822223e58aaaeb7/compiler-rt/lib/sanitizer_common/sanitizer_allocator_secondary.h#L98
   AllowMmapWithoutExec();
   AllowSyscall(__NR_munmap);
+  // Sanitizer spinlocks and internal mutexes yield execution when waiting.
   AllowSyscall(__NR_sched_yield);
+  // Sanitizers and symbolizers inspect file status (fstat, fstatat, lstat).
+  // https://github.com/llvm/llvm-project/blob/9bb81c2ffc5b349b54605cecb3e3a5e4a611f642/compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp#L494
+  AllowStat();
+  // Sanitizer runtime uses futexes for internal synchronization.
+  // https://github.com/llvm/llvm-project/blob/9bb81c2ffc5b349b54605cecb3e3a5e4a611f642/compiler-rt/lib/sanitizer_common/sanitizer_mutex.cpp#L31-L32
+  AllowFutexOp(FUTEX_WAIT);
+  AllowFutexOp(FUTEX_WAKE);
+  // Sanitizers kill/abort the process after writing diagnostic reports.
+  AllowKill();
 
   // https://github.com/llvm/llvm-project/blob/4bbc3290a25c0dc26007912a96e0f77b2092ee56/compiler-rt/lib/sanitizer_common/sanitizer_stack_store.cpp#L293
   AddPolicyOnSyscall(__NR_mprotect,
@@ -608,6 +618,9 @@ PolicyBuilder& PolicyBuilder::AllowLlvmSanitizers() {
   }
   if constexpr (sapi::sanitizers::IsTSan()) {
     AllowSyscall(__NR_set_robust_list);
+  }
+  if constexpr (sapi::sanitizers::IsCfiDiag()) {
+    AllowHandleSignals();
   }
   return *this;
 }
