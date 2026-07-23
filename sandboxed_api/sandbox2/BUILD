@@ -315,10 +315,11 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":comms",
         ":fork_client",
         ":global_forkserver",
-        "@abseil-cpp//absl/base:core_headers",
     ],
+    alwayslink = True,
 )
 
 cc_library(
