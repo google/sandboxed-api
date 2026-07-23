@@ -179,7 +179,14 @@ struct $1SandboxImpl : public $1Sandbox {
   static sapi::SandboxConfig CreateSandboxConfig() {
     sandbox2::PolicyBuilder builder =
         sapi::Sandbox2Config::DefaultPolicyBuilder();
-    return {.sandbox2 = {.policy = $1SandboxModifyPolicy(&builder)}};
+    return {
+        .sandbox2 = {
+            .policy = $1SandboxModifyPolicy(&builder),
+            .shared_memory_config =
+                sandbox2::SharedMemoryConfig{.enable_huge_pages = true},
+            .enable_shared_memory_comms = true,
+        },
+    };
   }
 };
 
