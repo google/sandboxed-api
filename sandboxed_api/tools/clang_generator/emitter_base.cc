@@ -285,7 +285,6 @@ void EmitterBase::EmitType(absl::string_view ns_name,
   }
 
   std::string spelling = GetSpelling(type_decl);
-
   if (const auto& [it, inserted] = rendered_types_.emplace(ns_name, spelling);
       inserted) {
     rendered_types_ordered_.push_back(&*it);
@@ -295,7 +294,20 @@ void EmitterBase::EmitType(absl::string_view ns_name,
 void EmitterBase::AddTypeDeclarations(
     const std::vector<NamespacedTypeDecl>& type_decls) {
   for (const auto& [ns_name, type_decl] : type_decls) {
-    EmitType(ns_name, type_decl);
+    if (const auto* tag_decl = llvm::dyn_cast<clang::TagDecl>(type_decl);
+        tag_decl && !tag_decl->isThisDeclarationADefinition() &&
+        tag_decl->getIdentifier() != nullptr && !tag_decl->getName().empty()) {
+      std::string fwd_spelling =
+          absl::StrCat(ToStringView(tag_decl->getKindName()), " ",
+                       ToStringView(tag_decl->getName()));
+      if (const auto& [it, inserted] =
+              rendered_tag_decls_.emplace(ns_name, std::move(fwd_spelling));
+          inserted) {
+        rendered_tag_decls_ordered_.push_back(&*it);
+      }
+    } else {
+      EmitType(ns_name, type_decl);
+    }
   }
 }
 

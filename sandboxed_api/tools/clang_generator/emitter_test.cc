@@ -63,6 +63,18 @@ class EmitterForTesting : public Emitter {
     return result;
   }
 
+  // Returns the spellings of all rendered_tag_decls_ordered_ that have the
+  // given namespace name.
+  std::vector<std::string> ForwardDeclsForNS(const std::string& ns_name) {
+    std::vector<std::string> result;
+    for (const RenderedType* rt : rendered_tag_decls_ordered_) {
+      if (rt->ns_name == ns_name) {
+        result.push_back(rt->spelling);
+      }
+    }
+    return result;
+  }
+
   const std::vector<std::string>& GetRenderedFunctions() {
     return rendered_functions_ordered_;
   }
@@ -282,9 +294,10 @@ TEST_F(EmitterTest, TypedefOpaqueStruct) {
              extern "C" void Structize(png_controlp);)",
                   std::make_unique<GeneratorAction>(&emitter, &options)),
               IsOk());
+  EXPECT_THAT(UglifyAll(emitter.ForwardDeclsForNS("")),
+              ElementsAre("struct png_control"));
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
-              ElementsAre("struct png_control",
-                          "typedef struct png_control *png_controlp"));
+              ElementsAre("typedef struct png_control *png_controlp"));
 }
 
 TEST_F(EmitterTest, TypedefAnonymousStructAndPointer) {
@@ -369,7 +382,9 @@ TEST_F(EmitterTest, StructForwardDecl) {
                   std::make_unique<GeneratorAction>(&emitter, &options)),
               IsOk());
 
-  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), ElementsAre("struct A"));
+  EXPECT_THAT(UglifyAll(emitter.ForwardDeclsForNS("")),
+              ElementsAre("struct A"));
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), IsEmpty());
 }
 
 TEST_F(EmitterTest, AggregateStructWithDefaultedMembers) {
@@ -500,10 +515,11 @@ TEST_F(EmitterTest, TypedefTypeDependencies) {
               IsOk());
   EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
 
+  EXPECT_THAT(UglifyAll(emitter.ForwardDeclsForNS("")),
+              ElementsAre("struct _Image"));
   EXPECT_THAT(
       UglifyAll(emitter.SpellingsForNS("")),
-      ElementsAre("using size_t = long long", "struct _Image",
-                  "typedef struct _Image Image",
+      ElementsAre("using size_t = long long", "typedef struct _Image Image",
                   "typedef size_t (*StreamHandler)(Image *, void *, size_t)",
                   "struct _Image { StreamHandler stream; int size; }"));
 }
@@ -566,9 +582,10 @@ TEST_F(EmitterTest, UseRecordDefiniton) {
               IsOk());
   EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
 
+  EXPECT_THAT(UglifyAll(emitter.ForwardDeclsForNS("")),
+              ElementsAre("struct Bar"));
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
-              ElementsAre("struct Bar", "typedef struct Bar Bar",
-                          "struct Bar { int x; }"));
+              ElementsAre("typedef struct Bar Bar", "struct Bar { int x; }"));
 }
 
 TEST_F(EmitterTest, OmitDependentTypes) {
@@ -714,6 +731,52 @@ TEST_F(EmitterTest, StripNamespacePrefixNested) {
   // Expect the namespace prefix to be stripped, similar to the
   // StripNamespacePrefix test.
   EXPECT_THAT(header, HasSubstr("::absl::StatusOr<nested::S*> Structize()"));
+}
+
+TEST_F(EmitterTest, ForwardDeclaresRecordTypesInNamespace) {
+  GeneratorOptions options;
+  options.namespace_name = "my_sapi_ns";
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(RunFrontendAction(
+                  R"(extern "C" void Func(struct Outer* o);
+             struct Outer {
+               struct MyStruct* s;
+               class MyClass* c;
+               union MyUnion* u;
+             };
+             struct MyStruct { int a; };
+             class MyClass { public: int b; };
+             union MyUnion { int c; float d; };)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string header, emitter.EmitHeader());
+
+  constexpr absl::string_view kExpectedTypes =
+      R"(// Incomplete type declarations
+struct Outer;
+struct MyStruct;
+class MyClass;
+union MyUnion;
+// Types this API depends on
+struct Outer {
+  struct MyStruct* s;
+  class MyClass* c;
+  union MyUnion* u;
+};
+struct MyStruct {
+  int a;
+};
+class MyClass {
+ public:
+  int b;
+};
+union MyUnion {
+  int c;
+  float d;
+};
+)";
+  EXPECT_THAT(header, HasSubstr(kExpectedTypes));
 }
 
 TEST_F(EmitterTest, SymbolListTest) {

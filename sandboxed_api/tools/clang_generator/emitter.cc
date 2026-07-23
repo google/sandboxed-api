@@ -511,6 +511,41 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
   return out;
 }
 
+namespace {
+
+void EmitInNamespaces(std::string& out, absl::string_view base_ns_name,
+                      const std::vector<const RenderedType*>& items) {
+  absl::string_view last_ns_name;
+  const std::string ns_prefix = absl::StrCat(base_ns_name, "::");
+
+  for (const auto* item : items) {
+    absl::string_view ns_name = item->ns_name;
+    if (ns_name == base_ns_name) {
+      ns_name = "";
+    } else {
+      absl::ConsumePrefix(&ns_name, ns_prefix);
+    }
+
+    if (ns_name != last_ns_name) {
+      if (!last_ns_name.empty()) {
+        absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n");
+      }
+      if (!ns_name.empty()) {
+        absl::StrAppend(&out, "namespace ", ns_name, " {\n");
+      }
+      last_ns_name = ns_name;
+    }
+
+    absl::StrAppend(&out, item->spelling, ";\n");
+  }
+
+  if (!last_ns_name.empty()) {
+    absl::StrAppend(&out, "}  // namespace ", last_ns_name, "\n");
+  }
+}
+
+}  // namespace
+
 absl::StatusOr<std::string> Emitter::DoEmitHeader() {
   // Log a warning message if the number of requested functions is not equal to
   // the number of functions generated.
@@ -566,33 +601,15 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader() {
   }
 
   // Emit type dependencies
+  if (!rendered_tag_decls_ordered_.empty()) {
+    // Forward declare record types to ensure inner-namespace resolution takes
+    // precedence over global scope.
+    absl::StrAppend(&out, "// Incomplete type declarations\n");
+    EmitInNamespaces(out, options_.namespace_name, rendered_tag_decls_ordered_);
+  }
   if (!rendered_types_ordered_.empty()) {
     absl::StrAppend(&out, "// Types this API depends on\n");
-    absl::string_view last_ns_name;
-    const std::string ns_prefix = absl::StrCat(options_.namespace_name, "::");
-    for (const RenderedType* rt : rendered_types_ordered_) {
-      absl::string_view ns_name = rt->ns_name;
-      if (ns_name == options_.namespace_name) {
-        ns_name = "";
-      } else {
-        absl::ConsumePrefix(&ns_name, ns_prefix);
-      }
-
-      if (ns_name != last_ns_name) {
-        if (!last_ns_name.empty()) {
-          absl::StrAppend(&out, "\n}  // namespace ", last_ns_name, "\n");
-        }
-        if (!ns_name.empty()) {
-          absl::StrAppend(&out, "namespace ", ns_name, " {\n");
-        }
-        last_ns_name = ns_name;
-      }
-
-      absl::StrAppend(&out, rt->spelling, ";\n");
-    }
-    if (!last_ns_name.empty()) {
-      absl::StrAppend(&out, "\n}  // namespace ", last_ns_name, "\n");
-    }
+    EmitInNamespaces(out, options_.namespace_name, rendered_types_ordered_);
   }
 
   // Optionally emit a default sandbox that instantiates an embedded sandboxee

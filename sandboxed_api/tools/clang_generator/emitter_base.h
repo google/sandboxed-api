@@ -116,6 +116,13 @@ class EmitterBase {
   // A vector to preserve the order of type declarations.
   std::vector<const RenderedType*> rendered_types_ordered_;
 
+  // Stores tag declarations for forward declaration. Using a node_hash_set for
+  // pointer stability.
+  absl::node_hash_set<RenderedType> rendered_tag_decls_;
+
+  // A vector to preserve the order of tag forward declarations.
+  std::vector<const RenderedType*> rendered_tag_decls_ordered_;
+
   // Fully qualified names of functions for the sandboxed API. Keeps track of
   // functions that have been rendered so far.
   absl::flat_hash_set<std::string> rendered_functions_;
