@@ -336,7 +336,7 @@ absl::Status Mounts::Insert(absl::string_view path,
         curtree->mutable_entries()->emplace(parts[i], MountTree());
     if (did_insert) {
       it->second.set_index(++mount_index_);
-      it->second.set_ignore_non_existing(true);
+      it->second.set_ignore_non_existing(false);
     }
     curtree = &it->second;
     if (i == parts.size() - 1) {  // Final part
