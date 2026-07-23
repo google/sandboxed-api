@@ -225,7 +225,7 @@ TEST_P(StackTraceTest, SymbolizationWorks) {
   }
   if (mode == IsolationMode::kPtraceWithLandlock &&
       test_case_param.exec_memfd) {
-    // Landlock v7 does not support executing anonymous memfd inodes directly.
+    // Landlock v6 does not support executing anonymous memfd inodes directly.
     return;
   }
   TestCase test_case = test_case_param;

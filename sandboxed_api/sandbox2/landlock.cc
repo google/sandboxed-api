@@ -80,7 +80,7 @@
 #define LANDLOCK_SCOPE_SIGNAL (1ULL << 1)
 #endif
 
-struct landlock_ruleset_attr_v7 {
+struct landlock_ruleset_attr_v6 {
   uint64_t handled_access_fs;
   uint64_t handled_access_net;
   uint64_t handled_scoped;
@@ -176,7 +176,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
     SAPI_RAW_LOG(
         WARNING,
         "Landlock policy warning: Ancestor path '%s' is read-only (with "
-        "execute access), but nested path '%s' is writable. In Landlock v7, "
+        "execute access), but nested path '%s' is writable. In Landlock v6, "
         "'path beneath' rules propagate downwards without exception, causing "
         "'%s' to implicitly inherit FS_EXECUTE from its ancestor "
         "despite allow_write_executable=false.",
@@ -227,7 +227,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
 }  // namespace
 
 void EnforceLandlock(const Mounts& mounts) {
-  struct landlock_ruleset_attr_v7 ruleset_attr = {
+  struct landlock_ruleset_attr_v6 ruleset_attr = {
       .handled_access_fs =
           LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_WRITE_FILE |
           LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR |
@@ -246,7 +246,7 @@ void EnforceLandlock(const Mounts& mounts) {
   FDCloser ruleset_fd(sandbox2::util::Syscall(
       __NR_landlock_create_ruleset, reinterpret_cast<uintptr_t>(&ruleset_attr),
       sizeof(ruleset_attr), 0));
-  SAPI_RAW_PCHECK(ruleset_fd.get() >= 0, "landlock_create_ruleset v7 failed");
+  SAPI_RAW_PCHECK(ruleset_fd.get() >= 0, "landlock_create_ruleset v6 failed");
 
   auto mount_tree = mounts.GetMountTree();
   AddRulesRecursively(ruleset_fd.get(), &mount_tree, "/", "", "",
@@ -261,19 +261,14 @@ void EnforceLandlock(const Mounts& mounts) {
 
 bool IsLandlockSupported() {
   // Queries kernel Landlock ABI version at runtime.
-  // Returns -1 on failure:
-  // - errno == ENOSYS if Landlock is not supported/compiled into the kernel.
-  // - errno == EOPNOTSUPP if Landlock is compiled-in but disabled (e.g., via
-  //            lsm= boot parameter).
+  // Returns <= 0 on failure (e.g., ENOSYS if not compiled into kernel,
+  // EOPNOTSUPP if disabled via lsm= boot parameter).
   int abi_version = syscall(__NR_landlock_create_ruleset, nullptr, 0, 1);
-  if (abi_version < 7) {
-    if (abi_version >= 1) {
-      SAPI_RAW_LOG(FATAL, "Landlock ABI v%d detected, but ABI v7 is required.",
-                   abi_version);
-    }
-    return false;
+  if (abi_version >= 1 && abi_version < 6) {
+    SAPI_RAW_VLOG(1, "Landlock ABI v%d detected, but ABI v6 is required.",
+                  abi_version);
   }
-  return true;
+  return abi_version >= 6;
 }
 
 }  // namespace sandbox2
