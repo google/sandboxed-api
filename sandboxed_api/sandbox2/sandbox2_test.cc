@@ -389,6 +389,26 @@ TEST(Sandbox2Test, SharedMountNamespaceWorks) {
   EXPECT_EQ(result.reason_code(), 0);
 }
 
+TEST(Sandbox2Test, SharedMountNamespaceRejectsWritableRoot) {
+  SKIP_SANITIZERS;
+
+  // A writable root, like tmpfs, is implicit per-instance state that
+  // should not be silently sharable -- EnableSharedMountNamespace() must
+  // reject it the same way it already rejects tmpfs.
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/shared_root_write");
+  auto executor = std::make_unique<Executor>(path, std::vector<std::string>{path});
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy, sandbox2::PolicyBuilder()
+                       .DefaultAction(sandbox2::AllowAllSyscalls())
+                       .SetRootWritable()
+                       .UseForkServerSharedNetNs()
+                       .TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableSharedMountNamespace(),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
 TEST(SharedMemoryTest, SharedMemoryDataTransferWorks) {
   SKIP_SANITIZERS;
   const std::string path =
