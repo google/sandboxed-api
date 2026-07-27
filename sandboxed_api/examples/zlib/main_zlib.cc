@@ -15,6 +15,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 
 #include "absl/base/log_severity.h"
 #include "absl/base/macros.h"
@@ -66,8 +67,7 @@ int main(int argc, char* argv[]) {
   }
 
   constexpr char kZlibVersion[] = "1.2.11";
-  sapi::v::Array<const char> version(kZlibVersion,
-                                     ABSL_ARRAYSIZE(kZlibVersion));
+  sapi::v::Array<const char> version(kZlibVersion, std::size(kZlibVersion));
 
   // Allocate deflate state.
   *strm.mutable_data() = sapi::zlib::z_stream{};
