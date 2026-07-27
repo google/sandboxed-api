@@ -779,6 +779,35 @@ union MyUnion {
   EXPECT_THAT(header, HasSubstr(kExpectedTypes));
 }
 
+TEST_F(EmitterTest, ForwardDeclaresMacroExpandedTypesInSystemHeader) {
+  GeneratorOptions options;
+  options.namespace_name = "my_sapi_ns";
+  EmitterForTesting emitter(&options);
+
+  // Inspired by libjpeg's `jpeg_common_fields` macro.
+  // We need `#pragma clang system_header` to force this to cover the
+  // `isInSystemHeader` condition in types.cc.
+  AddCode("mylib/mylib.h",
+          R"(#pragma clang system_header
+    #define COMMON_FIELDS \
+      struct Inner* inner;
+    struct Outer { COMMON_FIELDS; };
+    struct Inner { int x; };
+    )");
+
+  EXPECT_THAT(RunFrontendAction(
+                  R"(#include <mylib/mylib.h>
+                     extern "C" void Func(struct Outer* o);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string header, emitter.EmitHeader());
+
+  // The forward declaration for Inner must appear even though it was
+  // introduced via macro expansion inside a system header.
+  EXPECT_THAT(header, HasSubstr("struct Inner;"));
+}
+
 TEST_F(EmitterTest, SymbolListTest) {
   constexpr absl::string_view kInputFile = "simple_functions.cc";
   GeneratorOptions options;

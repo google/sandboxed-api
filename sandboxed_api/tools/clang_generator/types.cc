@@ -278,7 +278,8 @@ std::vector<NamespacedTypeDecl> TypeCollector::GetTypeDeclarations() {
       // Hack: Regular C/C++ standard headers (i.e., non-POSIX, non-vendor,
       // non-platform-dependent) are never in sub-directories, so check for a
       // forward slash.
-      if (!source_manager.getFilename(loc).contains("/")) {
+      if (!source_manager.getFilename(source_manager.getExpansionLoc(loc))
+               .contains("/")) {
         continue;
       }
     }
