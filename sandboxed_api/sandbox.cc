@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <string>
 
@@ -127,7 +128,7 @@ absl::Status SandboxBase::Call(
   // Send data.
   FuncCall rfcall{};
   rfcall.argc = args.size();
-  absl::SNPrintF(rfcall.func, ABSL_ARRAYSIZE(rfcall.func), "%s", func);
+  absl::SNPrintF(rfcall.func, std::size(rfcall.func), "%s", func);
 
   VLOG(1) << "CALL ENTRY: '" << func << "' with " << args.size()
           << " argument(s)";
