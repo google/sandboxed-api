@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <string>
@@ -145,7 +146,7 @@ void InitSeccompUnotify(sock_fprog prog, Comms* comms,
       DENY,
       ALLOW,
   };
-  prog.len = ABSL_ARRAYSIZE(code);
+  prog.len = std::size(code);
   prog.filter = code;
   do {
     result =
@@ -250,7 +251,7 @@ void Client::VerifyCwd() {
   //       fails with ENOENT and returns a nullptr instead. The code still
   //       needs to run on lower version for the time being.
   char cwd_buf[PATH_MAX + 1] = {0};
-  char* cwd = getcwd(cwd_buf, ABSL_ARRAYSIZE(cwd_buf));
+  char* cwd = getcwd(cwd_buf, std::size(cwd_buf));
   SAPI_RAW_PCHECK(cwd != nullptr || errno == ENOENT,
                   "no current working directory");
 

@@ -22,6 +22,7 @@
 
 #include <cerrno>
 #include <cstdint>
+#include <iterator>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"

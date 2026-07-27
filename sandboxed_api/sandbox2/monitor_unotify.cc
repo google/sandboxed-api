@@ -17,6 +17,7 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -68,7 +69,7 @@ absl::Status WaitForFdReadable(int fd, absl::Time deadline) {
   };
   for (absl::Duration remaining = deadline - absl::Now();
        remaining > absl::ZeroDuration(); remaining = deadline - absl::Now()) {
-    int ret = poll(pfds, ABSL_ARRAYSIZE(pfds),
+    int ret = poll(pfds, std::size(pfds),
                    static_cast<int>(absl::ToInt64Milliseconds(remaining)));
     if (ret > 0) {
       if (pfds[0].revents & POLLIN) {
@@ -358,7 +359,7 @@ void UnotifyMonitor::Run() {
       timeout_msec = static_cast<int>(
           std::min(kMinWakeupMsec, absl::ToInt64Milliseconds(remaining)));
     }
-    int ret = poll(pfds, ABSL_ARRAYSIZE(pfds), timeout_msec);
+    int ret = poll(pfds, std::size(pfds), timeout_msec);
     if (ret == 0 || (ret == -1 && errno == EINTR)) {
       continue;
     }
