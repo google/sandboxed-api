@@ -37,6 +37,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/call.h"
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
@@ -400,6 +401,16 @@ TEST_P(SandboxTest, AllocateAndTransferTest) {
   sapi_buffer_output.SetRemote(sapi_array->GetRemote());
   ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_buffer_output), IsOk());
   EXPECT_THAT(test_string_vector, ContainerEq(buffer_output));
+}
+
+TEST_P(SandboxTest, LongFunctionNameTruncation) {
+  SumSandbox sandbox(GetDefaultConfig());
+  ASSERT_THAT(sandbox.Init(), IsOk());
+
+  std::string long_func_name(FuncCall::kFuncNameMax, 'a');
+  absl::Status status = sandbox.Call(long_func_name, nullptr);
+  EXPECT_THAT(status, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Function name is too long")));
 }
 
 TEST_P(SandboxTest, AllocateAndTransferTestLarge) {

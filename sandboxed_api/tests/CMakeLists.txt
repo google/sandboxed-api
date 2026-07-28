@@ -53,6 +53,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     absl::time
     benchmark
     sandbox2::result
+    sapi::call
     sapi::fileops
     sapi::proto_arg_proto
     sapi::sapi

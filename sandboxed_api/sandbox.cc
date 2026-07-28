@@ -128,7 +128,11 @@ absl::Status SandboxBase::Call(
   // Send data.
   FuncCall rfcall{};
   rfcall.argc = args.size();
-  absl::SNPrintF(rfcall.func, std::size(rfcall.func), "%s", func);
+  if (absl::SNPrintF(rfcall.func, std::size(rfcall.func), "%s", func) >=
+      std::size(rfcall.func)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Function name is too long: '", func, "'"));
+  }
 
   VLOG(1) << "CALL ENTRY: '" << func << "' with " << args.size()
           << " argument(s)";
