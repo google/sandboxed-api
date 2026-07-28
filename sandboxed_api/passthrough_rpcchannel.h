@@ -15,18 +15,15 @@
 #ifndef SANDBOXED_API_NULL_RPCCHANNEL_H_
 #define SANDBOXED_API_NULL_RPCCHANNEL_H_
 
-#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <utility>
 
-#include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/rpcchannel.h"
@@ -69,6 +66,8 @@ class PassthroughRPCChannel : public RPCChannel {
   absl::Status RecvFD(int remote_fd, int* local_fd) override;
 
   absl::Status Close(int remote_fd) override;
+
+  absl::StatusOr<std::unique_ptr<RPCChannel>> SpawnThread() override;
 
   absl::StatusOr<size_t> Strlen(void* str) override;
 

@@ -42,6 +42,7 @@ constexpr uint32_t kMsgReallocate = 0x109;
 constexpr uint32_t kMsgStrlen = 0x10A;
 constexpr uint32_t kMsgMarkMemoryInit = 0x10B;
 constexpr uint32_t kMsgCallback = 0x10C;
+constexpr uint32_t kMsgSpawnThread = 0x10D;
 // Return:
 constexpr uint32_t kMsgReturn = 0x201;
 constexpr uint32_t kMsgCallbackRet = 0x202;

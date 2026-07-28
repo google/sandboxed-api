@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
@@ -72,6 +73,9 @@ class RPCChannel {
 
   // Closes fd in sandboxee.
   virtual absl::Status Close(int remote_fd) = 0;
+
+  // Spawns a new thread in the sandboxee and returns a new RPCChannel for it.
+  virtual absl::StatusOr<std::unique_ptr<RPCChannel>> SpawnThread() = 0;
 
   // Returns length of a null-terminated c-style string (invokes strlen).
   virtual absl::StatusOr<size_t> Strlen(void* str) = 0;

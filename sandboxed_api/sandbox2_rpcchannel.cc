@@ -14,10 +14,15 @@
 
 #include "sandboxed_api/sandbox2_rpcchannel.h"
 
+#include <sys/socket.h>
+#include <sys/types.h>
+
 #include <algorithm>
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
+#include <memory>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -32,8 +37,10 @@
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
@@ -243,6 +250,34 @@ absl::Status Sandbox2RPCChannel::Close(int remote_fd) {
       Exchange(comms::kMsgClose, &remote_fd, sizeof(remote_fd), v::Type::kVoid)
           .status());
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<RPCChannel>> Sandbox2RPCChannel::SpawnThread() {
+  int sv[2];
+  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) < 0) {
+    return absl::ErrnoToStatus(errno, "socketpair failed");
+  }
+  sapi::file_util::fileops::FDCloser host_fd(sv[0]);
+  sapi::file_util::fileops::FDCloser sandboxee_fd(sv[1]);
+
+  {
+    absl::MutexLock lock(mutex_);
+    if (!comms_->SendTLV(comms::kMsgSpawnThread, 0, nullptr)) {
+      return absl::UnavailableError("Sending spawn thread TLV failed");
+    }
+    if (!comms_->SendFD(sandboxee_fd.get())) {
+      return absl::UnavailableError("Sending spawn thread FD failed");
+    }
+
+    ABSL_ASSIGN_OR_RETURN(auto fret, Return(v::Type::kVoid));
+    if (!fret.success) {
+      return absl::UnavailableError("SpawnThread failed on the remote side");
+    }
+  }
+
+  auto thread_comms = std::make_unique<sandbox2::Comms>(host_fd.Release());
+  return std::unique_ptr<RPCChannel>(
+      new Sandbox2RPCChannel(std::move(thread_comms), pid_));
 }
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {

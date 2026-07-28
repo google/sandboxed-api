@@ -219,7 +219,18 @@ SharedMemoryRPCChannel::SharedMemoryRPCChannel(
     std::unique_ptr<RPCChannel> rpc_channel, size_t size,
     void* local_base_address, void* remote_base_address)
     : rpcchannel_(std::move(rpc_channel)),
-      allocator_(local_base_address, size),
+      allocator_(std::make_shared<internal::SimpleAllocator>(local_base_address,
+                                                             size)),
+      local_base_address_(reinterpret_cast<uintptr_t>(local_base_address)),
+      remote_base_address_(reinterpret_cast<uintptr_t>(remote_base_address)),
+      size_(size) {}
+
+SharedMemoryRPCChannel::SharedMemoryRPCChannel(
+    std::unique_ptr<RPCChannel> rpc_channel,
+    std::shared_ptr<internal::SimpleAllocator> allocator, size_t size,
+    void* local_base_address, void* remote_base_address)
+    : rpcchannel_(std::move(rpc_channel)),
+      allocator_(std::move(allocator)),
       local_base_address_(reinterpret_cast<uintptr_t>(local_base_address)),
       remote_base_address_(reinterpret_cast<uintptr_t>(remote_base_address)),
       size_(size) {}
@@ -242,7 +253,7 @@ absl::Status SharedMemoryRPCChannel::Allocate(size_t size, void** addr,
     return rpcchannel_->Allocate(size, addr);
   }
 
-  auto res = allocator_.Allocate(size);
+  auto res = allocator_->Allocate(size);
   if (!res.ok()) {
     return rpcchannel_->Allocate(size, addr);
   }
@@ -259,7 +270,7 @@ absl::Status SharedMemoryRPCChannel::Reallocate(void* old_addr, size_t size,
   }
 
   void* old_local_addr = ToLocalAddr(remote_addr);
-  auto res = allocator_.Reallocate(old_local_addr, size);
+  auto res = allocator_->Reallocate(old_local_addr, size);
   if (!res.ok()) {
     // We know that we are in the remote shared memory region, so an invalid
     // pointer here means that the pointer does not point to the beginning of
@@ -280,7 +291,7 @@ absl::Status SharedMemoryRPCChannel::Free(void* remote_addr) {
     return rpcchannel_->Free(remote_addr);
   }
   void* local_addr = ToLocalAddr(reinterpret_cast<uintptr_t>(remote_addr));
-  return allocator_.Free(local_addr);
+  return allocator_->Free(local_addr);
 }
 
 absl::StatusOr<size_t> SharedMemoryRPCChannel::CopyToSandbox(
@@ -345,6 +356,16 @@ absl::Status SharedMemoryRPCChannel::Close(int remote_fd) {
   return rpcchannel_->Close(remote_fd);
 }
 
+absl::StatusOr<std::unique_ptr<RPCChannel>>
+SharedMemoryRPCChannel::SpawnThread() {
+  ABSL_ASSIGN_OR_RETURN(std::unique_ptr<RPCChannel> nested_thread_channel,
+                        rpcchannel_->SpawnThread());
+  return std::unique_ptr<RPCChannel>(new SharedMemoryRPCChannel(
+      std::move(nested_thread_channel), allocator_, size_,
+      reinterpret_cast<void*>(local_base_address_),
+      reinterpret_cast<void*>(remote_base_address_)));
+}
+
 absl::Status SharedMemoryRPCChannel::Call(const FuncCall& call, uint32_t tag,
                                           FuncRet* ret, v::Type exp_type) {
   return rpcchannel_->Call(call, tag, ret, exp_type);
@@ -353,7 +374,7 @@ absl::Status SharedMemoryRPCChannel::Call(const FuncCall& call, uint32_t tag,
 absl::Status SharedMemoryRPCChannel::ReallocateInNonSharedMemory(
     void* local_addr, size_t size, void** new_addr) {
   ABSL_ASSIGN_OR_RETURN(auto old_metadata,
-                        allocator_.GetAllocationMetadata(local_addr));
+                        allocator_->GetAllocationMetadata(local_addr));
   ABSL_RETURN_IF_ERROR(rpcchannel_->Allocate(size, new_addr));
   if (auto ret = rpcchannel_->CopyToSandbox(
           reinterpret_cast<uintptr_t>(*new_addr),
@@ -365,7 +386,7 @@ absl::Status SharedMemoryRPCChannel::ReallocateInNonSharedMemory(
     ABSL_RETURN_IF_ERROR(rpcchannel_->Free(*new_addr));
     return ret.status();
   }
-  return allocator_.Free(local_addr);
+  return allocator_->Free(local_addr);
 }
 
 void* SharedMemoryRPCChannel::ToLocalAddr(uintptr_t remote_addr) {
@@ -389,7 +410,7 @@ void* SharedMemoryRPCChannel::ToRemoteAddr(uintptr_t local_addr) {
 absl::Status SharedMemoryRPCChannel::EnsureWithinAllocationBounds(
     void* local_ptr, size_t size) {
   ABSL_ASSIGN_OR_RETURN(auto metadata,
-                        allocator_.GetAllocationMetadata(local_ptr));
+                        allocator_->GetAllocationMetadata(local_ptr));
   size_t offset = reinterpret_cast<uintptr_t>(local_ptr) -
                   reinterpret_cast<uintptr_t>(metadata->addr);
   if (offset + size > metadata->size) {

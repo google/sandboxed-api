@@ -126,6 +126,8 @@ class SharedMemoryRPCChannel : public RPCChannel {
 
   absl::Status Close(int remote_fd) override;
 
+  absl::StatusOr<std::unique_ptr<RPCChannel>> SpawnThread() override;
+
   absl::Status Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
                     v::Type exp_type) override;
 
@@ -137,6 +139,11 @@ class SharedMemoryRPCChannel : public RPCChannel {
   ~SharedMemoryRPCChannel() override = default;
 
  private:
+  explicit SharedMemoryRPCChannel(
+      std::unique_ptr<RPCChannel> rpc_channel,
+      std::shared_ptr<internal::SimpleAllocator> allocator, size_t size,
+      void* local_base_address, void* remote_base_address);
+
   bool IsWithinRemoteSharedMemoryRegion(uintptr_t remote_ptr);
 
   bool IsWithinLocalSharedMemoryRegion(uintptr_t local_ptr);
@@ -151,7 +158,7 @@ class SharedMemoryRPCChannel : public RPCChannel {
   absl::Status EnsureWithinAllocationBounds(void* local_ptr, size_t size);
 
   std::unique_ptr<RPCChannel> rpcchannel_;
-  internal::SimpleAllocator allocator_;
+  std::shared_ptr<internal::SimpleAllocator> allocator_;
   uintptr_t local_base_address_;
   uintptr_t remote_base_address_;
   size_t size_;

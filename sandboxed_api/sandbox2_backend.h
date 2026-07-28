@@ -15,6 +15,9 @@
 #ifndef SANDBOXED_API_SANDBOX2_BACKEND_H_
 #define SANDBOXED_API_SANDBOX2_BACKEND_H_
 
+#include <pthread.h>
+
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -44,8 +47,8 @@ class Sandbox2Backend {
 
   virtual ~Sandbox2Backend();
 
-  Sandbox2Backend(Sandbox2Backend&&) = default;
-  Sandbox2Backend& operator=(Sandbox2Backend&&) = default;
+  Sandbox2Backend(Sandbox2Backend&&);
+  Sandbox2Backend& operator=(Sandbox2Backend&&);
 
   // Initializes a new sandboxing session.
   absl::Status Init();
@@ -58,7 +61,7 @@ class Sandbox2Backend {
 
   sandbox2::Comms* comms() const { return comms_; }
 
-  RPCChannel* rpc_channel() const { return rpc_channel_.get(); }
+  RPCChannel* rpc_channel() const;
 
   // Waits until the sandbox terminated and returns the result.
   absl::Status AwaitExitStatus() { return AwaitSandbox2Result().ToStatus(); }
@@ -72,6 +75,7 @@ class Sandbox2Backend {
 
  private:
   friend class SandboxBase;
+  friend class Sandbox2BackendPeer;
 
   // Provides a custom notifier for sandboxee events. May return nullptr.
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier();
@@ -87,6 +91,7 @@ class Sandbox2Backend {
   const ForkClientContext& fork_client_context() const {
     return config_.sandbox2.fork_client_context.value();
   }
+
   ForkClientContext::SharedState& fork_client_shared() const {
     return *fork_client_context().shared_;
   }
@@ -113,6 +118,16 @@ class Sandbox2Backend {
   std::unique_ptr<RPCChannel> rpc_channel_;
   // The main pid of the sandboxee.
   pid_t pid_ = 0;
+
+  // If multithreading is enabled, we will spawn a new Thread in the sandboxee
+  // for each thread in the caller with a dedicated comms channel.
+  bool multithreading_enabled_ = false;
+
+  // Used for testing.
+  size_t NumThreadLocalChannels() const;
+
+  class ThreadLocalChannelsState;
+  std::unique_ptr<ThreadLocalChannelsState> thread_local_state_;
 };
 
 }  // namespace sapi

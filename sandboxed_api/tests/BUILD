@@ -44,6 +44,7 @@ cc_test(
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@google_benchmark//:benchmark",

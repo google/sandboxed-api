@@ -14,16 +14,26 @@
 
 #include "sandboxed_api/sandbox2_backend.h"
 
+#include <pthread.h>
 #include <sys/mman.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
+#include "absl/base/attributes.h"
+#include "absl/base/const_init.h"
+#include "absl/base/no_destructor.h"
+#include "absl/base/thread_annotations.h"
+#include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -33,6 +43,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/embed_file.h"
+#include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
@@ -49,13 +60,94 @@
 
 namespace sapi {
 
+class Sandbox2Backend::ThreadLocalChannelsState {
+ public:
+  ThreadLocalChannelsState() {
+    absl::MutexLock lock(registry_mutex);
+    GetBackendRegistry().insert(this);
+  }
+
+  ThreadLocalChannelsState(ThreadLocalChannelsState&&) = delete;
+  ThreadLocalChannelsState& operator=(ThreadLocalChannelsState&&) = delete;
+
+  ~ThreadLocalChannelsState() {
+    absl::MutexLock lock(registry_mutex);
+    GetBackendRegistry().erase(this);
+  }
+
+  void RemoveThreadLocalData(pthread_t tid) {
+    absl::MutexLock lock(mutex);
+    channels.erase(tid);
+  }
+
+  std::optional<RPCChannel*> GetChannel(pthread_t tid) const {
+    absl::MutexLock lock(mutex);
+    auto it = channels.find(tid);
+    if (it != channels.end()) {
+      return it->second.get();
+    }
+    return std::nullopt;
+  }
+
+  RPCChannel* StoreChannel(pthread_t tid, std::unique_ptr<RPCChannel> channel) {
+    absl::MutexLock lock(mutex);
+    RPCChannel* channel_ptr = channel.get();
+    channels[tid] = std::move(channel);
+    return channel_ptr;
+  }
+
+  size_t size() const {
+    absl::MutexLock lock(mutex);
+    return channels.size();
+  }
+
+  static void OnThreadExit() {
+    pthread_t tid = pthread_self();
+    absl::MutexLock lock(registry_mutex);
+    for (ThreadLocalChannelsState* state : GetBackendRegistry()) {
+      state->RemoveThreadLocalData(tid);
+    }
+  }
+
+ private:
+  // To clean up thread local channels, we keep a global registry of all
+  // backends, so that we can iterate over them when a thread exits.
+  static absl::Mutex registry_mutex;
+  static absl::flat_hash_set<ThreadLocalChannelsState*>& GetBackendRegistry()
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_mutex);
+
+  // If multithreading is enabled, we want to keep a thread local comms channel
+  // for this Sandbox2Backend instance. Since C++ doesn't have thread local
+  // member variables, we emulate it with a map indexed by thread id.
+  mutable absl::Mutex mutex;
+  absl::flat_hash_map<pthread_t, std::unique_ptr<RPCChannel>> channels
+      ABSL_GUARDED_BY(mutex);
+};
+
+ABSL_CONST_INIT absl::Mutex
+    Sandbox2Backend::ThreadLocalChannelsState::registry_mutex(absl::kConstInit);
+
+absl::flat_hash_set<Sandbox2Backend::ThreadLocalChannelsState*>&
+Sandbox2Backend::ThreadLocalChannelsState::GetBackendRegistry() {
+  static absl::NoDestructor<absl::flat_hash_set<ThreadLocalChannelsState*>>
+      registry;
+  return *registry;
+}
+
 Sandbox2Backend::Sandbox2Backend(
     SandboxConfig config,
     absl::AnyInvocable<std::unique_ptr<sandbox2::Notify>()> create_notifier_cb)
     : config_(std::move(config)),
-      create_notifier_cb_(std::move(create_notifier_cb)) {
+      create_notifier_cb_(std::move(create_notifier_cb)),
+      multithreading_enabled_(config_.sandbox2.enable_multithreading) {
   CHECK(config_.sandbox2.fork_client_context.has_value());
+  if (multithreading_enabled_) {
+    thread_local_state_ = std::make_unique<ThreadLocalChannelsState>();
+  }
 }
+
+Sandbox2Backend::Sandbox2Backend(Sandbox2Backend&& other) = default;
+Sandbox2Backend& Sandbox2Backend::operator=(Sandbox2Backend&& other) = default;
 
 Sandbox2Backend::~Sandbox2Backend() {
   Terminate();
@@ -197,6 +289,12 @@ absl::Status Sandbox2Backend::Init() {
     if (config_.sandbox2.use_unotify_monitor) {
       policy_builder.CollectStacktracesOnSignal(false);
     }
+    if (config_.sandbox2.enable_multithreading) {
+      policy_builder.AllowFork();
+      policy_builder.AllowSyscall(__NR_set_robust_list);
+      policy_builder.AllowMmapWithoutExec();
+      policy_builder.AllowMprotectWithoutExec();
+    }
     s2p = policy_builder.BuildOrDie();
   }
 
@@ -285,6 +383,37 @@ absl::Status Sandbox2Backend::SetWallTimeLimit(absl::Duration limit) const {
   }
   s2_->set_walltime_limit(limit);
   return absl::OkStatus();
+}
+
+RPCChannel* Sandbox2Backend::rpc_channel() const {
+  if (!multithreading_enabled_) {
+    return rpc_channel_.get();
+  }
+
+  static thread_local absl::Cleanup cleanup(
+      [] { ThreadLocalChannelsState::OnThreadExit(); });
+
+  pthread_t tid = pthread_self();
+  std::optional<RPCChannel*> channel = thread_local_state_->GetChannel(tid);
+  if (channel.has_value()) {
+    return channel.value();
+  }
+
+  ABSL_ASSIGN_OR_RETURN(
+      std::unique_ptr<RPCChannel> new_channel, rpc_channel_->SpawnThread(),
+      _.With([](absl::Status status) {
+        LOG(ERROR) << "Failed to create thread channel: " << status;
+        return nullptr;
+      }));
+
+  return thread_local_state_->StoreChannel(tid, std::move(new_channel));
+}
+
+size_t Sandbox2Backend::NumThreadLocalChannels() const {
+  if (!thread_local_state_) {
+    return 0;
+  }
+  return thread_local_state_->size();
 }
 
 }  // namespace sapi

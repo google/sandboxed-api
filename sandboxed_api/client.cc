@@ -22,6 +22,7 @@
 #include <cstring>
 #include <iterator>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
 #include <type_traits>
 #include <vector>
 
@@ -43,7 +44,7 @@ namespace sapi {
 
 namespace client {
 
-sandbox2::Comms* g_comms = nullptr;
+thread_local sandbox2::Comms* g_comms = nullptr;
 
 // These functions are defined as weak so they can be overridden by the strong
 // symbols generated in the SAPI stub (sandboxee.cc). This breaks the circular
@@ -51,9 +52,13 @@ sandbox2::Comms* g_comms = nullptr;
 ABSL_ATTRIBUTE_WEAK void HandleCallMsg(const FuncCall& call, FuncRet* ret) {
   LOG(FATAL) << "HandleCallMsg not implemented (stub not linked?)";
 }
+
 ABSL_ATTRIBUTE_WEAK void HandleSymbolMsg(const char* symname, FuncRet* ret) {
   LOG(FATAL) << "HandleSymbolMsg not implemented (stub not linked?)";
 }
+
+FuncRet ProcessRequest(sandbox2::Comms* comms, uint32_t tag,
+                       const std::vector<uint8_t>& bytes);
 
 // Handles requests to allocate memory inside the sandboxee.
 void HandleAllocMsg(const size_t size, FuncRet* ret) {
@@ -148,6 +153,42 @@ static T BytesAs(const std::vector<uint8_t>& bytes) {
   return rv;
 }
 
+void HandleSpawnThread(sandbox2::Comms* comms, FuncRet* ret) {
+  ret->ret_type = v::Type::kVoid;
+  int fd = -1;
+
+  if (!comms->RecvFD(&fd)) {
+    ret->success = false;
+    return;
+  }
+
+  std::thread t([fd]() {
+    sandbox2::Comms thread_comms(fd);
+    sapi::client::g_comms = &thread_comms;
+    uint32_t tag;
+    std::vector<uint8_t> bytes;
+    if (!thread_comms.RecvTLV(&tag, &bytes)) {
+      return;
+    }
+
+    while (true) {
+      sapi::FuncRet thread_ret =
+          sapi::client::ProcessRequest(&thread_comms, tag, bytes);
+      if (!thread_comms.ExchangeTLV(
+              sapi::comms::kMsgReturn,
+              absl::MakeSpan(reinterpret_cast<const uint8_t*>(&thread_ret),
+                             sizeof(thread_ret)),
+              &tag, &bytes)) {
+        break;
+      }
+    }
+    sapi::client::g_comms = nullptr;
+  });
+  t.detach();
+
+  ret->success = true;
+}
+
 FuncRet ProcessRequest(sandbox2::Comms* comms, uint32_t tag,
                        const std::vector<uint8_t>& bytes) {
   FuncRet ret{};  // Brace-init zeroes struct padding
@@ -205,6 +246,10 @@ FuncRet ProcessRequest(sandbox2::Comms* comms, uint32_t tag,
         auto req = BytesAs<comms::ReallocRequest>(bytes);
         HandleMarkMemoryInit(req.old_addr, req.size, &ret);
       }
+      break;
+    case comms::kMsgSpawnThread:
+      VLOG(1) << "Received Client::kMsgSpawnThread message";
+      HandleSpawnThread(comms, &ret);
       break;
     default:
       LOG(FATAL) << "Received unknown tag: " << tag;

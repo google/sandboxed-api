@@ -21,11 +21,13 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
+#include "sandboxed_api/rpcchannel.h"
 
 namespace sapi {
 
@@ -105,6 +107,11 @@ absl::Status PassthroughRPCChannel::RecvFD(int remote_fd, int* local_fd) {
 absl::Status PassthroughRPCChannel::Close(int remote_fd) {
   close(remote_fd);
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<RPCChannel>>
+PassthroughRPCChannel::SpawnThread() {
+  return absl::UnimplementedError("PassthroughRPCChannel::SpawnThread");
 }
 
 absl::StatusOr<size_t> PassthroughRPCChannel::Strlen(void* str) {

@@ -86,6 +86,13 @@ struct Sandbox2Config {
   bool use_unotify_monitor = false;
   bool enable_log_server = false;
   bool enable_shared_memory_comms = false;
+  // If true, we will spawn a new Thread in the sandboxee for each thread in the
+  // host that makes a call to the sandbox.
+  // WARNING: Reusing the same sandbox instance (sequentially or concurrently)
+  // has security implications. A successful sandboxee exploit might allow
+  // attacker to read/write data from/to other threads using the same sandbox
+  // instance.
+  bool enable_multithreading = false;
   std::optional<std::string> cwd;
   std::optional<sandbox2::Limits> limits;
 

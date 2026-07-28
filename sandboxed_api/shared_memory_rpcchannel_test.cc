@@ -164,6 +164,8 @@ class MockRPCChannel : public RPCChannel {
   MOCK_METHOD(absl::Status, SendFD, (int local_fd, int* remote_fd), (override));
   MOCK_METHOD(absl::Status, RecvFD, (int remote_fd, int* local_fd), (override));
   MOCK_METHOD(absl::Status, Close, (int remote_fd), (override));
+  MOCK_METHOD(absl::StatusOr<std::unique_ptr<RPCChannel>>, SpawnThread, (),
+              (override));
   MOCK_METHOD(absl::Status, Call,
               (const FuncCall& call, uint32_t tag, FuncRet* ret,
                v::Type exp_type),

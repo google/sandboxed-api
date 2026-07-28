@@ -129,8 +129,11 @@ add_library(sapi::sandbox2_backend ALIAS sapi_sandbox2_backend)
 target_link_libraries(sapi_sandbox2_backend
   PRIVATE absl::any_invocable
           absl::core_headers
+          absl::flat_hash_map
+          absl::flat_hash_set
           absl::log
           absl::log_globals
+          absl::no_destructor
           absl::status
           absl::status_macros
           absl::statusor
@@ -143,6 +146,7 @@ target_link_libraries(sapi_sandbox2_backend
           sapi::config
           sapi::embed_file
           sapi::file_base
+          sapi::fileops
           sapi::runfiles
           sapi::rpcchannel
           sapi::sandbox_config
@@ -175,6 +179,7 @@ target_link_libraries(sapi_sapi
           absl::cleanup
           absl::dynamic_annotations
           absl::flat_hash_map
+          absl::flat_hash_set
           absl::log
           absl::log_globals
           absl::span

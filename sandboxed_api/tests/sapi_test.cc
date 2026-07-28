@@ -33,6 +33,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -56,6 +57,14 @@
 #include "sandboxed_api/var_struct.h"
 
 namespace sapi {
+
+class Sandbox2BackendPeer {
+ public:
+  static size_t NumThreadLocalChannels(const Sandbox2Backend& backend) {
+    return backend.NumThreadLocalChannels();
+  }
+};
+
 namespace {
 
 using ::absl_testing::IsOk;
@@ -623,6 +632,120 @@ TEST_P(SandboxTest, CompareSelfSymbol) {
   EXPECT_THAT(symbol, NotNull());
   sapi::v::RemotePtr remote_symbol(symbol);
   EXPECT_THAT(api.compare_self_symbol(&remote_symbol), IsOkAndHolds(true));
+}
+
+TEST_P(SandboxTest, MultithreadedSum) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = true;
+  SumSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
+
+  constexpr int kNumThreads = 10;
+  constexpr int kNumIterations = 100;
+  std::vector<sapi::Thread> threads;
+  threads.reserve(kNumThreads);
+
+  for (int t = 0; t < kNumThreads; ++t) {
+    threads.emplace_back([&api, t]() {
+      for (int i = 0; i < kNumIterations; ++i) {
+        auto res = api.sum(t, i);
+        ASSERT_THAT(res.status(), IsOk());
+        EXPECT_EQ(*res, t + i);
+      }
+    });
+  }
+
+  for (auto& t : threads) {
+    t.Join();
+  }
+}
+
+TEST_P(SandboxTest, ParallelCalls) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = true;
+  SumSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+
+  constexpr int kNumThreads = 10;
+  std::vector<sapi::Thread> threads;
+  threads.reserve(kNumThreads);
+
+  absl::Time start = absl::Now();
+
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back([&sandbox]() {
+      SumApi api(&sandbox);
+      EXPECT_THAT(api.sleep_for_sec(1), IsOk());
+    });
+  }
+
+  for (auto& t : threads) {
+    t.Join();
+  }
+
+  absl::Duration elapsed = absl::Now() - start;
+  EXPECT_LT(elapsed, absl::Seconds(5));
+}
+
+TEST_P(SandboxTest, MultithreadedCallbacks) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = true;
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+
+  constexpr int kNumThreads = 10;
+  constexpr int kNumIterations = 100;
+  std::vector<sapi::Thread> threads;
+  threads.reserve(kNumThreads);
+
+  for (int t = 0; t < kNumThreads; ++t) {
+    threads.emplace_back([&sandbox, t]() {
+      SapiTestApi api(&sandbox);
+      auto host_cb = [t](int a, int b) -> int { return a + b + t; };
+      sapi::v::Callback cb(host_cb);
+      for (int i = 0; i < kNumIterations; ++i) {
+        auto res = api.call_callback(cb.PtrBefore(), t, i);
+        ASSERT_THAT(res.status(), IsOk());
+        EXPECT_EQ(*res, t + i + t);
+      }
+    });
+  }
+
+  for (auto& t : threads) {
+    t.Join();
+  }
+}
+
+TEST_P(SandboxTest, MultithreadingCleanup) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = true;
+  SumSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
+
+  EXPECT_EQ(Sandbox2BackendPeer::NumThreadLocalChannels(sandbox.backend()), 0);
+
+  absl::Notification thread_started;
+  absl::Notification thread_can_exit;
+
+  sapi::Thread thread([&api, &thread_started, &thread_can_exit]() {
+    auto res = api.sum(1, 2);
+    ASSERT_THAT(res.status(), IsOk());
+    EXPECT_EQ(*res, 3);
+    thread_started.Notify();
+    thread_can_exit.WaitForNotification();
+  });
+
+  thread_started.WaitForNotification();
+  // The thread has made a call, so it should have a channel.
+  EXPECT_EQ(Sandbox2BackendPeer::NumThreadLocalChannels(sandbox.backend()), 1);
+
+  thread_can_exit.Notify();
+  thread.Join();
+
+  // After join, the thread has exited, so the channel should be cleaned up.
+  EXPECT_EQ(Sandbox2BackendPeer::NumThreadLocalChannels(sandbox.backend()), 0);
 }
 
 INSTANTIATE_TEST_SUITE_P(SAPI, SandboxTest, ::testing::Values(false, true),

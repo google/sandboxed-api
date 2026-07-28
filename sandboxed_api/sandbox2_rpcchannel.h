@@ -18,6 +18,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
@@ -82,6 +84,9 @@ class Sandbox2RPCChannel : public RPCChannel {
   // Closes fd in sandboxee.
   absl::Status Close(int remote_fd) override;
 
+  // Spawns a new thread in the sandboxee and returns a new RPCChannel for it.
+  absl::StatusOr<std::unique_ptr<RPCChannel>> SpawnThread() override;
+
   // Returns length of a null-terminated c-style string (invokes strlen).
   absl::StatusOr<size_t> Strlen(void* str) override;
 
@@ -95,6 +100,9 @@ class Sandbox2RPCChannel : public RPCChannel {
  private:
   static constexpr size_t kMaxCallbacks = 64;
   static constexpr size_t kTrampolineSize = 16;
+
+  explicit Sandbox2RPCChannel(std::unique_ptr<sandbox2::Comms> comms, pid_t pid)
+      : owned_comms_(std::move(comms)), comms_(owned_comms_.get()), pid_(pid) {}
 
   // Marks the memory as initialized (used with MSAN).
   absl::Status MarkMemoryInit(void* addr, size_t size);
@@ -111,6 +119,7 @@ class Sandbox2RPCChannel : public RPCChannel {
   // SendFD/RecvFD).
   absl::StatusOr<FuncRet> Return(v::Type exp_type);
 
+  std::unique_ptr<sandbox2::Comms> owned_comms_;
   sandbox2::Comms* comms_;  // Owned by sandbox2;
   // The pid of the sandboxee.
   pid_t pid_;
