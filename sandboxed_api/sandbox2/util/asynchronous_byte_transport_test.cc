@@ -41,6 +41,7 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/thread.h"
 
+namespace sandbox2 {
 namespace {
 
 using ::absl_testing::StatusIs;
@@ -420,11 +421,12 @@ TEST_P(AsynchronousByteTransportTest,
 INSTANTIATE_TEST_SUITE_P(
     AsynchronousByteTransportTest, AsynchronousByteTransportTest,
     ::testing::Values(
-        sandbox2::AsynchronousByteTransport::kFutex),
+        AsynchronousByteTransport::SynchronizationType::kFutex),
     [](const ::testing::TestParamInfo<
-        sandbox2::AsynchronousByteTransport::SynchronizationType>& info) {
+        AsynchronousByteTransport::SynchronizationType>& info) {
       switch (info.param) {
-        case sandbox2::AsynchronousByteTransport::kFutex:
+        using enum AsynchronousByteTransport::SynchronizationType;
+        case kFutex:
           return "Futex";
         default:
           return "Invalid";
@@ -432,3 +434,4 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 }  // namespace
+}  // namespace sandbox2

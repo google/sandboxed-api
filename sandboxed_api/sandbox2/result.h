@@ -94,10 +94,18 @@ class Result {
   };
 
   Result() = default;
+
   Result(const Result& other) { *this = other; }
   Result& operator=(const Result& other);
+
   Result(Result&&) = default;
   Result& operator=(Result&&) = default;
+
+  // Converts StatusEnum to a string.
+  static std::string StatusEnumToString(StatusEnum value);
+
+  // Converts ReasonCodeEnum to a string.
+  static std::string ReasonCodeEnumToString(ReasonCodeEnum value);
 
   void IgnoreResult() const {}
 
@@ -178,12 +186,6 @@ class Result {
 
   // Returns a descriptive string for final result.
   std::string ToString() const;
-
-  // Converts StatusEnum to a string.
-  static std::string StatusEnumToString(StatusEnum value);
-
-  // Converts ReasonCodeEnum to a string.
-  static std::string ReasonCodeEnumToString(ReasonCodeEnum value);
 
   rusage* GetRUsageMonitor() { return &rusage_monitor_; }
 

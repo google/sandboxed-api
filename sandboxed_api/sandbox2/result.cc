@@ -56,6 +56,88 @@ Result& Result::operator=(const Result& other) {
   return *this;
 }
 
+std::string Result::StatusEnumToString(StatusEnum value) {
+  switch (value) {
+    case UNSET:
+      return "UNSET";
+    case OK:
+      return "OK";
+    case SETUP_ERROR:
+      return "SETUP_ERROR";
+    case VIOLATION:
+      return "VIOLATION";
+    case SIGNALED:
+      return "SIGNALED";
+    case TIMEOUT:
+      return "TIMEOUT";
+    case EXTERNAL_KILL:
+      return "EXTERNAL_KILL";
+    case INTERNAL_ERROR:
+      return "INTERNAL_ERROR";
+  }
+  return "UNKNOWN";
+}
+
+std::string Result::ReasonCodeEnumToString(ReasonCodeEnum value) {
+  switch (value) {
+    case UNSUPPORTED_ARCH:
+      return "UNSUPPORTED_ARCH";
+    case FAILED_TIMERS:
+      return "FAILED_TIMERS";
+    case FAILED_SIGNALS:
+      return "FAILED_SIGNALS";
+    case FAILED_SUBPROCESS:
+      return "FAILED_SUBPROCESS";
+    case FAILED_NOTIFY:
+      return "FAILED_NOTIFY";
+    case FAILED_CONNECTION:
+      return "FAILED_CONNECTION";
+    case FAILED_WAIT:
+      return "FAILED_WAIT";
+    case FAILED_NAMESPACES:
+      return "FAILED_NAMESPACES";
+    case FAILED_PTRACE:
+      return "FAILED_PTRACE";
+    case FAILED_IPC:
+      return "FAILED_IPC";
+    case FAILED_LIMITS:
+      return "FAILED_LIMITS";
+    case FAILED_CWD:
+      return "FAILED_CWD";
+    case FAILED_POLICY:
+      return "FAILED_POLICY";
+    case FAILED_VERSION_CHECK:
+      return "FAILED_VERSION_CHECK";
+    case FAILED_STORE:
+      return "FAILED_STORE";
+    case FAILED_FETCH:
+      return "FAILED_FETCH";
+    case FAILED_GETEVENT:
+      return "FAILED_GETEVENT";
+    case FAILED_MONITOR:
+      return "FAILED_MONITOR";
+    case FAILED_KILL:
+      return "FAILED_KILL";
+    case FAILED_INTERRUPT:
+      return "FAILED_INTERRUPT";
+    case FAILED_CHILD:
+      return "FAILED_CHILD";
+    case FAILED_INSPECT:
+      return "FAILED_INSPECT";
+    case VIOLATION_SYSCALL:
+      return "VIOLATION_SYSCALL";
+    case VIOLATION_ARCH:
+      return "VIOLATION_ARCH";
+    case VIOLATION_NETWORK:
+      return "VIOLATION_NETWORK";
+    case FAILED_COMMS_UPGRADE:
+      return "FAILED_COMMS_UPGRADE";
+    case FAILED_CONFIG:
+      return "FAILED_CONFIG";
+  }
+  return absl::StrCat("UNKNOWN: ", value);
+}
+
 std::string Result::GetStackTrace() const {
   if (!thread_stack_traces_.empty()) {
     std::vector<std::string> res;
@@ -87,42 +169,42 @@ absl::Status Result::ToStatus() const {
 std::string Result::ToString() const {
   std::string result;
   switch (final_status()) {
-    case sandbox2::Result::UNSET:
+    case UNSET:
       result = absl::StrCat("UNSET - Code: ", reason_code());
       break;
-    case sandbox2::Result::OK:
+    case OK:
       result = absl::StrCat("OK - Exit code: ", reason_code());
       break;
-    case sandbox2::Result::SETUP_ERROR:
+    case SETUP_ERROR:
       result = absl::StrCat(
           "SETUP_ERROR - Code: ",
           ReasonCodeEnumToString(static_cast<ReasonCodeEnum>(reason_code())));
       break;
-    case sandbox2::Result::VIOLATION:
+    case VIOLATION:
       if (syscall_) {
         result = absl::StrCat("SYSCALL VIOLATION - Violating Syscall ",
                               syscall_->GetDescription(),
                               " Stack: ", GetStackTrace());
-      } else if (reason_code() == sandbox2::Result::VIOLATION_NETWORK) {
+      } else if (reason_code() == VIOLATION_NETWORK) {
         result = absl::StrCat("NETWORK VIOLATION: ", GetNetworkViolation());
       } else {
         result = "SYSCALL VIOLATION - Unknown Violation";
       }
       break;
-    case sandbox2::Result::SIGNALED:
+    case SIGNALED:
       result = absl::StrCat("Process terminated with a SIGNAL - Signal: ",
                             util::GetSignalName(reason_code()),
                             " Stack: ", GetStackTrace());
       break;
-    case sandbox2::Result::TIMEOUT:
+    case TIMEOUT:
       result = absl::StrCat("Process TIMEOUT - Code: ", reason_code(),
                             " Stack: ", GetStackTrace());
       break;
-    case sandbox2::Result::EXTERNAL_KILL:
+    case EXTERNAL_KILL:
       result = absl::StrCat("Process killed by user - Code: ", reason_code(),
                             " Stack: ", GetStackTrace());
       break;
-    case sandbox2::Result::INTERNAL_ERROR:
+    case INTERNAL_ERROR:
       result = absl::StrCat(
           "INTERNAL_ERROR - Code: ",
           ReasonCodeEnumToString(static_cast<ReasonCodeEnum>(reason_code())));
@@ -146,88 +228,6 @@ std::string Result::ToString() const {
     }
   }
   return result;
-}
-
-std::string Result::StatusEnumToString(StatusEnum value) {
-  switch (value) {
-    case sandbox2::Result::UNSET:
-      return "UNSET";
-    case sandbox2::Result::OK:
-      return "OK";
-    case sandbox2::Result::SETUP_ERROR:
-      return "SETUP_ERROR";
-    case sandbox2::Result::VIOLATION:
-      return "VIOLATION";
-    case sandbox2::Result::SIGNALED:
-      return "SIGNALED";
-    case sandbox2::Result::TIMEOUT:
-      return "TIMEOUT";
-    case sandbox2::Result::EXTERNAL_KILL:
-      return "EXTERNAL_KILL";
-    case sandbox2::Result::INTERNAL_ERROR:
-      return "INTERNAL_ERROR";
-  }
-  return "UNKNOWN";
-}
-
-std::string Result::ReasonCodeEnumToString(ReasonCodeEnum value) {
-  switch (value) {
-    case sandbox2::Result::UNSUPPORTED_ARCH:
-      return "UNSUPPORTED_ARCH";
-    case sandbox2::Result::FAILED_TIMERS:
-      return "FAILED_TIMERS";
-    case sandbox2::Result::FAILED_SIGNALS:
-      return "FAILED_SIGNALS";
-    case sandbox2::Result::FAILED_SUBPROCESS:
-      return "FAILED_SUBPROCESS";
-    case sandbox2::Result::FAILED_NOTIFY:
-      return "FAILED_NOTIFY";
-    case sandbox2::Result::FAILED_CONNECTION:
-      return "FAILED_CONNECTION";
-    case sandbox2::Result::FAILED_WAIT:
-      return "FAILED_WAIT";
-    case sandbox2::Result::FAILED_NAMESPACES:
-      return "FAILED_NAMESPACES";
-    case sandbox2::Result::FAILED_PTRACE:
-      return "FAILED_PTRACE";
-    case sandbox2::Result::FAILED_IPC:
-      return "FAILED_IPC";
-    case sandbox2::Result::FAILED_LIMITS:
-      return "FAILED_LIMITS";
-    case sandbox2::Result::FAILED_CWD:
-      return "FAILED_CWD";
-    case sandbox2::Result::FAILED_POLICY:
-      return "FAILED_POLICY";
-    case sandbox2::Result::FAILED_VERSION_CHECK:
-      return "FAILED_VERSION_CHECK";
-    case sandbox2::Result::FAILED_STORE:
-      return "FAILED_STORE";
-    case sandbox2::Result::FAILED_FETCH:
-      return "FAILED_FETCH";
-    case sandbox2::Result::FAILED_GETEVENT:
-      return "FAILED_GETEVENT";
-    case sandbox2::Result::FAILED_MONITOR:
-      return "FAILED_MONITOR";
-    case sandbox2::Result::FAILED_KILL:
-      return "FAILED_KILL";
-    case sandbox2::Result::FAILED_INTERRUPT:
-      return "FAILED_INTERRUPT";
-    case sandbox2::Result::FAILED_CHILD:
-      return "FAILED_CHILD";
-    case sandbox2::Result::FAILED_INSPECT:
-      return "FAILED_INSPECT";
-    case sandbox2::Result::VIOLATION_SYSCALL:
-      return "VIOLATION_SYSCALL";
-    case sandbox2::Result::VIOLATION_ARCH:
-      return "VIOLATION_ARCH";
-    case sandbox2::Result::VIOLATION_NETWORK:
-      return "VIOLATION_NETWORK";
-    case sandbox2::Result::FAILED_COMMS_UPGRADE:
-      return "FAILED_COMMS_UPGRADE";
-    case sandbox2::Result::FAILED_CONFIG:
-      return "FAILED_CONFIG";
-  }
-  return absl::StrCat("UNKNOWN: ", value);
 }
 
 }  // namespace sandbox2

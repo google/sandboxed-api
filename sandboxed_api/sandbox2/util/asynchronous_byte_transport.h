@@ -66,7 +66,7 @@ namespace sandbox2 {
 // ```
 class AsynchronousByteTransport {
  public:
-  enum SynchronizationType {
+  enum class SynchronizationType {
     kInvalid,
     kFutex,
   };
@@ -80,8 +80,9 @@ class AsynchronousByteTransport {
   // `kFutex` will be used as the default synchronization type. If the buffer is
   // too small, returns an error.
   static absl::StatusOr<std::unique_ptr<AsynchronousByteTransport>>
-  CreateHostSide(std::unique_ptr<sandbox2::Buffer> buffer,
-                 SynchronizationType synchronization_type = kFutex);
+  CreateHostSide(
+      std::unique_ptr<sandbox2::Buffer> buffer,
+      SynchronizationType synchronization_type = SynchronizationType::kFutex);
 
   // Creates the sandboxee side of the transport. There should only be one host
   // side and one sandboxee side. If the buffer is too small, returns an error.
