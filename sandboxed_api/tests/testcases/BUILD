@@ -145,9 +145,6 @@ cc_sandboxed_library(
         "replaced_library_callbacks.h",
     ],
     annotations = ["lwbox_callbacks_sandbox.cc"],
-    sandboxee_deps = [
-        "//sandboxed_api:vars",
-    ],
     deps = [
         "//sandboxed_api:annotations",
     ],

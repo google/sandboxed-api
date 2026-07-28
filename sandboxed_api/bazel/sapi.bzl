@@ -625,6 +625,7 @@ def cc_sandboxed_library(
         deps = [
             "_unsandboxed_" + name,
             "//sandboxed_api:lenval_core",
+            "//sandboxed_api:vars",
             "@abseil-cpp//absl/base:core_headers",
             "@abseil-cpp//absl/container:node_hash_map",
             "@abseil-cpp//absl/synchronization:synchronization",
