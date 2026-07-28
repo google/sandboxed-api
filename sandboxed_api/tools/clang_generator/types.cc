@@ -146,11 +146,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
   // - Nested types are skipped and the enclosing type is collected which is
   //   enough to reconstruct the AST when emitting the SAPI header.
   if (const auto* record_type = qual->getAs<clang::RecordType>()) {
-#if LLVM_VERSION_MAJOR >= 22
     const clang::RecordDecl* decl = record_type->getDecl();
-#else
-    const clang::RecordDecl* decl = record_type->getDecl();
-#endif
     const clang::RecordDecl* definition = decl->getDefinition();
     decl = definition ? definition : decl;
     if (!IsProtoBuf(decl)) {
@@ -221,11 +217,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     qual = qual.getCanonicalType();
 #endif
     if (const clang::EnumType* enum_type = qual->getAs<clang::EnumType>()) {
-#if LLVM_VERSION_MAJOR >= 22
       const clang::EnumDecl* decl = enum_type->getDecl();
-#else
-      const clang::EnumDecl* decl = enum_type->getDecl();
-#endif
       if (decl->isFixed()) {
         CollectRelatedTypes(decl->getIntegerType());
       }
@@ -434,11 +426,7 @@ std::string TypeMapper::MapQualType(clang::QualType qual) const {
         break;
     }
   } else if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
-#if LLVM_VERSION_MAJOR >= 22
     clang::EnumDecl* enum_decl = enum_type->getDecl();
-#else
-    clang::EnumDecl* enum_decl = enum_type->getDecl();
-#endif
     if (auto* typedef_decl = enum_decl->getTypedefNameForAnonDecl()) {
 #if LLVM_VERSION_MAJOR >= 22
       qual = context_.getTypedefType(clang::ElaboratedTypeKeyword::None,
