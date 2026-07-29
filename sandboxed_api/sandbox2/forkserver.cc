@@ -162,6 +162,8 @@ pid_t ForkServer::ServeRequest() {
     pid_t pid = util::ForkWithFlags(SIGCHLD);
     SAPI_RAW_PCHECK(pid != -1, "fork failed");
     if (pid == 0) {
+      // Make sure we don't use the forkserver's comms in the forked process.
+      comms_->Terminate();
       HandleInitializeRequest(fork_request, std::move(setup_comms));
     }
     return pid;
