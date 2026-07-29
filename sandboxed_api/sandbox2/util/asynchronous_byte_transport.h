@@ -143,11 +143,9 @@ class AsynchronousByteTransport {
                             ClientType client_type,
                             SynchronizationType synchronization_type);
 
-  const Header* GetHeader() const;
+  Header* header();
 
-  Header* GetHeader();
-
-  size_t GetDataSize() const;
+  size_t data_size() const;
 
   absl::Status Write(absl::Span<const uint8_t> data,
                      bool will_then_read = false);
@@ -170,9 +168,8 @@ class AsynchronousByteTransport {
                        ChannelHeader* read_channel);
 
   uint32_t& GetReadIndex() {
-    return client_type_ == ClientType::kHost
-               ? read_index_
-               : GetHeader()->sandboxee_read_index;
+    return client_type_ == ClientType::kHost ? read_index_
+                                             : header()->sandboxee_read_index;
   }
 
   std::unique_ptr<sandbox2::Buffer> buffer_;

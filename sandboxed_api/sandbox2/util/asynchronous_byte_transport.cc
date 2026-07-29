@@ -194,37 +194,31 @@ AsynchronousByteTransport::AsynchronousByteTransport(
       client_type_(client_type),
       synchronization_type_(client_type_ == ClientType::kHost
                                 ? synchronization_type
-                                : GetHeader()->synchronization_type),
-      write_channel_(client_type_ == ClientType::kHost ? &GetHeader()->h2s
-                                                       : &GetHeader()->s2h),
-      write_data_(client_type_ == ClientType::kHost
-                      ? absl::MakeSpan(GetHeader()->data, GetDataSize())
-                      : absl::MakeSpan(GetHeader()->data + GetDataSize(),
-                                       GetDataSize())),
-      read_channel_(client_type_ == ClientType::kHost ? &GetHeader()->s2h
-                                                      : &GetHeader()->h2s),
-      read_data_(
+                                : header()->synchronization_type),
+      write_channel_(client_type_ == ClientType::kHost ? &header()->h2s
+                                                       : &header()->s2h),
+      write_data_(
           client_type_ == ClientType::kHost
-              ? absl::MakeSpan(GetHeader()->data + GetDataSize(), GetDataSize())
-              : absl::MakeSpan(GetHeader()->data, GetDataSize())) {
+              ? absl::MakeSpan(header()->data, data_size())
+              : absl::MakeSpan(header()->data + data_size(), data_size())),
+      read_channel_(client_type_ == ClientType::kHost ? &header()->s2h
+                                                      : &header()->h2s),
+      read_data_(client_type_ == ClientType::kHost
+                     ? absl::MakeSpan(header()->data + data_size(), data_size())
+                     : absl::MakeSpan(header()->data, data_size())) {
   if (client_type_ == ClientType::kHost) {
-    GetHeader()->h2s.state.store(0, std::memory_order_release);
-    GetHeader()->s2h.state.store(0, std::memory_order_release);
-    GetHeader()->synchronization_type = synchronization_type;
-    GetHeader()->sandboxee_read_index = 0;
+    header()->h2s.state.store(0, std::memory_order_release);
+    header()->s2h.state.store(0, std::memory_order_release);
+    header()->synchronization_type = synchronization_type;
+    header()->sandboxee_read_index = 0;
   }
 }
 
-const AsynchronousByteTransport::Header* AsynchronousByteTransport::GetHeader()
-    const {
-  return reinterpret_cast<const Header*>(buffer_->data());
-}
-
-AsynchronousByteTransport::Header* AsynchronousByteTransport::GetHeader() {
+AsynchronousByteTransport::Header* AsynchronousByteTransport::header() {
   return reinterpret_cast<Header*>(buffer_->data());
 }
 
-size_t AsynchronousByteTransport::GetDataSize() const {
+size_t AsynchronousByteTransport::data_size() const {
   return std::min(kUsableDataSize, (buffer_->size() - sizeof(Header)) / 2);
 }
 
@@ -244,11 +238,11 @@ absl::Status AsynchronousByteTransport::Write(absl::Span<const uint8_t> data,
     }
     uint32_t write_index = state & kWriteIndexMask;
 
-    if (write_index > GetDataSize()) {
+    if (write_index > data_size()) {
       return absl::AbortedError("Write index out of bounds");
     }
 
-    if (chunk.size() > GetDataSize() - write_index) {
+    if (chunk.size() > data_size() - write_index) {
       WaitForWriting(channel, state);
       continue;
     }
