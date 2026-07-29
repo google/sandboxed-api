@@ -53,14 +53,16 @@
 
 namespace sandbox2 {
 
+using ::sandbox2::sandbox_internal::SandboxPeer;
+
 class StackTraceTestPeer {
  public:
   static StackTraceTestPeer& GetInstance() {
     static auto* peer = new StackTraceTestPeer();
     return *peer;
   }
-  std::unique_ptr<internal::SandboxPeer> SpawnFn(
-      std::unique_ptr<Executor> executor, std::unique_ptr<Policy> policy) {
+  std::unique_ptr<SandboxPeer> SpawnFn(std::unique_ptr<Executor> executor,
+                                       std::unique_ptr<Policy> policy) {
     if (crash_unwind_) {
       policy = PolicyBuilder().CollectStacktracesOnSignal(false).BuildOrDie();
       crash_unwind_ = false;
@@ -68,17 +70,17 @@ class StackTraceTestPeer {
     return old_spawn_fn_(std::move(executor), std::move(policy));
   }
   void ReplaceSpawnFn() {
-    old_spawn_fn_ = internal::SandboxPeer::spawn_fn_;
-    internal::SandboxPeer::spawn_fn_ = +[](std::unique_ptr<Executor> executor,
-                                           std::unique_ptr<Policy> policy) {
+    old_spawn_fn_ = SandboxPeer::spawn_fn_;
+    SandboxPeer::spawn_fn_ = +[](std::unique_ptr<Executor> executor,
+                                 std::unique_ptr<Policy> policy) {
       return GetInstance().SpawnFn(std::move(executor), std::move(policy));
     };
   }
-  void RestoreSpawnFn() { internal::SandboxPeer::spawn_fn_ = old_spawn_fn_; }
+  void RestoreSpawnFn() { SandboxPeer::spawn_fn_ = old_spawn_fn_; }
   void CrashNextUnwind() { crash_unwind_ = true; }
 
  private:
-  internal::SandboxPeer::SpawnFn old_spawn_fn_;
+  SandboxPeer::SpawnFn old_spawn_fn_;
   bool crash_unwind_ = false;
 };
 

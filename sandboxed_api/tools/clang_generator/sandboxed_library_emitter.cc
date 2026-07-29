@@ -2106,7 +2106,7 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::Finalize(
     }
   }
   absl::StrAppend(&out, "\n", body, kCommonFooter);
-  return internal::ReformatGoogleStyle("input", out);
+  return ReformatGoogleStyle("input", out);
 }
 
 // Returns the annotations for a given decl in their order and strips the

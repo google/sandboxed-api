@@ -50,7 +50,7 @@ using ::testing::SetArgPointee;
 
 TEST(SharedMemoryAllocatorTest, BasicAllocation) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   SAPI_ASSERT_OK_AND_ASSIGN(void* remote_ptr, allocator.Allocate(1 << 4));
   ASSERT_NE(remote_ptr, nullptr);
   SAPI_ASSERT_OK_AND_ASSIGN(auto metadata,
@@ -60,14 +60,14 @@ TEST(SharedMemoryAllocatorTest, BasicAllocation) {
 
 TEST(SharedMemoryAllocatorTest, NotEnoughMemory) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   ASSERT_THAT(allocator.Allocate(2048),
               StatusIs(absl::StatusCode::kResourceExhausted));
 }
 
 TEST(SharedMemoryAllocatorTest, AllocateWholeMemory) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   SAPI_ASSERT_OK_AND_ASSIGN(void* remote_ptr,
                             allocator.Allocate(buffer.size()));
   ASSERT_NE(remote_ptr, nullptr);
@@ -75,7 +75,7 @@ TEST(SharedMemoryAllocatorTest, AllocateWholeMemory) {
 
 TEST(SharedMemoryAllocatorTest, AllocateThenNotEnoughMemory) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   ABSL_ASSERT_OK(allocator.Allocate(512));
   ASSERT_THAT(allocator.Allocate(520),
               StatusIs(absl::StatusCode::kResourceExhausted));
@@ -83,7 +83,7 @@ TEST(SharedMemoryAllocatorTest, AllocateThenNotEnoughMemory) {
 
 TEST(SharedMemoryAllocatorTest, FreeBlock) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr1, allocator.Allocate(512));
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr2, allocator.Allocate(256));
   ABSL_ASSERT_OK(allocator.Free(ptr1));
@@ -92,7 +92,7 @@ TEST(SharedMemoryAllocatorTest, FreeBlock) {
 
 TEST(SharedMemoryAllocatorTest, Reallocate) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr1, allocator.Allocate(256));
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr2, allocator.Allocate(8));
   SAPI_ASSERT_OK_AND_ASSIGN(void* new_ptr, allocator.Reallocate(ptr1, 272));
@@ -103,7 +103,7 @@ TEST(SharedMemoryAllocatorTest, Reallocate) {
 
 TEST(SharedMemoryAllocatorTest, InvalidFree) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr1, allocator.Allocate(512));
   ASSERT_THAT(allocator.Free(reinterpret_cast<uint8_t*>(ptr1) + 1),
               StatusIs(absl::StatusCode::kInvalidArgument));
@@ -111,7 +111,7 @@ TEST(SharedMemoryAllocatorTest, InvalidFree) {
 
 TEST(SharedMemoryAllocatorTest, ReallocateWithMerge) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr1,
                             allocator.Allocate((buffer.size() / 2) + 1));
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -122,7 +122,7 @@ TEST(SharedMemoryAllocatorTest, ReallocateWithMerge) {
 
 TEST(SharedMemoryAllocatorTest, FreeWillMergeBlocks) {
   std::vector<uint8_t> buffer(1024);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr1, allocator.Allocate(buffer.size() / 4));
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr2, allocator.Allocate(buffer.size() / 4));
   SAPI_ASSERT_OK_AND_ASSIGN(void* ptr3, allocator.Allocate(buffer.size() / 4));
@@ -136,7 +136,7 @@ TEST(SharedMemoryAllocatorTest, MultipleAllocationAndFree) {
   constexpr size_t kNumAllocations = 100000;
   std::vector<void*> ptrs(kNumAllocations, nullptr);
   std::vector<uint8_t> buffer(10 << 20);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   for (size_t i = 0; i < kNumAllocations; ++i) {
     SAPI_ASSERT_OK_AND_ASSIGN(ptrs[i], allocator.Allocate(32));
   }
@@ -470,7 +470,7 @@ TEST_F(SharedMemoryRPCChannelTest, CopyFromSandboxInMiddleOfAllocation) {
 
 void BM_SharedMemoryAllocateThenFree(benchmark::State& state) {
   std::vector<uint8_t> buffer(1 << 20);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   std::vector<void*> ptrs;
   ptrs.reserve(state.range(0));
   for (auto _ : state) {
@@ -489,7 +489,7 @@ BENCHMARK(BM_SharedMemoryAllocateThenFree)->Range(1, 100);
 
 void BM_SharedMemoryReallocate(benchmark::State& state) {
   std::vector<uint8_t> buffer(1 << 20);
-  internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
   void* ptr = nullptr;
   for (auto _ : state) {
     state.PauseTiming();

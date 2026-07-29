@@ -49,10 +49,11 @@ std::unique_ptr<sandbox2::Policy> GetPolicy() {
       .AllowExit()
       .AllowTime()
       .AllowSyscalls({
-        __NR_close, __NR_getpid,
+          __NR_close,
+          __NR_getpid,
 #if defined(__NR_arch_prctl)
-            // Not defined with every CPU architecture in prod.
-            __NR_arch_prctl,
+          // Not defined with every CPU architecture in prod.
+          __NR_arch_prctl,
 #endif
       })
       .AllowLlvmSanitizers()  // Will be a no-op when not using sanitizers.
@@ -106,8 +107,9 @@ int main(int argc, char* argv[]) {
 
   // Start a custom fork-server (via sandbox2::Executor).
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
-  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
-      "sandbox2/examples/custom_fork/custom_fork_bin");
+  const std::string path =
+      sapi::runfiles_internal::GetSapiDataDependencyFilePath(
+          "sandbox2/examples/custom_fork/custom_fork_bin");
   std::vector<std::string> args = {path};
   std::vector<std::string> envs = {};
   auto fork_executor = std::make_unique<sandbox2::Executor>(path, args, envs);

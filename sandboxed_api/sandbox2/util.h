@@ -25,8 +25,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -146,6 +144,7 @@ std::string GetRlimitName(int resource);
 std::string GetPtraceEventName(int event);
 
 namespace internal {
+
 // Reads `data`'s length of bytes from `ptr` in `pid`, returns number of bytes
 // read or an error.
 absl::StatusOr<size_t> ReadBytesFromPidWithReadv(pid_t pid, uintptr_t ptr,
@@ -168,6 +167,7 @@ absl::StatusOr<size_t> ReadBytesFromPidWithProcMem(pid_t pid, uintptr_t ptr,
 // Writes `data` to `ptr` in `pid`, returns number of bytes written or an error.
 absl::StatusOr<size_t> WriteBytesToPidWithProcMem(pid_t pid, uintptr_t ptr,
                                                   absl::Span<const char> data);
+
 };  // namespace internal
 
 // Reads `data`'s length of bytes from `ptr` in `pid`, returns number of bytes

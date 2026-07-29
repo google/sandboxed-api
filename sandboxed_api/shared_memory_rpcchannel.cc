@@ -36,16 +36,18 @@
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
-namespace internal {
+namespace rpc_internal {
 
 namespace {
-static constexpr size_t kAlignment = 8;
+
+constexpr size_t kAlignment = 8;
+
 constexpr size_t RoundUp(size_t size, size_t alignment) {
   return (size + alignment - 1) & ~(alignment - 1);
 }
 
 absl::StatusOr<size_t> AlignSize(size_t size) {
-  static constexpr size_t kMaxAllocatableSize =
+  constexpr size_t kMaxAllocatableSize =
       (std::numeric_limits<size_t>::max() - kAlignment) & ~(kAlignment - 1);
 
   if (size == 0 || size > kMaxAllocatableSize) {
@@ -53,6 +55,7 @@ absl::StatusOr<size_t> AlignSize(size_t size) {
   }
   return RoundUp(size, kAlignment);
 }
+
 }  // namespace
 
 SimpleAllocator::SimpleAllocator(void* local_ptr, size_t size)
@@ -213,21 +216,21 @@ SimpleAllocator::GetAllocationMetadata(void* ptr) const {
   return &it->second;
 }
 
-}  // namespace internal
+}  // namespace rpc_internal
 
 SharedMemoryRPCChannel::SharedMemoryRPCChannel(
     std::unique_ptr<RPCChannel> rpc_channel, size_t size,
     void* local_base_address, void* remote_base_address)
     : rpcchannel_(std::move(rpc_channel)),
-      allocator_(std::make_shared<internal::SimpleAllocator>(local_base_address,
-                                                             size)),
+      allocator_(std::make_shared<rpc_internal::SimpleAllocator>(
+          local_base_address, size)),
       local_base_address_(reinterpret_cast<uintptr_t>(local_base_address)),
       remote_base_address_(reinterpret_cast<uintptr_t>(remote_base_address)),
       size_(size) {}
 
 SharedMemoryRPCChannel::SharedMemoryRPCChannel(
     std::unique_ptr<RPCChannel> rpc_channel,
-    std::shared_ptr<internal::SimpleAllocator> allocator, size_t size,
+    std::shared_ptr<rpc_internal::SimpleAllocator> allocator, size_t size,
     void* local_base_address, void* remote_base_address)
     : rpcchannel_(std::move(rpc_channel)),
       allocator_(std::move(allocator)),

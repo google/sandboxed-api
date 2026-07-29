@@ -443,7 +443,8 @@ absl::Status GlobalForkClient::GlobalData::SetupOptions(
   }
   if (request.mount_specs().use_shared_mount_namespace()) {
     options.shared_pidns_fd = shared_pidns_fd_.get();
-    internal::HashableMountSpecs hashable_mount_specs(request.mount_specs());
+    mounts_internal::HashableMountSpecs hashable_mount_specs(
+        request.mount_specs());
     auto [it, inserted] = shared_mount_namespaces_.emplace(
         hashable_mount_specs, file_util::fileops::FDCloser());
     if (inserted) {

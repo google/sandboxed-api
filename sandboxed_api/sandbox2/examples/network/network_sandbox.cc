@@ -68,7 +68,7 @@ int ConnectToServer(int port) {
     return -1;
   }
 
-  struct sockaddr_in6 saddr {};
+  struct sockaddr_in6 saddr{};
   saddr.sin6_family = AF_INET6;
   saddr.sin6_port = htons(port);
 
@@ -135,8 +135,9 @@ int main(int argc, char* argv[]) {
   }
 
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
-  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
-      "sandbox2/examples/network/network_bin");
+  const std::string path =
+      sapi::runfiles_internal::GetSapiDataDependencyFilePath(
+          "sandbox2/examples/network/network_bin");
   std::vector<std::string> args = {path};
   std::vector<std::string> envs = {};
 

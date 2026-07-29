@@ -36,11 +36,17 @@
                (::sandbox2::Syscall::GetHostArch() & SECCOMP_RET_DATA))
 
 namespace sandbox2 {
+namespace policy_internal {
 
-namespace internal {
 // Magic values of registers when executing sys_execveat, so we can recognize
 // the pre-sandboxing state and notify the Monitor
 inline constexpr uintptr_t kExecveMagic = 0x921c2c34;
+
+}  // namespace policy_internal
+
+namespace internal {
+[[deprecated("Use policy_internal::kExecveMagic instead")]]
+inline constexpr uintptr_t kExecveMagic = policy_internal::kExecveMagic;
 }  // namespace internal
 
 class MonitorBase;

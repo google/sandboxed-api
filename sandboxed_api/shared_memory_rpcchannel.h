@@ -34,8 +34,7 @@
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
-
-namespace internal {
+namespace rpc_internal {
 
 // This is a simple implementation of the shared memory allocator. It uses a
 // std::map to keep track of the blocks of memory that have been allocated, and
@@ -88,7 +87,7 @@ class SimpleAllocator {
   absl::btree_set<Metadata*, MetadataComp> free_blocks_ ABSL_GUARDED_BY(mutex_);
 };
 
-}  // namespace internal
+}  // namespace rpc_internal
 
 // This class implements RPCChannel with the SAPI sandboxee using shared memory.
 // It uses Sandbox2RPCChannel as a fallback if the requested operation is not
@@ -141,7 +140,7 @@ class SharedMemoryRPCChannel : public RPCChannel {
  private:
   explicit SharedMemoryRPCChannel(
       std::unique_ptr<RPCChannel> rpc_channel,
-      std::shared_ptr<internal::SimpleAllocator> allocator, size_t size,
+      std::shared_ptr<rpc_internal::SimpleAllocator> allocator, size_t size,
       void* local_base_address, void* remote_base_address);
 
   bool IsWithinRemoteSharedMemoryRegion(uintptr_t remote_ptr);
@@ -158,7 +157,7 @@ class SharedMemoryRPCChannel : public RPCChannel {
   absl::Status EnsureWithinAllocationBounds(void* local_ptr, size_t size);
 
   std::unique_ptr<RPCChannel> rpcchannel_;
-  std::shared_ptr<internal::SimpleAllocator> allocator_;
+  std::shared_ptr<rpc_internal::SimpleAllocator> allocator_;
   uintptr_t local_base_address_;
   uintptr_t remote_base_address_;
   size_t size_;

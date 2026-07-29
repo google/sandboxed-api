@@ -15,17 +15,19 @@
 #include "absl/algorithm/container.h"
 #include "absl/types/span.h"
 
-namespace internal {
+namespace sapi_test {
+
 int accumulate(absl::Span<const int* const> values) {
   return absl::c_accumulate(values, 0, [](int acc, const int* val) {
     return val ? acc + *val : acc;
   });
 }
-}  // namespace internal
+
+}  // namespace sapi_test
 
 extern "C" int accumulate(int* a, int* b, int* c, int* d, int* e, int* f,
                           int* g, int* h) {
-  return internal::accumulate({a, b, c, d, e, f, g, h});
+  return sapi_test::accumulate({a, b, c, d, e, f, g, h});
 }
 
 extern "C" bool compare_self_symbol(void* self) {

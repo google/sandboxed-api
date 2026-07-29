@@ -283,8 +283,8 @@ absl::StatusOr<std::string> PrintFunctionPrototypeComment(
   absl::StrAppend(&out, ")");
 
   ABSL_ASSIGN_OR_RETURN(std::string formatted,
-                        internal::ReformatGoogleStyle(/*filename=*/"input", out,
-                                                      /*column_limit=*/75));
+                        ReformatGoogleStyle(/*filename=*/"input", out,
+                                            /*column_limit=*/75));
   out.clear();
   for (const auto& line : absl::StrSplit(formatted, '\n')) {
     absl::StrAppend(&out, "// ", line, "\n");
@@ -671,12 +671,12 @@ absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
 
 absl::StatusOr<std::string> Emitter::EmitHeader() {
   ABSL_ASSIGN_OR_RETURN(const std::string header, DoEmitHeader());
-  return internal::ReformatGoogleStyle(options_.out_file, header);
+  return ReformatGoogleStyle(options_.out_file, header);
 }
 
 absl::StatusOr<std::string> Emitter::EmitSandboxeeSrc() {
   ABSL_ASSIGN_OR_RETURN(const std::string src, DoEmitSandboxeeSrc());
-  return internal::ReformatGoogleStyle(options_.sandboxee_src_out, src);
+  return ReformatGoogleStyle(options_.sandboxee_src_out, src);
 }
 
 }  // namespace sapi

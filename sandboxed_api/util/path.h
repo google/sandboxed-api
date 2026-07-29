@@ -23,16 +23,17 @@
 
 namespace sapi::file {
 
-namespace internal {
-// Not part of the public API.
+namespace file_internal {
+
 std::string JoinPathImpl(std::initializer_list<absl::string_view> paths);
-}  // namespace internal
+
+}  // namespace file_internal
 
 // Joins multiple paths together using the platform-specific path separator.
 // Arguments must be convertible to absl::string_view.
 template <typename... T>
 inline std::string JoinPath(const T&... args) {
-  return internal::JoinPathImpl({args...});
+  return file_internal::JoinPathImpl({args...});
 }
 
 // Return true if path is absolute.

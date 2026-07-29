@@ -13,8 +13,9 @@
 // limitations under the License.
 
 #include <cstdlib>
+#include <string>
 
-#include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/runfiles.h"
@@ -39,12 +40,12 @@ std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   return runfiles->Rlocation(std::string(relative_path));
 }
 
-namespace internal {
+namespace runfiles_internal {
 
 std::string GetSapiDataDependencyFilePath(absl::string_view relative_path) {
   return GetDataDependencyFilePath(file::JoinPath(
       "com_google_sandboxed_api", "sandboxed_api", relative_path));
 }
 
-}  // namespace internal
+}  // namespace runfiles_internal
 }  // namespace sapi

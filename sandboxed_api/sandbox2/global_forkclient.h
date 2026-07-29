@@ -62,6 +62,7 @@ class GlobalForkClient {
   class GlobalData {
    public:
     GlobalData() = default;
+
     absl::StatusOr<ForkClient::PendingRequest> InitiateRequest(
         const ForkRequest& request) ABSL_LOCKS_EXCLUDED(mutex_);
     absl::Status SetupOptions(ForkClient::PendingRequest::Options& options,
@@ -75,6 +76,7 @@ class GlobalForkClient {
     void Shutdown() ABSL_LOCKS_EXCLUDED(mutex_);
     bool IsStarted() ABSL_LOCKS_EXCLUDED(mutex_);
     void ForceStart() ABSL_LOCKS_EXCLUDED(mutex_);
+
    private:
     void EnsureStartedLocked(GlobalForkserverStartMode mode)
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
@@ -88,6 +90,7 @@ class GlobalForkClient {
     absl::Status SetupSharedPidNamespacesLocked()
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     void CloseNamespacesLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
     absl::Mutex mutex_;
     std::unique_ptr<GlobalForkClient> instance_ ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser initial_userns_fd_
@@ -98,7 +101,7 @@ class GlobalForkClient {
     sapi::file_util::fileops::FDCloser shared_pidns_mntns_fd_
         ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser shared_pidns_fd_ ABSL_GUARDED_BY(mutex_);
-    absl::flat_hash_map<internal::HashableMountSpecs,
+    absl::flat_hash_map<mounts_internal::HashableMountSpecs,
                         sapi::file_util::fileops::FDCloser>
         shared_mount_namespaces_ ABSL_GUARDED_BY(mutex_);
   };

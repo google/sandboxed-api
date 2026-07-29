@@ -58,6 +58,7 @@ namespace sandbox2 {
 
 namespace file = ::sapi::file;
 namespace file_util = ::sapi::file_util;
+using ::sandbox2::sandbox_internal::SandboxPeer;
 using ::sapi::file_util::fileops::FDCloser;
 
 class StackTracePeer {
@@ -152,10 +153,6 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
   return builder.TryBuild();
 }
 
-namespace internal {
-SandboxPeer::SpawnFn SandboxPeer::spawn_fn_ = nullptr;
-}  // namespace internal
-
 absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
     const Regs* regs, const Namespace* ns, bool uses_custom_forkserver,
     int recursion_depth) {
@@ -213,8 +210,7 @@ absl::StatusOr<std::vector<std::string>> StackTracePeer::LaunchLibunwindSandbox(
                         StackTracePeer::GetPolicy(ns, uses_custom_forkserver));
 
   VLOG(1) << "Running libunwind sandbox";
-  auto sandbox =
-      internal::SandboxPeer::Spawn(std::move(executor), std::move(policy));
+  auto sandbox = SandboxPeer::Spawn(std::move(executor), std::move(policy));
   Comms* comms = sandbox->comms();
 
   UnwindSetup msg;

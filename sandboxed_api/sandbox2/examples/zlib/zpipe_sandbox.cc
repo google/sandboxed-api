@@ -87,8 +87,9 @@ int main(int argc, char* argv[]) {
   }
 
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
-  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
-      "sandbox2/examples/zlib/zpipe");
+  const std::string path =
+      sapi::runfiles_internal::GetSapiDataDependencyFilePath(
+          "sandbox2/examples/zlib/zpipe");
   std::vector<std::string> args = {path};
   if (absl::GetFlag(FLAGS_decompress)) {
     args.push_back("-d");

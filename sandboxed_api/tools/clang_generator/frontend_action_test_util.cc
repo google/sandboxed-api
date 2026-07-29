@@ -42,7 +42,6 @@
 #include "sandboxed_api/util/path.h"
 
 namespace sapi {
-namespace internal {
 
 std::string GetTestFileContents(absl::string_view file) {
   std::string contents;
@@ -77,8 +76,6 @@ absl::Status RunClangTool(
   }
   return absl::OkStatus();
 }
-
-}  // namespace internal
 
 std::vector<std::string> FrontendActionTest::GetCommandLineFlagsForTesting(
     absl::string_view input_file) {

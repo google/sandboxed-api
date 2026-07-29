@@ -121,7 +121,7 @@ absl::Status SandboxBase::SynchronizePtrAfter(v::Ptr* p) const {
 
 absl::Status SandboxBase::Call(
     const std::string& func, v::Callable* ret,
-    std::initializer_list<internal::PtrOrCallable> args) {
+    std::initializer_list<sandbox_internal::PtrOrCallable> args) {
   if (!is_active()) {
     return absl::UnavailableError("Sandbox not active");
   }
@@ -139,8 +139,8 @@ absl::Status SandboxBase::Call(
 
   // Copy all arguments into rfcall.
   for (int i = 0; i < args.size(); ++i) {
-    const internal::PtrOrCallable& arg = args.begin()[i];
-    if (arg.IsPtr()) {
+    const sandbox_internal::PtrOrCallable& arg = args.begin()[i];
+    if (arg.is_ptr()) {
       v::Ptr* parg = arg.ptr();
       rfcall.arg_size[i] = sizeof(void*);
       rfcall.arg_type[i] = v::Type::kPointer;
@@ -207,8 +207,8 @@ absl::Status SandboxBase::Call(
   }
 
   // Synchronize all pointers after the call if it's needed.
-  for (internal::PtrOrCallable arg : args) {
-    if (arg.IsPtr() && arg.ptr() != nullptr) {
+  for (auto& arg : args) {
+    if (arg.is_ptr() && arg.ptr() != nullptr) {
       ABSL_RETURN_IF_ERROR(SynchronizePtrAfter(arg.ptr()));
     }
   }

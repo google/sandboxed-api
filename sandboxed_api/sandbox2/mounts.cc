@@ -107,7 +107,7 @@ absl::Status VerifySharedMountNamespace(const MountTree& mount_tree) {
 
 }  // namespace
 
-namespace internal {
+namespace mounts_internal {
 
 bool IsSameFile(const std::string& path1, const std::string& path2) {
   if (path1 == path2) {
@@ -234,7 +234,7 @@ bool HashableMountSpecs::MountSpecsEquals(const MountSpecs& specs1,
          MountTreeEquals(specs1.mount_tree(), specs2.mount_tree());
 }
 
-}  // namespace internal
+}  // namespace mounts_internal
 
 absl::Status Mounts::Remove(absl::string_view path) {
   if (PathContainsNullByte(path)) {
@@ -350,20 +350,20 @@ absl::Status Mounts::Insert(absl::string_view path,
   }
 
   if (curtree->has_node()) {
-    if (internal::IsEquivalentNode(curtree->node(), new_node)) {
+    if (mounts_internal::IsEquivalentNode(curtree->node(), new_node)) {
       LOG(INFO) << "Inserting " << path << " with the same value twice";
       return absl::OkStatus();
     }
-    if (internal::HasSameTarget(curtree->node(), new_node)) {
-      if (!internal::IsWritable(curtree->node()) &&
-          internal::IsWritable(new_node)) {
+    if (mounts_internal::HasSameTarget(curtree->node(), new_node)) {
+      if (!mounts_internal::IsWritable(curtree->node()) &&
+          mounts_internal::IsWritable(new_node)) {
         LOG(INFO) << "Changing " << path
                   << " to writable, was inserted read-only before";
         *curtree->mutable_node() = new_node;
         return absl::OkStatus();
       }
-      if (internal::IsWritable(curtree->node()) &&
-          !internal::IsWritable(new_node)) {
+      if (mounts_internal::IsWritable(curtree->node()) &&
+          !mounts_internal::IsWritable(new_node)) {
         LOG(INFO) << "Inserting " << path
                   << " read-only is a nop, as it was inserted "
                      "writable before";

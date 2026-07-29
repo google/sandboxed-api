@@ -39,7 +39,7 @@
 #include "sandboxed_api/vars.h"
 
 namespace sapi {
-namespace internal {
+namespace sandbox_internal {
 
 class PtrOrCallable {
  public:
@@ -47,8 +47,8 @@ class PtrOrCallable {
   explicit PtrOrCallable(v::Ptr* ptr) : ptr_(ptr) {}
   explicit PtrOrCallable(std::nullptr_t) : ptr_(nullptr) {}
 
-  bool IsCallable() const { return callable_ != nullptr; }
-  bool IsPtr() const { return !IsCallable(); }
+  bool is_callable() const { return callable_ != nullptr; }
+  bool is_ptr() const { return !is_callable(); }
 
   v::Callable* callable() const { return callable_; }
   v::Ptr* ptr() const { return ptr_; }
@@ -58,7 +58,7 @@ class PtrOrCallable {
   v::Ptr* ptr_ = nullptr;
 };
 
-}  // namespace internal
+}  // namespace sandbox_internal
 
 // The Sandbox class represents the sandboxed library. It provides users with
 // means to communicate with it (make function calls, transfer memory).
@@ -96,8 +96,9 @@ class SandboxBase {
   absl::Status Call(const std::string& func, v::Callable* ret, Args&&... args) {
     static_assert(sizeof...(Args) <= FuncCall::kArgsMax,
                   "Too many arguments to sapi::Sandbox::Call()");
-    return WrapCallStatus(Call(
-        func, ret, {internal::PtrOrCallable(std::forward<Args>(args))...}));
+    return WrapCallStatus(
+        Call(func, ret,
+             {sandbox_internal::PtrOrCallable(std::forward<Args>(args))...}));
   }
 
   // Allocates memory in the sandboxee, automatic_free indicates whether the
@@ -163,8 +164,9 @@ class SandboxBase {
   // to convert sandbox channel errors to a specific status.
   virtual absl::Status WrapCallStatus(absl::Status status) { return status; }
 
-  absl::Status Call(const std::string& func, v::Callable* ret,
-                    std::initializer_list<internal::PtrOrCallable> args);
+  absl::Status Call(
+      const std::string& func, v::Callable* ret,
+      std::initializer_list<sandbox_internal::PtrOrCallable> args);
 
  private:
   // TODO(sroettger): Remove this function after migrating all users of
@@ -178,8 +180,9 @@ template <typename Backend>
 class Sandbox : public SandboxBase {
  public:
   explicit Sandbox(SandboxConfig config)
-      : SandboxBase(),
-        backend_(std::move(config), [this] { return CreateNotifier(); }) {}
+      : SandboxBase(), backend_(std::move(config), [this] {
+          return CreateNotifier();  // NOLINT
+        }) {}
 
   // This constructor should only be used for special cases, e.g. when using the
   // CreateNotifier() method of the Sandbox2Backend. Otherwise, prefer to use

@@ -29,7 +29,7 @@
 
 namespace sandbox2 {
 
-namespace internal {
+namespace mounts_internal {
 
 bool IsSameFile(const std::string& path1, const std::string& path2);
 bool IsWritable(const MountTree::Node& node);
@@ -40,9 +40,11 @@ class HashableMountSpecs {
  public:
   explicit HashableMountSpecs(const MountSpecs& mount_specs)
       : mount_specs_(mount_specs) {}
+
   HashableMountSpecs(const HashableMountSpecs&) = default;
-  HashableMountSpecs(HashableMountSpecs&&) = default;
   HashableMountSpecs& operator=(const HashableMountSpecs&) = default;
+
+  HashableMountSpecs(HashableMountSpecs&&) = default;
   HashableMountSpecs& operator=(HashableMountSpecs&&) = default;
 
   bool operator==(const HashableMountSpecs& other) const {
@@ -110,7 +112,7 @@ class HashableMountSpecs {
   MountSpecs mount_specs_;
 };
 
-}  // namespace internal
+}  // namespace mounts_internal
 
 class Mounts {
  public:
@@ -124,8 +126,9 @@ class Mounts {
       : mount_specs_(std::move(mount_specs)) {}
 
   Mounts(const Mounts&) = default;
-  Mounts(Mounts&&) = default;
   Mounts& operator=(const Mounts&) = default;
+
+  Mounts(Mounts&&) = default;
   Mounts& operator=(Mounts&&) = default;
 
   absl::Status AddFile(absl::string_view path, bool is_ro = true) {

@@ -14,8 +14,9 @@
 
 #include <unistd.h>
 
-#include <cstdlib>
+#include <string>
 
+#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -36,7 +37,7 @@ std::string GetDataDependencyFilePath(absl::string_view relative_path) {
   return file::JoinPath(resolved, relative_path);
 }
 
-namespace internal {
+namespace runfiles_internal {
 
 std::string GetSapiDataDependencyFilePath(absl::string_view relative_path) {
   // The Bazel version has an additional "com_google_sandboxed_api" path
@@ -45,5 +46,5 @@ std::string GetSapiDataDependencyFilePath(absl::string_view relative_path) {
       file::JoinPath("sandboxed_api", relative_path));
 }
 
-}  // namespace internal
+}  // namespace runfiles_internal
 }  // namespace sapi

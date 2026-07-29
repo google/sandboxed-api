@@ -27,7 +27,7 @@
 #include "absl/strings/strip.h"
 
 namespace sapi::file {
-namespace internal {
+namespace file_internal {
 
 constexpr char kPathSeparator[] = "/";
 
@@ -51,7 +51,7 @@ std::string JoinPathImpl(std::initializer_list<absl::string_view> paths) {
   return result;
 }
 
-}  // namespace internal
+}  // namespace file_internal
 
 bool IsAbsolutePath(absl::string_view path) {
   return !path.empty() && path[0] == '/';

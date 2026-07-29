@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
 
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
   const std::string path =
-      sapi::internal::GetSapiDataDependencyFilePath(kSandboxeePath);
+      sapi::runfiles_internal::GetSapiDataDependencyFilePath(kSandboxeePath);
   std::vector<std::string> args = {path};
   if (!absl::GetFlag(FLAGS_connect_with_handler)) {
     args.push_back("--noconnect_with_handler");

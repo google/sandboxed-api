@@ -43,6 +43,7 @@
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/notify.h"
+#include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox_config.h"
 #include "sandboxed_api/sandbox2/stack_trace.h"
@@ -53,7 +54,7 @@ namespace sandbox2 {
 
 namespace {
 
-class Sandbox2Peer : public internal::SandboxPeer {
+class Sandbox2Peer : public sandbox_internal::SandboxPeer {
  public:
   static std::unique_ptr<SandboxPeer> Spawn(std::unique_ptr<Executor> executor,
                                             std::unique_ptr<Policy> policy) {
@@ -148,7 +149,7 @@ void Sandbox2::set_walltime_limit(absl::Duration limit) const {
 void Sandbox2::Launch() {
   static absl::once_flag init_sandbox_peer_flag;
   absl::call_once(init_sandbox_peer_flag, []() {
-    internal::SandboxPeer::spawn_fn_ = Sandbox2Peer::Spawn;
+    sandbox_internal::SandboxPeer::spawn_fn_ = Sandbox2Peer::Spawn;
   });
 
   monitor_ = CreateMonitor();

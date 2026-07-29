@@ -39,7 +39,7 @@ namespace sandbox2 {
 class Sandbox2;
 class StackTraceTestPeer;
 
-namespace internal {
+namespace sandbox_internal {
 
 class SandboxPeer {
  public:
@@ -60,10 +60,10 @@ class SandboxPeer {
   friend class ::sandbox2::StackTraceTestPeer;
   using SpawnFn = std::unique_ptr<SandboxPeer> (*)(std::unique_ptr<Executor>,
                                                    std::unique_ptr<Policy>);
-  static SpawnFn spawn_fn_;
+  static inline SpawnFn spawn_fn_ = nullptr;
 };
 
-}  // namespace internal
+}  // namespace sandbox_internal
 
 // Maximum depth of analyzed call stack.
 constexpr size_t kDefaultMaxFrames = 200;

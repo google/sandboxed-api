@@ -45,7 +45,6 @@
 #include "sandboxed_api/tools/clang_generator/types.h"
 
 namespace sapi {
-namespace internal {
 
 absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
                                                 const std::string& code,
@@ -70,8 +69,6 @@ absl::StatusOr<std::string> ReformatGoogleStyle(const std::string& filename,
   }
   return *formatted_header;
 }
-
-}  // namespace internal
 
 namespace {
 

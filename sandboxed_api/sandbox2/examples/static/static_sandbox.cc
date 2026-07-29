@@ -136,8 +136,9 @@ int main(int argc, char* argv[]) {
   absl::InitializeLog();
 
   // Note: In your own code, use sapi::GetDataDependencyFilePath() instead.
-  const std::string path = sapi::internal::GetSapiDataDependencyFilePath(
-      "sandbox2/examples/static/static_bin");
+  const std::string path =
+      sapi::runfiles_internal::GetSapiDataDependencyFilePath(
+          "sandbox2/examples/static/static_bin");
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<sandbox2::Executor>(path, args);
 

@@ -22,14 +22,12 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "clang/Frontend/FrontendAction.h"
 
 namespace sapi {
-namespace internal {
 
 // Returns the contents of the file.
 std::string GetTestFileContents(absl::string_view file);
@@ -40,8 +38,6 @@ absl::Status RunClangTool(
     const std::vector<std::string>& command_line,
     const absl::flat_hash_map<std::string, std::string>& file_contents,
     std::unique_ptr<clang::FrontendAction> action);
-
-}  // namespace internal
 
 class FrontendActionTest : public ::testing::Test {
  protected:
@@ -65,7 +61,7 @@ class FrontendActionTest : public ::testing::Test {
       absl::string_view input_file,
       std::unique_ptr<clang::FrontendAction> action) {
     set_input_file(input_file);
-    std::string code = internal::GetTestFileContents(input_file);
+    std::string code = GetTestFileContents(input_file);
     return RunFrontendAction(code, std::move(action));
   }
 
@@ -75,8 +71,7 @@ class FrontendActionTest : public ::testing::Test {
     std::vector<std::string> command_line =
         GetCommandLineFlagsForTesting(input_file_);
     AddCode(input_file_, code);
-    return internal::RunClangTool(command_line, file_contents_,
-                                  std::move(action));
+    return RunClangTool(command_line, file_contents_, std::move(action));
   }
 
  private:

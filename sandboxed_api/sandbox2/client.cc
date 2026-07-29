@@ -142,17 +142,17 @@ void InitSeccompUnotify(sock_fprog prog, Comms* comms,
       LOAD_SYSCALL_NR,
       BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, __NR_seccomp, 0, 3),
       ARG_32(3),
-      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, internal::kExecveMagic, 0, 1),
+      BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, policy_internal::kExecveMagic, 0, 1),
       DENY,
       ALLOW,
   };
   prog.len = std::size(code);
   prog.filter = code;
   do {
-    result =
-        syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
-                SECCOMP_FILTER_FLAG_TSYNC | seccomp_extra_flags,
-                reinterpret_cast<uintptr_t>(&prog), internal::kExecveMagic);
+    result = syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
+                     SECCOMP_FILTER_FLAG_TSYNC | seccomp_extra_flags,
+                     reinterpret_cast<uintptr_t>(&prog),
+                     policy_internal::kExecveMagic);
   } while (result == child);
   SAPI_RAW_CHECK(result == 0, "Enabling seccomp filter");
 }

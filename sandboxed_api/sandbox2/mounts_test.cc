@@ -39,6 +39,10 @@ namespace {
 namespace file = ::sapi::file;
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
+using ::sandbox2::mounts_internal::HashableMountSpecs;
+using ::sandbox2::mounts_internal::HasSameTarget;
+using ::sandbox2::mounts_internal::IsEquivalentNode;
+using ::sandbox2::mounts_internal::IsWritable;
 using ::sapi::CreateNamedTempFileAndClose;
 using ::sapi::CreateTempDir;
 using ::sapi::GetTestSourcePath;
@@ -296,13 +300,13 @@ TEST(MountTreeTest, TestIsWritable) {
   MountTree::TmpfsNode* tn0 = nodes[6].mutable_tmpfs_node();
   tn0->set_tmpfs_options("option1");
 
-  EXPECT_FALSE(internal::IsWritable(nodes[0]));
-  EXPECT_TRUE(internal::IsWritable(nodes[1]));
-  EXPECT_FALSE(internal::IsWritable(nodes[2]));
-  EXPECT_TRUE(internal::IsWritable(nodes[3]));
-  EXPECT_FALSE(internal::IsWritable(nodes[4]));
-  EXPECT_TRUE(internal::IsWritable(nodes[5]));
-  EXPECT_FALSE(internal::IsWritable(nodes[6]));
+  EXPECT_FALSE(IsWritable(nodes[0]));
+  EXPECT_TRUE(IsWritable(nodes[1]));
+  EXPECT_FALSE(IsWritable(nodes[2]));
+  EXPECT_TRUE(IsWritable(nodes[3]));
+  EXPECT_FALSE(IsWritable(nodes[4]));
+  EXPECT_TRUE(IsWritable(nodes[5]));
+  EXPECT_FALSE(IsWritable(nodes[6]));
 }
 
 TEST(MountTreeTest, TestHasSameTarget) {
@@ -335,34 +339,34 @@ TEST(MountTreeTest, TestHasSameTarget) {
   rn1->set_writable(true);
 
   // Compare same file nodes
-  EXPECT_TRUE(internal::HasSameTarget(nodes[0], nodes[0]));
+  EXPECT_TRUE(HasSameTarget(nodes[0], nodes[0]));
   // Compare almost same file nodes (ro vs rw)
-  EXPECT_TRUE(internal::HasSameTarget(nodes[0], nodes[1]));
+  EXPECT_TRUE(HasSameTarget(nodes[0], nodes[1]));
   // Compare different file nodes
-  EXPECT_FALSE(internal::HasSameTarget(nodes[0], nodes[2]));
+  EXPECT_FALSE(HasSameTarget(nodes[0], nodes[2]));
   // Compare file node with dir node
-  EXPECT_FALSE(internal::HasSameTarget(nodes[0], nodes[3]));
+  EXPECT_FALSE(HasSameTarget(nodes[0], nodes[3]));
 
   // Compare same dir nodes
-  EXPECT_TRUE(internal::HasSameTarget(nodes[3], nodes[3]));
+  EXPECT_TRUE(HasSameTarget(nodes[3], nodes[3]));
   // Compare almost same dir nodes (ro vs rw)
-  EXPECT_TRUE(internal::HasSameTarget(nodes[3], nodes[4]));
+  EXPECT_TRUE(HasSameTarget(nodes[3], nodes[4]));
   // Compare different dir nodes
-  EXPECT_FALSE(internal::HasSameTarget(nodes[3], nodes[5]));
+  EXPECT_FALSE(HasSameTarget(nodes[3], nodes[5]));
   // Compare dir node with tmpfs node
-  EXPECT_FALSE(internal::HasSameTarget(nodes[3], nodes[6]));
+  EXPECT_FALSE(HasSameTarget(nodes[3], nodes[6]));
 
   // Compare same tmpfs nodes
-  EXPECT_TRUE(internal::HasSameTarget(nodes[6], nodes[6]));
+  EXPECT_TRUE(HasSameTarget(nodes[6], nodes[6]));
   // Compare different tmpfs nodes
-  EXPECT_FALSE(internal::HasSameTarget(nodes[6], nodes[7]));
+  EXPECT_FALSE(HasSameTarget(nodes[6], nodes[7]));
   // Compare dir node with root node
-  EXPECT_FALSE(internal::HasSameTarget(nodes[6], nodes[8]));
+  EXPECT_FALSE(HasSameTarget(nodes[6], nodes[8]));
 
   // Compare same root nodes
-  EXPECT_TRUE(internal::HasSameTarget(nodes[8], nodes[8]));
+  EXPECT_TRUE(HasSameTarget(nodes[8], nodes[8]));
   // Compare almost same root nodes (ro vs rw)
-  EXPECT_TRUE(internal::HasSameTarget(nodes[8], nodes[9]));
+  EXPECT_TRUE(HasSameTarget(nodes[8], nodes[9]));
 }
 
 TEST(MountTreeTest, TestNodeEquivalence) {
@@ -392,32 +396,32 @@ TEST(MountTreeTest, TestNodeEquivalence) {
     ASSERT_TRUE(n.IsInitialized());
   }
   // Compare same file nodes
-  EXPECT_TRUE(internal::IsEquivalentNode(nodes[0], nodes[0]));
+  EXPECT_TRUE(IsEquivalentNode(nodes[0], nodes[0]));
   // Compare with different file node
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[0], nodes[1]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[0], nodes[1]));
   // compare file node with dir node
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[0], nodes[2]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[0], nodes[2]));
 
   // Compare same dir nodes
-  EXPECT_TRUE(internal::IsEquivalentNode(nodes[2], nodes[2]));
+  EXPECT_TRUE(IsEquivalentNode(nodes[2], nodes[2]));
   // Compare with different dir node
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[2], nodes[3]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[2], nodes[3]));
   // Compare dir node with tmpfs node
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[2], nodes[4]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[2], nodes[4]));
 
   // Compare same tmpfs nodes
-  EXPECT_TRUE(internal::IsEquivalentNode(nodes[4], nodes[4]));
+  EXPECT_TRUE(IsEquivalentNode(nodes[4], nodes[4]));
   // Compare with different tmpfs nodes
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[4], nodes[5]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[4], nodes[5]));
   // Compare tmpfs node with root node
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[4], nodes[6]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[4], nodes[6]));
 
   // Compare same root nodes
-  EXPECT_TRUE(internal::IsEquivalentNode(nodes[6], nodes[6]));
+  EXPECT_TRUE(IsEquivalentNode(nodes[6], nodes[6]));
   // Compare different root node
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[6], nodes[7]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[6], nodes[7]));
   // Compare root node with file node
-  EXPECT_FALSE(internal::IsEquivalentNode(nodes[6], nodes[0]));
+  EXPECT_FALSE(IsEquivalentNode(nodes[6], nodes[0]));
 }
 
 TEST(MountsResolvePathTest, Files) {
@@ -484,8 +488,8 @@ TEST(HashableMountSpecsTest, ImplementsAbslHashCorrectly) {
       ->mutable_root_node()
       ->set_writable(true);
 
-  ASSERT_NE(internal::HashableMountSpecs(specs_root),
-            internal::HashableMountSpecs(specs_root_writable));
+  ASSERT_NE(HashableMountSpecs(specs_root),
+            HashableMountSpecs(specs_root_writable));
 
   MountSpecs specs_changed_index;
   specs_changed_index.mutable_mount_tree()->set_index(1337);
@@ -567,34 +571,33 @@ TEST(HashableMountSpecsTest, ImplementsAbslHashCorrectly) {
   entries2["b"] = subtree_b;
   entries2["a"] = subtree_a;
 
-  ASSERT_EQ(internal::HashableMountSpecs(specs_order1),
-            internal::HashableMountSpecs(specs_order2));
+  ASSERT_EQ(HashableMountSpecs(specs_order1), HashableMountSpecs(specs_order2));
 
   MountSpecs specs_diff_entries;
   auto& entries = *specs_diff_entries.mutable_mount_tree()->mutable_entries();
   entries["a"] = subtree_a;
   entries["c"] = subtree_b;
 
-  std::vector<internal::HashableMountSpecs> cases = {
-      internal::HashableMountSpecs(specs_default),
-      internal::HashableMountSpecs(specs_root),
-      internal::HashableMountSpecs(specs_root_writable),
-      internal::HashableMountSpecs(specs_changed_index),
-      internal::HashableMountSpecs(specs_mp),
-      internal::HashableMountSpecs(specs_we),
-      internal::HashableMountSpecs(specs_ignore_non_existing),
-      internal::HashableMountSpecs(specs_file1),
-      internal::HashableMountSpecs(specs_file1_writable),
-      internal::HashableMountSpecs(specs_file2),
-      internal::HashableMountSpecs(specs_dir1),
-      internal::HashableMountSpecs(specs_dir1_writable),
-      internal::HashableMountSpecs(specs_dir1_allow_mount_propagation),
-      internal::HashableMountSpecs(specs_dir2),
-      internal::HashableMountSpecs(specs_tmpfs),
-      internal::HashableMountSpecs(specs_tmpfs2),
-      internal::HashableMountSpecs(specs_order1),
-      internal::HashableMountSpecs(specs_order2),
-      internal::HashableMountSpecs(specs_diff_entries),
+  std::vector<HashableMountSpecs> cases = {
+      HashableMountSpecs(specs_default),
+      HashableMountSpecs(specs_root),
+      HashableMountSpecs(specs_root_writable),
+      HashableMountSpecs(specs_changed_index),
+      HashableMountSpecs(specs_mp),
+      HashableMountSpecs(specs_we),
+      HashableMountSpecs(specs_ignore_non_existing),
+      HashableMountSpecs(specs_file1),
+      HashableMountSpecs(specs_file1_writable),
+      HashableMountSpecs(specs_file2),
+      HashableMountSpecs(specs_dir1),
+      HashableMountSpecs(specs_dir1_writable),
+      HashableMountSpecs(specs_dir1_allow_mount_propagation),
+      HashableMountSpecs(specs_dir2),
+      HashableMountSpecs(specs_tmpfs),
+      HashableMountSpecs(specs_tmpfs2),
+      HashableMountSpecs(specs_order1),
+      HashableMountSpecs(specs_order2),
+      HashableMountSpecs(specs_diff_entries),
   };
 
   EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly(cases));

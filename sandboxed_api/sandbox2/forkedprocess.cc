@@ -33,7 +33,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
@@ -57,6 +56,7 @@
 
 namespace sandbox2 {
 namespace {
+
 using ::sapi::file_util::fileops::FDCloser;
 
 struct Pipe {
@@ -76,10 +76,8 @@ void DropAllCapabilities() {
   cap_free(caps);
 }
 
-ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid,
-                                            FDCloser synchronization_fd,
-                                            FDCloser status_fd,
-                                            bool allow_speculation) {
+[[noreturn]] void RunInitProcess(pid_t main_pid, FDCloser synchronization_fd,
+                                 FDCloser status_fd, bool allow_speculation) {
   if (prctl(PR_SET_NAME, "S2-INIT-PROC", 0, 0, 0) != 0) {
     SAPI_RAW_PLOG(WARNING, "prctl(PR_SET_NAME, 'S2-INIT-PROC')");
   }
@@ -150,14 +148,13 @@ ABSL_ATTRIBUTE_NORETURN void RunInitProcess(pid_t main_pid,
   }
 }
 
-ABSL_ATTRIBUTE_NORETURN void ExecuteProcess(int execve_fd,
-                                            const char* const* argv,
-                                            const char* const* envp) {
+[[noreturn]] void ExecuteProcess(int execve_fd, const char* const* argv,
+                                 const char* const* envp) {
   // Do not add any code before execve(), as it's subject to seccomp policies.
   // Indicate that it's a special execve(), by setting 4th, 5th and 6th syscall
   // argument to magic values.
   util::Execveat(execve_fd, "", argv, envp, AT_EMPTY_PATH,
-                 internal::kExecveMagic);
+                 policy_internal::kExecveMagic);
 
   int saved_errno = errno;
   SAPI_RAW_PLOG(ERROR, "execveat failed");
