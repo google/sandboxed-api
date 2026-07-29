@@ -626,7 +626,7 @@ void MountWithDefaults(const std::string& source, const std::string& target,
   const uint64_t propagation =
       extra_flags & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE);
   if (propagation != 0) {
-    res = mount("", target.c_str(), "", propagation, nullptr);
+    res = mount("", target.c_str(), "", MS_REC | propagation, nullptr);
     PCHECK(res != -1) << "changing " << target << " mount propagation to "
                       << MountFlagsToString(propagation) << " failed";
   }
