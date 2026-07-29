@@ -28,6 +28,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -50,6 +51,7 @@ class Message;
 }  // namespace proto2
 
 namespace sandbox2 {
+
 // Envvar indicating that this process should not start the fork-server.
 constexpr inline char kForkServerDisableEnv[] = "SANDBOX2_NOFORKSERVER";
 
@@ -389,9 +391,21 @@ class Comms {
   // Receives tag and length.
   bool RecvTL(uint32_t* tag, size_t* length);
 
-  // T has to be a ContiguousContainer
   template <typename T>
-  bool RecvTLVGeneric(uint32_t* tag, T* value);
+  // T has to be a ContiguousContainer, use std::contiguous_iterator as a
+  // proxy for this requirement.
+    requires std::contiguous_iterator<typename T::iterator> &&
+             std::contiguous_iterator<typename T::const_iterator>
+  bool RecvTLVGeneric(uint32_t* tag, T* value) {
+    size_t length;
+    if (!RecvTL(tag, &length)) {
+      return false;
+    }
+
+    value->resize(length);
+    return length == 0 ||
+           Recv(reinterpret_cast<uint8_t*>(value->data()), length);
+  }
 
   // Receives arbitrary integers.
   bool RecvInt(void* buffer, size_t len, uint32_t tag);
@@ -423,12 +437,15 @@ class ListeningComms {
 
   ListeningComms(ListeningComms&& other) = default;
   ListeningComms& operator=(ListeningComms&& other) = default;
+
   ~ListeningComms() = default;
+
   absl::StatusOr<Comms> Accept();
 
  private:
   ListeningComms(absl::string_view socket_name, bool abstract_uds)
       : socket_name_(socket_name), abstract_uds_(abstract_uds), bind_fd_(-1) {}
+
   absl::Status Listen();
 
   std::string socket_name_;

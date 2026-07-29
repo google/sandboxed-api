@@ -952,17 +952,6 @@ bool Comms::RecvTLV(uint32_t* tag, std::string* value) {
   return RecvTLVGeneric(tag, value);
 }
 
-template <typename T>
-bool Comms::RecvTLVGeneric(uint32_t* tag, T* value) {
-  size_t length;
-  if (!RecvTL(tag, &length)) {
-    return false;
-  }
-
-  value->resize(length);
-  return length == 0 || Recv(reinterpret_cast<uint8_t*>(value->data()), length);
-}
-
 bool Comms::RecvTLV(uint32_t* tag, size_t* length, void* buffer,
                     size_t buffer_size, std::optional<uint32_t> expected_tag) {
   if (!RecvTL(tag, length)) {
