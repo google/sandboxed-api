@@ -530,24 +530,8 @@ bool GeneratorFactory::runInvocation(
            "__builtin_ia32_ttmmultf32ps_internal=",
            "__builtin_ia32_ttransposed_internal=",
 
-           // TODO(b/461580283): Remove once r597211 lands in stable crosstool.
-           "__builtin_ia32_vfmaddsd=",
-           "__builtin_ia32_vfmaddss=",
-           "__builtin_ia32_vfmaddss3=",
-           "__builtin_ia32_vfmaddsd3=",
-           "__builtin_ia32_vfmaddsubps=",
-           "__builtin_ia32_vfmaddsubps=",
-
            // TODO(b/461580283): Remove once r625069 lands in stable crosstool.
            "__builtin_ia32_tmmultf32ps_internal=",
-
-           // TODO(b/465079915): Remove once r598768 lands in stable crosstool.
-           "__builtin_ia32_sqrtss=",
-           "__builtin_ia32_sqrtps=",
-           "__builtin_ia32_sqrtsd=",
-           "__builtin_ia32_sqrtpd=",
-           "__builtin_ia32_sqrtpd256=",
-           "__builtin_ia32_sqrtps256=",
 
            // Trick <prfchwintrin.h> from being included by defining its header
            // guard.
