@@ -892,7 +892,8 @@ add_library(sandbox2_comms ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::comms ALIAS sandbox2_comms)
 target_link_libraries(sandbox2_comms
-  PRIVATE absl::cord
+  PRIVATE absl::cleanup
+          absl::cord
           absl::log
           absl::status
           absl::statusor
@@ -1120,6 +1121,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     benchmark
     sandbox2::comms
     sandbox2::comms_test_proto
+    sandbox2::sanitizer
     sapi::testing
     sapi::test_main
     sapi::thread

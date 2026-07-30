@@ -34,6 +34,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/attributes.h"
 #include "absl/container/fixed_array.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -41,6 +42,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"
+#include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/thread.h"
 
@@ -249,44 +251,6 @@ TEST(CommsTest, TestSendRecvFD) {
   HandleCommunication(a, b);
 }
 
-TEST(CommsTest, RecvFDHandlesMalformedCmsgLen) {
-  constexpr int kMalformedCmsgLen = 2 * sizeof(int);
-  auto a = [](Comms* comms) {
-    int fd = -1;
-    // Should return false and not hang.
-    EXPECT_THAT(comms->RecvFD(&fd), IsFalse());
-    EXPECT_THAT(fd, Eq(-1));
-  };
-  auto b = [](Comms* comms) {
-    int fd = comms->GetConnectionFD();
-
-    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
-      uint32_t tag;
-      size_t len;
-    } tlv = {Comms::kTagFd, 0};
-
-    iovec iov[1];
-    iov[0].iov_base = &tlv;
-    iov[0].iov_len = sizeof(tlv);
-
-    char fd_msg[CMSG_SPACE(kMalformedCmsgLen)] = {0};
-    auto* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
-    cmsg->cmsg_level = SOL_SOCKET;
-    cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(kMalformedCmsgLen);
-
-    msghdr msg = {
-        .msg_iov = iov,
-        .msg_iovlen = 1,
-        .msg_control = fd_msg,
-        .msg_controllen = sizeof(fd_msg),
-    };
-
-    ASSERT_THAT(sendmsg(fd, &msg, 0), Ge(0));
-  };
-  HandleCommunication(a, b);
-}
-
 TEST(CommsTest, TestSendRecvCreds) {
   pid_t pid = getpid();
   uid_t uid = getuid();
@@ -350,6 +314,45 @@ TEST(CommsTest, RecvCredsHandlesMalformedCmsgLen) {
     sendmsg(fd, &msg, 0);
     EXPECT_THAT(errno, AnyOf(Eq(EINVAL),  // Kernel rejects malformed message.
                              Eq(0)));
+  };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, RecvCredsClosesFDs) {
+  auto a = [](Comms* comms) {
+    pid_t pid = 0;
+    uid_t uid = 0;
+    gid_t gid = 0;
+    SAPI_ASSERT_OK_AND_ASSIGN(auto old_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(comms->RecvCreds(&pid, &uid, &gid), IsTrue());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto new_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(new_fds, Eq(old_fds));
+  };
+  auto b = [](Comms* comms) {
+    // Fake the SendCreds with extra fds.
+    int fd = comms->GetConnectionFD();
+    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
+      uint32_t tag;
+      size_t len;
+    } tlv = {Comms::kTagCreds, 0};
+    iovec iov[1];
+    iov[0].iov_base = &tlv;
+    iov[0].iov_len = sizeof(tlv);
+    char fd_msg[CMSG_SPACE(sizeof(int) * 2)] = {0};
+    cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+    int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+    fds[0] = STDERR_FILENO;
+    fds[1] = STDERR_FILENO;
+    msghdr msg = {
+        .msg_iov = iov,
+        .msg_iovlen = 1,
+        .msg_control = fd_msg,
+        .msg_controllen = sizeof(fd_msg),
+    };
+    ASSERT_EQ(sendmsg(fd, &msg, 0), sizeof(tlv));
   };
   HandleCommunication(a, b, /*passcred=*/true);
 }
@@ -629,6 +632,161 @@ TEST(CommsTest, RecvFDFailsOnTagMismatch) {
     EXPECT_THAT(comms->RecvFD(&fd), IsFalse());
   };
   auto b = [](Comms* comms) { ASSERT_THAT(comms->SendCreds(), IsTrue()); };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, RecvFDClosesExtraFDs) {
+  auto a = [](Comms* comms) {
+    int fd;
+    SAPI_ASSERT_OK_AND_ASSIGN(auto old_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(comms->RecvFD(&fd), IsTrue());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto new_fds, sanitizer::GetListOfFDs());
+    absl::flat_hash_set<int> expected_fds = old_fds;
+    expected_fds.insert(fd);
+    EXPECT_THAT(new_fds, Eq(expected_fds));
+  };
+  auto b = [](Comms* comms) {
+    // Fake the SendFD with extra fds.
+    int fd = comms->GetConnectionFD();
+    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
+      uint32_t tag;
+      size_t len;
+    } tlv = {Comms::kTagFd, 0};
+    iovec iov[1];
+    iov[0].iov_base = &tlv;
+    iov[0].iov_len = sizeof(tlv);
+    char fd_msg[CMSG_SPACE(sizeof(int) * 2)] = {0};
+    cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+    int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+    fds[0] = STDERR_FILENO;
+    fds[1] = STDERR_FILENO;
+    msghdr msg = {
+        .msg_iov = iov,
+        .msg_iovlen = 1,
+        .msg_control = fd_msg,
+        .msg_controllen = sizeof(fd_msg),
+    };
+    ASSERT_EQ(sendmsg(fd, &msg, 0), sizeof(tlv));
+  };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, RecvFDClosesExtraFDsMultipleHeaders) {
+  auto a = [](Comms* comms) {
+    int fd;
+    SAPI_ASSERT_OK_AND_ASSIGN(auto old_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(comms->RecvFD(&fd), IsTrue());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto new_fds, sanitizer::GetListOfFDs());
+    absl::flat_hash_set<int> expected_fds = old_fds;
+    expected_fds.insert(fd);
+    EXPECT_THAT(new_fds, Eq(expected_fds));
+  };
+  auto b = [](Comms* comms) {
+    // Fake the SendFD with extra fds.
+    int fd = comms->GetConnectionFD();
+    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
+      uint32_t tag;
+      size_t len;
+    } tlv = {Comms::kTagFd, 0};
+    iovec iov[1];
+    iov[0].iov_base = &tlv;
+    iov[0].iov_len = sizeof(tlv);
+    char fd_msg[2 * CMSG_SPACE(sizeof(int))] = {0};
+    msghdr msg = {
+        .msg_iov = iov,
+        .msg_iovlen = 1,
+        .msg_control = fd_msg,
+        .msg_controllen = sizeof(fd_msg),
+    };
+    cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+    fds[0] = STDERR_FILENO;
+    cmsg = CMSG_NXTHDR(&msg, cmsg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+    fds[0] = STDERR_FILENO;
+    ASSERT_EQ(sendmsg(fd, &msg, 0), sizeof(tlv));
+  };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, RecvFDClosesFDsOnWrongTag) {
+  auto a = [](Comms* comms) {
+    int fd;
+    SAPI_ASSERT_OK_AND_ASSIGN(auto old_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(comms->RecvFD(&fd), IsFalse());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto new_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(new_fds, Eq(old_fds));
+  };
+  auto b = [](Comms* comms) {
+    // Fake the SendFD with extra fds.
+    int fd = comms->GetConnectionFD();
+    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
+      uint32_t tag;
+      size_t len;
+    } tlv = {Comms::kTagBytes, 0};
+    iovec iov[1];
+    iov[0].iov_base = &tlv;
+    iov[0].iov_len = sizeof(tlv);
+    char fd_msg[CMSG_SPACE(sizeof(int))] = {0};
+    cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+    fds[0] = STDERR_FILENO;
+    msghdr msg = {
+        .msg_iov = iov,
+        .msg_iovlen = 1,
+        .msg_control = fd_msg,
+        .msg_controllen = sizeof(fd_msg),
+    };
+    ASSERT_EQ(sendmsg(fd, &msg, 0), sizeof(tlv));
+  };
+  HandleCommunication(a, b, /*passcred=*/true);
+}
+
+TEST(CommsTest, RecvFDClosesFDsOnTruncation) {
+  auto a = [](Comms* comms) {
+    int fd;
+    SAPI_ASSERT_OK_AND_ASSIGN(auto old_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(comms->RecvFD(&fd), IsFalse());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto new_fds, sanitizer::GetListOfFDs());
+    EXPECT_THAT(new_fds, Eq(old_fds));
+  };
+  auto b = [](Comms* comms) {
+    // Fake the SendFD with extra fds.
+    int fd = comms->GetConnectionFD();
+    struct ABSL_ATTRIBUTE_PACKED TestInternalTLV {
+      uint32_t tag;
+      size_t len;
+    } tlv = {Comms::kTagBytes, 0};
+    iovec iov[1];
+    iov[0].iov_base = &tlv;
+    iov[0].iov_len = sizeof(tlv) - 1;
+    char fd_msg[CMSG_SPACE(sizeof(int))] = {0};
+    cmsghdr* cmsg = reinterpret_cast<cmsghdr*>(fd_msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+    fds[0] = STDERR_FILENO;
+    msghdr msg = {
+        .msg_iov = iov,
+        .msg_iovlen = 1,
+        .msg_control = fd_msg,
+        .msg_controllen = sizeof(fd_msg),
+    };
+    ASSERT_EQ(sendmsg(fd, &msg, 0), sizeof(tlv) - 1);
+  };
   HandleCommunication(a, b, /*passcred=*/true);
 }
 

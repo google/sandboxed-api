@@ -420,6 +420,7 @@ class Comms {
     return SendTLV(tag, sizeof(T), &value);
   }
 
+  bool RecvFDImpl(void* vmsg, int* fd);
   bool RecvMsg(InternalTLV* tlv, absl::Span<char> data, void* vmsg);
   bool SendMsg(const InternalTLV& tlv, absl::string_view data, void* cmsg,
                size_t cmsg_len);

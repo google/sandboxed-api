@@ -47,6 +47,7 @@
 #include <vector>
 
 #include "absl/base/dynamic_annotations.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -135,6 +136,21 @@ std::string GetDefaultCommsName(int socket_fd) {
   // Note: getpid()/gettid() are non-blocking syscalls.
   return absl::StrFormat("sandbox2::Comms:FD=%d/PID=%d/TID=%ld", socket_fd,
                          getpid(), syscall(__NR_gettid));
+}
+
+void CloseAllFDs(msghdr* msg) {
+  cmsghdr* cmsg = CMSG_FIRSTHDR(msg);
+  while (cmsg) {
+    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
+    if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
+      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
+      int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+      for (int i = 0; cmsg->cmsg_len >= CMSG_LEN(sizeof(int) * (i + 1)); ++i) {
+        close(fds[i]);
+      }
+    }
+    cmsg = CMSG_NXTHDR(msg, cmsg);
+  }
 }
 
 }  // namespace
@@ -470,6 +486,36 @@ bool Comms::RecvMsg(InternalTLV* tlv, absl::Span<char> data, void* vmsg) {
   return true;
 }
 
+bool Comms::RecvFDImpl(void* vmsg, int* fd) {
+  auto msg = reinterpret_cast<msghdr*>(vmsg);
+  bool found_fd = false;
+  cmsghdr* cmsg = CMSG_FIRSTHDR(msg);
+  while (cmsg) {
+    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
+    if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
+      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
+      int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
+      for (int i = 0; cmsg->cmsg_len >= CMSG_LEN(sizeof(int) * (i + 1)); ++i) {
+        if (!found_fd) {
+          *fd = fds[i];
+          found_fd = true;
+          continue;
+        }
+        // Close any extra file descriptors.
+        close(fds[i]);
+      }
+    }
+    cmsg = CMSG_NXTHDR(msg, cmsg);
+  }
+  if (!found_fd) {
+    SAPI_RAW_LOG(ERROR,
+                 "RecvFD: No SCM_RIGHTS message received. Process is probably "
+                 "out of free file descriptors");
+    return false;
+  }
+  return true;
+}
+
 bool Comms::RecvFD(int* fd) {
   union {
     struct cmsghdr cmh;
@@ -481,6 +527,7 @@ bool Comms::RecvFD(int* fd) {
       .msg_controllen = kRecvMsgControlBufferSize,
   };
   InternalTLV tlv;
+  absl::Cleanup cleanup = [&msg] { CloseAllFDs(&msg); };
   if (!RecvMsg(&tlv, {}, &msg)) {
     return false;
   }
@@ -490,26 +537,8 @@ bool Comms::RecvFD(int* fd) {
     return false;
   }
 
-  cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
-  while (cmsg) {
-    if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
-      if (cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
-        ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
-        int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
-        *fd = fds[0];
-        return true;
-      }
-      SAPI_RAW_VLOG(1,
-                    "recvmsg(SCM_RIGHTS): cmsg->cmsg_len != "
-                    "CMSG_LEN(sizeof(int)), skipping");
-    }
-    cmsg = CMSG_NXTHDR(&msg, cmsg);
-  }
-  SAPI_RAW_LOG(ERROR,
-               "RecvFD: No SCM_RIGHTS message received. Process is probably "
-               "out of free file descriptors");
-  return false;
+  std::move(cleanup).Cancel();
+  return RecvFDImpl(&msg, fd);
 }
 
 bool Comms::RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
@@ -524,16 +553,18 @@ bool Comms::RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
   };
   InternalTLV tlv;
   if (!RecvMsg(&tlv, {}, &msg)) {
+    CloseAllFDs(&msg);
     return false;
   }
+  CloseAllFDs(&msg);
   if (tlv.tag != kTagCreds) {
     SAPI_RAW_LOG(ERROR, "RecvCreds: Expected (kTagCreds: 0x%x), got: 0x%x",
                  kTagCreds, tlv.tag);
     return false;
   }
   cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
   while (cmsg) {
+    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
     if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_CREDENTIALS) {
       if (cmsg->cmsg_len == CMSG_LEN(sizeof(struct ucred))) {
         ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
@@ -1073,14 +1104,8 @@ bool Comms::RecvSharedMemUpgradeResponse(int* fd) {
       .msg_controllen = kRecvMsgControlBufferSize,
   };
   InternalTLV tlv;
+  absl::Cleanup cleanup = [&msg] { CloseAllFDs(&msg); };
   if (!RecvMsg(&tlv, {}, &msg)) {
-    return false;
-  }
-  if (tlv.tag != kTagCommsNoUpgrade && tlv.tag != kTagCommsUpgrade) {
-    SAPI_RAW_LOG(ERROR,
-                 "RecvFD: Expected (kTagCommsNoUpgrade: 0x%x or "
-                 "kTagCommsUpgrade: 0x%x), got: 0x%x",
-                 kTagCommsNoUpgrade, kTagCommsUpgrade, tlv.tag);
     return false;
   }
 
@@ -1090,27 +1115,16 @@ bool Comms::RecvSharedMemUpgradeResponse(int* fd) {
     return true;
   }
 
-  cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(cmsg, sizeof(cmsghdr));
-  while (cmsg) {
-    if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
-      if (cmsg->cmsg_len != CMSG_LEN(sizeof(int))) {
-        SAPI_RAW_VLOG(1,
-                      "recvmsg(SCM_RIGHTS): cmsg->cmsg_len != "
-                      "CMSG_LEN(sizeof(int)), skipping");
-        continue;
-      }
-      ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(CMSG_DATA(cmsg), cmsg->cmsg_len);
-      int* fds = reinterpret_cast<int*>(CMSG_DATA(cmsg));
-      *fd = fds[0];
-      return true;
-    }
-    cmsg = CMSG_NXTHDR(&msg, cmsg);
+  if (tlv.tag != kTagCommsUpgrade) {
+    SAPI_RAW_LOG(ERROR,
+                 "RecvFD: Expected (kTagCommsNoUpgrade: 0x%x or "
+                 "kTagCommsUpgrade: 0x%x), got: 0x%x",
+                 kTagCommsNoUpgrade, kTagCommsUpgrade, tlv.tag);
+    return false;
   }
-  SAPI_RAW_LOG(ERROR,
-               "RecvFD: No SCM_RIGHTS message received. Process is probably "
-               "out of free file descriptors");
-  return false;
+
+  std::move(cleanup).Cancel();
+  return RecvFDImpl(&msg, fd);
 }
 
 absl::Status Comms::RecvSharedMemUpgrade() {
