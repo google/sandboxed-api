@@ -44,6 +44,7 @@
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
+using sapi::file_util::fileops::FDCloser;
 
 absl::Status Sandbox2RPCChannel::Call(const FuncCall& call, uint32_t tag,
                                       FuncRet* ret, v::Type exp_type) {
@@ -233,7 +234,8 @@ absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
     return absl::UnavailableError("Sending TLV value failed");
   }
 
-  if (!comms_->RecvFD(local_fd)) {
+  FDCloser fd;
+  if (!comms_->RecvFD(&fd)) {
     return absl::UnavailableError("Receving FD failed");
   }
 
@@ -241,6 +243,7 @@ absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
   if (!fret.success) {
     return absl::UnavailableError("RecvFD failed on the remote side");
   }
+  *local_fd = fd.Release();
   return absl::OkStatus();
 }
 
