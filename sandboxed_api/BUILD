@@ -84,6 +84,7 @@ cc_library(
         ":var_type",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2:util",
+        "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",

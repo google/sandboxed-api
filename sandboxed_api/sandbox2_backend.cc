@@ -313,54 +313,68 @@ absl::Status Sandbox2Backend::Init() {
   ApplySandbox2Config(executor.get());
   MapFileDescriptors(executor.get());
 
-  s2_ = std::make_unique<sandbox2::Sandbox2>(std::move(executor),
-                                             std::move(s2p), CreateNotifier());
+  auto s2 = std::make_unique<sandbox2::Sandbox2>(
+      std::move(executor), std::move(s2p), CreateNotifier());
   const sandbox2::Buffer* shared_memory_mapping = nullptr;
   bool use_shared_memory = config_.sandbox2.shared_memory_config.has_value();
   if (use_shared_memory) {
     ABSL_ASSIGN_OR_RETURN(
         shared_memory_mapping,
-        s2_->CreateSharedMemoryMapping(*config_.sandbox2.shared_memory_config));
+        s2->CreateSharedMemoryMapping(*config_.sandbox2.shared_memory_config));
   }
   if (config_.sandbox2.enable_shared_memory_comms) {
-    ABSL_RETURN_IF_ERROR(s2_->EnableSharedMemoryComms());
+    ABSL_RETURN_IF_ERROR(s2->EnableSharedMemoryComms());
   }
   if (config_.sandbox2.use_unotify_monitor) {
-    ABSL_RETURN_IF_ERROR(s2_->EnableUnotifyMonitor());
+    ABSL_RETURN_IF_ERROR(s2->EnableUnotifyMonitor());
   }
-  s2_awaited_ = false;
-  auto res = s2_->RunAsync();
-
-  comms_ = s2_->comms();
-  pid_ = s2_->pid();
-
-  rpc_channel_ = std::make_unique<Sandbox2RPCChannel>(comms_, pid_);
-  if (use_shared_memory) {
-    uint64_t remote_base_address;
-    comms_->RecvUint64(&remote_base_address);
-    void* shared_memory_local_ptr = shared_memory_mapping->data();
-    auto shared_memory_remote_ptr =
-        reinterpret_cast<void*>(remote_base_address);
-    rpc_channel_ = std::make_unique<SharedMemoryRPCChannel>(
-        std::move(rpc_channel_), shared_memory_mapping->size(),
-        shared_memory_local_ptr, shared_memory_remote_ptr);
-  }
-
+  auto res = s2->RunAsync();
   if (!res) {
     // Allow recovering from a bad fork client state.
     {
       absl::MutexLock lock(fork_client_shared().mu_);
       fork_client_shared().client_.reset();
     }
-    sandbox2::Result result = s2_->AwaitResult();
+    sandbox2::Result result = s2->AwaitResult();
     LOG(ERROR) << "Could not start the sandbox: " << result.ToString();
     return absl::UnavailableError(
         absl::StrCat("Could not start the sandbox: ", result.ToString()));
   }
+
+  auto comms = s2->comms();
+  auto pid = s2->pid();
+
+  std::unique_ptr<RPCChannel> rpc_channel =
+      std::make_unique<Sandbox2RPCChannel>(comms, pid);
+  if (use_shared_memory) {
+    uint64_t remote_base_address;
+    if (!comms->RecvUint64(&remote_base_address)) {
+      s2->Kill();
+      sandbox2::Result result = s2->AwaitResult();
+      return absl::UnavailableError(
+          absl::StrCat("Could not receive remote_base_address from sandboxee: ",
+                       result.ToString()));
+    }
+    void* shared_memory_local_ptr = shared_memory_mapping->data();
+    auto shared_memory_remote_ptr =
+        reinterpret_cast<void*>(remote_base_address);
+    rpc_channel = std::make_unique<SharedMemoryRPCChannel>(
+        std::move(rpc_channel), shared_memory_mapping->size(),
+        shared_memory_local_ptr, shared_memory_remote_ptr);
+  }
+
+  s2_awaited_ = false;
+  s2_ = std::move(s2);
+  comms_ = comms;
+  pid_ = pid;
+  rpc_channel_ = std::move(rpc_channel);
+
   return absl::OkStatus();
 }
 
-bool Sandbox2Backend::is_active() const { return s2_ && !s2_->IsTerminated(); }
+bool Sandbox2Backend::is_active() const {
+  return s2_ && !s2_->IsTerminated() && rpc_channel_ != nullptr;
+}
 
 absl::StatusOr<int> Sandbox2Backend::GetPid() const {
   if (!is_active() || pid_ < 0) {
