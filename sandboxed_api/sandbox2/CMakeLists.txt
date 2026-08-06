@@ -1118,6 +1118,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::log
     absl::span
     absl::strings
+    absl::synchronization
     benchmark
     sandbox2::comms
     sandbox2::comms_test_proto

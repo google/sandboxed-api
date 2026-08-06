@@ -26,6 +26,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/notification.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
@@ -579,6 +581,35 @@ TEST(CommsTest, TestExchangeTLV) {
   HandleCommunication(a, b);
 }
 
+TEST(CommsTest, TestBigExchangeTLV) {
+  auto a = [](Comms* comms) {
+    uint32_t r_tag;
+    std::vector<uint8_t> r_val;
+    std::string data(256 << 10, 'x');
+    ASSERT_THAT(
+        comms->ExchangeTLV(
+            0x1,
+            absl::MakeSpan(reinterpret_cast<const uint8_t*>(data.data()),
+                           data.size()),
+            &r_tag, &r_val),
+        IsTrue());
+    EXPECT_THAT(r_tag, Eq(0x2));
+    EXPECT_THAT(
+        std::string(reinterpret_cast<char*>(r_val.data()), r_val.size()),
+        Eq("world"));
+  };
+  auto b = [](Comms* comms) {
+    uint32_t tag;
+    std::vector<uint8_t> val;
+    ASSERT_THAT(comms->RecvTLV(&tag, &val), IsTrue());
+    EXPECT_THAT(tag, Eq(0x1));
+    EXPECT_THAT(std::string(reinterpret_cast<char*>(val.data()), val.size()),
+                Eq(std::string(256 << 10, 'x')));
+    ASSERT_THAT(comms->SendTLV(0x2, 5, "world"), IsTrue());
+  };
+  HandleCommunication(a, b);
+}
+
 TEST(CommsTest, SendRecvFailsAfterTerminate) {
   auto a = [](Comms* comms) {
     comms->Terminate();
@@ -809,6 +840,143 @@ TEST(CommsTest, RecvProtoBufFailsOnTagMismatch) {
   };
   auto b = [](Comms* comms) {
     ASSERT_THAT(comms->SendString("hello"), IsTrue());
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, UpgradeToSharedMemory) {
+  static constexpr size_t kSharedMemorySize = 1024 * 1024 * 16;
+  auto a = [](Comms* comms) {
+    ASSERT_THAT(comms->SendSharedMemUpgradeRequest(kSharedMemorySize), IsOk());
+    int32_t value;
+    ASSERT_THAT(comms->RecvInt32(&value), IsTrue());
+    EXPECT_THAT(value, Eq(0xDEADBEEF));
+    ASSERT_THAT(comms->SendInt32(0xC0FEBABE), IsTrue());
+  };
+  auto b = [](Comms* comms) {
+    ASSERT_THAT(comms->RecvSharedMemUpgrade(), IsOk());
+    ASSERT_THAT(comms->SendInt32(0xDEADBEEF), IsTrue());
+    int32_t value;
+    ASSERT_THAT(comms->RecvInt32(&value), IsTrue());
+    EXPECT_THAT(value, Eq(0xC0FEBABE));
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, NoUpgradeToSharedMemory) {
+  auto a = [](Comms* comms) {
+    ASSERT_THAT(comms->SendSharedMemUpgradeRequest(std::nullopt), IsOk());
+  };
+  auto b = [](Comms* comms) {
+    ASSERT_THAT(comms->RecvSharedMemUpgrade(), IsOk());
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, BrokenNoUpgradeToSharedMemory) {
+  absl::Notification notification;
+  auto a = [&notification](Comms* comms) {
+    notification.WaitForNotification();
+    EXPECT_THAT(comms->SendSharedMemUpgradeRequest(std::nullopt), Not(IsOk()));
+  };
+  auto b = [&notification](Comms* comms) {
+    comms->Terminate();
+    notification.Notify();
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, BrokenSenderNoUpgradeToSharedMemory) {
+  absl::Notification notification;
+  auto a = [&notification](Comms* comms) {
+    notification.WaitForNotification();
+    EXPECT_THAT(comms->RecvSharedMemUpgrade(), Not(IsOk()));
+  };
+  auto b = [&notification](Comms* comms) {
+    comms->Terminate();
+    notification.Notify();
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, DuplicateUpgradeToSharedMemory) {
+  static constexpr size_t kSharedMemorySize = 1024 * 1024 * 16;
+  auto a = [](Comms* comms) {
+    ASSERT_THAT(comms->SendSharedMemUpgradeRequest(kSharedMemorySize), IsOk());
+    ASSERT_THAT(comms->SendSharedMemUpgradeRequest(kSharedMemorySize),
+                Not(IsOk()));
+    ASSERT_THAT(comms->SendInt32(0xC0FEBABE), IsTrue());
+  };
+  auto b = [](Comms* comms) {
+    ASSERT_THAT(comms->RecvSharedMemUpgrade(), IsOk());
+    ASSERT_THAT(comms->RecvSharedMemUpgrade(), Not(IsOk()));
+    int32_t value;
+    ASSERT_THAT(comms->RecvInt32(&value), IsTrue());
+    EXPECT_THAT(value, Eq(0xC0FEBABE));
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, BrokenUpgradeToSharedMemory) {
+  static constexpr size_t kSharedMemorySize = 1024 * 1024 * 16;
+  absl::Notification notification;
+  auto a = [&notification](Comms* comms) {
+    notification.WaitForNotification();
+    EXPECT_THAT(comms->SendSharedMemUpgradeRequest(kSharedMemorySize),
+                Not(IsOk()));
+  };
+  auto b = [&notification](Comms* comms) {
+    comms->Terminate();
+    notification.Notify();
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, UnmatchedUpgradeToSharedMemory) {
+  auto a = [](Comms* comms) { EXPECT_THAT(comms->SendBool(false), IsTrue()); };
+  auto b = [](Comms* comms) {
+    EXPECT_THAT(comms->RecvSharedMemUpgrade(), Not(IsOk()));
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(Comms, SharedMemoryExchangeTLV) {
+  static constexpr size_t kSharedMemorySize = 1024 * 1024 * 16;
+  auto a = [](Comms* comms) {
+    ASSERT_THAT(comms->SendSharedMemUpgradeRequest(kSharedMemorySize), IsOk());
+    int32_t send_value = 0xDEADBEEF;
+    uint32_t recv_tag;
+    std::vector<uint8_t> recv_buf;
+    ASSERT_THAT(
+        comms->ExchangeTLV(
+            Comms::kTagInt32,
+            absl::MakeSpan(reinterpret_cast<const uint8_t*>(&send_value),
+                           sizeof(send_value)),
+            &recv_tag, &recv_buf),
+        IsTrue());
+    ASSERT_THAT(recv_tag, Eq(Comms::kTagInt32));
+    int32_t recv_value;
+    ASSERT_THAT(recv_buf.size(), Eq(sizeof(recv_value)));
+    memcpy(&recv_value, recv_buf.data(), sizeof(recv_value));
+    EXPECT_THAT(recv_value, Eq(0xC0FEBABE));
+  };
+  auto b = [](Comms* comms) {
+    ASSERT_THAT(comms->RecvSharedMemUpgrade(), IsOk());
+    int32_t send_value = 0xC0FEBABE;
+    uint32_t recv_tag;
+    std::vector<uint8_t> recv_buf;
+    ASSERT_THAT(
+        comms->ExchangeTLV(
+            Comms::kTagInt32,
+            absl::MakeSpan(reinterpret_cast<const uint8_t*>(&send_value),
+                           sizeof(send_value)),
+            &recv_tag, &recv_buf),
+        IsTrue());
+    ASSERT_THAT(recv_tag, Eq(Comms::kTagInt32));
+    int32_t recv_value;
+    ASSERT_THAT(recv_buf.size(), Eq(sizeof(recv_value)));
+    memcpy(&recv_value, recv_buf.data(), sizeof(recv_value));
+    EXPECT_THAT(recv_value, Eq(0xDEADBEEF));
   };
   HandleCommunication(a, b);
 }
