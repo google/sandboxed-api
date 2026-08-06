@@ -52,7 +52,6 @@ namespace sandbox2 {
 namespace {
 
 using ::absl_testing::IsOk;
-using ::absl_testing::StatusIs;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
