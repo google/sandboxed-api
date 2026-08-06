@@ -28,6 +28,7 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -40,12 +41,16 @@
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/file_helpers.h"
+#include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/temp_file.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
@@ -406,6 +411,50 @@ TEST(SharedMemoryTest, SharedMemoryDataTransferWorks) {
   ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
   EXPECT_EQ(result.reason_code(), 0);
   EXPECT_EQ(res->data()[0], 'A');
+}
+
+TEST_P(Sandbox2Test, AllowAllSyscallsFlag) {
+  absl::SetFlag(&FLAGS_sandbox2_danger_danger_permit_all, true);
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder;
+  builder.CollectStacktracesOnSignal(false);
+  sapi::AddSanitizerAndCoverageDirs(builder, path);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
+TEST_P(Sandbox2Test, AllowAllSyscallsAndLogFlag) {
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      std::string log_path,
+      sapi::CreateNamedTempFileAndClose(
+          sapi::file::JoinPath(sapi::GetTestTempPath(), "log")));
+  absl::SetFlag(&FLAGS_sandbox2_danger_danger_permit_all_and_log, log_path);
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder;
+  builder.CollectStacktracesOnSignal(false);
+  sapi::AddSanitizerAndCoverageDirs(builder, path);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  {
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+    auto result = sandbox.Run();
+    ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
+    EXPECT_EQ(result.reason_code(), 0);
+  }
+  std::string log_contents;
+  ASSERT_THAT(
+      sapi::file::GetContents(log_path, &log_contents, sapi::file::Defaults()),
+      IsOk());
+  EXPECT_THAT(log_contents, Not(IsEmpty()));
 }
 
 INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),

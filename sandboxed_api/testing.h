@@ -77,6 +77,9 @@ namespace sapi {
 sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
     absl::string_view binary_path);
 
+void AddSanitizerAndCoverageDirs(sandbox2::PolicyBuilder& builder,
+                                 absl::string_view binary_path);
+
 // Returns a writable path usable in tests. If the name argument is specified,
 // returns a name under that path. This can then be used for creating temporary
 // test files and/or directories.

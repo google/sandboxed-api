@@ -1256,6 +1256,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_tsync
   )
   target_link_libraries(sandbox2_sandbox2_test PRIVATE
+    absl::flags
     absl::status
     absl::statusor
     absl::strings
@@ -1265,8 +1266,12 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::config
     sandbox2::allowlists_all_syscalls
     sandbox2::allowlists_namespaces
+    sandbox2::flags
     sandbox2::fork_client
     sandbox2::sandbox2
+    sapi::file_base
+    sapi::file_helpers
+    sapi::temp_file
     sapi::testing
     sapi::test_main
     sapi::thread

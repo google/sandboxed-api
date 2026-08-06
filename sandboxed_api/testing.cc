@@ -26,11 +26,8 @@
 
 namespace sapi {
 
-sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
-    absl::string_view binary_path) {
-  sandbox2::PolicyBuilder builder;
-  // Don't restrict the syscalls at all.
-  builder.DefaultAction(sandbox2::AllowAllSyscalls());
+void AddSanitizerAndCoverageDirs(sandbox2::PolicyBuilder& builder,
+                                 absl::string_view binary_path) {
   if (IsCoverageRun()) {
     builder.AddDirectory(absl::NullSafeStringView(getenv("COVERAGE_DIR")),
                          /*is_ro=*/false);
@@ -40,6 +37,14 @@ sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
     builder.AddLibrariesForBinary(binary_path);
     builder.AddDirectory("/proc");
   }
+}
+
+sandbox2::PolicyBuilder CreateDefaultPermissiveTestPolicy(
+    absl::string_view binary_path) {
+  sandbox2::PolicyBuilder builder;
+  // Don't restrict the syscalls at all.
+  builder.DefaultAction(sandbox2::AllowAllSyscalls());
+  AddSanitizerAndCoverageDirs(builder, binary_path);
   builder.AllowTcMalloc();
   return builder;
 }
