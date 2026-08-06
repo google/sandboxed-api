@@ -198,7 +198,7 @@ absl::Status SeccompUnotify::RespondErrno(const seccomp_notif& req, int error) {
     return absl::FailedPreconditionError("Init() must be called first");
   }
   memset(resp_.get(), 0, resp_size_);
-  resp_->error = error;
+  resp_->error = -error;
   return Respond(req);
 }
 

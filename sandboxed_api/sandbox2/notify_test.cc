@@ -17,6 +17,8 @@
 #include <sys/types.h>
 #include <syscall.h>
 
+#include <cerrno>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -124,7 +126,7 @@ TEST_P(NotifyTest, AllowPersonality) {
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
-  EXPECT_THAT(result.reason_code(), Eq(22));
+  EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
 // Test EventSyscallTrap on personality syscall and disallow it.
@@ -193,7 +195,65 @@ TEST_P(NotifyTest, TraceAllAllowPersonality) {
   auto result = s2.Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
-  EXPECT_THAT(result.reason_code(), Eq(22));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+class PersonalityNewNotify : public Notify {
+ public:
+  explicit PersonalityNewNotify(TraceAction trace_action)
+      : trace_action_(trace_action) {}
+  TraceAction EventSyscallTrace(const Syscall& syscall) override {
+    if (syscall.nr() != __NR_personality) {
+      return TraceAction::kAllow;
+    }
+    return trace_action_;
+  }
+
+  void EventSyscallReturn(const Syscall& syscall,
+                          int64_t return_value) override {
+    if (syscall.nr() != __NR_personality) {
+      return;
+    }
+    syscall_return_called_ = true;
+  }
+
+  bool syscall_return_called() const { return syscall_return_called_; }
+
+ private:
+  TraceAction trace_action_;
+  bool syscall_return_called_ = false;
+};
+
+TEST_P(NotifyTest, TraceActionErrno) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
+  std::vector<std::string> args = {path};
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              NotifyTestcasePolicy(path),
+              std::make_unique<PersonalityNewNotify>(
+                  Notify::TraceAction::RespondWithErrno(ENOSYS)));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+  auto result = s2.Run();
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(ENOSYS));
+}
+
+TEST_P(NotifyTest, InspectAfterSyscall) {
+  if (GetParam()) {
+    GTEST_SKIP() << "Skipping InspectAfterSyscall test because continue is not "
+                    "supported for unotify";
+  }
+  const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
+  std::vector<std::string> args = {path};
+  auto notify = std::make_unique<PersonalityNewNotify>(
+      Notify::TraceAction::kInspectAfterReturn);
+  PersonalityNewNotify* notify_ptr = notify.get();
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              NotifyTestcasePolicy(path), std::move(notify));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+  auto result = s2.Run();
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_TRUE(notify_ptr->syscall_return_called());
 }
 
 INSTANTIATE_TEST_SUITE_P(Notify, NotifyTest, ::testing::Values(false, true),

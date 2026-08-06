@@ -18,10 +18,12 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 
 int main(int argc, char* argv[]) {
+  errno = 0;
   syscall(__NR_personality, uintptr_t{1}, uintptr_t{2}, uintptr_t{3},
           uintptr_t{4}, uintptr_t{5}, uintptr_t{6});
-  return 22;
+  return errno;
 }

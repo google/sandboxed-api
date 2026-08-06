@@ -75,7 +75,7 @@ TEST(SeccompUnotifyTest, Normal) {
           EXPECT_EQ(reinterpret_cast<const char*>(&resp)[i], 0);
         }
         EXPECT_EQ(resp.id, 1);
-        EXPECT_EQ(resp.error, EINVAL);
+        EXPECT_EQ(resp.error, -EINVAL);
         EXPECT_EQ(resp.flags, 0);
         EXPECT_EQ(resp.val, 0);
         return 0;
