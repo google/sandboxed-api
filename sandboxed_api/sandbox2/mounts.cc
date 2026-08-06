@@ -94,9 +94,16 @@ absl::Status VerifyProcMount(const MountTree& mount_tree) {
 }
 
 absl::Status VerifySharedMountNamespace(const MountTree& mount_tree) {
-  if (mount_tree.has_node() && mount_tree.node().has_tmpfs_node()) {
-    return absl::FailedPreconditionError(
-        "Shared mount namespace cannot be used with tmpfs mounts.");
+  if (mount_tree.has_node()) {
+    const MountTree::Node& node = mount_tree.node();
+    if (node.has_tmpfs_node()) {
+      return absl::FailedPreconditionError(
+          "Shared mount namespace cannot be used with tmpfs mounts.");
+    }
+    if (node.has_root_node() && node.root_node().writable()) {
+      return absl::FailedPreconditionError(
+          "Shared mount namespace cannot be used with a writable root.");
+    }
   }
   ABSL_RETURN_IF_ERROR(VerifyProcMount(mount_tree));
   for (const auto& [name, subtree] : mount_tree.entries()) {

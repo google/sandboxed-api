@@ -101,6 +101,22 @@ cc_binary(
 )
 
 cc_binary(
+    name = "shared_root_write",
+    testonly = True,
+    srcs = ["shared_root_write.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+)
+
+cc_binary(
+    name = "shared_root_read",
+    testonly = True,
+    srcs = ["shared_root_read.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+)
+
+cc_binary(
     name = "personality",
     testonly = True,
     srcs = ["personality.cc"],
