@@ -185,10 +185,9 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
 
   FDCloser fd(open(path.c_str(), O_PATH | O_CLOEXEC));
   if (fd.get() < 0 && (errno == ENOENT || errno == EACCES)) {
-    SAPI_RAW_LOG(WARNING,
-                 "Ignoring non-existing or unreadable path for landlock: %s "
-                 "(%s)",
-                 path.c_str(), strerror(errno));
+    SAPI_RAW_PLOG(WARNING,
+                  "Ignoring non-existing or unreadable path for landlock: %s",
+                  path.c_str());
     return;
   }
   SAPI_RAW_PCHECK(fd.get() >= 0, "open failed for %s", path.c_str());
