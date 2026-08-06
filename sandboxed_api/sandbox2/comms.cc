@@ -251,15 +251,12 @@ bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
     return false;
   }
   if (length > kWarnMsgSize) {
-    // TODO(cblichmann): Use LOG_FIRST_N once Abseil logging is released.
-    static std::atomic<int> times_warned = 0;
-    if (times_warned.fetch_add(1, std::memory_order_relaxed) < 10) {
-      SAPI_RAW_LOG(
-          WARNING,
-          "TLV message of size %zu detected. Please consider switching "
-          "to Buffer API instead.",
-          length);
-    }
+    // We should not spam the logs too much here, since this is limited by the
+    // kWarnMsgSize (which is set to 256MiB).
+    SAPI_RAW_LOG(WARNING,
+                 "TLV message of size %zu detected. Please consider "
+                 "switching to Buffer API instead.",
+                 length);
   }
 
   SAPI_RAW_VLOG(3, "Sending a TLV message, tag: 0x%08x, length: %zu", tag,
@@ -963,14 +960,12 @@ bool Comms::RecvTL(uint32_t* tag, size_t* length) {
     return false;
   }
   if (*length > kWarnMsgSize) {
-    static std::atomic<int> times_warned = 0;
-    if (times_warned.fetch_add(1, std::memory_order_relaxed) < 10) {
-      SAPI_RAW_LOG(
-          WARNING,
-          "TLV message of size: %zu detected. Please consider switching to "
-          "Buffer API instead.",
-          *length);
-    }
+    // We should not spam the logs too much here, since this is limited by the
+    // kWarnMsgSize (which is set to 256MiB).
+    SAPI_RAW_LOG(WARNING,
+                 "TLV message of size %zu detected. Please consider "
+                 "switching to Buffer API instead.",
+                 *length);
   }
   return true;
 }
