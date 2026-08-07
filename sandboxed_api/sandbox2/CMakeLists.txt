@@ -1266,6 +1266,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::config
     sandbox2::allowlists_all_syscalls
     sandbox2::allowlists_namespaces
+    sandbox2::comms
     sandbox2::flags
     sandbox2::fork_client
     sandbox2::sandbox2

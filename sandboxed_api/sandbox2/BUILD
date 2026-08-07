@@ -1156,6 +1156,7 @@ cc_test(
         "no_qemu_user_mode",
     ],
     deps = [
+        ":comms",
         ":flags",
         ":fork_client",
         ":sandbox2",

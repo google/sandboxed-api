@@ -393,11 +393,21 @@ bool MonitorBase::InitVerifyVersion() {
                << ") from sandboxee, got: " << tag;
     return false;
   }
+  std::optional<std::string> overridden_version = std::nullopt;
+  if (testonly_override_version_) {
+    LOG(INFO) << "Overriding version to " << *testonly_override_version_;
+    overridden_version = absl::StrCat("V", *testonly_override_version_);
+    remote_version = *testonly_override_version_;
+  }
   auto parsed_remote = ParsedVersion::ParseVersion(remote_version);
   CHECK(parsed_remote.ok());
+
   client_version_number_ = parsed_remote->version_number;
   if (client_version_number_ != 0) {
     absl::string_view local_version = GetVersion();
+    if (overridden_version) {
+      local_version = *overridden_version;
+    }
     if (!comms_->SendTLV(Comms::kTagVersion, local_version.size(),
                          local_version.data())) {
       LOG(ERROR) << "Failed to send host version back to sandboxee";

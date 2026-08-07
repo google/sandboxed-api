@@ -153,6 +153,9 @@ void Sandbox2::Launch() {
   });
 
   monitor_ = CreateMonitor();
+  if (testonly_override_version_) {
+    monitor_->TestOnlyOverrideVersion(*testonly_override_version_);
+  }
   monitor_->Launch();
 }
 

@@ -40,6 +40,7 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
+#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
@@ -54,6 +55,14 @@
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
+
+class Sandbox2TestPeer {
+ public:
+  static void TestOnlyOverrideVersion(Sandbox2& sandbox, int version) {
+    sandbox.testonly_override_version_ = version;
+  }
+};
+
 namespace {
 
 using ::absl_testing::IsOk;
@@ -455,6 +464,24 @@ TEST_P(Sandbox2Test, AllowAllSyscallsAndLogFlag) {
       sapi::file::GetContents(log_path, &log_contents, sapi::file::Defaults()),
       IsOk());
   EXPECT_THAT(log_contents, Not(IsEmpty()));
+}
+
+TEST_P(Sandbox2Test, PreProtobufConfigVersionWorks) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/tsync");
+
+  auto executor =
+      std::make_unique<Executor>(path, std::vector<std::string>{path});
+  executor->set_enable_sandbox_before_exec(false);
+  executor->ipc()->MapDupedFd(1, Comms::kSandbox2ClientCommsFD);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  // Set an old version number to trigger the pre-protobuf config version.
+  Sandbox2TestPeer::TestOnlyOverrideVersion(sandbox, 1);
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
 }
 
 INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),

@@ -84,6 +84,10 @@ class MonitorBase {
   virtual void DumpStackTrace() = 0;
   virtual void SetWallTimeLimit(absl::Duration limit) = 0;
 
+  void TestOnlyOverrideVersion(int version) {
+    testonly_override_version_ = version;
+  }
+
  protected:
   // Applies limits on the sandboxee.
   bool InitApplyLimits();
@@ -207,6 +211,9 @@ class MonitorBase {
 
   // 0 represents legacy V1 client.
   int client_version_number_ = 0;
+
+  // If set, this version will be used instead of the actual version.
+  std::optional<int> testonly_override_version_ = std::nullopt;
 };
 
 }  // namespace sandbox2

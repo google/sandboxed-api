@@ -39,7 +39,7 @@
 
 namespace sandbox2 {
 
-class EnableLandlock;
+class Sandbox2TestPeer;
 
 constexpr size_t kDefaultCommsSharedMemorySize = (size_t{128} << 10);
 
@@ -124,6 +124,8 @@ class Sandbox2 final {
   absl::Status EnableSharedMountNamespace();
 
  private:
+  friend class Sandbox2TestPeer;
+
   // Launches the Monitor.
   void Launch();
 
@@ -139,6 +141,9 @@ class Sandbox2 final {
 
   // Buffer for the shared memory region.
   std::unique_ptr<Buffer> shared_memory_buffer_;
+
+  // If set, this version will be used instead of the actual version.
+  std::optional<int> testonly_override_version_ = std::nullopt;
 };
 
 }  // namespace sandbox2
