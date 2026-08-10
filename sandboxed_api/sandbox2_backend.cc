@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "sandboxed_api/file_toc.h"
-#include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
@@ -124,8 +123,8 @@ class Sandbox2Backend::ThreadLocalChannelsState {
       ABSL_GUARDED_BY(mutex);
 };
 
-ABSL_CONST_INIT absl::Mutex
-    Sandbox2Backend::ThreadLocalChannelsState::registry_mutex(absl::kConstInit);
+constinit absl::Mutex Sandbox2Backend::ThreadLocalChannelsState::registry_mutex(
+    absl::kConstInit);
 
 absl::flat_hash_set<Sandbox2Backend::ThreadLocalChannelsState*>&
 Sandbox2Backend::ThreadLocalChannelsState::GetBackendRegistry() {

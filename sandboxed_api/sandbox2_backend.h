@@ -45,10 +45,10 @@ class Sandbox2Backend {
       absl::AnyInvocable<std::unique_ptr<sandbox2::Notify>()>
           create_notifier_cb);
 
-  virtual ~Sandbox2Backend();
-
   Sandbox2Backend(Sandbox2Backend&&);
   Sandbox2Backend& operator=(Sandbox2Backend&&);
+
+  virtual ~Sandbox2Backend();
 
   // Initializes a new sandboxing session.
   absl::Status Init();
@@ -76,6 +76,7 @@ class Sandbox2Backend {
  private:
   friend class SandboxBase;
   friend class Sandbox2BackendPeer;
+  class ThreadLocalChannelsState;
 
   // Provides a custom notifier for sandboxee events. May return nullptr.
   virtual std::unique_ptr<sandbox2::Notify> CreateNotifier();
@@ -126,7 +127,6 @@ class Sandbox2Backend {
   // Used for testing.
   size_t NumThreadLocalChannels() const;
 
-  class ThreadLocalChannelsState;
   std::unique_ptr<ThreadLocalChannelsState> thread_local_state_;
 };
 

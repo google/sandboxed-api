@@ -145,8 +145,7 @@ class SandboxBase {
 
   absl::StatusOr<std::string> GetCString(const v::RemotePtr& str,
                                          size_t max_length = 10ULL
-                                                             << 20 /* 10 MiB*/
-  );
+                                                             << 20 /*10 MiB*/);
 
   // Waits until the sandbox terminated and returns the result.
   virtual absl::Status AwaitExitStatus() = 0;
@@ -167,11 +166,6 @@ class SandboxBase {
   absl::Status Call(
       const std::string& func, v::Callable* ret,
       std::initializer_list<sandbox_internal::PtrOrCallable> args);
-
- private:
-  // TODO(sroettger): Remove this function after migrating all users of
-  // CreateNotifier() to Sandbox2Backend.
-  friend class Sandbox2Backend;
 };
 
 // The Sandbox class represents the sandboxed library. It provides users with
