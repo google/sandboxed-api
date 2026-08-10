@@ -17,6 +17,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
+#include <utility>
+
+#include "absl/functional/any_invocable.h"
 
 extern "C" {
 
@@ -25,8 +29,12 @@ int callback_with_primitives(int (*cb)(int, int), int a, int b) {
   return cb(a, b);
 }
 
-uint8_t* callback_ret_alias(const uint8_t* input, size_t in_size,
-                            uint8_t* (*cb)(size_t, int)) {
+}  // extern "C"
+
+namespace {
+
+template <typename T>
+uint8_t* callback_ret_alias_impl(const uint8_t* input, size_t in_size, T cb) {
   if (cb == nullptr || input == nullptr) return nullptr;
 
   int init_val = 0xCA;
@@ -39,9 +47,28 @@ uint8_t* callback_ret_alias(const uint8_t* input, size_t in_size,
   return output;
 }
 
+}  // namespace
+
+extern "C" {
+
+uint8_t* ret_alias_func_pointer(const uint8_t* input, size_t in_size,
+                                uint8_t* (*cb)(size_t, int)) {
+  return callback_ret_alias_impl(input, in_size, cb);
+}
+
 void callback_returning_buffer(const uint8_t* input, size_t in_size,
                                uint8_t* (*cb)(size_t, int)) {
-  (void)callback_ret_alias(input, in_size, cb);
+  (void)ret_alias_func_pointer(input, in_size, cb);
+}
+
+uint8_t* ret_alias_std_function(const uint8_t* input, size_t in_size,
+                                std::function<uint8_t*(size_t, int)> cb) {
+  return callback_ret_alias_impl(input, in_size, std::move(cb));
+}
+
+uint8_t* ret_alias_any_invocable(const uint8_t* input, size_t in_size,
+                                 absl::AnyInvocable<uint8_t*(size_t, int)> cb) {
+  return callback_ret_alias_impl(input, in_size, std::move(cb));
 }
 
 uint8_t* ret_alias_called_multiple_times(int num_chunks, size_t chunk_size,

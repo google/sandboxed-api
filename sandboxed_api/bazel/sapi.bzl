@@ -630,6 +630,7 @@ def cc_sandboxed_library(
             "@abseil-cpp//absl/container:flat_hash_map",
             "@abseil-cpp//absl/container:node_hash_map",
             "@abseil-cpp//absl/synchronization:synchronization",
+            "@abseil-cpp//absl/functional:any_invocable",
         ] + sandboxee_deps,
         **common
     )
@@ -650,6 +651,7 @@ def cc_sandboxed_library(
             "@abseil-cpp//absl/container:flat_hash_map",
             "@abseil-cpp//absl/container:node_hash_map",
             "@abseil-cpp//absl/synchronization:synchronization",
+            "@abseil-cpp//absl/functional:any_invocable",
         ] + host_deps,
         **common
     )

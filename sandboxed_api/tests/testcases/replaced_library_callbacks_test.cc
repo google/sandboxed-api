@@ -41,10 +41,9 @@ static uint8_t* AllocatingCallback(size_t size, int init_val) {
 
 static void ClearCapturedOutput() { captured_output = nullptr; }
 
-TEST(Test, CallbackReturningBuffer) {
+TEST(Test, CallbackReturningBufferNonAlias) {
   uint8_t input[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
-  // Non-alias version:
   callback_returning_buffer(input, sizeof(input), AllocatingCallback);
   EXPECT_EQ(memcmp(captured_output, input, sizeof(input)), 0);
   EXPECT_EQ(memcmp(captured_output + sizeof(input), input, sizeof(input)), 0);
@@ -53,10 +52,13 @@ TEST(Test, CallbackReturningBuffer) {
 
   delete[] captured_output;
   ClearCapturedOutput();
+}
 
-  // Alias version:
+TEST(Test, CallbackReturningBufferAliasFunctionPointer) {
+  uint8_t input[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
   uint8_t* output =
-      callback_ret_alias(input, sizeof(input), AllocatingCallback);
+      ret_alias_func_pointer(input, sizeof(input), AllocatingCallback);
 
   EXPECT_EQ(output, captured_output);
   EXPECT_EQ(memcmp(output, input, sizeof(input)), 0);
@@ -68,10 +70,54 @@ TEST(Test, CallbackReturningBuffer) {
   ClearCapturedOutput();
 }
 
+TEST(Test, CallbackReturningBufferAliasStdFunction) {
+  uint8_t input[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+  int incr1 = 1;
+  int incr2 = 2;
+  auto WrapAllocatingCallback = [&](size_t size, int init_val) -> uint8_t* {
+    return AllocatingCallback(size, init_val + incr1 + incr2);
+  };
+  uint8_t* output =
+      ret_alias_std_function(input, sizeof(input), WrapAllocatingCallback);
+  EXPECT_EQ(output, captured_output);
+  EXPECT_EQ(memcmp(output, input, sizeof(input)), 0);
+  EXPECT_EQ(memcmp(output + sizeof(input), input, sizeof(input)), 0);
+  EXPECT_EQ(output[sizeof(input) * 2], 0xCD);
+  EXPECT_EQ(output[sizeof(input) * 2 + 1], 0xCD);
+
+  delete[] output;
+  ClearCapturedOutput();
+}
+
+TEST(Test, CallbackReturningBufferAliasAnyInvocable) {
+  uint8_t input[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+  int incr1 = 1;
+  int incr2 = 1;
+  int incr3 = 1;
+  int incr4 = 1;
+  int incr5 = 1;
+  auto WrapAllocatingCallback = [&](size_t size, int init_val) -> uint8_t* {
+    return AllocatingCallback(size,
+                              init_val + incr1 + incr2 + incr3 + incr4 + incr5);
+  };
+  uint8_t* output =
+      ret_alias_any_invocable(input, sizeof(input), WrapAllocatingCallback);
+  EXPECT_EQ(output, captured_output);
+  EXPECT_EQ(memcmp(output, input, sizeof(input)), 0);
+  EXPECT_EQ(memcmp(output + sizeof(input), input, sizeof(input)), 0);
+  EXPECT_EQ(output[sizeof(input) * 2], 0xCF);
+  EXPECT_EQ(output[sizeof(input) * 2 + 1], 0xCF);
+
+  delete[] output;
+  ClearCapturedOutput();
+}
+
 TEST(Test, NullCallbackReturningBuffer) {
   uint8_t input[] = {0, 1, 2, 3, 4, 5, 6, 7};
   // Null callback, but non-null input.
-  EXPECT_EQ(callback_ret_alias(input, sizeof(input), nullptr), nullptr);
+  EXPECT_EQ(ret_alias_func_pointer(input, sizeof(input), nullptr), nullptr);
 
   // Non-null callback, but null input.
   auto cb = [](size_t size, int init_val) -> uint8_t* {
@@ -80,12 +126,13 @@ TEST(Test, NullCallbackReturningBuffer) {
     memset(output, init_val, size);
     return output;
   };
-  EXPECT_EQ(callback_ret_alias(nullptr, sizeof(input), cb), nullptr);
+  EXPECT_EQ(ret_alias_func_pointer(nullptr, sizeof(input), cb), nullptr);
 
   // Non-null callback, but the callback returns null.
   uint8_t large_input[] = {0, 1, 2,  3,  4,  5,  6,  7,
                            8, 9, 10, 11, 12, 13, 14, 15};
-  EXPECT_EQ(callback_ret_alias(large_input, sizeof(large_input), cb), nullptr);
+  EXPECT_EQ(ret_alias_func_pointer(large_input, sizeof(large_input), cb),
+            nullptr);
 }
 
 int cur_chunk_global = 0;

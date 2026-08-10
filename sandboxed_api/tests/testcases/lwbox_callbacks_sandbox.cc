@@ -14,7 +14,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 
+#include "absl/functional/any_invocable.h"
 #include "sandboxed_api/annotations.h"
 
 extern "C" {
@@ -26,11 +28,26 @@ void callback_returning_buffer(const uint8_t* input SANDBOX_IN_PTR
                                    uint8_t* (*cb)(size_t size, int));
 
 SANDBOX_ALIAS_CALLBACK_RETURN(cb)
-uint8_t* callback_ret_alias(const uint8_t* input SANDBOX_IN_PTR
-                                SANDBOX_ELEM_SIZED_BY(in_size),
-                            size_t in_size,
-                            SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
-                                uint8_t* (*cb)(size_t size, int));
+uint8_t* ret_alias_func_pointer(const uint8_t* input SANDBOX_IN_PTR
+                                    SANDBOX_ELEM_SIZED_BY(in_size),
+                                size_t in_size,
+                                SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
+                                    uint8_t* (*cb)(size_t size, int));
+
+SANDBOX_ALIAS_CALLBACK_RETURN(cb)
+uint8_t* ret_alias_std_function(const uint8_t* input SANDBOX_IN_PTR
+                                    SANDBOX_ELEM_SIZED_BY(in_size),
+                                size_t in_size,
+                                SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
+                                    std::function<uint8_t*(size_t size, int)>
+                                        cb);
+SANDBOX_ALIAS_CALLBACK_RETURN(cb)
+uint8_t* ret_alias_any_invocable(
+    const uint8_t* input SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
+    size_t in_size,
+    SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
+        absl::AnyInvocable<uint8_t*(size_t size, int)>
+            cb);
 
 SANDBOX_ALIAS_CALLBACK_RETURN(next_out_chunk)
 uint8_t* ret_alias_called_multiple_times(

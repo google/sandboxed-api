@@ -40,6 +40,7 @@
 #include "absl/strings/substitute.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Mangle.h"
@@ -51,6 +52,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include "re2/re2.h"
@@ -634,18 +636,20 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
   const PointerLifetime lifetime_;
 };
 
-struct CallbackArg : SandboxedLibraryEmitter::Arg {
+struct CallbackArg : public SandboxedLibraryEmitter::Arg {
   CallbackArg(absl::string_view name, absl::string_view type,
               SandboxedLibraryEmitter::Annotations ret_annotations,
               std::vector<std::string> param_names,
               std::vector<std::string> param_types, bool is_ret_pointer,
-              std::string ret_type_name)
+              std::string ret_type_name,
+              std::optional<std::string> functor_type_name = std::nullopt)
       : Arg(name, type),
         ret_annotations_(std::move(ret_annotations)),
         param_names_(std::move(param_names)),
         param_types_(std::move(param_types)),
         is_ret_pointer_(is_ret_pointer),
         ret_type_name_(std::move(ret_type_name)),
+        functor_type_name_(functor_type_name),
         ret_val_is_alias_for_outer_function_return_(false) {}
 
   // Indicates that the outer function's return value aliases with this
@@ -660,6 +664,16 @@ struct CallbackArg : SandboxedLibraryEmitter::Arg {
         "<optional>",
         absl::Substitute("\"$0sandboxed_api/var_callback.h\"", kIncludePrefix),
     };
+    if (functor_type_name_.has_value()) {
+      if (*functor_type_name_ == "std::function") {
+        includes.push_back("<functional>");
+      } else if (*functor_type_name_ == "absl::AnyInvocable") {
+        includes.push_back(absl::Substitute(
+            "\"$0absl/functional/any_invocable.h\"", kIncludePrefix));
+      } else {
+        LOG(FATAL) << "Unsupported functor type: " << *functor_type_name_;
+      }
+    }
     if (NeedsLambdaWrapper()) {
       includes.push_back("<vector>");
       includes.push_back("<memory>");
@@ -674,14 +688,26 @@ struct CallbackArg : SandboxedLibraryEmitter::Arg {
     return includes;
   }
 
-  std::string EmitHostParams() const override {
-    // Using decltype() to specify the callback type here allows us to follow
-    // a "typename variablename" syntax without the need to write a typedef for
-    // the callback type.
-    return absl::Substitute("decltype(static_cast<$0>(nullptr)) $1", type_,
-                            name_);
+  std::string EmitParamAsFunctionPointer() const {
+    return absl::StrCat(ret_type_name_, " (*", name_, ")(",
+                        absl::StrJoin(param_types_, ", "), ")");
   }
-  std::string EmitSandboxeeParams() const override { return EmitHostParams(); }
+
+  std::string EmitHostParams() const override {
+    if (functor_type_name_.has_value()) {
+      // For functors, for the host we can use the original functor type.
+      return absl::StrCat(type_, " ", name_);
+    }
+    return EmitParamAsFunctionPointer();
+  }
+  std::string EmitSandboxeeParams() const override {
+    if (functor_type_name_.has_value()) {
+      // For functors, for the sandboxee we use the equivalent function pointer
+      // type.
+      return EmitParamAsFunctionPointer();
+    }
+    return EmitHostParams();
+  }
 
   std::string EmitHostPreCall() const override {
     // For very simple callbacks, we don't need to wrap in a lambda.
@@ -789,6 +815,7 @@ struct CallbackArg : SandboxedLibraryEmitter::Arg {
   const std::vector<std::string> param_types_;
   const bool is_ret_pointer_;
   const std::string ret_type_name_;
+  const std::optional<std::string> functor_type_name_;
   bool ret_val_is_alias_for_outer_function_return_;
 };
 
@@ -3083,10 +3110,29 @@ absl::Status ExtractCallbackParamNamesAndTypes(
   while (true) {
     if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
       tl = ptr_tl.getPointeeLoc();
+    } else if (auto ref_tl = tl.getAs<clang::ReferenceTypeLoc>()) {
+      tl = ref_tl.getPointeeLoc();
     } else if (auto paren_tl = tl.getAs<clang::ParenTypeLoc>()) {
       tl = paren_tl.getInnerLoc();
     } else if (auto attr_tl = tl.getAs<clang::AttributedTypeLoc>()) {
       tl = attr_tl.getModifiedLoc();
+#if LLVM_VERSION_MAJOR < 22
+      // ElaboratedType was removed from the AST in LLVM 22.
+    } else if (auto elab_tl = tl.getAs<clang::ElaboratedTypeLoc>()) {
+      tl = elab_tl.getNamedTypeLoc();
+#endif
+    } else if (auto spec_tl =
+                   tl.getAs<clang::TemplateSpecializationTypeLoc>()) {
+      if (spec_tl.getNumArgs() >= 1) {
+        clang::TemplateArgumentLoc arg_loc = spec_tl.getArgLoc(0);
+        if (arg_loc.getArgument().getKind() == clang::TemplateArgument::Type) {
+          if (clang::TypeSourceInfo* arg_tsi = arg_loc.getTypeSourceInfo()) {
+            tl = arg_tsi->getTypeLoc();
+            continue;
+          }
+        }
+      }
+      break;
     } else {
       break;
     }
@@ -3115,6 +3161,79 @@ absl::Status ExtractCallbackParamNamesAndTypes(
     param_types.push_back(param->getType().getCanonicalType().getAsString());
   }
   return absl::OkStatus();
+}
+
+// Given a type, if it is not a functor type, returns nullptr.
+// Otherwise, returns the underlying function proto type and sets
+// `template_name` (e.g., "std::function", "absl::AnyInvocable").
+const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(
+    clang::QualType type, std::string& template_name) {
+  clang::QualType non_ref = type.getNonReferenceType();
+  const auto* record_decl = non_ref->getAsRecordDecl();
+  if (!record_decl) {
+    return nullptr;
+  }
+  const auto* spec_decl =
+      clang::dyn_cast<clang::ClassTemplateSpecializationDecl>(record_decl);
+  if (!spec_decl) {
+    return nullptr;
+  }
+  template_name =
+      spec_decl->getSpecializedTemplate()->getQualifiedNameAsString();
+  if (template_name != "std::function" &&
+      template_name != "absl::AnyInvocable") {
+    return nullptr;
+  }
+  // Extract the underlying function proto type from the template arguments
+  // (e.g., `void(int, char*)` from `std::function<void(int, char*)>`).
+  const auto& args = spec_decl->getTemplateArgs();
+  if (args.size() < 1) {
+    return nullptr;
+  }
+  const clang::TemplateArgument& arg = args[0];
+  if (arg.getKind() != clang::TemplateArgument::Type) {
+    return nullptr;
+  }
+  return arg.getAsType()->getAs<clang::FunctionProtoType>();
+}
+
+absl::StatusOr<std::unique_ptr<CallbackArg>> MakeCallbackArg(
+    absl::string_view name, absl::string_view type_name,
+    SandboxedLibraryEmitter::Annotations&& annotations,
+    const clang::ParmVarDecl& param,
+    const clang::FunctionProtoType& function_type,
+    std::optional<std::string> functor_template_name) {
+  for (const auto& param_type : function_type.getParamTypes()) {
+    clang::QualType canonical_param = param_type.getCanonicalType();
+    if (!canonical_param->isIntegralOrEnumerationType()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 has unsupported non-primitive parameter type: $1", name,
+          canonical_param.getAsString()));
+    }
+  }
+  clang::QualType canonical_ret =
+      function_type.getReturnType().getCanonicalType();
+  if (!canonical_ret->isVoidType() &&
+      !canonical_ret->isIntegralOrEnumerationType() &&
+      !canonical_ret->isPointerType()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 has unsupported non-primitive return type: $1", name,
+        canonical_ret.getAsString()));
+  }
+
+  // Extract callback parameter names and types from a callback
+  // function pointer. We need the param names to coordinate with annotations
+  // like SANDBOX_ELEM_SIZED_BY(param_name).
+  // Otherwise, we also support SANDBOX_ELEM_SIZED_BY(cb_argN) if the
+  // function pointer declaration did not name the parameters.
+  std::vector<std::string> param_names;
+  std::vector<std::string> param_types;
+  ABSL_RETURN_IF_ERROR(
+      ExtractCallbackParamNamesAndTypes(param, param_names, param_types));
+  return std::make_unique<CallbackArg>(
+      name, type_name, std::move(annotations), std::move(param_names),
+      std::move(param_types), canonical_ret->isPointerType(),
+      canonical_ret.getAsString(), functor_template_name);
 }
 
 }  // namespace
@@ -3148,8 +3267,9 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
       type_name == "class std::basic_string_view<char>") {
     return std::make_unique<StringViewArg>(name, type_name);
   }
+
   if (type->isFunctionPointerType()) {
-    if (!is_param) {
+    if (param == nullptr) {
       return absl::InvalidArgumentError(absl::Substitute(
           "return function pointer $0 is not supported", name));
     }
@@ -3159,40 +3279,21 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
       return absl::InvalidArgumentError(
           absl::Substitute("callback $0 does not have a prototype", name));
     }
-    for (const auto& param_type : function_type->getParamTypes()) {
-      clang::QualType canonical_param = param_type.getCanonicalType();
-      if (!canonical_param->isIntegralOrEnumerationType()) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "callback $0 has unsupported non-primitive parameter type: $1",
-            name, canonical_param.getAsString()));
-      }
-    }
-    clang::QualType canonical_ret =
-        function_type->getReturnType().getCanonicalType();
-    if (!canonical_ret->isVoidType() &&
-        !canonical_ret->isIntegralOrEnumerationType() &&
-        !canonical_ret->isPointerType()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "callback $0 has unsupported non-primitive return type: $1", name,
-          canonical_ret.getAsString()));
-    }
-
-    // Extract callback parameter names and types from a callback
-    // function pointer. We need the param names to coordinate with annotations
-    // like SANDBOX_ELEM_SIZED_BY(param_name).
-    // Otherwise, we also support SANDBOX_ELEM_SIZED_BY(cb_argN) if the
-    // function pointer declaration did not name the parameters.
-    std::vector<std::string> param_names;
-    std::vector<std::string> param_types;
-    if (param) {
-      ABSL_RETURN_IF_ERROR(
-          ExtractCallbackParamNamesAndTypes(*param, param_names, param_types));
-    }
-    return std::make_unique<CallbackArg>(
-        name, type_name, std::move(annotations), std::move(param_names),
-        std::move(param_types), canonical_ret->isPointerType(),
-        canonical_ret.getAsString());
+    return MakeCallbackArg(name, type_name, std::move(annotations), *param,
+                           *function_type,
+                           /*functor_template_name=*/std::nullopt);
   }
+  std::string template_name;
+  if (const auto* functor_type =
+          GetFunctorUnderlyingFunctionType(type, template_name)) {
+    if (param == nullptr) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("return C++ functor $0 is not supported", name));
+    }
+    return MakeCallbackArg(name, type_name, std::move(annotations), *param,
+                           *functor_type, template_name);
+  }
+
   if (type->isPointerType()) {
     // Check whether this pointer even needs syncing or is an opaque handle.
     if (annotations.ptr_dir == PointerDir::kSandboxOpaque ||

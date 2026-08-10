@@ -147,6 +147,7 @@ cc_sandboxed_library(
     annotations = ["lwbox_callbacks_sandbox.cc"],
     deps = [
         "//sandboxed_api:annotations",
+        "@abseil-cpp//absl/functional:any_invocable",
     ],
 )
 

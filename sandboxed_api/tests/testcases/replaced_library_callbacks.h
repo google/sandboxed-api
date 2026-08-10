@@ -17,6 +17,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+
+#include "absl/functional/any_invocable.h"
 
 extern "C" {
 
@@ -25,8 +28,14 @@ int callback_with_primitives(int (*cb)(int, int), int a, int b);
 void callback_returning_buffer(const uint8_t* input, size_t in_size,
                                uint8_t* (*cb)(size_t, int));
 
-uint8_t* callback_ret_alias(const uint8_t* input, size_t in_size,
-                            uint8_t* (*cb)(size_t, int));
+uint8_t* ret_alias_func_pointer(const uint8_t* input, size_t in_size,
+                                uint8_t* (*cb)(size_t, int));
+
+uint8_t* ret_alias_std_function(const uint8_t* input, size_t in_size,
+                                std::function<uint8_t*(size_t, int)> cb);
+
+uint8_t* ret_alias_any_invocable(const uint8_t* input, size_t in_size,
+                                 absl::AnyInvocable<uint8_t*(size_t, int)> cb);
 
 // Fills output chunks given by a callback, up to num_chunks, each of size
 // chunk_size.
