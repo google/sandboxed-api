@@ -231,6 +231,44 @@
 #define SANDBOX_ALIAS_PTR(param_name) \
   [[clang::annotate("sandbox", "alias_ptr", #param_name)]]
 
+// Indicate that a returned pointer (unless null) is an alias of a callback
+// parameter's return value, and thus has the same lifetime. There are some
+// subtleties:
+//
+// - the callback may be called zero, one, or multiple times, and we return:
+//   - 0 times: return null
+//   - 1 time: return the callback return value
+//   - multiple times: return the callback return value that, at execution time,
+//     the outer function actually decided to return (rather than guessing
+//     it will be the last one).
+// - or, the outer function's return value may be null (perhaps for error
+//   handling) even if the callback did not return null (no actually aliasing)
+//
+// Given this annotation, we do not need to *separately* allocate and manage
+// memory for the output. For example, we do not need to know the size for array
+// outputs, synchronization with SANDBOX_OUT_PTR vs SANDBOX_OPAQUE_PTR, etc..
+// However, the callback return slot must have the appropriate annotations.
+//
+// For example:
+//
+//   SANDBOX_ALIAS_CALLBACK_RETURN(allocate_output_cb)
+//   uint8_t* Decode(
+//       const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
+//       size_t in_size,
+//       SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(out_size)
+//       uint8_t* (*allocate_output_cb)(size_t out_size));
+//
+// Note that the SANDBOX_OUT_PTR for the `allocate_output_cb` return slot
+// indicates that any writes to the returned buffer within the outer function
+// should be synchronized back to the caller of the outer function.
+//
+// TODO(b/491762076): For now, we are assuming the callback return lifetime is
+// sometime like "host owned" and where the sandbox borrows a reference, but
+// then drops the reference at the end of the outer function (thus we can free
+// the sandbox copy at that point).
+#define SANDBOX_ALIAS_CALLBACK_RETURN(cb_param_name) \
+  [[clang::annotate("sandbox", "alias_callback_return", #cb_param_name)]]
+
 /////////////////////////////////////////////////////////////////////////////
 // Binding data to objects, getting from the bindings, and clearing.
 // - which can help with host or sandbox copies that need extended lifetimes

@@ -14,16 +14,143 @@
 
 #include "sandboxed_api/tests/testcases/replaced_library_callbacks.h"
 
+#include <cstdint>
+#include <cstring>
+
 #include "gtest/gtest.h"
 
 namespace {
 
-TEST(Test, Callbacks) {
+TEST(Test, CallbackWithPrimitives) {
   auto cb = [](int a, int b) -> int { return a + b; };
-  EXPECT_EQ(mylib_call_callback(cb, 10, 20), 30);
-  EXPECT_EQ(mylib_call_callback(cb, -5, 5), 0);
+  EXPECT_EQ(callback_with_primitives(cb, 10, 20), 30);
+  EXPECT_EQ(callback_with_primitives(cb, -5, 5), 0);
 }
 
-TEST(Test, NullCallback) { EXPECT_EQ(mylib_call_callback(nullptr, 10, 20), 0); }
+TEST(Test, NullCallbackWithPrimitives) {
+  EXPECT_EQ(callback_with_primitives(nullptr, 10, 20), 0);
+}
+
+static uint8_t* captured_output = nullptr;
+
+static uint8_t* AllocatingCallback(size_t size, int init_val) {
+  captured_output = new uint8_t[size];
+  memset(captured_output, init_val, size);
+  return captured_output;
+}
+
+static void ClearCapturedOutput() { captured_output = nullptr; }
+
+TEST(Test, CallbackReturningBuffer) {
+  uint8_t input[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+  // Non-alias version:
+  callback_returning_buffer(input, sizeof(input), AllocatingCallback);
+  EXPECT_EQ(memcmp(captured_output, input, sizeof(input)), 0);
+  EXPECT_EQ(memcmp(captured_output + sizeof(input), input, sizeof(input)), 0);
+  EXPECT_EQ(captured_output[sizeof(input) * 2], 0xCA);
+  EXPECT_EQ(captured_output[sizeof(input) * 2 + 1], 0xCA);
+
+  delete[] captured_output;
+  ClearCapturedOutput();
+
+  // Alias version:
+  uint8_t* output =
+      callback_ret_alias(input, sizeof(input), AllocatingCallback);
+
+  EXPECT_EQ(output, captured_output);
+  EXPECT_EQ(memcmp(output, input, sizeof(input)), 0);
+  EXPECT_EQ(memcmp(output + sizeof(input), input, sizeof(input)), 0);
+  EXPECT_EQ(output[sizeof(input) * 2], 0xCA);
+  EXPECT_EQ(output[sizeof(input) * 2 + 1], 0xCA);
+
+  delete[] output;
+  ClearCapturedOutput();
+}
+
+TEST(Test, NullCallbackReturningBuffer) {
+  uint8_t input[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  // Null callback, but non-null input.
+  EXPECT_EQ(callback_ret_alias(input, sizeof(input), nullptr), nullptr);
+
+  // Non-null callback, but null input.
+  auto cb = [](size_t size, int init_val) -> uint8_t* {
+    if (size > 22) return nullptr;
+    uint8_t* output = new uint8_t[size];
+    memset(output, init_val, size);
+    return output;
+  };
+  EXPECT_EQ(callback_ret_alias(nullptr, sizeof(input), cb), nullptr);
+
+  // Non-null callback, but the callback returns null.
+  uint8_t large_input[] = {0, 1, 2,  3,  4,  5,  6,  7,
+                           8, 9, 10, 11, 12, 13, 14, 15};
+  EXPECT_EQ(callback_ret_alias(large_input, sizeof(large_input), cb), nullptr);
+}
+
+int cur_chunk_global = 0;
+uint8_t output_buffer_global[12] = {0};
+
+void ClearOutputBufferGlobal() {
+  cur_chunk_global = 0;
+  memset(output_buffer_global, 0, sizeof(output_buffer_global));
+}
+
+uint8_t* NextOutChunkGlobal(size_t chunk_size) {
+  uint8_t* chunk = output_buffer_global + (cur_chunk_global * chunk_size);
+  ++cur_chunk_global;
+  return chunk;
+}
+
+TEST(Test, RetAliasCalledMultipleTimes) {
+  ClearOutputBufferGlobal();
+
+  size_t chunk_size = 4;
+  int num_chunks = sizeof(output_buffer_global) / chunk_size;
+
+  uint8_t* last_chunk = ret_alias_called_multiple_times(
+      num_chunks, chunk_size,
+      /*return_second_last=*/false, NextOutChunkGlobal);
+
+  EXPECT_EQ(cur_chunk_global, num_chunks);
+  EXPECT_EQ(last_chunk, output_buffer_global + (num_chunks - 1) * chunk_size);
+  uint8_t expected_output[] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2};
+  EXPECT_EQ(memcmp(output_buffer_global, expected_output,
+                   sizeof(output_buffer_global)),
+            0);
+
+  ClearOutputBufferGlobal();
+
+  uint8_t* second_last_chunk = ret_alias_called_multiple_times(
+      num_chunks, chunk_size,
+      /*return_second_last=*/true, NextOutChunkGlobal);
+
+  EXPECT_EQ(cur_chunk_global, num_chunks);
+  EXPECT_EQ(second_last_chunk,
+            output_buffer_global + (num_chunks - 2) * chunk_size);
+  EXPECT_EQ(memcmp(output_buffer_global, expected_output,
+                   sizeof(output_buffer_global)),
+            0);
+
+  ClearOutputBufferGlobal();
+}
+
+TEST(Test, MultipleCallbacksOneRetAlias) {
+  ClearOutputBufferGlobal();
+
+  size_t chunk_size = 4;
+  ASSERT_LT(chunk_size * 2, sizeof(output_buffer_global));
+  uint8_t* output = multiple_callbacks_one_ret_alias(
+      chunk_size, NextOutChunkGlobal, NextOutChunkGlobal);
+
+  EXPECT_EQ(output, output_buffer_global + chunk_size);
+  uint8_t expected_output[] = {0xCA, 0xCA, 0xCA, 0xCA, 0xFE, 0xFE,
+                               0xFE, 0xFE, 0,    0,    0,    0};
+  EXPECT_EQ(memcmp(output_buffer_global, expected_output,
+                   sizeof(output_buffer_global)),
+            0);
+
+  ClearOutputBufferGlobal();
+}
 
 }  // namespace

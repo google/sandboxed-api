@@ -12,7 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstddef>
+#include <cstdint>
+
 #include "sandboxed_api/annotations.h"
 
-// Define the functions that are to be sandboxed.
-SANDBOX_FUNCS(mylib_call_callback);
+extern "C" {
+
+void callback_returning_buffer(const uint8_t* input SANDBOX_IN_PTR
+                                   SANDBOX_ELEM_SIZED_BY(in_size),
+                               size_t in_size,
+                               SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
+                                   uint8_t* (*cb)(size_t size, int));
+
+SANDBOX_ALIAS_CALLBACK_RETURN(cb)
+uint8_t* callback_ret_alias(const uint8_t* input SANDBOX_IN_PTR
+                                SANDBOX_ELEM_SIZED_BY(in_size),
+                            size_t in_size,
+                            SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
+                                uint8_t* (*cb)(size_t size, int));
+
+SANDBOX_ALIAS_CALLBACK_RETURN(next_out_chunk)
+uint8_t* ret_alias_called_multiple_times(
+    int num_chunks, size_t chunk_size, bool return_second_last,
+    SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(chunk_size)
+        uint8_t* (*next_out_chunk)(size_t chunk_size));
+
+SANDBOX_ALIAS_CALLBACK_RETURN(get_chunk2)
+uint8_t* multiple_callbacks_one_ret_alias(
+    size_t chunk_size,
+    SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
+        uint8_t* (*get_chunk1)(size_t size),
+    SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
+        uint8_t* (*get_chunk2)(size_t size));
+
+}  // extern "C"

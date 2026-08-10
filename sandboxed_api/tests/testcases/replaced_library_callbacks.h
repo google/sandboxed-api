@@ -15,9 +15,32 @@
 #ifndef SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_CALLBACKS_H_
 #define SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_CALLBACKS_H_
 
+#include <cstddef>
+#include <cstdint>
+
 extern "C" {
 
-int mylib_call_callback(int (*cb)(int, int), int a, int b);
+int callback_with_primitives(int (*cb)(int, int), int a, int b);
+
+void callback_returning_buffer(const uint8_t* input, size_t in_size,
+                               uint8_t* (*cb)(size_t, int));
+
+uint8_t* callback_ret_alias(const uint8_t* input, size_t in_size,
+                            uint8_t* (*cb)(size_t, int));
+
+// Fills output chunks given by a callback, up to num_chunks, each of size
+// chunk_size.
+// Returns the last output chunk for convenience or the second last one if
+// `return_second_last` is true (or NULL on error).
+uint8_t* ret_alias_called_multiple_times(int num_chunks, size_t chunk_size,
+                                         bool return_second_last,
+                                         uint8_t* (*next_out_chunk)(size_t));
+
+// Multiple callbacks returning output buffers. Returns output of the second
+// callback (alias).
+uint8_t* multiple_callbacks_one_ret_alias(size_t chunk_size,
+                                          uint8_t* (*get_chunk1)(size_t),
+                                          uint8_t* (*get_chunk2)(size_t));
 
 }  // extern "C"
 

@@ -45,6 +45,7 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
@@ -634,14 +635,43 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
 };
 
 struct CallbackArg : SandboxedLibraryEmitter::Arg {
-  CallbackArg(absl::string_view name, absl::string_view type)
-      : Arg(name, type) {}
+  CallbackArg(absl::string_view name, absl::string_view type,
+              SandboxedLibraryEmitter::Annotations ret_annotations,
+              std::vector<std::string> param_names,
+              std::vector<std::string> param_types, bool is_ret_pointer,
+              std::string ret_type_name)
+      : Arg(name, type),
+        ret_annotations_(std::move(ret_annotations)),
+        param_names_(std::move(param_names)),
+        param_types_(std::move(param_types)),
+        is_ret_pointer_(is_ret_pointer),
+        ret_type_name_(std::move(ret_type_name)),
+        ret_val_is_alias_for_outer_function_return_(false) {}
+
+  // Indicates that the outer function's return value aliases with this
+  // callback argument's return value (one of them, if any).
+  // We discover this property in a second pass after creating the CallbackArg.
+  void SetRetValIsAliasForOuterFunctionReturn() {
+    ret_val_is_alias_for_outer_function_return_ = true;
+  }
 
   std::vector<std::string> Includes() const override {
-    return {
+    std::vector<std::string> includes = {
         "<optional>",
         absl::Substitute("\"$0sandboxed_api/var_callback.h\"", kIncludePrefix),
     };
+    if (NeedsLambdaWrapper()) {
+      includes.push_back("<vector>");
+      includes.push_back("<memory>");
+      if (std::holds_alternative<NullTerminated>(ret_annotations_.size_type)) {
+        includes.push_back("<cstring>");
+      }
+    }
+    if (ret_val_is_alias_for_outer_function_return_) {
+      includes.push_back(absl::Substitute(
+          "\"$0absl/container/flat_hash_map.h\"", kIncludePrefix));
+    }
+    return includes;
   }
 
   std::string EmitHostParams() const override {
@@ -654,14 +684,68 @@ struct CallbackArg : SandboxedLibraryEmitter::Arg {
   std::string EmitSandboxeeParams() const override { return EmitHostParams(); }
 
   std::string EmitHostPreCall() const override {
+    // For very simple callbacks, we don't need to wrap in a lambda.
+    if (!NeedsLambdaWrapper()) {
+      return absl::Substitute(
+          R"cc(std::optional<sapi::v::Callback> sapi_cb_$0;
+               if ($0) {
+                 sapi_cb_$0.emplace($0);
+                 sandbox->Check(sandbox->Allocate(&sapi_cb_$0.value(),
+                                                  /*automatic_free=*/true));
+               })cc",
+          name_);
+    }
+
+    // Otherwise, we need to wrap the callback in a lambda.
     return absl::Substitute(
-        "  std::optional<sapi::v::Callback> sapi_cb_$0;\n"
-        "  if ($0) {\n"
-        "    sapi_cb_$0.emplace($0);\n"
-        "    sandbox->Check(sandbox->Allocate(\n"
-        "        &sapi_cb_$0.value(), /*automatic_free=*/true));\n"
-        "  }\n",
-        name_);
+        R"cc(
+          std::optional<sapi::v::Callback> sapi_cb_$0;
+          // Variables to track callback return values, etc.
+          $1
+              // If the callback is not null, set the sapi_cb var to a lambda.
+              if ($0) {
+            auto sapi_lambda_$0 = [&]($2) -> $3 {
+              // Forward params -> args, and do the actual callback
+              $3 sapi_$0_ret_host = $0($4);
+              // If the callback returned null, no need to allocate
+              // a sandbox copy, sync, etc.
+              if (!sapi_$0_ret_host) {
+                return nullptr;
+              }
+              // Otherwise, make a sandbox copy and return the sandbox copy.
+              $5
+            };
+            sapi_cb_$0.emplace(sapi_lambda_$0);
+            sandbox->Check(sandbox->Allocate(&sapi_cb_$0.value(),
+                                             /*automatic_free=*/true));
+          }
+        )cc",
+        name_, LambdaWrapperVariables(), LambdaWrapperParamList(),
+        ret_type_name_, LambdaWrapperCallArgs(), SyncAndTrackReturnedValue());
+  }
+
+  std::string EmitHostPostCall() const override {
+    if (!NeedsLambdaWrapper()) {
+      return "";
+    }
+    // Check if we need to sync back to the host any of the (possibly
+    // multiple) callback return values.
+    // We currently assume
+    // - we only need to sync from sandboxee -> host at the end of the outer
+    //   function call and not earlier. I.e., the values do not need to be
+    //   observed by callbacks in the middle of the outer function call.
+    // - we need to sync all of the callback return values. There might be
+    //   cases with a "realloc" callback, which frees the previous return
+    //   values and only keeps the last one.
+    if (ret_annotations_.ptr_dir == PointerDir::kOut ||
+        ret_annotations_.ptr_dir == PointerDir::kInOut) {
+      return absl::Substitute(
+          R"cc(for (auto& var : sapi_cb_ret_vars_$0) {
+                 sandbox->Check(sandbox->TransferFromSandboxee(var.get()));
+               })cc",
+          name_);
+    }
+    return "";
   }
 
   std::string EmitHostArgs() const override {
@@ -672,7 +756,134 @@ struct CallbackArg : SandboxedLibraryEmitter::Arg {
   std::string EmitSandboxeeArgs() const override {
     return absl::Substitute("$0", name_);
   }
+
+ private:
+  // Returns true if the callback returns a pointer and either has pointer
+  // copying/direction annotations (e.g. out_ptr, sized_by, etc.) or is targeted
+  // by alias_callback_return. In these cases we must wrap the callback in a
+  // host-side lambda wrapper. The lambda wrapper gives us
+  // - names for the callback parameters (needed for sizing expressions)
+  // - an instrumentation point to read param values before or after the call
+  //   to use in sizing expressions.
+  // - instrumentation to track returned buffer pointers
+  //   - to extend their lifetime until the end of the outer function
+  //   - in case the outer function returns one of them (alias_callback_return).
+  bool NeedsLambdaWrapper() const {
+    return is_ret_pointer_ &&
+           (std::holds_alternative<ElemSizedBy>(ret_annotations_.size_type) ||
+            std::holds_alternative<ByteSizedBy>(ret_annotations_.size_type) ||
+            ret_annotations_.ptr_dir.has_value() ||
+            ret_val_is_alias_for_outer_function_return_);
+  }
+
+  // Emits code for parts of the lambda wrapper.
+  std::string LambdaWrapperVariables() const;
+  std::string LambdaWrapperParamList() const;
+  std::string LambdaWrapperCallArgs() const;
+  std::string SyncAndTrackReturnedValue() const;
+
+  std::string GetReturnSizeAsBytesExpr() const;
+
+  const SandboxedLibraryEmitter::Annotations ret_annotations_;
+  const std::vector<std::string> param_names_;
+  const std::vector<std::string> param_types_;
+  const bool is_ret_pointer_;
+  const std::string ret_type_name_;
+  bool ret_val_is_alias_for_outer_function_return_;
 };
+
+std::string CallbackArg::GetReturnSizeAsBytesExpr() const {
+  return std::visit(
+      absl::Overload{
+          [this](std::monostate) {
+            return absl::Substitute("sizeof(*sapi_$0_ret_host)", name_);
+          },
+          [this](const ElemSizedBy& arg) {
+            return absl::Substitute(
+                "sandbox->CheckedMultiply(sizeof(*sapi_$0_ret_host), ($1))",
+                name_, arg.expr);
+          },
+          [](const ByteSizedBy& arg) { return arg.expr; },
+          [](const SizedByBinding& arg) -> std::string {
+            LOG(FATAL)
+                << "SizedByBinding not supported for callback return values.";
+          },
+          [this](const NullTerminated& arg) {
+            return absl::Substitute(
+                "strlen(reinterpret_cast<const char*>(sapi_$0_ret_host)) + 1",
+                name_);
+          }},
+      ret_annotations_.size_type);
+}
+
+std::string CallbackArg::LambdaWrapperVariables() const {
+  std::string out = absl::Substitute(
+      R"cc(std::vector<std::unique_ptr<sapi::v::Var>> sapi_cb_ret_vars_$0;)cc",
+      name_);
+  if (ret_val_is_alias_for_outer_function_return_) {
+    absl::SubstituteAndAppend(&out,
+                              R"cc(absl::flat_hash_map<uintptr_t, void*>
+                                       sapi_alias_cb_return_map_$0;)cc",
+                              name_);
+  }
+  return out;
+}
+
+std::string CallbackArg::LambdaWrapperParamList() const {
+  std::string out;
+  for (size_t i = 0; i < param_names_.size(); ++i) {
+    if (i > 0) {
+      absl::StrAppend(&out, ", ");
+    }
+    absl::StrAppend(&out, param_types_[i], " ", param_names_[i]);
+  }
+  return out;
+}
+
+std::string CallbackArg::LambdaWrapperCallArgs() const {
+  return absl::StrJoin(param_names_, ", ");
+}
+
+std::string CallbackArg::SyncAndTrackReturnedValue() const {
+  std::string out;
+
+  // Create the SAPI variable to wrap the returned host pointer:
+  absl::SubstituteAndAppend(
+      &out,
+      R"cc(
+        size_t ret_size_bytes = $0;
+        auto sapi_ret_var = std::make_unique<sapi::v::Array<char>>(
+            reinterpret_cast<char*>(sapi_$1_ret_host), ret_size_bytes);
+        sandbox->Check(sandbox->Allocate(sapi_ret_var.get(),
+                                         /*automatic_free=*/true));)cc",
+      GetReturnSizeAsBytesExpr(), name_);
+
+  // For now, we always transfer the *initial* values from the host to the
+  // sandbox (whether it is IN/OUT/INOUT) (assuming the callback is a host
+  // callback returning a host pointer).
+  absl::StrAppend(
+      &out,
+      "sandbox->Check(sandbox->TransferToSandboxee(sapi_ret_var.get()));\n");
+  // If "alias_callback_return" store the remote -> host mapping:
+  if (ret_val_is_alias_for_outer_function_return_) {
+    absl::SubstituteAndAppend(
+        &out,
+        R"cc(sapi_alias_cb_return_map_$0[reinterpret_cast<uintptr_t>(
+                 sapi_ret_var->GetRemote())] = sapi_$0_ret_host;)cc",
+        name_);
+  }
+
+  // Extend lifetime of the SAPI ret var to the end of the function outer
+  // function call (the scope of the `sapi_cb_ret_vars_` vector).
+  absl::SubstituteAndAppend(&out,
+                            R"cc(
+                              auto ret_remote_ptr = sapi_ret_var->GetRemote();
+                              sapi_cb_ret_vars_$0.push_back(std::move(sapi_ret_var));
+                              return reinterpret_cast<$1>(ret_remote_ptr);
+                            )cc",
+                            name_, ret_type_name_);
+  return out;
+}
 
 // Basic information about a pointer's pointee's type.
 class PointeeTypeInfo {
@@ -1112,6 +1323,16 @@ class PointerArg : public SandboxedLibraryEmitter::Arg {
       return absl::Substitute(
           "return sapi_ret_arg.GetValue() ? $0 : nullptr;",
           std::get<AliasHostPtrLifetime>(lifetime_).param_name);
+    }
+    if (std::holds_alternative<AliasCallbackReturnLifetime>(lifetime_)) {
+      return absl::Substitute(
+          R"cc(return sapi_ret_arg.GetValue()
+                          ? static_cast<$0>(
+                                sapi_alias_cb_return_map_$1[reinterpret_cast<
+                                    uintptr_t>(sapi_ret_arg.GetValue())])
+                          : nullptr;)cc",
+          type_,
+          std::get<AliasCallbackReturnLifetime>(lifetime_).callback_param_name);
     }
     std::string out;
     if (context_bound_.copy_from_and_bind.has_value()) {
@@ -2378,12 +2599,6 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     }
     clang::QualType type = param->getType();
     ABSL_ASSIGN_OR_RETURN(ArgPtr arg, Convert(name, type, param, nullptr));
-    for (const std::string& inc : arg->Includes()) {
-      includes_.insert(inc);
-    }
-    for (const std::string& arg_host_var : arg->HostStateVars()) {
-      arg_host_state_vars_.insert(arg_host_var);
-    }
     args.push_back(std::move(arg));
   }
 
@@ -2391,7 +2606,21 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     ABSL_RETURN_IF_ERROR(arg->LinkArgsIfNeeded(args));
   }
 
+  ABSL_RETURN_IF_ERROR(
+      LinkAliasCallbackRelation(decl, func_decl_annotations, ret, args));
+
   RecordContextBindingSupportNeeded(func_context_bound, ret, args);
+
+  // Determine includes and host state vars, after considering any
+  // cross-arg relations (in case we Linking mattered).
+  for (const auto& arg : args) {
+    for (const std::string& inc : arg->Includes()) {
+      includes_.insert(inc);
+    }
+    for (const std::string& arg_host_var : arg->HostStateVars()) {
+      arg_host_state_vars_.insert(arg_host_var);
+    }
+  }
 
   std::string name =
       clang::ASTNameGenerator(decl->getASTContext()).getName(decl);
@@ -2556,6 +2785,44 @@ void SandboxedLibraryEmitter::RecordContextBindingSupportNeeded(
   has_context_bindings_ = true;
 }
 
+// If this function has an "alias_callback_return" annotation, checks for the
+// existence of the callback parameter, and that the callback parameter returns
+// a pointer. If not, returns an error. If so, marks the callback return's
+// CallbackArg as being aliased.
+absl::Status SandboxedLibraryEmitter::LinkAliasCallbackRelation(
+    const clang::FunctionDecl* decl, const Annotations& func_decl_annotations,
+    const ArgPtr& ret, const std::vector<ArgPtr>& args) {
+  if (!std::holds_alternative<AliasCallbackReturnLifetime>(
+          func_decl_annotations.lifetime)) {
+    return absl::OkStatus();
+  }
+  std::string alias_cb_name =
+      std::get<AliasCallbackReturnLifetime>(func_decl_annotations.lifetime)
+          .callback_param_name;
+  if (!ret) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("function $0: alias_callback_return cannot be "
+                         "applied to void function",
+                         decl->getNameAsString()));
+  }
+  bool found_alias_cb = false;
+  for (const auto& arg : args) {
+    if (arg->GetName() == alias_cb_name) {
+      if (auto* cb_arg = dynamic_cast<CallbackArg*>(arg.get())) {
+        cb_arg->SetRetValIsAliasForOuterFunctionReturn();
+        found_alias_cb = true;
+      }
+    }
+  }
+  if (!found_alias_cb) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "function $0: alias_callback_return references non-existent or "
+        "non-callback parameter $1",
+        decl->getNameAsString(), alias_cb_name));
+  }
+  return absl::OkStatus();
+}
+
 /**
  * Extracts the literal string value from a VarDecl if it exists.
  * Example: constexpr char kFoo[] = "foo"; -> returns "foo"
@@ -2689,9 +2956,8 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
                          name, type.getAsString()));
   }
 
-  ABSL_ASSIGN_OR_RETURN(ArgPtr arg,
-                        ConvertImpl(context, name, type, param != nullptr,
-                                    std::move(annotations)));
+  ABSL_ASSIGN_OR_RETURN(ArgPtr arg, ConvertImpl(context, name, type, param,
+                                                std::move(annotations)));
   if (arg && ((param || funcDecl) || !arg->EmitRetParams().empty())) {
     return arg;
   }
@@ -2704,6 +2970,8 @@ SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
       absl::Substitute("unsupported return type: $0 ($1)", type.getAsString(),
                        type.getCanonicalType().getAsString()));
 }
+
+namespace {
 
 // Returns true if the type is trivially copyable and wouldn't involve complex
 // lifetimes or aliasing (e.g., struct with pointer fields that are outputs).
@@ -2800,11 +3068,64 @@ bool IsSupportedArgByteSizedByType(clang::QualType type) {
   return type->isPointerType() && type->getPointeeType()->isVoidType();
 }
 
+absl::Status ExtractCallbackParamNamesAndTypes(
+    const clang::ParmVarDecl& param, std::vector<std::string>& param_names,
+    std::vector<std::string>& param_types) {
+  // Details: the Clang Type does not include the parameter names (more of
+  // a canonical type). However, the TypeSourceInfo and TypeLoc does let us
+  // retrieve that information.
+  auto* type_source_info = param.getTypeSourceInfo();
+  if (!type_source_info) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 does not have type source info", param.getName().str()));
+  }
+  clang::TypeLoc tl = type_source_info->getTypeLoc();
+  while (true) {
+    if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
+      tl = ptr_tl.getPointeeLoc();
+    } else if (auto paren_tl = tl.getAs<clang::ParenTypeLoc>()) {
+      tl = paren_tl.getInnerLoc();
+    } else if (auto attr_tl = tl.getAs<clang::AttributedTypeLoc>()) {
+      tl = attr_tl.getModifiedLoc();
+    } else {
+      break;
+    }
+  }
+  auto ftl = tl.getAs<clang::FunctionProtoTypeLoc>();
+  if (!ftl) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("callback $0 does not have a function proto type loc",
+                         param.getName().str()));
+  }
+  param_names.reserve(ftl.getNumParams());
+  param_types.reserve(ftl.getNumParams());
+  for (unsigned i = 0; i < ftl.getNumParams(); ++i) {
+    clang::ParmVarDecl* param = ftl.getParam(i);
+    if (!param) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 does not have param $1", param->getName().str(), i));
+    }
+    // Check for the optional param names in a function pointer / function type.
+    // If not present, falls back to generic names (cb_arg0, cb_arg1, ...).
+    if (!param->getName().empty()) {
+      param_names.push_back(param->getNameAsString());
+    } else {
+      param_names.push_back(absl::StrFormat("cb_arg%u", i));
+    }
+    param_types.push_back(param->getType().getCanonicalType().getAsString());
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
 SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                                      absl::string_view name,
-                                     clang::QualType type, bool is_param,
+                                     clang::QualType type,
+                                     const clang::ParmVarDecl* param,
                                      Annotations&& annotations) {
+  bool is_param = param != nullptr;
   // We are not interested in typedefs.
   type = type.getCanonicalType();
   std::string type_name = type.getAsString();
@@ -2855,7 +3176,22 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
           "callback $0 has unsupported non-primitive return type: $1", name,
           canonical_ret.getAsString()));
     }
-    return std::make_unique<CallbackArg>(name, type_name);
+
+    // Extract callback parameter names and types from a callback
+    // function pointer. We need the param names to coordinate with annotations
+    // like SANDBOX_ELEM_SIZED_BY(param_name).
+    // Otherwise, we also support SANDBOX_ELEM_SIZED_BY(cb_argN) if the
+    // function pointer declaration did not name the parameters.
+    std::vector<std::string> param_names;
+    std::vector<std::string> param_types;
+    if (param) {
+      ABSL_RETURN_IF_ERROR(
+          ExtractCallbackParamNamesAndTypes(*param, param_names, param_types));
+    }
+    return std::make_unique<CallbackArg>(
+        name, type_name, std::move(annotations), std::move(param_names),
+        std::move(param_types), canonical_ret->isPointerType(),
+        canonical_ret.getAsString());
   }
   if (type->isPointerType()) {
     // Check whether this pointer even needs syncing or is an opaque handle.
@@ -2901,6 +3237,8 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
       }
     } else if (!type->getPointeeType()->isArithmeticType() &&
                !std::holds_alternative<AliasHostPtrLifetime>(
+                   annotations.lifetime) &&
+               !std::holds_alternative<AliasCallbackReturnLifetime>(
                    annotations.lifetime)) {
       return absl::InvalidArgumentError(absl::Substitute(
           "return pointer $0 has unsupported pointee type", name));
@@ -3073,6 +3411,24 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
         return absl::InvalidArgumentError(
             absl::Substitute("function return $0: alias_ptr implies out_ptr, "
                              "so no direction needs to be specified",
+                             name));
+      }
+      annotations.ptr_dir = PointerDir::kOut;
+    } else if (ann.name == "alias_callback_return") {
+      num_args = 2;
+      if (ann.args.size() != 1) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function return $0: alias_callback_return "
+                             "requires exactly one parameter name",
+                             name));
+      }
+      ABSL_RETURN_IF_ERROR(
+          annotations.SetAliasCallbackReturnLifetime(ann.args[0]));
+      if (annotations.ptr_dir.has_value() &&
+          annotations.ptr_dir != PointerDir::kOut) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function return $0: alias_callback_return implies"
+                             " out_ptr, so no direction needs to be specified",
                              name));
       }
       annotations.ptr_dir = PointerDir::kOut;

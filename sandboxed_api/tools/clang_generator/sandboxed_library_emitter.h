@@ -54,8 +54,12 @@ struct SandboxGlobalLifetime {};
 struct AliasHostPtrLifetime {
   std::string param_name;
 };
+struct AliasCallbackReturnLifetime {
+  std::string callback_param_name;
+};
 using PointerLifetime =
-    std::variant<std::monostate, SandboxGlobalLifetime, AliasHostPtrLifetime>;
+    std::variant<std::monostate, SandboxGlobalLifetime, AliasHostPtrLifetime,
+                 AliasCallbackReturnLifetime>;
 
 // Metadata for sized-by annotations for pointers to arrays.
 
@@ -187,6 +191,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
     ~Func();
   };
 
+ public:
   struct Annotations {
     std::optional<PointerDir> ptr_dir;
     ArraySizedByType size_type;
@@ -259,18 +264,20 @@ class SandboxedLibraryEmitter : public EmitterBase {
       lifetime = AliasHostPtrLifetime{std::string(param_name)};
       return absl::OkStatus();
     }
+    absl::Status SetAliasCallbackReturnLifetime(absl::string_view param_name) {
+      ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("alias_callback_return"));
+      lifetime = AliasCallbackReturnLifetime{std::string(param_name)};
+      return absl::OkStatus();
+    }
   };
 
+ private:
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
   absl::Status AddVar(clang::VarDecl* decl) override;
   static void EmitFuncDecl(std::string& out, const Func& func);
   static void EmitWrapperDecl(std::string& out, const Func& func);
   void EmitLibraryHeaders(const GeneratorOptions& options,
                           std::string& out) const;
-  void RecordContextBindingSupportNeeded(
-      const ContextBoundAnnotations& func_context_bound, const ArgPtr& ret,
-      const std::vector<ArgPtr>& args);
-  std::string EmitContextBindingsHostSupportCode() const;
   absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
                                        bool add_includes) const;
   absl::StatusOr<ArgPtr> Convert(absl::string_view name, clang::QualType type,
@@ -278,7 +285,8 @@ class SandboxedLibraryEmitter : public EmitterBase {
                                  const clang::FunctionDecl* funcDecl);
   absl::StatusOr<ArgPtr> ConvertImpl(const clang::ASTContext& context,
                                      absl::string_view name,
-                                     clang::QualType type, bool is_param,
+                                     clang::QualType type,
+                                     const clang::ParmVarDecl* param,
                                      Annotations&& annotations);
   absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
                                                const clang::ParmVarDecl* param);
@@ -293,6 +301,14 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::Status ParseStructAnnotationWrapperFunc(
       const clang::FunctionDecl& decl);
   absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl);
+
+  void RecordContextBindingSupportNeeded(
+      const ContextBoundAnnotations& func_context_bound, const ArgPtr& ret,
+      const std::vector<ArgPtr>& args);
+  std::string EmitContextBindingsHostSupportCode() const;
+  absl::Status LinkAliasCallbackRelation(
+      const clang::FunctionDecl* decl, const Annotations& func_decl_annotations,
+      const ArgPtr& ret, const std::vector<ArgPtr>& args);
 
   std::vector<const Func*> SortedFuncs() const;
 
