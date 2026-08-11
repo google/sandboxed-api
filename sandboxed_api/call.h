@@ -63,7 +63,7 @@ enum class Error : uintptr_t {
 struct FuncCall {
   // Used with HandleCallMsg:
   enum {
-    kFuncNameMax = 128,
+    kFuncNameMax = 256,
     kArgsMax = 12,
   };
 
