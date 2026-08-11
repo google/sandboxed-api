@@ -64,6 +64,13 @@ TEST(Test, Copy) {
   mylib_copy_raw(src_buf + 1, dst_buf + 1, 3);
   EXPECT_EQ(std::string(dst_buf, sizeof(dst_buf)), "telle");
 }
+TEST(Test, CopyPtr) {
+  std::string s = "hello";
+  mylib_copy_ptr(&s);
+  EXPECT_EQ(s, "hello_copied");
+
+  mylib_copy_ptr(nullptr);
+}
 
 TEST(Test, NullArrays) {
   char src_buf[5] = {'h', 'e', 'l', 'l', 'o'};

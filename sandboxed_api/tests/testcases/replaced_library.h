@@ -45,6 +45,7 @@ void mylib_take_host_opaque_ptr(void* ptr SANDBOX_HOST_OPAQUE_PTR);
 
 std::string mylib_copy(const std::string& src);
 void mylib_copy(absl::string_view src, std::string& dst);
+void mylib_copy_ptr(std::string* str SANDBOX_INOUT_PTR);
 void mylib_copy_raw(const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(size),
                     char* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size),
                     size_t size);

@@ -65,5 +65,45 @@ TEST_F(SandboxedLibraryEmitterTest, SandboxeeThunkNotUsed) {
   EXPECT_THAT(*sandboxee_src, Not(HasSubstr("func_with_thunk_thunk")));
 }
 
+TEST_F(SandboxedLibraryEmitterTest, StdStringPointerSupport) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+        namespace std {
+        template<typename T> class basic_string {};
+        using string = basic_string<char>;
+        }
+        extern "C" void func_with_str_ptr(std::string* str [[clang::annotate("sandbox", "inout_ptr")]]);
+      )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  ASSERT_EQ(emitter.PostParseAllFiles(), absl::OkStatus());
+  absl::StatusOr<std::string> host_src = emitter.EmitHostSrc(options);
+  ASSERT_THAT(host_src, IsOk());
+  EXPECT_THAT(*host_src,
+              HasSubstr("std::unique_ptr<sapi::v::LenVal> sapi_tmp_str;"));
+  EXPECT_THAT(*host_src, HasSubstr("if (str != nullptr)"));
+  EXPECT_THAT(
+      *host_src,
+      HasSubstr("sapi_tmp_str = std::make_unique<sapi::v::LenVal>(str->data(), "
+                "str->size());"));
+
+  absl::StatusOr<std::string> sandboxee_src = emitter.EmitSandboxeeSrc(options);
+  ASSERT_THAT(sandboxee_src, IsOk());
+  EXPECT_THAT(*sandboxee_src,
+              HasSubstr("std::string* sapi_tmp_ptr_str = nullptr;"));
+  EXPECT_THAT(*sandboxee_src, HasSubstr("std::string sapi_tmp_str;"));
+  EXPECT_THAT(
+      *sandboxee_src,
+      HasSubstr("sapi_tmp_str = "
+                "std::string(reinterpret_cast<char*>(str->data), str->size);"));
+  EXPECT_THAT(*sandboxee_src, HasSubstr("sapi_tmp_ptr_str = &sapi_tmp_str;"));
+  EXPECT_THAT(*sandboxee_src,
+              HasSubstr("func_with_str_ptr(sapi_tmp_ptr_str);"));
+}
+
 }  // namespace
 }  // namespace sapi

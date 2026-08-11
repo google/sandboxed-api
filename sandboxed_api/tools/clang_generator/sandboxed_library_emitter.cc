@@ -448,6 +448,65 @@ struct StringRefArg : SandboxedLibraryEmitter::Arg {
   }
 };
 
+// "std::string*", input/output argument.
+struct StringPtrArg : SandboxedLibraryEmitter::Arg {
+  using Arg::Arg;
+  std::vector<std::string> Includes() const override {
+    return {
+        "<string>",
+        "<memory>",
+        absl::Substitute("\"$0sandboxed_api/lenval_core.h\"", kIncludePrefix),
+    };
+  }
+  std::string EmitHostPreCall() const override {
+    return absl::Substitute(
+        "std::unique_ptr<sapi::v::LenVal> sapi_tmp_$0;\n"
+        "if ($0 != nullptr) {\n"
+        "  sapi_tmp_$0 = std::make_unique<sapi::v::LenVal>($0->data(), "
+        "$0->size());\n"
+        "}\n",
+        name_);
+  }
+  std::string EmitHostPostCall() const override {
+    return absl::Substitute(
+        "if ($0 != nullptr && sapi_tmp_$0) {\n"
+        "  $0->assign(reinterpret_cast<char*>(sapi_tmp_$0->GetData()), "
+        "sapi_tmp_$0->GetDataSize());\n"
+        "}\n",
+        name_);
+  }
+  std::string EmitHostArgs() const override {
+    return absl::Substitute("sapi_tmp_$0 ? sapi_tmp_$0->PtrBoth() : nullptr",
+                            name_);
+  }
+  std::string EmitSandboxeeParams() const override {
+    return absl::Substitute("sapi::LenValStruct* $0", name_);
+  }
+  std::string EmitSandboxeeArgs() const override {
+    return absl::Substitute("sapi_tmp_ptr_$0", name_);
+  }
+  std::string EmitSandboxeePreCall() const override {
+    return absl::Substitute(
+        "std::string* sapi_tmp_ptr_$0 = nullptr;\n"
+        "std::string sapi_tmp_$0;\n"
+        "if ($0 != nullptr) {\n"
+        "  sapi_tmp_$0 = std::string(reinterpret_cast<char*>($0->data), "
+        "$0->size);\n"
+        "  free($0->data);\n"
+        "  sapi_tmp_ptr_$0 = &sapi_tmp_$0;\n"
+        "}\n",
+        name_);
+  }
+  std::string EmitSandboxeePostCall() const override {
+    return absl::Substitute(
+        "if ($0 != nullptr) {\n"
+        "  $0->data = strdup(sapi_tmp_$0.c_str());\n"
+        "  $0->size = sapi_tmp_$0.size();\n"
+        "}\n",
+        name_);
+  }
+};
+
 // "std::string_view", pretty much the same as "const std::string&".
 struct StringViewArg : SandboxedLibraryEmitter::Arg {
   using Arg::Arg;
@@ -3108,6 +3167,7 @@ absl::Status ExtractCallbackParamNamesAndTypes(
   }
   clang::TypeLoc tl = type_source_info->getTypeLoc();
   while (true) {
+    tl = tl.getUnqualifiedLoc();
     if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
       tl = ptr_tl.getPointeeLoc();
     } else if (auto ref_tl = tl.getAs<clang::ReferenceTypeLoc>()) {
@@ -3262,6 +3322,10 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
   if (type_name == "std::string &" ||
       type_name == "class std::basic_string<char> &") {
     return std::make_unique<StringRefArg>(name, type_name);
+  }
+  if (type_name == "std::string *" ||
+      type_name == "class std::basic_string<char> *") {
+    return std::make_unique<StringPtrArg>(name, type_name);
   }
   if (type_name == "std::string_view" ||
       type_name == "class std::basic_string_view<char>") {

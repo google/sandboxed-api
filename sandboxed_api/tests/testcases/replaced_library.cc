@@ -26,6 +26,7 @@
 #include <cstring>
 #include <string>
 
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/tests/testcases/replaced_library_enum.h"
 #include "sandboxed_api/tests/testcases/replaced_library_struct.h"
@@ -58,6 +59,11 @@ std::string mylib_copy(const std::string& src) { return src; }
 
 void mylib_copy(absl::string_view src, std::string& dst) {
   dst.assign(src.data(), src.size());
+}
+void mylib_copy_ptr(std::string* str) {
+  if (str != nullptr) {
+    absl::StrAppend(str, "_copied");
+  }
 }
 
 void mylib_copy_raw(const char* src, char* dst, size_t size) {

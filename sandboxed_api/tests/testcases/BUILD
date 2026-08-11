@@ -30,6 +30,7 @@ cc_sandboxed_library(
     annotations = ["lwbox_sandbox.cc"],
     deps = [
         "//sandboxed_api:annotations",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
     ],
 )
@@ -45,6 +46,7 @@ cc_sandboxed_library(
     annotations = ["lwbox_ignore.cc"],
     deps = [
         "//sandboxed_api:annotations",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
     ],
 )
