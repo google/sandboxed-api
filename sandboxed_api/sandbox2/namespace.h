@@ -48,7 +48,7 @@ class Namespace final {
   static void InitializeSharedPidNamespaces();
 
   Namespace(Mounts mounts, std::string hostname, NetNsMode netns_config,
-            bool use_landlock);
+            bool use_landlock, bool use_shared_ipcns);
 
   NetNsMode netns_config() const { return netns_config_; }
 
@@ -61,6 +61,8 @@ class Namespace final {
 
   bool use_landlock() const { return use_landlock_; }
 
+  bool use_shared_ipcns() const { return use_shared_ipcns_; }
+
  private:
   // Unshares a new user namespace and sets up idmaps.
   static void UnshareNestedUserNamespace(int proc_self_fd);
@@ -71,6 +73,7 @@ class Namespace final {
   std::string hostname_;
   NetNsMode netns_config_;
   bool use_landlock_;
+  bool use_shared_ipcns_;
 };
 
 }  // namespace sandbox2

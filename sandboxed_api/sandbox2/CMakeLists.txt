@@ -563,6 +563,7 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::allowlists_map_exec
           sandbox2::allowlists_namespaces
           sandbox2::allowlists_seccomp_speculation
+          sandbox2::allowlists_shared_ipc_namespace
           sandbox2::allowlists_trace_all_syscalls
           sandbox2::allowlists_unrestricted_networking
           sandbox2::allowlists_write_executable
@@ -1061,6 +1062,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::allowlists_all_syscalls
     sandbox2::allowlists_unrestricted_networking
     sandbox2::allowlists_namespaces
+    sandbox2::allowlists_shared_ipc_namespace
     sapi::fileops
     sandbox2::namespace
     sandbox2::sandbox2

@@ -84,6 +84,9 @@ class ForkServer {
   // Creates a mount namespace to be shared between sandboxees
   void CreateMountNamespace(Comms setup_comms);
 
+  // Creates an IPC namespace to be shared between sandboxees
+  void CreateEmptyIpcNamespace(Comms setup_comms);
+
   // Comms channel which is used to send requests to this class. Not owned by
   // the object.
   Comms* comms_;

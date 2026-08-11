@@ -84,6 +84,8 @@ class GlobalForkClient {
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::Status SetupSharedNetnsNamespacesLocked()
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    absl::Status SetupSharedIpcNamespaceLocked()
+        ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
     absl::StatusOr<sapi::file_util::fileops::FDCloser>
     SetupSharedMountNamespaceLocked(const MountSpecs& mount_specs)
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
@@ -98,6 +100,7 @@ class GlobalForkClient {
     sapi::file_util::fileops::FDCloser initial_mntns_fd_
         ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser shared_netns_fd_ ABSL_GUARDED_BY(mutex_);
+    sapi::file_util::fileops::FDCloser shared_ipcns_fd_ ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser shared_pidns_mntns_fd_
         ABSL_GUARDED_BY(mutex_);
     sapi::file_util::fileops::FDCloser shared_pidns_fd_ ABSL_GUARDED_BY(mutex_);

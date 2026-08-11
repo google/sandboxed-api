@@ -70,6 +70,7 @@ message ForkRequest {
     INITIALIZE_EMPTY_NETNS = 2;
     INITIALIZE_SHARED_PID_NAMESPACES = 3;
     INITIALIZE_SHARED_MNTNS = 4;
+    INITIALIZE_EMPTY_IPCNS = 5;
   }
 
   // List of arguments, starting with argv[0]
@@ -110,4 +111,7 @@ message ForkRequest {
   optional MountSpecs mount_specs = 15;
 
   optional bool use_shared_mount_namespace = 16;
+
+  // Join the forkserver's shared IPC namespace instead of unsharing one.
+  optional bool use_shared_ipc_namespace = 17;
 }

@@ -49,6 +49,7 @@ class LoadUserBpfCodeFromFile;
 class MapExec;
 class MountPropagation;
 class NamespacesToken;
+class SharedIpcNamespace;
 class UnrestrictedNetworking;
 class UnsafeCoreDumpPtrace;
 class SeccompSpeculation;
@@ -883,6 +884,21 @@ class PolicyBuilder final {
   // IMPORTANT: This is incompatible with AllowUnrestrictedNetworking.
   PolicyBuilder& UseForkServerSharedNetNs();
 
+  // Enables a shared IPC namespace for all sandboxees that are started by the
+  // same forkserver.
+  //
+  // This results in sandboxed processes to run in the same shared IPC
+  // namespace instead of creating a separate IPC namespace for each
+  // sandboxed process started by the ForkServer process.
+  //
+  // NOTE: Requires namespace support.
+  //
+  // IMPORTANT: Sandboxees of the same forkserver can then reach each other's
+  // System V IPC objects and POSIX message queues; they stay isolated from the
+  // host. Only use this if the policy denies the IPC syscalls (shm*, sem*,
+  // msg*, mq_*) outright.
+  PolicyBuilder& UseSharedIpcNs(sandbox2::SharedIpcNamespace);
+
   // Enables the use of namespaces.
   //
   // Namespaces are enabled by default.
@@ -1068,6 +1084,7 @@ class PolicyBuilder final {
   bool requires_namespaces_ = false;
   bool use_landlock_ = false;
   NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
+  bool use_shared_ipcns_ = false;
   bool allow_map_exec_ = true;
   bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;

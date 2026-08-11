@@ -138,6 +138,13 @@ absl::StatusOr<SandboxeeProcess> ForkClient::PendingRequest::Finalize(
                                             ") to the ForkServer failed"));
   }
 
+  if (options.shared_ipcns_fd != -1 &&
+      !setup_comms_.SendFD(options.shared_ipcns_fd)) {
+    return absl::InternalError(absl::StrCat("Sending shared ipcns FD (",
+                                            options.shared_ipcns_fd,
+                                            ") to the ForkServer failed"));
+  }
+
   if (needs_status_fd_) {
     int fd = -1;
     if (!setup_comms_.RecvFD(&fd)) {

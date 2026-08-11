@@ -47,6 +47,7 @@ class ForkedProcess {
   void JoinSharedPidNamespace();
   void JoinMountNamespace();
   void JoinNetworkNamespace();
+  void JoinIpcNamespace();
   void EnforceIsolation(sapi::file_util::fileops::FDCloser proc_self_fd,
                         uid_t uid, gid_t gid);
   void SetupNamespaces();

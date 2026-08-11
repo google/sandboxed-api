@@ -125,6 +125,9 @@ void ForkServer::HandleInitializeRequest(const ForkRequest& fork_request,
     case ForkRequest::INITIALIZE_SHARED_MNTNS:
       CreateMountNamespace(std::move(setup_comms));
       break;
+    case ForkRequest::INITIALIZE_EMPTY_IPCNS:
+      CreateEmptyIpcNamespace(std::move(setup_comms));
+      break;
     default:
       SAPI_RAW_LOG(FATAL, "Unsupported initialization type: %d",
                    fork_request.initialization_type());
@@ -319,6 +322,18 @@ void ForkServer::CreateEmptyNetworkNamespace(Comms setup_comms) {
       open(absl::StrCat("/proc/self/ns/net").c_str(), O_RDONLY | O_CLOEXEC));
   SAPI_RAW_PCHECK(netns_fd.get() != -1, "getting netns fd");
   SAPI_RAW_CHECK(setup_comms.SendFD(netns_fd.get()), "sending mntns fd");
+}
+
+void ForkServer::CreateEmptyIpcNamespace(Comms setup_comms) {
+  FDCloser userns_fd;
+  SAPI_RAW_CHECK(setup_comms.RecvFD(&userns_fd), "getting initial userns fd");
+  SAPI_RAW_PCHECK(setns(userns_fd.get(), CLONE_NEWUSER) == 0,
+                  "joining initial user namespace");
+  SAPI_RAW_PCHECK(unshare(CLONE_NEWIPC) == 0, "unsharing ipcns");
+  FDCloser ipcns_fd(
+      open(absl::StrCat("/proc/self/ns/ipc").c_str(), O_RDONLY | O_CLOEXEC));
+  SAPI_RAW_PCHECK(ipcns_fd.get() != -1, "getting ipcns fd");
+  SAPI_RAW_CHECK(setup_comms.SendFD(ipcns_fd.get()), "sending ipcns fd");
 }
 
 void ForkServer::CreateMountNamespace(Comms setup_comms) {

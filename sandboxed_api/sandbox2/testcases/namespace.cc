@@ -243,6 +243,15 @@ int main(int argc, char* argv[]) {
       }
       break;
     }
+    case 15: {
+      constexpr char kNsIpcPath[] = "/proc/self/ns/ipc";
+      std::string buf(100, '\0');
+      if (readlink(kNsIpcPath, buf.data(), buf.size()) == -1) {
+        return -1;
+      }
+      result.push_back(buf);
+      break;
+    }
     default:
       return 1;
   }

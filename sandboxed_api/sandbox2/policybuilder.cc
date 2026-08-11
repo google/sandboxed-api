@@ -63,6 +63,7 @@
 #include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
+#include "sandboxed_api/sandbox2/allowlists/shared_ipc_namespace.h"
 #include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/allowlists/write_executable.h"
@@ -1642,8 +1643,8 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
       return absl::FailedPreconditionError(
           "Cannot set hostname without network namespaces.");
     }
-    policy->namespace_ =
-        Namespace(std::move(mounts_), hostname_, netns_mode_, use_landlock);
+    policy->namespace_ = Namespace(std::move(mounts_), hostname_, netns_mode_,
+                                   use_landlock, use_shared_ipcns_);
   }
 
   policy->allow_map_exec_ = allow_map_exec_;
@@ -1858,6 +1859,13 @@ PolicyBuilder& PolicyBuilder::UseForkServerSharedNetNs() {
   }
 
   netns_mode_ = NETNS_MODE_SHARED_PER_FORKSERVER;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::UseSharedIpcNs(sandbox2::SharedIpcNamespace) {
+  EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
+
+  use_shared_ipcns_ = true;
   return *this;
 }
 

@@ -103,3 +103,13 @@ add_library(sandbox2::allowlists_trace_all_syscalls ALIAS
 target_link_libraries(sandbox2_allowlists_trace_all_syscalls PRIVATE
   sapi::base
 )
+
+# sandboxed_api/sandbox2/allowlists:shared_ipc_namespace
+add_library(sandbox2_allowlists_shared_ipc_namespace ${SAPI_LIB_TYPE}
+  shared_ipc_namespace.h
+)
+add_library(sandbox2::allowlists_shared_ipc_namespace ALIAS
+  sandbox2_allowlists_shared_ipc_namespace)
+target_link_libraries(sandbox2_allowlists_shared_ipc_namespace PRIVATE
+  sapi::base
+)

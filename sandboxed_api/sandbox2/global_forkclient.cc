@@ -264,6 +264,7 @@ void GlobalForkClient::GlobalData::CloseNamespacesLocked() {
   initial_userns_fd_.Close();
   initial_mntns_fd_.Close();
   shared_netns_fd_.Close();
+  shared_ipcns_fd_.Close();
   shared_pidns_mntns_fd_.Close();
   shared_pidns_fd_.Close();
   shared_mount_namespaces_.clear();
@@ -370,6 +371,22 @@ absl::Status GlobalForkClient::GlobalData::SetupSharedNetnsNamespacesLocked() {
   return absl::OkStatus();
 }
 
+absl::Status GlobalForkClient::GlobalData::SetupSharedIpcNamespaceLocked() {
+  ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
+                        instance_->fork_client_.SendInitializeRequest(
+                            ForkRequest::INITIALIZE_EMPTY_IPCNS));
+  if (!setup_comms.SendFD(initial_userns_fd_.get())) {
+    return absl::InternalError(
+        "Sending user namespace fd for empty ipcns failed");
+  }
+  file_util::fileops::FDCloser ipcns_fd;
+  if (!setup_comms.RecvFD(&ipcns_fd)) {
+    return absl::InternalError("Receiving empty ipcns fd failed");
+  }
+  shared_ipcns_fd_ = std::move(ipcns_fd);
+  return absl::OkStatus();
+}
+
 absl::StatusOr<file_util::fileops::FDCloser>
 GlobalForkClient::GlobalData::SetupSharedMountNamespaceLocked(
     const MountSpecs& mount_specs) {
@@ -440,6 +457,12 @@ absl::Status GlobalForkClient::GlobalData::SetupOptions(
       ABSL_RETURN_IF_ERROR(SetupSharedNetnsNamespacesLocked());
     }
     options.shared_netns_fd = shared_netns_fd_.get();
+  }
+  if (request.use_shared_ipc_namespace()) {
+    if (shared_ipcns_fd_.get() == -1) {
+      ABSL_RETURN_IF_ERROR(SetupSharedIpcNamespaceLocked());
+    }
+    options.shared_ipcns_fd = shared_ipcns_fd_.get();
   }
   if (request.mount_specs().use_shared_mount_namespace()) {
     options.shared_pidns_fd = shared_pidns_fd_.get();

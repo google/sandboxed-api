@@ -161,3 +161,18 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
 )
+
+cc_library(
+    name = "shared_ipc_namespace",
+    hdrs = ["shared_ipc_namespace.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_shared_ipc_namespace",
+    testonly = True,
+    hdrs = ["shared_ipc_namespace.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)

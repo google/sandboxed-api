@@ -381,6 +381,14 @@ void ForkedProcess::JoinNetworkNamespace() {
                   "joining shared network namespace");
 }
 
+void ForkedProcess::JoinIpcNamespace() {
+  FDCloser shared_ipcns_fd;
+  SAPI_RAW_CHECK(setup_comms_.RecvFD(&shared_ipcns_fd),
+                 "Failed to receive shared IPC namespace FD");
+  SAPI_RAW_PCHECK(setns(shared_ipcns_fd.get(), CLONE_NEWIPC) == 0,
+                  "joining shared IPC namespace");
+}
+
 void ForkedProcess::EnforceIsolation(FDCloser proc_self_fd, uid_t uid,
                                      gid_t gid) {
   if (request_.use_landlock()) {
@@ -440,6 +448,12 @@ void ForkedProcess::SetupNamespaces() {
   if (request_.netns_mode() == NETNS_MODE_SHARED_PER_FORKSERVER) {
     unshare_flags &= ~CLONE_NEWNET;
     JoinNetworkNamespace();
+  }
+  // Keep after the netns join (FD order) and before EnforceIsolation(), which
+  // unshares a nested userns and drops CAP_SYS_ADMIN over the shared ipcns.
+  if (request_.use_shared_ipc_namespace()) {
+    unshare_flags &= ~CLONE_NEWIPC;
+    JoinIpcNamespace();
   }
   latency_breakdown_.SetLatency(SetupLatencyBreakdown::kTillNamespacesUnshare,
                                 latency_stop_watch_.LapTime());

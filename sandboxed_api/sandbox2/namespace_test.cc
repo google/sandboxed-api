@@ -35,6 +35,7 @@
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
+#include "sandboxed_api/sandbox2/allowlists/shared_ipc_namespace.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -305,6 +306,64 @@ TEST(NamespaceTest, TestNetNsModeForkServerShared) {
   EXPECT_THAT(result_one, Eq(result_two));
   EXPECT_THAT(result_one, Ne(result_individual_netns_run));
   EXPECT_THAT(result_two, Ne(result_individual_netns_run));
+}
+
+TEST(NamespaceTest, TestSharedIpcNs) {
+  constexpr uint32_t kReadlink[] = {
+#ifdef __NR_readlink
+      __NR_readlink,
+#endif
+      __NR_readlinkat};
+
+  std::unique_ptr<sandbox2::Policy> policy;
+  const std::string path = GetTestcaseBinPath("namespace");
+  // Mode 15 reports /proc/self/ns/ipc, which is identical iff the sandboxees
+  // share an IPC namespace.
+  std::initializer_list<std::string> args = {path, "15"};
+
+  // Without sharing, each sandboxee unshares its own IPC namespace.
+  SAPI_ASSERT_OK_AND_ASSIGN(policy, CreateDefaultPermissiveTestPolicy(path)
+                                        .AllowSyscalls(kReadlink)
+                                        .AddDirectory("/proc")
+                                        .TryBuild());
+  std::vector<std::string> unshared_one =
+      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  EXPECT_THAT(unshared_one, SizeIs(1));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(policy, CreateDefaultPermissiveTestPolicy(path)
+                                        .AllowSyscalls(kReadlink)
+                                        .AddDirectory("/proc")
+                                        .TryBuild());
+  std::vector<std::string> unshared_two =
+      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  EXPECT_THAT(unshared_two, SizeIs(1));
+  EXPECT_THAT(unshared_one, Ne(unshared_two));
+
+  // With sharing, both join the forkserver's namespace.
+  SAPI_ASSERT_OK_AND_ASSIGN(policy,
+                            CreateDefaultPermissiveTestPolicy(path)
+                                .AllowSyscalls(kReadlink)
+                                .AddDirectory("/proc")
+                                .UseSharedIpcNs(sandbox2::SharedIpcNamespace())
+                                .TryBuild());
+  std::vector<std::string> shared_one =
+      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  EXPECT_THAT(shared_one, SizeIs(1));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(policy,
+                            CreateDefaultPermissiveTestPolicy(path)
+                                .AllowSyscalls(kReadlink)
+                                .AddDirectory("/proc")
+                                .UseSharedIpcNs(sandbox2::SharedIpcNamespace())
+                                .TryBuild());
+  std::vector<std::string> shared_two =
+      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  EXPECT_THAT(shared_two, SizeIs(1));
+
+  EXPECT_THAT(shared_one, Eq(shared_two));
+  // Still isolated from the sandboxees that unshared their own.
+  EXPECT_THAT(shared_one, Ne(unshared_one));
+  EXPECT_THAT(shared_one, Ne(unshared_two));
 }
 
 TEST(NamespaceTest, TestIncompatibleNetNsModes) {

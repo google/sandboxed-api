@@ -208,16 +208,22 @@ void LogFilesystem(const std::string& dir) {
 }  // namespace
 
 Namespace::Namespace(Mounts mounts, std::string hostname,
-                     NetNsMode netns_config, bool use_landlock)
+                     NetNsMode netns_config, bool use_landlock,
+                     bool use_shared_ipcns)
     : mounts_(std::move(mounts)),
       hostname_(std::move(hostname)),
       netns_config_(netns_config),
-      use_landlock_(use_landlock) {
+      use_landlock_(use_landlock),
+      use_shared_ipcns_(use_shared_ipcns) {
   // Remove the CLONE_NEWNET flag to allow networking, or for the shared netns.
   // In the latter case, the flag will be added later on.
   if (netns_config_ == NETNS_MODE_NONE ||
       netns_config_ == NETNS_MODE_SHARED_PER_FORKSERVER) {
     clone_flags_ &= ~CLONE_NEWNET;
+  }
+  // Remove the CLONE_NEWIPC flag for the shared ipcns; it is joined later on.
+  if (use_shared_ipcns_) {
+    clone_flags_ &= ~CLONE_NEWIPC;
   }
   // In Landlock mode, we don't use PID or mount namespaces.
   if (use_landlock_) {

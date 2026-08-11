@@ -103,10 +103,14 @@ absl::StatusOr<SandboxeeProcess> Executor::StartSubProcess(
   if (ns) {
     clone_flags |= ns->clone_flags();
     request.set_netns_mode(ns->netns_config());
+    request.set_use_shared_ipc_namespace(ns->use_shared_ipcns());
     *request.mutable_mount_specs() = ns->mounts().GetMountSpecs();
     request.set_hostname(ns->hostname());
     if (request.mount_specs().use_shared_mount_namespace()) {
       clone_flags &= ~CLONE_NEWNS;
+    }
+    if (ns->use_shared_ipcns()) {
+      clone_flags &= ~CLONE_NEWIPC;
     }
   }
 
