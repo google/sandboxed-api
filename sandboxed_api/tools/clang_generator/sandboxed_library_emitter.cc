@@ -3206,19 +3206,19 @@ absl::Status ExtractCallbackParamNamesAndTypes(
   param_names.reserve(ftl.getNumParams());
   param_types.reserve(ftl.getNumParams());
   for (unsigned i = 0; i < ftl.getNumParams(); ++i) {
-    clang::ParmVarDecl* param = ftl.getParam(i);
-    if (!param) {
+    clang::ParmVarDecl* cb_param = ftl.getParam(i);
+    if (!cb_param) {
       return absl::InvalidArgumentError(absl::Substitute(
-          "callback $0 does not have param $1", param->getName().str(), i));
+          "callback $0 does not have param $1", param.getName().str(), i));
     }
     // Check for the optional param names in a function pointer / function type.
     // If not present, falls back to generic names (cb_arg0, cb_arg1, ...).
-    if (!param->getName().empty()) {
-      param_names.push_back(param->getNameAsString());
+    if (!cb_param->getName().empty()) {
+      param_names.push_back(cb_param->getNameAsString());
     } else {
       param_names.push_back(absl::StrFormat("cb_arg%u", i));
     }
-    param_types.push_back(param->getType().getCanonicalType().getAsString());
+    param_types.push_back(cb_param->getType().getCanonicalType().getAsString());
   }
   return absl::OkStatus();
 }
