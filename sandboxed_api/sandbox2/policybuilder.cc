@@ -92,6 +92,9 @@
 #ifndef MADV_POPULATE_WRITE  // Linux 5.14+
 #define MADV_POPULATE_WRITE 23
 #endif
+#ifndef MADV_DONTNEED_LOCKED
+#define MADV_DONTNEED_LOCKED 24
+#endif
 #ifndef MADV_COLLAPSE  // Linux 6.1+
 #define MADV_COLLAPSE 25
 #endif
@@ -684,6 +687,7 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
                         ARG_32(2),
                         JEQ32(MADV_SEQUENTIAL, ALLOW),
                         JEQ32(MADV_DONTNEED, ALLOW),
+                        JEQ32(MADV_DONTNEED_LOCKED, ALLOW),
                         JEQ32(MADV_REMOVE, ALLOW),
                         JEQ32(MADV_HUGEPAGE, ALLOW),
                         JEQ32(MADV_NOHUGEPAGE, ALLOW),
