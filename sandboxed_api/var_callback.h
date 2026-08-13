@@ -121,8 +121,6 @@ uint64_t CallHelper(F&& f, absl::Span<const uint64_t> span) {
 //   `Sandbox2RPCChannel`.
 // * Only primitive types and `RemotePtr` are supported as arguments and return
 //   values.
-// * TODO(sroettger): We don't support nested calls into the sandbox from the
-//                    callback yet.
 class Callback : public Var {
  public:
   template <typename F>

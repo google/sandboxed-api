@@ -295,7 +295,19 @@ extern "C" uint64_t sapi_client_HandleCallback(uint64_t index, uint64_t* args) {
           &recv_tag, &recv_value)) {
     LOG(FATAL) << "Callback ExchangeTLV failed";
   }
-  CHECK_EQ(recv_tag, sapi::comms::kMsgCallbackRet);
+
+  while (recv_tag != sapi::comms::kMsgCallbackRet) {
+    sapi::FuncRet ret = sapi::client::ProcessRequest(sapi::client::g_comms,
+                                                     recv_tag, recv_value);
+    LOG_IF(FATAL, !sapi::client::g_comms->SendTLV(sapi::comms::kMsgReturn,
+                                                  sizeof(ret), &ret))
+        << "Sending nested call return failed";
+
+    if (!sapi::client::g_comms->RecvTLV(&recv_tag, &recv_value)) {
+      LOG(FATAL) << "Receiving nested call next tag failed";
+    }
+  }
+
   CHECK_EQ(recv_value.size(), sizeof(sapi::CallbackResponse));
   sapi::CallbackResponse resp;
   memcpy(&resp, recv_value.data(), sizeof(sapi::CallbackResponse));

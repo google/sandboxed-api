@@ -633,6 +633,91 @@ TEST_P(SandboxTest, CallbackLoopTest) {
   EXPECT_THAT(result, Eq(20));
 }
 
+TEST_P(SandboxTest, NestedCallbacks) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = true;
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  auto host_cb2 = [](int a, int b) -> int { return a + b; };
+  sapi::v::Callback cb2(host_cb2);
+
+  auto host_cb1 = [&api, &cb2](int a, int b) -> int {
+    auto res = api.call_callback(cb2.PtrBefore(), a * 10, b * 10);
+    if (!res.ok()) {
+      LOG(ERROR) << "Nested call failed: " << res.status();
+      return -1;
+    }
+    return *res;
+  };
+  sapi::v::Callback cb1(host_cb1);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(int result,
+                            api.call_callback(cb1.PtrBefore(), 1, 2));
+  EXPECT_THAT(result, Eq(30));
+}
+
+TEST_P(SandboxTest, DoubleNestedCallbacks) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = true;
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  auto host_cb3 = [](int a, int b) -> int { return a + b; };
+  sapi::v::Callback cb3(host_cb3);
+
+  auto host_cb2 = [&api, &cb3](int a, int b) -> int {
+    auto res = api.call_callback(cb3.PtrBefore(), a * 10, b * 10);
+    if (!res.ok()) {
+      LOG(ERROR) << "Nested call 2 failed: " << res.status();
+      return -1;
+    }
+    return *res;
+  };
+  sapi::v::Callback cb2(host_cb2);
+
+  auto host_cb1 = [&api, &cb2](int a, int b) -> int {
+    auto res = api.call_callback(cb2.PtrBefore(), a * 10, b * 10);
+    if (!res.ok()) {
+      LOG(ERROR) << "Nested call 1 failed: " << res.status();
+      return -1;
+    }
+    return *res;
+  };
+  sapi::v::Callback cb1(host_cb1);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(int result,
+                            api.call_callback(cb1.PtrBefore(), 1, 2));
+  EXPECT_THAT(result, Eq(300));
+}
+
+TEST_P(SandboxTest, NestedCallbacksNoMultithreading) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = false;
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  auto host_cb2 = [](int a, int b) -> int { return a + b; };
+  sapi::v::Callback cb2(host_cb2);
+
+  auto host_cb1 = [&api, &cb2](int a, int b) -> int {
+    auto res = api.call_callback(cb2.PtrBefore(), a * 10, b * 10);
+    if (!res.ok()) {
+      LOG(ERROR) << "Nested call failed: " << res.status();
+      return -1;
+    }
+    return *res;
+  };
+  sapi::v::Callback cb1(host_cb1);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(int result,
+                            api.call_callback(cb1.PtrBefore(), 1, 2));
+  EXPECT_THAT(result, Eq(30));
+}
+
 TEST_P(SandboxTest, CompareSelfSymbol) {
   SandboxConfig config = GetDefaultConfig();
   SapiTestSandbox sandbox(std::move(config));

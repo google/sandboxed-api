@@ -33,7 +33,6 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/config.h"
@@ -48,7 +47,7 @@ using sapi::file_util::fileops::FDCloser;
 
 absl::Status Sandbox2RPCChannel::Call(const FuncCall& call, uint32_t tag,
                                       FuncRet* ret, v::Type exp_type) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   ABSL_ASSIGN_OR_RETURN(*ret, Exchange(tag, &call, sizeof(call), exp_type));
   return absl::OkStatus();
 }
@@ -142,7 +141,7 @@ absl::StatusOr<FuncRet> Sandbox2RPCChannel::Return(v::Type exp_type) {
 
 absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr,
                                           bool disable_shared_memory) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   ABSL_ASSIGN_OR_RETURN(auto fret, Exchange(comms::kMsgAllocate, &size,
                                             sizeof(size), v::Type::kPointer));
   *addr = reinterpret_cast<void*>(fret.int_val);
@@ -151,7 +150,7 @@ absl::Status Sandbox2RPCChannel::Allocate(size_t size, void** addr,
 
 absl::Status Sandbox2RPCChannel::Reallocate(void* old_addr, size_t size,
                                             void** new_addr) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   comms::ReallocRequest req = {
       .old_addr = reinterpret_cast<uintptr_t>(old_addr),
       .size = size,
@@ -169,7 +168,7 @@ absl::Status Sandbox2RPCChannel::Reallocate(void* old_addr, size_t size,
 }
 
 absl::Status Sandbox2RPCChannel::Free(void* addr) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   uintptr_t remote = reinterpret_cast<uintptr_t>(addr);
   return Exchange(comms::kMsgFree, &remote, sizeof(remote), v::Type::kVoid)
       .status();
@@ -190,7 +189,7 @@ absl::StatusOr<size_t> Sandbox2RPCChannel::CopyToSandbox(
 }
 
 absl::Status Sandbox2RPCChannel::Symbol(const char* symname, void** addr) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   ABSL_ASSIGN_OR_RETURN(
       auto fret, Exchange(comms::kMsgSymbol, symname, strlen(symname) + 1,
                           v::Type::kPointer));
@@ -199,7 +198,7 @@ absl::Status Sandbox2RPCChannel::Symbol(const char* symname, void** addr) {
 }
 
 absl::Status Sandbox2RPCChannel::Exit() {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   if (comms_->IsTerminated()) {
     VLOG(2) << "Comms channel already terminated";
     return absl::OkStatus();
@@ -212,7 +211,7 @@ absl::Status Sandbox2RPCChannel::Exit() {
 }
 
 absl::Status Sandbox2RPCChannel::SendFD(int local_fd, int* remote_fd) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgSendFd, 0, nullptr)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
@@ -229,7 +228,7 @@ absl::Status Sandbox2RPCChannel::SendFD(int local_fd, int* remote_fd) {
 }
 
 absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   if (!comms_->SendTLV(comms::kMsgRecvFd, sizeof(remote_fd), &remote_fd)) {
     return absl::UnavailableError("Sending TLV value failed");
   }
@@ -248,7 +247,7 @@ absl::Status Sandbox2RPCChannel::RecvFD(int remote_fd, int* local_fd) {
 }
 
 absl::Status Sandbox2RPCChannel::Close(int remote_fd) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   ABSL_RETURN_IF_ERROR(
       Exchange(comms::kMsgClose, &remote_fd, sizeof(remote_fd), v::Type::kVoid)
           .status());
@@ -264,7 +263,7 @@ absl::StatusOr<std::unique_ptr<RPCChannel>> Sandbox2RPCChannel::SpawnThread() {
   sapi::file_util::fileops::FDCloser sandboxee_fd(sv[1]);
 
   {
-    absl::MutexLock lock(mutex_);
+    RecursiveMutexLock lock(mutex_);
     if (!comms_->SendTLV(comms::kMsgSpawnThread, 0, nullptr)) {
       return absl::UnavailableError("Sending spawn thread TLV failed");
     }
@@ -284,7 +283,7 @@ absl::StatusOr<std::unique_ptr<RPCChannel>> Sandbox2RPCChannel::SpawnThread() {
 }
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   ABSL_ASSIGN_OR_RETURN(
       auto fret, Exchange(comms::kMsgStrlen, &str, sizeof(str), v::Type::kInt));
   return fret.int_val;
@@ -292,7 +291,7 @@ absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
 
 absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
   if constexpr (sapi::sanitizers::IsMSan()) {
-    absl::MutexLock lock(mutex_);
+    RecursiveMutexLock lock(mutex_);
     comms::ReallocRequest req = {
         .old_addr = reinterpret_cast<uintptr_t>(addr),
         .size = size,
@@ -322,7 +321,7 @@ absl::StatusOr<uintptr_t> Sandbox2RPCChannel::GetTrampolineTableAddr() {
 
 absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallback(
     absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   ABSL_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
                         GetTrampolineTableAddr());
 
@@ -338,7 +337,7 @@ absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallback(
 }
 
 absl::Status Sandbox2RPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
-  absl::MutexLock lock(mutex_);
+  RecursiveMutexLock lock(mutex_);
   ABSL_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
                         GetTrampolineTableAddr());
   if (remote_ptr < trampoline_table_addr) {

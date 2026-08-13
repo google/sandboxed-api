@@ -15,12 +15,17 @@
 #ifndef SANDBOXED_API_SANDBOX2_RPCCHANNEL_H_
 #define SANDBOXED_API_SANDBOX2_RPCCHANNEL_H_
 
+#include <sys/syscall.h>
+#include <unistd.h>
+
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
@@ -30,6 +35,65 @@
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/var_type.h"
+
+namespace sapi {
+
+class ABSL_LOCKABLE RecursiveMutex {
+ public:
+  RecursiveMutex() = default;
+  ~RecursiveMutex() = default;
+
+  RecursiveMutex(const RecursiveMutex&) = delete;
+  RecursiveMutex& operator=(const RecursiveMutex&) = delete;
+
+  void Lock() ABSL_EXCLUSIVE_LOCK_FUNCTION() {
+    pid_t tid = GetCachedTID();
+    if (owner_.load(std::memory_order_acquire) != tid) {
+      mutex_.Lock();
+      owner_.store(tid, std::memory_order_release);
+    }
+    ++recursion_depth_;
+  }
+
+  void Unlock() ABSL_UNLOCK_FUNCTION() {
+    if (--recursion_depth_ > 0) {
+      return;
+    }
+    owner_.store(0, std::memory_order_release);
+    mutex_.Unlock();
+  }
+
+ private:
+  static pid_t GetCachedTID() {
+    thread_local pid_t tid = 0;
+    if (ABSL_PREDICT_FALSE(tid == 0)) {
+      tid = syscall(__NR_gettid);
+    }
+    return tid;
+  }
+
+  absl::Mutex mutex_;
+  std::atomic<pid_t> owner_{0};
+  int recursion_depth_ = 0;
+};
+
+class ABSL_SCOPED_LOCKABLE RecursiveMutexLock {
+ public:
+  explicit RecursiveMutexLock(RecursiveMutex& mutex)
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mutex)
+      : recursive_mutex_(mutex) {
+    recursive_mutex_.Lock();
+  }
+  ~RecursiveMutexLock() ABSL_UNLOCK_FUNCTION() { recursive_mutex_.Unlock(); }
+
+  RecursiveMutexLock(const RecursiveMutexLock&) = delete;
+  RecursiveMutexLock& operator=(const RecursiveMutexLock&) = delete;
+
+ private:
+  RecursiveMutex& recursive_mutex_;
+};
+
+}  // namespace sapi
 
 namespace sandbox2 {
 class Comms;
@@ -123,7 +187,7 @@ class Sandbox2RPCChannel : public RPCChannel {
   sandbox2::Comms* comms_;  // Owned by sandbox2;
   // The pid of the sandboxee.
   pid_t pid_;
-  absl::Mutex mutex_;
+  RecursiveMutex mutex_;
 
   std::array<absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)>,
              kMaxCallbacks>
