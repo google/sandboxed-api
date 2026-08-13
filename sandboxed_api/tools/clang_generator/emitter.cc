@@ -89,7 +89,7 @@ class %1$s : public ::sapi::Sandbox<::sapi::Sandbox2Backend> {
       : %1$s(::sapi::SandboxConfig::DefaultConfig()) {}
   explicit %1$s(::sapi::SandboxConfig config)
       : %1$s(::sapi::Sandbox2Backend(
-                ConfigWithForkClientContext(std::move(config)),
+                ConfigWithForkClientContext(std::move(config.set_name("%1$s"))),
                 [this] { return CreateNotifier(); })) {}
   // This constructor should only be used for special cases, e.g. when using the
   // CreateNotifier() method. Otherwise, prefer to use the SandboxConfig
@@ -107,13 +107,19 @@ class %1$s : public ::sapi::Sandbox<::sapi::Sandbox2Backend> {
     return config;
   }
 };
-
 )";
 
 // Text template arguments:
 //   1. Class name
-constexpr absl::string_view kSandboxTypedefTemplate = R"(
-using %1$s = ::sapi::Sandbox<::sapi::Sandbox2Backend>;
+constexpr absl::string_view kSandboxClassTemplate = R"(
+// Sandbox class with default policy (non-embedded)
+class %1$s : public ::sapi::Sandbox<::sapi::Sandbox2Backend> {
+ public:
+  explicit %1$s(::sapi::SandboxConfig config)
+      : ::sapi::Sandbox<::sapi::Sandbox2Backend>(std::move(config.set_name("%1$s"))) {}
+  explicit %1$s(::sapi::Sandbox2Backend backend)
+      : ::sapi::Sandbox<::sapi::Sandbox2Backend>(std::move(backend)) {}
+};
 )";
 
 // Text template arguments:
@@ -135,7 +141,7 @@ class %1$s : public ::sapi::Sandbox<::sapi::PassthroughBackend> {
   %1$s()
       : %1$s(::sapi::SandboxConfig{}) {}
   explicit %1$s(::sapi::SandboxConfig config)
-      : %1$s(::sapi::PassthroughBackend(std::move(config), %2$s, %3$s)) {}
+      : %1$s(::sapi::PassthroughBackend(std::move(config.set_name("%1$s")), %2$s, %3$s)) {}
   explicit %1$s(::sapi::PassthroughBackend backend)
       : ::sapi::Sandbox<::sapi::PassthroughBackend>(std::move(backend)) {}
 };
@@ -621,9 +627,8 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader() {
             &out, kEmbedClassTemplate, sandbox_class_name,
             absl::StrReplaceAll(options_.embed_name, {{"-", "_"}}));
       } else {
-        // Or a typedef for the sandbox class if no embedded sandboxee is used.
-        absl::StrAppendFormat(&out, kSandboxTypedefTemplate,
-                              sandbox_class_name);
+        // Or a class for the sandbox if no embedded sandboxee is used.
+        absl::StrAppendFormat(&out, kSandboxClassTemplate, sandbox_class_name);
       }
       break;
     }

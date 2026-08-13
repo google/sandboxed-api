@@ -104,6 +104,13 @@ struct Sandbox2Config {
 };
 
 struct SandboxConfig {
+  std::string name = "unknown";
+
+  SandboxConfig& set_name(std::string n) {
+    name = std::move(n);
+    return *this;
+  }
+
   std::optional<std::vector<std::string>> environment_variables;
   std::optional<absl::flat_hash_map<std::string, std::string>>
       command_line_flags;

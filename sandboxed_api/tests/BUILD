@@ -25,6 +25,9 @@ cc_test(
     name = "sapi_test",
     srcs = ["sapi_test.cc"],
     copts = sapi_platform_copts(),
+    data = [
+        "//sandboxed_api/examples/sum:sum_sapi_noembed.bin",
+    ],
     tags = ["local"],
     deps = [
         ":sapi_test-sapi",
@@ -36,6 +39,7 @@ cc_test(
         "//sandboxed_api/examples/stringop:stringop-sapi",
         "//sandboxed_api/examples/stringop:stringop_params_cc_proto",
         "//sandboxed_api/examples/sum:sum-sapi",
+        "//sandboxed_api/examples/sum:sum_sapi_noembed",
         "//sandboxed_api/sandbox2:result",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:thread",
@@ -55,6 +59,7 @@ cc_test(
 
 cc_library(
     name = "sapi_test_lib",
+    testonly = 1,
     srcs = [
         "sapi_test_lib_cpp.cc",
     ],
@@ -62,10 +67,12 @@ cc_library(
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/types:span",
     ],
+    alwayslink = 1,
 )
 
 sapi_library(
     name = "sapi_test-sapi",
+    testonly = 1,
     functions = [
         "accumulate",
         "compare_self_symbol",

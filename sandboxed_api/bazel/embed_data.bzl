@@ -77,6 +77,11 @@ def sapi_cc_embed_data(name, srcs = [], namespace = "", **kwargs):
       **kwargs: extra arguments like testonly, visibility, etc.
     """
     embed_rule = "_%s_sapi" % name
+    testonly = kwargs.get("testonly", None)
+    common = {}
+    if testonly != None:
+        common["testonly"] = testonly
+
     _sapi_cc_embed_data(
         name = embed_rule,
         srcs = srcs,
@@ -86,6 +91,7 @@ def sapi_cc_embed_data(name, srcs = [], namespace = "", **kwargs):
             "%s.h" % name,
             "%s.cc" % name,
         ],
+        **common
     )
     cc_library(
         name = name,

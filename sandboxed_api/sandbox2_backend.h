@@ -48,6 +48,8 @@ class Sandbox2Backend {
   Sandbox2Backend(Sandbox2Backend&&);
   Sandbox2Backend& operator=(Sandbox2Backend&&);
 
+  const std::string& name() const { return config_.name; }
+
   virtual ~Sandbox2Backend();
 
   // Initializes a new sandboxing session.

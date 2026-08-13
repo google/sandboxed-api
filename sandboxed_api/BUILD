@@ -168,9 +168,9 @@ cc_library(
         ":vars",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:dynamic_annotations",
+        "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -188,7 +188,6 @@ cc_library(
         "//sandboxed_api/sandbox2:fork_client",
         "//sandboxed_api/sandbox2:sandbox_config",
         "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
     ],
 )
 
