@@ -104,19 +104,3 @@ sh_test(
     srcs = ["main_sum_test.sh"],
     data = [":main_sum"],
 )
-
-sapi_library(
-    name = "sum_sapi_noembed",
-    embed = False,
-    functions = [
-        "sum",
-    ],
-    input_files = [
-        "sum.c",
-        "sum_cpp.cc",
-    ],
-    lib = ":sum",
-    lib_name = "SumNoEmbed",
-    visibility = ["//visibility:public"],
-    deps = [":sum_params_cc_proto"],
-)

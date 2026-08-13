@@ -283,7 +283,7 @@ def symbol_list_gen(name, lib, out, **kwargs):
         **kwargs
     )
 
-def _common_kwargs(tags, visibility, compatible_with, testonly = None):
+def _common_kwargs(tags, visibility, compatible_with):
     common = {
         "tags": tags,
     }
@@ -291,8 +291,6 @@ def _common_kwargs(tags, visibility, compatible_with, testonly = None):
         common["visibility"] = visibility
     if compatible_with != None:
         common["compatible_with"] = compatible_with
-    if testonly != None:
-        common["testonly"] = testonly
     return common
 
 def sapi_library(
@@ -315,7 +313,6 @@ def sapi_library(
         deps = [],
         tags = [],
         generator_version = 2,
-        testonly = None,
         visibility = None,
         compatible_with = None,
         default_copts = [],
@@ -362,7 +359,7 @@ def sapi_library(
       sandbox_mode: Sandbox mode to use for the generated library. Either "sandbox2" (default) or "passthrough".
     """
 
-    common = _common_kwargs(tags, visibility, compatible_with, testonly)
+    common = _common_kwargs(tags, visibility, compatible_with)
     generated_file_prefix = name + ".sapi"
     generated_header = generated_file_prefix + ".h"
     generated_sandboxee_src = generated_file_prefix + ".sandboxee.cc"
@@ -590,8 +587,7 @@ def cc_sandboxed_library(
     # TODO(dvyukov): add hash/flattening of the full library /path:name, just the name is not
     # necessarily globally unique.
     wrapper_name = "Sapi" + name
-    testonly = kwargs.get("testonly", None)
-    common = _common_kwargs(tags, visibility, compatible_with, testonly)
+    common = _common_kwargs(tags, visibility, compatible_with)
 
     cc_library(
         name = "_unsandboxed_" + name,
