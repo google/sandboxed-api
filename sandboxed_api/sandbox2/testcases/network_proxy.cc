@@ -22,14 +22,11 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 #include <cerrno>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <string>
 #include <variant>
 
 #include "absl/base/log_severity.h"
@@ -51,12 +48,6 @@
 
 ABSL_FLAG(bool, connect_with_handler, true, "Connect using automatic mode.");
 ABSL_FLAG(bool, ipv6, false, "Use IPv6.");
-ABSL_FLAG(bool, test_connect_unix, false,
-          "Test connect with UNIX domain stream socket.");
-ABSL_FLAG(bool, test_dgram_unix_blocked, false,
-          "Test datagram socket(AF_UNIX, SOCK_DGRAM, 0) creation is blocked.");
-ABSL_FLAG(std::string, unix_socket_path, "",
-          "Path to UNIX socket for testing.");
 
 namespace {
 
@@ -176,48 +167,6 @@ int main(int argc, char* argv[]) {
   if (!comms.RecvInt32(&port)) {
     LOG(ERROR) << "Failed to receive port number";
     return 2;
-  }
-
-  if (absl::GetFlag(FLAGS_test_connect_unix)) {
-    int s = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (s < 0) {
-      PLOG(ERROR) << "socket() failed";
-      return 10;
-    }
-    FDCloser sock_closer(s);
-    struct sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, absl::GetFlag(FLAGS_unix_socket_path).c_str(),
-            sizeof(addr.sun_path) - 1);
-    socklen_t addr_len =
-        offsetof(struct sockaddr_un, sun_path) + strlen(addr.sun_path) + 1;
-    if (connect(s, reinterpret_cast<struct sockaddr*>(&addr), addr_len) < 0) {
-      PLOG(ERROR) << "connect() failed";
-      return 11;
-    }
-    constexpr absl::string_view kMsg = "Hello Unix Connect\n";
-    if (write(s, kMsg.data(), kMsg.size()) !=
-        static_cast<ssize_t>(kMsg.size())) {
-      PLOG(ERROR) << "write() failed";
-      return 12;
-    }
-    return 0;
-  }
-
-  if (absl::GetFlag(FLAGS_test_dgram_unix_blocked)) {
-    int s = socket(AF_UNIX, SOCK_DGRAM, 0);
-    if (s < 0 && errno == EACCES) {
-      return 0;  // Expected: blocked by seccomp rule with EACCES
-    }
-    if (s >= 0) {
-      LOG(ERROR) << "socket(AF_UNIX, SOCK_DGRAM, 0) succeeded unexpectedly (s="
-                 << s << ")";
-      close(s);
-    } else {
-      PLOG(ERROR)
-          << "socket(AF_UNIX, SOCK_DGRAM, 0) failed with unexpected error";
-    }
-    return 10;
   }
 
   absl::StatusOr<FDCloser> client = ConnectToServer(port);

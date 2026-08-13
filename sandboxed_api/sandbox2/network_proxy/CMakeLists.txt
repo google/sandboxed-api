@@ -20,8 +20,6 @@ add_library(sandbox2_network_proxy_server ${SAPI_LIB_TYPE}
 add_library(sandbox2::network_proxy_server ALIAS sandbox2_network_proxy_server)
 target_link_libraries(sandbox2_network_proxy_server
  PRIVATE absl::status
-         absl::strings
-         sandbox2::util
          sapi::fileops
          sapi::base
  PUBLIC absl::any_invocable
@@ -38,7 +36,6 @@ add_library(sandbox2::network_proxy_filtering ALIAS sandbox2_network_proxy_filte
 target_link_libraries(sandbox2_network_proxy_filtering
   PRIVATE absl::status
           absl::status_macros
-          absl::strings
           sandbox2::comms
           sapi::fileops
           sapi::base

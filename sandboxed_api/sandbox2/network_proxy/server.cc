@@ -14,22 +14,15 @@
 
 #include "sandboxed_api/sandbox2/network_proxy/server.h"
 
-#include <fcntl.h>
-#include <linux/openat2.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/un.h>
 
 #include <atomic>
 #include <cerrno>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -38,10 +31,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
-#include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
@@ -49,13 +40,13 @@ namespace sandbox2 {
 namespace file_util = ::sapi::file_util;
 
 NetworkProxyServer::NetworkProxyServer(
-    int fd, AllowedEndpoints* allowed_endpoints,
+    int fd, AllowedHosts* allowed_hosts,
     absl::AnyInvocable<void()> notify_violation_fn)
     : violation_occurred_(false),
       comms_(std::make_unique<Comms>(fd)),
       fatal_error_(false),
       notify_violation_fn_(std::move(notify_violation_fn)),
-      allowed_endpoints_(allowed_endpoints) {}
+      allowed_hosts_(allowed_hosts) {}
 
 void NetworkProxyServer::ProcessConnectRequest() {
   std::vector<uint8_t> addr;
@@ -63,71 +54,20 @@ void NetworkProxyServer::ProcessConnectRequest() {
     fatal_error_ = true;
     return;
   }
+
   const struct sockaddr* saddr = reinterpret_cast<const sockaddr*>(addr.data());
 
-  bool is_inet4 =
-      (addr.size() == sizeof(sockaddr_in) && saddr->sa_family == AF_INET);
-  bool is_inet6 =
-      (addr.size() == sizeof(sockaddr_in6) && saddr->sa_family == AF_INET6);
-  bool is_unix = (addr.size() > offsetof(struct sockaddr_un, sun_path) &&
-                  saddr->sa_family == AF_UNIX);
-
-  if (!is_inet4 && !is_inet6 && !is_unix) {
+  // Only IPv4 TCP and IPv6 TCP are supported.
+  if (!((addr.size() == sizeof(sockaddr_in) && saddr->sa_family == AF_INET) ||
+        (addr.size() == sizeof(sockaddr_in6) &&
+         saddr->sa_family == AF_INET6))) {
     SendError(EINVAL);
     return;
   }
 
-  std::string canonical_path;
-  if (!allowed_endpoints_->IsEndpointAllowed(saddr, addr.size(),
-                                             &canonical_path)) {
-    NotifyViolation(saddr, addr.size());
+  if (!allowed_hosts_->IsHostAllowed(saddr)) {
+    NotifyViolation(saddr);
     return;
-  }
-
-  const struct sockaddr* connect_addr = saddr;
-  socklen_t connect_len = addr.size();
-  struct sockaddr_un proc_addr{};
-  std::optional<file_util::fileops::FDCloser> o_path_closer;
-
-  if (is_unix) {
-    const struct sockaddr_un* sun_addr =
-        reinterpret_cast<const struct sockaddr_un*>(addr.data());
-
-    if (sun_addr->sun_path[0] != '\0') {
-#ifndef RESOLVE_NO_SYMLINKS
-#define RESOLVE_NO_SYMLINKS 0x01
-#endif
-#ifndef __NR_openat2
-#define __NR_openat2 437
-#endif
-      struct open_how how = {};
-      how.flags = O_PATH | O_CLOEXEC;
-      how.resolve = RESOLVE_NO_SYMLINKS;
-
-      int o_path_fd = static_cast<int>(
-          util::Syscall(__NR_openat2, static_cast<uintptr_t>(AT_FDCWD),
-                        reinterpret_cast<uintptr_t>(canonical_path.c_str()),
-                        reinterpret_cast<uintptr_t>(&how), sizeof(how)));
-      if (o_path_fd < 0) {
-        SendError(errno);
-        return;
-      }
-      o_path_closer.emplace(o_path_fd);
-
-      struct stat st;
-      if (fstat(o_path_fd, &st) < 0 || !S_ISSOCK(st.st_mode)) {
-        SendError(ENOTSOCK);
-        return;
-      }
-
-      proc_addr.sun_family = AF_UNIX;
-      std::string proc_path = absl::StrCat("/proc/self/fd/", o_path_fd);
-      strncpy(proc_addr.sun_path, proc_path.c_str(),
-              sizeof(proc_addr.sun_path) - 1);
-
-      connect_addr = reinterpret_cast<const struct sockaddr*>(&proc_addr);
-      connect_len = sizeof(proc_addr);
-    }
   }
 
   int new_socket = socket(saddr->sa_family, SOCK_STREAM, 0);
@@ -135,9 +75,12 @@ void NetworkProxyServer::ProcessConnectRequest() {
     SendError(errno);
     return;
   }
+
   file_util::fileops::FDCloser new_socket_closer(new_socket);
 
-  int result = connect(new_socket, connect_addr, connect_len);
+  int result = connect(
+      new_socket, reinterpret_cast<const sockaddr*>(addr.data()), addr.size());
+
   if (result < 0) {
     SendError(errno);
     return;
@@ -146,6 +89,7 @@ void NetworkProxyServer::ProcessConnectRequest() {
   NotifySuccess();
   if (!fatal_error_ && !comms_->SendFD(new_socket)) {
     fatal_error_ = true;
+    return;
   }
 }
 
@@ -170,10 +114,8 @@ void NetworkProxyServer::NotifySuccess() {
   }
 }
 
-void NetworkProxyServer::NotifyViolation(const struct sockaddr* saddr,
-                                         socklen_t len) {
-  if (absl::StatusOr<std::string> result = AddrToString(saddr, len);
-      result.ok()) {
+void NetworkProxyServer::NotifyViolation(const struct sockaddr* saddr) {
+  if (absl::StatusOr<std::string> result = AddrToString(saddr); result.ok()) {
     violation_msg_ = std::move(result).value();
   } else {
     violation_msg_ = std::string(result.status().message());

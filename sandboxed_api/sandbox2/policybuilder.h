@@ -167,19 +167,12 @@ class PolicyBuilder final {
   // and PID namespaces.
   //
   // Note: Landlock support is experimental and subject to change.
-  // - Filesystem limitations: Certain file-related syscall families (e.g.,
-  //   access(2), stat(2), chdir(2), flock(2), chmod(2), chown(2), setxattr(2),
-  //   utime(2), fcntl(2)) are not currently restricted by kernel Landlock.
-  //   These unhandled syscalls primarily allow metadata probing (e.g., file
-  //   existence) or CWD navigation and cannot be used to read, write, or
-  //   execute unauthorized file contents, and thus do not materially expand the
-  //   sandbox attack surface.
-  // - Networking & UNIX domain sockets: At kernel Landlock ABI <= 8, pathname
-  //   AF_UNIX sockets are not restricted by Landlock filesystem rules. Policies
-  //   requiring connect(2) must either use NetworkProxy with UNIX socket
-  //   filtering enabled
-  //   (AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)) or
-  //   explicitly opt into host networking with Allow(UnrestrictedNetworking()).
+  // Certain file-related syscall families (e.g., access(2), stat(2), chdir(2),
+  // flock(2), chmod(2), chown(2), setxattr(2), utime(2), fcntl(2)) are not
+  // currently restricted by kernel Landlock access controls. These unhandled
+  // syscalls primarily allow metadata probing (e.g., file existence) or CWD
+  // navigation and cannot be used to read, write, or execute unauthorized file
+  // contents, and thus do not materially expand the sandbox attack surface.
   // Future Landlock ABI versions will support restricting these syscalls, and
   // Sandbox2 will be updated as new kernel features become available.
   PolicyBuilder& EnableLandlock(sandbox2::EnableLandlock);
@@ -221,11 +214,6 @@ class PolicyBuilder final {
   // you would also need to allow networking syscalls.
   //
   // NOTE: Requires namespace support.
-  // NOTE: When combined with Landlock, leaving the process in the host network
-  // namespace permits connecting to host pathname AF_UNIX domain sockets
-  // (because kernel Landlock ABI <= 8 does not restrict UNIX domain sockets).
-  // For isolated environments requiring socket access, use NetworkProxy with
-  // UNIX socket filtering instead.
   PolicyBuilder& Allow(UnrestrictedNetworking);
 
   // Appends code to allow a specific syscall.
@@ -989,25 +977,11 @@ class PolicyBuilder final {
   PolicyBuilder& DangerDefaultAllowAll();
 
   // Allows syscalls that are necessary for the NetworkProxyClient.
-  //
-  // When filter_unix_sockets is true, AF_UNIX domain sockets are restricted to
-  // stream (SOCK_STREAM) sockets in seccomp and filtered against allowed
-  // UNIX socket endpoint paths (via AllowUnixSocket). Datagram AF_UNIX sockets
-  // are blocked due to TOCTOU security limitations in seccomp filtering.
-  //
-  // Recommendation: For datagram sockets or to completely avoid connect(2),
-  // sendto(2), and sendmsg(2) proxy interception, pre-open connected socket
-  // file descriptors outside the sandbox on the host and pass them directly
-  // into the sandbox (e.g., via AddFile or Comms).
-  PolicyBuilder& AddNetworkProxyPolicy(bool filter_unix_sockets = false);
+  PolicyBuilder& AddNetworkProxyPolicy();
 
   // Allows syscalls that are necessary for the NetworkProxyClient and
   // the NetworkProxyHandler.
-  //
-  // When filter_unix_sockets is true, pathname AF_UNIX domain sockets connected
-  // inside the sandbox are intercepted by NetworkProxyHandler and validated
-  // against paths permitted via AllowUnixSocket.
-  PolicyBuilder& AddNetworkProxyHandlerPolicy(bool filter_unix_sockets = false);
+  PolicyBuilder& AddNetworkProxyHandlerPolicy();
 
   // Makes root of the filesystem writeable
   // Not recommended
@@ -1030,9 +1004,6 @@ class PolicyBuilder final {
   // Allows connections to this IP.
   PolicyBuilder& AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
   PolicyBuilder& AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
-  // Allows connections to this pathname or abstract UNIX domain socket via
-  // NetworkProxy.
-  PolicyBuilder& AllowUnixSocket(absl::string_view path);
 
   // Returns the current status of the PolicyBuilder.
   absl::Status GetStatus() { return last_status_; }
@@ -1168,8 +1139,8 @@ class PolicyBuilder final {
     bool shared_memory = false;
   } allowed_complex_;
 
-  // List of allowed endpoints
-  absl::optional<AllowedEndpoints> allowed_endpoints_;
+  // List of allowed hosts
+  absl::optional<AllowedHosts> allowed_hosts_;
 };
 
 }  // namespace sandbox2

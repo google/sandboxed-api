@@ -342,54 +342,24 @@ TEST(PolicyBuilderTest, TestAllowLlvmCoverageWithoutCoverageDir) {
   ASSERT_THAT(unsetenv("COVERAGE"), Eq(0));
 }
 
-TEST(PolicyBuilderTest, EnableLandlockWithNetworkProxySucceeds) {
-  PolicyBuilder builder;
-  builder.EnableLandlock(sandbox2::EnableLandlock())
-      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
-  auto policy_result = builder.TryBuild();
-  ASSERT_THAT(policy_result, IsOk());
-  auto policy = std::move(*policy_result);
-  ASSERT_TRUE(policy->GetNamespace().has_value());
-  EXPECT_TRUE(policy->GetNamespace()->use_landlock());
-}
-
-TEST(PolicyBuilderTest, EnableLandlockWithUnrestrictedNetworkingSucceeds) {
-  PolicyBuilder builder;
-  builder.EnableLandlock(sandbox2::EnableLandlock())
-      .Allow(sandbox2::UnrestrictedNetworking());
-  auto policy_result = builder.TryBuild();
-  ASSERT_THAT(policy_result, IsOk());
-  auto policy = std::move(*policy_result);
-  ASSERT_TRUE(policy->GetNamespace().has_value());
-  EXPECT_TRUE(policy->GetNamespace()->use_landlock());
-}
-
-TEST(PolicyBuilderTest,
-     EnableLandlockWithoutProxyOrUnrestrictedNetworkingRejects) {
+TEST(PolicyBuilderTest, EnableLandlock) {
   PolicyBuilder builder;
   builder.EnableLandlock(sandbox2::EnableLandlock());
-  EXPECT_THAT(builder.TryBuild(),
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("Cannot use Landlock mode without either "
-                                 "UnrestrictedNetworking or a NetworkProxy")));
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_TRUE(policy->GetNamespace()->use_landlock());
 }
 
-TEST(PolicyBuilderTest, EnableLandlockWithUnixSocketAndNetworkProxySucceeds) {
+TEST(PolicyBuilderTest, EnableLandlockWithNonIdentityMounts) {
   PolicyBuilder builder;
-  builder.EnableLandlock(sandbox2::EnableLandlock())
-      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)
-      .AllowUnixSocket("/tmp/test.sock");
-  EXPECT_THAT(builder.TryBuild(), IsOk());
-}
-
-TEST(PolicyBuilderTest,
-     EnableLandlockWithNetworkProxyWithoutUnixSocketFilteringFails) {
-  PolicyBuilder builder;
-  builder.EnableLandlock(sandbox2::EnableLandlock())
-      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/false);
-  EXPECT_THAT(builder.TryBuild(),
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("UNIX socket filtering enabled")));
+  builder.EnableLandlock(sandbox2::EnableLandlock());
+  builder.AddFileAt("/etc/passwd", "/tmp/passwd");
+  EXPECT_THAT(
+      builder.TryBuild(),
+      StatusIs(absl::StatusCode::kFailedPrecondition,
+               HasSubstr("Cannot use Landlock with non-identity mounts")));
 }
 
 }  // namespace

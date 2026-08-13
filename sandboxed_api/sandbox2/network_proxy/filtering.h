@@ -16,8 +16,6 @@
 #define SANDBOXED_API_SANDBOX2_NETWORK_PROXY_FILTERING_H_
 
 #include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 
 #include <cstdint>
 #include <string>
@@ -25,16 +23,13 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
 
-// Converts sockaddr_in, sockaddr_in6, or sockaddr_un structure into a string
+// Converts sockaddr_in or sockaddr_in6 structure into a string
 // representation.
-absl::StatusOr<std::string> AddrToString(
-    const struct sockaddr* saddr,
-    socklen_t len = sizeof(struct sockaddr_storage));
+absl::StatusOr<std::string> AddrToString(const struct sockaddr* saddr);
 
 struct IPv4 {
   in_addr_t ip;
@@ -52,27 +47,16 @@ struct IPv6 {
       : ip(IP), mask(mask), port(port) {}
 };
 
-// Keeps a list of allowed pairs of IP, mask, port, and UNIX socket paths.
-class AllowedEndpoints {
+// Keeps a list of allowed pairs of IP, mask and port. Port equal to 0 means
+// that all ports are allowed.
+class AllowedHosts {
  public:
   // ip_and_mask should have one of following formats: IP, IP/mask, IP/cidr.
   absl::Status AllowIPv4(const std::string& ip_and_mask, uint32_t port = 0);
   // ip_and_mask should have following format: IP or IP/cidr.
   absl::Status AllowIPv6(const std::string& ip_and_mask, uint32_t port = 0);
-  // Allows connections to a pathname or abstract UNIX domain socket at path.
-  absl::Status AllowUnixSocket(absl::string_view path);
-  // Enables or disables UNIX domain socket filtering.
-  void set_filter_unix_sockets(bool enable) { filter_unix_sockets_ = enable; }
-  bool filter_unix_sockets() const { return filter_unix_sockets_; }
-  // Canonicalizes a UNIX domain socket path by resolving existing parent
-  // directories.
-  static std::string CanonicalizeSocketPath(absl::string_view path);
-  // Checks if this endpoint is allowed. If canonical_path is provided and the
-  // endpoint is a UNIX domain path socket, sets *canonical_path to the
-  // canonicalized socket path.
-  bool IsEndpointAllowed(const struct sockaddr* saddr,
-                         socklen_t len = sizeof(struct sockaddr),
-                         std::string* canonical_path = nullptr) const;
+  // Checks if this host is allowed.
+  bool IsHostAllowed(const struct sockaddr* saddr) const;
 
  private:
   absl::Status AllowIPv4(const std::string& ip, const std::string& mask,
@@ -80,13 +64,9 @@ class AllowedEndpoints {
   absl::Status AllowIPv6(const std::string& ip, uint32_t cidr, uint32_t port);
   bool IsIPv4Allowed(const struct sockaddr_in* saddr) const;
   bool IsIPv6Allowed(const struct sockaddr_in6* saddr) const;
-  bool IsUnixSocketAllowed(const struct sockaddr_un* saddr, socklen_t len,
-                           std::string* canonical_path = nullptr) const;
 
   std::vector<IPv4> allowed_IPv4_;
   std::vector<IPv6> allowed_IPv6_;
-  std::vector<std::string> allowed_unix_paths_;
-  bool filter_unix_sockets_ = false;
 };
 
 }  // namespace sandbox2

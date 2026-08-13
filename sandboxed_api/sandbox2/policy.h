@@ -119,8 +119,8 @@ class Policy final {
   bool user_policy_handles_bpf_ = false;
   bool user_policy_handles_ptrace_ = false;
 
-  // Contains a list of endpoints the sandboxee is allowed to connect to.
-  std::optional<AllowedEndpoints> allowed_endpoints_;
+  // Contains a list of hosts the sandboxee is allowed to connect to.
+  std::optional<AllowedHosts> allowed_hosts_;
 };
 
 }  // namespace sandbox2

@@ -30,13 +30,11 @@ cc_library(
     deps = [
         ":filtering",
         "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -47,7 +45,6 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":filtering",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/sandbox2/util:syscall_trap",
         "//sandboxed_api/util:fileops",
@@ -67,7 +64,6 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api/sandbox2:comms",
-        "//sandboxed_api/util:file_base",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
@@ -82,10 +78,8 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":filtering",
-        "//sandboxed_api/util:file_base",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )
