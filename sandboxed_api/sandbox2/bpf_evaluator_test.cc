@@ -88,6 +88,24 @@ TEST(EvaluatorTest, MemoryOps2) {
   EXPECT_THAT(result, Eq(SECCOMP_RET_KILL));
 }
 
+TEST(EvaluatorTest, UninitializedMemoryLoadFails) {
+  sock_filter prog_acc[] = {
+      BPF_STMT(BPF_LD + BPF_MEM, 3),
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
+  };
+  EXPECT_THAT(Evaluate(prog_acc, {}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr("Uninitialized memory load")));
+
+  sock_filter prog_x[] = {
+      BPF_STMT(BPF_LDX + BPF_MEM, 7),
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
+  };
+  EXPECT_THAT(Evaluate(prog_x, {}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr("Uninitialized memory load")));
+}
+
 TEST(EvaluatorTest, Txa) {
   sock_filter prog[] = {
       BPF_STMT(BPF_LDX + BPF_IMM, 1),

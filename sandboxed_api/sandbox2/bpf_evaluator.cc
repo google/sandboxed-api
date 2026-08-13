@@ -75,10 +75,10 @@ class Interpreter {
 
   absl::Span<const sock_filter> prog_;
   const struct seccomp_data& data_;
-  uint32_t pc_;
-  uint32_t accumulator_;
-  uint32_t x_reg_;
-  uint32_t mem_[16];
+  uint32_t pc_ = 0;
+  uint32_t accumulator_ = 0;
+  uint32_t x_reg_ = 0;
+  std::optional<uint32_t> mem_[16];
   std::optional<uint32_t> result_;
 };
 
@@ -126,14 +126,22 @@ absl::Status Interpreter::EvaluateSingleInstruction() {
         return absl::InvalidArgumentError(
             absl::StrCat("Out of bounds memory load (", inst.k, " >= 16)"));
       }
-      accumulator_ = mem_[inst.k];
+      if (!mem_[inst.k].has_value()) {
+        return absl::InvalidArgumentError(
+            absl::StrCat("Uninitialized memory load at M[", inst.k, "]"));
+      }
+      accumulator_ = *mem_[inst.k];
       break;
     case BPF_LDX | BPF_MEM:
       if (inst.k >= sizeof(mem_) / sizeof(mem_[0])) {
         return absl::InvalidArgumentError(
             absl::StrCat("Out of bounds memory load (", inst.k, " >= 16)"));
       }
-      x_reg_ = mem_[inst.k];
+      if (!mem_[inst.k].has_value()) {
+        return absl::InvalidArgumentError(
+            absl::StrCat("Uninitialized memory load at M[", inst.k, "]"));
+      }
+      x_reg_ = *mem_[inst.k];
       break;
     case BPF_ST:
       if (inst.k >= sizeof(mem_) / sizeof(mem_[0])) {

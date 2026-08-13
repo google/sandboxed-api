@@ -15,6 +15,7 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
 #include <fcntl.h>  // For the fcntl flags
+#include <linux/audit.h>
 #include <linux/bpf_common.h>
 #include <linux/filter.h>
 #include <linux/futex.h>
@@ -1636,6 +1637,28 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
     // are identity mounts, i.e. outside and inside are the same.
     MountTree mount_tree = mounts_.GetMountTree();
     ABSL_RETURN_IF_ERROR(ValidateLandlockIdentityMounts(mount_tree));
+
+    // At Landlock ABI <= 8, pathname AF_UNIX domain sockets are not restricted
+    // by Landlock filesystem rules. An isolated sandboxee could connect() to
+    // arbitrary host domain sockets unless:
+    // 1) The caller explicitly opted into host networking via
+    //    UnrestrictedNetworking() (netns_mode_ == NETNS_MODE_NONE), OR
+    // 2) The caller configured NetworkProxy with UNIX socket path filtering.
+    bool has_unrestricted_networking = (netns_mode_ == NETNS_MODE_NONE);
+    bool has_network_proxy = allowed_endpoints_.has_value();
+    bool has_unix_socket_filtering =
+        has_network_proxy && allowed_endpoints_->filter_unix_sockets();
+
+    if (!has_unrestricted_networking &&
+        (!has_network_proxy || !has_unix_socket_filtering)) {
+      return absl::FailedPreconditionError(
+          "Cannot use Landlock mode without either UnrestrictedNetworking or a "
+          "NetworkProxy with UNIX socket filtering enabled "
+          "(AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)). At "
+          "Landlock ABI <= 8, pathname AF_UNIX sockets are not restricted "
+          "by Landlock, allowing processes to reach local host domain "
+          "sockets not explicitly added via AddDirectory/AddFile.");
+    }
   }
 
   if (use_namespaces_ || use_landlock) {
@@ -1671,7 +1694,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
   policy->user_policy_handles_bpf_ = user_policy_handles_bpf_;
   policy->user_policy_handles_ptrace_ = user_policy_handles_ptrace_;
 
-  policy->allowed_hosts_ = std::move(allowed_hosts_);
+  policy->allowed_endpoints_ = std::move(allowed_endpoints_);
   already_built_ = true;
   return std::move(policy);
 }
@@ -1910,15 +1933,15 @@ PolicyBuilder& PolicyBuilder::CollectAllThreadsStacktrace(bool enable) {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
-  if (allowed_hosts_) {
+PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy(bool filter_unix_sockets) {
+  if (allowed_endpoints_) {
     SetError(absl::FailedPreconditionError(
         "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy can be called "
         "at most once"));
     return *this;
   }
 
-  allowed_hosts_ = AllowedHosts();
+  allowed_endpoints_ = AllowedEndpoints();
 
   AllowSafeFcntl();
   AllowFutexOp(FUTEX_WAKE);
@@ -1935,6 +1958,28 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
                                       JEQ32(AF_INET, ALLOW),
                                       JEQ32(AF_INET6, ALLOW),
                                   });
+  if (filter_unix_sockets) {
+    allowed_endpoints_->set_filter_unix_sockets(true);
+    // When UNIX socket filtering is enabled, restrict AF_UNIX socket creation
+    // to SOCK_STREAM so connectionless datagram sockets (which allow sendto/
+    // sendmsg path bypasses and suffer from TOCTOU parsing risks) are blocked.
+    // Callers requiring datagram sockets should pre-open connected socket FDs
+    // on the host and pass them into the sandbox directly.
+    AddPolicyOnSyscall(
+        __NR_socket, [](bpf_labels& labels) -> std::vector<sock_filter> {
+          return {
+              ARG_32(0),
+              JNE32(AF_UNIX, JUMP(&labels, not_unix)),
+              ARG_32(1),
+              JEQ32(SOCK_STREAM, ALLOW),
+              JEQ32(SOCK_STREAM | SOCK_CLOEXEC, ALLOW),
+              JEQ32(SOCK_STREAM | SOCK_NONBLOCK, ALLOW),
+              JEQ32(SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, ALLOW),
+              ERRNO(EACCES),
+              LABEL(&labels, not_unix),
+          };
+        });
+  }
   AddPolicyOnSyscall(__NR_getsockopt,
                      [](bpf_labels& labels) -> std::vector<sock_filter> {
                        return {
@@ -1942,6 +1987,7 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
                            JNE32(SOL_SOCKET, JUMP(&labels, getsockopt_end)),
                            ARG_32(2),
                            JEQ32(SO_TYPE, ALLOW),
+                           JEQ32(SO_DOMAIN, ALLOW),
                            LABEL(&labels, getsockopt_end),
                        };
                      });
@@ -1956,8 +2002,9 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy() {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy() {
-  AddNetworkProxyPolicy();
+PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy(
+    bool filter_unix_sockets) {
+  AddNetworkProxyPolicy(filter_unix_sockets);
   AllowSyscall(__NR_rt_sigreturn);
 
   AddPolicyOnSyscall(__NR_rt_sigaction, {
@@ -2020,14 +2067,14 @@ PolicyBuilder& PolicyBuilder::Allow(WriteExecutable) {
 
 PolicyBuilder& PolicyBuilder::AllowIPv4(const std::string& ip_and_mask,
                                         uint32_t port) {
-  if (!allowed_hosts_) {
+  if (!allowed_endpoints_) {
     SetError(absl::FailedPreconditionError(
         "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy must be called "
         "before adding IP rules"));
     return *this;
   }
 
-  absl::Status status = allowed_hosts_->AllowIPv4(ip_and_mask, port);
+  absl::Status status = allowed_endpoints_->AllowIPv4(ip_and_mask, port);
   if (!status.ok()) {
     SetError(status);
   }
@@ -2036,14 +2083,29 @@ PolicyBuilder& PolicyBuilder::AllowIPv4(const std::string& ip_and_mask,
 
 PolicyBuilder& PolicyBuilder::AllowIPv6(const std::string& ip_and_mask,
                                         uint32_t port) {
-  if (!allowed_hosts_) {
+  if (!allowed_endpoints_) {
     SetError(absl::FailedPreconditionError(
         "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy must be called "
         "before adding IP rules"));
     return *this;
   }
 
-  absl::Status status = allowed_hosts_->AllowIPv6(ip_and_mask, port);
+  absl::Status status = allowed_endpoints_->AllowIPv6(ip_and_mask, port);
+  if (!status.ok()) {
+    SetError(status);
+  }
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::AllowUnixSocket(absl::string_view path) {
+  if (!allowed_endpoints_) {
+    SetError(absl::FailedPreconditionError(
+        "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy must be called "
+        "before adding UNIX socket rules"));
+    return *this;
+  }
+
+  absl::Status status = allowed_endpoints_->AllowUnixSocket(path);
   if (!status.ok()) {
     SetError(status);
   }

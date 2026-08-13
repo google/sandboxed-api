@@ -241,7 +241,8 @@ TEST_P(StackTraceTest, SymbolizationWorks) {
     } else if (mode == IsolationMode::kPtraceWithLandlock) {
       builder->AddFile(GetTestSourcePath("sandbox2/testcases/symbolize"))
           .AddDirectory("/proc", /*is_ro=*/true)
-          .EnableLandlock(sandbox2::EnableLandlock());
+          .EnableLandlock(sandbox2::EnableLandlock())
+          .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
     }
     if (old_modify_policy) {
       old_modify_policy(builder);
@@ -264,7 +265,8 @@ TEST_F(StackTraceStandaloneTest,
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile(GetTestSourcePath("sandbox2/testcases/symbolize"))
         .AddDirectory("/proc", /*is_ro=*/true)
-        .EnableLandlock(sandbox2::EnableLandlock());
+        .EnableLandlock(sandbox2::EnableLandlock())
+        .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
   });
 }
 
@@ -416,6 +418,7 @@ TEST_F(StackTraceStandaloneTest, LandlockCollectsAllThreadsStackTrace) {
   builder.AddFile(path)
       .AddDirectory("/proc", true)
       .EnableLandlock(sandbox2::EnableLandlock())
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)
       .CollectStacktracesOnSignal(false)
       .CollectAllThreadsStacktrace(true);
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());

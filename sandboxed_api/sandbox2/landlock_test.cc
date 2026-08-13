@@ -63,7 +63,8 @@ std::string GetTestcaseBinPath(absl::string_view bin_name) {
 PolicyBuilder CreateLandlockPermissiveTestPolicy(absl::string_view bin_path) {
   return CreateDefaultPermissiveTestPolicy(bin_path)
       .AddFile(bin_path)
-      .EnableLandlock(sandbox2::EnableLandlock());
+      .EnableLandlock(sandbox2::EnableLandlock())
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
 }
 
 PolicyBuilder CreateLandlockTestPolicy(absl::string_view bin_path) {
