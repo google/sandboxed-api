@@ -22,7 +22,7 @@
 
 .section .text
 
-.align 16
+.balign 16
 sapi_callback_handler:
     // Save argument registers (x86_64 ABI)
     push rbp
@@ -45,12 +45,12 @@ sapi_callback_handler:
     pop rbp
     ret
 
-.align 16
+.balign 16
 sapi_callback_trampolines:
 .macro trampoline
     mov r11, \@
     jmp sapi_callback_handler
-    .align 16
+    .balign 16
 .endm
 
 // Generate 64 trampolines
@@ -67,7 +67,7 @@ sapi_callback_trampolines_end:
 
 .section .text
 
-.align 16
+.balign 16
 sapi_callback_handler:
     // Save FP, LR and make room for x0-x7 (80 bytes total)
     // Stack must be 16-byte aligned.
@@ -90,12 +90,12 @@ sapi_callback_handler:
     ldp x29, x30, [sp], #80
     ret
 
-.align 16
+.balign 16
 sapi_callback_trampolines:
 .macro trampoline
     mov x9, \@
     b sapi_callback_handler
-    .align 16
+    .balign 16
 .endm
 
 // Generate 64 trampolines
