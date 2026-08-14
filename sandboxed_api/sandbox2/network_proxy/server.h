@@ -31,7 +31,7 @@ namespace sandbox2 {
 // of allowed hosts.
 class NetworkProxyServer {
  public:
-  NetworkProxyServer(int fd, AllowedHosts* allowed_hosts,
+  NetworkProxyServer(int fd, AllowedEndpoints* allowed_endpoints,
                      absl::AnyInvocable<void()> notify_violation);
 
   NetworkProxyServer(const NetworkProxyServer&) = delete;
@@ -56,14 +56,15 @@ class NetworkProxyServer {
   void ProcessConnectRequest();
 
   // Throw a violation when the network rules are subverted.
-  void NotifyViolation(const struct sockaddr* saddr);
+  void NotifyViolation(const struct sockaddr* saddr,
+                       socklen_t len = sizeof(struct sockaddr_storage));
 
   std::unique_ptr<Comms> comms_;
   bool fatal_error_;
   absl::AnyInvocable<void()> notify_violation_fn_;
 
-  // Contains list of allowed to connect hosts.
-  AllowedHosts* allowed_hosts_;
+  // Contains list of allowed to connect endpoints.
+  AllowedEndpoints* allowed_endpoints_;
 };
 
 }  // namespace sandbox2

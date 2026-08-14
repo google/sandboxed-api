@@ -20,7 +20,9 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -33,6 +35,8 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
+#include "sandboxed_api/util/path.h"
 
 namespace sandbox2 {
 
@@ -59,13 +63,42 @@ static absl::StatusOr<std::string> Addr4ToString(
   return absl::StrCat("IP: ", addr, ", port: ", port);
 }
 
-// Converts sockaddr_in6 structure into a string IPv6 representation.
-absl::StatusOr<std::string> AddrToString(const struct sockaddr* saddr) {
+static absl::StatusOr<std::string> AddrUnToString(
+    const struct sockaddr_un* saddr, socklen_t len) {
+  if (len <= offsetof(struct sockaddr_un, sun_path)) {
+    return absl::StrCat("UNIX Socket (invalid length)");
+  }
+  size_t path_len = len - offsetof(struct sockaddr_un, sun_path);
+  path_len = std::min(path_len, sizeof(saddr->sun_path));
+  absl::string_view name(saddr->sun_path, path_len);
+  absl::string_view type = "UNIX";
+
+  if (name[0] == '\0') {
+    type = "UNIX Abstract";
+    name = name.substr(1);
+  }
+  size_t null_pos = name.find('\0');
+  if (null_pos != absl::string_view::npos) {
+    name = name.substr(0, null_pos);
+  }
+  if (name.empty()) {
+    name = "(empty)";
+  }
+  return absl::StrCat(type, " Socket: ", name);
+}
+
+// Converts sockaddr_in, sockaddr_in6, or sockaddr_un structure into a string
+// representation.
+absl::StatusOr<std::string> AddrToString(const struct sockaddr* saddr,
+                                         socklen_t len) {
   switch (saddr->sa_family) {
     case AF_INET:
       return Addr4ToString(reinterpret_cast<const struct sockaddr_in*>(saddr));
     case AF_INET6:
       return Addr6ToString(reinterpret_cast<const struct sockaddr_in6*>(saddr));
+    case AF_UNIX:
+      return AddrUnToString(reinterpret_cast<const struct sockaddr_un*>(saddr),
+                            len);
     default:
       return absl::InternalError(
           absl::StrCat("Unexpected sa_family value: ", saddr->sa_family));
@@ -171,8 +204,8 @@ static bool IsIPv4MaskCorrect(in_addr_t m) {
   return !(m & (m - 1));
 }
 
-absl::Status AllowedHosts::AllowIPv4(const std::string& ip_and_mask,
-                                     uint32_t port) {
+absl::Status AllowedEndpoints::AllowIPv4(const std::string& ip_and_mask,
+                                         uint32_t port) {
   std::string ip, mask;
   uint32_t cidr;
   ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, &mask, &cidr));
@@ -181,8 +214,8 @@ absl::Status AllowedHosts::AllowIPv4(const std::string& ip_and_mask,
   return absl::OkStatus();
 }
 
-absl::Status AllowedHosts::AllowIPv6(const std::string& ip_and_mask,
-                                     uint32_t port) {
+absl::Status AllowedEndpoints::AllowIPv6(const std::string& ip_and_mask,
+                                         uint32_t port) {
   std::string ip;
   uint32_t cidr;
   ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, NULL, &cidr));
@@ -190,9 +223,9 @@ absl::Status AllowedHosts::AllowIPv6(const std::string& ip_and_mask,
   return absl::OkStatus();
 }
 
-absl::Status AllowedHosts::AllowIPv4(const std::string& ip,
-                                     const std::string& mask, uint32_t cidr,
-                                     uint32_t port) {
+absl::Status AllowedEndpoints::AllowIPv4(const std::string& ip,
+                                         const std::string& mask, uint32_t cidr,
+                                         uint32_t port) {
   in_addr addr{};
   in_addr m{};
 
@@ -222,8 +255,8 @@ absl::Status AllowedHosts::AllowIPv4(const std::string& ip,
   return absl::OkStatus();
 }
 
-absl::Status AllowedHosts::AllowIPv6(const std::string& ip, uint32_t cidr,
-                                     uint32_t port) {
+absl::Status AllowedEndpoints::AllowIPv6(const std::string& ip, uint32_t cidr,
+                                         uint32_t port) {
   if (cidr == 0) {
     cidr = 128;
   }
@@ -238,12 +271,55 @@ absl::Status AllowedHosts::AllowIPv6(const std::string& ip, uint32_t cidr,
   return absl::OkStatus();
 }
 
-bool AllowedHosts::IsHostAllowed(const struct sockaddr* saddr) const {
+// Canonicalizes a UNIX socket path using realpath(). Abstract sockets (starting
+// with '\0') are returned unmodified. If the target path exists, it is fully
+// resolved. If the target does not exist, the longest existing parent path
+// prefix is resolved using realpath() and the remaining non-existent components
+// are appended.
+std::string AllowedEndpoints::CanonicalizeSocketPath(absl::string_view path) {
+  if (!path.empty() && path[0] == '\0') {
+    return std::string(path);
+  }
+  std::string current(path);
+  std::string suffix;
+  while (!current.empty()) {
+    char resolved[PATH_MAX];
+    if (realpath(current.c_str(), resolved) != nullptr) {
+      return sapi::file::JoinPath(resolved, suffix);
+    }
+    auto [parent, part] = sapi::file::SplitPath(current);
+    if (parent == current) {
+      break;
+    }
+    suffix = sapi::file::JoinPath(part, suffix);
+    current = std::string(parent);
+  }
+  return std::string(path);
+}
+
+absl::Status AllowedEndpoints::AllowUnixSocket(absl::string_view path) {
+  if (path.empty() || (path[0] != '/' && path[0] != '\0')) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "UNIX socket path must be an absolute path or abstract socket: ",
+        path));
+  }
+  filter_unix_sockets_ = true;
+  allowed_unix_paths_.push_back(CanonicalizeSocketPath(path));
+  return absl::OkStatus();
+}
+
+bool AllowedEndpoints::IsEndpointAllowed(const struct sockaddr* saddr,
+                                         socklen_t len,
+                                         std::string* canonical_path) const {
   switch (saddr->sa_family) {
     case AF_INET:
       return IsIPv4Allowed(reinterpret_cast<const struct sockaddr_in*>(saddr));
     case AF_INET6:
       return IsIPv6Allowed(reinterpret_cast<const struct sockaddr_in6*>(saddr));
+    case AF_UNIX:
+      return IsUnixSocketAllowed(
+          reinterpret_cast<const struct sockaddr_un*>(saddr), len,
+          canonical_path);
     default:
       LOG(FATAL) << absl::StrCat("Unexpected sa_family value: ",
                                  saddr->sa_family);
@@ -251,7 +327,7 @@ bool AllowedHosts::IsHostAllowed(const struct sockaddr* saddr) const {
   }
 }
 
-bool AllowedHosts::IsIPv6Allowed(const struct sockaddr_in6* saddr) const {
+bool AllowedEndpoints::IsIPv6Allowed(const struct sockaddr_in6* saddr) const {
   auto result = std::find_if(
       allowed_IPv6_.begin(), allowed_IPv6_.end(), [saddr](const IPv6& entry) {
         for (int i = 0; i < 16; i++) {
@@ -269,7 +345,7 @@ bool AllowedHosts::IsIPv6Allowed(const struct sockaddr_in6* saddr) const {
   return result != allowed_IPv6_.end();
 }
 
-bool AllowedHosts::IsIPv4Allowed(const struct sockaddr_in* saddr) const {
+bool AllowedEndpoints::IsIPv4Allowed(const struct sockaddr_in* saddr) const {
   auto result = std::find_if(
       allowed_IPv4_.begin(), allowed_IPv4_.end(), [saddr](const IPv4& entry) {
         return ((entry.ip & entry.mask) ==
@@ -278,6 +354,29 @@ bool AllowedHosts::IsIPv4Allowed(const struct sockaddr_in* saddr) const {
       });
 
   return result != allowed_IPv4_.end();
+}
+
+bool AllowedEndpoints::IsUnixSocketAllowed(const struct sockaddr_un* saddr,
+                                           socklen_t len,
+                                           std::string* canonical_path) const {
+  if (len < offsetof(struct sockaddr_un, sun_path) + 1) {
+    return false;
+  }
+  size_t path_max_len = len - offsetof(struct sockaddr_un, sun_path);
+  path_max_len = std::min(path_max_len, sizeof(saddr->sun_path));
+  size_t path_len = (saddr->sun_path[0] == '\0')
+                        ? path_max_len
+                        : strnlen(saddr->sun_path, path_max_len);
+  std::string path =
+      CanonicalizeSocketPath(absl::string_view(saddr->sun_path, path_len));
+  if (canonical_path != nullptr) {
+    *canonical_path = path;
+  }
+  if (!filter_unix_sockets_) {
+    return false;
+  }
+  return std::find(allowed_unix_paths_.begin(), allowed_unix_paths_.end(),
+                   path) != allowed_unix_paths_.end();
 }
 
 }  // namespace sandbox2

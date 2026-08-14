@@ -1474,6 +1474,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::time
             sandbox2::sandbox2
             sandbox2::network_proxy_testing
+            sapi::fileops
             sapi::testing
             sapi::test_main
   )

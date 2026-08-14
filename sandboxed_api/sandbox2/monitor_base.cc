@@ -199,7 +199,7 @@ void MonitorBase::Launch() {
   // sandbox master/monitor, which ptrace_attach'es to the child.
   int clone_flags = CLONE_UNTRACED;
 
-  if (policy_->allowed_hosts_) {
+  if (policy_->allowed_endpoints_) {
     EnableNetworkProxyServer();
   }
 
@@ -505,10 +505,10 @@ bool MonitorBase::StackTraceCollectionPossible() const {
 
 void MonitorBase::EnableNetworkProxyServer() {
   int fd = ipc_->ReceiveFd(NetworkProxyClient::kFDName);
-  CHECK(policy_->allowed_hosts_.has_value());
+  CHECK(policy_->allowed_endpoints_.has_value());
 
   network_proxy_server_ = std::make_unique<NetworkProxyServer>(
-      fd, &policy_->allowed_hosts_.value(),
+      fd, &policy_->allowed_endpoints_.value(),
       [this] { NotifyNetworkViolation(); });
 
   network_proxy_thread_ =
