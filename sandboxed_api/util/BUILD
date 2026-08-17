@@ -160,10 +160,7 @@ sapi_proto_library(
 cc_library(
     name = "status",
     srcs = ["status.cc"],
-    hdrs = [
-        "status.h",
-        "status_macros.h",
-    ],
+    hdrs = ["status.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
@@ -185,22 +182,6 @@ cc_test(
         ":status_cc_proto",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:string_view",
-        "@googletest//:gtest_main",
-    ],
-)
-
-# Tests for the Status macros.
-cc_test(
-    name = "status_macros_test",
-    srcs = ["status_macros_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":status",
-        "//sandboxed_api:testing",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )
