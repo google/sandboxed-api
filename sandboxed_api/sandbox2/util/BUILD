@@ -297,6 +297,7 @@ cc_test(
         "//sandboxed_api/sandbox2:buffer",
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:thread",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

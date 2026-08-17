@@ -325,6 +325,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::time
     sandbox2::asynchronous_byte_transport
     sandbox2::comms
+    sapi::raw_logging
     sapi::testing
     sapi::test_main
   )

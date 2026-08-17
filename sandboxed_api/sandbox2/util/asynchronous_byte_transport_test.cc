@@ -18,6 +18,7 @@
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -39,6 +40,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/raw_logging.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
@@ -82,19 +84,41 @@ class TestHelper {
   explicit TestHelper() {}
 
   void StartAsync(int memfd, size_t data_size) {
-    int pipe_fds[2];
-    pipe(pipe_fds);
+    int socket_fds[2];
+    CHECK_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, socket_fds), 0);
+
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto buffer_client,
+        sandbox2::Buffer::CreateFromFd(
+            sapi::file_util::fileops::FDCloser(dup(memfd)), data_size));
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto transport_client,
+        sandbox2::AsynchronousByteTransport::CreateSandboxeeSide(
+            std::move(buffer_client)));
+
+    std::vector<uint8_t> data_buf(data_size * 4);
+    std::vector<uint8_t> data_to_send_buf(data_size * 4);
+    std::vector<uint8_t> data_to_recv_buf(data_size * 4);
+    std::vector<uint8_t> recv_data_buf(data_size * 4);
+
+    sandbox2::Comms comms_child(socket_fds[0], "test_comms_sandboxee");
+
     pid_ = fork();
     CHECK_NE(pid_, -1);
     if (pid_ == 0) {
-      CHECK_EQ(prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0), 0);
-      close(pipe_fds[1]);
-      Communicate(pipe_fds[0], memfd, data_size);
-      close(pipe_fds[0]);
+      // At this point, we should avoid any heap allocations to prevent
+      // potential deadlocks in TCMalloc.
+      SAPI_RAW_CHECK(prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) == 0,
+                     "Failed to set PR_SET_PDEATHSIG");
+      close(socket_fds[1]);
+      Communicate(&comms_child, transport_client.get(),
+                  absl::MakeSpan(data_buf), absl::MakeSpan(data_to_send_buf),
+                  absl::MakeSpan(data_to_recv_buf),
+                  absl::MakeSpan(recv_data_buf));
+      close(socket_fds[0]);
       _exit(0);
     }
-    close(pipe_fds[0]);
-    comms_ = std::make_unique<sandbox2::Comms>(pipe_fds[1], "test_comms");
+    comms_ = std::make_unique<sandbox2::Comms>(socket_fds[1], "test_comms");
   }
 
   void Stop() {
@@ -129,39 +153,55 @@ class TestHelper {
   }
 
  private:
-  void Communicate(int socket_fd, int memfd_fd, size_t data_size) {
-    SAPI_ASSERT_OK_AND_ASSIGN(
-        auto buffer_client,
-        sandbox2::Buffer::CreateFromFd(
-            sapi::file_util::fileops::FDCloser(memfd_fd), data_size));
-    SAPI_ASSERT_OK_AND_ASSIGN(
-        auto transport_client,
-        sandbox2::AsynchronousByteTransport::CreateSandboxeeSide(
-            std::move(buffer_client)));
-    sandbox2::Comms comms(socket_fd, "test_comms_sandboxee");
+  void Communicate(sandbox2::Comms* comms,
+                   sandbox2::AsynchronousByteTransport* transport_client,
+                   absl::Span<uint8_t> data_buf,
+                   absl::Span<uint8_t> data_to_send_buf,
+                   absl::Span<uint8_t> data_to_recv_buf,
+                   absl::Span<uint8_t> recv_data_buf) {
+    // This function should avoid allocations to avoid any potential deadlocks
+    // in TCMalloc. This is why we use fixed-size buffers and raw logging.
     ActionType action_type;
-    while (comms.RecvInt32(reinterpret_cast<int32_t*>(&action_type))) {
+    uint32_t tag;
+    size_t len;
+    while (comms->RecvInt32(reinterpret_cast<int32_t*>(&action_type))) {
       if (action_type == ActionType::kSend) {
-        std::vector<uint8_t> data;
-        CHECK_EQ(comms.RecvBytes(&data), true);
-        CHECK_OK(transport_client->Send(data));
+        SAPI_RAW_CHECK(
+            comms->RecvTLV(&tag, &len, data_buf.data(), data_buf.size(),
+                           sandbox2::Comms::kTagBytes),
+            "RecvTLV failed");
+        SAPI_RAW_CHECK(transport_client->Send(data_buf.subspan(0, len)).ok(),
+                       "Send failed");
       } else if (action_type == ActionType::kExchange) {
-        std::vector<uint8_t> data_to_send;
-        CHECK_EQ(comms.RecvBytes(&data_to_send), true);
-        std::vector<uint8_t> data_to_recv;
-        CHECK_EQ(comms.RecvBytes(&data_to_recv), true);
-        std::vector<uint8_t> recv_data(data_to_recv.size());
-        CHECK_OK(transport_client->Exchange(
-            data_to_send,
-            absl::Span<uint8_t>(recv_data.data(), recv_data.size())));
-        ASSERT_EQ(recv_data, data_to_recv);
+        SAPI_RAW_CHECK(
+            comms->RecvTLV(&tag, &len, data_to_send_buf.data(),
+                           data_to_send_buf.size(), sandbox2::Comms::kTagBytes),
+            "RecvTLV send_data failed");
+        size_t send_len = len;
+        SAPI_RAW_CHECK(
+            comms->RecvTLV(&tag, &len, data_to_recv_buf.data(),
+                           data_to_recv_buf.size(), sandbox2::Comms::kTagBytes),
+            "RecvTLV recv_data failed");
+        size_t recv_len = len;
+        SAPI_RAW_CHECK(transport_client
+                           ->Exchange(data_to_send_buf.subspan(0, send_len),
+                                      recv_data_buf.subspan(0, recv_len))
+                           .ok(),
+                       "Exchange failed");
+        SAPI_RAW_CHECK(recv_data_buf.subspan(0, recv_len) ==
+                           data_to_recv_buf.subspan(0, recv_len),
+                       "Exchange data mismatch");
       } else if (action_type == ActionType::kRecv) {
-        std::vector<uint8_t> data;
-        CHECK_EQ(comms.RecvBytes(&data), true);
-        std::vector<uint8_t> data_recv(data.size());
-        CHECK_OK(transport_client->Recv(
-            absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
-        CHECK_EQ(data, data_recv);
+        SAPI_RAW_CHECK(
+            comms->RecvTLV(&tag, &len, data_buf.data(), data_buf.size(),
+                           sandbox2::Comms::kTagBytes),
+            "RecvTLV failed");
+        SAPI_RAW_CHECK(
+            transport_client->Recv(recv_data_buf.subspan(0, len)).ok(),
+            "Recv failed");
+        SAPI_RAW_CHECK(
+            recv_data_buf.subspan(0, len) == data_buf.subspan(0, len),
+            "Recv data mismatch");
       } else if (action_type == ActionType::kTerminate) {
         transport_client->Terminate();
       }
