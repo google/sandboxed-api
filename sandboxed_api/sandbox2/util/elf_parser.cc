@@ -130,7 +130,7 @@ absl::StatusOr<ElfParser::Buffer> ElfParser::ReadData(size_t offset,
         offset + size > mmap_.size()) {
       return absl::InvalidArgumentError(
           absl::StrCat("invalid data read: offset: ", offset, " size: ", size,
-                       "file size: ", mmap_.size()));
+                       " file size: ", mmap_.size()));
     }
     return Buffer(mmap_.substr(offset, size));
   }
