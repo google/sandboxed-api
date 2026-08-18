@@ -51,6 +51,15 @@ uint8_t* multiple_callbacks_one_ret_alias(size_t chunk_size,
                                           uint8_t* (*get_chunk1)(size_t),
                                           uint8_t* (*get_chunk2)(size_t));
 
+// Callbacks with input pointers.
+int64_t with_input_prim_pointer(int64_t (*cb)(const int64_t*), int64_t input);
+
+int with_input_elem_sized(int (*cb)(const int*, size_t), size_t in_size);
+
+int with_input_byte_sized(int (*cb)(const void*, size_t), size_t in_size);
+
+int with_input_null_term(int (*cb)(const char*), const char* input);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_CALLBACKS_H_

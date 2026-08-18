@@ -63,4 +63,21 @@ uint8_t* multiple_callbacks_one_ret_alias(
     SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
         uint8_t* (*get_chunk2)(size_t size));
 
+int64_t with_input_prim_pointer(
+    int64_t (*cb)(const int64_t* input SANDBOX_IN_PTR), int64_t input);
+
+int with_input_elem_sized(
+    int (*cb)(const int* input SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
+              size_t in_size),
+    size_t in_size);
+
+int with_input_byte_sized(
+    int (*cb)(const void* input SANDBOX_IN_PTR SANDBOX_BYTE_SIZED_BY(num_bytes),
+              size_t num_bytes),
+    size_t in_size);
+
+int with_input_null_term(
+    int (*cb)(const char* input SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED),
+    const char* input SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
 }  // extern "C"

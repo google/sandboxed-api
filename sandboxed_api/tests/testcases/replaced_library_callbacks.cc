@@ -19,6 +19,7 @@
 #include <cstring>
 #include <functional>
 #include <utility>
+#include <vector>
 
 #include "absl/functional/any_invocable.h"
 
@@ -99,6 +100,43 @@ uint8_t* multiple_callbacks_one_ret_alias(size_t chunk_size,
   memset(chunk1, 0xCA, chunk_size);
   memset(chunk2, 0xFE, chunk_size);
   return chunk2;
+}
+
+int64_t with_input_prim_pointer(int64_t (*cb)(const int64_t*), int64_t input) {
+  if (cb == nullptr) return -1;
+  int64_t doubled = input * 2;
+  return cb(&doubled);
+}
+
+std::vector<int> create_int_buffer(size_t in_size) {
+  std::vector<int> buf(in_size);
+  for (size_t i = 0; i < in_size; ++i) {
+    buf[i] = i;
+  }
+  return buf;
+}
+
+int with_input_elem_sized(int (*cb)(const int*, size_t), size_t in_size) {
+  if (cb == nullptr) return -1;
+  std::vector<int> buf = create_int_buffer(in_size);
+  size_t half_size = in_size / 2;
+  size_t second_half_size = in_size - half_size;
+  return cb(buf.data(), half_size) +
+         cb(buf.data() + half_size, second_half_size);
+}
+
+int with_input_byte_sized(int (*cb)(const void*, size_t), size_t in_size) {
+  if (cb == nullptr) return -1;
+  std::vector<int> buf = create_int_buffer(in_size);
+  size_t half_size = in_size / 2;
+  size_t second_half_size = in_size - half_size;
+  return cb(buf.data(), half_size * sizeof(int)) +
+         cb(buf.data() + half_size, second_half_size * sizeof(int));
+}
+
+int with_input_null_term(int (*cb)(const char*), const char* input) {
+  if (cb == nullptr || input == nullptr) return -1;
+  return cb(input);
 }
 
 }  // extern "C"

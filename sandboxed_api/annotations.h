@@ -44,6 +44,20 @@
 //   void get_dimensions(int* x SANDBOX_OUT_PTR,
 //                       int* y SANDBOX_OUT_PTR,
 //                       int* z SANDBOX_OUT_PTR);
+//
+// For callbacks, we currently assume that the function is a host function
+// and that the caller is a sandbox function. In that case,
+// - IN still denotes that the data is input to the function (the callback,
+//   so syncs from sandbox to host),
+// - For outparams, OUT still denotes data flows out of the function (the
+//   callback, so syncs from host to sandbox)
+// - For returned pointers of the callback, we currently use OUT to mean that
+//   we want to sync data after the *outer function* (the sandbox caller)
+//   returns (so, from sandbox to host). TODO(b/491762076) if we should have a
+//   different annotation for that.
+// If we support callbacks that are sandbox functions and are called by the
+// host, then the directions still mean the same, though could mean
+// sync'ing from host to sandbox instead.
 #define SANDBOX_IN_PTR [[clang::annotate("sandbox", "in_ptr")]]
 #define SANDBOX_OUT_PTR [[clang::annotate("sandbox", "out_ptr")]]
 #define SANDBOX_INOUT_PTR [[clang::annotate("sandbox", "inout_ptr")]]

@@ -200,4 +200,59 @@ TEST(Test, MultipleCallbacksOneRetAlias) {
   ClearOutputBufferGlobal();
 }
 
+TEST(Test, WithInputPrimPointer) {
+  auto cb = [](const int64_t* input) -> int64_t { return *input * 2; };
+  EXPECT_EQ(with_input_prim_pointer(cb, 1LL << 31), 1LL << 33);
+}
+
+TEST(Test, WithInputElemSized) {
+  auto cb = [](const int* input, size_t in_size) -> int {
+    int sum = 0;
+    for (size_t i = 0; i < in_size; ++i) {
+      sum += input[i];
+    }
+    return sum;
+  };
+  EXPECT_EQ(with_input_elem_sized(cb, 5), 10);
+}
+
+TEST(Test, WithInputByteSized) {
+  auto cb = [](const void* input, size_t num_bytes) -> int {
+    int sum = 0;
+    const int* int_input = static_cast<const int*>(input);
+    size_t num_ints = num_bytes / sizeof(int);
+    for (size_t i = 0; i < num_ints; ++i) {
+      sum += int_input[i];
+    }
+    return sum;
+  };
+  EXPECT_EQ(with_input_byte_sized(cb, 5), 10);
+}
+
+TEST(Test, WithInputNullTerm) {
+  const char* input = "hello world";
+  auto cb = [](const char* input) -> int {
+    int sum = 0;
+    int i = 0;
+    while (input[i] != '\0') {
+      sum += input[i];
+      ++i;
+    }
+    return sum;
+  };
+  EXPECT_EQ(with_input_null_term(cb, input), 1116);
+}
+
+TEST(Test, NullWithInputElemSized) {
+  EXPECT_EQ(with_input_elem_sized(nullptr, 3), -1);
+}
+
+TEST(Test, NullWithInputByteSized) {
+  EXPECT_EQ(with_input_byte_sized(nullptr, 3), -1);
+}
+
+TEST(Test, NullWithInputNullTerm) {
+  EXPECT_EQ(with_input_null_term(nullptr, "test"), -1);
+}
+
 }  // namespace

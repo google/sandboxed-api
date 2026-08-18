@@ -696,16 +696,19 @@ struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
 };
 
 struct CallbackArg : public SandboxedLibraryEmitter::Arg {
-  CallbackArg(absl::string_view name, absl::string_view type,
-              SandboxedLibraryEmitter::Annotations ret_annotations,
-              std::vector<std::string> param_names,
-              std::vector<std::string> param_types, bool is_ret_pointer,
-              std::string ret_type_name,
-              std::optional<std::string> functor_type_name = std::nullopt)
+  CallbackArg(
+      absl::string_view name, absl::string_view type,
+      SandboxedLibraryEmitter::Annotations ret_annotations,
+      std::vector<std::string> param_names,
+      std::vector<std::string> param_types,
+      std::vector<SandboxedLibraryEmitter::Annotations> param_annotations,
+      bool is_ret_pointer, std::string ret_type_name,
+      std::optional<std::string> functor_type_name = std::nullopt)
       : Arg(name, type),
         ret_annotations_(std::move(ret_annotations)),
         param_names_(std::move(param_names)),
         param_types_(std::move(param_types)),
+        param_annotations_(std::move(param_annotations)),
         is_ret_pointer_(is_ret_pointer),
         ret_type_name_(std::move(ret_type_name)),
         functor_type_name_(functor_type_name),
@@ -734,9 +737,19 @@ struct CallbackArg : public SandboxedLibraryEmitter::Arg {
       }
     }
     if (NeedsLambdaWrapper()) {
-      includes.push_back("<vector>");
-      includes.push_back("<memory>");
-      if (std::holds_alternative<NullTerminated>(ret_annotations_.size_type)) {
+      if (is_ret_pointer_) {
+        includes.push_back("<vector>");
+        includes.push_back("<memory>");
+      }
+      bool has_null_term =
+          std::holds_alternative<NullTerminated>(ret_annotations_.size_type);
+      for (const auto& ann : param_annotations_) {
+        if (std::holds_alternative<NullTerminated>(ann.size_type)) {
+          has_null_term = true;
+        }
+      }
+      if (has_null_term) {
+        includes.push_back("<string>");
         includes.push_back("<cstring>");
       }
     }
@@ -780,8 +793,44 @@ struct CallbackArg : public SandboxedLibraryEmitter::Arg {
                })cc",
           name_);
     }
-
     // Otherwise, we need to wrap the callback in a lambda.
+
+    // Translate and sync pointer params (sb -> host), if needed.
+    std::string lambda_body = LambdaWrapperParamSyncPreCall();
+
+    bool needs_ret_sync = is_ret_pointer_;
+
+    // Do the call, and sync the return value if needed.
+    if (needs_ret_sync) {
+      absl::SubstituteAndAppend(&lambda_body,
+                                R"cc(
+                                  // Forward params -> args, and do the callback
+                                  $0 sapi_$1_ret_host = $1($2);
+                                  // If the callback returned null, no need to
+                                  // allocate a sandbox copy, sync, etc.
+                                  if (!sapi_$1_ret_host) {
+                                    return nullptr;
+                                  }
+                                  // Otherwise, make a sandbox copy of the
+                                  // return value, and return the sandbox copy.
+                                  $3
+                                )cc",
+                                ret_type_name_, name_, LambdaWrapperCallArgs(),
+                                SyncAndTrackReturnedValue());
+    } else if (ret_type_name_ == "void") {
+      absl::SubstituteAndAppend(
+          &lambda_body,
+          "// Forward params -> args, and do the callback\n"
+          "$0($1);\n",
+          name_, LambdaWrapperCallArgs());
+    } else {
+      absl::SubstituteAndAppend(
+          &lambda_body,
+          "// Forward params -> args, and do the callback\n"
+          "return $0($1);\n",
+          name_, LambdaWrapperCallArgs());
+    }
+
     return absl::Substitute(
         R"cc(
           std::optional<sapi::v::Callback> sapi_cb_$0;
@@ -789,24 +838,14 @@ struct CallbackArg : public SandboxedLibraryEmitter::Arg {
           $1
               // If the callback is not null, set the sapi_cb var to a lambda.
               if ($0) {
-            auto sapi_lambda_$0 = [&]($2) -> $3 {
-              // Forward params -> args, and do the actual callback
-              $3 sapi_$0_ret_host = $0($4);
-              // If the callback returned null, no need to allocate
-              // a sandbox copy, sync, etc.
-              if (!sapi_$0_ret_host) {
-                return nullptr;
-              }
-              // Otherwise, make a sandbox copy and return the sandbox copy.
-              $5
-            };
+            auto sapi_lambda_$0 = [&]($2) -> $3 { $4 };
             sapi_cb_$0.emplace(sapi_lambda_$0);
             sandbox->Check(sandbox->Allocate(&sapi_cb_$0.value(),
                                              /*automatic_free=*/true));
           }
         )cc",
-        name_, LambdaWrapperVariables(), LambdaWrapperParamList(),
-        ret_type_name_, LambdaWrapperCallArgs(), SyncAndTrackReturnedValue());
+        name_, LambdaWrapperRetVariables(), LambdaWrapperParamList(),
+        ret_type_name_, lambda_body);
   }
 
   std::string EmitHostPostCall() const override {
@@ -822,8 +861,8 @@ struct CallbackArg : public SandboxedLibraryEmitter::Arg {
     // - we need to sync all of the callback return values. There might be
     //   cases with a "realloc" callback, which frees the previous return
     //   values and only keeps the last one.
-    if (ret_annotations_.ptr_dir == PointerDir::kOut ||
-        ret_annotations_.ptr_dir == PointerDir::kInOut) {
+    if (is_ret_pointer_ && (ret_annotations_.ptr_dir == PointerDir::kOut ||
+                            ret_annotations_.ptr_dir == PointerDir::kInOut)) {
       return absl::Substitute(
           R"cc(for (auto& var : sapi_cb_ret_vars_$0) {
                  sandbox->Check(sandbox->TransferFromSandboxee(var.get()));
@@ -843,35 +882,40 @@ struct CallbackArg : public SandboxedLibraryEmitter::Arg {
   }
 
  private:
-  // Returns true if the callback returns a pointer and either has pointer
-  // copying/direction annotations (e.g. out_ptr, sized_by, etc.) or is targeted
-  // by alias_callback_return. In these cases we must wrap the callback in a
-  // host-side lambda wrapper. The lambda wrapper gives us
-  // - names for the callback parameters (needed for sizing expressions)
-  // - an instrumentation point to read param values before or after the call
-  //   to use in sizing expressions.
-  // - instrumentation to track returned buffer pointers
-  //   - to extend their lifetime until the end of the outer function
-  //   - in case the outer function returns one of them (alias_callback_return).
+  // Returns true if the callback returns a pointer or if any of its parameters
+  // are pointers. In these cases we must wrap the callback in a host-side
+  // lambda wrapper to do translation, syncing, or any tracking.
   bool NeedsLambdaWrapper() const {
-    return is_ret_pointer_ &&
-           (std::holds_alternative<ElemSizedBy>(ret_annotations_.size_type) ||
-            std::holds_alternative<ByteSizedBy>(ret_annotations_.size_type) ||
-            ret_annotations_.ptr_dir.has_value() ||
-            ret_val_is_alias_for_outer_function_return_);
+    if (is_ret_pointer_) {
+      return true;
+    }
+    for (const auto& ann : param_annotations_) {
+      if (!IsScalarParam(ann)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // Emits code for parts of the lambda wrapper.
-  std::string LambdaWrapperVariables() const;
+  std::string LambdaWrapperRetVariables() const;
   std::string LambdaWrapperParamList() const;
+  std::string LambdaWrapperParamSyncPreCall() const;
   std::string LambdaWrapperCallArgs() const;
   std::string SyncAndTrackReturnedValue() const;
 
   std::string GetReturnSizeAsBytesExpr() const;
+  static bool IsScalarParam(
+      const SandboxedLibraryEmitter::Annotations& param_ann);
 
+  // TODO(b/491762076): We could consider something like ArgPtr subclasses
+  // to wrap the param + annotations (or return value) emitter methods.
+  // For now, we mostly need to emit host side code unlike `PointerArg`, and
+  // the behavior is different (the directions are flipped, etc.).
   const SandboxedLibraryEmitter::Annotations ret_annotations_;
   const std::vector<std::string> param_names_;
   const std::vector<std::string> param_types_;
+  const std::vector<SandboxedLibraryEmitter::Annotations> param_annotations_;
   const bool is_ret_pointer_;
   const std::string ret_type_name_;
   const std::optional<std::string> functor_type_name_;
@@ -902,15 +946,25 @@ std::string CallbackArg::GetReturnSizeAsBytesExpr() const {
       ret_annotations_.size_type);
 }
 
-std::string CallbackArg::LambdaWrapperVariables() const {
-  std::string out = absl::Substitute(
-      R"cc(std::vector<std::unique_ptr<sapi::v::Var>> sapi_cb_ret_vars_$0;)cc",
-      name_);
-  if (ret_val_is_alias_for_outer_function_return_) {
+bool CallbackArg::IsScalarParam(
+    const SandboxedLibraryEmitter::Annotations& param_ann) {
+  return !param_ann.ptr_dir.has_value() &&
+         std::holds_alternative<std::monostate>(param_ann.size_type);
+}
+
+std::string CallbackArg::LambdaWrapperRetVariables() const {
+  std::string out;
+  if (is_ret_pointer_) {
     absl::SubstituteAndAppend(&out,
-                              R"cc(absl::flat_hash_map<uintptr_t, void*>
-                                       sapi_alias_cb_return_map_$0;)cc",
+                              R"cc(std::vector<std::unique_ptr<sapi::v::Var>>
+                                       sapi_cb_ret_vars_$0;)cc",
                               name_);
+    if (ret_val_is_alias_for_outer_function_return_) {
+      absl::SubstituteAndAppend(&out,
+                                R"cc(absl::flat_hash_map<uintptr_t, void*>
+                                         sapi_alias_cb_return_map_$0;)cc",
+                                name_);
+    }
   }
   return out;
 }
@@ -926,8 +980,100 @@ std::string CallbackArg::LambdaWrapperParamList() const {
   return out;
 }
 
+std::string CallbackArg::LambdaWrapperParamSyncPreCall() const {
+  std::string out;
+  for (size_t i = 0; i < param_names_.size(); ++i) {
+    const auto& ann = param_annotations_[i];
+    const std::string& param_name = param_names_[i];
+    const std::string& param_type = param_types_[i];
+
+    // Scalar types don't need syncing or sandbox -> host pointer conversion.
+    // Perhaps wrap in ScalarArg like class.
+    if (IsScalarParam(ann)) {
+      continue;
+    }
+
+    if (ann.ptr_dir == PointerDir::kIn) {
+      // Sync the sandbox supplied pointee data to the host, and store a host
+      // pointer in `sapi_host_$param_name` before calling the host callback.
+      auto SyncAndGetHostPointerForNonCStrCases =
+          [&](absl::string_view size_expr) {
+            absl::SubstituteAndAppend(&out,
+                                      R"cc(
+                                        $1 sapi_host_$0 = nullptr;
+                                        std::optional<sapi::v::Array<char>> sapi_arr_$0;
+                                        if ($0 != nullptr) {
+                                          sapi_arr_$0.emplace($2);
+                                          sapi_arr_$0->SetRemote(const_cast<void*>(reinterpret_cast<const void*>($0)));
+                                          sandbox->Check(sandbox->TransferFromSandboxee(&sapi_arr_$0.value()));
+                                          sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
+                                        }
+                                      )cc",
+                                      param_name, param_type, size_expr);
+          };
+      // TODO(b/491762076): consider limiting the size, since that is specified
+      // by a callback param (which can be controlled by the sandbox).
+      // (similar for returned buffers).
+      std::visit(
+          absl::Overload{
+              [&](std::monostate) {
+                SyncAndGetHostPointerForNonCStrCases(
+                    absl::Substitute("sizeof(*$0)", param_name));
+              },
+              [&](const ElemSizedBy& elem_sized_by) {
+                SyncAndGetHostPointerForNonCStrCases(absl::Substitute(
+                    "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param_name,
+                    elem_sized_by.expr));
+              },
+              [&](const ByteSizedBy& byte_sized_by) {
+                SyncAndGetHostPointerForNonCStrCases(byte_sized_by.expr);
+              },
+              [&](const NullTerminated&) {
+                absl::SubstituteAndAppend(
+                    &out,
+                    R"cc(
+                      std::optional<std::string> sapi_str_$0;
+                      $1 sapi_host_$0 = nullptr;
+                      if ($0 != nullptr) {
+                        auto sapi_cstr_status = sandbox->GetCString(
+                            sapi::v::RemotePtr(const_cast<char*>(
+                                reinterpret_cast<const char*>($0))));
+                        sandbox->Check(sapi_cstr_status.status());
+                        sapi_str_$0 = std::move(*sapi_cstr_status);
+                        sapi_host_$0 = sapi_str_$0->c_str();
+                      }
+                    )cc",
+                    param_name, param_type);
+              },
+              [](const SizedByBinding&) {
+                LOG(FATAL)
+                    << "SizedByBinding not supported for callback params.";
+              }},
+          ann.size_type);
+    } else if (ann.ptr_dir.has_value()) {
+      // We should have rejected this case this after parsing annotations.
+      // TODO(b/491762076): support out direction too.
+      LOG(FATAL) << "Unsupported pointer direction for callback param: "
+                 << param_name;
+    }
+  }
+  return out;
+}
+
 std::string CallbackArg::LambdaWrapperCallArgs() const {
-  return absl::StrJoin(param_names_, ", ");
+  std::vector<std::string> args;
+  args.reserve(param_names_.size());
+  for (size_t i = 0; i < param_names_.size(); ++i) {
+    // Pass scalar arguments directly.
+    if (IsScalarParam(param_annotations_[i])) {
+      args.push_back(param_names_[i]);
+    } else {
+      // Pointer args were translated from sandbox -> host pointers in
+      // LambdaWrapperParamSyncPreCall.
+      args.push_back(absl::StrCat("sapi_host_", param_names_[i]));
+    }
+  }
+  return absl::StrJoin(args, ", ");
 }
 
 std::string CallbackArg::SyncAndTrackReturnedValue() const {
@@ -3154,9 +3300,12 @@ bool IsSupportedArgByteSizedByType(clang::QualType type) {
   return type->isPointerType() && type->getPointeeType()->isVoidType();
 }
 
-absl::Status ExtractCallbackParamNamesAndTypes(
+}  // namespace
+
+absl::Status SandboxedLibraryEmitter::ExtractCallbackParams(
     const clang::ParmVarDecl& param, std::vector<std::string>& param_names,
-    std::vector<std::string>& param_types) {
+    std::vector<std::string>& param_types,
+    std::vector<Annotations>& param_annotations) {
   // Details: the Clang Type does not include the parameter names (more of
   // a canonical type). However, the TypeSourceInfo and TypeLoc does let us
   // retrieve that information.
@@ -3205,6 +3354,7 @@ absl::Status ExtractCallbackParamNamesAndTypes(
   }
   param_names.reserve(ftl.getNumParams());
   param_types.reserve(ftl.getNumParams());
+  param_annotations.reserve(ftl.getNumParams());
   for (unsigned i = 0; i < ftl.getNumParams(); ++i) {
     clang::ParmVarDecl* cb_param = ftl.getParam(i);
     if (!cb_param) {
@@ -3213,15 +3363,119 @@ absl::Status ExtractCallbackParamNamesAndTypes(
     }
     // Check for the optional param names in a function pointer / function type.
     // If not present, falls back to generic names (cb_arg0, cb_arg1, ...).
+    std::string param_name;
     if (!cb_param->getName().empty()) {
-      param_names.push_back(cb_param->getNameAsString());
+      param_name = cb_param->getNameAsString();
     } else {
-      param_names.push_back(absl::StrFormat("cb_arg%u", i));
+      param_name = absl::StrFormat("cb_arg%u", i);
     }
+    param_names.push_back(param_name);
     param_types.push_back(cb_param->getType().getCanonicalType().getAsString());
+    ABSL_ASSIGN_OR_RETURN(Annotations annotations,
+                          ParseAnnotations(param_name, cb_param));
+    ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
+        param.getName().str(), param_name, annotations, cb_param->getType()));
+    param_annotations.push_back(std::move(annotations));
   }
   return absl::OkStatus();
 }
+
+absl::Status SandboxedLibraryEmitter::CheckCallbackParamAnnotations(
+    absl::string_view cb_name, absl::string_view cb_param_name,
+    Annotations& annotations, clang::QualType cb_param_type) const {
+  // For now, the callback trampolines only support integral, enumeration,
+  // or pointer types as arguments (no floating point / vector types).
+  if (cb_param_type->isIntegralOrEnumerationType()) {
+    if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 parameter $1: non-pointer types $2 don't support size "
+          "annotations",
+          cb_name, cb_param_name, cb_param_type.getAsString()));
+    }
+    if (annotations.ptr_dir.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 parameter $1: non-pointer types $2 don't support "
+          "pointer direction annotations",
+          cb_name, cb_param_name, cb_param_type.getAsString()));
+    }
+    if (!std::holds_alternative<std::monostate>(annotations.lifetime)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 parameter $1: non-pointer types $2 don't support "
+          "lifetime annotations",
+          cb_name, cb_param_name, cb_param_type.getAsString()));
+    }
+    return absl::OkStatus();
+  }
+
+  if (cb_param_type->isPointerType()) {
+    // Infer "IN" for const pointers
+    std::optional<PointerDir> ptr_dir;
+    if (cb_param_type->getPointeeType().isConstQualified()) {
+      ptr_dir = PointerDir::kIn;
+    }
+    if (annotations.ptr_dir) {
+      ptr_dir = annotations.ptr_dir;
+    }
+    if (!ptr_dir) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("callback $0 parameter $1: unknown direction",
+                           cb_name, cb_param_name));
+    }
+    // TODO(b/491762076): support out/inout/opaque pointers for callbacks.
+    if (*ptr_dir != PointerDir::kIn) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 parameter $1: only input pointers are supported for "
+          "callbacks",
+          cb_name, cb_param_name));
+    }
+    annotations.ptr_dir = *ptr_dir;
+
+    // Check supported size annotations. For now, this is different from the
+    // non-callback case.
+    // TODO(b/491762076): support more cases of pointee types (e.g.,
+    // isDeeplyTriviallyCopyableType as well).
+    bool is_primitive_pointee =
+        cb_param_type->getPointeeType()->isArithmeticType() ||
+        cb_param_type->getPointeeType()->isEnumeralType();
+    absl::Status error_status = absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 pointer argument $1 has unsupported pointee type: $2",
+        cb_name, cb_param_name, cb_param_type->getPointeeType().getAsString()));
+    return std::visit(
+        absl::Overload{
+            [&](const std::monostate&) {
+              if (!is_primitive_pointee) return error_status;
+              return absl::OkStatus();
+            },
+            [&](const ElemSizedBy& elem_sized_by) {
+              if (!is_primitive_pointee) return error_status;
+              return absl::OkStatus();
+            },
+            [&](const ByteSizedBy& byte_sized_by) {
+              if (!is_primitive_pointee &&
+                  !IsSupportedArgByteSizedByType(cb_param_type))
+                return error_status;
+              return absl::OkStatus();
+            },
+            [&](const NullTerminated&) {
+              if (!IsSupportedArgRetNullTerminatedType(cb_param_type))
+                return error_status;
+              return absl::OkStatus();
+            },
+            [&](const SizedByBinding&) {
+              return absl::InvalidArgumentError(absl::Substitute(
+                  "callback $0 parameter $1: sized_by_binding is not "
+                  "supported for callbacks",
+                  cb_name, cb_param_name));
+            }},
+        annotations.size_type);
+  }
+
+  return absl::InvalidArgumentError(absl::Substitute(
+      "callback $0 param $1 has unsupported parameter type: $2", cb_name,
+      cb_param_name, cb_param_type.getAsString()));
+}
+
+namespace {
 
 // Given a type, if it is not a functor type, returns nullptr.
 // Otherwise, returns the underlying function proto type and sets
@@ -3257,46 +3511,41 @@ const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(
   return arg.getAsType()->getAs<clang::FunctionProtoType>();
 }
 
-absl::StatusOr<std::unique_ptr<CallbackArg>> MakeCallbackArg(
+}  // namespace
+
+absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
+SandboxedLibraryEmitter::MakeCallbackArg(
     absl::string_view name, absl::string_view type_name,
-    SandboxedLibraryEmitter::Annotations&& annotations,
-    const clang::ParmVarDecl& param,
+    Annotations&& annotations, const clang::ParmVarDecl& param,
     const clang::FunctionProtoType& function_type,
     std::optional<std::string> functor_template_name) {
-  for (const auto& param_type : function_type.getParamTypes()) {
-    clang::QualType canonical_param = param_type.getCanonicalType();
-    if (!canonical_param->isIntegralOrEnumerationType()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "callback $0 has unsupported non-primitive parameter type: $1", name,
-          canonical_param.getAsString()));
-    }
-  }
-  clang::QualType canonical_ret =
-      function_type.getReturnType().getCanonicalType();
-  if (!canonical_ret->isVoidType() &&
-      !canonical_ret->isIntegralOrEnumerationType() &&
-      !canonical_ret->isPointerType()) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "callback $0 has unsupported non-primitive return type: $1", name,
-        canonical_ret.getAsString()));
-  }
-
-  // Extract callback parameter names and types from a callback
+  // Extract callback parameter names, types, and annotations from a callback
   // function pointer. We need the param names to coordinate with annotations
   // like SANDBOX_ELEM_SIZED_BY(param_name).
   // Otherwise, we also support SANDBOX_ELEM_SIZED_BY(cb_argN) if the
   // function pointer declaration did not name the parameters.
   std::vector<std::string> param_names;
   std::vector<std::string> param_types;
-  ABSL_RETURN_IF_ERROR(
-      ExtractCallbackParamNamesAndTypes(param, param_names, param_types));
+  std::vector<Annotations> param_annotations;
+  ABSL_RETURN_IF_ERROR(ExtractCallbackParams(param, param_names, param_types,
+                                             param_annotations));
+
+  clang::QualType cb_ret_type =
+      function_type.getReturnType().getCanonicalType();
+  if (!cb_ret_type->isVoidType() &&
+      !cb_ret_type->isIntegralOrEnumerationType() &&
+      !cb_ret_type->isPointerType()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 has unsupported non-primitive return type: $1", name,
+        cb_ret_type.getAsString()));
+  }
+
   return std::make_unique<CallbackArg>(
       name, type_name, std::move(annotations), std::move(param_names),
-      std::move(param_types), canonical_ret->isPointerType(),
-      canonical_ret.getAsString(), functor_template_name);
+      std::move(param_types), std::move(param_annotations),
+      cb_ret_type->isPointerType(), cb_ret_type.getAsString(),
+      functor_template_name);
 }
-
-}  // namespace
 
 absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
 SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
@@ -3408,6 +3657,7 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
       return absl::InvalidArgumentError(absl::Substitute(
           "return pointer $0 has unsupported pointee type", name));
     }
+    // Infer "IN" for const pointers.
     std::optional<PointerDir> ptr_dir;
     if (type->getPointeeType().isConstQualified()) {
       ptr_dir = PointerDir::kIn;

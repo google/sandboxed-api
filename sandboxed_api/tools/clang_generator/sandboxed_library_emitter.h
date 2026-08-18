@@ -309,6 +309,18 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::Status LinkAliasCallbackRelation(
       const clang::FunctionDecl* decl, const Annotations& func_decl_annotations,
       const ArgPtr& ret, const std::vector<ArgPtr>& args);
+  absl::StatusOr<ArgPtr> MakeCallbackArg(
+      absl::string_view name, absl::string_view type_name,
+      Annotations&& annotations, const clang::ParmVarDecl& param,
+      const clang::FunctionProtoType& function_type,
+      std::optional<std::string> functor_template_name);
+  absl::Status ExtractCallbackParams(
+      const clang::ParmVarDecl& param, std::vector<std::string>& param_names,
+      std::vector<std::string>& param_types,
+      std::vector<Annotations>& param_annotations);
+  absl::Status CheckCallbackParamAnnotations(
+      absl::string_view cb_name, absl::string_view cb_param_name,
+      Annotations& annotations, clang::QualType cb_param_type) const;
 
   std::vector<const Func*> SortedFuncs() const;
 
