@@ -212,7 +212,7 @@ def _sapi_interface_impl(ctx):
         arguments = args,
         mnemonic = "SapiInterfaceGen",
         progress_message = progress_msg,
-        executable = ctx.executable._generator_v2,
+        executable = ctx.executable._generator,
     )
 
 # Build rule that generates SAPI interface.
@@ -240,16 +240,16 @@ sapi_interface = rule(
         "namespace": attr.string(),
         "limit_scan_depth": attr.bool(default = False),
         "api_version": attr.int(
-            default = 1,
+            default = 1,  # Always set by sapi_library
         ),
         "generator_version": attr.int(
-            default = 2,  # Note: always set by sapi_library
+            default = 3,  # Always set by sapi_library
             values = [2, 3],
         ),
         "sandbox_mode": attr.string(default = "sandbox2"),
         "symbol_list_gen": attr.bool(default = False),
-        "_generator_v2": make_exec_label(
-            # TODO(cblichmann): Add prebuilt version of Clang based generator
+        # TODO(cblichmann): Add prebuilt version of Clang based generator
+        "_generator": make_exec_label(
             "//sandboxed_api/tools/clang_generator:generator_tool",
         ),
     },
@@ -312,7 +312,7 @@ def sapi_library(
         input_files = [],
         deps = [],
         tags = [],
-        generator_version = 2,
+        generator_version = 3,
         visibility = None,
         compatible_with = None,
         default_copts = [],
