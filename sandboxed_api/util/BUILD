@@ -23,6 +23,13 @@ package(default_visibility = [
 
 licenses(["notice"])
 
+package_group(
+    name = "sandbox_pool_users",
+    packages = [
+        "//sandboxed_api/...",
+    ],
+)
+
 # Another helper library with filesystem and path utility functions.
 cc_library(
     name = "file_base",
@@ -247,5 +254,60 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_library(
+    name = "sandbox_pool_internal",
+    hdrs = ["sandbox_pool_internal.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:private"],
+    deps = [
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+# A thread-safe, scalable pool manager for SAPI and Sandbox2 sandboxes.
+cc_library(
+    name = "sandbox_pool",
+    hdrs = [
+        "sandbox_pool.h",
+        "sandbox_pool_global.h",
+    ],
+    copts = sapi_platform_copts(),
+    visibility = [":sandbox_pool_users"],
+    deps = [
+        ":sandbox_pool_internal",
+        ":thread",
+        "//sandboxed_api:sapi",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "sandbox_pool_test",
+    srcs = ["sandbox_pool_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":sandbox_pool",
+        ":thread",
+        "//sandboxed_api:sapi",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/examples/stringop:stringop-sapi",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@google_benchmark//:benchmark",
+        "@googletest//:gtest_main",
     ],
 )

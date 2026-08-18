@@ -174,6 +174,24 @@ target_link_libraries(sapi_util_thread
          sapi::base
 )
 
+# sandboxed_api/util:sandbox_pool
+add_library(sapi_util_sandbox_pool ${SAPI_LIB_TYPE}
+  sandbox_pool.h
+  sandbox_pool_global.h
+  sandbox_pool_internal.h
+)
+add_library(sapi::sandbox_pool ALIAS sapi_util_sandbox_pool)
+target_link_libraries(sapi_util_sandbox_pool
+  PRIVATE absl::any_invocable
+          absl::core_headers
+          absl::status
+          absl::statusor
+          absl::synchronization
+          absl::time
+          sapi::base
+          sapi::thread
+)
+
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/util:file_base_test
   add_executable(sapi_file_base_test
@@ -269,4 +287,22 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sapi_temp_file_test)
+
+  # sandboxed_api/util:sandbox_pool_test
+  add_executable(sapi_sandbox_pool_test
+    sandbox_pool_test.cc
+  )
+  set_target_properties(sapi_sandbox_pool_test PROPERTIES
+    OUTPUT_NAME sandbox_pool_test
+  )
+  target_link_libraries(sapi_sandbox_pool_test PRIVATE
+    absl::status_matchers
+    absl::time
+    benchmark
+    sapi::sandbox_pool
+    sapi::stringop_sapi
+    sapi::test_main
+    sapi::testing
+  )
+  gtest_discover_tests_xcompile(sapi_sandbox_pool_test)
 endif()
