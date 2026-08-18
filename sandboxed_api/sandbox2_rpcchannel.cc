@@ -45,6 +45,15 @@
 namespace sapi {
 using sapi::file_util::fileops::FDCloser;
 
+Sandbox2RPCChannel::Sandbox2RPCChannel(sandbox2::Comms* comms, pid_t pid)
+    : comms_(comms), pid_(pid) {}
+
+Sandbox2RPCChannel::Sandbox2RPCChannel(std::unique_ptr<sandbox2::Comms> comms,
+                                       pid_t pid)
+    : owned_comms_(std::move(comms)), comms_(owned_comms_.get()), pid_(pid) {}
+
+Sandbox2RPCChannel::~Sandbox2RPCChannel() = default;
+
 absl::Status Sandbox2RPCChannel::Call(const FuncCall& call, uint32_t tag,
                                       FuncRet* ret, v::Type exp_type) {
   RecursiveMutexLock lock(mutex_);

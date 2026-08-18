@@ -23,7 +23,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
@@ -105,8 +104,8 @@ namespace sapi {
 // Comms channel.
 class Sandbox2RPCChannel : public RPCChannel {
  public:
-  explicit Sandbox2RPCChannel(sandbox2::Comms* comms, pid_t pid)
-      : comms_(comms), pid_(pid) {}
+  explicit Sandbox2RPCChannel(sandbox2::Comms* comms, pid_t pid);
+  ~Sandbox2RPCChannel() override;
 
   // Calls a function.
   absl::Status Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
@@ -165,8 +164,8 @@ class Sandbox2RPCChannel : public RPCChannel {
   static constexpr size_t kMaxCallbacks = 64;
   static constexpr size_t kTrampolineSize = 16;
 
-  explicit Sandbox2RPCChannel(std::unique_ptr<sandbox2::Comms> comms, pid_t pid)
-      : owned_comms_(std::move(comms)), comms_(owned_comms_.get()), pid_(pid) {}
+  explicit Sandbox2RPCChannel(std::unique_ptr<sandbox2::Comms> comms,
+                              pid_t pid);
 
   // Marks the memory as initialized (used with MSAN).
   absl::Status MarkMemoryInit(void* addr, size_t size);
