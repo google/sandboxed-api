@@ -16,9 +16,13 @@
 
 #include <sched.h>
 #include <sys/mman.h>
+#include <sys/ptrace.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -45,6 +49,7 @@ using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Gt;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::Ne;
@@ -438,6 +443,83 @@ TEST_P(WriteBytesToPidFromTest, ExceedIovMax) {
 
 INSTANTIATE_TEST_SUITE_P(WriteBytesToPidFrom, WriteBytesToPidFromTest,
                          testing::Values(true, false));
+
+TEST(UtilTest, GetSignalName) {
+  EXPECT_THAT(GetSignalName(SIGHUP), Eq("SIGHUP [1]"));
+  EXPECT_THAT(GetSignalName(SIGINT), Eq("SIGINT [2]"));
+  EXPECT_THAT(GetSignalName(SIGQUIT), Eq("SIGQUIT [3]"));
+  EXPECT_THAT(GetSignalName(SIGILL), Eq("SIGILL [4]"));
+  EXPECT_THAT(GetSignalName(SIGTRAP), Eq("SIGTRAP [5]"));
+  EXPECT_THAT(GetSignalName(SIGABRT), Eq("SIGABRT [6]"));
+  EXPECT_THAT(GetSignalName(SIGBUS), Eq("SIGBUS [7]"));
+  EXPECT_THAT(GetSignalName(SIGFPE), Eq("SIGFPE [8]"));
+  EXPECT_THAT(GetSignalName(SIGKILL), Eq("SIGKILL [9]"));
+  EXPECT_THAT(GetSignalName(SIGUSR1), Eq("SIGUSR1 [10]"));
+  EXPECT_THAT(GetSignalName(SIGSEGV), Eq("SIGSEGV [11]"));
+  EXPECT_THAT(GetSignalName(SIGUSR2), Eq("SIGUSR2 [12]"));
+  EXPECT_THAT(GetSignalName(SIGPIPE), Eq("SIGPIPE [13]"));
+  EXPECT_THAT(GetSignalName(SIGALRM), Eq("SIGALRM [14]"));
+  EXPECT_THAT(GetSignalName(SIGTERM), Eq("SIGTERM [15]"));
+  EXPECT_THAT(GetSignalName(SIGSTKFLT), Eq("SIGSTKFLT [16]"));
+  EXPECT_THAT(GetSignalName(SIGCHLD), Eq("SIGCHLD [17]"));
+  EXPECT_THAT(GetSignalName(SIGCONT), Eq("SIGCONT [18]"));
+  EXPECT_THAT(GetSignalName(SIGSTOP), Eq("SIGSTOP [19]"));
+  EXPECT_THAT(GetSignalName(SIGTSTP), Eq("SIGTSTP [20]"));
+  EXPECT_THAT(GetSignalName(SIGTTIN), Eq("SIGTTIN [21]"));
+  EXPECT_THAT(GetSignalName(SIGTTOU), Eq("SIGTTOU [22]"));
+  EXPECT_THAT(GetSignalName(SIGURG), Eq("SIGURG [23]"));
+  EXPECT_THAT(GetSignalName(SIGXCPU), Eq("SIGXCPU [24]"));
+  EXPECT_THAT(GetSignalName(SIGXFSZ), Eq("SIGXFSZ [25]"));
+  EXPECT_THAT(GetSignalName(26), Eq("SIGVTALARM [26]"));
+  EXPECT_THAT(GetSignalName(SIGPROF), Eq("SIGPROF [27]"));
+  EXPECT_THAT(GetSignalName(SIGWINCH), Eq("SIGWINCH [28]"));
+  EXPECT_THAT(GetSignalName(SIGIO), Eq("SIGIO [29]"));
+  EXPECT_THAT(GetSignalName(SIGPWR), Eq("SIGPWR [30]"));
+  EXPECT_THAT(GetSignalName(SIGSYS), Eq("SIGSYS [31]"));
+  EXPECT_THAT(GetSignalName(0), HasSubstr("UNKNOWN"));
+  EXPECT_THAT(GetSignalName(-1), HasSubstr("UNKNOWN"));
+  EXPECT_THAT(GetSignalName(999), HasSubstr("UNKNOWN"));
+}
+
+TEST(UtilTest, GetAddressFamily) {
+  EXPECT_THAT(GetAddressFamily(AF_UNSPEC), Eq("AF_UNSPEC"));
+  EXPECT_THAT(GetAddressFamily(AF_UNIX), Eq("AF_UNIX"));
+  EXPECT_THAT(GetAddressFamily(AF_INET), Eq("AF_INET"));
+  EXPECT_THAT(GetAddressFamily(AF_INET6), Eq("AF_INET6"));
+  EXPECT_THAT(GetAddressFamily(AF_NETROM), Eq("AF_NETROM"));
+  EXPECT_THAT(GetAddressFamily(AF_BRIDGE), Eq("AF_BRIDGE"));
+  EXPECT_THAT(GetAddressFamily(AF_ATMPVC), Eq("AF_ATMPVC"));
+  EXPECT_THAT(GetAddressFamily(AF_X25), Eq("AF_X25"));
+  EXPECT_THAT(GetAddressFamily(AF_IPX), Eq("AF_IPX"));
+  EXPECT_THAT(GetAddressFamily(AF_APPLETALK), Eq("AF_APPLETALK"));
+  EXPECT_THAT(GetAddressFamily(AF_AX25), Eq("AF_AX25"));
+  EXPECT_THAT(GetAddressFamily(-1), HasSubstr("UNKNOWN"));
+  EXPECT_THAT(GetAddressFamily(999), HasSubstr("UNKNOWN"));
+}
+
+TEST(UtilTest, GetRlimitName) {
+  EXPECT_THAT(GetRlimitName(RLIMIT_AS), Eq("RLIMIT_AS"));
+  EXPECT_THAT(GetRlimitName(RLIMIT_CORE), Eq("RLIMIT_CORE"));
+  EXPECT_THAT(GetRlimitName(RLIMIT_CPU), Eq("RLIMIT_CPU"));
+  EXPECT_THAT(GetRlimitName(RLIMIT_FSIZE), Eq("RLIMIT_FSIZE"));
+  EXPECT_THAT(GetRlimitName(RLIMIT_NOFILE), Eq("RLIMIT_NOFILE"));
+  EXPECT_THAT(GetRlimitName(-1), HasSubstr("UNKNOWN"));
+  EXPECT_THAT(GetRlimitName(999), HasSubstr("UNKNOWN"));
+}
+
+TEST(UtilTest, GetPtraceEventName) {
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_FORK), Eq("PTRACE_EVENT_FORK"));
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_VFORK), Eq("PTRACE_EVENT_VFORK"));
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_CLONE), Eq("PTRACE_EVENT_CLONE"));
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_EXEC), Eq("PTRACE_EVENT_EXEC"));
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_VFORK_DONE),
+              Eq("PTRACE_EVENT_VFORK_DONE"));
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_EXIT), Eq("PTRACE_EVENT_EXIT"));
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_SECCOMP),
+              Eq("PTRACE_EVENT_SECCOMP"));
+  EXPECT_THAT(GetPtraceEventName(PTRACE_EVENT_STOP), Eq("PTRACE_EVENT_STOP"));
+  EXPECT_THAT(GetPtraceEventName(999), HasSubstr("UNKNOWN"));
+}
 
 }  // namespace
 }  // namespace sandbox2::util

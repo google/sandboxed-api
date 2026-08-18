@@ -346,7 +346,7 @@ std::string GetSignalName(int signo) {
   if (signo >= SIGRTMIN && signo <= SIGRTMAX) {
     return absl::StrFormat("SIGRT-%d [%d]", signo - SIGRTMIN, signo);
   }
-  if (signo < 0 || signo >= static_cast<int>(std::size(kSignalNames))) {
+  if (signo <= 0 || signo >= static_cast<int>(std::size(kSignalNames))) {
     return absl::StrFormat("UNKNOWN_SIGNAL [%d]", signo);
   }
   return absl::StrFormat("%s [%d]", kSignalNames[signo], signo);
@@ -369,7 +369,7 @@ std::string GetAddressFamily(int addr_family) {
       "AF_VSOCK",      "AF_KCM",       "AF_QIPCRTR",  "AF_SMC",
       "AF_XDP",        "AF_MCTP"};
 
-  if (addr_family < 0 && addr_family >= std::size(kAddressFamilies)) {
+  if (addr_family < 0 || addr_family >= std::size(kAddressFamilies)) {
     return absl::StrFormat("UNKNOWN_ADDRESS_FAMILY [%d]", addr_family);
   }
   return std::string(kAddressFamilies[addr_family]);

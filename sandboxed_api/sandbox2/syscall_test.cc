@@ -62,5 +62,15 @@ TEST(SyscallTest, Empty) {
   EXPECT_THAT(syscall.GetArgumentsDescription().size(), Eq(Syscall::kMaxArgs));
 }
 
+TEST(SyscallTest, ArchDescription) {
+  EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kX8664), Eq("[X86-64]"));
+  EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kX86), Eq("[X86-32]"));
+  EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kPPC64LE), Eq("[PPC-64]"));
+  EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kArm64), Eq("[Arm-64]"));
+  EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kArm), Eq("[Arm-32]"));
+  EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kUnknown),
+              StartsWith("[UNKNOWN_ARCH"));
+}
+
 }  // namespace
 }  // namespace sandbox2
