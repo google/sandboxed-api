@@ -19,7 +19,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
-load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo", "bool_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load(
@@ -669,11 +669,23 @@ def cc_sandboxed_library(
         **common
     )
 
-    _sandboxed_library_selector(
+    native.config_setting(
+        name = "_config_" + name + "_sandboxed_default",
+        flag_values = {
+            ":" + name + "_enable_sandboxing": "true",
+            "//sandboxed_api/bazel:sandboxing_test_mode": "default",
+        },
+        **common
+    )
+
+    native.alias(
         name = name,
-        unsandboxed_lib = "_unsandboxed_" + name,
-        sandboxed_lib = "_sandboxed_" + name,
-        sandboxing_flag = ":" + name + "_enable_sandboxing",
+        actual = select({
+            "//sandboxed_api/bazel:test_mode_sandboxed": ":_sandboxed_" + name,
+            "//sandboxed_api/bazel:test_mode_unsandboxed": ":_unsandboxed_" + name,
+            ":_config_" + name + "_sandboxed_default": ":_sandboxed_" + name,
+            "//conditions:default": ":_unsandboxed_" + name,
+        }),
         **common
     )
 
@@ -689,28 +701,51 @@ _sandboxed_library = rule(
     )],
 )
 
-def _sandboxed_library_selector_impl(ctx):
-    # TODO: disable sandboxing in non //tools/cc_target_os:linux-google[-arm] builds,
-    # host builds, and other non-interesting cases.
-    enabled = ctx.attr.sandboxing_flag[BuildSettingInfo].value
-    if str(ctx.label) in ctx.attr._bin_sandboxing_enable[BuildSettingInfo].value:
-        enabled = True
-    if str(ctx.label) in ctx.attr._bin_sandboxing_disable[BuildSettingInfo].value:
-        enabled = False
-    if enabled:
-        return ctx.attr.sandboxed_lib[CcInfo]
-    return ctx.attr.unsandboxed_lib[CcInfo]
+def _binary_transition_impl(_settings, attr):
+    return {
+        "//sandboxed_api/bazel:sandboxing_test_mode": attr.sandboxing_test_mode,
+    }
 
-_sandboxed_library_selector = rule(
-    implementation = _sandboxed_library_selector_impl,
-    provides = [CcInfo],
+_binary_transition = transition(
+    implementation = _binary_transition_impl,
+    inputs = [],
+    outputs = [
+        "//sandboxed_api/bazel:sandboxing_test_mode",
+    ],
+)
+
+def _transitioned_test_impl(ctx):
+    actual = ctx.attr.actual[0]
+    executable = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.symlink(
+        output = executable,
+        target_file = actual[DefaultInfo].files_to_run.executable,
+        is_executable = True,
+    )
+    return [
+        DefaultInfo(
+            executable = executable,
+            runfiles = actual[DefaultInfo].default_runfiles,
+        ),
+    ]
+
+_transitioned_test = rule(
+    implementation = _transitioned_test_impl,
     attrs = {
-        "unsandboxed_lib": attr.label(providers = [CcInfo]),
-        "sandboxed_lib": attr.label(providers = [CcInfo]),
-        "sandboxing_flag": attr.label(providers = [BuildSettingInfo]),
-        "_bin_sandboxing_enable": attr.label(default = "//sandboxed_api/bazel:lib_sandboxing_enable"),
-        "_bin_sandboxing_disable": attr.label(default = "//sandboxed_api/bazel:lib_sandboxing_disable"),
+        "actual": attr.label(
+            cfg = _binary_transition,
+            providers = [CcInfo],
+        ),
+        "sandboxing_test_mode": attr.string(
+            mandatory = True,
+            values = [
+                "default",
+                "sandboxed",
+                "unsandboxed",
+            ],
+        ),
     },
+    test = True,
 )
 
 def cc_sandboxed_library_test(
@@ -732,25 +767,59 @@ def cc_sandboxed_library_test(
       deps: Same as cc_library.deps, must not include the lib
       **kwargs: Passed to resulting cc_test's
     """
+    common = {}
+    for k in [
+        "testonly",
+        "tags",
+        "visibility",
+        "target_compatible_with",
+        "compatible_with",
+        "restricted_to",
+    ]:
+        if k in kwargs:
+            common[k] = kwargs[k]
+
+    test_kwargs = dict(common)
+    for k in [
+        "args",
+        "env",
+        "env_inherit",
+        "flaky",
+        "local",
+        "shard_count",
+        "size",
+        "timeout",
+    ]:
+        if k in kwargs:
+            test_kwargs[k] = kwargs[k]
+
+    cc_test_kwargs = dict(kwargs)
+    cc_test_kwargs["visibility"] = ["//visibility:private"]
 
     cc_test(
-        name = "_internal_" + name,
+        name = "_test_" + name + "_unsandboxed",
         deps = deps + [lib],
-        **kwargs
+        **cc_test_kwargs
     )
 
     _transitioned_test(
         name = name + "_unsandboxed",
-        binary = ":_internal_" + name,
-        lib_sandboxing_enable = [],
-        lib_sandboxing_disable = [str(native.package_relative_label(lib))],
+        actual = ":_test_" + name + "_unsandboxed",
+        sandboxing_test_mode = "unsandboxed",
+        **test_kwargs
+    )
+
+    cc_test(
+        name = "_test_" + name + "_sandboxed",
+        deps = deps + [lib],
+        **cc_test_kwargs
     )
 
     _transitioned_test(
         name = name + "_sandboxed",
-        binary = ":_internal_" + name,
-        lib_sandboxing_enable = [str(native.package_relative_label(lib))],
-        lib_sandboxing_disable = [],
+        actual = ":_test_" + name + "_sandboxed",
+        sandboxing_test_mode = "sandboxed",
+        **test_kwargs
     )
 
     native.test_suite(
@@ -759,6 +828,7 @@ def cc_sandboxed_library_test(
             ":" + name + "_unsandboxed",
             ":" + name + "_sandboxed",
         ],
+        **common
     )
 
 def _sandboxed_library_gen_impl(ctx):
@@ -854,59 +924,4 @@ sandboxed_library_gen_errors = rule(
         "target": attr.label(),
         "errors": attr.output(),
     },
-)
-
-def _binary_transition_impl(_, attr):
-    return {
-        "//sandboxed_api/bazel:lib_sandboxing_enable": attr.lib_sandboxing_enable,
-        "//sandboxed_api/bazel:lib_sandboxing_disable": attr.lib_sandboxing_disable,
-    }
-
-_binary_transition = transition(
-    implementation = _binary_transition_impl,
-    inputs = [],
-    outputs = [
-        "//sandboxed_api/bazel:lib_sandboxing_enable",
-        "//sandboxed_api/bazel:lib_sandboxing_disable",
-    ],
-)
-
-def _transitioned_binary_impl(ctx):
-    default_info = ctx.attr.binary[0][DefaultInfo]
-    files = default_info.files.to_list()
-    orig_executable = files[0]
-    outfile = ctx.actions.declare_file(ctx.label.name)
-    ctx.actions.run_shell(
-        inputs = [orig_executable],
-        outputs = [outfile],
-        command = "cp %s %s" % (orig_executable.path, outfile.path),
-        mnemonic = "CcSandboxedLibraryCopyBinary",
-    )
-    data_runfiles = []
-    for file in default_info.data_runfiles.files.to_list():
-        if file == orig_executable:
-            file = outfile
-        data_runfiles = data_runfiles + [file]
-    default_runfiles = []
-    for file in default_info.default_runfiles.files.to_list():
-        if file == orig_executable:
-            file = outfile
-        default_runfiles = default_runfiles + [file]
-    return [
-        DefaultInfo(
-            executable = outfile,
-            data_runfiles = ctx.runfiles(files = data_runfiles),
-            default_runfiles = ctx.runfiles(files = default_runfiles),
-        ),
-    ]
-
-_transitioned_test = rule(
-    implementation = _transitioned_binary_impl,
-    attrs = {
-        "lib_sandboxing_enable": attr.string_list(),
-        "lib_sandboxing_disable": attr.string_list(),
-        "binary": attr.label(cfg = _binary_transition),
-    },
-    test = True,
-    executable = True,
 )

@@ -13,10 +13,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load(
-    "@bazel_skylib//rules:common_settings.bzl",
-    "string_list_setting",
-)
+load("@bazel_skylib//rules:common_settings.bzl", "string_setting")
 
 licenses(["notice"])
 
@@ -78,12 +75,28 @@ bzl_library(
     visibility = ["//visibility:private"],
 )
 
-string_list_setting(
-    name = "lib_sandboxing_enable",
-    build_setting_default = [],
+# Internal build setting used exclusively for testing by cc_sandboxed_library_test
+# to transition test binaries into forced-sandboxed or forced-unsandboxed mode
+# across the entire transitive dependency graph.
+string_setting(
+    name = "sandboxing_test_mode",
+    build_setting_default = "default",
+    values = [
+        "default",
+        "sandboxed",
+        "unsandboxed",
+    ],
+    visibility = ["//visibility:public"],
 )
 
-string_list_setting(
-    name = "lib_sandboxing_disable",
-    build_setting_default = [],
+config_setting(
+    name = "test_mode_sandboxed",
+    flag_values = {":sandboxing_test_mode": "sandboxed"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "test_mode_unsandboxed",
+    flag_values = {":sandboxing_test_mode": "unsandboxed"},
+    visibility = ["//visibility:public"],
 )
