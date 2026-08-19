@@ -675,7 +675,7 @@ def cc_sandboxed_library(
             ":" + name + "_enable_sandboxing": "true",
             "//sandboxed_api/bazel:sandboxing_test_mode": "default",
         },
-        **common
+        visibility = ["//visibility:private"],
     )
 
     native.alias(
