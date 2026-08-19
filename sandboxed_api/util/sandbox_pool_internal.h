@@ -18,8 +18,10 @@
 #include <cstddef>
 #include <memory>
 #include <queue>
+#include <string>
 #include <utility>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -100,6 +102,15 @@ class Queue {
     value = std::move(queue_.front());
     queue_.pop();
     return true;
+  }
+
+  // Pops and processes all remaining items in the queue, even if stopped.
+  void Drain(absl::AnyInvocable<void(T&&)> fn) {
+    absl::MutexLock lock(mutex_);
+    while (!queue_.empty()) {
+      fn(std::move(queue_.front()));
+      queue_.pop();
+    }
   }
 
   // Stops the queue and wakes up all blocked threads
@@ -203,6 +214,10 @@ class ExpirableQueue : private Queue<ExpirableItem<T>> {
     value = std::move(Base::queue_.front().value);
     Base::queue_.pop();
     return true;
+  }
+
+  void Drain(absl::AnyInvocable<void(T&&)> fn) {
+    Base::Drain([&fn](ExpirableItem<T>&& item) { fn(std::move(item.value)); });
   }
 
   using Base::size;

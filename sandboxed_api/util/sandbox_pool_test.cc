@@ -15,7 +15,9 @@
 #include "sandboxed_api/util/sandbox_pool.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -31,11 +33,16 @@
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/sandbox_pool_global.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace sapi {
+
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::Eq;
+using ::testing::Ge;
 
 TEST(SandboxPoolTest, AcquireManyWorks) {
   SandboxPoolOptions options;
