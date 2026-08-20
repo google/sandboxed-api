@@ -139,6 +139,19 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "result_test",
+    srcs = ["result_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":result",
+        ":syscall",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest_main",
+    ],
+)
+
 sapi_proto_library(
     name = "config_proto",
     srcs = ["config.proto"],

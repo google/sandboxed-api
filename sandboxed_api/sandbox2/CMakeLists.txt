@@ -1530,6 +1530,25 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
+
+  # sandboxed_api/sandbox2:result_test
+  add_executable(sandbox2_result_test
+    result_test.cc
+  )
+  set_target_properties(sandbox2_result_test PROPERTIES
+    OUTPUT_NAME result_test
+  )
+  target_link_libraries(sandbox2_result_test PRIVATE
+    absl::status
+    absl::status_matchers
+    sandbox2::result
+    sandbox2::syscall
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_result_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
 endif()
 
 configure_file(

@@ -37,7 +37,7 @@ namespace sandbox2 {
 class Result {
  public:
   // Final execution status.
-  enum StatusEnum {
+  enum StatusEnum : int {
     // Not set yet
     UNSET = 0,
     // OK
