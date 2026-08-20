@@ -20,7 +20,7 @@ set_target_properties(sandbox2_testcase_abort PROPERTIES
   OUTPUT_NAME abort)
 add_executable(sandbox2::testcase_abort ALIAS sandbox2_testcase_abort)
 target_link_libraries(sandbox2_testcase_abort PRIVATE
-  -static
+  -static-pie
   sapi::base
   sapi::raw_logging
 )
@@ -35,7 +35,7 @@ set_target_properties(sandbox2_testcase_add_policy_on_syscalls PROPERTIES
   OUTPUT_NAME add_policy_on_syscalls
 )
 target_link_libraries(sandbox2_testcase_add_policy_on_syscalls PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -48,7 +48,7 @@ set_target_properties(sandbox2_testcase_buffer PROPERTIES
   OUTPUT_NAME buffer
 )
 target_link_libraries(sandbox2_testcase_buffer PRIVATE
-  -static
+  -static-pie
   sandbox2::buffer
   sapi::base
 )
@@ -62,7 +62,7 @@ set_target_properties(sandbox2_testcase_ipc PROPERTIES
 )
 add_executable(sandbox2::testcase_ipc ALIAS sandbox2_testcase_ipc)
 target_link_libraries(sandbox2_testcase_ipc PRIVATE
-  -static
+  -static-pie
   absl::strings
   sandbox2::client
   sandbox2::comms
@@ -80,7 +80,7 @@ set_target_properties(sandbox2_testcase_malloc_system PROPERTIES
   OUTPUT_NAME malloc_system
 )
 target_link_libraries(sandbox2_testcase_malloc_system PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -106,7 +106,7 @@ set_target_properties(sandbox2_testcase_minimal PROPERTIES
   OUTPUT_NAME minimal
 )
 target_link_libraries(sandbox2_testcase_minimal PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -120,7 +120,7 @@ set_target_properties(sandbox2_testcase_personality PROPERTIES
   OUTPUT_NAME personality
 )
 target_link_libraries(sandbox2_testcase_personality PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -133,7 +133,7 @@ set_target_properties(sandbox2_testcase_pidcomms PROPERTIES
   OUTPUT_NAME pidcomms
 )
 target_link_libraries(sandbox2_testcase_pidcomms PRIVATE
-  -static
+  -static-pie
   sandbox2::client
   sandbox2::comms
   sapi::base
@@ -149,7 +149,7 @@ set_target_properties(sandbox2_testcase_policy PROPERTIES
   OUTPUT_NAME policy
 )
 target_link_libraries(sandbox2_testcase_policy PRIVATE
-  -static
+  -static-pie
   absl::core_headers
   sapi::base
 )
@@ -163,7 +163,7 @@ set_target_properties(sandbox2_testcase_sandbox_detection PROPERTIES
   OUTPUT_NAME sandbox_detection
 )
 target_link_libraries(sandbox2_testcase_sandbox_detection PRIVATE
-  -static
+  -static-pie
   absl::statusor
   sandbox2::client
   sandbox2::comms
@@ -180,7 +180,7 @@ set_target_properties(sandbox2_testcase_sanitizer PROPERTIES
   OUTPUT_NAME sanitizer
 )
 target_link_libraries(sandbox2_testcase_sanitizer PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -211,7 +211,7 @@ set_target_properties(sandbox2_testcase_sleep PROPERTIES
   OUTPUT_NAME sleep
 )
 target_link_libraries(sandbox2_testcase_sleep PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -224,7 +224,7 @@ set_target_properties(sandbox2_testcase_symbolize PROPERTIES
   OUTPUT_NAME symbolize
 )
 target_link_libraries(sandbox2_testcase_symbolize PRIVATE
-  -static
+  -static-pie
   absl::core_headers
   absl::strings
   sapi::base
@@ -240,7 +240,7 @@ add_library(sandbox2_testcase_symbolize_lib
 )
 add_library(sandbox2::testcase_symbolize_lib ALIAS sandbox2_testcase_symbolize_lib)
 target_link_libraries(sandbox2_testcase_symbolize_lib PRIVATE
-  -static
+  -static-pie
   absl::core_headers
   sapi::base
 )
@@ -259,7 +259,7 @@ set_target_properties(sandbox2_testcase_starve PROPERTIES
   OUTPUT_NAME starve
 )
 target_link_libraries(sandbox2_testcase_starve PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -272,7 +272,7 @@ set_target_properties(sandbox2_testcase_tsync PROPERTIES
   OUTPUT_NAME tsync
 )
 target_link_libraries(sandbox2_testcase_tsync PRIVATE
-  -static
+  -static-pie
   sandbox2::client
   sandbox2::comms
   sapi::base
@@ -287,7 +287,7 @@ set_target_properties(sandbox2_testcase_limits PROPERTIES
   OUTPUT_NAME limits
 )
 target_link_libraries(sandbox2_testcase_limits PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -300,7 +300,7 @@ set_target_properties(sandbox2_testcase_mmap PROPERTIES
   OUTPUT_NAME mmap
 )
 target_link_libraries(sandbox2_testcase_mmap PRIVATE
-  -static
+  -static-pie
   sapi::base
 )
 
@@ -313,7 +313,7 @@ set_target_properties(sandbox2_testcase_namespace PROPERTIES
   OUTPUT_NAME namespace
 )
 target_link_libraries(sandbox2_testcase_namespace PRIVATE
-  -static
+  -static-pie
   absl::check
   absl::flat_hash_set
   absl::strings
@@ -387,7 +387,7 @@ set_target_properties(sandbox2_testcase_posix_timers PROPERTIES
   OUTPUT_NAME posix_timers
 )
 target_link_libraries(sandbox2_testcase_posix_timers PRIVATE
-  -static
+  -static-pie
   -lrt
   absl::check
   absl::flags
@@ -410,7 +410,7 @@ set_target_properties(sandbox2_testcase_execveat PROPERTIES
   OUTPUT_NAME execveat
 )
 target_link_libraries(sandbox2_testcase_execveat PRIVATE
-  -static
+  -static-pie
   sapi::base
   sandbox2::client
   sandbox2::comms
@@ -454,7 +454,7 @@ set_target_properties(sandbox2_testcase_terminate_process_group_sandboxee PROPER
   OUTPUT_NAME terminate_process_group_sandboxee
 )
 target_link_libraries(sandbox2_testcase_terminate_process_group_sandboxee PRIVATE
-  -static
+  -static-pie
   sapi::base
   absl::check
   sandbox2::comms
@@ -468,7 +468,7 @@ set_target_properties(sandbox2_testcase_shared_memory PROPERTIES
   OUTPUT_NAME shared_memory)
 add_executable(sandbox2::testcase_shared_memory ALIAS sandbox2_testcase_shared_memory)
 target_link_libraries(sandbox2_testcase_shared_memory PRIVATE
-  -static
+  -static-pie
   sandbox2::comms
   sandbox2::client
   sapi::base

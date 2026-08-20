@@ -17,7 +17,10 @@
 # Some of the following cc_binary options avoid dynamic linking which uses a
 # lot of syscalls (open, mmap, etc.):
 #   linkstatic = True                 Default for cc_binary
-#   features = ["fully_static_link"]  Adds -static
+#   features = [
+#       "static_pie",
+#       "fully_static_link",
+#   ]                                 Adds -static-pie
 #
 # Note that linking fully static with an unmodified glibc is not generally
 # considered safe, due to glibc relying heavily on loading shared objects at
@@ -31,9 +34,12 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 
-package(default_visibility = [
-    "//sandboxed_api/sandbox2:__subpackages__",
-])
+package(
+    default_visibility = [
+        "//sandboxed_api/sandbox2:__subpackages__",
+    ],
+    features = ["static_pie"],
+)
 
 licenses(["notice"])
 
@@ -90,6 +96,7 @@ cc_binary(
     testonly = True,
     srcs = ["minimal.cc"],
     copts = sapi_platform_copts(),
+    features = ["-static_pie"],
 )
 
 cc_binary(
@@ -127,10 +134,7 @@ cc_binary(
     srcs = ["policy.cc"],
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
-    deps = [
-        "//sandboxed_api:config",
-        "@abseil-cpp//absl/base:core_headers",
-    ],
+    deps = ["//sandboxed_api:config"],
 )
 
 cc_binary(
