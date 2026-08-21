@@ -28,8 +28,11 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
+#include "absl/log/globals.h"
 #include "absl/log/log.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
@@ -70,6 +73,7 @@ using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::Gt;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
@@ -479,6 +483,25 @@ TEST_P(Sandbox2Test, PreProtobufConfigVersionWorks) {
   // Set an old version number to trigger the pre-protobuf config version.
   Sandbox2TestPeer::TestOnlyOverrideVersion(sandbox, 1);
   ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
+TEST(Sandbox2Test, VlogLogsFilesystem) {
+  absl::SetVLogLevel("monitor_base", 1);
+
+  absl::ScopedMockLog log;
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_,
+                       HasSubstr("Outside entries mapped to chroot:")));
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  log.StartCapturingLogs();
   auto result = sandbox.Run();
   ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
   EXPECT_EQ(result.reason_code(), 0);

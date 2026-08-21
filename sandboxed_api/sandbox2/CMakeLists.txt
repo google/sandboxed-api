@@ -1258,6 +1258,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_tsync
   )
   target_link_libraries(sandbox2_sandbox2_test PRIVATE
+    absl::log_severity
+    absl::log
+    absl::log_globals
+    absl::scoped_mock_log
     absl::flags
     absl::status
     absl::statusor
