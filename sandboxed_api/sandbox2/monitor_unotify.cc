@@ -24,7 +24,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"

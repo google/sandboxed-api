@@ -40,7 +40,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
-#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"

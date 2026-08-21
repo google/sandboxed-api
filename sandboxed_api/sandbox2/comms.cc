@@ -34,7 +34,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstdlib>
