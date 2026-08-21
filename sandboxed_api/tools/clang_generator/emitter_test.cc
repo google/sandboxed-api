@@ -183,6 +183,27 @@ TEST_F(EmitterTest, AllFunctionsLimitScanDepthFailure) {
   EXPECT_THAT(emitter.GetRenderedFunctions(), IsEmpty());
 }
 
+// Tests that the generator produces valid code for functions that have a
+// parameter named `ret`. The local copy of the parameter and the return value
+// variable must not collide (both would be named `v_ret_`).
+TEST_F(EmitterTest, ParameterNamedRet) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  ASSERT_THAT(RunFrontendAction(
+                  R"(extern "C" int FunctionWithRet(int ret);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+
+  absl::StatusOr<std::string> header = emitter.EmitHeader();
+  ASSERT_THAT(header, IsOk());
+  const std::string uglified = UglifyAll({*header})[0];
+
+  // The return value slot and the parameter copy must be passed to
+  // sandbox_->Call() as two distinct variables.
+  EXPECT_THAT(uglified, HasSubstr("&v_ret, &v_ret_"));
+}
+
 TEST_F(EmitterTest, RelatedTypes) {
   GeneratorOptions options;
   EmitterForTesting emitter(&options);
