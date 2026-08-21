@@ -489,6 +489,9 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowPrctlSetVma();
   AllowPoll();
   AllowGetPIDs();
+#ifdef __NR_process_vm_readv
+  OverridableBlockSyscallWithErrno(__NR_process_vm_readv, ENOSYS);
+#endif
 
   AddPolicyOnSyscall(__NR_mprotect, {
                                         ARG_32(2),
