@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -42,10 +43,12 @@
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/landlock.h"
+#include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
+#include "sandboxed_api/sandbox2/unwind/unwind.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/file_helpers.h"
@@ -110,6 +113,7 @@ using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::IsEmpty;
 using ::testing::Key;
+using ::testing::Optional;
 using ::testing::SizeIs;
 using ::testing::StartsWith;
 
@@ -447,6 +451,39 @@ TEST_F(StackTraceStandaloneTest, SymbolizationEnablesMonitor) {
       .Times(0);
   log.StartCapturingLogs();
   SymbolizationWorksCommon({});
+}
+
+class StackTraceNotify : public Notify {
+ public:
+  std::optional<std::vector<std::string>> stack_trace() const {
+    return stack_trace_;
+  }
+
+  void EventSyscallViolation(const Syscall& syscall, ViolationType type) {
+    SAPI_ASSERT_OK_AND_ASSIGN(stack_trace_,
+                              RunLibUnwindAndSymbolizer(syscall.pid(), 16));
+  }
+
+ private:
+  std::optional<std::vector<std::string>> stack_trace_;
+};
+
+TEST(StackTraceTest, UnsandboxedStackTrace) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
+  std::vector<std::string> args = {path, absl::StrCat(2), absl::StrCat(1)};
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+
+  auto notify = std::make_unique<StackTraceNotify>();
+  StackTraceNotify* notify_ptr = notify.get();
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy),
+              std::move(notify));
+  ASSERT_TRUE(s2.RunAsync());
+
+  Result result = s2.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(notify_ptr->stack_trace(),
+              Optional(Contains(StartsWith("ViolatePolicy"))));
 }
 
 INSTANTIATE_TEST_SUITE_P(

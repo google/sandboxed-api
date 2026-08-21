@@ -1364,6 +1364,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::namespace
     sandbox2::sandbox2
     sandbox2::stack_trace
+    sandbox2::unwind
     sandbox2::util
     sapi::fileops
     sapi::file_helpers

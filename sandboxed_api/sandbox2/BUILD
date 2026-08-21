@@ -1255,6 +1255,7 @@ cc_test(
         "//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",
         "//sandboxed_api/sandbox2/allowlists:testonly_namespaces",
+        "//sandboxed_api/sandbox2/unwind",
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/algorithm:container",
