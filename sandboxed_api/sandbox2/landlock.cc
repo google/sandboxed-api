@@ -200,9 +200,12 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
   }
   if (writable) {
     // Include FS_TRUNCATE so writable paths support truncate(), ftruncate(),
-    // and open(O_TRUNC)/creat().
-    path_beneath.allowed_access |=
-        LANDLOCK_ACCESS_FS_WRITE_FILE | LANDLOCK_ACCESS_FS_TRUNCATE;
+    // and open(O_TRUNC)/creat(), and LANDLOCK_ACCESS_FS_IOCTL_DEV for ioctls.
+    // TODO(cffsmith): Consider adding a separate function on the PolicyBuilder
+    // to allow ioctls.
+    path_beneath.allowed_access |= LANDLOCK_ACCESS_FS_WRITE_FILE |
+                                   LANDLOCK_ACCESS_FS_TRUNCATE |
+                                   LANDLOCK_ACCESS_FS_IOCTL_DEV;
   }
   if (is_dir) {
     path_beneath.allowed_access |= LANDLOCK_ACCESS_FS_READ_DIR;
