@@ -334,6 +334,9 @@ void ForkedProcess::LaunchSandboxee() {
   util::CharPtrArray argv = util::CharPtrArray::FromStringVector(args_);
   util::CharPtrArray envp = util::CharPtrArray::FromStringVector(envp_);
 
+  // Since we are potentially already inside a mount namespace this might fail,
+  // but should not abort the process if we do it before seccomp.
+  util::DumpCoverageData();
   if (should_sandbox) {
     client.EnableSandbox();
   }
