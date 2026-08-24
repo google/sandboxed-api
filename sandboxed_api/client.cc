@@ -280,6 +280,13 @@ void ServeRequest(sandbox2::Comms* comms) {
 }  // namespace client
 }  // namespace sapi
 
+#ifdef __has_feature
+#if __has_feature(dataflow_sanitizer)
+// Called from trampolines.S via the plain symbol,
+// so it must keep its native name and ABI.
+__attribute__((disable_sanitizer_instrumentation))
+#endif
+#endif
 extern "C" uint64_t sapi_client_HandleCallback(uint64_t index, uint64_t* args) {
   CHECK(sapi::client::g_comms != nullptr) << "g_comms not initialized";
   ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(args, 6 * sizeof(uint64_t));
