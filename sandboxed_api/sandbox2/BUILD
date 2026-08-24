@@ -320,6 +320,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "global_forkclient_test",
+    srcs = ["global_forkclient_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":global_forkserver",
+        "@googletest//:gtest_main",
+    ],
+)
+
 # Use only if Sandbox2 global forkserver has to be started very early on.
 # By default the forkserver is started on demand.
 cc_library(
@@ -333,6 +343,17 @@ cc_library(
         ":global_forkserver",
     ],
     alwayslink = True,
+)
+
+cc_test(
+    name = "global_forkclient_lib_ctor_test",
+    srcs = ["global_forkclient_lib_ctor_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":global_forkserver",
+        ":start_global_forkserver_lib_constructor",
+        "@googletest//:gtest_main",
+    ],
 )
 
 cc_library(

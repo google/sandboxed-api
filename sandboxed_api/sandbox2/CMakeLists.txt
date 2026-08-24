@@ -1554,6 +1554,39 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     ENVIRONMENT "TEST_TMPDIR=/tmp"
     ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
   )
+
+  # sandboxed_api/sandbox2:global_forkclient_test
+  add_executable(sandbox2_global_forkclient_test
+    global_forkclient_test.cc
+  )
+  set_target_properties(sandbox2_global_forkclient_test PROPERTIES
+    OUTPUT_NAME global_forkclient_test
+  )
+  target_link_libraries(sandbox2_global_forkclient_test
+    PRIVATE sandbox2::global_forkserver
+            sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_global_forkclient_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
+
+  # sandboxed_api/sandbox2:global_forkclient_lib_ctor_test
+  add_executable(sandbox2_global_forkclient_lib_ctor_test
+    global_forkclient_lib_ctor_test.cc
+  )
+  set_target_properties(sandbox2_global_forkclient_lib_ctor_test PROPERTIES
+    OUTPUT_NAME global_forkclient_lib_ctor_test
+  )
+  target_link_libraries(sandbox2_global_forkclient_lib_ctor_test
+    PRIVATE sandbox2::global_forkserver
+            sandbox2::start_global_forkserver_lib_constructor
+            sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_global_forkclient_lib_ctor_test PROPERTIES
+    ENVIRONMENT "TEST_TMPDIR=/tmp"
+    ENVIRONMENT "TEST_SRCDIR=${PROJECT_BINARY_DIR}"
+  )
 endif()
 
 configure_file(
