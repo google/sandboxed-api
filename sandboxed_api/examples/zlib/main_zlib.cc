@@ -18,7 +18,6 @@
 #include <iterator>
 
 #include "absl/base/log_severity.h"
-#include "absl/base/macros.h"
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
