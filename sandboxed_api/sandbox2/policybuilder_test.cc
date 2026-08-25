@@ -31,6 +31,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
+#include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -400,6 +401,12 @@ TEST(PolicyBuilderTest, ConflictingTmpFsMount) {
   PolicyBuilder builder;
   builder.AddDirectory("/tmp").AddTmpfs("/tmp",
                                         /*size=*/4ULL << 20 /* 4 MiB */);
+  EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
+}
+
+TEST(PolicyBuilderTest, DisablingNamespacesRejectedWhenNamespacesRequired) {
+  PolicyBuilder builder;
+  builder.AddDirectory("/bin").DisableNamespaces(NamespacesToken());
   EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
 }
 

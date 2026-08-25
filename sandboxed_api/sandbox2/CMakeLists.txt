@@ -1416,6 +1416,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::status
             absl::statusor
             sandbox2::allowlists_enable_landlock
+            sandbox2::allowlists_namespaces
             sandbox2::allowlists_unrestricted_networking
             sandbox2::bpf_helper
             sandbox2::policy

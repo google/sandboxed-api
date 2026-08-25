@@ -1326,6 +1326,7 @@ cc_test(
         ":policy",
         ":policybuilder",
         "//sandboxed_api/sandbox2/allowlists:enable_landlock",
+        "//sandboxed_api/sandbox2/allowlists:namespaces",
         "//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:file_base",
