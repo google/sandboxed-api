@@ -20,6 +20,15 @@ if(LLVM_VERSION VERSION_LESS "18.0.0")
 endif()
 
 add_library(sapi_generator
+  annotations.cc
+  annotations.h
+  arg.h
+  arg_converter.cc
+  ast_utils.cc
+  ast_utils.h
+  callback_arg.cc
+  callback_arg.h
+  codegen.cc
   diagnostics.cc
   diagnostics.h
   emitter.h
@@ -29,8 +38,11 @@ add_library(sapi_generator
   generator.h
   generator.cc
   includes.h
+  pointer_arg.cc
+  pointer_arg.h
   sandboxed_library_emitter.h
   sandboxed_library_emitter.cc
+  simple_args.h
   symbol_list_emitter.h
   symbol_list_emitter.cc
   types.h
@@ -109,6 +121,7 @@ target_link_libraries(sapi_generator PUBLIC
   sapi::base
   absl::btree
   absl::die_if_null
+  absl::flat_hash_map
   absl::flat_hash_set
   absl::node_hash_set
   absl::overload
@@ -117,6 +130,7 @@ target_link_libraries(sapi_generator PUBLIC
   absl::status_macros
   absl::statusor
   absl::strings
+  absl::str_format
   re2
   sapi::fileops
   ${_sapi_generator_clang_libs}
