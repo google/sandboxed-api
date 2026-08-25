@@ -314,5 +314,21 @@ TEST(EvaluatorTest, OutOfBoundsLoad) {
                                            "Out of bounds read (4096)"));
 }
 
+TEST(EvaluatorTest, BigShifts) {
+  // As per the Linux BPF specification, shift amounts are masked with 0x1f.
+  // 0x2481 << (33 & 0x1f) == 0x2481 << 1 == 0x4902.
+  sock_filter prog[] = {
+      BPF_STMT(BPF_LD + BPF_IMM, 0x2481),
+      BPF_STMT(BPF_ALU + BPF_LSH + BPF_K, 33),
+      BPF_STMT(BPF_RET + BPF_A, 0),
+  };
+  SAPI_ASSERT_OK_AND_ASSIGN(uint32_t result, Evaluate(prog, {}));
+  EXPECT_THAT(result, Eq(0x4902));
+  // 0x2481 >> (65 & 0x1f) == 0x2481 >> 1 == 0x1240.
+  prog[1] = BPF_STMT(BPF_ALU + BPF_RSH + BPF_K, 65);
+  SAPI_ASSERT_OK_AND_ASSIGN(result, Evaluate(prog, {}));
+  EXPECT_THAT(result, Eq(0x1240));
+}
+
 }  // namespace
 }  // namespace sandbox2::bpf

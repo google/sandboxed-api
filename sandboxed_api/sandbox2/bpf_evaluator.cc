@@ -38,9 +38,9 @@ absl::StatusOr<uint32_t> EvaluateAlu(uint16_t op, uint32_t a, uint32_t b) {
     case BPF_XOR:
       return a ^ b;
     case BPF_LSH:
-      return a << b;
+      return a << (b & 0x1f);
     case BPF_RSH:
-      return a >> b;
+      return a >> (b & 0x1f);
     case BPF_NEG:
       return -a;
     default:
