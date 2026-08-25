@@ -144,9 +144,9 @@ class PolicyBuilder final {
   //
   // Each `type T` is defined in an individual library and individually
   // visibility restricted.
-  template <typename... T>
-  PolicyBuilder& Allow(T... tags) {
-    return (Allow(tags), ...);
+  template <typename TF, typename... T>
+  PolicyBuilder& Allow(TF tag, T... tags) {
+    return Allow(tag), (Allow(tags), ...);
   }
 
   // Disables the use of namespaces.
