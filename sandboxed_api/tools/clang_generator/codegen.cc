@@ -109,12 +109,29 @@ struct $1SandboxImpl : public $1Sandbox {
   static sapi::SandboxConfig CreateSandboxConfig() {
     sandbox2::PolicyBuilder builder =
         sapi::Sandbox2Config::DefaultPolicyBuilder();
+    builder.AllowMultithreading();
     return {
+        .environment_variables =
+            sapi::SandboxConfig::DefaultEnvironmentVariables(),
+        .command_line_flags = sapi::SandboxConfig::DefaultFlags(),
         .sandbox2 = {
             .policy = $1SandboxModifyPolicy(&builder),
             .shared_memory_config =
-                sandbox2::SharedMemoryConfig{.enable_huge_pages = true},
+                sandbox2::SharedMemoryConfig{
+                    .size = (128ULL << 20),
+                    .enable_huge_pages = true,
+                },
             .enable_shared_memory_comms = true,
+            .enable_multithreading = true,
+            // We're permissive with limits by default to not break libraries
+            // that might use a lot of memory/cpu.
+            .limits = sandbox2::Limits()
+                          .set_rlimit_as(RLIM64_INFINITY)
+                          .set_rlimit_cpu(RLIM64_INFINITY)
+                          .set_rlimit_fsize(RLIM64_INFINITY)
+                          .set_rlimit_nofile(RLIM64_INFINITY)
+                          .set_rlimit_core(RLIM64_INFINITY)
+                          .set_walltime_limit(absl::ZeroDuration()),
         },
     };
   }
