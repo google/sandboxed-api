@@ -120,11 +120,15 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
 TEST(PolicyBuilderTest, NonExistingIgnored) {
   PolicyBuilder pb;
   pb.AddFileIfExists("/non_existing_file");
-  ASSERT_THAT(pb.mounts().ResolvePath("/non_existing_file"),
+  EXPECT_THAT(pb.mounts().ResolvePath("/non_existing_file"),
               StatusIs(absl::StatusCode::kNotFound));
   pb.AddDirectoryIfExists("/non_existing_dir");
-  ASSERT_THAT(pb.mounts().ResolvePath("/non_existing_dir"),
+  EXPECT_THAT(pb.mounts().ResolvePath("/non_existing_dir"),
               StatusIs(absl::StatusCode::kNotFound));
+  pb.AddDirectoryIfExists("/tmp");
+  EXPECT_THAT(pb.mounts().ResolvePath("/tmp"), IsOk());
+  pb.AddFileIfExists("/usr/bin/find");
+  EXPECT_THAT(pb.mounts().ResolvePath("/usr/bin/find"), IsOk());
   EXPECT_THAT(pb.TryBuild(), IsOk());
 }
 
@@ -390,6 +394,13 @@ TEST(PolicyBuilderTest,
   EXPECT_THAT(builder.TryBuild(),
               StatusIs(absl::StatusCode::kFailedPrecondition,
                        HasSubstr("UNIX socket filtering enabled")));
+}
+
+TEST(PolicyBuilderTest, ConflictingTmpFsMount) {
+  PolicyBuilder builder;
+  builder.AddDirectory("/tmp").AddTmpfs("/tmp",
+                                        /*size=*/4ULL << 20 /* 4 MiB */);
+  EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
 }
 
 }  // namespace
