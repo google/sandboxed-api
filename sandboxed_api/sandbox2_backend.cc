@@ -289,10 +289,7 @@ absl::Status Sandbox2Backend::Init() {
       policy_builder.CollectStacktracesOnSignal(false);
     }
     if (config_.sandbox2.enable_multithreading) {
-      policy_builder.AllowFork();
-      policy_builder.AllowSyscall(__NR_set_robust_list);
-      policy_builder.AllowMmapWithoutExec();
-      policy_builder.AllowMprotectWithoutExec();
+      policy_builder.AllowMultithreading();
     }
     s2p = policy_builder.BuildOrDie();
   }

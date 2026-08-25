@@ -1032,6 +1032,14 @@ PolicyBuilder& PolicyBuilder::AllowFork() {
       __NR_clone});
 }
 
+PolicyBuilder& PolicyBuilder::AllowMultithreading() {
+  AllowFork();
+  AllowSyscall(__NR_set_robust_list);
+  AllowMmapWithoutExec();
+  AllowMprotectWithoutExec();
+  return *this;
+}
+
 PolicyBuilder& PolicyBuilder::AllowWait() {
   return AllowSyscalls({
 #ifdef __NR_waitpid

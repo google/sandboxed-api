@@ -540,6 +540,15 @@ class PolicyBuilder final {
   // sandbox2/policy.cc for more details.
   PolicyBuilder& AllowFork();
 
+  // Appends code to allow creating and running threads (e.g. via pthreads).
+  //
+  // Allows these syscalls:
+  // - fork, vfork, clone (via AllowFork())
+  // - set_robust_list
+  // - mmap without PROT_EXEC (via AllowMmapWithoutExec())
+  // - mprotect without PROT_EXEC (via AllowMprotectWithoutExec())
+  PolicyBuilder& AllowMultithreading();
+
   // Appends code to allow waiting for processes.
   //
   // Allows these syscalls:
