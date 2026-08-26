@@ -101,19 +101,20 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
                                func_name));
         }
 
-        auto body = StripAnnotations(getBody(decl, true));
+        auto body = StripAnnotations(ast::getBody(decl, true));
 
         // Replace calls to the sandboxee thunk with the generated wrapper.
         // ABSL_RETURN_IF_ERROR(
-        // ReplaceCalls(body, func->sandboxee_thunk->name, func_name));
+        // ast::ReplaceCalls(body, func->sandboxee_thunk->name, func_name));
         auto decl_name = decl->getNameAsString();
         // Replace the name of the function with the original function name.
-        ABSL_RETURN_IF_ERROR(ReplaceDeclaration(body, decl_name, func_name));
+        ABSL_RETURN_IF_ERROR(
+            ast::ReplaceDeclaration(body, decl_name, func_name));
 
         func->host_thunk = Thunk{
             .name = decl->getNameAsString(),
             .body = body,
-            .declaration = getFunctionDeclaration(decl),
+            .declaration = ast::getFunctionDeclaration(decl),
         };
       } else if (ann.name == "sandboxee_thunk") {
         if (ann.args.empty()) {
@@ -129,8 +130,8 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
         auto& func = funcs_[func_name];
         func->sandboxee_thunk = Thunk{
             .name = decl->getNameAsString(),
-            .body = StripAnnotations(getBody(decl, true)),
-            .declaration = getFunctionDeclaration(decl),
+            .body = StripAnnotations(ast::getBody(decl, true)),
+            .declaration = ast::getFunctionDeclaration(decl),
         };
       }
     }

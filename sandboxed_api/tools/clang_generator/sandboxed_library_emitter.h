@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,137 +18,35 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <variant>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
-#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
+#include "sandboxed_api/tools/clang_generator/annotations.h"
+#include "sandboxed_api/tools/clang_generator/arg.h"
+#include "sandboxed_api/tools/clang_generator/arg_converter.h"
+#include "sandboxed_api/tools/clang_generator/callback_arg.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
+#include "sandboxed_api/tools/clang_generator/pointer_arg.h"
+#include "sandboxed_api/tools/clang_generator/simple_args.h"
 
 namespace sapi {
 
-enum class PointerDir {
-  kIn,
-  kOut,
-  kInOut,
-  // Pointer argument where the data lives in the sandbox, the host can just
-  // treat it as a handle with which the sandbox can do what it will, and knows
-  // what it refers to.
-  // This pointer will then be invalid in the host.
-  kSandboxOpaque,
-  // Pointer argument where the data lives in the host, the sandbox can just
-  // treat it as a handle with which the host can do what it will, and knows
-  // what it refers to.
-  // This pointer will then be invalid in the sandbox.
-  kHostOpaque,
-};
-
-struct SandboxGlobalLifetime {};
-struct AliasHostPtrLifetime {
-  std::string param_name;
-};
-struct AliasCallbackReturnLifetime {
-  std::string callback_param_name;
-};
-using PointerLifetime =
-    std::variant<std::monostate, SandboxGlobalLifetime, AliasHostPtrLifetime,
-                 AliasCallbackReturnLifetime>;
-
-// Metadata for sized-by annotations for pointers to arrays.
-
-// If a host-owned array is sized by an outparam, the size will be controlled
-// by the sandbox. We will need to know the maximum size that the host allocated
-// for the outparam to perform bounds-checking.
-struct SizedByOutparamData {
-  std::string capacity_expr;
-};
-struct ElemSizedBy {
-  std::string expr;
-  std::optional<SizedByOutparamData> sized_by_outparam_data;
-};
-struct ByteSizedBy {
-  std::string expr;
-  std::optional<SizedByOutparamData> sized_by_outparam_data;
-};
-struct NullTerminated {};
-// Size is derived from an opaque context object (`BindData`).
-struct SizedByBinding {
-  std::string context;
-  // A simple expression involving a binding name (prefixed with '$') and
-  // host-computable values (e.g., "$binding_name", or "2 * param *
-  // $binding_name").
-  std::string binding_expr;
-};
-using ArraySizedByType = std::variant<std::monostate, ElemSizedBy, ByteSizedBy,
-                                      NullTerminated, SizedByBinding>;
-
-// Binding primitive data to a context pointer.
-struct BindData {
-  std::string context;
-  std::string type;
-  std::string binding_name;
-  std::string host_computable_expr;
-};
-
-// Binding an output buffer's lifetime to a context pointer (to be freed during
-// "clear").
-struct CopyFromAndBindOutPtr {
-  std::string context;
-  std::string binding_name;
-};
-
-// Retaining a parameter buffer and binding its lifetime to a context pointer.
-struct RetainAndBind {
-  std::string context;
-  std::string binding_name;
-};
-
-// Collection of context-bound annotations for a single function or argument.
-struct ContextBoundAnnotations {
-  std::vector<BindData> bind_data;
-  std::optional<CopyFromAndBindOutPtr> copy_from_and_bind;
-  std::optional<RetainAndBind> retain_and_bind;
-  bool clear_bindings = false;
-};
-
-// A struct sync annotation for a single access path to a struct pointer
-// data member, reachable from a pointer to struct parameter.
-// E.g., `p->buff`
-// The pointer can represent a single object or an array (which may be sized by
-// another member of the struct `p->size`, as described in
-// `RecordAnnotations`).
-struct StructSync {
-  std::string access_path;
-  PointerDir ptr_dir;
-  ContextBoundAnnotations context_bound;
-};
-
 class SandboxedLibraryEmitter : public EmitterBase {
  public:
-  class Arg;
-
-  // Annotations that apply to all instances of a given Struct/Class type.
-  struct DataMemberAnnotations {
-    std::string name;
-    // For now, we only support sizing annotations for pointer typed members
-    // which represent arrays.
-    ArraySizedByType size_type;
-    // We also support indicating that a pointer is kSandboxOpaque,
-    // and so does not need to be synced beyond a shallow copy.
-    std::optional<PointerDir> ptr_dir;
-  };
-
-  struct RecordAnnotations {
-    std::string name;
-    std::vector<DataMemberAnnotations> member_annotations;
-  };
+  using Arg = sapi::Arg;
+  using ArgPtr = sapi::ArgPtr;
+  using Annotations = sapi::Annotations;
+  using RecordAnnotations = sapi::RecordAnnotations;
+  using DataMemberAnnotations = sapi::DataMemberAnnotations;
+  using PointerArg = sapi::PointerArg;
+  using CallbackArg = sapi::CallbackArg;
 
   // Called after parsing of all input files.
   // Can be used to finalize data, or emit errors that can be detected
@@ -167,8 +65,6 @@ class SandboxedLibraryEmitter : public EmitterBase {
   ~SandboxedLibraryEmitter();
 
  private:
-  using ArgPtr = std::unique_ptr<Arg>;
-
   struct Thunk {
     std::string name;
     std::string body;
@@ -191,87 +87,6 @@ class SandboxedLibraryEmitter : public EmitterBase {
     ~Func();
   };
 
- public:
-  struct Annotations {
-    std::optional<PointerDir> ptr_dir;
-    ArraySizedByType size_type;
-    PointerLifetime lifetime;
-    bool shallow_struct_sync = false;
-    std::vector<StructSync> struct_sync;
-
-    ContextBoundAnnotations context_bound;
-
-    absl::Status CheckSizeNotSet(absl::string_view other_annotation) const {
-      if (std::holds_alternative<std::monostate>(size_type)) {
-        return absl::OkStatus();
-      }
-      return absl::InvalidArgumentError(
-          absl::StrCat("Cannot be sized by multiple types: ", other_annotation,
-                       " and other"));
-    }
-    absl::Status SetElemSizedBy(absl::string_view expr) {
-      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by"));
-      size_type = ElemSizedBy{std::string(expr)};
-      return absl::OkStatus();
-    }
-    absl::Status SetElemSizedByOutparam(absl::string_view size_expr,
-                                        absl::string_view capacity_expr) {
-      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by_outparam"));
-      size_type = ElemSizedBy{std::string(size_expr),
-                              SizedByOutparamData{std::string(capacity_expr)}};
-      return absl::OkStatus();
-    }
-    absl::Status SetByteSizedBy(absl::string_view expr) {
-      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by"));
-      size_type = ByteSizedBy{std::string(expr)};
-      return absl::OkStatus();
-    }
-    absl::Status SetByteSizedByOutparam(absl::string_view size_expr,
-                                        absl::string_view capacity_expr) {
-      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("byte_sized_by_outparam"));
-      size_type = ByteSizedBy{std::string(size_expr),
-                              SizedByOutparamData{std::string(capacity_expr)}};
-      return absl::OkStatus();
-    }
-    absl::Status SetNullTerminated() {
-      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("null_terminated"));
-      size_type = NullTerminated{};
-      return absl::OkStatus();
-    }
-    absl::Status SetSizedByBinding(absl::string_view context,
-                                   absl::string_view binding_name) {
-      ABSL_RETURN_IF_ERROR(CheckSizeNotSet("sized_by_binding"));
-      size_type =
-          SizedByBinding{std::string(context), std::string(binding_name)};
-      return absl::OkStatus();
-    }
-
-    absl::Status CheckLifetimeNotSet(absl::string_view other_annotation) const {
-      if (std::holds_alternative<std::monostate>(lifetime)) {
-        return absl::OkStatus();
-      }
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Cannot have multiple lifetime annotations: ", other_annotation,
-          " and other"));
-    }
-    absl::Status SetSandboxGlobalLifetime() {
-      ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("lifetime_sandbox_global"));
-      lifetime = SandboxGlobalLifetime{};
-      return absl::OkStatus();
-    }
-    absl::Status SetAliasHostPtrLifetime(absl::string_view param_name) {
-      ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("alias_ptr"));
-      lifetime = AliasHostPtrLifetime{std::string(param_name)};
-      return absl::OkStatus();
-    }
-    absl::Status SetAliasCallbackReturnLifetime(absl::string_view param_name) {
-      ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("alias_callback_return"));
-      lifetime = AliasCallbackReturnLifetime{std::string(param_name)};
-      return absl::OkStatus();
-    }
-  };
-
- private:
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
   absl::Status AddVar(clang::VarDecl* decl) override;
   static void EmitFuncDecl(std::string& out, const Func& func);
@@ -280,27 +95,21 @@ class SandboxedLibraryEmitter : public EmitterBase {
                           std::string& out) const;
   absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
                                        bool add_includes) const;
+
   absl::StatusOr<ArgPtr> Convert(absl::string_view name, clang::QualType type,
                                  const clang::ParmVarDecl* param,
-                                 const clang::FunctionDecl* funcDecl);
-  absl::StatusOr<ArgPtr> ConvertImpl(const clang::ASTContext& context,
-                                     absl::string_view name,
-                                     clang::QualType type,
-                                     const clang::ParmVarDecl* param,
-                                     Annotations&& annotations);
-  absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
-                                               const clang::ParmVarDecl* param);
-  absl::StatusOr<Annotations> ParseAnnotations(
-      absl::string_view name, const clang::FunctionDecl* funcDecl);
-  absl::Status CheckParsedAnnotations(absl::string_view name,
-                                      const Annotations& annotations,
-                                      clang::QualType type) const;
-  absl::Status ParseStructSyncAccessPathAnnotations(
-      const std::vector<std::string>& annotation_args,
-      Annotations& annotations) const;
+                                 const clang::FunctionDecl* funcDecl) {
+    return ConvertArg(name, type, param, funcDecl, record_annotations_);
+  }
   absl::Status ParseStructAnnotationWrapperFunc(
       const clang::FunctionDecl& decl);
-  absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl);
+  absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl) {
+    ABSL_ASSIGN_OR_RETURN(auto record_annotations,
+                          sapi::ParseRecordAnnotations(decl));
+    std::string name = record_annotations.name;
+    record_annotations_[name] = std::move(record_annotations);
+    return absl::OkStatus();
+  }
 
   void RecordContextBindingSupportNeeded(
       const ContextBoundAnnotations& func_context_bound, const ArgPtr& ret,
@@ -309,18 +118,6 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::Status LinkAliasCallbackRelation(
       const clang::FunctionDecl* decl, const Annotations& func_decl_annotations,
       const ArgPtr& ret, const std::vector<ArgPtr>& args);
-  absl::StatusOr<ArgPtr> MakeCallbackArg(
-      absl::string_view name, absl::string_view type_name,
-      Annotations&& annotations, const clang::ParmVarDecl& param,
-      const clang::FunctionProtoType& function_type,
-      std::optional<std::string> functor_template_name);
-  absl::Status ExtractCallbackParams(
-      const clang::ParmVarDecl& param, std::vector<std::string>& param_names,
-      std::vector<std::string>& param_types,
-      std::vector<Annotations>& param_annotations);
-  absl::Status CheckCallbackParamAnnotations(
-      absl::string_view cb_name, absl::string_view cb_param_name,
-      Annotations& annotations, clang::QualType cb_param_type) const;
 
   std::vector<const Func*> SortedFuncs() const;
 

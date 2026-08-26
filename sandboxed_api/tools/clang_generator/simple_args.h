@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_SIMPLE_ARGS_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_SIMPLE_ARGS_H_
 
@@ -20,15 +21,14 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
+#include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg.h"
-#include "sandboxed_api/tools/clang_generator/ast_utils.h"
-#include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 
 namespace sapi {
 
 // Simple scalar arguments (ints).
 // Nothing to see here, move along.
-struct ScalarArg : SandboxedLibraryEmitter::Arg {
+struct ScalarArg : Arg {
   using Arg::Arg;
   std::string EmitHostArgs() const override { return name_; }
   std::string EmitSandboxeeParams() const override { return EmitHostParams(); }
@@ -51,7 +51,7 @@ struct ScalarArg : SandboxedLibraryEmitter::Arg {
 };
 
 // "const std::string&", these are always "input" to the library.
-struct StringConstRefArg : SandboxedLibraryEmitter::Arg {
+struct StringConstRefArg : Arg {
   using Arg::Arg;
   std::vector<std::string> Includes() const override { return {"<string>"}; }
   std::string EmitHostPreCall() const override {
@@ -100,7 +100,7 @@ struct StringArg : StringConstRefArg {
 };
 
 // "std::string&", input/output argument.
-struct StringRefArg : SandboxedLibraryEmitter::Arg {
+struct StringRefArg : Arg {
   using Arg::Arg;
   std::vector<std::string> Includes() const override {
     return {
@@ -143,7 +143,7 @@ struct StringRefArg : SandboxedLibraryEmitter::Arg {
 };
 
 // "std::string*", input/output argument.
-struct StringPtrArg : SandboxedLibraryEmitter::Arg {
+struct StringPtrArg : Arg {
   using Arg::Arg;
   std::vector<std::string> Includes() const override {
     return {
@@ -202,7 +202,7 @@ struct StringPtrArg : SandboxedLibraryEmitter::Arg {
 };
 
 // "std::string_view", pretty much the same as "const std::string&".
-struct StringViewArg : SandboxedLibraryEmitter::Arg {
+struct StringViewArg : Arg {
   using Arg::Arg;
   std::vector<std::string> Includes() const override {
     return {"<string_view>"};
@@ -232,7 +232,7 @@ struct StringViewArg : SandboxedLibraryEmitter::Arg {
 // yet support INOUT CString arguments (b/491826252), so the only time you
 // return an alias of a parameter is fairly trivial (e.g. return the input
 // unmodified).
-struct ConstCStrArg : SandboxedLibraryEmitter::Arg {
+struct ConstCStrArg : Arg {
   ConstCStrArg(absl::string_view name, absl::string_view type,
                PointerDir ptr_dir, PointerLifetime lifetime)
       : Arg(name, type), ptr_dir_(ptr_dir), lifetime_(lifetime) {

@@ -24,6 +24,7 @@ add_library(sapi_generator
   annotations.h
   arg.h
   arg_converter.cc
+  arg_converter.h
   ast_utils.cc
   ast_utils.h
   callback_arg.cc

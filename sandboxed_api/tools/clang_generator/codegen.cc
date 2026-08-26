@@ -19,8 +19,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg.h"
-#include "sandboxed_api/tools/clang_generator/ast_utils.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 #include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 

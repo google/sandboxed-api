@@ -33,7 +33,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "re2/re2.h"
 
-namespace sapi {
+namespace sapi::ast {
 
 std::optional<std::string> MemberNameOfAccessPath(absl::string_view path) {
   size_t dot_pos = path.rfind('.');
@@ -59,35 +59,6 @@ std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path) {
   return std::nullopt;
 }
 
-std::string ResolveContextName(absl::string_view context) {
-  if (context == "$return") {
-    return "sapi_ret_arg.GetValue()";
-  }
-  return std::string(context);
-}
-
-std::string CompileBindingExpr(absl::string_view context_var,
-                               absl::string_view expr, bool locked) {
-  std::string result;
-  std::string sub_expr(expr);
-  size_t last_pos = 0;
-  absl::string_view sp(sub_expr);
-  RE2 kBindingNameRegex("\\$([a-zA-Z_][a-zA-Z0-9_]*)");
-  std::string binding_name;
-  std::string lookup_helper =
-      locked ? "sapi_internal_get_context_binding_size_locked"
-             : "sapi_internal_get_context_binding_size";
-  while (RE2::FindAndConsume(&sp, kBindingNameRegex, &binding_name)) {
-    size_t match_pos =
-        sp.data() - sub_expr.data() - (binding_name.length() + 1);
-    absl::StrAppend(&result, sub_expr.substr(last_pos, match_pos - last_pos));
-    absl::SubstituteAndAppend(&result, "$0($1, \"$2\")", lookup_helper,
-                              context_var, binding_name);
-    last_pos = match_pos + binding_name.length() + 1;
-  }
-  result.append(sub_expr.substr(last_pos));
-  return result;
-}
 std::string getBody(clang::FunctionDecl* decl, bool full_decl) {
   if (!decl->hasBody()) {
     return "";
@@ -158,4 +129,4 @@ absl::Status ReplaceDeclaration(std::string& body, std::string old_name,
   return absl::OkStatus();
 }
 
-}  // namespace sapi
+}  // namespace sapi::ast

@@ -11,9 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_ARG_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_ARG_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -21,9 +23,13 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
-#include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 
 namespace sapi {
+
+constexpr absl::string_view kIncludePrefix = "";
+
+class Arg;
+using ArgPtr = std::unique_ptr<Arg>;
 
 // Base class for different types of arguments.
 // It provides an interface that allows to generate sandboxee/host wrappers
@@ -33,7 +39,7 @@ namespace sapi {
 // without knowing details of all possible argument types.
 // NOTE: Classes in this hierarchy should not hold AST elements
 // (like clang::QualType), as they will not be valid during Emit calls.
-class SandboxedLibraryEmitter::Arg {
+class Arg {
  public:
   Arg(absl::string_view name, absl::string_view type)
       : name_(name), type_(type) {}
@@ -54,6 +60,7 @@ class SandboxedLibraryEmitter::Arg {
   virtual std::string EmitSandboxeeArgs() const = 0;
   virtual std::string EmitSandboxeePreCall() const { return ""; }
   virtual std::string EmitSandboxeePostCall() const { return ""; }
+
   // TODO(dvyukov): Currently we pass return arguments as an additional argument
   // always to simplify the code. However, we could return scalar return values
   // directly since SAPI supports that, and that will be more efficient.

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "sandboxed_api/tools/clang_generator/arg_converter.h"
+
 #include <algorithm>
 #include <memory>
 #include <optional>
@@ -43,68 +45,20 @@
 #include "clang/AST/TypeLoc.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
+#include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg.h"
 #include "sandboxed_api/tools/clang_generator/callback_arg.h"
 #include "sandboxed_api/tools/clang_generator/pointer_arg.h"
-#include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 #include "sandboxed_api/tools/clang_generator/simple_args.h"
 
 namespace sapi {
-
-absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
-SandboxedLibraryEmitter::Convert(absl::string_view name, clang::QualType type,
-                                 const clang::ParmVarDecl* param,
-                                 const clang::FunctionDecl* funcDecl) {
-  Annotations annotations;
-  // Either we got a param or a funcDecl, but not both.
-  if (param && funcDecl) {
-    // TODO(cffsmith): improve this error message.
-    return absl::InvalidArgumentError(absl::Substitute(
-        "argument $0: cannot have both param and funcDecl", name));
-  }
-  if (!param && !funcDecl) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "argument $0: must have at least one of param and funcDecl", name));
-  }
-  const clang::ASTContext& context =
-      funcDecl ? funcDecl->getASTContext() : param->getASTContext();
-  if (param) {
-    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, param));
-  }
-  if (funcDecl) {
-    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, funcDecl));
-  }
-
-  if (type->isPointerType() && !type->isFunctionPointerType() &&
-      annotations.ptr_dir == std::nullopt) {
-    return absl::InvalidArgumentError(
-        absl::Substitute("argument $0 with type $1: missing sandbox annotation",
-                         name, type.getAsString()));
-  }
-
-  ABSL_ASSIGN_OR_RETURN(ArgPtr arg, ConvertImpl(context, name, type, param,
-                                                std::move(annotations)));
-  if (arg && ((param || funcDecl) || !arg->EmitRetParams().empty())) {
-    return arg;
-  }
-  if (param) {
-    return absl::UnimplementedError(absl::Substitute(
-        "arg $0: unsupported type: $1 ($2)", name, type.getAsString(),
-        type.getCanonicalType().getAsString()));
-  }
-  return absl::UnimplementedError(
-      absl::Substitute("unsupported return type: $0 ($1)", type.getAsString(),
-                       type.getCanonicalType().getAsString()));
-}
-
 namespace {
 
 // Returns true if the type is trivially copyable and wouldn't involve complex
 // lifetimes or aliasing (e.g., struct with pointer fields that are outputs).
 bool IsDeeplyTriviallyCopyableType(
     const clang::ASTContext& context, clang::QualType type,
-    const absl::flat_hash_map<std::string,
-                              SandboxedLibraryEmitter::RecordAnnotations>&
+    const absl::flat_hash_map<std::string, RecordAnnotations>&
         record_annotations) {
   if (type.isNull()) {
     return false;
@@ -131,7 +85,7 @@ bool IsDeeplyTriviallyCopyableType(
       return false;
     }
 
-    const SandboxedLibraryEmitter::RecordAnnotations* rec_ann = nullptr;
+    const RecordAnnotations* rec_ann = nullptr;
     auto it = record_annotations.find(record_decl->getName());
     if (it != record_annotations.end()) {
       rec_ann = &it->second;
@@ -180,8 +134,7 @@ bool IsSupportedOutParamNullTerminatedType(clang::QualType type) {
 // Returns true if the type is a supported context-bound outparam type.
 bool IsSupportedOutParamContextBoundType(
     const clang::ASTContext& context, clang::QualType type,
-    const absl::flat_hash_map<std::string,
-                              SandboxedLibraryEmitter::RecordAnnotations>&
+    const absl::flat_hash_map<std::string, RecordAnnotations>&
         record_annotations) {
   if (!type->isPointerType() || !type->getPointeeType()->isPointerType())
     return false;
@@ -194,89 +147,10 @@ bool IsSupportedArgByteSizedByType(clang::QualType type) {
   return type->isPointerType() && type->getPointeeType()->isVoidType();
 }
 
-}  // namespace
-
-absl::Status SandboxedLibraryEmitter::ExtractCallbackParams(
-    const clang::ParmVarDecl& param, std::vector<std::string>& param_names,
-    std::vector<std::string>& param_types,
-    std::vector<Annotations>& param_annotations) {
-  // Details: the Clang Type does not include the parameter names (more of
-  // a canonical type). However, the TypeSourceInfo and TypeLoc does let us
-  // retrieve that information.
-  auto* type_source_info = param.getTypeSourceInfo();
-  if (!type_source_info) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "callback $0 does not have type source info", param.getName().str()));
-  }
-  clang::TypeLoc tl = type_source_info->getTypeLoc();
-  while (true) {
-    tl = tl.getUnqualifiedLoc();
-    if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
-      tl = ptr_tl.getPointeeLoc();
-    } else if (auto ref_tl = tl.getAs<clang::ReferenceTypeLoc>()) {
-      tl = ref_tl.getPointeeLoc();
-    } else if (auto paren_tl = tl.getAs<clang::ParenTypeLoc>()) {
-      tl = paren_tl.getInnerLoc();
-    } else if (auto attr_tl = tl.getAs<clang::AttributedTypeLoc>()) {
-      tl = attr_tl.getModifiedLoc();
-#if LLVM_VERSION_MAJOR < 22
-      // ElaboratedType was removed from the AST in LLVM 22.
-    } else if (auto elab_tl = tl.getAs<clang::ElaboratedTypeLoc>()) {
-      tl = elab_tl.getNamedTypeLoc();
-#endif
-    } else if (auto spec_tl =
-                   tl.getAs<clang::TemplateSpecializationTypeLoc>()) {
-      if (spec_tl.getNumArgs() >= 1) {
-        clang::TemplateArgumentLoc arg_loc = spec_tl.getArgLoc(0);
-        if (arg_loc.getArgument().getKind() == clang::TemplateArgument::Type) {
-          if (clang::TypeSourceInfo* arg_tsi = arg_loc.getTypeSourceInfo()) {
-            tl = arg_tsi->getTypeLoc();
-            continue;
-          }
-        }
-      }
-      break;
-    } else {
-      break;
-    }
-  }
-  auto ftl = tl.getAs<clang::FunctionProtoTypeLoc>();
-  if (!ftl) {
-    return absl::InvalidArgumentError(
-        absl::Substitute("callback $0 does not have a function proto type loc",
-                         param.getName().str()));
-  }
-  param_names.reserve(ftl.getNumParams());
-  param_types.reserve(ftl.getNumParams());
-  param_annotations.reserve(ftl.getNumParams());
-  for (unsigned i = 0; i < ftl.getNumParams(); ++i) {
-    clang::ParmVarDecl* cb_param = ftl.getParam(i);
-    if (!cb_param) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "callback $0 does not have param $1", param.getName().str(), i));
-    }
-    // Check for the optional param names in a function pointer / function type.
-    // If not present, falls back to generic names (cb_arg0, cb_arg1, ...).
-    std::string param_name;
-    if (!cb_param->getName().empty()) {
-      param_name = cb_param->getNameAsString();
-    } else {
-      param_name = absl::StrFormat("cb_arg%u", i);
-    }
-    param_names.push_back(param_name);
-    param_types.push_back(cb_param->getType().getCanonicalType().getAsString());
-    ABSL_ASSIGN_OR_RETURN(Annotations annotations,
-                          ParseAnnotations(param_name, cb_param));
-    ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
-        param.getName().str(), param_name, annotations, cb_param->getType()));
-    param_annotations.push_back(std::move(annotations));
-  }
-  return absl::OkStatus();
-}
-
-absl::Status SandboxedLibraryEmitter::CheckCallbackParamAnnotations(
-    absl::string_view cb_name, absl::string_view cb_param_name,
-    Annotations& annotations, clang::QualType cb_param_type) const {
+absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
+                                           absl::string_view cb_param_name,
+                                           Annotations& annotations,
+                                           clang::QualType cb_param_type) {
   // For now, the callback trampolines only support integral, enumeration,
   // or pointer types as arguments (no floating point / vector types).
   if (cb_param_type->isIntegralOrEnumerationType()) {
@@ -369,7 +243,83 @@ absl::Status SandboxedLibraryEmitter::CheckCallbackParamAnnotations(
       cb_param_name, cb_param_type.getAsString()));
 }
 
-namespace {
+absl::Status ExtractCallbackParams(
+    const clang::ParmVarDecl& param, std::vector<std::string>& param_names,
+    std::vector<std::string>& param_types,
+    std::vector<Annotations>& param_annotations) {
+  // Details: the Clang Type does not include the parameter names (more of
+  // a canonical type). However, the TypeSourceInfo and TypeLoc does let us
+  // retrieve that information.
+  auto* type_source_info = param.getTypeSourceInfo();
+  if (!type_source_info) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 does not have type source info", param.getName().str()));
+  }
+  clang::TypeLoc tl = type_source_info->getTypeLoc();
+  while (true) {
+    tl = tl.getUnqualifiedLoc();
+    if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
+      tl = ptr_tl.getPointeeLoc();
+    } else if (auto ref_tl = tl.getAs<clang::ReferenceTypeLoc>()) {
+      tl = ref_tl.getPointeeLoc();
+    } else if (auto paren_tl = tl.getAs<clang::ParenTypeLoc>()) {
+      tl = paren_tl.getInnerLoc();
+    } else if (auto attr_tl = tl.getAs<clang::AttributedTypeLoc>()) {
+      tl = attr_tl.getModifiedLoc();
+#if LLVM_VERSION_MAJOR < 22
+      // ElaboratedType was removed from the AST in LLVM 22.
+    } else if (auto elab_tl = tl.getAs<clang::ElaboratedTypeLoc>()) {
+      tl = elab_tl.getNamedTypeLoc();
+#endif
+    } else if (auto spec_tl =
+                   tl.getAs<clang::TemplateSpecializationTypeLoc>()) {
+      if (spec_tl.getNumArgs() >= 1) {
+        clang::TemplateArgumentLoc arg_loc = spec_tl.getArgLoc(0);
+        if (arg_loc.getArgument().getKind() == clang::TemplateArgument::Type) {
+          if (clang::TypeSourceInfo* arg_tsi = arg_loc.getTypeSourceInfo()) {
+            tl = arg_tsi->getTypeLoc();
+            continue;
+          }
+        }
+      }
+      break;
+    } else {
+      break;
+    }
+  }
+  auto ftl = tl.getAs<clang::FunctionProtoTypeLoc>();
+  if (!ftl) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("callback $0 does not have a function proto type loc",
+                         param.getName().str()));
+  }
+  param_names.reserve(ftl.getNumParams());
+  param_types.reserve(ftl.getNumParams());
+  param_annotations.reserve(ftl.getNumParams());
+  for (unsigned i = 0; i < ftl.getNumParams(); ++i) {
+    clang::ParmVarDecl* cb_param = ftl.getParam(i);
+    if (!cb_param) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 does not have param $1", param.getName().str(), i));
+    }
+    // Check for the optional param names in a function pointer / function type.
+    // If not present, falls back to generic names (cb_arg0, cb_arg1, ...).
+    std::string param_name;
+    if (!cb_param->getName().empty()) {
+      param_name = cb_param->getNameAsString();
+    } else {
+      param_name = absl::StrFormat("cb_arg%u", i);
+    }
+    param_names.push_back(param_name);
+    param_types.push_back(cb_param->getType().getCanonicalType().getAsString());
+    ABSL_ASSIGN_OR_RETURN(Annotations annotations,
+                          ParseAnnotations(param_name, cb_param));
+    ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
+        param.getName().str(), param_name, annotations, cb_param->getType()));
+    param_annotations.push_back(std::move(annotations));
+  }
+  return absl::OkStatus();
+}
 
 // Given a type, if it is not a functor type, returns nullptr.
 // Otherwise, returns the underlying function proto type and sets
@@ -405,10 +355,7 @@ const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(
   return arg.getAsType()->getAs<clang::FunctionProtoType>();
 }
 
-}  // namespace
-
-absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
-SandboxedLibraryEmitter::MakeCallbackArg(
+absl::StatusOr<ArgPtr> MakeCallbackArg(
     absl::string_view name, absl::string_view type_name,
     Annotations&& annotations, const clang::ParmVarDecl& param,
     const clang::FunctionProtoType& function_type,
@@ -441,12 +388,12 @@ SandboxedLibraryEmitter::MakeCallbackArg(
       functor_template_name);
 }
 
-absl::StatusOr<SandboxedLibraryEmitter::ArgPtr>
-SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
-                                     absl::string_view name,
-                                     clang::QualType type,
-                                     const clang::ParmVarDecl* param,
-                                     Annotations&& annotations) {
+absl::StatusOr<ArgPtr> ConvertArgImpl(
+    const clang::ASTContext& context, absl::string_view name,
+    clang::QualType type, const clang::ParmVarDecl* param,
+    Annotations&& annotations,
+    const absl::flat_hash_map<std::string, RecordAnnotations>&
+        record_annotations) {
   bool is_param = param != nullptr;
   // We are not interested in typedefs.
   type = type.getCanonicalType();
@@ -522,12 +469,12 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
           name, type_name, PointeeTypeInfo(type), *annotations.ptr_dir,
           /*sized_by_type=*/std::monostate{}, /*lifetime=*/std::monostate{},
           std::move(annotations.context_bound),
-          std::move(annotations.struct_sync), record_annotations_);
+          std::move(annotations.struct_sync), record_annotations);
     }
     if (is_param) {
       if (!annotations.shallow_struct_sync && annotations.struct_sync.empty() &&
           !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
-                                         record_annotations_) &&
+                                         record_annotations) &&
           !((std::holds_alternative<ByteSizedBy>(annotations.size_type) ||
              std::holds_alternative<SizedByBinding>(annotations.size_type)) &&
             IsSupportedArgByteSizedByType(type)) &&
@@ -539,7 +486,7 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
           !(annotations.context_bound.copy_from_and_bind.has_value() &&
             annotations.ptr_dir == PointerDir::kOut &&
             IsSupportedOutParamContextBoundType(context, type,
-                                                record_annotations_))) {
+                                                record_annotations))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type", name));
       }
@@ -565,40 +512,37 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
     }
     return std::visit(
         absl::Overload{
-            [&](const std::monostate&)
-                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+            [&](const std::monostate&) -> absl::StatusOr<ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   std::monostate{}, annotations.lifetime,
                   std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations_);
+                  std::move(annotations.struct_sync), record_annotations);
             },
-            [&](const ElemSizedBy& elem_sized_by)
-                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+            [&](const ElemSizedBy& elem_sized_by) -> absl::StatusOr<ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   elem_sized_by, annotations.lifetime,
                   std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations_);
+                  std::move(annotations.struct_sync), record_annotations);
             },
-            [&](const ByteSizedBy& byte_sized_by)
-                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+            [&](const ByteSizedBy& byte_sized_by) -> absl::StatusOr<ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   byte_sized_by, annotations.lifetime,
                   std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations_);
+                  std::move(annotations.struct_sync), record_annotations);
             },
             [&](const SizedByBinding& sized_by_binding)
-                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+                -> absl::StatusOr<ArgPtr> {
               return std::make_unique<PointerArg>(
                   name, type_name, PointeeTypeInfo(type), *ptr_dir,
                   sized_by_binding, annotations.lifetime,
                   std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations_);
+                  std::move(annotations.struct_sync), record_annotations);
             },
             [&](const NullTerminated& null_terminated)
-                -> absl::StatusOr<SandboxedLibraryEmitter::ArgPtr> {
+                -> absl::StatusOr<ArgPtr> {
               if (annotations.context_bound.copy_from_and_bind.has_value()) {
                 // For context-bound null-terminated outputs, we handle that
                 // through PointerArg instead of ConstCStrArg. We could consider
@@ -607,7 +551,7 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
                     name, type_name, PointeeTypeInfo(type), *ptr_dir,
                     null_terminated, annotations.lifetime,
                     std::move(annotations.context_bound),
-                    std::move(annotations.struct_sync), record_annotations_);
+                    std::move(annotations.struct_sync), record_annotations);
               }
               // Return values, or input-only null-terminated pointers (char*):
               if (!is_param || ptr_dir == PointerDir::kIn) {
@@ -653,5 +597,54 @@ SandboxedLibraryEmitter::ConvertImpl(const clang::ASTContext& context,
   return nullptr;
 }
 
+}  // namespace
+
+absl::StatusOr<ArgPtr> ConvertArg(
+    absl::string_view name, clang::QualType type,
+    const clang::ParmVarDecl* param, const clang::FunctionDecl* funcDecl,
+    const absl::flat_hash_map<std::string, RecordAnnotations>&
+        record_annotations) {
+  Annotations annotations;
+  // Either we got a param or a funcDecl, but not both.
+  if (param && funcDecl) {
+    // TODO(cffsmith): improve this error message.
+    return absl::InvalidArgumentError(absl::Substitute(
+        "argument $0: cannot have both param and funcDecl", name));
+  }
+  if (!param && !funcDecl) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "argument $0: must have at least one of param and funcDecl", name));
+  }
+  const clang::ASTContext& context =
+      funcDecl ? funcDecl->getASTContext() : param->getASTContext();
+  if (param) {
+    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, param));
+  }
+  if (funcDecl) {
+    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, funcDecl));
+  }
+
+  if (type->isPointerType() && !type->isFunctionPointerType() &&
+      annotations.ptr_dir == std::nullopt) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("argument $0 with type $1: missing sandbox annotation",
+                         name, type.getAsString()));
+  }
+
+  ABSL_ASSIGN_OR_RETURN(
+      ArgPtr arg, ConvertArgImpl(context, name, type, param,
+                                 std::move(annotations), record_annotations));
+  if (arg && ((param || funcDecl) || !arg->EmitRetParams().empty())) {
+    return std::move(arg);
+  }
+  if (param) {
+    return absl::UnimplementedError(absl::Substitute(
+        "arg $0: unsupported type: $1 ($2)", name, type.getAsString(),
+        type.getCanonicalType().getAsString()));
+  }
+  return absl::UnimplementedError(
+      absl::Substitute("unsupported return type: $0 ($1)", type.getAsString(),
+                       type.getCanonicalType().getAsString()));
+}
 
 }  // namespace sapi

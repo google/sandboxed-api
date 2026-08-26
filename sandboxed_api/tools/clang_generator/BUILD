@@ -44,6 +44,7 @@ cc_library(
     hdrs = [
         "annotations.h",
         "arg.h",
+        "arg_converter.h",
         "ast_utils.h",
         "callback_arg.h",
         "diagnostics.h",

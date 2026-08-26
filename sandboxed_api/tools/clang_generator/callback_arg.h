@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_CALLBACK_ARG_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_CALLBACK_ARG_H_
 
@@ -25,21 +26,18 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
+#include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg.h"
-#include "sandboxed_api/tools/clang_generator/ast_utils.h"
-#include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 
 namespace sapi {
 
-struct CallbackArg : public SandboxedLibraryEmitter::Arg {
-  CallbackArg(
-      absl::string_view name, absl::string_view type,
-      SandboxedLibraryEmitter::Annotations ret_annotations,
-      std::vector<std::string> param_names,
-      std::vector<std::string> param_types,
-      std::vector<SandboxedLibraryEmitter::Annotations> param_annotations,
-      bool is_ret_pointer, std::string ret_type_name,
-      std::optional<std::string> functor_type_name = std::nullopt)
+struct CallbackArg : public Arg {
+  CallbackArg(absl::string_view name, absl::string_view type,
+              Annotations ret_annotations, std::vector<std::string> param_names,
+              std::vector<std::string> param_types,
+              std::vector<Annotations> param_annotations, bool is_ret_pointer,
+              std::string ret_type_name,
+              std::optional<std::string> functor_type_name = std::nullopt)
       : Arg(name, type),
         ret_annotations_(std::move(ret_annotations)),
         param_names_(std::move(param_names)),
@@ -241,17 +239,16 @@ struct CallbackArg : public SandboxedLibraryEmitter::Arg {
   std::string SyncAndTrackReturnedValue() const;
 
   std::string GetReturnSizeAsBytesExpr() const;
-  static bool IsScalarParam(
-      const SandboxedLibraryEmitter::Annotations& param_ann);
+  static bool IsScalarParam(const Annotations& param_ann);
 
   // TODO(b/491762076): We could consider something like ArgPtr subclasses
   // to wrap the param + annotations (or return value) emitter methods.
   // For now, we mostly need to emit host side code unlike `PointerArg`, and
   // the behavior is different (the directions are flipped, etc.).
-  const SandboxedLibraryEmitter::Annotations ret_annotations_;
+  const Annotations ret_annotations_;
   const std::vector<std::string> param_names_;
   const std::vector<std::string> param_types_;
-  const std::vector<SandboxedLibraryEmitter::Annotations> param_annotations_;
+  const std::vector<Annotations> param_annotations_;
   const bool is_ret_pointer_;
   const std::string ret_type_name_;
   const std::optional<std::string> functor_type_name_;

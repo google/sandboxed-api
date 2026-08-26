@@ -26,7 +26,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
-#include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
+#include "sandboxed_api/tools/clang_generator/annotations.h"
 
 namespace sapi {
 
@@ -55,8 +55,7 @@ std::string CallbackArg::GetReturnSizeAsBytesExpr() const {
       ret_annotations_.size_type);
 }
 
-bool CallbackArg::IsScalarParam(
-    const SandboxedLibraryEmitter::Annotations& param_ann) {
+bool CallbackArg::IsScalarParam(const Annotations& param_ann) {
   return !param_ann.ptr_dir.has_value() &&
          std::holds_alternative<std::monostate>(param_ann.size_type);
 }

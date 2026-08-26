@@ -24,9 +24,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 
-namespace sapi {
-
-constexpr absl::string_view kIncludePrefix = "";
+namespace sapi::ast {
 
 // Given an access path like "foo->baz", returns the member name "baz".
 // If there is no "->", returns std::nullopt.
@@ -44,14 +42,6 @@ std::optional<std::string> MemberNameOfAccessPath(absl::string_view path);
 // std::nullopt as well.
 std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path);
 
-std::string ResolveContextName(absl::string_view context);
-
-// Expands the `expr` and replaces all `$binding_name` with context binding
-// lookups. If `locked` is true, then the binding mutex is assumed to be held
-// already.
-std::string CompileBindingExpr(absl::string_view context_var,
-                               absl::string_view expr, bool locked);
-
 // Returns the body of the function, or an empty string if it has no body.
 // If full_decl is true, the entire function declaration is returned,
 // otherwise just the body.
@@ -66,9 +56,10 @@ std::string getFunctionDeclaration(clang::FunctionDecl* decl);
 absl::Status ReplaceCalls(std::string& body, std::string func_name,
                           std::string name);
 
+// Replaces the declaration name of old_name with new_name in body.
 absl::Status ReplaceDeclaration(std::string& body, std::string old_name,
                                 std::string new_name);
 
-}  // namespace sapi
+}  // namespace sapi::ast
 
 #endif  // SANDBOXED_API_TOOLS_CLANG_GENERATOR_AST_UTILS_H_

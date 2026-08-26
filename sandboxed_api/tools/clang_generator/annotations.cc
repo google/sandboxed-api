@@ -42,8 +42,6 @@
 #include "llvm/Support/Casting.h"
 #include "re2/re2.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
-#include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
-
 namespace sapi {
 
 std::string StripAnnotations(const std::string& input) {
@@ -81,12 +79,6 @@ std::string StripAnnotations(const std::string& input) {
   }
   return output;
 }
-std::string StripQuotes(absl::string_view str) {
-  if (str.size() >= 2 && str.front() == '"' && str.back() == '"') {
-    return std::string(str.substr(1, str.size() - 2));
-  }
-  return std::string(str);
-}
 
 absl::StatusOr<std::vector<SandboxAnnotation>> GetSandboxAnnotations(
     const clang::Decl* decl) {
@@ -121,108 +113,176 @@ absl::StatusOr<std::vector<SandboxAnnotation>> GetSandboxAnnotations(
   return annotations;
 }
 
-std::vector<std::string> GetAnnotations(clang::Decl* decl) {
-  auto result = GetSandboxAnnotations(decl);
-  if (!result.ok()) {
-    return {};
-  }
-  std::vector<std::string> annotations;
-  for (const auto& ann : *result) {
-    annotations.push_back(ann.name);
-    for (const auto& arg : ann.args) {
-      annotations.push_back(arg);
-    }
-  }
-  return annotations;
-}
-
 namespace {
 
-// Check that the shadow record declaration with annotations matches a real
-// record declaration. This is a real record declaration has the same name,
-// but should be declared in a parent declaration context.
-absl::Status CheckShadowRecordMatchesRealRecord(
-    const clang::RecordDecl& shadow_decl) {
-  llvm::StringRef record_name = shadow_decl.getName();
-  clang::ASTContext& ast_ctx = shadow_decl.getASTContext();
-  clang::IdentifierInfo& id_info = ast_ctx.Idents.get(record_name);
-  clang::DeclarationName dec_name(&id_info);
+std::string StripQuotes(absl::string_view str) {
+  if (str.size() >= 2 && str.front() == '"' && str.back() == '"') {
+    return std::string(str.substr(1, str.size() - 2));
+  }
+  return std::string(str);
+}
 
-  const clang::RecordDecl* real_record = nullptr;
-  // Search parent declaration contexts for a matching record declaration.
-  for (const clang::DeclContext* ctx = shadow_decl.getDeclContext();
-       ctx != nullptr; ctx = ctx->getParent()) {
-    auto lookup_result = ctx->lookup(dec_name);
-    for (clang::NamedDecl* nd : lookup_result) {
-      if (const auto* rd = clang::dyn_cast<clang::RecordDecl>(nd)) {
-        if (rd->getCanonicalDecl() != shadow_decl.getCanonicalDecl()) {
-          real_record = rd;
-          break;
-        }
-      }
+absl::Status CheckParsedAnnotations(absl::string_view name,
+                                    const Annotations& annotations,
+                                    clang::QualType type) {
+  if (annotations.context_bound.copy_from_and_bind.has_value() &&
+      std::holds_alternative<std::monostate>(annotations.size_type)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: copy_from_and_bind_out_ptr annotation requires a sized_by "
+        "annotation",
+        name));
+  }
+  if (annotations.context_bound.retain_and_bind.has_value() &&
+      std::holds_alternative<std::monostate>(annotations.size_type)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: retain_and_bind annotation requires a sized_by annotation", name));
+  }
+
+  if (!annotations.struct_sync.empty()) {
+    if (!clang::isa<clang::PointerType>(type) ||
+        !clang::isa<clang::RecordType>(
+            type->getPointeeType().getCanonicalType())) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("$0: struct_sync annotation should only be used "
+                           "for pointers to structs",
+                           name));
     }
-    if (real_record != nullptr) {
+
+    if (annotations.shallow_struct_sync) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("$0: `shallow_struct_sync` annotation does not "
+                           "need to be combined with `struct_sync` annotation",
+                           name));
+    }
+
+    // We don't yet support an array of struct pointers plus struct_sync.
+    if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "$0: array of struct pointers with struct_sync is not supported",
+          name));
+    }
+  }
+
+  if (annotations.shallow_struct_sync) {
+    if (!clang::isa<clang::PointerType>(type) ||
+        !clang::isa<clang::RecordType>(
+            type->getPointeeType().getCanonicalType())) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("$0: shallow_struct_sync annotation should only be "
+                           "used for pointers to structs",
+                           name));
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status ParseStructSyncAccessPathAnnotations(
+    const std::vector<std::string>& annotation_args, Annotations& annotations) {
+  if (annotation_args.empty()) {
+    return absl::InvalidArgumentError(
+        "struct_sync annotation requires a binding label prefix argument");
+  }
+  absl::string_view binding_prefix = annotation_args[0];
+  size_t i = 1;
+  while (i < annotation_args.size()) {
+    std::string item = StripQuotes(annotation_args[i]);
+    i++;
+    // Check if we hit the end of the list of access paths.
+    if (item == "$") {
       break;
     }
-  }
-
-  if (real_record == nullptr) {
-    return absl::NotFoundError(absl::Substitute(
-        "Could not find matching real struct definition for $0",
-        record_name.str()));
-  }
-
-  real_record = real_record->getDefinition();
-  if (real_record == nullptr) {
-    return absl::NotFoundError(absl::Substitute(
-        "Real struct $0 is declared but not defined", record_name.str()));
-  }
-
-  auto real_it = real_record->fields().begin();
-  auto real_end = real_record->fields().end();
-
-  // It is okay to skip some fields in the shadow struct, but the ones that are
-  // present should be in the same order and have matching names and types.
-  for (const clang::FieldDecl* shadow_field : shadow_decl.fields()) {
-    llvm::StringRef field_name = shadow_field->getName();
-    if (field_name.empty()) {
-      continue;
+    if (item.empty()) {
+      return absl::InvalidArgumentError(
+          "struct_sync access path group cannot be empty");
     }
+    // Otherwise, we should parse an access path group "{...}"
+    if (item.front() != '{') {
+      return absl::InvalidArgumentError(
+          "struct_sync access path group must start with '{'");
+    }
+    bool group_ends = false;
+    // Check if it's a single item group, like "{s->field}".
+    if (item.back() == '}') {
+      group_ends = true;
+      item.pop_back();
+    }
+    StructSync sync;
+    sync.access_path = item.substr(1);
+    if (sync.access_path.empty()) {
+      return absl::InvalidArgumentError(
+          "struct_sync access path cannot be empty");
+    }
+    std::optional<std::string> parent_prefix =
+        ast::ParentPrefixOfAccessPath(sync.access_path);
+    std::optional<std::string> member =
+        ast::MemberNameOfAccessPath(sync.access_path);
+    if (!parent_prefix.has_value() || !member.has_value()) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("struct_sync access path format $0 is not supported",
+                           sync.access_path));
+    }
+    // Parse any annotations (pointer direction, binding, etc.)
+    // for this access path.
+    while (!group_ends) {
+      if (i >= annotation_args.size()) {
+        return absl::InvalidArgumentError(
+            "Unexpected end of struct_sync arguments");
+      }
+      std::string annotation = annotation_args[i];
+      i++;
+      if (annotation.empty()) {
+        return absl::InvalidArgumentError(
+            "struct_sync access path attribute cannot be empty");
+      }
+      if (annotation.back() == '}') {
+        group_ends = true;
+        annotation.pop_back();
+      }
 
-    const clang::FieldDecl* matched_field = nullptr;
-    for (; real_it != real_end; ++real_it) {
-      if ((*real_it)->getName() == field_name) {
-        matched_field = *real_it;
-        ++real_it;
-        break;
+      // Parse a few annotations. Others we expect to be annotated
+      // at the struct level (see ParseRecordAnnotations).
+      if (annotation == "in_ptr") {
+        sync.ptr_dir = PointerDir::kIn;
+      } else if (annotation == "out_ptr") {
+        sync.ptr_dir = PointerDir::kOut;
+      } else if (annotation == "inout_ptr") {
+        sync.ptr_dir = PointerDir::kInOut;
+      } else if (absl::StartsWith(annotation, "retain_and_bind(")) {
+        absl::string_view annotation_view = annotation;
+        if (!absl::ConsumePrefix(&annotation_view, "retain_and_bind(") ||
+            !absl::ConsumeSuffix(&annotation_view, ")")) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0 attribute `retain_and_bind` "
+              "requires a context argument: $1",
+              sync.access_path, annotation));
+        }
+        std::string context = StripQuotes(annotation_view);
+        std::string binding_name =
+            absl::StrCat(binding_prefix, "_", sync.access_path);
+        for (char& c : binding_name) {
+          if (!absl::ascii_isalnum(c)) {
+            c = '_';
+          }
+        }
+        sync.context_bound.retain_and_bind =
+            RetainAndBind{context, binding_name};
+      } else {
+        return absl::InvalidArgumentError(
+            absl::Substitute("struct_sync access path attribute $0 is not "
+                             "supported",
+                             annotation));
       }
     }
-
-    if (matched_field == nullptr) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "field $0 not found in real record $1 (or is out of relative order)",
-          field_name.str(), record_name.str()));
-    }
-
-    clang::QualType shadow_type = shadow_field->getType().getCanonicalType();
-    clang::QualType real_type = matched_field->getType().getCanonicalType();
-    if (shadow_type != real_type) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("Type mismatch for field $0 in record $1: "
-                           "shadow type is '$2', but real type is '$3'",
-                           field_name.str(), record_name.str(),
-                           shadow_type.getAsString(), real_type.getAsString()));
-    }
+    annotations.struct_sync.push_back(std::move(sync));
   }
   return absl::OkStatus();
 }
 
 }  // namespace
 
-
-absl::StatusOr<SandboxedLibraryEmitter::Annotations>
-SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
-                                          const clang::FunctionDecl* funcDecl) {
+absl::StatusOr<Annotations> ParseAnnotations(
+    absl::string_view name, const clang::FunctionDecl* funcDecl) {
   Annotations annotations;
   ABSL_ASSIGN_OR_RETURN(auto parsed_annotations,
                         GetSandboxAnnotations(funcDecl));
@@ -347,9 +407,8 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
   return annotations;
 }
 
-absl::StatusOr<SandboxedLibraryEmitter::Annotations>
-SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
-                                          const clang::ParmVarDecl* param) {
+absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
+                                             const clang::ParmVarDecl* param) {
   Annotations annotations;
   // TODO(dvyukov): add more error checking with good error messages
   // (duplicate/conflicting/inapplicable annotations, non-existent arg names,
@@ -454,165 +513,90 @@ SandboxedLibraryEmitter::ParseAnnotations(absl::string_view name,
   return annotations;
 }
 
-absl::Status SandboxedLibraryEmitter::CheckParsedAnnotations(
-    absl::string_view name, const Annotations& annotations,
-    clang::QualType type) const {
-  if (annotations.context_bound.copy_from_and_bind.has_value() &&
-      std::holds_alternative<std::monostate>(annotations.size_type)) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "$0: copy_from_and_bind_out_ptr annotation requires a sized_by "
-        "annotation",
-        name));
-  }
-  if (annotations.context_bound.retain_and_bind.has_value() &&
-      std::holds_alternative<std::monostate>(annotations.size_type)) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "$0: retain_and_bind annotation requires a sized_by annotation", name));
-  }
+namespace {
 
-  if (!annotations.struct_sync.empty()) {
-    if (!clang::isa<clang::PointerType>(type) ||
-        !clang::isa<clang::RecordType>(
-            type->getPointeeType().getCanonicalType())) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("$0: struct_sync annotation should only be used "
-                           "for pointers to structs",
-                           name));
+// Check that the shadow record declaration with annotations matches a real
+// record declaration. This is a real record declaration has the same name,
+// but should be declared in a parent declaration context.
+absl::Status CheckShadowRecordMatchesRealRecord(
+    const clang::RecordDecl& shadow_decl) {
+  llvm::StringRef record_name = shadow_decl.getName();
+  clang::ASTContext& ast_ctx = shadow_decl.getASTContext();
+  clang::IdentifierInfo& id_info = ast_ctx.Idents.get(record_name);
+  clang::DeclarationName dec_name(&id_info);
+
+  const clang::RecordDecl* real_record = nullptr;
+  // Search parent declaration contexts for a matching record declaration.
+  for (const clang::DeclContext* ctx = shadow_decl.getDeclContext();
+       ctx != nullptr; ctx = ctx->getParent()) {
+    auto lookup_result = ctx->lookup(dec_name);
+    for (clang::NamedDecl* nd : lookup_result) {
+      if (const auto* rd = clang::dyn_cast<clang::RecordDecl>(nd)) {
+        if (rd->getCanonicalDecl() != shadow_decl.getCanonicalDecl()) {
+          real_record = rd;
+          break;
+        }
+      }
     }
-
-    if (annotations.shallow_struct_sync) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("$0: `shallow_struct_sync` annotation does not "
-                           "need to be combined with `struct_sync` annotation",
-                           name));
-    }
-
-    // We don't yet support an array of struct pointers plus struct_sync.
-    if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "$0: array of struct pointers with struct_sync is not supported",
-          name));
-    }
-  }
-
-  if (annotations.shallow_struct_sync) {
-    if (!clang::isa<clang::PointerType>(type) ||
-        !clang::isa<clang::RecordType>(
-            type->getPointeeType().getCanonicalType())) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("$0: shallow_struct_sync annotation should only be "
-                           "used for pointers to structs",
-                           name));
-    }
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status SandboxedLibraryEmitter::ParseStructSyncAccessPathAnnotations(
-    const std::vector<std::string>& annotation_args,
-    Annotations& annotations) const {
-  if (annotation_args.empty()) {
-    return absl::InvalidArgumentError(
-        "struct_sync annotation requires a binding label prefix argument");
-  }
-  absl::string_view binding_prefix = annotation_args[0];
-  size_t i = 1;
-  while (i < annotation_args.size()) {
-    std::string item = StripQuotes(annotation_args[i]);
-    i++;
-    // Check if we hit the end of the list of access paths.
-    if (item == "$") {
+    if (real_record != nullptr) {
       break;
     }
-    if (item.empty()) {
-      return absl::InvalidArgumentError(
-          "struct_sync access path group cannot be empty");
-    }
-    // Otherwise, we should parse an access path group "{...}"
-    if (item.front() != '{') {
-      return absl::InvalidArgumentError(
-          "struct_sync access path group must start with '{'");
-    }
-    bool group_ends = false;
-    // Check if it's a single item group, like "{s->field}".
-    if (item.back() == '}') {
-      group_ends = true;
-      item.pop_back();
-    }
-    StructSync sync;
-    sync.access_path = item.substr(1);
-    if (sync.access_path.empty()) {
-      return absl::InvalidArgumentError(
-          "struct_sync access path cannot be empty");
-    }
-    std::optional<std::string> parent_prefix =
-        ParentPrefixOfAccessPath(sync.access_path);
-    std::optional<std::string> member =
-        MemberNameOfAccessPath(sync.access_path);
-    if (!parent_prefix.has_value() || !member.has_value()) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("struct_sync access path format $0 is not supported",
-                           sync.access_path));
-    }
-    // Parse any annotations (pointer direction, binding, etc.)
-    // for this access path.
-    while (!group_ends) {
-      if (i >= annotation_args.size()) {
-        return absl::InvalidArgumentError(
-            "Unexpected end of struct_sync arguments");
-      }
-      std::string annotation = annotation_args[i];
-      i++;
-      if (annotation.empty()) {
-        return absl::InvalidArgumentError(
-            "struct_sync access path attribute cannot be empty");
-      }
-      if (annotation.back() == '}') {
-        group_ends = true;
-        annotation.pop_back();
-      }
+  }
 
-      // Parse a few annotations. Others we expect to be annotated
-      // at the struct level (see ParseRecordAnnotations).
-      if (annotation == "in_ptr") {
-        sync.ptr_dir = PointerDir::kIn;
-      } else if (annotation == "out_ptr") {
-        sync.ptr_dir = PointerDir::kOut;
-      } else if (annotation == "inout_ptr") {
-        sync.ptr_dir = PointerDir::kInOut;
-      } else if (absl::StartsWith(annotation, "retain_and_bind(")) {
-        absl::string_view annotation_view = annotation;
-        if (!absl::ConsumePrefix(&annotation_view, "retain_and_bind(") ||
-            !absl::ConsumeSuffix(&annotation_view, ")")) {
-          return absl::InvalidArgumentError(absl::Substitute(
-              "struct_sync access path $0 attribute `retain_and_bind` "
-              "requires a context argument: $1",
-              sync.access_path, annotation));
-        }
-        std::string context = StripQuotes(annotation_view);
-        std::string binding_name =
-            absl::StrCat(binding_prefix, "_", sync.access_path);
-        for (char& c : binding_name) {
-          if (!absl::ascii_isalnum(c)) {
-            c = '_';
-          }
-        }
-        sync.context_bound.retain_and_bind =
-            RetainAndBind{context, binding_name};
-      } else {
-        return absl::InvalidArgumentError(
-            absl::Substitute("struct_sync access path attribute $0 is not "
-                             "supported",
-                             annotation));
+  if (real_record == nullptr) {
+    return absl::NotFoundError(absl::Substitute(
+        "Could not find matching real struct definition for $0",
+        record_name.str()));
+  }
+
+  real_record = real_record->getDefinition();
+  if (real_record == nullptr) {
+    return absl::NotFoundError(absl::Substitute(
+        "Real struct $0 is declared but not defined", record_name.str()));
+  }
+
+  auto real_it = real_record->fields().begin();
+  auto real_end = real_record->fields().end();
+
+  // It is okay to skip some fields in the shadow struct, but the ones that are
+  // present should be in the same order and have matching names and types.
+  for (const clang::FieldDecl* shadow_field : shadow_decl.fields()) {
+    llvm::StringRef field_name = shadow_field->getName();
+    if (field_name.empty()) {
+      continue;
+    }
+
+    const clang::FieldDecl* matched_field = nullptr;
+    for (; real_it != real_end; ++real_it) {
+      if ((*real_it)->getName() == field_name) {
+        matched_field = *real_it;
+        ++real_it;
+        break;
       }
     }
-    annotations.struct_sync.push_back(std::move(sync));
+
+    if (matched_field == nullptr) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "field $0 not found in real record $1 (or is out of relative order)",
+          field_name.str(), record_name.str()));
+    }
+
+    clang::QualType shadow_type = shadow_field->getType().getCanonicalType();
+    clang::QualType real_type = matched_field->getType().getCanonicalType();
+    if (shadow_type != real_type) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("Type mismatch for field $0 in record $1: "
+                           "shadow type is '$2', but real type is '$3'",
+                           field_name.str(), record_name.str(),
+                           shadow_type.getAsString(), real_type.getAsString()));
+    }
   }
   return absl::OkStatus();
 }
 
-absl::Status SandboxedLibraryEmitter::ParseRecordAnnotations(
+}  // namespace
+
+absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
     const clang::RecordDecl& decl) {
   llvm::StringRef record_name = decl.getName();
   if (record_name.empty()) {
@@ -677,9 +661,37 @@ absl::Status SandboxedLibraryEmitter::ParseRecordAnnotations(
 
   ABSL_RETURN_IF_ERROR(CheckShadowRecordMatchesRealRecord(decl));
 
-  record_annotations_[record_name] = std::move(record_annotations);
-  return absl::OkStatus();
+  return record_annotations;
 }
 
+std::string ResolveContextName(absl::string_view context) {
+  if (context == "$return") {
+    return "sapi_ret_arg.GetValue()";
+  }
+  return std::string(context);
+}
+
+std::string CompileBindingExpr(absl::string_view context_var,
+                               absl::string_view expr, bool locked) {
+  std::string result;
+  std::string sub_expr(expr);
+  size_t last_pos = 0;
+  absl::string_view sp(sub_expr);
+  RE2 kBindingNameRegex("\\$([a-zA-Z_][a-zA-Z0-9_]*)");
+  std::string binding_name;
+  std::string lookup_helper =
+      locked ? "sapi_internal_get_context_binding_size_locked"
+             : "sapi_internal_get_context_binding_size";
+  while (RE2::FindAndConsume(&sp, kBindingNameRegex, &binding_name)) {
+    size_t match_pos =
+        sp.data() - sub_expr.data() - (binding_name.length() + 1);
+    absl::StrAppend(&result, sub_expr.substr(last_pos, match_pos - last_pos));
+    absl::SubstituteAndAppend(&result, "$0($1, \"$2\")", lookup_helper,
+                              context_var, binding_name);
+    last_pos = match_pos + binding_name.length() + 1;
+  }
+  result.append(sub_expr.substr(last_pos));
+  return result;
+}
 
 }  // namespace sapi
