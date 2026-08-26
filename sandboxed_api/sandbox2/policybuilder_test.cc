@@ -410,5 +410,13 @@ TEST(PolicyBuilderTest, DisablingNamespacesRejectedWhenNamespacesRequired) {
   EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
 }
 
+TEST(PolicyBuilderTest, OverlongUserPolicy) {
+  PolicyBuilder builder;
+  std::vector<sock_filter> filter(60000,
+                                  BPF_STMT(BPF_ALU | BPF_ADD | BPF_K, 0));
+  builder.AddPolicyOnSyscall(__NR_write, filter);
+  EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
+}
+
 }  // namespace
 }  // namespace sandbox2
