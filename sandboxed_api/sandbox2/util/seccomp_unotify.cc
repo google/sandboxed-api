@@ -176,9 +176,6 @@ absl::StatusOr<seccomp_notif> SeccompUnotify::Receive() {
   memset(req_.get(), 0, req_size_);
   if (seccomp_unotify_iface_->ReceiveNotification(seccomp_notify_fd_.get(),
                                                   req_.get()) != 0) {
-    if (errno == ENOENT) {
-      return absl::NotFoundError("Failed to receive notification");
-    }
     return absl::ErrnoToStatus(errno, "Failed to receive notification");
   }
   return *req_;
