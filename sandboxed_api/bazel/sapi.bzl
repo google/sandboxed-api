@@ -120,16 +120,12 @@ def _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths):
     flags += ["--extra-arg=-I{}".format(d) for d in cc_ctx.includes.to_list()]
     return flags
 
-def _lib_direct_headers(lib, cc_ctx):
+def _lib_direct_headers(lib):
     headers = []
-    for h in cc_ctx.direct_public_headers:
+    for h in lib[CcInfo].compilation_context.direct_public_headers:
         if h.extension != "h" or "/PROTECTED/" in h.path:
             continue
-
-        # Include only headers coming from the target
-        # not ones that it depends on by comparing the label packages.
-        if (h.owner.package == lib.label.package):
-            headers.append(h.path)
+        headers.append(h.path)
 
     return headers
 
@@ -195,7 +191,7 @@ def _sapi_interface_impl(ctx):
             input_files_paths.append(f.path)
     else:
         # Try to find files automatically
-        input_files_paths += _lib_direct_headers(ctx.attr.lib, cc_ctx)
+        input_files_paths += _lib_direct_headers(ctx.attr.lib)
 
     input_files += cpp_toolchain.all_files.to_list()
     extra_flags += _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths)
@@ -847,14 +843,14 @@ def _sandboxed_library_gen_impl(ctx):
     args.append("--host_src_out={}".format(ctx.outputs.host_src_out.path))
     args.append("--sapi_out={}".format(ctx.attr.sapi_hdr))
     args.append("--sapi_limit_scan_depth")
-    args.append("--library_headers=" + ",".join(_lib_direct_headers(ctx.attr.lib, cc_ctx)))
+    args.append("--library_headers=" + ",".join(_lib_direct_headers(ctx.attr.lib)))
 
     # Note: the srcs files on the cc_sandboxed_library should go first
     # b/c they may alter how the library headers are interpreted.
     input_files_paths = []
     for f in ctx.files.srcs:
         input_files_paths.append(f.path)
-    for f in _lib_direct_headers(ctx.attr.lib, cc_ctx):
+    for f in _lib_direct_headers(ctx.attr.lib):
         input_files_paths.append(f)
     args += _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths)
     args += input_files_paths
