@@ -642,6 +642,7 @@ def cc_sandboxed_library(
         generator_version = 2,
         deps = [
             "//sandboxed_api:lenval_core",
+            "//sandboxed_api/lwbox/runtime:sandbox_config",
             "//sandboxed_api/sandbox2/util:bpf_helper",
             "@abseil-cpp//absl/log:check",
             "@abseil-cpp//absl/container:flat_hash_map",

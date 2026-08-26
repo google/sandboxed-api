@@ -74,6 +74,7 @@ constexpr absl::string_view kHostHeader = R"(
 #include "$0absl/types/span.h"
 #include "$0sandboxed_api/vars.h"
 #include "$0sandboxed_api/sandbox.h"
+#include "$0sandboxed_api/lwbox/runtime/sandbox_config.h"
 
 __attribute__((weak))
 std::unique_ptr<sandbox2::Policy> $1SandboxModifyPolicy(
@@ -108,8 +109,7 @@ struct $1SandboxImpl : public $1Sandbox {
 
   static sapi::SandboxConfig CreateSandboxConfig() {
     sandbox2::PolicyBuilder builder =
-        sapi::Sandbox2Config::DefaultPolicyBuilder();
-    builder.AllowMultithreading();
+        sapi::lwbox::DefaultPolicyBuilder();
     return {
         .environment_variables =
             sapi::SandboxConfig::DefaultEnvironmentVariables(),
