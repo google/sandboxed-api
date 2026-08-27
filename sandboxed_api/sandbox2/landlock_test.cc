@@ -50,6 +50,7 @@ namespace {
 
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
+using ::sapi::GetTestTempPath;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::Eq;
@@ -464,10 +465,9 @@ TEST_F(LandlockTest, GlobalForkserverShutdownAndRestartWorks) {
 TEST_F(LandlockTest, LandlockTruncateAndReferAccess) {
   const std::string path = GetTestcaseBinPath("namespace");
 
-  SAPI_ASSERT_OK_AND_ASSIGN(std::string rel_temp_dir,
-                            sapi::CreateTempDir("landlock_test_"));
-  std::string temp_dir = sapi::file_util::fileops::MakeAbsolute(
-      rel_temp_dir, sapi::file_util::fileops::GetCWD());
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      std::string temp_dir,
+      sapi::CreateTempDir(GetTestTempPath("landlock_test_")));
 
   std::string dir1 = sapi::file::JoinPath(temp_dir, "dir1");
   std::string dir2 = sapi::file::JoinPath(temp_dir, "dir2");
