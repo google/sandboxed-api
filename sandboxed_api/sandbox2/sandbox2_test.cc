@@ -513,6 +513,34 @@ INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),
                                              : "PtraceMonitor";
                          });
 
+TEST(Sandbox2Test, PtraceMonitorWithoutDeadlineManager) {
+  absl::SetFlag(&FLAGS_sandbox2_monitor_ptrace_use_deadline_manager, false);
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
+TEST(Sandbox2Test, PtraceMonitorWithDeadlineManagerRespectsTimeout) {
+  absl::SetFlag(&FLAGS_sandbox2_monitor_ptrace_use_deadline_manager, true);
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+  sandbox.set_walltime_limit(absl::Seconds(1));
+  auto result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::TIMEOUT));
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
 void BM_MinimalSandbox(benchmark::State& state) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   const std::unique_ptr<Policy> policy_to_copy =
