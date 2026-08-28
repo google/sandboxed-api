@@ -382,7 +382,6 @@ def sapi_library(
         ] + exported_funcs  # must be both referenced, and exported
 
     lib_hdrs = hdrs or []
-
     lib_hdrs.append(generated_header)
 
     default_deps = ["//sandboxed_api/sandbox2"]
