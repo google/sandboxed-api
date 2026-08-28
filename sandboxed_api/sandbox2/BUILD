@@ -1180,6 +1180,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:custom_fork",
         "//sandboxed_api/sandbox2/testcases:minimal",
         "//sandboxed_api/sandbox2/testcases:pthreads",
+        "//sandboxed_api/sandbox2/testcases:sendrecv",
         "//sandboxed_api/sandbox2/testcases:shared_memory",
         "//sandboxed_api/sandbox2/testcases:sleep",
         "//sandboxed_api/sandbox2/testcases:starve",

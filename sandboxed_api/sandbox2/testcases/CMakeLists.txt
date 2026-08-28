@@ -488,3 +488,19 @@ target_link_libraries(sandbox2_testcase_pthreads PRIVATE
   sandbox2::forkingclient
   sapi::base
 )
+
+# sandboxed_api/sandbox2/testcases:sendrecv
+add_executable(sandbox2_testcase_sendrecv
+  sendrecv.cc
+)
+add_executable(sandbox2::testcase_sendrecv ALIAS sandbox2_testcase_sendrecv)
+set_target_properties(sandbox2_testcase_sendrecv PROPERTIES
+  OUTPUT_NAME sendrecv
+)
+target_link_libraries(sandbox2_testcase_sendrecv PRIVATE
+  -static-pie
+  absl::check
+  absl::log
+  sandbox2::comms
+  sapi::base
+)

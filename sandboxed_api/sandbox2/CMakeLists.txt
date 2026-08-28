@@ -1254,6 +1254,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_custom_fork
     sandbox2::testcase_minimal
     sandbox2::testcase_pthreads
+    sandbox2::testcase_sendrecv
     sandbox2::testcase_sleep
     sandbox2::testcase_tsync
   )

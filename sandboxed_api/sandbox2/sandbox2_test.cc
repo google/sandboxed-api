@@ -74,11 +74,27 @@ using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
+using ::testing::InSequence;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
 using ::testing::Lt;
 using ::testing::Ne;
+using ::testing::StartsWith;
+
+class ScopedVLogLevel {
+ public:
+  ScopedVLogLevel(absl::string_view module, int level)
+      : module_(module), previous_level_(absl::SetVLogLevel(module, level)) {}
+  ~ScopedVLogLevel() { absl::SetVLogLevel(module_, previous_level_); }
+
+  ScopedVLogLevel(const ScopedVLogLevel&) = delete;
+  ScopedVLogLevel& operator=(const ScopedVLogLevel&) = delete;
+
+ private:
+  std::string module_;
+  int previous_level_;
+};
 
 class Sandbox2Test : public ::testing::TestWithParam<bool> {
  public:
@@ -488,8 +504,53 @@ TEST_P(Sandbox2Test, PreProtobufConfigVersionWorks) {
   EXPECT_EQ(result.reason_code(), 0);
 }
 
+TEST_P(Sandbox2Test, DumpStackTrace) {
+  ScopedVLogLevel ptrace_vlog("monitor_ptrace", 1);
+  ScopedVLogLevel unotify_vlog("monitor_unotify", 1);
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sendrecv");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+  Comms& comms = *sandbox.comms();
+  absl::ScopedMockLog log;
+  std::vector<std::string> stack;
+  absl::Notification log_matched;
+  {
+    testing::InSequence seq;
+    EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_,
+                         StartsWith("SANDBOX STACK: PID:")));
+    EXPECT_CALL(log,
+                Log(absl::LogSeverity::kInfo, testing::_, StartsWith("  ")))
+        .Times(testing::AtLeast(1))
+        .WillRepeatedly(
+            [&stack](absl::LogSeverity severity, const std::string& file_path,
+                     const std::string& message) { stack.push_back(message); });
+    EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_, StartsWith("]")))
+        .WillOnce([&log_matched] { log_matched.Notify(); });
+    EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_, testing::_))
+        .Times(testing::AnyNumber());
+  }
+  bool b;
+  ASSERT_THAT(comms.RecvBool(&b), IsTrue());
+  EXPECT_THAT(b, IsTrue());
+  log.StartCapturingLogs();
+  sandbox.DumpStackTrace();
+  EXPECT_THAT(log_matched.WaitForNotificationWithTimeout(absl::Seconds(5)),
+              IsTrue());
+  EXPECT_THAT(stack, Contains(StartsWith("  main")));
+  log.StopCapturingLogs();
+  ASSERT_THAT(comms.SendBool(true), IsTrue());
+  auto result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
 TEST(Sandbox2Test, VlogLogsFilesystem) {
-  absl::SetVLogLevel("monitor_base", 1);
+  ScopedVLogLevel vlog("monitor_base", 1);
 
   absl::ScopedMockLog log;
   EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_,

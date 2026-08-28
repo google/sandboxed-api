@@ -399,3 +399,15 @@ cc_binary(
         "//sandboxed_api/sandbox2:forkingclient",
     ],
 )
+
+cc_binary(
+    name = "sendrecv",
+    testonly = True,
+    srcs = ["sendrecv.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = [
+        "//sandboxed_api/sandbox2:comms",
+        "@abseil-cpp//absl/log:check",
+    ],
+)

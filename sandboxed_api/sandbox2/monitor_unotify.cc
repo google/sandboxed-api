@@ -342,6 +342,19 @@ void UnotifyMonitor::Run() {
       break;
     }
 
+    if (!dump_stack_request_flag_.test_and_set(std::memory_order_relaxed)) {
+      auto stack_trace = GetStackTrace(process_.main_pid);
+      if (!stack_trace.ok()) {
+        LOG(ERROR) << "FAILED TO GET SANDBOX STACK: " << stack_trace.status();
+      } else {
+        VLOG(0) << "SANDBOX STACK: PID: " << process_.main_pid << ", [";
+        for (const auto& frame : *stack_trace) {
+          VLOG(0) << "  " << frame;
+        }
+        VLOG(0) << "]";
+      }
+    }
+
     if (network_proxy_server_ &&
         network_proxy_server_->violation_occurred_.load(
             std::memory_order_acquire) &&
