@@ -31,6 +31,8 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -254,6 +256,38 @@ TEST_P(NotifyTest, InspectAfterSyscall) {
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
   EXPECT_TRUE(notify_ptr->syscall_return_called());
+}
+
+class AbortOnStartNotify : public Notify {
+ public:
+  bool EventStarted(pid_t pid, Comms* comms) override { return false; }
+};
+
+TEST(NotifyTest, AbortOnStartNotifyWorks) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy),
+              std::make_unique<AbortOnStartNotify>());
+  auto result = s2.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_NOTIFY));
+}
+
+TEST(NotifyTest, AbortOnStartNotifyWorksWithoutNamespaces) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            PolicyBuilder()
+                                .DefaultAction(AllowAllSyscalls())
+                                .DisableNamespaces(NamespacesToken())
+                                .TryBuild());
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy),
+              std::make_unique<AbortOnStartNotify>());
+  auto result = s2.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_NOTIFY));
 }
 
 INSTANTIATE_TEST_SUITE_P(Notify, NotifyTest, ::testing::Values(false, true),

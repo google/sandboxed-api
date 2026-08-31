@@ -1189,6 +1189,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME notify_test
   )
   add_dependencies(sandbox2_notify_test
+    sandbox2::allowlists_all_syscalls
+    sandbox2::allowlists_namespaces
     sandbox2::testcase_minimal
     sandbox2::testcase_personality
     sandbox2::testcase_pidcomms

@@ -1129,6 +1129,8 @@ cc_test(
         ":comms",
         ":sandbox2",
         "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2/allowlists:all_syscalls",
+        "//sandboxed_api/sandbox2/allowlists:namespaces",
         "//sandboxed_api/sandbox2/allowlists:trace_all_syscalls",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
