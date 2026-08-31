@@ -139,9 +139,6 @@ def _clang_format_file(src, out, **kwargs):
     )
 
 def _sapi_interface_impl(ctx):
-    if ctx.attr.generator_version == 1:
-        fail("generator_version=1 is no longer supported.")
-
     cpp_toolchain = find_cpp_toolchain(ctx)
 
     # TODO(szwl): warn if input_files is not set and we didn't find anything
@@ -238,10 +235,6 @@ sapi_interface = rule(
         "api_version": attr.int(
             default = 1,  # Always set by sapi_library
         ),
-        "generator_version": attr.int(
-            default = 3,  # Always set by sapi_library
-            values = [2, 3],
-        ),
         "sandbox_mode": attr.string(default = "sandbox2"),
         "symbol_list_gen": attr.bool(default = False),
         # TODO(cblichmann): Add prebuilt version of Clang based generator
@@ -275,7 +268,6 @@ def symbol_list_gen(name, lib, out, **kwargs):
         safe_wrapper_generation = False,
         symbol_list_gen = True,
         limit_scan_depth = True,
-        generator_version = 2,
         **kwargs
     )
 
@@ -308,7 +300,6 @@ def sapi_library(
         input_files = [],
         deps = [],
         tags = [],
-        generator_version = 3,
         visibility = None,
         compatible_with = None,
         default_copts = [],
@@ -342,10 +333,6 @@ def sapi_library(
         should scan for function declarations
       deps: Extra dependencies to add to the SAPI library
       tags: Extra tags to associate with the target
-      generator_version: Which version the the interface generator to use
-        (experimental). Version 2 uses the newer C++ implementation that uses the full clang
-        compiler front-end for parsing. Version 3 is similar to version 2 but also emits code for
-        the sandboxee binary. Both emit equivalent Sandboxed APIs.
       visibility: Target visibility
       compatible_with: The list of environments this target can be built for,
         in addition to default-supported environments.
@@ -359,27 +346,11 @@ def sapi_library(
     generated_file_prefix = name + ".sapi"
     generated_header = generated_file_prefix + ".h"
     generated_sandboxee_src = generated_file_prefix + ".sandboxee.cc"
-    use_sandboxee_generation = generator_version == 3
     if sandbox_mode == "passthrough":
         embed = False
     in_process = sandbox_mode == "passthrough"
 
-    if use_sandboxee_generation:
-        sandboxee_linkopts = []
-    else:
-        # Reference (pull into the archive) required functions only. If the functions'
-        # array is empty, pull in the whole archive (may not compile with MSAN).
-        exported_funcs = ["-Wl,-u," + s for s in functions]
-        if (not exported_funcs):
-            exported_funcs = [
-                "-Wl,--whole-archive",
-                "-Wl,--allow-multiple-definition",
-            ]
-        sandboxee_linkopts = [
-            "-ldl",  # For dlopen(), dlsym()
-            # The sandboxing client must have access to all
-            "-Wl,-E",  # symbols used in the sandboxed library, so these
-        ] + exported_funcs  # must be both referenced, and exported
+    sandboxee_linkopts = []
 
     lib_hdrs = hdrs or []
     lib_hdrs.append(generated_header)
@@ -396,28 +367,25 @@ def sapi_library(
     else:
         fail("Unsupported sandbox mode: " + sandbox_mode)
 
-    if use_sandboxee_generation:
-        cc_library(
-            name = name + ".sandboxee",
-            srcs = [generated_sandboxee_src],
-            deps = [
-                ":" + name + ".lib",
-                "//sandboxed_api:client",
-                "@abseil-cpp//absl/base:core_headers",
-                "@abseil-cpp//absl/base:no_destructor",
-                "@abseil-cpp//absl/container:flat_hash_map",
-                "@abseil-cpp//absl/log",
-                "@abseil-cpp//absl/strings:string_view",
-                "//sandboxed_api:call",
-                "//sandboxed_api:function_call_helper",
-            ],
-            alwayslink = 1,
-            copts = default_copts,
-            **common
-        )
-        client_message_handler = ":" + name + ".sandboxee"
-    else:
-        client_message_handler = "//sandboxed_api:client_message_handler"
+    cc_library(
+        name = name + ".sandboxee",
+        srcs = [generated_sandboxee_src],
+        deps = [
+            ":" + name + ".lib",
+            "//sandboxed_api:client",
+            "@abseil-cpp//absl/base:core_headers",
+            "@abseil-cpp//absl/base:no_destructor",
+            "@abseil-cpp//absl/container:flat_hash_map",
+            "@abseil-cpp//absl/log",
+            "@abseil-cpp//absl/strings:string_view",
+            "//sandboxed_api:call",
+            "//sandboxed_api:function_call_helper",
+        ],
+        alwayslink = 1,
+        copts = default_copts,
+        **common
+    )
+    client_message_handler = ":" + name + ".sandboxee"
 
     # Library that contains generated interface and sandboxed binary as a data
     # dependency. Add this as a dependency instead of original library.
@@ -490,24 +458,18 @@ def sapi_library(
         functions = functions,
         input_files = input_files,
         out = generated_header + ".unformatted",
-        sandboxee_src_out = generated_sandboxee_src + ".unformatted" if use_sandboxee_generation else None,
+        sandboxee_src_out = generated_sandboxee_src + ".unformatted",
         embed_name = embed_name,
         embed_dir = embed_dir,
         namespace = namespace,
         api_version = api_version,
-        generator_version = generator_version,
         limit_scan_depth = limit_scan_depth,
         sandbox_mode = sandbox_mode,
         **common
     )
 
     _clang_format_file(generated_header + ".unformatted", generated_header, **common)
-    if use_sandboxee_generation:
-        _clang_format_file(
-            generated_sandboxee_src + ".unformatted",
-            generated_sandboxee_src,
-            **common
-        )
+    _clang_format_file(generated_sandboxee_src + ".unformatted", generated_sandboxee_src, **common)
 
 def cc_sandboxed_library(
         name,
@@ -638,7 +600,6 @@ def cc_sandboxed_library(
             name + ".sapi.host.cc",
         ],
         limit_scan_depth = True,
-        generator_version = 2,
         deps = [
             "//sandboxed_api:lenval_core",
             "//sandboxed_api/lwbox/runtime:sandbox_config",
