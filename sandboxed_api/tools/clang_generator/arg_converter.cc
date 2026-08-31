@@ -39,7 +39,6 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
@@ -47,6 +46,7 @@
 #include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg.h"
+#include "sandboxed_api/tools/clang_generator/ast_utils.h"
 #include "sandboxed_api/tools/clang_generator/callback_arg.h"
 #include "sandboxed_api/tools/clang_generator/pointer_arg.h"
 #include "sandboxed_api/tools/clang_generator/simple_args.h"
@@ -321,40 +321,6 @@ absl::Status ExtractCallbackParams(
   return absl::OkStatus();
 }
 
-// Given a type, if it is not a functor type, returns nullptr.
-// Otherwise, returns the underlying function proto type and sets
-// `template_name` (e.g., "std::function", "absl::AnyInvocable").
-const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(
-    clang::QualType type, std::string& template_name) {
-  clang::QualType non_ref = type.getNonReferenceType();
-  const auto* record_decl = non_ref->getAsRecordDecl();
-  if (!record_decl) {
-    return nullptr;
-  }
-  const auto* spec_decl =
-      clang::dyn_cast<clang::ClassTemplateSpecializationDecl>(record_decl);
-  if (!spec_decl) {
-    return nullptr;
-  }
-  template_name =
-      spec_decl->getSpecializedTemplate()->getQualifiedNameAsString();
-  if (template_name != "std::function" &&
-      template_name != "absl::AnyInvocable") {
-    return nullptr;
-  }
-  // Extract the underlying function proto type from the template arguments
-  // (e.g., `void(int, char*)` from `std::function<void(int, char*)>`).
-  const auto& args = spec_decl->getTemplateArgs();
-  if (args.size() < 1) {
-    return nullptr;
-  }
-  const clang::TemplateArgument& arg = args[0];
-  if (arg.getKind() != clang::TemplateArgument::Type) {
-    return nullptr;
-  }
-  return arg.getAsType()->getAs<clang::FunctionProtoType>();
-}
-
 absl::StatusOr<ArgPtr> MakeCallbackArg(
     absl::string_view name, absl::string_view type_name,
     Annotations&& annotations, const clang::ParmVarDecl& param,
@@ -439,7 +405,7 @@ absl::StatusOr<ArgPtr> ConvertArgImpl(
   }
   std::string template_name;
   if (const auto* functor_type =
-          GetFunctorUnderlyingFunctionType(type, template_name)) {
+          ast::GetFunctorUnderlyingFunctionType(type, template_name)) {
     if (param == nullptr) {
       return absl::InvalidArgumentError(
           absl::Substitute("return C++ functor $0 is not supported", name));

@@ -84,7 +84,7 @@ uint8_t* ret_alias_called_multiple_times(int num_chunks, size_t chunk_size,
     if (last_chunk == nullptr) {
       return nullptr;
     }
-    memset(last_chunk, i, chunk_size);
+    memset(last_chunk, i + 10, chunk_size);
   }
   return return_second_last ? second_last_chunk : last_chunk;
 }

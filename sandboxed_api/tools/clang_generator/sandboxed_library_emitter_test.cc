@@ -29,6 +29,7 @@ namespace sapi {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::Not;
 
@@ -103,6 +104,60 @@ TEST_F(SandboxedLibraryEmitterTest, StdStringPointerSupport) {
   EXPECT_THAT(*sandboxee_src, HasSubstr("sapi_tmp_ptr_str = &sapi_tmp_str;"));
   EXPECT_THAT(*sandboxee_src,
               HasSubstr("func_with_str_ptr(sapi_tmp_ptr_str);"));
+}
+
+using SandboxedLibraryEmitterErrorTest = SandboxedLibraryEmitterTest;
+
+TEST_F(SandboxedLibraryEmitterErrorTest, ReturnsIntAnnotatedUninitialized) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(RunFrontendAction(
+                  R"cc(
+                    extern "C"
+                        [[clang::annotate("sandbox", "uninitialized")]] int
+                        returns_int_uninitialized(int);
+                  )cc",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              // TODO: update `RunFrontendAction` to include diagnostic detail
+              // with a DiagnosticConsumer.
+              StatusIs(absl::StatusCode::kUnknown,
+                       HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest, PointerParamAnnotatedUninitialized) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(RunFrontendAction(
+                  R"cc(
+                    extern "C" void pointer_param_uninitialized(
+                        // raise an error for this case, since the user could
+                        // have just changed inout -> out, instead of using
+                        // uninitialized
+                        int* p [[clang::annotate("sandbox", "inout_ptr")]]
+                        [[clang::annotate("sandbox", "uninitialized")]]);
+                  )cc",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              StatusIs(absl::StatusCode::kUnknown,
+                       HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest,
+       CallbackReturnsIntAnnotatedUninitialized) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern "C" void fp_callback_returns_int_uninitialized(
+                [[clang::annotate("sandbox",
+                                  "uninitialized")]] int (*callback)(int));
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
 }
 
 }  // namespace

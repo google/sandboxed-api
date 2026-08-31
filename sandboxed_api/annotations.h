@@ -477,4 +477,30 @@
 #define SANDBOX_SHALLOW_SYNC \
   [[clang::annotate("sandbox", "shallow_struct_sync")]]
 
+// Pointer annotation that denotes that the pointee holds uninitialized memory.
+// The host or sandbox will have the space allocated, but we do not need to
+// copy in/out any initial values, and the system can initialize to an
+// arbitrary value.
+// Whether this comes from an allocator or needs to be freed in a certain
+// way is determined by other annotations. In most cases, this property can
+// be better conveyed by pointer direction annotations, e.g.,
+// SANDBOX_OUT_PTR instead of SANDBOX_INOUT_PTR avoids input initialization.
+// This is only needed when the pointer direction is not sufficient.
+//
+// For example, for output pointers:
+//
+//   SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size) SANDBOX_MALLOCED
+//   int* my_calloc_ints(size_t num_ints, int default_value);
+// vs
+//   SANDBOX_OUT_PTR SANDBOX_UNINITIALIZED
+//   SANDBOX_ELEM_SIZED_BY(size) SANDBOX_MALLOCED
+//   int* my_malloc_ints(size_t num_ints);
+//
+// For `my_calloc_ints` we will copy out the initial `default_value` values,
+// but for `my_malloc_ints` we do not need to copy out any initial values
+// as the caller will likely overwrite/initialize.
+//
+// Note: SANDBOX_MALLOCED is not a finalized annotation yet.
+#define SANDBOX_UNINITIALIZED [[clang::annotate("sandbox", "uninitialized")]]
+
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

@@ -21,7 +21,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
@@ -50,7 +49,8 @@ std::string StripAnnotations(const std::string& input) {
       "SANDBOX_INOUT_PTR",       "SANDBOX_OPAQUE_PTR",
       "SANDBOX_HOST_OPAQUE_PTR", "SANDBOX_HOST_STATE_VAR",
       "SANDBOX_NULL_TERMINATED", "SANDBOX_LIFETIME_GLOBAL",
-      "SANDBOX_CLEAR_BINDINGS",  "SANDBOX_SHALLOW_SYNC"};
+      "SANDBOX_CLEAR_BINDINGS",  "SANDBOX_SHALLOW_SYNC",
+      "SANDBOX_UNINITIALIZED"};
   std::string output = input;
   for (const auto& macro : *macros_no_args) {
     // We use a regex to match word boundaries
@@ -124,7 +124,7 @@ std::string StripQuotes(absl::string_view str) {
 
 absl::Status CheckParsedAnnotations(absl::string_view name,
                                     const Annotations& annotations,
-                                    clang::QualType type) {
+                                    bool is_param, clang::QualType type) {
   if (annotations.context_bound.copy_from_and_bind.has_value() &&
       std::holds_alternative<std::monostate>(annotations.size_type)) {
     return absl::InvalidArgumentError(absl::Substitute(
@@ -174,6 +174,30 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
     }
   }
 
+  // Uninitialized is only useful for returned pointers, or for
+  // callback parameters that return pointers. Parameter pointers could just use
+  // the pointer direction and omit "IN" to avoid initialization (e.g.,
+  // outparams).
+  if (annotations.uninitialized) {
+    if (!is_param) {
+      if (!type->isPointerType()) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("$0: uninitialized annotation for return types "
+                             "is only supported for pointer types",
+                             name));
+      }
+    } else {
+      const clang::FunctionProtoType* func_proto_type =
+          ast::GetFunctionProtoType(type);
+      if (func_proto_type == nullptr ||
+          !func_proto_type->getReturnType()->isPointerType()) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "$0: uninitialized annotation on param is only supported "
+            "for function pointers or functors that return pointers",
+            name));
+      }
+    }
+  }
   return absl::OkStatus();
 }
 
@@ -391,6 +415,15 @@ absl::StatusOr<Annotations> ParseAnnotations(
       annotations.ptr_dir = PointerDir::kOut;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
+    } else if (ann.name == "uninitialized") {
+      if (!ann.args.empty()) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function return $0: `uninitialized` "
+                             "annotation should not have any arguments",
+                             name));
+      }
+      annotations.uninitialized = true;
+      num_args = 1;
     } else {
       return absl::InvalidArgumentError(
           absl::Substitute("function return $0: $1 annotation is not supported "
@@ -402,8 +435,9 @@ absl::StatusOr<Annotations> ParseAnnotations(
           "function return $0: invalid sandbox annotation", name));
     }
   }
-  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(
-      name, annotations, funcDecl->getReturnType().getCanonicalType()));
+  ABSL_RETURN_IF_ERROR(
+      CheckParsedAnnotations(name, annotations, /*is_param=*/false,
+                             funcDecl->getReturnType().getCanonicalType()));
   return annotations;
 }
 
@@ -500,6 +534,15 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
     } else if (ann.name == "shallow_struct_sync") {
       annotations.shallow_struct_sync = true;
       num_args = 1;
+    } else if (ann.name == "uninitialized") {
+      if (!ann.args.empty()) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `uninitialized` "
+                             "annotation should not have any arguments",
+                             name));
+      }
+      annotations.uninitialized = true;
+      num_args = 1;
     } else {
       num_args = 0;
     }
@@ -508,8 +551,9 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
           absl::Substitute("arg $0: invalid sandbox annotation", name));
     }
   }
-  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(
-      name, annotations, param->getType().getCanonicalType()));
+  ABSL_RETURN_IF_ERROR(
+      CheckParsedAnnotations(name, annotations, /*is_param=*/true,
+                             param->getType().getCanonicalType()));
   return annotations;
 }
 

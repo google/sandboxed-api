@@ -16,11 +16,9 @@
 
 #include <optional>
 #include <string>
-#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 
@@ -59,6 +57,16 @@ absl::Status ReplaceCalls(std::string& body, std::string func_name,
 // Replaces the declaration name of old_name with new_name in body.
 absl::Status ReplaceDeclaration(std::string& body, std::string old_name,
                                 std::string new_name);
+
+// Given a type, if it is a function pointer type or supported functor type,
+// returns the underlying function proto type. Otherwise, returns nullptr.
+const clang::FunctionProtoType* GetFunctionProtoType(clang::QualType type);
+
+// Given a type, if it is not a supported functor type, returns nullptr.
+// Otherwise, returns the underlying function proto type and sets
+// `template_name` (e.g., "std::function", "absl::AnyInvocable").
+const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(
+    clang::QualType type, std::string& template_name);
 
 }  // namespace sapi::ast
 

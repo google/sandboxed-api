@@ -198,12 +198,13 @@ std::string CallbackArg::SyncAndTrackReturnedValue() const {
                                          /*automatic_free=*/true));)cc",
       GetReturnSizeAsBytesExpr(), name_);
 
-  // For now, we always transfer the *initial* values from the host to the
-  // sandbox (whether it is IN/OUT/INOUT) (assuming the callback is a host
-  // callback returning a host pointer).
-  absl::StrAppend(
-      &out,
-      "sandbox->Check(sandbox->TransferToSandboxee(sapi_ret_var.get()));\n");
+  // If the returned pointer's pointee is not uninitialized, transfer the data
+  // to the sandbox (assuming this is a host callback returning a host pointer).
+  if (!ret_annotations_.uninitialized) {
+    absl::StrAppend(
+        &out,
+        "sandbox->Check(sandbox->TransferToSandboxee(sapi_ret_var.get()));\n");
+  }
   // If "alias_callback_return" store the remote -> host mapping:
   if (ret_val_is_alias_for_outer_function_return_) {
     absl::SubstituteAndAppend(

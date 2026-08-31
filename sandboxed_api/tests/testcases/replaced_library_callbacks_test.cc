@@ -161,7 +161,7 @@ TEST(Test, RetAliasCalledMultipleTimes) {
 
   EXPECT_EQ(cur_chunk_global, num_chunks);
   EXPECT_EQ(last_chunk, output_buffer_global + (num_chunks - 1) * chunk_size);
-  uint8_t expected_output[] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2};
+  uint8_t expected_output[] = {10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12};
   EXPECT_EQ(memcmp(output_buffer_global, expected_output,
                    sizeof(output_buffer_global)),
             0);

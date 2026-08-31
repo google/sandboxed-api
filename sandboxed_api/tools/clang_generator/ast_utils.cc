@@ -19,13 +19,14 @@
 #include <string>
 
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -127,6 +128,49 @@ absl::Status ReplaceDeclaration(std::string& body, std::string old_name,
 
   // Also replace the function declaration name with the original name
   return absl::OkStatus();
+}
+
+const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(
+    clang::QualType type, std::string& template_name) {
+  clang::QualType non_ref = type.getNonReferenceType();
+  const auto* record_decl = non_ref->getAsRecordDecl();
+  if (!record_decl) {
+    return nullptr;
+  }
+  const auto* spec_decl =
+      clang::dyn_cast<clang::ClassTemplateSpecializationDecl>(record_decl);
+  if (!spec_decl) {
+    return nullptr;
+  }
+  template_name =
+      spec_decl->getSpecializedTemplate()->getQualifiedNameAsString();
+  if (template_name != "std::function" &&
+      template_name != "absl::AnyInvocable") {
+    return nullptr;
+  }
+  // Extract the underlying function proto type from the template arguments
+  // (e.g., `void(int, char*)` from `std::function<void(int, char*)>`).
+  const auto& args = spec_decl->getTemplateArgs();
+  if (args.size() < 1) {
+    return nullptr;
+  }
+  const clang::TemplateArgument& arg = args[0];
+  if (arg.getKind() != clang::TemplateArgument::Type) {
+    return nullptr;
+  }
+  return arg.getAsType()->getAs<clang::FunctionProtoType>();
+}
+
+const clang::FunctionProtoType* GetFunctionProtoType(clang::QualType type) {
+  if (type->isFunctionPointerType()) {
+    return type->getPointeeType()->getAs<clang::FunctionProtoType>();
+  }
+  std::string template_name;
+  if (const clang::FunctionProtoType* func_proto_type =
+          GetFunctorUnderlyingFunctionType(type, template_name)) {
+    return func_proto_type;
+  }
+  return nullptr;
 }
 
 }  // namespace sapi::ast

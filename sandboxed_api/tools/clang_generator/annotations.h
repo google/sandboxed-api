@@ -17,11 +17,9 @@
 
 #include <optional>
 #include <string>
-#include <utility>
 #include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
@@ -148,6 +146,7 @@ struct Annotations {
   std::optional<PointerDir> ptr_dir;
   ArraySizedByType size_type;
   PointerLifetime lifetime;
+  bool uninitialized = false;
   bool shallow_struct_sync = false;
   std::vector<StructSync> struct_sync;
 

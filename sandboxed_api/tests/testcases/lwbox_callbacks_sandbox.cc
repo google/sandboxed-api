@@ -53,15 +53,15 @@ SANDBOX_ALIAS_CALLBACK_RETURN(next_out_chunk)
 uint8_t* ret_alias_called_multiple_times(
     int num_chunks, size_t chunk_size, bool return_second_last,
     SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(chunk_size)
-        uint8_t* (*next_out_chunk)(size_t chunk_size));
+        SANDBOX_UNINITIALIZED uint8_t* (*next_out_chunk)(size_t chunk_size));
 
 SANDBOX_ALIAS_CALLBACK_RETURN(get_chunk2)
 uint8_t* multiple_callbacks_one_ret_alias(
     size_t chunk_size,
     SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
-        uint8_t* (*get_chunk1)(size_t size),
+        SANDBOX_UNINITIALIZED uint8_t* (*get_chunk1)(size_t size),
     SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size)
-        uint8_t* (*get_chunk2)(size_t size));
+        SANDBOX_UNINITIALIZED uint8_t* (*get_chunk2)(size_t size));
 
 int64_t with_input_prim_pointer(
     int64_t (*cb)(const int64_t* input SANDBOX_IN_PTR), int64_t input);
