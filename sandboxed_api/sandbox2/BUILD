@@ -1064,6 +1064,8 @@ cc_test(
         ":comms_test_cc_proto",
         ":sanitizer",
         "//sandboxed_api:testing",
+        "//sandboxed_api/util:file_base",
+        "//sandboxed_api/util:temp_file",
         "//sandboxed_api/util:thread",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:fixed_array",

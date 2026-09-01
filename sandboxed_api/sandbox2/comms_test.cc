@@ -40,12 +40,15 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/notification.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox2/comms_test.pb.h"
 #include "sandboxed_api/sandbox2/sanitizer.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/path.h"
+#include "sandboxed_api/util/temp_file.h"
 #include "sandboxed_api/util/thread.h"
 
 namespace sandbox2 {
@@ -1070,6 +1073,49 @@ TEST(ListeningCommsTest, AbstractSocket) {
     SAPI_ASSERT_OK_AND_ASSIGN(
         Comms comms,
         Comms::Connect(std::string(kSocketName), /*abstract_uds=*/true));
+    comms.SendBool(true);
+  });
+  SAPI_ASSERT_OK_AND_ASSIGN(Comms comms, listening_comms.Accept());
+  bool b;
+  ASSERT_THAT(comms.RecvBool(&b), IsTrue());
+  EXPECT_THAT(b, Eq(true));
+  remote.Join();
+}
+
+TEST(ListeningCommsTest, OverlongSocketPathIsTruncated) {
+  std::string socket_name =
+      absl::StrCat("s2_test_comms_", std::string(200, 'A'));
+  std::string truncated_socket_name =
+      socket_name.substr(0, sizeof(sockaddr_un));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      ListeningComms listening_comms,
+      ListeningComms::Create(socket_name, /*abstract_uds=*/true));
+  sapi::Thread remote([&truncated_socket_name]() {
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        Comms comms,
+        Comms::Connect(truncated_socket_name, /*abstract_uds=*/true));
+    comms.SendBool(true);
+  });
+  SAPI_ASSERT_OK_AND_ASSIGN(Comms comms, listening_comms.Accept());
+  bool b;
+  ASSERT_THAT(comms.RecvBool(&b), IsTrue());
+  EXPECT_THAT(b, Eq(true));
+  remote.Join();
+}
+
+TEST(ListeningCommsTest, NamedSocket) {
+  static constexpr absl::string_view kSocketName = "s2_test_comms";
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string temp_dir,
+                            sapi::CreateTempDir(sapi::file::JoinPath(
+                                sapi::GetTestTempPath(), "comms_test")));
+  std::string socket_path = sapi::file::JoinPath(temp_dir, kSocketName);
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      ListeningComms listening_comms,
+      ListeningComms::Create(socket_path, /*abstract_uds=*/false));
+  EXPECT_THAT(access(socket_path.c_str(), F_OK), Eq(0));
+  sapi::Thread remote([&socket_path]() {
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        Comms comms, Comms::Connect(socket_path, /*abstract_uds=*/false));
     comms.SendBool(true);
   });
   SAPI_ASSERT_OK_AND_ASSIGN(Comms comms, listening_comms.Accept());

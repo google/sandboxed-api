@@ -1125,6 +1125,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::comms
     sandbox2::comms_test_proto
     sandbox2::sanitizer
+    sapi::file_base
+    sapi::temp_file
     sapi::testing
     sapi::test_main
     sapi::thread
