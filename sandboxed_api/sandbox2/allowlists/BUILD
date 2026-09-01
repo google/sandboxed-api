@@ -148,10 +148,7 @@ cc_library(
     name = "enable_landlock",
     hdrs = ["enable_landlock.h"],
     copts = sapi_platform_copts(),
-    visibility = [
-        "//sandboxed_api:__subpackages__",
-        "//video/common/subprocess/sandbox2_allowlists:__pkg__",
-    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
