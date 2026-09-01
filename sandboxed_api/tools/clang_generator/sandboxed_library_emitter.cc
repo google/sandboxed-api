@@ -15,6 +15,7 @@
 #include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -28,13 +29,10 @@
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
-#include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
@@ -43,7 +41,10 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Mangle.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/Support/Casting.h"
@@ -51,7 +52,6 @@
 #include "sandboxed_api/tools/clang_generator/arg.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
 #include "sandboxed_api/tools/clang_generator/callback_arg.h"
-#include "sandboxed_api/tools/clang_generator/pointer_arg.h"
 
 namespace sapi {
 

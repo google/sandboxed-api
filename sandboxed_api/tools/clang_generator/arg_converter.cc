@@ -14,7 +14,6 @@
 
 #include "sandboxed_api/tools/clang_generator/arg_converter.h"
 
-#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,16 +23,11 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/overload.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
@@ -42,8 +36,9 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/Basic/LLVM.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"

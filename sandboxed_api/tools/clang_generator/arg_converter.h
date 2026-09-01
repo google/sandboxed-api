@@ -15,7 +15,6 @@
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_ARG_CONVERTER_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_ARG_CONVERTER_H_
 
-#include <memory>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"

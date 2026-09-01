@@ -18,12 +18,13 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
-#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
@@ -34,7 +35,6 @@
 #include "sandboxed_api/tools/clang_generator/callback_arg.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/pointer_arg.h"
-#include "sandboxed_api/tools/clang_generator/simple_args.h"
 
 namespace sapi {
 

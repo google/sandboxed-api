@@ -16,8 +16,10 @@
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_SIMPLE_ARGS_H_
 
 #include <string>
+#include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
