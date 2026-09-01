@@ -13,4 +13,3 @@ Detailed developer documentation is available on the Google Developers site for 
 There is also a
 [Getting Started](https://developers.google.com/code-sandboxing/sandbox2/getting-started)
 guide for Sandbox2.
-
