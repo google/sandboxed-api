@@ -587,8 +587,8 @@ TEST(Sandbox2Test, PtraceMonitorWithoutDeadlineManager) {
   EXPECT_EQ(result.reason_code(), 0);
 }
 
-TEST(Sandbox2Test, PtraceMonitorWithDeadlineManagerRespectsTimeout) {
-  absl::SetFlag(&FLAGS_sandbox2_monitor_ptrace_use_deadline_manager, true);
+TEST(Sandbox2Test, PtraceMonitorWithoutDeadlineManagerRespectsTimeout) {
+  absl::SetFlag(&FLAGS_sandbox2_monitor_ptrace_use_deadline_manager, false);
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
