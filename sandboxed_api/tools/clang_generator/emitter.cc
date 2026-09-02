@@ -448,8 +448,10 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
 
   absl::StrAppend(&out, ") {\n");
 
-  // Declare the return value of the SAPI function.
-  absl::StrAppend(&out, type_mapper.MapQualType(return_type), " v_ret_;\n");
+  // Declare the return value of the SAPI function. The variable is not
+  // suffixed with an underscore like the parameter variables below, so that a
+  // parameter named `ret` cannot collide with it.
+  absl::StrAppend(&out, type_mapper.MapQualType(return_type), " v_ret;\n");
 
   // Declare the local variables for the parameters.
   for (const auto& [qual, name] : params) {
@@ -461,7 +463,7 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
 
   // Call the sandboxed function.
   absl::StrAppend(&out, "\nABSL_RETURN_IF_ERROR(sandbox_->Call(\"",
-                  function_name, "\", &v_ret_");
+                  function_name, "\", &v_ret");
   for (const auto& [qual, name] : params) {
     absl::StrAppend(&out, ", ", IsPointerOrReference(qual) ? "" : "&v_", name);
   }
@@ -469,7 +471,7 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
   // End the sandboxed function call and return `ok` if the unsandboxed function
   // returns void, or else return the value of the SAPI function.
   absl::StrAppend(&out, "));\nreturn ",
-                  (returns_void ? "::absl::OkStatus()" : "v_ret_.GetValue()"),
+                  (returns_void ? "::absl::OkStatus()" : "v_ret.GetValue()"),
                   ";\n}\n");
   return out;
 }
