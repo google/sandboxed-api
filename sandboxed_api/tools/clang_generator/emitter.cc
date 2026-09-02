@@ -57,6 +57,7 @@ constexpr absl::string_view kGeneratorComment =
 constexpr absl::string_view kHeaderIncludes =
     R"(
 #include "absl/base/macros.h"
+#include "absl/base/no_destructor.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
@@ -101,8 +102,8 @@ class %1$s : public ::sapi::Sandbox<::sapi::Sandbox2Backend> {
   static ::sapi::SandboxConfig ConfigWithForkClientContext(
       ::sapi::SandboxConfig config) {
     if (!config.sandbox2.fork_client_context.has_value()) {
-      static ::sapi::ForkClientContext fork_client_context(%2$s_embed_create());
-      config.sandbox2.fork_client_context = fork_client_context;
+      static absl::NoDestructor<::sapi::ForkClientContext> fork_client_context(%2$s_embed_create());
+      config.sandbox2.fork_client_context = *fork_client_context;
     }
     return config;
   }

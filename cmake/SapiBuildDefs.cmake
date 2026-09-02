@@ -203,6 +203,7 @@ function(add_sapi_library)
     ${_sapi_SOURCES}
   )
   target_link_libraries("${_sapi_NAME}" PUBLIC
+    absl::no_destructor
     absl::status
     absl::status_macros
     absl::statusor
