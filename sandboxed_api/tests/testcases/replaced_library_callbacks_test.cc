@@ -255,4 +255,34 @@ TEST(Test, NullWithInputNullTerm) {
   EXPECT_EQ(with_input_null_term(nullptr, "test"), -1);
 }
 
+struct HostClosureData {
+  int* int_ptr;
+};
+
+TEST(Test, WithHostOpaque) {
+  int i = 3;
+  HostClosureData data = {&i};
+  int val_to_be_doubled = 4;
+  double d = 2.0;
+  auto cb = [](void* opaque, int val, void* opaque2, void* opaque3) -> int {
+    HostClosureData* cb_data = static_cast<HostClosureData*>(opaque);
+    if (cb_data == nullptr || cb_data->int_ptr == nullptr) return -1;
+    double* d_ptr = static_cast<double*>(opaque2);
+    if (d_ptr == nullptr) return -2;
+    // We expect the third opaque pointer to be the same as the first.
+    HostClosureData* cb_data2 = static_cast<HostClosureData*>(opaque3);
+    if (cb_data2 != cb_data) return -3;
+    return val + *cb_data->int_ptr + *d_ptr + *cb_data2->int_ptr;
+  };
+  EXPECT_EQ(with_host_opaque(cb, val_to_be_doubled, &data, &d), 16);
+
+  // Also test null cases
+  EXPECT_EQ(with_host_opaque(cb, val_to_be_doubled, nullptr, &d), -1);
+  data.int_ptr = nullptr;
+  EXPECT_EQ(with_host_opaque(cb, val_to_be_doubled, &data, &d), -1);
+
+  data.int_ptr = &i;
+  EXPECT_EQ(with_host_opaque(cb, val_to_be_doubled, &data, nullptr), -2);
+}
+
 }  // namespace

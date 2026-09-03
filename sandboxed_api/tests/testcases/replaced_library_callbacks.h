@@ -68,6 +68,9 @@ int with_input_byte_sized(int (*cb)(const void*, size_t), size_t in_size);
 
 int with_input_null_term(int (*cb)(const char*), const char* input);
 
+int with_host_opaque(int (*combiner)(void*, int, void*, void*), int val,
+                     void* outer_param, void* outer_param2);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_CALLBACKS_H_

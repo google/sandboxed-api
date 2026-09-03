@@ -15,7 +15,9 @@
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_POINTER_ARG_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_POINTER_ARG_H_
 
+#include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -82,6 +84,15 @@ class PointerArg : public Arg {
 
   bool HasContextBindings() const;
 
+  PointerDir ptr_dir() const { return ptr_dir_; }
+
+  void SetHostOpaqueHandleForCbAlias(size_t handle) {
+    host_opaque_handle_for_cb_alias_ = handle;
+  }
+  std::optional<size_t> host_opaque_handle_for_cb_alias() const {
+    return host_opaque_handle_for_cb_alias_;
+  }
+
  private:
   bool IsSizeBasedOnDerefOutParam() const {
     return is_size_based_on_deref_out_param_;
@@ -142,6 +153,13 @@ class PointerArg : public Arg {
   // Annotations describing invariants of struct members.
   const absl::flat_hash_map<std::string, RecordAnnotations>&
       record_annotations_;
+
+  // Handle used to replace a host opaque pointer when passed to the sandboxee.
+  // This is currently only used when the host opaque pointer is passed to a
+  // callback (an alias of one of the callback's parameters).
+  // Otherwise, left as std::nullopt.
+  // If set to 0, then the original host pointer was null.
+  std::optional<size_t> host_opaque_handle_for_cb_alias_;
 };
 
 }  // namespace sapi

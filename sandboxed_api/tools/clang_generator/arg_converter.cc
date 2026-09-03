@@ -184,14 +184,38 @@ absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
           absl::Substitute("callback $0 parameter $1: unknown direction",
                            cb_name, cb_param_name));
     }
-    // TODO(b/491762076): support out/inout/opaque pointers for callbacks.
-    if (*ptr_dir != PointerDir::kIn) {
+    // TODO(b/491762076): support out/inout/sandbox opaque pointers for
+    // callbacks.
+    if (*ptr_dir != PointerDir::kIn && *ptr_dir != PointerDir::kHostOpaque) {
       return absl::InvalidArgumentError(absl::Substitute(
-          "callback $0 parameter $1: only input pointers are supported for "
-          "callbacks",
+          "callback $0 parameter $1: only input or host opaque pointers are "
+          "supported for callbacks",
           cb_name, cb_param_name));
     }
     annotations.ptr_dir = *ptr_dir;
+
+    if (*ptr_dir == PointerDir::kHostOpaque) {
+      if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: host opaque pointer should not be sized",
+            cb_name, cb_param_name));
+      }
+      if (!std::holds_alternative<std::monostate>(annotations.lifetime) &&
+          !std::holds_alternative<AliasHostPtrLifetime>(annotations.lifetime)) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: host opaque pointer has unsupported "
+            "lifetime annotation",
+            cb_name, cb_param_name));
+      }
+      return absl::OkStatus();
+    }
+
+    if (!std::holds_alternative<std::monostate>(annotations.lifetime)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 parameter $1: input pointer does not support lifetime "
+          "annotations",
+          cb_name, cb_param_name));
+    }
 
     // Check supported size annotations. For now, this is different from the
     // non-callback case.

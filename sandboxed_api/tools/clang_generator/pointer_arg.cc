@@ -81,8 +81,18 @@ std::string PointerArg::EmitHostPreCall() const {
     return absl::Substitute("sapi::v::RemotePtr sapi_tmp_$0($0);\n", name_);
   }
   if (ptr_dir_ == PointerDir::kHostOpaque) {
-    return absl::Substitute("sapi::v::Reg<$1> sapi_tmp_$0($0);\n", name_,
-                            type_);
+    // If we have a handle for the host pointer, use that instead of passing
+    // along the real host addresses to the sandbox.
+    if (host_opaque_handle_for_cb_alias_.has_value()) {
+      return absl::Substitute(
+          "sapi::v::RemotePtr sapi_tmp_$0($0 == nullptr ? nullptr : "
+          "reinterpret_cast<void*>($1));\n",
+          name_, *host_opaque_handle_for_cb_alias_);
+    }
+    // TODO(b/526555305): see if we should map host opaque pointers to
+    // handles in other cases, instead of passing real host addresses to the
+    // sandbox.
+    return absl::Substitute("sapi::v::RemotePtr sapi_tmp_$0($0);\n", name_);
   }
   // If this is a retained pointer, we need to allocate space for the sandbox
   // copy, and (if necessary) copy in the data.
@@ -395,7 +405,7 @@ std::string PointerArg::EmitHostArgs() const {
         break;
       case PointerDir::kHostOpaque:
         // Don't do anything here, we just transparently pass this through
-        arg = absl::Substitute("sapi_tmp_$0.PtrNone()", name_);
+        arg = absl::Substitute("&sapi_tmp_$0", name_);
         break;
       default:
         LOG(FATAL) << "Unsupported pointer direction";

@@ -160,5 +160,87 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
                HasSubstr("Tool invocation failed")));
 }
 
+TEST_F(SandboxedLibraryEmitterErrorTest,
+       CallbackParamAliasesNonExistentOuterParam) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern "C" void callback_param_aliases_non_existent(
+                void (*cb)(void* cb_closure
+                           [[clang::annotate("sandbox", "host_opaque_ptr")]]
+                           [[clang::annotate("sandbox", "alias_ptr",
+                                             "non_existent")]],
+                           int val),
+                int val);
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest,
+       CallbackParamAliasesNonPointerOuterParam) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern "C" void callback_param_aliases_non_pointer(
+                void (*cb)(void* cb_closure
+                           [[clang::annotate("sandbox", "host_opaque_ptr")]]
+                           [[clang::annotate("sandbox", "alias_ptr",
+                                             "not_a_pointer")]],
+                           int val),
+                int not_a_pointer);
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest, CallbackParamAliasesGlobalVariable) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern char* optarg;
+
+            extern "C" void callback_param_aliases_libc_global(void (*cb)(
+                char* optarg_alias [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "alias_ptr", "optarg")]],
+                int val));
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest,
+       CallbackParamAliasesNonHostOpaqueOuterParam) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern "C" void callback_alias_non_host_opaque(
+                void (*cb)(void* cb_closure
+                           [[clang::annotate("sandbox", "host_opaque_ptr")]]
+                           [[clang::annotate("sandbox", "alias_ptr",
+                                             "input_ptr")]],
+                           int val),
+                const int* input_ptr [[clang::annotate("sandbox", "in_ptr")]]);
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
+}
+
 }  // namespace
 }  // namespace sapi

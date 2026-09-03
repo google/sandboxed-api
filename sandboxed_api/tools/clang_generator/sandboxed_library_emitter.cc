@@ -207,6 +207,8 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   ABSL_RETURN_IF_ERROR(
       LinkAliasCallbackRelation(decl, func_decl_annotations, ret, args));
 
+  ABSL_RETURN_IF_ERROR(LinkAliasParamToCallbackParam(args));
+
   RecordContextBindingSupportNeeded(func_context_bound, ret, args);
 
   // Determine includes and host state vars, after considering any
@@ -334,6 +336,80 @@ absl::Status SandboxedLibraryEmitter::LinkAliasCallbackRelation(
         "function $0: alias_callback_return references non-existent or "
         "non-callback parameter $1",
         decl->getNameAsString(), alias_cb_name));
+  }
+  return absl::OkStatus();
+}
+
+// If this function has callback parameters that have parameters with
+// "alias_ptr(outer_func_param_name)" annotations, links those callback
+// parameters to the outer function's param with the name
+// `outer_func_param_name`.
+// Returns an error under erroneous or unsupported conditions, such as if
+// a param with the name `outer_func_param_name` is not found.
+absl::Status SandboxedLibraryEmitter::LinkAliasParamToCallbackParam(
+    const std::vector<ArgPtr>& args) {
+  // Start handle number at 1, since 0 is reserved for nullptr.
+  size_t next_handle = 1;
+  for (const auto& arg : args) {
+    auto* cb_arg = dynamic_cast<CallbackArg*>(arg.get());
+    if (!cb_arg) continue;
+    for (size_t i = 0; i < cb_arg->param_names().size(); ++i) {
+      const auto& ann = cb_arg->param_annotations()[i];
+      if (!std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime)) {
+        continue;
+      }
+      const std::string& outer_param_name =
+          std::get<AliasHostPtrLifetime>(ann.lifetime).param_name;
+      Arg* found_alias = nullptr;
+      for (const auto& outer_arg : args) {
+        if (outer_arg->GetName() == outer_param_name) {
+          found_alias = outer_arg.get();
+          break;
+        }
+      }
+      if (!found_alias) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: alias_ptr references non-existent "
+            "parameter $2",
+            cb_arg->GetName(), cb_arg->param_names()[i], outer_param_name));
+      }
+      auto* outer_param = dynamic_cast<PointerArg*>(found_alias);
+      if (!outer_param) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: alias_ptr references non-pointer "
+            "parameter $2",
+            cb_arg->GetName(), cb_arg->param_names()[i], outer_param_name));
+      }
+      // For now, we only support aliasing two host opaque pointers
+      // where no copying or allocation is needed.
+      // It could be possible to support aliasing other cases, but we will
+      // need make sure the copy/allocate/free for host -> sandbox -> host
+      // is done correctly.
+      if (ann.ptr_dir != PointerDir::kHostOpaque) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: alias_ptr is only supported for host "
+            "opaque callback parameters",
+            cb_arg->GetName(), cb_arg->param_names()[i]));
+      }
+      if (outer_param->ptr_dir() != PointerDir::kHostOpaque) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: alias_ptr references parameter $2 "
+            "which is not a host opaque pointer",
+            cb_arg->GetName(), cb_arg->param_names()[i], outer_param_name));
+      }
+
+      size_t handle;
+      // Multiple callback parameters can be aliased to the same outer
+      // parameter.
+      if (outer_param->host_opaque_handle_for_cb_alias().has_value()) {
+        handle = *outer_param->host_opaque_handle_for_cb_alias();
+      } else {
+        handle = next_handle;
+        outer_param->SetHostOpaqueHandleForCbAlias(handle);
+        next_handle++;
+      }
+      cb_arg->SetParamHostOpaqueHandle(i, handle);
+    }
   }
   return absl::OkStatus();
 }

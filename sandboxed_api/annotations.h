@@ -223,17 +223,21 @@
 #define SANDBOX_LIFETIME_GLOBAL \
   [[clang::annotate("sandbox", "lifetime_sandbox_global")]]
 
-// Indicate that a returned pointer (unless null) is an alias of an incoming
-// (host-owned) pointer parameter, and thus has the same lifetime as that other
-// pointer. If the return value is null, then we return null instead of the
-// alias (which may or may not be null).
+// Indicates that the annotated pointer must alias another pointer (argument
+// of the annotation is the name of the other pointer). An exception to the
+// "must alias" is that we allow null (in case a function returns null to
+// indicate an error).
 //
-// Given this lifetime information we do not need to allocate and manage
-// memory for the output. Thus, we do not need to know the size for array
-// outputs. This annotation implies SANDBOX_OUT_PTR (no need to specify both).
+// These alias relations have a few known use cases:
+// (1) Returned pointers that alias arguments
+// (2) Callback parameter that alias outer function arguments
 //
-// This is similar to [[clang::lifetimebound]], but we are focused more
-// on avoiding memory management than use-after-free.
+// (1) For returned pointers: this indicates that a returned pointer is an alias
+// of an incoming (host-owned) pointer parameter, and thus has the same lifetime
+// as that other pointer. Given this lifetime information we do not need to
+// allocate and manage memory for the output. Thus, we do not need to know the
+// size for array outputs. This annotation implies SANDBOX_OUT_PTR (no need to
+// specify both).
 //
 // This often shows up when functions return an outparam for convenience,
 // and the exception for null return values is also common for error handling.
@@ -242,6 +246,34 @@
 //
 //   SANDBOX_ALIAS_PTR(p)
 //   MyStruct* InitStructPartA(MyStruct* p SANDBOX_OUT_PTR)
+//
+// This is similar to [[clang::lifetimebound]], but we are focused more
+// on avoiding memory management than use-after-free.
+//
+// (2) For callback parameters: this indicates that an "outer" function's
+// callback parameter has a parameter that will be an alias of one of the
+// outer function's parameters.
+//
+// For example:
+//
+//   void process_data(
+//       void (*callback)(int,
+//                        void* data
+//                           SANDBOX_HOST_OPAQUE_PTR
+//                           SANDBOX_ALIAS_PTR(closure_data)),
+//       void* closure_data SANDBOX_HOST_OPAQUE_PTR);
+//
+// The caller of `callback` *should* pass along `closure_data` as the second
+// argument to `callback`, but the caller is often the sandboxee, and we may
+// not want to trust that the sandboxee will pass along the correct pointer.
+// The lwbox code generator can emit code to check that the expected aliasing
+// really happens or override and pass along the expected pointer anyway.
+//
+// For now, we do not support aliasing other pairs of pointers, such as:
+// - alias a global variable, or
+// - alias two callback parameters without aliasing through an outer function
+//   parameter.
+// - alias a struct member reachable from a pointer parameter.
 #define SANDBOX_ALIAS_PTR(param_name) \
   [[clang::annotate("sandbox", "alias_ptr", #param_name)]]
 

@@ -80,4 +80,16 @@ int with_input_null_term(
     int (*cb)(const char* input SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED),
     const char* input SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
 
+int with_host_opaque(int (*combiner)(void* cb_closure SANDBOX_HOST_OPAQUE_PTR
+                                         SANDBOX_ALIAS_PTR(outer_param),
+                                     int val,
+                                     void* cb_closure2 SANDBOX_HOST_OPAQUE_PTR
+                                         SANDBOX_ALIAS_PTR(outer_param2),
+                                     // Have a third opaque pointer that is an
+                                     // alias of the first.
+                                     void* cb_closure3 SANDBOX_HOST_OPAQUE_PTR
+                                         SANDBOX_ALIAS_PTR(outer_param)),
+                     int val, void* outer_param SANDBOX_HOST_OPAQUE_PTR,
+                     void* outer_param2 SANDBOX_HOST_OPAQUE_PTR);
+
 }  // extern "C"

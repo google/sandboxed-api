@@ -139,4 +139,9 @@ int with_input_null_term(int (*cb)(const char*), const char* input) {
   return cb(input);
 }
 
+int with_host_opaque(int (*combiner)(void*, int, void*, void*), int val,
+                     void* outer_param, void* outer_param2) {
+  return combiner(outer_param, val * 2, outer_param2, outer_param);
+}
+
 }  // extern "C"

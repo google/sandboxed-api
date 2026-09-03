@@ -432,7 +432,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
     }
     if (ann.args.size() != num_args - 1) {
       return absl::InvalidArgumentError(absl::Substitute(
-          "function return $0: invalid sandbox annotation", name));
+          "function return $0: invalid sandbox annotation $1", name, ann.name));
     }
   }
   ABSL_RETURN_IF_ERROR(
@@ -534,6 +534,13 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
     } else if (ann.name == "shallow_struct_sync") {
       annotations.shallow_struct_sync = true;
       num_args = 1;
+    } else if (ann.name == "alias_ptr") {
+      if (ann.args.size() != 1) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "param $0: alias_ptr requires a parameter name", name));
+      }
+      num_args = 2;
+      ABSL_RETURN_IF_ERROR(annotations.SetAliasHostPtrLifetime(ann.args[0]));
     } else if (ann.name == "uninitialized") {
       if (!ann.args.empty()) {
         return absl::InvalidArgumentError(
@@ -547,8 +554,8 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
       num_args = 0;
     }
     if (ann.args.size() != num_args - 1) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("arg $0: invalid sandbox annotation", name));
+      return absl::InvalidArgumentError(absl::Substitute(
+          "arg $0: invalid sandbox annotation $1", name, ann.name));
     }
   }
   ABSL_RETURN_IF_ERROR(

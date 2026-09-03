@@ -158,6 +158,33 @@ std::string CallbackArg::LambdaWrapperParamSyncPreCall() const {
                     << "SizedByBinding not supported for callback params.";
               }},
           ann.size_type);
+    } else if (ann.ptr_dir == PointerDir::kHostOpaque) {
+      if (std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime)) {
+        const std::string& outer_param_name =
+            std::get<AliasHostPtrLifetime>(ann.lifetime).param_name;
+        const auto& param_host_opaque_handle = param_host_opaque_handles_[i];
+        if (!param_host_opaque_handle.has_value()) {
+          LOG(FATAL) << "alias_ptr for a host opaque callback param found, but "
+                     << "no corresponding handle for host pointer found "
+                     << param_name;
+        }
+        size_t handle = *param_host_opaque_handle;
+        absl::SubstituteAndAppend(
+            &out,
+            R"cc(
+              $1 sapi_expected_$0 =
+                  $2 == nullptr ? nullptr : reinterpret_cast<$1>($3);
+              CHECK_EQ($0, sapi_expected_$0);
+              $1 sapi_host_$0 = $2;
+            )cc",
+            param_name, param_type, outer_param_name, handle);
+      } else {
+        absl::SubstituteAndAppend(&out,
+                                  R"cc(
+                                    $1 sapi_host_$0 = $0;
+                                  )cc",
+                                  param_name, param_type);
+      }
     } else if (ann.ptr_dir.has_value()) {
       // We should have rejected this case this after parsing annotations.
       // TODO(b/491762076): support out direction too.

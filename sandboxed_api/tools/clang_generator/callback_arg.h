@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_CALLBACK_ARG_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_CALLBACK_ARG_H_
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
@@ -46,13 +47,45 @@ struct CallbackArg : public Arg {
         is_ret_pointer_(is_ret_pointer),
         ret_type_name_(std::move(ret_type_name)),
         functor_type_name_(functor_type_name),
-        ret_val_is_alias_for_outer_function_return_(false) {}
+        ret_val_is_alias_for_outer_function_return_(false),
+        param_host_opaque_handles_(param_names_.size(), std::nullopt) {
+    if (param_names_.size() != param_types_.size()) {
+      LOG(FATAL) << "Different number of param names vs types for " << name_
+                 << " (" << param_names_.size() << " vs " << param_types_.size()
+                 << ")";
+    }
+    if (param_names_.size() != param_annotations_.size()) {
+      LOG(FATAL) << "Different number of param names vs annotations for "
+                 << name_ << " (" << param_names_.size() << " vs "
+                 << param_annotations_.size() << ")";
+    }
+  }
 
   // Indicates that the outer function's return value aliases with this
   // callback argument's return value (one of them, if any).
   // We discover this property in a second pass after creating the CallbackArg.
   void SetRetValIsAliasForOuterFunctionReturn() {
     ret_val_is_alias_for_outer_function_return_ = true;
+  }
+
+  // Indicates that the callback parameter (identified by `param_idx`) is a
+  // host opaque pointer. Right now, this corresponds to when the callback param
+  // aliases an outer function's host opaque pointer param. When entering the
+  // sandbox (calling the outer function), `handle` is used to replace the host
+  // pointer. When coming back to the host (in the callback), we check that the
+  // callback parameter is equal to the handle, and substitute it with the host
+  // pointer.
+  void SetParamHostOpaqueHandle(size_t param_idx, size_t handle) {
+    if (param_idx < param_host_opaque_handles_.size()) {
+      param_host_opaque_handles_[param_idx] = handle;
+    }
+  }
+
+  // Accessor for the callback parameter names and annotations.
+  // The param vectors should all be the same size.
+  const std::vector<std::string>& param_names() const { return param_names_; }
+  const std::vector<Annotations>& param_annotations() const {
+    return param_annotations_;
   }
 
   std::vector<std::string> Includes() const override {
@@ -253,6 +286,11 @@ struct CallbackArg : public Arg {
   const std::string ret_type_name_;
   const std::optional<std::string> functor_type_name_;
   bool ret_val_is_alias_for_outer_function_return_;
+  // Handles used substitute for host opaque pointers in a callback.
+  // - If not set, then the callback parameter is not expected to be an alias of
+  //   an outer function's host opaque pointer.
+  // - If 0, then the original host opaque pointer was null.
+  std::vector<std::optional<size_t>> param_host_opaque_handles_;
 };
 
 }  // namespace sapi
