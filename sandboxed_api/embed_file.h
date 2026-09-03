@@ -15,42 +15,59 @@
 #ifndef SANDBOXED_API_EMBED_FILE_H_
 #define SANDBOXED_API_EMBED_FILE_H_
 
-#include "sandboxed_api/file_toc.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sapi {
 
 class EmbedFileTestPeer;
 
-// The class provides primitives for converting FileToc structures into
-// executable files.
+// EmbedFile provides primitives for converting embedded binary payloads into
+// sealed executable file descriptors (memfds) with runtime caching.
+//
+// When a file descriptor is requested for an embedded binary, EmbedFile creates
+// an anonymous executable memfd, copies the embedded data payload into it,
+// seals the memfd (F_ADD_SEALS) to prevent tampering, and caches the descriptor
+// keyed by the payload identity for subsequent reuse.
 class EmbedFile {
  public:
   EmbedFile(const EmbedFile&) = delete;
   EmbedFile& operator=(const EmbedFile&) = delete;
 
-  // Returns the pointer to the per-process EmbedFile object.
+  // Returns the pointer to the per-process EmbedFile singleton.
   static EmbedFile* instance();
 
-  // Returns a file-descriptor for a given FileToc.
-  int GetFdForFileToc(const FileToc* toc);
+  // Returns a cached read-only file descriptor for a given SAPI EmbedToc.
+  // The returned FD is owned by the EmbedFile singleton and must NOT be closed
+  // by the caller.
+  int GetFdForFileToc(const EmbedToc& toc);
 
-  // Returns a duplicated file-descriptor for a given FileToc.
-  int GetDupFdForFileToc(const FileToc* toc);
+  int GetFdForFileToc(const EmbedToc* toc) {
+    return toc ? GetFdForFileToc(*toc) : -1;
+  }
+
+  // Returns a newly duplicated file descriptor for a given SAPI EmbedToc.
+  // The caller owns the returned FD and is responsible for closing it.
+  int GetDupFdForFileToc(const EmbedToc& toc);
+
+  int GetDupFdForFileToc(const EmbedToc* toc) {
+    return toc ? GetDupFdForFileToc(*toc) : -1;
+  }
 
  private:
   friend class EmbedFileTestPeer;  // For testing.
-  // Creates an executable file for a given FileToc, and return its
-  // file-descriptors (-1 in case of errors).
-  static int CreateFdForFileToc(const FileToc* toc);
+
+  // Materializes an executable memfd for a SAPI EmbedToc entry.
+  static int CreateFdForFileToc(const EmbedToc& toc);
 
   EmbedFile() = default;
 
-  // List of File TOCs and corresponding file-descriptors.
-  absl::flat_hash_map<const FileToc*, file_util::fileops::FDCloser> file_tocs_
+  // Cache mapping embedded file descriptors to their materialized, sealed
+  // memfds.
+  absl::flat_hash_map<EmbedToc, file_util::fileops::FDCloser> file_tocs_
       ABSL_GUARDED_BY(file_tocs_mutex_);
   absl::Mutex file_tocs_mutex_;
 };

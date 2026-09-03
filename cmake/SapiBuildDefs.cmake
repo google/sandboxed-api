@@ -58,6 +58,7 @@ macro(sapi_cc_embed_data)
   )
   target_link_libraries("${_sapi_embed_NAME}" PRIVATE
     sapi::base
+    sapi::embed_toc
     absl::core_headers
   )
 endmacro()

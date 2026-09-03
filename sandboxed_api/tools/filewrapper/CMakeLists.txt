@@ -20,7 +20,6 @@ target_link_libraries(filewrapper PRIVATE
   absl::strings
   absl::str_format
   sapi::fileops
-  sapi::strerror
   sapi::base
   sapi::raw_logging
 )
@@ -43,10 +42,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sapi_filewrapper_test PRIVATE
     filewrapper_embedded
     absl::status_matchers
+    sapi::embed_file
     sapi::file_helpers
+    sapi::embed_toc
     sapi::fileops
     sapi::testing
     sapi::test_main
+    sandbox2::minielf
   )
   gtest_discover_tests_xcompile(sapi_filewrapper_test PROPERTIES
     ENVIRONMENT "TEST_TMPDIR=/tmp"

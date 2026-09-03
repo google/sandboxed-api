@@ -20,12 +20,13 @@
 
 #include <string>
 
-#include "sandboxed_api/file_toc.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/raw_logging.h"
 
 namespace sapi {
 
@@ -41,6 +42,8 @@ using ::sapi::file_util::fileops::FDCloser;
 #define F_SEAL_WRITE 0x0008
 #endif
 
+// Applies file sealing flags to a memfd, preventing any subsequent modification
+// or truncation by the host or sandboxee.
 bool SealFile(int fd) {
   constexpr int kMaxRetries = 10;
   for (int i = 0; i < kMaxRetries; ++i) {
@@ -59,86 +62,84 @@ EmbedFile* EmbedFile::instance() {
   return embed_file_instance;
 }
 
-int EmbedFile::CreateFdForFileToc(const FileToc* toc) {
+int EmbedFile::CreateFdForFileToc(const EmbedToc& toc) {
   // Create a memfd/temp file and write contents of the SAPI library to it.
   int fd = -1;
-  if (!sandbox2::util::CreateMemFd(&fd, toc->name)) {
-    SAPI_RAW_LOG(ERROR, "Couldn't create a temporary file for TOC name '%s'",
-                 toc->name);
+  std::string name_str(toc.name);
+  if (!sandbox2::util::CreateMemFd(&fd, name_str.c_str())) {
+    LOG(ERROR) << "Couldn't create a temporary file for TOC name '" << toc.name
+               << "'";
     return -1;
   }
   file_util::fileops::FDCloser embed_fd(fd);
-  SAPI_RAW_VLOG(3, "Created memfd file '%s'", toc->name);
+  VLOG(3) << "Created memfd file '" << toc.name << "'";
 
-  if (!file_util::fileops::WriteToFD(embed_fd.get(), toc->data, toc->size)) {
-    SAPI_RAW_PLOG(ERROR, "Couldn't write SAPI embed file '%s' to memfd file",
-                  toc->name);
+  if (!file_util::fileops::WriteToFD(embed_fd.get(), toc.data.data(),
+                                     toc.data.size())) {
+    LOG(ERROR) << "Couldn't write SAPI embed file '" << toc.name << "'";
     return -1;
   }
-  SAPI_RAW_VLOG(3, "Wrote SAPI embed file '%s' to memfd file (%zd bytes)",
-                toc->name, toc->size);
+  VLOG(3) << "Populated SAPI embed file '" << toc.name << "'";
 
   // Make the underlying file non-writable.
   if (fchmod(embed_fd.get(),
              S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == -1) {
-    SAPI_RAW_PLOG(ERROR, "Could't make FD=%d RX-only", embed_fd.get());
+    PLOG(ERROR) << "Couldn't make FD=" << embed_fd.get() << " RX-only";
     return -1;
   }
 
   // Seal the file
   if (!SealFile(embed_fd.get())) {
-    SAPI_RAW_PLOG(ERROR, "Couldn't apply file seals to FD=%d", embed_fd.get());
+    PLOG(ERROR) << "Couldn't apply file seals to FD=" << embed_fd.get();
     return -1;
   }
-  SAPI_RAW_VLOG(3, "Sealed FD=%d", embed_fd.get());
+  VLOG(3) << "Sealed FD=" << embed_fd.get();
 
   // Instead of working around problems with CRIU we reopen the file as
   // read-only.
   fd = open(absl::StrCat("/proc/", getpid(), "/fd/", embed_fd.get()).c_str(),
             O_RDONLY | O_CLOEXEC);
   if (fd == -1) {
-    SAPI_RAW_PLOG(ERROR, "Couldn't reopen '%d' read-only through /proc",
-                  embed_fd.get());
+    PLOG(ERROR) << "Couldn't reopen '" << embed_fd.get()
+                << "' read-only through /proc";
     return -1;
   }
   return fd;
 }
 
-int EmbedFile::GetFdForFileToc(const FileToc* toc) {
+int EmbedFile::GetFdForFileToc(const EmbedToc& toc) {
   // Access to file_tocs_ must be guarded.
   absl::MutexLock lock(file_tocs_mutex_);
 
   // If a file-descriptor for this toc already exists, just return it.
   auto entry = file_tocs_.find(toc);
   if (entry != file_tocs_.end()) {
-    SAPI_RAW_VLOG(3,
-                  "Returning pre-existing embed file entry for '%s', fd: %d "
-                  "(orig name: '%s')",
-                  toc->name, entry->second.get(), entry->first->name);
+    VLOG(3) << "Returning pre-existing embed file entry for '" << toc.name
+            << "', fd: " << entry->second.get();
     return entry->second.get();
   }
 
   int embed_fd = CreateFdForFileToc(toc);
   if (embed_fd == -1) {
-    SAPI_RAW_LOG(ERROR, "Cannot create a file for FileTOC: '%s'", toc->name);
+    LOG(ERROR) << "Cannot create a file for FileTOC: '" << toc.name << "'";
     return -1;
   }
 
-  SAPI_RAW_VLOG(1, "Created new embed file entry for '%s' with fd: %d",
-                toc->name, embed_fd);
+  VLOG(1) << "Created new embed file entry for '" << toc.name
+          << "' with fd: " << embed_fd;
 
   file_tocs_[toc] = FDCloser(embed_fd);
   return embed_fd;
 }
 
-int EmbedFile::GetDupFdForFileToc(const FileToc* toc) {
+int EmbedFile::GetDupFdForFileToc(const EmbedToc& toc) {
   int fd = GetFdForFileToc(toc);
   if (fd == -1) {
     return -1;
   }
   fd = dup(fd);
   if (fd == -1) {
-    SAPI_RAW_PLOG(ERROR, "dup failed");
+    PLOG(ERROR) << "dup failed";
   }
   return fd;
 }

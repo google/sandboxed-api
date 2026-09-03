@@ -41,20 +41,33 @@ cc_library(
 )
 
 cc_library(
-    name = "embed_file",
-    srcs = [
-        "embed_file.cc",
-        "file_toc.h",
-    ],
-    hdrs = ["embed_file.h"],
+    name = "embed_toc",
+    hdrs = ["embed_toc.h"],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_library(
+    name = "embed_file",
+    srcs = ["embed_file.cc"],
+    hdrs = [
+        "embed_file.h",
+    ],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":embed_toc",
         "//sandboxed_api/sandbox2:util",
         "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
     ],
@@ -66,6 +79,7 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":embed_file",
+        ":embed_toc",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
@@ -160,6 +174,7 @@ cc_library(
     deps = [
         ":call",
         ":embed_file",
+        ":embed_toc",
         ":rpcchannel",
         # TODO(sroettger): Remove dependency on sandbox2_backend once users are updated.
         ":sandbox2_backend",
@@ -173,6 +188,7 @@ cc_library(
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:die_if_null",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
@@ -197,6 +213,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":embed_toc",
         "//sandboxed_api/sandbox2:executor",
         "//sandboxed_api/sandbox2:fork_client",
         "//sandboxed_api/sandbox2:limits",
@@ -208,6 +225,7 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:die_if_null",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
@@ -228,6 +246,7 @@ cc_library(
         ":call",
         ":config",
         ":embed_file",
+        ":embed_toc",
         ":rpcchannel",
         ":sandbox_config",
         ":shared_memory_rpcchannel",

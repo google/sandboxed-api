@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <unistd.h>
+
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
+#include "sandboxed_api/embed_file.h"
+#include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
 #include "sandboxed_api/util/file_helpers.h"
@@ -27,14 +31,16 @@ namespace {
 using ::absl_testing::IsOk;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
-using ::testing::IsNull;
+using ::testing::Ne;
+using ::testing::NotNull;
 using ::testing::StrEq;
 
 TEST(FilewrapperTest, BasicFunctionality) {
-  const FileToc* toc = filewrapper_embedded_create();
+  auto raw_toc = filewrapper_embedded_create();
+  ASSERT_THAT(raw_toc, NotNull());
+  sapi::EmbedToc toc = sapi::EmbedToc::From(*raw_toc);
 
-  EXPECT_THAT(toc->name, StrEq("filewrapper_embedded.bin"));
-  EXPECT_THAT(toc->size, Eq(256));
+  EXPECT_THAT(std::string(toc.name), StrEq("filewrapper_embedded.bin"));
 
   std::string contents;
   ASSERT_THAT(file::GetContents(
@@ -42,10 +48,15 @@ TEST(FilewrapperTest, BasicFunctionality) {
                       "tools/filewrapper/testdata/filewrapper_embedded.bin"),
                   &contents, file::Defaults()),
               IsOk());
-  EXPECT_THAT(std::string(toc->data, toc->size), StrEq(contents));
 
-  ++toc;
-  EXPECT_THAT(toc->name, IsNull());
+  EXPECT_THAT(std::string(toc.data), StrEq(contents));
+
+  int fd = EmbedFile::instance()->GetFdForFileToc(toc);
+  ASSERT_THAT(fd, Ne(-1));
+
+  std::string materialized_contents(256, '\0');
+  EXPECT_THAT(pread(fd, &materialized_contents[0], 256, 0), Eq(256));
+  EXPECT_THAT(materialized_contents, StrEq(contents));
 }
 
 }  // namespace

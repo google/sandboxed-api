@@ -26,7 +26,6 @@
 #include <variant>
 #include <vector>
 
-#include "sandboxed_api/file_toc.h"
 #include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
@@ -42,6 +41,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/embed_file.h"
+#include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -236,16 +236,15 @@ absl::Status Sandbox2Backend::Init() {
 
       std::string lib_path;
       int embed_lib_fd = -1;
-      if (std::holds_alternative<const FileToc*>(sandboxee_source)) {
-        const FileToc* embed_lib_toc =
-            std::get<const FileToc*>(sandboxee_source);
+      if (std::holds_alternative<sapi::EmbedToc>(sandboxee_source)) {
+        const auto& embed_lib_toc = std::get<sapi::EmbedToc>(sandboxee_source);
         embed_lib_fd = EmbedFile::instance()->GetDupFdForFileToc(embed_lib_toc);
         if (embed_lib_fd == -1) {
           PLOG(ERROR) << "Cannot create executable FD for TOC:'"
-                      << embed_lib_toc->name << "'";
+                      << embed_lib_toc.name << "'";
           return absl::UnavailableError("Could not create executable FD");
         }
-        lib_path = embed_lib_toc->name;
+        lib_path = std::string(embed_lib_toc.name);
       } else {
         lib_path = PathToSAPILib(std::get<std::string>(sandboxee_source));
         if (lib_path.empty()) {

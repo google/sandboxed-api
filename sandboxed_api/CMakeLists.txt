@@ -21,6 +21,18 @@ if(NOT SAPI_CLANG_TOOL_EXECUTABLE)
 endif()
 add_subdirectory(examples)
 
+# sandboxed_api:embed_toc
+add_library(sapi_embed_toc INTERFACE
+  embed_toc.h
+)
+add_library(sapi::embed_toc ALIAS sapi_embed_toc)
+target_include_directories(sapi_embed_toc INTERFACE
+  "${PROJECT_SOURCE_DIR}"
+)
+target_link_libraries(sapi_embed_toc INTERFACE
+  absl::strings
+)
+
 # sandboxed_api:config
 add_library(sapi_config ${SAPI_LIB_TYPE}
   config.cc
@@ -47,6 +59,7 @@ target_link_libraries(sapi_sandbox_config
           absl::synchronization
           absl::time
           sapi::base
+          sapi::embed_toc
           sapi::fileops
           sandbox2::executor
           sandbox2::fork_client
@@ -61,13 +74,16 @@ target_link_libraries(sapi_sandbox_config
 add_library(sapi_embed_file ${SAPI_LIB_TYPE}
   embed_file.cc
   embed_file.h
-  file_toc.h
 )
 add_library(sapi::embed_file ALIAS sapi_embed_file)
 target_link_libraries(sapi_embed_file
-  PRIVATE absl::strings
+  PRIVATE absl::status
+          absl::status_macros
+          absl::statusor
+          absl::strings
           sandbox2::util
           sapi::base
+          sapi::embed_toc
           sapi::raw_logging
   PUBLIC absl::flat_hash_map
          absl::synchronization
@@ -146,6 +162,7 @@ target_link_libraries(sapi_sandbox2_backend
           sapi::config
           sapi::embed_file
           sapi::file_base
+          sapi::embed_toc
           sapi::fileops
           sapi::runfiles
           sapi::rpcchannel
@@ -196,6 +213,7 @@ target_link_libraries(sapi_sapi
           sandbox2::fork_client
           sandbox2::util
           sapi::embed_file
+          sapi::embed_toc
           sapi::var_type
           sapi::vars
           sapi::rpcchannel

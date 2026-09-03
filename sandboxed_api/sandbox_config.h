@@ -24,12 +24,13 @@
 #include <variant>
 #include <vector>
 
-#include "sandboxed_api/file_toc.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/log/globals.h"
 #include "absl/synchronization/mutex.h"
+#include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
 #include "sandboxed_api/sandbox2/limits.h"
@@ -43,10 +44,14 @@ namespace sapi {
 // Context holding, potentially shared, fork client.
 class ForkClientContext {
  public:
-  explicit ForkClientContext(const FileToc* embed_lib_toc)
+  explicit ForkClientContext(sapi::EmbedToc embed_lib_toc)
       : sandboxee_source_(embed_lib_toc) {
-    CHECK(embed_lib_toc != nullptr);
+    CHECK(!embed_lib_toc.name.empty());
   }
+
+  explicit ForkClientContext(const sapi::EmbedToc* embed_lib_toc)
+      : ForkClientContext(*ABSL_DIE_IF_NULL(embed_lib_toc)) {}
+
   // Path of the sandboxee:
   //  - relative to runfiles directory: ::sapi::GetDataDependencyFilePath()
   //    will be applied to it,
@@ -57,7 +62,7 @@ class ForkClientContext {
  private:
   friend class Sandbox2Backend;
 
-  std::variant<const FileToc*, std::string> sandboxee_source_;
+  std::variant<sapi::EmbedToc, std::string> sandboxee_source_;
   struct SharedState {
     absl::Mutex mu_;
     std::shared_ptr<sandbox2::ForkClient> client_ ABSL_GUARDED_BY(mu_);

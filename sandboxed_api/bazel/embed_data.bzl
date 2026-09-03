@@ -94,6 +94,7 @@ def sapi_cc_embed_data(name, srcs = [], namespace = "", **kwargs):
         deps = [
             "@abseil-cpp//absl/base:core_headers",
             "@abseil-cpp//absl/strings",
+            "//sandboxed_api:embed_toc",
         ],
         **kwargs
     )

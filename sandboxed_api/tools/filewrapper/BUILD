@@ -27,6 +27,7 @@ cc_binary(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        "//sandboxed_api:embed_toc",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
         "//sandboxed_api/util:strerror",
@@ -47,6 +48,8 @@ cc_test(
     data = ["testdata/filewrapper_embedded.bin"],
     deps = [
         ":filewrapper_embedded",
+        "//sandboxed_api:embed_file",
+        "//sandboxed_api:embed_toc",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_helpers",
         "@abseil-cpp//absl/status:status_matchers",
