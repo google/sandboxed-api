@@ -160,6 +160,50 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
                HasSubstr("Tool invocation failed")));
 }
 
+TEST_F(SandboxedLibraryEmitterErrorTest, CallbackPointerParamNoDirection) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(RunFrontendAction(
+                  R"cc(
+                    extern "C" void func_with_cb(void (*cb)(int* out));
+                  )cc",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              StatusIs(absl::StatusCode::kUnknown,
+                       HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest, CallbackConstOutParam) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern "C" void func_with_cb(void (*cb)(
+                const int* out [[clang::annotate("sandbox", "out_ptr")]]));
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest, CallbackNullTerminatedOutParam) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern "C" void func_with_cb(void (*cb)(
+                char* str [[clang::annotate("sandbox", "null_terminated")]]
+                [[clang::annotate("sandbox", "out_ptr")]]));
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
+}
+
 TEST_F(SandboxedLibraryEmitterErrorTest,
        CallbackParamAliasesNonExistentOuterParam) {
   GeneratorOptions options;

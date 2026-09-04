@@ -200,6 +200,8 @@ TEST(Test, MultipleCallbacksOneRetAlias) {
   ClearOutputBufferGlobal();
 }
 
+// Input pointer tests.
+
 TEST(Test, WithInputPrimPointer) {
   auto cb = [](const int64_t* input) -> int64_t { return *input * 2; };
   EXPECT_EQ(with_input_prim_pointer(cb, 1LL << 31), 1LL << 33);
@@ -254,6 +256,72 @@ TEST(Test, NullWithInputByteSized) {
 TEST(Test, NullWithInputNullTerm) {
   EXPECT_EQ(with_input_null_term(nullptr, "test"), -1);
 }
+
+// Output pointer tests.
+TEST(Test, WithOutputPrimPointer) {
+  auto cb = [](int64_t* out) { *out = 0xABCDEF123456789LL; };
+  EXPECT_EQ(with_output_prim_pointer(cb), 0xABCDEF123456789LL);
+
+  EXPECT_EQ(with_output_prim_pointer(nullptr), -1);
+}
+
+TEST(Test, WithOutputElemSized) {
+  auto cb = [](int* out, size_t num_elems) {
+    for (size_t i = 0; i < num_elems; ++i) {
+      out[i] = i * i;
+    }
+  };
+  EXPECT_EQ(with_output_elem_sized(cb, 10), 285);
+
+  EXPECT_EQ(with_output_elem_sized(nullptr, 10), -1);
+}
+
+TEST(Test, WithOutputByteSized) {
+  auto cb = [](void* out, size_t num_bytes) {
+    uint8_t* byte_out = static_cast<uint8_t*>(out);
+    for (size_t i = 0; i < num_bytes; ++i) {
+      byte_out[i] = i;
+    }
+  };
+  EXPECT_EQ(with_output_byte_sized(cb, 10), 45);
+
+  EXPECT_EQ(with_output_byte_sized(nullptr, 10), -1);
+}
+
+// In-out pointer tests.
+
+TEST(Test, WithInoutPrimPointer) {
+  auto cb = [](int64_t* inout) { *inout *= 2; };
+  EXPECT_EQ(with_inout_prim_pointer(cb, 0x0BCDEF123456789LL),
+            106324845763677970);
+
+  EXPECT_EQ(with_inout_prim_pointer(nullptr, 0x0BCDEF123456789LL), -1);
+}
+
+TEST(Test, WithInoutElemSized) {
+  auto cb = [](int* inout, size_t num_elems) {
+    for (size_t i = 0; i < num_elems; ++i) {
+      inout[i] *= 2;
+    }
+  };
+  EXPECT_EQ(with_inout_elem_sized(cb, 10), 90);
+
+  EXPECT_EQ(with_inout_elem_sized(nullptr, 10), -1);
+}
+
+TEST(Test, WithInoutElemSizedAndRetValue) {
+  auto cb = [](int* inout, size_t num_elems) -> size_t {
+    for (size_t i = 0; i < num_elems; ++i) {
+      inout[i] *= 2;
+    }
+    return num_elems;
+  };
+  EXPECT_EQ(with_inout_elem_sized_and_ret_value(cb, 10), 100);
+
+  EXPECT_EQ(with_inout_elem_sized_and_ret_value(nullptr, 10), -1);
+}
+
+// Host opaque pointer tests.
 
 struct HostClosureData {
   int* int_ptr;

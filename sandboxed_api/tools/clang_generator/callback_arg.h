@@ -25,6 +25,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
@@ -165,37 +166,52 @@ struct CallbackArg : public Arg {
     // Translate and sync pointer params (sb -> host), if needed.
     std::string lambda_body = LambdaWrapperParamSyncPreCall();
 
+    // Sync back any outparams (host -> sb), if needed.
+    std::string post_call_sync = LambdaWrapperParamSyncPostCall();
+
     bool needs_ret_sync = is_ret_pointer_;
 
-    // Do the call, and sync the return value if needed.
+    // Call the callback, and sync the return value if needed.
     if (needs_ret_sync) {
+      absl::StrAppend(&lambda_body,
+                      absl::StrReplaceAll(
+                          R"cc(
+                            // Forward params -> args, and do the callback
+                            $ret_type sapi_$name_ret_host = $name($args);
+                            $post_call_sync
+                                // If the callback returned null, no need to
+                                // allocate a sandbox copy, sync, etc.
+                                if (!sapi_$name_ret_host) {
+                              return nullptr;
+                            }
+                            // Otherwise, make a sandbox copy of the
+                            // return value, and return the sandbox copy.
+                            $sync_and_track
+                          )cc",
+                          {
+                              {"$ret_type", ret_type_name_},
+                              {"$name", name_},
+                              {"$args", LambdaWrapperCallArgs()},
+                              {"$post_call_sync", post_call_sync},
+                              {"$sync_and_track", SyncAndTrackReturnedValue()},
+                          }));
+    } else if (ret_type_name_ == "void") {
       absl::SubstituteAndAppend(&lambda_body,
                                 R"cc(
                                   // Forward params -> args, and do the callback
-                                  $0 sapi_$1_ret_host = $1($2);
-                                  // If the callback returned null, no need to
-                                  // allocate a sandbox copy, sync, etc.
-                                  if (!sapi_$1_ret_host) {
-                                    return nullptr;
-                                  }
-                                  // Otherwise, make a sandbox copy of the
-                                  // return value, and return the sandbox copy.
-                                  $3
+                                  $0($1);
+                                  $2
+                                )cc",
+                                name_, LambdaWrapperCallArgs(), post_call_sync);
+    } else {
+      absl::SubstituteAndAppend(&lambda_body,
+                                R"cc(
+                                  // Forward params -> args, and do the callback
+                                  $0 sapi_$1_ret = $1($2);
+                                  $3 return sapi_$1_ret;
                                 )cc",
                                 ret_type_name_, name_, LambdaWrapperCallArgs(),
-                                SyncAndTrackReturnedValue());
-    } else if (ret_type_name_ == "void") {
-      absl::SubstituteAndAppend(
-          &lambda_body,
-          "// Forward params -> args, and do the callback\n"
-          "$0($1);\n",
-          name_, LambdaWrapperCallArgs());
-    } else {
-      absl::SubstituteAndAppend(
-          &lambda_body,
-          "// Forward params -> args, and do the callback\n"
-          "return $0($1);\n",
-          name_, LambdaWrapperCallArgs());
+                                post_call_sync);
     }
 
     return absl::Substitute(
@@ -268,6 +284,7 @@ struct CallbackArg : public Arg {
   std::string LambdaWrapperRetVariables() const;
   std::string LambdaWrapperParamList() const;
   std::string LambdaWrapperParamSyncPreCall() const;
+  std::string LambdaWrapperParamSyncPostCall() const;
   std::string LambdaWrapperCallArgs() const;
   std::string SyncAndTrackReturnedValue() const;
 

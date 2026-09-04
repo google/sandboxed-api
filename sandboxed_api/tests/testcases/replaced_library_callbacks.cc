@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -116,6 +117,7 @@ std::vector<int> create_int_buffer(size_t in_size) {
   return buf;
 }
 
+// Callbacks with input pointers.
 int with_input_elem_sized(int (*cb)(const int*, size_t), size_t in_size) {
   if (cb == nullptr) return -1;
   std::vector<int> buf = create_int_buffer(in_size);
@@ -139,6 +141,54 @@ int with_input_null_term(int (*cb)(const char*), const char* input) {
   return cb(input);
 }
 
+// Callbacks with output pointers
+int64_t with_output_prim_pointer(void (*cb)(int64_t*)) {
+  if (cb == nullptr) return -1;
+  int64_t out;
+  cb(&out);
+  return out;
+}
+
+int with_output_elem_sized(void (*cb)(int*, size_t), size_t num_elems) {
+  if (cb == nullptr) return -1;
+  std::vector<int> out(num_elems);
+  cb(out.data(), num_elems);
+  return std::accumulate(out.begin(), out.end(), 0);
+}
+
+int with_output_byte_sized(void (*cb)(void*, size_t), size_t num_bytes) {
+  if (cb == nullptr) return -1;
+  std::vector<uint8_t> out(num_bytes);
+  cb(out.data(), num_bytes);
+  return std::accumulate(out.begin(), out.end(), 0);
+}
+
+// Callbacks with in-out pointers
+int64_t with_inout_prim_pointer(void (*cb)(int64_t*), int64_t x) {
+  if (cb == nullptr) return -1;
+  int64_t inout = x;
+  cb(&inout);
+  return inout;
+}
+
+int with_inout_elem_sized(void (*cb)(int*, size_t), size_t num_elems) {
+  if (cb == nullptr) return -1;
+  std::vector<int> inout(num_elems);
+  std::iota(inout.begin(), inout.end(), 0);
+  cb(inout.data(), num_elems);
+  return std::accumulate(inout.begin(), inout.end(), 0);
+}
+
+int with_inout_elem_sized_and_ret_value(size_t (*cb)(int*, size_t),
+                                        size_t num_elems) {
+  if (cb == nullptr) return -1;
+  std::vector<int> inout(num_elems);
+  std::iota(inout.begin(), inout.end(), 0);
+  int ret = cb(inout.data(), num_elems);
+  return ret + std::accumulate(inout.begin(), inout.end(), 0);
+}
+
+// Callbacks with host opaque pointers.
 int with_host_opaque(int (*combiner)(void*, int, void*, void*), int val,
                      void* outer_param, void* outer_param2) {
   return combiner(outer_param, val * 2, outer_param2, outer_param);

@@ -92,104 +92,148 @@ std::string CallbackArg::LambdaWrapperParamSyncPreCall() const {
   std::string out;
   for (size_t i = 0; i < param_names_.size(); ++i) {
     const auto& ann = param_annotations_[i];
-    const std::string& param_name = param_names_[i];
-    const std::string& param_type = param_types_[i];
-
     // Scalar types don't need syncing or sandbox -> host pointer conversion.
     // Perhaps wrap in ScalarArg like class.
     if (IsScalarParam(ann)) {
       continue;
     }
-
-    if (ann.ptr_dir == PointerDir::kIn) {
-      // Sync the sandbox supplied pointee data to the host, and store a host
-      // pointer in `sapi_host_$param_name` before calling the host callback.
-      auto SyncAndGetHostPointerForNonCStrCases =
-          [&](absl::string_view size_expr) {
-            absl::SubstituteAndAppend(&out,
-                                      R"cc(
-                                        $1 sapi_host_$0 = nullptr;
-                                        std::optional<sapi::v::Array<char>> sapi_arr_$0;
-                                        if ($0 != nullptr) {
-                                          sapi_arr_$0.emplace($2);
-                                          sapi_arr_$0->SetRemote(const_cast<void*>(reinterpret_cast<const void*>($0)));
-                                          sandbox->Check(sandbox->TransferFromSandboxee(&sapi_arr_$0.value()));
-                                          sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
-                                        }
-                                      )cc",
-                                      param_name, param_type, size_expr);
-          };
-      // TODO(b/491762076): consider limiting the size, since that is specified
-      // by a callback param (which can be controlled by the sandbox).
-      // (similar for returned buffers).
-      std::visit(
-          absl::Overload{
-              [&](std::monostate) {
-                SyncAndGetHostPointerForNonCStrCases(
-                    absl::Substitute("sizeof(*$0)", param_name));
-              },
-              [&](const ElemSizedBy& elem_sized_by) {
-                SyncAndGetHostPointerForNonCStrCases(absl::Substitute(
-                    "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param_name,
-                    elem_sized_by.expr));
-              },
-              [&](const ByteSizedBy& byte_sized_by) {
-                SyncAndGetHostPointerForNonCStrCases(byte_sized_by.expr);
-              },
-              [&](const NullTerminated&) {
-                absl::SubstituteAndAppend(
-                    &out,
-                    R"cc(
-                      std::optional<std::string> sapi_str_$0;
-                      $1 sapi_host_$0 = nullptr;
-                      if ($0 != nullptr) {
-                        auto sapi_cstr_status = sandbox->GetCString(
-                            sapi::v::RemotePtr(const_cast<char*>(
-                                reinterpret_cast<const char*>($0))));
-                        sandbox->Check(sapi_cstr_status.status());
-                        sapi_str_$0 = std::move(*sapi_cstr_status);
-                        sapi_host_$0 = sapi_str_$0->c_str();
-                      }
-                    )cc",
-                    param_name, param_type);
-              },
-              [](const SizedByBinding&) {
-                LOG(FATAL)
-                    << "SizedByBinding not supported for callback params.";
-              }},
-          ann.size_type);
-    } else if (ann.ptr_dir == PointerDir::kHostOpaque) {
-      if (std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime)) {
-        const std::string& outer_param_name =
-            std::get<AliasHostPtrLifetime>(ann.lifetime).param_name;
-        const auto& param_host_opaque_handle = param_host_opaque_handles_[i];
-        if (!param_host_opaque_handle.has_value()) {
-          LOG(FATAL) << "alias_ptr for a host opaque callback param found, but "
-                     << "no corresponding handle for host pointer found "
-                     << param_name;
-        }
-        size_t handle = *param_host_opaque_handle;
-        absl::SubstituteAndAppend(
-            &out,
-            R"cc(
-              $1 sapi_expected_$0 =
-                  $2 == nullptr ? nullptr : reinterpret_cast<$1>($3);
-              CHECK_EQ($0, sapi_expected_$0);
-              $1 sapi_host_$0 = $2;
-            )cc",
-            param_name, param_type, outer_param_name, handle);
-      } else {
-        absl::SubstituteAndAppend(&out,
-                                  R"cc(
-                                    $1 sapi_host_$0 = $0;
-                                  )cc",
-                                  param_name, param_type);
-      }
-    } else if (ann.ptr_dir.has_value()) {
+    const std::string& param_name = param_names_[i];
+    const std::string& param_type = param_types_[i];
+    if (!ann.ptr_dir.has_value()) {
       // We should have rejected this case this after parsing annotations.
-      // TODO(b/491762076): support out direction too.
-      LOG(FATAL) << "Unsupported pointer direction for callback param: "
+      LOG(FATAL) << "Missing pointer direction for non-scalar callback param: "
                  << param_name;
+    }
+
+    switch (*ann.ptr_dir) {
+      case PointerDir::kIn:
+      case PointerDir::kInOut:
+      case PointerDir::kOut: {
+        // Sync the sandbox supplied pointee data to the host (if input /
+        // inout), and store a host pointer in `sapi_host_$param_name` before
+        // calling the host callback.
+        auto SyncAndGetHostPointerForNonCStrCases = [&](absl::string_view
+                                                            size_expr) {
+          std::string maybe_transfer_from =
+              ann.ptr_dir == PointerDir::kOut
+                  ? ""
+                  : absl::Substitute(
+                        "sandbox->Check(sandbox->TransferFromSandboxee(&sapi_"
+                        "arr_$0.value()));\n",
+                        param_name);
+          absl::SubstituteAndAppend(&out,
+                                    R"cc(
+                                      $1 sapi_host_$0 = nullptr;
+                                      std::optional<sapi::v::Array<char>> sapi_arr_$0;
+                                      if ($0 != nullptr) {
+                                        sapi_arr_$0.emplace($2);
+                                        sapi_arr_$0->SetRemote(const_cast<void*>(reinterpret_cast<const void*>($0)));
+                                        $3sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
+                                      }
+                                    )cc",
+                                    param_name, param_type, size_expr,
+                                    maybe_transfer_from);
+        };
+        // TODO(b/491762076): consider limiting the size, since that is
+        // specified by a callback param (which can be controlled by the
+        // sandbox). (similar for returned buffers).
+        std::visit(
+            absl::Overload{
+                [&](std::monostate) {
+                  SyncAndGetHostPointerForNonCStrCases(
+                      absl::Substitute("sizeof(*$0)", param_name));
+                },
+                [&](const ElemSizedBy& elem_sized_by) {
+                  SyncAndGetHostPointerForNonCStrCases(absl::Substitute(
+                      "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param_name,
+                      elem_sized_by.expr));
+                },
+                [&](const ByteSizedBy& byte_sized_by) {
+                  SyncAndGetHostPointerForNonCStrCases(byte_sized_by.expr);
+                },
+                [&](const NullTerminated&) {
+                  if (ann.ptr_dir != PointerDir::kIn) {
+                    LOG(FATAL)
+                        << "Only input null-terminated pointer callback params "
+                           "supported: "
+                        << param_name;
+                  }
+                  absl::SubstituteAndAppend(
+                      &out,
+                      R"cc(
+                        std::optional<std::string> sapi_str_$0;
+                        $1 sapi_host_$0 = nullptr;
+                        if ($0 != nullptr) {
+                          auto sapi_cstr_status = sandbox->GetCString(
+                              sapi::v::RemotePtr(const_cast<char*>(
+                                  reinterpret_cast<const char*>($0))));
+                          sandbox->Check(sapi_cstr_status.status());
+                          sapi_str_$0 = std::move(*sapi_cstr_status);
+                          sapi_host_$0 = sapi_str_$0->c_str();
+                        }
+                      )cc",
+                      param_name, param_type);
+                },
+                [](const SizedByBinding&) {
+                  LOG(FATAL)
+                      << "SizedByBinding not supported for callback params.";
+                }},
+            ann.size_type);
+        break;
+      }
+      case PointerDir::kHostOpaque:
+        if (std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime)) {
+          const std::string& outer_param_name =
+              std::get<AliasHostPtrLifetime>(ann.lifetime).param_name;
+          const auto& param_host_opaque_handle = param_host_opaque_handles_[i];
+          if (!param_host_opaque_handle.has_value()) {
+            LOG(FATAL)
+                << "alias_ptr for a host opaque callback param found, but "
+                << "no corresponding handle for host pointer found "
+                << param_name;
+          }
+          size_t handle = *param_host_opaque_handle;
+          absl::SubstituteAndAppend(
+              &out,
+              R"cc(
+                $1 sapi_expected_$0 =
+                    $2 == nullptr ? nullptr : reinterpret_cast<$1>($3);
+                CHECK_EQ($0, sapi_expected_$0);
+                $1 sapi_host_$0 = $2;
+              )cc",
+              param_name, param_type, outer_param_name, handle);
+        } else {
+          absl::SubstituteAndAppend(&out,
+                                    R"cc(
+                                      $1 sapi_host_$0 = $0;
+                                    )cc",
+                                    param_name, param_type);
+        }
+        break;
+      case PointerDir::kSandboxOpaque:
+        // We should have rejected this case this after parsing annotations.
+        LOG(FATAL) << "Unsupported pointer direction for callback param: "
+                   << param_name;
+    }
+  }
+  return out;
+}
+
+std::string CallbackArg::LambdaWrapperParamSyncPostCall() const {
+  std::string out;
+  for (size_t i = 0; i < param_names_.size(); ++i) {
+    const auto& ann = param_annotations_[i];
+    if (IsScalarParam(ann)) {
+      continue;
+    }
+    if (ann.ptr_dir == PointerDir::kOut || ann.ptr_dir == PointerDir::kInOut) {
+      absl::SubstituteAndAppend(&out,
+                                R"cc(
+                                  if (sapi_arr_$0.has_value()) {
+                                    sandbox->Check(sandbox->TransferToSandboxee(&sapi_arr_$0.value()));
+                                  }
+                                )cc",
+                                param_names_[i]);
     }
   }
   return out;

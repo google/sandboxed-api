@@ -68,6 +68,22 @@ int with_input_byte_sized(int (*cb)(const void*, size_t), size_t in_size);
 
 int with_input_null_term(int (*cb)(const char*), const char* input);
 
+// Callbacks with output pointers
+int64_t with_output_prim_pointer(void (*cb)(int64_t*));
+
+int with_output_elem_sized(void (*cb)(int*, size_t), size_t num_elems);
+
+int with_output_byte_sized(void (*cb)(void*, size_t), size_t num_bytes);
+
+// Callbacks with in-out pointers
+int64_t with_inout_prim_pointer(void (*cb)(int64_t*), int64_t x);
+
+int with_inout_elem_sized(void (*cb)(int*, size_t), size_t num_elems);
+
+int with_inout_elem_sized_and_ret_value(size_t (*cb)(int*, size_t),
+                                        size_t num_elems);
+
+// Callback with host opaque pointers.
 int with_host_opaque(int (*combiner)(void*, int, void*, void*), int val,
                      void* outer_param, void* outer_param2);
 

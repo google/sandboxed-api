@@ -171,26 +171,31 @@ absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
   }
 
   if (cb_param_type->isPointerType()) {
-    // Infer "IN" for const pointers
     std::optional<PointerDir> ptr_dir;
-    if (cb_param_type->getPointeeType().isConstQualified()) {
-      ptr_dir = PointerDir::kIn;
-    }
     if (annotations.ptr_dir) {
       ptr_dir = annotations.ptr_dir;
+    }
+    if (cb_param_type->getPointeeType().isConstQualified()) {
+      // Infer "IN" for const pointers
+      if (!ptr_dir) {
+        ptr_dir = PointerDir::kIn;
+      } else if (*ptr_dir != PointerDir::kIn) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: output pointers cannot be const",
+            cb_name, cb_param_name));
+      }
     }
     if (!ptr_dir) {
       return absl::InvalidArgumentError(
           absl::Substitute("callback $0 parameter $1: unknown direction",
                            cb_name, cb_param_name));
     }
-    // TODO(b/491762076): support out/inout/sandbox opaque pointers for
-    // callbacks.
-    if (*ptr_dir != PointerDir::kIn && *ptr_dir != PointerDir::kHostOpaque) {
+    // TODO(b/491762076): support sandbox opaque pointers for callbacks.
+    if (*ptr_dir != PointerDir::kIn && *ptr_dir != PointerDir::kOut &&
+        *ptr_dir != PointerDir::kInOut && *ptr_dir != PointerDir::kHostOpaque) {
       return absl::InvalidArgumentError(absl::Substitute(
-          "callback $0 parameter $1: only input or host opaque pointers are "
-          "supported for callbacks",
-          cb_name, cb_param_name));
+          "callback $0 parameter $1: unsupported pointer direction", cb_name,
+          cb_param_name));
     }
     annotations.ptr_dir = *ptr_dir;
 
@@ -244,6 +249,16 @@ absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
               return absl::OkStatus();
             },
             [&](const NullTerminated&) {
+              // TODO(b/491762076): for now we do not support output
+              // null-terminated pointers. For non-callback parameters, we have
+              // a heursitic to support the `**` outparam case, but not the `*`
+              // case. See IsSupportedOutParamNullTerminatedType.
+              if (*ptr_dir != PointerDir::kIn) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "callback $0 parameter $1: only input null-terminated "
+                    "pointers are supported for callbacks",
+                    cb_name, cb_param_name));
+              }
               if (!IsSupportedArgRetNullTerminatedType(cb_param_type))
                 return error_status;
               return absl::OkStatus();
