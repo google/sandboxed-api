@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -57,9 +58,13 @@ struct SandboxPoolOptions {
   // replaced with a new one. `1` means that sandboxes are never reused.
   size_t max_sandbox_reuse = 1;
   // The number of threads to use for maintenance tasks, such as recycling and
-  // destroying sandboxes. If 0, a default number of threads will be used,
-  // based on the number of maximum sandboxes in the pool.
-  size_t max_maintenance_threads = 0;
+  // destroying sandboxes.
+  // - std::nullopt (default): A default number of threads will be used,
+  //   based on the number of maximum sandboxes in the pool.
+  // - 0: Threadless mode. No maintenance or pruning background threads are
+  //   spawned; sandboxes are created on demand and destroyed synchronously.
+  // - N > 0: Spawns N maintenance threads plus 1 pruning thread.
+  std::optional<size_t> max_maintenance_threads = std::nullopt;
 };
 
 // Forward declarations
@@ -177,6 +182,10 @@ class SandboxPool : public std::enable_shared_from_this<SandboxPool<SandboxT>> {
       std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry,
       bool is_shutting_down);
 
+  bool ShouldUseBackgroundThreads() const {
+    return options_.max_maintenance_threads.value_or(1) != 0;
+  }
+
   SandboxPoolOptions options_;
   Factory factory_;
 
@@ -197,7 +206,9 @@ class SandboxPool : public std::enable_shared_from_this<SandboxPool<SandboxT>> {
 template <typename SandboxT>
 SandboxPool<SandboxT>::~SandboxPool() {
   idle_queue_.Stop();
-  pruning_worker_.Join();
+  if (pruning_worker_.IsJoinable()) {
+    pruning_worker_.Join();
+  }
   worker_queue_.Stop();
   for (auto& worker : maintenance_workers_) {
     worker.Join();
@@ -289,24 +300,30 @@ SandboxPool<SandboxT>::SandboxPool(SandboxPoolOptions options, Factory factory)
 
 template <typename SandboxT>
 absl::Status SandboxPool<SandboxT>::Init() {
-  pruning_worker_ =
-      sapi::Thread(this, &SandboxPool<SandboxT>::Pruner, "sandbox_pool_pruner");
-  size_t num_workers = options_.max_maintenance_threads;
-  if (num_workers == 0) {
-    num_workers = std::max(
-        size_t{1}, static_cast<size_t>(std::log2(options_.max_sandboxes)));
-  }
-  maintenance_workers_.reserve(num_workers);
-  for (size_t i = 0; i < num_workers; ++i) {
-    maintenance_workers_.emplace_back(this, &SandboxPool<SandboxT>::WorkerRun,
-                                      "sandbox_pool_maintenance");
-  }
-  // Pre-warm the pool to min_sandboxes. This will be done concurrently by the
-  // maintenance workers, and those will ensure that no more than min_sandboxes
-  // are created, so there is no need to wait for them to finish here.
-  for (size_t i = 0; i < options_.min_sandboxes; ++i) {
-    worker_queue_.Push(std::bind_front(&SandboxPool<SandboxT>::CreateTask, this,
-                                       options_.min_sandboxes));
+  if (ShouldUseBackgroundThreads()) {
+    pruning_worker_ = sapi::Thread(this, &SandboxPool<SandboxT>::Pruner,
+                                   "sandbox_pool_pruner");
+    size_t num_workers = options_.max_maintenance_threads.value_or(std::max(
+        size_t{1}, static_cast<size_t>(std::log2(options_.max_sandboxes))));
+    maintenance_workers_.reserve(num_workers);
+    for (size_t i = 0; i < num_workers; ++i) {
+      maintenance_workers_.emplace_back(this, &SandboxPool<SandboxT>::WorkerRun,
+                                        "sandbox_pool_maintenance");
+    }
+    // Pre-warm the pool to min_sandboxes. This will be done concurrently by the
+    // maintenance workers, and those will ensure that no more than
+    // min_sandboxes are created, so there is no need to wait for them to finish
+    // here.
+    for (size_t i = 0; i < options_.min_sandboxes; ++i) {
+      worker_queue_.Push(std::bind_front(&SandboxPool<SandboxT>::CreateTask,
+                                         this, options_.min_sandboxes));
+    }
+  } else {
+    // Threadless mode: synchronously pre-warm the pool to min_sandboxes on the
+    // initializing thread.
+    for (size_t i = 0; i < options_.min_sandboxes; ++i) {
+      CreateTask(options_.min_sandboxes, /*is_shutting_down=*/false);
+    }
   }
   return absl::OkStatus();
 }
@@ -321,10 +338,15 @@ void SandboxPool<SandboxT>::Release(
   active_count_.fetch_sub(1, std::memory_order_relaxed);
 
   if (recycle) {
-    // Needs recycling. Push to the worker queue to be recycled in a
-    // maintenance thread.
-    worker_queue_.Push(std::bind_front(&SandboxPool<SandboxT>::RecycleTask,
-                                       this, std::move(entry)));
+    if (ShouldUseBackgroundThreads()) {
+      // Needs recycling. Push to the worker queue to be recycled in a
+      // maintenance thread.
+      worker_queue_.Push(std::bind_front(&SandboxPool<SandboxT>::RecycleTask,
+                                         this, std::move(entry)));
+    } else {
+      // Threadless mode: recycle synchronously.
+      RecycleTask(std::move(entry), /*is_shutting_down=*/false);
+    }
   } else {
     // Otherwise, push back to the idle queue immediately.
     idle_queue_.Push(std::move(entry));

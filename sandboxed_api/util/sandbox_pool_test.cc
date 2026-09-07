@@ -223,6 +223,46 @@ TEST(SandboxPoolTest, HandleOutlivesPool) {
   EXPECT_NE(ptr, nullptr);
 }
 
+TEST(SandboxPoolTest, ThreadlessMode) {
+  SandboxPoolOptions options;
+  options.min_sandboxes = 2;
+  options.max_sandboxes = 4;
+  options.max_sandbox_reuse = 2;
+  options.max_maintenance_threads = 0;
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
+                            SandboxPool<StringopSandbox>::Create(options));
+  // In threadless mode, pre-warming happens synchronously during Create().
+  EXPECT_EQ(pool->AvailableCount(), 2);
+
+  StringopSandbox* raw_sbx = nullptr;
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire());
+    raw_sbx = handle.get();
+    EXPECT_NE(raw_sbx, nullptr);
+    EXPECT_EQ(pool->AvailableCount(), 1);
+  }
+  // Usage count is 1 (< max_sandbox_reuse), so it returns to the idle queue.
+  EXPECT_EQ(pool->AvailableCount(), 2);
+
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto handle1, pool->Acquire());
+    SAPI_ASSERT_OK_AND_ASSIGN(auto handle2, pool->Acquire());
+    EXPECT_EQ(pool->AvailableCount(), 0);
+  }
+  // One sandbox reached usage_count == 2 and was recycled synchronously;
+  // the other reached usage_count == 1 and was returned to the idle queue.
+  EXPECT_EQ(pool->AvailableCount(), 2);
+
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto handle1, pool->Acquire());
+    EXPECT_EQ(pool->AvailableCount(), 1);
+    // Idle queue is empty, so this Acquire creates a new sandbox on demand.
+    SAPI_ASSERT_OK_AND_ASSIGN(auto handle2, pool->Acquire());
+    EXPECT_NE(handle2.get(), nullptr);
+  }
+}
+
 std::shared_ptr<SandboxPool<StringopSandbox>> g_pool;
 
 void BenchmarkSetup(const benchmark::State& state) {
