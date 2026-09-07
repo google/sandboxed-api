@@ -53,7 +53,7 @@ add_library(sapi::sandbox_config ALIAS sapi_sandbox_config)
 target_link_libraries(sapi_sandbox_config
   PRIVATE absl::base
           absl::core_headers
-          absl::flat_hash_map
+          absl::linked_hash_map
           absl::log
           absl::log_globals
           absl::synchronization
@@ -384,6 +384,17 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::embed_file
     sapi::test_main
   )
+
+  # sandboxed_api:sandbox_config_test
+  add_executable(sandbox_config_test
+    sandbox_config_test.cc
+  )
+  target_link_libraries(sandbox_config_test PRIVATE
+    absl::linked_hash_map
+    sapi::sandbox_config
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox_config_test)
 
   # sandboxed_api:shared_memory_rpcchannel_test
   add_executable(shared_memory_rpcchannel_test
