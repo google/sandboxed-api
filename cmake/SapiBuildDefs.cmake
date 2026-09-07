@@ -21,6 +21,7 @@
 macro(sapi_cc_embed_data)
   cmake_parse_arguments(_sapi_embed "" "OUTPUT_NAME;NAME;NAMESPACE" "SOURCES"
                         ${ARGN})
+  set(_sapi_embed_in "")
   foreach(src IN LISTS _sapi_embed_SOURCES)
     if(TARGET "${src}")
       get_target_property(_sapi_embed_src_OUTPUT_NAME ${src} OUTPUT_NAME)
@@ -30,6 +31,9 @@ macro(sapi_cc_embed_data)
       list(APPEND _sapi_embed_in
           "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_src_OUTPUT_NAME}")
     else()
+      if(NOT IS_ABSOLUTE "${src}")
+        get_filename_component(src "${src}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+      endif()
       list(APPEND _sapi_embed_in "${src}")
     endif()
   endforeach()
@@ -42,12 +46,14 @@ macro(sapi_cc_embed_data)
   add_custom_command(
     OUTPUT "${_sapi_embed_OUTPUT_NAME}.h"
            "${_sapi_embed_OUTPUT_NAME}.cc"
+           "${_sapi_embed_OUTPUT_NAME}.S"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMAND filewrapper "${_sapi_embed_pkg}"
                         "${_sapi_embed_OUTPUT_NAME}"
                         "${_sapi_embed_NAMESPACE}"
                         "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_OUTPUT_NAME}.h"
                         "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_OUTPUT_NAME}.cc"
+                        "${CMAKE_CURRENT_BINARY_DIR}/${_sapi_embed_OUTPUT_NAME}.S"
                         ${_sapi_embed_in}
     DEPENDS ${_sapi_embed_SOURCES}
     VERBATIM
@@ -55,6 +61,7 @@ macro(sapi_cc_embed_data)
   add_library("${_sapi_embed_NAME}" STATIC
     "${_sapi_embed_OUTPUT_NAME}.h"
     "${_sapi_embed_OUTPUT_NAME}.cc"
+    "${_sapi_embed_OUTPUT_NAME}.S"
   )
   target_link_libraries("${_sapi_embed_NAME}" PRIVATE
     sapi::base

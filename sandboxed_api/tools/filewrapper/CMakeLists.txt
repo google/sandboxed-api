@@ -41,7 +41,6 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
                  testdata/filewrapper_embedded.bin COPYONLY)
   target_link_libraries(sapi_filewrapper_test PRIVATE
     filewrapper_embedded
-    absl::status_matchers
     sapi::embed_file
     sapi::file_helpers
     sapi::embed_toc

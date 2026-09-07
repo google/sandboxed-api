@@ -81,6 +81,7 @@ target_link_libraries(sapi_embed_file
           absl::status_macros
           absl::statusor
           absl::strings
+          sandbox2::minielf
           sandbox2::util
           sapi::base
           sapi::embed_toc

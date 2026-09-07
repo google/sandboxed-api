@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,29 +24,29 @@
 #include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/testing.h"
-#include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
+#include "sandboxed_api/tests/unmapped_embedded_data.h"
 
 namespace sapi {
 namespace {
 
 using ::testing::Eq;
 using ::testing::Ne;
-using ::testing::NotNull;
 using ::testing::StrEq;
 
-TEST(FilewrapperTest, BasicFunctionality) {
-  auto raw_toc = filewrapper_embedded_create();
-  ASSERT_THAT(raw_toc, NotNull());
+constexpr absl::string_view kExpectedPayload =
+    "SAPI embedded test payload data 0123456789\n";
+
+TEST(EmbedDataTest, UnmappedElfEmbedding) {
+  const auto* raw_toc = unmapped_embedded_data_create();
+  ASSERT_THAT(raw_toc, Ne(nullptr));
+
   sapi::EmbedToc toc = sapi::EmbedToc::From(*raw_toc);
-
-  EXPECT_THAT(std::string(toc.name), StrEq("filewrapper_embedded.bin"));
-
-  constexpr absl::string_view kExpectedPayload =
-      "filewrapper test embedded payload\n";
+  EXPECT_THAT(std::string(toc.name), StrEq("embedded_data.bin"));
 
   if (!toc.section_name.empty()) {
     EXPECT_THAT(std::string(toc.section_name),
-                StrEq(".sapi_embed_filewrapper_embedded_bin"));
+                StrEq(".sapi_embed_embedded_data_bin"));
+
     const char* elf_path = "/proc/self/exe";
     Dl_info dlinfo;
     if (dladdr(raw_toc, &dlinfo) != 0 && dlinfo.dli_fname != nullptr &&
@@ -56,8 +56,6 @@ TEST(FilewrapperTest, BasicFunctionality) {
     SAPI_ASSERT_OK_AND_ASSIGN(auto loc, sandbox2::ElfFile::GetSectionLocation(
                                             elf_path, toc.section_name));
     EXPECT_THAT(loc.offset % 4096, Eq(0));
-  } else {
-    EXPECT_THAT(std::string(toc.data), StrEq(kExpectedPayload));
   }
 
   int fd = EmbedFile::instance()->GetFdForFileToc(toc);
