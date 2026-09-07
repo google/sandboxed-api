@@ -185,7 +185,6 @@ cc_library(
         "@abseil-cpp//absl/base:dynamic_annotations",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/container:linked_hash_map",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -223,24 +222,13 @@ cc_library(
         "//sandboxed_api/sandbox2:sandbox_config",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/container:linked_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:die_if_null",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-    ],
-)
-
-cc_test(
-    name = "sandbox_config_test",
-    srcs = ["sandbox_config_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":sandbox_config",
-        "@abseil-cpp//absl/container:linked_hash_map",
-        "@googletest//:gtest_main",
     ],
 )
 
