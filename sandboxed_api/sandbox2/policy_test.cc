@@ -17,6 +17,7 @@
 #include <syscall.h>
 
 #include <cerrno>
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -520,6 +521,25 @@ TEST_P(PolicyTest, OverridableBlockSyscallWithErrnoWorks) {
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, InvalidSeccomp) {
+  SKIP_SANITIZERS;
+  PolicyBuilder policy_builder = PolicyTestcasePolicyBuilder();
+  policy_builder.AddPolicyOnSyscall(1337,
+                                    {
+                                        // Invalid load - memory uninitialized.
+                                        BPF_STMT(BPF_LD | BPF_MEM, 0),
+                                        ERRNO(2),
+                                    });
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({"policy", "13", "1337", "1", "2"}, policy_builder);
+  Result result = s2->Run();
+
+  ASSERT_THAT(result.final_status(),
+              Eq(GetParam() ? Result::SETUP_ERROR : Result::SIGNALED));
+  EXPECT_THAT(result.reason_code(),
+              Eq(GetParam() ? Result::FAILED_NOTIFY : SIGABRT));
 }
 
 TEST_P(PolicyTest, OverridablePolicyOnSyscallsWorks) {
