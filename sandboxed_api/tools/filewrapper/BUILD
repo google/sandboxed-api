@@ -36,30 +36,23 @@ cc_binary(
     ],
 )
 
-genrule(
-    name = "generate_filewrapper_embedded_bin",
-    outs = ["filewrapper_embedded.bin"],
-    cmd = "echo 'filewrapper test embedded payload' > $@",
-)
-
 sapi_cc_embed_data(
     name = "filewrapper_embedded",
-    srcs = [":filewrapper_embedded.bin"],
+    srcs = ["testdata/filewrapper_embedded.bin"],
 )
 
 cc_test(
     name = "filewrapper_test",
     srcs = ["filewrapper_test.cc"],
     copts = sapi_platform_copts(),
-    data = [":filewrapper_embedded.bin"],
+    data = ["testdata/filewrapper_embedded.bin"],
     deps = [
         ":filewrapper_embedded",
         "//sandboxed_api:embed_file",
         "//sandboxed_api:embed_toc",
         "//sandboxed_api:testing",
-        "//sandboxed_api/sandbox2/util:minielf",
         "//sandboxed_api/util:file_helpers",
-        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
 )

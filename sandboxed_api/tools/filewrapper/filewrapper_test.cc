@@ -12,23 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dlfcn.h>
 #include <unistd.h>
 
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/string_view.h"
+#include "absl/status/status_matchers.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/embed_toc.h"
-#include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
+#include "sandboxed_api/util/file_helpers.h"
 
 namespace sapi {
 namespace {
 
+using ::absl_testing::IsOk;
+using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::NotNull;
@@ -41,32 +42,21 @@ TEST(FilewrapperTest, BasicFunctionality) {
 
   EXPECT_THAT(std::string(toc.name), StrEq("filewrapper_embedded.bin"));
 
-  constexpr absl::string_view kExpectedPayload =
-      "filewrapper test embedded payload\n";
+  std::string contents;
+  ASSERT_THAT(file::GetContents(
+                  GetTestSourcePath(
+                      "tools/filewrapper/testdata/filewrapper_embedded.bin"),
+                  &contents, file::Defaults()),
+              IsOk());
 
-  if (!toc.section_name.empty()) {
-    EXPECT_THAT(std::string(toc.section_name),
-                StrEq(".sapi_embed_filewrapper_embedded_bin"));
-    const char* elf_path = "/proc/self/exe";
-    Dl_info dlinfo;
-    if (dladdr(raw_toc, &dlinfo) != 0 && dlinfo.dli_fname != nullptr &&
-        dlinfo.dli_fname[0] != '\0') {
-      elf_path = dlinfo.dli_fname;
-    }
-    SAPI_ASSERT_OK_AND_ASSIGN(auto loc, sandbox2::ElfFile::GetSectionLocation(
-                                            elf_path, toc.section_name));
-    EXPECT_THAT(loc.offset % 4096, Eq(0));
-  } else {
-    EXPECT_THAT(std::string(toc.data), StrEq(kExpectedPayload));
-  }
+  EXPECT_THAT(std::string(toc.data), StrEq(contents));
 
   int fd = EmbedFile::instance()->GetFdForFileToc(toc);
   ASSERT_THAT(fd, Ne(-1));
 
-  std::string materialized_contents(kExpectedPayload.size(), '\0');
-  EXPECT_THAT(pread(fd, &materialized_contents[0], kExpectedPayload.size(), 0),
-              Eq(kExpectedPayload.size()));
-  EXPECT_THAT(materialized_contents, StrEq(kExpectedPayload));
+  std::string materialized_contents(256, '\0');
+  EXPECT_THAT(pread(fd, &materialized_contents[0], 256, 0), Eq(256));
+  EXPECT_THAT(materialized_contents, StrEq(contents));
 }
 
 }  // namespace

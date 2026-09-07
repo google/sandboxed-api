@@ -13,14 +13,13 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_setting")
+load("@bazel_skylib//rules:common_settings.bzl", "string_setting")
 
 licenses(["notice"])
 
 exports_files([
     "proto.bzl",
     "embed_data.bzl",
-    "embed_data_oss.bzl",
     "sapi.bzl",
 ])
 

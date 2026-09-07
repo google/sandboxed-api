@@ -15,7 +15,6 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:embed_data.bzl", "sapi_cc_embed_data")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
 package(default_visibility = ["//visibility:private"])
@@ -63,7 +62,6 @@ cc_library(
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/types:span",
     ],
-    alwayslink = 1,
 )
 
 sapi_library(
@@ -81,30 +79,4 @@ sapi_library(
     lib = ":sapi_test_lib",
     lib_name = "SapiTest",
     namespace = "",
-)
-
-genrule(
-    name = "generate_embedded_data",
-    outs = ["embedded_data.bin"],
-    cmd = "echo 'SAPI embedded test payload data 0123456789' > $@",
-)
-
-sapi_cc_embed_data(
-    name = "unmapped_embedded_data",
-    srcs = [":embedded_data.bin"],
-)
-
-cc_test(
-    name = "embed_data_test",
-    srcs = ["embed_data_test.cc"],
-    copts = sapi_platform_copts(),
-    deps = [
-        ":unmapped_embedded_data",
-        "//sandboxed_api:embed_file",
-        "//sandboxed_api:embed_toc",
-        "//sandboxed_api:testing",
-        "//sandboxed_api/sandbox2/util:minielf",
-        "@abseil-cpp//absl/strings",
-        "@googletest//:gtest_main",
-    ],
 )

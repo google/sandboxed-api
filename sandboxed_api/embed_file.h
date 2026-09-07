@@ -15,12 +15,8 @@
 #ifndef SANDBOXED_API_EMBED_FILE_H_
 #define SANDBOXED_API_EMBED_FILE_H_
 
-#include <cstddef>
-#include <cstdint>
-
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/util/fileops.h"
@@ -30,19 +26,12 @@ namespace sapi {
 class EmbedFileTestPeer;
 
 // EmbedFile provides primitives for converting embedded binary payloads into
-// sealed executable file descriptors (memfds).
+// sealed executable file descriptors (memfds) with runtime caching.
 //
-// Background & Memory Architecture:
-// Rather than storing embedded binary payloads in mapped read-only data
-// sections (.rodata / .lrodata with SHF_ALLOC), which increases process virtual
-// address space (VSS) and resident set size (RSS) at startup, SAPI embeds
-// payloads into unmapped ELF sections (omitting SHF_ALLOC).
-//
-// When a file descriptor is requested for an embedded binary, EmbedFile locates
-// the corresponding ELF section within the container binary/DSO on disk,
-// creates an executable memfd, and streams the section bytes directly from disk
-// into the memfd using copy_file_range(2) (or chunked pread/write fallback).
-// The memfd is sealed (F_ADD_SEALS) and cached for subsequent requests.
+// When a file descriptor is requested for an embedded binary, EmbedFile creates
+// an anonymous executable memfd, copies the embedded data payload into it,
+// seals the memfd (F_ADD_SEALS) to prevent tampering, and caches the descriptor
+// keyed by the payload identity for subsequent reuse.
 class EmbedFile {
  public:
   EmbedFile(const EmbedFile&) = delete;
@@ -71,7 +60,7 @@ class EmbedFile {
  private:
   friend class EmbedFileTestPeer;  // For testing.
 
-  // Materializes an executable memfd for an unmapped SAPI EmbedToc section.
+  // Materializes an executable memfd for a SAPI EmbedToc entry.
   static int CreateFdForFileToc(const EmbedToc& toc);
 
   EmbedFile() = default;
@@ -82,17 +71,6 @@ class EmbedFile {
       ABSL_GUARDED_BY(file_tocs_mutex_);
   absl::Mutex file_tocs_mutex_;
 };
-
-namespace internal {
-
-// Fallback copy implementation using a 32 KB chunked buffer when
-// copy_file_range(2) is not supported by the kernel, filesystem, or mount.
-// Despite the fact that copy_file_range(2) should be available on all supported
-// kernels, this fallback ensures a smooth transition to the new feature.
-absl::Status FallbackChunkedCopy(int in_fd, uint64_t offset, size_t size,
-                                 int out_fd);
-
-}  // namespace internal
 
 }  // namespace sapi
 

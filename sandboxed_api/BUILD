@@ -61,7 +61,6 @@ cc_library(
     deps = [
         ":embed_toc",
         "//sandboxed_api/sandbox2:util",
-        "//sandboxed_api/sandbox2/util:minielf",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -81,10 +80,7 @@ cc_test(
     deps = [
         ":embed_file",
         ":embed_toc",
-        "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/memory",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],

@@ -39,25 +39,19 @@ namespace sapi {
 struct EmbedToc {
   absl::string_view name;
   absl::string_view data;
-  absl::string_view section_name;  // Name of unmapped ELF section (e.g.
-                                   // ".sapi_embed_forkserver")
 
   static constexpr EmbedToc From(const EmbedToc& toc) { return toc; }
 
   template <typename H>
   friend H AbslHashValue(H h, const EmbedToc& toc) {
     return H::combine(std::move(h), toc.name.data(), toc.name.size(),
-                      toc.data.data(), toc.data.size(), toc.section_name.data(),
-                      toc.section_name.size());
+                      toc.data.data(), toc.data.size());
   }
 
-  friend bool operator==(const EmbedToc& lhs, const EmbedToc& rhs) {
-    return lhs.name.data() == rhs.name.data() &&
-           lhs.name.size() == rhs.name.size() &&
-           lhs.data.data() == rhs.data.data() &&
-           lhs.data.size() == rhs.data.size() &&
-           lhs.section_name.data() == rhs.section_name.data() &&
-           lhs.section_name.size() == rhs.section_name.size();
+  bool operator==(const EmbedToc& other) const {
+    return name.data() == other.name.data() &&
+           name.size() == other.name.size() &&
+           data.data() == other.data.data() && data.size() == other.data.size();
   }
 };
 

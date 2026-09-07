@@ -65,29 +65,4 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::thread
   )
   gtest_discover_tests_xcompile(sapi_test)
-
-  # Generate test payload dynamically without committing binary data
-  file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/embedded_data.bin
-       "SAPI embedded test payload data 0123456789\n")
-
-  # sandboxed_api/tests:unmapped_embedded_data
-  sapi_cc_embed_data(NAME unmapped_embedded_data
-    SOURCES ${CMAKE_CURRENT_BINARY_DIR}/embedded_data.bin
-  )
-
-  # sandboxed_api/tests:embed_data_test
-  add_executable(sapi_embed_data_test
-    embed_data_test.cc
-  )
-  target_link_libraries(sapi_embed_data_test PRIVATE
-    unmapped_embedded_data
-    absl::status
-    absl::strings
-    sandbox2::minielf
-    sapi::embed_file
-    sapi::embed_toc
-    sapi::test_main
-    sapi::testing
-  )
-  gtest_discover_tests_xcompile(sapi_embed_data_test)
 endif()
