@@ -14,6 +14,10 @@
 
 #include "sandboxed_api/sandbox2/util/minielf.h"
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -22,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util/elf_parser.h"
 #include "sandboxed_api/util/fileops.h"
@@ -87,6 +92,44 @@ absl::StatusOr<ElfFile> ElfFile::Parse(ElfParser& parser, uint32_t features) {
   }
 
   return std::move(result);
+}
+
+absl::StatusOr<ElfSectionLocation> ElfFile::GetSectionLocation(
+    int fd, absl::string_view section_name) {
+  int dup_fd = dup(fd);
+  if (dup_fd < 0) {
+    return absl::ErrnoToStatus(errno, "dup failed");
+  }
+  ABSL_ASSIGN_OR_RETURN(
+      auto parser, ElfParser::Create(sapi::file_util::fileops::FDCloser(dup_fd),
+                                     /*mmap_file=*/false));
+  ElfSectionLocation location;
+  bool found = false;
+  ABSL_RETURN_IF_ERROR(parser->ForEachSection(
+      [&](absl::string_view name, const ElfShdr& hdr) -> absl::Status {
+        if (name == section_name) {
+          location.offset = hdr.sh_offset;
+          location.size = hdr.sh_size;
+          found = true;
+        }
+        return absl::OkStatus();
+      }));
+  if (!found) {
+    return absl::NotFoundError(
+        absl::StrCat("ELF section not found: ", section_name));
+  }
+  return location;
+}
+
+absl::StatusOr<ElfSectionLocation> ElfFile::GetSectionLocation(
+    const std::string& filename, absl::string_view section_name) {
+  int fd = open(filename.c_str(), O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    return absl::ErrnoToStatus(
+        errno, absl::StrCat("Failed to open ELF file: ", filename));
+  }
+  sapi::file_util::fileops::FDCloser fd_closer(fd);
+  return GetSectionLocation(fd, section_name);
 }
 
 }  // namespace sandbox2

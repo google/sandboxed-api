@@ -14,18 +14,28 @@
 
 #include "sandboxed_api/embed_file.h"
 
+#include <dlfcn.h>
 #include <fcntl.h>
+#include <sys/auxv.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/sandbox2/util.h"
+#include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/fileops.h"
 
 namespace sapi {
@@ -57,6 +67,124 @@ bool SealFile(int fd) {
 
 }  // namespace
 
+namespace internal {
+
+// Fallback copy implementation using a 32 KB chunked buffer when
+// copy_file_range(2) is not supported by the kernel, filesystem, or mount.
+// Despite the fact that copy_file_range(2) should be available on all supported
+// kernels, this fallback ensures a smooth transition to the new feature.
+absl::Status FallbackChunkedCopy(int in_fd, uint64_t offset, size_t size,
+                                 int out_fd) {
+  constexpr size_t kChunkSize = 32 * 1024;
+  char buf[kChunkSize];
+  uint64_t current_offset = offset;
+  size_t bytes_remaining = size;
+  while (bytes_remaining > 0) {
+    size_t to_read = std::min(bytes_remaining, kChunkSize);
+    ssize_t read_bytes =
+        TEMP_FAILURE_RETRY(pread(in_fd, buf, to_read, current_offset));
+    if (read_bytes < 0) {
+      return absl::ErrnoToStatus(errno, "pread failed during fallback copy");
+    }
+    if (read_bytes == 0) {
+      return absl::DataLossError("Unexpected EOF during fallback copy");
+    }
+    if (!file_util::fileops::WriteToFD(out_fd, buf, read_bytes)) {
+      return absl::ErrnoToStatus(errno,
+                                 "WriteToFD failed during fallback copy");
+    }
+    current_offset += read_bytes;
+    bytes_remaining -= read_bytes;
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace internal
+
+namespace {
+
+// Attempts to open the container binary or DSO holding `toc`.
+// First attempts to discover and open the specific shared object via dladdr(3),
+// falling back to opening the main executable (/proc/self/exe).
+absl::StatusOr<FDCloser> OpenElfContainer(const EmbedToc& toc) {
+  Dl_info dlinfo;
+  const void* symbol_addr =
+      !toc.section_name.empty() ? toc.section_name.data() : toc.name.data();
+  if (dladdr(symbol_addr, &dlinfo) != 0 && dlinfo.dli_fname != nullptr &&
+      dlinfo.dli_fname[0] != '\0') {
+    int dso_fd = open(dlinfo.dli_fname, O_RDONLY | O_CLOEXEC);
+    if (dso_fd >= 0) {
+      return FDCloser(dso_fd);
+    }
+  }
+
+  int exe_fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+  if (exe_fd >= 0) {
+    return FDCloser(exe_fd);
+  }
+
+  const char* execfn = reinterpret_cast<const char*>(getauxval(AT_EXECFN));
+  if (execfn != nullptr && execfn[0] != '\0') {
+    int execfn_fd = open(execfn, O_RDONLY | O_CLOEXEC);
+    if (execfn_fd >= 0) {
+      return FDCloser(execfn_fd);
+    }
+  }
+
+  return absl::ErrnoToStatus(errno,
+                             "Failed to open ELF container (/proc/self/exe)");
+}
+
+// Copies an unmapped ELF section directly from the container binary/DSO on disk
+// into an executable memfd.
+//
+// 1. Container Discovery:
+//    Uses dladdr(3) on the FileToc address to identify whether the TOC resides
+//    in the main binary (/proc/self/exe) or a shared object (.so / DSO).
+// 2. Section Parsing:
+//    Parses the ELF section headers using sandbox2::ElfFile::GetSectionLocation
+//    to obtain the file offset and size of the section without mapping the
+//    data.
+// 3. In-Kernel Streaming:
+//    Transfers data from the container ELF into the memfd using
+//    copy_file_range(2) to avoid userspace buffering and memory allocation
+//    overhead.
+absl::Status CopySectionToMemfd(absl::string_view section_name,
+                                absl::string_view toc_name, int memfd,
+                                const EmbedToc& toc) {
+  ABSL_ASSIGN_OR_RETURN(FDCloser exe_fd, OpenElfContainer(toc));
+
+  ABSL_ASSIGN_OR_RETURN(
+      sandbox2::ElfSectionLocation loc,
+      sandbox2::ElfFile::GetSectionLocation(exe_fd.get(), section_name));
+
+  loff_t in_offset = loc.offset;
+  size_t bytes_remaining = loc.size;
+  while (bytes_remaining > 0) {
+    ssize_t copied = TEMP_FAILURE_RETRY(copy_file_range(
+        exe_fd.get(), &in_offset, memfd, nullptr, bytes_remaining, 0));
+    if (copied < 0) {
+      if (errno == ENOSYS || errno == EXDEV || errno == EINVAL ||
+          errno == EOPNOTSUPP) {
+        // Kernel or filesystem does not support copy_file_range; fall back to
+        // chunked pread/write.
+        return internal::FallbackChunkedCopy(exe_fd.get(), loc.offset, loc.size,
+                                             memfd);
+      }
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("copy_file_range failed for '", toc_name, "'"));
+    }
+    if (copied == 0) {
+      return absl::DataLossError(absl::StrCat(
+          "Unexpected EOF during copy_file_range for '", toc_name, "'"));
+    }
+    bytes_remaining -= copied;
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 EmbedFile* EmbedFile::instance() {
   static auto* embed_file_instance = new EmbedFile();
   return embed_file_instance;
@@ -74,8 +202,24 @@ int EmbedFile::CreateFdForFileToc(const EmbedToc& toc) {
   file_util::fileops::FDCloser embed_fd(fd);
   VLOG(3) << "Created memfd file '" << toc.name << "'";
 
-  if (!file_util::fileops::WriteToFD(embed_fd.get(), toc.data.data(),
-                                     toc.data.size())) {
+  if (!toc.section_name.empty()) {
+    absl::Status copy_status =
+        CopySectionToMemfd(toc.section_name, toc.name, embed_fd.get(), toc);
+    if (!copy_status.ok()) {
+      LOG(WARNING) << "CopySectionToMemfd failed for '" << toc.name
+                   << "': " << copy_status;
+      if (toc.data.empty()) {
+        return -1;
+      }
+      if (!file_util::fileops::WriteToFD(embed_fd.get(), toc.data.data(),
+                                         toc.data.size())) {
+        LOG(ERROR) << "Couldn't write SAPI embed fallback for '" << toc.name
+                   << "'";
+        return -1;
+      }
+    }
+  } else if (!file_util::fileops::WriteToFD(embed_fd.get(), toc.data.data(),
+                                            toc.data.size())) {
     LOG(ERROR) << "Couldn't write SAPI embed file '" << toc.name << "'";
     return -1;
   }

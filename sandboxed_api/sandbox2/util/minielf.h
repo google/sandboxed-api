@@ -25,6 +25,11 @@
 
 namespace sandbox2 {
 
+struct ElfSectionLocation {
+  uint64_t offset;
+  size_t size;
+};
+
 // Minimal implementation of an ELF file parser to read the program interpreter.
 class ElfFile {
  public:
@@ -45,6 +50,13 @@ class ElfFile {
   static absl::StatusOr<ElfFile> ParseFromFd(
       sapi::file_util::fileops::FDCloser fd, uint32_t features,
       bool mmap_file = false);
+
+  // Looks up the file offset and size of a specific ELF section by name
+  // without mapping the section contents into memory.
+  static absl::StatusOr<ElfSectionLocation> GetSectionLocation(
+      int fd, absl::string_view section_name);
+  static absl::StatusOr<ElfSectionLocation> GetSectionLocation(
+      const std::string& filename, absl::string_view section_name);
 
   int64_t file_size() const { return file_size_; }
   const std::string& interpreter() const { return interpreter_; }
