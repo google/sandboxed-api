@@ -449,24 +449,7 @@ TEST_P(PolicyTest, SecondExecveatNotAllowedByDefault) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
-// TODO: b/453946404 - Re-enable the next four tests once the bug is fixed.
-TEST_P(PolicyTest, DISABLED_MmapWithExecNotAllowedByDefault) {
-  SKIP_SANITIZERS_AND_COVERAGE;
-
-  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
-
-  std::unique_ptr<Sandbox2> s2 =
-      CreateTestSandbox({path, "1"}, CreateDefaultPermissiveTestPolicy(path));
-  Result result = s2->Run();
-
-  // The test binary should exit with success.
-  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
-  ASSERT_TRUE(result.GetSyscall() != nullptr);
-  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_mmap));
-}
-
-TEST_P(PolicyTest, DISABLED_MmapWithExecAllowed) {
+TEST_P(PolicyTest, MmapWithExecAllowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
@@ -478,23 +461,7 @@ TEST_P(PolicyTest, DISABLED_MmapWithExecAllowed) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
-TEST_P(PolicyTest, DISABLED_MprotectWithExecNotAllowedByDefault) {
-  SKIP_SANITIZERS_AND_COVERAGE;
-
-  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
-
-  std::unique_ptr<Sandbox2> s2 =
-      CreateTestSandbox({path, "2"}, CreateDefaultPermissiveTestPolicy(path));
-  Result result = s2->Run();
-
-  // The test binary should exit with success.
-  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
-  ASSERT_TRUE(result.GetSyscall() != nullptr);
-  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_mprotect));
-}
-
-TEST_P(PolicyTest, DISABLED_MprotectWithExecAllowed) {
+TEST_P(PolicyTest, MprotectWithExecAllowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
