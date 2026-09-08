@@ -47,6 +47,7 @@
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -547,6 +548,44 @@ TEST_P(Sandbox2Test, DumpStackTrace) {
   auto result = sandbox.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(Sandbox2Test, FailsOnInvalidLimits) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->limits()->set_rlimit_as(
+      rlimit64{.rlim_cur = RLIM_INFINITY, .rlim_max = 1024 * 1024 * 1024});
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_LIMITS));
+}
+
+class LowerLimitNotify : public Notify {
+ public:
+  bool EventStarted(pid_t pid, Comms* comms) override {
+    rlimit64 rlim = {.rlim_cur = rlim64_t{100} * 1024 * 1024 * 1024,
+                     .rlim_max = rlim64_t{100} * 1024 * 1024 * 1024};
+    return prlimit64(pid, RLIMIT_AS, &rlim, nullptr) == 0;
+  }
+};
+
+TEST_P(Sandbox2Test, IgnoresMoreLaxLimits) {
+  SKIP_SANITIZERS;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->limits()->set_rlimit_as(
+      rlimit64{.rlim_cur = RLIM_INFINITY, .rlim_max = RLIM_INFINITY});
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  auto notify = std::make_unique<LowerLimitNotify>();
+  Sandbox2 sandbox(std::move(executor), std::move(policy), std::move(notify));
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
 }
 
 TEST(Sandbox2Test, VlogLogsFilesystem) {
