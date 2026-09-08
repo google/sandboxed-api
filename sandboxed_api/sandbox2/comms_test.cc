@@ -1125,5 +1125,9 @@ TEST(ListeningCommsTest, NamedSocket) {
   remote.Join();
 }
 
+TEST(ListeningCommsTest, WrongSocketPath) {
+  EXPECT_THAT(ListeningComms::Create("/", /*abstract_uds=*/false), Not(IsOk()));
+}
+
 }  // namespace
 }  // namespace sandbox2
