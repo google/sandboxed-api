@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -46,9 +47,10 @@ struct SandboxPoolOptions {
   // The minimum number of sandboxes to keep in the pool. During initialization,
   // the pool will be pre-warmed to this number of sandboxes.
   size_t min_sandboxes = 1;
-  // The maximum number of sandboxes to create. This is a hard limit, and
-  // attempts to create more sandboxes will fail.
-  size_t max_sandboxes = 1024;
+  // The maximum number of sandboxes to create. Defaults to unbounded. If set to
+  // a finite limit, attempts to acquire more sandboxes than this limit will
+  // block until one is released or the acquisition timeout expires.
+  size_t max_sandboxes = std::numeric_limits<size_t>::max();
   // The maximum amount of time a sandbox can remain idle in the pool before
   // being destroyed. Sandboxes that exceed this timeout will be destroyed.
   // Sandboxes will not be replaced upon destruction.
@@ -303,8 +305,12 @@ absl::Status SandboxPool<SandboxT>::Init() {
   if (ShouldUseBackgroundThreads()) {
     pruning_worker_ = sapi::Thread(this, &SandboxPool<SandboxT>::Pruner,
                                    "sandbox_pool_pruner");
-    size_t num_workers = options_.max_maintenance_threads.value_or(std::max(
-        size_t{1}, static_cast<size_t>(std::log2(options_.max_sandboxes))));
+    constexpr size_t kMaxDefaultMaintenanceThreads = 10;
+    auto default_workers = std::clamp<size_t>(
+        static_cast<size_t>(std::log2(options_.max_sandboxes)), size_t{1},
+        kMaxDefaultMaintenanceThreads);
+    size_t num_workers =
+        options_.max_maintenance_threads.value_or(default_workers);
     maintenance_workers_.reserve(num_workers);
     for (size_t i = 0; i < num_workers; ++i) {
       maintenance_workers_.emplace_back(this, &SandboxPool<SandboxT>::WorkerRun,
