@@ -13,10 +13,13 @@
 // limitations under the License.
 
 #include <dlfcn.h>
+#include <spawn.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <string>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
@@ -66,6 +69,24 @@ TEST(EmbedDataTest, UnmappedElfEmbedding) {
               Eq(kExpectedPayload.size()));
   EXPECT_THAT(materialized_contents, StrEq(kExpectedPayload));
 }
+
+void BM_LoadEmbeddedFileEndToEnd(benchmark::State& state) {
+  std::string helper_path = GetTestSourcePath("tests/embed_benchmark_helper");
+  char* const argv[] = {const_cast<char*>(helper_path.c_str()), nullptr};
+
+  for (auto _ : state) {
+    pid_t pid;
+    int err =
+        posix_spawn(&pid, helper_path.c_str(), nullptr, nullptr, argv, environ);
+    ASSERT_THAT(err, Eq(0));
+
+    int status = 0;
+    ASSERT_THAT(waitpid(pid, &status, 0), Eq(pid));
+    ASSERT_TRUE(WIFEXITED(status));
+    ASSERT_THAT(WEXITSTATUS(status), Eq(0));
+  }
+}
+BENCHMARK(BM_LoadEmbeddedFileEndToEnd)->UseRealTime();
 
 }  // namespace
 }  // namespace sapi

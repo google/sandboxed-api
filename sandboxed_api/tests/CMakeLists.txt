@@ -70,6 +70,26 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/embedded_data.bin
        "SAPI embedded test payload data 0123456789\n")
 
+  execute_process(
+    COMMAND dd if=/dev/urandom of=${CMAKE_CURRENT_BINARY_DIR}/benchmark_payload.bin bs=1M count=8 status=none
+  )
+
+  # sandboxed_api/tests:benchmark_embedded_data
+  sapi_cc_embed_data(NAME benchmark_embedded_data
+    SOURCES ${CMAKE_CURRENT_BINARY_DIR}/benchmark_payload.bin
+  )
+
+  # sandboxed_api/tests:embed_benchmark_helper
+  add_executable(embed_benchmark_helper
+    embed_benchmark_helper.cc
+  )
+  target_link_libraries(embed_benchmark_helper PRIVATE
+    benchmark_embedded_data
+    sapi::base
+    sapi::embed_file
+    ${CMAKE_DL_LIBS}
+  )
+
   # sandboxed_api/tests:unmapped_embedded_data
   sapi_cc_embed_data(NAME unmapped_embedded_data
     SOURCES ${CMAKE_CURRENT_BINARY_DIR}/embedded_data.bin
@@ -79,10 +99,12 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   add_executable(sapi_embed_data_test
     embed_data_test.cc
   )
+  add_dependencies(sapi_embed_data_test embed_benchmark_helper)
   target_link_libraries(sapi_embed_data_test PRIVATE
     unmapped_embedded_data
     absl::status
     absl::strings
+    benchmark
     sandbox2::minielf
     sapi::embed_file
     sapi::embed_toc

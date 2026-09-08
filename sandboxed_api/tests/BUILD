@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
@@ -89,6 +90,29 @@ genrule(
     cmd = "echo 'SAPI embedded test payload data 0123456789' > $@",
 )
 
+genrule(
+    name = "generate_benchmark_payload",
+    outs = ["benchmark_payload.bin"],
+    cmd = "dd if=/dev/urandom of=$@ bs=1M count=8 status=none",
+)
+
+sapi_cc_embed_data(
+    name = "benchmark_embedded_data",
+    srcs = [":benchmark_payload.bin"],
+)
+
+cc_binary(
+    name = "embed_benchmark_helper",
+    testonly = True,
+    srcs = ["embed_benchmark_helper.cc"],
+    copts = sapi_platform_copts(),
+    linkopts = ["-ldl"],
+    deps = [
+        ":benchmark_embedded_data",
+        "//sandboxed_api:embed_file",
+    ],
+)
+
 sapi_cc_embed_data(
     name = "unmapped_embedded_data",
     srcs = [":embedded_data.bin"],
@@ -98,6 +122,7 @@ cc_test(
     name = "embed_data_test",
     srcs = ["embed_data_test.cc"],
     copts = sapi_platform_copts(),
+    data = [":embed_benchmark_helper"],
     deps = [
         ":unmapped_embedded_data",
         "//sandboxed_api:embed_file",
@@ -105,6 +130,7 @@ cc_test(
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:minielf",
         "@abseil-cpp//absl/strings",
+        "@google_benchmark//:benchmark",
         "@googletest//:gtest_main",
     ],
 )
