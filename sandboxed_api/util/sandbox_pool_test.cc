@@ -267,12 +267,11 @@ std::shared_ptr<SandboxPool<StringopSandbox>> g_pool;
 
 void BenchmarkSetup(const benchmark::State& state) {
   SandboxPoolOptions options;
-  options.max_maintenance_threads = 32;
 
   g_pool = SandboxPool<StringopSandbox>::Create(options).value();
 
-  // Give the 16 workers a moment to fully pre-warm the 64 sandboxes
-  absl::SleepFor(absl::Seconds(2));
+  // Give workers a brief moment to pre-warm sandboxes
+  absl::SleepFor(absl::Milliseconds(200));
 }
 
 void BenchmarkTeardown(const benchmark::State& state) { g_pool.reset(); }
@@ -283,12 +282,37 @@ void BM_AcquireRelease(benchmark::State& state) {
     StringopApi api(handle.get());
     benchmark::DoNotOptimize(api.get_raw_c_string());
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_AcquireRelease)
     ->Setup(BenchmarkSetup)
     ->Teardown(BenchmarkTeardown)
     ->UseRealTime()
     ->ThreadRange(1, 256);
+
+void BM_HighConcurrencyHold(benchmark::State& state) {
+  const int sandboxes_per_thread = state.range(0);
+
+  std::vector<SandboxHandle<StringopSandbox>> held_handles;
+  held_handles.reserve(sandboxes_per_thread);
+  for (auto s : state) {
+    for (int i = 0; i < sandboxes_per_thread; ++i) {
+      SAPI_ASSERT_OK_AND_ASSIGN(auto handle, g_pool->Acquire());
+      held_handles.push_back(std::move(handle));
+    }
+  }
+  held_handles.clear();
+  state.SetItemsProcessed(state.iterations() * sandboxes_per_thread);
+}
+BENCHMARK(BM_HighConcurrencyHold)
+    ->Setup(BenchmarkSetup)
+    ->Teardown(BenchmarkTeardown)
+    ->Arg(25)
+    ->Arg(50)
+    ->Arg(100)
+    ->Threads(32)
+    ->Threads(64)
+    ->UseRealTime();
 
 }  // namespace
 
