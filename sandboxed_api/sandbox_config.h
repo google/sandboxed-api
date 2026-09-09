@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/linked_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
 #include "absl/log/globals.h"
@@ -110,8 +110,12 @@ struct Sandbox2Config {
 
 struct SandboxConfig {
   std::optional<std::vector<std::string>> environment_variables;
-  std::optional<absl::flat_hash_map<std::string, std::string>>
+
+  // Use a linked hash map to preserve the order of flags. This is relevant for
+  // flags like --undefok, where order matters.
+  std::optional<absl::linked_hash_map<std::string, std::string>>
       command_line_flags;
+
   // File descriptors to map into the sandbox.
   // The first element of the pair is the host fd, the second is the new fd in
   // the sandbox.
@@ -125,7 +129,7 @@ struct SandboxConfig {
     };
   }
 
-  static absl::flat_hash_map<std::string, std::string> DefaultFlags() {
+  static absl::linked_hash_map<std::string, std::string> DefaultFlags() {
     return {
         {"stderrthreshold",
          std::to_string(static_cast<int>(absl::StderrThreshold()))},
