@@ -100,28 +100,10 @@ absl::Status VerifySharedMountNamespace(const MountTree& mount_tree) {
       return absl::FailedPreconditionError(
           "Shared mount namespace cannot be used with tmpfs mounts.");
     }
-    // A writable root is implicit, unnamespaced-looking state: nothing in
-    // the policy marks it as something instances end up sharing, so a
-    // caller has no reason to expect that a write from one Sandbox2
-    // instance becomes visible to every other instance sharing this mount
-    // namespace -- confirmed directly: one instance's write to its
-    // writable root is readable by a second, independently-launched
-    // instance. Rejected here for the same reason tmpfs is rejected above:
-    // both are per-instance-looking state that a shared mount namespace
-    // would silently turn into cross-instance state.
-    //
-    // If per-instance writable storage is needed alongside a shared mount
-    // namespace, bind-mount a separate, per-instance directory from the
-    // host instead of making the root writable, e.g.
-    // `PolicyBuilder::AddDirectoryAt(per_instance_outside_path,
-    // "/some/inside/path", /*is_ro=*/false)` with a distinct
-    // `per_instance_outside_path` per Sandbox2 instance. A regular
-    // directory bind-mount is not a tmpfs node and is not the root node,
-    // so it isn't rejected by either check above, and each instance's
-    // writes stay confined to its own outside directory. `AddTmpfs()` is
-    // not a substitute here: this function recurses into every entry in
-    // the mount tree, not only the root, so a tmpfs mounted at any
-    // interior path is rejected the same way a tmpfs root is.
+    // A writable root would silently become cross-instance shared state,
+    // like tmpfs above. For per-instance writable storage, bind-mount a
+    // per-instance directory instead (PolicyBuilder::AddDirectoryAt(),
+    // is_ro=false); AddTmpfs() is rejected too, at any path.
     if (node.has_root_node() && node.root_node().writable()) {
       return absl::FailedPreconditionError(
           "Shared mount namespace cannot be used with a writable root.");
