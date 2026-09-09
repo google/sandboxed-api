@@ -487,22 +487,57 @@ void BM_SharedMemoryAllocateThenFree(benchmark::State& state) {
 
 BENCHMARK(BM_SharedMemoryAllocateThenFree)->Range(1, 100);
 
+// Benchmarks in-place reallocation (both shrinking and growing) in a tight
+// loop without timer pause overhead.
 void BM_SharedMemoryReallocate(benchmark::State& state) {
   std::vector<uint8_t> buffer(1 << 20);
   rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
-  void* ptr = nullptr;
+  SAPI_ASSERT_OK_AND_ASSIGN(void* ptr, allocator.Allocate(32));
+  size_t target_size = 64;
   for (auto _ : state) {
-    state.PauseTiming();
-    if (ptr != nullptr) {
-      ABSL_ASSERT_OK(allocator.Free(ptr));
-    }
-    SAPI_ASSERT_OK_AND_ASSIGN(ptr, allocator.Allocate(32));
-    state.ResumeTiming();
-    SAPI_ASSERT_OK_AND_ASSIGN(ptr, allocator.Reallocate(ptr, 64));
+    SAPI_ASSERT_OK_AND_ASSIGN(ptr, allocator.Reallocate(ptr, target_size));
+    benchmark::DoNotOptimize(ptr);
+    target_size = (target_size == 64) ? 32 : 64;
+  }
+  if (ptr != nullptr) {
+    ABSL_ASSERT_OK(allocator.Free(ptr));
   }
 }
 
 BENCHMARK(BM_SharedMemoryReallocate);
+
+// Benchmarks out-of-place reallocation (Allocate + memcpy + Free) by allocating
+// contiguous blocks so each block is blocked by its neighbor and forced to
+// relocate when growing.
+void BM_SharedMemoryReallocateRelocate(benchmark::State& state) {
+  constexpr size_t kBatchSize = 512;
+  std::vector<uint8_t> buffer(1 << 20);
+  rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
+  std::vector<void*> ptrs(kBatchSize + 1);
+  while (state.KeepRunningBatch(kBatchSize)) {
+    // PauseTiming and ResumeTiming are ok here, since we do multiple
+    // reallocations in the inner loop, so their overhead is negligible.
+    state.PauseTiming();
+    for (void*& ptr : ptrs) {
+      SAPI_ASSERT_OK_AND_ASSIGN(ptr, allocator.Allocate(32));
+    }
+    state.ResumeTiming();
+
+    // Growing block `i` is blocked by block `i+1`, forcing relocation.
+    for (size_t i = 0; i < kBatchSize; ++i) {
+      SAPI_ASSERT_OK_AND_ASSIGN(ptrs[i], allocator.Reallocate(ptrs[i], 64));
+      benchmark::DoNotOptimize(ptrs[i]);
+    }
+
+    state.PauseTiming();
+    for (void* ptr : ptrs) {
+      ABSL_ASSERT_OK(allocator.Free(ptr));
+    }
+    state.ResumeTiming();
+  }
+}
+
+BENCHMARK(BM_SharedMemoryReallocateRelocate);
 
 }  // namespace
 }  // namespace sapi
