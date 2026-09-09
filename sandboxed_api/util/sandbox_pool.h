@@ -272,18 +272,19 @@ absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::Acquire(
 
   // If there are no idle sandboxes, try creating a new one.
   auto sandbox = CreateSandbox(options_.max_sandboxes);
-  if (sandbox.ok()) {
+
+  // If creating the sandbox failed, return the error status.
+  if (!sandbox.ok()) {
+    return sandbox.status();
+  }
+
+  // If creating the sandbox succeeded, return the new sandbox.
+  if (*sandbox != nullptr) {
     active_count_.fetch_add(1, std::memory_order_relaxed);
     return SandboxHandle<SandboxT>(
         std::make_unique<sandbox_pool_internal::PoolEntry<SandboxT>>(
             std::move(*sandbox), 0),
         this->shared_from_this());
-  }
-
-  // If the pool is full, we'll need to fallback to waiting for an idle one.
-  // Otherwise, return the error, as this means creating a new sandbox failed.
-  if (!absl::IsResourceExhausted(sandbox.status())) {
-    return sandbox.status();
   }
 
   // Wait for an idle sandbox.
@@ -385,7 +386,7 @@ absl::StatusOr<std::unique_ptr<SandboxT>> SandboxPool<SandboxT>::CreateSandbox(
       return sandbox;
     }
   }
-  return absl::ResourceExhaustedError("Sandbox pool is full.");
+  return nullptr;
 }
 
 template <typename SandboxT>
@@ -398,9 +399,12 @@ void SandboxPool<SandboxT>::CreateTask(size_t max_sandboxes,
   // If creating the sandbox failed but because of resource exhaustion, then
   // pool is full, and we should just terminate the task.
   if (!sandbox.ok()) {
-    if (!absl::IsResourceExhausted(sandbox.status())) {
-      LOG(ERROR) << "Failed to create sandbox: " << sandbox.status();
-    }
+    LOG(ERROR) << "Failed to create sandbox: " << sandbox.status();
+    return;
+  }
+  if (*sandbox == nullptr) {
+    // Pool is full.
+    LOG(WARNING) << "Sandbox pool is full.";
     return;
   }
   idle_queue_.Push(std::make_unique<sandbox_pool_internal::PoolEntry<SandboxT>>(

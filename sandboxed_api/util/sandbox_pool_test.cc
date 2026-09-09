@@ -263,6 +263,14 @@ TEST(SandboxPoolTest, ThreadlessMode) {
   }
 }
 
+TEST(SandboxPoolTest, FailingFactoryReturnsErrorToUser) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
+                            SandboxPool<StringopSandbox>::Create({}, []() {
+                              return absl::ResourceExhaustedError("test error");
+                            }));
+  EXPECT_THAT(pool->Acquire(), StatusIs(absl::StatusCode::kResourceExhausted));
+}
+
 std::shared_ptr<SandboxPool<StringopSandbox>> g_pool;
 
 void BenchmarkSetup(const benchmark::State& state) {
