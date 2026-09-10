@@ -31,7 +31,7 @@ sapi_library(
         "deflateEnd",
     ],
     input_files = ["input.h"],
-    lib = "@zlib//:zlib",
+    lib = "@zlib",
     lib_name = "Zlib",
     namespace = "sapi::zlib",
 )
