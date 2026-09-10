@@ -15,6 +15,7 @@
 # sandboxed_api/tools/filewrapper:filewrapper
 add_executable(filewrapper
   filewrapper.cc
+  filewrapper.h
 )
 target_link_libraries(filewrapper PRIVATE
   absl::strings
@@ -33,6 +34,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   # sandboxed_api/tools/filewrapper:filewrapper_test
   add_executable(sapi_filewrapper_test
     filewrapper_test.cc
+    filewrapper.h
   )
   set_target_properties(sapi_filewrapper_test PROPERTIES
     OUTPUT_NAME filewrapper_test

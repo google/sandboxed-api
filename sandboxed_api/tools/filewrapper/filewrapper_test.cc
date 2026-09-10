@@ -24,6 +24,7 @@
 #include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/tools/filewrapper/filewrapper.h"
 #include "sandboxed_api/tools/filewrapper/filewrapper_embedded.h"
 
 namespace sapi {
@@ -67,6 +68,64 @@ TEST(FilewrapperTest, BasicFunctionality) {
   EXPECT_THAT(pread(fd, &materialized_contents[0], kExpectedPayload.size(), 0),
               Eq(kExpectedPayload.size()));
   EXPECT_THAT(materialized_contents, StrEq(kExpectedPayload));
+}
+
+TEST(FilewrapperTest, ValidatesCppIdentifier) {
+  // Valid identifiers
+  EXPECT_TRUE(IsValidCppIdentifier("foo"));
+  EXPECT_TRUE(IsValidCppIdentifier("_foo"));
+  EXPECT_TRUE(IsValidCppIdentifier("foo_123"));
+  EXPECT_TRUE(IsValidCppIdentifier("ABC"));
+  EXPECT_TRUE(IsValidCppIdentifier("_"));
+
+  // Invalid identifiers
+  EXPECT_FALSE(IsValidCppIdentifier(""));
+  EXPECT_FALSE(IsValidCppIdentifier("123foo"));
+  EXPECT_FALSE(IsValidCppIdentifier("foo-bar"));
+  EXPECT_FALSE(IsValidCppIdentifier("foo bar"));
+  EXPECT_FALSE(IsValidCppIdentifier("foo.bar"));
+  EXPECT_FALSE(IsValidCppIdentifier("foo::bar"));
+
+  // Keywords
+  EXPECT_FALSE(IsValidCppIdentifier("class"));
+  EXPECT_FALSE(IsValidCppIdentifier("namespace"));
+  EXPECT_FALSE(IsValidCppIdentifier("struct"));
+  EXPECT_FALSE(IsValidCppIdentifier("int"));
+  EXPECT_FALSE(IsValidCppIdentifier("return"));
+  EXPECT_FALSE(IsValidCppIdentifier("template"));
+  EXPECT_FALSE(IsValidCppIdentifier("typename"));
+  EXPECT_FALSE(IsValidCppIdentifier("const"));
+  EXPECT_FALSE(IsValidCppIdentifier("default"));
+}
+
+TEST(FilewrapperTest, ValidatesNamespace) {
+  // Valid namespaces
+  EXPECT_TRUE(IsValidNamespace("sapi"));
+  EXPECT_TRUE(IsValidNamespace("foo"));
+  EXPECT_TRUE(IsValidNamespace("_foo_123"));
+  EXPECT_TRUE(IsValidNamespace("sapi::tools::filewrapper"));
+  EXPECT_TRUE(IsValidNamespace("foo::bar::baz"));
+  EXPECT_TRUE(IsValidNamespace("A::B::C"));
+
+  // Invalid namespaces
+  EXPECT_FALSE(IsValidNamespace(""));
+  EXPECT_FALSE(IsValidNamespace("::foo"));
+  EXPECT_FALSE(IsValidNamespace("foo::"));
+  EXPECT_FALSE(IsValidNamespace("foo::::bar"));
+  EXPECT_FALSE(IsValidNamespace("123foo"));
+  EXPECT_FALSE(IsValidNamespace("foo-bar"));
+  EXPECT_FALSE(IsValidNamespace("foo.bar"));
+  EXPECT_FALSE(IsValidNamespace("foo bar"));
+  EXPECT_FALSE(IsValidNamespace("foo::123"));
+  EXPECT_FALSE(IsValidNamespace("foo::bar::"));
+
+  // Namespaces containing C++ keywords
+  EXPECT_FALSE(IsValidNamespace("class"));
+  EXPECT_FALSE(IsValidNamespace("int"));
+  EXPECT_FALSE(IsValidNamespace("namespace"));
+  EXPECT_FALSE(IsValidNamespace("sapi::namespace::foo"));
+  EXPECT_FALSE(IsValidNamespace("sapi::return"));
+  EXPECT_FALSE(IsValidNamespace("sapi::default::bar"));
 }
 
 }  // namespace

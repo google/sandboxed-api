@@ -23,7 +23,10 @@ licenses(["notice"])
 # embedded data into .cc files.
 cc_binary(
     name = "filewrapper",
-    srcs = ["filewrapper.cc"],
+    srcs = [
+        "filewrapper.cc",
+        "filewrapper.h",
+    ],
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
@@ -49,7 +52,10 @@ sapi_cc_embed_data(
 
 cc_test(
     name = "filewrapper_test",
-    srcs = ["filewrapper_test.cc"],
+    srcs = [
+        "filewrapper.h",
+        "filewrapper_test.cc",
+    ],
     copts = sapi_platform_copts(),
     data = [":filewrapper_embedded.bin"],
     deps = [
@@ -59,7 +65,7 @@ cc_test(
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:minielf",
         "//sandboxed_api/util:file_helpers",
-        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )

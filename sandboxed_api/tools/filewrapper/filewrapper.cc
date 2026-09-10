@@ -27,7 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/string_view.h"
+#include "sandboxed_api/tools/filewrapper/filewrapper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
 
@@ -307,6 +307,11 @@ int main(int argc, char* argv[]) {
   const char* ns = *arg++;
   const bool have_ns = strlen(ns) > 0;
   --argc;
+
+  if (have_ns && !sapi::IsValidNamespace(ns)) {
+    absl::FPrintF(stderr, "Error: Invalid C++ namespace identifier: '%s'\n", ns);
+    return EXIT_FAILURE;
+  }
 
   const char* out_h_path = *arg++;
   --argc;
