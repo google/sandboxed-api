@@ -30,6 +30,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 #include "absl/log/scoped_mock_log.h"
@@ -639,6 +640,50 @@ TEST(Sandbox2Test, PtraceMonitorWithoutDeadlineManagerRespectsTimeout) {
   auto result = sandbox.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(Result::TIMEOUT));
   EXPECT_EQ(result.reason_code(), 0);
+}
+
+TEST(Sandbox2Test, NonExistingTargetFails) {
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      std::string temp_dir,
+      sapi::CreateTempDir(sapi::GetTestTempPath("s2_test")));
+  std::string source = sapi::file::JoinPath(temp_dir, "source");
+  PCHECK(mkdir(source.c_str(), 0755) == 0);
+  std::string target = sapi::file::JoinPath(temp_dir, "target");
+  PCHECK(mkdir(target.c_str(), 0755) == 0);
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
+                                             .AddDirectory(temp_dir)
+                                             .AddDirectoryAt(target, source)
+                                             .TryBuild());
+  PCHECK(rmdir(target.c_str()) == 0);
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_SUBPROCESS));
+}
+
+TEST(Sandbox2Test, NonExistingSourceFails) {
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      std::string temp_dir,
+      sapi::CreateTempDir(sapi::GetTestTempPath("s2_test")));
+  std::string source = sapi::file::JoinPath(temp_dir, "source");
+  PCHECK(mkdir(source.c_str(), 0755) == 0);
+  std::string target = sapi::file::JoinPath(temp_dir, "target");
+  PCHECK(mkdir(target.c_str(), 0755) == 0);
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
+                                             .AddDirectory(temp_dir)
+                                             .AddDirectoryAt(target, source)
+                                             .TryBuild());
+  PCHECK(rmdir(source.c_str()) == 0);
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_SUBPROCESS));
 }
 
 void BM_MinimalSandbox(benchmark::State& state) {
