@@ -111,12 +111,17 @@ class GeneratorASTVisitor
     return functions_;
   }
 
+  const absl::flat_hash_set<std::string>& found_functions() const {
+    return found_functions_;
+  }
+
   const std::vector<clang::VarDecl*>& vars() const { return vars_; }
 
  private:
   TypeCollector type_collector_;
   std::vector<clang::FunctionDecl*> functions_;
   std::vector<clang::VarDecl*> vars_;
+  absl::flat_hash_set<std::string> found_functions_;
   const GeneratorOptions& options_;
 };
 
@@ -124,7 +129,10 @@ class GeneratorASTConsumer : public clang::ASTConsumer {
  public:
   GeneratorASTConsumer(std::string in_file, EmitterBase& emitter,
                        const GeneratorOptions& options)
-      : in_file_(std::move(in_file)), visitor_(options), emitter_(emitter) {}
+      : in_file_(std::move(in_file)),
+        visitor_(options),
+        emitter_(emitter),
+        options_(options) {}
 
  private:
   void HandleTranslationUnit(clang::ASTContext& context) override;
@@ -132,6 +140,7 @@ class GeneratorASTConsumer : public clang::ASTConsumer {
   std::string in_file_;
   GeneratorASTVisitor visitor_;
   EmitterBase& emitter_;
+  const GeneratorOptions& options_;
 };
 
 class GeneratorAction : public clang::ASTFrontendAction {

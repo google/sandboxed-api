@@ -171,6 +171,9 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
       !options_.function_names.contains(ToStringView(decl->getName()))) {
     return true;
   }
+  if (!sandbox_all_functions) {
+    found_functions_.insert(std::string(ToStringView(decl->getName())));
+  }
 
   // Skip Abseil internal functions when all functions are requested. This still
   // allows them to be specified explicitly.
@@ -239,6 +242,18 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   for (clang::FunctionDecl* func : visitor_.functions()) {
     absl::Status status = emitter_.AddFunction(func);
     ReportIfError(context, func->getBeginLoc(), status);
+  }
+
+  if (!options_.function_names.empty()) {
+    for (const std::string& name : options_.function_names) {
+      if (!visitor_.found_functions().contains(name)) {
+        Report(context.getDiagnostics(),
+               context.getTranslationUnitDecl()->getBeginLoc(),
+               clang::DiagnosticsEngine::Error,
+               absl::StrCat("Requested function '", name,
+                            "' not found in translation unit."));
+      }
+    }
   }
 }
 

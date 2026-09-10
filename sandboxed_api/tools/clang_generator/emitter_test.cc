@@ -42,6 +42,7 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::MatchesRegex;
+using ::testing::Not;
 using ::testing::SizeIs;
 using ::testing::StrEq;
 using ::testing::StrNe;
@@ -103,6 +104,20 @@ TEST_F(EmitterTest, SpecificFunctionRequested) {
   absl::StatusOr<std::string> header = emitter.EmitHeader();
   ASSERT_THAT(header, IsOk());
   EXPECT_THAT(*header, HasSubstr("ExposedFunction"));
+}
+
+// Tests that requesting a function that does not exist in the translation unit
+// fails with an error.
+TEST_F(EmitterTest, NonExistentFunctionFails) {
+  GeneratorOptions options;
+  options.set_function_names<std::initializer_list<std::string>>(
+      {"NonExistentFunction"});
+
+  EmitterForTesting emitter(&options);
+  EXPECT_THAT(RunFrontendActionOnFile(
+                  "simple_functions.cc",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              Not(IsOk()));
 }
 
 // Tests that the generator emits all functions if no specific functions are
