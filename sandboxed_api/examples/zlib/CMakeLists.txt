@@ -17,6 +17,9 @@ add_sapi_library(zlib-sapi
   FUNCTIONS deflateInit_
             deflate
             deflateEnd
+            inflateInit_
+            inflate
+            inflateEnd
   INPUTS "${ZLIB_INCLUDE_DIRS}/zlib.h"
   LIBRARY ZLIB::ZLIBSTATIC
   LIBRARY_NAME Zlib

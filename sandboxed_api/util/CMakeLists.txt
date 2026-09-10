@@ -297,12 +297,15 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sapi_sandbox_pool_test PRIVATE
     absl::status_matchers
+    absl::strings
     absl::time
     benchmark
     sapi::sandbox_pool
     sapi::stringop_sapi
     sapi::test_main
     sapi::testing
+    sapi::vars
+    sapi::zlib_sapi
   )
   gtest_discover_tests_xcompile(sapi_sandbox_pool_test)
 endif()

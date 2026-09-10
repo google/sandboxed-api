@@ -19,6 +19,8 @@ load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
 load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
+package(default_visibility = ["//sandboxed_api:__subpackages__"])
+
 licenses(["notice"])
 
 sapi_library(
@@ -29,6 +31,9 @@ sapi_library(
         "deflateInit_",
         "deflate",
         "deflateEnd",
+        "inflateInit_",
+        "inflate",
+        "inflateEnd",
     ],
     input_files = ["input.h"],
     lib = "@zlib",

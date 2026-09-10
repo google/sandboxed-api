@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -26,19 +27,24 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
+#include "sandboxed_api/examples/zlib/zlib-sapi.sapi.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/sandbox_pool_global.h"
 #include "sandboxed_api/util/thread.h"
+#include "sandboxed_api/vars.h"
 
 namespace sapi {
 
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::Eq;
@@ -98,10 +104,14 @@ TEST(SandboxPoolTest, ReuseOnlyCreatesOneSandbox) {
   }
   {
     SAPI_ASSERT_OK_AND_ASSIGN(auto handle2, pool->Acquire());
+    absl::MutexLock lock(factory_calls_mutex);
+    EXPECT_EQ(factory_calls, 1);
   }
   {
     absl::MutexLock lock(factory_calls_mutex);
-    EXPECT_EQ(factory_calls, 1);
+    auto predicate = [&factory_calls] { return factory_calls >= 2; };
+    EXPECT_TRUE(factory_calls_mutex.AwaitWithTimeout(
+        absl::Condition(&predicate), absl::Seconds(5)));
   }
 }
 
@@ -284,20 +294,6 @@ void BenchmarkSetup(const benchmark::State& state) {
 
 void BenchmarkTeardown(const benchmark::State& state) { g_pool.reset(); }
 
-void BM_AcquireRelease(benchmark::State& state) {
-  for (auto s : state) {
-    auto handle = g_pool->Acquire().value();
-    StringopApi api(handle.get());
-    benchmark::DoNotOptimize(api.get_raw_c_string());
-  }
-  state.SetItemsProcessed(state.iterations());
-}
-BENCHMARK(BM_AcquireRelease)
-    ->Setup(BenchmarkSetup)
-    ->Teardown(BenchmarkTeardown)
-    ->UseRealTime()
-    ->ThreadRange(1, 256);
-
 void BM_HighConcurrencyHold(benchmark::State& state) {
   const int sandboxes_per_thread = state.range(0);
 
@@ -321,6 +317,238 @@ BENCHMARK(BM_HighConcurrencyHold)
     ->Threads(32)
     ->Threads(64)
     ->UseRealTime();
+
+// -----------------------------------------------------------------------------
+// Real-world Zlib Compression & Decompression Benchmarks
+// -----------------------------------------------------------------------------
+
+// Zlib constants needed by the SAPI sandboxee (matches standard zlib
+// definitions).
+constexpr int kZFinish = 4;
+constexpr int kZOk = 0;
+constexpr int kZDefaultCompression = -1;
+constexpr int kZStreamEnd = 1;
+constexpr char kZlibVersion[] = "1.2.11";
+constexpr size_t kZlibOutputCapacity = 32768;
+
+absl::Status CompressPayload(sapi::zlib::ZlibSandbox* sandbox,
+                             const unsigned char* in_data, size_t in_size,
+                             unsigned char* out_data, size_t out_capacity,
+                             size_t* out_size) {
+  sapi::zlib::ZlibApi api(sandbox);
+  sapi::v::Struct<sapi::zlib::z_stream> strm;
+
+  sapi::v::Array<unsigned char> input(const_cast<unsigned char*>(in_data),
+                                      in_size);
+  sapi::v::Array<unsigned char> output(out_data, out_capacity);
+
+  ABSL_RETURN_IF_ERROR(sandbox->Allocate(&input, true));
+  ABSL_RETURN_IF_ERROR(sandbox->Allocate(&output, true));
+
+  sapi::v::Array<const char> version(kZlibVersion, sizeof(kZlibVersion));
+
+  strm.mutable_data()->avail_in = in_size;
+  strm.mutable_data()->next_in =
+      reinterpret_cast<unsigned char*>(input.GetRemote());
+  strm.mutable_data()->avail_out = out_capacity;
+  strm.mutable_data()->next_out =
+      reinterpret_cast<unsigned char*>(output.GetRemote());
+
+  ABSL_RETURN_IF_ERROR(sandbox->TransferToSandboxee(&input));
+
+  ABSL_ASSIGN_OR_RETURN(
+      int ret,
+      api.deflateInit_(strm.PtrBoth(), kZDefaultCompression,
+                       version.PtrBefore(), sizeof(sapi::zlib::z_stream)));
+  if (ret != kZOk) {
+    return absl::InternalError("deflateInit failed");
+  }
+
+  ABSL_ASSIGN_OR_RETURN(ret, api.deflate(strm.PtrBoth(), kZFinish));
+  if (ret != kZStreamEnd) {
+    api.deflateEnd(strm.PtrBoth()).IgnoreError();
+    return absl::InternalError("deflate failed to finish in one chunk");
+  }
+
+  ABSL_RETURN_IF_ERROR(sandbox->TransferFromSandboxee(&output));
+  *out_size = out_capacity - strm.data().avail_out;
+
+  ABSL_RETURN_IF_ERROR(api.deflateEnd(strm.PtrBoth()).status());
+  return absl::OkStatus();
+}
+
+absl::Status DecompressPayload(sapi::zlib::ZlibSandbox* sandbox,
+                               const unsigned char* in_data, size_t in_size,
+                               unsigned char* out_data, size_t out_capacity,
+                               size_t* out_size) {
+  sapi::zlib::ZlibApi api(sandbox);
+  sapi::v::Struct<sapi::zlib::z_stream> strm;
+
+  sapi::v::Array<unsigned char> input(const_cast<unsigned char*>(in_data),
+                                      in_size);
+  sapi::v::Array<unsigned char> output(out_data, out_capacity);
+
+  ABSL_RETURN_IF_ERROR(sandbox->Allocate(&input, true));
+  ABSL_RETURN_IF_ERROR(sandbox->Allocate(&output, true));
+
+  sapi::v::Array<const char> version(kZlibVersion, sizeof(kZlibVersion));
+
+  strm.mutable_data()->avail_in = in_size;
+  strm.mutable_data()->next_in =
+      reinterpret_cast<unsigned char*>(input.GetRemote());
+  strm.mutable_data()->avail_out = out_capacity;
+  strm.mutable_data()->next_out =
+      reinterpret_cast<unsigned char*>(output.GetRemote());
+
+  ABSL_RETURN_IF_ERROR(sandbox->TransferToSandboxee(&input));
+
+  ABSL_ASSIGN_OR_RETURN(int ret,
+                        api.inflateInit_(strm.PtrBoth(), version.PtrBefore(),
+                                         sizeof(sapi::zlib::z_stream)));
+  if (ret != kZOk) {
+    return absl::InternalError("inflateInit failed");
+  }
+
+  ABSL_ASSIGN_OR_RETURN(ret, api.inflate(strm.PtrBoth(), kZFinish));
+  if (ret != kZStreamEnd) {
+    api.inflateEnd(strm.PtrBoth()).IgnoreError();
+    return absl::InternalError("inflate failed to finish in one chunk");
+  }
+
+  ABSL_RETURN_IF_ERROR(sandbox->TransferFromSandboxee(&output));
+  *out_size = out_capacity - strm.data().avail_out;
+
+  ABSL_RETURN_IF_ERROR(api.inflateEnd(strm.PtrBoth()).status());
+  return absl::OkStatus();
+}
+
+absl::Status CompressAndDecompressPayload(
+    sapi::zlib::ZlibSandbox* sandbox, absl::string_view payload,
+    std::vector<unsigned char>& compressed,
+    std::vector<unsigned char>& decompressed) {
+  size_t compressed_size = 0;
+  ABSL_RETURN_IF_ERROR(CompressPayload(
+      sandbox, reinterpret_cast<const unsigned char*>(payload.data()),
+      payload.size(), compressed.data(), compressed.size(), &compressed_size));
+
+  size_t decompressed_size = 0;
+  ABSL_RETURN_IF_ERROR(DecompressPayload(
+      sandbox, compressed.data(), compressed_size, decompressed.data(),
+      decompressed.size(), &decompressed_size));
+
+  if (decompressed_size != payload.size()) {
+    return absl::InternalError(absl::StrCat("Decompressed size mismatch: got ",
+                                            decompressed_size, ", expected ",
+                                            payload.size()));
+  }
+  if (memcmp(decompressed.data(), payload.data(), payload.size()) != 0) {
+    return absl::InternalError("Decompressed content mismatch");
+  }
+  return absl::OkStatus();
+}
+
+const std::string& GetZlibBenchmarkPayload() {
+  static const std::string* const kPayload = []() {
+    std::string s;
+    s.reserve(16384);
+    while (s.size() < 16384) {
+      s.append(
+          "{\"event\":\"benchmark_event\",\"user_id\":42,"
+          "\"status\":\"SUCCESS\",\"data\":\"Repeated structured JSON payload "
+          "to simulate real compression data\"}\n");
+    }
+    s.resize(16384);
+    return new std::string(std::move(s));
+  }();
+  return *kPayload;
+}
+
+inline sapi::zlib::ZlibSandbox* ToSandboxPtr(
+    const std::unique_ptr<sapi::zlib::ZlibSandbox>& ptr) {
+  return ptr.get();
+}
+
+inline sapi::zlib::ZlibSandbox* ToSandboxPtr(
+    const SandboxHandle<sapi::zlib::ZlibSandbox>& handle) {
+  return handle.get();
+}
+
+inline sapi::zlib::ZlibSandbox* ToSandboxPtr(sapi::zlib::ZlibSandbox& ref) {
+  return &ref;
+}
+
+template <typename AcquireFn>
+void RunZlibBenchmark(benchmark::State& state, AcquireFn&& acquire_fn) {
+  const std::string& payload = GetZlibBenchmarkPayload();
+  std::vector<unsigned char> compressed(kZlibOutputCapacity);
+  std::vector<unsigned char> decompressed(kZlibOutputCapacity);
+
+  for (auto s : state) {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto&& sbx_handle, acquire_fn());
+    sapi::zlib::ZlibSandbox* sandbox = ToSandboxPtr(sbx_handle);
+    ASSERT_THAT(CompressAndDecompressPayload(sandbox, payload, compressed,
+                                             decompressed),
+                IsOk());
+    benchmark::DoNotOptimize(compressed[0]);
+    benchmark::DoNotOptimize(decompressed[0]);
+  }
+  state.SetBytesProcessed(state.iterations() * payload.size());
+}
+
+std::shared_ptr<SandboxPool<sapi::zlib::ZlibSandbox>> SetupZlibPool(
+    size_t max_sandbox_reuse = 0) {
+  SandboxPoolOptions options;
+  if (max_sandbox_reuse > 0) {
+    options.max_sandbox_reuse = max_sandbox_reuse;
+  }
+  auto pool = SandboxPool<sapi::zlib::ZlibSandbox>::Create(options).value();
+  absl::SleepFor(absl::Milliseconds(200));
+  return pool;
+}
+
+std::shared_ptr<SandboxPool<sapi::zlib::ZlibSandbox>> g_zlib_pool;
+
+void ZlibBenchmarkSetup(const benchmark::State& state) {
+  g_zlib_pool = SetupZlibPool(50);
+}
+
+void ZlibBenchmarkTeardown(const benchmark::State& state) {
+  g_zlib_pool.reset();
+}
+
+void BM_Zlib_ManualSpawn(benchmark::State& state) {
+  RunZlibBenchmark(
+      state, []() { return sapi::MakeSandbox<sapi::zlib::ZlibSandbox>(); });
+}
+BENCHMARK(BM_Zlib_ManualSpawn)->UseRealTime()->ThreadRange(1, 64);
+
+void BM_Zlib_SandboxPool(benchmark::State& state) {
+  RunZlibBenchmark(state, []() { return g_zlib_pool->Acquire(); });
+}
+BENCHMARK(BM_Zlib_SandboxPool)
+    ->Setup(ZlibBenchmarkSetup)
+    ->Teardown(ZlibBenchmarkTeardown)
+    ->UseRealTime()
+    ->ThreadRange(1, 64);
+
+std::shared_ptr<SandboxPool<sapi::zlib::ZlibSandbox>> g_zlib_no_reuse_pool;
+
+void ZlibNoReuseBenchmarkSetup(const benchmark::State& state) {
+  g_zlib_no_reuse_pool = SetupZlibPool(1);
+}
+
+void ZlibNoReuseBenchmarkTeardown(const benchmark::State& state) {
+  g_zlib_no_reuse_pool.reset();
+}
+
+void BM_Zlib_SandboxPool_NoReuse(benchmark::State& state) {
+  RunZlibBenchmark(state, []() { return g_zlib_no_reuse_pool->Acquire(); });
+}
+BENCHMARK(BM_Zlib_SandboxPool_NoReuse)
+    ->Setup(ZlibNoReuseBenchmarkSetup)
+    ->Teardown(ZlibNoReuseBenchmarkTeardown)
+    ->UseRealTime()
+    ->ThreadRange(1, 64);
 
 }  // namespace
 
