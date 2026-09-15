@@ -164,13 +164,7 @@ cc_library(
         "transaction.cc",
     ],
     hdrs = [
-        # TODO(hamacher): Remove reexport workaround as soon as the buildsystem
-        #                 supports this usecase.
-        "embed_file.h",
         "sandbox.h",
-        # TODO(sroettger): Remove reexports of config and backend headers once users are updated.
-        "sandbox2_backend.h",
-        "sandbox_config.h",
         "transaction.h",
     ],
     copts = sapi_platform_copts(),

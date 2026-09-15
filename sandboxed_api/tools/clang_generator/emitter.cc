@@ -62,7 +62,6 @@ constexpr absl::string_view kHeaderIncludes =
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/sandbox.h"
-#include "sandboxed_api/sandbox2_backend.h"
 #include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/vars.h"
 
