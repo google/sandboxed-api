@@ -75,13 +75,20 @@ list(APPEND _sapi_generator_llvm_comp
 list(APPEND _sapi_generator_llvm_comp
   WindowsDriver # Always needed
 )
-llvm_map_components_to_libnames(_sapi_generator_llvm_libs
-  ${_sapi_generator_llvm_comp}
-)
 if(NOT SAPI_ENABLE_CLANG_TOOL_STATIC)
   # Use regular library name
   list(APPEND _sapi_generator_clang_libs clang-cpp)
+  if(TARGET LLVM OR LLVM_LINK_LLVM_DYLIB)
+    set(_sapi_generator_llvm_libs LLVM)
+  else()
+    llvm_map_components_to_libnames(_sapi_generator_llvm_libs
+      ${_sapi_generator_llvm_comp}
+    )
+  endif()
 else()
+  llvm_map_components_to_libnames(_sapi_generator_llvm_libs
+    ${_sapi_generator_llvm_comp}
+  )
   foreach(_clang_lib IN ITEMS
     # Required Clang libraries
     clangBasic
