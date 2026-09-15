@@ -23,6 +23,7 @@
 #include "libidn2_sapi.sapi.h"  // NOLINT(build/include)
 #include "absl/log/die_if_null.h"
 #include "absl/status/statusor.h"
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/util/fileops.h"
 
 class Idn2SapiSandbox : public IDN2Sandbox {
@@ -30,6 +31,7 @@ class Idn2SapiSandbox : public IDN2Sandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowSystemMalloc()
         .AllowRead()
         .AllowStat()
@@ -37,6 +39,7 @@ class Idn2SapiSandbox : public IDN2Sandbox {
         .AllowExit()
         .AllowGetPIDs()
         .AllowSyscalls({
+            __NR_recvmsg,
             __NR_futex,
             __NR_close,
             __NR_lseek,

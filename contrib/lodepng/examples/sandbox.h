@@ -18,6 +18,7 @@
 #include <syscall.h>
 
 #include "lodepng_sapi.sapi.h"  // NOLINT(build/include)
+#include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 
 class SapiLodepngSandbox : public LodepngSandbox {
  public:
@@ -28,6 +29,7 @@ class SapiLodepngSandbox : public LodepngSandbox {
   std::unique_ptr<sandbox2::Policy> ModifyPolicy(
       sandbox2::PolicyBuilder*) override {
     return sandbox2::PolicyBuilder()
+        .AllowDynamicStartup(sandbox2::MapExec())
         .AllowRead()
         .AllowWrite()
         .AllowOpen()
@@ -37,6 +39,7 @@ class SapiLodepngSandbox : public LodepngSandbox {
         .AllowGetPIDs()
         .AddDirectoryAt(images_path_, "/output/", /*is_ro=*/false)
         .AllowSyscalls({
+            __NR_recvmsg,
             __NR_futex,
             __NR_lseek,
             __NR_close,

@@ -34,6 +34,12 @@ class BrotliSapiSandbox : public BrotliSandbox {
         .AllowSystemMalloc()
         .AllowGetPIDs()
         .AllowExit()
+        .AllowSyscalls({
+            __NR_recvmsg,
+            __NR_futex,
+            __NR_close,
+            __NR_lseek,
+        })
         .BlockSyscallWithErrno(__NR_openat, ENOENT)
         .BuildOrDie();
   }
