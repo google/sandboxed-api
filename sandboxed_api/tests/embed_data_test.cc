@@ -34,6 +34,7 @@ namespace {
 
 using ::testing::Eq;
 using ::testing::Ne;
+using ::testing::StartsWith;
 using ::testing::StrEq;
 
 constexpr absl::string_view kExpectedPayload =
@@ -48,7 +49,7 @@ TEST(EmbedDataTest, UnmappedElfEmbedding) {
 
   if (!toc.section_name.empty()) {
     EXPECT_THAT(std::string(toc.section_name),
-                StrEq(".sapi_embed_embedded_data_bin"));
+                StartsWith(".sapi_embed_embedded_data_bin_"));
 
     const char* elf_path = "/proc/self/exe";
     Dl_info dlinfo;

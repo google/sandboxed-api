@@ -32,6 +32,7 @@ namespace {
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::NotNull;
+using ::testing::StartsWith;
 using ::testing::StrEq;
 
 TEST(FilewrapperTest, BasicFunctionality) {
@@ -46,7 +47,7 @@ TEST(FilewrapperTest, BasicFunctionality) {
 
   if (!toc.section_name.empty()) {
     EXPECT_THAT(std::string(toc.section_name),
-                StrEq(".sapi_embed_filewrapper_embedded_bin"));
+                StartsWith(".sapi_embed_filewrapper_embedded_bin_"));
     const char* elf_path = "/proc/self/exe";
     Dl_info dlinfo;
     if (dladdr(raw_toc, &dlinfo) != 0 && dlinfo.dli_fname != nullptr &&

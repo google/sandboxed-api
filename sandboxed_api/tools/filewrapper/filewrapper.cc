@@ -15,6 +15,7 @@
 // Simple utility to wrap a binary file in a C++ source file.
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -118,6 +119,30 @@ struct FileEntry {
   std::string basename;
   std::string ident;
 };
+
+// Returns a short, stable, per-target suffix for the symbol and section names
+// generated in assembly (unmapped) mode.
+//
+// Assembly mode emits `.global` symbols and a `.sapi_embed_*` section whose
+// names share a namespace with every other object linked into the final
+// binary. Deriving them from the embedded file's basename alone makes two
+// sapi_cc_embed_data() targets in different packages that embed files with the
+// same basename (e.g. two sapi_library() targets that share a name) emit
+// colliding definitions. Mixing in the build package and target name keeps
+// them distinct.
+//
+// This intentionally uses FNV-1a rather than absl::Hash or std::hash: neither
+// of those is guaranteed stable across processes, platforms or library
+// versions, and the generated files must be byte-for-byte reproducible for
+// build caching to work.
+std::string UniqueSuffix(absl::string_view package, absl::string_view name) {
+  uint64_t hash = 0xcbf29ce484222325ULL;  // FNV-1a 64-bit offset basis
+  for (char c : absl::StrCat(package, ":", name)) {
+    hash = (hash ^ static_cast<uint8_t>(c)) * 0x100000001b3ULL;  // FNV-1a prime
+  }
+  // Only collisions within a single linked binary matter, so 32 bits is ample.
+  return absl::StrFormat("%08x", static_cast<uint32_t>(hash));
+}
 
 // Format literals for generating the .h file
 constexpr const char kHFileHeaderFmt[] =
@@ -323,8 +348,17 @@ int main(int argc, char* argv[]) {
   WriteHeaderFile(out_h_path, package, toc_ident, ns, have_ns);
 
   // 2. Parse all input files into a unified entry list.
+  //
+  // In assembly mode the identifier ends up in `.global` symbol names and in
+  // the `.sapi_embed_*` section name, both of which must be unique across
+  // every object linked into the final binary. The basename alone is not:
+  // qualify it with a per-target suffix and a per-file sequence number so that
+  // neither two targets embedding the same basename nor one target embedding
+  // two same-named files from different directories can collide.
+  const std::string unique_suffix = UniqueSuffix(package, name);
   std::vector<FileEntry> entries;
   entries.reserve(argc - 1);
+  size_t seq = 0;
   while (argc > 1) {
     const char* in_filename = *arg++;
     --argc;
@@ -333,10 +367,11 @@ int main(int argc, char* argv[]) {
     if (out_s_path == nullptr) {
       ident = absl::StrCat("k", basename);
     } else if (!basename.empty() && absl::ascii_isdigit(basename[0])) {
-      ident = absl::StrCat("_", basename);
+      ident = absl::StrCat("_", basename, "_", seq, "_", unique_suffix);
     } else {
-      ident = basename;
+      ident = absl::StrCat(basename, "_", seq, "_", unique_suffix);
     }
+    ++seq;
     std::replace_if(
         ident.begin(), ident.end(),
         [](char c) { return !absl::ascii_isalnum(c); }, '_');
