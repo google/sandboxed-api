@@ -898,6 +898,8 @@ cc_test(
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:temp_file",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],

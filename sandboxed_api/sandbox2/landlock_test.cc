@@ -28,6 +28,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
@@ -48,6 +50,7 @@
 namespace sandbox2 {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
@@ -503,6 +506,23 @@ TEST_F(LandlockTest, LandlockTruncateAndReferAccess) {
   EXPECT_THAT(res_refer, ElementsAre("refer_success"));
 
   sapi::file_util::fileops::DeleteRecursively(temp_dir);
+}
+
+TEST(SimpleLandlockTest, NonIdentityMountsRejected) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  PolicyBuilder policy_builder = CreateLandlockPermissiveTestPolicy(path);
+  EXPECT_THAT(
+      policy_builder.AddFileAt("/proc/stat", "/proc_copy/stat").TryBuild(),
+      StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(policy_builder.AddDirectoryAt("/proc", "/proc_copy").TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(SimpleLandlockTest, AddTmpfsFails) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  PolicyBuilder policy_builder = CreateLandlockPermissiveTestPolicy(path);
+  EXPECT_THAT(policy_builder.AddTmpfs("/tmp/foo", 1024).TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 }  // namespace

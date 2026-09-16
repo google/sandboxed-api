@@ -125,9 +125,6 @@ bool IsWritableNode(const MountTree* tree, const std::string& path) {
   if (tree->node().has_root_node()) {
     return tree->node().root_node().writable();
   }
-  if (tree->node().has_tmpfs_node()) {
-    return true;
-  }
   SAPI_RAW_LOG(FATAL,
                "Unsupported node type in landlock MountTree traversal: %s",
                path.c_str());

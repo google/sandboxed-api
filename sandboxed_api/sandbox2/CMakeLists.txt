@@ -1508,6 +1508,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_landlock_test PRIVATE
     absl::check
+    absl::status
+    absl::status_matchers
     absl::strings
     sandbox2::allowlists_unrestricted_networking
     sandbox2::comms

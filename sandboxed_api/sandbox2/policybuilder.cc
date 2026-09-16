@@ -1612,6 +1612,10 @@ absl::Status ValidateLandlockIdentityMounts(const MountTree& root_tree) {
             "Cannot use Landlock with non-identity mounts. ", "path='", path,
             "', outside='", tree->node().file_node().outside(), "'"));
       }
+      if (tree->node().has_tmpfs_node()) {
+        return absl::FailedPreconditionError(absl::StrCat(
+            "Cannot use Landlock with tmpfs mounts. ", "path='", path, "'"));
+      }
     }
 
     for (const auto& entry : tree->entries()) {
