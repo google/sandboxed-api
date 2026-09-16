@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/util/elf_parser.h"
 #include "sandboxed_api/util/fileops.h"
 
