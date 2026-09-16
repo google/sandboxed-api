@@ -43,6 +43,7 @@
 #include "absl/time/time.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
+#include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -71,6 +72,7 @@ class Sandbox2TestPeer {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
@@ -422,6 +424,123 @@ TEST(Sandbox2Test, SharedMountNamespaceWorks) {
   auto result = sandbox.Run();
   ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
   EXPECT_EQ(result.reason_code(), 0);
+}
+
+TEST(Sandbox2Test, EnableUnotifyMonitorFailsWithoutNamespaces) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder;
+  builder.DefaultAction(sandbox2::AllowAllSyscalls())
+      .DisableNamespaces(sandbox2::NamespacesToken());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableUnotifyMonitor(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Unotify monitor can only be used together "
+                                 "with namespaces")));
+}
+
+TEST(Sandbox2Test, EnableUnotifyMonitorFailsWithLandlock) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.EnableLandlock(sandbox2::EnableLandlock())
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(
+      sandbox.EnableUnotifyMonitor(),
+      StatusIs(absl::StatusCode::kFailedPrecondition,
+               HasSubstr("Using unotify monitor with Landlock mode is not "
+                         "fully supported yet")));
+}
+
+TEST(Sandbox2Test, EnableUnotifyMonitorFailsWithCollectStacktracesOnSignal) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.CollectStacktracesOnSignal(true);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableUnotifyMonitor(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Unotify monitor cannot collect stack traces "
+                                 "on signal")));
+}
+
+TEST(Sandbox2Test, EnableUnotifyMonitorFailsWithCollectStacktracesOnExit) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.CollectStacktracesOnSignal(false);
+  builder.CollectStacktracesOnExit(true);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableUnotifyMonitor(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Unotify monitor cannot collect stack traces "
+                                 "on normal exit")));
+}
+
+TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWhenAlreadyLaunched) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+  EXPECT_THAT(sandbox.EnableSharedMountNamespace(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Sandbox was already launched")));
+}
+
+TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWithoutNamespaces) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder;
+  builder.DefaultAction(sandbox2::AllowAllSyscalls())
+      .DisableNamespaces(sandbox2::NamespacesToken());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableSharedMountNamespace(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Shared mount namespace can only be used "
+                                 "together with namespaces")));
+}
+
+TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWithLandlock) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.EnableLandlock(sandbox2::EnableLandlock())
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableSharedMountNamespace(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Shared mount namespace is not supported "
+                                 "together with Landlock mode")));
+}
+
+TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWithTmpfsMount) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  builder.AddTmpfs("/tmp", 4ULL << 20);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableSharedMountNamespace(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Shared mount namespace cannot be used "
+                                 "with tmpfs mounts.")));
 }
 
 TEST(SharedMemoryTest, SharedMemoryDataTransferWorks) {

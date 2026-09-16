@@ -1277,6 +1277,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     benchmark
     sapi::config
     sandbox2::allowlists_all_syscalls
+    sandbox2::allowlists_enable_landlock
     sandbox2::allowlists_namespaces
     sandbox2::comms
     sandbox2::flags

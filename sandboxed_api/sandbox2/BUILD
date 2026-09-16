@@ -1205,6 +1205,7 @@ cc_test(
         ":util",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2/allowlists:enable_landlock",
         "//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:testonly_namespaces",
         "//sandboxed_api/util:file_base",
