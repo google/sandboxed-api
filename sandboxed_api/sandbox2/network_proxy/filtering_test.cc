@@ -38,6 +38,7 @@ namespace {
 using ::absl_testing::IsOk;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
+using ::testing::Not;
 
 static struct sockaddr* PrepareIpv6(const std::string& ip, uint32_t port = 80) {
   static struct sockaddr_in6 saddr{};
@@ -341,6 +342,13 @@ TEST(FilteringTest, CanonicalizeSocketPathSymlinkParent) {
 
   unlink(symlink_path.c_str());
   rmdir(temp_dir.data());
+}
+
+TEST(FilteringTest, IncorrectCidrRejected) {
+  sandbox2::AllowedEndpoints allowed_endpoints;
+  EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/34"), Not(IsOk()));
+  EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/not_a_number"),
+              Not(IsOk()));
 }
 
 }  // namespace

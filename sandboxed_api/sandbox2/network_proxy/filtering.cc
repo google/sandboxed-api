@@ -238,11 +238,7 @@ absl::Status AllowedEndpoints::AllowIPv4(const std::string& ip,
     }
 
   } else {
-    if (cidr > 32) {
-      return absl::InvalidArgumentError(
-          absl::StrCat(cidr, " is not a correct cidr"));
-    }
-    if (!cidr) {
+    if (cidr == 0) {
       cidr = 32;
     }
 
