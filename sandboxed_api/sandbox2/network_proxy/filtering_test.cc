@@ -36,9 +36,11 @@ namespace sandbox2 {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::testing::Eq;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
 using ::testing::Not;
+using ::std::string_literals::operator""s;
 
 static struct sockaddr* PrepareIpv6(const std::string& ip, uint32_t port = 80) {
   static struct sockaddr_in6 saddr{};
@@ -351,6 +353,47 @@ TEST(FilteringTest, IncorrectCidrRejected) {
               Not(IsOk()));
   EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/not_a_number"),
               Not(IsOk()));
+}
+
+TEST(FilteringTest, RelativeUnixSocketPathRejected) {
+  sandbox2::AllowedEndpoints allowed_endpoints;
+  EXPECT_THAT(allowed_endpoints.AllowUnixSocket("relative/path/to/socket"),
+              Not(IsOk()));
+}
+
+TEST(FilteringTest, InvalidUnixSocketLength) {
+  sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  EXPECT_THAT(AddrToString(reinterpret_cast<struct sockaddr*>(&addr), 1),
+              Not(IsOk()));
+}
+
+TEST(FilteringTest, UnixAutobindAddress) {
+  sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  absl::StatusOr<std::string> str =
+      AddrToString(reinterpret_cast<struct sockaddr*>(&addr),
+                   offsetof(struct sockaddr_un, sun_path));
+  ASSERT_THAT(str, IsOk());
+  EXPECT_THAT(*str, Eq("UNIX Autobind Socket"));
+}
+
+TEST(FilteringTest, AbstractUnixSocketWithNulBytes) {
+  sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  memcpy(addr.sun_path, "\0t\0e\0s\0t", 8);
+  absl::StatusOr<std::string> str =
+      AddrToString(reinterpret_cast<struct sockaddr*>(&addr),
+                   offsetof(struct sockaddr_un, sun_path) + 8);
+  ASSERT_THAT(str, IsOk());
+  EXPECT_THAT(*str, Eq("UNIX Abstract Socket: t\0e\0s\0t"s));
+}
+
+TEST(FilteringTest, WrongFamily) {
+  sockaddr addr{};
+  addr.sa_family = AF_NETLINK;
+  absl::StatusOr<std::string> str = AddrToString(&addr, sizeof(addr));
+  EXPECT_THAT(str, Not(IsOk()));
 }
 
 }  // namespace

@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -39,74 +40,51 @@
 #include "sandboxed_api/util/path.h"
 
 namespace sandbox2 {
+namespace {
 
-static absl::StatusOr<std::string> Addr6ToString(
-    const struct sockaddr_in6* saddr) {
+std::string Addr6ToString(const struct sockaddr_in6* saddr) {
   char addr[INET6_ADDRSTRLEN];
   int port = htons(saddr->sin6_port);
-  if (!inet_ntop(AF_INET6, &saddr->sin6_addr, addr, sizeof addr)) {
-    return absl::InternalError(
-        "Error in converting sockaddr_in6 addres to string");
-  }
+  CHECK(inet_ntop(AF_INET6, &saddr->sin6_addr, addr, sizeof addr) != nullptr);
   return absl::StrCat("IP: ", addr, ", port: ", port);
 }
 
 // Converts sockaddr_in structure into a string IPv4 representation.
-static absl::StatusOr<std::string> Addr4ToString(
-    const struct sockaddr_in* saddr) {
+std::string Addr4ToString(const struct sockaddr_in* saddr) {
   char addr[INET_ADDRSTRLEN];
   int port = htons(saddr->sin_port);
-  if (!inet_ntop(AF_INET, &saddr->sin_addr, addr, sizeof addr)) {
-    return absl::InternalError(
-        "Error in converting sockaddr_in addres to string");
-  }
+  CHECK(inet_ntop(AF_INET, &saddr->sin_addr, addr, sizeof addr) != nullptr);
   return absl::StrCat("IP: ", addr, ", port: ", port);
 }
 
-static absl::StatusOr<std::string> AddrUnToString(
-    const struct sockaddr_un* saddr, socklen_t len) {
-  if (len <= offsetof(struct sockaddr_un, sun_path)) {
-    return absl::StrCat("UNIX Socket (invalid length)");
+absl::StatusOr<std::string> AddrUnToString(const struct sockaddr_un* saddr,
+                                           socklen_t len) {
+  if (len < offsetof(struct sockaddr_un, sun_path)) {
+    return absl::InvalidArgumentError("UNIX Socket (invalid length)");
   }
   size_t path_len = len - offsetof(struct sockaddr_un, sun_path);
   path_len = std::min(path_len, sizeof(saddr->sun_path));
   absl::string_view name(saddr->sun_path, path_len);
   absl::string_view type = "UNIX";
 
+  if (name.empty()) {
+    return "UNIX Autobind Socket";
+  }
+
   if (name[0] == '\0') {
     type = "UNIX Abstract";
     name = name.substr(1);
-  }
-  size_t null_pos = name.find('\0');
-  if (null_pos != absl::string_view::npos) {
-    name = name.substr(0, null_pos);
-  }
-  if (name.empty()) {
-    name = "(empty)";
+  } else {
+    size_t null_pos = name.find('\0');
+    if (null_pos != absl::string_view::npos) {
+      name = name.substr(0, null_pos);
+    }
   }
   return absl::StrCat(type, " Socket: ", name);
 }
 
-// Converts sockaddr_in, sockaddr_in6, or sockaddr_un structure into a string
-// representation.
-absl::StatusOr<std::string> AddrToString(const struct sockaddr* saddr,
-                                         socklen_t len) {
-  switch (saddr->sa_family) {
-    case AF_INET:
-      return Addr4ToString(reinterpret_cast<const struct sockaddr_in*>(saddr));
-    case AF_INET6:
-      return Addr6ToString(reinterpret_cast<const struct sockaddr_in6*>(saddr));
-    case AF_UNIX:
-      return AddrUnToString(reinterpret_cast<const struct sockaddr_un*>(saddr),
-                            len);
-    default:
-      return absl::InternalError(
-          absl::StrCat("Unexpected sa_family value: ", saddr->sa_family));
-  }
-}
-
-static absl::Status IPStringToAddr(const std::string& ip, int address_family,
-                                   void* addr) {
+absl::Status IPStringToAddr(const std::string& ip, int address_family,
+                            void* addr) {
   if (int err = inet_pton(address_family, ip.c_str(), addr); err == 0) {
     return absl::InvalidArgumentError(absl::StrCat("Invalid address: ", ip));
   } else if (err == -1) {
@@ -118,20 +96,14 @@ static absl::Status IPStringToAddr(const std::string& ip, int address_family,
 
 // Parses a string of type IP or IP/mask or IP/cidr and saves appropriate
 // values in output arguments.
-static absl::Status ParseIpAndMask(const std::string& ip_and_mask,
-                                   std::string* ip, std::string* mask,
-                                   uint32_t* cidr) {
-  // mask is checked later because only IPv4 format supports mask
-  if (ip == nullptr || cidr == nullptr) {
-    return absl::InvalidArgumentError(
-        "ip and cidr arguments of ParseIpAndMask cannot be nullptr");
-  }
-  *cidr = 0;
+absl::Status ParseIpAndMask(const std::string& ip_and_mask, std::string& ip,
+                            std::string& mask, uint32_t& cidr) {
+  cidr = 0;
 
   std::vector<std::string> ip_and_mask_split =
       absl::StrSplit(ip_and_mask, absl::MaxSplits('/', 1));
 
-  *ip = ip_and_mask_split[0];
+  ip = ip_and_mask_split[0];
   if (ip_and_mask_split.size() == 1) {
     return absl::OkStatus();
   }
@@ -139,14 +111,10 @@ static absl::Status ParseIpAndMask(const std::string& ip_and_mask,
 
   const bool has_dot = absl::StrContains(mask_or_cidr, '.');
   if (has_dot) {
-    if (mask == nullptr) {
-      return absl::InvalidArgumentError(
-          "mask argument of ParseIpAndMask cannot be NULL in this case");
-    }
-    *mask = std::string(mask_or_cidr);
+    mask = std::string(mask_or_cidr);
   } else {  // mask_or_cidr is cidr
-    bool res = absl::SimpleAtoi<uint32_t>(mask_or_cidr, cidr);
-    if (!res || !*cidr) {
+    bool res = absl::SimpleAtoi<uint32_t>(mask_or_cidr, &cidr);
+    if (!res || !cidr) {
       return absl::InvalidArgumentError(
           absl::StrCat(mask_or_cidr, " is not a correct cidr"));
     }
@@ -154,7 +122,7 @@ static absl::Status ParseIpAndMask(const std::string& ip_and_mask,
   return absl::OkStatus();
 }
 
-static absl::Status CidrToIn6Addr(uint32_t cidr, in6_addr* addr) {
+absl::Status CidrToIn6Addr(uint32_t cidr, in6_addr* addr) {
   if (cidr > 128) {
     return absl::InvalidArgumentError(
         absl::StrCat(cidr, " is not a correct cidr"));
@@ -178,7 +146,7 @@ static absl::Status CidrToIn6Addr(uint32_t cidr, in6_addr* addr) {
   return absl::OkStatus();
 }
 
-static absl::Status CidrToInAddr(uint32_t cidr, in_addr* addr) {
+absl::Status CidrToInAddr(uint32_t cidr, in_addr* addr) {
   if (cidr > 32) {
     return absl::InvalidArgumentError(
         absl::StrCat(cidr, " is not a correct cidr"));
@@ -195,7 +163,7 @@ static absl::Status CidrToInAddr(uint32_t cidr, in_addr* addr) {
   return absl::OkStatus();
 }
 
-static bool IsIPv4MaskCorrect(in_addr_t m) {
+bool IsIPv4MaskCorrect(in_addr_t m) {
   m = ntohl(m);
   if (m == 0) {
     return false;
@@ -204,11 +172,31 @@ static bool IsIPv4MaskCorrect(in_addr_t m) {
   return !(m & (m - 1));
 }
 
+}  // namespace
+
+// Converts sockaddr_in, sockaddr_in6, or sockaddr_un structure into a string
+// representation.
+absl::StatusOr<std::string> AddrToString(const struct sockaddr* saddr,
+                                         socklen_t len) {
+  switch (saddr->sa_family) {
+    case AF_INET:
+      return Addr4ToString(reinterpret_cast<const struct sockaddr_in*>(saddr));
+    case AF_INET6:
+      return Addr6ToString(reinterpret_cast<const struct sockaddr_in6*>(saddr));
+    case AF_UNIX:
+      return AddrUnToString(reinterpret_cast<const struct sockaddr_un*>(saddr),
+                            len);
+    default:
+      return absl::InternalError(
+          absl::StrCat("Unexpected sa_family value: ", saddr->sa_family));
+  }
+}
+
 absl::Status AllowedEndpoints::AllowIPv4(const std::string& ip_and_mask,
                                          uint32_t port) {
   std::string ip, mask;
   uint32_t cidr;
-  ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, &mask, &cidr));
+  ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, ip, mask, cidr));
   ABSL_RETURN_IF_ERROR(AllowIPv4(ip, mask, cidr, port));
 
   return absl::OkStatus();
@@ -216,9 +204,9 @@ absl::Status AllowedEndpoints::AllowIPv4(const std::string& ip_and_mask,
 
 absl::Status AllowedEndpoints::AllowIPv6(const std::string& ip_and_mask,
                                          uint32_t port) {
-  std::string ip;
+  std::string ip, mask;
   uint32_t cidr;
-  ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, &ip, NULL, &cidr));
+  ABSL_RETURN_IF_ERROR(ParseIpAndMask(ip_and_mask, ip, mask, cidr));
   ABSL_RETURN_IF_ERROR(AllowIPv6(ip, cidr, port));
   return absl::OkStatus();
 }

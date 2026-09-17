@@ -36,7 +36,8 @@ add_library(sandbox2_network_proxy_filtering ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::network_proxy_filtering ALIAS sandbox2_network_proxy_filtering)
 target_link_libraries(sandbox2_network_proxy_filtering
-  PRIVATE absl::status
+  PRIVATE absl::check
+          absl::status
           absl::status_macros
           absl::strings
           sandbox2::comms

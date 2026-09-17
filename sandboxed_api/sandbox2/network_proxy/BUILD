@@ -69,6 +69,7 @@ cc_library(
         "//sandboxed_api/sandbox2:comms",
         "//sandboxed_api/util:file_base",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
