@@ -50,6 +50,21 @@ using ::absl_testing::StatusIs;
 using ::testing::Eq;
 using ::testing::Ge;
 
+// Polls `pred` until it holds or `timeout` elapses. Returns the final value of
+// `pred`. Used instead of a fixed sleep for state the pool reaches
+// asynchronously, such as pre-warming or pruning.
+template <typename Pred>
+bool WaitFor(Pred pred, absl::Duration timeout = absl::Seconds(10)) {
+  absl::Time deadline = absl::Now() + timeout;
+  while (absl::Now() < deadline) {
+    if (pred()) {
+      return true;
+    }
+    absl::SleepFor(absl::Milliseconds(1));
+  }
+  return pred();
+}
+
 TEST(SandboxPoolTest, AcquireManyWorks) {
   SandboxPoolOptions options;
   options.min_sandboxes = 1;
@@ -93,12 +108,11 @@ TEST(SandboxPoolTest, ReuseOnlyCreatesOneSandbox) {
   };
   SAPI_ASSERT_OK_AND_ASSIGN(
       auto pool, SandboxPool<StringopSandbox>::Create(options, factory));
-  {
-    absl::MutexLock lock(factory_calls_mutex);
-    auto predicate = [&factory_calls] { return factory_calls >= 1; };
-    EXPECT_TRUE(factory_calls_mutex.AwaitWithTimeout(
-        absl::Condition(&predicate), absl::Seconds(5)));
-  }
+  // Wait for pre-warming to reach the idle queue. Waiting on `factory_calls`
+  // is not sufficient: it is incremented on entry to the factory, before the
+  // sandbox exists and before it is pushed, so the `Acquire()` below could
+  // miss it and create a second sandbox.
+  ASSERT_TRUE(WaitFor([&pool] { return pool->AvailableCount() >= 1; }));
   {
     SAPI_ASSERT_OK_AND_ASSIGN(auto handle1, pool->Acquire());
   }
@@ -121,7 +135,7 @@ TEST(SandboxPoolTest, AcquireWithExhaustedPoolWorks) {
   options.max_sandboxes = 1;
   SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
                             SandboxPool<StringopSandbox>::Create(options));
-  absl::SleepFor(absl::Milliseconds(100));
+  ASSERT_TRUE(WaitFor([&pool] { return pool->AvailableCount() >= 1; }));
   SAPI_ASSERT_OK_AND_ASSIGN(auto handle1, pool->Acquire());
   EXPECT_THAT(pool->Acquire(absl::Milliseconds(10)),
               StatusIs(absl::StatusCode::kDeadlineExceeded));
@@ -141,12 +155,10 @@ TEST(SandboxPoolTest, BackgroundCreationWorks) {
   };
   SAPI_ASSERT_OK_AND_ASSIGN(
       auto pool, SandboxPool<StringopSandbox>::Create(options, factory));
-  {
-    absl::MutexLock lock(factory_calls_mutex);
-    auto predicate = [&factory_calls] { return factory_calls >= 4; };
-    EXPECT_TRUE(factory_calls_mutex.AwaitWithTimeout(
-        absl::Condition(&predicate), absl::Seconds(5)));
-  }
+  // Wait for all four background sandboxes to reach the idle queue, not merely
+  // for the factory to have been entered four times: `Acquire()` below would
+  // otherwise miss them and create a fifth.
+  ASSERT_TRUE(WaitFor([&pool] { return pool->AvailableCount() >= 4; }));
   SAPI_ASSERT_OK_AND_ASSIGN(auto handle1, pool->Acquire());
   {
     absl::MutexLock lock(factory_calls_mutex);
@@ -159,6 +171,10 @@ TEST(SandboxPoolTest, ExpiredSandboxesAreDestroyed) {
   options.min_sandboxes = 1;
   options.max_sandboxes = 20;
   options.idle_timeout = absl::Milliseconds(5);
+  // Keep recycling out of the picture: this test is about expiry, and the
+  // default of never reusing a sandbox would have five concurrent recycles
+  // racing the pruner inside the window we measure.
+  options.max_sandbox_reuse = 10;
   SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
                             SandboxPool<StringopSandbox>::Create(options));
   std::vector<SandboxHandle<StringopSandbox>> handles;
@@ -168,14 +184,8 @@ TEST(SandboxPoolTest, ExpiredSandboxesAreDestroyed) {
     handles.push_back(std::move(handle));
   }
   handles.clear();
-  absl::SleepFor(absl::Milliseconds(100));
-#if defined(THREAD_SANITIZER)
-  // In TSAN, to avoid flaky tests, we just check that the pool has fewer
-  // sandboxes than the initial number of sandboxes we created.
-  EXPECT_LT(pool->AvailableCount(), 5);
-#else
-  EXPECT_EQ(pool->AvailableCount(), 1);
-#endif
+  // The pruner must reap everything above `min_sandboxes`, and no further.
+  EXPECT_TRUE(WaitFor([&pool] { return pool->AvailableCount() == 1; }));
 }
 
 TEST(SandboxPoolTest, GlobalPoolWorks) {
