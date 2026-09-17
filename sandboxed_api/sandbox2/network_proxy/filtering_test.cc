@@ -347,6 +347,8 @@ TEST(FilteringTest, CanonicalizeSocketPathSymlinkParent) {
 TEST(FilteringTest, IncorrectCidrRejected) {
   sandbox2::AllowedEndpoints allowed_endpoints;
   EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/34"), Not(IsOk()));
+  EXPECT_THAT(allowed_endpoints.AllowIPv6("0:5678:0:0:0:0:0:0//130"),
+              Not(IsOk()));
   EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/not_a_number"),
               Not(IsOk()));
 }
