@@ -261,7 +261,6 @@ absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::Acquire(
   // We are purposefully not checking whether the queues have stopped, since
   // this is a race condition with the destructor only.
   absl::Time start_time = absl::Now();
-  absl::Time deadline = start_time + timeout;
 
   // First, try to grab an idle sandbox from the queue.
   std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry;
@@ -288,7 +287,7 @@ absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::Acquire(
   }
 
   // Wait for an idle sandbox.
-  bool popped = idle_queue_.PopWithDeadline(entry, deadline);
+  bool popped = idle_queue_.PopWithDeadline(entry, start_time + timeout);
 
   if (!popped) {
     return absl::DeadlineExceededError("Sandbox pool acquisition timed out.");

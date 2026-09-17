@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
@@ -104,6 +105,41 @@ class Queue {
     return true;
   }
 
+  // Attempts to pop the front item, but only if `pred` accepts it. Never
+  // blocks. `pred` is called as `pred(front, size)` with the queue lock held,
+  // and so must not call back into the queue.
+  // Returns true if an item was extracted, or false if the queue was empty or
+  // stopped, or if `pred` rejected the front item.
+  template <typename Pred>
+  bool PopIf(T& value, Pred pred) {
+    absl::MutexLock lock(mutex_);
+    if (queue_.empty() || stopped_ || !pred(queue_.front(), queue_.size())) {
+      return false;
+    }
+
+    value = std::move(queue_.front());
+    queue_.pop();
+    return true;
+  }
+
+  // Blocks until the queue is stopped or `deadline` is reached.
+  // Returns true if the queue was stopped, false if the deadline was reached.
+  bool AwaitStopWithDeadline(absl::Time deadline) {
+    absl::MutexLock lock(mutex_);
+    return mutex_.AwaitWithDeadline(absl::Condition(&stopped_), deadline);
+  }
+
+  // Blocks until the queue holds more than `min_size` items, or is stopped.
+  // Returns true if the queue was stopped.
+  bool AwaitStopOrGrowth(size_t min_size) {
+    absl::MutexLock lock(mutex_);
+    auto grown = [this, min_size] {
+      return stopped_ || queue_.size() > min_size;
+    };
+    mutex_.Await(absl::Condition(&grown));
+    return stopped_;
+  }
+
   // Pops and processes all remaining items in the queue, even if stopped.
   void Drain(absl::AnyInvocable<void(T&&)> fn) {
     absl::MutexLock lock(mutex_);
@@ -125,13 +161,13 @@ class Queue {
     return queue_.size();
   }
 
- protected:
+ private:
   // Condition predicate function for absl::Mutex::Await
   bool CanPop() const { return !queue_.empty() || stopped_; }
 
   mutable absl::Mutex mutex_;
-  std::queue<T> queue_;
-  bool stopped_ = false;
+  std::queue<T> queue_ ABSL_GUARDED_BY(mutex_);
+  bool stopped_ ABSL_GUARDED_BY(mutex_) = false;
 };
 
 template <typename T>
@@ -142,24 +178,21 @@ struct ExpirableItem {
 
 // A thread-safe queue that stores items with an expiration time.
 template <typename T>
-class ExpirableQueue : private Queue<ExpirableItem<T>> {
-  using Base = Queue<ExpirableItem<T>>;
-
+class ExpirableQueue {
  public:
-  ExpirableQueue() : Base() {}
-  virtual ~ExpirableQueue() = default;
+  ExpirableQueue() = default;
 
   // Push an item into the queue with the current time as the last time used.
   // Returns false if the queue is stopped.
   bool Push(T value) {
-    return Base::Push(ExpirableItem<T>{std::move(value), absl::Now()});
+    return queue_.Push(ExpirableItem<T>{std::move(value), absl::Now()});
   }
 
   // Pop an item from the queue.
   // Returns true on success, or false if the queue is empty or stopped.
   bool Pop(T& value) {
     ExpirableItem<T> item;
-    if (Base::Pop(item)) {
+    if (queue_.Pop(item)) {
       value = std::move(item.value);
       return true;
     }
@@ -171,7 +204,7 @@ class ExpirableQueue : private Queue<ExpirableItem<T>> {
   // deadline is reached.
   bool PopWithDeadline(T& value, absl::Time deadline) {
     ExpirableItem<T> item;
-    if (Base::PopWithDeadline(item, std::move(deadline))) {
+    if (queue_.PopWithDeadline(item, deadline)) {
       value = std::move(item.value);
       return true;
     }
@@ -182,46 +215,57 @@ class ExpirableQueue : private Queue<ExpirableItem<T>> {
   // Returns true on success, or false if the queue is empty or stopped.
   bool TryPop(T& value) {
     ExpirableItem<T> item;
-    if (Base::TryPop(item)) {
+    if (queue_.TryPop(item)) {
       value = std::move(item.value);
       return true;
     }
     return false;
   }
 
-  // Pop an item from the queue if it is expired or the queue size is greater
-  // than the minimum queue size.
-  // Returns true on success, or false if the queue is empty or stopped.
-  bool PopWhenExpired(T& value, const absl::Duration& max_age,
-                      size_t min_queue_size) {
-    ExpirableItem<T> item;
-    absl::MutexLock lock(Base::mutex_);
-    auto predicate = [&]() {
-      return Base::stopped_ ||
-             (Base::queue_.size() > min_queue_size &&
-              absl::Now() - Base::queue_.front().last_used >= max_age);
-    };
-    while (!Base::mutex_.AwaitWithDeadline(
-        absl::Condition(&predicate),
-        Base::queue_.size() <= min_queue_size
-            ? absl::Now() + max_age
-            : Base::queue_.front().last_used + max_age)) {
-      // Spin until the condition is met or the deadline is reached.
+  // Blocks until the oldest item has been idle for at least `max_age` while
+  // the queue holds more than `min_queue_size` items, then pops it.
+  // `min_queue_size` is a floor: items are never popped if doing so would
+  // shrink the queue to `min_queue_size` or below, no matter how old they are.
+  // An empty queue is not a terminal condition; the call keeps waiting.
+  // Returns true once an item has been popped, or false if the queue was
+  // stopped while waiting.
+  bool PopWhenExpired(T& value, absl::Duration max_age, size_t min_queue_size) {
+    while (true) {
+      // When the queue is empty, PopIf does not invoke the predicate; default
+      // to waiting for `max_age` since no item pushed later can expire sooner.
+      absl::Time deadline = absl::Now() + max_age;
+      ExpirableItem<T> item;
+      bool popped =
+          queue_.PopIf(item, [&](const ExpirableItem<T>& front, size_t size) {
+            if (size <= min_queue_size) {
+              deadline = absl::InfiniteFuture();
+              return false;
+            }
+            deadline = front.last_used + max_age;
+            return absl::Now() >= deadline;
+          });
+      if (popped) {
+        value = std::move(item.value);
+        return true;
+      }
+      bool stopped = deadline == absl::InfiniteFuture()
+                         ? queue_.AwaitStopOrGrowth(min_queue_size)
+                         : queue_.AwaitStopWithDeadline(deadline);
+      if (stopped) {
+        return false;
+      }
     }
-    if (Base::stopped_) {
-      return false;
-    }
-    value = std::move(Base::queue_.front().value);
-    Base::queue_.pop();
-    return true;
   }
 
   void Drain(absl::AnyInvocable<void(T&&)> fn) {
-    Base::Drain([&fn](ExpirableItem<T>&& item) { fn(std::move(item.value)); });
+    queue_.Drain([&fn](ExpirableItem<T>&& item) { fn(std::move(item.value)); });
   }
 
-  using Base::size;
-  using Base::Stop;
+  size_t size() const { return queue_.size(); }
+  void Stop() { queue_.Stop(); }
+
+ private:
+  Queue<ExpirableItem<T>> queue_;
 };
 
 }  // namespace sapi::sandbox_pool_internal

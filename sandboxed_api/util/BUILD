@@ -263,6 +263,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:private"],
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
