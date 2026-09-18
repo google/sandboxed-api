@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -506,11 +507,9 @@ void RunZlibBenchmark(benchmark::State& state, AcquireFn&& acquire_fn) {
 }
 
 std::shared_ptr<SandboxPool<sapi::zlib::ZlibSandbox>> SetupZlibPool(
-    size_t max_sandbox_reuse = 0) {
+    size_t max_sandbox_reuse) {
   SandboxPoolOptions options;
-  if (max_sandbox_reuse > 0) {
-    options.max_sandbox_reuse = max_sandbox_reuse;
-  }
+  options.max_sandbox_reuse = max_sandbox_reuse;
   auto pool = SandboxPool<sapi::zlib::ZlibSandbox>::Create(options).value();
   absl::SleepFor(absl::Milliseconds(200));
   return pool;
@@ -518,45 +517,49 @@ std::shared_ptr<SandboxPool<sapi::zlib::ZlibSandbox>> SetupZlibPool(
 
 std::shared_ptr<SandboxPool<sapi::zlib::ZlibSandbox>> g_zlib_pool;
 
-void ZlibBenchmarkSetup(const benchmark::State& state) {
-  g_zlib_pool = SetupZlibPool(50);
+template <size_t kMaxSandboxReuse>
+void ZlibPoolSetup(const benchmark::State& state) {
+  g_zlib_pool = SetupZlibPool(kMaxSandboxReuse);
 }
 
-void ZlibBenchmarkTeardown(const benchmark::State& state) {
-  g_zlib_pool.reset();
-}
+void ZlibPoolTeardown(const benchmark::State& state) { g_zlib_pool.reset(); }
 
+// Spawns a throwaway sandbox per call, so it never reuses by construction.
 void BM_Zlib_ManualSpawn(benchmark::State& state) {
   RunZlibBenchmark(
       state, []() { return sapi::MakeSandbox<sapi::zlib::ZlibSandbox>(); });
 }
 BENCHMARK(BM_Zlib_ManualSpawn)->UseRealTime()->ThreadRange(1, 64);
 
-void BM_Zlib_SandboxPool(benchmark::State& state) {
+// The three pool benchmarks below differ only in `max_sandbox_reuse`, so that
+// the comparison between them isolates the reuse policy.
+void BM_Zlib_SandboxPool_NeverReuse(benchmark::State& state) {
   RunZlibBenchmark(state, []() { return g_zlib_pool->Acquire(); });
 }
-BENCHMARK(BM_Zlib_SandboxPool)
-    ->Setup(ZlibBenchmarkSetup)
-    ->Teardown(ZlibBenchmarkTeardown)
+BENCHMARK(BM_Zlib_SandboxPool_NeverReuse)
+    ->Setup(ZlibPoolSetup<1>)
+    ->Teardown(ZlibPoolTeardown)
     ->UseRealTime()
     ->ThreadRange(1, 64);
 
-std::shared_ptr<SandboxPool<sapi::zlib::ZlibSandbox>> g_zlib_no_reuse_pool;
-
-void ZlibNoReuseBenchmarkSetup(const benchmark::State& state) {
-  g_zlib_no_reuse_pool = SetupZlibPool(1);
+void BM_Zlib_SandboxPool_Reuse50(benchmark::State& state) {
+  RunZlibBenchmark(state, []() { return g_zlib_pool->Acquire(); });
 }
+BENCHMARK(BM_Zlib_SandboxPool_Reuse50)
+    ->Setup(ZlibPoolSetup<50>)
+    ->Teardown(ZlibPoolTeardown)
+    ->UseRealTime()
+    ->ThreadRange(1, 64);
 
-void ZlibNoReuseBenchmarkTeardown(const benchmark::State& state) {
-  g_zlib_no_reuse_pool.reset();
+// Sandboxes are never recycled, so a caller keeps hitting the same warm
+// sandbox. This is the configuration to compare against a plain long-lived
+// sandbox per thread.
+void BM_Zlib_SandboxPool_AlwaysReuse(benchmark::State& state) {
+  RunZlibBenchmark(state, []() { return g_zlib_pool->Acquire(); });
 }
-
-void BM_Zlib_SandboxPool_NoReuse(benchmark::State& state) {
-  RunZlibBenchmark(state, []() { return g_zlib_no_reuse_pool->Acquire(); });
-}
-BENCHMARK(BM_Zlib_SandboxPool_NoReuse)
-    ->Setup(ZlibNoReuseBenchmarkSetup)
-    ->Teardown(ZlibNoReuseBenchmarkTeardown)
+BENCHMARK(BM_Zlib_SandboxPool_AlwaysReuse)
+    ->Setup(ZlibPoolSetup<std::numeric_limits<size_t>::max()>)
+    ->Teardown(ZlibPoolTeardown)
     ->UseRealTime()
     ->ThreadRange(1, 64);
 
