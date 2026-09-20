@@ -99,6 +99,12 @@
 #ifndef MADV_COLLAPSE  // Linux 6.1+
 #define MADV_COLLAPSE 25
 #endif
+#ifndef MADV_GUARD_INSTALL
+#define MADV_GUARD_INSTALL 102
+#endif
+#ifndef MADV_GUARD_REMOVE
+#define MADV_GUARD_REMOVE 103
+#endif
 
 #ifndef PR_SET_VMA
 #define PR_SET_VMA 0x53564d41
@@ -697,6 +703,8 @@ PolicyBuilder& PolicyBuilder::AllowLimitedMadvise() {
                         JEQ32(MADV_NOHUGEPAGE, ALLOW),
                         JEQ32(MADV_DONTDUMP, ALLOW),
                         JEQ32(MADV_COLLAPSE, ALLOW),
+                        JEQ32(MADV_GUARD_INSTALL, ALLOW),
+                        JEQ32(MADV_GUARD_REMOVE, ALLOW),
                     });
 }
 
