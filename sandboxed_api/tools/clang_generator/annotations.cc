@@ -312,7 +312,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
                         GetSandboxAnnotations(funcDecl));
 
   for (const auto& ann : parsed_annotations) {
-    size_t num_args = 1;
+    size_t expected_args = 0;
 
     // We can only have either opaque pointers, or out pointers as return
     // values. I.e. either the returned pointer is just a sandbox-internal
@@ -324,7 +324,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
       annotations.ptr_dir = PointerDir::kOut;
     } else if (ann.name == "sandboxee_thunk" || ann.name == "host_thunk") {
       // Ignore these here, they are handled in AddFunction.
-      num_args = 2;  // (name, func_name)
+      expected_args = 1;  // (func_name)
     } else if (ann.name == "elem_sized_by") {
       if (ann.args.size() != 1) {
         return absl::InvalidArgumentError(
@@ -332,7 +332,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
                              "requires one argument",
                              name));
       }
-      num_args = 2;
+      expected_args = 1;
       absl::Status status = annotations.SetElemSizedBy(ann.args[0]);
       ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "byte_sized_by") {
@@ -342,7 +342,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
                              "requires one argument",
                              name));
       }
-      num_args = 2;
+      expected_args = 1;
       absl::Status status = annotations.SetByteSizedBy(ann.args[0]);
       ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "null_terminated") {
@@ -354,15 +354,15 @@ absl::StatusOr<Annotations> ParseAnnotations(
                              "annotation requires two arguments",
                              name));
       }
-      num_args = 3;
+      expected_args = 2;
       absl::Status status = annotations.SetSizedByBinding(
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
       ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       ABSL_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
     } else if (ann.name == "alias_ptr") {
-      num_args = 2;
-      if (ann.args.empty()) {
+      expected_args = 1;
+      if (ann.args.size() != 1) {
         return absl::InvalidArgumentError(absl::Substitute(
             "function return $0: alias_ptr requires a parameter name", name));
       }
@@ -375,7 +375,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
       }
       annotations.ptr_dir = PointerDir::kOut;
     } else if (ann.name == "alias_callback_return") {
-      num_args = 2;
+      expected_args = 1;
       if (ann.args.size() != 1) {
         return absl::InvalidArgumentError(
             absl::Substitute("function return $0: alias_callback_return "
@@ -393,6 +393,12 @@ absl::StatusOr<Annotations> ParseAnnotations(
       }
       annotations.ptr_dir = PointerDir::kOut;
     } else if (ann.name == "bind_data") {
+      if (ann.args.size() != 4) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function return $0: `bind_data` annotation "
+                             "requires four arguments",
+                             name));
+      }
       // For now, we only support size_t typed primitives.
       if (StripQuotes(ann.args[1]) != "size_t") {
         return absl::InvalidArgumentError(
@@ -403,7 +409,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
       annotations.context_bound.bind_data.push_back(
           BindData{StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
                    StripQuotes(ann.args[2]), StripQuotes(ann.args[3])});
-      num_args = 5;
+      expected_args = 4;
     } else if (ann.name == "copy_from_and_bind_out_ptr") {
       if (ann.args.size() != 2) {
         return absl::InvalidArgumentError(
@@ -411,7 +417,7 @@ absl::StatusOr<Annotations> ParseAnnotations(
                              "annotation requires two arguments",
                              name));
       }
-      num_args = 3;
+      expected_args = 2;
       annotations.ptr_dir = PointerDir::kOut;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
@@ -423,14 +429,14 @@ absl::StatusOr<Annotations> ParseAnnotations(
                              name));
       }
       annotations.uninitialized = true;
-      num_args = 1;
+      expected_args = 0;
     } else {
       return absl::InvalidArgumentError(
           absl::Substitute("function return $0: $1 annotation is not supported "
                            "for function declarations",
                            name, ann.name));
     }
-    if (ann.args.size() != num_args - 1) {
+    if (ann.args.size() != expected_args) {
       return absl::InvalidArgumentError(absl::Substitute(
           "function return $0: invalid sandbox annotation $1", name, ann.name));
     }
@@ -450,7 +456,7 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
   ABSL_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(param));
 
   for (const auto& ann : parsed_annotations) {
-    size_t num_args = 1;
+    size_t expected_args = 0;
     if (ann.name == "in_ptr") {
       annotations.ptr_dir = PointerDir::kIn;
     } else if (ann.name == "out_ptr") {
@@ -462,31 +468,43 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
     } else if (ann.name == "host_opaque_ptr") {
       annotations.ptr_dir = PointerDir::kHostOpaque;
     } else if (ann.name == "elem_sized_by") {
-      num_args = 2;
-      if (!ann.args.empty()) {
-        absl::Status status = annotations.SetElemSizedBy(ann.args[0]);
-        ABSL_RETURN_IF_ERROR(status);
+      if (ann.args.size() != 1) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `elem_sized_by` annotation requires "
+                             "one argument",
+                             name));
       }
+      expected_args = 1;
+      ABSL_RETURN_IF_ERROR(annotations.SetElemSizedBy(ann.args[0]));
     } else if (ann.name == "byte_sized_by") {
-      num_args = 2;
-      if (!ann.args.empty()) {
-        absl::Status status = annotations.SetByteSizedBy(ann.args[0]);
-        ABSL_RETURN_IF_ERROR(status);
+      if (ann.args.size() != 1) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `byte_sized_by` annotation requires "
+                             "one argument",
+                             name));
       }
+      expected_args = 1;
+      ABSL_RETURN_IF_ERROR(annotations.SetByteSizedBy(ann.args[0]));
     } else if (ann.name == "elem_sized_by_outparam") {
-      num_args = 3;
-      if (!ann.args.empty()) {
-        absl::Status status =
-            annotations.SetElemSizedByOutparam(ann.args[0], ann.args[1]);
-        ABSL_RETURN_IF_ERROR(status);
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `elem_sized_by_outparam` annotation "
+                             "requires two arguments",
+                             name));
       }
+      expected_args = 2;
+      ABSL_RETURN_IF_ERROR(
+          annotations.SetElemSizedByOutparam(ann.args[0], ann.args[1]));
     } else if (ann.name == "byte_sized_by_outparam") {
-      num_args = 3;
-      if (!ann.args.empty()) {
-        absl::Status status =
-            annotations.SetByteSizedByOutparam(ann.args[0], ann.args[1]);
-        ABSL_RETURN_IF_ERROR(status);
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `byte_sized_by_outparam` annotation "
+                             "requires two arguments",
+                             name));
       }
+      expected_args = 2;
+      ABSL_RETURN_IF_ERROR(
+          annotations.SetByteSizedByOutparam(ann.args[0], ann.args[1]));
     } else if (ann.name == "null_terminated") {
       absl::Status status = annotations.SetNullTerminated();
       ABSL_RETURN_IF_ERROR(status);
@@ -497,7 +515,7 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
                              "requires two arguments",
                              name));
       }
-      num_args = 3;
+      expected_args = 2;
       absl::Status status = annotations.SetSizedByBinding(
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
       ABSL_RETURN_IF_ERROR(status);
@@ -510,7 +528,7 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
                              "annotation requires two arguments",
                              name));
       }
-      num_args = 3;
+      expected_args = 2;
       annotations.ptr_dir = PointerDir::kOut;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
@@ -521,25 +539,25 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
                              "requires two arguments",
                              name));
       }
-      num_args = 3;
+      expected_args = 2;
       annotations.context_bound.retain_and_bind =
           RetainAndBind{StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
     } else if (ann.name == "clear_bindings") {
       annotations.context_bound.clear_bindings = true;
-      num_args = 1;
+      expected_args = 0;
     } else if (ann.name == "struct_sync") {
-      num_args = ann.args.size() + 1;
+      expected_args = ann.args.size();
       ABSL_RETURN_IF_ERROR(
           ParseStructSyncAccessPathAnnotations(ann.args, annotations));
     } else if (ann.name == "shallow_struct_sync") {
       annotations.shallow_struct_sync = true;
-      num_args = 1;
+      expected_args = 0;
     } else if (ann.name == "alias_ptr") {
       if (ann.args.size() != 1) {
         return absl::InvalidArgumentError(absl::Substitute(
             "param $0: alias_ptr requires a parameter name", name));
       }
-      num_args = 2;
+      expected_args = 1;
       ABSL_RETURN_IF_ERROR(annotations.SetAliasHostPtrLifetime(ann.args[0]));
     } else if (ann.name == "uninitialized") {
       if (!ann.args.empty()) {
@@ -549,11 +567,12 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
                              name));
       }
       annotations.uninitialized = true;
-      num_args = 1;
+      expected_args = 0;
     } else {
-      num_args = 0;
+      return absl::InvalidArgumentError(absl::Substitute(
+          "arg $0: invalid sandbox annotation $1", name, ann.name));
     }
-    if (ann.args.size() != num_args - 1) {
+    if (ann.args.size() != expected_args) {
       return absl::InvalidArgumentError(absl::Substitute(
           "arg $0: invalid sandbox annotation $1", name, ann.name));
     }
