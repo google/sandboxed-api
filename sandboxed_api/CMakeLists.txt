@@ -19,6 +19,7 @@ add_subdirectory(util)
 if(NOT SAPI_CLANG_TOOL_EXECUTABLE)
   add_subdirectory(tools/clang_generator)
 endif()
+add_subdirectory(lwbox/runtime)
 add_subdirectory(examples)
 
 # sandboxed_api:embed_toc
@@ -226,6 +227,7 @@ target_link_libraries(sapi_sapi
          sapi::passthrough_backend
          sapi::sandbox2_backend
          sapi::status
+         sapi::lwbox_runtime
 )
 
 # sandboxed_api:call
