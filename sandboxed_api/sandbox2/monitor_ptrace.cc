@@ -212,11 +212,6 @@ void PtraceMonitor::SetAllThreadsStackTraceResultInfo(const Regs* regs) {
     }
   }
 
-  if (!tasks.ok()) {
-    LOG(ERROR) << "Could not list tasks: " << tasks.status();
-    return;
-  }
-
   std::vector<std::pair<pid_t, std::vector<std::string>>> thread_stack_traces;
   for (pid_t task : fetch_tasks) {
     auto stack_trace = GetAndLogStackTraceOfPid(task);
