@@ -85,27 +85,28 @@ int with_input_null_term(
 int64_t with_output_prim_pointer(void (*cb)(int64_t* out SANDBOX_OUT_PTR));
 
 int with_output_elem_sized(
-    void (*cb)(int* out SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(num_elems),
-               size_t),
+    void (*cb)(int* out SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(out_num_elems),
+               size_t out_num_elems),
     size_t num_elems);
 
 int with_output_byte_sized(
-    void (*cb)(void* out SANDBOX_OUT_PTR SANDBOX_BYTE_SIZED_BY(num_bytes),
-               size_t),
+    void (*cb)(void* out SANDBOX_OUT_PTR SANDBOX_BYTE_SIZED_BY(out_num_bytes),
+               size_t out_num_bytes),
     size_t num_bytes);
 
 // Callbacks with in-out pointers
 int64_t with_inout_prim_pointer(void (*cb)(int64_t* inout SANDBOX_INOUT_PTR),
                                 int64_t x);
 
-int with_inout_elem_sized(
-    void (*cb)(int* inout SANDBOX_INOUT_PTR SANDBOX_ELEM_SIZED_BY(num_elems),
-               size_t),
-    size_t num_elems);
+int with_inout_elem_sized(void (*cb)(int* inout SANDBOX_INOUT_PTR
+                                         SANDBOX_ELEM_SIZED_BY(inout_num_elems),
+                                     size_t inout_num_elems),
+                          size_t num_elems);
 
 int with_inout_elem_sized_and_ret_value(
-    size_t (*cb)(int* inout SANDBOX_INOUT_PTR SANDBOX_ELEM_SIZED_BY(num_elems),
-                 size_t),
+    size_t (*cb)(int* inout SANDBOX_INOUT_PTR
+                     SANDBOX_ELEM_SIZED_BY(inout_num_elems),
+                 size_t inout_num_elems),
     size_t num_elems);
 
 // With host opaque pointers.
