@@ -1,9 +1,10 @@
 name: ubuntu-cmake-contrib
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 env:
   BUILD_TYPE: Release
+  TEST_TMPDIR: /tmp
 
 jobs:
   build:
@@ -11,6 +12,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04]
+        compiler: [clang]
+        compiler-version: [19]
+        libclang-version: [19]
         contrib:
           - brotli
           - c-blosc
@@ -21,21 +25,23 @@ jobs:
           - lodepng
           - pffft
         ignore-errors: [true]
-        include:
-          - compiler: clang
-            compiler-version: 14
-            libclang-version: 18
-          - compiler: gcc
-            compiler-version: 10
-            libclang-version: 18
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.ignore-errors }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Configure runner environment
+      run: |
+        # Allow unprivileged user namespace creation for sandboxed tests
+        sudo aa-teardown || true
+        sudo systemctl disable --now apparmor.service || true
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0 || true
+        sudo sysctl -w kernel.yama.ptrace_scope=0 || true
 
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: ${{matrix.os}}-${{matrix.compiler}}${{matrix.compiler-version}}
         path: |
@@ -43,7 +49,7 @@ jobs:
           !${{github.workspace}}/build/_deps/${{matrix.contrib}}-*/**
 
     - name: Cache dependencies (contrib)
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: ${{matrix.os}}-${{matrix.compiler}}${{matrix.compiler-version}}-${{matrix.contrib}}
         path: |
@@ -57,8 +63,11 @@ jobs:
       run: |
         sudo apt-get install -qy \
           clang-${{matrix.compiler-version}} \
-          libclang1-${{matrix.libclang-version}} \
-          python3-clang-${{matrix.libclang-version}}
+          clang-${{matrix.libclang-version}} \
+          libclang-${{matrix.libclang-version}}-dev \
+          libclang-rt-${{matrix.libclang-version}}-dev \
+          llvm-${{matrix.libclang-version}}-dev \
+          ninja-build libzstd-dev
         echo "CXX=clang++-${{matrix.compiler-version}}" >> $GITHUB_ENV
         echo "CC=clang-${{matrix.compiler-version}}" >> $GITHUB_ENV
 
@@ -67,8 +76,11 @@ jobs:
       run: |
         sudo apt-get install -qy \
           g++-${{matrix.compiler-version}} \
-          libclang1-${{matrix.libclang-version}} \
-          python3-clang-${{matrix.libclang-version}}
+          clang-${{matrix.libclang-version}} \
+          libclang-${{matrix.libclang-version}}-dev \
+          libclang-rt-${{matrix.libclang-version}}-dev \
+          llvm-${{matrix.libclang-version}}-dev \
+          ninja-build libzstd-dev
         echo "CXX=g++-${{matrix.compiler-version}}" >> $GITHUB_ENV
         echo "CC=gcc-${{matrix.compiler-version}}" >> $GITHUB_ENV
 
@@ -93,15 +105,32 @@ jobs:
           -S $GITHUB_WORKSPACE/contrib/${{matrix.contrib}} \
           -B $GITHUB_WORKSPACE/build \
           -G Ninja \
+          -DClang_DIR=/usr/lib/llvm-${{matrix.libclang-version}}/lib/cmake/clang \
+          -DLLVM_DIR=/usr/lib/llvm-${{matrix.libclang-version}}/lib/cmake/llvm \
+          -DCMAKE_PREFIX_PATH=/usr/lib/llvm-${{matrix.libclang-version}} \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+          -DCMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE=PRE_TEST \
           -DSAPI_BUILD_TESTING=ON \
-          -DSAPI_BUILD_EXAMPLES=ON
+          -DSAPI_BUILD_EXAMPLES=OFF \
+          -DSAPI_DOWNLOAD_ZLIB=ON 2>&1 | tee $GITHUB_WORKSPACE/cmake_config.log || {
+            echo "### CMake Configuration Failure" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 250 $GITHUB_WORKSPACE/cmake_config.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
     - name: Build
       run: |
         cmake \
           --build $GITHUB_WORKSPACE/build \
-          --config $BUILD_TYPE
+          --config $BUILD_TYPE 2>&1 | tee $GITHUB_WORKSPACE/build.log || {
+            echo "### Build Failure" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 250 $GITHUB_WORKSPACE/build.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
     - name: Test
       run: |
@@ -109,4 +138,25 @@ jobs:
           --test-dir $GITHUB_WORKSPACE/build \
           -C $BUILD_TYPE \
           -E "^(sapi_|sandbox2_|regression_test)" \
-          --output-on-failure
+          --output-on-failure \
+          --verbose 2>&1 | tee $GITHUB_WORKSPACE/ctest.log || {
+            echo "### CTest Failure Log" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 250 $GITHUB_WORKSPACE/ctest.log >> $GITHUB_STEP_SUMMARY || true
+            cat $GITHUB_WORKSPACE/build/Testing/Temporary/LastTest.log >> $GITHUB_STEP_SUMMARY 2>&1 || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: contrib-logs-${{ matrix.contrib }}
+        path: |
+          ${{ github.workspace }}/cmake_config.log
+          ${{ github.workspace }}/build.log
+          ${{ github.workspace }}/ctest.log
+          ${{ github.workspace }}/build/Testing/Temporary/LastTest.log
+          ${{ github.workspace }}/build/CMakeFiles/CMake*.log
+          ${{ github.workspace }}/build/CMakeFiles/CMakeConfigureLog.yaml

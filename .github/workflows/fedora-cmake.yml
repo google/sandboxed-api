@@ -1,9 +1,10 @@
 name: fedora-cmake
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 env:
   BUILD_TYPE: Release
+  TEST_TMPDIR: /tmp
 
 jobs:
   build:
@@ -11,13 +12,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - container: fedora:38
+          - container: fedora:41
             compiler: gcc
-            compiler-version: 13
+            compiler-version: 14
             ignore-errors: false
-          - container: fedora:38
+          - container: fedora:41
             compiler: clang
-            compiler-version: 16
+            compiler-version: 19
             ignore-errors: false
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.ignore-errors }}
@@ -26,14 +27,23 @@ jobs:
       RUN_CMD: docker exec --privileged --tty ${{matrix.compiler}}-build-container
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Configure runner environment
+      run: |
+        # Allow unprivileged user namespace creation and ptrace for sandboxed tests
+        sudo aa-teardown || true
+        sudo systemctl disable --now apparmor.service || true
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0 || true
+        sudo sysctl -w kernel.yama.ptrace_scope=0 || true
 
     - name: Set up environment
       run: |
-        echo "RUN_USER_CMD=docker exec --privileged --user=$(id -u):$(id -g) --tty ${{matrix.compiler}}-build-container" >> $GITHUB_ENV
+        echo "RUN_USER_CMD=docker exec --privileged --user=$(id -u):$(id -g) -e HOME=/tmp -e TEST_TMPDIR=/tmp --tty ${{matrix.compiler}}-build-container" >> $GITHUB_ENV
 
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: ${{matrix.container}}-${{matrix.compiler}}${{matrix.compiler-version}}
         path: |
@@ -52,6 +62,8 @@ jobs:
           -e TERM=dumb \
           -e BUILD_TYPE \
           -e GITHUB_WORKSPACE \
+          -e HOME=/tmp \
+          -e TEST_TMPDIR \
           -d ${{matrix.container}} \
           sleep infinity
 
@@ -59,10 +71,13 @@ jobs:
       run: |
         $RUN_CMD dnf update -y --quiet
         $RUN_CMD dnf install -y --quiet \
-          git make automake diffutils file patch glibc-static \
-          libstdc++-static cmake ninja-build python3 python3-pip \
-          python3-clang clang-devel libcap-devel
-        $RUN_CMD pip3 install --progress-bar=off absl-py
+          git make automake diffutils file patch \
+          gcc gcc-c++ glibc-static libstdc++-static \
+          cmake ninja-build python3 python3-pip \
+          clang clang-devel llvm llvm-devel \
+          libcap-devel libzstd-devel zlib-devel
+        $RUN_CMD pip3 install --break-system-packages --progress-bar=off absl-py
+        $RUN_CMD chmod 777 /tmp
 
     - name: Create Build Environment
       run: |
@@ -74,13 +89,23 @@ jobs:
           -S $GITHUB_WORKSPACE \
           -B $GITHUB_WORKSPACE/build \
           -G Ninja \
+          -DCMAKE_C_COMPILER=${{matrix.compiler}} \
+          -DCMAKE_CXX_COMPILER=${{matrix.compiler == 'clang' && 'clang++' || 'g++'}} \
+          -DLLVM_LINK_LLVM_DYLIB=ON \
+          -DCMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE=PRE_TEST \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
     - name: Build
       run: |
         $RUN_USER_CMD cmake \
           --build $GITHUB_WORKSPACE/build \
-          --config $BUILD_TYPE
+          --config $BUILD_TYPE -- -v 2>&1 | tee $GITHUB_WORKSPACE/build.log || {
+            echo "### Build Failure" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 250 $GITHUB_WORKSPACE/build.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
     - name: Test
       run: |
@@ -88,4 +113,21 @@ jobs:
           --test-dir $GITHUB_WORKSPACE/build \
           -C $BUILD_TYPE \
           --output-on-failure \
-          -R SapiTest
+          --verbose \
+          -R SapiTest || {
+            echo "### CTest Failure Log" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            $RUN_USER_CMD cat $GITHUB_WORKSPACE/build/Testing/Temporary/LastTest.log >> $GITHUB_STEP_SUMMARY 2>&1 || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fedora-logs-${{ matrix.compiler }}
+        path: |
+          ${{ github.workspace }}/build.log
+          ${{ github.workspace }}/build/Testing/Temporary/LastTest.log
+          ${{ github.workspace }}/build/CMakeFiles/CMake*.log

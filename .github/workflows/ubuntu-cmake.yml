@@ -1,9 +1,10 @@
 name: ubuntu-cmake
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 env:
   BUILD_TYPE: Release
+  TEST_TMPDIR: /tmp
 
 jobs:
   build:
@@ -11,90 +12,177 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Ubuntu 24.04: Use preinstalled Clang 19, 18
-          - os: ubuntu-24.04
+          # Ubuntu 24.04: Clang 19, 18
+          - container: ubuntu:24.04
             compiler: clang
             compiler-version: 19
+            c-compiler: clang-19
+            cxx-compiler: clang++-19
             libclang-version: 19
             ignore-errors: false
-          - os: ubuntu-24.04
+          - container: ubuntu:24.04
             compiler: clang
             compiler-version: 18
+            c-compiler: clang-18
+            cxx-compiler: clang++-18
             libclang-version: 19
             ignore-errors: false
-          # Ubuntu 24.04: Use preinstalled GCC 14.2.0, 13.2.0
-          - os: ubuntu-24.04
+          # Ubuntu 24.04: GCC 14, 13
+          - container: ubuntu:24.04
             compiler: gcc
             compiler-version: 14
+            c-compiler: gcc-14
+            cxx-compiler: g++-14
             libclang-version: 19
             ignore-errors: false
-          - os: ubuntu-24.04
+          - container: ubuntu:24.04
             compiler: gcc
             compiler-version: 13
+            c-compiler: gcc-13
+            cxx-compiler: g++-13
             libclang-version: 19
             ignore-errors: false
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.ignore-errors }}
 
+    env:
+      RUN_CMD: docker exec --privileged -e DEBIAN_FRONTEND=noninteractive ${{matrix.compiler}}-${{matrix.compiler-version}}-build-container
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Configure runner environment
+      run: |
+        # Allow unprivileged user namespace creation and ptrace for sandboxed tests
+        sudo aa-teardown || true
+        sudo systemctl disable --now apparmor.service || true
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0 || true
+        sudo sysctl -w kernel.yama.ptrace_scope=0 || true
+
+    - name: Set up environment
+      run: |
+        echo "RUN_USER_CMD=docker exec --privileged --user=$(id -u):$(id -g) -e HOME=/tmp -e TEST_TMPDIR=/tmp --tty ${{matrix.compiler}}-${{matrix.compiler-version}}-build-container" >> $GITHUB_ENV
 
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
-        key: ${{matrix.os}}-${{matrix.compiler}}${{matrix.compiler-version}}
+        key: ${{matrix.container}}-${{matrix.compiler}}${{matrix.compiler-version}}
         path: |
           ${{github.workspace}}/build/_deps
 
-    - name: Install ninja-build tool
-      uses: turtlesec-no/get-ninja@1.1.0
-
-    - name: Install/configure Clang compiler toolchain
-      if: matrix.compiler == 'clang'
+    - name: Prepare container
+      # Note: For the sandbox tests to work, we need a privileged, unconfined
+      #       container that retains its capabilities.
       run: |
-        sudo apt-get install -qy \
-          clang-${{matrix.compiler-version}} \
-          libclang-${{matrix.libclang-version}}-dev \
-          libclang-rt-${{matrix.libclang-version}}-dev \
-          llvm-${{matrix.libclang-version}}-dev
-        echo "CXX=clang++-${{matrix.compiler-version}}" >> $GITHUB_ENV
-        echo "CC=clang-${{matrix.compiler-version}}" >> $GITHUB_ENV
+        docker run --name ${{matrix.compiler}}-${{matrix.compiler-version}}-build-container \
+          --tty \
+          --privileged \
+          --cap-add ALL \
+          --security-opt apparmor:unconfined \
+          -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE \
+          -e TERM=dumb \
+          -e DEBIAN_FRONTEND=noninteractive \
+          -e BUILD_TYPE \
+          -e GITHUB_WORKSPACE \
+          -e HOME=/tmp \
+          -e TEST_TMPDIR \
+          -d ${{matrix.container}} \
+          sleep infinity
 
-    - name: Install/configure GCC compiler toolchain
-      if: matrix.compiler == 'gcc'
+    - name: Install build tools
       run: |
-        sudo apt-get install -qy \
-          g++-${{matrix.compiler-version}} \
-          libclang-${{matrix.libclang-version}}-dev \
-          libclang-rt-${{matrix.libclang-version}}-dev \
-          llvm-${{matrix.libclang-version}}-dev
-        echo "CXX=g++-${{matrix.compiler-version}}" >> $GITHUB_ENV
-        echo "CC=gcc-${{matrix.compiler-version}}" >> $GITHUB_ENV
+        $RUN_CMD sed -i 's|http://archive.ubuntu.com/ubuntu/|http://azure.archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+        $RUN_CMD apt-get update -y -q
+        $RUN_CMD apt-get install -y -q \
+          -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+          build-essential ca-certificates git make automake diffutils file patch \
+          cmake ninja-build python3 python3-pip \
+          libcap-dev libzstd-dev zlib1g-dev pkg-config
+        if [ "${{matrix.compiler}}" = "clang" ]; then
+          $RUN_CMD apt-get install -y -q \
+            -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+            clang-${{matrix.compiler-version}} \
+            clang-${{matrix.libclang-version}} \
+            libclang-${{matrix.libclang-version}}-dev \
+            libclang-rt-${{matrix.libclang-version}}-dev \
+            llvm-${{matrix.libclang-version}}-dev
+        else
+          $RUN_CMD apt-get install -y -q \
+            -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+            gcc-${{matrix.compiler-version}} \
+            g++-${{matrix.compiler-version}} \
+            clang-${{matrix.libclang-version}} \
+            libclang-${{matrix.libclang-version}}-dev \
+            libclang-rt-${{matrix.libclang-version}}-dev \
+            llvm-${{matrix.libclang-version}}-dev
+        fi
+        $RUN_CMD sh -c 'echo "/usr/lib/llvm-${{matrix.libclang-version}}/lib" > /etc/ld.so.conf.d/llvm.conf && ldconfig'
+        $RUN_CMD pip3 install --break-system-packages --progress-bar=off absl-py
+        $RUN_CMD chmod 777 /tmp
 
     - name: Create Build Environment
       run: |
-        pip3 install absl-py
-        mkdir -p "$GITHUB_WORKSPACE/build"
+        $RUN_USER_CMD cmake -E make_directory $GITHUB_WORKSPACE/build
 
     - name: Configure CMake
       run: |
-        cmake \
+        $RUN_USER_CMD cmake \
           -S $GITHUB_WORKSPACE \
           -B $GITHUB_WORKSPACE/build \
           -G Ninja \
-          -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+          -DCMAKE_C_COMPILER=${{matrix.c-compiler}} \
+          -DCMAKE_CXX_COMPILER=${{matrix.cxx-compiler}} \
+          -DLLVM_LINK_LLVM_DYLIB=ON \
+          -DClang_DIR=/usr/lib/llvm-${{matrix.libclang-version}}/lib/cmake/clang \
+          -DLLVM_DIR=/usr/lib/llvm-${{matrix.libclang-version}}/lib/cmake/llvm \
+          -DCMAKE_PREFIX_PATH=/usr/lib/llvm-${{matrix.libclang-version}} \
+          -DCMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE=PRE_TEST \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE 2>&1 | tee $GITHUB_WORKSPACE/cmake_config.log || {
+            echo "### CMake Configuration Failure" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 250 $GITHUB_WORKSPACE/cmake_config.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
     - name: Build
       run: |
-        cmake \
+        $RUN_USER_CMD cmake \
           --build $GITHUB_WORKSPACE/build \
-          --config $BUILD_TYPE
+          --config $BUILD_TYPE -- -v 2>&1 | tee $GITHUB_WORKSPACE/build.log || {
+            echo "### Build Failure" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 250 $GITHUB_WORKSPACE/build.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
     - name: Test
       run: |
-        ctest \
+        $RUN_USER_CMD ctest \
           --test-dir $GITHUB_WORKSPACE/build \
           -C $BUILD_TYPE \
           --output-on-failure \
-          -R SapiTest
+          --verbose \
+          -R SapiTest 2>&1 | tee $GITHUB_WORKSPACE/ctest.log || {
+            echo "### CTest Failure Log" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 250 $GITHUB_WORKSPACE/ctest.log >> $GITHUB_STEP_SUMMARY || true
+            $RUN_USER_CMD cat $GITHUB_WORKSPACE/build/Testing/Temporary/LastTest.log >> $GITHUB_STEP_SUMMARY 2>&1 || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ubuntu-logs-${{ matrix.compiler }}-${{ matrix.compiler-version }}
+        path: |
+          ${{ github.workspace }}/cmake_config.log
+          ${{ github.workspace }}/ctest.log
+          ${{ github.workspace }}/build.log
+          ${{ github.workspace }}/build/Testing/Temporary/LastTest.log
+          ${{ github.workspace }}/build/CMakeFiles/CMake*.log

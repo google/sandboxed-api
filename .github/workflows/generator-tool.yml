@@ -8,10 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:12.11
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: debian-12.11-clang20
         path: |
@@ -76,13 +76,13 @@ jobs:
       ARTIFACT_NAME: sapi_generator_tool-linux
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Prepare environment
       run: mkdir -p "$GITHUB_WORKSPACE/build"
 
     - name: Download Build Artifact
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           let artifactName = process.env.ARTIFACT_NAME;
