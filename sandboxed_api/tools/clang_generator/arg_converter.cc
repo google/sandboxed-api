@@ -751,24 +751,26 @@ ir::BufferBounds AnnotationsToBufferBounds(const Annotations& ann) {
 }
 
 ir::LifetimePolicy AnnotationsToLifetimePolicy(const Annotations& ann) {
-  ir::LifetimePolicy lifetime;
-  std::visit(
+  return std::visit(
       absl::Overload{
-          [&](const std::monostate&) {},
-          [&](const SandboxGlobalLifetime&) {
-            lifetime.kind = ir::LifetimePolicy::Kind::kSandboxGlobal;
+          [](const std::monostate&) -> ir::LifetimePolicy {
+            return ir::lifetime::ScopedCall{};
           },
-          [&](const AliasHostPtrLifetime& host) {
-            lifetime.kind = ir::LifetimePolicy::Kind::kAliasHostPtr;
-            lifetime.aliased_host_param_name = host.param_name;
+          [](const SandboxGlobalLifetime&) -> ir::LifetimePolicy {
+            return ir::lifetime::SandboxGlobal{};
           },
-          [&](const AliasCallbackReturnLifetime& cb) {
-            lifetime.kind = ir::LifetimePolicy::Kind::kAliasCallbackReturn;
-            lifetime.aliased_callback_param_name = cb.callback_param_name;
+          [](const AliasHostPtrLifetime& host) -> ir::LifetimePolicy {
+            return ir::lifetime::AliasHostPtr{
+                .host_param_name = host.param_name,
+            };
+          },
+          [](const AliasCallbackReturnLifetime& cb) -> ir::LifetimePolicy {
+            return ir::lifetime::AliasCallbackReturn{
+                .callback_param_name = cb.callback_param_name,
+            };
           },
       },
       ann.lifetime);
-  return lifetime;
 }
 
 // Validates annotations against parameter type and semantics.

@@ -163,20 +163,32 @@ using BufferBounds =
 // the dereference of the sibling outparam, e.g. "*written_len".
 std::string BoundsSizeExpr(const BufferBounds& bounds);
 
-// Structured representation of parameter lifetime policies.
-struct LifetimePolicy {
-  enum class Kind {
-    kScopedCall,           // Memory lives only for the duration of the Call()
-    kSandboxGlobal,        // Memory lives indefinitely in sandbox
-                           // (SANDBOX_LIFETIME_SANDBOX_GLOBAL)
-    kAliasHostPtr,         // Pointer aliases a host pointer
-    kAliasCallbackReturn,  // Pointer is aliased by a callback return value
-  };
+// Structured representation of parameter lifetime policies. Each alternative
+// carries only the data that policy needs, so an alias policy cannot exist
+// without the name of the parameter it aliases.
+namespace lifetime {
 
-  Kind kind = Kind::kScopedCall;
-  std::optional<std::string> aliased_host_param_name;
-  std::optional<std::string> aliased_callback_param_name;
+// Memory lives only for the duration of the Call().
+struct ScopedCall {};
+
+// Memory lives indefinitely in the sandbox (SANDBOX_LIFETIME_SANDBOX_GLOBAL).
+struct SandboxGlobal {};
+
+// Pointer aliases a host pointer parameter (SANDBOX_ALIAS_PTR).
+struct AliasHostPtr {
+  std::string host_param_name;
 };
+
+// Pointer aliases a callback's return value (SANDBOX_ALIAS_CALLBACK_RETURN).
+struct AliasCallbackReturn {
+  std::string callback_param_name;
+};
+
+}  // namespace lifetime
+
+using LifetimePolicy =
+    std::variant<lifetime::ScopedCall, lifetime::SandboxGlobal,
+                 lifetime::AliasHostPtr, lifetime::AliasCallbackReturn>;
 
 // Synchronized member field within a struct pointer argument
 // (SANDBOX_STRUCT_SYNC).

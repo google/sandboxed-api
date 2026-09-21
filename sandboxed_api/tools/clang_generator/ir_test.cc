@@ -1319,55 +1319,6 @@ TEST_F(IrConvertTest, ValidateAndLinkLibraryIRReturnAliasHostPtrError) {
                HasSubstr("references non-existent or non-pointer parameter")));
 }
 
-// The frontend always sets the alias kind and the aliased name together, so
-// these two cases are only reachable through hand-built IR. They exist so that
-// ValidateAndLinkLibraryIR reports inconsistent IR instead of dereferencing an
-// empty optional.
-TEST_F(IrConvertTest, ValidateAndLinkLibraryIRAliasHostPtrWithoutNameError) {
-  SAPI_ASSERT_OK_AND_ASSIGN(Function func,
-                            ConvertSnippetToIR(R"(
-    extern "C" {
-    [[clang::annotate("sandbox", "alias_ptr", "num")]]
-    char* bad_alias_host_target(int num);
-    }
-  )",
-                                               "bad_alias_host_target"));
-  ASSERT_TRUE(func.return_value.has_value());
-  auto* buf = func.return_value->As<BufferParam>();
-  ASSERT_NE(buf, nullptr);
-  ASSERT_EQ(buf->lifetime.kind, LifetimePolicy::Kind::kAliasHostPtr);
-  buf->lifetime.aliased_host_param_name.reset();
-
-  Library lib{.name = "MyLib", .functions = {func}};
-  EXPECT_THAT(ValidateAndLinkLibraryIR(lib),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("is alias_ptr but names no host parameter")));
-}
-
-TEST_F(IrConvertTest,
-       ValidateAndLinkLibraryIRAliasCallbackReturnWithoutNameError) {
-  SAPI_ASSERT_OK_AND_ASSIGN(Function func,
-                            ConvertSnippetToIR(R"(
-    extern "C" {
-    [[clang::annotate("sandbox", "alias_callback_return", "num")]]
-    char* bad_alias_target(int num);
-    }
-  )",
-                                               "bad_alias_target"));
-  ASSERT_TRUE(func.return_value.has_value());
-  auto* buf = func.return_value->As<BufferParam>();
-  ASSERT_NE(buf, nullptr);
-  ASSERT_EQ(buf->lifetime.kind, LifetimePolicy::Kind::kAliasCallbackReturn);
-  buf->lifetime.aliased_callback_param_name.reset();
-
-  Library lib{.name = "MyLib", .functions = {func}};
-  EXPECT_THAT(
-      ValidateAndLinkLibraryIR(lib),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("is alias_callback_return but names no callback "
-                         "parameter")));
-}
-
 TEST_F(IrConvertTest, ValidateAndLinkLibraryIRMissingOutparamSizeError) {
   SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
                             ConvertSnippetToIR(R"(

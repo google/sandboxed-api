@@ -302,56 +302,48 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
                          ? "return value"
                          : absl::StrCat("parameter ", param.name);
 
-  const LifetimePolicy* lifetime = nullptr;
+  const LifetimePolicy* policy = nullptr;
   if (const auto* buf = param.As<BufferParam>()) {
-    lifetime = &buf->lifetime;
+    policy = &buf->lifetime;
     ABSL_RETURN_IF_ERROR(ValidateBufferBounds(
         func.parameters, absl::StrCat("Function ", func.name), role,
         buf->bounds));
   } else if (const auto* opaque = param.As<OpaquePointerParam>()) {
-    lifetime = &opaque->lifetime;
+    policy = &opaque->lifetime;
   } else if (const auto* cb = param.As<CallbackParam>()) {
     ABSL_RETURN_IF_ERROR(ValidateCallbackScope(param.name, *cb));
   }
 
-  // Check host pointer aliasing on top-level parameters / return values.
-  // The frontend sets the kind and the name together, so a missing name means
-  // the IR was built by hand and is internally inconsistent.
-  if (lifetime != nullptr &&
-      lifetime->kind == LifetimePolicy::Kind::kAliasHostPtr) {
-    if (!lifetime->aliased_host_param_name.has_value()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "Function $0 $1 is alias_ptr but names no host parameter.", func.name,
-          role));
-    }
-    absl::string_view host_name = *lifetime->aliased_host_param_name;
-    const Parameter* host_param = func.FindParameter(host_name);
-    if (!host_param || !host_param->type.is_pointer()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "Function $0 $1 alias_ptr references non-existent or "
-          "non-pointer parameter $2.",
-          func.name, role, host_name));
-    }
-  }
-
-  // Check callback return aliasing
-  if (lifetime != nullptr &&
-      lifetime->kind == LifetimePolicy::Kind::kAliasCallbackReturn) {
-    if (!lifetime->aliased_callback_param_name.has_value()) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("Function $0 $1 is alias_callback_return but names "
-                           "no callback parameter.",
-                           func.name, role));
-    }
-    absl::string_view cb_name = *lifetime->aliased_callback_param_name;
-    Parameter* cb_param = func.FindParameter(cb_name);
-    if (!cb_param || !cb_param->Is<CallbackParam>()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "Function $0 $1 alias_callback_return references non-existent or "
-          "non-callback parameter $2.",
-          func.name, role, cb_name));
-    }
-    cb_param->As<CallbackParam>()->is_callback_return_aliased = true;
+  if (policy != nullptr) {
+    ABSL_RETURN_IF_ERROR(std::visit(
+        absl::Overload{
+            [](const lifetime::ScopedCall&) { return absl::OkStatus(); },
+            [](const lifetime::SandboxGlobal&) { return absl::OkStatus(); },
+            [&](const lifetime::AliasHostPtr& alias) -> absl::Status {
+              const Parameter* host_param =
+                  func.FindParameter(alias.host_param_name);
+              if (!host_param || !host_param->type.is_pointer()) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_ptr references non-existent or "
+                    "non-pointer parameter $2.",
+                    func.name, role, alias.host_param_name));
+              }
+              return absl::OkStatus();
+            },
+            [&](const lifetime::AliasCallbackReturn& alias) -> absl::Status {
+              Parameter* cb_param =
+                  func.FindParameter(alias.callback_param_name);
+              if (!cb_param || !cb_param->Is<CallbackParam>()) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_callback_return references "
+                    "non-existent or non-callback parameter $2.",
+                    func.name, role, alias.callback_param_name));
+              }
+              cb_param->As<CallbackParam>()->is_callback_return_aliased = true;
+              return absl::OkStatus();
+            },
+        },
+        *policy));
   }
 
   return absl::OkStatus();
@@ -368,12 +360,14 @@ absl::Status LinkAliasParamToCallbackParam(Function& func) {
     for (auto& cb_param : cb->callback_parameters) {
       std::optional<std::string> outer_param_name;
       if (const auto* opaque = cb_param.As<OpaquePointerParam>()) {
-        if (opaque->lifetime.kind == LifetimePolicy::Kind::kAliasHostPtr) {
-          outer_param_name = opaque->lifetime.aliased_host_param_name;
+        if (const auto* alias =
+                std::get_if<lifetime::AliasHostPtr>(&opaque->lifetime)) {
+          outer_param_name = alias->host_param_name;
         }
       } else if (const auto* buf = cb_param.As<BufferParam>()) {
-        if (buf->lifetime.kind == LifetimePolicy::Kind::kAliasHostPtr) {
-          outer_param_name = buf->lifetime.aliased_host_param_name;
+        if (const auto* alias =
+                std::get_if<lifetime::AliasHostPtr>(&buf->lifetime)) {
+          outer_param_name = alias->host_param_name;
         }
       }
       if (!outer_param_name.has_value()) {
