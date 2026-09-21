@@ -39,6 +39,8 @@ add_library(sapi_generator
   generator.h
   generator.cc
   includes.h
+  ir.cc
+  ir.h
   pointer_arg.cc
   pointer_arg.h
   sandboxed_library_emitter.h
@@ -134,6 +136,7 @@ target_link_libraries(sapi_generator PUBLIC
   absl::node_hash_set
   absl::overload
   absl::random_random
+  absl::span
   absl::status
   absl::status_macros
   absl::statusor
@@ -175,12 +178,14 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     frontend_action_test_util.cc
     frontend_action_test_util.h
     emitter_test.cc
+    ir_test.cc
     sandboxed_library_emitter_test.cc
   )
   target_link_libraries(sapi_generator_test PRIVATE
     absl::check
     absl::flat_hash_map
     absl::memory
+    absl::overload
     absl::status_matchers
     absl::statusor
     benchmark

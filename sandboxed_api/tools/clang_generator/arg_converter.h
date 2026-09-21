@@ -24,8 +24,16 @@
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg.h"
+#include "sandboxed_api/tools/clang_generator/ir.h"
 
 namespace sapi {
+
+// Builds a declarative Function IR from a Clang FunctionDecl and its AST
+// annotations.
+absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
+    const clang::FunctionDecl* func_decl,
+    const absl::flat_hash_map<std::string, RecordAnnotations>&
+        record_annotations);
 
 // Converts a parameter or function return type into an Arg instance with
 // parsed annotations.
