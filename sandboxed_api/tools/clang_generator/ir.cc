@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/tools/clang_generator/ir.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -23,8 +24,10 @@
 #include "absl/functional/overload.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
@@ -174,46 +177,98 @@ const Parameter* FindInScope(absl::Span<const Parameter> scope,
   return nullptr;
 }
 
+// Returns the single sibling parameter a sizing expression refers to, if it
+// refers to exactly one: a direct parameter reference ("len") or a
+// dereferenced single-indirection pointer parameter ("*len").
+//
+// Anything else yields nullopt and is therefore NOT validated against the
+// enclosing scope. That deliberately includes compound expressions such as
+// "width * height * 4" and multiple indirections such as "**len". Checking
+// those would mean extracting every identifier in the expression, which draws
+// in names that are not parameters at all (`sizeof(int)`, macro constants such
+// as MAX_LEN), so we only check the shape we can check soundly.
+std::optional<absl::string_view> SoleReferencedParam(
+    absl::string_view size_expr) {
+  absl::string_view stripped = absl::StripAsciiWhitespace(
+      absl::StripPrefix(absl::StripAsciiWhitespace(size_expr), "*"));
+  if (stripped.empty() ||
+      !(absl::ascii_isalpha(stripped[0]) || stripped[0] == '_') ||
+      !std::all_of(stripped.begin(), stripped.end(),
+                   [](char c) { return absl::ascii_isalnum(c) || c == '_'; })) {
+    return std::nullopt;
+  }
+  return stripped;
+}
+
+// Checks that a sizing expression which names exactly one sibling parameter
+// names one that exists.
+absl::Status ValidateSizeExpr(absl::Span<const Parameter> scope,
+                              absl::string_view scope_desc,
+                              absl::string_view role,
+                              absl::string_view size_expr) {
+  std::optional<absl::string_view> sibling = SoleReferencedParam(size_expr);
+  if (sibling.has_value() && FindInScope(scope, *sibling) == nullptr) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0 $1 references non-existent sibling parameter $2 in "
+        "its sizing expression.",
+        scope_desc, role, *sibling));
+  }
+  return absl::OkStatus();
+}
+
+// Checks that the sibling an outparam-sized buffer is sized by exists and is
+// actually an output.
+absl::Status ValidateOutparamSize(absl::Span<const Parameter> scope,
+                                  absl::string_view scope_desc,
+                                  absl::string_view role,
+                                  absl::string_view out_name,
+                                  absl::string_view kind_name) {
+  const Parameter* out_param = FindInScope(scope, out_name);
+  if (!out_param) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("$0 $1 references non-existent outparam $2 in $3.",
+                         scope_desc, role, out_name, kind_name));
+  }
+  if (!out_param->IsOutput()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0 $1 $2 references $3 which is not an output pointer.", scope_desc,
+        role, kind_name, out_name));
+  }
+  return absl::OkStatus();
+}
+
 // `scope_desc` names the enclosing entity for diagnostics, e.g.
 // "Function foo" or "callback on_data".
 absl::Status ValidateBufferBounds(absl::Span<const Parameter> scope,
                                   absl::string_view scope_desc,
                                   absl::string_view role,
-                                  const BufferBounds& bounds) {
-  // Check referenced sibling parameters in BufferBounds
-  if (bounds.referenced_sibling_param.has_value()) {
-    const Parameter* sibling =
-        FindInScope(scope, *bounds.referenced_sibling_param);
-    if (!sibling) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "$0 $1 references non-existent sibling parameter $2 in "
-          "its sizing expression.",
-          scope_desc, role, *bounds.referenced_sibling_param));
-    }
-  }
-
-  // Check outparam capacity references (kElemSizedByOutparam /
-  // kByteSizedByOutparam)
-  if (bounds.outparam_size_param.has_value()) {
-    absl::string_view out_name = *bounds.outparam_size_param;
-    absl::string_view kind_name =
-        bounds.kind == BufferBounds::Kind::kByteSizedByOutparam
-            ? "BYTE_SIZED_BY_OUTPARAM"
-            : "ELEM_SIZED_BY_OUTPARAM";
-    const Parameter* out_param = FindInScope(scope, out_name);
-    if (!out_param) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("$0 $1 references non-existent outparam $2 in $3.",
-                           scope_desc, role, out_name, kind_name));
-    }
-    if (!out_param->IsOutput()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "$0 $1 $2 references $3 which is not an output pointer.", scope_desc,
-          role, kind_name, out_name));
-    }
-  }
-
-  return absl::OkStatus();
+                                  const BufferBounds& buffer_bounds) {
+  return std::visit(
+      absl::Overload{
+          [](const bounds::Singleton&) { return absl::OkStatus(); },
+          [](const bounds::NullTerminated&) { return absl::OkStatus(); },
+          [&](const bounds::ElemCount& elem) {
+            return ValidateSizeExpr(scope, scope_desc, role, elem.size_expr);
+          },
+          [&](const bounds::ByteCount& byte) {
+            return ValidateSizeExpr(scope, scope_desc, role, byte.size_expr);
+          },
+          [&](const bounds::ElemSizedByOutparam& elem) {
+            return ValidateOutparamSize(scope, scope_desc, role,
+                                        elem.outparam_name,
+                                        "ELEM_SIZED_BY_OUTPARAM");
+          },
+          [&](const bounds::ByteSizedByOutparam& byte) {
+            return ValidateOutparamSize(scope, scope_desc, role,
+                                        byte.outparam_name,
+                                        "BYTE_SIZED_BY_OUTPARAM");
+          },
+          // `context_expr` names the runtime context object the size is
+          // looked up in, not a sibling parameter, so there is nothing to
+          // resolve against the enclosing scope.
+          [](const bounds::SizedByBinding&) { return absl::OkStatus(); },
+      },
+      buffer_bounds);
 }
 
 // Validates sizing annotations on the parameters and return value of a
@@ -368,6 +423,24 @@ absl::Status LinkAliasParamToCallbackParam(Function& func) {
 }
 
 }  // namespace
+
+std::string BoundsSizeExpr(const BufferBounds& buffer_bounds) {
+  return std::visit(
+      absl::Overload{
+          [](const bounds::Singleton&) { return std::string(); },
+          [](const bounds::NullTerminated&) { return std::string(); },
+          [](const bounds::ElemCount& elem) { return elem.size_expr; },
+          [](const bounds::ByteCount& byte) { return byte.size_expr; },
+          [](const bounds::ElemSizedByOutparam& elem) {
+            return absl::StrCat("*", elem.outparam_name);
+          },
+          [](const bounds::ByteSizedByOutparam& byte) {
+            return absl::StrCat("*", byte.outparam_name);
+          },
+          [](const bounds::SizedByBinding&) { return std::string(); },
+      },
+      buffer_bounds);
+}
 
 absl::Status ValidateAndLinkLibraryIR(Library& library) {
   for (auto& func : library.functions) {

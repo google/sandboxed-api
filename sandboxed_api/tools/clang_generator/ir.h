@@ -111,36 +111,57 @@ struct TypeInfo {
   }
 };
 
-// Structured representation of how a buffer's bounds/size are computed.
-// TODO: Consider migrating BufferBounds to a std::variant sum type.
-// A tagged struct is currently used because it is simpler to read and consume
-// without introducing nested std::visit blocks inside ParameterPayload.
-struct BufferBounds {
-  enum class Kind {
-    kSingleton,       // Unsized pointer / pointer to single element
-    kElemCount,       // Sized by number of elements (SANDBOX_ELEM_SIZED_BY)
-    kByteCount,       // Sized by number of bytes (SANDBOX_BYTE_SIZED_BY)
-    kNullTerminated,  // C-style null-terminated string
-                      // (SANDBOX_NULL_TERMINATED)
-    kElemSizedByOutparam,  // Element count returned in an outparam
-                           // (SANDBOX_ELEM_SIZED_BY_OUTPARAM)
-    kByteSizedByOutparam,  // Byte count returned in an outparam
-                           // (SANDBOX_BYTE_SIZED_BY_OUTPARAM)
-    kSizedByBinding,       // Size stored in runtime context map
-                           // (SANDBOX_SIZED_BY_BINDING)
-  };
+// Structured representation of how a buffer's bounds/size are computed. Each
+// alternative carries exactly the data that way of sizing a buffer needs, so
+// there is no way to express e.g. a null-terminated buffer that also has a
+// capacity expression.
+namespace bounds {
 
-  Kind kind = Kind::kSingleton;
-  std::string size_expr;  // C++ expression computing size/count
-  std::optional<std::string> capacity_expr;  // Maximum capacity (for outparams)
-  std::optional<std::string> binding_name;   // Key name for kSizedByBinding
-  std::optional<std::string>
-      referenced_sibling_param;  // Sibling parameter identifier (e.g., "len"
-                                 // for "len" or "*len") referenced in size_expr
-  std::optional<std::string>
-      outparam_size_param;  // Sibling outparam parameter name (without leading
-                            // '*') holding written size
+// Unsized pointer / pointer to single element.
+struct Singleton {};
+
+// C-style null-terminated string (SANDBOX_NULL_TERMINATED).
+struct NullTerminated {};
+
+// Sized by number of elements (SANDBOX_ELEM_SIZED_BY).
+struct ElemCount {
+  std::string size_expr;  // C++ expression computing the element count
 };
+
+// Sized by number of bytes (SANDBOX_BYTE_SIZED_BY).
+struct ByteCount {
+  std::string size_expr;  // C++ expression computing the byte count
+};
+
+// Element count returned in an outparam (SANDBOX_ELEM_SIZED_BY_OUTPARAM).
+struct ElemSizedByOutparam {
+  std::string outparam_name;  // Sibling outparam, without the leading '*'
+  std::string capacity_expr;  // Maximum capacity the host allocated
+};
+
+// Byte count returned in an outparam (SANDBOX_BYTE_SIZED_BY_OUTPARAM).
+struct ByteSizedByOutparam {
+  std::string outparam_name;  // Sibling outparam, without the leading '*'
+  std::string capacity_expr;  // Maximum capacity the host allocated
+};
+
+// Size stored in the runtime context map (SANDBOX_SIZED_BY_BINDING).
+struct SizedByBinding {
+  std::string context_expr;  // Expression naming the context object
+  std::string binding_name;  // Key the size is stored under
+};
+
+}  // namespace bounds
+
+using BufferBounds =
+    std::variant<bounds::Singleton, bounds::NullTerminated, bounds::ElemCount,
+                 bounds::ByteCount, bounds::ElemSizedByOutparam,
+                 bounds::ByteSizedByOutparam, bounds::SizedByBinding>;
+
+// The size/count expression a buffer is bounded by, or an empty string for the
+// alternatives that carry no expression. For the outparam alternatives this is
+// the dereference of the sibling outparam, e.g. "*written_len".
+std::string BoundsSizeExpr(const BufferBounds& bounds);
 
 // Structured representation of parameter lifetime policies.
 struct LifetimePolicy {

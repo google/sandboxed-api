@@ -87,22 +87,20 @@ TEST(IrTest, ParameterSemanticQueries) {
       .name = "src",
       .type = {.kind = TypeKind::kPointer},
       .payload = BufferParam{.direction = PointerDir::kIn,
-                             .bounds = {.kind = BufferBounds::Kind::kElemCount,
-                                        .size_expr = "n"}},
+                             .bounds = bounds::ElemCount{.size_expr = "n"}},
   };
   EXPECT_TRUE(in_ptr.IsInput());
   EXPECT_FALSE(in_ptr.IsOutput());
   EXPECT_FALSE(in_ptr.IsOpaque());
   EXPECT_EQ(in_ptr.direction(), PointerDir::kIn);
   ASSERT_TRUE(in_ptr.Is<BufferParam>());
-  EXPECT_EQ(in_ptr.As<BufferParam>()->bounds.size_expr, "n");
+  EXPECT_EQ(BoundsSizeExpr(in_ptr.As<BufferParam>()->bounds), "n");
 
   Parameter out_ptr{
       .name = "dst",
       .type = {.kind = TypeKind::kPointer},
       .payload = BufferParam{.direction = PointerDir::kOut,
-                             .bounds = {.kind = BufferBounds::Kind::kElemCount,
-                                        .size_expr = "n"}},
+                             .bounds = bounds::ElemCount{.size_expr = "n"}},
   };
   EXPECT_FALSE(out_ptr.IsInput());
   EXPECT_TRUE(out_ptr.IsOutput());
@@ -112,8 +110,7 @@ TEST(IrTest, ParameterSemanticQueries) {
       .name = "buf",
       .type = {.kind = TypeKind::kPointer},
       .payload = BufferParam{.direction = PointerDir::kInOut,
-                             .bounds = {.kind = BufferBounds::Kind::kElemCount,
-                                        .size_expr = "n"}},
+                             .bounds = bounds::ElemCount{.size_expr = "n"}},
   };
   EXPECT_TRUE(inout_ptr.IsInput());
   EXPECT_TRUE(inout_ptr.IsOutput());
@@ -162,9 +159,8 @@ TEST(IrTest, ParameterSemanticQueries) {
   Parameter cstr{
       .name = "cstr",
       .type = {.kind = TypeKind::kPointer},
-      .payload =
-          BufferParam{.direction = PointerDir::kIn,
-                      .bounds = {.kind = BufferBounds::Kind::kNullTerminated}},
+      .payload = BufferParam{.direction = PointerDir::kIn,
+                             .bounds = bounds::NullTerminated{}},
   };
   EXPECT_TRUE(cstr.IsInput());
   EXPECT_FALSE(cstr.IsOutput());
@@ -206,12 +202,11 @@ TEST(IrTest, ParameterSemanticQueries) {
 
 TEST(IrTest, VisitorPatternDispatch) {
   Parameter scalar{.name = "val", .payload = ScalarParam{}};
-  Parameter buf{
-      .name = "buf",
-      .payload = BufferParam{
-          .direction = PointerDir::kIn,
-          .bounds = {.kind = BufferBounds::Kind::kElemCount, .size_expr = "10"},
-      }};
+  Parameter buf{.name = "buf",
+                .payload = BufferParam{
+                    .direction = PointerDir::kIn,
+                    .bounds = bounds::ElemCount{.size_expr = "10"},
+                }};
   Parameter cpp_str{.name = "str", .payload = CppStringParam{}};
 
   auto describe = [](const Parameter& p) {
@@ -334,17 +329,15 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversion) {
   EXPECT_EQ(func.parameters[0].direction(), PointerDir::kIn);
   ASSERT_TRUE(func.parameters[0].Is<BufferParam>());
   const auto* src = func.parameters[0].As<BufferParam>();
-  EXPECT_EQ(src->bounds.kind, BufferBounds::Kind::kElemCount);
-  EXPECT_EQ(src->bounds.size_expr, "n");
-  EXPECT_EQ(src->bounds.referenced_sibling_param, "n");
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(src->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(src->bounds).size_expr, "n");
 
   EXPECT_EQ(func.parameters[1].name, "dst");
   EXPECT_EQ(func.parameters[1].direction(), PointerDir::kOut);
   ASSERT_TRUE(func.parameters[1].Is<BufferParam>());
   const auto* dst = func.parameters[1].As<BufferParam>();
-  EXPECT_EQ(dst->bounds.kind, BufferBounds::Kind::kElemCount);
-  EXPECT_EQ(dst->bounds.size_expr, "n");
-  EXPECT_EQ(dst->bounds.referenced_sibling_param, "n");
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(dst->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(dst->bounds).size_expr, "n");
 
   EXPECT_EQ(func.parameters[2].name, "n");
   ASSERT_TRUE(func.parameters[2].Is<ScalarParam>());
@@ -363,15 +356,15 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithDereferencedPointerSize) {
                                                "read_data"));
   ASSERT_EQ(func.parameters.size(), 3);
   ASSERT_TRUE(func.parameters[0].Is<BufferParam>());
-  EXPECT_EQ(func.parameters[0].As<BufferParam>()->bounds.size_expr, "*len");
-  EXPECT_EQ(
-      func.parameters[0].As<BufferParam>()->bounds.referenced_sibling_param,
-      "len");
+  EXPECT_EQ(BoundsSizeExpr(func.parameters[0].As<BufferParam>()->bounds),
+            "*len");
   ASSERT_TRUE(func.parameters[2].Is<BufferParam>());
-  EXPECT_EQ(func.parameters[2].As<BufferParam>()->bounds.size_expr, " *len ");
-  EXPECT_EQ(
-      func.parameters[2].As<BufferParam>()->bounds.referenced_sibling_param,
-      "len");
+  EXPECT_EQ(BoundsSizeExpr(func.parameters[2].As<BufferParam>()->bounds),
+            " *len ");
+  // Both spellings have to resolve to the sibling `len`, which validation is
+  // what now observes: an unresolvable name would be rejected here.
+  Library lib{.name = "MyLib", .functions = {func}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
 }
 
 TEST_F(IrConvertTest, ASTToFunctionIRConversionWithCallback) {
@@ -489,8 +482,8 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithStructSync) {
   EXPECT_EQ(sync.member_name, "pixels");
   EXPECT_EQ(sync.parent_prefix, "img->");
   EXPECT_EQ(sync.direction, PointerDir::kIn);
-  EXPECT_EQ(sync.bounds.kind, BufferBounds::Kind::kElemCount);
-  EXPECT_EQ(sync.bounds.size_expr, "size");
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(sync.bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(sync.bounds).size_expr, "size");
 }
 
 // A `typedef struct { ... } Image;` declares an *anonymous* record, so
@@ -529,7 +522,7 @@ TEST_F(IrConvertTest, StructSyncOnAnonymousTypedefStruct) {
   EXPECT_EQ(sync.member_name, "pixels");
   // The "Image" entry above is keyed by the typedef name, which the anonymous
   // record does not carry, so its member annotations do not apply here.
-  EXPECT_EQ(sync.bounds.kind, BufferBounds::Kind::kSingleton);
+  EXPECT_TRUE(std::holds_alternative<bounds::Singleton>(sync.bounds));
 }
 
 TEST_F(IrConvertTest, ASTToFunctionIRConversionWithStructAndEnum) {
@@ -844,43 +837,51 @@ TEST_F(IrConvertTest,
   // Null terminated C-string
   EXPECT_EQ(func.parameters[1].name, "cstr");
   ASSERT_TRUE(func.parameters[1].Is<BufferParam>());
-  EXPECT_EQ(func.parameters[1].As<BufferParam>()->bounds.kind,
-            BufferBounds::Kind::kNullTerminated);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(
+      func.parameters[1].As<BufferParam>()->bounds));
   EXPECT_EQ(func.parameters[1].direction(), PointerDir::kIn);
 
   // Byte sized buffer
   EXPECT_EQ(func.parameters[2].name, "raw");
   ASSERT_TRUE(func.parameters[2].Is<BufferParam>());
   const auto* raw_buf = func.parameters[2].As<BufferParam>();
-  EXPECT_EQ(raw_buf->bounds.kind, BufferBounds::Kind::kByteCount);
-  EXPECT_EQ(raw_buf->bounds.size_expr, "128");
+  ASSERT_TRUE(std::holds_alternative<bounds::ByteCount>(raw_buf->bounds));
+  EXPECT_EQ(std::get<bounds::ByteCount>(raw_buf->bounds).size_expr, "128");
 
   // Element sized by outparam
   EXPECT_EQ(func.parameters[3].name, "out_data");
   ASSERT_TRUE(func.parameters[3].Is<BufferParam>());
   const auto* out_buf = func.parameters[3].As<BufferParam>();
-  EXPECT_EQ(out_buf->bounds.kind, BufferBounds::Kind::kElemSizedByOutparam);
-  EXPECT_EQ(out_buf->bounds.outparam_size_param, "written_len");
-  EXPECT_EQ(out_buf->bounds.size_expr, "*written_len");
-  EXPECT_EQ(out_buf->bounds.capacity_expr, "1024");
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::ElemSizedByOutparam>(out_buf->bounds));
+  const auto& out_bounds =
+      std::get<bounds::ElemSizedByOutparam>(out_buf->bounds);
+  EXPECT_EQ(out_bounds.outparam_name, "written_len");
+  EXPECT_EQ(out_bounds.capacity_expr, "1024");
+  EXPECT_EQ(BoundsSizeExpr(out_buf->bounds), "*written_len");
 
   // Byte sized by outparam on a typed pointer (int*)
   EXPECT_EQ(func.parameters[4].name, "out_bytes_data");
   ASSERT_TRUE(func.parameters[4].Is<BufferParam>());
   const auto* out_bytes_buf = func.parameters[4].As<BufferParam>();
-  EXPECT_EQ(out_bytes_buf->bounds.kind,
-            BufferBounds::Kind::kByteSizedByOutparam);
-  EXPECT_EQ(out_bytes_buf->bounds.outparam_size_param, "written_bytes");
-  EXPECT_EQ(out_bytes_buf->bounds.size_expr, "*written_bytes");
-  EXPECT_EQ(out_bytes_buf->bounds.capacity_expr, "2048");
+  ASSERT_TRUE(std::holds_alternative<bounds::ByteSizedByOutparam>(
+      out_bytes_buf->bounds));
+  const auto& out_bytes_bounds =
+      std::get<bounds::ByteSizedByOutparam>(out_bytes_buf->bounds);
+  EXPECT_EQ(out_bytes_bounds.outparam_name, "written_bytes");
+  EXPECT_EQ(out_bytes_bounds.capacity_expr, "2048");
+  EXPECT_EQ(BoundsSizeExpr(out_bytes_buf->bounds), "*written_bytes");
 
   // Sized by binding
   EXPECT_EQ(func.parameters[5].name, "bound_data");
   ASSERT_TRUE(func.parameters[5].Is<BufferParam>());
   const auto* bound_buf = func.parameters[5].As<BufferParam>();
-  EXPECT_EQ(bound_buf->bounds.kind, BufferBounds::Kind::kSizedByBinding);
-  EXPECT_EQ(bound_buf->bounds.size_expr, "ctx");
-  EXPECT_EQ(bound_buf->bounds.binding_name, "len_binding");
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::SizedByBinding>(bound_buf->bounds));
+  const auto& bound_bounds =
+      std::get<bounds::SizedByBinding>(bound_buf->bounds);
+  EXPECT_EQ(bound_bounds.context_expr, "ctx");
+  EXPECT_EQ(bound_bounds.binding_name, "len_binding");
 }
 
 // `clear_bindings` is stored on ContextBoundAnnotations, which only
@@ -899,7 +900,7 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithClearBindingsCString) {
   EXPECT_EQ(func.parameters[0].name, "str");
   ASSERT_TRUE(func.parameters[0].Is<BufferParam>());
   const auto* buf = func.parameters[0].As<BufferParam>();
-  EXPECT_EQ(buf->bounds.kind, BufferBounds::Kind::kNullTerminated);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(buf->bounds));
   EXPECT_TRUE(buf->context_bound.clear_bindings);
 }
 

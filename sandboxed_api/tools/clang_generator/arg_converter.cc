@@ -14,7 +14,6 @@
 
 #include "sandboxed_api/tools/clang_generator/arg_converter.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -29,7 +28,6 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
@@ -709,66 +707,44 @@ absl::StatusOr<ir::TypeInfo> QualTypeToTypeInfo(clang::QualType type) {
 }
 
 ir::BufferBounds AnnotationsToBufferBounds(const Annotations& ann) {
-  ir::BufferBounds bounds;
-  // Extracts the sibling parameter identifier name if the sizing expression is
-  // a direct parameter reference (e.g., "len") or a dereferenced
-  // single-indirection pointer parameter (e.g., "*len"). Expressions with
-  // multiple indirections (e.g., "**len") or complex arithmetic (e.g., "len *
-  // 2") are retained in `size_expr` but not linked as a 1:1 sibling parameter
-  // in `referenced_sibling_param`.
-  auto maybe_set_sibling_param = [&](absl::string_view expr) {
-    absl::string_view stripped = absl::StripAsciiWhitespace(
-        absl::StripPrefix(absl::StripAsciiWhitespace(expr), "*"));
-    if (!stripped.empty() &&
-        (absl::ascii_isalpha(stripped[0]) || stripped[0] == '_') &&
-        std::all_of(stripped.begin(), stripped.end(), [](char c) {
-          return absl::ascii_isalnum(c) || c == '_';
-        })) {
-      bounds.referenced_sibling_param = std::string(stripped);
-    }
+  // Strips the optional leading '*' an outparam size is written with, so that
+  // "*written_len" and "written_len" both name the sibling parameter.
+  auto outparam_name = [](absl::string_view expr) {
+    return std::string(absl::StripAsciiWhitespace(
+        absl::StripPrefix(absl::StripAsciiWhitespace(expr), "*")));
   };
 
+  ir::BufferBounds bounds = ir::bounds::Singleton{};
   std::visit(
       absl::Overload{
           [&](const std::monostate&) {},
           [&](const ElemSizedBy& elem) {
             if (elem.sized_by_outparam_data) {
-              bounds.kind = ir::BufferBounds::Kind::kElemSizedByOutparam;
-              absl::string_view out_param =
-                  absl::StripAsciiWhitespace(absl::StripPrefix(
-                      absl::StripAsciiWhitespace(elem.expr), "*"));
-              bounds.outparam_size_param = std::string(out_param);
-              bounds.size_expr = absl::StrCat("*", out_param);
-              bounds.capacity_expr = elem.sized_by_outparam_data->capacity_expr;
+              bounds = ir::bounds::ElemSizedByOutparam{
+                  .outparam_name = outparam_name(elem.expr),
+                  .capacity_expr = elem.sized_by_outparam_data->capacity_expr,
+              };
             } else {
-              bounds.kind = ir::BufferBounds::Kind::kElemCount;
-              bounds.size_expr = elem.expr;
-              maybe_set_sibling_param(elem.expr);
+              bounds = ir::bounds::ElemCount{.size_expr = elem.expr};
             }
           },
           [&](const ByteSizedBy& byte) {
             if (byte.sized_by_outparam_data) {
-              bounds.kind = ir::BufferBounds::Kind::kByteSizedByOutparam;
-              absl::string_view out_param =
-                  absl::StripAsciiWhitespace(absl::StripPrefix(
-                      absl::StripAsciiWhitespace(byte.expr), "*"));
-              bounds.outparam_size_param = std::string(out_param);
-              bounds.size_expr = absl::StrCat("*", out_param);
-              bounds.capacity_expr = byte.sized_by_outparam_data->capacity_expr;
+              bounds = ir::bounds::ByteSizedByOutparam{
+                  .outparam_name = outparam_name(byte.expr),
+                  .capacity_expr = byte.sized_by_outparam_data->capacity_expr,
+              };
             } else {
-              bounds.kind = ir::BufferBounds::Kind::kByteCount;
-              bounds.size_expr = byte.expr;
-              maybe_set_sibling_param(byte.expr);
+              bounds = ir::bounds::ByteCount{.size_expr = byte.expr};
             }
           },
           [&](const SizedByBinding& binding) {
-            bounds.kind = ir::BufferBounds::Kind::kSizedByBinding;
-            bounds.size_expr = binding.context;
-            bounds.binding_name = binding.binding_expr;
+            bounds = ir::bounds::SizedByBinding{
+                .context_expr = binding.context,
+                .binding_name = binding.binding_expr,
+            };
           },
-          [&](const NullTerminated&) {
-            bounds.kind = ir::BufferBounds::Kind::kNullTerminated;
-          },
+          [&](const NullTerminated&) { bounds = ir::bounds::NullTerminated{}; },
       },
       ann.size_type);
   return bounds;
