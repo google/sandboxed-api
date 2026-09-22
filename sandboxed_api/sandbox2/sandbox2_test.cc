@@ -679,6 +679,7 @@ TEST_P(Sandbox2Test, FailsOnInvalidLimits) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             CreateDefaultTestPolicy(path).TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   auto result = sandbox.Run();
   EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
   EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_LIMITS));
@@ -704,6 +705,7 @@ TEST_P(Sandbox2Test, IgnoresMoreLaxLimits) {
                             CreateDefaultTestPolicy(path).TryBuild());
   auto notify = std::make_unique<LowerLimitNotify>();
   Sandbox2 sandbox(std::move(executor), std::move(policy), std::move(notify));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
   auto result = sandbox.Run();
   EXPECT_THAT(result.final_status(), Eq(Result::OK));
 }
