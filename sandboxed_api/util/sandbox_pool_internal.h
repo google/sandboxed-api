@@ -15,7 +15,9 @@
 #ifndef SANDBOXED_API_UTIL_SANDBOX_POOL_INTERNAL_H_
 #define SANDBOXED_API_UTIL_SANDBOX_POOL_INTERNAL_H_
 
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <queue>
 #include <string>

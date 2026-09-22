@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -75,6 +76,9 @@ class SandboxPool;
 
 // Smart pointer RAII handle that automatically returns the sandbox to the pool
 // when destroyed.
+//
+// The handle keeps the pool alive, so it is safe for it to outlive the
+// caller's own reference to the pool.
 template <typename SandboxT>
 class SandboxHandle {
  public:
@@ -85,7 +89,7 @@ class SandboxHandle {
       : entry_(std::move(entry)), pool_(std::move(pool)) {}
 
   ~SandboxHandle() {
-    if (pool_ && entry_) {
+    if (pool_ != nullptr && entry_ != nullptr) {
       pool_->Release(std::move(entry_));
     }
   }
@@ -97,7 +101,7 @@ class SandboxHandle {
 
   SandboxHandle& operator=(SandboxHandle&& other) noexcept {
     if (this != &other) {
-      if (pool_ && entry_) {
+      if (pool_ != nullptr && entry_ != nullptr) {
         pool_->Release(std::move(entry_));
       }
       entry_ = std::exchange(other.entry_, nullptr);
@@ -158,6 +162,8 @@ class SandboxPool : public std::enable_shared_from_this<SandboxPool<SandboxT>> {
 
   // Acquires a sandbox from the pool. Blocks up to the specified timeout if
   // the pool is exhausted.
+  //
+  // The returned handle keeps the pool alive.
   absl::StatusOr<SandboxHandle<SandboxT>> Acquire(
       absl::Duration timeout = absl::InfiniteDuration());
 
@@ -167,22 +173,24 @@ class SandboxPool : public std::enable_shared_from_this<SandboxPool<SandboxT>> {
  private:
   friend class SandboxHandle<SandboxT>;
 
+  using PoolEntry = sandbox_pool_internal::PoolEntry<SandboxT>;
+
   SandboxPool(SandboxPoolOptions options, Factory factory);
 
   absl::Status Init();
-  void Release(
-      std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry);
+  void Release(std::unique_ptr<PoolEntry> entry);
   absl::StatusOr<std::unique_ptr<SandboxT>> CreateSandbox(size_t max_sandboxes);
+
+  // Handles acquisitions that could not be served from the idle queue, by
+  // spawning a sandbox or waiting for one to be released.
+  absl::StatusOr<SandboxHandle<SandboxT>> AcquireSlow(absl::Duration timeout);
+  SandboxHandle<SandboxT> MakeHandle(std::unique_ptr<PoolEntry> entry);
 
   void WorkerRun();
   void Pruner();
   void CreateTask(size_t max_sandboxes, bool is_shutting_down);
-  void DestroyTask(
-      std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry,
-      bool is_shutting_down);
-  void RecycleTask(
-      std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry,
-      bool is_shutting_down);
+  void DestroyTask(std::unique_ptr<PoolEntry> entry, bool is_shutting_down);
+  void RecycleTask(std::unique_ptr<PoolEntry> entry, bool is_shutting_down);
 
   bool ShouldUseBackgroundThreads() const {
     return options_.max_maintenance_threads.value_or(1) != 0;
@@ -191,11 +199,10 @@ class SandboxPool : public std::enable_shared_from_this<SandboxPool<SandboxT>> {
   SandboxPoolOptions options_;
   Factory factory_;
 
-  sandbox_pool_internal::ExpirableQueue<
-      std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>>>
-      idle_queue_;
+  sandbox_pool_internal::ExpirableQueue<std::unique_ptr<PoolEntry>> idle_queue_;
   sandbox_pool_internal::Queue<absl::AnyInvocable<void(bool) &&>> worker_queue_;
 
+  // Sandboxes currently checked out through a handle.
   std::atomic<size_t> active_count_ = 0;
   std::atomic<size_t> total_count_ = 0;
 
@@ -225,6 +232,8 @@ SandboxPool<SandboxT>::~SandboxPool() {
                 /*is_shutting_down=*/true);
   });
 
+  // Handles keep the pool alive, so every sandbox must have been returned by
+  // the time we get here.
   CHECK_EQ(active_count_.load(std::memory_order_relaxed), 0);
 }
 
@@ -260,16 +269,26 @@ absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::Acquire(
     absl::Duration timeout) {
   // We are purposefully not checking whether the queues have stopped, since
   // this is a race condition with the destructor only.
+  std::unique_ptr<PoolEntry> entry;
+  if (idle_queue_.TryPop(entry)) {
+    return MakeHandle(std::move(entry));
+  }
+  return AcquireSlow(timeout);
+}
+
+template <typename SandboxT>
+SandboxHandle<SandboxT> SandboxPool<SandboxT>::MakeHandle(
+    std::unique_ptr<PoolEntry> entry) {
+  active_count_.fetch_add(1, std::memory_order_relaxed);
+  return SandboxHandle<SandboxT>(std::move(entry), this->shared_from_this());
+}
+
+template <typename SandboxT>
+absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::AcquireSlow(
+    absl::Duration timeout) {
   absl::Time start_time = absl::Now();
 
-  // First, try to grab an idle sandbox from the queue.
-  std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry;
-  if (idle_queue_.TryPop(entry)) {
-    active_count_.fetch_add(1, std::memory_order_relaxed);
-    return SandboxHandle<SandboxT>(std::move(entry), this->shared_from_this());
-  }
-
-  // If there are no idle sandboxes, try creating a new one.
+  // There was no idle sandbox, so try creating a new one.
   auto sandbox = CreateSandbox(options_.max_sandboxes);
 
   // If creating the sandbox failed, return the error status.
@@ -279,21 +298,17 @@ absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::Acquire(
 
   // If creating the sandbox succeeded, return the new sandbox.
   if (*sandbox != nullptr) {
-    active_count_.fetch_add(1, std::memory_order_relaxed);
-    return SandboxHandle<SandboxT>(
-        std::make_unique<sandbox_pool_internal::PoolEntry<SandboxT>>(
-            std::move(*sandbox), 0),
-        this->shared_from_this());
+    return MakeHandle(std::make_unique<PoolEntry>(std::move(*sandbox), 0));
   }
 
   // Wait for an idle sandbox.
+  std::unique_ptr<PoolEntry> entry;
   bool popped = idle_queue_.PopWithDeadline(entry, start_time + timeout);
 
   if (!popped) {
     return absl::DeadlineExceededError("Sandbox pool acquisition timed out.");
   }
-  active_count_.fetch_add(1, std::memory_order_relaxed);
-  return SandboxHandle<SandboxT>(std::move(entry), this->shared_from_this());
+  return MakeHandle(std::move(entry));
 }
 
 template <typename SandboxT>
@@ -335,8 +350,7 @@ absl::Status SandboxPool<SandboxT>::Init() {
 }
 
 template <typename SandboxT>
-void SandboxPool<SandboxT>::Release(
-    std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry) {
+void SandboxPool<SandboxT>::Release(std::unique_ptr<PoolEntry> entry) {
   // Recycle if the usage count is at max usage.
   ++entry->usage_count;
   bool recycle = (entry->usage_count >= options_.max_sandbox_reuse);
@@ -361,7 +375,7 @@ void SandboxPool<SandboxT>::Release(
 
 template <typename SandboxT>
 void SandboxPool<SandboxT>::Pruner() {
-  std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry;
+  std::unique_ptr<PoolEntry> entry;
   while (idle_queue_.PopWhenExpired(entry, options_.idle_timeout,
                                     options_.min_sandboxes)) {
     worker_queue_.Push(std::bind_front(&SandboxPool<SandboxT>::DestroyTask,
@@ -406,23 +420,20 @@ void SandboxPool<SandboxT>::CreateTask(size_t max_sandboxes,
     LOG(WARNING) << "Sandbox pool is full.";
     return;
   }
-  idle_queue_.Push(std::make_unique<sandbox_pool_internal::PoolEntry<SandboxT>>(
-      std::move(*sandbox), 0));
+  idle_queue_.Push(std::make_unique<PoolEntry>(std::move(*sandbox), 0));
 }
 
 template <typename SandboxT>
-void SandboxPool<SandboxT>::DestroyTask(
-    std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry,
-    bool /*is_shutting_down*/) {
+void SandboxPool<SandboxT>::DestroyTask(std::unique_ptr<PoolEntry> entry,
+                                        bool /*is_shutting_down*/) {
   total_count_.fetch_sub(1, std::memory_order_relaxed);
   // Explicitly destroy the sandbox here.
   entry.reset();
 }
 
 template <typename SandboxT>
-void SandboxPool<SandboxT>::RecycleTask(
-    std::unique_ptr<sandbox_pool_internal::PoolEntry<SandboxT>> entry,
-    bool is_shutting_down) {
+void SandboxPool<SandboxT>::RecycleTask(std::unique_ptr<PoolEntry> entry,
+                                        bool is_shutting_down) {
   if (is_shutting_down) {
     DestroyTask(std::move(entry), /*is_shutting_down=*/true);
     return;
@@ -436,8 +447,7 @@ void SandboxPool<SandboxT>::RecycleTask(
     DestroyTask(std::move(entry), is_shutting_down);
     return;
   }
-  idle_queue_.Push(std::make_unique<sandbox_pool_internal::PoolEntry<SandboxT>>(
-      std::move(*sandbox), 0));
+  idle_queue_.Push(std::make_unique<PoolEntry>(std::move(*sandbox), 0));
   // Explicitly destroy the old sandbox here.
   entry.reset();
 }
