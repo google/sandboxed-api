@@ -1,3 +1,10 @@
 # Build in C++20 mode without a custom CROSSTOOL
 build --cxxopt=-std=c++20
 build --host_cxxopt=-std=c++20
+
+# Ignore host Android SDK/NDK environment variables (e.g. on Bazel CI containers)
+# Bazel 9.2+ passes ANDROID_HOME and ANDROID_NDK_HOME into the container environment
+# protobuf transitively pulls in rules_kotlin → rules_android (0.6.4), which registers @androidsdk//:sdk-toolchain.
+
+common --repo_env=ANDROID_HOME=
+common --repo_env=ANDROID_NDK_HOME=

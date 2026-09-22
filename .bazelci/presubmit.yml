@@ -1,7 +1,8 @@
 ---
 tasks:
-  debian12:
+  debian13:
     shell_commands:
-    - "sudo apt -y update && sudo apt -y install llvm-19-dev libclang-19-dev libncurses-dev python3-clang-19"
+    # Install the prebundled llvm version.
+    - "sudo apt -y update && sudo apt -y install llvm-dev libclang-dev libncurses-dev libzstd-dev python3-clang"
     build_targets:
     - "..."
