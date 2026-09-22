@@ -821,6 +821,11 @@ void BM_MinimalSandbox(benchmark::State& state) {
   }
   state.SetItemsProcessed(state.iterations());
 }
+
+// UseRealTime() is required because Sandbox2 spawns the sandboxee via the
+// long-running GlobalForkServer process. Process CPU time only measures the
+// parent test process and misses CPU time spent in the ForkServer and
+// sandboxee processes, as well as IPC/synchronization wait time across threads.
 BENCHMARK(BM_MinimalSandbox)->UseRealTime()->ThreadRange(1, 64);
 
 }  // namespace

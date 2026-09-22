@@ -1027,6 +1027,9 @@ void BM_RecvProtoBuf(benchmark::State& state) {
                           payload_size);
   state.SetItemsProcessed(state.iterations());
 }
+// UseRealTime() is required because the sender runs in a background thread in
+// the same process; process CPU time sums both sender and receiver threads and
+// excludes socket blocking/wait time.
 BENCHMARK(BM_RecvProtoBuf)
     ->RangeMultiplier(8)
     ->Range(1 << 6, 128 << 20)
