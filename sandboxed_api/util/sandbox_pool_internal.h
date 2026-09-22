@@ -18,8 +18,8 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <memory>
-#include <queue>
 #include <string>
 #include <utility>
 
@@ -51,7 +51,7 @@ class Queue {
       return false;
     }
 
-    queue_.push(std::move(value));
+    queue_.push_back(std::move(value));
     return true;
   }
 
@@ -67,8 +67,7 @@ class Queue {
       return false;
     }
 
-    value = std::move(queue_.front());
-    queue_.pop();
+    PopLocked(value, End::kFront);
     return true;
   }
 
@@ -76,40 +75,27 @@ class Queue {
   // called. Returns true on success, or false if the queue was stopped or the
   // deadline was reached.
   bool PopWithDeadline(T& value, absl::Time deadline) {
-    absl::MutexLock lock(mutex_);
+    return PopWithDeadline(value, deadline, End::kFront);
+  }
 
-    // Returns true if the condition evaluates to true before the timeout
-    // expires, or false if the timeout hits first.
-    if (!mutex_.AwaitWithDeadline(absl::Condition(this, &Queue::CanPop),
-                                  deadline)) {
-      return false;  // Timeout expired
-    }
-
-    if (stopped_) {
-      return false;  // Queue was stopped
-    }
-
-    value = std::move(queue_.front());
-    queue_.pop();
-    return true;
+  // Same as PopWithDeadline(), but pops the most recently pushed item.
+  bool PopNewestWithDeadline(T& value, absl::Time deadline) {
+    return PopWithDeadline(value, deadline, End::kBack);
   }
 
   // Attempts to pop an item immediately without blocking.
   // Returns true if data was extracted, false if queue was empty or stopped.
-  bool TryPop(T& value) {
-    absl::MutexLock lock(mutex_);
-    if (queue_.empty() || stopped_) {
-      return false;
-    }
+  bool TryPop(T& value) { return TryPop(value, End::kFront); }
 
-    value = std::move(queue_.front());
-    queue_.pop();
-    return true;
-  }
+  // Same as TryPop(), but pops the most recently pushed item. Reusing the
+  // hottest item keeps caches warm and, since items are pushed in chronological
+  // order, it also leaves the least recently used items at the front where
+  // PopIf() can find them.
+  bool TryPopNewest(T& value) { return TryPop(value, End::kBack); }
 
-  // Attempts to pop the front item, but only if `pred` accepts it. Never
-  // blocks. `pred` is called as `pred(front, size)` with the queue lock held,
-  // and so must not call back into the queue.
+  // Attempts to pop the front (least recently pushed) item, but only if `pred`
+  // accepts it. Never blocks. `pred` is called as `pred(front, size)` with the
+  // queue lock held, and so must not call back into the queue.
   // Returns true if an item was extracted, or false if the queue was empty or
   // stopped, or if `pred` rejected the front item.
   template <typename Pred>
@@ -119,8 +105,7 @@ class Queue {
       return false;
     }
 
-    value = std::move(queue_.front());
-    queue_.pop();
+    PopLocked(value, End::kFront);
     return true;
   }
 
@@ -147,7 +132,7 @@ class Queue {
     absl::MutexLock lock(mutex_);
     while (!queue_.empty()) {
       fn(std::move(queue_.front()));
-      queue_.pop();
+      queue_.pop_front();
     }
   }
 
@@ -164,11 +149,52 @@ class Queue {
   }
 
  private:
+  // Which end of the queue an item is taken from.
+  enum class End { kFront, kBack };
+
   // Condition predicate function for absl::Mutex::Await
   bool CanPop() const { return !queue_.empty() || stopped_; }
 
+  void PopLocked(T& value, End end) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    if (end == End::kFront) {
+      value = std::move(queue_.front());
+      queue_.pop_front();
+    } else {
+      value = std::move(queue_.back());
+      queue_.pop_back();
+    }
+  }
+
+  bool TryPop(T& value, End end) {
+    absl::MutexLock lock(mutex_);
+    if (queue_.empty() || stopped_) {
+      return false;
+    }
+
+    PopLocked(value, end);
+    return true;
+  }
+
+  bool PopWithDeadline(T& value, absl::Time deadline, End end) {
+    absl::MutexLock lock(mutex_);
+
+    // Returns true if the condition evaluates to true before the timeout
+    // expires, or false if the timeout hits first.
+    if (!mutex_.AwaitWithDeadline(absl::Condition(this, &Queue::CanPop),
+                                  deadline)) {
+      return false;  // Timeout expired
+    }
+
+    if (stopped_) {
+      return false;  // Queue was stopped
+    }
+
+    PopLocked(value, end);
+    return true;
+  }
+
   mutable absl::Mutex mutex_;
-  std::queue<T> queue_ ABSL_GUARDED_BY(mutex_);
+  std::deque<T> queue_ ABSL_GUARDED_BY(mutex_);
   bool stopped_ ABSL_GUARDED_BY(mutex_) = false;
 };
 
@@ -190,34 +216,30 @@ class ExpirableQueue {
     return queue_.Push(ExpirableItem<T>{std::move(value), absl::Now()});
   }
 
-  // Pop an item from the queue.
-  // Returns true on success, or false if the queue is empty or stopped.
-  bool Pop(T& value) {
-    ExpirableItem<T> item;
-    if (queue_.Pop(item)) {
-      value = std::move(item.value);
-      return true;
-    }
-    return false;
-  }
+  // Both pops take the most recently pushed item. Reusing the warmest sandbox
+  // keeps the live working set small instead of rotating through every sandbox
+  // in the pool: on a latency-sensitive workload that reuses its sandboxes,
+  // this is worth ~5% of wall time and ~14 points of cycles/op, for the same
+  // instruction count.
+  // It also leaves the oldest items at the front, where `PopWhenExpired` looks.
 
-  // Pop an item from the queue with a deadline.
+  // Pop the most recently pushed item from the queue with a deadline.
   // Returns true on success, or false if the queue is empty, stopped, or the
   // deadline is reached.
   bool PopWithDeadline(T& value, absl::Time deadline) {
     ExpirableItem<T> item;
-    if (queue_.PopWithDeadline(item, deadline)) {
+    if (queue_.PopNewestWithDeadline(item, deadline)) {
       value = std::move(item.value);
       return true;
     }
     return false;
   }
 
-  // Attempts to pop an item from the queue without blocking.
+  // Attempts to pop the most recently pushed item without blocking.
   // Returns true on success, or false if the queue is empty or stopped.
   bool TryPop(T& value) {
     ExpirableItem<T> item;
-    if (queue_.TryPop(item)) {
+    if (queue_.TryPopNewest(item)) {
       value = std::move(item.value);
       return true;
     }

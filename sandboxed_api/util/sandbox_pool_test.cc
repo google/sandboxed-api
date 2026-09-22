@@ -95,6 +95,42 @@ TEST(SandboxPoolTest, ReleaseWorks) {
   }
 }
 
+TEST(SandboxPoolTest, AcquireReturnsMostRecentlyReleasedSandbox) {
+  // Threadless mode without pre-warming: releases reach the idle queue
+  // synchronously and nothing else pushes to it, so the order below is
+  // deterministic. `max_sandbox_reuse` is high enough that releasing never
+  // recycles a sandbox, which would give the replacement a different address.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool, SandboxPool<StringopSandbox>::Create({
+                                           .min_sandboxes = 0,
+                                           .max_sandboxes = 3,
+                                           .max_sandbox_reuse = 100,
+                                           .max_maintenance_threads = 0,
+                                       }));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto handle1, pool->Acquire());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto handle2, pool->Acquire());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto handle3, pool->Acquire());
+  StringopSandbox* first = handle1.get();
+  StringopSandbox* second = handle2.get();
+  StringopSandbox* third = handle3.get();
+
+  // Release oldest first, so that every acquisition below tells the two orders
+  // apart. Letting the handles go out of scope instead would release them in
+  // reverse declaration order, where LIFO and FIFO agree on the first one.
+  handle1 = SandboxHandle<StringopSandbox>();
+  handle2 = SandboxHandle<StringopSandbox>();
+  handle3 = SandboxHandle<StringopSandbox>();
+
+  // Each acquisition has to keep its handle: a temporary would be released
+  // again straight away and handed right back to the next acquisition.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto reacquired1, pool->Acquire());
+  EXPECT_EQ(reacquired1.get(), third);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto reacquired2, pool->Acquire());
+  EXPECT_EQ(reacquired2.get(), second);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto reacquired3, pool->Acquire());
+  EXPECT_EQ(reacquired3.get(), first);
+}
+
 TEST(SandboxPoolTest, ReuseOnlyCreatesOneSandbox) {
   SandboxPoolOptions options;
   options.min_sandboxes = 1;
