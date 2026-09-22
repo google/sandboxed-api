@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
@@ -39,6 +40,7 @@
 #include "sandboxed_api/vars.h"
 
 namespace sapi {
+
 namespace sandbox_internal {
 
 class PtrOrCallable {
@@ -64,7 +66,7 @@ class PtrOrCallable {
 // means to communicate with it (make function calls, transfer memory).
 class SandboxBase {
  public:
-  SandboxBase() = default;
+  explicit SandboxBase(std::string name = "unknown") : name_(std::move(name)) {}
 
   virtual ~SandboxBase() = default;
 
@@ -156,6 +158,8 @@ class SandboxBase {
   // sandboxee is not running or we're using an in-process sandbox.
   virtual absl::StatusOr<int> GetPid() const = 0;
 
+  const std::string& name() const { return name_; }
+
  protected:
   // WrapCallStatus is called with the status returned by a Call. The default
   // implementation simply returns the status as is.
@@ -166,6 +170,7 @@ class SandboxBase {
   absl::Status Call(
       const std::string& func, v::Callable* ret,
       std::initializer_list<sandbox_internal::PtrOrCallable> args);
+  std::string name_;
 };
 
 // The Sandbox class represents the sandboxed library. It provides users with
@@ -174,7 +179,7 @@ template <typename Backend>
 class Sandbox : public SandboxBase {
  public:
   explicit Sandbox(SandboxConfig config)
-      : SandboxBase(), backend_(std::move(config), [this] {
+      : SandboxBase(config.name), backend_(std::move(config), [this] {
           return CreateNotifier();  // NOLINT
         }) {}
 
@@ -182,7 +187,7 @@ class Sandbox : public SandboxBase {
   // CreateNotifier() method of the Sandbox2Backend. Otherwise, prefer to use
   // the SandboxConfig constructor above.
   explicit Sandbox(Backend backend)
-      : SandboxBase(), backend_(std::move(backend)) {}
+      : SandboxBase(backend.name()), backend_(std::move(backend)) {}
 
   Sandbox(const Sandbox&) = delete;
   Sandbox& operator=(const Sandbox&) = delete;
@@ -190,7 +195,10 @@ class Sandbox : public SandboxBase {
   virtual ~Sandbox() = default;
 
   // Initializes a new sandboxing session.
-  absl::Status Init() override { return backend().Init(); }
+  absl::Status Init() override {
+    ABSL_RETURN_IF_ERROR(backend().Init());
+    return absl::OkStatus();
+  }
 
   // Returns whether the current sandboxing session is active.
   bool is_active() const override { return backend().is_active(); }

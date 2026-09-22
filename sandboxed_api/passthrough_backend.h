@@ -35,8 +35,11 @@ class PassthroughBackend {
 
   PassthroughBackend(SandboxConfig config, CallFunctionT call_function,
                      SymbolFunctionT symbol_function)
-      : rpc_channel_(std::make_unique<PassthroughRPCChannel>(
+      : name_(std::move(config.name)),
+        rpc_channel_(std::make_unique<PassthroughRPCChannel>(
             std::move(call_function), std::move(symbol_function))) {}
+
+  const std::string& name() const { return name_; }
 
   // Initializes a new sandboxing session.
   absl::Status Init() { return absl::OkStatus(); }
@@ -60,6 +63,7 @@ class PassthroughBackend {
   void Terminate(bool attempt_graceful_exit = true) {}
 
  private:
+  std::string name_;
   std::unique_ptr<PassthroughRPCChannel> rpc_channel_;
 };
 

@@ -27,6 +27,9 @@ cc_test(
     name = "sapi_test",
     srcs = ["sapi_test.cc"],
     copts = sapi_platform_copts(),
+    data = [
+        "//sandboxed_api/examples/sum:sum_sapi_noembed.bin",
+    ],
     tags = ["local"],
     deps = [
         ":sapi_test-sapi",
@@ -38,6 +41,7 @@ cc_test(
         "//sandboxed_api/examples/stringop:stringop-sapi",
         "//sandboxed_api/examples/stringop:stringop_params_cc_proto",
         "//sandboxed_api/examples/sum:sum-sapi",
+        "//sandboxed_api/examples/sum:sum_sapi_noembed",
         "//sandboxed_api/sandbox2:result",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:thread",

@@ -76,6 +76,12 @@ struct Sandbox2Config {
   // performance degradation when transferring large objects to the sandboxee.
   static constexpr size_t kDefaultSAPISharedMemorySize = (128ULL << 10);
 
+  // A generic policy which should work with majority of typical libraries,
+  // which are single-threaded and require ~30 basic syscalls.
+  static sandbox2::PolicyBuilder DefaultPolicyBuilder();
+
+  static sandbox2::Limits DefaultLimits();
+
   // Optional. If not set, the default policy will be used.
   // See DefaultPolicyBuilder().
   std::unique_ptr<sandbox2::Policy> policy;
@@ -100,15 +106,30 @@ struct Sandbox2Config {
   bool enable_multithreading = false;
   std::optional<std::string> cwd;
   std::optional<sandbox2::Limits> limits;
-
-  // A generic policy which should work with majority of typical libraries,
-  // which are single-threaded and require ~30 basic syscalls.
-  static sandbox2::PolicyBuilder DefaultPolicyBuilder();
-
-  static sandbox2::Limits DefaultLimits();
 };
 
 struct SandboxConfig {
+  static std::vector<std::string> DefaultEnvironmentVariables() {
+    return {
+    };
+  }
+
+  static absl::linked_hash_map<std::string, std::string> DefaultFlags() {
+    return {
+        {"stderrthreshold",
+         std::to_string(static_cast<int>(absl::StderrThreshold()))},
+    };
+  }
+
+  static SandboxConfig DefaultConfig();
+
+  SandboxConfig& set_name(std::string n) {
+    name = std::move(n);
+    return *this;
+  }
+
+  std::string name = "unknown";
+
   std::optional<std::vector<std::string>> environment_variables;
 
   // Use a linked hash map to preserve the order of flags. This is relevant for
@@ -123,20 +144,6 @@ struct SandboxConfig {
       fd_mappings;
 
   Sandbox2Config sandbox2;
-
-  static std::vector<std::string> DefaultEnvironmentVariables() {
-    return {
-    };
-  }
-
-  static absl::linked_hash_map<std::string, std::string> DefaultFlags() {
-    return {
-        {"stderrthreshold",
-         std::to_string(static_cast<int>(absl::StderrThreshold()))},
-    };
-  }
-
-  static SandboxConfig DefaultConfig();
 };
 
 }  // namespace sapi
