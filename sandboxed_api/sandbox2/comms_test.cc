@@ -1129,5 +1129,10 @@ TEST(ListeningCommsTest, WrongSocketPath) {
   EXPECT_THAT(ListeningComms::Create("/", /*abstract_uds=*/false), Not(IsOk()));
 }
 
+TEST(ListeningCommsTest, ConnectionFailure) {
+  EXPECT_THAT(Comms::Connect("/non_existent_socket", /*abstract_uds=*/false),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
 }  // namespace
 }  // namespace sandbox2
