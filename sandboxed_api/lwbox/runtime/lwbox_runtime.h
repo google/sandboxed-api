@@ -131,6 +131,11 @@ class ContextBindingRegistry {
  private:
   ContextBindingRegistry() = default;
 
+  // TODO(b/491828958): Consider also recording `void* host_ptr` here if we
+  // chain `SANDBOX_RETAIN_AND_BIND` into `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR`
+  // (e.g., `cairo_image_surface_create_for_data` -> `..._get_data`), so a
+  // getter returning `remote_ptr + offset` can sync into and return
+  // `host_ptr + offset` instead of allocating a second host copy.
   struct RetainedBuffer {
     uintptr_t remote_ptr;
     size_t bytes;

@@ -217,6 +217,7 @@ function(add_sapi_library)
     absl::statusor
     absl::strings
     absl::span
+    sapi::lwbox_runtime
     sapi::sapi
     sapi::status
     sapi::vars

@@ -209,8 +209,6 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
 
   ABSL_RETURN_IF_ERROR(LinkAliasParamToCallbackParam(args));
 
-  RecordContextBindingSupportNeeded(func_context_bound, ret, args);
-
   // Determine includes and host state vars, after considering any
   // cross-arg relations (in case we Linking mattered).
   for (const auto& arg : args) {
@@ -255,51 +253,6 @@ absl::Status SandboxedLibraryEmitter::ParseStructAnnotationWrapperFunc(
         decl.getName().str()));
   }
   return ParseRecordAnnotations(*record_decl);
-}
-
-/**
- * Checks if the function needed any of the context-binding-related host vars
- * and code. If so, records that we'll need to emit support code later.
- */
-void SandboxedLibraryEmitter::RecordContextBindingSupportNeeded(
-    const ContextBoundAnnotations& func_context_bound, const ArgPtr& ret,
-    const std::vector<ArgPtr>& args) {
-  auto func_has_context_bindings = [&func_context_bound, &ret, &args]() {
-    if (!func_context_bound.bind_data.empty()) {
-      return true;
-    }
-    auto arg_ptr_has_context_bindings = [](const ArgPtr& arg) {
-      const PointerArg* ptr_arg = dynamic_cast<const PointerArg*>(arg.get());
-      return ptr_arg && ptr_arg->HasContextBindings();
-    };
-    if (ret && arg_ptr_has_context_bindings(ret)) {
-      return true;
-    }
-    for (const auto& arg : args) {
-      if (arg_ptr_has_context_bindings(arg)) {
-        return true;
-      }
-    }
-    return false;
-  };
-  if (!func_has_context_bindings()) return;
-
-  // Includes
-  includes_.insert("<tuple>");
-  includes_.insert("<utility>");
-  includes_.insert("<string>");
-  includes_.insert(
-      absl::Substitute("\"$0absl/base/thread_annotations.h\"", kIncludePrefix));
-  includes_.insert(
-      absl::Substitute("\"$0absl/container/node_hash_map.h\"", kIncludePrefix));
-  includes_.insert(
-      absl::Substitute("\"$0absl/synchronization/mutex.h\"", kIncludePrefix));
-
-  // Otherwise, we'll need vars and code as well. Do that separately, since
-  // (a) we want to control the order in which they are emitted more carefully
-  // (b) it's a bit wasteful to store the same strings into a set for
-  //     every function that needs it.
-  has_context_bindings_ = true;
 }
 
 // If this function has an "alias_callback_return" annotation, checks for the

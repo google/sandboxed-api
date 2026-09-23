@@ -742,22 +742,21 @@ std::string ResolveContextName(absl::string_view context) {
 }
 
 std::string CompileBindingExpr(absl::string_view context_var,
-                               absl::string_view expr, bool locked) {
+                               absl::string_view expr) {
   std::string result;
   std::string sub_expr(expr);
   size_t last_pos = 0;
   absl::string_view sp(sub_expr);
   RE2 kBindingNameRegex("\\$([a-zA-Z_][a-zA-Z0-9_]*)");
   std::string binding_name;
-  std::string lookup_helper =
-      locked ? "sapi_internal_get_context_binding_size_locked"
-             : "sapi_internal_get_context_binding_size";
   while (RE2::FindAndConsume(&sp, kBindingNameRegex, &binding_name)) {
     size_t match_pos =
         sp.data() - sub_expr.data() - (binding_name.length() + 1);
     absl::StrAppend(&result, sub_expr.substr(last_pos, match_pos - last_pos));
-    absl::SubstituteAndAppend(&result, "$0($1, \"$2\")", lookup_helper,
-                              context_var, binding_name);
+    absl::SubstituteAndAppend(
+        &result,
+        "sapi::lwbox::ContextBindingRegistry::Instance()->GetSize($0, \"$1\")",
+        context_var, binding_name);
     last_pos = match_pos + binding_name.length() + 1;
   }
   result.append(sub_expr.substr(last_pos));

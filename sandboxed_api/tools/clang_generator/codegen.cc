@@ -144,32 +144,17 @@ struct $1SandboxImpl : public $1Sandbox {
 
 std::string SandboxedLibraryEmitter::Func::EmitPostCallBindData() const {
   std::string out;
-  if (context_bound.bind_data.empty()) return out;
-
-  absl::StrAppend(&out,
-                  R"cc({
-                         absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
-                  )cc");
-
   for (const auto& bind : context_bound.bind_data) {
     std::string ctx_name = ResolveContextName(bind.context);
-    // TODO(b/491828958): to start, we abort if the binding already exists.
-    // Should we allow overwriting?
     absl::StrAppend(
         &out,
         absl::Substitute(
-            R"cc(if ($0 != nullptr) {
-                   size_t sapi_bind_val = $1;
-                   auto [sapi_it, sapi_inserted] =
-                       sapi_internal_context_binding_prim_map.insert_or_assign(
-                           std::make_pair($0, "$2"), sapi_bind_val);
-                   CHECK(sapi_inserted);
-                 }
-            )cc",
+            "  if ($0 != nullptr) {\n"
+            "    sapi::lwbox::ContextBindingRegistry::Instance()->BindSize(\n"
+            "        $0, \"$2\", $1);\n"
+            "  }\n",
             ctx_name, bind.host_computable_expr, bind.binding_name));
   }
-
-  absl::StrAppend(&out, "  }\n");
   return out;
 }
 
@@ -296,19 +281,17 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
 
   // Emit the host state variables and code needed to support annotations
   // (params, returns, function-level).
-  absl::StrAppend(&out, "namespace {\n");
   std::vector<std::string> sorted_arg_host_state_vars(
       arg_host_state_vars_.begin(), arg_host_state_vars_.end());
   std::sort(sorted_arg_host_state_vars.begin(),
             sorted_arg_host_state_vars.end());
-  for (const auto& src : sorted_arg_host_state_vars) {
-    absl::StrAppend(&out, src, "\n");
+  if (!sorted_arg_host_state_vars.empty()) {
+    absl::StrAppend(&out, "namespace {\n");
+    for (const auto& src : sorted_arg_host_state_vars) {
+      absl::StrAppend(&out, src, "\n");
+    }
+    absl::StrAppend(&out, "}  // namespace\n\n");
   }
-
-  if (has_context_bindings_) {
-    absl::StrAppend(&out, EmitContextBindingsHostSupportCode());
-  }
-  absl::StrAppend(&out, "}  // namespace\n\n");
 
   for (const auto* func : SortedFuncs()) {
     // Emit the host thunk on the host side if we have one.
@@ -359,110 +342,11 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
       absl::StrAppend(&out, "}\n\n");
     }
   }
-  return Finalize(out, /*is_header=*/false, /*add_includes=*/true);
-}
-
-std::string SandboxedLibraryEmitter::EmitContextBindingsHostSupportCode()
-    const {
-  std::string out;
-  // State variables
-  absl::StrAppend(&out,
-                  R"cc(absl::Mutex sapi_internal_context_binding_mutex;)cc");
-  absl::StrAppend(
-      &out,
-      R"cc(absl::node_hash_map<std::pair<const void*, std::string>, size_t>
-               sapi_internal_context_binding_prim_map
-                   ABSL_GUARDED_BY(sapi_internal_context_binding_mutex);)cc");
-  absl::StrAppend(
-      &out,
-      R"cc(absl::node_hash_map<std::pair<const void*, std::string>,
-                               std::tuple<uintptr_t, size_t, uintptr_t>>
-               sapi_internal_context_binding_map
-                   ABSL_GUARDED_BY(sapi_internal_context_binding_mutex);)cc");
-  absl::StrAppend(
-      &out,
-      R"cc(absl::node_hash_map<std::pair<const void*, std::string>,
-                               std::tuple<uintptr_t, uintptr_t, size_t>>
-               sapi_internal_context_retained_binding_map
-                   ABSL_GUARDED_BY(sapi_internal_context_binding_mutex);)cc");
-  absl::StrAppend(&out, "\n");
-
-  // Helper functions
-  absl::StrAppend(
-      &out,
-      R"cc(
-        void sapi_internal_clear_context_bindings(sapi::SandboxBase* sandbox,
-                                                  const void* context) {
-          if (context == nullptr) return;
-          absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
-          for (auto sapi_it = sapi_internal_context_binding_prim_map.begin();
-               sapi_it != sapi_internal_context_binding_prim_map.end();) {
-            if (sapi_it->first.first == context) {
-              sapi_internal_context_binding_prim_map.erase(sapi_it++);
-            } else {
-              ++sapi_it;
-            }
-          }
-          for (auto sapi_it = sapi_internal_context_binding_map.begin();
-               sapi_it != sapi_internal_context_binding_map.end();) {
-            if (sapi_it->first.first == context) {
-              auto& sapi_binding_data = sapi_it->second;
-              free(reinterpret_cast<void*>(std::get<2>(sapi_binding_data)));
-              sapi_internal_context_binding_map.erase(sapi_it++);
-            } else {
-              ++sapi_it;
-            }
-          }
-          for (auto sapi_it =
-                   sapi_internal_context_retained_binding_map.begin();
-               sapi_it != sapi_internal_context_retained_binding_map.end();) {
-            if (sapi_it->first.first == context) {
-              auto& sapi_binding_data = sapi_it->second;
-              CHECK(sandbox->rpc_channel()
-                        ->Free(reinterpret_cast<void*>(
-                            std::get<1>(sapi_binding_data)))
-                        .ok());
-              sapi_internal_context_retained_binding_map.erase(sapi_it++);
-            } else {
-              ++sapi_it;
-            }
-          }
-        })cc");
-
-  absl::StrAppend(
-      &out,
-      R"cc(
-        absl::Status sapi_internal_sync_from_sandbox_to_host(
-            sapi::SandboxBase* sandbox, uintptr_t remote_ptr,
-            uintptr_t host_ptr, size_t size) {
-          return sandbox->rpc_channel()
-              ->CopyFromSandbox(
-                  remote_ptr,
-                  absl::MakeSpan(reinterpret_cast<char*>(host_ptr), size))
-              .status();
-        }
-
-        size_t sapi_internal_get_context_binding_size(const void* context,
-                                                      absl::string_view name) {
-          if (context == nullptr) return 0;
-          absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
-          auto sapi_it = sapi_internal_context_binding_prim_map.find(
-              {context, std::string(name)});
-          CHECK(sapi_it != sapi_internal_context_binding_prim_map.end());
-          return sapi_it->second;
-        }
-
-        size_t sapi_internal_get_context_binding_size_locked(
-            const void* context, absl::string_view name)
-            ABSL_EXCLUSIVE_LOCKS_REQUIRED(sapi_internal_context_binding_mutex) {
-          if (context == nullptr) return 0;
-          auto sapi_it = sapi_internal_context_binding_prim_map.find(
-              {context, std::string(name)});
-          CHECK(sapi_it != sapi_internal_context_binding_prim_map.end());
-          return sapi_it->second;
-        }
-      )cc");
-  return out;
+  // The host code is the only side that links against the lwbox runtime.
+  return Finalize(
+      out, /*is_header=*/false, /*add_includes=*/true,
+      {absl::Substitute("\"$0sandboxed_api/lwbox/runtime/lwbox_runtime.h\"",
+                        kIncludePrefix)});
 }
 
 void SandboxedLibraryEmitter::EmitFuncDecl(std::string& out, const Func& func) {
@@ -506,7 +390,8 @@ void SandboxedLibraryEmitter::EmitWrapperDecl(std::string& out,
 }
 
 absl::StatusOr<std::string> SandboxedLibraryEmitter::Finalize(
-    const std::string& body, bool is_header, bool add_includes) const {
+    const std::string& body, bool is_header, bool add_includes,
+    const std::vector<std::string>& extra_includes) const {
   std::string out;
   if (is_header) {
     out.append(kHeaderHeader.data(), kHeaderHeader.size());
@@ -514,7 +399,11 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::Finalize(
   out.append(kCommonHeader.data(), kCommonHeader.size());
   if (add_includes) {
     std::vector<std::string> includes(includes_.begin(), includes_.end());
+    includes.insert(includes.end(), extra_includes.begin(),
+                    extra_includes.end());
     std::sort(includes.begin(), includes.end());
+    includes.erase(std::unique(includes.begin(), includes.end()),
+                   includes.end());
     for (const auto& inc : includes) {
       // inc s already formatted as `#include <foo>` or `#include "foo"`.
       absl::StrAppendFormat(&out, "#include %s\n", inc);
@@ -523,6 +412,5 @@ absl::StatusOr<std::string> SandboxedLibraryEmitter::Finalize(
   absl::StrAppend(&out, "\n", body, kCommonFooter);
   return ReformatGoogleStyle("input", out);
 }
-
 
 }  // namespace sapi

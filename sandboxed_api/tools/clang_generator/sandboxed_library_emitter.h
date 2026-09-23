@@ -93,8 +93,11 @@ class SandboxedLibraryEmitter : public EmitterBase {
   static void EmitWrapperDecl(std::string& out, const Func& func);
   void EmitLibraryHeaders(const GeneratorOptions& options,
                           std::string& out) const;
-  absl::StatusOr<std::string> Finalize(const std::string& body, bool is_header,
-                                       bool add_includes) const;
+  // `extra_includes` are added on top of `includes_`, for headers that only
+  // one of the emitted files needs.
+  absl::StatusOr<std::string> Finalize(
+      const std::string& body, bool is_header, bool add_includes,
+      const std::vector<std::string>& extra_includes = {}) const;
 
   absl::StatusOr<ArgPtr> Convert(absl::string_view name, clang::QualType type,
                                  const clang::ParmVarDecl* param,
@@ -111,10 +114,6 @@ class SandboxedLibraryEmitter : public EmitterBase {
     return absl::OkStatus();
   }
 
-  void RecordContextBindingSupportNeeded(
-      const ContextBoundAnnotations& func_context_bound, const ArgPtr& ret,
-      const std::vector<ArgPtr>& args);
-  std::string EmitContextBindingsHostSupportCode() const;
   absl::Status LinkAliasCallbackRelation(
       const clang::FunctionDecl* decl, const Annotations& func_decl_annotations,
       const ArgPtr& ret, const std::vector<ArgPtr>& args);
@@ -133,7 +132,6 @@ class SandboxedLibraryEmitter : public EmitterBase {
   std::optional<std::string> host_code_;
   std::optional<std::string> sandboxee_code_;
   absl::flat_hash_map<std::string, RecordAnnotations> record_annotations_;
-  bool has_context_bindings_ = false;
 };
 
 }  // namespace sapi

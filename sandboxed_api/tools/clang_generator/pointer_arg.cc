@@ -365,9 +365,9 @@ std::string PointerArg::EmitHostPostCall() const {
   // Clear any bindings and free memory, if needed.
   if (context_bound_.clear_bindings) {
     absl::StrAppend(
-        &out,
-        absl::Substitute("sapi_internal_clear_context_bindings(sandbox, $0);\n",
-                         name_));
+        &out, absl::Substitute("sapi::lwbox::ContextBindingRegistry::Instance()"
+                               "->ClearBindings(*sandbox, $0);\n",
+                               name_));
   }
   return out;
 }
@@ -506,8 +506,7 @@ std::string PointerArg::GetCapacityAsBytesExpr() const {
           },
           [](const SizedByBinding& arg) -> std::string {
             std::string context_var = ResolveContextName(arg.context);
-            return CompileBindingExpr(context_var, arg.binding_expr,
-                                      /*locked=*/false);
+            return CompileBindingExpr(context_var, arg.binding_expr);
           },
           [](const NullTerminated& arg) -> std::string {
             LOG(FATAL) << "Not expecting null-terminated PointerArg "
@@ -529,8 +528,7 @@ std::string PointerArg::GetSizeAsBytesExpr() const {
           [](const ByteSizedBy& arg) -> std::string { return arg.expr; },
           [](const SizedByBinding& arg) -> std::string {
             std::string context_var = ResolveContextName(arg.context);
-            return CompileBindingExpr(context_var, arg.binding_expr,
-                                      /*locked=*/false);
+            return CompileBindingExpr(context_var, arg.binding_expr);
           },
           [](const NullTerminated& arg) -> std::string {
             LOG(FATAL) << "Not expecting null-terminated PointerArg "
@@ -621,10 +619,9 @@ std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
     const CopyFromAndBindOutPtr& copy_from_bind, absl::string_view out_ptr_name,
     absl::string_view out_ptr_type) const {
   std::string ctx_name = ResolveContextName(copy_from_bind.context);
-  // Code for calculating the size of the data, and for allocating and
-  // copying. These will be used the first time we create a binding in our
-  // host map. It will run while a lock is held as we look up or insert into
-  // the host map.
+  // Code for calculating the size of the data, and for allocating and copying.
+  // These only run when we create or re-create the binding; an already-bound
+  // buffer is synced into its existing host copy instead.
   std::string size_calc;
   std::string alloc_and_copy_code;
   std::visit(
@@ -632,108 +629,81 @@ std::string PointerArg::EmitCopyFromAndBindOutPtrCode(
           [&size_calc, &alloc_and_copy_code](const ByteSizedBy& arg) {
             size_calc =
                 absl::Substitute("size_t sapi_binding_size = $0;\n", arg.expr);
-            alloc_and_copy_code = R"cc(
-              void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
-              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-                  sandbox, sapi_sb_ptr,
-                  reinterpret_cast<uintptr_t>(sapi_host_copy),
-                  sapi_binding_size));
-            )cc";
+            alloc_and_copy_code = R"(
+        sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+        sapi::lwbox::SyncFromSandboxToHost(
+            *sandbox, sapi_sb_ptr, sapi_host_copy, sapi_binding_size);
+)";
           },
           [this, &size_calc, &alloc_and_copy_code](const ElemSizedBy& arg) {
             size_calc = absl::Substitute(
                 "size_t sapi_binding_size = "
                 "sandbox->CheckedMultiply(sizeof(*$0), ($1));\n",
                 name_, arg.expr);
-            alloc_and_copy_code = R"cc(
-              void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
-              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-                  sandbox, sapi_sb_ptr,
-                  reinterpret_cast<uintptr_t>(sapi_host_copy),
-                  sapi_binding_size));
-            )cc";
+            alloc_and_copy_code = R"(
+        sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+        sapi::lwbox::SyncFromSandboxToHost(
+            *sandbox, sapi_sb_ptr, sapi_host_copy, sapi_binding_size);
+)";
           },
           [&size_calc, &alloc_and_copy_code](const NullTerminated& arg) {
             size_calc = "";  // part of alloc_and_copy_code instead
-            alloc_and_copy_code = R"cc(
-              absl::StatusOr<std::string> sapi_remote_str =
-                  sandbox->GetCString(sapi::v::RemotePtr(
-                      reinterpret_cast<const void*>(sapi_sb_ptr)));
-              sandbox->Check(sapi_remote_str.status());
-              size_t sapi_binding_size = sapi_remote_str->size();
-              void* sapi_host_copy = calloc(sapi_binding_size + 1, sizeof(char));
-              memcpy(sapi_host_copy, sapi_remote_str->data(), sapi_binding_size);
-            )cc";
+            alloc_and_copy_code = R"(
+        absl::StatusOr<std::string> sapi_remote_str =
+            sandbox->GetCString(sapi::v::RemotePtr(
+                reinterpret_cast<const void*>(sapi_sb_ptr)));
+        sandbox->Check(sapi_remote_str.status());
+        size_t sapi_binding_size = sapi_remote_str->size();
+        sapi_host_copy = calloc(sapi_binding_size + 1, sizeof(char));
+        memcpy(sapi_host_copy, sapi_remote_str->data(), sapi_binding_size);
+)";
           },
           [&size_calc, &alloc_and_copy_code](const SizedByBinding& arg) {
             std::string context_var = ResolveContextName(arg.context);
-            std::string size_expr = CompileBindingExpr(
-                context_var, arg.binding_expr, /*locked=*/true);
+            std::string size_expr =
+                CompileBindingExpr(context_var, arg.binding_expr);
             size_calc =
                 absl::Substitute("size_t sapi_binding_size = $0;\n", size_expr);
-            alloc_and_copy_code = R"cc(
-              void* sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
-              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-                  sandbox, sapi_sb_ptr,
-                  reinterpret_cast<uintptr_t>(sapi_host_copy),
-                  sapi_binding_size));
-            )cc";
+            alloc_and_copy_code = R"(
+        sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
+        sapi::lwbox::SyncFromSandboxToHost(
+            *sandbox, sapi_sb_ptr, sapi_host_copy, sapi_binding_size);
+)";
           },
           [](std::monostate) {
             LOG(FATAL) << "Expected a sized context-bound pointer.";
           }),
       sized_by_type_);
 
-  // On the first call, make a host copy and bind. Otherwise, sync if already
-  // bound. TODO(b/491828958): to start, we abort if the sapi_sb_ptr changed
-  // vs a previous binding. Should we allow overwriting?
+  // The `else` branch below reuses the host buffer recorded when the binding
+  // was first created, and syncs it using `sapi_bound_buf->bytes`, the size
+  // captured at bind time. If the sandboxee has since grown the buffer, only
+  // the original number of bytes is copied back and the host copy is stale.
+  // TODO(b/491828958): Re-read the current size instead of reusing the size
+  // captured at bind time.
   return absl::Substitute(
-      R"cc({  // Get or create context binding.
-             auto* sapi_returned_sb_ptr = $2.GetValue();
-             if (sapi_returned_sb_ptr != nullptr && $0 != nullptr) {
-               absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
-               auto sapi_it = sapi_internal_context_binding_map.find(
-                   // {ctx, binding}
-                   {$0, "$1"});
-               if (sapi_it == sapi_internal_context_binding_map.end()) {
-                 uintptr_t sapi_sb_ptr = reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr);
-                 $3
-                     // Alloc for host and copy
-                     $4
-                     // Bind
-                     auto [sapi_new_it, sapi_inserted] =
-                         sapi_internal_context_binding_map.insert(
-                             {{$0, "$1"},
-                              std::make_tuple(sapi_sb_ptr, sapi_binding_size,
-                                              reinterpret_cast<uintptr_t>(
-                                                  sapi_host_copy))});
-                 CHECK(sapi_inserted);
-                 sapi_it = sapi_new_it;
-               } else {
-                 auto& sapi_binding_data = sapi_it->second;
-                 uintptr_t sapi_sb_ptr = std::get<0>(sapi_binding_data);
-                 if (sapi_sb_ptr != reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr)) {
-                   // Allow re-binding if the sandbox pointer changed.
-                   // First, free the old host copy.
-                   free(reinterpret_cast<void*>(std::get<2>(sapi_binding_data)));
-                   sapi_sb_ptr = reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr);
-                   // Compute size
-                   $3
-                       // Alloc for host and copy
-                       $4
-                           // Update binding
-                           sapi_binding_data = std::make_tuple(
-                               sapi_sb_ptr, sapi_binding_size,
-                               reinterpret_cast<uintptr_t>(sapi_host_copy));
-                 } else {
-                   sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-                       sandbox, sapi_sb_ptr, std::get<2>(sapi_binding_data),
-                       std::get<1>(sapi_binding_data)));
-                 }
-               }
-               $2.SetValue(reinterpret_cast<$5>(std::get<2>(sapi_it->second)));
-             }
-           })cc",
+      R"(  {  // Get or create context binding.
+    auto* sapi_returned_sb_ptr = $2.GetValue();
+    if (sapi_returned_sb_ptr != nullptr && $0 != nullptr) {
+      uintptr_t sapi_sb_ptr = reinterpret_cast<uintptr_t>(sapi_returned_sb_ptr);
+      void* sapi_host_copy = nullptr;
+      auto sapi_bound_buf =
+          sapi::lwbox::ContextBindingRegistry::Instance()
+              ->GetBoundHostBuffer($0, "$1");
+      if (!sapi_bound_buf.has_value() ||
+          sapi_bound_buf->remote_ptr != sapi_sb_ptr) {
+        $3$4        sapi::lwbox::ContextBindingRegistry::Instance()
+            ->BindHostBuffer($0, "$1", sapi_sb_ptr, sapi_host_copy,
+                             sapi_binding_size);
+      } else {
+        sapi_host_copy = sapi_bound_buf->host_ptr;
+        sapi::lwbox::SyncFromSandboxToHost(
+            *sandbox, sapi_sb_ptr, sapi_host_copy, sapi_bound_buf->bytes);
+      }
+      $2.SetValue(reinterpret_cast<$5>(sapi_host_copy));
+    }
+  }
+)",
       ctx_name, copy_from_bind.binding_name, out_ptr_name, size_calc,
       alloc_and_copy_code, out_ptr_type);
 }
@@ -761,8 +731,8 @@ std::string PointerArg::EmitParamRetainPreCall(
                  },
                  [&size_calc, &suffix](const SizedByBinding& arg) {
                    std::string context_var = ResolveContextName(arg.context);
-                   std::string size_expr = CompileBindingExpr(
-                       context_var, arg.binding_expr, /*locked=*/false);
+                   std::string size_expr =
+                       CompileBindingExpr(context_var, arg.binding_expr);
                    size_calc = absl::Substitute("sapi_binding_size_$0 = $1;\n",
                                                 suffix, size_expr);
                  },
@@ -807,33 +777,26 @@ std::string PointerArg::EmitParamRetainPostCall(
   std::string out;
   if (ptr_dir_ == PointerDir::kOut || ptr_dir_ == PointerDir::kInOut) {
     // Sync after the call.
-    absl::SubstituteAndAppend(
-        &out,
-        R"cc(
-          if (sapi_sb_copy_$0 != nullptr) {
-            sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-                sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
-                reinterpret_cast<uintptr_t>($0), sapi_binding_size_$0));
-          }
-        )cc",
-        name_);
+    absl::SubstituteAndAppend(&out,
+                              R"(  if (sapi_sb_copy_$0 != nullptr) {
+    sapi::lwbox::SyncFromSandboxToHost(
+        *sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+        reinterpret_cast<void*>($0), sapi_binding_size_$0);
   }
-  // Add binding to the map.
+)",
+                              name_);
+  }
+  // Retain the sandbox buffer so that later calls sharing the context can find
+  // it, and so that it is freed when the context's bindings are cleared.
   std::string ctx_name = ResolveContextName(retain_and_bind.context);
   absl::SubstituteAndAppend(
       &out,
-      R"cc(
-        if (sapi_sb_copy_$0 != nullptr && $1 != nullptr) {
-          absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
-          auto [sapi_new_it, sapi_inserted] =
-              sapi_internal_context_retained_binding_map.insert(
-                  {{$1, "$2"},
-                   std::make_tuple(reinterpret_cast<uintptr_t>($0),
-                                   reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
-                                   sapi_binding_size_$0)});
-          CHECK(sapi_inserted);
-        }
-      )cc",
+      R"(  if (sapi_sb_copy_$0 != nullptr && $1 != nullptr) {
+    sapi::lwbox::ContextBindingRegistry::Instance()->RetainPointer(
+        $1, "$2", reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+        sapi_binding_size_$0);
+  }
+)",
       name_, ctx_name, retain_and_bind.binding_name);
   return out;
 }
@@ -890,8 +853,7 @@ std::string PointerArg::EmitStructMemberSyncsPreCall() const {
                    [&](const SizedByBinding& size) {
                      std::string context_var = ResolveContextName(size.context);
                      std::string size_expr =
-                         CompileBindingExpr(context_var, size.binding_expr,
-                                            /*locked=*/false);
+                         CompileBindingExpr(context_var, size.binding_expr);
                      size_calc = absl::Substitute("sapi_member_size_$0 = $1;\n",
                                                   suffix, size_expr);
                    },
@@ -962,16 +924,14 @@ std::string PointerArg::EmitStructMemberSyncsPostCall() const {
     // Sync pointed to data, based on the size (computed in pre-call)
     if (sync.ptr_dir == PointerDir::kOut ||
         sync.ptr_dir == PointerDir::kInOut) {
-      absl::SubstituteAndAppend(
-          &out,
-          R"cc(
-            if (sapi_sb_copy_$0 != nullptr) {
-              sandbox->Check(sapi_internal_sync_from_sandbox_to_host(
-                  sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
-                  reinterpret_cast<uintptr_t>($1), sapi_member_size_$0));
-            }
-          )cc",
-          suffix, host_ptr_expr);
+      absl::SubstituteAndAppend(&out,
+                                R"(  if (sapi_sb_copy_$0 != nullptr) {
+    sapi::lwbox::SyncFromSandboxToHost(
+        *sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+        reinterpret_cast<void*>($1), sapi_member_size_$0);
+  }
+)",
+                                suffix, host_ptr_expr);
     }
 
     // Either retain and bind, or free.
@@ -980,21 +940,13 @@ std::string PointerArg::EmitStructMemberSyncsPostCall() const {
           ResolveContextName(sync.context_bound.retain_and_bind->context);
       absl::SubstituteAndAppend(
           &out,
-          R"cc(
-            if (sapi_sb_copy_$0 != nullptr && $1 != nullptr) {
-              absl::MutexLock sapi_lock(sapi_internal_context_binding_mutex);
-              auto [sapi_new_it, sapi_inserted] =
-                  sapi_internal_context_retained_binding_map.insert(
-                      {{$1, "$2"},
-                       std::make_tuple(
-                           reinterpret_cast<uintptr_t>($3),
-                           reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
-                           sapi_member_size_$0)});
-              CHECK(sapi_inserted);
-            }
-          )cc",
-          suffix, ctx_name, sync.context_bound.retain_and_bind->binding_name,
-          host_ptr_expr);
+          R"(  if (sapi_sb_copy_$0 != nullptr && $1 != nullptr) {
+    sapi::lwbox::ContextBindingRegistry::Instance()->RetainPointer(
+        $1, "$2", reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
+        sapi_member_size_$0);
+  }
+)",
+          suffix, ctx_name, sync.context_bound.retain_and_bind->binding_name);
     } else {
       absl::SubstituteAndAppend(&out,
                                 R"cc(

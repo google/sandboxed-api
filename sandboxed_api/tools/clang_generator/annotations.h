@@ -252,11 +252,10 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
 
 std::string ResolveContextName(absl::string_view context);
 
-// Expands the `expr` and replaces all `$binding_name` with context binding
-// lookups. If `locked` is true, then the binding mutex is assumed to be held
-// already.
+// Expands the `expr` and replaces all `$binding_name` with lookups against the
+// lwbox context binding registry.
 std::string CompileBindingExpr(absl::string_view context_var,
-                               absl::string_view expr, bool locked);
+                               absl::string_view expr);
 
 }  // namespace sapi
 

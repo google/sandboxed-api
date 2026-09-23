@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
@@ -244,31 +243,6 @@ struct ConstCStrArg : Arg {
     }
   }
 
-  std::vector<std::string> Includes() const override {
-    if (std::holds_alternative<SandboxGlobalLifetime>(lifetime_)) {
-      // TODO(jvoung): Make the hash map and mutex includes are only needed
-      // for the host (for HostStateVars), and not the sandboxee.
-      return {
-          "<string>",
-          absl::Substitute("\"$0absl/container/node_hash_map.h\"",
-                           kIncludePrefix),
-          absl::Substitute("\"$0absl/synchronization/mutex.h\"",
-                           kIncludePrefix),
-      };
-    }
-    return {};
-  }
-
-  std::vector<std::string> HostStateVars() const override {
-    if (std::holds_alternative<SandboxGlobalLifetime>(lifetime_)) {
-      return {"absl::Mutex sapi_internal_global_cstr_mutex;",
-              "absl::node_hash_map<const void*, std::string> "
-              "sapi_internal_global_cstr_map "
-              "ABSL_GUARDED_BY(sapi_internal_global_cstr_mutex);"};
-    }
-    return {};
-  }
-
   std::string EmitHostPreCall() const override {
     if (ptr_dir_ == PointerDir::kIn) {
       return absl::Substitute("  sapi::v::ConstCStr sapi_tmp_$0($0);\n", name_);
@@ -316,29 +290,8 @@ struct ConstCStrArg : Arg {
     // incorrectly re-use an older copy, but at least it will consistently use
     // this stale copy on the host side, rather than have TOCTTOU issues.
     return absl::Substitute(R"(  if ($0 != nullptr) {
-    const char* remote_ptr = sapi_tmp_$0.GetValue();
-    if (!remote_ptr) {
-      *$0 = nullptr;
-    } else {
-      bool found = false;
-      {
-        absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
-        auto it = sapi_internal_global_cstr_map.find(remote_ptr);
-        if (it != sapi_internal_global_cstr_map.end()) {
-          *$0 = it->second.c_str();
-          found = true;
-        }
-      }
-      if (!found) {
-        absl::StatusOr<std::string> remote_str = sandbox->GetCString(
-            sapi::v::RemotePtr(remote_ptr));
-        sandbox->Check(remote_str.status());
-        absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
-        auto [it, inserted] = sapi_internal_global_cstr_map.insert(
-            {remote_ptr, *std::move(remote_str)});
-        *$0 = it->second.c_str();
-      }
-    }
+    *$0 = sapi::lwbox::GlobalStringRegistry::Instance()->GetOrFetch(
+        *sandbox, sapi_tmp_$0.GetValue());
   }
 )",
                             name_);
@@ -363,27 +316,8 @@ struct ConstCStrArg : Arg {
   }
 
   std::string EmitHostRet() const override {
-    std::string out;
-    absl::StrAppend(
-        &out, absl::Substitute(R"(  $0 remote_ptr = sapi_ret_arg.GetValue();
-  if (!remote_ptr) return nullptr;
-  {
-    absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
-    auto it = sapi_internal_global_cstr_map.find(remote_ptr);
-    if (it != sapi_internal_global_cstr_map.end()) {
-      return it->second.c_str();
-    }
-  }
-  absl::StatusOr<std::string> remote_str = sandbox->GetCString(
-      sapi::v::RemotePtr(remote_ptr));
-  sandbox->Check(remote_str.status());
-  absl::MutexLock sapi_lock(sapi_internal_global_cstr_mutex);
-  auto [it, inserted] = sapi_internal_global_cstr_map.insert(
-      {remote_ptr, *std::move(remote_str)});
-  return it->second.c_str();
-)",
-                               type_));
-    return out;
+    return "  return sapi::lwbox::GlobalStringRegistry::Instance()->GetOrFetch("
+           "*sandbox, sapi_ret_arg.GetValue());\n";
   }
 
  private:

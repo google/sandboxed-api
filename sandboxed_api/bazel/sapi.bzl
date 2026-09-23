@@ -604,11 +604,10 @@ def cc_sandboxed_library(
         deps = [
             "//sandboxed_api:lenval_core",
             "//sandboxed_api/lwbox/runtime:sandbox_config",
+            "//sandboxed_api/lwbox/runtime",
             "//sandboxed_api/sandbox2/util:bpf_helper",
             "@abseil-cpp//absl/log:check",
             "@abseil-cpp//absl/container:flat_hash_map",
-            "@abseil-cpp//absl/container:node_hash_map",
-            "@abseil-cpp//absl/synchronization:synchronization",
             "@abseil-cpp//absl/functional:any_invocable",
         ] + host_deps,
         **common
