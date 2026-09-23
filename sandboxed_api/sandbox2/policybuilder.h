@@ -1022,6 +1022,8 @@ class PolicyBuilder final {
   // Not recommended
   //
   // NOTE: Requires namespace support.
+  // NOTE: Does not work with EnableSharedMountNamespace() -- a writable
+  // root is rejected there.
   PolicyBuilder& SetRootWritable();
 
   // Changes mounts propagation from MS_PRIVATE to MS_SLAVE.
