@@ -1,5 +1,5 @@
 <p align="left">
-  <img src="https://badge.buildkite.com/2f662d7bddfd1c07d25bf92d243538c8344bc6fbf38fe187f8.svg" alt="Bazel build status on BuildKite" href="https://buildkite.com/bazel/sandboxed-api">
+  <img src="https://github.com/google/sandboxed-api/workflows/debian-bazel/badge.svg" alt="Bazel build status on GitHub" href="https://github.com/google/sandboxed-api/actions/workflows/debian-bazel.yml">
   <img src="https://github.com/google/sandboxed-api/workflows/ubuntu-cmake/badge.svg" alt="CMake build status on GitHub" href="https://github.com/google/sandboxed-api/actions/workflows/ubuntu-cmake.yml">
 </p>
 <p align="center">

@@ -1,0 +1,48 @@
+name: debian-bazel
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: debian:13
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: |
+        apt-get update
+        env DEBIAN_FRONTEND=noninteractive \
+          apt-get install -qy --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            clang \
+            curl \
+            file \
+            git \
+            libclang-dev \
+            libncurses-dev \
+            libzstd-dev \
+            llvm-dev \
+            python3 \
+            python3-clang \
+            unzip \
+            wget \
+            zip \
+            zlib1g-dev
+        curl -fsSL https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
+          -o /usr/local/bin/bazel
+        chmod +x /usr/local/bin/bazel
+
+    - name: Cache Bazel repository cache
+      uses: actions/cache@v4
+      with:
+        key: debian13-bazel-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
+        restore-keys: |
+          debian13-bazel-
+        path: |
+          /root/.cache/bazel
+
+    - name: Build with Bazel
+      run: |
+        bazel build ...
