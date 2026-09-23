@@ -440,12 +440,21 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithUninitialized) {
   EXPECT_TRUE(func.return_value->uninitialized());
   ASSERT_TRUE(func.return_value->Is<BufferParam>());
   EXPECT_TRUE(func.return_value->As<BufferParam>()->uninitialized);
+  // No direction is spelled anywhere, but a buffer handed back through a
+  // return value travels out of the callee.
+  EXPECT_EQ(func.return_value->As<BufferParam>()->direction, PointerDir::kOut);
 
   ASSERT_EQ(func.parameters.size(), 2);
   EXPECT_FALSE(func.parameters[0].uninitialized());
   EXPECT_TRUE(func.parameters[1].uninitialized());
   ASSERT_TRUE(func.parameters[1].Is<CallbackParam>());
-  EXPECT_TRUE(func.parameters[1].As<CallbackParam>()->uninitialized);
+  const CallbackParam* cb = func.parameters[1].As<CallbackParam>();
+  EXPECT_TRUE(cb->uninitialized);
+  // Same for the callback's own return value, whose direction would have to
+  // come from the enclosing `get_chunk` parameter.
+  ASSERT_NE(cb->return_value, nullptr);
+  ASSERT_TRUE(cb->return_value->Is<BufferParam>());
+  EXPECT_EQ(cb->return_value->As<BufferParam>()->direction, PointerDir::kOut);
 }
 
 TEST_F(IrConvertTest, ASTToFunctionIRConversionWithStructSync) {

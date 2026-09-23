@@ -801,14 +801,14 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
   // defaulted just below) are exempted.
   //
   // Return values are exempted because a direction is never spelled on the
-  // returned pointer itself. On a function return it is implied by the
+  // returned pointer itself. On a function return it is only implied by the
   // lifetime annotation, which ParseAnnotations turns into kOut (see
-  // alias_ptr, alias_callback_return and copy_from_and_bind_out_ptr). On a
-  // callback's return pointer it is written on the enclosing callback
-  // parameter instead (SANDBOX_OUT_PTR on `cb`), and that parameter's
-  // annotations are only grafted onto the converted return value afterwards,
-  // in ConvertParameterToIR. Either way `ann` is still empty at this point,
-  // and data coming back out of the sandbox has only one direction to flow in.
+  // alias_ptr, alias_callback_return and copy_from_and_bind_out_ptr), and is
+  // absent otherwise. On a callback's return pointer it is written on the
+  // enclosing callback parameter instead (SANDBOX_OUT_PTR on `cb`), which
+  // reaches ConvertParameterToIR as a `CallbackReturnSource`, so `ann` is
+  // empty here. Either way, data coming back out of the sandbox has only one
+  // direction to flow in.
   //
   // Functors need no exemption: they are record types, so they never satisfy
   // the isPointerType() check below.
@@ -908,19 +908,64 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
   return absl::OkStatus();
 }
 
+// Provenance of a parameter being converted to IR. Each alternative carries
+// the AST declaration (or enclosing callback annotations) that applies to that
+// position.
+struct FunctionParamSource {
+  const clang::ParmVarDecl* decl;
+};
+struct CallbackParamSource {
+  const clang::ParmVarDecl* decl;
+};
+struct FunctionReturnSource {
+  const clang::FunctionDecl* decl;
+};
+struct CallbackReturnSource {
+  // Callback return values have no AST Decl of their own; pointer direction
+  // and buffer bounds written on the enclosing callback parameter apply to the
+  // buffer the callback returns.
+  const Annotations& callback_annotations;
+};
+
+using ParamSource = std::variant<FunctionParamSource, CallbackParamSource,
+                                 FunctionReturnSource, CallbackReturnSource>;
+
 absl::StatusOr<ir::Parameter> ConvertParameterToIR(
-    absl::string_view name, clang::QualType type,
-    const clang::ParmVarDecl* param, const clang::FunctionDecl* func_decl,
-    bool is_return_value,
+    absl::string_view name, clang::QualType type, const ParamSource& source,
     const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations,
-    bool is_callback_param) {
-  Annotations ann;
-  if (param) {
-    ABSL_ASSIGN_OR_RETURN(ann, ParseAnnotations(name, param));
-  } else if (func_decl) {
-    ABSL_ASSIGN_OR_RETURN(ann, ParseAnnotations(name, func_decl));
-  }
+        record_annotations) {
+  const bool is_return_value =
+      std::holds_alternative<FunctionReturnSource>(source) ||
+      std::holds_alternative<CallbackReturnSource>(source);
+  const bool is_callback_param =
+      std::holds_alternative<CallbackParamSource>(source);
+
+  ABSL_ASSIGN_OR_RETURN(
+      Annotations ann,
+      std::visit(
+          absl::Overload{
+              [&](const FunctionParamSource& s) {
+                return ParseAnnotations(name, s.decl);
+              },
+              [&](const CallbackParamSource& s) {
+                return ParseAnnotations(name, s.decl);
+              },
+              [&](const FunctionReturnSource& s) {
+                return ParseAnnotations(name, s.decl);
+              },
+              [](const CallbackReturnSource&) -> absl::StatusOr<Annotations> {
+                // A callback return value has no declaration to parse
+                // annotations from. Only the direction and bounds written on
+                // the enclosing callback parameter describe the returned
+                // buffer; they are read straight out of `CallbackReturnSource`
+                // where the buffer payload is built below. The parameter's
+                // other annotations (lifetime, context binding, struct sync)
+                // describe the parameter itself and must not leak onto the
+                // return value.
+                return Annotations{};
+              },
+          },
+          source));
 
   ABSL_RETURN_IF_ERROR(ValidateParamAnnotations(
       name, type, ann, is_return_value, is_callback_param));
@@ -941,29 +986,26 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       ann.ptr_dir != PointerDir::kHostOpaque &&
       !(ir_param.type.kind == ir::TypeKind::kString ||
         (ir_param.type.is_pointer() && ir_param.type.is_pointee_string()))) {
-    if (!is_return_value) {
-      if (!is_callback_param) {
-        const clang::ASTContext& context =
-            param ? param->getASTContext() : func_decl->getASTContext();
-        if (!ann.shallow_struct_sync && ann.struct_sync.empty() &&
-            !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
-                                           record_annotations) &&
-            !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
-               std::holds_alternative<SizedByBinding>(ann.size_type)) &&
-              IsSupportedArgByteSizedByType(type)) &&
-            !(std::holds_alternative<NullTerminated>(ann.size_type) &&
-              std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime) &&
-              ann.ptr_dir != PointerDir::kIn &&
-              IsSupportedOutParamNullTerminatedType(type)) &&
-            !(ann.context_bound.copy_from_and_bind.has_value() &&
-              ann.ptr_dir == PointerDir::kOut &&
-              IsSupportedOutParamContextBoundType(context, type,
-                                                  record_annotations))) {
-          return absl::InvalidArgumentError(absl::Substitute(
-              "pointer argument $0 has unsupported pointee type", name));
-        }
+    if (const auto* fp = std::get_if<FunctionParamSource>(&source)) {
+      const clang::ASTContext& context = fp->decl->getASTContext();
+      if (!ann.shallow_struct_sync && ann.struct_sync.empty() &&
+          !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
+                                         record_annotations) &&
+          !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
+             std::holds_alternative<SizedByBinding>(ann.size_type)) &&
+            IsSupportedArgByteSizedByType(type)) &&
+          !(std::holds_alternative<NullTerminated>(ann.size_type) &&
+            std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime) &&
+            ann.ptr_dir != PointerDir::kIn &&
+            IsSupportedOutParamNullTerminatedType(type)) &&
+          !(ann.context_bound.copy_from_and_bind.has_value() &&
+            ann.ptr_dir == PointerDir::kOut &&
+            IsSupportedOutParamContextBoundType(context, type,
+                                                record_annotations))) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "pointer argument $0 has unsupported pointee type", name));
       }
-    } else if (!type->getPointeeType()->isArithmeticType() &&
+    } else if (is_return_value && !type->getPointeeType()->isArithmeticType() &&
                !std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime) &&
                !std::holds_alternative<AliasCallbackReturnLifetime>(
                    ann.lifetime)) {
@@ -985,6 +1027,18 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   if (ir_param.type.kind == ir::TypeKind::kCallback) {
     ir::CallbackParam cb;
     cb.uninitialized = ann.uninitialized;
+    const clang::ParmVarDecl* param = std::visit(
+        absl::Overload{
+            [](const FunctionParamSource& s) { return s.decl; },
+            [](const CallbackParamSource& s) { return s.decl; },
+            [](const FunctionReturnSource&) -> const clang::ParmVarDecl* {
+              return nullptr;
+            },
+            [](const CallbackReturnSource&) -> const clang::ParmVarDecl* {
+              return nullptr;
+            },
+        },
+        source);
     if (param != nullptr) {
       std::vector<std::string> cb_names;
       std::vector<std::string> cb_types;
@@ -996,9 +1050,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         ABSL_ASSIGN_OR_RETURN(
             ir::Parameter cb_param,
             ConvertParameterToIR(cb_names[i], cb_decls[i]->getType(),
-                                 cb_decls[i], nullptr,
-                                 /*is_return_value=*/false, record_annotations,
-                                 /*is_callback_param=*/true));
+                                 CallbackParamSource{cb_decls[i]},
+                                 record_annotations));
         cb.callback_parameters.push_back(std::move(cb_param));
       }
       clang::QualType cb_return_qual_type;
@@ -1023,16 +1076,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       if (!cb_return_qual_type.isNull() && !cb_return_qual_type->isVoidType()) {
         ABSL_ASSIGN_OR_RETURN(
             ir::Parameter cb_ret_param,
-            ConvertParameterToIR("return_val", cb_return_qual_type, nullptr,
-                                 nullptr, /*is_return_value=*/true,
-                                 record_annotations,
-                                 /*is_callback_param=*/false));
-        if (ann.ptr_dir.has_value()) {
-          if (auto* buf = cb_ret_param.As<ir::BufferParam>()) {
-            buf->direction = *ann.ptr_dir;
-            buf->bounds = AnnotationsToBufferBounds(ann);
-          }
-        }
+            ConvertParameterToIR("return_val", cb_return_qual_type,
+                                 CallbackReturnSource{ann},
+                                 record_annotations));
         cb.return_value =
             std::make_shared<ir::Parameter>(std::move(cb_ret_param));
       }
@@ -1181,20 +1227,31 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   }
 
   // General buffer pointers. Null-terminated C-strings are buffers whose
-  // bounds are `BufferBounds::Kind::kNullTerminated`.
+  // bounds are `bounds::NullTerminated`.
   if (ir_param.type.is_pointer()) {
-    // `ann.ptr_dir` is legitimately absent here for return values: the
-    // direction validation above exempts them, and a callback's return value
-    // is converted with no decl at all, so it never parses annotations. Where
-    // the enclosing callback parameter carries a direction, it is grafted on
-    // afterwards.
-    ir_param.payload = ir::BufferParam{
-        .direction = ann.ptr_dir.value_or(PointerDir::kIn),
-        .bounds = AnnotationsToBufferBounds(ann),
-        .lifetime = AnnotationsToLifetimePolicy(ann),
-        .context_bound = std::move(ann.context_bound),
-        .uninitialized = ann.uninitialized,
-    };
+    if (const auto* cr = std::get_if<CallbackReturnSource>(&source)) {
+      // Nothing requires the enclosing callback parameter to spell a
+      // direction, so it may be absent. A buffer the callback hands back
+      // travels out of it either way.
+      ir_param.payload = ir::BufferParam{
+          .direction =
+              cr->callback_annotations.ptr_dir.value_or(PointerDir::kOut),
+          .bounds = AnnotationsToBufferBounds(cr->callback_annotations),
+      };
+    } else {
+      // `ann.ptr_dir` is absent for function return values, which the
+      // direction validation above exempts, and for pointer-to-pointer
+      // arguments, which it does not classify as buffers. Buffer pointers on
+      // regular and callback parameters always carry one.
+      ir_param.payload = ir::BufferParam{
+          .direction = ann.ptr_dir.value_or(is_return_value ? PointerDir::kOut
+                                                            : PointerDir::kIn),
+          .bounds = AnnotationsToBufferBounds(ann),
+          .lifetime = AnnotationsToLifetimePolicy(ann),
+          .context_bound = std::move(ann.context_bound),
+          .uninitialized = ann.uninitialized,
+      };
+    }
     return ir_param;
   }
 
@@ -1277,11 +1334,10 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
 
   clang::QualType ret_type = func_decl->getReturnType();
   if (!ret_type->isVoidType()) {
-    ABSL_ASSIGN_OR_RETURN(
-        ir_func.return_value,
-        ConvertParameterToIR("sapi_ret_arg", ret_type, nullptr, func_decl,
-                             /*is_return_value=*/true, record_annotations,
-                             /*is_callback_param=*/false));
+    ABSL_ASSIGN_OR_RETURN(ir_func.return_value,
+                          ConvertParameterToIR("sapi_ret_arg", ret_type,
+                                               FunctionReturnSource{func_decl},
+                                               record_annotations));
   }
 
   ir_func.parameters.reserve(func_decl->getNumParams());
@@ -1293,9 +1349,8 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
     }
     ABSL_ASSIGN_OR_RETURN(
         ir::Parameter ir_param,
-        ConvertParameterToIR(name, param->getType(), param, nullptr,
-                             /*is_return_value=*/false, record_annotations,
-                             /*is_callback_param=*/false));
+        ConvertParameterToIR(name, param->getType(), FunctionParamSource{param},
+                             record_annotations));
     ir_func.parameters.push_back(std::move(ir_param));
   }
 
