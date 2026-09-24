@@ -196,6 +196,13 @@ class SandboxPool : public std::enable_shared_from_this<SandboxPool<SandboxT>> {
     return options_.max_maintenance_threads.value_or(1) != 0;
   }
 
+  // How long a caller blocked on a pool that is at its maximum size waits
+  // before checking again whether it can create a sandbox itself. Short enough
+  // to be unnoticeable next to the cost of starting a sandbox, long enough to
+  // cost nothing. See AcquireSlow().
+  static constexpr absl::Duration kExhaustedPollInterval =
+      absl::Milliseconds(50);
+
   SandboxPoolOptions options_;
   Factory factory_;
 
@@ -286,28 +293,43 @@ SandboxHandle<SandboxT> SandboxPool<SandboxT>::MakeHandle(
 template <typename SandboxT>
 absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::AcquireSlow(
     absl::Duration timeout) {
-  absl::Time start_time = absl::Now();
+  const absl::Time start_time = absl::Now();
+  const absl::Time deadline = start_time + timeout;
 
-  // There was no idle sandbox, so try creating a new one.
-  auto sandbox = CreateSandbox(options_.max_sandboxes);
-
-  // If creating the sandbox failed, return the error status.
-  if (!sandbox.ok()) {
-    return sandbox.status();
-  }
-
-  // If creating the sandbox succeeded, return the new sandbox.
-  if (*sandbox != nullptr) {
-    return MakeHandle(std::make_unique<PoolEntry>(std::move(*sandbox), 0));
-  }
-
-  // Wait for an idle sandbox.
   std::unique_ptr<PoolEntry> entry;
-  bool popped = idle_queue_.PopWithDeadline(entry, start_time + timeout);
+  for (absl::Time now = start_time; entry == nullptr; now = absl::Now()) {
+    // There is no idle sandbox, so try creating a new one.
+    absl::StatusOr<std::unique_ptr<SandboxT>> sandbox =
+        CreateSandbox(options_.max_sandboxes);
+    if (!sandbox.ok()) {
+      return sandbox.status();
+    }
+    if (*sandbox != nullptr) {
+      entry = std::make_unique<PoolEntry>(std::move(*sandbox), 0);
+      break;
+    }
 
-  if (!popped) {
-    return absl::DeadlineExceededError("Sandbox pool acquisition timed out.");
+    if (now >= deadline) {
+      return absl::DeadlineExceededError("Sandbox pool acquisition timed out.");
+    }
+
+    // The pool is at its maximum size, so wait for a sandbox to be released.
+    // The wait is capped rather than run to the deadline, because a slot can
+    // also come free without anything being pushed to the idle queue -- a
+    // release that drops its sandbox instead of queueing another recycle, or a
+    // recycle whose factory fails -- and only a push wakes a waiter. Checking
+    // again from here keeps that responsibility in one place, rather than
+    // spreading it over every path that frees a slot.
+    const absl::Time wait_until =
+        std::min(deadline, now + kExhaustedPollInterval);
+    bool popped = idle_queue_.PopWithDeadline(entry, wait_until);
+    if (!popped && idle_queue_.IsStopped()) {
+      // The pool is being torn down. Retrying would spin, as a stopped queue
+      // returns immediately.
+      return absl::CancelledError("Sandbox pool is shutting down.");
+    }
   }
+
   return MakeHandle(std::move(entry));
 }
 
@@ -326,6 +348,15 @@ absl::Status SandboxPool<SandboxT>::Init() {
         kMaxDefaultMaintenanceThreads);
     size_t num_workers =
         options_.max_maintenance_threads.value_or(default_workers);
+    // Bound the worker queue to 2 * num_workers, or min_sandboxes if larger.
+    // Keeping the queue at least as large as min_sandboxes guarantees both
+    // that all initial CreateTask items fit in Init() without waiting, and
+    // that shedding recycles via TryPush() in Release() structurally leaves
+    // at least min_sandboxes replacements in the queue to refill idle_queue_.
+    if (!worker_queue_.SetMaxSize(
+            std::max(2 * num_workers, options_.min_sandboxes))) {
+      return absl::InternalError("Failed to set worker queue maximum size.");
+    }
     maintenance_workers_.reserve(num_workers);
     for (size_t i = 0; i < num_workers; ++i) {
       maintenance_workers_.emplace_back(this, &SandboxPool<SandboxT>::WorkerRun,
@@ -357,20 +388,45 @@ void SandboxPool<SandboxT>::Release(std::unique_ptr<PoolEntry> entry) {
 
   active_count_.fetch_sub(1, std::memory_order_relaxed);
 
-  if (recycle) {
-    if (ShouldUseBackgroundThreads()) {
-      // Needs recycling. Push to the worker queue to be recycled in a
-      // maintenance thread.
-      worker_queue_.Push(std::bind_front(&SandboxPool<SandboxT>::RecycleTask,
-                                         this, std::move(entry)));
-    } else {
-      // Threadless mode: recycle synchronously.
-      RecycleTask(std::move(entry), /*is_shutting_down=*/false);
-    }
-  } else {
-    // Otherwise, push back to the idle queue immediately.
+  if (!recycle) {
+    // Not due for recycling, so push back to the idle queue immediately.
     idle_queue_.Push(std::move(entry));
+    return;
   }
+
+  if (!ShouldUseBackgroundThreads()) {
+    // Threadless mode: recycle synchronously, so there is no window in which
+    // the sandbox is missing from the pool and no backlog to bound.
+    RecycleTask(std::move(entry), /*is_shutting_down=*/false);
+    return;
+  }
+
+  // Built lazily: TryPush() only calls this if the task is actually going to be
+  // queued, so `entry` survives a refusal when the queue is full.
+  auto make_recycle_task = [this, &entry] {
+    return std::bind_front(&SandboxPool<SandboxT>::RecycleTask, this,
+                           std::move(entry));
+  };
+
+  // Try to push the recycle task without waiting. Because the worker queue
+  // capacity is at least min_sandboxes, a refusal here implies there are
+  // already at least min_sandboxes replacements queued for the idle queue.
+  if (worker_queue_.TryPush(make_recycle_task)) {
+    return;
+  }
+
+  // The maintenance threads are already backlogged. Queueing another recycle
+  // would take this sandbox out of circulation for as long as the backlog
+  // takes to drain, and the next acquisition would paper over the gap by
+  // spawning a replacement of its own, which is how the pool ends up growing
+  // without bound under churn.
+  //
+  // Shrink instead, and let the next thread that genuinely needs a sandbox
+  // create one. This keeps the pool tracking real demand, and still honours
+  // max_sandbox_reuse exactly. A caller waiting for room in the pool re-checks
+  // for the freed slot itself, so dropping this sandbox without pushing a
+  // replacement strands nobody.
+  DestroyTask(std::move(entry), /*is_shutting_down=*/false);
 }
 
 template <typename SandboxT>
@@ -378,8 +434,15 @@ void SandboxPool<SandboxT>::Pruner() {
   std::unique_ptr<PoolEntry> entry;
   while (idle_queue_.PopWhenExpired(entry, options_.idle_timeout,
                                     options_.min_sandboxes)) {
-    worker_queue_.Push(std::bind_front(&SandboxPool<SandboxT>::DestroyTask,
-                                       this, std::move(entry)));
+    // Destroy expired sandboxes directly on the pruner thread rather than
+    // pushing DestroyTask to worker_queue_. Since Pruner() already runs on its
+    // own background thread and destroying a sandbox is structurally fast,
+    // doing it here is acceptable and keeps worker_queue_ capacity dedicated to
+    // sandbox-producing tasks (preserving the min_sandboxes guarantee).
+    // Moreover, pruning only occurs during a sustained drop in sandbox usage,
+    // so reaping idle sandboxes slightly more gradually leaves any remaining
+    // sandboxes in idle_queue_ available to absorb an upcoming usage spike.
+    DestroyTask(std::move(entry), /*is_shutting_down=*/false);
   }
 }
 
@@ -438,18 +501,26 @@ void SandboxPool<SandboxT>::RecycleTask(std::unique_ptr<PoolEntry> entry,
     DestroyTask(std::move(entry), /*is_shutting_down=*/true);
     return;
   }
+
+  // Destroy the sandbox being retired before spawning its replacement, so
+  // that a task sitting in the worker queue does not keep a live sandbox
+  // process around for as long as it waits its turn.
+  entry.reset();
+
   // We do not call CreateSandbox() here, because we do not want this new
-  // sandbox to be counted towards the max_sandboxes limit, since it will
-  // replace a sandbox that is being destroyed.
+  // sandbox to be counted towards the max_sandboxes limit: it inherits the
+  // slot of the sandbox just destroyed, which is why total_count_ is left
+  // untouched below. Going through CreateSandbox() would also let another
+  // thread take that slot first and leave us pushing nothing, shrinking the
+  // pool for no reason.
   auto sandbox = factory_();
   if (!sandbox.ok()) {
     LOG(ERROR) << "Failed to create sandbox: " << sandbox.status();
-    DestroyTask(std::move(entry), is_shutting_down);
+    // The slot is not being reused after all, so give it back.
+    total_count_.fetch_sub(1, std::memory_order_relaxed);
     return;
   }
   idle_queue_.Push(std::make_unique<PoolEntry>(std::move(*sandbox), 0));
-  // Explicitly destroy the old sandbox here.
-  entry.reset();
 }
 
 template <typename SandboxT>

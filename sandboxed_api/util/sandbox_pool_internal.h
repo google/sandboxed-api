@@ -19,12 +19,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/functional/function_ref.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -37,21 +39,56 @@ struct PoolEntry {
   int usage_count = 0;
 };
 
-// A thread-safe queue.
+// A thread-safe queue with an optional maximum capacity.
 template <typename T>
 class Queue {
  public:
-  Queue() = default;
+  explicit Queue(size_t max_size = std::numeric_limits<size_t>::max())
+      : max_size_(max_size) {}
   virtual ~Queue() = default;
 
-  // Push an item into the queue. Returns false if the queue is stopped.
+  // Sets the maximum number of items the queue can hold.
+  // Returns false without changing the limit if the queue currently holds more
+  // than `max_size` items.
+  bool SetMaxSize(size_t max_size) {
+    absl::MutexLock lock(mutex_);
+    if (queue_.size() > max_size) {
+      return false;
+    }
+    max_size_ = max_size;
+    return true;
+  }
+
+  // Blocks until the queue has room (size < max_size) or Stop() is called, then
+  // pushes `value` into the queue.
+  // Returns true on success, or false if the queue was stopped.
   bool Push(T value) {
     absl::MutexLock lock(mutex_);
+
+    // Wait until the queue is below max_size OR the queue is stopped.
+    mutex_.Await(absl::Condition(this, &Queue::CanPush));
+
     if (stopped_) {
       return false;
     }
 
     queue_.push_back(std::move(value));
+    return true;
+  }
+
+  // Attempts to push an item immediately without waiting.
+  // `factory` is called with the queue lock held only when the queue is not
+  // stopped and has room (size < max_size), so callers may move resources
+  // inside `factory` without losing them if the queue is full.
+  // Returns true if the item was pushed, or false if the queue was full or
+  // stopped.
+  bool TryPush(absl::FunctionRef<T()> factory) {
+    absl::MutexLock lock(mutex_);
+    if (stopped_ || queue_.size() >= max_size_) {
+      return false;
+    }
+
+    queue_.push_back(factory());
     return true;
   }
 
@@ -142,6 +179,12 @@ class Queue {
     stopped_ = true;
   }
 
+  // Whether the queue has been stopped. Stopping is one-way.
+  bool IsStopped() const {
+    absl::MutexLock lock(mutex_);
+    return stopped_;
+  }
+
   // Returns the number of items in the queue.
   size_t size() const {
     absl::MutexLock lock(mutex_);
@@ -152,8 +195,13 @@ class Queue {
   // Which end of the queue an item is taken from.
   enum class End { kFront, kBack };
 
-  // Condition predicate function for absl::Mutex::Await
-  bool CanPop() const { return !queue_.empty() || stopped_; }
+  // Condition predicate functions for absl::Mutex::Await
+  bool CanPush() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    return queue_.size() < max_size_ || stopped_;
+  }
+  bool CanPop() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    return !queue_.empty() || stopped_;
+  }
 
   void PopLocked(T& value, End end) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     if (end == End::kFront) {
@@ -195,6 +243,7 @@ class Queue {
 
   mutable absl::Mutex mutex_;
   std::deque<T> queue_ ABSL_GUARDED_BY(mutex_);
+  size_t max_size_ ABSL_GUARDED_BY(mutex_) = std::numeric_limits<size_t>::max();
   bool stopped_ ABSL_GUARDED_BY(mutex_) = false;
 };
 
@@ -287,6 +336,7 @@ class ExpirableQueue {
 
   size_t size() const { return queue_.size(); }
   void Stop() { queue_.Stop(); }
+  bool IsStopped() const { return queue_.IsStopped(); }
 
  private:
   Queue<ExpirableItem<T>> queue_;

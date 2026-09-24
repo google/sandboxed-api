@@ -183,6 +183,7 @@ add_library(sapi_util_sandbox_pool ${SAPI_LIB_TYPE}
 add_library(sapi::sandbox_pool ALIAS sapi_util_sandbox_pool)
 target_link_libraries(sapi_util_sandbox_pool
   PRIVATE absl::any_invocable
+          absl::function_ref
           absl::core_headers
           absl::status
           absl::statusor

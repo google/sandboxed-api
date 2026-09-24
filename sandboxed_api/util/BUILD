@@ -265,6 +265,7 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
     ],

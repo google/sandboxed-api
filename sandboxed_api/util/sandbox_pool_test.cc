@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/util/sandbox_pool.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -326,6 +327,291 @@ TEST(SandboxPoolTest, FailingFactoryReturnsErrorToUser) {
                               return absl::ResourceExhaustedError("test error");
                             }));
   EXPECT_THAT(pool->Acquire(), StatusIs(absl::StatusCode::kResourceExhausted));
+}
+
+class SandboxTracker;
+
+// Stands in for a real sandbox. The tests below churn through hundreds of
+// acquisitions to build up a recycling backlog, which would be far too slow
+// with real sandboxees.
+class FakeSandbox {
+ public:
+  explicit FakeSandbox(SandboxTracker* tracker);
+  ~FakeSandbox();
+
+  FakeSandbox(const FakeSandbox&) = delete;
+  FakeSandbox& operator=(const FakeSandbox&) = delete;
+
+  // Stands in for the work a caller would do with an acquired sandbox.
+  void Use();
+
+ private:
+  SandboxTracker* tracker_;
+  // Only ever touched by the thread currently holding this sandbox.
+  int usage_count_ = 0;
+};
+
+// Observes the lifetime and the reuse of the fake sandboxes a pool creates.
+class SandboxTracker {
+ public:
+  // A factory for `SandboxPool<FakeSandbox>::Create`. `spawn_time` emulates the
+  // cost of starting a real sandboxee, which is what lets a backlog build up.
+  SandboxPool<FakeSandbox>::Factory Factory(absl::Duration spawn_time) {
+    return
+        [this, spawn_time]() -> absl::StatusOr<std::unique_ptr<FakeSandbox>> {
+          absl::SleepFor(spawn_time);
+          return std::make_unique<FakeSandbox>(this);
+        };
+  }
+
+  void OnCreated() {
+    absl::MutexLock lock(mutex_);
+    ++live_count_;
+    if (live_count_ > max_live_count_) {
+      max_live_count_ = live_count_;
+    }
+  }
+
+  void OnDestroyed() {
+    absl::MutexLock lock(mutex_);
+    --live_count_;
+  }
+
+  void OnUsed(int usage_count) {
+    absl::MutexLock lock(mutex_);
+    if (usage_count > max_usage_count_) {
+      max_usage_count_ = usage_count;
+    }
+  }
+
+  size_t live_count() const {
+    absl::MutexLock lock(mutex_);
+    return live_count_;
+  }
+
+  // The most sandboxes that ever existed at the same time.
+  size_t max_live_count() const {
+    absl::MutexLock lock(mutex_);
+    return max_live_count_;
+  }
+
+  // The most times any single sandbox was handed out.
+  int max_usage_count() const {
+    absl::MutexLock lock(mutex_);
+    return max_usage_count_;
+  }
+
+ private:
+  mutable absl::Mutex mutex_;
+  size_t live_count_ = 0;
+  size_t max_live_count_ = 0;
+  int max_usage_count_ = 0;
+};
+
+FakeSandbox::FakeSandbox(SandboxTracker* tracker) : tracker_(tracker) {
+  tracker_->OnCreated();
+}
+
+FakeSandbox::~FakeSandbox() { tracker_->OnDestroyed(); }
+
+void FakeSandbox::Use() { tracker_->OnUsed(++usage_count_); }
+
+// Acquires and releases a sandbox `acquisitions` times on each of `threads`
+// threads. The timeout is generous, but finite: a pool that stops replacing the
+// sandboxes it recycles would otherwise hang the test rather than fail it.
+void HammerPool(SandboxPool<FakeSandbox>& pool, size_t threads,
+                size_t acquisitions) {
+  std::vector<sapi::Thread> workers;
+  workers.reserve(threads);
+  for (size_t i = 0; i < threads; ++i) {
+    workers.emplace_back(
+        [&pool, acquisitions]() {
+          for (size_t j = 0; j < acquisitions; ++j) {
+            SAPI_ASSERT_OK_AND_ASSIGN(auto handle,
+                                      pool.Acquire(absl::Seconds(30)));
+            handle->Use();
+          }
+        },
+        "sandbox_pool_hammer");
+  }
+  for (sapi::Thread& worker : workers) {
+    worker.Join();
+  }
+}
+
+TEST(SandboxPoolTest, RecycleBacklogDoesNotGrowThePool) {
+  constexpr size_t kThreads = 8;
+  constexpr size_t kAcquisitionsPerThread = 50;
+  constexpr size_t kMaintenanceThreads = 1;
+
+  SandboxTracker tracker;
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto pool, SandboxPool<FakeSandbox>::Create(
+                     {
+                         .min_sandboxes = 1,
+                         // Recycle on every release, so that the single
+                         // maintenance thread cannot keep up.
+                         .max_sandbox_reuse = 1,
+                         .max_maintenance_threads = kMaintenanceThreads,
+                     },
+                     tracker.Factory(absl::Milliseconds(5))));
+
+  HammerPool(*pool, kThreads, kAcquisitionsPerThread);
+
+  // At any instant the pool should hold at most one sandbox per caller, plus
+  // the idle floor, plus the recycles it allows itself to have in flight: two
+  // queued and one running per maintenance thread. The bound is doubled to
+  // cover sandboxes whose destructor has not returned yet and general
+  // scheduling noise; what matters is the order of magnitude, as without the
+  // bounded backlog this grows by one per recycle, which is several hundred
+  // here and unbounded in production.
+  constexpr size_t kRecyclesInFlight = 3 * kMaintenanceThreads;
+  EXPECT_LE(tracker.max_live_count(), 2 * (kThreads + 1 + kRecyclesInFlight));
+}
+
+TEST(SandboxPoolTest, MinSandboxesGreaterThanTwiceWorkersPreservesFloor) {
+  constexpr size_t kMinSandboxes = 6;
+
+  SandboxTracker tracker;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
+                            SandboxPool<FakeSandbox>::Create(
+                                {
+                                    .min_sandboxes = kMinSandboxes,
+                                    .max_sandbox_reuse = 1,
+                                    .max_maintenance_threads = 1,
+                                },
+                                tracker.Factory(absl::Milliseconds(2))));
+
+  // All initial CreateTask items must fit in worker_queue_ and pre-warm the
+  // pool to kMinSandboxes even though kMinSandboxes > 2 * maintenance_threads.
+  ASSERT_TRUE(
+      WaitFor([&pool] { return pool->AvailableCount() >= kMinSandboxes; }));
+
+  HammerPool(*pool, /*threads=*/8, /*acquisitions=*/25);
+
+  // Once the recycle backlog drains, the idle queue must still recover to at
+  // least kMinSandboxes.
+  EXPECT_TRUE(
+      WaitFor([&pool] { return pool->AvailableCount() >= kMinSandboxes; }));
+}
+
+TEST(SandboxPoolTest, ReuseLimitHoldsWhenRecycleBacklogIsFull) {
+  constexpr int kMaxSandboxReuse = 3;
+
+  SandboxTracker tracker;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
+                            SandboxPool<FakeSandbox>::Create(
+                                {
+                                    .min_sandboxes = 1,
+                                    .max_sandbox_reuse = kMaxSandboxReuse,
+                                    .max_maintenance_threads = 1,
+                                },
+                                tracker.Factory(absl::Milliseconds(5))));
+
+  HammerPool(*pool, /*threads=*/8, /*acquisitions=*/50);
+
+  // Dropping a sandbox instead of recycling it must never postpone the recycle:
+  // the reuse limit is a guarantee, not a target.
+  EXPECT_LE(tracker.max_usage_count(), kMaxSandboxReuse);
+}
+
+TEST(SandboxPoolTest, BoundedPoolMakesProgressWhenRecyclesAreDropped) {
+  constexpr size_t kMaxSandboxes = 4;
+
+  SandboxTracker tracker;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
+                            SandboxPool<FakeSandbox>::Create(
+                                {
+                                    .min_sandboxes = 1,
+                                    .max_sandboxes = kMaxSandboxes,
+                                    .max_sandbox_reuse = 1,
+                                    .max_maintenance_threads = 1,
+                                },
+                                tracker.Factory(absl::Milliseconds(5))));
+
+  // With more callers than sandboxes, this keeps the recycling backlog full, so
+  // releases routinely drop their sandbox rather than pushing a replacement --
+  // something only pools without a maximum used to do. The pool must still
+  // respect its maximum and still serve everyone: a dropped sandbox leaves a
+  // free slot behind, and whoever needs it has to find it.
+  HammerPool(*pool, /*threads=*/8, /*acquisitions=*/50);
+
+  EXPECT_LE(tracker.max_live_count(), kMaxSandboxes);
+}
+
+TEST(SandboxPoolTest, FailedRecycleDoesNotStrandWaiter) {
+  SandboxTracker tracker;
+  std::atomic<bool> fail_next_creation = false;
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto pool,
+      SandboxPool<FakeSandbox>::Create(
+          {
+              .min_sandboxes = 1,
+              // A single sandbox, so that the waiter below has to be handed
+              // capacity rather than being able to create its own.
+              .max_sandboxes = 1,
+              .max_sandbox_reuse = 1,
+              .max_maintenance_threads = 1,
+          },
+          [&tracker, &fail_next_creation]()
+              -> absl::StatusOr<std::unique_ptr<FakeSandbox>> {
+            if (fail_next_creation.exchange(false)) {
+              return absl::InternalError("factory failed");
+            }
+            return std::make_unique<FakeSandbox>(&tracker);
+          }));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire(absl::Seconds(30)));
+
+  absl::Duration waited;
+  absl::Status waiter_status;
+  sapi::Thread waiter(
+      [&pool, &waited, &waiter_status]() {
+        absl::Time start = absl::Now();
+        waiter_status = pool->Acquire(absl::Seconds(30)).status();
+        waited = absl::Now() - start;
+      },
+      "sandbox_pool_waiter");
+
+  // Give the waiter time to park: the pool is at its maximum size, so it cannot
+  // create a sandbox of its own.
+  absl::SleepFor(absl::Milliseconds(200));
+
+  // Retire the only sandbox and make its replacement fail. The recycle gives
+  // the slot back without pushing anything, which used to leave the waiter
+  // blocked for the whole timeout even though the pool now had room for it.
+  fail_next_creation = true;
+  handle = SandboxHandle<FakeSandbox>();
+  waiter.Join();
+
+  EXPECT_THAT(waiter_status, IsOk());
+  EXPECT_LT(waited, absl::Seconds(5));
+}
+
+TEST(SandboxPoolTest, ThreadlessModeAlwaysReplacesRecycledSandboxes) {
+  SandboxTracker tracker;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
+                            SandboxPool<FakeSandbox>::Create(
+                                {
+                                    .min_sandboxes = 1,
+                                    .max_sandbox_reuse = 1,
+                                    .max_maintenance_threads = 0,
+                                },
+                                tracker.Factory(absl::ZeroDuration())));
+  ASSERT_EQ(pool->AvailableCount(), 1);
+
+  // Recycling is synchronous here, so there is no backlog to bound and the
+  // backlog bound must not apply: the pool is back to its idle floor by
+  // the time the release returns.
+  for (int i = 0; i < 5; ++i) {
+    {
+      SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire());
+      handle->Use();
+      EXPECT_EQ(pool->AvailableCount(), 0);
+    }
+    EXPECT_EQ(pool->AvailableCount(), 1);
+  }
+  EXPECT_EQ(tracker.live_count(), 1);
+  EXPECT_EQ(tracker.max_usage_count(), 1);
 }
 
 std::shared_ptr<SandboxPool<StringopSandbox>> g_pool;
