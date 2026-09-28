@@ -15,218 +15,132 @@
 #include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 
 #include <algorithm>
-#include <cstddef>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
-#include "clang/AST/DeclCXX.h"
-#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/Mangle.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
-#include "sandboxed_api/tools/clang_generator/arg.h"
+#include "sandboxed_api/tools/clang_generator/arg_converter.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
-#include "sandboxed_api/tools/clang_generator/callback_arg.h"
+#include "sandboxed_api/tools/clang_generator/codegen.h"
+#include "sandboxed_api/tools/clang_generator/generator.h"
+#include "sandboxed_api/tools/clang_generator/ir.h"
 
 namespace sapi {
 
 absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
-  const std::string& func_name = decl->getNameAsString();
-  const std::string& func_type =
-      decl->getType().getCanonicalType().getAsString();
-
-  // Check if this is a wrapper function containing a record re-definition
-  // with annotated data members.
-  constexpr absl::string_view kStructAnnotationWrapperFunc =
+  constexpr absl::string_view kSandboxStructAnnotationPrefix =
       "sandbox_struct_annotation_";
-  if (absl::StartsWith(func_name, kStructAnnotationWrapperFunc) &&
-      decl->getReturnType()->isVoidType() && decl->getNumParams() == 0) {
+  // Guard `getName()` with `getIdentifier() != nullptr` because
+  // `NamedDecl::getName()` asserts that the declaration name is a simple
+  // identifier (which fails on C++ `operator` overloads).
+  if (decl->getIdentifier() != nullptr &&
+      decl->getName().starts_with(kSandboxStructAnnotationPrefix)) {
     return ParseStructAnnotationWrapperFunc(*decl);
   }
 
-  // Check for SANDBOX_HOST_THUNK and SANDBOX_SANDBOXEE_THUNK here.
-  // Also check that they are consistent with the other annotations.
-  // If it is a HOST thunk, it needs to be attached to the original function.
+  std::string func_name = decl->getNameAsString();
+  std::string func_type = decl->getType().getAsString();
 
   bool has_unsupported_annotation = false;
-  auto annotations_status = GetSandboxAnnotations(decl);
-  if (annotations_status.ok()) {
-    for (const auto& ann : *annotations_status) {
-      if (ann.name == "unsupported") {
-        has_unsupported_annotation = true;
-      } else if (ann.name == "host_thunk") {
-        if (ann.args.empty()) {
-          return absl::NotFoundError(
-              "Host thunk doesn't not specify the function name.");
-        }
-        std::string func_name = ann.args[0];
-        if (!funcs_.contains(func_name)) {
-          return absl::NotFoundError(absl::Substitute(
-              "Function $0 is not found, but has a host thunk.", func_name));
-        }
-        auto& func = funcs_[func_name];
-
-        // Transform the function to call the generated wrapper for the original
-        // function.
-        if (!func->sandboxee_thunk.has_value()) {
-          return absl::NotFoundError(
-              absl::Substitute("Function $0 does not have a sandboxee thunk. "
-                               "Cannot verify that the "
-                               "host thunk calls the right function.",
-                               func_name));
-        }
-
-        auto body = StripAnnotations(ast::getBody(decl, true));
-
-        // Replace calls to the sandboxee thunk with the generated wrapper.
-        // ABSL_RETURN_IF_ERROR(
-        // ast::ReplaceCalls(body, func->sandboxee_thunk->name, func_name));
-        auto decl_name = decl->getNameAsString();
-        // Replace the name of the function with the original function name.
-        ABSL_RETURN_IF_ERROR(
-            ast::ReplaceDeclaration(body, decl_name, func_name));
-
-        func->host_thunk = Thunk{
-            .name = decl->getNameAsString(),
-            .body = body,
-            .declaration = ast::getFunctionDeclaration(decl),
-        };
-      } else if (ann.name == "sandboxee_thunk") {
-        if (ann.args.empty()) {
-          return absl::NotFoundError(
-              "Sandboxee thunk doesn't not specify the function name.");
-        }
-        std::string func_name = ann.args[0];
-        if (!funcs_.contains(func_name)) {
-          return absl::NotFoundError(absl::Substitute(
-              "Function $0 is not found, but has a sandboxee thunk.",
-              func_name));
-        }
-        auto& func = funcs_[func_name];
-        func->sandboxee_thunk = Thunk{
-            .name = decl->getNameAsString(),
-            .body = StripAnnotations(ast::getBody(decl, true)),
-            .declaration = ast::getFunctionDeclaration(decl),
-        };
+  bool is_host_thunk = false;
+  ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
+                        GetSandboxAnnotations(decl));
+  for (const auto& ann : annotations) {
+    if (ann.name == "unsupported") {
+      has_unsupported_annotation = true;
+    } else if (ann.name == "host_thunk") {
+      if (ann.args.empty()) {
+        return absl::NotFoundError(
+            "Host thunk doesn't not specify the function name.");
       }
+      std::string target_func_name = ann.args[0];
+      auto* ir_func = library_ir_.FindFunction(target_func_name);
+      if (ir_func == nullptr) {
+        return absl::NotFoundError(
+            absl::Substitute("Function $0 is not found, but has a host thunk.",
+                             target_func_name));
+      }
+
+      auto body = StripAnnotations(ast::getBody(decl, true));
+      ABSL_RETURN_IF_ERROR(
+          ast::ReplaceDeclaration(body, func_name, target_func_name));
+
+      ir_func->host_thunk = ir::ThunkOverride{
+          .function_name = func_name,
+          .body = body,
+          .declaration = ast::getFunctionDeclaration(decl),
+      };
+      is_host_thunk = true;
+    } else if (ann.name == "sandboxee_thunk") {
+      if (ann.args.empty()) {
+        return absl::NotFoundError(
+            "Sandboxee thunk doesn't not specify the function name.");
+      }
+      std::string target_func_name = ann.args[0];
+      auto* ir_func = library_ir_.FindFunction(target_func_name);
+      if (ir_func == nullptr) {
+        return absl::NotFoundError(absl::Substitute(
+            "Function $0 is not found, but has a sandboxee thunk.",
+            target_func_name));
+      }
+      ir_func->sandboxee_thunk = ir::ThunkOverride{
+          .function_name = func_name,
+          .body = StripAnnotations(ast::getBody(decl, true)),
+          .declaration = ast::getFunctionDeclaration(decl),
+      };
     }
   }
 
-  // Check if this is a thunk and append it to the corresponding function.
+  // Check if this is a duplicate signature or overloaded declaration.
   auto [it, inserted] = used_funcs_.insert({func_name, func_type});
   if (!inserted) {
     if (it->second != func_type) {
-      // TODO(dvyukov): figure out how we want to handle this case
-      // (we see a function with the same name but different signatures).
-      // It can mean incorrect signature in out-of-line annotations,
-      // but it can also mean just an overloaded C++ function
-      // (we have one in our tests).
       LOG(WARNING) << "Function " << func_name
                    << " has multiple signatures: " << it->second << " and "
                    << func_type;
     } else {
-      // They are of the same type but since the out-of-line annotations are
-      // supplied first, we can skip this function here, this should be the
-      // original declaration.
       return absl::OkStatus();
     }
   }
 
-  if (has_unsupported_annotation) {
+  if (has_unsupported_annotation || is_host_thunk) {
     return absl::OkStatus();
   }
 
-  if (ignore_funcs_.contains(decl->getNameAsString()) ||
-      (!sandbox_funcs_.empty() &&
-       !sandbox_funcs_.contains(decl->getNameAsString()))) {
+  // Skip functions explicitly excluded via SANDBOX_IGNORE_FUNCS, or not listed
+  // in SANDBOX_FUNCS when an explicit allowlist is provided
+  // (!sandbox_funcs_.empty()). When SANDBOX_FUNCS is not used, sandbox_funcs_
+  // is empty and all non-ignored functions (including sandboxee thunks) are
+  // sandboxed.
+  if (ignore_funcs_.contains(func_name) ||
+      (!sandbox_funcs_.empty() && !sandbox_funcs_.contains(func_name))) {
     return absl::OkStatus();
   }
 
-  ArgPtr ret;
-  clang::QualType ret_type = decl->getReturnType();
-  if (!ret_type->isVoidType()) {
-    // Parse return type annotations check function decl for annotations?
-    // Consider using annotate_type instead of annotate?.
-    ABSL_ASSIGN_OR_RETURN(ret,
-                          Convert("sapi_ret_arg", ret_type, nullptr, decl));
-    for (const std::string& inc : ret->Includes()) {
-      includes_.insert(inc);
-    }
-    for (const std::string& arg_host_var : ret->HostStateVars()) {
-      arg_host_state_vars_.insert(arg_host_var);
-    }
-  }
-  // We may need to parse function-level annotations, even if the return type
-  // is void. However, we do not need an ArgPtr for the return value.
-  ABSL_ASSIGN_OR_RETURN(Annotations func_decl_annotations,
-                        ParseAnnotations(decl->getNameAsString(), decl));
-  ContextBoundAnnotations func_context_bound =
-      std::move(func_decl_annotations.context_bound);
-
-  std::vector<ArgPtr> args;
-  for (size_t i = 0; i < decl->getNumParams(); ++i) {
-    const clang::ParmVarDecl* param = decl->getParamDecl(i);
-    std::string name = param->getNameAsString();
-    if (name.empty()) {
-      name = absl::StrFormat("sapi_arg%zu", i);
-    }
-    clang::QualType type = param->getType();
-    ABSL_ASSIGN_OR_RETURN(ArgPtr arg, Convert(name, type, param, nullptr));
-    args.push_back(std::move(arg));
-  }
-
-  for (const auto& arg : args) {
-    ABSL_RETURN_IF_ERROR(arg->LinkArgsIfNeeded(args));
-  }
-
-  ABSL_RETURN_IF_ERROR(
-      LinkAliasCallbackRelation(decl, func_decl_annotations, ret, args));
-
-  ABSL_RETURN_IF_ERROR(LinkAliasParamToCallbackParam(args));
-
-  // Determine includes and host state vars, after considering any
-  // cross-arg relations (in case we Linking mattered).
-  for (const auto& arg : args) {
-    for (const std::string& inc : arg->Includes()) {
-      includes_.insert(inc);
-    }
-    for (const std::string& arg_host_var : arg->HostStateVars()) {
-      arg_host_state_vars_.insert(arg_host_var);
-    }
-  }
-
-  std::string name =
-      clang::ASTNameGenerator(decl->getASTContext()).getName(decl);
-  funcs_[name] = std::make_unique<Func>(name, std::move(ret), std::move(args),
-                                        // Thunks will be connected later.
-                                        /*host_thunk=*/std::nullopt,
-                                        /*sandboxee_thunk=*/std::nullopt,
-                                        std::move(func_context_bound));
+  ABSL_ASSIGN_OR_RETURN(
+      ir::Function ir_func,
+      ConvertFunctionToIR(decl, library_ir_.record_annotations));
+  library_ir_.functions.push_back(std::move(ir_func));
   return absl::OkStatus();
 }
 
@@ -255,118 +169,6 @@ absl::Status SandboxedLibraryEmitter::ParseStructAnnotationWrapperFunc(
   return ParseRecordAnnotations(*record_decl);
 }
 
-// If this function has an "alias_callback_return" annotation, checks for the
-// existence of the callback parameter, and that the callback parameter returns
-// a pointer. If not, returns an error. If so, marks the callback return's
-// CallbackArg as being aliased.
-absl::Status SandboxedLibraryEmitter::LinkAliasCallbackRelation(
-    const clang::FunctionDecl* decl, const Annotations& func_decl_annotations,
-    const ArgPtr& ret, const std::vector<ArgPtr>& args) {
-  if (!std::holds_alternative<AliasCallbackReturnLifetime>(
-          func_decl_annotations.lifetime)) {
-    return absl::OkStatus();
-  }
-  std::string alias_cb_name =
-      std::get<AliasCallbackReturnLifetime>(func_decl_annotations.lifetime)
-          .callback_param_name;
-  if (!ret) {
-    return absl::InvalidArgumentError(
-        absl::Substitute("function $0: alias_callback_return cannot be "
-                         "applied to void function",
-                         decl->getNameAsString()));
-  }
-  bool found_alias_cb = false;
-  for (const auto& arg : args) {
-    if (arg->GetName() == alias_cb_name) {
-      if (auto* cb_arg = dynamic_cast<CallbackArg*>(arg.get())) {
-        cb_arg->SetRetValIsAliasForOuterFunctionReturn();
-        found_alias_cb = true;
-      }
-    }
-  }
-  if (!found_alias_cb) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "function $0: alias_callback_return references non-existent or "
-        "non-callback parameter $1",
-        decl->getNameAsString(), alias_cb_name));
-  }
-  return absl::OkStatus();
-}
-
-// If this function has callback parameters that have parameters with
-// "alias_ptr(outer_func_param_name)" annotations, links those callback
-// parameters to the outer function's param with the name
-// `outer_func_param_name`.
-// Returns an error under erroneous or unsupported conditions, such as if
-// a param with the name `outer_func_param_name` is not found.
-absl::Status SandboxedLibraryEmitter::LinkAliasParamToCallbackParam(
-    const std::vector<ArgPtr>& args) {
-  // Start handle number at 1, since 0 is reserved for nullptr.
-  size_t next_handle = 1;
-  for (const auto& arg : args) {
-    auto* cb_arg = dynamic_cast<CallbackArg*>(arg.get());
-    if (!cb_arg) continue;
-    for (size_t i = 0; i < cb_arg->param_names().size(); ++i) {
-      const auto& ann = cb_arg->param_annotations()[i];
-      if (!std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime)) {
-        continue;
-      }
-      const std::string& outer_param_name =
-          std::get<AliasHostPtrLifetime>(ann.lifetime).param_name;
-      Arg* found_alias = nullptr;
-      for (const auto& outer_arg : args) {
-        if (outer_arg->GetName() == outer_param_name) {
-          found_alias = outer_arg.get();
-          break;
-        }
-      }
-      if (!found_alias) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "callback $0 parameter $1: alias_ptr references non-existent "
-            "parameter $2",
-            cb_arg->GetName(), cb_arg->param_names()[i], outer_param_name));
-      }
-      auto* outer_param = dynamic_cast<PointerArg*>(found_alias);
-      if (!outer_param) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "callback $0 parameter $1: alias_ptr references non-pointer "
-            "parameter $2",
-            cb_arg->GetName(), cb_arg->param_names()[i], outer_param_name));
-      }
-      // For now, we only support aliasing two host opaque pointers
-      // where no copying or allocation is needed.
-      // It could be possible to support aliasing other cases, but we will
-      // need make sure the copy/allocate/free for host -> sandbox -> host
-      // is done correctly.
-      if (ann.ptr_dir != PointerDir::kHostOpaque) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "callback $0 parameter $1: alias_ptr is only supported for host "
-            "opaque callback parameters",
-            cb_arg->GetName(), cb_arg->param_names()[i]));
-      }
-      if (outer_param->ptr_dir() != PointerDir::kHostOpaque) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "callback $0 parameter $1: alias_ptr references parameter $2 "
-            "which is not a host opaque pointer",
-            cb_arg->GetName(), cb_arg->param_names()[i], outer_param_name));
-      }
-
-      size_t handle;
-      // Multiple callback parameters can be aliased to the same outer
-      // parameter.
-      if (outer_param->host_opaque_handle_for_cb_alias().has_value()) {
-        handle = *outer_param->host_opaque_handle_for_cb_alias();
-      } else {
-        handle = next_handle;
-        outer_param->SetHostOpaqueHandleForCbAlias(handle);
-        next_handle++;
-      }
-      cb_arg->SetParamHostOpaqueHandle(i, handle);
-    }
-  }
-  return absl::OkStatus();
-}
-
 /**
  * Extracts the literal string value from a VarDecl if it exists.
  * Example: constexpr char kFoo[] = "foo"; -> returns "foo"
@@ -391,37 +193,35 @@ std::optional<std::string> getStringFromVarDecl(const clang::VarDecl* VD) {
 }
 
 absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
-  auto annotations_status = GetSandboxAnnotations(decl);
-  if (annotations_status.ok()) {
-    for (const auto& ann : *annotations_status) {
-      if (ann.name == "host_state_var") {
-        clang::SourceManager& source_manager =
-            decl->getASTContext().getSourceManager();
-        clang::LangOptions lang_opts = decl->getASTContext().getLangOpts();
-        clang::SourceRange source_range = decl->getSourceRange();
-
-        // We need to include the trailing semicolon, which is not part of the
-        // SourceRange usually. But let's try just getting the text.
-        std::string text =
-            clang::Lexer::getSourceText(
-                clang::CharSourceRange::getTokenRange(source_range),
-                source_manager, lang_opts)
-                .str();
-        host_state_vars_.push_back(StripAnnotations(text) + ";");
-      } else if (ann.name == "host_code") {
-        host_code_ = getStringFromVarDecl(decl);
-      } else if (ann.name == "sandboxee_code") {
-        sandboxee_code_ = getStringFromVarDecl(decl);
-      }
+  ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
+                        GetSandboxAnnotations(decl));
+  for (const auto& ann : annotations) {
+    if (ann.name == "host_state_var") {
+      const clang::SourceManager& source_manager =
+          decl->getASTContext().getSourceManager();
+      const clang::LangOptions& lang_opts = decl->getASTContext().getLangOpts();
+      // Include the trailing semicolon when capturing host state variable
+      // source text.
+      std::string text =
+          clang::Lexer::getSourceText(
+              clang::CharSourceRange::getTokenRange(decl->getSourceRange()),
+              source_manager, lang_opts)
+              .str();
+      library_ir_.host_state_vars.push_back(
+          absl::StrCat(StripAnnotations(text), ";"));
+    } else if (ann.name == "host_code") {
+      library_ir_.host_code = getStringFromVarDecl(decl);
+    } else if (ann.name == "sandboxee_code") {
+      library_ir_.sandboxee_code = getStringFromVarDecl(decl);
     }
   }
 
   constexpr absl::string_view kSandboxFuncs = "sandbox_funcs_";
   constexpr absl::string_view kIgnoreFuncs = "sandbox_ignore_funcs_";
-  const bool is_sandbox_funcs =
-      absl::StartsWith(decl->getNameAsString(), kSandboxFuncs);
-  const bool is_ignore_funcs =
-      absl::StartsWith(decl->getNameAsString(), kIgnoreFuncs);
+  const bool is_sandbox_funcs = decl->getIdentifier() != nullptr &&
+                                decl->getName().starts_with(kSandboxFuncs);
+  const bool is_ignore_funcs = decl->getIdentifier() != nullptr &&
+                               decl->getName().starts_with(kIgnoreFuncs);
   if (is_sandbox_funcs || is_ignore_funcs) {
     if (funcs_loc_) {
       return absl::AlreadyExistsError(absl::Substitute(
@@ -434,13 +234,24 @@ absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
     funcs_loc_ = source_manager.getExpansionLoc(decl->getBeginLoc())
                      .printToString(source_manager);
     const auto* init_list =
-        llvm::dyn_cast<clang::InitListExpr>(decl->getAnyInitializer());
+        llvm::dyn_cast_or_null<clang::InitListExpr>(decl->getAnyInitializer());
+    if (init_list == nullptr) {
+      return absl::InvalidArgumentError(
+          "SANDBOX_FUNCS / SANDBOX_IGNORE_FUNCS must be initialized with an "
+          "initializer list of string literals");
+    }
     for (const clang::Expr* init : init_list->inits()) {
-      const std::string func = *init->tryEvaluateString(decl->getASTContext());
+      std::optional<std::string> eval_str =
+          init->tryEvaluateString(decl->getASTContext());
+      if (!eval_str.has_value()) {
+        return absl::InvalidArgumentError(
+            "SANDBOX_FUNCS / SANDBOX_IGNORE_FUNCS elements must be string "
+            "literals");
+      }
       if (is_sandbox_funcs) {
-        sandbox_funcs_.insert(func);
+        sandbox_funcs_.insert(*eval_str);
       } else {
-        ignore_funcs_.insert(func);
+        ignore_funcs_.insert(*eval_str);
       }
     }
   }
@@ -449,7 +260,7 @@ absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
 
 absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
   if (!funcs_loc_) {
-    return absl::OkStatus();
+    return ValidateAndLinkLibraryIR(library_ir_);
   }
   const char* ann = "SANDBOX_FUNCS";
   absl::flat_hash_set<std::string>* funcs = &sandbox_funcs_;
@@ -466,27 +277,29 @@ absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
     return absl::InvalidArgumentError(absl::Substitute(
         "$0: unused $1: $2", *funcs_loc_, ann, absl::StrJoin(funcs_vec, ", ")));
   }
-  return absl::OkStatus();
-}
-
-std::vector<const SandboxedLibraryEmitter::Func*>
-SandboxedLibraryEmitter::SortedFuncs() const {
-  std::vector<const Func*> sorted;
-  sorted.reserve(funcs_.size());
-  for (const auto& func : funcs_) {
-    sorted.push_back(func.second.get());
-  }
-  std::sort(sorted.begin(), sorted.end(),
-            [](const Func* a, const Func* b) { return a->name < b->name; });
-  sorted.erase(std::unique(sorted.begin(), sorted.end(),
-                           [](const Func* a, const Func* b) {
-                             return a->name == b->name;
-                           }),
-               sorted.end());
-  return sorted;
+  return ValidateAndLinkLibraryIR(library_ir_);
 }
 
 SandboxedLibraryEmitter::~SandboxedLibraryEmitter() = default;
-SandboxedLibraryEmitter::Func::~Func() = default;
+
+absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeHdr(
+    const GeneratorOptions& options) const {
+  return sapi::EmitSandboxeeHdr(options, library_ir_, includes_);
+}
+
+absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeSrc(
+    const GeneratorOptions& options) const {
+  return sapi::EmitSandboxeeSrc(options, library_ir_, includes_);
+}
+
+absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitSandboxeeMain(
+    const GeneratorOptions& options) const {
+  return sapi::EmitSandboxeeMain(options, library_ir_);
+}
+
+absl::StatusOr<std::string> SandboxedLibraryEmitter::EmitHostSrc(
+    const GeneratorOptions& options) const {
+  return sapi::EmitHostSrc(options, library_ir_, includes_);
+}
 
 }  // namespace sapi

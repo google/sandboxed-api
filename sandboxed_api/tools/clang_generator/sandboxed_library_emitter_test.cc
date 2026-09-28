@@ -62,7 +62,7 @@ TEST_F(SandboxedLibraryEmitterTest, SandboxeeThunkNotUsed) {
   EXPECT_THAT(*sandboxee_src, HasSubstr("sapi_wrapper_func_with_thunk"));
   // The wrapper should call func_with_thunk, not func_with_thunk_thunk
   EXPECT_THAT(*sandboxee_src,
-              HasSubstr("int sapi_ret_val = func_with_thunk(a);"));
+              HasSubstr("auto sapi_ret_val = func_with_thunk(a);"));
   EXPECT_THAT(*sandboxee_src, Not(HasSubstr("func_with_thunk_thunk")));
 }
 
@@ -209,7 +209,7 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
   GeneratorOptions options;
   options.name = "MyLib";
   SandboxedLibraryEmitter emitter;
-  EXPECT_THAT(
+  ASSERT_THAT(
       RunFrontendAction(
           R"cc(
             extern "C" void callback_param_aliases_non_existent(
@@ -221,8 +221,12 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
                 int val);
           )cc",
           std::make_unique<GeneratorAction>(&emitter, &options)),
-      StatusIs(absl::StatusCode::kUnknown,
-               HasSubstr("Tool invocation failed")));
+      IsOk());
+
+  EXPECT_THAT(emitter.PostParseAllFiles(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("alias_ptr references non-existent parameter "
+                                 "non_existent")));
 }
 
 TEST_F(SandboxedLibraryEmitterErrorTest,
@@ -230,7 +234,7 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
   GeneratorOptions options;
   options.name = "MyLib";
   SandboxedLibraryEmitter emitter;
-  EXPECT_THAT(
+  ASSERT_THAT(
       RunFrontendAction(
           R"cc(
             extern "C" void callback_param_aliases_non_pointer(
@@ -242,8 +246,12 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
                 int not_a_pointer);
           )cc",
           std::make_unique<GeneratorAction>(&emitter, &options)),
-      StatusIs(absl::StatusCode::kUnknown,
-               HasSubstr("Tool invocation failed")));
+      IsOk());
+
+  EXPECT_THAT(emitter.PostParseAllFiles(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("alias_ptr references non-pointer parameter "
+                                 "not_a_pointer")));
 }
 
 TEST_F(SandboxedLibraryEmitterErrorTest, CallbackParamAliasesGlobalVariable) {
@@ -270,7 +278,7 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
   GeneratorOptions options;
   options.name = "MyLib";
   SandboxedLibraryEmitter emitter;
-  EXPECT_THAT(
+  ASSERT_THAT(
       RunFrontendAction(
           R"cc(
             extern "C" void callback_alias_non_host_opaque(
@@ -282,8 +290,12 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
                 const int* input_ptr [[clang::annotate("sandbox", "in_ptr")]]);
           )cc",
           std::make_unique<GeneratorAction>(&emitter, &options)),
-      StatusIs(absl::StatusCode::kUnknown,
-               HasSubstr("Tool invocation failed")));
+      IsOk());
+
+  EXPECT_THAT(emitter.PostParseAllFiles(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("alias_ptr references parameter input_ptr "
+                                 "which is not a host opaque pointer")));
 }
 
 }  // namespace
