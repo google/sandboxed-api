@@ -158,11 +158,6 @@ using BufferBounds =
                  bounds::ByteCount, bounds::ElemSizedByOutparam,
                  bounds::ByteSizedByOutparam, bounds::SizedByBinding>;
 
-// The size/count expression a buffer is bounded by, or an empty string for the
-// alternatives that carry no expression. For the outparam alternatives this is
-// the dereference of the sibling outparam, e.g. "*written_len".
-std::string BoundsSizeExpr(const BufferBounds& bounds);
-
 // Structured representation of parameter lifetime policies. Each alternative
 // carries only the data that policy needs, so an alias policy cannot exist
 // without the name of the parameter it aliases.

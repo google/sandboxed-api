@@ -217,12 +217,18 @@ absl::Status ValidateSizeExpr(absl::Span<const Parameter> scope,
 }
 
 // Checks that the sibling an outparam-sized buffer is sized by exists and is
-// actually an output.
+// actually an output, and that the host-side capacity expression is non-empty.
 absl::Status ValidateOutparamSize(absl::Span<const Parameter> scope,
                                   absl::string_view scope_desc,
                                   absl::string_view role,
                                   absl::string_view out_name,
+                                  absl::string_view capacity_expr,
                                   absl::string_view kind_name) {
+  if (absl::StripAsciiWhitespace(capacity_expr).empty()) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("$0 $1 $2 requires a non-empty capacity expression.",
+                         scope_desc, role, kind_name));
+  }
   const Parameter* out_param = FindInScope(scope, out_name);
   if (!out_param) {
     return absl::InvalidArgumentError(
@@ -234,7 +240,7 @@ absl::Status ValidateOutparamSize(absl::Span<const Parameter> scope,
         "$0 $1 $2 references $3 which is not an output pointer.", scope_desc,
         role, kind_name, out_name));
   }
-  return absl::OkStatus();
+  return ValidateSizeExpr(scope, scope_desc, role, capacity_expr);
 }
 
 // `scope_desc` names the enclosing entity for diagnostics, e.g.
@@ -255,12 +261,12 @@ absl::Status ValidateBufferBounds(absl::Span<const Parameter> scope,
           },
           [&](const bounds::ElemSizedByOutparam& elem) {
             return ValidateOutparamSize(scope, scope_desc, role,
-                                        elem.outparam_name,
+                                        elem.outparam_name, elem.capacity_expr,
                                         "ELEM_SIZED_BY_OUTPARAM");
           },
           [&](const bounds::ByteSizedByOutparam& byte) {
             return ValidateOutparamSize(scope, scope_desc, role,
-                                        byte.outparam_name,
+                                        byte.outparam_name, byte.capacity_expr,
                                         "BYTE_SIZED_BY_OUTPARAM");
           },
           // `context_expr` names the runtime context object the size is
@@ -417,24 +423,6 @@ absl::Status LinkAliasParamToCallbackParam(Function& func) {
 }
 
 }  // namespace
-
-std::string BoundsSizeExpr(const BufferBounds& buffer_bounds) {
-  return std::visit(
-      absl::Overload{
-          [](const bounds::Singleton&) { return std::string(); },
-          [](const bounds::NullTerminated&) { return std::string(); },
-          [](const bounds::ElemCount& elem) { return elem.size_expr; },
-          [](const bounds::ByteCount& byte) { return byte.size_expr; },
-          [](const bounds::ElemSizedByOutparam& elem) {
-            return absl::StrCat("*", elem.outparam_name);
-          },
-          [](const bounds::ByteSizedByOutparam& byte) {
-            return absl::StrCat("*", byte.outparam_name);
-          },
-          [](const bounds::SizedByBinding&) { return std::string(); },
-      },
-      buffer_bounds);
-}
 
 absl::Status ValidateAndLinkLibraryIR(Library& library) {
   for (auto& func : library.functions) {

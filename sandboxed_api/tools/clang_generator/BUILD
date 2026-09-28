@@ -48,6 +48,7 @@ cc_library(
         "arg_converter.h",
         "ast_utils.h",
         "callback_arg.h",
+        "codegen.h",
         "diagnostics.h",
         "emitter.h",
         "emitter_base.h",

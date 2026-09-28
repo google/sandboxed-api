@@ -30,6 +30,7 @@ add_library(sapi_generator
   callback_arg.cc
   callback_arg.h
   codegen.cc
+  codegen.h
   diagnostics.cc
   diagnostics.h
   emitter.h

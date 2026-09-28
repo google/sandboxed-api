@@ -94,7 +94,9 @@ TEST(IrTest, ParameterSemanticQueries) {
   EXPECT_FALSE(in_ptr.IsOpaque());
   EXPECT_EQ(in_ptr.direction(), PointerDir::kIn);
   ASSERT_TRUE(in_ptr.Is<BufferParam>());
-  EXPECT_EQ(BoundsSizeExpr(in_ptr.As<BufferParam>()->bounds), "n");
+  EXPECT_EQ(
+      std::get<bounds::ElemCount>(in_ptr.As<BufferParam>()->bounds).size_expr,
+      "n");
 
   Parameter out_ptr{
       .name = "dst",
@@ -355,12 +357,14 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithDereferencedPointerSize) {
   )",
                                                "read_data"));
   ASSERT_EQ(func.parameters.size(), 3);
-  ASSERT_TRUE(func.parameters[0].Is<BufferParam>());
-  EXPECT_EQ(BoundsSizeExpr(func.parameters[0].As<BufferParam>()->bounds),
-            "*len");
-  ASSERT_TRUE(func.parameters[2].Is<BufferParam>());
-  EXPECT_EQ(BoundsSizeExpr(func.parameters[2].As<BufferParam>()->bounds),
-            " *len ");
+  const auto* buf0 = func.parameters[0].As<BufferParam>();
+  ASSERT_NE(buf0, nullptr);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(buf0->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(buf0->bounds).size_expr, "*len");
+  const auto* buf2 = func.parameters[2].As<BufferParam>();
+  ASSERT_NE(buf2, nullptr);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(buf2->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(buf2->bounds).size_expr, " *len ");
   // Both spellings have to resolve to the sibling `len`, which validation is
   // what now observes: an unresolvable name would be rejected here.
   Library lib{.name = "MyLib", .functions = {func}};
@@ -867,7 +871,6 @@ TEST_F(IrConvertTest,
       std::get<bounds::ElemSizedByOutparam>(out_buf->bounds);
   EXPECT_EQ(out_bounds.outparam_name, "written_len");
   EXPECT_EQ(out_bounds.capacity_expr, "1024");
-  EXPECT_EQ(BoundsSizeExpr(out_buf->bounds), "*written_len");
 
   // Byte sized by outparam on a typed pointer (int*)
   EXPECT_EQ(func.parameters[4].name, "out_bytes_data");
@@ -879,7 +882,6 @@ TEST_F(IrConvertTest,
       std::get<bounds::ByteSizedByOutparam>(out_bytes_buf->bounds);
   EXPECT_EQ(out_bytes_bounds.outparam_name, "written_bytes");
   EXPECT_EQ(out_bytes_bounds.capacity_expr, "2048");
-  EXPECT_EQ(BoundsSizeExpr(out_bytes_buf->bounds), "*written_bytes");
 
   // Sized by binding
   EXPECT_EQ(func.parameters[5].name, "bound_data");
@@ -1343,6 +1345,22 @@ TEST_F(IrConvertTest, ValidateAndLinkLibraryIRMissingOutparamSizeError) {
       ValidateAndLinkLibraryIR(lib),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("references non-existent outparam nonexistent_len")));
+}
+
+TEST_F(IrConvertTest, ValidateAndLinkLibraryIREmptyOutparamCapacityError) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    extern "C" void empty_cap(
+        char* dst [[clang::annotate("sandbox", "out_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by_outparam", "*len", "")]],
+        unsigned long* len [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                               "empty_cap"));
+
+  Library lib{.name = "MyLib", .functions = {func}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("requires a non-empty capacity expression")));
 }
 
 // A callback parameter sized by one of the callback's own parameters is
