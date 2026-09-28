@@ -22,13 +22,10 @@ endif()
 add_library(sapi_generator
   annotations.cc
   annotations.h
-  arg.h
   arg_converter.cc
   arg_converter.h
   ast_utils.cc
   ast_utils.h
-  callback_arg.cc
-  callback_arg.h
   codegen.cc
   codegen.h
   diagnostics.cc
@@ -42,11 +39,8 @@ add_library(sapi_generator
   includes.h
   ir.cc
   ir.h
-  pointer_arg.cc
-  pointer_arg.h
   sandboxed_library_emitter.h
   sandboxed_library_emitter.cc
-  simple_args.h
   symbol_list_emitter.h
   symbol_list_emitter.cc
   types.h

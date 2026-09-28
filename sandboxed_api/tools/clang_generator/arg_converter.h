@@ -19,11 +19,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
-#include "sandboxed_api/tools/clang_generator/arg.h"
 #include "sandboxed_api/tools/clang_generator/ir.h"
 
 namespace sapi {
@@ -32,14 +30,6 @@ namespace sapi {
 // annotations.
 absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
     const clang::FunctionDecl* func_decl,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations);
-
-// Converts a parameter or function return type into an Arg instance with
-// parsed annotations.
-absl::StatusOr<ArgPtr> ConvertArg(
-    absl::string_view name, clang::QualType type,
-    const clang::ParmVarDecl* param, const clang::FunctionDecl* funcDecl,
     const absl::flat_hash_map<std::string, RecordAnnotations>&
         record_annotations);
 

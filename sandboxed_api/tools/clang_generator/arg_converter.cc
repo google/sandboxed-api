@@ -44,12 +44,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Config/llvm-config.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
-#include "sandboxed_api/tools/clang_generator/arg.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
-#include "sandboxed_api/tools/clang_generator/callback_arg.h"
 #include "sandboxed_api/tools/clang_generator/ir.h"
-#include "sandboxed_api/tools/clang_generator/pointer_arg.h"
-#include "sandboxed_api/tools/clang_generator/simple_args.h"
 
 namespace sapi {
 namespace {
@@ -282,12 +278,11 @@ absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
       cb_param_name, cb_param_type.getAsString()));
 }
 
-// TODO: Simplify dual out-params once legacy MakeCallbackArg is removed.
+// Extracts the names and declarations of a callback's parameters from the
+// type source info of `param`, which must be a function pointer or functor.
 absl::Status ExtractCallbackParams(
     const clang::ParmVarDecl& param, std::vector<std::string>& param_names,
-    std::vector<std::string>& param_types,
-    std::vector<Annotations>* param_annotations = nullptr,
-    std::vector<const clang::ParmVarDecl*>* param_decls = nullptr) {
+    std::vector<const clang::ParmVarDecl*>& param_decls) {
   // Details: the Clang Type does not include the parameter names (more of
   // a canonical type). However, the TypeSourceInfo and TypeLoc does let us
   // retrieve that information.
@@ -335,13 +330,7 @@ absl::Status ExtractCallbackParams(
                          param.getName().str()));
   }
   param_names.reserve(ftl.getNumParams());
-  param_types.reserve(ftl.getNumParams());
-  if (param_annotations != nullptr) {
-    param_annotations->reserve(ftl.getNumParams());
-  }
-  if (param_decls != nullptr) {
-    param_decls->reserve(ftl.getNumParams());
-  }
+  param_decls.reserve(ftl.getNumParams());
   for (unsigned i = 0; i < ftl.getNumParams(); ++i) {
     clang::ParmVarDecl* cb_param = ftl.getParam(i);
     if (!cb_param) {
@@ -357,261 +346,13 @@ absl::Status ExtractCallbackParams(
       param_name = absl::StrFormat("cb_arg%u", i);
     }
     param_names.push_back(param_name);
-    param_types.push_back(cb_param->getType().getCanonicalType().getAsString());
     ABSL_ASSIGN_OR_RETURN(Annotations annotations,
                           ParseAnnotations(param_name, cb_param));
     ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
         param.getName().str(), param_name, annotations, cb_param->getType()));
-    if (param_annotations != nullptr) {
-      param_annotations->push_back(std::move(annotations));
-    }
-    if (param_decls != nullptr) {
-      param_decls->push_back(cb_param);
-    }
+    param_decls.push_back(cb_param);
   }
   return absl::OkStatus();
-}
-
-absl::StatusOr<ArgPtr> MakeCallbackArg(
-    absl::string_view name, absl::string_view type_name,
-    Annotations&& annotations, const clang::ParmVarDecl& param,
-    const clang::FunctionProtoType& function_type,
-    std::optional<std::string> functor_template_name) {
-  // Extract callback parameter names, types, and annotations from a callback
-  // function pointer. We need the param names to coordinate with annotations
-  // like SANDBOX_ELEM_SIZED_BY(param_name).
-  // Otherwise, we also support SANDBOX_ELEM_SIZED_BY(cb_argN) if the
-  // function pointer declaration did not name the parameters.
-  std::vector<std::string> param_names;
-  std::vector<std::string> param_types;
-  std::vector<Annotations> param_annotations;
-  ABSL_RETURN_IF_ERROR(ExtractCallbackParams(param, param_names, param_types,
-                                             &param_annotations));
-
-  clang::QualType cb_ret_type =
-      function_type.getReturnType().getCanonicalType();
-  if (!cb_ret_type->isVoidType() &&
-      !cb_ret_type->isIntegralOrEnumerationType() &&
-      !cb_ret_type->isPointerType()) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "callback $0 has unsupported non-primitive return type: $1", name,
-        cb_ret_type.getAsString()));
-  }
-
-  return std::make_unique<CallbackArg>(
-      name, type_name, std::move(annotations), std::move(param_names),
-      std::move(param_types), std::move(param_annotations),
-      cb_ret_type->isPointerType(), cb_ret_type.getAsString(),
-      functor_template_name);
-}
-
-absl::StatusOr<ArgPtr> ConvertArgImpl(
-    const clang::ASTContext& context, absl::string_view name,
-    clang::QualType type, const clang::ParmVarDecl* param,
-    Annotations&& annotations,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations) {
-  bool is_param = param != nullptr;
-  // We are not interested in typedefs.
-  type = type.getCanonicalType();
-  std::string type_name = type.getAsString();
-  if (type->isArithmeticType()) {
-    return std::make_unique<ScalarArg>(name, type_name);
-  }
-  if (type_name == "std::string" ||
-      type_name == "class std::basic_string<char>") {
-    return std::make_unique<StringArg>(name, type_name);
-  }
-  if (type_name == "const std::string &" ||
-      type_name == "const class std::basic_string<char> &") {
-    return std::make_unique<StringConstRefArg>(name, type_name);
-  }
-  if (type_name == "std::string &" ||
-      type_name == "class std::basic_string<char> &") {
-    return std::make_unique<StringRefArg>(name, type_name);
-  }
-  if (type_name == "std::string *" ||
-      type_name == "class std::basic_string<char> *") {
-    return std::make_unique<StringPtrArg>(name, type_name);
-  }
-  if (type_name == "std::string_view" ||
-      type_name == "class std::basic_string_view<char>") {
-    return std::make_unique<StringViewArg>(name, type_name);
-  }
-
-  if (type->isFunctionPointerType()) {
-    if (param == nullptr) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "return function pointer $0 is not supported", name));
-    }
-    const auto* function_type =
-        type->getPointeeType()->getAs<clang::FunctionProtoType>();
-    if (!function_type) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("callback $0 does not have a prototype", name));
-    }
-    return MakeCallbackArg(name, type_name, std::move(annotations), *param,
-                           *function_type,
-                           /*functor_template_name=*/std::nullopt);
-  }
-  std::string template_name;
-  if (const auto* functor_type =
-          ast::GetFunctorUnderlyingFunctionType(type, template_name)) {
-    if (param == nullptr) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("return C++ functor $0 is not supported", name));
-    }
-    return MakeCallbackArg(name, type_name, std::move(annotations), *param,
-                           *functor_type, template_name);
-  }
-
-  if (type->isPointerType()) {
-    // Check whether this pointer even needs syncing or is an opaque handle.
-    if (annotations.ptr_dir == PointerDir::kSandboxOpaque ||
-        annotations.ptr_dir == PointerDir::kHostOpaque) {
-      // Shouldn't be sized by in any way.
-      if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "pointer argument $0 is opaque and should not be sized (kind $1)",
-            name, annotations.size_type.index()));
-      }
-      // Shouldn't need a lifetime annotation.
-      if (!std::holds_alternative<std::monostate>(annotations.lifetime)) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "pointer argument $0 is opaque and should not have a lifetime "
-            "annotation",
-            name));
-      }
-      return std::make_unique<PointerArg>(
-          name, type_name, PointeeTypeInfo(type), *annotations.ptr_dir,
-          /*sized_by_type=*/std::monostate{}, /*lifetime=*/std::monostate{},
-          std::move(annotations.context_bound),
-          std::move(annotations.struct_sync), record_annotations);
-    }
-    if (is_param) {
-      if (!annotations.shallow_struct_sync && annotations.struct_sync.empty() &&
-          !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
-                                         record_annotations) &&
-          !((std::holds_alternative<ByteSizedBy>(annotations.size_type) ||
-             std::holds_alternative<SizedByBinding>(annotations.size_type)) &&
-            IsSupportedArgByteSizedByType(type)) &&
-          !(std::holds_alternative<NullTerminated>(annotations.size_type) &&
-            std::holds_alternative<SandboxGlobalLifetime>(
-                annotations.lifetime) &&
-            annotations.ptr_dir != PointerDir::kIn &&
-            IsSupportedOutParamNullTerminatedType(type)) &&
-          !(annotations.context_bound.copy_from_and_bind.has_value() &&
-            annotations.ptr_dir == PointerDir::kOut &&
-            IsSupportedOutParamContextBoundType(context, type,
-                                                record_annotations))) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "pointer argument $0 has unsupported pointee type", name));
-      }
-    } else if (!type->getPointeeType()->isArithmeticType() &&
-               !std::holds_alternative<AliasHostPtrLifetime>(
-                   annotations.lifetime) &&
-               !std::holds_alternative<AliasCallbackReturnLifetime>(
-                   annotations.lifetime)) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "return pointer $0 has unsupported pointee type", name));
-    }
-    // Infer "IN" for const pointers.
-    std::optional<PointerDir> ptr_dir;
-    if (type->getPointeeType().isConstQualified()) {
-      ptr_dir = PointerDir::kIn;
-    }
-    if (annotations.ptr_dir) {
-      ptr_dir = annotations.ptr_dir;
-    }
-    if (!ptr_dir) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("pointer argument $0 has unknown direction", name));
-    }
-    return std::visit(
-        absl::Overload{
-            [&](const std::monostate&) -> absl::StatusOr<ArgPtr> {
-              return std::make_unique<PointerArg>(
-                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                  std::monostate{}, annotations.lifetime,
-                  std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations);
-            },
-            [&](const ElemSizedBy& elem_sized_by) -> absl::StatusOr<ArgPtr> {
-              return std::make_unique<PointerArg>(
-                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                  elem_sized_by, annotations.lifetime,
-                  std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations);
-            },
-            [&](const ByteSizedBy& byte_sized_by) -> absl::StatusOr<ArgPtr> {
-              return std::make_unique<PointerArg>(
-                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                  byte_sized_by, annotations.lifetime,
-                  std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations);
-            },
-            [&](const SizedByBinding& sized_by_binding)
-                -> absl::StatusOr<ArgPtr> {
-              return std::make_unique<PointerArg>(
-                  name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                  sized_by_binding, annotations.lifetime,
-                  std::move(annotations.context_bound),
-                  std::move(annotations.struct_sync), record_annotations);
-            },
-            [&](const NullTerminated& null_terminated)
-                -> absl::StatusOr<ArgPtr> {
-              if (annotations.context_bound.copy_from_and_bind.has_value()) {
-                // For context-bound null-terminated outputs, we handle that
-                // through PointerArg instead of ConstCStrArg. We could consider
-                // merging PointerArg and ConstCStrArg in the future.
-                return std::make_unique<PointerArg>(
-                    name, type_name, PointeeTypeInfo(type), *ptr_dir,
-                    null_terminated, annotations.lifetime,
-                    std::move(annotations.context_bound),
-                    std::move(annotations.struct_sync), record_annotations);
-              }
-              // Return values, or input-only null-terminated pointers (char*):
-              if (!is_param || ptr_dir == PointerDir::kIn) {
-                if (!IsSupportedArgRetNullTerminatedType(type)) {
-                  return absl::InvalidArgumentError(absl::Substitute(
-                      "$0 $1 is null-terminated but not a const char*",
-                      is_param ? "pointer argument" : "return pointer", name));
-                }
-                if (ptr_dir == PointerDir::kIn ||
-                    std::holds_alternative<SandboxGlobalLifetime>(
-                        annotations.lifetime)) {
-                  return std::make_unique<ConstCStrArg>(
-                      name, type_name, *ptr_dir, annotations.lifetime);
-                }
-                return absl::InvalidArgumentError(absl::Substitute(
-                    "function $0: null_terminated annotation for "
-                    "return values requires a lifetime annotation.",
-                    name));
-              }
-              // Outparams (char**):
-              if (ptr_dir != PointerDir::kIn) {
-                if (std::holds_alternative<SandboxGlobalLifetime>(
-                        annotations.lifetime)) {
-                  if (!IsSupportedOutParamNullTerminatedType(type)) {
-                    return absl::InvalidArgumentError(absl::Substitute(
-                        "pointer argument $0 with lifetime_sandbox_global must "
-                        "be a const char**",
-                        name));
-                  }
-                  return std::make_unique<ConstCStrArg>(
-                      name, type_name, *ptr_dir, annotations.lifetime);
-                }
-                return absl::InvalidArgumentError(absl::Substitute(
-                    "pointer argument $0: null_terminated annotation for "
-                    "output requires a lifetime annotation.",
-                    name));
-              }
-              return absl::InvalidArgumentError(absl::Substitute(
-                  "unsupported null_terminated pointer $0", name));
-            }},
-        annotations.size_type);
-  }
-  return nullptr;
 }
 
 // Recovers the C++ string form from a canonical type name normalized by
@@ -1041,10 +782,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         source);
     if (param != nullptr) {
       std::vector<std::string> cb_names;
-      std::vector<std::string> cb_types;
       std::vector<const clang::ParmVarDecl*> cb_decls;
-      ABSL_RETURN_IF_ERROR(ExtractCallbackParams(*param, cb_names, cb_types,
-                                                 nullptr, &cb_decls));
+      ABSL_RETURN_IF_ERROR(ExtractCallbackParams(*param, cb_names, cb_decls));
       cb.callback_parameters.reserve(cb_decls.size());
       for (size_t i = 0; i < cb_decls.size(); ++i) {
         ABSL_ASSIGN_OR_RETURN(
@@ -1267,54 +1006,6 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
 }
 
 }  // namespace
-
-absl::StatusOr<ArgPtr> ConvertArg(
-    absl::string_view name, clang::QualType type,
-    const clang::ParmVarDecl* param, const clang::FunctionDecl* funcDecl,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations) {
-  Annotations annotations;
-  // Either we got a param or a funcDecl, but not both.
-  if (param && funcDecl) {
-    // TODO(cffsmith): improve this error message.
-    return absl::InvalidArgumentError(absl::Substitute(
-        "argument $0: cannot have both param and funcDecl", name));
-  }
-  if (!param && !funcDecl) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "argument $0: must have at least one of param and funcDecl", name));
-  }
-  const clang::ASTContext& context =
-      funcDecl ? funcDecl->getASTContext() : param->getASTContext();
-  if (param) {
-    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, param));
-  }
-  if (funcDecl) {
-    ABSL_ASSIGN_OR_RETURN(annotations, ParseAnnotations(name, funcDecl));
-  }
-
-  if (type->isPointerType() && !type->isFunctionPointerType() &&
-      annotations.ptr_dir == std::nullopt) {
-    return absl::InvalidArgumentError(
-        absl::Substitute("argument $0 with type $1: missing sandbox annotation",
-                         name, type.getAsString()));
-  }
-
-  ABSL_ASSIGN_OR_RETURN(
-      ArgPtr arg, ConvertArgImpl(context, name, type, param,
-                                 std::move(annotations), record_annotations));
-  if (arg && ((param || funcDecl) || !arg->EmitRetParams().empty())) {
-    return std::move(arg);
-  }
-  if (param) {
-    return absl::UnimplementedError(absl::Substitute(
-        "arg $0: unsupported type: $1 ($2)", name, type.getAsString(),
-        type.getCanonicalType().getAsString()));
-  }
-  return absl::UnimplementedError(
-      absl::Substitute("unsupported return type: $0 ($1)", type.getAsString(),
-                       type.getCanonicalType().getAsString()));
-}
 
 absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
     const clang::FunctionDecl* func_decl,
