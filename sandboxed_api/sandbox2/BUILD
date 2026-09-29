@@ -1127,6 +1127,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:minimal",
         "//sandboxed_api/sandbox2/testcases:personality",
         "//sandboxed_api/sandbox2/testcases:pidcomms",
+        "//sandboxed_api/sandbox2/testcases:vfork",
     ],
     tags = ["no_qemu_user_mode"],
     deps = [

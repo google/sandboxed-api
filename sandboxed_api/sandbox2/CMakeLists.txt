@@ -1196,6 +1196,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_minimal
     sandbox2::testcase_personality
     sandbox2::testcase_pidcomms
+    sandbox2::testcase_vfork
   )
   target_link_libraries(sandbox2_notify_test PRIVATE
     absl::status_matchers

@@ -411,3 +411,12 @@ cc_binary(
         "@abseil-cpp//absl/log:check",
     ],
 )
+
+cc_binary(
+    name = "vfork",
+    testonly = True,
+    srcs = ["vfork.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = ["//sandboxed_api:config"],
+)

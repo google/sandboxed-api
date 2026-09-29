@@ -504,3 +504,17 @@ target_link_libraries(sandbox2_testcase_sendrecv PRIVATE
   sandbox2::comms
   sapi::base
 )
+
+# sandboxed_api/sandbox2/testcases:vfork
+add_executable(sandbox2_testcase_vfork
+  vfork.cc
+)
+add_executable(sandbox2::testcase_vfork ALIAS sandbox2_testcase_vfork)
+set_target_properties(sandbox2_testcase_vfork PROPERTIES
+  OUTPUT_NAME vfork
+)
+target_link_libraries(sandbox2_testcase_vfork PRIVATE
+  -static-pie
+  sapi::base
+  sapi::config
+)

@@ -50,6 +50,7 @@ using ::absl_testing::IsOk;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::Eq;
+using ::testing::Gt;
 
 // If syscall and its arguments don't match the expected ones, return the
 // opposite of the requested values (allow/disallow) to indicate an error.
@@ -107,6 +108,18 @@ class NotifyTest : public ::testing::TestWithParam<bool> {
     sandbox2::PolicyBuilder builder =
         CreateDefaultPermissiveTestPolicy(path).AddPolicyOnSyscall(
             __NR_personality, {SANDBOX2_TRACE});
+    if (GetParam()) {
+      builder.CollectStacktracesOnSignal(false);
+    }
+    return builder.BuildOrDie();
+  }
+  std::unique_ptr<Policy> VforkTestcasePolicy(absl::string_view path) {
+    sandbox2::PolicyBuilder builder =
+        CreateDefaultPermissiveTestPolicy(path).AddPolicyOnSyscall(
+            __NR_clone, {SANDBOX2_TRACE});
+#ifdef __NR_vfork
+    builder.AddPolicyOnSyscall(__NR_vfork, {SANDBOX2_TRACE});
+#endif
     if (GetParam()) {
       builder.CollectStacktracesOnSignal(false);
     }
@@ -256,6 +269,104 @@ TEST_P(NotifyTest, InspectAfterSyscall) {
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
   EXPECT_TRUE(notify_ptr->syscall_return_called());
+}
+
+bool IsVforkSyscall(int nr) {
+#ifdef __NR_vfork
+  if (nr == __NR_vfork) {
+    return true;
+  }
+#endif
+  return nr == __NR_clone;
+}
+
+class VforkNotify : public Notify {
+ public:
+  explicit VforkNotify(TraceAction trace_action)
+      : trace_action_(trace_action) {}
+  TraceAction EventSyscallTrace(const Syscall& syscall) override {
+    if (!IsVforkSyscall(syscall.nr())) {
+      return TraceAction::kAllow;
+    }
+    return trace_action_;
+  }
+
+  void EventSyscallReturn(const Syscall& syscall,
+                          int64_t return_value) override {
+    if (!IsVforkSyscall(syscall.nr())) {
+      return;
+    }
+    ++syscall_return_count_;
+    return_value_ = return_value;
+  }
+
+  int syscall_return_count() const { return syscall_return_count_; }
+  int64_t return_value() const { return return_value_; }
+
+ private:
+  TraceAction trace_action_;
+  int syscall_return_count_ = 0;
+  int64_t return_value_ = -1;
+};
+
+TEST_P(NotifyTest, AllowVfork) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/vfork");
+  std::vector<std::string> args = {path};
+  Sandbox2 s2(std::make_unique<Executor>(path, args), VforkTestcasePolicy(path),
+              std::make_unique<VforkNotify>(Notify::TraceAction::kAllow));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+  auto result = s2.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(NotifyTest, DisallowVfork) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/vfork");
+  std::vector<std::string> args = {path};
+  Sandbox2 s2(std::make_unique<Executor>(path, args), VforkTestcasePolicy(path),
+              std::make_unique<VforkNotify>(Notify::TraceAction::kDeny));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+  auto result = s2.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_TRUE(IsVforkSyscall(result.GetSyscall()->nr()));
+}
+
+TEST_P(NotifyTest, VforkTraceActionErrno) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/vfork");
+  std::vector<std::string> args = {path};
+  Sandbox2 s2(std::make_unique<Executor>(path, args), VforkTestcasePolicy(path),
+              std::make_unique<VforkNotify>(
+                  Notify::TraceAction::RespondWithErrno(ENOSYS)));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+  auto result = s2.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(ENOSYS));
+}
+
+TEST_P(NotifyTest, InspectAfterVfork) {
+  if (GetParam()) {
+    GTEST_SKIP() << "Skipping InspectAfterVfork test because "
+                    "kInspectAfterReturn is not supported for unotify";
+  }
+  const std::string path = GetTestSourcePath("sandbox2/testcases/vfork");
+  std::vector<std::string> args = {path};
+  auto notify =
+      std::make_unique<VforkNotify>(Notify::TraceAction::kInspectAfterReturn);
+  VforkNotify* notify_ptr = notify.get();
+  Sandbox2 s2(std::make_unique<Executor>(path, args), VforkTestcasePolicy(path),
+              std::move(notify));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+  auto result = s2.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_THAT(notify_ptr->syscall_return_count(), Eq(1));
+  EXPECT_THAT(notify_ptr->return_value(), Gt(0));
 }
 
 class AbortOnStartNotify : public Notify {
