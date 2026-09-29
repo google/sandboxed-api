@@ -212,6 +212,27 @@ TEST_P(Sandbox2Test, SandboxeeExternalKill) {
   EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 
+TEST_P(Sandbox2Test, SandboxeeExternalKillEnabledStacktraces) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
+
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy,
+      CreateDefaultTestPolicy(path).CollectStacktracesOnKill(true).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  ASSERT_TRUE(sandbox.RunAsync());
+  EXPECT_THAT(sandbox.IsTerminated(), IsFalse());
+  absl::SleepFor(absl::Seconds(1));
+  sandbox.Kill();
+  auto result = sandbox.AwaitResult();
+  EXPECT_THAT(sandbox.IsTerminated(), IsTrue());
+  EXPECT_EQ(result.final_status(), Result::EXTERNAL_KILL);
+  EXPECT_THAT(result.stack_trace(), Contains(StartsWith("main")));
+}
+
 TEST_P(Sandbox2Test, SandboxeeKillDontAwait) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
 
