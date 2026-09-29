@@ -719,7 +719,6 @@ cc_library(
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:fileops",
         "//sandboxed_api/util:raw_logging",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
