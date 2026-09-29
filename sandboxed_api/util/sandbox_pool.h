@@ -479,8 +479,7 @@ void SandboxPool<SandboxT>::CreateTask(size_t max_sandboxes,
     return;
   }
   if (*sandbox == nullptr) {
-    // Pool is full.
-    LOG(WARNING) << "Sandbox pool is full.";
+    VLOG(1) << "Pre-warm skipped, pool already at min_sandboxes";
     return;
   }
   idle_queue_.Push(std::make_unique<PoolEntry>(std::move(*sandbox), 0));
