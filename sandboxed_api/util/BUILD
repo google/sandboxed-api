@@ -27,6 +27,7 @@ package_group(
     name = "sandbox_pool_users",
     packages = [
         "//sandboxed_api/...",
+        "//third_party/libwebp/sandbox_api/...",
     ],
 )
 
@@ -279,7 +280,9 @@ cc_library(
         "sandbox_pool_global.h",
     ],
     copts = sapi_platform_copts(),
-    visibility = [":sandbox_pool_users"],
+    visibility = [
+        ":sandbox_pool_users",
+    ],
     deps = [
         ":sandbox_pool_internal",
         ":thread",
