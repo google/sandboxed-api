@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -28,6 +29,7 @@
 #include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tests/unmapped_embedded_data.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sapi {
 namespace {
@@ -69,6 +71,59 @@ TEST(EmbedDataTest, UnmappedElfEmbedding) {
   EXPECT_THAT(pread(fd, &materialized_contents[0], kExpectedPayload.size(), 0),
               Eq(kExpectedPayload.size()));
   EXPECT_THAT(materialized_contents, StrEq(kExpectedPayload));
+}
+
+// Runs `binary` with `argv0` as argv[0]. Returns the exit code, or -1 if the
+// process could not be spawned or did not exit normally.
+int RunWithArgv0(const std::string& binary, std::string argv0) {
+  char* const argv[] = {argv0.data(), nullptr};
+  pid_t pid;
+  if (posix_spawn(&pid, binary.c_str(), nullptr, nullptr, argv, environ) != 0) {
+    return -1;
+  }
+  int status = 0;
+  if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status)) {
+    return -1;
+  }
+  return WEXITSTATUS(status);
+}
+
+// For the main program, glibc's dladdr(3) reports argv[0] as the file name,
+// which is controlled by whoever executes the binary. Locating unmapped
+// sections must not depend on it.
+// embed_argv0_helper exits with 1 if it fails to materialize the payload and
+// with 2 if it materializes the wrong contents.
+TEST(EmbedDataTest, UnmappedLookupIgnoresArgv0NamingADirectory) {
+  if (EmbedToc::From(*unmapped_embedded_data_create()).section_name.empty()) {
+    GTEST_SKIP() << "Test data is not embedded in an unmapped ELF section";
+  }
+  EXPECT_THAT(RunWithArgv0(GetTestSourcePath("tests/embed_argv0_helper"),
+                           GetTestTempPath()),
+              Eq(0));
+}
+
+TEST(EmbedDataTest, UnmappedLookupIgnoresArgv0NamingAnotherBinary) {
+  const EmbedToc toc = EmbedToc::From(*unmapped_embedded_data_create());
+  if (toc.section_name.empty()) {
+    GTEST_SKIP() << "Test data is not embedded in an unmapped ELF section";
+  }
+  // Create a copy of the helper with a clobbered payload section.
+  const std::string helper = GetTestSourcePath("tests/embed_argv0_helper");
+  const std::string decoy = GetTestTempPath("embed_argv0_helper_decoy");
+  ASSERT_TRUE(file_util::fileops::CopyFile(helper, decoy, 0755));
+  file_util::fileops::FDCloser decoy_fd(
+      open(decoy.c_str(), O_RDWR | O_CLOEXEC));
+  ASSERT_THAT(decoy_fd.get(), Ne(-1));
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      sandbox2::ElfSectionLocation loc,
+      sandbox2::ElfFile::GetSectionLocation(decoy_fd.get(), toc.section_name));
+  const std::string garbage(loc.size, 'X');
+  ASSERT_THAT(
+      pwrite(decoy_fd.get(), garbage.data(), garbage.size(), loc.offset),
+      Eq(garbage.size()));
+  ASSERT_TRUE(decoy_fd.Close());
+
+  EXPECT_THAT(RunWithArgv0(helper, decoy), Eq(0));
 }
 
 void BM_LoadEmbeddedFileEndToEnd(benchmark::State& state) {

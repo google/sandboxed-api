@@ -122,17 +122,34 @@ sapi_cc_embed_data(
     srcs = [":embedded_data.bin"],
 )
 
+cc_binary(
+    name = "embed_argv0_helper",
+    testonly = True,
+    srcs = ["embed_argv0_helper.cc"],
+    copts = sapi_platform_copts(),
+    linkopts = ["-ldl"],
+    deps = [
+        ":unmapped_embedded_data",
+        "//sandboxed_api:embed_file",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
 cc_test(
     name = "embed_data_test",
     srcs = ["embed_data_test.cc"],
     copts = sapi_platform_copts(),
-    data = [":embed_benchmark_helper"],
+    data = [
+        ":embed_argv0_helper",
+        ":embed_benchmark_helper",
+    ],
     deps = [
         ":unmapped_embedded_data",
         "//sandboxed_api:embed_file",
         "//sandboxed_api:embed_toc",
         "//sandboxed_api:testing",
         "//sandboxed_api/sandbox2/util:minielf",
+        "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/strings",
         "@google_benchmark//:benchmark",
         "@googletest//:gtest_main",

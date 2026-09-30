@@ -95,11 +95,24 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     SOURCES ${CMAKE_CURRENT_BINARY_DIR}/embedded_data.bin
   )
 
+  # sandboxed_api/tests:embed_argv0_helper
+  add_executable(embed_argv0_helper
+    embed_argv0_helper.cc
+  )
+  target_link_libraries(embed_argv0_helper PRIVATE
+    unmapped_embedded_data
+    absl::strings
+    sapi::base
+    sapi::embed_file
+    ${CMAKE_DL_LIBS}
+  )
+
   # sandboxed_api/tests:embed_data_test
   add_executable(sapi_embed_data_test
     embed_data_test.cc
   )
-  add_dependencies(sapi_embed_data_test embed_benchmark_helper)
+  add_dependencies(sapi_embed_data_test embed_argv0_helper
+                                        embed_benchmark_helper)
   target_link_libraries(sapi_embed_data_test PRIVATE
     unmapped_embedded_data
     absl::status
@@ -108,6 +121,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sandbox2::minielf
     sapi::embed_file
     sapi::embed_toc
+    sapi::fileops
     sapi::test_main
     sapi::testing
   )

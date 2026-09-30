@@ -16,7 +16,6 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
-#include <sys/auxv.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -25,6 +24,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -103,44 +104,59 @@ absl::Status FallbackChunkedCopy(int in_fd, uint64_t offset, size_t size,
 
 namespace {
 
-// Attempts to open the container binary or DSO holding `toc`.
-// First attempts to discover and open the specific shared object via dladdr(3),
-// falling back to opening the main executable (/proc/self/exe).
-absl::StatusOr<FDCloser> OpenElfContainer(const EmbedToc& toc) {
+// An opened ELF container and the location of an embedded section within it.
+struct ElfContainer {
+  FDCloser fd;
+  sandbox2::ElfSectionLocation section;
+};
+
+// Opens the main executable or DSO that contains the section `section_name`.
+//
+// Candidates are tried in order, and the first one that contains the section
+// is used:
+// 1. /proc/self/exe, i.e. the main executable. This does not depend on argv[0],
+//    which is chosen by whoever executes the binary and may name an unrelated
+//    file.
+// 2. The object containing `section_name` as reported by dladdr(3). This is
+//    the path of the DSO if the section is embedded in a shared library. For
+//    the main program, glibc reports argv[0] instead, which covers cases where
+//    /proc/self/exe is unusable, e.g. /proc is not mounted or the binary was
+//    started as `ld.so ./binary` (in which case /proc/self/exe is the loader).
+// Section names are unique per embed target, so if both the main executable
+// and a DSO contain the section, both contain the same embedded file.
+absl::StatusOr<ElfContainer> OpenElfContainer(absl::string_view section_name) {
+  std::vector<std::string> candidates = {"/proc/self/exe"};
   Dl_info dlinfo;
-  const void* symbol_addr =
-      !toc.section_name.empty() ? toc.section_name.data() : toc.name.data();
-  if (dladdr(symbol_addr, &dlinfo) != 0 && dlinfo.dli_fname != nullptr &&
-      dlinfo.dli_fname[0] != '\0') {
-    int dso_fd = open(dlinfo.dli_fname, O_RDONLY | O_CLOEXEC);
-    if (dso_fd >= 0) {
-      return FDCloser(dso_fd);
+  if (dladdr(section_name.data(), &dlinfo) != 0 &&
+      dlinfo.dli_fname != nullptr && dlinfo.dli_fname[0] != '\0') {
+    candidates.push_back(dlinfo.dli_fname);
+  }
+
+  absl::Status status;
+  for (const std::string& path : candidates) {
+    int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+      status = absl::ErrnoToStatus(
+          errno, absl::StrCat("Failed to open ELF container '", path, "'"));
+      continue;
     }
-  }
-
-  int exe_fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
-  if (exe_fd >= 0) {
-    return FDCloser(exe_fd);
-  }
-
-  const char* execfn = reinterpret_cast<const char*>(getauxval(AT_EXECFN));
-  if (execfn != nullptr && execfn[0] != '\0') {
-    int execfn_fd = open(execfn, O_RDONLY | O_CLOEXEC);
-    if (execfn_fd >= 0) {
-      return FDCloser(execfn_fd);
+    FDCloser fd_closer(fd);
+    absl::StatusOr<sandbox2::ElfSectionLocation> section =
+        sandbox2::ElfFile::GetSectionLocation(fd, section_name);
+    if (section.ok()) {
+      return ElfContainer{std::move(fd_closer), *section};
     }
+    status = section.status();
   }
-
-  return absl::ErrnoToStatus(errno,
-                             "Failed to open ELF container (/proc/self/exe)");
+  return status;
 }
 
 // Copies an unmapped ELF section directly from the container binary/DSO on disk
 // into an executable memfd.
 //
 // 1. Container Discovery:
-//    Uses dladdr(3) on the FileToc address to identify whether the TOC resides
-//    in the main binary (/proc/self/exe) or a shared object (.so / DSO).
+//    Uses OpenElfContainer() to find the main binary or shared object (.so /
+//    DSO) that contains the section.
 // 2. Section Parsing:
 //    Parses the ELF section headers using sandbox2::ElfFile::GetSectionLocation
 //    to obtain the file offset and size of the section without mapping the
@@ -150,13 +166,10 @@ absl::StatusOr<FDCloser> OpenElfContainer(const EmbedToc& toc) {
 //    copy_file_range(2) to avoid userspace buffering and memory allocation
 //    overhead.
 absl::Status CopySectionToMemfd(absl::string_view section_name,
-                                absl::string_view toc_name, int memfd,
-                                const EmbedToc& toc) {
-  ABSL_ASSIGN_OR_RETURN(FDCloser exe_fd, OpenElfContainer(toc));
-
-  ABSL_ASSIGN_OR_RETURN(
-      sandbox2::ElfSectionLocation loc,
-      sandbox2::ElfFile::GetSectionLocation(exe_fd.get(), section_name));
+                                absl::string_view toc_name, int memfd) {
+  ABSL_ASSIGN_OR_RETURN(ElfContainer container, OpenElfContainer(section_name));
+  const FDCloser& exe_fd = container.fd;
+  const sandbox2::ElfSectionLocation& loc = container.section;
 
   loff_t in_offset = loc.offset;
   size_t bytes_remaining = loc.size;
@@ -204,7 +217,7 @@ int EmbedFile::CreateFdForFileToc(const EmbedToc& toc) {
 
   if (!toc.section_name.empty()) {
     absl::Status copy_status =
-        CopySectionToMemfd(toc.section_name, toc.name, embed_fd.get(), toc);
+        CopySectionToMemfd(toc.section_name, toc.name, embed_fd.get());
     if (!copy_status.ok()) {
       LOG(WARNING) << "CopySectionToMemfd failed for '" << toc.name
                    << "': " << copy_status;
