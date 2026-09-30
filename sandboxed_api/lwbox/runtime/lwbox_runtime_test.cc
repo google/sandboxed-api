@@ -304,6 +304,12 @@ TEST(LwboxRuntimeTest, ClearBindingsPropagatesFreeError) {
         reg->ClearBindings(sandbox, &dummy_context);
       },
       "Failed to free retained remote pointer");
+
+  MockRPCChannel mock_channel;
+  MockSandbox sandbox(&mock_channel);
+  EXPECT_CALL(mock_channel, Free(fake_remote))
+      .WillOnce(Return(absl::OkStatus()));
+  reg->ClearBindings(sandbox, &dummy_context);
 }
 
 TEST(LwboxRuntimeTest, ClearBindingsDeduplicatesPointers) {
