@@ -28,6 +28,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/rpcchannel.h"
+#include "sandboxed_api/util/checked_math.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_type.h"
 
@@ -41,15 +42,17 @@ class Array : public Var {
   Array(T* arr, size_t nelem)
       : arr_(arr),
         nelem_(nelem),
-        total_size_(nelem_ * sizeof(T)),
+        total_size_(CheckedMultiply(nelem_, sizeof(T))),
         buffer_owned_(false) {
     SetLocal(const_cast<std::remove_const_t<T>*>(arr_));
   }
 
   // The array is allocated and owned by this object.
   explicit Array(size_t nelem)
-      : nelem_(nelem), total_size_(nelem_ * sizeof(T)), buffer_owned_(true) {
-    void* storage = malloc(sizeof(T) * nelem);
+      : nelem_(nelem),
+        total_size_(CheckedMultiply(nelem_, sizeof(T))),
+        buffer_owned_(true) {
+    void* storage = malloc(total_size_);
     CHECK(storage != nullptr);
     SetLocal(storage);
     arr_ = static_cast<T*>(storage);
@@ -92,7 +95,10 @@ class Array : public Var {
   // make all pointers to the current data (inside and outside of the sandbox)
   // invalid.
   absl::Status Resize(RPCChannel* rpc_channel, size_t nelems) {
-    size_t absolute_size = sizeof(T) * nelems;
+    size_t absolute_size;
+    if (MultiplyOverflow(sizeof(T), nelems, &absolute_size)) {
+      return absl::InvalidArgumentError("Array size overflow");
+    }
     // Resize local buffer.
     ABSL_RETURN_IF_ERROR(EnsureOwnedLocalBuffer(absolute_size));
 

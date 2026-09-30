@@ -31,6 +31,25 @@ package_group(
     ],
 )
 
+cc_library(
+    name = "checked_math",
+    hdrs = ["checked_math.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/log:check"],
+)
+
+cc_test(
+    name = "checked_math_test",
+    size = "small",
+    srcs = ["checked_math_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":checked_math",
+        "@googletest//:gtest_main",
+    ],
+)
+
 # Another helper library with filesystem and path utility functions.
 cc_library(
     name = "file_base",

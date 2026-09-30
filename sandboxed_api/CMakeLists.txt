@@ -310,6 +310,7 @@ target_link_libraries(sapi_vars
          absl::str_format
          sandbox2::comms
          sapi::call
+         sapi::checked_math
          sapi::lenval_core
          sapi::proto_helper
          sapi::rpcchannel

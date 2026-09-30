@@ -12,6 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# sandboxed_api/util:checked_math
+add_library(sapi_util_checked_math ${SAPI_LIB_TYPE}
+  checked_math.h
+)
+add_library(sapi::checked_math ALIAS sapi_util_checked_math)
+target_link_libraries(sapi_util_checked_math PUBLIC
+  absl::check
+  sapi::base
+)
+
 # sandboxed_api/util:file_base
 add_library(sapi_util_file_base ${SAPI_LIB_TYPE}
   path.cc
@@ -194,6 +204,19 @@ target_link_libraries(sapi_util_sandbox_pool
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
+  # sandboxed_api/util:checked_math_test
+  add_executable(sapi_checked_math_test
+    checked_math_test.cc
+  )
+  set_target_properties(sapi_checked_math_test PROPERTIES
+    OUTPUT_NAME checked_math_test
+  )
+  target_link_libraries(sapi_checked_math_test PRIVATE
+    sapi::checked_math
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sapi_checked_math_test)
+
   # sandboxed_api/util:file_base_test
   add_executable(sapi_file_base_test
     path_test.cc

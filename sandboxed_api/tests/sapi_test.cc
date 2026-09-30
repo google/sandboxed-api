@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -493,6 +494,18 @@ TEST(VarsTest, MoveOperations) {
     MyStruct* data_after = struct_orig.mutable_data();
     EXPECT_THAT(data_before, Eq(data_after));
   }
+}
+
+TEST(VarsTest, ArraySizeOverflow) {
+  constexpr size_t kOverflowNelem =
+      (std::numeric_limits<size_t>::max() / sizeof(uint64_t)) + 1;
+  uint64_t dummy = 0;
+  EXPECT_DEATH(v::Array<uint64_t>(&dummy, kOverflowNelem), "");
+  EXPECT_DEATH(v::Array<uint64_t>{kOverflowNelem}, "");
+
+  v::Array<uint64_t> arr(1);
+  EXPECT_THAT(arr.Resize(/*rpc_channel=*/nullptr, kOverflowNelem),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST_P(SandboxTest, MapFd) {
