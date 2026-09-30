@@ -92,6 +92,7 @@ cc_library(
 cc_test(
     name = "generator_test",
     srcs = [
+        "codegen_test.cc",
         "emitter_test.cc",
         "frontend_action_test_util.cc",
         "frontend_action_test_util.h",
@@ -108,6 +109,7 @@ cc_test(
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:file_helpers",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:overload",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

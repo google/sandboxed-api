@@ -172,6 +172,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_executable(sapi_generator_test
     frontend_action_test_util.cc
     frontend_action_test_util.h
+    codegen_test.cc
     emitter_test.cc
     ir_test.cc
     sandboxed_library_emitter_test.cc
