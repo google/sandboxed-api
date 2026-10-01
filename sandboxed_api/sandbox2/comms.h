@@ -109,7 +109,9 @@ class Comms {
   static absl::StatusOr<Comms> Connect(const std::string& socket_name,
                                        bool abstract_uds = true);
 
-  Comms(Comms&& other) { *this = std::move(other); }
+  Comms(Comms&& other) : raw_comms_(RawCommsFdImpl(-1)) {
+    *this = std::move(other);
+  }
   Comms& operator=(Comms&& other) {
     if (this != &other) {
       using std::swap;
@@ -138,8 +140,8 @@ class Comms {
   // Returns the already connected socket FD.
   int GetConnectionFD() const;
 
-  bool IsConnected() const { return state_ == State::kConnected; }
-  bool IsTerminated() const { return state_ == State::kTerminated; }
+  bool IsConnected() const { return !IsTerminated(); }
+  bool IsTerminated() const { return GetRawComms()->IsTerminated(); }
 
   // Returns the maximum size of a message that can be send over the comms
   // channel.
@@ -230,7 +232,6 @@ class Comms {
     swap(name_, other.name_);
     swap(abstract_uds_, other.abstract_uds_);
     swap(raw_comms_, other.raw_comms_);
-    swap(state_, other.state_);
   }
 
   friend void swap(Comms& x, Comms& y) { return x.Swap(y); }
@@ -265,6 +266,8 @@ class Comms {
     }
     virtual ssize_t RawSendMsg(const void* msg) = 0;
     virtual ssize_t RawRecvMsg(void* msg) = 0;
+    virtual void Terminate() = 0;
+    virtual bool IsTerminated() const = 0;
   };
 
   class RawCommsFdImpl : public RawComms {
@@ -276,6 +279,8 @@ class Comms {
     ssize_t RawRecv(void* data, size_t len) override;
     ssize_t RawSendMsg(const void* msg) override;
     ssize_t RawRecvMsg(void* msg) override;
+    void Terminate() override;
+    bool IsTerminated() const override;
 
    private:
     sapi::file_util::fileops::FDCloser connection_fd_;
@@ -302,11 +307,14 @@ class Comms {
     int GetConnectionFD() const override {
       return lower_comms_->GetConnectionFD();
     }
-    void Terminate() {
+    void Terminate() override {
       if (terminated_.test_and_set(std::memory_order_relaxed)) {
         return;
       }
       transport_->Terminate();
+    }
+    bool IsTerminated() const override {
+      return terminated_.test(std::memory_order_relaxed);
     }
     ssize_t RawSend(const void* data, size_t len) override;
     ssize_t RawRecv(void* data, size_t len) override;
@@ -328,20 +336,10 @@ class Comms {
 
   class ProtoCopyingOutputStream;
 
-  // State of the channel
-  enum class State {
-    kUnconnected = 0,
-    kConnected,
-    kTerminated,
-  };
-
   // Connection parameters.
   std::string name_;
   bool abstract_uds_ = true;
   std::variant<std::unique_ptr<RawComms>, RawCommsFdImpl> raw_comms_;
-
-  // State of the channel (enum), socket will have to be connected later on.
-  State state_ = State::kUnconnected;
 
   // Special struct for passing credentials or FDs.
   // When passing credentials or FDs, it inlines the value. This is important as
@@ -354,9 +352,7 @@ class Comms {
   };
 
   Comms(std::unique_ptr<RawComms> raw_comms)
-      : raw_comms_(std::move(raw_comms)) {
-    state_ = State::kConnected;
-  }
+      : raw_comms_(std::move(raw_comms)) {}
 
   RawComms* GetRawComms() {
     RawComms* raw_comms = std::get_if<RawCommsFdImpl>(&raw_comms_);

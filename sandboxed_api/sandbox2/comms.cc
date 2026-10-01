@@ -156,16 +156,13 @@ void CloseAllFDs(msghdr* msg) {
 
 Comms::Comms(int socket_fd, absl::string_view name)
     : name_(name.empty() ? GetDefaultCommsName(socket_fd) : std::string(name)),
-      raw_comms_(RawCommsFdImpl(socket_fd)),
-      state_(State::kConnected) {}
+      raw_comms_(RawCommsFdImpl(socket_fd)) {}
 
 Comms::Comms(Comms::DefaultConnectionTag) : Comms(GetDefaultCommsFd()) {}
 
 Comms::~Comms() { Terminate(); }
 
-int Comms::GetConnectionFD() const {
-  return GetRawComms() == nullptr ? -1 : GetRawComms()->GetConnectionFD();
-}
+int Comms::GetConnectionFD() const { return GetRawComms()->GetConnectionFD(); }
 
 absl::StatusOr<ListeningComms> ListeningComms::Create(
     absl::string_view socket_name, bool abstract_uds) {
@@ -237,11 +234,7 @@ absl::StatusOr<Comms> Comms::Connect(const std::string& socket_name,
   return Comms(connection_fd.Release(), socket_name);
 }
 
-void Comms::Terminate() {
-  state_ = State::kTerminated;
-
-  raw_comms_ = std::unique_ptr<RawComms>();
-}
+void Comms::Terminate() { GetRawComms()->Terminate(); }
 
 bool Comms::SendTLV(uint32_t tag, size_t length, const void* value) {
   if (length > GetMaxMsgSize()) {
@@ -336,7 +329,7 @@ bool Comms::ExchangeTLV(uint32_t send_tag, absl::Span<const uint8_t> send_value,
 
 bool Comms::Exchange(const void* send_data, size_t send_len, void* recv_data,
                      size_t recv_len) {
-  if (GetRawComms() == nullptr) {
+  if (IsTerminated()) {
     SAPI_RAW_LOG(ERROR, "Exchange: connection terminated");
     return false;
   }
@@ -427,7 +420,7 @@ bool Comms::GetPeerCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
 }
 
 bool Comms::RecvMsg(InternalTLV* tlv, absl::Span<char> data, void* vmsg) {
-  if (GetRawComms() == nullptr) {
+  if (IsTerminated()) {
     SAPI_RAW_LOG(ERROR, "RecvMsg: connection terminated");
     return false;
   }
@@ -588,7 +581,7 @@ bool Comms::RecvCreds(pid_t* pid, uid_t* uid, gid_t* gid) {
 
 bool Comms::SendMsg(const InternalTLV& tlv, absl::string_view data, void* cmsg,
                     size_t cmsg_len) {
-  if (GetRawComms() == nullptr) {
+  if (IsTerminated()) {
     SAPI_RAW_LOG(ERROR, "SendMsg: connection terminated");
     return false;
   }
@@ -638,7 +631,7 @@ bool Comms::SendMsg(const InternalTLV& tlv, absl::string_view data, void* cmsg,
 bool Comms::SendFD(int fd) { return SendFD(fd, kTagFd); }
 
 bool Comms::SendCreds() {
-  if (GetRawComms() == nullptr) {
+  if (IsTerminated()) {
     SAPI_RAW_LOG(ERROR, "SendCreds: connection terminated");
     return false;
   }
@@ -777,6 +770,12 @@ ssize_t Comms::RawCommsFdImpl::RawRecvMsg(void* msg) {
                                           reinterpret_cast<uintptr_t>(msg), 0));
 }
 
+void Comms::RawCommsFdImpl::Terminate() { connection_fd_.Close(); }
+
+bool Comms::RawCommsFdImpl::IsTerminated() const {
+  return connection_fd_.get() == -1;
+}
+
 // This class is used to monitor the socket fd for the SharedMemComms.
 // It is needed to monitor the socket fd for disconnection, as the
 // AsynchronousByteTransport does not provide a way to detect disconnection.
@@ -881,7 +880,7 @@ void Comms::SharedMemComms::MoveToAnotherFd() {
 }
 
 bool Comms::Send(const void* data, size_t len) {
-  if (GetRawComms() == nullptr) {
+  if (IsTerminated()) {
     SAPI_RAW_LOG(ERROR, "Send: connection terminated");
     return false;
   }
@@ -916,7 +915,7 @@ bool Comms::Send(const void* data, size_t len) {
 }
 
 bool Comms::Recv(void* data, size_t len) {
-  if (GetRawComms() == nullptr) {
+  if (IsTerminated()) {
     SAPI_RAW_LOG(ERROR, "Recv: connection terminated");
     return false;
   }
