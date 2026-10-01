@@ -88,6 +88,66 @@ TEST(SeccompUnotifyTest, Normal) {
   EXPECT_THAT(unotify.RespondErrno(*req, EINVAL), IsOk());
 }
 
+TEST(SeccompuNotifyTest, DoubleInitFails) {
+  seccomp_notif_sizes sizes = {
+      .seccomp_notif = sizeof(seccomp_notif) + 100,
+      .seccomp_notif_resp = sizeof(seccomp_notif_resp) + 100,
+  };
+  auto mock_seccomp_unotify = std::make_unique<MockSeccompUnotify>();
+  EXPECT_CALL(*mock_seccomp_unotify, GetSizes(_))
+      .WillOnce(DoAll(SetArgPointee<0>(sizes), Return(0)));
+  SeccompUnotify unotify(std::move(mock_seccomp_unotify));
+  EXPECT_THAT(unotify.Init(FDCloser(1)), IsOk());
+  EXPECT_THAT(unotify.Init(FDCloser(1)), Not(IsOk()));
+}
+
+TEST(SeccompuNotifyTest, InitFailsOnGetSizesFail) {
+  auto mock_seccomp_unotify = std::make_unique<MockSeccompUnotify>();
+  EXPECT_CALL(*mock_seccomp_unotify, GetSizes(_)).WillOnce(Return(-1));
+  SeccompUnotify unotify(std::move(mock_seccomp_unotify));
+  EXPECT_THAT(unotify.Init(FDCloser(1)), Not(IsOk()));
+}
+
+TEST(SeccompUnotifyTest, ReceiveFailurePassedThrough) {
+  seccomp_notif_sizes sizes = {
+      .seccomp_notif = sizeof(seccomp_notif) + 100,
+      .seccomp_notif_resp = sizeof(seccomp_notif_resp) + 100,
+  };
+  auto mock_seccomp_unotify = std::make_unique<MockSeccompUnotify>();
+  EXPECT_CALL(*mock_seccomp_unotify, GetSizes(_))
+      .WillOnce(DoAll(SetArgPointee<0>(sizes), Return(0)));
+  EXPECT_CALL(*mock_seccomp_unotify, ReceiveNotification(1, _))
+      .WillOnce(Return(-1));
+  SeccompUnotify unotify(std::move(mock_seccomp_unotify));
+  ASSERT_THAT(unotify.Init(FDCloser(1)), IsOk());
+  EXPECT_THAT(unotify.Receive(), Not(IsOk()));
+}
+
+TEST(SeccompUnotifyTest, SendResponseFailurePassedThrough) {
+  seccomp_notif_sizes sizes = {
+      .seccomp_notif = sizeof(seccomp_notif) + 100,
+      .seccomp_notif_resp = sizeof(seccomp_notif_resp) + 100,
+  };
+  auto mock_seccomp_unotify = std::make_unique<MockSeccompUnotify>();
+  EXPECT_CALL(*mock_seccomp_unotify, GetSizes(_))
+      .WillOnce(DoAll(SetArgPointee<0>(sizes), Return(0)));
+  EXPECT_CALL(*mock_seccomp_unotify, ReceiveNotification(1, _))
+      .WillOnce([&sizes](int fd, seccomp_notif* req) {
+        for (int i = sizeof(seccomp_notif); i < sizes.seccomp_notif; ++i) {
+          EXPECT_EQ(reinterpret_cast<const char*>(req)[i], 0) << i;
+        }
+        req->id = 1;
+        return 0;
+      });
+  EXPECT_CALL(*mock_seccomp_unotify, SendResponse(1, _)).WillOnce(Return(-1));
+
+  SeccompUnotify unotify(std::move(mock_seccomp_unotify));
+  ASSERT_THAT(unotify.Init(FDCloser(1)), IsOk());
+  absl::StatusOr<seccomp_notif> req = unotify.Receive();
+  ASSERT_THAT(req.status(), IsOk());
+  EXPECT_THAT(unotify.RespondErrno(*req, EINVAL), Not(IsOk()));
+}
+
 // sapi::google3-begin(unotify continue)
 TEST(SeccompUnotifyTest, Continue) {
   EXPECT_TRUE(SeccompUnotify::IsContinueSupported());
