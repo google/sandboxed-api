@@ -23,14 +23,6 @@ package(default_visibility = [
 
 licenses(["notice"])
 
-package_group(
-    name = "sandbox_pool_users",
-    packages = [
-        "//sandboxed_api/...",
-        "//third_party/libwebp/sandbox_api/...",
-    ],
-)
-
 cc_library(
     name = "checked_math",
     hdrs = ["checked_math.h"],
@@ -299,9 +291,7 @@ cc_library(
         "sandbox_pool_global.h",
     ],
     copts = sapi_platform_copts(),
-    visibility = [
-        ":sandbox_pool_users",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":sandbox_pool_internal",
         ":thread",
