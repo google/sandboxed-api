@@ -984,6 +984,63 @@ TEST(Comms, SharedMemoryExchangeTLV) {
   HandleCommunication(a, b);
 }
 
+TEST(CommsTest, SendWithBrokenPipeFails) {
+  absl::Notification notification;
+  auto a = [&notification](Comms* comms) {
+    comms->Terminate();
+    notification.Notify();
+  };
+  auto b = [&notification](Comms* comms) {
+    notification.WaitForNotification();
+    ASSERT_THAT(comms->SendInt8(-7), IsFalse());
+  };
+  HandleCommunication(a, b);
+}
+
+TEST(CommsTest, SendFailsWithReadOnlyFd) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                            sapi::CreateNamedTempFile(sapi::GetTestTempPath()));
+  sapi::file_util::fileops::FDCloser fd(
+      open(temp_file.first.c_str(), O_RDONLY));
+  ASSERT_NE(fd.get(), -1);
+  Comms comms(fd.Release());
+  ASSERT_THAT(comms.SendBool(true), IsFalse());
+}
+
+TEST(CommsTest, GetPeerCredsFailsOnNonSocket) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                            sapi::CreateNamedTempFile(sapi::GetTestTempPath()));
+  sapi::file_util::fileops::FDCloser fd(
+      open(temp_file.first.c_str(), O_RDONLY));
+  ASSERT_NE(fd.get(), -1);
+  Comms comms(fd.Release());
+  pid_t pid;
+  uid_t uid;
+  gid_t gid;
+  ASSERT_THAT(comms.GetPeerCreds(&pid, &uid, &gid), IsFalse());
+}
+
+TEST(CommsTest, RecvFdFailsOnNonSocket) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                            sapi::CreateNamedTempFile(sapi::GetTestTempPath()));
+  sapi::file_util::fileops::FDCloser fd(
+      open(temp_file.first.c_str(), O_RDONLY));
+  ASSERT_NE(fd.get(), -1);
+  Comms comms(fd.Release());
+  int recv_fd;
+  ASSERT_THAT(comms.RecvFD(&recv_fd), IsFalse());
+}
+
+TEST(CommsTest, SendFdFailsOnNonSocket) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                            sapi::CreateNamedTempFile(sapi::GetTestTempPath()));
+  sapi::file_util::fileops::FDCloser fd(
+      open(temp_file.first.c_str(), O_RDONLY));
+  ASSERT_NE(fd.get(), -1);
+  Comms comms(fd.Release());
+  ASSERT_THAT(comms.SendFD(STDERR_FILENO), IsFalse());
+}
+
 // Benchmarks RecvProtoBuf across a range of payload sizes. A sender thread
 // continuously transmits the proto so the loop measures RecvTLV + parsing.
 //
