@@ -42,6 +42,7 @@ using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsTrue;
 using ::testing::Ne;
+using ::testing::Not;
 using ::testing::StrEq;
 
 namespace sandbox2 {
@@ -69,6 +70,12 @@ TEST_P(MinielfTest, FromFD) {
       ElfFile elf, ElfFile::ParseFromFd(std::move(fd), ElfFile::kGetInterpreter,
                                         mmap_file()));
   EXPECT_THAT(elf.interpreter(), StrEq("/usr/grte/v4/ld64"));
+}
+
+TEST_P(MinielfTest, InvalidFdFails) {
+  EXPECT_THAT(
+      ElfFile::ParseFromFd(FDCloser(), ElfFile::kGetInterpreter, mmap_file()),
+      Not(IsOk()));
 }
 
 TEST_P(MinielfTest, SymbolResolutionWorks) {
