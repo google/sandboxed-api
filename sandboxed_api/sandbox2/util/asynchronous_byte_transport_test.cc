@@ -296,6 +296,10 @@ TEST_P(AsynchronousByteTransportTest, SendWillRead) {
   test_helper_.RequestRecv(std::vector<uint8_t>(10, 'a'));
   test_helper_.RequestExchange(std::vector<uint8_t>(10, 'b'),
                                std::vector<uint8_t>(10, 'c'));
+  // Wait for the sandboxee to block in Recv() (setting kWaitForReadingBit) so
+  // that Exchange() below enters TransferInternal() while the read channel is
+  // still empty.
+  absl::SleepFor(absl::Milliseconds(10));
   std::vector<uint8_t> data_recv(10);
   ABSL_ASSERT_OK(GetTransport()->Exchange(
       std::vector<uint8_t>(10, 'a'),
@@ -415,13 +419,17 @@ TEST_P(AsynchronousByteTransportTest, ReadDataThenTerminate) {
 
 TEST_P(AsynchronousByteTransportTest, ExchangeWhenDataIsAlreadyInTheBuffer) {
   std::vector<uint8_t> data(100, 'a');
-  ABSL_ASSERT_OK(GetTransport()->Send(data));
+  test_helper_.RequestSend(data);
   std::vector<uint8_t> data_to_send(100, 'b');
-  test_helper_.RequestExchange(data_to_send, data);
+  test_helper_.RequestRecv(data_to_send);
+  // Wait for the sandboxee to finish writing `data` into the host's read
+  // channel and block in Recv() on the host's write channel so that Exchange()
+  // below hits the short-circuit path in TransferInternal().
+  absl::SleepFor(absl::Milliseconds(10));
   std::vector<uint8_t> data_recv(100);
-  ABSL_ASSERT_OK(GetTransport()->Recv(
-      absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
-  ASSERT_EQ(data_recv, data_to_send);
+  ABSL_ASSERT_OK(GetTransport()->Exchange(
+      data_to_send, absl::Span<uint8_t>(data_recv.data(), data_recv.size())));
+  ASSERT_EQ(data_recv, data);
 }
 
 TEST_P(AsynchronousByteTransportTest, LastReadAfterConnectionClosedWorks) {
