@@ -8,7 +8,15 @@ void LibRecurseA(void (*cb)(int), int data, int n);
 
 ABSL_ATTRIBUTE_NOINLINE
 ABSL_ATTRIBUTE_NO_TAIL_CALL
-void LibCallCallback(void (*cb)(int), int data) { cb(data); }
+void LibCallCallback(void (*cb)(int), int data) {
+  // Allocate > 0x4000 bytes on the stack so that libunwind's x86_64 heuristic
+  // frame-pointer fallback in Gstep.c ((rbp - cfa) <= 0x4000) gives up and
+  // returns 0, forcing RunLibUnwind() to fall back to
+  // UnwindUsingFramePointer().
+  char buffer[0x5000];
+  asm volatile("" : "+m"(buffer));
+  cb(data);
+}
 
 ABSL_ATTRIBUTE_NOINLINE
 ABSL_ATTRIBUTE_NO_TAIL_CALL
