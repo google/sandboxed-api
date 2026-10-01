@@ -244,12 +244,12 @@ int main(int argc, char* argv[]) {
       break;
     }
     case 15: {
-      constexpr char kNsIpcPath[] = "/proc/self/ns/ipc";
-      std::string buf(100, '\0');
-      if (readlink(kNsIpcPath, buf.data(), buf.size()) == -1) {
+      std::string link =
+          sapi::file_util::fileops::ReadLink("/proc/self/ns/ipc");
+      if (link.empty()) {
         return -1;
       }
-      result.push_back(buf);
+      result.push_back(link);
       break;
     }
     default:
@@ -260,7 +260,7 @@ int main(int argc, char* argv[]) {
   for (const std::string& entry : result) {
     CHECK(comms.SendString(entry));
   }
-  if (mode == 11) {
+  if (mode == 11 || mode == 15) {
     uint32_t ack = 0;
     comms.RecvUint32(&ack);
   }

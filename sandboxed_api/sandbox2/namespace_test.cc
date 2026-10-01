@@ -321,21 +321,40 @@ TEST(NamespaceTest, TestSharedIpcNs) {
   // share an IPC namespace.
   std::initializer_list<std::string> args = {path, "15"};
 
+  auto get_result = [](Sandbox2& sandbox) {
+    Comms* comms = sandbox.comms();
+    uint64_t num;
+    std::vector<std::string> entries;
+    if (comms->RecvUint64(&num)) {
+      entries.reserve(num);
+      for (int i = 0; i < num; ++i) {
+        std::string entry;
+        CHECK(comms->RecvString(&entry));
+        entries.push_back(std::move(entry));
+      }
+    }
+    return entries;
+  };
+
   // Without sharing, each sandboxee unshares its own IPC namespace.
   SAPI_ASSERT_OK_AND_ASSIGN(policy, CreateDefaultPermissiveTestPolicy(path)
                                         .AllowSyscalls(kReadlink)
                                         .AddDirectory("/proc")
                                         .TryBuild());
-  std::vector<std::string> unshared_one =
-      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  Sandbox2 sbox_unshared_one(std::make_unique<Executor>(path, args),
+                             std::move(policy));
+  ASSERT_TRUE(sbox_unshared_one.RunAsync());
+  std::vector<std::string> unshared_one = get_result(sbox_unshared_one);
   EXPECT_THAT(unshared_one, SizeIs(1));
 
   SAPI_ASSERT_OK_AND_ASSIGN(policy, CreateDefaultPermissiveTestPolicy(path)
                                         .AllowSyscalls(kReadlink)
                                         .AddDirectory("/proc")
                                         .TryBuild());
-  std::vector<std::string> unshared_two =
-      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  Sandbox2 sbox_unshared_two(std::make_unique<Executor>(path, args),
+                             std::move(policy));
+  ASSERT_TRUE(sbox_unshared_two.RunAsync());
+  std::vector<std::string> unshared_two = get_result(sbox_unshared_two);
   EXPECT_THAT(unshared_two, SizeIs(1));
   EXPECT_THAT(unshared_one, Ne(unshared_two));
 
@@ -346,8 +365,10 @@ TEST(NamespaceTest, TestSharedIpcNs) {
                                 .AddDirectory("/proc")
                                 .UseSharedIpcNs(sandbox2::SharedIpcNamespace())
                                 .TryBuild());
-  std::vector<std::string> shared_one =
-      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  Sandbox2 sbox_shared_one(std::make_unique<Executor>(path, args),
+                           std::move(policy));
+  ASSERT_TRUE(sbox_shared_one.RunAsync());
+  std::vector<std::string> shared_one = get_result(sbox_shared_one);
   EXPECT_THAT(shared_one, SizeIs(1));
 
   SAPI_ASSERT_OK_AND_ASSIGN(policy,
@@ -356,9 +377,20 @@ TEST(NamespaceTest, TestSharedIpcNs) {
                                 .AddDirectory("/proc")
                                 .UseSharedIpcNs(sandbox2::SharedIpcNamespace())
                                 .TryBuild());
-  std::vector<std::string> shared_two =
-      RunSandboxeeWithArgsAndPolicy(path, args, std::move(policy));
+  Sandbox2 sbox_shared_two(std::make_unique<Executor>(path, args),
+                           std::move(policy));
+  ASSERT_TRUE(sbox_shared_two.RunAsync());
+  std::vector<std::string> shared_two = get_result(sbox_shared_two);
   EXPECT_THAT(shared_two, SizeIs(1));
+
+  sbox_unshared_one.comms()->SendUint32(1);
+  sbox_unshared_two.comms()->SendUint32(1);
+  sbox_shared_one.comms()->SendUint32(1);
+  sbox_shared_two.comms()->SendUint32(1);
+  EXPECT_THAT(sbox_unshared_one.AwaitResult().final_status(), Eq(Result::OK));
+  EXPECT_THAT(sbox_unshared_two.AwaitResult().final_status(), Eq(Result::OK));
+  EXPECT_THAT(sbox_shared_one.AwaitResult().final_status(), Eq(Result::OK));
+  EXPECT_THAT(sbox_shared_two.AwaitResult().final_status(), Eq(Result::OK));
 
   EXPECT_THAT(shared_one, Eq(shared_two));
   // Still isolated from the sandboxees that unshared their own.
