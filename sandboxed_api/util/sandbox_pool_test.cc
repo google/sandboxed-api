@@ -179,6 +179,54 @@ TEST(SandboxPoolTest, AcquireWithExhaustedPoolWorks) {
               StatusIs(absl::StatusCode::kDeadlineExceeded));
 }
 
+TEST(SandboxPoolTest, AcquireOnExhaustedPoolReturnsWithinTimeout) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool, SandboxPool<StringopSandbox>::Create({
+                                           .min_sandboxes = 1,
+                                           .max_sandboxes = 1,
+                                       }));
+  ASSERT_TRUE(WaitFor([&pool] { return pool->AvailableCount() >= 1; }));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire());
+
+  // The pool is at its maximum size and its only sandbox is checked out, so the
+  // acquisition below can only wait, and must give up once its timeout
+  // expires. The slack is generous so that scheduling delays on a loaded
+  // machine do not make the test flaky.
+  constexpr absl::Duration kTimeout = absl::Milliseconds(100);
+  constexpr absl::Duration kSlack = absl::Seconds(1);
+  absl::Time start = absl::Now();
+  EXPECT_THAT(pool->Acquire(kTimeout),
+              StatusIs(absl::StatusCode::kDeadlineExceeded));
+  absl::Duration elapsed = absl::Now() - start;
+  EXPECT_GE(elapsed, kTimeout);
+  EXPECT_LT(elapsed, kTimeout + kSlack);
+}
+
+TEST(SandboxPoolTest, AcquireTimeoutDoesNotCoverSandboxStart) {
+  // The timeout bounds how long Acquire() waits for a sandbox, not how long a
+  // sandbox takes to start: starting one cannot be interrupted, and failing an
+  // acquisition after paying for it would only waste the sandbox. So an
+  // acquisition that has to spawn a sandbox succeeds, even if the spawn
+  // outlasts the timeout.
+  static constexpr absl::Duration kSpawnTime = absl::Milliseconds(500);
+  constexpr absl::Duration kTimeout = absl::Milliseconds(50);
+  // No pre-warming, so that the acquisition below finds the idle queue empty
+  // and has to spawn the sandbox itself.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool,
+                            SandboxPool<StringopSandbox>::Create(
+                                {
+                                    .min_sandboxes = 0,
+                                    .max_sandboxes = 1,
+                                },
+                                []() {
+                                  absl::SleepFor(kSpawnTime);
+                                  return sapi::MakeSandbox<StringopSandbox>();
+                                }));
+
+  absl::Time start = absl::Now();
+  EXPECT_THAT(pool->Acquire(kTimeout), IsOk());
+  EXPECT_GE(absl::Now() - start, kSpawnTime);
+}
+
 TEST(SandboxPoolTest, BackgroundCreationWorks) {
   SandboxPoolOptions options;
   options.min_sandboxes = 4;
