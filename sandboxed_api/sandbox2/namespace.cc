@@ -27,6 +27,7 @@
 #include <syscall.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -126,8 +127,21 @@ void ActivateLoopbackInterface() {
   ifreq.ifr_flags = 0;
   strncpy(ifreq.ifr_name, "lo", IFNAMSIZ);
 
-  // Create an AF_INET6 socket to perform the IF FLAGS ioctls on.
+  // Create a socket to perform the IF FLAGS ioctls on. Prefer AF_INET6, but
+  // fall back to AF_INET in case IPv6 is disabled.
   int fd = socket(AF_INET6, SOCK_DGRAM, 0);
+  if (fd == -1 && errno == EAFNOSUPPORT) {
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+  }
+  if (fd == -1 && errno == EAFNOSUPPORT) {
+    // The network namespace has no network stack at all (e.g. gVisor with host
+    // networking cannot back a new network namespace). There is no loopback
+    // interface to bring up, and the sandboxee cannot use the network anyway.
+    SAPI_RAW_LOG(WARNING,
+                 "New network namespace has no network stack; skipping "
+                 "loopback interface activation");
+    return;
+  }
   SAPI_RAW_PCHECK(fd != -1, "creating socket for activating loopback failed");
 
   FDCloser fd_closer{fd};
