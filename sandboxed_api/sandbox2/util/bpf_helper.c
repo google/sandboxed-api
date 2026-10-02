@@ -98,10 +98,3 @@ __u32 seccomp_bpf_label(struct bpf_labels *labels, const char *label) {
   begin->location = 0xffffffff;
   return labels->count++;
 }
-
-void seccomp_bpf_print(struct sock_filter *filter, size_t count) {
-  struct sock_filter *end = filter + count;
-  for (; filter < end; ++filter)
-    printf("{ code=%u,jt=%u,jf=%u,k=%u },\n", filter->code, filter->jt,
-           filter->jf, filter->k);
-}
