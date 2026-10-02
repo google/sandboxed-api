@@ -436,13 +436,7 @@ absl::StatusOr<size_t> ProcessVmTransfer(bool is_read, pid_t pid, uintptr_t ptr,
     ssize_t bytes_transferred =
         is_read ? process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0)
                 : process_vm_writev(pid, &local_iov, 1, &remote_iov, 1, 0);
-    if (bytes_transferred == 0) {
-      if (total_bytes_transferred > 0) {
-        return total_bytes_transferred;
-      }
-      return absl::NotFoundError(absl::StrFormat(
-          "Transfer was unsuccessful for PID: %d at address: %#x", pid, ptr));
-    } else if (bytes_transferred < 0) {
+    if (bytes_transferred <= 0) {
       if (total_bytes_transferred > 0) {
         return total_bytes_transferred;
       }
@@ -487,13 +481,7 @@ absl::StatusOr<size_t> ProcessVmReadInSplitChunks(pid_t pid, uintptr_t ptr,
     }
     ssize_t bytes_transferred = process_vm_readv(
         pid, &local_iov, 1, remote_iov.data(), remote_iov.size(), 0);
-    if (bytes_transferred == 0) {
-      if (total_bytes_transferred == 0) {
-        return absl::NotFoundError(absl::StrFormat(
-            "Transfer was unsuccessful for PID: %d at address: %#x", pid, ptr));
-      }
-      break;
-    } else if (bytes_transferred < 0) {
+    if (bytes_transferred <= 0) {
       return absl::ErrnoToStatus(
           errno,
           absl::StrFormat("transfer() failed for PID: %d at address: %#x", pid,
