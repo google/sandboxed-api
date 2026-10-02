@@ -17,11 +17,7 @@ add_executable(filewrapper
   filewrapper.cc
 )
 target_link_libraries(filewrapper PRIVATE
-  absl::strings
-  absl::str_format
-  sapi::fileops
   sapi::base
-  sapi::raw_logging
 )
 
 sapi_cc_embed_data(NAME filewrapper_embedded

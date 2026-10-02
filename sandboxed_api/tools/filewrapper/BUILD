@@ -21,19 +21,16 @@ licenses(["notice"])
 
 # An implicit dependency of all "sapi_cc_embed_data" rules that builds
 # embedded data into .cc files.
+#
+# Intentionally has no dependencies beyond the C++ standard library: it is built
+# in the shared build-tool configuration, and every dependency added here adds
+# build actions to every build that (transitively) uses sapi_cc_embed_data().
 cc_binary(
     name = "filewrapper",
     srcs = ["filewrapper.cc"],
     copts = sapi_platform_copts(),
+    stamp = 0,
     visibility = ["//visibility:public"],
-    deps = [
-        "//sandboxed_api:embed_toc",
-        "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:raw_logging",
-        "//sandboxed_api/util:strerror",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-    ],
 )
 
 genrule(

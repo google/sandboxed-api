@@ -13,24 +13,64 @@
 // limitations under the License.
 
 // Simple utility to wrap a binary file in a C++ source file.
+//
+// This tool is an implicit dependency of every sapi_cc_embed_data() target and
+// is built in the shared build-tool configuration. To keep it cheap to build,
+// it intentionally only depends on the C++ standard library.
 
 #include <algorithm>
+#include <cctype>
+#include <cerrno>
+#include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_replace.h"
-#include "absl/strings/string_view.h"
-#include "sandboxed_api/util/fileops.h"
-#include "sandboxed_api/util/raw_logging.h"
+// Minimal stand-ins for SAPI_RAW_PLOG(FATAL, ...) and SAPI_RAW_PCHECK(): print
+// the printf-style message followed by the current errno description, then
+// exit.
+#define FILEWRAPPER_PLOG_FATAL(format, ...)                                  \
+  do {                                                                       \
+    const int saved_errno = errno;                                           \
+    std::fprintf(stderr,                                                     \
+                 "filewrapper: " format ": %s\n" __VA_OPT__(, ) __VA_ARGS__, \
+                 std::strerror(saved_errno));                                \
+    std::_Exit(EXIT_FAILURE);                                                \
+  } while (0)
+
+#define FILEWRAPPER_PCHECK(condition, format, ...)               \
+  do {                                                           \
+    if (!(condition)) {                                          \
+      FILEWRAPPER_PLOG_FATAL(format __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                            \
+  } while (0)
+
+namespace {
+
+// Replaces every character that is not alphanumeric with '_'. This tool never
+// calls setlocale(), so the <cctype> classification is that of the "C" locale,
+// i.e. ASCII-only.
+void ReplaceNonAlnum(std::string& s) {
+  std::replace_if(
+      s.begin(), s.end(), [](unsigned char c) { return !std::isalnum(c); },
+      '_');
+}
+
+// Returns the part of `path` after the last '/', or `path` if it has none.
+std::string_view Basename(std::string_view path) {
+  const size_t last_slash = path.find_last_of('/');
+  return last_slash == std::string_view::npos ? path
+                                              : path.substr(last_slash + 1);
+}
+
+}  // namespace
 
 // C-escapes a character and writes it to a file stream.
 void FWriteCEscapedC(int c, FILE* out) {
@@ -93,18 +133,13 @@ class File {
  public:
   File(const char* name, const char* mode)
       : name_{name}, stream_{fopen(name, mode)}, buf_(4096, '\0') {
-    SAPI_RAW_PCHECK(stream_ != nullptr, "Open %s", name_);
+    FILEWRAPPER_PCHECK(stream_ != nullptr, "Open %s", name_);
     std::setvbuf(stream_, &buf_[0], _IOFBF, buf_.size());
     Check();
   }
   ~File() { fclose(stream_); }
 
-  void Check() {
-    if (ferror(stream_)) {
-      SAPI_RAW_PLOG(ERROR, "I/O on %s", name_);
-      _Exit(EXIT_FAILURE);
-    }
-  }
+  void Check() { FILEWRAPPER_PCHECK(!ferror(stream_), "I/O on %s", name_); }
 
   FILE* get() const { return stream_; }
 
@@ -135,13 +170,17 @@ struct FileEntry {
 // of those is guaranteed stable across processes, platforms or library
 // versions, and the generated files must be byte-for-byte reproducible for
 // build caching to work.
-std::string UniqueSuffix(absl::string_view package, absl::string_view name) {
+std::string UniqueSuffix(std::string_view package, std::string_view name) {
   uint64_t hash = 0xcbf29ce484222325ULL;  // FNV-1a 64-bit offset basis
-  for (char c : absl::StrCat(package, ":", name)) {
-    hash = (hash ^ static_cast<uint8_t>(c)) * 0x100000001b3ULL;  // FNV-1a prime
+  for (std::string_view part : {package, std::string_view(":"), name}) {
+    for (char c : part) {
+      hash = (hash ^ static_cast<uint8_t>(c)) * 0x100000001b3ULL;  // FNV prime
+    }
   }
   // Only collisions within a single linked binary matter, so 32 bits is ample.
-  return absl::StrFormat("%08x", static_cast<uint32_t>(hash));
+  char buf[9];
+  std::snprintf(buf, sizeof(buf), "%08" PRIx32, static_cast<uint32_t>(hash));
+  return buf;
 }
 
 // Format literals for generating the .h file
@@ -189,7 +228,7 @@ constexpr const char kCcNamespaceBeginFmt[] =
 constexpr const char kCcDataBeginFmt[] =
     R"(constexpr absl::string_view %s = {")";
 constexpr const char kCcDataEndFmt[] =
-    R"(", %d};
+    R"(", %ld};
 )";
 constexpr const char kCcFileTocDefsBegin[] =
     R"(
@@ -268,32 +307,31 @@ constexpr const char kSSectionFmt[] =
 %1$s_embed_bin_end:
 )";
 
-void WriteHeaderFile(const char* out_h_path, absl::string_view package,
-                     absl::string_view toc_ident, absl::string_view ns,
+void WriteHeaderFile(const char* out_h_path, std::string_view package,
+                     const std::string& toc_ident, const char* ns,
                      bool have_ns) {
   File out_h(out_h_path, "wb");
-  std::string header_guard = absl::StrFormat("%s_%s_H_", package, toc_ident);
-  std::replace_if(
-      header_guard.begin(), header_guard.end(),
-      [](char c) { return !absl::ascii_isalnum(c); }, '_');
-  absl::FPrintF(out_h.get(), kHFileHeaderFmt, header_guard);
+  std::string header_guard = std::string(package) + "_" + toc_ident + "_H_";
+  ReplaceNonAlnum(header_guard);
+  std::fprintf(out_h.get(), kHFileHeaderFmt, header_guard.c_str());
   if (have_ns) {
-    absl::FPrintF(out_h.get(), kHNamespaceBeginFmt, ns);
+    std::fprintf(out_h.get(), kHNamespaceBeginFmt, ns);
   }
-  absl::FPrintF(out_h.get(), kHFileTocDefsFmt, toc_ident);
+  std::fprintf(out_h.get(), kHFileTocDefsFmt, toc_ident.c_str());
   if (have_ns) {
-    absl::FPrintF(out_h.get(), kHNamespaceEndFmt, ns);
+    std::fprintf(out_h.get(), kHNamespaceEndFmt, ns);
   }
-  absl::FPrintF(out_h.get(), kHFileFooterFmt, header_guard);
+  std::fprintf(out_h.get(), kHFileFooterFmt, header_guard.c_str());
   out_h.Check();
 }
 
 void WriteAssemblyFile(const char* out_s_path,
                        const std::vector<FileEntry>& entries) {
   File out_s(out_s_path, "wb");
-  absl::FPrintF(out_s.get(), kSFileHeaderFmt);
+  std::fputs(kSFileHeaderFmt, out_s.get());
   for (const auto& entry : entries) {
-    absl::FPrintF(out_s.get(), kSSectionFmt, entry.ident, entry.in_filename);
+    std::fprintf(out_s.get(), kSSectionFmt, entry.ident.c_str(),
+                 entry.in_filename.c_str());
   }
   out_s.Check();
 }
@@ -301,13 +339,13 @@ void WriteAssemblyFile(const char* out_s_path,
 void WriteLegacyPayloads(FILE* out_cc, const std::vector<FileEntry>& entries) {
   for (const auto& entry : entries) {
     File in(entry.in_filename.c_str(), "rb");
-    absl::FPrintF(out_cc, kCcDataBeginFmt, entry.ident);
+    std::fprintf(out_cc, kCcDataBeginFmt, entry.ident.c_str());
     int c;
     while ((c = fgetc(in.get())) != EOF) {
       FWriteCEscapedC(c, out_cc);
     }
     in.Check();
-    absl::FPrintF(out_cc, kCcDataEndFmt, ftell(in.get()));
+    std::fprintf(out_cc, kCcDataEndFmt, ftell(in.get()));
   }
 }
 
@@ -315,7 +353,7 @@ int main(int argc, char* argv[]) {
   if (argc < 7) {
     // We're not aiming for human usability here, as this tool is always run as
     // part of the build.
-    absl::FPrintF(
+    std::fprintf(
         stderr,
         "%s PACKAGE NAME NAMESPACE OUTPUT_H OUTPUT_CC [OUTPUT_S] INPUT...\n",
         argv[0]);
@@ -323,14 +361,15 @@ int main(int argc, char* argv[]) {
   }
   char** arg = &argv[1];
 
-  const char* package = *arg++;
+  const std::string_view package = *arg++;
   --argc;
-  const char* name = *arg++;
-  std::string toc_ident = absl::StrReplaceAll(name, {{"-", "_"}});
+  const std::string_view name = *arg++;
+  std::string toc_ident(name);
+  std::replace(toc_ident.begin(), toc_ident.end(), '-', '_');
   --argc;
 
   const char* ns = *arg++;
-  const bool have_ns = strlen(ns) > 0;
+  const bool have_ns = ns[0] != '\0';
   --argc;
 
   const char* out_h_path = *arg++;
@@ -339,7 +378,10 @@ int main(int argc, char* argv[]) {
   --argc;
 
   const char* out_s_path = nullptr;
-  if (argc > 1 && (absl::EndsWith(*arg, ".S") || absl::EndsWith(*arg, ".s"))) {
+  auto is_assembly = [](std::string_view path) {
+    return path.ends_with(".S") || path.ends_with(".s");
+  };
+  if (argc > 1 && is_assembly(*arg)) {
     out_s_path = *arg++;
     --argc;
   }
@@ -362,19 +404,18 @@ int main(int argc, char* argv[]) {
   while (argc > 1) {
     const char* in_filename = *arg++;
     --argc;
-    std::string basename = sapi::file_util::fileops::Basename(in_filename);
+    std::string basename(Basename(in_filename));
     std::string ident;
     if (out_s_path == nullptr) {
-      ident = absl::StrCat("k", basename);
-    } else if (!basename.empty() && absl::ascii_isdigit(basename[0])) {
-      ident = absl::StrCat("_", basename, "_", seq, "_", unique_suffix);
+      ident = "k" + basename;
+    } else if (!basename.empty() &&
+               std::isdigit(static_cast<unsigned char>(basename[0]))) {
+      ident = "_" + basename + "_" + std::to_string(seq) + "_" + unique_suffix;
     } else {
-      ident = absl::StrCat(basename, "_", seq, "_", unique_suffix);
+      ident = basename + "_" + std::to_string(seq) + "_" + unique_suffix;
     }
     ++seq;
-    std::replace_if(
-        ident.begin(), ident.end(),
-        [](char c) { return !absl::ascii_isalnum(c); }, '_');
+    ReplaceNonAlnum(ident);
     entries.push_back({in_filename, std::move(basename), std::move(ident)});
   }
 
@@ -385,46 +426,47 @@ int main(int argc, char* argv[]) {
 
   // 4. Write .cc source file.
   File out_cc(out_cc_path, "wb");
-  std::string package_name = package;
+  std::string package_name(package);
   if (!package_name.empty()) {
-    absl::StrAppend(&package_name, "/");
+    package_name += '/';
   }
-  absl::StrAppend(&package_name, name);
-  absl::FPrintF(out_cc.get(), kCcFileHeaderFmt, package_name);
+  package_name += name;
+  std::fprintf(out_cc.get(), kCcFileHeaderFmt, package_name.c_str());
   if (have_ns) {
-    absl::FPrintF(out_cc.get(), kCcNamespaceBeginFmt, ns);
+    std::fprintf(out_cc.get(), kCcNamespaceBeginFmt, ns);
   }
 
   if (out_s_path != nullptr) {
     for (const auto& entry : entries) {
-      absl::FPrintF(out_cc.get(), kCcFileTocDefsDeclFmt, entry.ident);
+      std::fprintf(out_cc.get(), kCcFileTocDefsDeclFmt, entry.ident.c_str());
     }
   } else {
     WriteLegacyPayloads(out_cc.get(), entries);
   }
 
-  absl::FPrintF(out_cc.get(), kCcFileTocDefsBegin);
+  std::fputs(kCcFileTocDefsBegin, out_cc.get());
   for (const auto& entry : entries) {
     if (out_s_path != nullptr) {
-      absl::FPrintF(out_cc.get(), kCcFileTocDefsSectionEntryFmt, entry.basename,
-                    entry.ident);
+      std::fprintf(out_cc.get(), kCcFileTocDefsSectionEntryFmt,
+                   entry.basename.c_str(), entry.ident.c_str());
     } else {
-      absl::FPrintF(out_cc.get(), kCcFileTocDefsEntryFmt, entry.basename,
-                    entry.ident);
+      std::fprintf(out_cc.get(), kCcFileTocDefsEntryFmt, entry.basename.c_str(),
+                   entry.ident.c_str());
     }
   }
 
   std::string mark_calls;
   if (out_s_path != nullptr) {
     for (const auto& entry : entries) {
-      absl::StrAppend(&mark_calls, "  asm volatile(\"\" : : \"r\"(",
-                      entry.ident, "_embed_bin_mark_used));\n");
+      mark_calls += "  asm volatile(\"\" : : \"r\"(" + entry.ident +
+                    "_embed_bin_mark_used));\n";
     }
   }
 
-  absl::FPrintF(out_cc.get(), kCcFileTocDefsEndFmt, toc_ident, mark_calls);
+  std::fprintf(out_cc.get(), kCcFileTocDefsEndFmt, toc_ident.c_str(),
+               mark_calls.c_str());
   if (have_ns) {
-    absl::FPrintF(out_cc.get(), kCcNamespaceEndFmt, ns);
+    std::fprintf(out_cc.get(), kCcNamespaceEndFmt, ns);
   }
   out_cc.Check();
 
