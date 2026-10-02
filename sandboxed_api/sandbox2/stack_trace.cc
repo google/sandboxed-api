@@ -38,6 +38,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
+#include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/flags.h"
@@ -97,6 +99,19 @@ absl::StatusOr<std::unique_ptr<Policy>> StackTracePeer::GetPolicy(
     // Use the mounttree of the original executable.
     CHECK(ns != nullptr);
     Mounts mounts = ns->mounts();
+    if (ns->use_landlock()) {
+      // Landlock sandboxees run in the host mount namespace, so /proc/pid/maps
+      // records resolved target paths of symlinked libraries rather than the
+      // symlink paths in ns->mounts(). Running the libunwind sandbox in
+      // Landlock mode as well ensures those target paths exist on the
+      // filesystem and are permitted by the Landlock ruleset (which resolves
+      // symlinks when opening ruleset FDs).
+      builder.EnableLandlock(EnableLandlock());
+      // The unwinder's seccomp policy blocks socket()/connect(), so it cannot
+      // connect to host UNIX domain sockets and does not need a network
+      // namespace or NetworkProxy.
+      builder.Allow(UnrestrictedNetworking());
+    }
     mounts.Remove("/proc").IgnoreError();
     builder.SetMounts(std::move(mounts));
   }

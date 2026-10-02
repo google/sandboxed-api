@@ -463,6 +463,8 @@ cc_library(
         ":policybuilder",
         ":regs",
         ":result",
+        "//sandboxed_api/sandbox2/allowlists:enable_landlock",
+        "//sandboxed_api/sandbox2/allowlists:unrestricted_networking",
         "//sandboxed_api/sandbox2/unwind:unwind_cc_proto",
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:file_base",

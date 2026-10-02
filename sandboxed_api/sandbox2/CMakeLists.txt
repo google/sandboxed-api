@@ -394,6 +394,8 @@ target_link_libraries(sandbox2_stack_trace
           absl::status
           absl::strings
           absl::time
+          sandbox2::allowlists_enable_landlock
+          sandbox2::allowlists_unrestricted_networking
           sandbox2::bpf_helper
           sandbox2::client
           sandbox2::flags

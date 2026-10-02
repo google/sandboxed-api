@@ -58,15 +58,19 @@ class Sandbox2Peer : public sandbox_internal::SandboxPeer {
  public:
   static std::unique_ptr<SandboxPeer> Spawn(std::unique_ptr<Executor> executor,
                                             std::unique_ptr<Policy> policy) {
+    bool use_landlock =
+        policy->GetNamespace() && policy->GetNamespace()->use_landlock();
     return std::make_unique<Sandbox2Peer>(std::move(executor),
-                                          std::move(policy));
+                                          std::move(policy), use_landlock);
   }
 
   Sandbox2Peer(std::unique_ptr<Executor> executor,
-               std::unique_ptr<Policy> policy)
+               std::unique_ptr<Policy> policy, bool use_landlock)
       : sandbox_(std::move(executor), std::move(policy)) {
-    if (absl::Status status = sandbox_.EnableUnotifyMonitor(); !status.ok()) {
-      LOG(WARNING) << "Failed to enable unotify monitor: " << status;
+    if (!use_landlock) {
+      if (absl::Status status = sandbox_.EnableUnotifyMonitor(); !status.ok()) {
+        LOG(WARNING) << "Failed to enable unotify monitor: " << status;
+      }
     }
     sandbox_.RunAsync();
   }
