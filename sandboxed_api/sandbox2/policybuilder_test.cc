@@ -33,6 +33,7 @@
 #include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
@@ -356,6 +357,64 @@ TEST(PolicyBuilderTest, EnableLandlockWithNetworkProxySucceeds) {
   auto policy = std::move(*policy_result);
   ASSERT_TRUE(policy->GetNamespace().has_value());
   EXPECT_TRUE(policy->GetNamespace()->use_landlock());
+}
+
+TEST(PolicyBuilderTest, EnableLandlockNoArgsWithNetworkProxySucceeds) {
+  PolicyBuilder builder;
+  builder.EnableLandlock()
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_TRUE(policy->GetNamespace()->use_landlock());
+}
+
+TEST(PolicyBuilderTest, TryEnableLandlockWithNetworkProxySucceeds) {
+  PolicyBuilder builder;
+  builder.TryEnableLandlock()
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_EQ(policy->GetNamespace()->use_landlock(),
+            sandbox2::IsLandlockSupported());
+}
+
+TEST(PolicyBuilderTest, TryEnableLandlockTokenWithNetworkProxySucceeds) {
+  PolicyBuilder builder;
+  builder.TryEnableLandlock(sandbox2::EnableLandlock())
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_EQ(policy->GetNamespace()->use_landlock(),
+            sandbox2::IsLandlockSupported());
+}
+
+TEST(PolicyBuilderTest, TryEnableLandlockWithoutProxyFallsBackToNamespaces) {
+  PolicyBuilder builder;
+  builder.TryEnableLandlock();
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_FALSE(policy->GetNamespace()->use_landlock());
+}
+
+TEST(PolicyBuilderTest,
+     TryEnableLandlockWithNonIdentityMountFallsBackToNamespaces) {
+  PolicyBuilder builder;
+  builder.TryEnableLandlock()
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)
+      .AddFileAt("/proc/stat", "/proc_copy/stat");
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_FALSE(policy->GetNamespace()->use_landlock());
 }
 
 TEST(PolicyBuilderTest, EnableLandlockWithUnrestrictedNetworkingSucceeds) {

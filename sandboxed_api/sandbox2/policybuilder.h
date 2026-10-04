@@ -183,6 +183,13 @@ class PolicyBuilder final {
   // Future Landlock ABI versions will support restricting these syscalls, and
   // Sandbox2 will be updated as new kernel features become available.
   PolicyBuilder& EnableLandlock(sandbox2::EnableLandlock);
+  PolicyBuilder& EnableLandlock();
+
+  // Attempts to enable Landlock filesystem isolation if supported by the kernel
+  // and compatible with the configured mounts and network settings, otherwise
+  // retains namespace-based isolation as fallback.
+  PolicyBuilder& TryEnableLandlock(sandbox2::EnableLandlock);
+  PolicyBuilder& TryEnableLandlock();
 
   // Allows the use of memory mappings that are marked as executable.
   //
@@ -1123,6 +1130,7 @@ class PolicyBuilder final {
   bool use_namespaces_ = true;
   bool requires_namespaces_ = false;
   bool use_landlock_ = false;
+  bool try_landlock_ = false;
   NetNsMode netns_mode_ = NETNS_MODE_UNSPECIFIED;
   bool use_shared_ipcns_ = false;
   bool allow_map_exec_ = true;

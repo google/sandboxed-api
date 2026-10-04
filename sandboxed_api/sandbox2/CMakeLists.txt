@@ -559,6 +559,7 @@ target_link_libraries(sandbox2_policybuilder
           sapi::base
           sapi::config
           sandbox2::bpf_helper
+          sandbox2::landlock
           sandbox2::namespace
           sandbox2::syscall
           sandbox2::allowlists_all_syscalls
@@ -1429,6 +1430,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sandbox2::allowlists_namespaces
             sandbox2::allowlists_unrestricted_networking
             sandbox2::bpf_helper
+            sandbox2::landlock
+            sandbox2::namespace
             sandbox2::policy
             sandbox2::policybuilder
             sapi::file_base
