@@ -69,6 +69,7 @@
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/allowlists/write_executable.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -284,6 +285,21 @@ PolicyBuilder& PolicyBuilder::DisableNamespaces(NamespacesToken) {
 
 PolicyBuilder& PolicyBuilder::EnableLandlock(sandbox2::EnableLandlock) {
   use_landlock_ = true;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::EnableLandlock() {
+  use_landlock_ = true;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::TryEnableLandlock(sandbox2::EnableLandlock) {
+  try_landlock_ = true;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::TryEnableLandlock() {
+  try_landlock_ = true;
   return *this;
 }
 
@@ -1654,6 +1670,19 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
   auto policy = absl::WrapUnique(new Policy());
 
   bool use_landlock = use_landlock_;
+
+  if (try_landlock_) {
+    if (IsLandlockSupported() &&
+        ValidateLandlockIdentityMounts(mounts_.GetMountTree()).ok()) {
+      bool has_unrestricted_networking = (netns_mode_ == NETNS_MODE_NONE);
+      bool has_network_proxy = allowed_endpoints_.has_value();
+      bool has_unix_socket_filtering =
+          has_network_proxy && allowed_endpoints_->filter_unix_sockets();
+      if (has_unrestricted_networking || has_unix_socket_filtering) {
+        use_landlock = true;
+      }
+    }
+  }
 
   if (use_landlock) {
     // We need to check that all the mounts are compatible with Landlock, i.e.

@@ -232,6 +232,9 @@ TEST_F(LandlockTest, CustomForkserverWorks) {
 }
 
 TEST_F(LandlockTest, LandlockSignalScoping_BlocksSignalingForkserver) {
+  if (GetLandlockAbiVersion() < 6) {
+    GTEST_SKIP() << "Landlock signal scoping requires Landlock ABI v6+";
+  }
   const std::string path = GetTestcaseBinPath("namespace");
 
   // 1. In Landlock mode, attempting to signal PID 1 (forkserver outside domain)
@@ -466,6 +469,10 @@ TEST_F(LandlockTest, GlobalForkserverShutdownAndRestartWorks) {
 }
 
 TEST_F(LandlockTest, LandlockTruncateAndReferAccess) {
+  if (GetLandlockAbiVersion() < 3) {
+    GTEST_SKIP()
+        << "Landlock truncate and refer access requires Landlock ABI v3+";
+  }
   const std::string path = GetTestcaseBinPath("namespace");
 
   SAPI_ASSERT_OK_AND_ASSIGN(
@@ -523,6 +530,15 @@ TEST(SimpleLandlockTest, AddTmpfsFails) {
   PolicyBuilder policy_builder = CreateLandlockPermissiveTestPolicy(path);
   EXPECT_THAT(policy_builder.AddTmpfs("/tmp/foo", 1024).TryBuild(),
               StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(LandlockTest, AbiVersionMatchesSupported) {
+  int abi_version = GetLandlockAbiVersion();
+  if (IsLandlockSupported()) {
+    EXPECT_GE(abi_version, 1);
+  } else {
+    EXPECT_LT(abi_version, 1);
+  }
 }
 
 }  // namespace

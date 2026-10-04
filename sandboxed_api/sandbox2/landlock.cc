@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -30,6 +31,10 @@
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
+
+#ifndef LANDLOCK_CREATE_RULESET_VERSION
+#define LANDLOCK_CREATE_RULESET_VERSION (1U << 0)
+#endif
 
 #ifndef LANDLOCK_RULE_PATH_BENEATH
 #define LANDLOCK_RULE_PATH_BENEATH 1
@@ -79,7 +84,7 @@
 #define LANDLOCK_SCOPE_SIGNAL (1ULL << 1)
 #endif
 
-struct landlock_ruleset_attr_v6 {
+struct landlock_ruleset_attr {
   uint64_t handled_access_fs;
   uint64_t handled_access_net;
   uint64_t handled_scoped;
@@ -108,6 +113,72 @@ namespace {
 using ::sapi::file::JoinPath;
 using ::sapi::file_util::fileops::FDCloser;
 
+constexpr uint64_t kLandlockAccessFsV1 =
+    LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_WRITE_FILE |
+    LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR |
+    LANDLOCK_ACCESS_FS_REMOVE_DIR | LANDLOCK_ACCESS_FS_REMOVE_FILE |
+    LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR |
+    LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_MAKE_SOCK |
+    LANDLOCK_ACCESS_FS_MAKE_FIFO | LANDLOCK_ACCESS_FS_MAKE_BLOCK |
+    LANDLOCK_ACCESS_FS_MAKE_SYM;
+
+constexpr uint64_t kLandlockAccessFsV2 =
+    kLandlockAccessFsV1 | LANDLOCK_ACCESS_FS_REFER;
+
+constexpr uint64_t kLandlockAccessFsV3 =
+    kLandlockAccessFsV2 | LANDLOCK_ACCESS_FS_TRUNCATE;
+
+constexpr uint64_t kLandlockAccessFsV4 = kLandlockAccessFsV3;
+
+constexpr uint64_t kLandlockAccessFsV5 =
+    kLandlockAccessFsV4 | LANDLOCK_ACCESS_FS_IOCTL_DEV;
+
+constexpr uint64_t kLandlockAccessNetV4 =
+    LANDLOCK_ACCESS_NET_BIND_TCP | LANDLOCK_ACCESS_NET_CONNECT_TCP;
+
+constexpr uint64_t kLandlockScopeV6 =
+    LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET | LANDLOCK_SCOPE_SIGNAL;
+
+uint64_t GetSupportedAccessFs(int abi_version) {
+  if (abi_version >= 5) {
+    return kLandlockAccessFsV5;
+  }
+  if (abi_version >= 3) {
+    return kLandlockAccessFsV3;
+  }
+  if (abi_version >= 2) {
+    return kLandlockAccessFsV2;
+  }
+  if (abi_version >= 1) {
+    return kLandlockAccessFsV1;
+  }
+  return 0;
+}
+
+uint64_t GetSupportedAccessNet(int abi_version) {
+  if (abi_version >= 4) {
+    return kLandlockAccessNetV4;
+  }
+  return 0;
+}
+
+uint64_t GetSupportedScope(int abi_version) {
+  if (abi_version >= 6) {
+    return kLandlockScopeV6;
+  }
+  return 0;
+}
+
+size_t GetRulesetAttrSize(int abi_version) {
+  if (abi_version >= 6) {
+    return sizeof(landlock_ruleset_attr);
+  }
+  if (abi_version >= 4) {
+    return offsetof(landlock_ruleset_attr, handled_scoped);
+  }
+  return offsetof(landlock_ruleset_attr, handled_access_net);
+}
+
 bool IsDirNode(const MountTree* tree) {
   return tree->has_node() && !tree->node().has_file_node();
 }
@@ -135,7 +206,8 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
                          const std::string& path,
                          const std::string& rw_ancestor,
                          const std::string& ro_ancestor,
-                         bool allow_write_executable) {
+                         bool allow_write_executable,
+                         uint64_t handled_fs) {
   const bool writable = IsWritableNode(tree, path);
   const bool is_dir = IsDirNode(tree);
 
@@ -152,7 +224,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
     std::string next_path = JoinPath(path, entry.first);
     AddRulesRecursively(ruleset_fd, &entry.second, next_path,
                         farthest_rw_ancestor, farthest_ro_ancestor,
-                        allow_write_executable);
+                        allow_write_executable, handled_fs);
   }
 
   if (!tree->has_node() || tree->node().has_root_node()) {
@@ -172,7 +244,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
     SAPI_RAW_LOG(
         WARNING,
         "Landlock policy warning: Ancestor path '%s' is read-only (with "
-        "execute access), but nested path '%s' is writable. In Landlock v6, "
+        "execute access), but nested path '%s' is writable. In Landlock, "
         "'path beneath' rules propagate downwards without exception, causing "
         "'%s' to implicitly inherit FS_EXECUTE from its ancestor "
         "despite allow_write_executable=false.",
@@ -216,6 +288,10 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
     }
   }
 
+  // Best-effort approach: Mask with handled_fs to only request access rights
+  // supported by the running kernel's Landlock ABI version.
+  path_beneath.allowed_access &= handled_fs;
+
   SAPI_RAW_PCHECK(
       sandbox2::util::Syscall(
           __NR_landlock_add_rule, ruleset_fd, LANDLOCK_RULE_PATH_BENEATH,
@@ -225,30 +301,29 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
 }  // namespace
 
 void EnforceLandlock(const Mounts& mounts) {
-  struct landlock_ruleset_attr_v6 ruleset_attr = {
-      .handled_access_fs =
-          LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_WRITE_FILE |
-          LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR |
-          LANDLOCK_ACCESS_FS_REMOVE_DIR | LANDLOCK_ACCESS_FS_REMOVE_FILE |
-          LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR |
-          LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_MAKE_SOCK |
-          LANDLOCK_ACCESS_FS_MAKE_FIFO | LANDLOCK_ACCESS_FS_MAKE_BLOCK |
-          LANDLOCK_ACCESS_FS_MAKE_SYM | LANDLOCK_ACCESS_FS_REFER |
-          LANDLOCK_ACCESS_FS_TRUNCATE | LANDLOCK_ACCESS_FS_IOCTL_DEV,
-      .handled_access_net =
-          LANDLOCK_ACCESS_NET_BIND_TCP | LANDLOCK_ACCESS_NET_CONNECT_TCP,
-      .handled_scoped =
-          LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET | LANDLOCK_SCOPE_SIGNAL,
+  int abi_version = GetLandlockAbiVersion();
+  SAPI_RAW_PCHECK(abi_version >= 1, "Landlock is not supported by the kernel");
+
+  uint64_t handled_fs = GetSupportedAccessFs(abi_version);
+  uint64_t handled_net = GetSupportedAccessNet(abi_version);
+  uint64_t handled_scope = GetSupportedScope(abi_version);
+  size_t attr_size = GetRulesetAttrSize(abi_version);
+
+  struct landlock_ruleset_attr ruleset_attr = {
+      .handled_access_fs = handled_fs,
+      .handled_access_net = handled_net,
+      .handled_scoped = handled_scope,
   };
 
   FDCloser ruleset_fd(sandbox2::util::Syscall(
       __NR_landlock_create_ruleset, reinterpret_cast<uintptr_t>(&ruleset_attr),
-      sizeof(ruleset_attr), 0));
-  SAPI_RAW_PCHECK(ruleset_fd.get() >= 0, "landlock_create_ruleset v6 failed");
+      attr_size, 0));
+  SAPI_RAW_PCHECK(ruleset_fd.get() >= 0, "landlock_create_ruleset failed");
 
   auto mount_tree = mounts.GetMountTree();
   AddRulesRecursively(ruleset_fd.get(), &mount_tree, "/", "", "",
-                      mounts.GetMountSpecs().allow_write_executable());
+                      mounts.GetMountSpecs().allow_write_executable(),
+                      handled_fs);
 
   SAPI_RAW_PCHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
                   "prctl PR_SET_NO_NEW_PRIVS failed");
@@ -257,16 +332,24 @@ void EnforceLandlock(const Mounts& mounts) {
                   "landlock_restrict_self failed");
 }
 
-bool IsLandlockSupported() {
+int GetLandlockAbiVersion() {
+#ifdef __NR_landlock_create_ruleset
   // Queries kernel Landlock ABI version at runtime.
   // Returns <= 0 on failure (e.g., ENOSYS if not compiled into kernel,
   // EOPNOTSUPP if disabled via lsm= boot parameter).
-  int abi_version = syscall(__NR_landlock_create_ruleset, nullptr, 0, 1);
-  if (abi_version >= 1 && abi_version < 6) {
-    SAPI_RAW_VLOG(1, "Landlock ABI v%d detected, but ABI v6 is required.",
-                  abi_version);
+  long abi_version = sandbox2::util::Syscall(
+      __NR_landlock_create_ruleset, 0, 0, LANDLOCK_CREATE_RULESET_VERSION);
+  if (abi_version < 0) {
+    return -1;
   }
-  return abi_version >= 6;
+  return static_cast<int>(abi_version);
+#else
+  return -1;
+#endif
+}
+
+bool IsLandlockSupported() {
+  return GetLandlockAbiVersion() >= 1;
 }
 
 }  // namespace sandbox2

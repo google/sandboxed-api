@@ -612,6 +612,7 @@ cc_library(
     deps = [
         ":flags",
         ":forkserver_cc_proto",
+        ":landlock",
         ":mounts",
         ":namespace",
         ":policy",
@@ -1334,6 +1335,8 @@ cc_test(
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
     deps = [
+        ":landlock",
+        ":namespace",
         ":policy",
         ":policybuilder",
         "//sandboxed_api/sandbox2/allowlists:enable_landlock",
