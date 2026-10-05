@@ -68,7 +68,6 @@ cc_test(
         ":testdata/chrome_grte_header",
         ":testdata/hello_world",
     ],
-    features = ["-dynamic_link_test_srcs"],  # see go/dynamic_link_test_srcs
     deps = [
         ":maps_parser",
         ":minielf",
@@ -264,7 +263,6 @@ cc_test(
     copts = sapi_platform_copts(),
     deps = [
         ":seccomp_unotify",
-        "//sandboxed_api:testing",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",

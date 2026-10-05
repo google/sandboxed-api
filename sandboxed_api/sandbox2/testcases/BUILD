@@ -33,7 +33,6 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//sandboxed_api/bazel:build_defs.bzl", "sapi_platform_copts")
-load("//sandboxed_api/bazel:sapi.bzl", "sapi_library")
 
 package(
     default_visibility = [
@@ -50,10 +49,6 @@ cc_binary(
     srcs = ["abort.cc"],
     copts = sapi_platform_copts(),
     features = ["fully_static_link"],
-    visibility = [
-        "//production/crash_analysis/testing:__pkg__",
-        "//sandboxed_api/sandbox2:__subpackages__",
-    ],
     deps = ["//sandboxed_api/util:raw_logging"],
 )
 

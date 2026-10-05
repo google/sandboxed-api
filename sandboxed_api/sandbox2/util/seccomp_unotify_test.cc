@@ -148,11 +148,5 @@ TEST(SeccompUnotifyTest, SendResponseFailurePassedThrough) {
   EXPECT_THAT(unotify.RespondErrno(*req, EINVAL), Not(IsOk()));
 }
 
-// sapi::google3-begin(unotify continue)
-TEST(SeccompUnotifyTest, Continue) {
-  EXPECT_TRUE(SeccompUnotify::IsContinueSupported());
-}
-// sapi::google3-end
-
 }  // namespace
 }  // namespace sandbox2::util

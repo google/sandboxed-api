@@ -51,7 +51,6 @@
 // with a sanitizer or coverage, the sandboxee as data dependency will also be
 // compiled with sanitizer or coverage, which creates a lot of side effects and
 // violates the sandbox policy prepared for the test.
-// See b/7981124. // google3-only(internal reference)
 // In other words, those tests cannot work under sanitizers or coverage, so we
 // skip them in such situation using this macro.
 //
