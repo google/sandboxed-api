@@ -4,9 +4,7 @@
 #include "sandboxed_api/annotations.h"
 #include "sandboxed_api/tests/testcases/replaced_library_thunk.h"
 
-extern "C" {
-
-SANDBOX_FUNCS(sum_buffs, sum_buffs_sandbox);
+SANDBOX_FUNCS(sum_buffs);
 
 // An example thunk for deeply syncing pointers in a struct with a union.
 // Otherwise, we need some annotation capturing a mapping of predicates
@@ -58,5 +56,3 @@ int sum_buffs_host(OneOrTwoBuffs* buff) {
                              buff->two_buffs.buff2, buff->two_buffs.size2);
   }
 }
-
-}  // extern "C"

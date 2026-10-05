@@ -66,6 +66,60 @@ TEST_F(SandboxedLibraryEmitterTest, SandboxeeThunkNotUsed) {
   EXPECT_THAT(*sandboxee_src, Not(HasSubstr("func_with_thunk_thunk")));
 }
 
+TEST_F(SandboxedLibraryEmitterTest,
+       SandboxeeAndHostThunkWithoutSandboxFuncsOrExternC) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+        const char* sandbox_funcs_1[] = {"func_with_thunk"};
+
+        extern "C" int func_with_thunk(int a);
+        extern "C" int unlisted_func(int a);
+
+        [[clang::annotate("sandbox", "sandboxee_thunk", "func_with_thunk")]]
+        int func_with_thunk_sandbox(int a) {
+          return func_with_thunk(a) + 1;
+        }
+
+        [[clang::annotate("sandbox", "host_thunk", "func_with_thunk")]]
+        int func_with_thunk_host(int a) {
+          return func_with_thunk_sandbox(a);
+        }
+      )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+
+  absl::StatusOr<std::string> sandboxee_hdr = emitter.EmitSandboxeeHdr(options);
+  ASSERT_THAT(sandboxee_hdr, IsOk());
+  EXPECT_THAT(*sandboxee_hdr,
+              HasSubstr("sapi_wrapper_func_with_thunk_sandbox("));
+  EXPECT_THAT(*sandboxee_hdr, Not(HasSubstr("sapi_wrapper_func_with_thunk(")));
+  EXPECT_THAT(*sandboxee_hdr, Not(HasSubstr("unlisted_func")));
+
+  absl::StatusOr<std::string> sandboxee_src = emitter.EmitSandboxeeSrc(options);
+  ASSERT_THAT(sandboxee_src, IsOk());
+  EXPECT_THAT(*sandboxee_src,
+              HasSubstr("extern \"C\" int func_with_thunk_sandbox(int a)"));
+  EXPECT_THAT(*sandboxee_src,
+              HasSubstr("auto sapi_ret_val = func_with_thunk_sandbox(a);"));
+
+  absl::StatusOr<std::string> host_src = emitter.EmitHostSrc(options);
+  ASSERT_THAT(host_src, IsOk());
+  EXPECT_THAT(*host_src,
+              HasSubstr("extern \"C\" int func_with_thunk_sandbox(int a);"));
+  EXPECT_THAT(*host_src,
+              HasSubstr("extern \"C\" int func_with_thunk(int a) { return "
+                        "func_with_thunk_sandbox(a); }"));
+  EXPECT_THAT(*host_src,
+              HasSubstr("api.sapi_wrapper_func_with_thunk_sandbox("));
+  EXPECT_THAT(*host_src, Not(HasSubstr("unlisted_func")));
+}
+
 TEST_F(SandboxedLibraryEmitterTest, StdStringPointerSupport) {
   GeneratorOptions options;
   options.name = "MyLib";

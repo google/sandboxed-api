@@ -62,6 +62,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
 
   bool has_unsupported_annotation = false;
   bool is_host_thunk = false;
+  bool is_sandboxee_thunk = false;
   ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
                         GetSandboxAnnotations(decl));
   for (const auto& ann : annotations) {
@@ -106,6 +107,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
           .body = std::move(body),
           .declaration = ast::GetFunctionDeclaration(decl),
       };
+      is_sandboxee_thunk = true;
     }
   }
 
@@ -127,17 +129,23 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
 
   // Skip functions explicitly excluded via SANDBOX_IGNORE_FUNCS, or not listed
   // in SANDBOX_FUNCS when an explicit allowlist is provided
-  // (!sandbox_funcs_.empty()). When SANDBOX_FUNCS is not used, sandbox_funcs_
-  // is empty and all non-ignored functions (including sandboxee thunks) are
-  // sandboxed.
+  // (!sandbox_funcs_.empty()). Sandboxee thunks are exempt from SANDBOX_FUNCS
+  // because their target function was already verified in library_ir_ above.
   if (ignore_funcs_.contains(func_name) ||
-      (!sandbox_funcs_.empty() && !sandbox_funcs_.contains(func_name))) {
+      (!is_sandboxee_thunk && !sandbox_funcs_.empty() &&
+       !sandbox_funcs_.contains(func_name))) {
     return absl::OkStatus();
   }
 
   ABSL_ASSIGN_OR_RETURN(
       ir::Function ir_func,
       ConvertFunctionToIR(decl, library_ir_.record_annotations));
+  if (is_sandboxee_thunk) {
+    // EmitSandboxeeSrc and EmitHostSrc always emit sandboxee thunks with
+    // `extern "C"` linkage, so the IR function name must stay unmangled even if
+    // the annotation file did not wrap the thunk in an `extern "C"` block.
+    ir_func.name = func_name;
+  }
   library_ir_.functions.push_back(std::move(ir_func));
   return absl::OkStatus();
 }
