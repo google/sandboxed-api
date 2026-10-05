@@ -277,12 +277,25 @@ constexpr const char kSFileHeaderFmt[] =
 // 1. %1$s_embed_bin_mark_used: A dummy symbol in .text.
 //    Referenced by <name>_create() in the .cc file to force the linker to
 //    pull this .S object out of static archives (.a).
-// 2. .section .sapi_embed_%1$s, "R": Unmapped ELF section containing the
+// 2. .section .sapi_embed_%1$s, "o": Unmapped ELF section containing the
 //    binary payload via .incbin.
 //    - Omits SHF_ALLOC ("a") so the section is NOT mapped into virtual memory
 //      or physical RAM at process startup.
-//    - Specifies SHF_GNU_RETAIN ("R") so linkers running with --gc-sections do
-//      not strip the unmapped section from the final executable / DSO.
+//    - Specifies SHF_LINK_ORDER ("o") with sh_link pointing to the .text
+//      section holding %1$s_embed_bin_mark_used. Linkers keep non-SHF_ALLOC
+//      sections unconditionally, except SHF_LINK_ORDER ones, which are kept
+//      only if their linked section is. With --gc-sections, the payload is
+//      therefore discarded together with <name>_create() when nothing uses
+//      the embedded data, like the mapped (.rodata) embedding.
+//    - Must not specify SHF_GNU_RETAIN ("R"): it would keep the payload while
+//      its linked .text is discarded, which linkers reject.
+// 3. The .text section is made unique by appending the (per-target unique)
+//    section suffix after the return instruction (never executed). Otherwise,
+//    identical code folding (e.g. lld --icf=all) can fold it with any other
+//    function consisting only of a return instruction, and linkers discard the
+//    SHF_LINK_ORDER sections linked to the folded-away copy, silently dropping
+//    embedded data that is in use. The location counter is then re-aligned so
+//    that the next entry's instruction is aligned on all architectures.
 constexpr const char kSSectionFmt[] =
     R"(
 .section .text, "ax"
@@ -296,8 +309,10 @@ constexpr const char kSSectionFmt[] =
 #else
 #error "Unsupported architecture for sapi_cc_embed_data"
 #endif
+.ascii "sapi_embed_%1$s"
+.balign 4
 
-.section .sapi_embed_%1$s, "R"
+.section .sapi_embed_%1$s, "o", %%progbits, %1$s_embed_bin_mark_used
 .balign 4096
 .global %1$s_embed_bin_start
 .global %1$s_embed_bin_end
