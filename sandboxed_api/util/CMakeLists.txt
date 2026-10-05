@@ -320,7 +320,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME sandbox_pool_test
   )
   target_link_libraries(sapi_sandbox_pool_test PRIVATE
+    absl::check
+    absl::status
     absl::status_matchers
+    absl::statusor
     absl::strings
     absl::time
     benchmark

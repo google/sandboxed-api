@@ -46,6 +46,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi_test.cc
   )
   target_link_libraries(sapi_test PRIVATE
+    absl::check
     absl::status
     absl::status_macros
     absl::status_matchers
@@ -115,6 +116,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
                                         embed_benchmark_helper)
   target_link_libraries(sapi_embed_data_test PRIVATE
     unmapped_embedded_data
+    absl::check
     absl::status
     absl::strings
     benchmark

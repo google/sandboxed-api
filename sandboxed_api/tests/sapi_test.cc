@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -28,6 +29,7 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -109,7 +111,7 @@ void BenchmarkSandboxRestartOverhead(benchmark::State& state) {
   for (auto _ : state) {
     BasicTransaction st(std::make_unique<StringopSandbox>());
     // Invoke nop() to make sure that our sandbox is running.
-    EXPECT_THAT(st.Run(InvokeNop), IsOk());
+    CHECK_OK(st.Run(InvokeNop));
   }
 }
 BENCHMARK(BenchmarkSandboxRestartOverhead);
@@ -117,8 +119,8 @@ BENCHMARK(BenchmarkSandboxRestartOverhead);
 void BenchmarkSandboxRestartForkserverOverhead(benchmark::State& state) {
   sapi::BasicTransaction st(std::make_unique<StringopSandbox>());
   for (auto _ : state) {
-    EXPECT_THAT(st.Run(InvokeNop), IsOk());
-    EXPECT_THAT(st.sandbox()->Restart(true), IsOk());
+    CHECK_OK(st.Run(InvokeNop));
+    CHECK_OK(st.sandbox()->Restart(true));
   }
 }
 BENCHMARK(BenchmarkSandboxRestartForkserverOverhead);
@@ -126,8 +128,8 @@ BENCHMARK(BenchmarkSandboxRestartForkserverOverhead);
 void BenchmarkSandboxRestartForkserverOverheadForced(benchmark::State& state) {
   sapi::BasicTransaction st{std::make_unique<StringopSandbox>()};
   for (auto _ : state) {
-    EXPECT_THAT(st.Run(InvokeNop), IsOk());
-    EXPECT_THAT(st.sandbox()->Restart(false), IsOk());
+    CHECK_OK(st.Run(InvokeNop));
+    CHECK_OK(st.sandbox()->Restart(false));
   }
 }
 BENCHMARK(BenchmarkSandboxRestartForkserverOverheadForced);
@@ -136,7 +138,7 @@ BENCHMARK(BenchmarkSandboxRestartForkserverOverheadForced);
 void BenchmarkCallOverhead(benchmark::State& state) {
   BasicTransaction st(std::make_unique<StringopSandbox>());
   for (auto _ : state) {
-    EXPECT_THAT(st.Run(InvokeNop), IsOk());
+    CHECK_OK(st.Run(InvokeNop));
   }
 }
 BENCHMARK(BenchmarkCallOverhead);
@@ -145,7 +147,7 @@ BENCHMARK(BenchmarkCallOverhead);
 void BenchmarkProtobufHandling(benchmark::State& state) {
   BasicTransaction st(std::make_unique<StringopSandbox>());
   for (auto _ : state) {
-    EXPECT_THAT(st.Run(InvokeStringReversal), IsOk());
+    CHECK_OK(st.Run(InvokeStringReversal));
   }
 }
 BENCHMARK(BenchmarkProtobufHandling);
@@ -153,23 +155,26 @@ BENCHMARK(BenchmarkProtobufHandling);
 // Measure overhead of synchronizing data.
 void BenchmarkIntDataSynchronization(benchmark::State& state) {
   auto sandbox = StringopSandbox();
-  ASSERT_THAT(sandbox.Init(), IsOk());
+  CHECK_OK(sandbox.Init());
 
   long current_val = 0;  // NOLINT
   v::Long long_var;
   // Allocate remote memory.
-  ASSERT_THAT(sandbox.Allocate(&long_var, false), IsOk());
+  CHECK_OK(sandbox.Allocate(&long_var, false));
 
   for (auto _ : state) {
     // Write current_val to the process.
     long_var.SetValue(current_val);
-    EXPECT_THAT(sandbox.TransferToSandboxee(&long_var), IsOk());
+    CHECK_OK(sandbox.TransferToSandboxee(&long_var));
     // Invalidate value to make sure that the next call
     // is not simply a noop.
     long_var.SetValue(-1);
     // Read value back.
-    EXPECT_THAT(sandbox.TransferFromSandboxee(&long_var), IsOk());
-    EXPECT_THAT(long_var.GetValue(), Eq(current_val));
+    CHECK_OK(sandbox.TransferFromSandboxee(&long_var));
+    auto val = long_var.GetValue();
+    benchmark::DoNotOptimize(val);
+
+    CHECK_EQ(val, current_val);
 
     ++current_val;
   }
@@ -181,24 +186,25 @@ BENCHMARK(BenchmarkIntDataSynchronization);
 // synchronization).
 void BenchmarkVariableSynchronizationOverhead(benchmark::State& state) {
   auto sandbox = SapiTestSandbox();
-  ASSERT_THAT(sandbox.Init(), IsOk());
+  CHECK_OK(sandbox.Init());
   SapiTestApi api(&sandbox);
-  const int expected_sum = (state.range(0) - 1) * state.range(0) / 2;
   for (auto _ : state) {
-    // We are allocating new sapi::v::Int for each iteration on purpose, since
-    // code analysis indicates that this is a common pattern in some of our
-    // clients' code (i.e. having wrapper functions allocating sapi::v::* on
-    // stack and pass their pointers to sapi functions).
-    std::vector<sapi::v::Ptr*> ptrs(8, nullptr);
-    std::vector<sapi::v::Int> vars(state.range(0));
+    // We allocate new sapi::v::Int on the stack for each iteration on
+    // purpose, since code analysis indicates that this is a common pattern in
+    // some of our clients' code (i.e. having wrapper functions allocating
+    // sapi::v::* on stack and passing their pointers to sapi functions).
+    // Using std::array ensures actual stack allocation without heap/allocator
+    // noise from std::vector.
+    std::array<sapi::v::Ptr*, 8> ptrs = {};
+    std::array<sapi::v::Int, 8> vars;
     for (int i = 0; i < state.range(0); ++i) {
       vars[i].SetValue(i);
       ptrs[i] = vars[i].PtrBefore();
     }
-    SAPI_ASSERT_OK_AND_ASSIGN(
-        int res, api.accumulate(ptrs[0], ptrs[1], ptrs[2], ptrs[3], ptrs[4],
-                                ptrs[5], ptrs[6], ptrs[7]));
-    EXPECT_EQ(res, expected_sum);
+    absl::StatusOr<int> res = api.accumulate(
+        ptrs[0], ptrs[1], ptrs[2], ptrs[3], ptrs[4], ptrs[5], ptrs[6], ptrs[7]);
+    CHECK_OK(res.status());
+    benchmark::DoNotOptimize(*res);
   }
 }
 BENCHMARK(BenchmarkVariableSynchronizationOverhead)->Range(0, 8);

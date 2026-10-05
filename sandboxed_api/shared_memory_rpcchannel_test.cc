@@ -29,6 +29,7 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -475,11 +476,12 @@ void BM_SharedMemoryAllocateThenFree(benchmark::State& state) {
   ptrs.reserve(state.range(0));
   for (auto _ : state) {
     for (int i = 0; i < state.range(0); ++i) {
-      SAPI_ASSERT_OK_AND_ASSIGN(void* ptr, allocator.Allocate(32));
-      ptrs.push_back(ptr);
+      absl::StatusOr<void*> ptr = allocator.Allocate(32);
+      CHECK_OK(ptr.status());
+      ptrs.push_back(*ptr);
     }
     while (!ptrs.empty()) {
-      ABSL_ASSERT_OK(allocator.Free(ptrs.back()));
+      CHECK_OK(allocator.Free(ptrs.back()));
       ptrs.pop_back();
     }
   }
@@ -492,15 +494,19 @@ BENCHMARK(BM_SharedMemoryAllocateThenFree)->Range(1, 100);
 void BM_SharedMemoryReallocate(benchmark::State& state) {
   std::vector<uint8_t> buffer(1 << 20);
   rpc_internal::SimpleAllocator allocator(buffer.data(), buffer.size());
-  SAPI_ASSERT_OK_AND_ASSIGN(void* ptr, allocator.Allocate(32));
+  absl::StatusOr<void*> initial_ptr = allocator.Allocate(32);
+  CHECK_OK(initial_ptr.status());
+  void* ptr = *initial_ptr;
   size_t target_size = 64;
   for (auto _ : state) {
-    SAPI_ASSERT_OK_AND_ASSIGN(ptr, allocator.Reallocate(ptr, target_size));
+    absl::StatusOr<void*> new_ptr = allocator.Reallocate(ptr, target_size);
+    CHECK_OK(new_ptr.status());
+    ptr = *new_ptr;
     benchmark::DoNotOptimize(ptr);
     target_size = (target_size == 64) ? 32 : 64;
   }
   if (ptr != nullptr) {
-    ABSL_ASSERT_OK(allocator.Free(ptr));
+    CHECK_OK(allocator.Free(ptr));
   }
 }
 
@@ -519,19 +525,23 @@ void BM_SharedMemoryReallocateRelocate(benchmark::State& state) {
     // reallocations in the inner loop, so their overhead is negligible.
     state.PauseTiming();
     for (void*& ptr : ptrs) {
-      SAPI_ASSERT_OK_AND_ASSIGN(ptr, allocator.Allocate(32));
+      absl::StatusOr<void*> allocated = allocator.Allocate(32);
+      CHECK_OK(allocated.status());
+      ptr = *allocated;
     }
     state.ResumeTiming();
 
     // Growing block `i` is blocked by block `i+1`, forcing relocation.
     for (size_t i = 0; i < kBatchSize; ++i) {
-      SAPI_ASSERT_OK_AND_ASSIGN(ptrs[i], allocator.Reallocate(ptrs[i], 64));
+      absl::StatusOr<void*> reallocated = allocator.Reallocate(ptrs[i], 64);
+      CHECK_OK(reallocated.status());
+      ptrs[i] = *reallocated;
       benchmark::DoNotOptimize(ptrs[i]);
     }
 
     state.PauseTiming();
     for (void* ptr : ptrs) {
-      ABSL_ASSERT_OK(allocator.Free(ptr));
+      CHECK_OK(allocator.Free(ptr));
     }
     state.ResumeTiming();
   }

@@ -860,7 +860,7 @@ void BM_MinimalSandbox(benchmark::State& state) {
     auto policy = std::make_unique<Policy>(*policy_to_copy);
     Sandbox2 sandbox(std::move(executor), std::move(policy));
     auto result = sandbox.Run();
-    EXPECT_THAT(result.final_status(), Eq(Result::OK));
+    CHECK_EQ(result.final_status(), Result::OK);
   }
   state.SetItemsProcessed(state.iterations());
 }
@@ -869,7 +869,12 @@ void BM_MinimalSandbox(benchmark::State& state) {
 // long-running GlobalForkServer process. Process CPU time only measures the
 // parent test process and misses CPU time spent in the ForkServer and
 // sandboxee processes, as well as IPC/synchronization wait time across threads.
-BENCHMARK(BM_MinimalSandbox)->UseRealTime()->ThreadRange(1, 64);
+// google3-begin(internal info)
+// Capped at 8 threads: the benchmark Borg alloc has `cpu = 8`
+// (//production/borg/sandbox-performance-testing/benchmark.borg), so the
+// 16/32/64-thread points measure the Borg CPU scheduler, not Sandbox2.
+// google3-end
+BENCHMARK(BM_MinimalSandbox)->UseRealTime()->ThreadRange(1, 8);
 
 }  // namespace
 }  // namespace sandbox2

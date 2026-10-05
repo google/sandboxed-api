@@ -23,6 +23,7 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/embed_file.h"
 #include "sandboxed_api/embed_toc.h"
@@ -134,12 +135,12 @@ void BM_LoadEmbeddedFileEndToEnd(benchmark::State& state) {
     pid_t pid;
     int err =
         posix_spawn(&pid, helper_path.c_str(), nullptr, nullptr, argv, environ);
-    ASSERT_THAT(err, Eq(0));
+    CHECK_EQ(err, 0);
 
     int status = 0;
-    ASSERT_THAT(waitpid(pid, &status, 0), Eq(pid));
-    ASSERT_TRUE(WIFEXITED(status));
-    ASSERT_THAT(WEXITSTATUS(status), Eq(0));
+    CHECK_EQ(waitpid(pid, &status, 0), pid);
+    CHECK(WIFEXITED(status));
+    CHECK_EQ(WEXITSTATUS(status), 0);
   }
 }
 BENCHMARK(BM_LoadEmbeddedFileEndToEnd)->UseRealTime();

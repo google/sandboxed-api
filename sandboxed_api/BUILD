@@ -146,6 +146,7 @@ cc_test(
         ":shared_memory_rpcchannel",
         ":testing",
         ":var_type",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",

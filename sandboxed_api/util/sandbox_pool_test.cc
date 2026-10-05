@@ -27,8 +27,10 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
@@ -682,8 +684,9 @@ void BM_HighConcurrencyHold(benchmark::State& state) {
   held_handles.reserve(sandboxes_per_thread);
   for (auto s : state) {
     for (int i = 0; i < sandboxes_per_thread; ++i) {
-      SAPI_ASSERT_OK_AND_ASSIGN(auto handle, g_pool->Acquire());
-      held_handles.push_back(std::move(handle));
+      absl::StatusOr<SandboxHandle<StringopSandbox>> handle = g_pool->Acquire();
+      CHECK_OK(handle.status());
+      held_handles.push_back(*std::move(handle));
     }
   }
   held_handles.clear();
@@ -865,11 +868,11 @@ void RunZlibBenchmark(benchmark::State& state, AcquireFn&& acquire_fn) {
   std::vector<unsigned char> decompressed(kZlibOutputCapacity);
 
   for (auto s : state) {
-    SAPI_ASSERT_OK_AND_ASSIGN(auto&& sbx_handle, acquire_fn());
-    sapi::zlib::ZlibSandbox* sandbox = ToSandboxPtr(sbx_handle);
-    ASSERT_THAT(CompressAndDecompressPayload(sandbox, payload, compressed,
-                                             decompressed),
-                IsOk());
+    auto sbx_handle = acquire_fn();
+    CHECK_OK(sbx_handle.status());
+    sapi::zlib::ZlibSandbox* sandbox = ToSandboxPtr(*sbx_handle);
+    CHECK_OK(CompressAndDecompressPayload(sandbox, payload, compressed,
+                                          decompressed));
     benchmark::DoNotOptimize(compressed[0]);
     benchmark::DoNotOptimize(decompressed[0]);
   }
