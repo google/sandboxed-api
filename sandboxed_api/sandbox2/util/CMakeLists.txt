@@ -261,6 +261,24 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   gtest_discover_tests_xcompile(sandbox2_bpf_helper_test)
 
+  # sandboxed_api/sandbox2/util:syscall_trap_test
+  add_executable(sandbox2_syscall_trap_test
+    syscall_trap_test.cc
+  )
+  set_target_properties(sandbox2_syscall_trap_test PROPERTIES
+    OUTPUT_NAME syscall_trap_test
+  )
+  target_link_libraries(sandbox2_syscall_trap_test PRIVATE
+    absl::check
+    absl::cleanup
+    absl::core_headers
+    sandbox2::bpf_helper
+    sandbox2::syscall_trap
+    sapi::test_main
+    sapi::thread
+  )
+  gtest_discover_tests_xcompile(sandbox2_syscall_trap_test)
+
   # sandboxed_api/sandbox2/util:pid_waiter_test
   add_executable(sandbox2_pid_waiter_test
     pid_waiter_test.cc

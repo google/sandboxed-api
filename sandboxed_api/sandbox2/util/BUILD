@@ -134,6 +134,21 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "syscall_trap_test",
+    srcs = ["syscall_trap_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":bpf_helper",
+        ":syscall_trap",
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log:check",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "deadline_manager",
     srcs = ["deadline_manager.cc"],

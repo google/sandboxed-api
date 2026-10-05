@@ -135,4 +135,14 @@ bool SyscallTrap::Install(bool (*handler)(int nr, Args args,
   return true;
 }
 
+bool SyscallTrap::Uninstall() {
+  if (!g_instance) {
+    return false;
+  }
+  CHECK_EQ(sigaction(SIGSYS, &g_instance->oldact_, nullptr), 0);
+  delete g_instance;
+  g_instance = nullptr;
+  return true;
+}
+
 }  // namespace sandbox2

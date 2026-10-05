@@ -31,6 +31,10 @@ class SyscallTrap {
   // Returns false if the handler could not be installed.
   static bool Install(bool (*handler)(int nr, Args args, uintptr_t* result));
 
+  // Uninstalls the syscall trap handler and restores the previous SIGSYS
+  // action. Returns false if no handler was installed.
+  static bool Uninstall();
+
  private:
   static void SignalHandler(int nr, siginfo_t* info, void* context);
 
