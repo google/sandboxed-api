@@ -2027,6 +2027,12 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy(bool filter_unix_sockets) {
 
 PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy(
     bool filter_unix_sockets) {
+  if (handled_syscalls_.contains(__NR_connect)) {
+    SetError(absl::FailedPreconditionError(
+        "AddNetworkProxyHandlerPolicy cannot be used after __NR_connect has "
+        "already been allowed or handled"));
+    return *this;
+  }
   AddNetworkProxyPolicy(filter_unix_sockets);
   AllowSyscall(__NR_rt_sigreturn);
 

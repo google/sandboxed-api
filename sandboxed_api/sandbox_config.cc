@@ -16,8 +16,13 @@
 
 #include <syscall.h>
 
+#include <string>
+
+#include "absl/container/linked_hash_map.h"
+#include "absl/log/globals.h"
 #include "absl/log/log.h"
 #include "absl/time/time.h"
+#include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/limits.h"
 #include "sandboxed_api/sandbox2/policy.h"
 
@@ -73,6 +78,14 @@ sandbox2::Limits Sandbox2Config::DefaultLimits() {
   return sandbox2::Limits()
       .set_rlimit_cpu(RLIM64_INFINITY)
       .set_walltime_limit(absl::ZeroDuration());
+}
+
+absl::linked_hash_map<std::string, std::string> SandboxConfig::DefaultFlags() {
+  absl::linked_hash_map<std::string, std::string> flags = {
+      {"stderrthreshold",
+       std::to_string(static_cast<int>(absl::StderrThreshold()))},
+  };
+  return flags;
 }
 
 SandboxConfig SandboxConfig::DefaultConfig() {

@@ -28,7 +28,6 @@
 #include "absl/container/linked_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
-#include "absl/log/globals.h"
 #include "absl/synchronization/mutex.h"
 #include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -37,7 +36,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox_config.h"
-#include "sandboxed_api/util/fileops.h"
 
 namespace sapi {
 
@@ -114,12 +112,7 @@ struct SandboxConfig {
     };
   }
 
-  static absl::linked_hash_map<std::string, std::string> DefaultFlags() {
-    return {
-        {"stderrthreshold",
-         std::to_string(static_cast<int>(absl::StderrThreshold()))},
-    };
-  }
+  static absl::linked_hash_map<std::string, std::string> DefaultFlags();
 
   static SandboxConfig DefaultConfig();
 

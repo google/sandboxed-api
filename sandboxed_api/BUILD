@@ -195,7 +195,6 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:die_if_null",
-        "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:statusor",
@@ -219,6 +218,7 @@ cc_library(
     copts = sapi_platform_copts(),
     visibility = ["//visibility:public"],
     deps = [
+        ":config",
         ":embed_toc",
         "//sandboxed_api/sandbox2:executor",
         "//sandboxed_api/sandbox2:fork_client",
