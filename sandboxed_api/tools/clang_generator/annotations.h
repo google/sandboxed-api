@@ -231,9 +231,6 @@ struct SandboxAnnotation {
   std::vector<std::string> args;
 };
 
-// Strips the annotations from the input string.
-std::string StripAnnotations(const std::string& input);
-
 // Returns the sandbox annotations for a given decl in their declaration order.
 absl::StatusOr<std::vector<SandboxAnnotation>> GetSandboxAnnotations(
     const clang::Decl* decl);

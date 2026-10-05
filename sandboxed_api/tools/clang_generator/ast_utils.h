@@ -17,9 +17,10 @@
 #include <optional>
 #include <string>
 
-#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/Type.h"
 
 namespace sapi::ast {
@@ -40,23 +41,29 @@ std::optional<std::string> MemberNameOfAccessPath(absl::string_view path);
 // std::nullopt as well.
 std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path);
 
-// Returns the body of the function, or an empty string if it has no body.
-// If full_decl is true, the entire function declaration is returned,
-// otherwise just the body.
-std::string getBody(clang::FunctionDecl* decl, bool full_decl);
+// Returns the source text of `decl` with the SANDBOX_* annotation macros
+// removed.
+//
+// Note that an annotation written *before* the declaration, as
+// SANDBOX_HOST_STATE_VAR is, is not part of the declaration's source range
+// and so is not present to begin with.
+std::string GetSourceWithoutAnnotations(const clang::Decl* decl);
+
+// Returns the source text of the thunk `decl`, with the SANDBOX_* annotation
+// macros removed and, if `new_name` is non-empty, the function renamed to it.
+// Returns an empty string if `decl` has no body.
+//
+// The rewrite is driven by the attributes clang actually parsed rather than by
+// patterns over the text, so annotation names inside comments and string
+// literals are left alone, and macro arguments containing parentheses are
+// handled. Returns an error if a renamed thunk is referenced anywhere in the
+// translation unit or if a thunk references itself recursively.
+absl::StatusOr<std::string> GetThunkSource(const clang::FunctionDecl* decl,
+                                           absl::string_view new_name = {});
 
 // Returns the function declaration without the body, stripped of any
 // clang::annotate attributes and trailing semicolon.
-std::string getFunctionDeclaration(clang::FunctionDecl* decl);
-
-// TODO(cffsmith): Replace this with something that properly parses the function
-// AST and replaces the calls correctly.
-absl::Status ReplaceCalls(std::string& body, std::string func_name,
-                          std::string name);
-
-// Replaces the declaration name of old_name with new_name in body.
-absl::Status ReplaceDeclaration(std::string& body, std::string old_name,
-                                std::string new_name);
+std::string GetFunctionDeclaration(const clang::FunctionDecl* decl);
 
 // Given a type, if it is a function pointer type or supported functor type,
 // returns the underlying function proto type. Otherwise, returns nullptr.

@@ -36,7 +36,6 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Lex/Lexer.h"
 #include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg_converter.h"
@@ -81,14 +80,12 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
                              target_func_name));
       }
 
-      auto body = StripAnnotations(ast::getBody(decl, true));
-      ABSL_RETURN_IF_ERROR(
-          ast::ReplaceDeclaration(body, func_name, target_func_name));
-
+      ABSL_ASSIGN_OR_RETURN(std::string body,
+                            ast::GetThunkSource(decl, target_func_name));
       ir_func->host_thunk = ir::ThunkOverride{
           .function_name = func_name,
-          .body = body,
-          .declaration = ast::getFunctionDeclaration(decl),
+          .body = std::move(body),
+          .declaration = ast::GetFunctionDeclaration(decl),
       };
       is_host_thunk = true;
     } else if (ann.name == "sandboxee_thunk") {
@@ -103,10 +100,11 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
             "Function $0 is not found, but has a sandboxee thunk.",
             target_func_name));
       }
+      ABSL_ASSIGN_OR_RETURN(std::string body, ast::GetThunkSource(decl));
       ir_func->sandboxee_thunk = ir::ThunkOverride{
           .function_name = func_name,
-          .body = StripAnnotations(ast::getBody(decl, true)),
-          .declaration = ast::getFunctionDeclaration(decl),
+          .body = std::move(body),
+          .declaration = ast::GetFunctionDeclaration(decl),
       };
     }
   }
@@ -197,18 +195,10 @@ absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
                         GetSandboxAnnotations(decl));
   for (const auto& ann : annotations) {
     if (ann.name == "host_state_var") {
-      const clang::SourceManager& source_manager =
-          decl->getASTContext().getSourceManager();
-      const clang::LangOptions& lang_opts = decl->getASTContext().getLangOpts();
       // Include the trailing semicolon when capturing host state variable
       // source text.
-      std::string text =
-          clang::Lexer::getSourceText(
-              clang::CharSourceRange::getTokenRange(decl->getSourceRange()),
-              source_manager, lang_opts)
-              .str();
       library_ir_.host_state_vars.push_back(
-          absl::StrCat(StripAnnotations(text), ";"));
+          absl::StrCat(ast::GetSourceWithoutAnnotations(decl), ";"));
     } else if (ann.name == "host_code") {
       library_ir_.host_code = getStringFromVarDecl(decl);
     } else if (ann.name == "sandboxee_code") {

@@ -19,20 +19,26 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/strings/substitute.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
-#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Lex/Lexer.h"
+#include "clang/Rewrite/Core/Rewriter.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
-#include "re2/re2.h"
+#include "sandboxed_api/tools/clang_generator/diagnostics.h"
 
 namespace sapi::ast {
 
@@ -60,28 +66,114 @@ std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path) {
   return std::nullopt;
 }
 
-std::string getBody(clang::FunctionDecl* decl, bool full_decl) {
+namespace {
+
+// Removes the SANDBOX_* annotation macros that produced `decl`'s sandbox
+// annotate attributes. An attribute's own location points into the macro
+// expansion, so it is mapped back to the invocation as written in order to
+// delete the macro and any arguments along with it.
+void RemoveSandboxAnnotations(const clang::Decl* decl,
+                              clang::Rewriter& rewriter) {
+  const clang::SourceManager& source_manager = rewriter.getSourceMgr();
+  for (const clang::Attr* attr : decl->attrs()) {
+    const auto* annotate = llvm::dyn_cast<clang::AnnotateAttr>(attr);
+    if (annotate == nullptr || annotate->getAnnotation() != "sandbox") {
+      continue;
+    }
+    rewriter.RemoveText(source_manager.getExpansionRange(attr->getRange()));
+  }
+}
+
+class ThunkRefFinder : public clang::RecursiveASTVisitor<ThunkRefFinder> {
+ public:
+  explicit ThunkRefFinder(const clang::FunctionDecl* target)
+      : target_(target->getCanonicalDecl()) {}
+
+  bool VisitDeclRefExpr(clang::DeclRefExpr* ref) {
+    if (ref->getDecl()->getCanonicalDecl() == target_) {
+      found_loc_ = ref->getLocation();
+      return false;
+    }
+    return true;
+  }
+
+  const std::optional<clang::SourceLocation>& found_loc() const {
+    return found_loc_;
+  }
+
+ private:
+  const clang::FunctionDecl* target_;
+  std::optional<clang::SourceLocation> found_loc_;
+};
+
+}  // namespace
+
+std::string GetSourceWithoutAnnotations(const clang::Decl* decl) {
+  clang::ASTContext& context = decl->getASTContext();
+  clang::Rewriter rewriter(context.getSourceManager(), context.getLangOpts());
+  RemoveSandboxAnnotations(decl, rewriter);
+  return rewriter.getRewrittenText(
+      clang::CharSourceRange::getTokenRange(decl->getSourceRange()));
+}
+
+absl::StatusOr<std::string> GetThunkSource(const clang::FunctionDecl* decl,
+                                           absl::string_view new_name) {
   if (!decl->hasBody()) {
     return "";
   }
-  clang::SourceManager& source_manager =
-      decl->getASTContext().getSourceManager();
-  clang::LangOptions lang_opts = decl->getASTContext().getLangOpts();
-  clang::SourceRange source_range =
-      full_decl ? decl->getSourceRange() : decl->getBody()->getSourceRange();
-  return clang::Lexer::getSourceText(
-             clang::CharSourceRange::getTokenRange(source_range),
-             source_manager, lang_opts)
-      .str();
+  clang::ASTContext& context = decl->getASTContext();
+
+  ThunkRefFinder ref_finder(decl);
+  if (!new_name.empty()) {
+    // A renamed thunk (such as a host thunk) replaces the target entry point in
+    // the generated code, so referencing it by its thunk name anywhere in the
+    // translation unit would leave a dangling symbol.
+    ref_finder.TraverseDecl(context.getTranslationUnitDecl());
+  } else {
+    // A non-renamed thunk (such as a sandboxee thunk) is legitimately called
+    // from the corresponding host thunk, but cannot recursively reference
+    // itself inside its own body.
+    ref_finder.TraverseStmt(decl->getBody());
+  }
+  if (ref_finder.found_loc().has_value()) {
+    return MakeStatusWithDiagnostic(
+        *ref_finder.found_loc(), absl::StatusCode::kInvalidArgument,
+        absl::StrCat("Thunk '", decl->getNameAsString(),
+                     "' cannot be referenced"));
+  }
+
+  clang::Rewriter rewriter(context.getSourceManager(), context.getLangOpts());
+
+  // Only parameter annotations can appear inside the declaration's source
+  // range -- SANDBOX_HOST_THUNK and friends are leading attributes and sit
+  // outside it -- but removing those too costs nothing and keeps this correct
+  // if the macros ever move.
+  RemoveSandboxAnnotations(decl, rewriter);
+  for (const clang::ParmVarDecl* param : decl->parameters()) {
+    RemoveSandboxAnnotations(param, rewriter);
+  }
+
+  if (!new_name.empty()) {
+    rewriter.ReplaceText(decl->getNameInfo().getSourceRange(),
+                         llvm::StringRef(new_name.data(), new_name.size()));
+  }
+
+  return rewriter.getRewrittenText(
+      clang::CharSourceRange::getTokenRange(decl->getSourceRange()));
 }
 
-std::string getFunctionDeclaration(clang::FunctionDecl* decl) {
+std::string GetFunctionDeclaration(const clang::FunctionDecl* decl) {
   std::string decl_str;
   llvm::raw_string_ostream os(decl_str);
   // Printing the declaration without the body.
   // The policy controls how the declaration is printed.
   clang::PrintingPolicy policy(decl->getASTContext().getLangOpts());
   policy.TerseOutput = true;  // This usually suppresses the body
+  // Keep the SANDBOX_* annotations out of the signature. Asking the printer
+  // to skip non-keyword attributes avoids having to recognize how it chose to
+  // spell them -- annotation arguments are printed as opaque pointer values,
+  // not source text.
+  policy.PolishForDeclaration = true;
   decl->print(os, policy);
 
   // remove the trailing semicolon if present
@@ -89,45 +181,7 @@ std::string getFunctionDeclaration(clang::FunctionDecl* decl) {
     decl_str.pop_back();
   }
 
-  // Replace expanded clang annotate attributes like, e.g.
-  // `[[clang::annotate("sandbox", 0x70337ed8d258, 0x70337ed8d2c0)]]`
-  // with empty string.
-  RE2::GlobalReplace(&decl_str, R"(\[\[clang::annotate\([^\]]*\)\]\])", "");
-
   return decl_str;
-}
-
-// TODO(cffsmith): Replace this with something that properly parses the function
-// AST and replaces the calls correctly.
-absl::Status ReplaceCalls(std::string& body, std::string func_name,
-                          std::string name) {
-  // Use a regex to replace all calls to func_name with the sapi wrapper.
-  std::string result;
-  std::string pattern = absl::Substitute(R"($0\()", func_name);
-  std::string replacement = absl::Substitute("$0_internal(", name);
-  if (!RE2::GlobalReplace(&body, pattern, replacement)) {
-    return absl::InternalError(
-        absl::Substitute("Failed to replace calls to $0.", func_name));
-  }
-
-  // Also replace the function declaration name with the original name
-  return absl::OkStatus();
-}
-
-absl::Status ReplaceDeclaration(std::string& body, std::string old_name,
-                                std::string new_name) {
-  // Use a regex to replace all calls to func_name with the sapi wrapper.
-  std::string result;
-  std::string pattern = absl::Substitute(R"($0\()", old_name);
-  std::string replacement = absl::Substitute("$0(", new_name);
-  // We expect there to be exactly one declaration of the function.
-  if (RE2::GlobalReplace(&body, pattern, replacement) != 1) {
-    return absl::InternalError(
-        absl::Substitute("Failed to replace declaration of $0.", old_name));
-  }
-
-  // Also replace the function declaration name with the original name
-  return absl::OkStatus();
 }
 
 const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(

@@ -80,6 +80,7 @@ cc_library(
         "@llvm-project//clang:format",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:lex",
+        "@llvm-project//clang:rewrite",
         "@llvm-project//clang:serialization",
         "@llvm-project//clang:tooling",
         "@llvm-project//clang:tooling_core",
@@ -92,6 +93,7 @@ cc_library(
 cc_test(
     name = "generator_test",
     srcs = [
+        "ast_utils_test.cc",
         "codegen_test.cc",
         "emitter_test.cc",
         "frontend_action_test_util.cc",
@@ -113,6 +115,7 @@ cc_test(
         "@abseil-cpp//absl/functional:overload",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

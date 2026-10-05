@@ -43,43 +43,6 @@
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
 namespace sapi {
 
-std::string StripAnnotations(const std::string& input) {
-  static const auto* macros_no_args = new std::vector<std::string>{
-      "SANDBOX_IN_PTR",          "SANDBOX_OUT_PTR",
-      "SANDBOX_INOUT_PTR",       "SANDBOX_OPAQUE_PTR",
-      "SANDBOX_HOST_OPAQUE_PTR", "SANDBOX_HOST_STATE_VAR",
-      "SANDBOX_NULL_TERMINATED", "SANDBOX_LIFETIME_GLOBAL",
-      "SANDBOX_CLEAR_BINDINGS",  "SANDBOX_SHALLOW_SYNC",
-      "SANDBOX_UNINITIALIZED"};
-  std::string output = input;
-  for (const auto& macro : *macros_no_args) {
-    // We use a regex to match word boundaries
-    RE2::GlobalReplace(&output, "\\b" + macro + "\\b", "");
-  }
-
-  static const auto* macros_args = new std::vector<std::string>{
-      "SANDBOX_SANDBOXEE_THUNK",
-      "SANDBOX_HOST_THUNK",
-      "SANDBOX_ALIAS_PTR",
-      "SANDBOX_ELEM_SIZED_BY",
-      "SANDBOX_BYTE_SIZED_BY",
-      "SANDBOX_ELEM_SIZED_BY_OUTPARAM",
-      "SANDBOX_BYTE_SIZED_BY_OUTPARAM",
-      "SANDBOX_BYTE_SIZED_BY_BINDING",
-      "SANDBOX_BIND_DATA",
-      "SANDBOX_BIND_SIZE",
-      "SANDBOX_COPY_FROM_AND_BIND_OUT_PTR",
-      "SANDBOX_RETAIN_AND_BIND",
-      "SANDBOX_STRUCT_SYNC",
-  };
-  // We also remove the full argument to the macro, e.g.
-  // SANDBOX_ELEM_SIZED_BY(foo) will be removed entirely.
-  for (const auto& macro : *macros_args) {
-    RE2::GlobalReplace(&output, "\\b" + macro + "\\([^\\)]*\\)", "");
-  }
-  return output;
-}
-
 absl::StatusOr<std::vector<SandboxAnnotation>> GetSandboxAnnotations(
     const clang::Decl* decl) {
   std::vector<SandboxAnnotation> annotations;

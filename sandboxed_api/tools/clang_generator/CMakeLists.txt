@@ -172,6 +172,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_executable(sapi_generator_test
     frontend_action_test_util.cc
     frontend_action_test_util.h
+    ast_utils_test.cc
     codegen_test.cc
     emitter_test.cc
     ir_test.cc
@@ -182,6 +183,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::flat_hash_map
     absl::memory
     absl::overload
+    absl::status_macros
     absl::status_matchers
     absl::statusor
     benchmark
