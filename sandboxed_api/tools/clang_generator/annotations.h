@@ -249,11 +249,6 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
 
 std::string ResolveContextName(absl::string_view context);
 
-// Expands the `expr` and replaces all `$binding_name` with lookups against the
-// lwbox context binding registry.
-std::string CompileBindingExpr(absl::string_view context_var,
-                               absl::string_view expr);
-
 }  // namespace sapi
 
 #endif  // SANDBOXED_API_TOOLS_CLANG_GENERATOR_ANNOTATIONS_H_

@@ -33,7 +33,6 @@ option(SAPI_DOWNLOAD_GOOGLETEST "Download googletest at config time" ON)
 option(SAPI_DOWNLOAD_LIBCAP "Download libcap at config time" ON)
 option(SAPI_DOWNLOAD_LIBUNWIND "Download libunwind at config time" ON)
 option(SAPI_DOWNLOAD_PROTOBUF "Download protobuf at config time" ON)
-option(SAPI_DOWNLOAD_RE2 "Download re2 at config time" ON)
 
 # Options for building examples
 option(SAPI_BUILD_EXAMPLES

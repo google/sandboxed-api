@@ -76,11 +76,6 @@ if(SAPI_DOWNLOAD_PROTOBUF)
 endif()
 find_package(Protobuf REQUIRED)
 
-if(SAPI_DOWNLOAD_RE2)
-  include(cmake/re2.cmake)
-endif()
-sapi_check_target(re2)
-
 if(SAPI_BUILD_EXAMPLES)
   if(SAPI_DOWNLOAD_ZLIB)
     include(cmake/zlib.cmake)

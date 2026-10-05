@@ -15,7 +15,6 @@
 #include "sandboxed_api/tools/clang_generator/codegen.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -30,6 +29,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -37,7 +37,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
-#include "re2/re2.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
@@ -213,46 +212,58 @@ void EmitLibraryHeaders(const GeneratorOptions& options, std::string& out) {
   }
 }
 
+// Consumes a leading C identifier from `s`, modifying `s` in place. Returns
+// true if an identifier was consumed.
+bool ConsumeIdentifier(absl::string_view& s) {
+  size_t len = 0;
+  while (len < s.size() && ((len == 0 ? absl::ascii_isalpha(s[len])
+                                      : absl::ascii_isalnum(s[len])) ||
+                            s[len] == '_')) {
+    ++len;
+  }
+  s.remove_prefix(len);
+  return len > 0;
+}
+
 // Compiles a context binding expression (e.g. "$name" or "$name * 2") into
 // a runtime lookup against sapi::lwbox::ContextBindingRegistry.
 std::string CompileBindingExpr(absl::string_view context_var,
                                absl::string_view expr) {
   if (!absl::StrContains(expr, '$')) {
-    if (!expr.empty()) {
-      bool is_ident = true;
-      for (char c : expr) {
-        if (!isalnum(c) && c != '_') {
-          is_ident = false;
-          break;
-        }
-      }
-      if (is_ident) {
-        return absl::Substitute(
-            "sapi::lwbox::ContextBindingRegistry::Instance()->GetSize($0, "
-            "\"$1\")",
-            context_var, expr);
-      }
+    absl::string_view rest = expr;
+    if (ConsumeIdentifier(rest) && rest.empty()) {
+      return absl::Substitute(
+          "sapi::lwbox::ContextBindingRegistry::Instance()->GetSize($0, "
+          "\"$1\")",
+          context_var, expr);
     }
     return std::string(expr);
   }
 
+  // Scan for `$name` references. Anything else, including a `$` that is not
+  // followed by an identifier, is passed through unchanged.
   std::string result;
-  std::string sub_expr(expr);
-  size_t last_pos = 0;
-  absl::string_view sp(sub_expr);
-  static const RE2 kBindingNameRegex("\\$([a-zA-Z_][a-zA-Z0-9_]*)");
-  std::string binding_name;
-  while (RE2::FindAndConsume(&sp, kBindingNameRegex, &binding_name)) {
-    size_t match_pos =
-        sp.data() - sub_expr.data() - (binding_name.length() + 1);
-    absl::StrAppend(&result, sub_expr.substr(last_pos, match_pos - last_pos));
+  size_t pos = 0;
+  while (pos < expr.size()) {
+    if (expr[pos] != '$') {
+      result.push_back(expr[pos]);
+      ++pos;
+      continue;
+    }
+    size_t id_begin = pos + 1;
+    absl::string_view rest = expr.substr(id_begin);
+    if (!ConsumeIdentifier(rest)) {
+      result.push_back(expr[pos]);
+      ++pos;
+      continue;
+    }
+    size_t id_end = expr.size() - rest.size();
     absl::SubstituteAndAppend(
         &result,
         "sapi::lwbox::ContextBindingRegistry::Instance()->GetSize($0, \"$1\")",
-        context_var, binding_name);
-    last_pos = match_pos + binding_name.length() + 1;
+        context_var, expr.substr(id_begin, id_end - id_begin));
+    pos = id_end;
   }
-  result.append(sub_expr.substr(last_pos));
   return result;
 }
 

@@ -137,7 +137,6 @@ target_link_libraries(sapi_generator PUBLIC
   absl::statusor
   absl::strings
   absl::str_format
-  re2
   sapi::fileops
   ${_sapi_generator_clang_libs}
   ${_sapi_generator_llvm_libs}

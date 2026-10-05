@@ -39,7 +39,6 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
-#include "re2/re2.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
 namespace sapi {
 
@@ -702,28 +701,6 @@ std::string ResolveContextName(absl::string_view context) {
     return "sapi_ret_arg.GetValue()";
   }
   return std::string(context);
-}
-
-std::string CompileBindingExpr(absl::string_view context_var,
-                               absl::string_view expr) {
-  std::string result;
-  std::string sub_expr(expr);
-  size_t last_pos = 0;
-  absl::string_view sp(sub_expr);
-  RE2 kBindingNameRegex("\\$([a-zA-Z_][a-zA-Z0-9_]*)");
-  std::string binding_name;
-  while (RE2::FindAndConsume(&sp, kBindingNameRegex, &binding_name)) {
-    size_t match_pos =
-        sp.data() - sub_expr.data() - (binding_name.length() + 1);
-    absl::StrAppend(&result, sub_expr.substr(last_pos, match_pos - last_pos));
-    absl::SubstituteAndAppend(
-        &result,
-        "sapi::lwbox::ContextBindingRegistry::Instance()->GetSize($0, \"$1\")",
-        context_var, binding_name);
-    last_pos = match_pos + binding_name.length() + 1;
-  }
-  result.append(sub_expr.substr(last_pos));
-  return result;
 }
 
 }  // namespace sapi

@@ -330,7 +330,17 @@ TEST(EmitHostSrcTest, SizedByBindingSubstitutesDollarReferencesWithGetSize) {
               BufferArg("out_buf", ScalarType("char"), PointerDir::kOut,
                         ir::bounds::SizedByBinding{
                             .context_expr = "ctx",
-                            .binding_name = "$frame_size * 2",
+                            .binding_name = "$frame_size * $channels * 2",
+                        }),
+              BufferArg("bare_ident_buf", ScalarType("char"), PointerDir::kOut,
+                        ir::bounds::SizedByBinding{
+                            .context_expr = "ctx",
+                            .binding_name = "header_size",
+                        }),
+              BufferArg("numeric_buf", ScalarType("char"), PointerDir::kOut,
+                        ir::bounds::SizedByBinding{
+                            .context_expr = "ctx",
+                            .binding_name = "64",
                         }),
           },
   };
@@ -339,8 +349,12 @@ TEST(EmitHostSrcTest, SizedByBindingSubstitutesDollarReferencesWithGetSize) {
   ASSERT_THAT(src, IsOk());
   EXPECT_THAT(
       *src,
-      ContainsRegex(
-          R"(ContextBindingRegistry::Instance\(\)->GetSize\(ctx,\s*"frame_size"\)\s*\*\s*2)"));
+      AllOf(
+          ContainsRegex(
+              R"(ContextBindingRegistry::Instance\(\)->GetSize\(ctx,\s*"frame_size"\)\s*\*\s*sapi::lwbox::ContextBindingRegistry::Instance\(\)->GetSize\(ctx,\s*"channels"\)\s*\*\s*2)"),
+          ContainsRegex(
+              R"(ContextBindingRegistry::Instance\(\)->GetSize\(ctx,\s*"header_size"\))"),
+          Not(HasSubstr("\"64\""))));
 }
 
 TEST(EmitHostSrcTest, ClearBindingsReleasesTheContext) {
