@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/util.h"
 
+#include <fcntl.h>
 #include <sched.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
@@ -44,6 +45,7 @@ namespace sandbox2::util {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 using ::sapi::GetTestSourcePath;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
@@ -88,6 +90,25 @@ TEST(CharPtrArrayTest, FromCharPtrArray) {
               ElementsAre(StrEq("a"), StrEq("b"), StrEq("c"), nullptr));
   EXPECT_THAT(array.data(), Eq(array.array().data()));
 }
+
+TEST(GetResolvedFdLinkTest, ValidFd) {
+  int null_fd = open("/dev/null", O_RDONLY);
+  ASSERT_THAT(null_fd, Ne(-1));
+  absl::Cleanup cleanup = [null_fd]() { close(null_fd); };
+
+  EXPECT_THAT(GetResolvedFdLink(getpid(), null_fd), IsOkAndHolds("/dev/null"));
+}
+
+TEST(GetResolvedFdLinkTest, NonExisting) {
+  EXPECT_THAT(GetResolvedFdLink(getpid(), -1), Not(IsOk()));
+  EXPECT_THAT(GetResolvedFdLink(-1, STDIN_FILENO), Not(IsOk()));
+}
+
+TEST(GetCmdLineTest, Self) {
+  EXPECT_THAT(GetCmdLine(getpid()), HasSubstr("util_test"));
+}
+
+TEST(GetCmdLineTest, NonExisting) { EXPECT_THAT(GetCmdLine(-1), IsEmpty()); }
 
 TEST(GetProcStatusLineTest, Pid) {
   std::string line = GetProcStatusLine(getpid(), "Pid");
