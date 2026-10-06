@@ -31,8 +31,12 @@
 #include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
+#include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/mount_tree.pb.h"
+#include "sandboxed_api/sandbox2/mounts.h"
+#include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
@@ -115,6 +119,8 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   builder.AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */); assert_same();
   builder.UseForkServerSharedNetNs(); assert_same();
   builder.Allow(UnrestrictedNetworking()); assert_same();
+  builder.Allow(MountPropagation()); assert_same();
+  builder.Allow(MountPropagation(), "/bin"); assert_same();
   // clang-format on
 }
 
@@ -416,6 +422,79 @@ TEST(PolicyBuilderTest, OverlongUserPolicy) {
                                   BPF_STMT(BPF_ALU | BPF_ADD | BPF_K, 0));
   builder.AddPolicyOnSyscall(__NR_write, filter);
   EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
+}
+
+TEST(PolicyBuilderTest, AllowMountPropagation) {
+  PolicyBuilder builder;
+  EXPECT_FALSE(builder.mounts().GetMountSpecs().allow_mount_propagation());
+  builder.Allow(MountPropagation());
+  EXPECT_TRUE(builder.mounts().GetMountSpecs().allow_mount_propagation());
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_TRUE(policy->GetNamespace()
+                  ->mounts()
+                  .GetMountSpecs()
+                  .allow_mount_propagation());
+}
+
+TEST(PolicyBuilderTest, AllowMountPropagationForDirectory) {
+  PolicyBuilder builder;
+  builder.AddDirectory("/bin")
+      .AddDirectoryAt("/usr", "/inside/usr")
+      .Allow(MountPropagation(), "/inside/usr");
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  const Mounts& mounts = policy->GetNamespace()->mounts();
+  EXPECT_FALSE(mounts.GetMountSpecs().allow_mount_propagation());
+  const MountTree& mount_tree = mounts.GetMountTree();
+  ASSERT_TRUE(mount_tree.entries().contains("bin"));
+  EXPECT_FALSE(mount_tree.entries()
+                   .at("bin")
+                   .node()
+                   .dir_node()
+                   .allow_mount_propagation());
+  ASSERT_TRUE(mount_tree.entries().contains("inside"));
+  ASSERT_TRUE(mount_tree.entries().at("inside").entries().contains("usr"));
+  EXPECT_TRUE(mount_tree.entries()
+                  .at("inside")
+                  .entries()
+                  .at("usr")
+                  .node()
+                  .dir_node()
+                  .allow_mount_propagation());
+}
+
+TEST(PolicyBuilderTest, AllowMountPropagationNonExistentPathFails) {
+  PolicyBuilder builder;
+  builder.Allow(MountPropagation(), "/nonexistent");
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("Path does not exist in mounts")));
+}
+
+TEST(PolicyBuilderTest, AllowMountPropagationNonDirectoryFails) {
+  EXPECT_THAT(PolicyBuilder()
+                  .AddFile("/usr/bin/find")
+                  .Allow(MountPropagation(), "/usr/bin/find")
+                  .TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Path is not a directory")));
+  EXPECT_THAT(PolicyBuilder()
+                  .AddFile("/usr/bin/find")
+                  .Allow(MountPropagation(), "/usr")
+                  .TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Path is not a directory")));
+  EXPECT_THAT(PolicyBuilder()
+                  .AddTmpfs("/tmp", /*size=*/4ULL << 20 /* 4 MiB */)
+                  .Allow(MountPropagation(), "/tmp")
+                  .TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Path is not a directory")));
 }
 
 }  // namespace

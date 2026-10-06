@@ -49,6 +49,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
@@ -188,15 +189,22 @@ int main(int argc, char* argv[]) {
       for (int i = 2; i < argc; i++) {
         int fd = open(argv[i], O_RDONLY);
         if (fd != -1) {
-          std::string s(4096, '\0');
-          ssize_t n = read(fd, s.data(), s.size());
-          if (n >= 0) {
-            s.resize(n);
-            for (char& c : s) {
-              if (c == '\0') c = ' ';
+          std::string content;
+          char buf[4096];
+          ssize_t n;
+          while ((n = read(fd, buf, sizeof(buf))) > 0) {
+            content.append(buf, n);
+          }
+          if (n == 0) {
+            for (char& c : content) {
+              if (c == '\0') {
+                c = ' ';
+              }
             }
-            while (!s.empty() && s.back() == ' ') s.pop_back();
-            result.push_back(s);
+            while (!content.empty() && content.back() == ' ') {
+              content.pop_back();
+            }
+            result.push_back(std::move(content));
           }
           close(fd);
         }

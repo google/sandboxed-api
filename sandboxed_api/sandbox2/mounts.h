@@ -194,7 +194,7 @@ class Mounts {
  private:
   friend class MountTreeTest;
 
-  absl::StatusOr<MountTree::Node> GetNode(absl::string_view path);
+  absl::StatusOr<MountTree::Node*> GetNode(absl::string_view path);
   absl::Status Insert(absl::string_view path, const MountTree::Node& node);
 
   MountSpecs mount_specs_;

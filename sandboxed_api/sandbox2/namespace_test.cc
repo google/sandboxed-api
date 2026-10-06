@@ -17,6 +17,7 @@
 #include <asm-generic/unistd.h>
 #include <unistd.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
@@ -29,11 +30,15 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
+#include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/shared_ipc_namespace.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
@@ -51,9 +56,11 @@ namespace sandbox2 {
 namespace {
 
 namespace file_util = ::sapi::file_util;
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::CreateNamedTempFile;
+using ::sapi::CreateTempDir;
 using ::sapi::GetTestSourcePath;
 using ::sapi::GetTestTempPath;
 using ::testing::AllOf;
@@ -437,6 +444,82 @@ TEST(NamespaceTest, TestFiles) {
   }
   for (const auto& file : result) {
     EXPECT_THAT(file, AnyOfArray(matchers));
+  }
+}
+
+absl::StatusOr<bool> IsMountShared(absl::string_view mountinfo,
+                                   absl::string_view mount_point) {
+  for (absl::string_view line :
+       absl::StrSplit(mountinfo, '\n', absl::SkipEmpty())) {
+    std::vector<absl::string_view> fields =
+        absl::StrSplit(line, ' ', absl::SkipEmpty());
+    if (fields.size() < 7 || fields[4] != mount_point) {
+      continue;
+    }
+    for (size_t i = 6; i < fields.size() && fields[i] != "-"; ++i) {
+      if (absl::StartsWith(fields[i], "shared:")) {
+        return true;
+      }
+    }
+    return false;
+  }
+  return absl::NotFoundError(
+      absl::StrCat("Mount point ", mount_point, " not found in mountinfo"));
+}
+
+TEST(NamespaceTest, MountPropagation) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string temp_dir_a,
+                            CreateTempDir(GetTestTempPath("mnt_a_")));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string temp_dir_b,
+                            CreateTempDir(GetTestTempPath("mnt_b_")));
+
+  // By default, mounts are private (not shared).
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              CreateDefaultPermissiveTestPolicy(path)
+                                  .AddDirectory("/proc")
+                                  .AddDirectoryAt(temp_dir_a, "/mnt_a")
+                                  .AddDirectoryAt(temp_dir_b, "/mnt_b")
+                                  .TryBuild());
+    std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "10", "/proc/self/mountinfo"}, std::move(policy));
+    ASSERT_THAT(result, SizeIs(1));
+    EXPECT_THAT(IsMountShared(result[0], "/mnt_a"), IsOkAndHolds(false));
+    EXPECT_THAT(IsMountShared(result[0], "/mnt_b"), IsOkAndHolds(false));
+  }
+
+  // Global Allow(MountPropagation()) marks all directory mounts as shared.
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              CreateDefaultPermissiveTestPolicy(path)
+                                  .AddDirectory("/proc")
+                                  .AddDirectoryAt(temp_dir_a, "/mnt_a")
+                                  .AddDirectoryAt(temp_dir_b, "/mnt_b")
+                                  .Allow(MountPropagation())
+                                  .TryBuild());
+    std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "10", "/proc/self/mountinfo"}, std::move(policy));
+    ASSERT_THAT(result, SizeIs(1));
+    EXPECT_THAT(IsMountShared(result[0], "/mnt_a"), IsOkAndHolds(true));
+    EXPECT_THAT(IsMountShared(result[0], "/mnt_b"), IsOkAndHolds(true));
+  }
+
+  // Per-mount Allow(MountPropagation(), inside) marks only that mount as
+  // shared.
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              CreateDefaultPermissiveTestPolicy(path)
+                                  .AddDirectory("/proc")
+                                  .AddDirectoryAt(temp_dir_a, "/mnt_a")
+                                  .AddDirectoryAt(temp_dir_b, "/mnt_b")
+                                  .Allow(MountPropagation(), "/mnt_a")
+                                  .TryBuild());
+    std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "10", "/proc/self/mountinfo"}, std::move(policy));
+    ASSERT_THAT(result, SizeIs(1));
+    EXPECT_THAT(IsMountShared(result[0], "/mnt_a"), IsOkAndHolds(true));
+    EXPECT_THAT(IsMountShared(result[0], "/mnt_b"), IsOkAndHolds(false));
   }
 }
 

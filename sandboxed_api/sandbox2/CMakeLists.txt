@@ -1059,9 +1059,11 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_namespace_test PRIVATE
     absl::check
     absl::status
+    absl::status_matchers
     absl::statusor
     absl::strings
     sandbox2::allowlists_all_syscalls
+    sandbox2::allowlists_mount_propagation
     sandbox2::allowlists_unrestricted_networking
     sandbox2::allowlists_namespaces
     sandbox2::allowlists_shared_ipc_namespace
@@ -1426,9 +1428,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::status
             absl::statusor
             sandbox2::allowlists_enable_landlock
+            sandbox2::allowlists_mount_propagation
             sandbox2::allowlists_namespaces
             sandbox2::allowlists_unrestricted_networking
             sandbox2::bpf_helper
+            sandbox2::mounts
+            sandbox2::mount_tree_proto
+            sandbox2::namespace
             sandbox2::policy
             sandbox2::policybuilder
             sapi::file_base

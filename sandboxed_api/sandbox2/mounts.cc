@@ -282,7 +282,7 @@ absl::Status Mounts::Remove(absl::string_view path) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<MountTree::Node> Mounts::GetNode(absl::string_view path) {
+absl::StatusOr<MountTree::Node*> Mounts::GetNode(absl::string_view path) {
   std::vector<absl::string_view> parts =
       absl::StrSplit(absl::StripPrefix(path, "/"), '/');
   MountTree* curtree = mount_specs_.mutable_mount_tree();
@@ -294,7 +294,7 @@ absl::StatusOr<MountTree::Node> Mounts::GetNode(absl::string_view path) {
     }
     curtree = &it->second;
   }
-  return curtree->node();
+  return curtree->mutable_node();
 }
 
 absl::Status Mounts::Insert(absl::string_view path,
@@ -473,12 +473,12 @@ absl::Status Mounts::AddTmpfs(absl::string_view inside, size_t sz) {
 }
 
 absl::Status Mounts::AllowMountPropagation(absl::string_view inside) {
-  ABSL_ASSIGN_OR_RETURN(MountTree::Node node, GetNode(inside));
-  if (!node.has_dir_node()) {
+  ABSL_ASSIGN_OR_RETURN(MountTree::Node * node, GetNode(inside));
+  if (!node->has_dir_node()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Path is not a directory: ", inside));
   }
-  node.mutable_dir_node()->set_allow_mount_propagation(true);
+  node->mutable_dir_node()->set_allow_mount_propagation(true);
   return absl::OkStatus();
 }
 

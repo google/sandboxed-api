@@ -101,6 +101,44 @@ TEST(MountTreeTest, TestAddTmpFs) {
   EXPECT_THAT(mounts.AddDirectoryAt("/a/b/d", "/a/b/d"), IsOk());
 }
 
+TEST(MountTreeTest, TestAllowMountPropagation) {
+  Mounts mounts;
+
+  EXPECT_FALSE(mounts.GetMountSpecs().allow_mount_propagation());
+  mounts.AllowMountPropagation();
+  EXPECT_TRUE(mounts.GetMountSpecs().allow_mount_propagation());
+
+  ASSERT_THAT(mounts.AddDirectoryAt("/a", "/a"), IsOk());
+  ASSERT_THAT(mounts.AddDirectoryAt("/b", "/c/d"), IsOk());
+  ASSERT_THAT(mounts.AddFile("/e"), IsOk());
+  ASSERT_THAT(mounts.AddTmpfs("/f", kTmpfsSize), IsOk());
+
+  EXPECT_THAT(mounts.AllowMountPropagation("/c/d"), IsOk());
+  EXPECT_FALSE(mounts.GetMountTree()
+                   .entries()
+                   .at("a")
+                   .node()
+                   .dir_node()
+                   .allow_mount_propagation());
+  EXPECT_TRUE(mounts.GetMountTree()
+                  .entries()
+                  .at("c")
+                  .entries()
+                  .at("d")
+                  .node()
+                  .dir_node()
+                  .allow_mount_propagation());
+
+  EXPECT_THAT(mounts.AllowMountPropagation("/nonexistent"),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(mounts.AllowMountPropagation("/c"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(mounts.AllowMountPropagation("/e"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(mounts.AllowMountPropagation("/f"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 TEST(MountTreeTest, TestRemove) {
   Mounts mounts;
   EXPECT_THAT(mounts.AddTmpfs("/a", kTmpfsSize), IsOk());
