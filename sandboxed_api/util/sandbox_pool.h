@@ -196,6 +196,18 @@ class SandboxPool : public std::enable_shared_from_this<SandboxPool<SandboxT>> {
     return options_.max_maintenance_threads.value_or(1) != 0;
   }
 
+  // Whether `entry` can still serve calls. Only SAPI sandboxes can tell: a
+  // sandboxee that crashed, or was killed by its wall-time limit or the OOM
+  // killer, leaves the sandbox inactive. That check is local and cheap. Other
+  // pooled types have no such notion and are always considered usable.
+  static bool IsUsable(const PoolEntry& entry) {
+    if constexpr (std::is_base_of_v<sapi::SandboxBase, SandboxT>) {
+      return entry.sandbox->is_active();
+    } else {
+      return true;
+    }
+  }
+
   // How long a caller blocked on a pool that is at its maximum size waits
   // before checking again whether it can create a sandbox itself. Short enough
   // to be unnoticeable next to the cost of starting a sandbox, long enough to
@@ -277,8 +289,14 @@ absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::Acquire(
   // We are purposefully not checking whether the queues have stopped, since
   // this is a race condition with the destructor only.
   std::unique_ptr<PoolEntry> entry;
-  if (idle_queue_.TryPop(entry)) {
-    return MakeHandle(std::move(entry));
+  while (idle_queue_.TryPop(entry)) {
+    if (IsUsable(*entry)) {
+      return MakeHandle(std::move(entry));
+    }
+    // The sandbox died while it was idle, e.g. it was killed by its wall-time
+    // limit or the OOM killer. Handing it out would make every call on it
+    // fail, so drop it and look at the next one.
+    DestroyTask(std::move(entry), /*is_shutting_down=*/false);
   }
   return AcquireSlow(timeout);
 }
@@ -327,6 +345,13 @@ absl::StatusOr<SandboxHandle<SandboxT>> SandboxPool<SandboxT>::AcquireSlow(
       // The pool is being torn down. Retrying would spin, as a stopped queue
       // returns immediately.
       return absl::CancelledError("Sandbox pool is shutting down.");
+    }
+    if (popped && !IsUsable(*entry)) {
+      // Same as in Acquire(): never hand out a sandbox that died while idle.
+      // Destroying it frees its slot, so the next iteration can create a
+      // replacement.
+      DestroyTask(std::move(entry), /*is_shutting_down=*/false);
+      entry = nullptr;
     }
   }
 
@@ -382,9 +407,14 @@ absl::Status SandboxPool<SandboxT>::Init() {
 
 template <typename SandboxT>
 void SandboxPool<SandboxT>::Release(std::unique_ptr<PoolEntry> entry) {
-  // Recycle if the usage count is at max usage.
+  // Recycle if the usage count is at max usage, or if the sandbox died while it
+  // was checked out, e.g. because the sandboxee crashed on its input. A dead
+  // sandbox pushed back to the idle queue would be handed to the next caller
+  // (the queue is LIFO), and every call on it would fail until it reached
+  // max_sandbox_reuse. Recycling replaces it right away instead.
   ++entry->usage_count;
-  bool recycle = (entry->usage_count >= options_.max_sandbox_reuse);
+  bool recycle =
+      (entry->usage_count >= options_.max_sandbox_reuse) || !IsUsable(*entry);
 
   active_count_.fetch_sub(1, std::memory_order_relaxed);
 

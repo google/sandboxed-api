@@ -379,6 +379,56 @@ TEST(SandboxPoolTest, FailingFactoryReturnsErrorToUser) {
   EXPECT_THAT(pool->Acquire(), StatusIs(absl::StatusCode::kResourceExhausted));
 }
 
+TEST(SandboxPoolTest, SandboxThatDiedWhileAcquiredIsReplaced) {
+  // Threadless mode: the release below recycles synchronously, so the next
+  // acquisition deterministically sees its outcome. `max_sandbox_reuse` is
+  // high enough that the sandbox would otherwise go back to the idle queue.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool, SandboxPool<StringopSandbox>::Create({
+                                           .min_sandboxes = 1,
+                                           .max_sandboxes = 1,
+                                           .max_sandbox_reuse = 100,
+                                           .max_maintenance_threads = 0,
+                                       }));
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire());
+    // Stands in for a sandboxee that crashed while processing its input.
+    handle->Terminate(/*attempt_graceful_exit=*/false);
+    ASSERT_FALSE(handle->is_active());
+  }
+  EXPECT_EQ(pool->AvailableCount(), 1);
+
+  // With max_sandboxes = 1, this would time out if the dead sandbox had not
+  // given its slot to a replacement.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire(absl::Seconds(5)));
+  EXPECT_TRUE(handle->is_active());
+  StringopApi api(handle.get());
+  EXPECT_THAT(api.get_raw_c_string(), IsOk());
+}
+
+TEST(SandboxPoolTest, SandboxThatDiedWhileIdleIsNotHandedOut) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto pool, SandboxPool<StringopSandbox>::Create({
+                                           .min_sandboxes = 1,
+                                           .max_sandboxes = 1,
+                                           .max_sandbox_reuse = 100,
+                                           .max_maintenance_threads = 0,
+                                       }));
+  StringopSandbox* idle = nullptr;
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire());
+    idle = handle.get();
+  }
+  ASSERT_EQ(pool->AvailableCount(), 1);
+  // Stands in for a sandboxee killed while sitting in the idle queue, e.g. by
+  // its wall-time limit or the OOM killer. Nothing else touches the idle queue
+  // in threadless mode, so this is safe.
+  idle->Terminate(/*attempt_graceful_exit=*/false);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire(absl::Seconds(5)));
+  EXPECT_TRUE(handle->is_active());
+  StringopApi api(handle.get());
+  EXPECT_THAT(api.get_raw_c_string(), IsOk());
+}
+
 class SandboxTracker;
 
 // Stands in for a real sandbox. The tests below churn through hundreds of
