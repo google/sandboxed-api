@@ -42,6 +42,10 @@
 struct bpf_labels;
 
 namespace sandbox2 {
+namespace policy_internal {
+template <typename C, typename T>
+concept CanAllow = requires(C c, T t) { c.Allow(t); };
+}  // namespace policy_internal
 
 class AllowAllSyscalls;
 class EnableLandlock;
@@ -144,9 +148,11 @@ class PolicyBuilder final {
   //
   // Each `type T` is defined in an individual library and individually
   // visibility restricted.
-  template <typename TF, typename... T>
-  PolicyBuilder& Allow(TF tag, T... tags) {
-    return Allow(tag), (Allow(tags), ...);
+  template <typename... T>
+    requires(sizeof...(T) > 1 &&
+             (policy_internal::CanAllow<PolicyBuilder, T> && ...))
+  PolicyBuilder& Allow(T... tags) {
+    return (Allow(tags), ...);
   }
 
   // Disables the use of namespaces.
