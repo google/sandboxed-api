@@ -266,15 +266,12 @@ std::string AllowedEndpoints::CanonicalizeSocketPath(absl::string_view path) {
   }
   std::string current(path);
   std::string suffix;
-  while (!current.empty()) {
+  while (!current.empty() || current == "/") {
     char resolved[PATH_MAX];
     if (realpath(current.c_str(), resolved) != nullptr) {
       return sapi::file::JoinPath(resolved, suffix);
     }
     auto [parent, part] = sapi::file::SplitPath(current);
-    if (parent == current) {
-      break;
-    }
     suffix = sapi::file::JoinPath(part, suffix);
     current = std::string(parent);
   }

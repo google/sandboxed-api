@@ -321,6 +321,12 @@ TEST(FilteringTest, CanonicalizeSocketPathAbstract) {
             abstract_path);
 }
 
+TEST(FilteringTest, CanonicalizeSocketPathNonExistent) {
+  EXPECT_EQ(
+      sandbox2::AllowedEndpoints::CanonicalizeSocketPath("non_existent.sock"),
+      "non_existent.sock");
+}
+
 TEST(FilteringTest, CanonicalizeSocketPathSymlinkParent) {
   std::string temp_dir_tpl =
       sapi::file::JoinPath(testing::TempDir(), "sb2_canon_dir_XXXXXX");
@@ -353,6 +359,13 @@ TEST(FilteringTest, IncorrectCidrRejected) {
               Not(IsOk()));
   EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/not_a_number"),
               Not(IsOk()));
+}
+
+TEST(FilteringTest, IncorrectMaskRejected) {
+  sandbox2::AllowedEndpoints allowed_endpoints;
+  EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/0.0.0.0"), Not(IsOk()));
+  EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/127.0.0.0"), Not(IsOk()));
+  EXPECT_THAT(allowed_endpoints.AllowIPv4("127.0.0.1/256.0.0.0"), Not(IsOk()));
 }
 
 TEST(FilteringTest, RelativeUnixSocketPathRejected) {
