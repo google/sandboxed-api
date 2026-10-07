@@ -17,7 +17,7 @@
 #include <sys/syscall.h>
 
 #include <algorithm>
-#include <csignal>
+#include <csignal>  // IWYU pragma: keep
 #include <cstdint>
 #include <memory>
 #include <string>

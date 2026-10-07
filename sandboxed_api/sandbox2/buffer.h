@@ -21,7 +21,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "sandboxed_api/util/fileops.h"

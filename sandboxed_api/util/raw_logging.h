@@ -18,19 +18,12 @@
 #define SANDBOXED_API_UTIL_RAW_LOGGING_H_
 
 #include <cerrno>
-#include <cstddef>
-#include <string>
-#include <utility>
 
-#include "absl/base/attributes.h"
-#include "absl/base/config.h"
-#include "absl/base/log_severity.h"
-#include "absl/base/macros.h"
-#include "absl/base/optimization.h"
-#include "absl/base/port.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "sandboxed_api/util/strerror.h"
+#include "absl/base/attributes.h"         // IWYU pragma: keep
+#include "absl/base/log_severity.h"       // IWYU pragma: keep
+#include "absl/base/optimization.h"       // IWYU pragma: keep
+#include "absl/strings/str_format.h"      // IWYU pragma: keep
+#include "sandboxed_api/util/strerror.h"  // IWYU pragma: keep
 
 #if defined(ABSL_RAW_LOG)
 #define SAPI_RAW_LOG ABSL_RAW_LOG

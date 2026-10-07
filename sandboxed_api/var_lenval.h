@@ -20,16 +20,13 @@
 
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <string>
 #include <vector>
 
-#include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_array.h"
-#include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_struct.h"
 
 namespace sapi::v {

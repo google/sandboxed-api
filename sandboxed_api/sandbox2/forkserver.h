@@ -20,14 +20,7 @@
 
 #include <sys/types.h>
 
-#include <initializer_list>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "absl/base/attributes.h"
 #include "absl/log/log.h"
-#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2 {
 

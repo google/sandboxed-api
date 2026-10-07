@@ -16,7 +16,7 @@
 #define SANDBOXED_API_SANDBOX2_UTIL_SYSCALL_TRAP_H_
 
 #include <array>
-#include <csignal>
+#include <csignal>  // IWYU pragma: keep
 #include <cstdint>
 
 namespace sandbox2 {

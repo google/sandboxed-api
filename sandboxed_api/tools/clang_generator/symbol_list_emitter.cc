@@ -25,7 +25,6 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/Type.h"
-#include "sandboxed_api/tools/clang_generator/emitter.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 
 namespace sapi {

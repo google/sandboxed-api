@@ -26,9 +26,8 @@
 #include <syscall.h>
 #include <unistd.h>
 
-#include <csignal>
+#include <csignal>  // IWYU pragma: keep
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <string>
