@@ -15,6 +15,7 @@
 #include "sandboxed_api/sandbox2/util/minielf.h"
 
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <cstdint>
 #include <string>
@@ -24,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
 #include "sandboxed_api/testing.h"
@@ -36,6 +38,7 @@ extern "C" void ExportedFunction() {
 
 namespace file = ::sapi::file;
 using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::sapi::GetTestSourcePath;
 using ::sapi::file_util::fileops::FDCloser;
 using ::testing::ElementsAre;
@@ -119,6 +122,39 @@ TEST_P(MinielfTest, ImportedLibraries) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Suite, MinielfTest, testing::Values(false, true));
+
+TEST(MinielfTest, GetSectionLocationWorks) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/util/testdata/hello_world");
+  SAPI_ASSERT_OK_AND_ASSIGN(ElfSectionLocation location,
+                            ElfFile::GetSectionLocation(path, ".interp"));
+  EXPECT_THAT(location.offset, Eq(0x238));
+  EXPECT_THAT(location.size, Eq(0x1c));
+
+  FDCloser fd(open(path.c_str(), O_RDONLY));
+  ASSERT_THAT(fd.get(), Ne(-1));
+  std::string contents(location.size - 1, '\0');
+  ASSERT_THAT(
+      pread(fd.get(), contents.data(), contents.size(), location.offset),
+      Eq(contents.size()));
+  EXPECT_THAT(contents, StrEq("/lib64/ld-linux-x86-64.so.2"));
+}
+
+TEST(MinielfTest, GetSectionLocationFailsForNonExistentSection) {
+  EXPECT_THAT(ElfFile::GetSectionLocation(
+                  GetTestSourcePath("sandbox2/util/testdata/hello_world"),
+                  ".nonexistent_section"),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST(MinielfTest, GetSectionLocationFailsForNonExistentFile) {
+  EXPECT_THAT(ElfFile::GetSectionLocation("/nonexistent/path/to/elf", ".text"),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST(MinielfTest, GetSectionLocationFailsForInvalidFd) {
+  EXPECT_THAT(ElfFile::GetSectionLocation(-1, ".text"), Not(IsOk()));
+}
 
 }  // namespace
 }  // namespace sandbox2

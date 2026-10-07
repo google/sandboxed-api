@@ -219,6 +219,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   target_link_libraries(sandbox2_minielf_test
     PRIVATE absl::algorithm_container
             absl::status_matchers
+            absl::status
             absl::statusor
             sapi::fileops
             sapi::file_helpers

@@ -75,6 +75,7 @@ cc_test(
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
