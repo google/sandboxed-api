@@ -105,4 +105,28 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_filtering_test)
+
+  # sandboxed_api/sandbox2/network_proxy:client_test
+  add_executable(sandbox2_network_proxy_client_test
+    client_test.cc
+  )
+  set_target_properties(sandbox2_network_proxy_client_test PROPERTIES
+    OUTPUT_NAME client_test
+  )
+  target_link_libraries(sandbox2_network_proxy_client_test PRIVATE
+    absl::check
+    absl::cleanup
+    absl::core_headers
+    absl::status
+    absl::status_matchers
+    sandbox2::bpf_helper
+    sandbox2::comms
+    sandbox2::network_proxy_client
+    sandbox2::syscall_trap
+    sapi::base
+    sapi::fileops
+    sapi::test_main
+    sapi::thread
+  )
+  gtest_discover_tests_xcompile(sandbox2_network_proxy_client_test)
 endif()

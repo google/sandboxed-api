@@ -60,6 +60,26 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "client_test",
+    srcs = ["client_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":client",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:syscall_trap",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "filtering",
     srcs = ["filtering.cc"],
