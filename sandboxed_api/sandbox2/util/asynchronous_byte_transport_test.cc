@@ -229,6 +229,7 @@ class AsynchronousByteTransportTest
   void SetUp() override {
     SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
                               sandbox2::Buffer::CreateWithSize(buffer_size_));
+    buffer_data_ = absl::MakeSpan(buffer->data(), buffer->size());
     memset(buffer->data(), 0x41, 4 << 10);
     int memfd = buffer->fd();
     size_t size = buffer->size();
@@ -253,11 +254,14 @@ class AsynchronousByteTransportTest
 
   size_t GetBufferSize() const { return buffer_size_; }
 
+  absl::Span<uint8_t> GetBufferData() { return buffer_data_; }
+
  protected:
   TestHelper test_helper_;
 
  private:
   size_t buffer_size_ = 132 << 10;
+  absl::Span<uint8_t> buffer_data_;
   std::unique_ptr<ScopedTimeout> timeout_;
   std::unique_ptr<sandbox2::AsynchronousByteTransport> transport_;
 };
@@ -464,6 +468,45 @@ TEST_P(AsynchronousByteTransportTest,
   absl::SleepFor(absl::Milliseconds(10));
   ABSL_ASSERT_OK(GetTransport()->Send(absl::Span<const uint8_t>(
       data.data() + data.size() / 2, data.size() / 2)));
+}
+
+TEST_P(AsynchronousByteTransportTest, BufferTooSmall) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto host_buffer,
+                            sandbox2::Buffer::CreateWithSize(4 << 10));
+  EXPECT_THAT(sandbox2::AsynchronousByteTransport::CreateHostSide(
+                  std::move(host_buffer), GetParam()),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto sandboxee_buffer,
+                            sandbox2::Buffer::CreateWithSize(4 << 10));
+  EXPECT_THAT(sandbox2::AsynchronousByteTransport::CreateSandboxeeSide(
+                  std::move(sandboxee_buffer)),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_P(AsynchronousByteTransportTest, WriteIndexOutOfBounds) {
+  memset(GetBufferData().data(), 0x41, 4 << 10);
+  std::vector<uint8_t> data(10, 'a');
+
+  EXPECT_THAT(
+      GetTransport()->Send(data),
+      StatusIs(absl::StatusCode::kAborted, "Write index out of bounds"));
+  EXPECT_THAT(
+      GetTransport()->Recv(absl::MakeSpan(data)),
+      StatusIs(absl::StatusCode::kAborted, "Write index out of bounds"));
+}
+
+TEST_P(AsynchronousByteTransportTest, ReadIndexOutOfBounds) {
+  std::vector<uint8_t> data(10, 'a');
+  test_helper_.RequestSend(data);
+  std::vector<uint8_t> data_recv(5);
+  ABSL_ASSERT_OK(GetTransport()->Recv(absl::MakeSpan(data_recv)));
+  ASSERT_EQ(data_recv, std::vector<uint8_t>(5, 'a'));
+
+  memset(GetBufferData().data(), 0, 4 << 10);
+
+  EXPECT_THAT(GetTransport()->Recv(absl::MakeSpan(data_recv)),
+              StatusIs(absl::StatusCode::kAborted, "Read index out of bounds"));
 }
 
 INSTANTIATE_TEST_SUITE_P(
