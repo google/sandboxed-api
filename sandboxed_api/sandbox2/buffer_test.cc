@@ -41,11 +41,13 @@
 namespace sandbox2 {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::sapi::file_util::fileops::FDCloser;
 using ::testing::Eq;
 using ::testing::Ne;
+using ::testing::Not;
 
 // Test all public methods of sandbox2::Buffer.
 TEST(BufferTest, TestImplementation) {
@@ -116,6 +118,26 @@ TEST(BufferTest, TestResize) {
   absl::string_view buf_begin_view(reinterpret_cast<char*>(buffer->data()),
                                    kSize);
   EXPECT_THAT(buf_begin_view, Eq(std::string(kSize, 'X')));
+}
+
+TEST(BufferTest, ExpandOnNullBufferFails) {
+  EXPECT_THAT(Buffer::Expand(std::unique_ptr<Buffer>(), 1024), Not(IsOk()));
+}
+
+TEST(BufferTest, ExpandSameSizeIsNoop) {
+  constexpr int kSize = 1024;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto buffer, Buffer::CreateWithSize(kSize));
+  EXPECT_THAT(buffer->size(), Eq(kSize));
+  uint8_t* raw_buf = buffer->data();
+  SAPI_ASSERT_OK_AND_ASSIGN(buffer, Buffer::Expand(std::move(buffer), kSize));
+  EXPECT_THAT(buffer->data(), Eq(raw_buf));
+}
+
+TEST(BufferTest, ReducingSizeFails) {
+  constexpr int kSize = 1024;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto buffer, Buffer::CreateWithSize(kSize));
+  EXPECT_THAT(buffer->size(), Eq(kSize));
+  EXPECT_THAT(Buffer::Expand(std::move(buffer), kSize - 10), Not(IsOk()));
 }
 
 TEST(BufferTest, TestResizeDoesNotTruncateFile) {
