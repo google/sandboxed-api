@@ -27,7 +27,10 @@ licenses(["notice"])
 # build actions to every build that (transitively) uses sapi_cc_embed_data().
 cc_binary(
     name = "filewrapper",
-    srcs = ["filewrapper.cc"],
+    srcs = [
+        "filewrapper.cc",
+        "filewrapper.h",
+    ],
     copts = sapi_platform_copts(),
     stamp = 0,
     visibility = ["//visibility:public"],
@@ -46,7 +49,10 @@ sapi_cc_embed_data(
 
 cc_test(
     name = "filewrapper_test",
-    srcs = ["filewrapper_test.cc"],
+    srcs = [
+        "filewrapper.h",
+        "filewrapper_test.cc",
+    ],
     copts = sapi_platform_copts(),
     data = [":filewrapper_embedded.bin"],
     deps = [
