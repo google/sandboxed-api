@@ -98,6 +98,26 @@ cc_library(
 )
 
 cc_test(
+    name = "server_test",
+    srcs = ["server_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":filtering",
+        ":server",
+        "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/util:fileops",
+        "//sandboxed_api/util:temp_file",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "filtering_test",
     srcs = ["filtering_test.cc"],
     copts = sapi_platform_copts(),

@@ -88,6 +88,30 @@ target_link_libraries(sandbox2_network_proxy_testing
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)
+  # sandboxed_api/sandbox2/network_proxy:server_test
+  add_executable(sandbox2_server_test
+    server_test.cc
+  )
+  set_target_properties(sandbox2_server_test PROPERTIES
+    OUTPUT_NAME server_test
+  )
+  target_link_libraries(sandbox2_server_test PRIVATE
+    absl::check
+    absl::cleanup
+    absl::status_matchers
+    absl::statusor
+    absl::strings
+    sandbox2::comms
+    sandbox2::network_proxy_filtering
+    sandbox2::network_proxy_server
+    sapi::fileops
+    sapi::temp_file
+    sapi::testing
+    sapi::base
+    sapi::test_main
+  )
+  gtest_discover_tests_xcompile(sandbox2_server_test)
+
   # sandboxed_api/sandbox2/network_proxy:filtering_test
   add_executable(sandbox2_filtering_test
     filtering_test.cc
