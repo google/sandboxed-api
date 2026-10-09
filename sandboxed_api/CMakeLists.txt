@@ -384,6 +384,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   )
   target_link_libraries(embed_file_test PRIVATE
     absl::memory
+    absl::status
+    absl::status_matchers
     absl::strings
     sapi::embed_file
     sapi::test_main

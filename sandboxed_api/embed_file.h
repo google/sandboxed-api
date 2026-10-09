@@ -15,6 +15,9 @@
 #ifndef SANDBOXED_API_EMBED_FILE_H_
 #define SANDBOXED_API_EMBED_FILE_H_
 
+#include <sys/sendfile.h>
+#include <sys/types.h>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -40,8 +43,8 @@ class EmbedFileTestPeer;
 //
 // When a file descriptor is requested for an embedded binary, EmbedFile locates
 // the corresponding ELF section within the container binary/DSO on disk,
-// creates an executable memfd, and streams the section bytes directly from disk
-// into the memfd using copy_file_range(2) (or chunked pread/write fallback).
+// creates an executable memfd, and copies the section bytes from disk into the
+// memfd using sendfile(2) (or a chunked pread/pwrite fallback).
 // The memfd is sealed (F_ADD_SEALS) and cached for subsequent requests.
 class EmbedFile {
  public:
@@ -83,16 +86,26 @@ class EmbedFile {
   absl::Mutex file_tocs_mutex_;
 };
 
-namespace internal {
+namespace embed_file_internal {
 
-// Fallback copy implementation using a 32 KB chunked buffer when
-// copy_file_range(2) is not supported by the kernel, filesystem, or mount.
-// Despite the fact that copy_file_range(2) should be available on all supported
-// kernels, this fallback ensures a smooth transition to the new feature.
-absl::Status FallbackChunkedCopy(int in_fd, uint64_t offset, size_t size,
-                                 int out_fd);
+// Signature of sendfile(2). Injectable for testing.
+using SendfileFn = ssize_t (*)(int out_fd, int in_fd, off_t* offset,
+                               size_t count);
 
-}  // namespace internal
+// Copies `size` bytes starting at `in_offset` in `in_fd` to `out_fd`, starting
+// at offset 0 of `out_fd`. The file position of `in_fd` is neither used nor
+// modified. Uses sendfile(2) and, if sendfile(2) is not supported for the given
+// file descriptors, finishes the remaining bytes with FallbackChunkedCopy().
+absl::Status CopyFileToFd(int in_fd, uint64_t in_offset, size_t size,
+                          int out_fd, SendfileFn sendfile_fn = ::sendfile);
+
+// Copies `size` bytes starting at `in_offset` in `in_fd` to `out_fd` at
+// `out_offset`, using pread(2)/pwrite(2) with a heap-allocated chunk buffer.
+// The file positions of `in_fd` and `out_fd` are neither used nor modified.
+absl::Status FallbackChunkedCopy(int in_fd, uint64_t in_offset, size_t size,
+                                 int out_fd, uint64_t out_offset);
+
+}  // namespace embed_file_internal
 
 }  // namespace sapi
 

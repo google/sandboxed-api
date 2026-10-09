@@ -16,13 +16,16 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <sys/sendfile.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
@@ -68,39 +71,96 @@ bool SealFile(int fd) {
 
 }  // namespace
 
-namespace internal {
+namespace embed_file_internal {
 
-// Fallback copy implementation using a 32 KB chunked buffer when
-// copy_file_range(2) is not supported by the kernel, filesystem, or mount.
-// Despite the fact that copy_file_range(2) should be available on all supported
-// kernels, this fallback ensures a smooth transition to the new feature.
-absl::Status FallbackChunkedCopy(int in_fd, uint64_t offset, size_t size,
-                                 int out_fd) {
+absl::Status FallbackChunkedCopy(int in_fd, uint64_t in_offset, size_t size,
+                                 int out_fd, uint64_t out_offset) {
   constexpr size_t kChunkSize = 32 * 1024;
-  char buf[kChunkSize];
-  uint64_t current_offset = offset;
-  size_t bytes_remaining = size;
-  while (bytes_remaining > 0) {
-    size_t to_read = std::min(bytes_remaining, kChunkSize);
-    ssize_t read_bytes =
-        TEMP_FAILURE_RETRY(pread(in_fd, buf, to_read, current_offset));
+  // Heap-allocated on purpose: this may run deep in the call stack of threads
+  // with small stacks (e.g. 64 KiB fibers).
+  std::string buf(kChunkSize, '\0');
+  while (size > 0) {
+    const size_t to_read = std::min(size, kChunkSize);
+    const ssize_t read_bytes =
+        TEMP_FAILURE_RETRY(pread(in_fd, buf.data(), to_read, in_offset));
     if (read_bytes < 0) {
-      return absl::ErrnoToStatus(errno, "pread failed during fallback copy");
+      return absl::ErrnoToStatus(errno, "pread failed");
     }
     if (read_bytes == 0) {
-      return absl::DataLossError("Unexpected EOF during fallback copy");
+      return absl::DataLossError("Unexpected EOF during pread");
     }
-    if (!file_util::fileops::WriteToFD(out_fd, buf, read_bytes)) {
-      return absl::ErrnoToStatus(errno,
-                                 "WriteToFD failed during fallback copy");
+    for (size_t written = 0; written < static_cast<size_t>(read_bytes);) {
+      const ssize_t n = TEMP_FAILURE_RETRY(pwrite(out_fd, buf.data() + written,
+                                                  read_bytes - written,
+                                                  out_offset + written));
+      if (n < 0) {
+        return absl::ErrnoToStatus(errno, "pwrite failed");
+      }
+      if (n == 0) {
+        return absl::InternalError("pwrite wrote 0 bytes");
+      }
+      written += n;
     }
-    current_offset += read_bytes;
-    bytes_remaining -= read_bytes;
+    in_offset += read_bytes;
+    out_offset += read_bytes;
+    size -= read_bytes;
   }
   return absl::OkStatus();
 }
 
-}  // namespace internal
+absl::Status CopyFileToFd(int in_fd, uint64_t in_offset, size_t size,
+                          int out_fd, SendfileFn sendfile_fn) {
+  // Why sendfile(2) and not copy_file_range(2):
+  // The destination is a memfd. memfds live on the kernel-internal shmem mount,
+  // which is a superblock of its own, distinct from every mounted filesystem
+  // (including tmpfs mounts such as /tmp). For filesystems that do not
+  // implement ->copy_file_range, which includes shmem, copy_file_range(2)
+  // requires both files to be on the same superblock and fails with EXDEV
+  // otherwise (generic_copy_file_checks() in fs/read_write.c; this restriction
+  // was reinstated in Linux 5.19). The source binary/DSO is never on that
+  // internal mount, so copy_file_range(2) always fails with EXDEV here.
+  // sendfile(2) has no such restriction: since Linux 2.6.33, `out_fd` can be
+  // any file. It copies through the page cache in the kernel, without a
+  // userspace buffer.
+  //
+  // sendfile(2) writes at the file position of `out_fd` (it has no output
+  // offset argument), so we set that position explicitly and track the output
+  // offset ourselves. The pread/pwrite fallback uses the tracked offsets and
+  // does not depend on the file position.
+  if (lseek(out_fd, 0, SEEK_SET) < 0) {
+    return absl::ErrnoToStatus(errno, "lseek failed");
+  }
+  // Linux transfers at most 0x7ffff000 bytes per sendfile(2) call.
+  constexpr size_t kMaxSendfileBytes = 0x7ffff000;
+  off_t current_in_offset = in_offset;
+  uint64_t current_out_offset = 0;
+  size_t remaining = size;
+  while (remaining > 0) {
+    const ssize_t copied =
+        TEMP_FAILURE_RETRY(sendfile_fn(out_fd, in_fd, &current_in_offset,
+                                       std::min(remaining, kMaxSendfileBytes)));
+    if (copied < 0) {
+      if (errno == EINVAL || errno == ENOSYS || errno == EOPNOTSUPP) {
+        // sendfile(2) is not supported for these file descriptors (e.g. no
+        // mmap-like read support for `in_fd`) or is blocked (e.g. by seccomp).
+        // Copy the remaining bytes in userspace.
+        return FallbackChunkedCopy(in_fd, current_in_offset, remaining, out_fd,
+                                   current_out_offset);
+      }
+      return absl::ErrnoToStatus(errno, "sendfile failed");
+    }
+    if (copied == 0) {
+      return absl::DataLossError("Unexpected EOF during sendfile");
+    }
+    // sendfile(2) advanced `current_in_offset` and the file position of
+    // `out_fd` by `copied` bytes.
+    current_out_offset += copied;
+    remaining -= copied;
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace embed_file_internal
 
 namespace {
 
@@ -161,37 +221,21 @@ absl::StatusOr<ElfContainer> OpenElfContainer(absl::string_view section_name) {
 //    Parses the ELF section headers using sandbox2::ElfFile::GetSectionLocation
 //    to obtain the file offset and size of the section without mapping the
 //    data.
-// 3. In-Kernel Streaming:
-//    Transfers data from the container ELF into the memfd using
-//    copy_file_range(2) to avoid userspace buffering and memory allocation
-//    overhead.
+// 3. Copy:
+//    Copies the section into the memfd with
+//    embed_file_internal::CopyFileToFd(), which uses sendfile(2) to copy in the
+//    kernel, falling back to pread/pwrite.
 absl::Status CopySectionToMemfd(absl::string_view section_name,
                                 absl::string_view toc_name, int memfd) {
   ABSL_ASSIGN_OR_RETURN(ElfContainer container, OpenElfContainer(section_name));
-  const FDCloser& exe_fd = container.fd;
   const sandbox2::ElfSectionLocation& loc = container.section;
-
-  loff_t in_offset = loc.offset;
-  size_t bytes_remaining = loc.size;
-  while (bytes_remaining > 0) {
-    ssize_t copied = TEMP_FAILURE_RETRY(copy_file_range(
-        exe_fd.get(), &in_offset, memfd, nullptr, bytes_remaining, 0));
-    if (copied < 0) {
-      if (errno == ENOSYS || errno == EXDEV || errno == EINVAL ||
-          errno == EOPNOTSUPP) {
-        // Kernel or filesystem does not support copy_file_range; fall back to
-        // chunked pread/write.
-        return internal::FallbackChunkedCopy(exe_fd.get(), loc.offset, loc.size,
-                                             memfd);
-      }
-      return absl::ErrnoToStatus(
-          errno, absl::StrCat("copy_file_range failed for '", toc_name, "'"));
-    }
-    if (copied == 0) {
-      return absl::DataLossError(absl::StrCat(
-          "Unexpected EOF during copy_file_range for '", toc_name, "'"));
-    }
-    bytes_remaining -= copied;
+  absl::Status status = embed_file_internal::CopyFileToFd(
+      container.fd.get(), loc.offset, loc.size, memfd);
+  if (!status.ok()) {
+    return absl::Status(
+        status.code(),
+        absl::StrCat("Copying section '", section_name, "' for '", toc_name,
+                     "' failed: ", status.message()));
   }
   return absl::OkStatus();
 }
@@ -222,6 +266,13 @@ int EmbedFile::CreateFdForFileToc(const EmbedToc& toc) {
       LOG(WARNING) << "CopySectionToMemfd failed for '" << toc.name
                    << "': " << copy_status;
       if (toc.data.empty()) {
+        return -1;
+      }
+      // The failed copy may have left partial data in the memfd. Discard it
+      // before writing the in-binary data.
+      if (ftruncate(embed_fd.get(), 0) == -1 ||
+          lseek(embed_fd.get(), 0, SEEK_SET) == -1) {
+        PLOG(ERROR) << "Couldn't reset memfd for '" << toc.name << "'";
         return -1;
       }
       if (!file_util::fileops::WriteToFD(embed_fd.get(), toc.data.data(),
