@@ -57,9 +57,10 @@ bool IsProtoBuf(const clang::RecordDecl* decl) {
   }
   // Lookup the base classes and check if google::protobuf::Messages is one of it.
   for (const clang::CXXBaseSpecifier& base : cxxdecl->bases()) {
-    if (base.getType()->getAsCXXRecordDecl()->getQualifiedNameAsString() ==
-        "google::protobuf::Message") {
-      return true;
+    if (const auto* base_decl = base.getType()->getAsCXXRecordDecl()) {
+      if (base_decl->getQualifiedNameAsString() == "google::protobuf::Message") {
+        return true;
+      }
     }
   }
   return false;
@@ -149,7 +150,7 @@ void TypeCollector::CollectRelatedTypes(clang::QualType qual) {
     const clang::RecordDecl* decl = record_type->getDecl();
     const clang::RecordDecl* definition = decl->getDefinition();
     decl = definition ? definition : decl;
-    if (!IsProtoBuf(decl)) {
+    if (decl->hasDefinition() && !IsProtoBuf(decl)) {
       for (const clang::FieldDecl* field : decl->fields()) {
         CollectRelatedTypes(field->getType());
       }
