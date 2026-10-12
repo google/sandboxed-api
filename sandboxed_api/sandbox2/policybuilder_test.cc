@@ -416,6 +416,12 @@ TEST(PolicyBuilderTest, DisablingNamespacesRejectedWhenNamespacesRequired) {
   EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
 }
 
+TEST(PolicyBuilderTest, AddingDirectoryAfterDisablingNamespacesRejected) {
+  PolicyBuilder builder;
+  builder.DisableNamespaces(NamespacesToken()).AddDirectory("/bin");
+  EXPECT_THAT(builder.TryBuild(), Not(IsOk()));
+}
+
 TEST(PolicyBuilderTest, OverlongUserPolicy) {
   PolicyBuilder builder;
   std::vector<sock_filter> filter(60000,
