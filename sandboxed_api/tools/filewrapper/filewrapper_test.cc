@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "sandboxed_api/tools/filewrapper/filewrapper.h"
+
 #include <dlfcn.h>
 #include <unistd.h>
 
@@ -34,6 +36,34 @@ using ::testing::Ne;
 using ::testing::NotNull;
 using ::testing::StartsWith;
 using ::testing::StrEq;
+
+TEST(FilewrapperTest, IsValidNamespace) {
+  // Valid namespace names
+  EXPECT_TRUE(IsValidNamespace(""));
+  EXPECT_TRUE(IsValidNamespace("foo"));
+  EXPECT_TRUE(IsValidNamespace("foo::bar"));
+  EXPECT_TRUE(IsValidNamespace("foo::bar::baz"));
+  EXPECT_TRUE(IsValidNamespace("_foo"));
+  EXPECT_TRUE(IsValidNamespace("foo_bar"));
+  EXPECT_TRUE(IsValidNamespace("foo123::bar456"));
+  EXPECT_TRUE(IsValidNamespace("_123::_456"));
+
+  // Invalid namespace names
+  EXPECT_FALSE(IsValidNamespace("1foo"));
+  EXPECT_FALSE(IsValidNamespace("foo::1bar"));
+  EXPECT_FALSE(IsValidNamespace("foo-bar"));
+  EXPECT_FALSE(IsValidNamespace("foo::bar-baz"));
+  EXPECT_FALSE(IsValidNamespace("foo::"));
+  EXPECT_FALSE(IsValidNamespace("::foo"));
+  EXPECT_FALSE(IsValidNamespace("foo::::bar"));
+  EXPECT_FALSE(IsValidNamespace("::"));
+  EXPECT_FALSE(IsValidNamespace("foo:bar"));
+  EXPECT_FALSE(IsValidNamespace("foo bar"));
+  EXPECT_FALSE(IsValidNamespace("foo\nbar"));
+  EXPECT_FALSE(IsValidNamespace("foo;bar"));
+  EXPECT_FALSE(IsValidNamespace("foo.bar"));
+  EXPECT_FALSE(IsValidNamespace("foo/bar"));
+}
 
 TEST(FilewrapperTest, BasicFunctionality) {
   auto raw_toc = filewrapper_embedded_create();

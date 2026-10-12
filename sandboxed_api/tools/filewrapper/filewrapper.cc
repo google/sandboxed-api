@@ -33,6 +33,8 @@
 #include <utility>
 #include <vector>
 
+#include "sandboxed_api/tools/filewrapper/filewrapper.h"
+
 // Minimal stand-ins for SAPI_RAW_PLOG(FATAL, ...) and SAPI_RAW_PCHECK(): print
 // the printf-style message followed by the current errno description, then
 // exit.
@@ -384,6 +386,10 @@ int main(int argc, char* argv[]) {
   --argc;
 
   const char* ns = *arg++;
+  if (!sapi::IsValidNamespace(ns)) {
+    std::fprintf(stderr, "filewrapper: invalid namespace '%s'\n", ns);
+    return EXIT_FAILURE;
+  }
   const bool have_ns = ns[0] != '\0';
   --argc;
 
