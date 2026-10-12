@@ -407,6 +407,37 @@ TEST_F(EmitterTest, StructForwardDecl) {
   EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")), IsEmpty());
 }
 
+TEST_F(EmitterTest, IncompleteRecordAndInterfaceDecl) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  ASSERT_THAT(RunFrontendAction(
+                  R"(struct __interface IFoo;
+                     struct IncompleteStruct;
+                     union IncompleteUnion;
+                     extern "C" void ComplexFunc(IFoo* f, IncompleteStruct* s, IncompleteUnion* u);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+  EXPECT_THAT(UglifyAll(emitter.ForwardDeclsForNS("")),
+              ElementsAre("struct IFoo", "struct IncompleteStruct",
+                          "union IncompleteUnion"));
+}
+
+TEST_F(EmitterTest, AnonymousRecordAndNonCXXRecord) {
+  GeneratorOptions options;
+  EmitterForTesting emitter(&options);
+  ASSERT_THAT(RunFrontendAction(
+                  R"(typedef struct { int x; int y; } Point;
+                     extern "C" void MovePoint(Point* p);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+  EXPECT_THAT(UglifyAll(emitter.SpellingsForNS("")),
+              ElementsAre("typedef struct { int x; int y; } Point"));
+}
+
 TEST_F(EmitterTest, AggregateStructWithDefaultedMembers) {
   GeneratorOptions options;
   EmitterForTesting emitter(&options);
