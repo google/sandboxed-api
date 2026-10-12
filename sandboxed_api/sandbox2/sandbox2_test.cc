@@ -277,6 +277,28 @@ TEST_P(Sandbox2Test, SandboxeeTimeoutDisabledStacktraces) {
   EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 
+TEST_P(Sandbox2Test, SandboxeeWalltimeLimitDisarmed) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sendrecv");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+  sandbox.set_walltime_limit(absl::Seconds(1));
+  Comms& comms = *sandbox.comms();
+  bool b;
+  ASSERT_THAT(comms.RecvBool(&b), IsTrue());
+  EXPECT_THAT(b, IsTrue());
+  sandbox.set_walltime_limit(absl::ZeroDuration());
+  absl::SleepFor(absl::Seconds(2));
+  ASSERT_THAT(comms.SendBool(true), IsTrue());
+  auto result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
 // Tests that we do not collect stack traces if it was disabled (violation).
 TEST(Sandbox2Test, SandboxeeViolationDisabledStacktraces) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/sleep");
