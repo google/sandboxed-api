@@ -130,6 +130,13 @@ TEST(ResultTest, DefaultState) {
   EXPECT_THAT(result.ToStatus(), StatusIs(absl::StatusCode::kInternal));
 }
 
+TEST(ResultTest, UnknownStatus) {
+  Result result;
+  result.SetExitStatusCode(static_cast<Result::StatusEnum>(999), 999);
+  EXPECT_THAT(result.ToString(), HasSubstr("<UNKNOWN>(999) Code: 999"));
+  EXPECT_THAT(result.ToStatus(), StatusIs(absl::StatusCode::kInternal));
+}
+
 TEST(ResultTest, StatusOk) {
   Result result;
   result.SetExitStatusCode(Result::OK, 0);
