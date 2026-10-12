@@ -38,8 +38,9 @@ static const char kTruncated[] = " ... (message truncated)\n";
 // consumed bytes, and return whether the message fit without truncation.  If
 // truncation occurred, if possible leave room in the buffer for the message
 // kTruncated[].
+ABSL_PRINTF_ATTRIBUTE(3, 0)
 inline static bool VADoRawLog(char** buf, int* size, const char* format,
-                              va_list ap) ABSL_PRINTF_ATTRIBUTE(3, 0);
+                              va_list ap);
 inline static bool VADoRawLog(char** buf, int* size, const char* format,
                               va_list ap) {
   int n = vsnprintf(*buf, *size, format, ap);
@@ -63,8 +64,8 @@ inline static bool VADoRawLog(char** buf, int* size, const char* format,
 // Helper for RawLog below.
 // *DoRawLog writes to *buf of *size and move them past the written portion.
 // It returns true iff there was no overflow or error.
-bool DoRawLog(char** buf, int* size, const char* format, ...)
-    ABSL_PRINTF_ATTRIBUTE(3, 4);
+ABSL_PRINTF_ATTRIBUTE(3, 4)
+bool DoRawLog(char** buf, int* size, const char* format, ...);
 bool DoRawLog(char** buf, int* size, const char* format, ...) {
   va_list ap;
   va_start(ap, format);
@@ -85,8 +86,9 @@ void SafeWriteToStderr(const char* s, size_t len) {
   syscall(SYS_write, STDERR_FILENO, s, len);
 }
 
+ABSL_PRINTF_ATTRIBUTE(4, 0)
 void RawLogVA(absl::LogSeverity severity, const char* file, int line,
-              const char* format, va_list ap) ABSL_PRINTF_ATTRIBUTE(4, 0);
+              const char* format, va_list ap);
 void RawLogVA(absl::LogSeverity severity, const char* file, int line,
               const char* format, va_list ap) {
   char buffer[sapi::raw_logging_internal::kLogBufSize];
@@ -117,8 +119,9 @@ void RawLogVA(absl::LogSeverity severity, const char* file, int line,
 namespace sapi::raw_logging_internal {
 
 #ifndef SAPI_USE_ABSL_RAW_LOG
+ABSL_PRINTF_ATTRIBUTE(4, 5)
 void RawLog(absl::LogSeverity severity, const char* file, int line,
-            const char* format, ...) ABSL_PRINTF_ATTRIBUTE(4, 5);
+            const char* format, ...);
 void RawLog(absl::LogSeverity severity, const char* file, int line,
             const char* format, ...) {
   va_list ap;
