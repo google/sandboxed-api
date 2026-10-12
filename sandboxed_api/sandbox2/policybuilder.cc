@@ -2056,14 +2056,6 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy(
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::TrapPtrace() {
-  if (handled_syscalls_.insert(__NR_ptrace).second) {
-    user_policy_.insert(user_policy_.end(), {SYSCALL(__NR_ptrace, TRAP(0))});
-    user_policy_handles_ptrace_ = true;
-  }
-  return *this;
-}
-
 PolicyBuilder& PolicyBuilder::SetRootWritable() {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
   mounts_.SetRootWritable();

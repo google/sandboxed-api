@@ -1102,9 +1102,6 @@ class PolicyBuilder final {
   // Allows MADV_POPULATE_READ and MADV_POPULATE_WRITE.
   PolicyBuilder& AllowMadvisePopulate();
 
-  // Traps instead of denying ptrace.
-  PolicyBuilder& TrapPtrace();
-
   // Appends given policy at the end of the policy - decision taken by user
   // policy takes precedence.
   PolicyBuilder& OverridableAddPolicyOnSyscalls(
