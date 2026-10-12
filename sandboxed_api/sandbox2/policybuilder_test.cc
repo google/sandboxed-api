@@ -497,5 +497,24 @@ TEST(PolicyBuilderTest, AllowMountPropagationNonDirectoryFails) {
                        HasSubstr("Path is not a directory")));
 }
 
+TEST(PolicyBuilder, HostnameFailsWithUnrestrictedNetworking) {
+  PolicyBuilder builder;
+  builder.SetHostname("test_hostname")
+      .Allow(sandbox2::UnrestrictedNetworking());
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Cannot set hostname without network "
+                                 "namespaces")));
+}
+
+TEST(PolicyBuilder, AddingProcSelfFails) {
+  EXPECT_THAT(PolicyBuilder().AddDirectory("/proc/self").TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot add /proc/self")));
+  EXPECT_THAT(PolicyBuilder().AddFile("/proc/self/status").TryBuild(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot add /proc/self")));
+}
+
 }  // namespace
 }  // namespace sandbox2
