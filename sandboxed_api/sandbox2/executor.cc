@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -156,10 +157,7 @@ std::unique_ptr<ForkClient> Executor::StartForkServer() {
 
 void Executor::SetUpServerSideCommsFd() {
   int sv[2];
-  if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1) {
-    PLOG(FATAL) << "socketpair(AF_UNIX, SOCK_STREAM) failed";
-  }
-
+  PCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
   client_comms_fd_ = file_util::fileops::FDCloser(sv[0]);
   ipc_.SetUpServerSideComms(sv[1]);
 }
