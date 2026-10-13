@@ -332,11 +332,12 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
 
 absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizer(
     pid_t pid, int max_frames) {
-  static unw_addr_space_t as =
+  unw_addr_space_t as =
       unw_create_addr_space(&_UPT_accessors, 0 /* byte order */);
   if (as == nullptr) {
     return absl::InternalError("unw_create_addr_space() failed");
   }
+  absl::Cleanup as_cleanup = [&as] { unw_destroy_addr_space(as); };
 
   void* context = _UPT_create(pid);
   if (context == nullptr) {
