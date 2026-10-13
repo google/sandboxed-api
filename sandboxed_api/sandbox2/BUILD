@@ -118,6 +118,9 @@ cc_test(
     deps = [
         ":syscall",
         "//sandboxed_api:config",
+        "//sandboxed_api:testing",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],

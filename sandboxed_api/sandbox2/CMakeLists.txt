@@ -1012,10 +1012,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME syscall_test
   )
   target_link_libraries(sandbox2_syscall_test PRIVATE
+    absl::status
+    absl::status_matchers
     absl::strings
     sapi::config
     sandbox2::syscall
     sapi::test_main
+    sapi::testing
   )
   gtest_discover_tests_xcompile(sandbox2_syscall_test)
 
