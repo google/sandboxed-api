@@ -4,6 +4,8 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 
+#include <cstddef>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
@@ -33,6 +35,13 @@ TEST(DecodeInstructionTest, Loads) {
   EXPECT_THAT(
       DecodeInstruction(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, HI_ARG(0)), 1),
       Eq("A := arg 0 high"));
+  constexpr int kIpOffset = offsetof(seccomp_data, instruction_pointer);
+  EXPECT_THAT(
+      DecodeInstruction(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, kIpOffset), 1),
+      Eq("A := instruction pointer low"));
+  EXPECT_THAT(
+      DecodeInstruction(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, kIpOffset + 4), 1),
+      Eq("A := instruction pointer high"));
   EXPECT_THAT(DecodeInstruction(BPF_STMT(BPF_LD | BPF_W | BPF_LEN, 0), 1),
               Eq("A := sizeof(seccomp_data)"));
   EXPECT_THAT(DecodeInstruction(BPF_STMT(BPF_LDX | BPF_W | BPF_LEN, 0), 1),
@@ -76,6 +85,8 @@ TEST(DecodeInstructionTest, Returns) {
       Eq("KILL_PROCESS"));
   EXPECT_THAT(DecodeInstruction(BPF_STMT(BPF_RET + BPF_A, 0), 1),
               Eq("return A"));
+  EXPECT_THAT(DecodeInstruction(BPF_STMT(BPF_RET + BPF_K, 0xc0ffee), 1),
+              Eq("return 0xc0ffee"));
 }
 
 TEST(DecodeInstructionTest, Alu) {
