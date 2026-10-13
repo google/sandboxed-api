@@ -308,6 +308,7 @@ void ForkServer::CreateSharedPidNamespaces(Comms setup_comms) {
   // PID 1 of the namespace). When the parent terminates, PR_SET_PDEATHSIG
   // delivers SIGKILL to terminate this init process without leaking.
   while (true) {
+    util::DumpCoverageData();
     pause();
   }
 }
