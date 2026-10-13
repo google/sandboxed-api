@@ -548,6 +548,62 @@ TEST(Sandbox2Test, EnableUnotifyMonitorFailsWithCollectStacktracesOnExit) {
                                  "on normal exit")));
 }
 
+TEST_P(Sandbox2Test, EnableSharedMemoryCommsWorks) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/tsync");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->set_enable_sandbox_before_exec(false);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  ASSERT_THAT(sandbox.EnableSharedMemoryComms(), IsOk());
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST(Sandbox2Test, EnableSharedMemoryCommsFailsWhenAlreadyLaunched) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  auto result = sandbox.Run();
+  EXPECT_THAT(sandbox.EnableSharedMemoryComms(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Sandbox was already launched")));
+}
+
+TEST(Sandbox2Test, EnableSharedMemoryCommsFailsInPreExecveMode) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(
+      sandbox.EnableSharedMemoryComms(),
+      StatusIs(absl::StatusCode::kFailedPrecondition,
+               HasSubstr("Shared memory comms should be enabled manually in "
+                         "pre-execve mode")));
+}
+
+TEST(Sandbox2Test, EnableSharedMemoryCommsFailsWithTooSmallSize) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->set_enable_sandbox_before_exec(false);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(
+      sandbox.EnableSharedMemoryComms(kDefaultCommsSharedMemorySize - 1),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Shared memory size must be at least")));
+}
+
 TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWhenAlreadyLaunched) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
