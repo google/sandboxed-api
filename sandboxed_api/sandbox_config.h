@@ -74,10 +74,22 @@ struct Sandbox2Config {
   // performance degradation when transferring large objects to the sandboxee.
   static constexpr size_t kDefaultSAPISharedMemorySize = (128ULL << 10);
 
-  // A generic policy which should work with majority of typical libraries,
-  // which are single-threaded and require ~30 basic syscalls.
+  // Returns a PolicyBuilder pre-configured with a baseline policy that works
+  // with the majority of typical single-threaded libraries.
+  // This is the preferred way of building a sandbox policy in most cases
+  // because it simplifies maintenance as runtime and tooling requirements
+  // evolve, while still allowing callers to chain additional rules onto the
+  // returned builder.
+  //
+  // This policy is used by `SandboxConfig::DefaultConfig()` (and when `policy`
+  // is unset) and is designed to work together with the defaults in
+  // `SandboxConfig` (such as `SandboxConfig::DefaultFlags()` and
+  // `SandboxConfig::DefaultEnvironmentVariables()`).
   static sandbox2::PolicyBuilder DefaultPolicyBuilder();
 
+  // Returns the default resource and time limits for SAPI sandboxees (disabling
+  // CPU and wall-time limits by default). Used by
+  // `SandboxConfig::DefaultConfig()` and when `limits` is unset.
   static sandbox2::Limits DefaultLimits();
 
   // Optional. If not set, the default policy will be used.
@@ -103,17 +115,39 @@ struct Sandbox2Config {
   // instance.
   bool enable_multithreading = false;
   std::optional<std::string> cwd;
+  // Optional. If not set, `DefaultLimits()` will be used.
   std::optional<sandbox2::Limits> limits;
 };
 
+// Configuration for a SAPI sandbox.
+//
+// By default, generated SAPI sandbox classes initialize using
+// `SandboxConfig::DefaultConfig()`, which combines
+// `Sandbox2Config::DefaultPolicyBuilder()`, `Sandbox2Config::DefaultLimits()`,
+// shared memory communication, `DefaultFlags()`, and
+// `DefaultEnvironmentVariables()`.
 struct SandboxConfig {
+  // Returns the default environment variables passed to the sandboxee when
+  // `environment_variables` is unset. When customizing environment variables,
+  // prefer starting with `DefaultEnvironmentVariables()` and appending to it.
   static std::vector<std::string> DefaultEnvironmentVariables() {
     return {
     };
   }
 
+  // Returns the default command-line flags passed to the sandboxee when
+  // `command_line_flags` is unset. These configure baseline logging and
+  // runtime behavior for the sandboxee. When customizing flags, prefer
+  // starting with `DefaultFlags()` and modifying the returned map.
   static absl::linked_hash_map<std::string, std::string> DefaultFlags();
 
+  // Returns the default `SandboxConfig` used by generated SAPI sandbox
+  // classes. It combines the default policy, limits, flags, and environment
+  // variables.
+  //
+  // Prefer starting with `SandboxConfig::DefaultConfig()` and
+  // modifying the returned struct rather than default-constructing
+  // `SandboxConfig{}`.
   static SandboxConfig DefaultConfig();
 
   SandboxConfig& set_name(std::string n) {
@@ -123,8 +157,10 @@ struct SandboxConfig {
 
   std::string name = "unknown";
 
+  // Optional. If not set, `DefaultEnvironmentVariables()` will be used.
   std::optional<std::vector<std::string>> environment_variables;
 
+  // Optional. If not set, `DefaultFlags()` will be used.
   // Use a linked hash map to preserve the order of flags. This is relevant for
   // flags like --undefok, where order matters.
   std::optional<absl::linked_hash_map<std::string, std::string>>

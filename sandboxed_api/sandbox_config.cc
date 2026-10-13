@@ -31,6 +31,9 @@ namespace sapi {
 // IMPORTANT: This policy must be safe to use with
 // `Allow(sandbox2::UnrestrictedNetworking())`.
 sandbox2::PolicyBuilder Sandbox2Config::DefaultPolicyBuilder() {
+  // IMPORTANT NOTE FOR DEVELOPERS: This policy should be minimal and should not
+  // contain any target-specific or limited use cases. There should be a
+  // clear justification for each rule in this policy.
   sandbox2::PolicyBuilder builder;
   builder.AllowRead()
       .AllowWrite()

@@ -63,6 +63,14 @@ class WriteExecutable;
 // PolicyBuilder is a helper class to simplify creation of policies. The builder
 // uses fluent interface for convenience and increased readability of policies.
 //
+// IMPORTANT: In most cases, prefer starting with
+// `sapi::Sandbox2Config::DefaultPolicyBuilder()` (which is used by
+// `sapi::SandboxConfig::DefaultConfig()` alongside default flags, environment
+// variables, and limits; see `sandbox_config.h`).
+// Construct `sandbox2::PolicyBuilder` directly only when
+// `DefaultPolicyBuilder()` cannot be used or when a precise configuration is
+// required.
+//
 // To build a policy you simply create a new builder object, call methods on it
 // specifying what you want and finally call `BuildOrDie()` to generate you
 // policy.
