@@ -333,6 +333,25 @@ TEST_P(Sandbox2Test, SandboxeeNotKilledWhenStartingThreadFinishes) {
   EXPECT_EQ(result.final_status(), Result::OK);
 }
 
+TEST(Sandbox2Test, NonExistingForserverBinaryFails) {
+  const std::string path = "/non_existing_fork_server";
+  std::vector<std::string> args = {path};
+  auto fork_executor = std::make_unique<Executor>(path, args);
+  std::unique_ptr<ForkClient> fork_client = fork_executor->StartForkServer();
+  EXPECT_THAT(fork_client.get(), Eq(nullptr));
+}
+
+TEST(Sandbox2Test, CustomForkserverCanStartOnlyOnce) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/custom_fork");
+  std::vector<std::string> args = {path};
+  auto fork_executor = std::make_unique<Executor>(path, args);
+  std::unique_ptr<ForkClient> fork_client = fork_executor->StartForkServer();
+  EXPECT_THAT(fork_client.get(), Ne(nullptr));
+  fork_client.reset();
+  fork_client = fork_executor->StartForkServer();
+  EXPECT_THAT(fork_client.get(), Eq(nullptr));
+}
+
 TEST_P(Sandbox2Test, CustomForkserverWorks) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/custom_fork");
   std::vector<std::string> args = {path};
