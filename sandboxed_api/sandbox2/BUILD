@@ -1195,6 +1195,7 @@ cc_test(
         "//sandboxed_api/sandbox2/testcases:starve",
         "//sandboxed_api/sandbox2/testcases:terminate_process_group",
         "//sandboxed_api/sandbox2/testcases:tsync",
+        "//sandboxed_api/sandbox2/testcases:tsync_spawning_threads",
     ],
     tags = [
         "local",

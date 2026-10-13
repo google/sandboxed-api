@@ -573,6 +573,14 @@ bool PtraceMonitor::InitSetupSignals() {
   return true;
 }
 
+// Returns true if `task` is already ptraced by the calling thread (e.g.
+// automatically attached via PTRACE_O_TRACECLONE when a seized thread cloned
+// a new thread during InitPtraceAttach).
+bool IsTaskTraced(pid_t task) {
+  return util::GetProcStatusLine(task, "TracerPid") ==
+         absl::StrCat(util::Syscall(__NR_gettid));
+}
+
 absl::Status TryAttach(pid_t pid, const absl::flat_hash_set<int>& tasks,
                        absl::Time deadline,
                        absl::flat_hash_set<int>& tasks_attached) {
@@ -607,6 +615,12 @@ absl::Status TryAttach(pid_t pid, const absl::flat_hash_set<int>& tasks,
       int ret = ptrace(PTRACE_SEIZE, task, 0, kPtraceOptions);
       if (ret != 0) {
         if (errno == EPERM) {
+          if (IsTaskTraced(task)) {
+            // The task was spawned by an already-seized thread and
+            // automatically attached via PTRACE_O_TRACECLONE.
+            tasks_attached.insert(task);
+            continue;
+          }
           // Sometimes when a task is exiting we can get an EPERM from ptrace.
           // Let's try again up until the timeout in this situation.
           PLOG(WARNING) << format_ptrace_error(task, "Retrying after EPERM");

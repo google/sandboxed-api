@@ -225,6 +225,18 @@ cc_binary(
 )
 
 cc_binary(
+    name = "tsync_spawning_threads",
+    testonly = True,
+    srcs = ["tsync_spawning_threads.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = [
+        "//sandboxed_api/sandbox2:client",
+        "//sandboxed_api/sandbox2:comms",
+    ],
+)
+
+cc_binary(
     name = "starve",
     testonly = True,
     srcs = ["starve.cc"],

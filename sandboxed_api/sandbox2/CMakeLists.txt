@@ -1269,6 +1269,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::testcase_sendrecv
     sandbox2::testcase_sleep
     sandbox2::testcase_tsync
+    sandbox2::testcase_tsync_spawning_threads
   )
   target_link_libraries(sandbox2_sandbox2_test PRIVATE
     absl::check

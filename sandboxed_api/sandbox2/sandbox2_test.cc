@@ -154,6 +154,27 @@ TEST_P(Sandbox2Test, TsyncNoMemoryChecks) {
   ASSERT_EQ(result.reason_code(), 0);
 }
 
+// Test that SandboxMeHere succeeds when already-attached threads spawn new
+// threads while PtraceMonitor::InitPtraceAttach is attaching.
+TEST_P(Sandbox2Test, TsyncSpawningThreads) {
+  SKIP_SANITIZERS;
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/tsync_spawning_threads");
+
+  auto executor =
+      std::make_unique<Executor>(path, std::vector<std::string>{path});
+  executor->set_enable_sandbox_before_exec(false);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+
+  ASSERT_EQ(result.final_status(), Result::OK);
+  ASSERT_EQ(result.reason_code(), 0);
+}
+
 // Tests whether Executor(fd, std::vector<std::string>{path}, envp) constructor
 // works as expected.
 TEST(ExecutorTest, ExecutorFdConstructor) {

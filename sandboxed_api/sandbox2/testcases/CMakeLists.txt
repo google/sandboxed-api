@@ -278,6 +278,22 @@ target_link_libraries(sandbox2_testcase_tsync PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2/testcases:tsync_spawning_threads
+add_executable(sandbox2_testcase_tsync_spawning_threads
+  tsync_spawning_threads.cc
+)
+add_executable(sandbox2::testcase_tsync_spawning_threads
+  ALIAS sandbox2_testcase_tsync_spawning_threads)
+set_target_properties(sandbox2_testcase_tsync_spawning_threads PROPERTIES
+  OUTPUT_NAME tsync_spawning_threads
+)
+target_link_libraries(sandbox2_testcase_tsync_spawning_threads PRIVATE
+  -static-pie
+  sandbox2::client
+  sandbox2::comms
+  sapi::base
+)
+
 # sandboxed_api/sandbox2/testcases:limits
 add_executable(sandbox2_testcase_limits
   limits.cc
