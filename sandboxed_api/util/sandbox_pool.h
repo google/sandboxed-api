@@ -55,7 +55,7 @@ struct SandboxPoolOptions {
   // The maximum amount of time a sandbox can remain idle in the pool before
   // being destroyed. Sandboxes that exceed this timeout will be destroyed.
   // Sandboxes will not be replaced upon destruction.
-  absl::Duration idle_timeout = absl::Minutes(1);
+  absl::Duration idle_timeout = absl::Minutes(2);
   // The maximum number of times a sandbox can be used before it must be
   // recycled. A sandbox that has reached this limit will be destroyed and
   // replaced with a new one. `1` means that sandboxes are never reused.
