@@ -245,6 +245,24 @@ TEST(Test, WithInputNullTerm) {
   EXPECT_EQ(with_input_null_term(cb, input), 1116);
 }
 
+// Verifies that the generator preserves parameter annotations declared inside
+// a callback typedef (`sum_ints_cb`) and copies the `input` buffer across the
+// sandbox boundary.
+TEST(Test, WithTypedefdInputElemSized) {
+  auto cb = [](const int* input, size_t in_size) -> int {
+    int sum = 0;
+    for (size_t i = 0; i < in_size; ++i) {
+      sum += input[i];
+    }
+    return sum;
+  };
+  EXPECT_EQ(with_typedefd_input_elem_sized(cb, 5), 10);
+}
+
+TEST(Test, NullWithTypedefdInputElemSized) {
+  EXPECT_EQ(with_typedefd_input_elem_sized(nullptr, 3), -1);
+}
+
 TEST(Test, NullWithInputElemSized) {
   EXPECT_EQ(with_input_elem_sized(nullptr, 3), -1);
 }

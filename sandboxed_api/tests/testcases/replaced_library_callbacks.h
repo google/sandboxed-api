@@ -68,6 +68,11 @@ int with_input_byte_sized(int (*cb)(const void*, size_t), size_t in_size);
 
 int with_input_null_term(int (*cb)(const char*), const char* input);
 
+// Same as `with_input_elem_sized`, but the callback type is spelled as a
+// typedef rather than inline, the way most C APIs declare their callbacks.
+typedef int (*sum_ints_cb)(const int* input, size_t in_size);
+int with_typedefd_input_elem_sized(sum_ints_cb cb, size_t in_size);
+
 // Callbacks with output pointers
 int64_t with_output_prim_pointer(void (*cb)(int64_t*));
 

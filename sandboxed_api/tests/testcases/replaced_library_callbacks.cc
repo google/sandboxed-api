@@ -141,6 +141,15 @@ int with_input_null_term(int (*cb)(const char*), const char* input) {
   return cb(input);
 }
 
+int with_typedefd_input_elem_sized(sum_ints_cb cb, size_t in_size) {
+  if (cb == nullptr) return -1;
+  std::vector<int> buf = create_int_buffer(in_size);
+  size_t half_size = in_size / 2;
+  size_t second_half_size = in_size - half_size;
+  return cb(buf.data(), half_size) +
+         cb(buf.data() + half_size, second_half_size);
+}
+
 // Callbacks with output pointers
 int64_t with_output_prim_pointer(void (*cb)(int64_t*)) {
   if (cb == nullptr) return -1;

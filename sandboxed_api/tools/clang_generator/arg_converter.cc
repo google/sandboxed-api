@@ -292,6 +292,11 @@ absl::Status ExtractCallbackParams(
         "callback $0 does not have type source info", param.getName().str()));
   }
   clang::TypeLoc tl = type_source_info->getTypeLoc();
+  // This loop always terminates. Each branch steps into a strictly inner
+  // TypeLoc or follows a TypedefTypeLoc to its TypedefNameDecl. Because C and
+  // C++ typedefs cannot be forward-declared, a TypedefNameDecl can only
+  // reference declarations created earlier, so the TypeLoc graph is a DAG even
+  // on malformed input.
   while (true) {
     tl = tl.getUnqualifiedLoc();
     if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
@@ -300,6 +305,15 @@ absl::Status ExtractCallbackParams(
       tl = ref_tl.getPointeeLoc();
     } else if (auto paren_tl = tl.getAs<clang::ParenTypeLoc>()) {
       tl = paren_tl.getInnerLoc();
+    } else if (auto typedef_tl = tl.getAs<clang::TypedefTypeLoc>()) {
+      // Unwrap typedefs to the underlying TypeSourceInfo so that parameter
+      // names and annotations declared on the typedef remain visible.
+      clang::TypeSourceInfo* underlying_tsi =
+          typedef_tl.getTypePtr()->getDecl()->getTypeSourceInfo();
+      if (underlying_tsi == nullptr) {
+        break;
+      }
+      tl = underlying_tsi->getTypeLoc();
     } else if (auto attr_tl = tl.getAs<clang::AttributedTypeLoc>()) {
       tl = attr_tl.getModifiedLoc();
 #if LLVM_VERSION_MAJOR < 22

@@ -81,6 +81,14 @@ int with_input_null_term(
     int (*cb)(const char* input SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED),
     const char* input SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
 
+// Callback declared through a typedef. Clang preserves parameter declarations
+// and annotations in the typedef's TypeSourceInfo, so the generator processes
+// them in the same way as inline callback parameters.
+typedef int (*sum_ints_cb)(const int* input SANDBOX_IN_PTR
+                               SANDBOX_ELEM_SIZED_BY(in_size),
+                           size_t in_size);
+int with_typedefd_input_elem_sized(sum_ints_cb cb, size_t in_size);
+
 // Callbacks with output pointers
 int64_t with_output_prim_pointer(void (*cb)(int64_t* out SANDBOX_OUT_PTR));
 
