@@ -46,6 +46,7 @@ using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::sapi::file_util::fileops::FDCloser;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::Ne;
 using ::testing::Not;
 
@@ -99,6 +100,14 @@ TEST(BufferTest, TestWithSandboxeeMapFd) {
   // Test that internal buffer fd remains valid.
   struct stat stat_buf;
   EXPECT_THAT(fstat(buffer->fd(), &stat_buf), Ne(-1));
+}
+
+TEST(BufferTest, TestGetName) {
+  constexpr int kSize = 1024;
+  SAPI_ASSERT_OK_AND_ASSIGN(auto buffer,
+                            Buffer::CreateWithSize(kSize, "my_buffer_name"));
+  std::string name = buffer->GetName();
+  EXPECT_THAT(name, HasSubstr("my_buffer_name"));
 }
 
 TEST(BufferTest, TestResize) {
