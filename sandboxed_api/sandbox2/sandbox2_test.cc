@@ -794,6 +794,25 @@ TEST(Sandbox2Test, VlogLogsFilesystem) {
   EXPECT_EQ(result.reason_code(), 0);
 }
 
+TEST(Sandbox2Test, LogsSetupLatencyBreakdown) {
+  absl::SetFlag(&FLAGS_sandbox2_log_setup_latency_breakdown, true);
+
+  absl::ScopedMockLog log;
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_,
+                       HasSubstr("Setup latency breakdown:")));
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  log.StartCapturingLogs();
+  auto result = sandbox.Run();
+  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
 INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),
                          [](const ::testing::TestParamInfo<bool>& info) {
                            return info.param ? "UnotifyMonitor"
