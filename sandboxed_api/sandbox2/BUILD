@@ -1168,6 +1168,7 @@ cc_test(
         ":sandbox2",
         "//sandboxed_api:config",
         "//sandboxed_api:testing",
+        "//sandboxed_api/sandbox2/allowlists:all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
         "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",
         "//sandboxed_api/sandbox2/util:bpf_helper",

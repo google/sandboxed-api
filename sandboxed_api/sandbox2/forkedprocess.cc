@@ -175,6 +175,7 @@ void DropAllCapabilities() {
         "calling .AddLibrariesForBinary() on the policy builder.");
   }
 
+  util::DumpCoverageData();
   util::Syscall(__NR_exit_group, EXIT_FAILURE);
   abort();
 }

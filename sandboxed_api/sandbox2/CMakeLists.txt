@@ -1242,6 +1242,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::span
     absl::status_matchers
     absl::strings
+    sandbox2::allowlists_all_syscalls
     sandbox2::allowlists_seccomp_speculation
     sandbox2::bpf_helper
     sapi::config

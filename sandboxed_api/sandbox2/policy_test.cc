@@ -33,6 +33,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/config.h"
+#include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/executor.h"
@@ -333,6 +334,25 @@ TEST_P(PolicyTest, MinimalSharedBinaryWorks) {
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
+}
+
+TEST_P(PolicyTest, MinimalSharedBinaryFailsWithoutLibrariesAdded) {
+  SKIP_SANITIZERS;
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/minimal_dynamic");
+  std::unique_ptr<Sandbox2> s2 =
+      CreateTestSandbox({path}, PolicyBuilder()
+                                    .AllowDynamicStartup(sandbox2::MapExec())
+                                    .DefaultAction(AllowAllSyscalls())
+                                    .AllowLlvmCoverage());
+  Result result = s2->Run();
+
+  if (GetParam()) {
+    // Unotify monitor does not detect failed execveat.
+    EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  } else {
+    EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  }
 }
 
 // Test that the AllowSystemMalloc helper works as expected.
