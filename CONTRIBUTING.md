@@ -17,7 +17,9 @@ frustration later on.
 
 ### Code reviews
 All submissions, including submissions by project members, require review. We
-use Github pull requests for this purpose.
+use GitHub pull requests for external contributions. An approval on GitHub
+triggers an internal review, and once the internal review and internal approvals
+are complete, an automated system will take care of merging the pull request.
 
 ### The small print
 Contributions made by corporations are covered by a different agreement than
