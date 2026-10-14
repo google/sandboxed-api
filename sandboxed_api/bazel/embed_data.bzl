@@ -14,7 +14,7 @@
 
 """Embeds binary data in cc_*() rules for open-source builds."""
 
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "CcInfo", "cc_library")
 
 _FILEWRAPPER = "//sandboxed_api/tools/filewrapper:filewrapper"
 
@@ -50,8 +50,20 @@ def _sapi_cc_embed_data_impl(ctx):
         ),
     )
 
+    return [
+        DefaultInfo(
+            files = depset([h_file_artifact, cc_file_artifact, s_file_artifact]),
+        ),
+        CcInfo(),
+        coverage_common.instrumented_files_info(
+            ctx = ctx,
+            dependency_attributes = ["srcs"],
+        ),
+    ]
+
 _sapi_cc_embed_data = rule(
     implementation = _sapi_cc_embed_data_impl,
+    provides = [CcInfo],
     attrs = {
         "srcs": attr.label_list(
             allow_files = True,
@@ -121,6 +133,7 @@ def sapi_cc_embed_data(
         ],
         additional_compiler_inputs = srcs,
         deps = [
+            ":_%s_sapi" % name,
             "@abseil-cpp//absl/base:core_headers",
             "@abseil-cpp//absl/strings",
             "//sandboxed_api:embed_toc",
