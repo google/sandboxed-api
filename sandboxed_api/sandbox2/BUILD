@@ -229,6 +229,7 @@ cc_library(
         "//sandboxed_api/sandbox2/util:seccomp_unotify",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 

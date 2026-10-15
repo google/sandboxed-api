@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/bpfdisassembler.h"
@@ -293,9 +294,7 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
                     LABEL(&l, past_seccomp_new_listener),
                 });
 
-  if (bpf_resolve_jumps(&l, policy.data(), policy.size()) != 0) {
-    LOG(FATAL) << "Cannot resolve bpf jumps";
-  }
+  CHECK_EQ(bpf_resolve_jumps(&l, policy.data(), policy.size()), 0);
 
   return policy;
 }

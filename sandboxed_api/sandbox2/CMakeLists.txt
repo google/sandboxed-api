@@ -167,7 +167,9 @@ add_library(sandbox2_policy ${SAPI_LIB_TYPE}
 )
 add_library(sandbox2::policy ALIAS sandbox2_policy)
 target_link_libraries(sandbox2_policy
- PRIVATE absl::strings
+ PRIVATE absl::check
+         absl::log
+         absl::strings
          sandbox2::bpf_helper
          sandbox2::bpfdisassembler
          sandbox2::flags
