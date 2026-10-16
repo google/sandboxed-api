@@ -47,14 +47,13 @@
 namespace sapi {
 
 absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
-  constexpr absl::string_view kSandboxStructAnnotationPrefix =
-      "sandbox_struct_annotation_";
+  constexpr absl::string_view kSandboxAnnotationPrefix = "sandbox_annotation_";
   // Guard `getName()` with `getIdentifier() != nullptr` because
   // `NamedDecl::getName()` asserts that the declaration name is a simple
   // identifier (which fails on C++ `operator` overloads).
   if (decl->getIdentifier() != nullptr &&
-      decl->getName().starts_with(kSandboxStructAnnotationPrefix)) {
-    return ParseStructAnnotationWrapperFunc(*decl);
+      decl->getName().starts_with(kSandboxAnnotationPrefix)) {
+    return ParseAnnotationWrapperFunc(*decl);
   }
 
   std::string func_name = decl->getNameAsString();
@@ -150,29 +149,46 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   return absl::OkStatus();
 }
 
-absl::Status SandboxedLibraryEmitter::ParseStructAnnotationWrapperFunc(
+namespace {
+
+// Extracts the single declaration from a `sandbox_annotation_*` wrapper
+// function body (which must contain one `DeclStmt` with one `Decl`).
+absl::StatusOr<const clang::Decl*> GetAnnotatedDecl(
     const clang::FunctionDecl& decl) {
+  // Omit the macro-generated wrapper function name from the error message; the
+  // Clang diagnostic location already points to the user's annotation macro.
+  const absl::Status malformed = absl::InvalidArgumentError(
+      "a sandbox annotation must contain exactly one declaration");
+
   const auto* body =
       llvm::dyn_cast_or_null<clang::CompoundStmt>(decl.getBody());
   if (body == nullptr || body->size() != 1) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "Unexpected format for sandbox_struct_annotation_ : $0",
-        decl.getName().str()));
+    return malformed;
   }
   const auto* decl_stmt = llvm::dyn_cast<clang::DeclStmt>(body->body_front());
-  if (decl_stmt == nullptr || !decl_stmt->isSingleDecl()) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "Unexpected format for sandbox_struct_annotation_ : $0",
-        decl.getName().str()));
+  if (decl_stmt == nullptr || !decl_stmt->isSingleDecl() ||
+      decl_stmt->getSingleDecl() == nullptr) {
+    return malformed;
   }
-  const auto* record_decl =
-      llvm::dyn_cast<clang::RecordDecl>(decl_stmt->getSingleDecl());
-  if (record_decl == nullptr) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "Unexpected format for sandbox_struct_annotation_ : $0",
-        decl.getName().str()));
+  return decl_stmt->getSingleDecl();
+}
+
+}  // namespace
+
+absl::Status SandboxedLibraryEmitter::ParseAnnotationWrapperFunc(
+    const clang::FunctionDecl& decl) {
+  ABSL_ASSIGN_OR_RETURN(const clang::Decl* annotated, GetAnnotatedDecl(decl));
+
+  // Dispatch on the inner declaration kind. Only `RecordDecl` is supported
+  // here; future annotation kinds (such as `FunctionDecl` callback contracts or
+  // `VarDecl` pointee contracts) add cases to this function.
+  if (const auto* record_decl = llvm::dyn_cast<clang::RecordDecl>(annotated)) {
+    return ParseRecordAnnotations(*record_decl);
   }
-  return ParseRecordAnnotations(*record_decl);
+  return absl::InvalidArgumentError(
+      absl::Substitute("sandbox annotations are only supported on structs, "
+                       "but this annotates a $0 declaration",
+                       annotated->getDeclKindName()));
 }
 
 /**

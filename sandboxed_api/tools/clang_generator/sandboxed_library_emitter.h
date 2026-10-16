@@ -53,8 +53,12 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
   absl::Status AddVar(clang::VarDecl* decl) override;
 
-  absl::Status ParseStructAnnotationWrapperFunc(
-      const clang::FunctionDecl& decl);
+  // `SANDBOX_ANNOTATE_*` macros place an annotation-only shadow declaration
+  // inside an inline `sandbox_annotation_<line>()` function body so that it
+  // does not collide with the real declaration. Unwraps that function body and
+  // dispatches on the inner declaration kind.
+  absl::Status ParseAnnotationWrapperFunc(const clang::FunctionDecl& decl);
+
   absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl) {
     ABSL_ASSIGN_OR_RETURN(auto record_annotations,
                           sapi::ParseRecordAnnotations(decl));

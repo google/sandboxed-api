@@ -57,9 +57,9 @@
   const char* SANDBOX_INTERNAL_CAT(sandbox_ignore_funcs_, __LINE__)[] = { \
       SANDBOX_INTERNAL_FOREACH(SANDBOX_INTERNAL_STRINGIFY, ##__VA_ARGS__)}
 
-#define SANDBOX_ANNOTATE_STRUCT_IMPL(struct_decl)                            \
-  inline void SANDBOX_INTERNAL_CAT(sandbox_struct_annotation_, __LINE__)() { \
-    struct_decl                                                              \
+#define SANDBOX_ANNOTATE_STRUCT_IMPL(struct_decl)                     \
+  inline void SANDBOX_INTERNAL_CAT(sandbox_annotation_, __LINE__)() { \
+    struct_decl                                                       \
   }
 
 #define SANDBOX_BINDING_GEN_NAME() \
