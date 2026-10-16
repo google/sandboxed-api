@@ -32,6 +32,9 @@ namespace sandbox2 {
 // Sandbox2 will be updated as new kernel features become available.
 void EnforceLandlock(const Mounts& mounts);
 
+// Returns the kernel Landlock ABI version, or -1 if Landlock is not supported.
+int GetLandlockAbiVersion();
+
 // Returns whether Landlock is supported on the current kernel.
 bool IsLandlockSupported();
 

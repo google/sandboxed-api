@@ -525,5 +525,9 @@ TEST(SimpleLandlockTest, AddTmpfsFails) {
               StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
+TEST(SimpleLandlockTest, GetLandlockAbiVersionConsistency) {
+  EXPECT_EQ(IsLandlockSupported(), GetLandlockAbiVersion() >= 6);
+}
+
 }  // namespace
 }  // namespace sandbox2

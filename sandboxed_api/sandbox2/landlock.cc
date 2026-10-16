@@ -31,6 +31,10 @@
 #include "sandboxed_api/util/path.h"
 #include "sandboxed_api/util/raw_logging.h"
 
+#ifndef LANDLOCK_CREATE_RULESET_VERSION
+#define LANDLOCK_CREATE_RULESET_VERSION (1U << 0)
+#endif
+
 #ifndef LANDLOCK_RULE_PATH_BENEATH
 #define LANDLOCK_RULE_PATH_BENEATH 1
 #endif
@@ -257,11 +261,16 @@ void EnforceLandlock(const Mounts& mounts) {
                   "landlock_restrict_self failed");
 }
 
-bool IsLandlockSupported() {
+int GetLandlockAbiVersion() {
   // Queries kernel Landlock ABI version at runtime.
   // Returns <= 0 on failure (e.g., ENOSYS if not compiled into kernel,
   // EOPNOTSUPP if disabled via lsm= boot parameter).
-  int abi_version = syscall(__NR_landlock_create_ruleset, nullptr, 0, 1);
+  return syscall(__NR_landlock_create_ruleset, nullptr, 0,
+                 LANDLOCK_CREATE_RULESET_VERSION);
+}
+
+bool IsLandlockSupported() {
+  int abi_version = GetLandlockAbiVersion();
   if (abi_version >= 1 && abi_version < 6) {
     SAPI_RAW_VLOG(1, "Landlock ABI v%d detected, but ABI v6 is required.",
                   abi_version);
