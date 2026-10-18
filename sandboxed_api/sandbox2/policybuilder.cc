@@ -113,6 +113,18 @@
 #define PR_SET_VMA_ANON_NAME 0
 #endif
 
+#ifndef __NR_rseq
+#if defined(SAPI_X86_64)
+#define __NR_rseq 334
+#elif defined(SAPI_ARM64)
+#define __NR_rseq 293
+#elif defined(SAPI_PPC64_LE)
+#define __NR_rseq 387
+#elif defined(SAPI_ARM)
+#define __NR_rseq 398
+#endif
+#endif
+
 namespace sandbox2 {
 namespace {
 
@@ -489,8 +501,9 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   allowed_complex_.tcmalloc = true;
   AllowTime();
   AllowRestartableSequences(kRequireFastFences);
-  AllowSyscalls({__NR_munmap, __NR_nanosleep, __NR_brk, __NR_mincore,
-                 __NR_membarrier, __NR_lseek});
+  AllowSleep();
+  AllowSyscalls(
+      {__NR_munmap, __NR_brk, __NR_mincore, __NR_membarrier, __NR_lseek});
   AllowLimitedMadvise();
   AllowPrctlSetVma();
   AllowPoll();
@@ -1417,6 +1430,10 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
       // This syscall takes a pointer and a length.
       // We could restrict length, but it might change, so not worth it.
       __NR_set_robust_list,
+#ifdef __NR_rseq
+      // glibc >= 2.35 registers rseq during thread startup.
+      __NR_rseq,
+#endif
   });
 
   AllowFutexOp(FUTEX_WAIT_BITSET);
@@ -1496,6 +1513,8 @@ PolicyBuilder& PolicyBuilder::AllowDynamicStartup(MapExec) {
         // PROT_READ
         ARG_32(3),  // flags
         JEQ32(MAP_PRIVATE, ALLOW),
+        JEQ32(MAP_FILE | MAP_PRIVATE | MAP_DENYWRITE, ALLOW),
+        JEQ32(MAP_FILE | MAP_PRIVATE | MAP_FIXED | MAP_DENYWRITE, ALLOW),
         JUMP(&labels, mmap_end),
 
         // PROT_READ | PROT_WRITE
