@@ -231,12 +231,4 @@ absl::Status SanitizeCurrentProcess() {
   return absl::OkStatus();
 }
 
-absl::Status SanitizeCurrentProcess(
-    const absl::flat_hash_set<int>& fd_exceptions, bool close_fds) {
-  ABSL_RETURN_IF_ERROR(SanitizeCurrentProcess());
-  // Close or mark as close-on-exec open file descriptors.
-  return close_fds ? CloseAllFDsExcept(fd_exceptions)
-                   : MarkAllFDsAsCOEExcept(fd_exceptions);
-}
-
 }  // namespace sandbox2::sanitizer
