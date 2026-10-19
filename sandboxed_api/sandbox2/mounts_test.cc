@@ -70,6 +70,8 @@ TEST(MountTreeTest, TestInvalidFilenames) {
   EXPECT_THAT(mounts.AddFileAt("/a", "/"),
               StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(mounts.Remove("/"), StatusIs(absl::StatusCode::kInvalidArgument));
+  // Non-absolute path
+  EXPECT_THAT(mounts.Remove("a"), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(MountTreeTest, TestAddFile) {
@@ -480,6 +482,9 @@ TEST(MountsResolvePathTest, Files) {
               StatusIs(absl::StatusCode::kNotFound));
   ASSERT_THAT(mounts.ResolvePath("/d/d"),
               StatusIs(absl::StatusCode::kNotFound));
+  // Non-absolute path
+  EXPECT_THAT(mounts.ResolvePath("d"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(MountsResolvePathTest, Dirs) {
