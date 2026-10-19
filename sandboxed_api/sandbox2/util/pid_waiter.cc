@@ -17,7 +17,6 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 
-#include <algorithm>
 #include <cerrno>
 #include <memory>
 
@@ -53,26 +52,28 @@ int PidWaiter::Wait(int* status, struct rusage* rusage) {
     return -1;
   }
 
-  const auto& entry = statuses_.front();
-  pid_t pid = entry.pid;
-  *status = entry.status;
+  auto it = statuses_.begin();
+  const pid_t pid = it->first;
+  *status = it->second.status;
   if (rusage) {
-    *rusage = entry.rusage;
+    *rusage = it->second.rusage;
   }
-  statuses_.pop_front();
+  statuses_.erase(it);
   return pid;
 }
 
 void PidWaiter::DropStoppedStatuses(pid_t pid) {
+  auto it = statuses_.find(pid);
+  if (it == statuses_.end()) {
+    return;
+  }
   // Never drop PTRACE_EVENT_EXIT stops: SIGKILL does not necessarily wake a
   // tracee from it (e.g. if the process is already exiting), and a stale one is
   // harmless since no ptrace-stop can follow it.
-  auto is_stale = [pid](const WaitResult& entry) {
-    return entry.pid == pid && WIFSTOPPED(entry.status) &&
-           ((entry.status & 0xff0000) >> 16) != PTRACE_EVENT_EXIT;
-  };
-  statuses_.erase(std::remove_if(statuses_.begin(), statuses_.end(), is_stale),
-                  statuses_.end());
+  const int status = it->second.status;
+  if (WIFSTOPPED(status) && ((status & 0xff0000) >> 16) != PTRACE_EVENT_EXIT) {
+    statuses_.erase(it);
+  }
 }
 
 bool PidWaiter::CheckStatus(pid_t pid, bool blocking) {
@@ -92,7 +93,10 @@ bool PidWaiter::CheckStatus(pid_t pid, bool blocking) {
   if (ret == 0) {
     return false;
   }
-  statuses_.push_back({.pid = ret, .status = status, .rusage = rusage});
+  // Replaces any older status for `ret` that has not been returned yet, keeping
+  // its position in the queue. See `statuses_`.
+  statuses_.insert_or_assign(ret,
+                             WaitResult{.status = status, .rusage = rusage});
   return true;
 }
 

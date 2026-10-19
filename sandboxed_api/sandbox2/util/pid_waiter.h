@@ -18,12 +18,12 @@
 #include <sys/resource.h>
 #include <sys/wait.h>
 
-#include <deque>
 #include <memory>
 #include <optional>
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/linked_hash_map.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/util/deadline_manager.h"
@@ -60,8 +60,8 @@ class PidWaiter {
 
   void SetPriorityPid(pid_t pid) { priority_pid_ = pid; }
 
-  // Discards any already-collected (but not yet returned) WIFSTOPPED statuses
-  // for `pid`, except PTRACE_EVENT_EXIT stops.
+  // Discards the already-collected (but not yet returned) status for `pid`, if
+  // it is a ptrace-stop other than PTRACE_EVENT_EXIT.
   //
   // Statuses are collected in batches and may be returned well after they were
   // reaped. Once `pid` has been sent SIGKILL, any other ptrace-stop collected
@@ -92,7 +92,6 @@ class PidWaiter {
 
  private:
   struct WaitResult {
-    pid_t pid;
     int status;
     struct rusage rusage;
   };
@@ -101,7 +100,11 @@ class PidWaiter {
   void RefillStatuses();
 
   pid_t priority_pid_;
-  std::deque<WaitResult> statuses_;
+  // Collected statuses, in collection order, that have not been returned yet.
+  // A tracee can only be in one ptrace-stop at a time, so a newer status for a
+  // PID supersedes any older one: acting on the older status would act on
+  // whatever stop the PID is in now. Hence at most one status per PID is kept.
+  absl::linked_hash_map<pid_t, WaitResult> statuses_;
   std::unique_ptr<WaitPidInterface> wait_pid_iface_;
   int last_errno_ = 0;
   absl::Mutex notify_mutex_;

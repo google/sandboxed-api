@@ -221,6 +221,7 @@ cc_library(
         ":deadline_manager",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:linked_hash_map",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
     ],

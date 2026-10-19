@@ -90,6 +90,7 @@ add_library(sandbox2::pid_waiter ALIAS sandbox2_util_pid_waiter)
 target_link_libraries(sandbox2_util_pid_waiter
   PUBLIC absl::core_headers
          absl::cleanup
+         absl::linked_hash_map
          absl::synchronization
          absl::time
          sandbox2::deadline_manager

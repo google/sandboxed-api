@@ -248,6 +248,8 @@ TEST(PidWaiterTest, DeadlineUnchangedAfterNotify) {
 }
 
 TEST(PidWaiterTest, DropStoppedStatuses) {
+  constexpr pid_t kThirdPid = 4;
+  constexpr pid_t kFourthPid = 5;
   constexpr int kStoppedStatus = (SIGURG << 8) | 0x7f;
   constexpr int kExitedStatus = 0;
   ASSERT_TRUE(WIFSTOPPED(kStoppedStatus));
@@ -258,19 +260,21 @@ TEST(PidWaiterTest, DropStoppedStatuses) {
   EXPECT_CALL(*mock_wait_pid, WaitPid(-1, _, _, _))
       .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kFirstPid)))
       .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kSecondPid)))
-      .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kFirstPid)))
-      .WillOnce(DoAll(SetArgPointee<1>(kExitedStatus), Return(kSecondPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kThirdPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kExitedStatus), Return(kFourthPid)))
       .WillRepeatedly(Return(0));
   PidWaiter waiter(kPrioPid, std::move(mock_wait_pid));
   int status;
   EXPECT_EQ(waiter.Wait(&status), kFirstPid);
   EXPECT_EQ(status, kStoppedStatus);
-  // Drops the cached stop for kSecondPid, but keeps its exit status and the
-  // cached stop for kFirstPid.
+  // Drops the cached stop for kSecondPid, keeps kThirdPid's cached stop and
+  // kFourthPid's exit status, and is a no-op for a PID without a cached status.
   waiter.DropStoppedStatuses(kSecondPid);
-  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  waiter.DropStoppedStatuses(kFourthPid);
+  waiter.DropStoppedStatuses(kFirstPid);
+  EXPECT_EQ(waiter.Wait(&status), kThirdPid);
   EXPECT_EQ(status, kStoppedStatus);
-  EXPECT_EQ(waiter.Wait(&status), kSecondPid);
+  EXPECT_EQ(waiter.Wait(&status), kFourthPid);
   EXPECT_EQ(status, kExitedStatus);
   EXPECT_EQ(waiter.Wait(&status), 0);
 }
@@ -296,6 +300,31 @@ TEST(PidWaiterTest, DropStoppedStatusesKeepsExitStops) {
   waiter.DropStoppedStatuses(kSecondPid);
   EXPECT_EQ(waiter.Wait(&status), kSecondPid);
   EXPECT_EQ(status, kExitStopStatus);
+  EXPECT_EQ(waiter.Wait(&status), 0);
+}
+
+TEST(PidWaiterTest, KeepsOnlyMostRecentStatusPerPid) {
+  // A tracee can only be in one ptrace-stop at a time, so once a newer status
+  // for a pid has been collected, any older collected status for that pid is
+  // stale and must never be returned.
+  constexpr int kOlderStatus = (SIGURG << 8) | 0x7f;
+  constexpr int kNewerStatus =
+      (((PTRACE_EVENT_EXIT << 8) | SIGTRAP) << 8) | 0x7f;
+  auto mock_wait_pid = std::make_unique<MockWaitPid>();
+  EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _, _))
+      .WillRepeatedly(Return(0));
+  EXPECT_CALL(*mock_wait_pid, WaitPid(-1, _, _, _))
+      .WillOnce(DoAll(SetArgPointee<1>(kOlderStatus), Return(kFirstPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kOlderStatus), Return(kSecondPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kNewerStatus), Return(kFirstPid)))
+      .WillRepeatedly(Return(0));
+  PidWaiter waiter(kPrioPid, std::move(mock_wait_pid));
+  int status;
+  // kFirstPid's older status is superseded; only its newer status is returned.
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kNewerStatus);
+  EXPECT_EQ(waiter.Wait(&status), kSecondPid);
+  EXPECT_EQ(status, kOlderStatus);
   EXPECT_EQ(waiter.Wait(&status), 0);
 }
 
