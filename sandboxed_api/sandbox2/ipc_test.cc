@@ -14,6 +14,8 @@
 
 #include "sandboxed_api/sandbox2/ipc.h"
 
+#include <sys/socket.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -79,6 +81,68 @@ TEST_P(IPCTest, MapFDByNamePostExecve) {
   auto executor = std::make_unique<Executor>(path, args);
   executor->set_enable_sandbox_before_exec(false);
   Comms comms(executor->ipc()->ReceiveFd(fd, "ipc_test"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
+  s2.RunAsync();
+
+  ASSERT_TRUE(comms.SendString("hello"));
+  std::string resp;
+  ASSERT_TRUE(s2.comms()->RecvString(&resp));
+  ASSERT_EQ(resp, "start");
+  ASSERT_TRUE(s2.comms()->SendString("started"));
+  ASSERT_TRUE(comms.RecvString(&resp));
+  ASSERT_EQ(resp, "world");
+  ASSERT_TRUE(s2.comms()->RecvString(&resp));
+  ASSERT_EQ(resp, "finish");
+  ASSERT_TRUE(s2.comms()->SendString("finished"));
+
+  auto result = s2.AwaitResult();
+
+  ASSERT_EQ(result.final_status(), Result::OK);
+  ASSERT_EQ(result.reason_code(), 0);
+}
+
+TEST_P(IPCTest, ReceiveFDWorks) {
+  const int fd = GetParam();
+  const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
+  std::vector<std::string> args = {path, "1", std::to_string(fd)};
+  auto executor = std::make_unique<Executor>(path, args);
+  Comms comms(executor->ipc()->ReceiveFd(fd));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+
+  Sandbox2 s2(std::move(executor), std::move(policy));
+  s2.RunAsync();
+
+  ASSERT_TRUE(comms.SendString("hello"));
+  std::string resp;
+  ASSERT_TRUE(s2.comms()->RecvString(&resp));
+  ASSERT_EQ(resp, "start");
+  ASSERT_TRUE(s2.comms()->SendString("started"));
+  ASSERT_TRUE(comms.RecvString(&resp));
+  ASSERT_EQ(resp, "world");
+  ASSERT_TRUE(s2.comms()->RecvString(&resp));
+  ASSERT_EQ(resp, "finish");
+  ASSERT_TRUE(s2.comms()->SendString("finished"));
+
+  auto result = s2.AwaitResult();
+
+  ASSERT_EQ(result.final_status(), Result::OK);
+  ASSERT_EQ(result.reason_code(), 0);
+}
+
+TEST(IPCTest, MapFDWorks) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/ipc");
+  std::vector<std::string> args = {path, "1"};
+  auto executor = std::make_unique<Executor>(path, args);
+  int sv[2];
+  ASSERT_EQ(socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, sv), 0);
+  executor->ipc()->MapFd(sv[1], "ipc_test");
+  Comms comms(sv[0]);
 
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             CreateDefaultPermissiveTestPolicy(path).TryBuild());

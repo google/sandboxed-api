@@ -55,11 +55,14 @@ int main(int argc, char* argv[]) {
                    "expected_fd is not a number");
   }
 
-  int fd = client.GetMappedFD("ipc_test");
-  if (expected_fd >= 0 && fd != expected_fd) {
-    fprintf(stderr, "error mapped fd not as expected, got: %d, want: %d", fd,
-            expected_fd);
-    return EXIT_FAILURE;
+  int fd = expected_fd;
+  if (expected_fd < 0 || client.HasMappedFD("ipc_test")) {
+    fd = client.GetMappedFD("ipc_test");
+    if (expected_fd >= 0 && fd != expected_fd) {
+      fprintf(stderr, "error mapped fd not as expected, got: %d, want: %d", fd,
+              expected_fd);
+      return EXIT_FAILURE;
+    }
   }
   sandbox2::Comms comms(fd);
   std::string resp;
