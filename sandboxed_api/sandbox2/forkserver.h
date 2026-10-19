@@ -23,6 +23,9 @@
 #include "absl/log/log.h"
 
 namespace sandbox2 {
+namespace internal {
+bool IsLikelyChrooted();
+}
 
 class Comms;
 class ForkRequest;

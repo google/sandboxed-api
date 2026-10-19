@@ -95,6 +95,9 @@ absl::StatusOr<std::string> GetRootMountId(const std::string& proc_id) {
   }
   return absl::NotFoundError("Root entry not found in mountinfo");
 }
+}  // namespace
+
+namespace internal {
 
 bool IsLikelyChrooted() {
   absl::StatusOr<std::string> self_root_id = GetRootMountId("self");
@@ -108,7 +111,7 @@ bool IsLikelyChrooted() {
   return *self_root_id != *init_root_id;
 }
 
-}  // namespace
+}  // namespace internal
 
 void ForkServer::HandleInitializeRequest(const ForkRequest& fork_request,
                                          Comms setup_comms) {
@@ -254,7 +257,7 @@ void ForkServer::CreateInitialNamespaces(Comms setup_comms) {
   uid_t uid = getuid();
   gid_t gid = getgid();
   int res = unshare(CLONE_NEWUSER | CLONE_NEWNS);
-  if (res == -1 && errno == EPERM && IsLikelyChrooted()) {
+  if (res == -1 && errno == EPERM && internal::IsLikelyChrooted()) {
     SAPI_RAW_LOG(FATAL,
                  "failed to unshare initial namespaces: parent process is "
                  "likely chrooted");
@@ -279,7 +282,7 @@ void ForkServer::CreateSharedPidNamespaces(Comms setup_comms) {
                   "joining initial user namespace");
   pid_t pid =
       util::ForkWithFlags(CLONE_NEWNS | CLONE_NEWPID | CLONE_PARENT | SIGCHLD);
-  if (pid == -1 && errno == EPERM && IsLikelyChrooted()) {
+  if (pid == -1 && errno == EPERM && internal::IsLikelyChrooted()) {
     SAPI_RAW_LOG(FATAL,
                  "failed to unshare landlock namespaces: parent process is "
                  "likely chrooted");

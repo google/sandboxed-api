@@ -15,10 +15,13 @@
 #include "sandboxed_api/sandbox2/forkserver.h"
 
 #include <fcntl.h>
+#include <sched.h>
+#include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -108,6 +111,24 @@ TEST(ForkserverTest, ForkExecveSandboxWithoutPolicy) {
   // Run a test binary through the FORKSERVER_FORK_EXECVE_SANDBOX request.
   int exec_fd = GetMinimalTestcaseFd();
   PCHECK(exec_fd != -1) << "Could not open test binary";
+}
+
+TEST(ForkserverTest, IsLikelyChrootedWorks) {
+  EXPECT_FALSE(internal::IsLikelyChrooted());
+
+  pid_t pid = fork();
+  ASSERT_NE(pid, -1);
+  if (pid == 0) {
+    PCHECK(unshare(CLONE_NEWUSER | CLONE_NEWNS) == 0);
+    PCHECK(mount("/", "/tmp", "", MS_BIND | MS_REC, nullptr) == 0);
+    PCHECK(chroot("/tmp") == 0);
+    PCHECK(chdir("/") == 0);
+    _exit(internal::IsLikelyChrooted() ? EXIT_SUCCESS : EXIT_FAILURE);
+  }
+  int status;
+  ASSERT_EQ(waitpid(pid, &status, 0), pid);
+  ASSERT_TRUE(WIFEXITED(status)) << "status=" << status;
+  EXPECT_EQ(WEXITSTATUS(status), EXIT_SUCCESS);
 }
 
 }  // namespace sandbox2
