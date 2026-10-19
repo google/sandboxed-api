@@ -15,9 +15,11 @@
 #include "sandboxed_api/sandbox2/sandbox2.h"
 
 #include <fcntl.h>
+#include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <csignal>
 #include <memory>
@@ -36,6 +38,7 @@
 #include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/notification.h"
@@ -450,6 +453,132 @@ TEST(StarvationTest, MonitorIsNotStarvedByTheSandboxee) {
 
   auto elapsed = absl::Now() - start;
   EXPECT_THAT(elapsed, Lt(absl::Seconds(10)));
+}
+
+// Mirrors a common way of cancelling a sandboxee: SIGTERM is sent directly to
+// the main PID, and if it is still running after a grace period, the sandbox is
+// killed with Sandbox2::Kill().
+//
+// Worker processes of `starve` flood the monitor with SIGPROF stops so that
+// `PidWaiter` batches statuses. SIGTERM (which `starve` survives) is sent to
+// the main PID one at a time until its signal-delivery-stop is observed to be
+// collected by `PidWaiter` but not yet processed. At that point the sandbox is
+// killed. `KillSandboxee()` runs before the monitor processes any further
+// collected statuses, so the collected SIGTERM stop is stale by the time it
+// would be processed: SIGKILL has already woken the main PID from it.
+class StaleSignalStopNotify : public Notify {
+ public:
+  ~StaleSignalStopNotify() override {
+    done_.store(true, std::memory_order_relaxed);
+    if (sigterm_thread_.IsJoinable()) {
+      sigterm_thread_.Join();
+    }
+  }
+
+  void set_sandbox(Sandbox2* sandbox) { sandbox_ = sandbox; }
+  bool race_triggered() const { return killed_; }
+  int stale_main_signal_events() const { return stale_main_signal_events_; }
+
+  bool EventStarted(pid_t pid, Comms* comms) override {
+    main_pid_ = pid;
+    trigger_deadline_ = absl::Now() + kTriggerBudget;
+    return true;
+  }
+
+  void EventSignal(pid_t pid, int sig_no) override {
+    if (sandbox_ == nullptr) {
+      return;
+    }
+    if (pid == main_pid_) {
+      if (killed_) {
+        // A signal-delivery-stop for the main PID was processed after the
+        // sandbox was killed, i.e. a stale status was acted upon.
+        ++stale_main_signal_events_;
+      }
+      sigterm_in_flight_.store(false, std::memory_order_release);
+      return;
+    }
+    if (sig_no != SIGPROF || killed_) {
+      return;
+    }
+    // Stop trying well before the walltime limit so that the timeout path
+    // cannot interfere with the outcome.
+    if (absl::Now() > trigger_deadline_) {
+      done_.store(true, std::memory_order_relaxed);
+      return;
+    }
+    if (!sigterm_thread_.IsJoinable()) {
+      sigterm_thread_ = sapi::Thread([this]() {
+        while (!done_.load(std::memory_order_relaxed)) {
+          if (!sigterm_in_flight_.exchange(true, std::memory_order_acq_rel)) {
+            kill(main_pid_, SIGTERM);
+          }
+          absl::SleepFor(absl::Microseconds(50));
+        }
+      });
+    }
+    // This runs on the monitor thread, so if the main PID is in a ptrace-stop
+    // ("t") whose waitable event has already been consumed, that status must be
+    // collected in `PidWaiter` and not yet processed.
+    if (!sigterm_in_flight_.load(std::memory_order_acquire) ||
+        !absl::StartsWith(util::GetProcStatusLine(main_pid_, "State"), "t")) {
+      return;
+    }
+    siginfo_t info{};
+    if (waitid(P_PID, main_pid_, &info, WSTOPPED | WNOHANG | WNOWAIT) != 0 ||
+        info.si_pid != 0) {
+      return;
+    }
+    done_.store(true, std::memory_order_relaxed);
+    killed_ = true;
+    sandbox_->Kill();
+  }
+
+ private:
+  static constexpr absl::Duration kTriggerBudget = absl::Seconds(5);
+
+  Sandbox2* sandbox_ = nullptr;
+  pid_t main_pid_ = -1;
+  absl::Time trigger_deadline_ = absl::InfiniteFuture();
+  std::atomic<bool> sigterm_in_flight_{false};
+  std::atomic<bool> done_{false};
+  sapi::Thread sigterm_thread_;
+  bool killed_ = false;
+  int stale_main_signal_events_ = 0;
+};
+
+TEST(StarvationTest, StaleSignalStopDoesNotSkipPtraceEventExit) {
+  constexpr int kMaxAttempts = 3;
+  const std::string path = GetTestSourcePath("sandbox2/testcases/starve");
+  for (int attempt = 0; attempt < kMaxAttempts; ++attempt) {
+    std::vector<std::string> args = {path};
+    auto executor = std::make_unique<Executor>(path, args);
+    executor->limits()->set_walltime_limit(absl::Seconds(10));
+    SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                              CreateDefaultPermissiveTestPolicy(path)
+                                  .CollectStacktracesOnKill(false)
+                                  .CollectStacktracesOnTimeout(false)
+                                  .TryBuild());
+    auto notify = std::make_unique<StaleSignalStopNotify>();
+    StaleSignalStopNotify* notify_ptr = notify.get();
+    Sandbox2 sandbox(std::move(executor), std::move(policy), std::move(notify));
+    notify_ptr->set_sandbox(&sandbox);
+
+    ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+    Result result = sandbox.AwaitResult();
+    if (!notify_ptr->race_triggered()) {
+      LOG(INFO) << "Attempt " << attempt
+                << ": race not reproduced, result: " << result.ToString();
+      continue;
+    }
+    EXPECT_THAT(result.final_status(), Eq(Result::EXTERNAL_KILL));
+    EXPECT_THAT(notify_ptr->stale_main_signal_events(), Eq(0));
+    // EventPtraceExit() must have run for the main PID to populate the regs.
+    ASSERT_THAT(result.GetRegs(), Ne(nullptr));
+    EXPECT_THAT(result.GetRegs()->pid(), Gt(0));
+    return;
+  }
+  GTEST_SKIP() << "Race not reproduced in " << kMaxAttempts << " attempts";
 }
 
 TEST_P(Sandbox2Test, TerminatingProcessGroup) {

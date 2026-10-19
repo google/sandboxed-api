@@ -14,8 +14,10 @@
 
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 
+#include <sys/ptrace.h>
 #include <sys/wait.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <memory>
 
@@ -59,6 +61,18 @@ int PidWaiter::Wait(int* status, struct rusage* rusage) {
   }
   statuses_.pop_front();
   return pid;
+}
+
+void PidWaiter::DropStoppedStatuses(pid_t pid) {
+  // Never drop PTRACE_EVENT_EXIT stops: SIGKILL does not necessarily wake a
+  // tracee from it (e.g. if the process is already exiting), and a stale one is
+  // harmless since no ptrace-stop can follow it.
+  auto is_stale = [pid](const WaitResult& entry) {
+    return entry.pid == pid && WIFSTOPPED(entry.status) &&
+           ((entry.status & 0xff0000) >> 16) != PTRACE_EVENT_EXIT;
+  };
+  statuses_.erase(std::remove_if(statuses_.begin(), statuses_.end(), is_stale),
+                  statuses_.end());
 }
 
 bool PidWaiter::CheckStatus(pid_t pid, bool blocking) {

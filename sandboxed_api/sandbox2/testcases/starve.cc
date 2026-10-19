@@ -63,6 +63,9 @@ int main() {
     }
     read(p[0], &c, 1);
   }
+  // Survive SIGTERM like a sandboxee with a graceful shutdown handler would, so
+  // that tests can deliver it repeatedly.
+  signal(SIGTERM, SignalHandler);
   for (int i = 0; i < kSenders; ++i) {
     if (fork() == 0) {
       break;

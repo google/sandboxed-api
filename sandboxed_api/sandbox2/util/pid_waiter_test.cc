@@ -14,7 +14,9 @@
 
 #include "sandboxed_api/sandbox2/util/pid_waiter.h"
 
+#include <sys/ptrace.h>
 #include <sys/resource.h>
+#include <sys/wait.h>
 
 #include <cerrno>
 #include <ctime>
@@ -243,6 +245,58 @@ TEST(PidWaiterTest, DeadlineUnchangedAfterNotify) {
   absl::SleepFor(absl::Milliseconds(500));
   EXPECT_EQ(waiter.Wait(&status), -1);
   EXPECT_EQ(errno, EINTR);
+}
+
+TEST(PidWaiterTest, DropStoppedStatuses) {
+  constexpr int kStoppedStatus = (SIGURG << 8) | 0x7f;
+  constexpr int kExitedStatus = 0;
+  ASSERT_TRUE(WIFSTOPPED(kStoppedStatus));
+  ASSERT_TRUE(WIFEXITED(kExitedStatus));
+  auto mock_wait_pid = std::make_unique<MockWaitPid>();
+  EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _, _))
+      .WillRepeatedly(Return(0));
+  EXPECT_CALL(*mock_wait_pid, WaitPid(-1, _, _, _))
+      .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kFirstPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kSecondPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kFirstPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kExitedStatus), Return(kSecondPid)))
+      .WillRepeatedly(Return(0));
+  PidWaiter waiter(kPrioPid, std::move(mock_wait_pid));
+  int status;
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kStoppedStatus);
+  // Drops the cached stop for kSecondPid, but keeps its exit status and the
+  // cached stop for kFirstPid.
+  waiter.DropStoppedStatuses(kSecondPid);
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  EXPECT_EQ(status, kStoppedStatus);
+  EXPECT_EQ(waiter.Wait(&status), kSecondPid);
+  EXPECT_EQ(status, kExitedStatus);
+  EXPECT_EQ(waiter.Wait(&status), 0);
+}
+
+TEST(PidWaiterTest, DropStoppedStatusesKeepsExitStops) {
+  constexpr int kStoppedStatus = (SIGURG << 8) | 0x7f;
+  constexpr int kExitStopStatus =
+      (((PTRACE_EVENT_EXIT << 8) | SIGTRAP) << 8) | 0x7f;
+  ASSERT_TRUE(WIFSTOPPED(kExitStopStatus));
+  auto mock_wait_pid = std::make_unique<MockWaitPid>();
+  EXPECT_CALL(*mock_wait_pid, WaitPid(kPrioPid, _, _, _))
+      .WillRepeatedly(Return(0));
+  EXPECT_CALL(*mock_wait_pid, WaitPid(-1, _, _, _))
+      .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kFirstPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kStoppedStatus), Return(kSecondPid)))
+      .WillOnce(DoAll(SetArgPointee<1>(kExitStopStatus), Return(kSecondPid)))
+      .WillRepeatedly(Return(0));
+  PidWaiter waiter(kPrioPid, std::move(mock_wait_pid));
+  int status;
+  EXPECT_EQ(waiter.Wait(&status), kFirstPid);
+  waiter.DropStoppedStatuses(kSecondPid);
+  // Dropping again (e.g. on a repeated SIGKILL) must also keep the exit stop.
+  waiter.DropStoppedStatuses(kSecondPid);
+  EXPECT_EQ(waiter.Wait(&status), kSecondPid);
+  EXPECT_EQ(status, kExitStopStatus);
+  EXPECT_EQ(waiter.Wait(&status), 0);
 }
 
 }  // namespace

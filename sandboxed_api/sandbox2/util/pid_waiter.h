@@ -60,6 +60,19 @@ class PidWaiter {
 
   void SetPriorityPid(pid_t pid) { priority_pid_ = pid; }
 
+  // Discards any already-collected (but not yet returned) WIFSTOPPED statuses
+  // for `pid`, except PTRACE_EVENT_EXIT stops.
+  //
+  // Statuses are collected in batches and may be returned well after they were
+  // reaped. Once `pid` has been sent SIGKILL, any other ptrace-stop collected
+  // for it before is stale, as SIGKILL wakes a tracee from it. Acting on such a
+  // status (e.g. with PTRACE_CONT) would instead act on whatever stop `pid` is
+  // in now, typically PTRACE_EVENT_EXIT. PTRACE_EVENT_EXIT stops are kept, as
+  // SIGKILL does not wake a tracee from it if the process is already exiting.
+  // Call this right after sending SIGKILL to `pid`, from the thread that calls
+  // Wait().
+  void DropStoppedStatuses(pid_t pid);
+
   // Sets the deadline for the next Wait() call.
   void SetDeadline(absl::Time deadline) {
     absl::MutexLock lock(notify_mutex_);

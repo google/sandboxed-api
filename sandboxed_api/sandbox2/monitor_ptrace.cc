@@ -254,6 +254,11 @@ bool PtraceMonitor::KillSandboxee() {
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_KILL);
     return false;
   }
+  // SIGKILL wakes the main PID from any ptrace-stop other than
+  // PTRACE_EVENT_EXIT, so any such stop status already collected for it is
+  // stale. Acting on one would resume the main PID out of PTRACE_EVENT_EXIT
+  // and skip EventPtraceExit().
+  pid_waiter_.DropStoppedStatuses(process_.main_pid);
   if (hard_deadline_ == absl::InfiniteFuture()) {
     hard_deadline_ =
         absl::Now() +
