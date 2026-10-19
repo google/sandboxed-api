@@ -1269,6 +1269,7 @@ cc_test(
         "//sandboxed_api:testing",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

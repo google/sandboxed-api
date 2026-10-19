@@ -34,6 +34,7 @@
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -235,14 +236,22 @@ TEST(ReadBytesFromPidTest, NearUnmappedMemory) {
   EXPECT_THAT(*read, ElementsAreArray(kTestString));
 }
 
-class ReadBytesFromPidIntoTest : public testing::TestWithParam<bool> {
+enum class ReadBytesType { kDefault, kReadv, kReadvInSplitChunks, kProcMem };
+
+class ReadBytesFromPidIntoTest : public testing::TestWithParam<ReadBytesType> {
  protected:
   absl::StatusOr<size_t> Read(pid_t pid, uintptr_t ptr, absl::Span<char> data) {
-    if (GetParam()) {
-      return internal::ReadBytesFromPidWithReadv(pid, ptr, data);
-    } else {
-      return internal::ReadBytesFromPidWithReadvInSplitChunks(pid, ptr, data);
+    switch (GetParam()) {
+      case ReadBytesType::kDefault:
+        return ReadBytesFromPidInto(pid, ptr, data);
+      case ReadBytesType::kReadv:
+        return internal::ReadBytesFromPidWithReadv(pid, ptr, data);
+      case ReadBytesType::kReadvInSplitChunks:
+        return internal::ReadBytesFromPidWithReadvInSplitChunks(pid, ptr, data);
+      case ReadBytesType::kProcMem:
+        return internal::ReadBytesFromPidWithProcMem(pid, ptr, data);
     }
+    return absl::InvalidArgumentError("Unknown read type");
   }
 };
 
@@ -357,17 +366,26 @@ TEST_P(ReadBytesFromPidIntoTest, ExceedIovMax) {
 }
 
 INSTANTIATE_TEST_SUITE_P(ReadBytesFromPidInto, ReadBytesFromPidIntoTest,
-                         testing::Values(true, false));
+                         testing::Values(ReadBytesType::kDefault,
+                                         ReadBytesType::kReadv,
+                                         ReadBytesType::kReadvInSplitChunks,
+                                         ReadBytesType::kProcMem));
 
-class WriteBytesToPidFromTest : public testing::TestWithParam<bool> {
+enum class WriteBytesType { kDefault, kWritev, kProcMem };
+
+class WriteBytesToPidFromTest : public testing::TestWithParam<WriteBytesType> {
  protected:
   absl::StatusOr<size_t> Write(pid_t pid, uintptr_t ptr,
                                absl::Span<const char> data) {
-    if (GetParam()) {
-      return internal::WriteBytesToPidWithWritev(pid, ptr, data);
-    } else {
-      return internal::WriteBytesToPidWithProcMem(pid, ptr, data);
+    switch (GetParam()) {
+      case WriteBytesType::kDefault:
+        return WriteBytesToPidFrom(pid, ptr, data);
+      case WriteBytesType::kWritev:
+        return internal::WriteBytesToPidWithWritev(pid, ptr, data);
+      case WriteBytesType::kProcMem:
+        return internal::WriteBytesToPidWithProcMem(pid, ptr, data);
     }
+    return absl::InvalidArgumentError("Unknown write type");
   };
 };
 
@@ -463,7 +481,9 @@ TEST_P(WriteBytesToPidFromTest, ExceedIovMax) {
 }
 
 INSTANTIATE_TEST_SUITE_P(WriteBytesToPidFrom, WriteBytesToPidFromTest,
-                         testing::Values(true, false));
+                         testing::Values(WriteBytesType::kDefault,
+                                         WriteBytesType::kWritev,
+                                         WriteBytesType::kProcMem));
 
 TEST(UtilTest, GetSignalName) {
   EXPECT_THAT(GetSignalName(SIGHUP), Eq("SIGHUP [1]"));
