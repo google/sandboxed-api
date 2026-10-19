@@ -18,6 +18,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -30,8 +31,10 @@
 #include "sandboxed_api/sandbox2/syscall_defs.h"
 #include "sandboxed_api/testing.h"
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::Eq;
+using ::testing::Optional;
 using ::testing::StartsWith;
 
 namespace sandbox2 {
@@ -49,6 +52,20 @@ TEST(SyscallTest, Basic) {
   EXPECT_THAT(syscall.instruction_pointer(), Eq(0));
 
   EXPECT_THAT(syscall.GetName(), Eq("read"));
+  auto arg_data = syscall.GetArgumentsData();
+  ASSERT_THAT(arg_data.size(), Eq(3));
+  EXPECT_THAT(arg_data[0].type(), Eq(syscalls::kResource));
+  EXPECT_THAT(arg_data[0].pid(), Eq(-1));
+  EXPECT_THAT(arg_data[0].value(), Eq(1));
+  EXPECT_THAT(arg_data[0].length(), Eq(std::nullopt));
+  EXPECT_THAT(arg_data[1].type(), Eq(syscalls::kArray));
+  EXPECT_THAT(arg_data[1].pid(), Eq(-1));
+  EXPECT_THAT(arg_data[1].value(), Eq(0xbadbeef));
+  EXPECT_THAT(arg_data[1].length(), Optional(5));
+  EXPECT_THAT(arg_data[2].type(), Eq(syscalls::kLen1));
+  EXPECT_THAT(arg_data[2].pid(), Eq(-1));
+  EXPECT_THAT(arg_data[2].value(), Eq(5));
+  EXPECT_THAT(arg_data[2].length(), Eq(std::nullopt));
   auto arg_desc = syscall.GetArgumentsDescription();
   EXPECT_THAT(arg_desc.size(), Eq(3));
   EXPECT_THAT(arg_desc[0], Eq("0x1 [1]"));
@@ -66,6 +83,7 @@ TEST(SyscallTest, Empty) {
 
   EXPECT_THAT(syscall.arch(), Eq(sapi::cpu::kUnknown));
   EXPECT_THAT(syscall.GetName(), StartsWith("UNKNOWN"));
+  EXPECT_THAT(syscall.GetArgumentsData().size(), Eq(Syscall::kMaxArgs));
   EXPECT_THAT(syscall.GetArgumentsDescription().size(), Eq(Syscall::kMaxArgs));
 }
 
@@ -100,6 +118,9 @@ TEST(SyscallTest, VariousArgDescriptions) {
       .arch = Syscall::GetHostAuditArch(),
       .args = {reinterpret_cast<uint64_t>(hostname.data()), hostname.size()}};
   Syscall syscall3(getpid(), str_data);
+  auto str_arg_data = syscall3.GetArgumentsData();
+  ASSERT_THAT(str_arg_data.size(), Eq(2));
+  EXPECT_THAT(str_arg_data[0].ReadAsString(), IsOkAndHolds(hostname));
   EXPECT_THAT(syscall3.GetDescription(),
               Eq(absl::StrCat(
                   Syscall::GetArchDescription(sapi::host_cpu::Architecture()),
