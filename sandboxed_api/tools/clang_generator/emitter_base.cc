@@ -173,40 +173,42 @@ std::string GetSpelling(const clang::Decl* decl) {
     }
 
     // Handle struct/class/union declarations.
-    if (const auto* record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(decl)) {
-      // Declarations that are:
-      //  - not forward declarations
-      //  - aggregates (C-like struct, or struct with default initializers)
-      //  - Plain Old Data (POD) type
-      //  - types without no user-defined methods (including constructors)
-      if (record_decl->hasDefinition() && record_decl->isAggregate() &&
-          (record_decl->isPOD() || record_decl->methods().empty())) {
+    if (const auto* record_decl = llvm::dyn_cast<clang::RecordDecl>(tag_decl)) {
+      const auto* cxx_record =
+          llvm::dyn_cast<clang::CXXRecordDecl>(record_decl);
+      bool is_definable_aggregate = false;
+      if (record_decl->hasDefinition()) {
+        if (cxx_record) {
+          is_definable_aggregate = cxx_record->isAggregate() &&
+              (cxx_record->isPOD() || cxx_record->methods().empty());
+        } else {
+          is_definable_aggregate = true;
+        }
+      }
+
+      if (is_definable_aggregate) {
         return PrintDecl(decl, /*IncludeTagDefinition=*/true);
       }
 
-      // Remaining declarations that are:
-      //  - forward declarations
-      //  - non-aggregate types
-      //  - non-POD types with user-defined methods
-      std::string spelling = PrintRecordTemplateArguments(record_decl);
-      switch (record_decl->getTagKind()) {
-        case clang::TagTypeKind::Struct:
-          absl::StrAppend(&spelling, "struct ");
-          break;
-        case clang::TagTypeKind::Class:
-          absl::StrAppend(&spelling, "class ");
-          break;
-        case clang::TagTypeKind::Union:
-          absl::StrAppend(&spelling, "union ");
-          break;
-        case clang::TagTypeKind::Interface:
-        default:
-          llvm::errs() << "CXXRecordDecl has unexpected 'TagTypeKind' "
-                       << static_cast<int>(record_decl->getTagKind()) << ".\n"
-                       << PrintDecl(decl);
-          return "";
+      // Remaining declarations that are forward declarations,
+      // non-aggregate types, or non-POD types with user-defined methods.
+      if (record_decl->getName().empty()) {
+        if (record_decl->hasDefinition()) {
+          return PrintDecl(decl, /*IncludeTagDefinition=*/true);
+        }
+        return PrintDecl(decl);
       }
-      return absl::StrCat(spelling, ToStringView(record_decl->getName()));
+
+      std::string spelling;
+      if (cxx_record) {
+        spelling = PrintRecordTemplateArguments(cxx_record);
+        if (!spelling.empty()) {
+          absl::StrAppend(&spelling, " ");
+        }
+      }
+      absl::StrAppend(&spelling, ToStringView(record_decl->getKindName()), " ",
+                      ToStringView(record_decl->getName()));
+      return spelling;
     }
   }
 
@@ -294,9 +296,16 @@ void EmitterBase::AddTypeDeclarations(
     if (const auto* tag_decl = llvm::dyn_cast<clang::TagDecl>(type_decl);
         tag_decl && !tag_decl->isThisDeclarationADefinition() &&
         tag_decl->getIdentifier() != nullptr && !tag_decl->getName().empty()) {
-      std::string fwd_spelling =
-          absl::StrCat(ToStringView(tag_decl->getKindName()), " ",
-                       ToStringView(tag_decl->getName()));
+      std::string fwd_spelling;
+      if (const auto* cxx_record =
+              llvm::dyn_cast<clang::CXXRecordDecl>(tag_decl)) {
+        fwd_spelling = PrintRecordTemplateArguments(cxx_record);
+        if (!fwd_spelling.empty()) {
+          absl::StrAppend(&fwd_spelling, " ");
+        }
+      }
+      absl::StrAppend(&fwd_spelling, ToStringView(tag_decl->getKindName()), " ",
+                      ToStringView(tag_decl->getName()));
       if (const auto& [it, inserted] =
               rendered_tag_decls_.emplace(ns_name, std::move(fwd_spelling));
           inserted) {
