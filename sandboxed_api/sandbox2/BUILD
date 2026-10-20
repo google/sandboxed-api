@@ -1300,6 +1300,7 @@ cc_test(
         "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:scoped_mock_log",
         "@abseil-cpp//absl/status",

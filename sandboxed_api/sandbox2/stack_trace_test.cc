@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/log_severity.h"
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
@@ -111,6 +112,7 @@ using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Gt;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Key;
 using ::testing::Optional;
@@ -129,10 +131,12 @@ struct TestCase {
   std::function<void(PolicyBuilder*)> modify_policy;
   absl::Duration wall_time_limit = absl::ZeroDuration();
   bool exec_memfd = false;
+  bool use_unotify = false;
 };
 
 enum class IsolationMode {
   kPtraceWithoutNamespaces,
+  kPtraceWithNamespaces,
   kPtraceWithLandlock,
   kUnotifyWithNamespaces,
 };
@@ -141,6 +145,8 @@ std::string ToString(IsolationMode mode) {
   switch (mode) {
     case IsolationMode::kPtraceWithoutNamespaces:
       return "PtraceWithoutNamespaces";
+    case IsolationMode::kPtraceWithNamespaces:
+      return "PtraceWithNamespaces";
     case IsolationMode::kPtraceWithLandlock:
       return "PtraceWithLandlock";
     case IsolationMode::kUnotifyWithNamespaces:
@@ -152,7 +158,8 @@ std::string ToString(IsolationMode mode) {
 class StackTraceTest
     : public ::testing::TestWithParam<std::tuple<TestCase, IsolationMode>> {};
 
-class StackTraceStandaloneTest : public ::testing::Test {};
+class StackTraceStandaloneTest
+    : public ::testing::TestWithParam<IsolationMode> {};
 
 absl::StatusOr<FDCloser> CopyExecToMemFd(const std::string& path) {
   ABSL_ASSIGN_OR_RETURN(FDCloser fd, util::CreateMemFd("exec"));
@@ -172,7 +179,7 @@ absl::StatusOr<FDCloser> CopyExecToMemFd(const std::string& path) {
 }
 
 // Test that symbolization of stack traces works.
-void SymbolizationWorksCommon(TestCase param) {
+absl::StatusOr<Result> SymbolizationCommon(TestCase param = {}) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
   std::vector<std::string> args = {path, absl::StrCat(param.testno),
                                    absl::StrCat(param.testmode)};
@@ -181,19 +188,28 @@ void SymbolizationWorksCommon(TestCase param) {
   if (param.modify_policy) {
     param.modify_policy(&builder);
   }
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+  ABSL_ASSIGN_OR_RETURN(auto policy, builder.TryBuild());
 
   auto executor = std::make_unique<Executor>(path, args);
   if (param.exec_memfd) {
-    SAPI_ASSERT_OK_AND_ASSIGN(FDCloser exec_fd, CopyExecToMemFd(path));
+    ABSL_ASSIGN_OR_RETURN(FDCloser exec_fd, CopyExecToMemFd(path));
     executor = std::make_unique<Executor>(exec_fd.Release(), args);
   }
 
   Sandbox2 s2(std::move(executor), std::move(policy));
-  ASSERT_TRUE(s2.RunAsync());
+  if (param.use_unotify) {
+    ABSL_RETURN_IF_ERROR(s2.EnableUnotifyMonitor());
+  }
+  if (!s2.RunAsync()) {
+    return s2.AwaitResult();
+  }
   s2.set_walltime_limit(param.wall_time_limit);
   auto result = s2.AwaitResult();
+  return result;
+}
 
+void SymbolizationWorksCommon(TestCase param) {
+  SAPI_ASSERT_OK_AND_ASSIGN(auto result, SymbolizationCommon(param));
   EXPECT_THAT(result.final_status(), Eq(param.final_status));
   EXPECT_THAT(result.stack_trace(), Contains(StartsWith(param.function_name)));
   // Check that demangling works as well.
@@ -217,10 +233,32 @@ void SymbolizationWorksCommon(TestCase param) {
 }
 
 void SymbolizationWorksWithModifiedPolicy(
-    std::function<void(PolicyBuilder*)> modify_policy) {
+    std::function<void(PolicyBuilder*)> modify_policy,
+    bool use_unotify = false) {
   TestCase test_case;
+  test_case.testno = 2;
+  test_case.final_status = Result::VIOLATION;
+  test_case.function_name = "ViolatePolicy";
+  test_case.full_function_description = "ViolatePolicy(int)";
+  test_case.use_unotify = use_unotify;
   test_case.modify_policy = std::move(modify_policy);
   SymbolizationWorksCommon(test_case);
+}
+
+void ModifyPolicyForMode(IsolationMode mode, PolicyBuilder* builder) {
+  if (mode == IsolationMode::kPtraceWithoutNamespaces) {
+    *builder = PolicyBuilder();
+    builder->DefaultAction(AllowAllSyscalls())
+        .Allow(MapExec())
+        .DisableNamespaces(NamespacesToken());
+  } else if (mode == IsolationMode::kPtraceWithLandlock) {
+    builder->AddFile(GetTestSourcePath("sandbox2/testcases/symbolize"))
+        .AddDirectory("/proc", /*is_ro=*/true)
+        .EnableLandlock(sandbox2::EnableLandlock())
+        .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  } else if (mode == IsolationMode::kUnotifyWithNamespaces) {
+    builder->CollectStacktracesOnSignal(false);
+  }
 }
 
 TEST_P(StackTraceTest, SymbolizationWorks) {
@@ -234,20 +272,19 @@ TEST_P(StackTraceTest, SymbolizationWorks) {
     // Landlock v6 does not support executing anonymous memfd inodes directly.
     return;
   }
+  if (mode == IsolationMode::kUnotifyWithNamespaces &&
+      (test_case_param.final_status == Result::SIGNALED ||
+       test_case_param.final_status == Result::OK)) {
+    GTEST_SKIP() << "Unotify monitor does not support collecting stack traces "
+                    "on signal or normal exit";
+  }
   TestCase test_case = test_case_param;
+  if (mode == IsolationMode::kUnotifyWithNamespaces) {
+    test_case.use_unotify = true;
+  }
   auto old_modify_policy = test_case.modify_policy;
   test_case.modify_policy = [old_modify_policy, mode](PolicyBuilder* builder) {
-    if (mode == IsolationMode::kPtraceWithoutNamespaces) {
-      *builder = PolicyBuilder();
-      builder->DefaultAction(AllowAllSyscalls())
-          .Allow(MapExec())
-          .DisableNamespaces(NamespacesToken());
-    } else if (mode == IsolationMode::kPtraceWithLandlock) {
-      builder->AddFile(GetTestSourcePath("sandbox2/testcases/symbolize"))
-          .AddDirectory("/proc", /*is_ro=*/true)
-          .EnableLandlock(sandbox2::EnableLandlock())
-          .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
-    }
+    ModifyPolicyForMode(mode, builder);
     if (old_modify_policy) {
       old_modify_policy(builder);
     }
@@ -255,42 +292,51 @@ TEST_P(StackTraceTest, SymbolizationWorks) {
   SymbolizationWorksCommon(test_case);
 }
 
-TEST_F(StackTraceStandaloneTest,
+TEST_P(StackTraceStandaloneTest,
        SymbolizationWorksSandboxedLibunwindProcDirMounted) {
-  SymbolizationWorksWithModifiedPolicy(
-      [](PolicyBuilder* builder) { builder->AddDirectory("/proc"); });
-}
-
-TEST_F(StackTraceStandaloneTest,
-       SymbolizationWorksSandboxedLibunwindProcDirMountedLandlock) {
-  if (!sandbox2::IsLandlockSupported()) {
+  if (GetParam() == IsolationMode::kPtraceWithLandlock &&
+      !sandbox2::IsLandlockSupported()) {
     GTEST_SKIP() << "Landlock not supported on this kernel";
   }
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
-    builder->AddFile(GetTestSourcePath("sandbox2/testcases/symbolize"))
-        .AddDirectory("/proc", /*is_ro=*/true)
-        .EnableLandlock(sandbox2::EnableLandlock())
-        .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+    builder->AddDirectory("/proc");
+    ModifyPolicyForMode(GetParam(), builder);
   });
 }
 
-TEST_F(StackTraceStandaloneTest,
+TEST_P(StackTraceStandaloneTest,
        SymbolizationWorksSandboxedLibunwindProcFileMounted) {
+  if (GetParam() == IsolationMode::kPtraceWithLandlock &&
+      !sandbox2::IsLandlockSupported()) {
+    GTEST_SKIP() << "Landlock not supported on this kernel";
+  }
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/proc/sys/vm/overcommit_memory");
+    ModifyPolicyForMode(GetParam(), builder);
   });
 }
 
-TEST_F(StackTraceStandaloneTest,
+TEST_P(StackTraceStandaloneTest,
        SymbolizationWorksSandboxedLibunwindSysDirMounted) {
-  SymbolizationWorksWithModifiedPolicy(
-      [](PolicyBuilder* builder) { builder->AddDirectory("/sys"); });
+  if (GetParam() == IsolationMode::kPtraceWithLandlock &&
+      !sandbox2::IsLandlockSupported()) {
+    GTEST_SKIP() << "Landlock not supported on this kernel";
+  }
+  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
+    builder->AddDirectory("/sys");
+    ModifyPolicyForMode(GetParam(), builder);
+  });
 }
 
-TEST_F(StackTraceStandaloneTest,
+TEST_P(StackTraceStandaloneTest,
        SymbolizationWorksSandboxedLibunwindSysFileMounted) {
+  if (GetParam() == IsolationMode::kPtraceWithLandlock &&
+      !sandbox2::IsLandlockSupported()) {
+    GTEST_SKIP() << "Landlock not supported on this kernel";
+  }
   SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
     builder->AddFile("/sys/devices/system/cpu/online");
+    ModifyPolicyForMode(GetParam(), builder);
   });
 }
 
@@ -366,70 +412,26 @@ TEST_F(StackTraceStandaloneTest, RecursiveStackTrace) {
   EXPECT_THAT(result.final_status(), Eq(Result::SIGNALED));
 }
 
-TEST_F(StackTraceStandaloneTest, PtraceMonitorCollectsAllThreadsStackTrace) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
-  std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
-  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
-  builder.CollectStacktracesOnSignal(false);
-  builder.CollectAllThreadsStacktrace(true);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
-
-  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
-  ASSERT_TRUE(s2.RunAsync());
-  auto result = s2.AwaitResult();
-  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
-  EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
-  EXPECT_THAT(result.thread_stack_traces(),
-              Contains(Key(result.GetRegs()->pid())));
-  auto it = absl::c_find_if(result.thread_stack_traces(),
-                            [pid = result.GetRegs()->pid()](const auto& pair) {
-                              return pair.first == pid;
-                            });
-  ASSERT_NE(it, result.thread_stack_traces().end());
-  EXPECT_THAT(
-      result.thread_stack_traces(),
-      Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
-}
-
-TEST_F(StackTraceStandaloneTest, UnotifyMonitorCollectsAllThreadsStackTrace) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
-  std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
-  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
-  builder.CollectStacktracesOnSignal(false);
-  builder.CollectAllThreadsStacktrace(true);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
-
-  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
-  ASSERT_THAT(s2.EnableUnotifyMonitor(), absl_testing::IsOk());
-  ASSERT_TRUE(s2.RunAsync());
-  auto result = s2.AwaitResult();
-  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
-  EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
-  EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
-  EXPECT_THAT(
-      result.thread_stack_traces(),
-      Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
-}
-
-TEST_F(StackTraceStandaloneTest, LandlockCollectsAllThreadsStackTrace) {
-  if (!sandbox2::IsLandlockSupported()) {
+TEST_P(StackTraceStandaloneTest, CollectsAllThreadsStackTrace) {
+  if (GetParam() == IsolationMode::kPtraceWithLandlock &&
+      !sandbox2::IsLandlockSupported()) {
     GTEST_SKIP() << "Landlock not supported on this kernel";
   }
-  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
-  std::vector<std::string> args = {path, absl::StrCat(6), absl::StrCat(1)};
-  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
-  builder.AddFile(path)
-      .AddDirectory("/proc", true)
-      .EnableLandlock(sandbox2::EnableLandlock())
-      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)
-      .CollectStacktracesOnSignal(false)
-      .CollectAllThreadsStacktrace(true);
-  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
-
-  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy));
-  ASSERT_TRUE(s2.RunAsync());
-  auto result = s2.AwaitResult();
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      Result result, SymbolizationCommon(TestCase{
+                         .testno = 6,
+                         .modify_policy =
+                             [](PolicyBuilder* builder) {
+                               ModifyPolicyForMode(GetParam(), builder);
+                               builder->CollectAllThreadsStacktrace(true);
+                             },
+                     }));
+  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
+  EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
+  EXPECT_THAT(
+      result.thread_stack_traces(),
+      Contains(testing::Pair(_, Contains(testing::HasSubstr("start_thread")))));
   EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
   EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
@@ -452,6 +454,39 @@ TEST_F(StackTraceStandaloneTest, SymbolizationEnablesMonitor) {
   log.StartCapturingLogs();
   SymbolizationWorksCommon({});
 }
+
+TEST_P(StackTraceStandaloneTest, GetStackTraceWithDisabledStackTraces) {
+  if (GetParam() == IsolationMode::kPtraceWithLandlock &&
+      !sandbox2::IsLandlockSupported()) {
+    GTEST_SKIP() << "Landlock not supported on this kernel";
+  }
+  absl::SetFlag(&FLAGS_sandbox_disable_all_stack_traces, true);
+  absl::ScopedMockLog log;
+  EXPECT_CALL(log, Log(_, _, StartsWith("Could not obtain stack trace")));
+  log.StartCapturingLogs();
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      Result result, SymbolizationCommon({
+                         .testno = 2,
+                         .final_status = Result::VIOLATION,
+                         .function_name = "ViolatePolicy",
+                         .full_function_description = "ViolatePolicy(int)",
+                         .modify_policy =
+                             [](PolicyBuilder* builder) {
+                               ModifyPolicyForMode(GetParam(), builder);
+                             },
+                     }));
+  EXPECT_THAT(result.stack_trace(), IsEmpty());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Instantiation, StackTraceStandaloneTest,
+    ::testing::Values(IsolationMode::kPtraceWithoutNamespaces,
+                      IsolationMode::kPtraceWithNamespaces,
+                      IsolationMode::kPtraceWithLandlock,
+                      IsolationMode::kUnotifyWithNamespaces),
+    [](const ::testing::TestParamInfo<IsolationMode>& info) {
+      return ToString(info.param);
+    });
 
 class StackTraceNotify : public Notify {
  public:
@@ -551,6 +586,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .exec_memfd = true,
             }),
         ::testing::Values(IsolationMode::kPtraceWithoutNamespaces,
+                          IsolationMode::kPtraceWithNamespaces,
                           IsolationMode::kPtraceWithLandlock,
                           IsolationMode::kUnotifyWithNamespaces)),
     [](const ::testing::TestParamInfo<std::tuple<TestCase, IsolationMode>>&
@@ -558,5 +594,6 @@ INSTANTIATE_TEST_SUITE_P(
       return absl::StrCat(std::get<0>(info.param).testname, "_",
                           ToString(std::get<1>(info.param)));
     });
+
 }  // namespace
 }  // namespace sandbox2
