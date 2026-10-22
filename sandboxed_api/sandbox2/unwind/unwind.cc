@@ -17,7 +17,9 @@
 #include <sys/ptrace.h>
 #include <sys/types.h>
 
+#include <algorithm>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -145,15 +147,14 @@ absl::StatusOr<ElfFile> LoadSymbols(const std::string& path) {
   return ElfFile::ParseFromFile(path, ElfFile::kLoadSymbols);
 }
 
-absl::StatusOr<SymbolMap> LoadSymbolsMap(
-    const std::string& maps_content,
-    absl::FunctionRef<absl::StatusOr<ElfFile>(const std::string&)>
-        load_symbols = LoadSymbols) {
-  ABSL_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
-                        ParseProcMaps(maps_content));
-
-  // Get symbols for each file entry in the maps entry.
-  // This is not a very efficient way, so we might want to optimize it.
+// If `ips` is non-null, only mappings that contain at least one of `ips` are
+// symbolized, and for each such IP only the nearest preceding symbol is kept.
+// This avoids building a map of millions of symbols for large binaries when
+// only a few addresses need to be symbolized.
+SymbolMap LoadSymbolsMap(
+    const std::vector<MapsEntry>& maps,
+    absl::FunctionRef<absl::StatusOr<ElfFile>(const std::string&)> load_symbols,
+    const std::vector<uintptr_t>* ips) {
   SymbolMap addr_to_symbol;
   for (const MapsEntry& entry : maps) {
     if (!entry.is_executable ||
@@ -175,6 +176,21 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(
     addr_to_symbol[entry.start] = map;
     addr_to_symbol[entry.end] = "";
 
+    std::vector<uintptr_t> entry_ips;
+    if (ips != nullptr) {
+      for (uintptr_t ip : *ips) {
+        if (ip >= entry.start && ip < entry.end) {
+          entry_ips.push_back(ip);
+        }
+      }
+      if (entry_ips.empty()) {
+        continue;
+      }
+      std::sort(entry_ips.begin(), entry_ips.end());
+      entry_ips.erase(std::unique(entry_ips.begin(), entry_ips.end()),
+                      entry_ips.end());
+    }
+
     absl::StatusOr<ElfFile> elf = load_symbols(entry.path);
     if (!elf.ok()) {
       if (!is_deleted) {
@@ -185,6 +201,9 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(
       continue;
     }
 
+    // Nearest symbol at or below each of `entry_ips`.
+    std::vector<const ElfFile::Symbol*> nearest(entry_ips.size(), nullptr);
+    std::vector<uintptr_t> nearest_addr(entry_ips.size(), 0);
     for (const ElfFile::Symbol& symbol : elf->symbols()) {
       // Skip Mapping Symbols on ARM
       // ARM documentation for Mapping Symbols:
@@ -199,20 +218,50 @@ absl::StatusOr<SymbolMap> LoadSymbolsMap(
         }
       }
 
+      uintptr_t addr;
       if (elf->position_independent()) {
-        if (symbol.address >= entry.pgoff &&
-            symbol.address - entry.pgoff < entry.end - entry.start) {
-          addr_to_symbol[symbol.address + entry.start - entry.pgoff] =
-              symbol.name;
+        if (symbol.address < entry.pgoff ||
+            symbol.address - entry.pgoff >= entry.end - entry.start) {
+          continue;
         }
+        addr = symbol.address + entry.start - entry.pgoff;
       } else {
-        if (symbol.address >= entry.start && symbol.address < entry.end) {
-          addr_to_symbol[symbol.address] = symbol.name;
+        if (symbol.address < entry.start || symbol.address >= entry.end) {
+          continue;
         }
+        addr = symbol.address;
+      }
+
+      if (ips == nullptr) {
+        addr_to_symbol[addr] = symbol.name;
+        continue;
+      }
+      for (size_t i = 0; i < entry_ips.size(); ++i) {
+        // `>=` keeps the last symbol at an address, like the overwrite above.
+        if (addr <= entry_ips[i] && addr >= nearest_addr[i]) {
+          nearest[i] = &symbol;
+          nearest_addr[i] = addr;
+        }
+      }
+    }
+    for (size_t i = 0; i < entry_ips.size(); ++i) {
+      if (nearest[i] != nullptr) {
+        addr_to_symbol[nearest_addr[i]] = nearest[i]->name;
       }
     }
   }
   return addr_to_symbol;
+}
+
+absl::StatusOr<SymbolMap> LoadSymbolsMapForPid(
+    pid_t pid, const std::vector<uintptr_t>* ips = nullptr) {
+  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
+  std::string maps_content;
+  ABSL_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
+                                               sapi::file::Defaults()));
+  ABSL_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
+                        ParseProcMaps(maps_content));
+  return LoadSymbolsMap(maps, LoadSymbols, ips);
 }
 
 absl::StatusOr<std::vector<std::string>> SymbolizeStacktrace(
@@ -250,11 +299,7 @@ std::string GetSymbolAt(const SymbolMap& addr_to_symbol, uint64_t addr) {
 }
 
 absl::StatusOr<SymbolMap> LoadSymbolsMap(pid_t pid) {
-  const std::string maps_filename = absl::StrCat("/proc/", pid, "/maps");
-  std::string maps_content;
-  ABSL_RETURN_IF_ERROR(sapi::file::GetContents(maps_filename, &maps_content,
-                                               sapi::file::Defaults()));
-  return LoadSymbolsMap(maps_content);
+  return LoadSymbolsMapForPid(pid);
 }
 
 absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
@@ -274,9 +319,8 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
     return absl::InternalError("Failed to receive exe_fd");
   }
   FDCloser exe_fd(raw_exe_fd);
-  std::string maps_content = setup.maps_content();
   ABSL_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
-                        ParseProcMaps(maps_content));
+                        ParseProcMaps(setup.maps_content()));
 
   SandboxedUnwindContext ctx{
       .regs = regs,
@@ -309,8 +353,7 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
 
   ABSL_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
                         RunLibUnwind(as, &ctx, setup.default_max_frames()));
-  ABSL_ASSIGN_OR_RETURN(auto addr_to_symbol,
-                        LoadSymbolsMap(maps_content, load_symbols));
+  SymbolMap addr_to_symbol = LoadSymbolsMap(ctx.maps, load_symbols, &ips);
   absl::StatusOr<std::vector<std::string>> stack_trace =
       SymbolizeStacktrace(addr_to_symbol, ips);
 
@@ -346,7 +389,7 @@ absl::StatusOr<std::vector<std::string>> RunLibUnwindAndSymbolizer(
   absl::Cleanup context_cleanup = [&context] { _UPT_destroy(context); };
   ABSL_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
                         RunLibUnwind(as, context, max_frames));
-  ABSL_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMap(pid));
+  ABSL_ASSIGN_OR_RETURN(auto addr_to_symbol, LoadSymbolsMapForPid(pid, &ips));
   return SymbolizeStacktrace(addr_to_symbol, ips);
 }
 

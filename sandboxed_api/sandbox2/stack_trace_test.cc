@@ -107,6 +107,7 @@ namespace file_util = ::sapi::file_util;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
@@ -505,6 +506,7 @@ class StackTraceNotify : public Notify {
 
 TEST(StackTraceTest, UnsandboxedStackTrace) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
+  // argv[1] = testno 2 (ViolatePolicy), argv[2] = testmode 1 (RunTest).
   std::vector<std::string> args = {path, absl::StrCat(2), absl::StrCat(1)};
   PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
@@ -519,6 +521,30 @@ TEST(StackTraceTest, UnsandboxedStackTrace) {
   EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(notify_ptr->stack_trace(),
               Optional(Contains(StartsWith("ViolatePolicy"))));
+}
+
+TEST(StackTraceTest, UnsandboxedStackTraceRecursiveLib) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/symbolize");
+  // argv[1] = testno 2 (ViolatePolicy), argv[2] = testmode 3 (LibRecurse:
+  // recurses 10 frames through LibRecurseA/LibRecurseB in libsymbolize_lib.so
+  // before calling back into RunTest -> ViolatePolicy in the main binary).
+  std::vector<std::string> args = {path, absl::StrCat(2), absl::StrCat(3)};
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
+
+  auto notify = std::make_unique<StackTraceNotify>();
+  StackTraceNotify* notify_ptr = notify.get();
+  Sandbox2 s2(std::make_unique<Executor>(path, args), std::move(policy),
+              std::move(notify));
+  ASSERT_TRUE(s2.RunAsync());
+
+  Result result = s2.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(notify_ptr->stack_trace(),
+              Optional(AllOf(Contains(StartsWith("ViolatePolicy")),
+                             Contains(StartsWith("LibCallCallback")),
+                             Contains(StartsWith("LibRecurseA")),
+                             Contains(StartsWith("LibRecurseB")))));
 }
 
 INSTANTIATE_TEST_SUITE_P(
