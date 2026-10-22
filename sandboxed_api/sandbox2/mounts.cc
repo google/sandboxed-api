@@ -774,7 +774,6 @@ void RecursivelyListMountsImpl(const MountTree& tree,
   }
 
   for (const auto& [key, value] : GetSortedEntries(tree)) {
-    std::string new_path = sapi::file::JoinPath(tree_path, key);
     RecursivelyListMountsImpl(*value, absl::StrCat(tree_path, "/", key),
                               outside_entries, inside_entries);
   }
