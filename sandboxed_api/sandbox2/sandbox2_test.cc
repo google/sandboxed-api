@@ -845,12 +845,35 @@ TEST(SharedMemoryTest, SharedMemoryDataTransferWorks) {
   sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
   SAPI_ASSERT_OK_AND_ASSIGN(auto res,
                             s2.CreateSharedMemoryMapping({.size = 100 << 20}));
+  // Cannot create another shared memory mapping.
+  EXPECT_THAT(s2.CreateSharedMemoryMapping({.size = 100 << 20}),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
   res->data()[0] = 'Z';
   auto result = s2.Run();
 
   ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
   EXPECT_EQ(result.reason_code(), 0);
   EXPECT_EQ(res->data()[0], 'A');
+}
+
+TEST(SharedMemoryTest, SharedMemoryCannotBeEnabledAfterLaunch) {
+  SKIP_SANITIZERS;
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/shared_memory");
+  std::vector<std::string> args = {path, "2"};
+  auto executor = std::make_unique<sandbox2::Executor>(path, args);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  sandbox2::Sandbox2 s2(std::move(executor), std::move(policy));
+  ASSERT_THAT(s2.RunAsync(), IsTrue());
+
+  // Cannot enable shared memory comms after the sandbox is launched.
+  EXPECT_THAT(s2.CreateSharedMemoryMapping({.size = 100 << 20}),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+
+  auto result = s2.AwaitResult();
+  ASSERT_EQ(result.final_status(), sandbox2::Result::OK);
 }
 
 TEST_P(Sandbox2Test, AllowAllSyscallsFlag) {
