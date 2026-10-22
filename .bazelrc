@@ -1,6 +1,7 @@
-# Build in C++20 mode without a custom CROSSTOOL
-build --cxxopt=-std=c++20
-build --host_cxxopt=-std=c++20
+# Build in C++20 mode without a custom CROSSTOOL.
+# gnu++20 is required so Clang's <stdbool.h> defines _Bool (emitted by sapi_generator).
+build --cxxopt=-std=gnu++20
+build --host_cxxopt=-std=gnu++20
 
 # Ignore host Android SDK/NDK environment variables (e.g. on Bazel CI containers)
 # Bazel 9.2+ passes ANDROID_HOME and ANDROID_NDK_HOME into the container environment

@@ -19,6 +19,7 @@
 # SOURCES is a list of files that should be embedded. If a source names a
 #   target the target binary is embedded instead.
 macro(sapi_cc_embed_data)
+  enable_language(C ASM)
   cmake_parse_arguments(_sapi_embed "" "OUTPUT_NAME;NAME;NAMESPACE" "SOURCES"
                         ${ARGN})
   set(_sapi_embed_in "")
@@ -134,11 +135,13 @@ function(add_sapi_library)
     "${SAPI_BINARY_DIR}/sapi_force_cxx_linkage.cc"
   )
   target_link_libraries("${_sapi_bin}" PRIVATE
-    -Wl,--whole-archive "${_sapi_LIBRARY}" -Wl,--no-whole-archive
+    -Wl,--whole-archive
+    "${_sapi_LIBRARY}"
+    "${_sapi_sandboxee_client_lib}"
+    -Wl,--no-whole-archive
     # Needs to be whole-archive due to how it Abseil registers flags
     -Wl,--whole-archive absl::log_flags -Wl,--no-whole-archive
     sapi::client
-    ${_sapi_sandboxee_client_lib}
     ${CMAKE_DL_LIBS}
   )
   target_link_options("${_sapi_bin}" PRIVATE

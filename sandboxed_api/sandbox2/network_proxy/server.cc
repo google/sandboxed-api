@@ -43,17 +43,19 @@
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
 
+#ifndef RESOLVE_NO_SYMLINKS
 namespace {
 
+// Struct used by openat2. Basically a visibility override,
+// not an internal struct.
 struct open_how {
   uint64_t flags;
   uint64_t mode;
   uint64_t resolve;
 };
 
-}  // anomymous namespace
+}  // namespace
 
-#ifndef RESOLVE_NO_SYMLINKS
 #define RESOLVE_NO_SYMLINKS 0x04
 #endif
 

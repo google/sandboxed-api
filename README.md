@@ -1,6 +1,5 @@
 <p align="left">
-  <img src="https://github.com/google/sandboxed-api/workflows/debian-bazel/badge.svg" alt="Bazel build status on GitHub" href="https://github.com/google/sandboxed-api/actions/workflows/debian-bazel.yml">
-  <img src="https://github.com/google/sandboxed-api/workflows/ubuntu-cmake/badge.svg" alt="CMake build status on GitHub" href="https://github.com/google/sandboxed-api/actions/workflows/ubuntu-cmake.yml">
+  <img src="https://github.com/google/sandboxed-api/actions/workflows/ci.yml/badge.svg" alt="CI status on GitHub" href="https://github.com/google/sandboxed-api/actions/workflows/ci.yml">
 </p>
 <p align="center">
   <img src="sandboxed_api/docs/images/sapi-lockup-vertical.png" alt="Sandboxed API lockup text with sandbox visual" width="400">

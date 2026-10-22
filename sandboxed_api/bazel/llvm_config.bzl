@@ -76,7 +76,7 @@ def _locate_llvm_config_tool(repository_ctx):
     Returns:
         The path to the llvm-config tool.
     """
-    max_version = 20
+    max_version = 25
     min_version = 18
 
     llvm_config_tool = repository_ctx.execute(
@@ -86,7 +86,12 @@ def _locate_llvm_config_tool(repository_ctx):
         ["llvm-config"],
     )
     if not llvm_config_tool.stdout:
-        fail("Local llvm-config lookup failed")
+        fail(
+            "Local llvm-config lookup failed. Min version supported: {}, max version: {}".format(
+                min_version,
+                max_version,
+            ),
+        )
     return llvm_config_tool.stdout.splitlines()[0]
 
 def _get_llvm_config_output(repository_ctx, llvm_config_tool):

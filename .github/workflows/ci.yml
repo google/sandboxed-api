@@ -1,0 +1,162 @@
+name: ci
+
+on: [push, pull_request, workflow_dispatch]
+
+env:
+  BUILD_TYPE: Release
+  TEST_TMPDIR: /tmp
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  bazel:
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sed -i 's|http://archive.ubuntu.com/ubuntu/|http://azure.archive.ubuntu.com/ubuntu/|g' \
+            /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+          apt-get update -qy
+          DEBIAN_FRONTEND=noninteractive apt-get install -qy --no-install-recommends \
+            build-essential ca-certificates clang curl file git \
+            libclang-dev libncurses-dev libzstd-dev llvm-dev \
+            python3 python3-clang unzip wget zip zlib1g-dev
+          curl -fsSL https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
+            -o /usr/local/bin/bazel
+          chmod +x /usr/local/bin/bazel
+
+      - name: Cache Bazel
+        uses: actions/cache@v4
+        with:
+          path: /root/.cache/bazel-cache
+          key: bazel-ubuntu:26.04-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-ubuntu:26.04-
+
+      - name: Build with Bazel
+        run: |
+          bazel build \
+            --repo_env=CC=clang \
+            --repo_env=CXX=clang++ \
+            --repository_cache=/root/.cache/bazel-cache/repo \
+            --disk_cache=/root/.cache/bazel-cache/disk \
+            ...
+
+  cmake:
+    name: cmake (${{ matrix.target || matrix.contrib || format('{0}, llvm-{1}', matrix.container, matrix.llvm) }})
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { container: ubuntu:26.04, llvm: latest }
+          - { container: ubuntu:26.04, llvm: builtin }
+          - { container: ubuntu:24.04, llvm: builtin }
+          - { container: ubuntu:26.04, llvm: builtin, target: sapi_generator_tool }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: brotli, experimental: true }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: c-blosc, experimental: true }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: jsonnet, experimental: true }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: libidn2, experimental: true }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: libraw, experimental: true }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: libxls, experimental: true }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: lodepng, experimental: true }
+          - { container: ubuntu:26.04, llvm: builtin, contrib: pffft, experimental: true }
+
+    container:
+      image: ${{ matrix.container }}
+      options: --privileged --cap-add ALL --security-opt apparmor:unconfined
+
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: "true"
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache dependencies and ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.ccache
+            ${{ github.workspace }}/build/_deps
+          key: cmake-${{ matrix.container }}-${{ matrix.llvm }}-${{ matrix.contrib || matrix.target }}-${{ github.sha }}
+          restore-keys: |
+            cmake-${{ matrix.container }}-${{ matrix.llvm }}-${{ matrix.contrib || matrix.target }}-
+            cmake-${{ matrix.container }}-${{ matrix.llvm }}--
+
+      - name: Install dependencies
+        run: |
+          sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0 || true
+          sysctl -w kernel.yama.ptrace_scope=0 || true
+          sed -i 's|http://archive.ubuntu.com/ubuntu/|http://azure.archive.ubuntu.com/ubuntu/|g' \
+            /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+          apt-get update -qy
+          if [ "${{ matrix.llvm }}" = "latest" ]; then
+            LLVM_VER=$(apt-cache search --names-only '^llvm-[0-9]+-dev$' | awk '{print $1}' | grep -oE '[0-9]+' | sort -rn | head -n1)
+          else
+            LLVM_VER=$(apt-cache depends llvm-dev | grep -oE 'llvm-[0-9]+-dev' | grep -oE '[0-9]+')
+            [ "$LLVM_VER" -lt 19 ] && LLVM_VER=19
+          fi
+          EXTRA_PKGS=""
+          [ "${{ matrix.contrib }}" = "libidn2" ] && EXTRA_PKGS="libidn2-dev libunistring-dev"
+          [ "${{ matrix.contrib }}" = "libxls" ] && EXTRA_PKGS="autoconf-archive gettext libtool"
+          DEBIAN_FRONTEND=noninteractive apt-get install -qy --no-install-recommends \
+            automake build-essential ca-certificates ccache cmake diffutils file git \
+            libcap-dev libzstd-dev make ninja-build patch pkg-config \
+            python3 python3-absl zlib1g-dev $EXTRA_PKGS \
+            clang-$LLVM_VER libclang-$LLVM_VER-dev libclang-rt-$LLVM_VER-dev llvm-$LLVM_VER-dev
+          echo "/usr/lib/llvm-$LLVM_VER/lib" > /etc/ld.so.conf.d/llvm.conf
+          ldconfig
+          echo "CC=clang-$LLVM_VER" >> $GITHUB_ENV
+          echo "CXX=clang++-$LLVM_VER" >> $GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=/usr/lib/llvm-$LLVM_VER" >> $GITHUB_ENV
+
+      - name: Configure, build, and test
+        continue-on-error: ${{ matrix.experimental || false }}
+        run: |
+          if [ -n "${{ matrix.contrib }}" ]; then
+            SRC_DIR="$GITHUB_WORKSPACE/contrib/${{ matrix.contrib }}"
+            CMAKE_ARGS="-DLLVM_LINK_LLVM_DYLIB=ON"
+            CTEST_ARGS="-E ^(sapi_|sandbox2_|regression_test)"
+          elif [ -n "${{ matrix.target }}" ]; then
+            SRC_DIR="$GITHUB_WORKSPACE"
+            CMAKE_ARGS="-DSAPI_ENABLE_CLANG_TOOL_STATIC=ON"
+            BUILD_ARGS="--target ${{ matrix.target }}"
+          else
+            SRC_DIR="$GITHUB_WORKSPACE"
+            CMAKE_ARGS="-DLLVM_LINK_LLVM_DYLIB=ON"
+            CTEST_ARGS="-R SapiTest"
+          fi
+          cmake \
+            -S "$SRC_DIR" \
+            -B "$GITHUB_WORKSPACE/build" \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+            -DCMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE=PRE_TEST \
+            -DSAPI_BUILD_TESTING=ON \
+            -DSAPI_BUILD_EXAMPLES=ON \
+            -DSAPI_DOWNLOAD_ZLIB=ON \
+            $CMAKE_ARGS
+          cmake --build "$GITHUB_WORKSPACE/build" --config $BUILD_TYPE $BUILD_ARGS
+          if [ -n "$CTEST_ARGS" ]; then
+            ctest \
+              --test-dir "$GITHUB_WORKSPACE/build" \
+              -C $BUILD_TYPE \
+              --parallel $(nproc) \
+              --output-on-failure \
+              $CTEST_ARGS
+          fi
