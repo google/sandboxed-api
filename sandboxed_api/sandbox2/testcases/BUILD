@@ -225,6 +225,18 @@ cc_binary(
 )
 
 cc_binary(
+    name = "malformed_version",
+    testonly = True,
+    srcs = ["malformed_version.cc"],
+    copts = sapi_platform_copts(),
+    features = ["fully_static_link"],
+    deps = [
+        "//sandboxed_api/sandbox2:comms",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_binary(
     name = "tsync_spawning_threads",
     testonly = True,
     srcs = ["tsync_spawning_threads.cc"],

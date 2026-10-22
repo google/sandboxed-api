@@ -1189,6 +1189,7 @@ cc_test(
     data = [
         "//sandboxed_api/sandbox2/testcases:abort",
         "//sandboxed_api/sandbox2/testcases:custom_fork",
+        "//sandboxed_api/sandbox2/testcases:malformed_version",
         "//sandboxed_api/sandbox2/testcases:minimal",
         "//sandboxed_api/sandbox2/testcases:pthreads",
         "//sandboxed_api/sandbox2/testcases:sendrecv",

@@ -278,6 +278,22 @@ target_link_libraries(sandbox2_testcase_tsync PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2/testcases:malformed_version
+add_executable(sandbox2_testcase_malformed_version
+  malformed_version.cc
+)
+add_executable(sandbox2::testcase_malformed_version
+  ALIAS sandbox2_testcase_malformed_version)
+set_target_properties(sandbox2_testcase_malformed_version PROPERTIES
+  OUTPUT_NAME malformed_version
+)
+target_link_libraries(sandbox2_testcase_malformed_version PRIVATE
+  -static-pie
+  absl::strings
+  sandbox2::comms
+  sapi::base
+)
+
 # sandboxed_api/sandbox2/testcases:tsync_spawning_threads
 add_executable(sandbox2_testcase_tsync_spawning_threads
   tsync_spawning_threads.cc

@@ -397,10 +397,14 @@ bool MonitorBase::InitVerifyVersion() {
   if (testonly_override_version_) {
     LOG(INFO) << "Overriding version to " << *testonly_override_version_;
     overridden_version = absl::StrCat("V", *testonly_override_version_);
-    remote_version = *testonly_override_version_;
+    remote_version = *overridden_version;
   }
   auto parsed_remote = ParsedVersion::ParseVersion(remote_version);
-  CHECK(parsed_remote.ok());
+  if (!parsed_remote.ok()) {
+    LOG(ERROR) << "Failed to parse version from sandboxee: "
+               << parsed_remote.status();
+    return false;
+  }
 
   client_version_number_ = parsed_remote->version_number;
   if (client_version_number_ != 0) {

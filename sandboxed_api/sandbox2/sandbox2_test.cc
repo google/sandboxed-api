@@ -938,6 +938,30 @@ TEST_P(Sandbox2Test, PreProtobufConfigVersionWorks) {
   EXPECT_EQ(result.reason_code(), 0);
 }
 
+TEST_P(Sandbox2Test, MalformedSandboxeeVersionDoesNotCrashHost) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/malformed_version");
+
+  auto executor =
+      std::make_unique<Executor>(path, std::vector<std::string>{path});
+  executor->set_enable_sandbox_before_exec(false);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+
+  absl::ScopedMockLog log(absl::MockLogDefault::kIgnoreUnexpected);
+  EXPECT_CALL(log, Log(absl::LogSeverity::kError, testing::_,
+                       HasSubstr("Failed to parse version from sandboxee")));
+  log.StartCapturingLogs();
+
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  // The host must not crash on an unparsable version, but the sandboxee never
+  // completes the handshake, so setup is expected to fail.
+  auto result = sandbox.Run();
+  log.StopCapturingLogs();
+  EXPECT_EQ(result.final_status(), sandbox2::Result::SETUP_ERROR);
+}
+
 TEST_P(Sandbox2Test, DumpStackTrace) {
   ScopedVLogLevel ptrace_vlog("monitor_ptrace", 1);
   ScopedVLogLevel unotify_vlog("monitor_unotify", 1);
