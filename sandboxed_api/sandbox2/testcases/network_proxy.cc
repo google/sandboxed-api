@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <variant>
 
@@ -159,16 +160,21 @@ int main(int argc, char* argv[]) {
 
   // Set-up the sandbox2::Client object, using a file descriptor (1023).
   sandbox2::Comms comms(sandbox2::Comms::kDefaultConnection);
-  sandbox2::Client sandbox2_client(&comms);
+  std::optional<sandbox2::Client> persistent_client;
 
   if (absl::GetFlag(FLAGS_connect_with_handler)) {
+    // Intentionally scope Client to this block to verify that
+    // InstallNetworkProxyHandler() retains the NetworkProxyClient for the
+    // SIGSYS handler after Client is destroyed.
+    sandbox2::Client sandbox2_client(&comms);
     if (auto status = sandbox2_client.InstallNetworkProxyHandler();
         !status.ok()) {
       LOG(ERROR) << "InstallNetworkProxyHandler() failed: " << status;
       return 1;
     }
   } else {
-    g_proxy_client = sandbox2_client.GetNetworkProxyClient();
+    persistent_client.emplace(&comms);
+    g_proxy_client = persistent_client->GetNetworkProxyClient();
   }
 
   // Receive port number of the server

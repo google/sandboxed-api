@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 
 #include <cstdint>
+#include <memory>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
@@ -58,10 +59,17 @@ class NetworkProxyHandler {
   // Installs the handler that redirects connect() syscalls to the trap
   // function. This function exchanges data with NetworkProxyServer that checks
   // if this connection is allowed and sends the connected socket to us.
-  static absl::Status InstallNetworkProxyHandler(NetworkProxyClient* npc);
+  //
+  // Takes ownership of `npc`. On success, `npc` is kept alive for the rest of
+  // the process lifetime, because the SIGSYS handler is never uninstalled and
+  // uses it on every trapped connect(). On failure, `npc` is destroyed.
+  static absl::Status InstallNetworkProxyHandler(
+      std::unique_ptr<NetworkProxyClient> npc);
 
   static bool ProcessSeccompTrap(int nr, SyscallTrap::Args args, uintptr_t* rv);
 
+  // Owned by NetworkProxyHandler and intentionally never deleted once
+  // installed (see InstallNetworkProxyHandler()).
   static NetworkProxyClient* network_proxy_client_;
 };
 

@@ -83,7 +83,11 @@ class Client {
   NetworkProxyClient* GetNetworkProxyClient();
 
   // Redirects the connect() syscall to the ConnectHandler() method in
-  // the NetworkProxyClient class.
+  // the NetworkProxyClient class. On success, ownership of the underlying
+  // NetworkProxyClient passes to NetworkProxyHandler, which keeps it alive for
+  // the rest of the process lifetime, even after this Client is destroyed.
+  // On failure, the network proxy FD is consumed and closed: calling this
+  // method again returns an error, and GetNetworkProxyClient() will CHECK-fail.
   absl::Status InstallNetworkProxyHandler();
 
   // Gets the shared memory buffer if it is enabled.
@@ -108,8 +112,11 @@ class Client {
   std::unique_ptr<LogSink> logsink_;
 
   // NetworkProxyClient that forwards network connection requests to the
-  // supervisor.
-  std::unique_ptr<NetworkProxyClient> proxy_client_;
+  // supervisor. Points either at owned_proxy_client_ (created by
+  // GetNetworkProxyClient()) or at the client owned by NetworkProxyHandler
+  // (after InstallNetworkProxyHandler()).
+  NetworkProxyClient* proxy_client_ = nullptr;
+  std::unique_ptr<NetworkProxyClient> owned_proxy_client_;
 
   // In the pre-execve case, the sandboxee has to pass the information about
   // file descriptors to the new process. We set an environment variable for

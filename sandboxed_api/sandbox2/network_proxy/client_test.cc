@@ -26,6 +26,7 @@
 
 #include <cerrno>
 #include <cstdint>
+#include <memory>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -54,6 +55,14 @@ sockaddr_in CreateTestIpv4Addr() {
   addr.sin_port = htons(80);
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   return addr;
+}
+
+// Tests install the process-global handler, so they must undo it, including
+// freeing the NetworkProxyClient the handler owns.
+void UninstallNetworkProxyHandler() {
+  SyscallTrap::Uninstall();
+  delete NetworkProxyHandler::network_proxy_client_;
+  NetworkProxyHandler::network_proxy_client_ = nullptr;
 }
 
 TEST(ClientTest, ConnectInvalidSocketFdFails) {
@@ -231,16 +240,17 @@ TEST(ClientTest, InstallNetworkProxyHandlerAlreadyInstalledFails) {
   int sv[2];
   ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
   FDCloser server_closer(sv[1]);
-  NetworkProxyClient client(sv[0]);
+  int dup_fd = dup(sv[0]);
+  ASSERT_NE(dup_fd, -1);
 
-  absl::Cleanup cleanup = [] {
-    SyscallTrap::Uninstall();
-    NetworkProxyHandler::network_proxy_client_ = nullptr;
-  };
+  absl::Cleanup cleanup = [] { UninstallNetworkProxyHandler(); };
 
-  ASSERT_THAT(NetworkProxyHandler::InstallNetworkProxyHandler(&client), IsOk());
+  ASSERT_THAT(NetworkProxyHandler::InstallNetworkProxyHandler(
+                  std::make_unique<NetworkProxyClient>(sv[0])),
+              IsOk());
   EXPECT_THAT(
-      NetworkProxyHandler::InstallNetworkProxyHandler(&client),
+      NetworkProxyHandler::InstallNetworkProxyHandler(
+          std::make_unique<NetworkProxyClient>(dup_fd)),
       StatusIs(absl::StatusCode::kAlreadyExists,
                HasSubstr("Network proxy handler is already installed")));
 }
@@ -249,18 +259,16 @@ TEST(ClientTest, InstallNetworkProxyHandlerSyscallTrapInstallFails) {
   int sv[2];
   ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
   FDCloser server_closer(sv[1]);
-  NetworkProxyClient client(sv[0]);
 
   ASSERT_TRUE(SyscallTrap::Install(
       [](int, SyscallTrap::Args, uintptr_t*) { return false; }));
-  absl::Cleanup cleanup = [] {
-    SyscallTrap::Uninstall();
-    NetworkProxyHandler::network_proxy_client_ = nullptr;
-  };
+  absl::Cleanup cleanup = [] { UninstallNetworkProxyHandler(); };
 
-  EXPECT_THAT(NetworkProxyHandler::InstallNetworkProxyHandler(&client),
+  EXPECT_THAT(NetworkProxyHandler::InstallNetworkProxyHandler(
+                  std::make_unique<NetworkProxyClient>(sv[0])),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Could not install syscall trap")));
+  EXPECT_EQ(NetworkProxyHandler::network_proxy_client_, nullptr);
 }
 
 TEST(ClientTest, ProcessSeccompTrapUnhandledSyscallReturnsFalse) {
@@ -269,17 +277,22 @@ TEST(ClientTest, ProcessSeccompTrapUnhandledSyscallReturnsFalse) {
   EXPECT_EQ(rv, 123);
 }
 
+TEST(ClientTest, ProcessSeccompTrapWithoutClientReturnsFalse) {
+  ASSERT_EQ(NetworkProxyHandler::network_proxy_client_, nullptr);
+  uintptr_t rv = 123;
+  EXPECT_FALSE(NetworkProxyHandler::ProcessSeccompTrap(__NR_connect, {}, &rv));
+  EXPECT_EQ(rv, 123);
+}
+
 TEST(ClientTest, ProcessSeccompTrapConnectFailureAndSuccess) {
   int sv[2];
   ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
-  NetworkProxyClient client(sv[0]);
   Comms server_comms(sv[1]);
 
-  absl::Cleanup cleanup = [] {
-    SyscallTrap::Uninstall();
-    NetworkProxyHandler::network_proxy_client_ = nullptr;
-  };
-  ASSERT_THAT(NetworkProxyHandler::InstallNetworkProxyHandler(&client), IsOk());
+  absl::Cleanup cleanup = [] { UninstallNetworkProxyHandler(); };
+  ASSERT_THAT(NetworkProxyHandler::InstallNetworkProxyHandler(
+                  std::make_unique<NetworkProxyClient>(sv[0])),
+              IsOk());
 
   // 1. Failure via ProcessSeccompTrap sets *rv = -errno.
   sockaddr_in addr = CreateTestIpv4Addr();

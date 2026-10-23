@@ -21,6 +21,7 @@
 
 #include <cerrno>
 #include <cstdint>
+#include <memory>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -89,22 +90,33 @@ absl::StatusOr<FDCloser> NetworkProxyClient::ConnectInternal(
 NetworkProxyClient* NetworkProxyHandler::network_proxy_client_ = nullptr;
 
 absl::Status NetworkProxyHandler::InstallNetworkProxyHandler(
-    NetworkProxyClient* npc) {
+    std::unique_ptr<NetworkProxyClient> npc) {
   if (network_proxy_client_ != nullptr) {
     return absl::AlreadyExistsError(
         "Network proxy handler is already installed");
   }
-  network_proxy_client_ = npc;
+  // Publish the client before installing the trap, so the SIGSYS handler never
+  // runs without it.
+  network_proxy_client_ = npc.get();
   if (!SyscallTrap::Install([](int nr, SyscallTrap::Args args, uintptr_t* rv) {
         return ProcessSeccompTrap(nr, args, rv);
       })) {
+    network_proxy_client_ = nullptr;
     return absl::InternalError("Could not install syscall trap");
   }
+  // Owned through network_proxy_client_ for the rest of the process lifetime.
+  npc.release();
   return absl::OkStatus();
 }
 
 bool NetworkProxyHandler::ProcessSeccompTrap(int nr, SyscallTrap::Args args,
                                              uintptr_t* rv) {
+  if (network_proxy_client_ == nullptr) {
+    // Not expected, since InstallNetworkProxyHandler() sets the client before
+    // installing the trap. Fall back to the previous SIGSYS action rather than
+    // dereferencing null.
+    return false;
+  }
   int sockfd;
   const struct sockaddr* addr;
   socklen_t addrlen;

@@ -475,10 +475,11 @@ void Client::SendLogsToSupervisor() {
 
 NetworkProxyClient* Client::GetNetworkProxyClient() {
   if (proxy_client_ == nullptr) {
-    proxy_client_ = std::make_unique<NetworkProxyClient>(
+    owned_proxy_client_ = std::make_unique<NetworkProxyClient>(
         GetMappedFD(NetworkProxyClient::kFDName));
+    proxy_client_ = owned_proxy_client_.get();
   }
-  return proxy_client_.get();
+  return proxy_client_;
 }
 
 absl::Status Client::InstallNetworkProxyHandler() {
@@ -488,8 +489,17 @@ absl::Status Client::InstallNetworkProxyHandler() {
         "sandbox is installed. Also, the NetworkProxyServer needs to be "
         "enabled.");
   }
-  return NetworkProxyHandler::InstallNetworkProxyHandler(
-      GetNetworkProxyClient());
+  auto npc = std::make_unique<NetworkProxyClient>(
+      GetMappedFD(NetworkProxyClient::kFDName));
+  NetworkProxyClient* npc_ptr = npc.get();
+  // NetworkProxyHandler takes ownership, since the SIGSYS handler it installs
+  // outlives this Client.
+  absl::Status status =
+      NetworkProxyHandler::InstallNetworkProxyHandler(std::move(npc));
+  if (status.ok()) {
+    proxy_client_ = npc_ptr;
+  }
+  return status;
 }
 
 absl::StatusOr<const Buffer*> Client::GetSharedMemoryMapping() {
