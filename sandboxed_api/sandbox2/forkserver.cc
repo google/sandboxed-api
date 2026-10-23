@@ -262,6 +262,7 @@ void ForkServer::CreateInitialNamespaces(Comms setup_comms) {
                  "failed to unshare initial namespaces: parent process is "
                  "likely chrooted");
   }
+  SAPI_RAW_PCHECK(res != -1, "unsharing initial namespaces");
   FDCloser userns_fd(
       open(absl::StrCat("/proc/self/ns/user").c_str(), O_RDONLY | O_CLOEXEC));
   SAPI_RAW_PCHECK(userns_fd.get() != -1, "getting initial userns fd");
