@@ -194,6 +194,14 @@ class PolicyBuilder final {
   //   filtering enabled
   //   (AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)) or
   //   explicitly opt into host networking with Allow(UnrestrictedNetworking()).
+  //   Starting in Landlock ABI v9, pathname AF_UNIX sockets are restricted by
+  //   Landlock filesystem rules (LANDLOCK_ACCESS_FS_RESOLVE_UNIX is granted on
+  //   all mounted directories and files to match mount-namespace semantics),
+  //   and this requirement is dropped. Callers mounting broad shared
+  //   directories (such as /tmp) that require finer-grained per-socket
+  //   filtering can still opt into
+  //   AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true) with
+  //   AllowUnixSocket().
   // Future Landlock ABI versions will support restricting these syscalls, and
   // Sandbox2 will be updated as new kernel features become available.
   PolicyBuilder& EnableLandlock(sandbox2::EnableLandlock);
@@ -235,11 +243,12 @@ class PolicyBuilder final {
   // you would also need to allow networking syscalls.
   //
   // NOTE: Requires namespace support.
-  // NOTE: When combined with Landlock, leaving the process in the host network
-  // namespace permits connecting to host pathname AF_UNIX domain sockets
-  // (because kernel Landlock ABI <= 8 does not restrict UNIX domain sockets).
-  // For isolated environments requiring socket access, use NetworkProxy with
-  // UNIX socket filtering instead.
+  // NOTE: When combined with Landlock on kernel Landlock ABI <= 8, leaving the
+  // process in the host network namespace permits connecting to host pathname
+  // AF_UNIX domain sockets (because kernel Landlock ABI <= 8 does not restrict
+  // UNIX domain sockets); use NetworkProxy with UNIX socket filtering instead.
+  // Starting in Landlock ABI v9, pathname AF_UNIX domain sockets are restricted
+  // by Landlock filesystem rules to paths mounted into the sandbox.
   PolicyBuilder& Allow(UnrestrictedNetworking);
 
   // Appends code to allow a specific syscall.
@@ -1192,6 +1201,7 @@ class PolicyBuilder final {
 
   // List of allowed endpoints
   absl::optional<AllowedEndpoints> allowed_endpoints_;
+  std::optional<int> landlock_abi_version_for_testing_;
 };
 
 }  // namespace sandbox2

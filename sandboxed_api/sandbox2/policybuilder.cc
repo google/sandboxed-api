@@ -69,6 +69,7 @@
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/allowlists/write_executable.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
+#include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/network_proxy/filtering.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -1686,20 +1687,27 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
     // 1) The caller explicitly opted into host networking via
     //    UnrestrictedNetworking() (netns_mode_ == NETNS_MODE_NONE), OR
     // 2) The caller configured NetworkProxy with UNIX socket path filtering.
-    bool has_unrestricted_networking = (netns_mode_ == NETNS_MODE_NONE);
-    bool has_network_proxy = allowed_endpoints_.has_value();
-    bool has_unix_socket_filtering =
-        has_network_proxy && allowed_endpoints_->filter_unix_sockets();
+    // Starting in Landlock ABI v9 (LANDLOCK_ACCESS_FS_RESOLVE_UNIX), pathname
+    // AF_UNIX sockets are restricted by Landlock filesystem rules, so neither
+    // UnrestrictedNetworking() nor NetworkProxy is required.
+    const int landlock_abi =
+        landlock_abi_version_for_testing_.value_or(GetLandlockAbiVersion());
+    if (landlock_abi < 9) {
+      bool has_unrestricted_networking = (netns_mode_ == NETNS_MODE_NONE);
+      bool has_network_proxy = allowed_endpoints_.has_value();
+      bool has_unix_socket_filtering =
+          has_network_proxy && allowed_endpoints_->filter_unix_sockets();
 
-    if (!has_unrestricted_networking &&
-        (!has_network_proxy || !has_unix_socket_filtering)) {
-      return absl::FailedPreconditionError(
-          "Cannot use Landlock mode without either UnrestrictedNetworking or a "
-          "NetworkProxy with UNIX socket filtering enabled "
-          "(AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)). At "
-          "Landlock ABI <= 8, pathname AF_UNIX sockets are not restricted "
-          "by Landlock, allowing processes to reach local host domain "
-          "sockets not explicitly added via AddDirectory/AddFile.");
+      if (!has_unrestricted_networking &&
+          (!has_network_proxy || !has_unix_socket_filtering)) {
+        return absl::FailedPreconditionError(
+            "Cannot use Landlock mode without either UnrestrictedNetworking or "
+            "a NetworkProxy with UNIX socket filtering enabled "
+            "(AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true)). At "
+            "Landlock ABI <= 8, pathname AF_UNIX sockets are not restricted "
+            "by Landlock, allowing processes to reach local host domain "
+            "sockets not explicitly added via AddDirectory/AddFile.");
+      }
     }
   }
 

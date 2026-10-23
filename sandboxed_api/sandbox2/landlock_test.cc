@@ -16,9 +16,13 @@
 
 #include <asm-generic/unistd.h>
 #include <fcntl.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -65,10 +69,13 @@ std::string GetTestcaseBinPath(absl::string_view bin_name) {
 }
 
 PolicyBuilder CreateLandlockPermissiveTestPolicy(absl::string_view bin_path) {
-  return CreateDefaultPermissiveTestPolicy(bin_path)
-      .AddFile(bin_path)
-      .EnableLandlock(sandbox2::EnableLandlock())
-      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(bin_path)
+                              .AddFile(bin_path)
+                              .EnableLandlock(sandbox2::EnableLandlock());
+  if (GetLandlockAbiVersion() < 9) {
+    builder.AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  }
+  return builder;
 }
 
 PolicyBuilder CreateLandlockTestPolicy(absl::string_view bin_path) {
@@ -504,6 +511,99 @@ TEST_F(LandlockTest, LandlockTruncateAndReferAccess) {
   std::vector<std::string> res_refer = RunSandboxeeWithArgsAndPolicy(
       path, {path, "14", file1, file2}, std::move(policy_refer));
   EXPECT_THAT(res_refer, ElementsAre("refer_success"));
+
+  sapi::file_util::fileops::DeleteRecursively(temp_dir);
+}
+
+TEST_F(LandlockTest, LandlockPathnameUnixSocketRestriction) {
+  if (GetLandlockAbiVersion() < 9) {
+    GTEST_SKIP()
+        << "Landlock ABI v9+ required for pathname UNIX socket restriction";
+  }
+
+  const std::string path = GetTestcaseBinPath("namespace");
+  // Use a short prefix in /tmp rather than GetTestTempPath() because
+  // sockaddr_un::sun_path is limited to 108 bytes.
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string temp_dir,
+                            sapi::CreateTempDir("/tmp/sb2_ll_unix_"));
+  std::string allowed_dir = sapi::file::JoinPath(temp_dir, "allowed");
+  std::string blocked_dir = sapi::file::JoinPath(temp_dir, "blocked");
+  ASSERT_TRUE(
+      sapi::file_util::fileops::CreateDirectoryRecursively(allowed_dir, 0755));
+  ASSERT_TRUE(
+      sapi::file_util::fileops::CreateDirectoryRecursively(blocked_dir, 0755));
+
+  auto bind_unix_socket = [](const std::string& sock_path, int type) {
+    int s = socket(AF_UNIX, type, 0);
+    CHECK_GE(s, 0);
+    struct sockaddr_un addr = {};
+    addr.sun_family = AF_UNIX;
+    CHECK_LT(sock_path.size(), sizeof(addr.sun_path));
+    strncpy(addr.sun_path, sock_path.c_str(), sizeof(addr.sun_path) - 1);
+    socklen_t addr_len =
+        offsetof(struct sockaddr_un, sun_path) + strlen(addr.sun_path) + 1;
+    CHECK_EQ(bind(s, reinterpret_cast<struct sockaddr*>(&addr), addr_len), 0);
+    if (type == SOCK_STREAM) {
+      CHECK_EQ(listen(s, 1), 0);
+    }
+    return sapi::file_util::fileops::FDCloser(s);
+  };
+
+  std::string allowed_stream_sock =
+      sapi::file::JoinPath(allowed_dir, "stream.sock");
+  std::string blocked_stream_sock =
+      sapi::file::JoinPath(blocked_dir, "stream.sock");
+  std::string allowed_dgram_sock =
+      sapi::file::JoinPath(allowed_dir, "dgram.sock");
+  std::string blocked_dgram_sock =
+      sapi::file::JoinPath(blocked_dir, "dgram.sock");
+
+  auto srv_allowed_stream = bind_unix_socket(allowed_stream_sock, SOCK_STREAM);
+  auto srv_blocked_stream = bind_unix_socket(blocked_stream_sock, SOCK_STREAM);
+  auto srv_allowed_dgram = bind_unix_socket(allowed_dgram_sock, SOCK_DGRAM);
+  auto srv_blocked_dgram = bind_unix_socket(blocked_dgram_sock, SOCK_DGRAM);
+
+  auto make_policy = [&]() {
+    return CreateDefaultPermissiveTestPolicy(path)
+        .AddFile(path)
+        .EnableLandlock(sandbox2::EnableLandlock())
+        .AddDirectory(allowed_dir)
+        .BuildOrDie();
+  };
+
+  // Stream connect to allowed socket succeeds; blocked socket fails with
+  // EACCES.
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                  path, {path, "16", allowed_stream_sock}, make_policy()),
+              ElementsAre("unix_connect_success"));
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                  path, {path, "16", blocked_stream_sock}, make_policy()),
+              ElementsAre("unix_connect_failed:EACCES"));
+
+  // Per-file AddFile() on a single socket path also allows connecting to that
+  // socket while blocking other sockets in the same directory.
+  auto make_file_policy = [&]() {
+    return CreateDefaultPermissiveTestPolicy(path)
+        .AddFile(path)
+        .EnableLandlock(sandbox2::EnableLandlock())
+        .AddFile(allowed_stream_sock)
+        .BuildOrDie();
+  };
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                  path, {path, "16", allowed_stream_sock}, make_file_policy()),
+              ElementsAre("unix_connect_success"));
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                  path, {path, "17", allowed_dgram_sock}, make_file_policy()),
+              ElementsAre("unix_sendto_failed:EACCES"));
+
+  // Datagram sendto to allowed socket succeeds; blocked socket fails with
+  // EACCES.
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                  path, {path, "17", allowed_dgram_sock}, make_policy()),
+              ElementsAre("unix_sendto_success"));
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                  path, {path, "17", blocked_dgram_sock}, make_policy()),
+              ElementsAre("unix_sendto_failed:EACCES"));
 
   sapi::file_util::fileops::DeleteRecursively(temp_dir);
 }

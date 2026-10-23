@@ -40,14 +40,18 @@
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <signal.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
@@ -258,6 +262,52 @@ int main(int argc, char* argv[]) {
         return -1;
       }
       result.push_back(link);
+      break;
+    }
+    case 16: {
+      int s = socket(AF_UNIX, SOCK_STREAM, 0);
+      if (s < 0) {
+        result.push_back(absl::StrCat("socket_failed:", errno));
+        break;
+      }
+      struct sockaddr_un addr = {};
+      addr.sun_family = AF_UNIX;
+      CHECK_LT(strlen(argv[2]), sizeof(addr.sun_path));
+      strncpy(addr.sun_path, argv[2], sizeof(addr.sun_path) - 1);
+      socklen_t addr_len =
+          offsetof(struct sockaddr_un, sun_path) + strlen(addr.sun_path) + 1;
+      if (connect(s, reinterpret_cast<struct sockaddr*>(&addr), addr_len) ==
+          0) {
+        result.push_back("unix_connect_success");
+      } else {
+        result.push_back(errno == EACCES
+                             ? "unix_connect_failed:EACCES"
+                             : absl::StrCat("unix_connect_failed:", errno));
+      }
+      close(s);
+      break;
+    }
+    case 17: {
+      int s = socket(AF_UNIX, SOCK_DGRAM, 0);
+      if (s < 0) {
+        result.push_back(absl::StrCat("socket_failed:", errno));
+        break;
+      }
+      struct sockaddr_un addr = {};
+      addr.sun_family = AF_UNIX;
+      CHECK_LT(strlen(argv[2]), sizeof(addr.sun_path));
+      strncpy(addr.sun_path, argv[2], sizeof(addr.sun_path) - 1);
+      socklen_t addr_len =
+          offsetof(struct sockaddr_un, sun_path) + strlen(addr.sun_path) + 1;
+      if (sendto(s, "x", 1, 0, reinterpret_cast<struct sockaddr*>(&addr),
+                 addr_len) == 1) {
+        result.push_back("unix_sendto_success");
+      } else {
+        result.push_back(errno == EACCES
+                             ? "unix_sendto_failed:EACCES"
+                             : absl::StrCat("unix_sendto_failed:", errno));
+      }
+      close(s);
       break;
     }
     default:

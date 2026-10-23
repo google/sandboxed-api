@@ -34,6 +34,7 @@
 #include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/namespace.h"
@@ -49,6 +50,10 @@ class PolicyBuilderPeer {
   explicit PolicyBuilderPeer(PolicyBuilder* builder) : builder_{builder} {}
 
   int policy_size() const { return builder_->user_policy_.size(); }
+
+  void SetLandlockAbiVersion(int abi_version) {
+    builder_->landlock_abi_version_for_testing_ = abi_version;
+  }
 
  private:
   PolicyBuilder* builder_;
@@ -376,13 +381,28 @@ TEST(PolicyBuilderTest, EnableLandlockWithUnrestrictedNetworkingSucceeds) {
 }
 
 TEST(PolicyBuilderTest,
-     EnableLandlockWithoutProxyOrUnrestrictedNetworkingRejects) {
+     EnableLandlockWithoutProxyOrUnrestrictedNetworkingRejectsOnAbiV8) {
   PolicyBuilder builder;
+  PolicyBuilderPeer(&builder).SetLandlockAbiVersion(8);
   builder.EnableLandlock(sandbox2::EnableLandlock());
   EXPECT_THAT(builder.TryBuild(),
               StatusIs(absl::StatusCode::kFailedPrecondition,
                        HasSubstr("Cannot use Landlock mode without either "
                                  "UnrestrictedNetworking or a NetworkProxy")));
+}
+
+TEST(PolicyBuilderTest,
+     EnableLandlockWithoutProxyOrUnrestrictedNetworkingSucceedsOnAbiV9AndV10) {
+  for (int abi_version : {9, 10}) {
+    PolicyBuilder builder;
+    PolicyBuilderPeer(&builder).SetLandlockAbiVersion(abi_version);
+    builder.EnableLandlock(sandbox2::EnableLandlock());
+    auto policy_result = builder.TryBuild();
+    ASSERT_THAT(policy_result, IsOk());
+    auto policy = std::move(*policy_result);
+    ASSERT_TRUE(policy->GetNamespace().has_value());
+    EXPECT_TRUE(policy->GetNamespace()->use_landlock());
+  }
 }
 
 TEST(PolicyBuilderTest, EnableLandlockWithUnixSocketAndNetworkProxySucceeds) {
@@ -394,13 +414,39 @@ TEST(PolicyBuilderTest, EnableLandlockWithUnixSocketAndNetworkProxySucceeds) {
 }
 
 TEST(PolicyBuilderTest,
-     EnableLandlockWithNetworkProxyWithoutUnixSocketFilteringFails) {
+     EnableLandlockWithNetworkProxyWithoutUnixSocketFilteringFailsOnAbiV8) {
   PolicyBuilder builder;
+  PolicyBuilderPeer(&builder).SetLandlockAbiVersion(8);
   builder.EnableLandlock(sandbox2::EnableLandlock())
       .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/false);
   EXPECT_THAT(builder.TryBuild(),
               StatusIs(absl::StatusCode::kFailedPrecondition,
                        HasSubstr("UNIX socket filtering enabled")));
+}
+
+TEST(PolicyBuilderTest,
+     EnableLandlockNetworkProxyWithoutUnixFilterSucceedsOnAbiV9AndV10) {
+  for (int abi_version : {9, 10}) {
+    PolicyBuilder builder;
+    PolicyBuilderPeer(&builder).SetLandlockAbiVersion(abi_version);
+    builder.EnableLandlock(sandbox2::EnableLandlock())
+        .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/false);
+    EXPECT_THAT(builder.TryBuild(), IsOk());
+  }
+}
+
+TEST(PolicyBuilderTest, EnableLandlockDefaultMatchesHostKernelAbi) {
+  PolicyBuilder builder;
+  builder.EnableLandlock(sandbox2::EnableLandlock());
+  if (GetLandlockAbiVersion() >= 9) {
+    EXPECT_THAT(builder.TryBuild(), IsOk());
+  } else {
+    EXPECT_THAT(
+        builder.TryBuild(),
+        StatusIs(absl::StatusCode::kFailedPrecondition,
+                 HasSubstr("Cannot use Landlock mode without either "
+                           "UnrestrictedNetworking or a NetworkProxy")));
+  }
 }
 
 TEST(PolicyBuilderTest, ConflictingTmpFsMount) {

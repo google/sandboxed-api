@@ -66,12 +66,6 @@
 #define LANDLOCK_ACCESS_FS_TRUNCATE (1ULL << 14)
 #endif
 
-// Define ABI v4+ Net flags
-#ifndef LANDLOCK_ACCESS_NET_BIND_TCP
-#define LANDLOCK_ACCESS_NET_BIND_TCP (1ULL << 0)
-#define LANDLOCK_ACCESS_NET_CONNECT_TCP (1ULL << 1)
-#endif
-
 // Define ABI v5+ FS flags
 #ifndef LANDLOCK_ACCESS_FS_IOCTL_DEV
 #define LANDLOCK_ACCESS_FS_IOCTL_DEV (1ULL << 15)
@@ -81,6 +75,16 @@
 #ifndef LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET
 #define LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET (1ULL << 0)
 #define LANDLOCK_SCOPE_SIGNAL (1ULL << 1)
+#endif
+
+// Define ABI v8+ restrict_self flags
+#ifndef LANDLOCK_RESTRICT_SELF_TSYNC
+#define LANDLOCK_RESTRICT_SELF_TSYNC (1U << 3)
+#endif
+
+// Define ABI v9+ FS flags
+#ifndef LANDLOCK_ACCESS_FS_RESOLVE_UNIX
+#define LANDLOCK_ACCESS_FS_RESOLVE_UNIX (1ULL << 16)
 #endif
 
 struct landlock_ruleset_attr_v6 {
@@ -139,7 +143,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
                          const std::string& path,
                          const std::string& rw_ancestor,
                          const std::string& ro_ancestor,
-                         bool allow_write_executable) {
+                         bool allow_write_executable, int abi_version) {
   const bool writable = IsWritableNode(tree, path);
   const bool is_dir = IsDirNode(tree);
 
@@ -156,7 +160,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
     std::string next_path = JoinPath(path, entry.first);
     AddRulesRecursively(ruleset_fd, &entry.second, next_path,
                         farthest_rw_ancestor, farthest_ro_ancestor,
-                        allow_write_executable);
+                        allow_write_executable, abi_version);
   }
 
   if (!tree->has_node() || tree->node().has_root_node()) {
@@ -196,6 +200,14 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
       .allowed_access = LANDLOCK_ACCESS_FS_READ_FILE,
       .parent_fd = fd.get(),
   };
+  if (abi_version >= 9) {
+    // Grant pathname AF_UNIX socket resolution on all mounted directories and
+    // files to match mount-namespace semantics. Callers mounting broad shared
+    // directories (e.g., /tmp) that require per-socket filtering can still
+    // configure AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true) with
+    // AllowUnixSocket().
+    path_beneath.allowed_access |= LANDLOCK_ACCESS_FS_RESOLVE_UNIX;
+  }
   if (!writable || allow_write_executable) {
     path_beneath.allowed_access |= LANDLOCK_ACCESS_FS_EXECUTE;
   }
@@ -229,6 +241,11 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
 }  // namespace
 
 void EnforceLandlock(const Mounts& mounts) {
+  const int abi_version = GetLandlockAbiVersion();
+  SAPI_RAW_PCHECK(abi_version >= 6,
+                  "Landlock ABI v6+ is required (detected ABI v%d)",
+                  abi_version);
+
   struct landlock_ruleset_attr_v6 ruleset_attr = {
       .handled_access_fs =
           LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_WRITE_FILE |
@@ -239,26 +256,33 @@ void EnforceLandlock(const Mounts& mounts) {
           LANDLOCK_ACCESS_FS_MAKE_FIFO | LANDLOCK_ACCESS_FS_MAKE_BLOCK |
           LANDLOCK_ACCESS_FS_MAKE_SYM | LANDLOCK_ACCESS_FS_REFER |
           LANDLOCK_ACCESS_FS_TRUNCATE | LANDLOCK_ACCESS_FS_IOCTL_DEV,
-      .handled_access_net =
-          LANDLOCK_ACCESS_NET_BIND_TCP | LANDLOCK_ACCESS_NET_CONNECT_TCP,
       .handled_scoped =
           LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET | LANDLOCK_SCOPE_SIGNAL,
   };
+  if (abi_version >= 9) {
+    ruleset_attr.handled_access_fs |= LANDLOCK_ACCESS_FS_RESOLVE_UNIX;
+  }
 
   FDCloser ruleset_fd(sandbox2::util::Syscall(
       __NR_landlock_create_ruleset, reinterpret_cast<uintptr_t>(&ruleset_attr),
       sizeof(ruleset_attr), 0));
-  SAPI_RAW_PCHECK(ruleset_fd.get() >= 0, "landlock_create_ruleset v6 failed");
+  SAPI_RAW_PCHECK(ruleset_fd.get() >= 0, "landlock_create_ruleset failed");
 
   auto mount_tree = mounts.GetMountTree();
   AddRulesRecursively(ruleset_fd.get(), &mount_tree, "/", "", "",
-                      mounts.GetMountSpecs().allow_write_executable());
+                      mounts.GetMountSpecs().allow_write_executable(),
+                      abi_version);
 
   SAPI_RAW_PCHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
                   "prctl PR_SET_NO_NEW_PRIVS failed");
-  SAPI_RAW_PCHECK(sandbox2::util::Syscall(__NR_landlock_restrict_self,
-                                          ruleset_fd.get(), 0) == 0,
-                  "landlock_restrict_self failed");
+  uint32_t restrict_flags = 0;
+  if (abi_version >= 8) {
+    restrict_flags |= LANDLOCK_RESTRICT_SELF_TSYNC;
+  }
+  SAPI_RAW_PCHECK(
+      sandbox2::util::Syscall(__NR_landlock_restrict_self, ruleset_fd.get(),
+                              restrict_flags) == 0,
+      "landlock_restrict_self failed");
 }
 
 int GetLandlockAbiVersion() {
