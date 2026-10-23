@@ -150,6 +150,41 @@ TEST(NamespaceTest, ReadOnlyIsRespected) {
   }
 }
 
+TEST(NamespaceTest, ReadOnlyDirectoryAppliesToSubmounts) {
+  // Directories are bind mounted recursively, so mounts below /dev (e.g. the
+  // world-writable /dev/shm) become visible below /ro_dev. They must be
+  // read-only as well.
+  const std::string path = GetTestcaseBinPath("namespace");
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultPermissiveTestPolicy(path)
+                                             .AddDirectory("/proc")
+                                             .AddDirectoryAt("/dev", "/ro_dev")
+                                             .TryBuild());
+  std::vector<std::string> result = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "10", "/proc/self/mountinfo"}, std::move(policy));
+  ASSERT_THAT(result, SizeIs(1));
+
+  int num_submounts = 0;
+  for (absl::string_view line :
+       absl::StrSplit(result[0], '\n', absl::SkipEmpty())) {
+    std::vector<absl::string_view> fields =
+        absl::StrSplit(line, ' ', absl::SkipEmpty());
+    ASSERT_THAT(fields, SizeIs(Gt(5)));
+    const absl::string_view mount_point = fields[4];
+    if (mount_point != "/ro_dev" &&
+        !absl::StartsWith(mount_point, "/ro_dev/")) {
+      continue;
+    }
+    if (mount_point != "/ro_dev") {
+      ++num_submounts;
+    }
+    std::vector<absl::string_view> options = absl::StrSplit(fields[5], ',');
+    EXPECT_THAT(options, Contains("ro")) << line;
+  }
+  if (num_submounts == 0) {
+    GTEST_SKIP() << "/dev has no submounts on this host";
+  }
+}
+
 TEST(NamespaceTest, UserNamespaceWorks) {
   const std::string path = GetTestcaseBinPath("namespace");
 
