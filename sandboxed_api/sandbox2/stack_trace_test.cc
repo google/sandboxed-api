@@ -299,10 +299,12 @@ TEST_P(StackTraceStandaloneTest,
       !sandbox2::IsLandlockSupported()) {
     GTEST_SKIP() << "Landlock not supported on this kernel";
   }
-  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
-    builder->AddDirectory("/proc");
-    ModifyPolicyForMode(GetParam(), builder);
-  });
+  SymbolizationWorksWithModifiedPolicy(
+      [](PolicyBuilder* builder) {
+        builder->AddDirectory("/proc");
+        ModifyPolicyForMode(GetParam(), builder);
+      },
+      /*use_unotify=*/GetParam() == IsolationMode::kUnotifyWithNamespaces);
 }
 
 TEST_P(StackTraceStandaloneTest,
@@ -311,10 +313,12 @@ TEST_P(StackTraceStandaloneTest,
       !sandbox2::IsLandlockSupported()) {
     GTEST_SKIP() << "Landlock not supported on this kernel";
   }
-  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
-    builder->AddFile("/proc/sys/vm/overcommit_memory");
-    ModifyPolicyForMode(GetParam(), builder);
-  });
+  SymbolizationWorksWithModifiedPolicy(
+      [](PolicyBuilder* builder) {
+        builder->AddFile("/proc/sys/vm/overcommit_memory");
+        ModifyPolicyForMode(GetParam(), builder);
+      },
+      /*use_unotify=*/GetParam() == IsolationMode::kUnotifyWithNamespaces);
 }
 
 TEST_P(StackTraceStandaloneTest,
@@ -323,10 +327,12 @@ TEST_P(StackTraceStandaloneTest,
       !sandbox2::IsLandlockSupported()) {
     GTEST_SKIP() << "Landlock not supported on this kernel";
   }
-  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
-    builder->AddDirectory("/sys");
-    ModifyPolicyForMode(GetParam(), builder);
-  });
+  SymbolizationWorksWithModifiedPolicy(
+      [](PolicyBuilder* builder) {
+        builder->AddDirectory("/sys");
+        ModifyPolicyForMode(GetParam(), builder);
+      },
+      /*use_unotify=*/GetParam() == IsolationMode::kUnotifyWithNamespaces);
 }
 
 TEST_P(StackTraceStandaloneTest,
@@ -335,10 +341,12 @@ TEST_P(StackTraceStandaloneTest,
       !sandbox2::IsLandlockSupported()) {
     GTEST_SKIP() << "Landlock not supported on this kernel";
   }
-  SymbolizationWorksWithModifiedPolicy([](PolicyBuilder* builder) {
-    builder->AddFile("/sys/devices/system/cpu/online");
-    ModifyPolicyForMode(GetParam(), builder);
-  });
+  SymbolizationWorksWithModifiedPolicy(
+      [](PolicyBuilder* builder) {
+        builder->AddFile("/sys/devices/system/cpu/online");
+        ModifyPolicyForMode(GetParam(), builder);
+      },
+      /*use_unotify=*/GetParam() == IsolationMode::kUnotifyWithNamespaces);
 }
 
 size_t FileCountInDirectory(const std::string& path) {
@@ -419,14 +427,16 @@ TEST_P(StackTraceStandaloneTest, CollectsAllThreadsStackTrace) {
     GTEST_SKIP() << "Landlock not supported on this kernel";
   }
   SAPI_ASSERT_OK_AND_ASSIGN(
-      Result result, SymbolizationCommon(TestCase{
-                         .testno = 6,
-                         .modify_policy =
-                             [](PolicyBuilder* builder) {
-                               ModifyPolicyForMode(GetParam(), builder);
-                               builder->CollectAllThreadsStacktrace(true);
-                             },
-                     }));
+      Result result,
+      SymbolizationCommon(TestCase{
+          .testno = 6,
+          .modify_policy =
+              [](PolicyBuilder* builder) {
+                ModifyPolicyForMode(GetParam(), builder);
+                builder->CollectAllThreadsStacktrace(true);
+              },
+          .use_unotify = GetParam() == IsolationMode::kUnotifyWithNamespaces,
+      }));
   EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
   EXPECT_THAT(result.thread_stack_traces(), Not(IsEmpty()));
   EXPECT_THAT(result.thread_stack_traces(), SizeIs(Gt(1)));
@@ -466,16 +476,18 @@ TEST_P(StackTraceStandaloneTest, GetStackTraceWithDisabledStackTraces) {
   EXPECT_CALL(log, Log(_, _, StartsWith("Could not obtain stack trace")));
   log.StartCapturingLogs();
   SAPI_ASSERT_OK_AND_ASSIGN(
-      Result result, SymbolizationCommon({
-                         .testno = 2,
-                         .final_status = Result::VIOLATION,
-                         .function_name = "ViolatePolicy",
-                         .full_function_description = "ViolatePolicy(int)",
-                         .modify_policy =
-                             [](PolicyBuilder* builder) {
-                               ModifyPolicyForMode(GetParam(), builder);
-                             },
-                     }));
+      Result result,
+      SymbolizationCommon({
+          .testno = 2,
+          .final_status = Result::VIOLATION,
+          .function_name = "ViolatePolicy",
+          .full_function_description = "ViolatePolicy(int)",
+          .modify_policy =
+              [](PolicyBuilder* builder) {
+                ModifyPolicyForMode(GetParam(), builder);
+              },
+          .use_unotify = GetParam() == IsolationMode::kUnotifyWithNamespaces,
+      }));
   EXPECT_THAT(result.stack_trace(), IsEmpty());
 }
 

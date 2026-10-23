@@ -496,7 +496,9 @@ void UnotifyMonitor::MaybeGetStackTrace(pid_t pid, Result::StatusEnum status) {
   }
   auto stack_trace = GetStackTrace(pid);
   if (!stack_trace.ok()) {
-    LOG(ERROR) << "Getting stack trace: " << stack_trace.status();
+    LOG_IF(ERROR,
+           absl::GetFlag(FLAGS_sandbox2_log_unobtainable_stack_traces_errors))
+        << "Could not obtain stack trace: " << stack_trace.status();
     return;
   }
   result_.set_stack_trace(*stack_trace);
@@ -586,6 +588,7 @@ absl::StatusOr<std::vector<std::string>> UnotifyMonitor::GetStackTrace(
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_FETCH);
     return status;
   }
+  result_.SetRegs(std::make_unique<Regs>(regs));
   return GetAndLogStackTrace(&regs);
 }
 
