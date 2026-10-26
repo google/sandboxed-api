@@ -26,12 +26,15 @@
 
 namespace sapi {
 
+// Library-wide lookup tables passed to the AST-to-IR conversion helpers.
+struct ConversionContext {
+  const absl::flat_hash_map<std::string, RecordAnnotations>& record_annotations;
+};
+
 // Builds a declarative Function IR from a Clang FunctionDecl and its AST
 // annotations.
 absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
-    const clang::FunctionDecl* func_decl,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations);
+    const clang::FunctionDecl* func_decl, const ConversionContext& conv_ctx);
 
 }  // namespace sapi
 

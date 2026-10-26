@@ -138,7 +138,9 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
 
   ABSL_ASSIGN_OR_RETURN(
       ir::Function ir_func,
-      ConvertFunctionToIR(decl, library_ir_.record_annotations));
+      ConvertFunctionToIR(
+          decl, ConversionContext{.record_annotations =
+                                      library_ir_.record_annotations}));
   if (is_sandboxee_thunk) {
     // EmitSandboxeeSrc and EmitHostSrc always emit sandboxee thunks with
     // `extern "C"` linkage, so the IR function name must stay unmangled even if

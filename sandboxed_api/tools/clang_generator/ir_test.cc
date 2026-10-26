@@ -238,15 +238,16 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
     std::optional<Function> result_func;
     absl::Status conversion_status = absl::NotFoundError(
         absl::StrCat("Target function '", target_name, "' not found"));
+    // Outlives the frontend action below, which only holds a reference.
+    const ConversionContext conv_ctx{.record_annotations = record_annotations};
 
     class ExtractAction : public clang::ASTFrontendAction {
      public:
       ExtractAction(absl::string_view target_name,
-                    const absl::flat_hash_map<std::string, RecordAnnotations>&
-                        record_annotations,
+                    const ConversionContext& conv_ctx,
                     std::optional<Function>& out_func, absl::Status& out_status)
           : target_name_(target_name),
-            record_annotations_(record_annotations),
+            conv_ctx_(conv_ctx),
             out_func_(out_func),
             out_status_(out_status) {}
 
@@ -256,11 +257,10 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
                          public clang::RecursiveASTVisitor<Consumer> {
          public:
           Consumer(absl::string_view target_name,
-                   const absl::flat_hash_map<std::string, RecordAnnotations>&
-                       record_annotations,
+                   const ConversionContext& conv_ctx,
                    std::optional<Function>& out_func, absl::Status& out_status)
               : target_name_(target_name),
-                record_annotations_(record_annotations),
+                conv_ctx_(conv_ctx),
                 out_func_(out_func),
                 out_status_(out_status) {}
 
@@ -274,7 +274,7 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
                 func_decl->getNameAsString() == "Target" ||
                 func_decl->getNameAsString() == "target") {
               absl::StatusOr<Function> converted =
-                  ConvertFunctionToIR(func_decl, record_annotations_);
+                  ConvertFunctionToIR(func_decl, conv_ctx_);
               if (!converted.ok()) {
                 out_status_ = converted.status();
               } else {
@@ -288,25 +288,23 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
 
          private:
           std::string target_name_;
-          const absl::flat_hash_map<std::string, RecordAnnotations>&
-              record_annotations_;
+          const ConversionContext& conv_ctx_;
           std::optional<Function>& out_func_;
           absl::Status& out_status_;
         };
-        return std::make_unique<Consumer>(target_name_, record_annotations_,
-                                          out_func_, out_status_);
+        return std::make_unique<Consumer>(target_name_, conv_ctx_, out_func_,
+                                          out_status_);
       }
 
      private:
       std::string target_name_;
-      const absl::flat_hash_map<std::string, RecordAnnotations>&
-          record_annotations_;
+      const ConversionContext& conv_ctx_;
       std::optional<Function>& out_func_;
       absl::Status& out_status_;
     };
 
     absl::Status run_status = RunFrontendAction(
-        code, std::make_unique<ExtractAction>(target_name, record_annotations,
+        code, std::make_unique<ExtractAction>(target_name, conv_ctx,
                                               result_func, conversion_status));
     if (!run_status.ok()) return run_status;
     if (!conversion_status.ok()) return conversion_status;

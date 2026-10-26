@@ -52,10 +52,9 @@ namespace {
 
 // Returns true if the type is trivially copyable and wouldn't involve complex
 // lifetimes or aliasing (e.g., struct with pointer fields that are outputs).
-bool IsDeeplyTriviallyCopyableType(
-    const clang::ASTContext& context, clang::QualType type,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations) {
+bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
+                                   clang::QualType type,
+                                   const ConversionContext& conv_ctx) {
   if (type.isNull()) {
     return false;
   }
@@ -72,7 +71,7 @@ bool IsDeeplyTriviallyCopyableType(
   // should add a thunk or customize the copying.
   if (auto* const_array_type = context.getAsConstantArrayType(type)) {
     return IsDeeplyTriviallyCopyableType(
-        context, const_array_type->getElementType(), record_annotations);
+        context, const_array_type->getElementType(), conv_ctx);
   }
 
   if (auto* record_decl = type->getAsRecordDecl(); record_decl != nullptr) {
@@ -82,8 +81,8 @@ bool IsDeeplyTriviallyCopyableType(
     }
 
     const RecordAnnotations* rec_ann = nullptr;
-    auto it = record_annotations.find(record_decl->getName());
-    if (it != record_annotations.end()) {
+    auto it = conv_ctx.record_annotations.find(record_decl->getName());
+    if (it != conv_ctx.record_annotations.end()) {
       rec_ann = &it->second;
     }
 
@@ -104,8 +103,7 @@ bool IsDeeplyTriviallyCopyableType(
         continue;
       }
 
-      if (!IsDeeplyTriviallyCopyableType(context, field->getType(),
-                                         record_annotations)) {
+      if (!IsDeeplyTriviallyCopyableType(context, field->getType(), conv_ctx)) {
         return false;
       }
     }
@@ -128,15 +126,13 @@ bool IsSupportedOutParamNullTerminatedType(clang::QualType type) {
 }
 
 // Returns true if the type is a supported context-bound outparam type.
-bool IsSupportedOutParamContextBoundType(
-    const clang::ASTContext& context, clang::QualType type,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations) {
+bool IsSupportedOutParamContextBoundType(const clang::ASTContext& context,
+                                         clang::QualType type,
+                                         const ConversionContext& conv_ctx) {
   if (!type->isPointerType() || !type->getPointeeType()->isPointerType())
     return false;
   auto pointee_pointee_type = type->getPointeeType()->getPointeeType();
-  return IsDeeplyTriviallyCopyableType(context, pointee_pointee_type,
-                                       record_annotations);
+  return IsDeeplyTriviallyCopyableType(context, pointee_pointee_type, conv_ctx);
 }
 
 bool IsSupportedArgByteSizedByType(clang::QualType type) {
@@ -673,8 +669,7 @@ using ParamSource = std::variant<FunctionParamSource, CallbackParamSource,
 
 absl::StatusOr<ir::Parameter> ConvertParameterToIR(
     absl::string_view name, clang::QualType type, const ParamSource& source,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations) {
+    const ConversionContext& conv_ctx) {
   const bool is_return_value =
       std::holds_alternative<FunctionReturnSource>(source) ||
       std::holds_alternative<CallbackReturnSource>(source);
@@ -731,7 +726,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       const clang::ASTContext& context = fp->decl->getASTContext();
       if (!ann.shallow_struct_sync && ann.struct_sync.empty() &&
           !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
-                                         record_annotations) &&
+                                         conv_ctx) &&
           !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
              std::holds_alternative<SizedByBinding>(ann.size_type)) &&
             IsSupportedArgByteSizedByType(type)) &&
@@ -741,8 +736,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             IsSupportedOutParamNullTerminatedType(type)) &&
           !(ann.context_bound.copy_from_and_bind.has_value() &&
             ann.ptr_dir == PointerDir::kOut &&
-            IsSupportedOutParamContextBoundType(context, type,
-                                                record_annotations))) {
+            IsSupportedOutParamContextBoundType(context, type, conv_ctx))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type", name));
       }
@@ -789,8 +783,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         ABSL_ASSIGN_OR_RETURN(
             ir::Parameter cb_param,
             ConvertParameterToIR(cb_names[i], cb_decls[i]->getType(),
-                                 CallbackParamSource{cb_decls[i]},
-                                 record_annotations));
+                                 CallbackParamSource{cb_decls[i]}, conv_ctx));
         cb.callback_parameters.push_back(std::move(cb_param));
       }
       clang::QualType cb_return_qual_type;
@@ -816,8 +809,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         ABSL_ASSIGN_OR_RETURN(
             ir::Parameter cb_ret_param,
             ConvertParameterToIR("return_val", cb_return_qual_type,
-                                 CallbackReturnSource{ann},
-                                 record_annotations));
+                                 CallbackReturnSource{ann}, conv_ctx));
         cb.return_value =
             std::make_shared<ir::Parameter>(std::move(cb_ret_param));
       }
@@ -925,8 +917,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
     if (type->isPointerType()) {
       if (const auto* record_decl = type->getPointeeType()->getAsRecordDecl();
           record_decl != nullptr) {
-        auto it = record_annotations.find(record_decl->getName());
-        if (it != record_annotations.end()) {
+        auto it = conv_ctx.record_annotations.find(record_decl->getName());
+        if (it != conv_ctx.record_annotations.end()) {
           rec_ann = &it->second;
         }
       }
@@ -1008,9 +1000,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
 }  // namespace
 
 absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
-    const clang::FunctionDecl* func_decl,
-    const absl::flat_hash_map<std::string, RecordAnnotations>&
-        record_annotations) {
+    const clang::FunctionDecl* func_decl, const ConversionContext& conv_ctx) {
   std::string name =
       clang::ASTNameGenerator(func_decl->getASTContext()).getName(func_decl);
   if (name.empty()) {
@@ -1025,10 +1015,10 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
 
   clang::QualType ret_type = func_decl->getReturnType();
   if (!ret_type->isVoidType()) {
-    ABSL_ASSIGN_OR_RETURN(ir_func.return_value,
-                          ConvertParameterToIR("sapi_ret_arg", ret_type,
-                                               FunctionReturnSource{func_decl},
-                                               record_annotations));
+    ABSL_ASSIGN_OR_RETURN(
+        ir_func.return_value,
+        ConvertParameterToIR("sapi_ret_arg", ret_type,
+                             FunctionReturnSource{func_decl}, conv_ctx));
   }
 
   ir_func.parameters.reserve(func_decl->getNumParams());
@@ -1041,7 +1031,7 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
     ABSL_ASSIGN_OR_RETURN(
         ir::Parameter ir_param,
         ConvertParameterToIR(name, param->getType(), FunctionParamSource{param},
-                             record_annotations));
+                             conv_ctx));
     ir_func.parameters.push_back(std::move(ir_param));
   }
 
