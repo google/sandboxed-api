@@ -160,6 +160,50 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
       }
     }
   }
+
+  // Because C syntax has no separate declaration for a callback's return value,
+  // return-buffer annotations (such as `lifetime_outer_call` and
+  // `uninitialized`) are placed on the callback parameter declaration.
+  //
+  // `GetFunctionProtoType` returns non-null only for function pointers and
+  // supported functor types, so it identifies callback parameters.
+  const clang::FunctionProtoType* callback_type =
+      is_param ? ast::GetFunctionProtoType(type) : nullptr;
+  const bool callback_returns_pointer =
+      callback_type != nullptr &&
+      callback_type->getReturnType()->isPointerType();
+  if (std::holds_alternative<OuterCallLifetime>(annotations.lifetime) &&
+      !callback_returns_pointer) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: lifetime_outer_call describes the buffer a callback returns, so "
+        "it is only supported on a callback parameter whose callback returns "
+        "a pointer",
+        name));
+  }
+  if (callback_type != nullptr) {
+    // Reject data-buffer direction annotations (`kIn`, `kOut`, `kInOut`) on a
+    // callback parameter: the callback's own parameters carry their own
+    // direction annotations, and its return buffer uses `lifetime_outer_call`.
+    // Opaque pointer annotations remain valid because they describe the
+    // callback handle itself.
+    if (annotations.ptr_dir == PointerDir::kIn ||
+        annotations.ptr_dir == PointerDir::kOut ||
+        annotations.ptr_dir == PointerDir::kInOut) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "$0: a pointer direction annotation is not supported on a callback "
+          "parameter. Annotate the callback's own parameters, and use "
+          "lifetime_outer_call for a buffer the callback returns",
+          name));
+    }
+    if (callback_returns_pointer &&
+        !std::holds_alternative<OuterCallLifetime>(annotations.lifetime)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "$0: callback returns a pointer, which requires "
+          "lifetime_outer_call to say how long the sandbox may borrow the "
+          "buffer",
+          name));
+    }
+  }
   return absl::OkStatus();
 }
 
@@ -483,6 +527,8 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
       ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       ABSL_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
+    } else if (ann.name == "lifetime_outer_call") {
+      ABSL_RETURN_IF_ERROR(annotations.SetOuterCallLifetime());
     } else if (ann.name == "copy_from_and_bind_out_ptr") {
       if (ann.args.size() != 2) {
         return absl::InvalidArgumentError(

@@ -524,6 +524,11 @@ ir::LifetimePolicy AnnotationsToLifetimePolicy(const Annotations& ann) {
                 .callback_param_name = cb.callback_param_name,
             };
           },
+          // The sandbox borrows the callback-returned buffer for the duration
+          // of the outer call, which maps to `ScopedCall` in the IR.
+          [](const OuterCallLifetime&) -> ir::LifetimePolicy {
+            return ir::lifetime::ScopedCall{};
+          },
       },
       ann.lifetime);
 }
@@ -533,37 +538,18 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
                                       clang::QualType type, Annotations& ann,
                                       bool is_return_value,
                                       bool is_callback_param) {
-  // A pointer direction annotation written on a callback parameter describes
-  // the callback's *return* pointer, since C syntax offers nowhere else to
-  // attach it (see ret_alias_func_pointer in lwbox_callbacks_sandbox.cc). It is
-  // therefore only meaningful when the callback returns something; on a
-  // void-returning callback it cannot describe anything and is a mistake.
-  // Note: GetFunctionProtoType yields a prototype only for function pointers
-  // and for the supported functors, so it doubles as the "is a callback" test.
-  if (ann.ptr_dir.has_value()) {
-    const clang::FunctionProtoType* proto = ast::GetFunctionProtoType(type);
-    if (proto != nullptr && proto->getReturnType()->isVoidType()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "callback argument $0 has a pointer direction annotation but "
-          "returns void; on a callback such an annotation describes the "
-          "return value",
-          name));
-    }
-  }
-
   // Validate that raw buffer pointers have an explicit direction annotation.
   // Function pointers, pointer-to-pointers and callback parameters (which are
   // defaulted just below) are exempted.
   //
-  // Return values are exempted because a direction is never spelled on the
-  // returned pointer itself. On a function return it is only implied by the
-  // lifetime annotation, which ParseAnnotations turns into kOut (see
-  // alias_ptr, alias_callback_return and copy_from_and_bind_out_ptr), and is
-  // absent otherwise. On a callback's return pointer it is written on the
-  // enclosing callback parameter instead (SANDBOX_OUT_PTR on `cb`), which
-  // reaches ConvertParameterToIR as a `CallbackReturnSource`, so `ann` is
-  // empty here. Either way, data coming back out of the sandbox has only one
-  // direction to flow in.
+  // Return values are exempted because they do not take an explicit direction
+  // annotation. For function return values, `ParseAnnotations` sets `kOut` when
+  // a return-lifetime annotation (`alias_ptr`, `alias_callback_return`, or
+  // `copy_from_and_bind_out_ptr`) is present. For callback return values,
+  // `SANDBOX_LIFETIME_OUTER_CALL` is placed on the enclosing callback
+  // parameter and passed to `ConvertParameterToIR` via `CallbackReturnSource`,
+  // so `ann` is empty here. In both cases, returned buffers flow out of the
+  // callee.
   //
   // Functors need no exemption: they are record types, so they never satisfy
   // the isPointerType() check below.
@@ -983,13 +969,13 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   // bounds are `bounds::NullTerminated`.
   if (ir_param.type.is_pointer()) {
     if (const auto* cr = std::get_if<CallbackReturnSource>(&source)) {
-      // Nothing requires the enclosing callback parameter to spell a
-      // direction, so it may be absent. A buffer the callback hands back
-      // travels out of it either way.
+      // A buffer returned by a callback always flows out of the callback
+      // (`kOut`), and its lifetime is specified by
+      // `SANDBOX_LIFETIME_OUTER_CALL` (enforced by `CheckParsedAnnotations`).
       ir_param.payload = ir::BufferParam{
-          .direction =
-              cr->callback_annotations.ptr_dir.value_or(PointerDir::kOut),
+          .direction = PointerDir::kOut,
           .bounds = AnnotationsToBufferBounds(cr->callback_annotations),
+          .lifetime = AnnotationsToLifetimePolicy(cr->callback_annotations),
       };
     } else {
       // `ann.ptr_dir` is absent for function return values, which the

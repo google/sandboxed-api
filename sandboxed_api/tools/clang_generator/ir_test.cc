@@ -436,6 +436,7 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithUninitialized) {
     char* process_data(
         int size,
         [[clang::annotate("sandbox", "uninitialized")]]
+        [[clang::annotate("sandbox", "lifetime_outer_call")]]
         char* (*get_chunk)(int len));
   )",
                                                "process_data"));
@@ -454,8 +455,8 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithUninitialized) {
   ASSERT_TRUE(func.parameters[1].Is<CallbackParam>());
   const CallbackParam* cb = func.parameters[1].As<CallbackParam>();
   EXPECT_TRUE(cb->uninitialized);
-  // Same for the callback's own return value, whose direction would have to
-  // come from the enclosing `get_chunk` parameter.
+  // The callback's return value inherits `uninitialized` from the enclosing
+  // `get_chunk` parameter annotations.
   ASSERT_NE(cb->return_value, nullptr);
   ASSERT_TRUE(cb->return_value->Is<BufferParam>());
   EXPECT_EQ(cb->return_value->As<BufferParam>()->direction, PointerDir::kOut);
@@ -1227,7 +1228,7 @@ TEST_F(IrConvertTest, ValidateAndLinkLibraryIRValid) {
         const unsigned char* data [[clang::annotate("sandbox", "in_ptr")]]
             [[clang::annotate("sandbox", "elem_sized_by", "size")]],
         unsigned long size,
-        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "lifetime_outer_call")]]
         [[clang::annotate("sandbox", "elem_sized_by", "size")]]
         unsigned char* (*cb)(unsigned long size),
         void* bound_void [[clang::annotate("sandbox", "in_ptr")]]

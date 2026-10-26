@@ -54,9 +54,12 @@ struct AliasHostPtrLifetime {
 struct AliasCallbackReturnLifetime {
   std::string callback_param_name;
 };
+// Lifetime for a callback-returned buffer that the sandbox borrows until the
+// enclosing sandboxed function call returns.
+struct OuterCallLifetime {};
 using PointerLifetime =
     std::variant<std::monostate, SandboxGlobalLifetime, AliasHostPtrLifetime,
-                 AliasCallbackReturnLifetime>;
+                 AliasCallbackReturnLifetime, OuterCallLifetime>;
 
 // Metadata for sized-by annotations for pointers to arrays.
 // If a host-owned array is sized by an outparam, the size will be controlled
@@ -217,6 +220,11 @@ struct Annotations {
   absl::Status SetAliasCallbackReturnLifetime(absl::string_view param_name) {
     ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("alias_callback_return"));
     lifetime = AliasCallbackReturnLifetime{std::string(param_name)};
+    return absl::OkStatus();
+  }
+  absl::Status SetOuterCallLifetime() {
+    ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("lifetime_outer_call"));
+    lifetime = OuterCallLifetime{};
     return absl::OkStatus();
   }
 };

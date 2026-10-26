@@ -51,13 +51,14 @@
 //   so syncs from sandbox to host),
 // - For outparams, OUT still denotes data flows out of the function (the
 //   callback, so syncs from host to sandbox)
-// - For returned pointers of the callback, we currently use OUT to mean that
-//   we want to sync data after the *outer function* (the sandbox caller)
-//   returns (so, from sandbox to host). TODO(b/491762076) if we should have a
-//   different annotation for that.
 // If we support callbacks that are sandbox functions and are called by the
 // host, then the directions still mean the same, though could mean
 // sync'ing from host to sandbox instead.
+//
+// These annotations apply to the pointer declaration they are attached to. On
+// a callback, place them on the callback's own pointer parameters. For a
+// pointer returned by a callback, specify its lifetime using
+// SANDBOX_LIFETIME_OUTER_CALL instead.
 #define SANDBOX_IN_PTR [[clang::annotate("sandbox", "in_ptr")]]
 #define SANDBOX_OUT_PTR [[clang::annotate("sandbox", "out_ptr")]]
 #define SANDBOX_INOUT_PTR [[clang::annotate("sandbox", "inout_ptr")]]
@@ -223,6 +224,37 @@
 #define SANDBOX_LIFETIME_GLOBAL \
   [[clang::annotate("sandbox", "lifetime_sandbox_global")]]
 
+// Indicates that the sandbox borrows a callback-returned buffer for the
+// duration of the outer sandboxed function call, and that writes made by the
+// sandbox to that buffer are copied back to the host when the outer call
+// returns.
+//
+// Because the host callback allocates and owns the buffer, the sandbox frees
+// its local copy when the outer call completes. This is the only supported
+// lifetime for callback-returned buffers and must be specified explicitly on
+// every pointer-returning callback.
+//
+// Place this annotation before the callback parameter declaration (since C
+// syntax does not allow attributes directly on a function pointer's return
+// type). Annotations for the callback's own parameters remain on those
+// parameter declarations.
+//
+// For example:
+//
+//   uint8_t* decode(
+//       const uint8_t* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
+//       size_t in_size,
+//       SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(out_size)
+//           uint8_t* (*allocate_output_cb)(size_t out_size));
+//
+// TODO(b/491762076): Support additional callback-return lifetimes (such as
+// buffers retained across calls or freed by the sandbox) when a use case
+// arises. Requiring an explicit lifetime annotation now ensures that adding
+// new lifetime options later does not alter the behavior of existing
+// declarations.
+#define SANDBOX_LIFETIME_OUTER_CALL \
+  [[clang::annotate("sandbox", "lifetime_outer_call")]]
+
 // Indicates that the annotated pointer must alias another pointer (argument
 // of the annotation is the name of the other pointer). An exception to the
 // "must alias" is that we allow null (in case a function returns null to
@@ -301,17 +333,13 @@
 //   uint8_t* Decode(
 //       const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
 //       size_t in_size,
-//       SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(out_size)
+//       SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(out_size)
 //       uint8_t* (*allocate_output_cb)(size_t out_size));
 //
-// Note that the SANDBOX_OUT_PTR for the `allocate_output_cb` return slot
-// indicates that any writes to the returned buffer within the outer function
-// should be synchronized back to the caller of the outer function.
-//
-// TODO(b/491762076): For now, we are assuming the callback return lifetime is
-// sometime like "host owned" and where the sandbox borrows a reference, but
-// then drops the reference at the end of the outer function (thus we can free
-// the sandbox copy at that point).
+// `SANDBOX_LIFETIME_OUTER_CALL` on `allocate_output_cb` specifies the lifetime
+// of the callback-returned buffer, while `SANDBOX_ALIAS_CALLBACK_RETURN`
+// specifies that `Decode` returns that same buffer rather than a separate
+// allocation. Both annotations are required.
 #define SANDBOX_ALIAS_CALLBACK_RETURN(cb_param_name) \
   [[clang::annotate("sandbox", "alias_callback_return", #cb_param_name)]]
 
