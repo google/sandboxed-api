@@ -39,9 +39,10 @@ namespace callback_internal {
 template <typename T>
 T CastArg(uint64_t val) {
   using DecayedT = std::decay_t<T>;
-  static_assert(std::is_integral_v<DecayedT> || std::is_pointer_v<DecayedT> ||
+  static_assert(std::is_integral_v<DecayedT> || std::is_enum_v<DecayedT> ||
+                    std::is_pointer_v<DecayedT> ||
                     std::is_same_v<DecayedT, RemotePtr>,
-                "Callback arguments must be integral or pointer types");
+                "Callback arguments must be integral, enum, or pointer types");
   if constexpr (std::is_pointer_v<T>) {
     return reinterpret_cast<T>(val);
   } else {
@@ -52,9 +53,10 @@ T CastArg(uint64_t val) {
 template <typename T>
 uint64_t CastRet(T val) {
   using DecayedT = std::decay_t<T>;
-  static_assert(std::is_integral_v<DecayedT> || std::is_pointer_v<DecayedT> ||
-                    std::is_same_v<DecayedT, RemotePtr>,
-                "Callback return values must be integral or pointer types");
+  static_assert(
+      std::is_integral_v<DecayedT> || std::is_enum_v<DecayedT> ||
+          std::is_pointer_v<DecayedT> || std::is_same_v<DecayedT, RemotePtr>,
+      "Callback return values must be integral, enum, or pointer types");
   if constexpr (std::is_pointer_v<T>) {
     return reinterpret_cast<uint64_t>(val);
   } else {

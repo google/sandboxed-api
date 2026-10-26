@@ -622,6 +622,70 @@ struct CallbackReturnSource {
 using ParamSource = std::variant<FunctionParamSource, CallbackParamSource,
                                  FunctionReturnSource, CallbackReturnSource>;
 
+// Maximum number of parameters a callback trampoline saves. x86-64 passes six
+// arguments in integer registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`) and
+// AArch64 passes eight, so generated headers must satisfy both ABIs.
+constexpr size_t kMaxCallbackParams = 6;
+
+// Returns true if both supported ABIs pass a value of `type` in a single
+// 64-bit general-purpose argument register.
+bool FitsInOneArgumentRegister(const clang::ASTContext& ast_ctx,
+                               clang::QualType type) {
+  if (!type->isIntegralOrEnumerationType() && !type->isPointerType()) {
+    return false;
+  }
+  // Excludes 128-bit integer types (`__int128`), which occupy a register pair.
+  return ast_ctx.getTypeSize(type) <= 64;
+}
+
+// Verifies that `proto` can be invoked through the fixed callback trampolines
+// in `trampolines.S`.
+//
+// Each trampoline saves only the general-purpose integer argument registers,
+// passes them to the handler as an array of `uint64_t`, and returns the handler
+// result in a single integer return register. Arguments or return values passed
+// in floating-point registers, across multiple registers, or on the stack are
+// not saved by the trampoline and must be rejected at code generation time.
+absl::Status CheckCallbackSignatureIsCallable(
+    absl::string_view name, const clang::ASTContext& ast_ctx,
+    const clang::FunctionProtoType& proto) {
+  if (proto.isVariadic()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 is variadic. The sandboxee reaches a callback through a "
+        "trampoline that saves a fixed set of argument registers, so it "
+        "cannot pass a variable number of arguments",
+        name));
+  }
+  if (proto.getNumParams() > kMaxCallbackParams) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 takes $1 parameters. The trampoline the sandboxee "
+        "reaches it through saves $2 argument registers, so any further "
+        "parameter would never arrive",
+        name, proto.getNumParams(), kMaxCallbackParams));
+  }
+  for (unsigned i = 0; i < proto.getNumParams(); ++i) {
+    clang::QualType param_type = proto.getParamType(i);
+    if (!FitsInOneArgumentRegister(ast_ctx, param_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 parameter $1 has type '$2'. The trampoline the "
+          "sandboxee reaches it through passes each argument in one integer "
+          "register, so a floating point, by-value struct or 128-bit "
+          "parameter never arrives",
+          name, i + 1, param_type.getAsString()));
+    }
+  }
+  clang::QualType return_type = proto.getReturnType();
+  if (!return_type->isVoidType() &&
+      !FitsInOneArgumentRegister(ast_ctx, return_type)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 returns '$1'. The trampoline the sandboxee reaches it "
+        "through returns one integer register, so a floating point, by-value "
+        "struct or 128-bit result never arrives",
+        name, return_type.getAsString()));
+  }
+  return absl::OkStatus();
+}
+
 // Looks up the `CallbackTypedef` for any callback `typedef` referenced by
 // `type`, or returns `nullptr` if `type` is an inline callback or references a
 // typedef from an unannotated header.
@@ -771,6 +835,16 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         },
         source);
     if (param != nullptr) {
+      // Check ABI compatibility before resolving annotations or typedefs.
+      // Callbacks without a function prototype (`FunctionNoProtoType`) are
+      // rejected below by `ExtractCallbackParams`.
+      if (const clang::FunctionProtoType* proto =
+              ast::GetFunctionProtoType(type);
+          proto != nullptr) {
+        ABSL_RETURN_IF_ERROR(CheckCallbackSignatureIsCallable(
+            name, param->getASTContext(), *proto));
+      }
+
       // Resolve any referenced callback `typedef` first so all callback-return
       // and callback-parameter annotations below come from a single source.
       const CallbackTypedef* cb_typedef =
