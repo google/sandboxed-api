@@ -167,10 +167,24 @@ enum class AnnotationSite {
   kCallbackTypedefReturn,
 };
 
+// `GetFunctionProtoType` returns non-null only for function pointers and
+// supported functor types, so it identifies callback parameters.
+bool IsCallback(bool is_param, clang::QualType type) {
+  return is_param && ast::GetFunctionProtoType(type) != nullptr;
+}
+
 // Returns the name of the first annotation in `annotations` that is not
 // supported on a callback pointer itself, or `std::nullopt` if none is present.
 std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
     const Annotations& annotations) {
+  // Data-buffer direction annotations (`kIn`, `kOut`, `kInOut`) are invalid on
+  // the callback parameter itself; opaque pointer annotations remain valid
+  // because they describe the callback handle.
+  if (annotations.ptr_dir == PointerDir::kIn ||
+      annotations.ptr_dir == PointerDir::kOut ||
+      annotations.ptr_dir == PointerDir::kInOut) {
+    return "pointer_direction";
+  }
   if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
     return "size";
   }
@@ -199,58 +213,43 @@ std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
   return std::nullopt;
 }
 
-// Validates annotations on a callback parameter declaration.
+// Validates annotations on a callback parameter declaration. Prefix annotations
+// on a callback parameter apply to the function pointer itself; annotations for
+// the callback's parameters or return value must be placed on the callback's
+// parameter declarations or on a callback `typedef`.
 absl::Status CheckCallbackPointerAnnotations(
     absl::string_view name, const Annotations& annotations,
     const clang::FunctionProtoType& callback_type,
     const clang::TypedefNameDecl* callback_typedef) {
-  // Reject data-buffer direction annotations (`kIn`, `kOut`, `kInOut`) on a
-  // callback parameter: the callback's own parameters carry their own direction
-  // annotations, and its return buffer uses `lifetime_outer_call`. Opaque
-  // pointer annotations remain valid because they describe the callback handle
-  // itself.
-  if (annotations.ptr_dir == PointerDir::kIn ||
-      annotations.ptr_dir == PointerDir::kOut ||
-      annotations.ptr_dir == PointerDir::kInOut) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "$0: a pointer direction annotation is not supported on a callback "
-        "parameter. Annotate the callback's own parameters, and use "
-        "lifetime_outer_call for a buffer the callback returns",
-        name));
-  }
-  // When a callback parameter uses a callback typedef, the typedef is the sole
-  // source of annotations for the callback's parameters and return value;
-  // reject additional inline callback annotations at the use site.
-  if (callback_typedef != nullptr) {
-    if (std::optional<absl::string_view> unsupported =
-            FindUnsupportedCallbackAnnotation(annotations);
-        unsupported.has_value()) {
+  if (std::optional<absl::string_view> unsupported =
+          FindUnsupportedCallbackAnnotation(annotations);
+      unsupported.has_value()) {
+    if (callback_typedef != nullptr) {
       return absl::InvalidArgumentError(absl::Substitute(
           "$0: $2 cannot be placed on a callback parameter that uses "
           "callback typedef $1; move the annotation to the typedef",
           name, callback_typedef->getNameAsString(), *unsupported));
     }
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: $1 cannot be placed on a callback parameter. Place parameter "
+        "annotations on the callback's parameters, or create a callback "
+        "typedef and move return annotations to the typedef",
+        name, *unsupported));
   }
   // When a callback typedef is used, `lifetime_outer_call` is specified on the
   // typedef instead of on the callback parameter.
   if (callback_type.getReturnType()->isPointerType() &&
-      callback_typedef == nullptr &&
-      !std::holds_alternative<OuterCallLifetime>(annotations.lifetime)) {
+      callback_typedef == nullptr) {
     return absl::InvalidArgumentError(absl::Substitute(
-        "$0: callback returns a pointer, which requires lifetime_outer_call to "
-        "say how long the sandbox may borrow the buffer",
+        "$0: callback returns a pointer; create a callback typedef and "
+        "annotate its return type",
         name));
   }
   return absl::OkStatus();
 }
 
-absl::Status CheckParsedAnnotations(absl::string_view name,
-                                    const Annotations& annotations,
-                                    AnnotationSite site, clang::QualType type) {
-  const clang::TypedefNameDecl* callback_typedef =
-      site == AnnotationSite::kParameter ? FindCallbackTypedef(type) : nullptr;
-  type = type.getCanonicalType();
-  const bool is_param = site == AnnotationSite::kParameter;
+absl::Status CheckContextBoundAnnotations(absl::string_view name,
+                                          const Annotations& annotations) {
   if (annotations.context_bound.copy_from_and_bind.has_value() &&
       std::holds_alternative<std::monostate>(annotations.size_type)) {
     return absl::InvalidArgumentError(absl::Substitute(
@@ -263,11 +262,17 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
     return absl::InvalidArgumentError(absl::Substitute(
         "$0: retain_and_bind annotation requires a sized_by annotation", name));
   }
+  return absl::OkStatus();
+}
 
+absl::Status CheckStructSyncAnnotations(absl::string_view name,
+                                        const Annotations& annotations,
+                                        clang::QualType type) {
+  const bool is_struct_ptr =
+      clang::isa<clang::PointerType>(type) &&
+      clang::isa<clang::RecordType>(type->getPointeeType().getCanonicalType());
   if (!annotations.struct_sync.empty()) {
-    if (!clang::isa<clang::PointerType>(type) ||
-        !clang::isa<clang::RecordType>(
-            type->getPointeeType().getCanonicalType())) {
+    if (!is_struct_ptr) {
       return absl::InvalidArgumentError(
           absl::Substitute("$0: struct_sync annotation should only be used "
                            "for pointers to structs",
@@ -289,71 +294,68 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
     }
   }
 
-  if (annotations.shallow_struct_sync) {
-    if (!clang::isa<clang::PointerType>(type) ||
-        !clang::isa<clang::RecordType>(
-            type->getPointeeType().getCanonicalType())) {
+  if (annotations.shallow_struct_sync && !is_struct_ptr) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("$0: shallow_struct_sync annotation should only be "
+                         "used for pointers to structs",
+                         name));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status CheckReturnBufferAnnotations(absl::string_view name,
+                                          const Annotations& annotations,
+                                          AnnotationSite site,
+                                          clang::QualType type) {
+  const bool is_param = site == AnnotationSite::kParameter;
+  // `uninitialized` is only valid on a pointer return value (either a function
+  // return value or a callback typedef return value). On a parameter pointer,
+  // `out_ptr` (instead of `inout_ptr`) already omits copying initial contents
+  // into the sandbox.
+  if (annotations.uninitialized) {
+    if (is_param) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "$0: uninitialized annotation is not supported on a parameter; an "
+          "out_ptr direction instead of inout_ptr already says that no "
+          "initial values need copying in",
+          name));
+    }
+    if (!type->isPointerType()) {
       return absl::InvalidArgumentError(
-          absl::Substitute("$0: shallow_struct_sync annotation should only be "
-                           "used for pointers to structs",
+          absl::Substitute("$0: uninitialized annotation for return types "
+                           "is only supported for pointer types",
                            name));
     }
   }
 
-  // Uninitialized is only useful for returned pointers, or for
-  // callback parameters that return pointers. Parameter pointers could just use
-  // the pointer direction and omit "IN" to avoid initialization (e.g.,
-  // outparams).
-  if (annotations.uninitialized) {
-    if (!is_param) {
-      if (!type->isPointerType()) {
-        return absl::InvalidArgumentError(
-            absl::Substitute("$0: uninitialized annotation for return types "
-                             "is only supported for pointer types",
-                             name));
-      }
-    } else {
-      const clang::FunctionProtoType* func_proto_type =
-          ast::GetFunctionProtoType(type);
-      if (func_proto_type == nullptr ||
-          !func_proto_type->getReturnType()->isPointerType()) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "$0: uninitialized annotation on param is only supported "
-            "for function pointers or functors that return pointers",
-            name));
-      }
-    }
-  }
-
-  // Because C syntax has no separate declaration for a callback's return value,
-  // return-buffer annotations (such as `lifetime_outer_call` and
-  // `uninitialized`) are placed either on the callback parameter declaration or
-  // on a callback `typedef`.
-  //
-  // `GetFunctionProtoType` returns non-null only for function pointers and
-  // supported functor types, so it identifies callback parameters.
-  const clang::FunctionProtoType* callback_type =
-      is_param ? ast::GetFunctionProtoType(type) : nullptr;
-  const bool callback_returns_pointer =
-      callback_type != nullptr &&
-      callback_type->getReturnType()->isPointerType();
-  // On a callback typedef declaration (`kCallbackTypedefReturn`), return-buffer
-  // annotations are attached directly to the typedef declaration.
+  // `lifetime_outer_call` is valid only on a pointer-returning callback
+  // typedef (`kCallbackTypedefReturn`).
   const bool is_returned_pointer =
       site == AnnotationSite::kCallbackTypedefReturn && type->isPointerType();
   if (std::holds_alternative<OuterCallLifetime>(annotations.lifetime) &&
-      !callback_returns_pointer && !is_returned_pointer) {
+      !is_returned_pointer) {
     return absl::InvalidArgumentError(absl::Substitute(
         "$0: lifetime_outer_call describes the buffer a callback returns, so "
-        "it is only supported on a callback parameter whose callback returns "
-        "a pointer, or on a callback typedef that returns one",
+        "it is only supported on a callback typedef that returns a pointer",
         name));
   }
-  if (callback_type != nullptr) {
-    return CheckCallbackPointerAnnotations(name, annotations, *callback_type,
-                                           callback_typedef);
-  }
   return absl::OkStatus();
+}
+
+absl::Status CheckParsedAnnotations(absl::string_view name,
+                                    const Annotations& annotations,
+                                    AnnotationSite site, clang::QualType type) {
+  const bool is_param = site == AnnotationSite::kParameter;
+  const clang::TypedefNameDecl* callback_typedef =
+      is_param ? FindCallbackTypedef(type) : nullptr;
+  type = type.getCanonicalType();
+  ABSL_RETURN_IF_ERROR(CheckContextBoundAnnotations(name, annotations));
+  ABSL_RETURN_IF_ERROR(CheckStructSyncAnnotations(name, annotations, type));
+  if (IsCallback(is_param, type)) {
+    return CheckCallbackPointerAnnotations(
+        name, annotations, *ast::GetFunctionProtoType(type), callback_typedef);
+  }
+  return CheckReturnBufferAnnotations(name, annotations, site, type);
 }
 
 absl::Status ParseStructSyncAccessPathAnnotations(

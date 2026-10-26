@@ -719,12 +719,14 @@ TEST_F(IrConvertTest, DuplicateAnnotatedCallbackTypedefIsRejected) {
 TEST_F(IrConvertTest, ASTToFunctionIRConversionWithUninitialized) {
   SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
                             ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "uninitialized")]]
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    typedef char* (*chunk_allocator)(int len);
+
     extern "C" [[clang::annotate("sandbox", "uninitialized")]]
     char* process_data(
         int size,
-        [[clang::annotate("sandbox", "uninitialized")]]
-        [[clang::annotate("sandbox", "lifetime_outer_call")]]
-        char* (*get_chunk)(int len));
+        chunk_allocator get_chunk);
   )",
                                                "process_data"));
   EXPECT_EQ(func.name, "process_data");
@@ -742,8 +744,8 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithUninitialized) {
   ASSERT_TRUE(func.parameters[1].Is<CallbackParam>());
   const CallbackParam* cb = func.parameters[1].As<CallbackParam>();
   EXPECT_TRUE(cb->uninitialized);
-  // The callback's return value inherits `uninitialized` from the enclosing
-  // `get_chunk` parameter annotations.
+  // The callback's return value inherits `uninitialized` from its callback
+  // typedef.
   ASSERT_NE(cb->return_value, nullptr);
   ASSERT_TRUE(cb->return_value->Is<BufferParam>());
   EXPECT_EQ(cb->return_value->As<BufferParam>()->direction, PointerDir::kOut);
@@ -1509,15 +1511,17 @@ TEST_F(IrConvertCTest, RejectsPrototypelessCallback) {
 TEST_F(IrConvertTest, ValidateAndLinkLibraryIRValid) {
   SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
                             ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    typedef unsigned char* (*chunk_allocator)(unsigned long size);
+
     extern "C" {
     [[clang::annotate("sandbox", "alias_callback_return", "cb")]]
     unsigned char* process_data(
         const unsigned char* data [[clang::annotate("sandbox", "in_ptr")]]
             [[clang::annotate("sandbox", "elem_sized_by", "size")]],
         unsigned long size,
-        [[clang::annotate("sandbox", "lifetime_outer_call")]]
-        [[clang::annotate("sandbox", "elem_sized_by", "size")]]
-        unsigned char* (*cb)(unsigned long size),
+        chunk_allocator cb,
         void* bound_void [[clang::annotate("sandbox", "in_ptr")]]
             [[clang::annotate("sandbox", "sized_by_binding", "ctx",
                               "len_binding")]]);

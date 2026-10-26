@@ -189,8 +189,9 @@ absl::StatusOr<std::pair<std::string, std::string>> EmitHostAndSandboxeeSrc(
 // Verifies that annotating callbacks via `typedef` declarations (including
 // `host_opaque_ptr` closures, input/output buffers, `lifetime_outer_call`
 // returned buffers, and typedef reuse across multiple library functions)
-// generates the same host and sandboxee code as writing the equivalent
-// annotations inline on each callback parameter.
+// generates the same host and sandboxee code as writing callback parameter
+// annotations inline and using a `typedef` only for the pointer-returning
+// `alloc` callback.
 TEST_F(SandboxedLibraryEmitterTest,
        CallbackTypedefGeneratesSameCodeAsInlineForm) {
   SAPI_ASSERT_OK_AND_ASSIGN(const auto with_typedef, EmitHostAndSandboxeeSrc(R"(
@@ -219,6 +220,10 @@ TEST_F(SandboxedLibraryEmitterTest,
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
   )"));
   SAPI_ASSERT_OK_AND_ASSIGN(const auto inline_form, EmitHostAndSandboxeeSrc(R"(
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    [[clang::annotate("sandbox", "uninitialized")]]
+    typedef unsigned char* (*chunk_alloc_cb)(unsigned long size);
     extern "C"
     [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
     unsigned char* compress_stream(
@@ -229,10 +234,7 @@ TEST_F(SandboxedLibraryEmitterTest,
                 [[clang::annotate("sandbox", "elem_sized_by", "len")]],
             unsigned long len,
             unsigned long* written [[clang::annotate("sandbox", "out_ptr")]]),
-        [[clang::annotate("sandbox", "lifetime_outer_call")]]
-        [[clang::annotate("sandbox", "elem_sized_by", "size")]]
-        [[clang::annotate("sandbox", "uninitialized")]]
-        unsigned char* (*alloc)(unsigned long size),
+        chunk_alloc_cb alloc,
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
 
     extern "C" int decompress_stream(

@@ -234,15 +234,12 @@
 // lifetime for callback-returned buffers and must be specified explicitly on
 // every pointer-returning callback.
 //
-// Place this annotation before the callback parameter declaration or before a
-// callback `typedef` declaration (since C syntax does not allow attributes
-// directly on a function pointer's return type). Annotations for the
-// callback's own parameters remain on those parameter declarations.
+// Place this annotation on the callback `typedef` declaration that describes
+// the callback, where prefix annotations apply to the callback's return value
+// (since C syntax does not allow attributes directly on a function pointer's
+// return type).
 //
-// Using a `typedef` for a function pointer or function type also allows
-// multiple callback parameters with the same semantics (including
-// `std::function` and `absl::AnyInvocable` parameters) to share a single
-// annotated declaration:
+// For example:
 //
 //   SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(out_size)
 //   typedef uint8_t* (*allocate_output_cb)(size_t out_size);
@@ -330,18 +327,20 @@
 // Given this annotation, we do not need to *separately* allocate and manage
 // memory for the output. For example, we do not need to know the size for array
 // outputs, synchronization with SANDBOX_OUT_PTR vs SANDBOX_OPAQUE_PTR, etc..
-// However, the callback return slot must have the appropriate annotations.
+// However, the callback typedef must describe what it returns.
 //
 // For example:
+//
+//   SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(out_size)
+//   typedef uint8_t* (*output_allocator)(size_t out_size);
 //
 //   SANDBOX_ALIAS_CALLBACK_RETURN(allocate_output_cb)
 //   uint8_t* Decode(
 //       const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
 //       size_t in_size,
-//       SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(out_size)
-//       uint8_t* (*allocate_output_cb)(size_t out_size));
+//       output_allocator allocate_output_cb);
 //
-// `SANDBOX_LIFETIME_OUTER_CALL` on `allocate_output_cb` specifies the lifetime
+// `SANDBOX_LIFETIME_OUTER_CALL` in `output_allocator` specifies the lifetime
 // of the callback-returned buffer, while `SANDBOX_ALIAS_CALLBACK_RETURN`
 // specifies that `Decode` returns that same buffer rather than a separate
 // allocation. Both annotations are required.

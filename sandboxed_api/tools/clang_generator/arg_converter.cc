@@ -492,10 +492,10 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
   // annotation. For function return values, `ParseAnnotations` sets `kOut` when
   // a return-lifetime annotation (`alias_ptr`, `alias_callback_return`, or
   // `copy_from_and_bind_out_ptr`) is present. For callback return values,
-  // `SANDBOX_LIFETIME_OUTER_CALL` is placed on the enclosing callback
-  // parameter and passed to `ConvertParameterToIR` via `CallbackReturnSource`,
-  // so `ann` is empty here. In both cases, returned buffers flow out of the
-  // callee.
+  // `SANDBOX_LIFETIME_OUTER_CALL` is specified on the callback's `typedef`
+  // declaration and passed to `ConvertParameterToIR`
+  // via `CallbackReturnSource`, so `ann` is empty here. In both cases, returned
+  // buffers flow out of the callee.
   //
   // Functors need no exemption: they are record types, so they never satisfy
   // the isPointerType() check below.
@@ -775,26 +775,20 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       // and callback-parameter annotations below come from a single source.
       const CallbackTypedef* cb_typedef =
           LookupCallbackTypedef(param->getType(), conv_ctx);
-      if (cb_typedef == nullptr &&
-          FindCallbackTypedef(param->getType()) != nullptr &&
-          param->getType()->getAs<clang::FunctionProtoType>() == nullptr) {
-        // If a callback typedef is used (e.g. `chunk_allocator_cb cb`) and its
-        // return type is a pointer without `lifetime_outer_call` (which can
-        // happen when the typedef was declared in a header and not annotated),
-        // enforce the return-lifetime requirement here.
-        const clang::FunctionProtoType* proto =
-            ast::GetFunctionProtoType(param->getType());
-        if (proto != nullptr && proto->getReturnType()->isPointerType() &&
-            !std::holds_alternative<OuterCallLifetime>(ann.lifetime)) {
-          return absl::InvalidArgumentError(absl::Substitute(
-              "$0: callback returns a pointer, which requires "
-              "lifetime_outer_call to say how long the sandbox may borrow the "
-              "buffer",
-              name));
+      if (cb_typedef == nullptr) {
+        if (const clang::TypedefNameDecl* td =
+                FindCallbackTypedef(param->getType());
+            td != nullptr && !HasSandboxAnnotations(*td)) {
+          ABSL_RETURN_IF_ERROR(ParseCallbackTypedef(*td).status());
         }
       }
-      const Annotations& return_ann =
-          cb_typedef != nullptr ? cb_typedef->return_annotations : ann;
+      // Only a callback `typedef` can specify annotations for a callback's
+      // return value; `CheckParsedAnnotations` rejects pointer-returning
+      // callbacks that do not reference a typedef.
+      const Annotations kNoReturnAnnotations;
+      const Annotations& return_ann = cb_typedef != nullptr
+                                          ? cb_typedef->return_annotations
+                                          : kNoReturnAnnotations;
       cb.uninitialized = return_ann.uninitialized;
 
       std::vector<std::string> cb_names;
@@ -993,8 +987,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   if (ir_param.type.is_pointer()) {
     if (const auto* cr = std::get_if<CallbackReturnSource>(&source)) {
       // A buffer returned by a callback always flows out of the callback
-      // (`kOut`), and its lifetime is specified by
-      // `SANDBOX_LIFETIME_OUTER_CALL` (enforced by `CheckParsedAnnotations`).
+      // (`kOut`), and its lifetime is specified by the callback typedef's
+      // `SANDBOX_LIFETIME_OUTER_CALL` annotation (enforced by
+      // `CheckCallbackTypedefReturnAnnotations`).
       ir_param.payload = ir::BufferParam{
           .direction = PointerDir::kOut,
           .bounds = AnnotationsToBufferBounds(cr->callback_annotations),
