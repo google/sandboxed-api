@@ -27,6 +27,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
@@ -36,11 +37,83 @@
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
 namespace sapi {
+
+const clang::FunctionProtoType* GetCallbackTypedefProto(
+    const clang::TypedefNameDecl& decl) {
+  clang::QualType underlying = decl.getUnderlyingType();
+  if (const auto* proto = ast::GetFunctionProtoType(underlying)) {
+    return proto;
+  }
+  return underlying->getAs<clang::FunctionProtoType>();
+}
+
+const clang::TypedefNameDecl* FindCallbackTypedef(clang::QualType type) {
+  if (ast::GetFunctionProtoType(type) == nullptr) {
+    return nullptr;
+  }
+  while (!type.isNull()) {
+    if (const auto* td_type = type->getAs<clang::TypedefType>()) {
+      const clang::TypedefNameDecl* decl =
+          td_type->getDecl()->getMostRecentDecl();
+      if (GetCallbackTypedefProto(*decl) != nullptr) {
+        return decl;
+      }
+      type = decl->getUnderlyingType();
+      continue;
+    }
+    if (const auto* ref_type = type->getAs<clang::ReferenceType>()) {
+      type = ref_type->getPointeeType();
+      continue;
+    }
+    if (const auto* ptr_type = type->getAs<clang::PointerType>()) {
+      type = ptr_type->getPointeeType();
+      continue;
+    }
+    if (const auto* tst = type->getAs<clang::TemplateSpecializationType>()) {
+      if (!tst->template_arguments().empty() &&
+          tst->template_arguments()[0].getKind() ==
+              clang::TemplateArgument::Type) {
+        type = tst->template_arguments()[0].getAsType();
+        continue;
+      }
+    }
+    break;
+  }
+  return nullptr;
+}
+
+bool HasSandboxAnnotations(const clang::TypedefNameDecl& decl) {
+  auto has_sandbox_attr = [](const clang::Decl* d) {
+    for (const auto* attr : d->attrs()) {
+      const auto* ann = llvm::dyn_cast<clang::AnnotateAttr>(attr);
+      if (ann != nullptr && ann->getAnnotation() == "sandbox") {
+        return true;
+      }
+    }
+    return false;
+  };
+  if (has_sandbox_attr(&decl)) {
+    return true;
+  }
+  std::optional<clang::FunctionProtoTypeLoc> ftl =
+      ast::GetFunctionProtoTypeLoc(decl.getTypeSourceInfo());
+  if (!ftl.has_value()) {
+    return false;
+  }
+  for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
+    const clang::ParmVarDecl* param = ftl->getParam(i);
+    if (param != nullptr && has_sandbox_attr(param)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 absl::StatusOr<std::vector<SandboxAnnotation>> GetSandboxAnnotations(
     const clang::Decl* decl) {
@@ -84,9 +157,100 @@ std::string StripQuotes(absl::string_view str) {
   return std::string(str);
 }
 
+// Identifies the declaration kind where an annotation is attached.
+// `kCallbackTypedefReturn` represents the return value of a callback `typedef`
+// declaration, which accepts callback-return annotations such as
+// `lifetime_outer_call`.
+enum class AnnotationSite {
+  kFunctionReturn,
+  kParameter,
+  kCallbackTypedefReturn,
+};
+
+// Returns the name of the first annotation in `annotations` that is not
+// supported on a callback pointer itself, or `std::nullopt` if none is present.
+std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
+    const Annotations& annotations) {
+  if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
+    return "size";
+  }
+  if (annotations.uninitialized) {
+    return "uninitialized";
+  }
+  if (std::holds_alternative<OuterCallLifetime>(annotations.lifetime)) {
+    return "lifetime_outer_call";
+  }
+  if (std::holds_alternative<SandboxGlobalLifetime>(annotations.lifetime)) {
+    return "lifetime_sandbox_global";
+  }
+  if (std::holds_alternative<AliasHostPtrLifetime>(annotations.lifetime)) {
+    return "alias_ptr";
+  }
+  if (std::holds_alternative<AliasCallbackReturnLifetime>(
+          annotations.lifetime)) {
+    return "alias_callback_return";
+  }
+  if (!annotations.context_bound.bind_data.empty()) {
+    return "bind_data";
+  }
+  if (annotations.context_bound.clear_bindings) {
+    return "clear_bindings";
+  }
+  return std::nullopt;
+}
+
+// Validates annotations on a callback parameter declaration.
+absl::Status CheckCallbackPointerAnnotations(
+    absl::string_view name, const Annotations& annotations,
+    const clang::FunctionProtoType& callback_type,
+    const clang::TypedefNameDecl* callback_typedef) {
+  // Reject data-buffer direction annotations (`kIn`, `kOut`, `kInOut`) on a
+  // callback parameter: the callback's own parameters carry their own direction
+  // annotations, and its return buffer uses `lifetime_outer_call`. Opaque
+  // pointer annotations remain valid because they describe the callback handle
+  // itself.
+  if (annotations.ptr_dir == PointerDir::kIn ||
+      annotations.ptr_dir == PointerDir::kOut ||
+      annotations.ptr_dir == PointerDir::kInOut) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: a pointer direction annotation is not supported on a callback "
+        "parameter. Annotate the callback's own parameters, and use "
+        "lifetime_outer_call for a buffer the callback returns",
+        name));
+  }
+  // When a callback parameter uses a callback typedef, the typedef is the sole
+  // source of annotations for the callback's parameters and return value;
+  // reject additional inline callback annotations at the use site.
+  if (callback_typedef != nullptr) {
+    if (std::optional<absl::string_view> unsupported =
+            FindUnsupportedCallbackAnnotation(annotations);
+        unsupported.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "$0: $2 cannot be placed on a callback parameter that uses "
+          "callback typedef $1; move the annotation to the typedef",
+          name, callback_typedef->getNameAsString(), *unsupported));
+    }
+  }
+  // When a callback typedef is used, `lifetime_outer_call` is specified on the
+  // typedef instead of on the callback parameter.
+  if (callback_type.getReturnType()->isPointerType() &&
+      callback_typedef == nullptr &&
+      !std::holds_alternative<OuterCallLifetime>(annotations.lifetime)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: callback returns a pointer, which requires lifetime_outer_call to "
+        "say how long the sandbox may borrow the buffer",
+        name));
+  }
+  return absl::OkStatus();
+}
+
 absl::Status CheckParsedAnnotations(absl::string_view name,
                                     const Annotations& annotations,
-                                    bool is_param, clang::QualType type) {
+                                    AnnotationSite site, clang::QualType type) {
+  const clang::TypedefNameDecl* callback_typedef =
+      site == AnnotationSite::kParameter ? FindCallbackTypedef(type) : nullptr;
+  type = type.getCanonicalType();
+  const bool is_param = site == AnnotationSite::kParameter;
   if (annotations.context_bound.copy_from_and_bind.has_value() &&
       std::holds_alternative<std::monostate>(annotations.size_type)) {
     return absl::InvalidArgumentError(absl::Substitute(
@@ -163,7 +327,8 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
 
   // Because C syntax has no separate declaration for a callback's return value,
   // return-buffer annotations (such as `lifetime_outer_call` and
-  // `uninitialized`) are placed on the callback parameter declaration.
+  // `uninitialized`) are placed either on the callback parameter declaration or
+  // on a callback `typedef`.
   //
   // `GetFunctionProtoType` returns non-null only for function pointers and
   // supported functor types, so it identifies callback parameters.
@@ -172,37 +337,21 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
   const bool callback_returns_pointer =
       callback_type != nullptr &&
       callback_type->getReturnType()->isPointerType();
+  // On a callback typedef declaration (`kCallbackTypedefReturn`), return-buffer
+  // annotations are attached directly to the typedef declaration.
+  const bool is_returned_pointer =
+      site == AnnotationSite::kCallbackTypedefReturn && type->isPointerType();
   if (std::holds_alternative<OuterCallLifetime>(annotations.lifetime) &&
-      !callback_returns_pointer) {
+      !callback_returns_pointer && !is_returned_pointer) {
     return absl::InvalidArgumentError(absl::Substitute(
         "$0: lifetime_outer_call describes the buffer a callback returns, so "
         "it is only supported on a callback parameter whose callback returns "
-        "a pointer",
+        "a pointer, or on a callback typedef that returns one",
         name));
   }
   if (callback_type != nullptr) {
-    // Reject data-buffer direction annotations (`kIn`, `kOut`, `kInOut`) on a
-    // callback parameter: the callback's own parameters carry their own
-    // direction annotations, and its return buffer uses `lifetime_outer_call`.
-    // Opaque pointer annotations remain valid because they describe the
-    // callback handle itself.
-    if (annotations.ptr_dir == PointerDir::kIn ||
-        annotations.ptr_dir == PointerDir::kOut ||
-        annotations.ptr_dir == PointerDir::kInOut) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "$0: a pointer direction annotation is not supported on a callback "
-          "parameter. Annotate the callback's own parameters, and use "
-          "lifetime_outer_call for a buffer the callback returns",
-          name));
-    }
-    if (callback_returns_pointer &&
-        !std::holds_alternative<OuterCallLifetime>(annotations.lifetime)) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "$0: callback returns a pointer, which requires "
-          "lifetime_outer_call to say how long the sandbox may borrow the "
-          "buffer",
-          name));
-    }
+    return CheckCallbackPointerAnnotations(name, annotations, *callback_type,
+                                           callback_typedef);
   }
   return absl::OkStatus();
 }
@@ -309,13 +458,15 @@ absl::Status ParseStructSyncAccessPathAnnotations(
   return absl::OkStatus();
 }
 
-}  // namespace
-
-absl::StatusOr<Annotations> ParseAnnotations(
-    absl::string_view name, const clang::FunctionDecl* funcDecl) {
+// Parses the prefix annotations on a function or callback-typedef declaration.
+// `site` says whether that declaration is a real library function or a callback
+// typedef, which changes which annotations make sense (see
+// `CheckParsedAnnotations`).
+absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
+    absl::string_view name, const clang::Decl* decl,
+    clang::QualType return_type, AnnotationSite site) {
   Annotations annotations;
-  ABSL_ASSIGN_OR_RETURN(auto parsed_annotations,
-                        GetSandboxAnnotations(funcDecl));
+  ABSL_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(decl));
 
   for (const auto& ann : parsed_annotations) {
     size_t expected_args = 0;
@@ -398,6 +549,11 @@ absl::StatusOr<Annotations> ParseAnnotations(
                              name));
       }
       annotations.ptr_dir = PointerDir::kOut;
+    } else if (ann.name == "lifetime_outer_call") {
+      // Only meaningful on a callback typedef, where the declared entity is
+      // what the callback returns. `CheckParsedAnnotations` rejects it on a
+      // plain function declaration.
+      ABSL_RETURN_IF_ERROR(annotations.SetOuterCallLifetime());
     } else if (ann.name == "bind_data") {
       if (ann.args.size() != 4) {
         return absl::InvalidArgumentError(
@@ -448,9 +604,16 @@ absl::StatusOr<Annotations> ParseAnnotations(
     }
   }
   ABSL_RETURN_IF_ERROR(
-      CheckParsedAnnotations(name, annotations, /*is_param=*/false,
-                             funcDecl->getReturnType().getCanonicalType()));
+      CheckParsedAnnotations(name, annotations, site, return_type));
   return annotations;
+}
+
+}  // namespace
+
+absl::StatusOr<Annotations> ParseAnnotations(
+    absl::string_view name, const clang::FunctionDecl* funcDecl) {
+  return ParseReturnDeclAnnotations(name, funcDecl, funcDecl->getReturnType(),
+                                    AnnotationSite::kFunctionReturn);
 }
 
 absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
@@ -585,9 +748,8 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
           "arg $0: invalid sandbox annotation $1", name, ann.name));
     }
   }
-  ABSL_RETURN_IF_ERROR(
-      CheckParsedAnnotations(name, annotations, /*is_param=*/true,
-                             param->getType().getCanonicalType()));
+  ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(
+      name, annotations, AnnotationSite::kParameter, param->getType()));
   return annotations;
 }
 
@@ -740,6 +902,136 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
   ABSL_RETURN_IF_ERROR(CheckShadowRecordMatchesRealRecord(decl));
 
   return record_annotations;
+}
+
+namespace {
+
+// Rejects call-site-specific annotations (`alias_ptr`, `alias_callback_return`,
+// and context-binding annotations) inside a callback typedef. Because a
+// callback typedef can be shared across multiple callback parameters, it may
+// only contain context-independent annotations.
+absl::Status CheckCallbackTypedefAnnotationsAreContextIndependent(
+    absl::string_view typedef_name, absl::string_view what,
+    const Annotations& annotations) {
+  absl::string_view offender;
+  if (std::holds_alternative<AliasHostPtrLifetime>(annotations.lifetime)) {
+    offender = "alias_ptr";
+  } else if (std::holds_alternative<AliasCallbackReturnLifetime>(
+                 annotations.lifetime)) {
+    offender = "alias_callback_return";
+  } else if (!annotations.context_bound.bind_data.empty()) {
+    offender = "bind_data";
+  } else if (annotations.context_bound.copy_from_and_bind.has_value()) {
+    offender = "copy_from_and_bind_out_ptr";
+  } else if (annotations.context_bound.retain_and_bind.has_value()) {
+    offender = "retain_and_bind";
+  } else if (annotations.context_bound.clear_bindings) {
+    offender = "clear_bindings";
+  } else {
+    return absl::OkStatus();
+  }
+  return absl::InvalidArgumentError(absl::Substitute(
+      "callback typedef $0, $1: the $2 annotation describes one particular "
+      "call site, so it cannot be part of a typedef that several callbacks "
+      "share",
+      typedef_name, what, offender));
+}
+
+absl::Status CheckCallbackTypedefReturnAnnotations(
+    absl::string_view typedef_name, clang::QualType return_type,
+    const Annotations& return_annotations) {
+  if (return_annotations.ptr_dir.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: a pointer direction annotation is not supported on a callback "
+        "typedef; use lifetime_outer_call for a buffer the callback returns",
+        typedef_name));
+  }
+  if (std::holds_alternative<SandboxGlobalLifetime>(
+          return_annotations.lifetime)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: lifetime_sandbox_global is not supported on a callback typedef; "
+        "use lifetime_outer_call for a buffer the callback returns",
+        typedef_name));
+  }
+  if (!return_type->isPointerType() &&
+      !std::holds_alternative<std::monostate>(return_annotations.size_type)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: size annotations on a callback typedef are only supported when "
+        "the callback returns a pointer",
+        typedef_name));
+  }
+  if (return_type->isPointerType() && !return_type->isFunctionPointerType() &&
+      !std::holds_alternative<OuterCallLifetime>(return_annotations.lifetime)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: callback typedef returns a pointer, which requires "
+        "lifetime_outer_call to say how long the sandbox may borrow the "
+        "buffer",
+        typedef_name));
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+absl::StatusOr<CallbackTypedef> ParseCallbackTypedef(
+    const clang::TypedefNameDecl& decl) {
+  llvm::StringRef typedef_name = decl.getName();
+  if (typedef_name.empty()) {
+    return absl::InvalidArgumentError("Not expecting an empty typedef name");
+  }
+
+  const clang::FunctionProtoType* proto = GetCallbackTypedefProto(decl);
+  if (proto == nullptr) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "typedef $0 is not a function pointer or function type",
+        typedef_name.str()));
+  }
+  std::optional<clang::FunctionProtoTypeLoc> ftl =
+      ast::GetFunctionProtoTypeLoc(decl.getTypeSourceInfo());
+  if (!ftl.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback typedef $0 does not have a function proto type loc",
+        typedef_name.str()));
+  }
+
+  CallbackTypedef cb_typedef;
+  cb_typedef.name = typedef_name;
+  cb_typedef.canonical_type =
+      clang::QualType(proto, 0).getCanonicalType().getAsString();
+  cb_typedef.has_annotations = HasSandboxAnnotations(decl);
+
+  ABSL_ASSIGN_OR_RETURN(
+      cb_typedef.return_annotations,
+      ParseReturnDeclAnnotations(typedef_name, &decl, proto->getReturnType(),
+                                 AnnotationSite::kCallbackTypedefReturn));
+  ABSL_RETURN_IF_ERROR(CheckCallbackTypedefAnnotationsAreContextIndependent(
+      typedef_name, "return value", cb_typedef.return_annotations));
+  ABSL_RETURN_IF_ERROR(CheckCallbackTypedefReturnAnnotations(
+      typedef_name, proto->getReturnType().getCanonicalType(),
+      cb_typedef.return_annotations));
+
+  cb_typedef.params.reserve(ftl->getNumParams());
+  for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
+    const clang::ParmVarDecl* param = ftl->getParam(i);
+    if (param == nullptr) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback typedef $0 does not have param $1", typedef_name.str(), i));
+    }
+    std::string param_name = param->getNameAsString();
+    if (param_name.empty()) {
+      param_name = absl::StrFormat("cb_arg%u", i);
+    }
+    ABSL_ASSIGN_OR_RETURN(Annotations param_annotations,
+                          ParseAnnotations(param_name, param));
+    ABSL_RETURN_IF_ERROR(CheckCallbackTypedefAnnotationsAreContextIndependent(
+        typedef_name, absl::StrCat("parameter ", param_name),
+        param_annotations));
+    cb_typedef.params.push_back(CallbackTypedefParam{
+        .name = std::move(param_name),
+        .annotations = std::move(param_annotations),
+    });
+  }
+  return cb_typedef;
 }
 
 std::string ResolveContextName(absl::string_view context) {

@@ -34,6 +34,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
@@ -234,20 +235,29 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
   absl::StatusOr<Function> ConvertSnippetToIR(
       absl::string_view code, absl::string_view target_name = "",
       const absl::flat_hash_map<std::string, RecordAnnotations>&
-          record_annotations = {}) {
+          record_annotations = {},
+      const absl::flat_hash_map<std::string, CallbackTypedef>&
+          callback_typedefs = {}) {
     std::optional<Function> result_func;
     absl::Status conversion_status = absl::NotFoundError(
         absl::StrCat("Target function '", target_name, "' not found"));
+    absl::flat_hash_map<std::string, CallbackTypedef> typedefs =
+        callback_typedefs;
     // Outlives the frontend action below, which only holds a reference.
-    const ConversionContext conv_ctx{.record_annotations = record_annotations};
+    const ConversionContext conv_ctx{
+        .record_annotations = record_annotations,
+        .callback_typedefs = typedefs,
+    };
 
     class ExtractAction : public clang::ASTFrontendAction {
      public:
-      ExtractAction(absl::string_view target_name,
-                    const ConversionContext& conv_ctx,
-                    std::optional<Function>& out_func, absl::Status& out_status)
+      ExtractAction(
+          absl::string_view target_name, const ConversionContext& conv_ctx,
+          absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs,
+          std::optional<Function>& out_func, absl::Status& out_status)
           : target_name_(target_name),
             conv_ctx_(conv_ctx),
+            callback_typedefs_(callback_typedefs),
             out_func_(out_func),
             out_status_(out_status) {}
 
@@ -258,53 +268,92 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
          public:
           Consumer(absl::string_view target_name,
                    const ConversionContext& conv_ctx,
+                   absl::flat_hash_map<std::string, CallbackTypedef>&
+                       callback_typedefs,
                    std::optional<Function>& out_func, absl::Status& out_status)
               : target_name_(target_name),
                 conv_ctx_(conv_ctx),
+                callback_typedefs_(callback_typedefs),
                 out_func_(out_func),
                 out_status_(out_status) {}
 
           void HandleTranslationUnit(clang::ASTContext& context) override {
             TraverseDecl(context.getTranslationUnitDecl());
+            for (const clang::TypedefNameDecl* td : typedefs_) {
+              if (td != td->getMostRecentDecl() &&
+                  !HasSandboxAnnotations(*td)) {
+                continue;
+              }
+              absl::StatusOr<CallbackTypedef> cb_typedef =
+                  ParseCallbackTypedef(*td);
+              if (!cb_typedef.ok()) {
+                out_status_ = cb_typedef.status();
+                return;
+              }
+              std::string typedef_name = cb_typedef->name;
+              auto [it, inserted] = callback_typedefs_.try_emplace(
+                  std::move(typedef_name), *std::move(cb_typedef));
+              if (!inserted) {
+                out_status_ = absl::InvalidArgumentError(
+                    absl::StrCat("callback typedef ", it->first,
+                                 " is annotated more than once"));
+                return;
+              }
+            }
+            for (const clang::FunctionDecl* func_decl : functions_) {
+              if (target_name_.empty() ||
+                  func_decl->getNameAsString() == target_name_ ||
+                  func_decl->getNameAsString() == "Target" ||
+                  func_decl->getNameAsString() == "target") {
+                absl::StatusOr<Function> converted =
+                    ConvertFunctionToIR(func_decl, conv_ctx_);
+                if (!converted.ok()) {
+                  out_status_ = converted.status();
+                } else {
+                  out_func_ = *std::move(converted);
+                  out_status_ = absl::OkStatus();
+                }
+                return;
+              }
+            }
+          }
+
+          bool VisitTypedefNameDecl(clang::TypedefNameDecl* td) {
+            if (GetCallbackTypedefProto(*td) != nullptr) {
+              typedefs_.push_back(td);
+            }
+            return true;
           }
 
           bool VisitFunctionDecl(clang::FunctionDecl* func_decl) {
-            if (target_name_.empty() ||
-                func_decl->getNameAsString() == target_name_ ||
-                func_decl->getNameAsString() == "Target" ||
-                func_decl->getNameAsString() == "target") {
-              absl::StatusOr<Function> converted =
-                  ConvertFunctionToIR(func_decl, conv_ctx_);
-              if (!converted.ok()) {
-                out_status_ = converted.status();
-              } else {
-                out_func_ = *std::move(converted);
-                out_status_ = absl::OkStatus();
-              }
-              return false;
-            }
+            functions_.push_back(func_decl);
             return true;
           }
 
          private:
           std::string target_name_;
           const ConversionContext& conv_ctx_;
+          absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs_;
           std::optional<Function>& out_func_;
           absl::Status& out_status_;
+          std::vector<const clang::TypedefNameDecl*> typedefs_;
+          std::vector<const clang::FunctionDecl*> functions_;
         };
-        return std::make_unique<Consumer>(target_name_, conv_ctx_, out_func_,
+        return std::make_unique<Consumer>(target_name_, conv_ctx_,
+                                          callback_typedefs_, out_func_,
                                           out_status_);
       }
 
      private:
       std::string target_name_;
       const ConversionContext& conv_ctx_;
+      absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs_;
       std::optional<Function>& out_func_;
       absl::Status& out_status_;
     };
 
     absl::Status run_status = RunFrontendAction(
-        code, std::make_unique<ExtractAction>(target_name, conv_ctx,
+        code, std::make_unique<ExtractAction>(target_name, conv_ctx, typedefs,
                                               result_func, conversion_status));
     if (!run_status.ok()) return run_status;
     if (!conversion_status.ok()) return conversion_status;
@@ -425,6 +474,246 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithFunctorCallback) {
   EXPECT_TRUE(cb->callback_parameters[0].Is<ScalarParam>());
   EXPECT_EQ(cb->callback_parameters[1].name, "msg");
   EXPECT_TRUE(cb->callback_parameters[1].Is<BufferParam>());
+}
+
+// Verifies that a callback `typedef` supplies the return-buffer bounds,
+// lifetime, `uninitialized` flag, and parameter names for a pointer-returning
+// callback, and composes with `alias_callback_return` on the outer function.
+TEST_F(IrConvertTest,
+       CallbackTypedefReturnedBufferWithSizeExprAndUninitialized) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    typedef unsigned char* (*chunk_allocator)(unsigned long other_count,
+                                              unsigned long);
+
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "count * elem_size")]]
+    [[clang::annotate("sandbox", "uninitialized")]]
+    typedef unsigned char* (*chunk_allocator)(unsigned long count,
+                                              unsigned long elem_size);
+
+    extern "C"
+    [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
+    unsigned char* compress(chunk_allocator alloc);
+  )",
+                                               "compress"));
+  Library lib{.name = "MyLib", .functions = {func}};
+  ASSERT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+
+  const Function& linked = lib.functions[0];
+  ASSERT_TRUE(linked.return_value.has_value());
+  ASSERT_TRUE(linked.return_value->Is<BufferParam>());
+  EXPECT_TRUE(std::holds_alternative<lifetime::AliasCallbackReturn>(
+      linked.return_value->As<BufferParam>()->lifetime));
+
+  ASSERT_EQ(linked.parameters.size(), 1);
+  ASSERT_TRUE(linked.parameters[0].Is<CallbackParam>());
+  const CallbackParam* cb = linked.parameters[0].As<CallbackParam>();
+  EXPECT_TRUE(cb->uninitialized);
+  EXPECT_TRUE(cb->is_callback_return_aliased);
+
+  ASSERT_NE(cb->return_value, nullptr);
+  ASSERT_TRUE(cb->return_value->Is<BufferParam>());
+  const BufferParam* returned = cb->return_value->As<BufferParam>();
+  EXPECT_EQ(returned->direction, PointerDir::kOut);
+  EXPECT_TRUE(std::holds_alternative<lifetime::ScopedCall>(returned->lifetime));
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(returned->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(returned->bounds).size_expr,
+            "count * elem_size");
+
+  // Redeclared typedef parameter names override both conflicting
+  // (`other_count`) and omitted parameter names from the original declaration.
+  ASSERT_EQ(cb->callback_parameters.size(), 2);
+  EXPECT_EQ(cb->callback_parameters[0].name, "count");
+  EXPECT_EQ(cb->callback_parameters[1].name, "elem_size");
+}
+
+// Verifies that an annotated callback `typedef` redeclaration can annotate an
+// unannotated C `typedef` callback with a `host_opaque_ptr` closure parameter
+// and `in_ptr`, `out_ptr`, and `inout_ptr` buffers, and that sibling
+// references resolve against the redeclared typedef's parameter names.
+TEST_F(IrConvertTest, CallbackTypedefWithRedeclarationsAndInputOutputBuffers) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    typedef int (*transform_chunk_cb)(void* ctx, const unsigned char* src,
+                                      unsigned long n, unsigned char* dst,
+                                      unsigned long* total_written);
+
+    typedef int (*transform_chunk_cb)(
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
+        const unsigned char* in
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+        unsigned long len,
+        unsigned char* out
+            [[clang::annotate("sandbox", "out_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+        unsigned long* written [[clang::annotate("sandbox", "inout_ptr")]]);
+
+    extern "C" int run_pipeline(transform_chunk_cb cb);
+  )",
+                                               "run_pipeline"));
+  Library lib{.name = "MyLib", .functions = {func}};
+  ASSERT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+
+  ASSERT_EQ(func.parameters.size(), 1);
+  ASSERT_TRUE(func.parameters[0].Is<CallbackParam>());
+  const CallbackParam* cb = func.parameters[0].As<CallbackParam>();
+  ASSERT_NE(cb->return_value, nullptr);
+  EXPECT_TRUE(cb->return_value->Is<ScalarParam>());
+  ASSERT_EQ(cb->callback_parameters.size(), 5);
+
+  EXPECT_EQ(cb->callback_parameters[0].name, "user_data");
+  ASSERT_TRUE(cb->callback_parameters[0].Is<OpaquePointerParam>());
+  EXPECT_EQ(cb->callback_parameters[0].direction(), PointerDir::kHostOpaque);
+
+  EXPECT_EQ(cb->callback_parameters[1].name, "in");
+  ASSERT_TRUE(cb->callback_parameters[1].Is<BufferParam>());
+  const BufferParam* in_buf = cb->callback_parameters[1].As<BufferParam>();
+  EXPECT_EQ(in_buf->direction, PointerDir::kIn);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(in_buf->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(in_buf->bounds).size_expr, "len");
+
+  EXPECT_EQ(cb->callback_parameters[2].name, "len");
+  EXPECT_TRUE(cb->callback_parameters[2].Is<ScalarParam>());
+
+  EXPECT_EQ(cb->callback_parameters[3].name, "out");
+  ASSERT_TRUE(cb->callback_parameters[3].Is<BufferParam>());
+  const BufferParam* out_buf = cb->callback_parameters[3].As<BufferParam>();
+  EXPECT_EQ(out_buf->direction, PointerDir::kOut);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(out_buf->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(out_buf->bounds).size_expr, "len");
+
+  EXPECT_EQ(cb->callback_parameters[4].name, "written");
+  ASSERT_TRUE(cb->callback_parameters[4].Is<BufferParam>());
+  const BufferParam* written_buf = cb->callback_parameters[4].As<BufferParam>();
+  EXPECT_EQ(written_buf->direction, PointerDir::kInOut);
+  EXPECT_TRUE(std::holds_alternative<bounds::Singleton>(written_buf->bounds));
+}
+
+// Verifies that a `std::function` functor parameter can reference a function
+// `typedef` (`std::function<string_consumer_fn>`) and share the same
+// `CallbackTypedef` as a function pointer (`string_consumer_fn*`).
+TEST_F(IrConvertTest, CallbackTypedefWorksWithStdFunction) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    namespace std {
+      template <typename T>
+      class function;
+      template <typename R, typename... Args>
+      class function<R(Args...)> {
+       public:
+        ~function();
+      };
+    }
+
+    typedef int string_consumer_fn(
+        const char* str [[clang::annotate("sandbox", "in_ptr")]]
+                        [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+        unsigned long len);
+
+    extern "C" void subscribe(std::function<string_consumer_fn> on_message);
+  )",
+                                               "subscribe"));
+  ASSERT_EQ(func.parameters.size(), 1);
+  ASSERT_TRUE(func.parameters[0].Is<CallbackParam>());
+  const CallbackParam* cb = func.parameters[0].As<CallbackParam>();
+  EXPECT_EQ(cb->functor_template_name, "std::function");
+  ASSERT_NE(cb->return_value, nullptr);
+  EXPECT_TRUE(cb->return_value->Is<ScalarParam>());
+  ASSERT_EQ(cb->callback_parameters.size(), 2);
+  EXPECT_EQ(cb->callback_parameters[0].name, "str");
+  ASSERT_TRUE(cb->callback_parameters[0].Is<BufferParam>());
+  EXPECT_EQ(cb->callback_parameters[0].direction(), PointerDir::kIn);
+  EXPECT_EQ(cb->callback_parameters[1].name, "len");
+  EXPECT_TRUE(cb->callback_parameters[1].Is<ScalarParam>());
+}
+
+TEST_F(IrConvertTest,
+       CallbackTypedefReturningPointerWithoutLifetimeIsRejected) {
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    typedef unsigned char* (*chunk_allocator)(unsigned long size);
+    extern "C" void compress(chunk_allocator alloc);
+  )",
+                         "compress"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("chunk_allocator: callback typedef returns a "
+                         "pointer, which requires lifetime_outer_call")));
+}
+
+TEST_F(IrConvertTest, CallbackTypedefWithPointerDirectionOnReturnIsRejected) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "out_ptr")]]
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    typedef unsigned char* (*chunk_allocator)(unsigned long size);
+    extern "C" void compress(chunk_allocator alloc);
+  )",
+                                 "compress"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("chunk_allocator: a pointer direction "
+                                 "annotation is not supported on a callback "
+                                 "typedef")));
+}
+
+TEST_F(IrConvertTest,
+       CallbackTypedefWithSandboxGlobalLifetimeOnReturnIsRejected) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "lifetime_sandbox_global")]]
+    typedef unsigned char* (*chunk_allocator)(unsigned long size);
+    extern "C" void compress(chunk_allocator alloc);
+  )",
+                                 "compress"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("chunk_allocator: lifetime_sandbox_global is "
+                                 "not supported on a callback typedef")));
+}
+
+TEST_F(IrConvertTest,
+       CallbackTypedefWithSizeAnnotationOnNonPointerReturnIsRejected) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    typedef int (*bad_typedef)(unsigned long size);
+    extern "C" void compress(bad_typedef cb);
+  )",
+                                 "compress"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("bad_typedef: size annotations on a callback "
+                                 "typedef are only supported when the "
+                                 "callback returns a pointer")));
+}
+
+TEST_F(IrConvertTest, CallbackTypedefWithUnnamedParameterDefaultsName) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    typedef void (*unnamed_param_cb)(unsigned long);
+    extern "C" void compress(unnamed_param_cb cb);
+  )",
+                                               "compress"));
+  ASSERT_EQ(func.parameters.size(), 1);
+  ASSERT_TRUE(func.parameters[0].Is<CallbackParam>());
+  const CallbackParam* cb = func.parameters[0].As<CallbackParam>();
+  ASSERT_EQ(cb->callback_parameters.size(), 1);
+  EXPECT_EQ(cb->callback_parameters[0].name, "cb_arg0");
+}
+
+TEST_F(IrConvertTest, DuplicateAnnotatedCallbackTypedefIsRejected) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef void (*byte_sink)(
+        const unsigned char* buf [[clang::annotate("sandbox", "in_ptr")]],
+        unsigned long size);
+    typedef void (*byte_sink)(
+        const unsigned char* buf [[clang::annotate("sandbox", "in_ptr")]],
+        unsigned long size);
+
+    extern "C" void compress(byte_sink sink);
+  )",
+                                 "compress"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback typedef byte_sink is annotated more "
+                                 "than once")));
 }
 
 TEST_F(IrConvertTest, ASTToFunctionIRConversionWithUninitialized) {

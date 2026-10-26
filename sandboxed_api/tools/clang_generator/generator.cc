@@ -43,6 +43,7 @@
 #include "clang/Serialization/PCHContainerOperations.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/includes.h"
@@ -149,6 +150,9 @@ std::string GetOutputFilename(absl::string_view source_file) {
 // Called during HandleTranslationUnit
 bool GeneratorASTVisitor::VisitTypeDecl(clang::TypeDecl* decl) {
   type_collector_.RecordOrderedTypeDeclarations(decl);
+  if (auto* typedef_decl = llvm::dyn_cast<clang::TypedefNameDecl>(decl)) {
+    typedefs_.push_back(typedef_decl);
+  }
   return true;
 }
 
@@ -234,6 +238,11 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   for (clang::VarDecl* var : visitor_.vars()) {
     absl::Status status = emitter_.AddVar(var);
     ReportIfError(context, var->getBeginLoc(), status);
+  }
+
+  for (clang::TypedefNameDecl* td : visitor_.typedefs()) {
+    absl::Status status = emitter_.AddTypedef(td);
+    ReportIfError(context, td->getBeginLoc(), status);
   }
 
   for (clang::FunctionDecl* func : visitor_.functions()) {

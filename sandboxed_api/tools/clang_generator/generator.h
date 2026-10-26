@@ -111,11 +111,16 @@ class GeneratorASTVisitor
     return functions_;
   }
 
+  const std::vector<clang::TypedefNameDecl*>& typedefs() const {
+    return typedefs_;
+  }
+
   const std::vector<clang::VarDecl*>& vars() const { return vars_; }
 
  private:
   TypeCollector type_collector_;
   std::vector<clang::FunctionDecl*> functions_;
+  std::vector<clang::TypedefNameDecl*> typedefs_;
   std::vector<clang::VarDecl*> vars_;
   const GeneratorOptions& options_;
 };

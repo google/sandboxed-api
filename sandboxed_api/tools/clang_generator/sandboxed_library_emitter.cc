@@ -56,8 +56,18 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     return ParseAnnotationWrapperFunc(*decl);
   }
 
+  // Record callback typedef references before filtering out ignored functions
+  // so that a typedef referenced only by an ignored function is not reported as
+  // unused.
+  for (const clang::ParmVarDecl* param : decl->parameters()) {
+    if (const clang::TypedefNameDecl* td =
+            FindCallbackTypedef(param->getType())) {
+      used_callback_typedefs_.insert(td->getNameAsString());
+    }
+  }
+
   std::string func_name = decl->getNameAsString();
-  std::string func_type = decl->getType().getAsString();
+  std::string func_type = decl->getType().getCanonicalType().getAsString();
 
   bool has_unsupported_annotation = false;
   bool is_host_thunk = false;
@@ -139,8 +149,10 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   ABSL_ASSIGN_OR_RETURN(
       ir::Function ir_func,
       ConvertFunctionToIR(
-          decl, ConversionContext{.record_annotations =
-                                      library_ir_.record_annotations}));
+          decl, ConversionContext{
+                    .record_annotations = library_ir_.record_annotations,
+                    .callback_typedefs = library_ir_.callback_typedefs,
+                }));
   if (is_sandboxee_thunk) {
     // EmitSandboxeeSrc and EmitHostSrc always emit sandboxee thunks with
     // `extern "C"` linkage, so the IR function name must stay unmangled even if
@@ -181,16 +193,64 @@ absl::Status SandboxedLibraryEmitter::ParseAnnotationWrapperFunc(
     const clang::FunctionDecl& decl) {
   ABSL_ASSIGN_OR_RETURN(const clang::Decl* annotated, GetAnnotatedDecl(decl));
 
-  // Dispatch on the inner declaration kind. Only `RecordDecl` is supported
-  // here; future annotation kinds (such as `FunctionDecl` callback contracts or
-  // `VarDecl` pointee contracts) add cases to this function.
+  // Dispatch on the inner declaration kind.
   if (const auto* record_decl = llvm::dyn_cast<clang::RecordDecl>(annotated)) {
     return ParseRecordAnnotations(*record_decl);
   }
-  return absl::InvalidArgumentError(
-      absl::Substitute("sandbox annotations are only supported on structs, "
-                       "but this annotates a $0 declaration",
-                       annotated->getDeclKindName()));
+  return absl::InvalidArgumentError(absl::Substitute(
+      "sandbox annotations are only supported on structs, but this annotates a "
+      "$0 declaration",
+      annotated->getDeclKindName()));
+}
+
+absl::Status SandboxedLibraryEmitter::AddTypedef(clang::TypedefNameDecl* decl) {
+  clang::SourceManager& source_manager =
+      decl->getASTContext().getSourceManager();
+  clang::SourceLocation decl_start =
+      source_manager.getExpansionLoc(decl->getBeginLoc());
+  if (source_manager.isInSystemHeader(decl_start)) {
+    return absl::OkStatus();
+  }
+  if (GetCallbackTypedefProto(*decl) == nullptr) {
+    return absl::OkStatus();
+  }
+  if (HasSandboxAnnotations(*decl)) {
+    if (!source_manager.isWrittenInMainFile(decl_start)) {
+      return absl::OkStatus();
+    }
+    return ParseCallbackTypedef(*decl);
+  }
+  if (decl != decl->getMostRecentDecl()) {
+    return absl::OkStatus();
+  }
+  std::string name = decl->getNameAsString();
+  if (library_ir_.callback_typedefs.contains(name)) {
+    return absl::OkStatus();
+  }
+  if (absl::StatusOr<CallbackTypedef> cb_typedef =
+          sapi::ParseCallbackTypedef(*decl);
+      cb_typedef.ok()) {
+    library_ir_.callback_typedefs.try_emplace(name, *std::move(cb_typedef));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SandboxedLibraryEmitter::ParseCallbackTypedef(
+    const clang::TypedefNameDecl& decl) {
+  ABSL_ASSIGN_OR_RETURN(CallbackTypedef cb_typedef,
+                        sapi::ParseCallbackTypedef(decl));
+  std::string name = cb_typedef.name;
+  auto it = library_ir_.callback_typedefs.find(name);
+  if (it != library_ir_.callback_typedefs.end()) {
+    if (it->second.has_annotations) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback typedef $0 is annotated more than once", name));
+    }
+    it->second = std::move(cb_typedef);
+    return absl::OkStatus();
+  }
+  library_ir_.callback_typedefs.emplace(std::move(name), std::move(cb_typedef));
+  return absl::OkStatus();
 }
 
 /**
@@ -275,6 +335,20 @@ absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
 }
 
 absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
+  // Report any annotated callback typedefs that are never referenced by a
+  // callback parameter.
+  std::vector<std::string> unused_typedefs;
+  for (const auto& [name, cb_typedef] : library_ir_.callback_typedefs) {
+    if (cb_typedef.has_annotations && !used_callback_typedefs_.contains(name)) {
+      unused_typedefs.push_back(name);
+    }
+  }
+  if (!unused_typedefs.empty()) {
+    std::sort(unused_typedefs.begin(), unused_typedefs.end());
+    return absl::InvalidArgumentError(absl::Substitute(
+        "unused callback typedefs: $0", absl::StrJoin(unused_typedefs, ", ")));
+  }
+
   if (!funcs_loc_) {
     return ValidateAndLinkLibraryIR(library_ir_);
   }

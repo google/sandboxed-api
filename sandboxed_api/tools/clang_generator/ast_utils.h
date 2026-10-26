@@ -22,6 +22,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 
 namespace sapi::ast {
 
@@ -74,6 +75,12 @@ const clang::FunctionProtoType* GetFunctionProtoType(clang::QualType type);
 // `template_name` (e.g., "std::function", "absl::AnyInvocable").
 const clang::FunctionProtoType* GetFunctorUnderlyingFunctionType(
     clang::QualType type, std::string& template_name);
+
+// Unwraps `tsi` (through pointers, references, parentheses, attributes,
+// typedefs, and functor template arguments) to a `FunctionProtoTypeLoc`, or
+// returns `std::nullopt` if `tsi` does not describe a function prototype.
+std::optional<clang::FunctionProtoTypeLoc> GetFunctionProtoTypeLoc(
+    clang::TypeSourceInfo* tsi);
 
 }  // namespace sapi::ast
 

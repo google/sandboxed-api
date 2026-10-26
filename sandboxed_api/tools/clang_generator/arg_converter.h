@@ -29,6 +29,10 @@ namespace sapi {
 // Library-wide lookup tables passed to the AST-to-IR conversion helpers.
 struct ConversionContext {
   const absl::flat_hash_map<std::string, RecordAnnotations>& record_annotations;
+  // Callback typedefs declared so far. A callback parameter may only reference
+  // a typedef that has already been seen, so this being a snapshot of the
+  // declarations preceding the current one is what enforces declare-before-use.
+  const absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs;
 };
 
 // Builds a declarative Function IR from a Clang FunctionDecl and its AST

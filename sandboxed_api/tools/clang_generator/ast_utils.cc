@@ -31,11 +31,13 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
@@ -225,6 +227,69 @@ const clang::FunctionProtoType* GetFunctionProtoType(clang::QualType type) {
     return func_proto_type;
   }
   return nullptr;
+}
+
+std::optional<clang::FunctionProtoTypeLoc> GetFunctionProtoTypeLoc(
+    clang::TypeSourceInfo* tsi) {
+  if (tsi == nullptr) {
+    return std::nullopt;
+  }
+  clang::TypeLoc tl = tsi->getTypeLoc();
+  // This loop always terminates. Each branch steps into a strictly inner
+  // TypeLoc or follows a TypedefTypeLoc to its TypedefNameDecl. Because C and
+  // C++ typedefs cannot be forward-declared, a TypedefNameDecl can only
+  // reference declarations created earlier, so the TypeLoc graph is a DAG even
+  // on malformed input.
+  while (true) {
+    tl = tl.getUnqualifiedLoc();
+    if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
+      tl = ptr_tl.getPointeeLoc();
+    } else if (auto ref_tl = tl.getAs<clang::ReferenceTypeLoc>()) {
+      tl = ref_tl.getPointeeLoc();
+    } else if (auto paren_tl = tl.getAs<clang::ParenTypeLoc>()) {
+      tl = paren_tl.getInnerLoc();
+    } else if (auto typedef_tl = tl.getAs<clang::TypedefTypeLoc>()) {
+      // Unwrap typedefs to the most recent declaration's TypeSourceInfo so
+      // that parameter names and annotations declared on a typedef (including
+      // an annotated redeclaration in the sandbox file) remain visible.
+      clang::TypeSourceInfo* underlying_tsi = typedef_tl.getTypePtr()
+                                                  ->getDecl()
+                                                  ->getMostRecentDecl()
+                                                  ->getTypeSourceInfo();
+      if (underlying_tsi == nullptr) {
+        break;
+      }
+      tl = underlying_tsi->getTypeLoc();
+    } else if (auto attr_tl = tl.getAs<clang::AttributedTypeLoc>()) {
+      tl = attr_tl.getModifiedLoc();
+#if LLVM_VERSION_MAJOR < 22
+      // ElaboratedType was removed from the AST in LLVM 22; its qualifier and
+      // keyword sugar was folded directly into the underlying types
+      // (RecordTypeLoc, TypedefTypeLoc, TemplateSpecializationTypeLoc, etc.),
+      // so there is no wrapper TypeLoc to unwrap in LLVM 22+.
+    } else if (auto elab_tl = tl.getAs<clang::ElaboratedTypeLoc>()) {
+      tl = elab_tl.getNamedTypeLoc();
+#endif
+    } else if (auto spec_tl =
+                   tl.getAs<clang::TemplateSpecializationTypeLoc>()) {
+      if (spec_tl.getNumArgs() >= 1) {
+        clang::TemplateArgumentLoc arg_loc = spec_tl.getArgLoc(0);
+        if (arg_loc.getArgument().getKind() == clang::TemplateArgument::Type) {
+          if (clang::TypeSourceInfo* arg_tsi = arg_loc.getTypeSourceInfo()) {
+            tl = arg_tsi->getTypeLoc();
+            continue;
+          }
+        }
+      }
+      break;
+    } else {
+      break;
+    }
+  }
+  if (auto ftl = tl.getAs<clang::FunctionProtoTypeLoc>()) {
+    return ftl;
+  }
+  return std::nullopt;
 }
 
 }  // namespace sapi::ast

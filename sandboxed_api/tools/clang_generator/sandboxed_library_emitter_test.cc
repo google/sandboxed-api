@@ -16,12 +16,16 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_macros.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
+#include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
 #include "sandboxed_api/tools/clang_generator/generator.h"
 
@@ -30,6 +34,7 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
+using ::testing::AllOf;
 using ::testing::HasSubstr;
 using ::testing::Not;
 
@@ -158,6 +163,201 @@ TEST_F(SandboxedLibraryEmitterTest, StdStringPointerSupport) {
   EXPECT_THAT(*sandboxee_src, HasSubstr("sapi_tmp_ptr_str = &sapi_tmp_str;"));
   EXPECT_THAT(*sandboxee_src,
               HasSubstr("func_with_str_ptr(sapi_tmp_ptr_str);"));
+}
+
+// Runs `SandboxedLibraryEmitter` on `code` in a fresh virtual filesystem and
+// returns the generated `(host_src, sandboxee_src)` pair.
+absl::StatusOr<std::pair<std::string, std::string>> EmitHostAndSandboxeeSrc(
+    absl::string_view code) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  // Enable `sandboxed_library_gen` so the AST visitor traverses C++ wrapper
+  // functions in addition to `extern "C"` declarations.
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ABSL_RETURN_IF_ERROR(RunClangTool(
+      {"tool", "-fsyntax-only", "--std=c++20", "-I.", "-Wno-error", "input.cc"},
+      {{"input.cc", std::string(code)}},
+      std::make_unique<GeneratorAction>(&emitter, &options)));
+  ABSL_RETURN_IF_ERROR(emitter.PostParseAllFiles());
+  ABSL_ASSIGN_OR_RETURN(std::string host_src, emitter.EmitHostSrc(options));
+  ABSL_ASSIGN_OR_RETURN(std::string sandboxee_src,
+                        emitter.EmitSandboxeeSrc(options));
+  return std::make_pair(std::move(host_src), std::move(sandboxee_src));
+}
+
+// Verifies that annotating callbacks via `typedef` declarations (including
+// `host_opaque_ptr` closures, input/output buffers, `lifetime_outer_call`
+// returned buffers, and typedef reuse across multiple library functions)
+// generates the same host and sandboxee code as writing the equivalent
+// annotations inline on each callback parameter.
+TEST_F(SandboxedLibraryEmitterTest,
+       CallbackTypedefGeneratesSameCodeAsInlineForm) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto with_typedef, EmitHostAndSandboxeeSrc(R"(
+    typedef int (*stream_write_cb)(
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
+        const unsigned char* data
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+        unsigned long len,
+        unsigned long* written [[clang::annotate("sandbox", "out_ptr")]]);
+
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    [[clang::annotate("sandbox", "uninitialized")]]
+    typedef unsigned char* (*chunk_alloc_cb)(unsigned long size);
+
+    extern "C"
+    [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
+    unsigned char* compress_stream(
+        stream_write_cb write,
+        chunk_alloc_cb alloc,
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+
+    extern "C" int decompress_stream(
+        stream_write_cb write,
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+  )"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto inline_form, EmitHostAndSandboxeeSrc(R"(
+    extern "C"
+    [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
+    unsigned char* compress_stream(
+        int (*write)(
+            void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
+            const unsigned char* data
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+            unsigned long len,
+            unsigned long* written [[clang::annotate("sandbox", "out_ptr")]]),
+        [[clang::annotate("sandbox", "lifetime_outer_call")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+        [[clang::annotate("sandbox", "uninitialized")]]
+        unsigned char* (*alloc)(unsigned long size),
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+
+    extern "C" int decompress_stream(
+        int (*write)(
+            void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
+            const unsigned char* data
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+            unsigned long len,
+            unsigned long* written [[clang::annotate("sandbox", "out_ptr")]]),
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+  )"));
+
+  EXPECT_EQ(with_typedef.first, inline_form.first);
+  EXPECT_EQ(with_typedef.second, inline_form.second);
+  EXPECT_THAT(with_typedef.second, HasSubstr("compress_stream"));
+  EXPECT_THAT(with_typedef.second, HasSubstr("decompress_stream"));
+}
+
+// Verifies that redeclaring an unannotated C header callback `typedef` with
+// sandbox annotations generates the same host and sandboxee code as declaring
+// the annotated `typedef` once.
+TEST_F(SandboxedLibraryEmitterTest,
+       RedeclaringUnannotatedCallbackTypedefAttachesAnnotations) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto redeclared, EmitHostAndSandboxeeSrc(R"(
+    typedef int (*stream_write_cb)(void*, const unsigned char*, unsigned long,
+                                   unsigned long*);
+    typedef unsigned char* (*chunk_alloc_cb)(unsigned long);
+
+    typedef int (*stream_write_cb)(
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
+        const unsigned char* data
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+        unsigned long len,
+        unsigned long* written [[clang::annotate("sandbox", "out_ptr")]]);
+
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    [[clang::annotate("sandbox", "uninitialized")]]
+    typedef unsigned char* (*chunk_alloc_cb)(unsigned long size);
+
+    extern "C"
+    [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
+    unsigned char* compress_stream(
+        stream_write_cb write,
+        chunk_alloc_cb alloc,
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+  )"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto single_decl, EmitHostAndSandboxeeSrc(R"(
+    typedef int (*stream_write_cb)(
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
+        const unsigned char* data
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "len")]],
+        unsigned long len,
+        unsigned long* written [[clang::annotate("sandbox", "out_ptr")]]);
+
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    [[clang::annotate("sandbox", "uninitialized")]]
+    typedef unsigned char* (*chunk_alloc_cb)(unsigned long size);
+
+    extern "C"
+    [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
+    unsigned char* compress_stream(
+        stream_write_cb write,
+        chunk_alloc_cb alloc,
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+  )"));
+
+  EXPECT_EQ(redeclared.first, single_decl.first);
+  EXPECT_EQ(redeclared.second, single_decl.second);
+}
+
+// Verifies that `PostParseAllFiles` reports only callback typedefs in the main
+// file that are never referenced by any callback parameter.
+TEST_F(SandboxedLibraryEmitterTest, UnusedCallbackTypedefIsReported) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    typedef void (*referenced_cb)(
+        const unsigned char* buf [[clang::annotate("sandbox", "in_ptr")]]);
+
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    typedef unsigned char* (*unused_cb)(unsigned long size);
+
+    extern "C" void compress(referenced_cb sink);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  EXPECT_THAT(emitter.PostParseAllFiles(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("unused callback typedefs: unused_cb"),
+                             Not(HasSubstr("referenced_cb")))));
+}
+
+// Verifies that a callback typedef referenced only by a function listed in
+// `SANDBOX_IGNORE_FUNCS` is still counted as used and does not trigger an
+// unused-typedef error.
+TEST_F(SandboxedLibraryEmitterTest,
+       CallbackTypedefUsedOnlyByIgnoredFunctionIsNotReported) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    const char* sandbox_ignore_funcs_1[] = {"compress"};
+
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "size")]]
+    typedef unsigned char* (*chunk_allocator)(unsigned long size);
+
+    extern "C" void compress(chunk_allocator alloc);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  EXPECT_THAT(emitter.PostParseAllFiles(), IsOk());
 }
 
 using SandboxedLibraryEmitterErrorTest = SandboxedLibraryEmitterTest;

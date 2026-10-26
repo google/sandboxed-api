@@ -51,6 +51,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
 
  private:
   absl::Status AddFunction(clang::FunctionDecl* decl) override;
+  absl::Status AddTypedef(clang::TypedefNameDecl* decl) override;
   absl::Status AddVar(clang::VarDecl* decl) override;
 
   // `SANDBOX_ANNOTATE_*` macros place an annotation-only shadow declaration
@@ -66,11 +67,15 @@ class SandboxedLibraryEmitter : public EmitterBase {
     library_ir_.record_annotations[name] = std::move(record_annotations);
     return absl::OkStatus();
   }
+  absl::Status ParseCallbackTypedef(const clang::TypedefNameDecl& decl);
 
   absl::flat_hash_set<std::string> includes_;
   absl::flat_hash_set<std::string> sandbox_funcs_;
   absl::flat_hash_set<std::string> ignore_funcs_;
   absl::flat_hash_map<std::string, std::string> used_funcs_;
+  // Names of callback typedefs referenced by at least one callback parameter,
+  // used to detect and report unused callback typedefs in the annotation file.
+  absl::flat_hash_set<std::string> used_callback_typedefs_;
   std::optional<std::string> funcs_loc_;
   ir::Library library_ir_;
 };

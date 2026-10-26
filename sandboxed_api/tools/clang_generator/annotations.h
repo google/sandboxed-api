@@ -239,6 +239,49 @@ struct SandboxAnnotation {
   std::vector<std::string> args;
 };
 
+// Annotations for a single parameter of a callback typedef.
+struct CallbackTypedefParam {
+  std::string name;
+  Annotations annotations;
+};
+
+// Parsed representation of a callback `typedef` declaration.
+//
+// A callback `typedef` provides a declaration where callback return-value
+// annotations (placed before `typedef`) and parameter annotations can be
+// attached, and allows multiple callbacks with identical semantics to share
+// one annotation specification.
+struct CallbackTypedef {
+  std::string name;
+  // Canonical function type string (e.g. "unsigned char *(unsigned long)"),
+  // checked against the callback parameter's canonical function type.
+  std::string canonical_type;
+  // Whether the typedef declaration or any of its parameters carried explicit
+  // sandbox annotations.
+  bool has_annotations = false;
+  // Annotations on the typedef declaration that describe the callback's return
+  // value.
+  Annotations return_annotations;
+  // Parameter names and annotations in declaration order.
+  std::vector<CallbackTypedefParam> params;
+};
+
+// Returns the underlying `FunctionProtoType` if `decl` is a callback typedef
+// (a typedef for a function pointer, function type, or supported functor), or
+// `nullptr` otherwise.
+const clang::FunctionProtoType* GetCallbackTypedefProto(
+    const clang::TypedefNameDecl& decl);
+
+// Returns the most recent declaration of the outermost callback typedef
+// referenced by `type` (unwrapping pointers, references, and functor template
+// arguments such as `std::function<cb_fn>`), or `nullptr` if `type` does not
+// reference a callback typedef.
+const clang::TypedefNameDecl* FindCallbackTypedef(clang::QualType type);
+
+// Returns true if `decl` or any of its callback parameter declarations carry a
+// `[[clang::annotate("sandbox", ...)]]` attribute.
+bool HasSandboxAnnotations(const clang::TypedefNameDecl& decl);
+
 // Returns the sandbox annotations for a given decl in their declaration order.
 absl::StatusOr<std::vector<SandboxAnnotation>> GetSandboxAnnotations(
     const clang::Decl* decl);
@@ -254,6 +297,10 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
 // Parses data member annotations for a struct/class definition.
 absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
     const clang::RecordDecl& decl);
+
+// Parses a callback `typedef` declaration.
+absl::StatusOr<CallbackTypedef> ParseCallbackTypedef(
+    const clang::TypedefNameDecl& decl);
 
 std::string ResolveContextName(absl::string_view context);
 

@@ -326,6 +326,9 @@ struct Library {
   std::string name;
   std::vector<Function> functions;
   absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  // Callback typedefs parsed from callback `typedef` declarations, keyed by
+  // typedef name and populated in source order to enforce declare-before-use.
+  absl::flat_hash_map<std::string, CallbackTypedef> callback_typedefs;
   std::vector<std::string> host_state_vars;
   std::optional<std::string> host_code;
   std::optional<std::string> sandboxee_code;

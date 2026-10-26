@@ -87,6 +87,11 @@ class EmitterBase {
   // Adds the declarations of previously collected functions to the emitter.
   virtual absl::Status AddFunction(clang::FunctionDecl* decl) = 0;
 
+  // Adds the declarations of previously collected typedefs to the emitter.
+  virtual absl::Status AddTypedef(clang::TypedefNameDecl* decl) {
+    return absl::OkStatus();
+  }
+
   // Adds the declarations of previously collected variable declarations to the
   // emitter.
   virtual absl::Status AddVar(clang::VarDecl* decl) {

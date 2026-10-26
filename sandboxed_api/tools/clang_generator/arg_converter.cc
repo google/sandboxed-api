@@ -42,7 +42,6 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Config/llvm-config.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
 #include "sandboxed_api/tools/clang_generator/ir.h"
@@ -287,62 +286,17 @@ absl::Status ExtractCallbackParams(
     return absl::InvalidArgumentError(absl::Substitute(
         "callback $0 does not have type source info", param.getName().str()));
   }
-  clang::TypeLoc tl = type_source_info->getTypeLoc();
-  // This loop always terminates. Each branch steps into a strictly inner
-  // TypeLoc or follows a TypedefTypeLoc to its TypedefNameDecl. Because C and
-  // C++ typedefs cannot be forward-declared, a TypedefNameDecl can only
-  // reference declarations created earlier, so the TypeLoc graph is a DAG even
-  // on malformed input.
-  while (true) {
-    tl = tl.getUnqualifiedLoc();
-    if (auto ptr_tl = tl.getAs<clang::PointerTypeLoc>()) {
-      tl = ptr_tl.getPointeeLoc();
-    } else if (auto ref_tl = tl.getAs<clang::ReferenceTypeLoc>()) {
-      tl = ref_tl.getPointeeLoc();
-    } else if (auto paren_tl = tl.getAs<clang::ParenTypeLoc>()) {
-      tl = paren_tl.getInnerLoc();
-    } else if (auto typedef_tl = tl.getAs<clang::TypedefTypeLoc>()) {
-      // Unwrap typedefs to the underlying TypeSourceInfo so that parameter
-      // names and annotations declared on the typedef remain visible.
-      clang::TypeSourceInfo* underlying_tsi =
-          typedef_tl.getTypePtr()->getDecl()->getTypeSourceInfo();
-      if (underlying_tsi == nullptr) {
-        break;
-      }
-      tl = underlying_tsi->getTypeLoc();
-    } else if (auto attr_tl = tl.getAs<clang::AttributedTypeLoc>()) {
-      tl = attr_tl.getModifiedLoc();
-#if LLVM_VERSION_MAJOR < 22
-      // ElaboratedType was removed from the AST in LLVM 22.
-    } else if (auto elab_tl = tl.getAs<clang::ElaboratedTypeLoc>()) {
-      tl = elab_tl.getNamedTypeLoc();
-#endif
-    } else if (auto spec_tl =
-                   tl.getAs<clang::TemplateSpecializationTypeLoc>()) {
-      if (spec_tl.getNumArgs() >= 1) {
-        clang::TemplateArgumentLoc arg_loc = spec_tl.getArgLoc(0);
-        if (arg_loc.getArgument().getKind() == clang::TemplateArgument::Type) {
-          if (clang::TypeSourceInfo* arg_tsi = arg_loc.getTypeSourceInfo()) {
-            tl = arg_tsi->getTypeLoc();
-            continue;
-          }
-        }
-      }
-      break;
-    } else {
-      break;
-    }
-  }
-  auto ftl = tl.getAs<clang::FunctionProtoTypeLoc>();
-  if (!ftl) {
+  std::optional<clang::FunctionProtoTypeLoc> ftl =
+      ast::GetFunctionProtoTypeLoc(type_source_info);
+  if (!ftl.has_value()) {
     return absl::InvalidArgumentError(
         absl::Substitute("callback $0 does not have a function proto type loc",
                          param.getName().str()));
   }
-  param_names.reserve(ftl.getNumParams());
-  param_decls.reserve(ftl.getNumParams());
-  for (unsigned i = 0; i < ftl.getNumParams(); ++i) {
-    clang::ParmVarDecl* cb_param = ftl.getParam(i);
+  param_names.reserve(ftl->getNumParams());
+  param_decls.reserve(ftl->getNumParams());
+  for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
+    clang::ParmVarDecl* cb_param = ftl->getParam(i);
     if (!cb_param) {
       return absl::InvalidArgumentError(absl::Substitute(
           "callback $0 does not have param $1", param.getName().str(), i));
@@ -356,10 +310,6 @@ absl::Status ExtractCallbackParams(
       param_name = absl::StrFormat("cb_arg%u", i);
     }
     param_names.push_back(param_name);
-    ABSL_ASSIGN_OR_RETURN(Annotations annotations,
-                          ParseAnnotations(param_name, cb_param));
-    ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
-        param.getName().str(), param_name, annotations, cb_param->getType()));
     param_decls.push_back(cb_param);
   }
   return absl::OkStatus();
@@ -652,20 +602,65 @@ struct FunctionParamSource {
   const clang::ParmVarDecl* decl;
 };
 struct CallbackParamSource {
+  // Use-site parameter declaration, used to inspect AST types (such as nested
+  // callback parameters).
   const clang::ParmVarDecl* decl;
+  // Resolved annotations for this callback parameter, taken either from `decl`
+  // or from the callback's typedef.
+  const Annotations& annotations;
 };
 struct FunctionReturnSource {
   const clang::FunctionDecl* decl;
 };
 struct CallbackReturnSource {
-  // Callback return values have no AST Decl of their own; pointer direction
-  // and buffer bounds written on the enclosing callback parameter apply to the
-  // buffer the callback returns.
+  // Callback return values have no AST `Decl` of their own; buffer bounds and
+  // lifetime annotations written on the enclosing callback parameter or its
+  // typedef apply to the returned buffer.
   const Annotations& callback_annotations;
 };
 
 using ParamSource = std::variant<FunctionParamSource, CallbackParamSource,
                                  FunctionReturnSource, CallbackReturnSource>;
+
+// Looks up the `CallbackTypedef` for any callback `typedef` referenced by
+// `type`, or returns `nullptr` if `type` is an inline callback or references a
+// typedef from an unannotated header.
+const CallbackTypedef* LookupCallbackTypedef(
+    clang::QualType type, const ConversionContext& conv_ctx) {
+  const clang::TypedefNameDecl* td = FindCallbackTypedef(type);
+  if (td == nullptr) {
+    return nullptr;
+  }
+  auto it = conv_ctx.callback_typedefs.find(td->getNameAsString());
+  if (it == conv_ctx.callback_typedefs.end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
+
+// Collects the annotations for each parameter of a callback (from `cb_typedef`
+// if non-null, or parsed from `cb_decls` otherwise) and validates them against
+// the parameter types in `cb_decls`.
+absl::StatusOr<std::vector<Annotations>> ResolveCallbackParamAnnotations(
+    absl::string_view name, const std::vector<std::string>& cb_param_names,
+    const std::vector<const clang::ParmVarDecl*>& cb_decls,
+    const CallbackTypedef* cb_typedef) {
+  std::vector<Annotations> result;
+  result.reserve(cb_decls.size());
+  for (size_t i = 0; i < cb_decls.size(); ++i) {
+    Annotations ann;
+    if (cb_typedef != nullptr) {
+      ann = cb_typedef->params[i].annotations;
+    } else {
+      ABSL_ASSIGN_OR_RETURN(ann,
+                            ParseAnnotations(cb_param_names[i], cb_decls[i]));
+    }
+    ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
+        name, cb_param_names[i], ann, cb_decls[i]->getType()));
+    result.push_back(std::move(ann));
+  }
+  return result;
+}
 
 absl::StatusOr<ir::Parameter> ConvertParameterToIR(
     absl::string_view name, clang::QualType type, const ParamSource& source,
@@ -683,8 +678,10 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
               [&](const FunctionParamSource& s) {
                 return ParseAnnotations(name, s.decl);
               },
-              [&](const CallbackParamSource& s) {
-                return ParseAnnotations(name, s.decl);
+              [](const CallbackParamSource& s) -> absl::StatusOr<Annotations> {
+                // Already resolved and validated by the caller (`cb_typedef` or
+                // inline parameter annotations).
+                return s.annotations;
               },
               [&](const FunctionReturnSource& s) {
                 return ParseAnnotations(name, s.decl);
@@ -761,7 +758,6 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   // Populate callback parameter metadata if applicable
   if (ir_param.type.kind == ir::TypeKind::kCallback) {
     ir::CallbackParam cb;
-    cb.uninitialized = ann.uninitialized;
     const clang::ParmVarDecl* param = std::visit(
         absl::Overload{
             [](const FunctionParamSource& s) { return s.decl; },
@@ -775,15 +771,50 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         },
         source);
     if (param != nullptr) {
+      // Resolve any referenced callback `typedef` first so all callback-return
+      // and callback-parameter annotations below come from a single source.
+      const CallbackTypedef* cb_typedef =
+          LookupCallbackTypedef(param->getType(), conv_ctx);
+      if (cb_typedef == nullptr &&
+          FindCallbackTypedef(param->getType()) != nullptr &&
+          param->getType()->getAs<clang::FunctionProtoType>() == nullptr) {
+        // If a callback typedef is used (e.g. `chunk_allocator_cb cb`) and its
+        // return type is a pointer without `lifetime_outer_call` (which can
+        // happen when the typedef was declared in a header and not annotated),
+        // enforce the return-lifetime requirement here.
+        const clang::FunctionProtoType* proto =
+            ast::GetFunctionProtoType(param->getType());
+        if (proto != nullptr && proto->getReturnType()->isPointerType() &&
+            !std::holds_alternative<OuterCallLifetime>(ann.lifetime)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "$0: callback returns a pointer, which requires "
+              "lifetime_outer_call to say how long the sandbox may borrow the "
+              "buffer",
+              name));
+        }
+      }
+      const Annotations& return_ann =
+          cb_typedef != nullptr ? cb_typedef->return_annotations : ann;
+      cb.uninitialized = return_ann.uninitialized;
+
       std::vector<std::string> cb_names;
       std::vector<const clang::ParmVarDecl*> cb_decls;
       ABSL_RETURN_IF_ERROR(ExtractCallbackParams(*param, cb_names, cb_decls));
+      if (cb_typedef != nullptr) {
+        for (size_t i = 0; i < cb_names.size(); ++i) {
+          cb_names[i] = cb_typedef->params[i].name;
+        }
+      }
+      ABSL_ASSIGN_OR_RETURN(const std::vector<Annotations> cb_annotations,
+                            ResolveCallbackParamAnnotations(
+                                name, cb_names, cb_decls, cb_typedef));
       cb.callback_parameters.reserve(cb_decls.size());
       for (size_t i = 0; i < cb_decls.size(); ++i) {
         ABSL_ASSIGN_OR_RETURN(
             ir::Parameter cb_param,
-            ConvertParameterToIR(cb_names[i], cb_decls[i]->getType(),
-                                 CallbackParamSource{cb_decls[i]}, conv_ctx));
+            ConvertParameterToIR(
+                cb_names[i], cb_decls[i]->getType(),
+                CallbackParamSource{cb_decls[i], cb_annotations[i]}, conv_ctx));
         cb.callback_parameters.push_back(std::move(cb_param));
       }
       clang::QualType cb_return_qual_type;
@@ -809,7 +840,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         ABSL_ASSIGN_OR_RETURN(
             ir::Parameter cb_ret_param,
             ConvertParameterToIR("return_val", cb_return_qual_type,
-                                 CallbackReturnSource{ann}, conv_ctx));
+                                 CallbackReturnSource{return_ann}, conv_ctx));
         cb.return_value =
             std::make_shared<ir::Parameter>(std::move(cb_ret_param));
       }
