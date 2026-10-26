@@ -21,47 +21,54 @@
 
 extern "C" {
 
-void callback_returning_buffer(
-    const uint8_t* input SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
-    size_t in_size,
-    SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size)
-        uint8_t* (*cb)(size_t size, int));
+// Callback typedefs for caller-supplied output buffer allocators. Each
+// returned buffer is borrowed for the duration of the outer call and sized by
+// the `size` argument passed to the callback.
+
+// Returns a `size`-byte buffer prefilled with `init_val`. Because the library
+// only overwrites part of the buffer, the initial contents must be copied into
+// the sandbox. Declared as a function type so both function pointers
+// (`prefilled_chunk_allocator*`) and C++ functors
+// (`std::function<prefilled_chunk_allocator>`,
+// `absl::AnyInvocable<prefilled_chunk_allocator>`) can share it.
+SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(
+    size) typedef uint8_t* prefilled_chunk_allocator(size_t size, int init_val);
+
+// Returns an uninitialized `size`-byte buffer that the library overwrites
+// completely, avoiding an initial copy into the sandbox.
+SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size) SANDBOX_UNINITIALIZED
+    typedef uint8_t* (*out_chunk_allocator)(size_t size);
+
+void callback_returning_buffer(const uint8_t* input SANDBOX_IN_PTR
+                                   SANDBOX_ELEM_SIZED_BY(in_size),
+                               size_t in_size, prefilled_chunk_allocator* cb);
 
 SANDBOX_ALIAS_CALLBACK_RETURN(cb)
-uint8_t* ret_alias_func_pointer(
-    const uint8_t* input SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
-    size_t in_size,
-    SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size)
-        uint8_t* (*cb)(size_t size, int));
+uint8_t* ret_alias_func_pointer(const uint8_t* input SANDBOX_IN_PTR
+                                    SANDBOX_ELEM_SIZED_BY(in_size),
+                                size_t in_size, prefilled_chunk_allocator* cb);
 
+// Functor callback parameters (`std::function`, `absl::AnyInvocable`) can
+// reference the same function `typedef` as function pointers.
 SANDBOX_ALIAS_CALLBACK_RETURN(cb)
 uint8_t* ret_alias_std_function(
     const uint8_t* input SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
-    size_t in_size,
-    SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size)
-        std::function<uint8_t*(size_t size, int)>
-            cb);
+    size_t in_size, std::function<prefilled_chunk_allocator> cb);
+
 SANDBOX_ALIAS_CALLBACK_RETURN(cb)
 uint8_t* ret_alias_any_invocable(
     const uint8_t* input SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
-    size_t in_size,
-    SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size)
-        absl::AnyInvocable<uint8_t*(size_t size, int)>
-            cb);
+    size_t in_size, absl::AnyInvocable<prefilled_chunk_allocator> cb);
 
 SANDBOX_ALIAS_CALLBACK_RETURN(next_out_chunk)
-uint8_t* ret_alias_called_multiple_times(
-    int num_chunks, size_t chunk_size, bool return_second_last,
-    SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(chunk_size)
-        SANDBOX_UNINITIALIZED uint8_t* (*next_out_chunk)(size_t chunk_size));
+uint8_t* ret_alias_called_multiple_times(int num_chunks, size_t chunk_size,
+                                         bool return_second_last,
+                                         out_chunk_allocator next_out_chunk);
 
 SANDBOX_ALIAS_CALLBACK_RETURN(get_chunk2)
-uint8_t* multiple_callbacks_one_ret_alias(
-    size_t chunk_size,
-    SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size)
-        SANDBOX_UNINITIALIZED uint8_t* (*get_chunk1)(size_t size),
-    SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size)
-        SANDBOX_UNINITIALIZED uint8_t* (*get_chunk2)(size_t size));
+uint8_t* multiple_callbacks_one_ret_alias(size_t chunk_size,
+                                          out_chunk_allocator get_chunk1,
+                                          out_chunk_allocator get_chunk2);
 
 // Callbacks with input pointers.
 int64_t with_input_prim_pointer(
