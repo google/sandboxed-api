@@ -316,6 +316,8 @@ std::vector<sock_filter> Policy::GetTrackingPolicy() const {
       JEQ32(AUDIT_ARCH_AARCH64, TRACE(sapi::cpu::kArm64)),
 #elif defined(SAPI_ARM)
       JEQ32(AUDIT_ARCH_ARM, TRACE(sapi::cpu::kArm)),
+#elif defined(SAPI_RISCV64)
+      JEQ32(AUDIT_ARCH_RISCV64, TRACE(sapi::cpu::kRiscv64)),
 #endif
       TRACE(sapi::cpu::kUnknown),
   };
