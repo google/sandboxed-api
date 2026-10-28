@@ -108,6 +108,8 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(unw_addr_space_t as,
     constexpr int kFpReg = UNW_X86_64_RBP;
 #elif defined(SAPI_PPC64_LE)
     constexpr int kFpReg = UNW_PPC64_R1;
+#elif defined(SAPI_RISCV64)
+    constexpr int kFpReg = UNW_RISCV_X8;
 #endif
     rc = unw_get_reg(&cursor, kFpReg, &fp);
     if (rc < 0) {

@@ -57,7 +57,8 @@ enum Architecture : uint16_t {
   kPPC64LE,
   kArm64,
   kArm,
-  kMax = kArm
+  kRiscv64,
+  kMax = kRiscv64,
 };
 
 }  // namespace cpu
@@ -75,6 +76,8 @@ constexpr cpu::Architecture Architecture() {
   return cpu::kArm64;
 #elif defined(SAPI_ARM)
   return cpu::kArm;
+#elif defined(SAPI_RISCV64)
+  return cpu::kRiscv64;
 #else
   return cpu::kUnknown;
 #endif
@@ -87,6 +90,8 @@ constexpr bool IsPPC64LE() { return Architecture() == cpu::kPPC64LE; }
 constexpr bool IsArm64() { return Architecture() == cpu::kArm64; }
 
 constexpr bool IsArm() { return Architecture() == cpu::kArm; }
+
+constexpr bool IsRiscv64() { return Architecture() == cpu::kRiscv64; }
 
 constexpr bool Is64Bit() { return sizeof(uintptr_t) == 8; }
 

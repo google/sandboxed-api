@@ -224,7 +224,8 @@ ABSL_ATTRIBUTE_NOINLINE
 pid_t CloneAndJump(int flags, jmp_buf* env_ptr) {
   ABSL_CACHELINE_ALIGNED uint8_t stack_buf[kPthreadStackMin];
   static_assert(sapi::host_cpu::IsX8664() || sapi::host_cpu::IsPPC64LE() ||
-                    sapi::host_cpu::IsArm64() || sapi::host_cpu::IsArm(),
+                    sapi::host_cpu::IsArm64() || sapi::host_cpu::IsArm() ||
+                    sapi::host_cpu::IsRiscv64(),
                 "Host CPU architecture not supported, see config.h");
   // Stack grows down.
   void* stack = stack_buf + sizeof(stack_buf);
