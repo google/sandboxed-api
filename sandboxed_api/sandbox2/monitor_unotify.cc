@@ -461,6 +461,7 @@ bool UnotifyMonitor::InitSetupNotifyEventFd() {
     PLOG(ERROR) << "failed creating monitor pipe";
     return false;
   }
+  absl::MutexLock lock(notify_mutex_);
   monitor_notify_fd_ = FDCloser(fd);
   return true;
 }

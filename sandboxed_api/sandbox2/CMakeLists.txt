@@ -1267,6 +1267,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   add_dependencies(sandbox2_sandbox2_test
     sandbox2::testcase_abort
     sandbox2::testcase_custom_fork
+    sandbox2::testcase_main_thread_exit
     sandbox2::testcase_malformed_version
     sandbox2::testcase_minimal
     sandbox2::testcase_pthreads

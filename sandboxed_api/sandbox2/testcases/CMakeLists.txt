@@ -294,6 +294,25 @@ target_link_libraries(sandbox2_testcase_malformed_version PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2/testcases:main_thread_exit
+add_executable(sandbox2_testcase_main_thread_exit
+  main_thread_exit.cc
+)
+add_executable(sandbox2::testcase_main_thread_exit
+  ALIAS sandbox2_testcase_main_thread_exit)
+set_target_properties(sandbox2_testcase_main_thread_exit PROPERTIES
+  OUTPUT_NAME main_thread_exit
+)
+target_link_libraries(sandbox2_testcase_main_thread_exit PRIVATE
+  -static-pie
+  absl::strings
+  sandbox2::client
+  sandbox2::comms
+  sandbox2::network_proxy_client
+  sapi::base
+  sapi::raw_logging
+)
+
 # sandboxed_api/sandbox2/testcases:tsync_spawning_threads
 add_executable(sandbox2_testcase_tsync_spawning_threads
   tsync_spawning_threads.cc

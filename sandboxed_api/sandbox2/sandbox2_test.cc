@@ -1085,6 +1085,77 @@ TEST(Sandbox2Test, LogsSetupLatencyBreakdown) {
   EXPECT_EQ(result.reason_code(), 0);
 }
 
+TEST_P(Sandbox2Test, MainThreadExitNetworkViolation) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/main_thread_exit");
+  std::vector<std::string> args = {path, "network_violation"};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy,
+      CreateDefaultTestPolicy(path).AddNetworkProxyPolicy().TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_NETWORK));
+  EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsTrue());
+}
+
+TEST_P(Sandbox2Test, MainThreadExitExternalKill) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/main_thread_exit");
+  std::vector<std::string> args = {path, "wait"};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy,
+      CreateDefaultTestPolicy(path).CollectStacktracesOnKill(false).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+  bool ready = false;
+  ASSERT_THAT(sandbox.comms()->RecvBool(&ready), IsTrue());
+  sandbox.Kill();
+  auto result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::EXTERNAL_KILL));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsTrue());
+}
+
+TEST_P(Sandbox2Test, MainThreadExitTimeout) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/main_thread_exit");
+  std::vector<std::string> args = {path, "wait"};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy, CreateDefaultTestPolicy(path)
+                                             .CollectStacktracesOnTimeout(false)
+                                             .TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+  bool ready = false;
+  ASSERT_THAT(sandbox.comms()->RecvBool(&ready), IsTrue());
+  sandbox.set_walltime_limit(absl::Seconds(1));
+  auto result = sandbox.AwaitResult();
+  EXPECT_THAT(result.final_status(), Eq(Result::TIMEOUT));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsTrue());
+}
+
+TEST_P(Sandbox2Test, MainThreadExitSignaled) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/main_thread_exit");
+  std::vector<std::string> args = {path, "signal"};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SIGNALED));
+  EXPECT_THAT(result.reason_code(), Eq(SIGTERM));
+  EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsTrue());
+}
+
 INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),
                          [](const ::testing::TestParamInfo<bool>& info) {
                            return info.param ? "UnotifyMonitor"
