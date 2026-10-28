@@ -474,7 +474,8 @@ TEST_P(PolicyTest, MmapWithExecAllowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
-      {path, "1"}, CreateDefaultPermissiveTestPolicy(path).Allow(MapExec()));
+      {path, "1"},
+      CreateDefaultPermissiveTestPolicy(path).AllowMmap(MapExec()));
   Result result = s2->Run();
 
   // The test binary should exit with success.
@@ -486,7 +487,21 @@ TEST_P(PolicyTest, MprotectWithExecAllowed) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
-      {path, "2"}, CreateDefaultPermissiveTestPolicy(path).Allow(MapExec()));
+      {path, "2"},
+      CreateDefaultPermissiveTestPolicy(path).AllowMprotect(MapExec()));
+  Result result = s2->Run();
+
+  // The test binary should exit with success.
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, PkeyMprotectWithExecAllowed) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {path, "3"},
+      CreateDefaultPermissiveTestPolicy(path).AllowPkeyMprotect(MapExec()));
   Result result = s2->Run();
 
   // The test binary should exit with success.

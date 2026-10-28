@@ -39,6 +39,13 @@ void TestMprotect() {
   mprotect(addr, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE | PROT_EXEC);
 }
 
+void TestPkeyMprotect() {
+  void* addr = mmap(0, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE,
+                    MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  pkey_mprotect(addr, 1ULL << 20 /* 1 MiB */,
+                PROT_READ | PROT_WRITE | PROT_EXEC, 0);
+}
+
 int main(int argc, char* argv[]) {
   // Disable buffering.
   setbuf(stdin, nullptr);
@@ -57,6 +64,9 @@ int main(int argc, char* argv[]) {
       break;
     case 2:
       TestMprotect();
+      break;
+    case 3:
+      TestPkeyMprotect();
       break;
     default:
       printf("Unknown test: %d\n", testno);
