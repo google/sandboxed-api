@@ -95,8 +95,6 @@ constexpr absl::string_view GetPlatformCPUName() {
       return "ppc64";
     case cpu::kArm64:
       return "aarch64";
-    case cpu::kRiscv64:
-      return "riscv64";
     default:
       return "unknown";
   }

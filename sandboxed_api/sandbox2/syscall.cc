@@ -46,8 +46,6 @@ sapi::cpu::Architecture AuditArchToCPUArch(uint32_t arch) {
       return sapi::cpu::Architecture::kX86;
     case AUDIT_ARCH_PPC64LE:
       return sapi::cpu::Architecture::kPPC64LE;
-    case AUDIT_ARCH_RISCV64:
-      return sapi::cpu::Architecture::kRiscv64;
     default:
       return sapi::cpu::Architecture::kUnknown;
   }
@@ -75,8 +73,6 @@ std::string Syscall::GetArchDescription(sapi::cpu::Architecture arch) {
       return "[Arm-64]";
     case sapi::cpu::kArm:
       return "[Arm-32]";
-    case sapi::cpu::kRiscv64:
-      return "[RISCV-64]";
     default:
       return absl::StrFormat("[UNKNOWN_ARCH:%d]", arch);
   }
@@ -92,8 +88,6 @@ uint32_t Syscall::GetHostAuditArch() {
       return AUDIT_ARCH_AARCH64;
     case sapi::cpu::kArm:
       return AUDIT_ARCH_ARM;
-    case sapi::cpu::kRiscv64:
-      return AUDIT_ARCH_RISCV64;
     default:
       // The static_assert() in config.h should prevent us from ever getting
       // here.

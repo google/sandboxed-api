@@ -44,11 +44,6 @@ constexpr std::array kRegArgs = {0, 1, 2, 3, 4, 5};
 constexpr int kRegResult = 0;
 constexpr int kRegSyscall = 8;
 constexpr std::array kRegArgs = {0, 1, 2, 3, 4, 5};
-#elif defined(SAPI_RISCV64)
-constexpr int kRegResult = REG_A0;
-constexpr int kRegSyscall = REG_A0 + 7;
-constexpr std::array kRegArgs = {REG_A0,     REG_A0 + 1, REG_A0 + 2,
-                                 REG_A0 + 3, REG_A0 + 4, REG_A0 + 5};
 #endif
 
 #ifndef SYS_SECCOMP
@@ -104,8 +99,6 @@ void SyscallTrap::SignalHandlerImpl(int nr, siginfo_t* info, void* context) {
   auto* registers = uctx->uc_mcontext.regs;
 #elif defined(SAPI_ARM)
   auto* registers = &uctx->uc_mcontext.arm_r0;
-#elif defined(SAPI_RISCV64)
-  auto* registers = uctx->uc_mcontext.__gregs;
 #endif
   int syscall_nr = static_cast<int>(registers[kRegSyscall]);
   Args args = {static_cast<uintptr_t>(registers[kRegArgs[0]]),

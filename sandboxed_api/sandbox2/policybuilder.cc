@@ -1356,9 +1356,7 @@ PolicyBuilder& PolicyBuilder::AllowRename() {
 #ifdef __NR_rename
       __NR_rename,
 #endif
-#ifdef __NR_renameat
       __NR_renameat,
-#endif
 #ifdef __NR_renameat2
       __NR_renameat2,
 #endif
