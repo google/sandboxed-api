@@ -33,6 +33,7 @@
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::Optional;
 using ::testing::StartsWith;
@@ -128,6 +129,51 @@ TEST(SyscallTest, VariousArgDescriptions) {
                   absl::Hex(reinterpret_cast<uint64_t>(hostname.data())),
                   " [\"test_hostname\"], 0x", absl::Hex(hostname.size()), " [",
                   hostname.size(), "]) IP: 0, STACK: 0")));
+}
+
+TEST(SyscallTest, GetArgumentsData) {
+  char buffer[] = "test_buffer";
+  seccomp_data data = {
+      .nr = __NR_read,
+      .arch = Syscall::GetHostAuditArch(),
+      .args = {1, reinterpret_cast<uint64_t>(buffer), sizeof(buffer)}};
+  Syscall syscall(getpid(), data);
+
+  std::vector<syscalls::ArgData> args = syscall.GetArgumentsData();
+  ASSERT_THAT(args.size(), Eq(3));
+
+  EXPECT_THAT(args[0].type(), Eq(syscalls::kResource));
+  EXPECT_THAT(args[0].pid(), Eq(getpid()));
+  EXPECT_THAT(args[0].value(), Eq(1));
+  EXPECT_THAT(args[0].length(), Eq(std::nullopt));
+
+  // The buffer argument should have its length taken from the kLen1 argument.
+  EXPECT_THAT(args[1].type(), Eq(syscalls::kArray));
+  EXPECT_THAT(args[1].pid(), Eq(getpid()));
+  EXPECT_THAT(args[1].value(), Eq(reinterpret_cast<uint64_t>(buffer)));
+  EXPECT_THAT(args[1].length(), Optional(sizeof(buffer)));
+  SAPI_ASSERT_OK_AND_ASSIGN(auto array, args[1].ReadAsStructArray<char>());
+  EXPECT_FALSE(array.truncated);
+  EXPECT_THAT(array.array, ElementsAreArray(buffer));
+
+  EXPECT_THAT(args[2].type(), Eq(syscalls::kLen1));
+  EXPECT_THAT(args[2].pid(), Eq(getpid()));
+  EXPECT_THAT(args[2].value(), Eq(sizeof(buffer)));
+  EXPECT_THAT(args[2].length(), Eq(std::nullopt));
+}
+
+TEST(SyscallTest, GetArgumentsDataUnknownSyscall) {
+  Syscall::Args args{1, 2, 3, 4, 5, 6};
+  Syscall syscall(Syscall::GetHostArch(), 0xbadbad, args);
+
+  std::vector<syscalls::ArgData> data = syscall.GetArgumentsData();
+  ASSERT_THAT(data.size(), Eq(Syscall::kMaxArgs));
+  for (int i = 0; i < Syscall::kMaxArgs; ++i) {
+    EXPECT_THAT(data[i].type(), Eq(syscalls::kGen));
+    EXPECT_THAT(data[i].pid(), Eq(-1));
+    EXPECT_THAT(data[i].value(), Eq(args[i]));
+    EXPECT_THAT(data[i].length(), Eq(std::nullopt));
+  }
 }
 
 TEST(SyscallTest, ArchDescription) {
