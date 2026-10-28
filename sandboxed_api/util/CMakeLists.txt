@@ -184,6 +184,16 @@ target_link_libraries(sapi_util_thread
          sapi::base
 )
 
+# sandboxed_api/util:sandbox_pool_options
+add_library(sapi_util_sandbox_pool_options ${SAPI_LIB_TYPE}
+  sandbox_pool_options.h
+)
+add_library(sapi::sandbox_pool_options ALIAS sapi_util_sandbox_pool_options)
+target_link_libraries(sapi_util_sandbox_pool_options
+  PUBLIC absl::time
+         sapi::base
+)
+
 # sandboxed_api/util:sandbox_pool
 add_library(sapi_util_sandbox_pool ${SAPI_LIB_TYPE}
   sandbox_pool.h
@@ -201,6 +211,7 @@ target_link_libraries(sapi_util_sandbox_pool
           absl::time
           sapi::base
           sapi::thread
+  PUBLIC sapi::sandbox_pool_options
 )
 
 if(BUILD_TESTING AND SAPI_BUILD_TESTING)

@@ -283,6 +283,14 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "sandbox_pool_options",
+    hdrs = ["sandbox_pool_options.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/time"],
+)
+
 # A thread-safe, scalable pool manager for SAPI and Sandbox2 sandboxes.
 cc_library(
     name = "sandbox_pool",
@@ -294,6 +302,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":sandbox_pool_internal",
+        ":sandbox_pool_options",
         ":thread",
         "//sandboxed_api:sapi",
         "@abseil-cpp//absl/base:core_headers",
