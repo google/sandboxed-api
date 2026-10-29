@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/policy.h"
 
+#include <sys/mman.h>
 #include <syscall.h>
 
 #include <cerrno>
@@ -470,43 +471,109 @@ TEST_P(PolicyTest, SecondExecveatNotAllowedByDefault) {
   EXPECT_THAT(result.reason_code(), Eq(0));
 }
 
+TEST_P(PolicyTest, MmapWithoutExecWorksAsExpected) {
+  SKIP_SANITIZERS;
+
+  for (bool allow_map_exec : {false, true}) {
+    PolicyBuilder builder =
+        MinimalTestcasePolicyBuilder().AllowMmapWithoutExec();
+    if (allow_map_exec) {
+      builder.Allow(MapExec());
+    }
+    std::unique_ptr<Sandbox2> s2 = CreateTestSandbox({"mmap", "1"}, builder);
+    Result result = s2->Run();
+
+    ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+    EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+    ASSERT_TRUE(result.GetSyscall() != nullptr);
+    EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_mmap));
+    EXPECT_THAT(result.GetSyscall()->args()[2],
+                Eq(uint64_t{PROT_READ | PROT_WRITE | PROT_EXEC}));
+  }
+}
+
 TEST_P(PolicyTest, MmapWithExecAllowed) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+  SKIP_SANITIZERS;
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
-      {path, "1"},
-      CreateDefaultPermissiveTestPolicy(path).AllowMmap(MapExec()));
+      {"mmap", "1"}, MinimalTestcasePolicyBuilder().AllowMmap(MapExec()));
   Result result = s2->Run();
 
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
-  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
+}
+
+TEST_P(PolicyTest, MprotectWithoutExecWorksAsExpected) {
+  SKIP_SANITIZERS;
+
+  for (bool allow_map_exec : {false, true}) {
+    PolicyBuilder builder = MinimalTestcasePolicyBuilder()
+                                .AllowMmapWithoutExec()
+                                .AllowMprotectWithoutExec();
+    if (allow_map_exec) {
+      builder.Allow(MapExec());
+    }
+    std::unique_ptr<Sandbox2> s2 = CreateTestSandbox({"mmap", "2"}, builder);
+    Result result = s2->Run();
+
+    ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+    EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+    ASSERT_TRUE(result.GetSyscall() != nullptr);
+    EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_mprotect));
+    EXPECT_THAT(result.GetSyscall()->args()[2],
+                Eq(uint64_t{PROT_READ | PROT_WRITE | PROT_EXEC}));
+  }
 }
 
 TEST_P(PolicyTest, MprotectWithExecAllowed) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+  SKIP_SANITIZERS;
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
-      {path, "2"},
-      CreateDefaultPermissiveTestPolicy(path).AllowMprotect(MapExec()));
+      {"mmap", "2"},
+      MinimalTestcasePolicyBuilder().AllowMmapWithoutExec().AllowMprotect(
+          MapExec()));
   Result result = s2->Run();
 
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
-  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
+}
+
+TEST_P(PolicyTest, PkeyMprotectWithoutExecWorksAsExpected) {
+  SKIP_SANITIZERS;
+
+  for (bool allow_map_exec : {false, true}) {
+    PolicyBuilder builder = MinimalTestcasePolicyBuilder()
+                                .AllowMmapWithoutExec()
+                                .AllowPkeyMprotectWithoutExec();
+    if (allow_map_exec) {
+      builder.Allow(MapExec());
+    }
+    std::unique_ptr<Sandbox2> s2 = CreateTestSandbox({"mmap", "3"}, builder);
+    Result result = s2->Run();
+
+    ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+    EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+    ASSERT_TRUE(result.GetSyscall() != nullptr);
+    EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_pkey_mprotect));
+    EXPECT_THAT(result.GetSyscall()->args()[2],
+                Eq(uint64_t{PROT_READ | PROT_WRITE | PROT_EXEC}));
+  }
 }
 
 TEST_P(PolicyTest, PkeyMprotectWithExecAllowed) {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/mmap");
+  SKIP_SANITIZERS;
 
   std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
-      {path, "3"},
-      CreateDefaultPermissiveTestPolicy(path).AllowPkeyMprotect(MapExec()));
+      {"mmap", "3"},
+      MinimalTestcasePolicyBuilder().AllowMmapWithoutExec().AllowPkeyMprotect(
+          MapExec()));
   Result result = s2->Run();
 
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
-  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_THAT(result.reason_code(), Eq(EXIT_SUCCESS));
 }
 
 #ifdef SAPI_X86_64

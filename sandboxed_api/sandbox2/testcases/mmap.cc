@@ -19,31 +19,61 @@
 // and we have no alternate stack, then we are killed with SIGSEGV.
 
 #include <sys/mman.h>
+#include <syscall.h>
+#include <unistd.h>
 
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 
-void TestMmap() {
+int TestMmap() {
   // Regular read-write anonymous mapping.
-  mmap(0, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE,
-       MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+  if (mmap(nullptr, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE,
+           MAP_ANONYMOUS | MAP_SHARED, -1, 0) == MAP_FAILED) {
+    return EXIT_FAILURE;
+  }
 
   // Try to map RWX, should result in a violation by default.
-  mmap(0, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE | PROT_EXEC,
-       MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+  if (mmap(nullptr, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE | PROT_EXEC,
+           MAP_ANONYMOUS | MAP_SHARED, -1, 0) == MAP_FAILED) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }
 
-void TestMprotect() {
-  void* addr = mmap(0, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE,
+int TestMprotect() {
+  void* addr = mmap(nullptr, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE,
                     MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  mprotect(addr, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE | PROT_EXEC);
+  if (addr == MAP_FAILED) {
+    return EXIT_FAILURE;
+  }
+  if (mprotect(addr, 1ULL << 20 /* 1 MiB */, PROT_WRITE) != 0) {
+    return EXIT_FAILURE;
+  }
+  if (mprotect(addr, 1ULL << 20 /* 1 MiB */,
+               PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }
 
-void TestPkeyMprotect() {
-  void* addr = mmap(0, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE,
+int TestPkeyMprotect() {
+  void* addr = mmap(nullptr, 1ULL << 20 /* 1 MiB */, PROT_READ | PROT_WRITE,
                     MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  pkey_mprotect(addr, 1ULL << 20 /* 1 MiB */,
-                PROT_READ | PROT_WRITE | PROT_EXEC, 0);
+  if (addr == MAP_FAILED) {
+    return EXIT_FAILURE;
+  }
+  if (syscall(__NR_pkey_mprotect, addr, 1ULL << 20 /* 1 MiB */, PROT_WRITE,
+              -1) != 0 &&
+      errno != ENOSYS) {
+    return EXIT_FAILURE;
+  }
+  if (syscall(__NR_pkey_mprotect, addr, 1ULL << 20 /* 1 MiB */,
+              PROT_READ | PROT_WRITE | PROT_EXEC, -1) != 0 &&
+      errno != ENOSYS) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }
 
 int main(int argc, char* argv[]) {
@@ -60,17 +90,13 @@ int main(int argc, char* argv[]) {
   int testno = atoi(argv[1]);  // NOLINT
   switch (testno) {
     case 1:
-      TestMmap();
-      break;
+      return TestMmap();
     case 2:
-      TestMprotect();
-      break;
+      return TestMprotect();
     case 3:
-      TestPkeyMprotect();
-      break;
+      return TestPkeyMprotect();
     default:
       printf("Unknown test: %d\n", testno);
       return EXIT_FAILURE;
   }
-  return EXIT_SUCCESS;
 }
