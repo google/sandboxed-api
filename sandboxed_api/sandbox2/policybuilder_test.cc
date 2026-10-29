@@ -568,5 +568,16 @@ TEST(PolicyBuilder, AddingProcSelfFails) {
                        HasSubstr("Cannot add /proc/self")));
 }
 
+TEST(PolicyBuilderTest, AllowTcMallocMounts) {
+  PolicyBuilder pb;
+  pb.AllowTcMalloc();
+  EXPECT_THAT(pb.mounts().ResolvePath("/proc"), IsOk());
+  EXPECT_THAT(pb.mounts().ResolvePath("/sys/devices/system/cpu"), IsOk());
+  if (fileops::Exists("/sys/devices/system/node", /*fully_resolve=*/false)) {
+    EXPECT_THAT(pb.mounts().ResolvePath("/sys/devices/system/node"), IsOk());
+  }
+  EXPECT_THAT(pb.TryBuild(), IsOk());
+}
+
 }  // namespace
 }  // namespace sandbox2

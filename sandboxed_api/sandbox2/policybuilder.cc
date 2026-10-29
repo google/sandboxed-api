@@ -503,8 +503,12 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   AllowTime();
   AllowRestartableSequences(kRequireFastFences);
   AllowSleep();
-  AllowSyscalls(
-      {__NR_munmap, __NR_brk, __NR_mincore, __NR_membarrier, __NR_lseek});
+  if (!mounts_.ResolvePath("/sys/devices/system/node").ok() &&
+      IsDirectory("/sys/devices/system/node")) {
+    AddDirectoryIfNamespaced("/sys/devices/system/node");
+  }
+  AllowSyscalls({__NR_munmap, __NR_brk, __NR_mincore, __NR_membarrier,
+                 __NR_lseek, __NR_mbind});
   AllowLimitedMadvise();
   AllowPrctlSetVma();
   AllowPoll();

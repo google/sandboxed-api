@@ -352,6 +352,9 @@ class PolicyBuilder final {
 
   // Appends code to allow the tcmalloc version of malloc, free and
   // friends.
+  //
+  // Also mounts `/proc`, `/sys/devices/system/cpu`, and (if present)
+  // `/sys/devices/system/node` read-only when namespaces are enabled.
   PolicyBuilder& AllowTcMalloc();
 
   // Appends code to allow syscalls typically used by the LLVM sanitizers: ASAN,
