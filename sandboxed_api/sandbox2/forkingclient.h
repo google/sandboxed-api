@@ -29,14 +29,6 @@ class ForkingClient : public Client {
  public:
   explicit ForkingClient(Comms* comms) : Client(comms) {}
 
-  // Forks the current process (if asked by the Executor in the parent process),
-  // and returns the newly created PID to this Executor. This is used if the
-  // current Client objects acts as a wrapper of ForkServer (and this process
-  // was created to act as a ForkServer).
-  // Return values specified as with 'fork' (incl. -1).
-  [[deprecated("Use EnterForkLoop instead")]]
-  pid_t WaitAndFork();
-
   // Enters the fork loop, where the process waits for incoming ForkRequests and
   // executes them. This function will only return as a forked child process.
   void EnterForkLoop();

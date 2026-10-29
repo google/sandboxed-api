@@ -51,11 +51,6 @@ pid_t ForkingClient::WaitAndForkInternal() {
   return pid;
 }
 
-pid_t ForkingClient::WaitAndFork() {
-  InitializeForkServer();
-  return WaitAndForkInternal();
-}
-
 void ForkingClient::EnterForkLoop() {
   InitializeForkServer();
   for (;;) {
