@@ -377,9 +377,6 @@ class PolicyBuilder final {
   // makes exploitation easier.
   PolicyBuilder& AllowMmap(MapExec);
 
-  [[deprecated("Use AllowMmap(MapExec) or AllowMmapWithoutExec() instead.")]]
-  PolicyBuilder& AllowMmap();
-
   // Appends code to allow mmap calls that don't specify PROT_EXEC.
   PolicyBuilder& AllowMmapWithoutExec();
 
@@ -776,9 +773,6 @@ class PolicyBuilder final {
   // This allows stat(2), munmap(2), mmap(2) with MAP_SHARED.
   PolicyBuilder& AllowSharedMemory();
 
-  [[deprecated("Use AllowDynamicStartup(MapExec) instead.")]]
-  PolicyBuilder& AllowDynamicStartup();
-
   // Appends a policy, which will be run on the specified syscall.
   //
   // NOTE: This policy must be written without labels. If you need labels, use
@@ -912,13 +906,6 @@ class PolicyBuilder final {
   // NOTE: Requires namespace support.
   PolicyBuilder& AddTmpfs(absl::string_view inside, size_t size);
 
-  // Allows unrestricted access to the network by *not* creating a network
-  // namespace. This only disables the network namespace. To actually allow
-  // networking, you would also need to allow networking syscalls. Calling this
-  // function will enable use of namespaces.
-  [[deprecated("Use Allow(sandbox2::UnrestrictedNetworking()) instead.")]]
-  PolicyBuilder& AllowUnrestrictedNetworking();
-
   // Enables a shared network namespace for all sandboxees that are started by
   // the same forkserver.
   //
@@ -1020,9 +1007,6 @@ class PolicyBuilder final {
   // instance.
   PolicyBuilder& DefaultAction(TraceAllSyscalls);
 
-  ABSL_DEPRECATED("Use DefaultAction(sandbox2::AllowAllSyscalls()) instead")
-  PolicyBuilder& DangerDefaultAllowAll();
-
   // Allows syscalls that are necessary for the NetworkProxyClient.
   //
   // When filter_unix_sockets is true, AF_UNIX domain sockets are restricted to
@@ -1054,8 +1038,6 @@ class PolicyBuilder final {
 
   // Changes mounts propagation from MS_PRIVATE to MS_SLAVE.
   //
-  ABSL_DEPRECATED("Use Allow(sandbox2::MapExec()) instead")
-  PolicyBuilder& DangerAllowMountPropagation();
   PolicyBuilder& Allow(MountPropagation);
   // Changes mounts propagation from MS_PRIVATE to MS_SHARED for a specific
   // mount.

@@ -791,8 +791,6 @@ PolicyBuilder& PolicyBuilder::AllowPkeyMprotect(MapExec) {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AllowMmap() { return AllowMmap(MapExec()); }
-
 PolicyBuilder& PolicyBuilder::AllowMmap(MapExec) {
   return Allow(MapExec()).AllowSyscalls(kMmapSyscalls);
 }
@@ -1482,10 +1480,6 @@ PolicyBuilder& PolicyBuilder::AllowStaticStartup() {
   return *this;
 }
 
-PolicyBuilder& PolicyBuilder::AllowDynamicStartup() {
-  return AllowDynamicStartup(MapExec());
-}
-
 PolicyBuilder& PolicyBuilder::AllowDynamicStartup(MapExec) {
   Allow(MapExec());
   if (allowed_complex_.dynamic_startup) {
@@ -1599,10 +1593,6 @@ PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(
 
 PolicyBuilder& PolicyBuilder::AddPolicyOnMmap(BpfFunc f) {
   return AddPolicyOnSyscalls(kMmapSyscalls, f);
-}
-
-PolicyBuilder& PolicyBuilder::DangerDefaultAllowAll() {
-  return DefaultAction(AllowAllSyscalls());
 }
 
 PolicyBuilder& PolicyBuilder::DefaultAction(AllowAllSyscalls) {
@@ -1926,11 +1916,6 @@ PolicyBuilder& PolicyBuilder::AddTmpfs(absl::string_view inside, size_t size) {
   return *this;
 }
 
-// Use Allow(sandbox2::UnrestrictedNetworking()) instead.
-PolicyBuilder& PolicyBuilder::AllowUnrestrictedNetworking() {
-  return Allow(UnrestrictedNetworking());
-}
-
 PolicyBuilder& PolicyBuilder::UseForkServerSharedNetNs() {
   EnableNamespaces();  // NOLINT(clang-diagnostic-deprecated-declarations)
 
@@ -2109,10 +2094,6 @@ PolicyBuilder& PolicyBuilder::Allow(MountPropagation,
     SetError(status);
   }
   return *this;
-}
-
-PolicyBuilder& PolicyBuilder::DangerAllowMountPropagation() {
-  return Allow(MountPropagation());
 }
 
 PolicyBuilder& PolicyBuilder::Allow(WriteExecutable) {
