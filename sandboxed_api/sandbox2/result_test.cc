@@ -137,6 +137,16 @@ TEST(ResultTest, UnknownStatus) {
   EXPECT_THAT(result.ToStatus(), StatusIs(absl::StatusCode::kInternal));
 }
 
+TEST(ResultTest, SetExitStatusCodeDoesNotOverwrite) {
+  Result result;
+
+  result.SetExitStatusCode(Result::OK, 42);
+  result.SetExitStatusCode(Result::TIMEOUT, 10);
+
+  EXPECT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(42));
+}
+
 TEST(ResultTest, StatusOk) {
   Result result;
   result.SetExitStatusCode(Result::OK, 0);
