@@ -1269,6 +1269,7 @@ cc_test(
     deps = [
         ":util",
         "//sandboxed_api:testing",
+        "//sandboxed_api/util:fileops",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

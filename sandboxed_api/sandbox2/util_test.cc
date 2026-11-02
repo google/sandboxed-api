@@ -41,6 +41,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/testing.h"
+#include "sandboxed_api/util/fileops.h"
 
 namespace sandbox2::util {
 namespace {
@@ -63,10 +64,9 @@ using ::testing::StrEq;
 constexpr absl::string_view kTestString = "This is a test string";
 
 TEST(UtilTest, TestCreateMemFd) {
-  int fd = 0;
-  ASSERT_THAT(CreateMemFd(&fd), IsTrue());
-  EXPECT_THAT(fd, Gt(1));
-  close(fd);
+  SAPI_ASSERT_OK_AND_ASSIGN(sapi::file_util::fileops::FDCloser fd,
+                            CreateMemFd());
+  EXPECT_THAT(fd.get(), Gt(1));
 }
 
 TEST(CharPtrArrayTest, FromStringVector) {
