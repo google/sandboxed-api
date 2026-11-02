@@ -14,6 +14,8 @@
 
 #include "sandboxed_api/sandbox2/syscall.h"
 
+#include <linux/audit.h>
+#include <linux/seccomp.h>
 #include <syscall.h>
 
 #include <array>
@@ -30,6 +32,17 @@
 #include "sandboxed_api/config.h"
 #include "sandboxed_api/sandbox2/syscall_defs.h"
 #include "sandboxed_api/testing.h"
+
+#ifndef AUDIT_ARCH_PPC64LE
+#define AUDIT_ARCH_PPC64LE (EM_PPC64 | __AUDIT_ARCH_64BIT | __AUDIT_ARCH_LE)
+#endif
+
+#ifndef AUDIT_ARCH_RISCV64
+#ifndef EM_RISCV
+#define EM_RISCV 243
+#endif
+#define AUDIT_ARCH_RISCV64 (EM_RISCV | __AUDIT_ARCH_64BIT | __AUDIT_ARCH_LE)
+#endif
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
@@ -184,6 +197,23 @@ TEST(SyscallTest, ArchDescription) {
   EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kArm), Eq("[Arm-32]"));
   EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kUnknown),
               StartsWith("[UNKNOWN_ARCH"));
+}
+
+TEST(SyscallTest, AuditArchToCPUArch) {
+  EXPECT_THAT(Syscall(-1, seccomp_data{.arch = AUDIT_ARCH_AARCH64}).arch(),
+              Eq(sapi::cpu::kArm64));
+  EXPECT_THAT(Syscall(-1, seccomp_data{.arch = AUDIT_ARCH_ARM}).arch(),
+              Eq(sapi::cpu::kArm));
+  EXPECT_THAT(Syscall(-1, seccomp_data{.arch = AUDIT_ARCH_X86_64}).arch(),
+              Eq(sapi::cpu::kX8664));
+  EXPECT_THAT(Syscall(-1, seccomp_data{.arch = AUDIT_ARCH_I386}).arch(),
+              Eq(sapi::cpu::kX86));
+  EXPECT_THAT(Syscall(-1, seccomp_data{.arch = AUDIT_ARCH_PPC64LE}).arch(),
+              Eq(sapi::cpu::kPPC64LE));
+  EXPECT_THAT(Syscall(-1, seccomp_data{.arch = AUDIT_ARCH_RISCV64}).arch(),
+              Eq(sapi::cpu::kRiscv64));
+  EXPECT_THAT(Syscall(-1, seccomp_data{.arch = 0}).arch(),
+              Eq(sapi::cpu::kUnknown));
 }
 
 }  // namespace
