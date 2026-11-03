@@ -271,6 +271,42 @@ TEST_P(NotifyTest, InspectAfterSyscall) {
   EXPECT_TRUE(notify_ptr->syscall_return_called());
 }
 
+class DefaultEventSyscallReturnNotify : public Notify {
+ public:
+  TraceAction EventSyscallTrace(const Syscall& syscall) override {
+    if (syscall.nr() != __NR_personality) {
+      return TraceAction::kAllow;
+    }
+    syscall_trace_called_ = true;
+    return TraceAction::kInspectAfterReturn;
+  }
+
+  bool syscall_trace_called() const { return syscall_trace_called_; }
+
+ private:
+  bool syscall_trace_called_ = false;
+};
+
+TEST_P(NotifyTest, DefaultEventSyscallReturnDoesNothing) {
+  if (GetParam()) {
+    GTEST_SKIP() << "Skipping DefaultEventSyscallReturnDoesNothing test "
+                    "because kInspectAfterReturn is not supported for unotify";
+  }
+  const std::string path = GetTestSourcePath("sandbox2/testcases/personality");
+  std::vector<std::string> args = {path};
+  auto notify = std::make_unique<DefaultEventSyscallReturnNotify>();
+  DefaultEventSyscallReturnNotify* notify_ptr = notify.get();
+  Sandbox2 s2(std::make_unique<Executor>(path, args),
+              NotifyTestcasePolicy(path), std::move(notify));
+  ASSERT_THAT(SetUpSandbox(&s2), IsOk());
+
+  Result result = s2.Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+  EXPECT_TRUE(notify_ptr->syscall_trace_called());
+}
+
 bool IsVforkSyscall(int nr) {
 #ifdef __NR_vfork
   if (nr == __NR_vfork) {
