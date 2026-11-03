@@ -249,19 +249,19 @@ EmbedFile* EmbedFile::instance() {
 
 int EmbedFile::CreateFdForFileToc(const EmbedToc& toc) {
   // Create a memfd/temp file and write contents of the SAPI library to it.
-  int fd = -1;
   std::string name_str(toc.name);
-  if (!sandbox2::util::CreateMemFd(&fd, name_str.c_str())) {
+  absl::StatusOr<FDCloser> embed_fd =
+      sandbox2::util::CreateMemFd(name_str.c_str());
+  if (!embed_fd.ok()) {
     LOG(ERROR) << "Couldn't create a temporary file for TOC name '" << toc.name
-               << "'";
+               << "': " << embed_fd.status();
     return -1;
   }
-  file_util::fileops::FDCloser embed_fd(fd);
   VLOG(3) << "Created memfd file '" << toc.name << "'";
 
   if (!toc.section_name.empty()) {
     absl::Status copy_status =
-        CopySectionToMemfd(toc.section_name, toc.name, embed_fd.get());
+        CopySectionToMemfd(toc.section_name, toc.name, embed_fd->get());
     if (!copy_status.ok()) {
       LOG(WARNING) << "CopySectionToMemfd failed for '" << toc.name
                    << "': " << copy_status;
@@ -270,19 +270,19 @@ int EmbedFile::CreateFdForFileToc(const EmbedToc& toc) {
       }
       // The failed copy may have left partial data in the memfd. Discard it
       // before writing the in-binary data.
-      if (ftruncate(embed_fd.get(), 0) == -1 ||
-          lseek(embed_fd.get(), 0, SEEK_SET) == -1) {
+      if (ftruncate(embed_fd->get(), 0) == -1 ||
+          lseek(embed_fd->get(), 0, SEEK_SET) == -1) {
         PLOG(ERROR) << "Couldn't reset memfd for '" << toc.name << "'";
         return -1;
       }
-      if (!file_util::fileops::WriteToFD(embed_fd.get(), toc.data.data(),
+      if (!file_util::fileops::WriteToFD(embed_fd->get(), toc.data.data(),
                                          toc.data.size())) {
         LOG(ERROR) << "Couldn't write SAPI embed fallback for '" << toc.name
                    << "'";
         return -1;
       }
     }
-  } else if (!file_util::fileops::WriteToFD(embed_fd.get(), toc.data.data(),
+  } else if (!file_util::fileops::WriteToFD(embed_fd->get(), toc.data.data(),
                                             toc.data.size())) {
     LOG(ERROR) << "Couldn't write SAPI embed file '" << toc.name << "'";
     return -1;
@@ -290,25 +290,26 @@ int EmbedFile::CreateFdForFileToc(const EmbedToc& toc) {
   VLOG(3) << "Populated SAPI embed file '" << toc.name << "'";
 
   // Make the underlying file non-writable.
-  if (fchmod(embed_fd.get(),
+  if (fchmod(embed_fd->get(),
              S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == -1) {
-    PLOG(ERROR) << "Couldn't make FD=" << embed_fd.get() << " RX-only";
+    PLOG(ERROR) << "Couldn't make FD=" << embed_fd->get() << " RX-only";
     return -1;
   }
 
   // Seal the file
-  if (!SealFile(embed_fd.get())) {
-    PLOG(ERROR) << "Couldn't apply file seals to FD=" << embed_fd.get();
+  if (!SealFile(embed_fd->get())) {
+    PLOG(ERROR) << "Couldn't apply file seals to FD=" << embed_fd->get();
     return -1;
   }
-  VLOG(3) << "Sealed FD=" << embed_fd.get();
+  VLOG(3) << "Sealed FD=" << embed_fd->get();
 
   // Instead of working around problems with CRIU we reopen the file as
   // read-only.
-  fd = open(absl::StrCat("/proc/", getpid(), "/fd/", embed_fd.get()).c_str(),
-            O_RDONLY | O_CLOEXEC);
+  int fd =
+      open(absl::StrCat("/proc/", getpid(), "/fd/", embed_fd->get()).c_str(),
+           O_RDONLY | O_CLOEXEC);
   if (fd == -1) {
-    PLOG(ERROR) << "Couldn't reopen '" << embed_fd.get()
+    PLOG(ERROR) << "Couldn't reopen '" << embed_fd->get()
                 << "' read-only through /proc";
     return -1;
   }
