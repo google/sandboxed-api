@@ -118,6 +118,8 @@ void DropAllCapabilities() {
   SAPI_RAW_CHECK(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0,
                  "Denying new privs");
   SAPI_RAW_CHECK(prctl(PR_SET_KEEPCAPS, 0) == 0, "Dropping caps");
+  // Dump coverage data before enabling seccomp.
+  util::DumpCoverageData();
   SAPI_RAW_CHECK(syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER,
                          SECCOMP_FILTER_FLAG_TSYNC | seccomp_extra_flags,
                          reinterpret_cast<uintptr_t>(&prog)) == 0,
