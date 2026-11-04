@@ -187,7 +187,7 @@ inline constexpr std::string_view kSandboxeeCommonIncludes = R"(
 //   4. Sandboxee function names
 //   5. Sandboxee symbol names
 inline constexpr std::string_view kSandboxeeSrcTemplate = R"(
-#if defined(__x86_64__) || defined(__aarch64__)
+#if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)
 extern "C" char sapi_callback_trampolines[];
 #endif
 
@@ -499,7 +499,8 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
     entries.push_back(
         absl::StrFormat("{\"%1$s\", reinterpret_cast<void*>(&%1$s)}", func));
   }
-  entries.push_back(R"(#if defined(__x86_64__) || defined(__aarch64__)
+  entries.push_back(
+      R"(#if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)
     {"sapi_callback_trampolines", reinterpret_cast<void*>(sapi_callback_trampolines)}
 #endif)");
 

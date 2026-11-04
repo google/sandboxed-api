@@ -92,7 +92,7 @@ def _clang_generator_flags(ctx, cc_ctx, cpp_toolchain, input_files_paths):
     # Use the defines that would be used by the toolchain normally for C++ compilation.
     # Add them first so that they are overridden by the user's copts.
     for copt in default_copts:
-        if copt.startswith("-D"):
+        if copt.startswith("-D") or copt.startswith("--target="):
             flags.append("--extra-arg=" + copt)
 
     # The GNU compiler is what is frequently used in practice, and it allows to

@@ -104,4 +104,67 @@ sapi_callback_trampolines:
 .endr
 sapi_callback_trampolines_end:
 
+#elif defined(__riscv)
+
+.global sapi_callback_trampolines
+.global sapi_callback_trampolines_end
+.extern sapi_client_HandleCallback
+
+.section .text
+
+// Each trampoline occupies exactly 16 bytes (see kTrampolineSize in
+// sandbox2_rpcchannel.h). .balign alone would guarantee that, but disabling
+// compressed instructions and linker relaxation keeps the layout fixed at
+// assembly time and easy to reason about.
+.option push
+.option norvc
+.option norelax
+
+.balign 16
+sapi_callback_handler:
+    // Make room for a0-a7, s0 (FP) and ra (80 bytes total).
+    // Stack must be 16-byte aligned.
+    addi sp, sp, -80
+    sd ra, 72(sp)
+    sd s0, 64(sp)
+    addi s0, sp, 80
+
+    // Save argument registers a0-a7 to stack
+    sd a0, 0(sp)
+    sd a1, 8(sp)
+    sd a2, 16(sp)
+    sd a3, 24(sp)
+    sd a4, 32(sp)
+    sd a5, 40(sp)
+    sd a6, 48(sp)
+    sd a7, 56(sp)
+
+    // Call C++ handler:
+    // uint64_t sapi_client_HandleCallback(uint64_t index, uint64_t* args);
+    mv a0, t0 // index
+    mv a1, sp // pointer to saved registers (a0-a7)
+    call sapi_client_HandleCallback
+
+    // Restore FP, RA and pop stack
+    ld ra, 72(sp)
+    ld s0, 64(sp)
+    addi sp, sp, 80
+    ret
+
+.balign 16
+sapi_callback_trampolines:
+.macro trampoline
+    li t0, \@
+    j sapi_callback_handler
+    .balign 16
+.endm
+
+// Generate 64 trampolines
+.rept 64
+    trampoline
+.endr
+sapi_callback_trampolines_end:
+
+.option pop
+
 #endif
