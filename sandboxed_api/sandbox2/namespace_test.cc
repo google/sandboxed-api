@@ -42,6 +42,7 @@
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/shared_ipc_namespace.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/allowlists/write_executable.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policy.h"
@@ -521,6 +522,51 @@ TEST(NamespaceTest, MountPropagation) {
     EXPECT_THAT(IsMountShared(result[0], "/mnt_a"), IsOkAndHolds(true));
     EXPECT_THAT(IsMountShared(result[0], "/mnt_b"), IsOkAndHolds(false));
   }
+}
+
+TEST(NamespaceTest, WriteExecutable) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string temp_dir,
+                            CreateTempDir(GetTestTempPath("mnt_we_")));
+  const std::string temp_bin = absl::StrCat(temp_dir, "/namespace");
+  ASSERT_TRUE(file_util::fileops::CopyFile(path, temp_bin, 0755));
+
+  // Read-only mounts allow execution by default.
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto policy, CreateDefaultPermissiveTestPolicy(path)
+                         .AddDirectoryAt(temp_dir, "/mnt_ro", /*is_ro=*/true)
+                         .TryBuild());
+    EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                    path, {path, "18", "/mnt_ro/namespace"}, std::move(policy)),
+                ElementsAre("exec_success"));
+  }
+
+  // By default, writable mounts have MS_NOEXEC.
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto policy, CreateDefaultPermissiveTestPolicy(path)
+                         .AddDirectoryAt(temp_dir, "/mnt_rw", /*is_ro=*/false)
+                         .TryBuild());
+    EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                    path, {path, "18", "/mnt_rw/namespace"}, std::move(policy)),
+                ElementsAre("exec_failed:EACCES"));
+  }
+
+  // With Allow(WriteExecutable()), writable mounts omit MS_NOEXEC and allow
+  // executing files on them.
+  {
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto policy, CreateDefaultPermissiveTestPolicy(path)
+                         .AddDirectoryAt(temp_dir, "/mnt_rw", /*is_ro=*/false)
+                         .Allow(WriteExecutable())
+                         .TryBuild());
+    EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                    path, {path, "18", "/mnt_rw/namespace"}, std::move(policy)),
+                ElementsAre("exec_success"));
+  }
+
+  file_util::fileops::DeleteRecursively(temp_dir);
 }
 
 }  // namespace

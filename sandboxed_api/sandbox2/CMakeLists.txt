@@ -1072,6 +1072,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::allowlists_unrestricted_networking
     sandbox2::allowlists_namespaces
     sandbox2::allowlists_shared_ipc_namespace
+    sandbox2::allowlists_write_executable
     sapi::fileops
     sandbox2::namespace
     sandbox2::sandbox2
@@ -1440,6 +1441,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sandbox2::allowlists_mount_propagation
             sandbox2::allowlists_namespaces
             sandbox2::allowlists_unrestricted_networking
+            sandbox2::allowlists_write_executable
             sandbox2::bpf_helper
             sandbox2::mounts
             sandbox2::mount_tree_proto
@@ -1531,6 +1533,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::status_matchers
     absl::strings
     sandbox2::allowlists_unrestricted_networking
+    sandbox2::allowlists_write_executable
     sandbox2::comms
     sandbox2::allowlists_enable_landlock
     sandbox2::fork_client

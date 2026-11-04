@@ -37,6 +37,9 @@
 //    spaces, and returns the content strings. Returns 0 on OK.
 // ./binary 11:
 //    Returns the list of all PIDs in /proc.
+// ./binary 18 <exec_path>:
+//    Forks and executes <exec_path>, reporting "exec_success" or
+//    "exec_failed:<errno>".
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <signal.h>
@@ -44,6 +47,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <cerrno>
@@ -308,6 +312,36 @@ int main(int argc, char* argv[]) {
                              : absl::StrCat("unix_sendto_failed:", errno));
       }
       close(s);
+      break;
+    }
+    case 18: {
+      int pipefd[2];
+      PCHECK(pipe2(pipefd, O_CLOEXEC) == 0);
+      pid_t pid = fork();
+      PCHECK(pid >= 0);
+      if (pid == 0) {
+        close(pipefd[0]);
+        char* child_argv[] = {argv[2], nullptr};
+        execve(argv[2], child_argv, environ);
+        int err = errno;
+        sapi::file_util::fileops::WriteToFD(
+            pipefd[1], reinterpret_cast<const char*>(&err), sizeof(err));
+        _exit(1);
+      }
+      close(pipefd[1]);
+      int err = 0;
+      ssize_t n = read(pipefd[0], &err, sizeof(err));
+      close(pipefd[0]);
+      int status = 0;
+      PCHECK(waitpid(pid, &status, 0) == pid);
+      if (n == 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        result.push_back("exec_success");
+      } else if (n == sizeof(err)) {
+        result.push_back(err == EACCES ? "exec_failed:EACCES"
+                                       : absl::StrCat("exec_failed:", err));
+      } else {
+        result.push_back(absl::StrCat("child_status:", status));
+      }
       break;
     }
     default:

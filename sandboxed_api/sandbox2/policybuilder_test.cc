@@ -34,6 +34,7 @@
 #include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/allowlists/write_executable.h"
 #include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
@@ -126,6 +127,7 @@ TEST(PolicyBuilderTest, Testpolicy_size) {
   builder.Allow(UnrestrictedNetworking()); assert_same();
   builder.Allow(MountPropagation()); assert_same();
   builder.Allow(MountPropagation(), "/bin"); assert_same();
+  builder.Allow(WriteExecutable()); assert_same();
   // clang-format on
 }
 
@@ -547,6 +549,21 @@ TEST(PolicyBuilderTest, AllowMountPropagationNonDirectoryFails) {
                   .TryBuild(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Path is not a directory")));
+}
+
+TEST(PolicyBuilderTest, AllowWriteExecutable) {
+  PolicyBuilder builder;
+  EXPECT_FALSE(builder.mounts().GetMountSpecs().allow_write_executable());
+  builder.Allow(WriteExecutable());
+  EXPECT_TRUE(builder.mounts().GetMountSpecs().allow_write_executable());
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  auto policy = std::move(*policy_result);
+  ASSERT_TRUE(policy->GetNamespace().has_value());
+  EXPECT_TRUE(policy->GetNamespace()
+                  ->mounts()
+                  .GetMountSpecs()
+                  .allow_write_executable());
 }
 
 TEST(PolicyBuilder, HostnameFailsWithUnrestrictedNetworking) {

@@ -38,6 +38,7 @@
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
+#include "sandboxed_api/sandbox2/allowlists/write_executable.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
@@ -511,6 +512,65 @@ TEST_F(LandlockTest, LandlockTruncateAndReferAccess) {
   std::vector<std::string> res_refer = RunSandboxeeWithArgsAndPolicy(
       path, {path, "14", file1, file2}, std::move(policy_refer));
   EXPECT_THAT(res_refer, ElementsAre("refer_success"));
+
+  sapi::file_util::fileops::DeleteRecursively(temp_dir);
+}
+
+TEST_F(LandlockTest, AllowWriteExecutable) {
+  const std::string path = GetTestcaseBinPath("namespace");
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      std::string temp_dir,
+      sapi::CreateTempDir(GetTestTempPath("landlock_we_")));
+  std::string exec_file = sapi::file::JoinPath(temp_dir, "exec_bin");
+  ASSERT_TRUE(sapi::file_util::fileops::CopyFile(path, exec_file, 0755));
+
+  // Read-only mounts allow execution by default.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_ro_dir,
+                            CreateLandlockTestPolicy(path)
+                                .AddDirectory(temp_dir, /*is_ro=*/true)
+                                .TryBuild());
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(path, {path, "18", exec_file},
+                                            std::move(policy_ro_dir)),
+              ElementsAre("exec_success"));
+
+  // By default, writable directory and file rules omit
+  // LANDLOCK_ACCESS_FS_EXECUTE.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_rw_dir,
+                            CreateLandlockTestPolicy(path)
+                                .AddDirectory(temp_dir, /*is_ro=*/false)
+                                .TryBuild());
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(path, {path, "18", exec_file},
+                                            std::move(policy_rw_dir)),
+              ElementsAre("exec_failed:EACCES"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_rw_file,
+                            CreateLandlockTestPolicy(path)
+                                .AddFile(exec_file, /*is_ro=*/false)
+                                .TryBuild());
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(path, {path, "18", exec_file},
+                                            std::move(policy_rw_file)),
+              ElementsAre("exec_failed:EACCES"));
+
+  // With Allow(WriteExecutable()), writable directory and file rules grant
+  // LANDLOCK_ACCESS_FS_EXECUTE.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_we_dir,
+                            CreateLandlockTestPolicy(path)
+                                .AddDirectory(temp_dir, /*is_ro=*/false)
+                                .Allow(WriteExecutable())
+                                .TryBuild());
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(path, {path, "18", exec_file},
+                                            std::move(policy_we_dir)),
+              ElementsAre("exec_success"));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_we_file,
+                            CreateLandlockTestPolicy(path)
+                                .AddFile(exec_file, /*is_ro=*/false)
+                                .Allow(WriteExecutable())
+                                .TryBuild());
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(path, {path, "18", exec_file},
+                                            std::move(policy_we_file)),
+              ElementsAre("exec_success"));
 
   sapi::file_util::fileops::DeleteRecursively(temp_dir);
 }
