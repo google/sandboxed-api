@@ -338,16 +338,20 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
   )
   target_link_libraries(sandbox2_asynchronous_byte_transport_test PRIVATE
     absl::check
+    absl::span
     absl::status
     absl::status_matchers
     absl::statusor
     absl::synchronization
     absl::time
     sandbox2::asynchronous_byte_transport
+    sandbox2::buffer
     sandbox2::comms
+    sapi::fileops
     sapi::raw_logging
     sapi::testing
     sapi::test_main
+    sapi::thread
   )
   gtest_discover_tests_xcompile(sandbox2_asynchronous_byte_transport_test)
 endif()
