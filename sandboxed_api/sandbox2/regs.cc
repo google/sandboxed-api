@@ -35,6 +35,38 @@ namespace sandbox2 {
 #define NT_ARM_SYSTEM_CALL 0x404
 #endif
 
+#if defined(SAPI_RISCV64)
+#ifndef PTRACE_GET_SYSCALL_INFO
+#define PTRACE_GET_SYSCALL_INFO 0x420e
+#endif
+
+constexpr int kPtraceSyscallInfoEntry = 1;
+constexpr int kPtraceSyscallInfoSeccomp = 3;
+
+struct ptrace_syscall_info {
+  __u8 op; /* PTRACE_SYSCALL_INFO_* */
+  __u8 pad[3];
+  __u32 arch;
+  __u64 instruction_pointer;
+  __u64 stack_pointer;
+  union {
+    struct {
+      __u64 nr;
+      __u64 args[6];
+    } entry;
+    struct {
+      __s64 rval;
+      __u8 is_error;
+    } exit;
+    struct {
+      __u64 nr;
+      __u64 args[6];
+      __u32 ret_data;
+    } seccomp;
+  };
+};
+#endif  // defined(SAPI_RISCV64)
+
 absl::Status Regs::Fetch() {
 #ifdef SAPI_X86_64
   if (ptrace(PTRACE_GETREGS, pid_, 0, &user_regs_) == -1L) {
@@ -43,7 +75,7 @@ absl::Status Regs::Fetch() {
   }
 #endif
   if constexpr (sapi::host_cpu::IsPPC64LE() || sapi::host_cpu::IsArm64() ||
-                sapi::host_cpu::IsArm()) {
+                sapi::host_cpu::IsArm() || sapi::host_cpu::IsRiscv64()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_GETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
@@ -57,6 +89,25 @@ absl::Status Regs::Fetch() {
           ") size returned: ", pt_iov.iov_len,
           " different than sizeof(user_regs_): ", sizeof(user_regs_)));
     }
+
+#if defined(SAPI_RISCV64)
+    // a0 is overwritten with the return value (-ENOSYS at syscall-entry and
+    // seccomp stops) and orig_a0 is not in user_regs_struct, so read the first
+    // argument from PTRACE_GET_SYSCALL_INFO. Elsewhere, a0 is still valid.
+    orig_a0_ = user_regs_.a0;
+    ptrace_syscall_info info = {};
+    if (ptrace(static_cast<decltype(PTRACE_GETREGSET)>(PTRACE_GET_SYSCALL_INFO),
+               pid_, sizeof(info), &info) == -1L) {
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("ptrace(PTRACE_GET_SYSCALL_INFO, pid=", pid_,
+                              ") failed"));
+    }
+    if (info.op == kPtraceSyscallInfoSeccomp) {
+      orig_a0_ = info.seccomp.args[0];
+    } else if (info.op == kPtraceSyscallInfoEntry) {
+      orig_a0_ = info.entry.args[0];
+    }
+#endif
 
     // On AArch64, we are not done yet. Read the syscall number.
     if constexpr (sapi::host_cpu::IsArm64()) {
@@ -87,7 +138,7 @@ absl::Status Regs::Store() {
   }
 #endif
   if constexpr (sapi::host_cpu::IsPPC64LE() || sapi::host_cpu::IsArm64() ||
-                sapi::host_cpu::IsArm()) {
+                sapi::host_cpu::IsArm() || sapi::host_cpu::IsRiscv64()) {
     iovec pt_iov = {&user_regs_, sizeof(user_regs_)};
 
     if (ptrace(PTRACE_SETREGSET, pid_, NT_PRSTATUS, &pt_iov) == -1L) {
@@ -123,6 +174,9 @@ absl::Status Regs::SkipSyscallReturnValue(uintptr_t value) {
 #elif defined(SAPI_ARM)
   user_regs_.orig_x0 = -1;
   user_regs_.regs[7] = value;
+#elif defined(SAPI_RISCV64)
+  user_regs_.a7 = -1;
+  user_regs_.a0 = value;
 #endif
   return Store();
 }
@@ -189,6 +243,16 @@ Syscall Regs::ToSyscall(sapi::cpu::Architecture syscall_arch) const {
     auto ip = user_regs_.pc;
     return Syscall(syscall_arch, user_regs_.regs[7], args, pid_, sp, ip);
   }
+#elif defined(SAPI_RISCV64)
+  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kRiscv64)) {
+    Syscall::Args args = {
+        orig_a0_,      user_regs_.a1, user_regs_.a2,
+        user_regs_.a3, user_regs_.a4, user_regs_.a5,
+    };
+    auto sp = user_regs_.sp;
+    auto ip = user_regs_.pc;
+    return Syscall(syscall_arch, user_regs_.a7, args, pid_, sp, ip);
+  }
 #endif
   return Syscall(pid_);
 }
@@ -212,6 +276,10 @@ int64_t Regs::GetReturnValue(sapi::cpu::Architecture syscall_arch) const {
 #elif defined(SAPI_ARM)
   if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kArm)) {
     return static_cast<int32_t>(user_regs_.regs[0]);
+  }
+#elif defined(SAPI_RISCV64)
+  if (ABSL_PREDICT_TRUE(syscall_arch == sapi::cpu::kRiscv64)) {
+    return static_cast<int64_t>(user_regs_.a0);
   }
 #endif
   return -1;
