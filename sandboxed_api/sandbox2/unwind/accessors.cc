@@ -307,6 +307,73 @@ unw_word_t GetReg(const sandbox2::Regs::PtraceRegisters& regs,
       return regs.regs[14];
     case UNW_ARM_R15:
       return regs.pc;
+#elif defined(SAPI_RISCV64)
+    case UNW_RISCV_X0:
+      return 0;
+    case UNW_RISCV_X1:
+      return regs.ra;
+    case UNW_RISCV_X2:
+      return regs.sp;
+    case UNW_RISCV_X3:
+      return regs.gp;
+    case UNW_RISCV_X4:
+      return regs.tp;
+    case UNW_RISCV_X5:
+      return regs.t0;
+    case UNW_RISCV_X6:
+      return regs.t1;
+    case UNW_RISCV_X7:
+      return regs.t2;
+    case UNW_RISCV_X8:
+      return regs.s0;
+    case UNW_RISCV_X9:
+      return regs.s1;
+    case UNW_RISCV_X10:
+      return regs.a0;
+    case UNW_RISCV_X11:
+      return regs.a1;
+    case UNW_RISCV_X12:
+      return regs.a2;
+    case UNW_RISCV_X13:
+      return regs.a3;
+    case UNW_RISCV_X14:
+      return regs.a4;
+    case UNW_RISCV_X15:
+      return regs.a5;
+    case UNW_RISCV_X16:
+      return regs.a6;
+    case UNW_RISCV_X17:
+      return regs.a7;
+    case UNW_RISCV_X18:
+      return regs.s2;
+    case UNW_RISCV_X19:
+      return regs.s3;
+    case UNW_RISCV_X20:
+      return regs.s4;
+    case UNW_RISCV_X21:
+      return regs.s5;
+    case UNW_RISCV_X22:
+      return regs.s6;
+    case UNW_RISCV_X23:
+      return regs.s7;
+    case UNW_RISCV_X24:
+      return regs.s8;
+    case UNW_RISCV_X25:
+      return regs.s9;
+    case UNW_RISCV_X26:
+      return regs.s10;
+    case UNW_RISCV_X27:
+      return regs.s11;
+    case UNW_RISCV_X28:
+      return regs.t3;
+    case UNW_RISCV_X29:
+      return regs.t4;
+    case UNW_RISCV_X30:
+      return regs.t5;
+    case UNW_RISCV_X31:
+      return regs.t6;
+    case UNW_RISCV_PC:
+      return regs.pc;
 #endif
   }
   SAPI_RAW_LOG(FATAL, "Unsupported register: %d", reg);

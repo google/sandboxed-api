@@ -68,15 +68,21 @@ absl::StatusOr<std::vector<uintptr_t>> UnwindUsingFramePointer(
     unw_addr_space_t as, void* ctx, int max_frames, uintptr_t fp) {
 #if defined(SAPI_PPC64_LE)
   constexpr int kIPOffset = 2;
+  constexpr int kFPOffset = 0;
+#elif defined(SAPI_RISCV64)
+  constexpr int kIPOffset = -1;
+  constexpr int kFPOffset = -2;
 #else
   constexpr int kIPOffset = 1;
+  constexpr int kFPOffset = 0;
 #endif
   std::vector<uintptr_t> ips;
   for (int i = 0; fp != 0 && i < max_frames; ++i) {
     ABSL_ASSIGN_OR_RETURN(uintptr_t ip,
                           ReadMemory(as, ctx, fp + kIPOffset * sizeof(void*)));
     ips.push_back(ip);
-    ABSL_ASSIGN_OR_RETURN(fp, ReadMemory(as, ctx, fp));
+    ABSL_ASSIGN_OR_RETURN(fp,
+                          ReadMemory(as, ctx, fp + kFPOffset * sizeof(void*)));
   }
   return ips;
 }
@@ -216,6 +222,14 @@ SymbolMap LoadSymbolsMap(
             absl::StartsWith(symbol.name, "$t") ||
             absl::StartsWith(symbol.name, "$a") ||
             absl::StartsWith(symbol.name, "$v")) {
+          continue;
+        }
+      }
+
+      // https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-elf.adoc?plain=1#L2302-L2307
+      if constexpr (sapi::host_cpu::IsRiscv64()) {
+        if (absl::StartsWith(symbol.name, "$x") ||
+            absl::StartsWith(symbol.name, "$d")) {
           continue;
         }
       }
