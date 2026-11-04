@@ -96,7 +96,8 @@ void TryDenySetgroups(int proc_self_fd) {
     return;
   }
 
-  dprintf(fd.get(), "deny");
+  static constexpr char kDeny[] = "deny";
+  (void)TEMP_FAILURE_RETRY(write(fd.get(), kDeny, sizeof(kDeny) - 1));
 }
 
 void WriteIDMap(int proc_self_fd, const char* map_file, int32_t uid) {
@@ -104,8 +105,11 @@ void WriteIDMap(int proc_self_fd, const char* map_file, int32_t uid) {
       TEMP_FAILURE_RETRY(openat(proc_self_fd, map_file, O_WRONLY | O_CLOEXEC)));
   SAPI_RAW_PCHECK(fd.get() != -1, "Couldn't open %s", map_file);
 
-  SAPI_RAW_PCHECK(dprintf(fd.get(), "1000 %d 1", uid) >= 0,
-                  "Could not write %d to %s", uid, map_file);
+  std::string map_str = absl::StrCat("1000 ", uid, " 1");
+  SAPI_RAW_PCHECK(
+      TEMP_FAILURE_RETRY(write(fd.get(), map_str.data(), map_str.size())) ==
+          static_cast<ssize_t>(map_str.size()),
+      "Could not write %d to %s", uid, map_file);
 }
 
 void SetupIDMaps(int proc_self_fd, uid_t uid, gid_t gid) {

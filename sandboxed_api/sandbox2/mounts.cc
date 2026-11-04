@@ -663,6 +663,7 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
                   const std::string& path, bool create_backing_files,
                   bool allow_mount_propagation, bool allow_write_executable) {
   // First, create the backing files if needed.
+  bool just_created_node = false;
   if (create_backing_files) {
     switch (tree.node().node_case()) {
       case MountTree::Node::kFileNode: {
@@ -670,6 +671,7 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
         int fd = open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
         PCHECK(fd != -1);
         PCHECK(close(fd) == 0);
+        just_created_node = true;
         break;
       }
       case MountTree::Node::kDirNode:
@@ -677,13 +679,17 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
       case MountTree::Node::kRootNode:
       case MountTree::Node::NODE_NOT_SET:
         VLOG(2) << "Creating directory at " << path;
-        PCHECK(mkdir(path.c_str(), 0700) == 0 || errno == EEXIST);
+        if (mkdir(path.c_str(), 0700) == 0) {
+          just_created_node = true;
+        } else {
+          PCHECK(errno == EEXIST);
+        }
         break;
         // Intentionally no default to make sure we handle all the cases.
     }
   }
 
-  if (IsSymlink(path)) {
+  if (!just_created_node && IsSymlink(path)) {
     std::string abs_path;
     if (!file_util::fileops::ReadLinkAbsolute(path, &abs_path)) {
       LOG(WARNING) << "could not resolve mount target path " << path;
@@ -737,6 +743,9 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
   }
 
   // Traverse the subtrees.
+  if (tree.entries().empty()) {
+    return;
+  }
   for (const auto& [key, value] : GetSortedEntries(tree)) {
     std::string new_path = sapi::file::JoinPath(path, key);
     CreateMounts(*value, root_path, new_path, create_backing_files,
