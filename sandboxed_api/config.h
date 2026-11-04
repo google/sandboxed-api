@@ -37,6 +37,10 @@
 #elif defined(__arm__) || defined(_M_ARM)
 #define SAPI_ARM 1
 
+// RISC-V (only 64-bit is supported)
+#elif defined(__riscv)
+#define SAPI_RISCV64 1
+
 #endif
 
 namespace sapi {
@@ -99,7 +103,7 @@ constexpr bool Is64Bit() { return sizeof(uintptr_t) == 8; }
 
 static_assert(host_cpu::Architecture() != cpu::kUnknown,
               "Host CPU architecture is not supported: One of x86-64, POWER64 "
-              "(little endian), ARM or AArch64 is required.");
+              "(little endian), ARM, AArch64 or RISC-V 64 is required.");
 
 namespace os {
 
