@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/unwind/unwind.h"
 
+#include <elf.h>
 #include <sys/ptrace.h>
 #include <sys/types.h>
 
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,8 +45,8 @@
 #include "sandboxed_api/sandbox2/unwind/accessors.h"
 #include "sandboxed_api/sandbox2/unwind/unwind.pb.h"
 #include "sandboxed_api/sandbox2/util/demangle.h"
+#include "sandboxed_api/sandbox2/util/elf_parser.h"
 #include "sandboxed_api/sandbox2/util/maps_parser.h"
-#include "sandboxed_api/sandbox2/util/minielf.h"
 #include "sandboxed_api/util/file_helpers.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/raw_logging.h"
@@ -145,14 +147,13 @@ absl::StatusOr<std::vector<uintptr_t>> RunLibUnwind(unw_addr_space_t as,
   return ips;
 }
 
-absl::StatusOr<ElfFile> LoadSymbols(const std::string& path) {
+absl::StatusOr<std::unique_ptr<ElfParser>> OpenElfParser(
+    const std::string& path, bool mmap_file) {
   if (absl::EndsWith(path, " (deleted)") &&
       !sapi::file_util::fileops::Exists(path, /*fully_resolve=*/true)) {
-    return ElfFile::ParseFromFile(
-        std::string(absl::StripSuffix(path, " (deleted)")),
-        ElfFile::kLoadSymbols);
+    return ElfParser::Create(absl::StripSuffix(path, " (deleted)"), mmap_file);
   }
-  return ElfFile::ParseFromFile(path, ElfFile::kLoadSymbols);
+  return ElfParser::Create(path, mmap_file);
 }
 
 // If `ips` is non-null, only mappings that contain at least one of `ips` are
@@ -161,7 +162,9 @@ absl::StatusOr<ElfFile> LoadSymbols(const std::string& path) {
 // only a few addresses need to be symbolized.
 SymbolMap LoadSymbolsMap(
     const std::vector<MapsEntry>& maps,
-    absl::FunctionRef<absl::StatusOr<ElfFile>(const std::string&)> load_symbols,
+    absl::FunctionRef<
+        absl::StatusOr<std::unique_ptr<ElfParser>>(const std::string&)>
+        open_parser,
     const std::vector<uintptr_t>* ips) {
   SymbolMap addr_to_symbol;
   for (const MapsEntry& entry : maps) {
@@ -199,70 +202,106 @@ SymbolMap LoadSymbolsMap(
                       entry_ips.end());
     }
 
-    absl::StatusOr<ElfFile> elf = load_symbols(entry.path);
-    if (!elf.ok()) {
+    absl::StatusOr<std::unique_ptr<ElfParser>> parser = open_parser(entry.path);
+    if (!parser.ok()) {
       if (!is_deleted) {
         SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
                      entry.path.c_str(),
-                     std::string(elf.status().message()).c_str());
+                     std::string(parser.status().message()).c_str());
       }
       continue;
     }
 
-    // Nearest symbol at or below each of `entry_ips`.
-    std::vector<const ElfFile::Symbol*> nearest(entry_ips.size(), nullptr);
+    const uint16_t e_type = (*parser)->file_header().e_type;
+    if (e_type != ET_EXEC && e_type != ET_DYN) {
+      if (!is_deleted) {
+        SAPI_RAW_LOG(WARNING,
+                     "Could not load symbols for %s: not an executable",
+                     entry.path.c_str());
+      }
+      continue;
+    }
+    const bool position_independent = e_type == ET_DYN;
+
+    // Nearest symbol at or below each of `entry_ips`. Using `std::string`
+    // reuses each slot's buffer across `.symtab` updates without relying on
+    // `symbol_name` outliving `ReadSymbolsFromSymtab()`.
+    std::vector<std::string> nearest(entry_ips.size());
     std::vector<uintptr_t> nearest_addr(entry_ips.size(), 0);
-    for (const ElfFile::Symbol& symbol : elf->symbols()) {
-      // Skip Mapping Symbols on ARM
-      // ARM documentation for Mapping Symbols:
-      // https://developer.arm.com/documentation/dui0803/a/Accessing-and-managing-symbols-with-armlink/About-mapping-symbols
-      if constexpr (sapi::host_cpu::IsArm64() || sapi::host_cpu::IsArm()) {
-        if (absl::StartsWith(symbol.name, "$x") ||
-            absl::StartsWith(symbol.name, "$d") ||
-            absl::StartsWith(symbol.name, "$t") ||
-            absl::StartsWith(symbol.name, "$a") ||
-            absl::StartsWith(symbol.name, "$v")) {
-          continue;
-        }
-      }
+    absl::Status status = (*parser)->ForEachSection(
+        [&](absl::string_view /*name*/, const ElfShdr& hdr) -> absl::Status {
+          if (hdr.sh_type != SHT_SYMTAB) {
+            return absl::OkStatus();
+          }
+          return (*parser)->ReadSymbolsFromSymtab(
+              hdr,
+              [&](uintptr_t symbol_address, absl::string_view symbol_name) {
+                // Skip Mapping Symbols on ARM
+                // ARM documentation for Mapping Symbols:
+                // https://developer.arm.com/documentation/dui0803/a/Accessing-and-managing-symbols-with-armlink/About-mapping-symbols
+                if constexpr (sapi::host_cpu::IsArm64() ||
+                              sapi::host_cpu::IsArm()) {
+                  if (absl::StartsWith(symbol_name, "$x") ||
+                      absl::StartsWith(symbol_name, "$d") ||
+                      absl::StartsWith(symbol_name, "$t") ||
+                      absl::StartsWith(symbol_name, "$a") ||
+                      absl::StartsWith(symbol_name, "$v")) {
+                    return;
+                  }
+                }
 
-      // https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-elf.adoc?plain=1#L2302-L2307
-      if constexpr (sapi::host_cpu::IsRiscv64()) {
-        if (absl::StartsWith(symbol.name, "$x") ||
-            absl::StartsWith(symbol.name, "$d")) {
-          continue;
-        }
-      }
+                // https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-elf.adoc?plain=1#L2302-L2307
+                if constexpr (sapi::host_cpu::IsRiscv64()) {
+                  if (absl::StartsWith(symbol_name, "$x") ||
+                      absl::StartsWith(symbol_name, "$d")) {
+                    return;
+                  }
+                }
 
-      uintptr_t addr;
-      if (elf->position_independent()) {
-        if (symbol.address < entry.pgoff ||
-            symbol.address - entry.pgoff >= entry.end - entry.start) {
-          continue;
-        }
-        addr = symbol.address + entry.start - entry.pgoff;
-      } else {
-        if (symbol.address < entry.start || symbol.address >= entry.end) {
-          continue;
-        }
-        addr = symbol.address;
-      }
+                uintptr_t addr;
+                if (position_independent) {
+                  if (symbol_address < entry.pgoff ||
+                      symbol_address - entry.pgoff >= entry.end - entry.start) {
+                    return;
+                  }
+                  addr = symbol_address + entry.start - entry.pgoff;
+                } else {
+                  if (symbol_address < entry.start ||
+                      symbol_address >= entry.end) {
+                    return;
+                  }
+                  addr = symbol_address;
+                }
 
+                if (ips == nullptr) {
+                  addr_to_symbol[addr] = std::string(symbol_name);
+                  return;
+                }
+                for (size_t i = 0; i < entry_ips.size(); ++i) {
+                  // `>=` keeps the last symbol at an address, like the
+                  // overwrite above.
+                  if (addr <= entry_ips[i] && addr >= nearest_addr[i]) {
+                    nearest[i] = symbol_name;
+                    nearest_addr[i] = addr;
+                  }
+                }
+              });
+        });
+    if (!status.ok()) {
       if (ips == nullptr) {
-        addr_to_symbol[addr] = symbol.name;
-        continue;
+        addr_to_symbol.erase(addr_to_symbol.upper_bound(entry.start),
+                             addr_to_symbol.find(entry.end));
+        addr_to_symbol[entry.start] = map;
       }
-      for (size_t i = 0; i < entry_ips.size(); ++i) {
-        // `>=` keeps the last symbol at an address, like the overwrite above.
-        if (addr <= entry_ips[i] && addr >= nearest_addr[i]) {
-          nearest[i] = &symbol;
-          nearest_addr[i] = addr;
-        }
+      if (!is_deleted) {
+        SAPI_RAW_LOG(WARNING, "Could not load symbols for %s: %s",
+                     entry.path.c_str(), std::string(status.message()).c_str());
       }
+      continue;
     }
     for (size_t i = 0; i < entry_ips.size(); ++i) {
-      if (nearest[i] != nullptr) {
-        addr_to_symbol[nearest_addr[i]] = nearest[i]->name;
+      if (nearest_addr[i] != 0) {
+        addr_to_symbol.insert_or_assign(nearest_addr[i], std::move(nearest[i]));
       }
     }
   }
@@ -277,7 +316,12 @@ absl::StatusOr<SymbolMap> LoadSymbolsMapForPid(
                                                sapi::file::Defaults()));
   ABSL_ASSIGN_OR_RETURN(std::vector<MapsEntry> maps,
                         ParseProcMaps(maps_content));
-  return LoadSymbolsMap(maps, LoadSymbols, ips);
+  return LoadSymbolsMap(
+      maps,
+      [ips](const std::string& path) {
+        return OpenElfParser(path, /*mmap_file=*/ips != nullptr);
+      },
+      ips);
 }
 
 absl::StatusOr<std::vector<std::string>> SymbolizeStacktrace(
@@ -354,22 +398,21 @@ absl::Status RunLibUnwindAndSymbolizer(Comms* comms) {
 
   absl::Cleanup as_cleanup = [&as] { unw_destroy_addr_space(as); };
 
-  auto load_symbols =
-      [&ctx](const std::string& path) -> absl::StatusOr<ElfFile> {
+  auto open_parser = [&ctx](const std::string& path)
+      -> absl::StatusOr<std::unique_ptr<ElfParser>> {
     if (path == ctx.app_path) {
       FDCloser exe_fd_copy(dup(ctx.exe_fd.get()));
       if (exe_fd_copy.get() == -1) {
         return absl::ErrnoToStatus(errno, "dup() failed");
       }
-      return ElfFile::ParseFromFd(std::move(exe_fd_copy),
-                                  ElfFile::kLoadSymbols);
+      return ElfParser::Create(std::move(exe_fd_copy), /*mmap_file=*/true);
     }
-    return ElfFile::ParseFromFile(path, ElfFile::kLoadSymbols);
+    return ElfParser::Create(path, /*mmap_file=*/true);
   };
 
   ABSL_ASSIGN_OR_RETURN(std::vector<uintptr_t> ips,
                         RunLibUnwind(as, &ctx, setup.default_max_frames()));
-  SymbolMap addr_to_symbol = LoadSymbolsMap(ctx.maps, load_symbols, &ips);
+  SymbolMap addr_to_symbol = LoadSymbolsMap(ctx.maps, open_parser, &ips);
   absl::StatusOr<std::vector<std::string>> stack_trace =
       SymbolizeStacktrace(addr_to_symbol, ips);
 

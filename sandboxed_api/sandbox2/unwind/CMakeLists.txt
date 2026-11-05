@@ -59,8 +59,8 @@ target_link_libraries(sandbox2_unwind PRIVATE
   absl::strings
   sandbox2::comms
   sandbox2::demangle
+  sandbox2::elf_parser
   sandbox2::maps_parser
-  sandbox2::minielf
   sandbox2::regs
   sandbox2::unwind_proto
   sandbox2::accessors
