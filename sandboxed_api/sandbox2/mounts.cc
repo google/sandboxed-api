@@ -18,12 +18,14 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +36,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -567,6 +570,75 @@ bool IsSymlink(const std::string& path) {
   return S_ISLNK(sb.st_mode);
 }
 
+#ifndef __NR_mount_setattr
+#define __NR_mount_setattr 442
+#endif
+
+#ifndef AT_RECURSIVE
+#define AT_RECURSIVE 0x8000
+#endif
+
+// Fallback for ApplyFlagsToSubmounts() on kernels without mount_setattr(2):
+// remounts every mount below `target` individually.
+void RemountSubmounts(const std::string& target, uint64_t flags) {
+  std::ifstream mountinfo("/proc/self/mountinfo");
+  PCHECK(mountinfo.good()) << "opening /proc/self/mountinfo failed";
+  const std::string prefix = absl::StrCat(target, "/");
+  std::string line;
+  while (std::getline(mountinfo, line)) {
+    // The mount point is the 5th field, see proc_pid_mountinfo(5).
+    std::vector<absl::string_view> fields =
+        absl::StrSplit(line, absl::MaxSplits(' ', 5));
+    std::string mount_point;
+    if (fields.size() < 5 || !absl::CUnescape(fields[4], &mount_point)) {
+      LOG(FATAL) << "malformed mountinfo line: " << line;
+    }
+    if (!absl::StartsWith(mount_point, prefix)) {
+      continue;
+    }
+    uint64_t submount_flags = flags | GetMountFlagsFor(mount_point);
+    PCHECK(mount("", mount_point.c_str(), "", submount_flags | MS_REMOUNT,
+                 nullptr) != -1)
+        << "remounting " << mount_point
+        << " with flags=" << MountFlagsToString(submount_flags) << " failed";
+  }
+}
+
+// A remount only changes the flags of a single mount, but MS_REC also bind
+// mounts all mounts below the source. Applies the restrictions of `flags` to
+// those as well, so that e.g. a read-only directory does not expose writable
+// submounts.
+void ApplyFlagsToSubmounts(const std::string& target, uint64_t flags) {
+  // Not using struct mount_attr and MOUNT_ATTR_* from <sys/mount.h>, as they
+  // require glibc 2.36.
+  struct {
+    uint64_t attr_set;
+    uint64_t attr_clr;
+    uint64_t propagation;
+    uint64_t userns_fd;
+  } attr = {};
+  constexpr uint64_t kMountAttrRdonly = 0x1;
+  constexpr uint64_t kMountAttrNosuid = 0x2;
+  constexpr uint64_t kMountAttrNoexec = 0x8;
+  if (flags & MS_RDONLY) {
+    attr.attr_set |= kMountAttrRdonly;
+  }
+  if (flags & MS_NOSUID) {
+    attr.attr_set |= kMountAttrNosuid;
+  }
+  if (flags & MS_NOEXEC) {
+    attr.attr_set |= kMountAttrNoexec;
+  }
+  if (syscall(__NR_mount_setattr, AT_FDCWD, target.c_str(), AT_RECURSIVE, &attr,
+              sizeof(attr)) == 0) {
+    return;
+  }
+  // ENOSYS: kernel older than 5.12, EPERM: blocked by a seccomp policy.
+  PCHECK(errno == ENOSYS || errno == EPERM)
+      << "mount_setattr(" << target << ", AT_RECURSIVE) failed";
+  RemountSubmounts(target, flags);
+}
+
 void MountWithDefaults(const std::string& source, const std::string& target,
                        const char* fs_type, uint64_t extra_flags,
                        const char* option_str, bool is_ro,
@@ -631,6 +703,7 @@ void MountWithDefaults(const std::string& source, const std::string& target,
     PCHECK(res != -1) << "remounting " << target
                       << " with flags=" << MountFlagsToString(flags)
                       << " failed";
+    ApplyFlagsToSubmounts(target, flags);
   }
 
   // Mount propagation has to be set separately
