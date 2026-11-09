@@ -195,6 +195,8 @@ TEST(SyscallTest, ArchDescription) {
   EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kPPC64LE), Eq("[PPC-64]"));
   EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kArm64), Eq("[Arm-64]"));
   EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kArm), Eq("[Arm-32]"));
+  EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kRiscv64),
+              Eq("[RISCV-64]"));
   EXPECT_THAT(Syscall::GetArchDescription(sapi::cpu::kUnknown),
               StartsWith("[UNKNOWN_ARCH"));
 }
