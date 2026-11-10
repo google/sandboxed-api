@@ -16,9 +16,12 @@
 
 #include <linux/audit.h>
 #include <linux/seccomp.h>
+#include <sys/mman.h>
 #include <syscall.h>
+#include <unistd.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -48,7 +51,10 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
+using ::testing::HasSubstr;
+using ::testing::Ne;
 using ::testing::Optional;
+using ::testing::SizeIs;
 using ::testing::StartsWith;
 
 namespace sandbox2 {
@@ -173,6 +179,47 @@ TEST(SyscallTest, GetArgumentsData) {
   EXPECT_THAT(args[2].pid(), Eq(getpid()));
   EXPECT_THAT(args[2].value(), Eq(sizeof(buffer)));
   EXPECT_THAT(args[2].length(), Eq(std::nullopt));
+}
+
+TEST(SyscallTest, ReadAsStructArray) {
+  struct TestElement {
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+  };
+  TestElement elem{1, 2, 3};
+
+  syscalls::ArgData arg_no_len(syscalls::kArray, getpid(),
+                               reinterpret_cast<uint64_t>(&elem));
+  EXPECT_THAT(
+      arg_no_len.ReadAsStructArray<TestElement>(),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr("length is not set")));
+
+  constexpr size_t kMaxElements = (1 << 20) / sizeof(TestElement);
+  std::vector<TestElement> large_buffer(kMaxElements + 1, elem);
+  syscalls::ArgData arg_truncated(
+      syscalls::kArray, getpid(),
+      reinterpret_cast<uint64_t>(large_buffer.data()), large_buffer.size());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto truncated_array,
+                            arg_truncated.ReadAsStructArray<TestElement>());
+  EXPECT_TRUE(truncated_array.truncated);
+  EXPECT_THAT(truncated_array.array, SizeIs(kMaxElements));
+
+  const uintptr_t page_size = getpagesize();
+  char* res = reinterpret_cast<char*>(mmap(nullptr, 2 * page_size,
+                                           PROT_READ | PROT_WRITE,
+                                           MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
+  ASSERT_THAT(res, Ne(MAP_FAILED));
+  ASSERT_THAT(mprotect(&res[page_size], page_size, PROT_NONE), Eq(0));
+
+  syscalls::ArgData arg_short_array(
+      syscalls::kArray, getpid(),
+      reinterpret_cast<uint64_t>(res + page_size - sizeof(TestElement)), 2);
+  EXPECT_THAT(arg_short_array.ReadAsStructArray<TestElement>(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("could not read full struct array")));
+
+  ASSERT_THAT(munmap(res, 2 * page_size), Eq(0));
 }
 
 TEST(SyscallTest, GetArgumentsDataUnknownSyscall) {
