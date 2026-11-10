@@ -52,6 +52,7 @@
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/flags.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/notify.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
@@ -1232,6 +1233,38 @@ TEST(Sandbox2Test, NonExistingSourceFails) {
   auto result = sandbox.Run();
   EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
   EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_SUBPROCESS));
+}
+
+TEST(Sandbox2Test, GlobalForkserverRestartsAfterTermination) {
+  GlobalForkClient::EnsureStarted();
+  ASSERT_THAT(GlobalForkClient::IsStarted(), IsTrue());
+  pid_t pid = GlobalForkClient::GetPid();
+  ASSERT_THAT(pid, Ne(-1));
+
+  ASSERT_THAT(kill(pid, SIGKILL), Eq(0));
+
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  {
+    auto executor = std::make_unique<Executor>(path, args);
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto policy, CreateDefaultPermissiveTestPolicy(path).TryBuild());
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    auto result = sandbox.Run();
+    EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+    EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_SUBPROCESS));
+    EXPECT_THAT(GlobalForkClient::IsStarted(), IsFalse());
+  }
+  {
+    auto executor = std::make_unique<Executor>(path, args);
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto policy, CreateDefaultPermissiveTestPolicy(path).TryBuild());
+    Sandbox2 sandbox(std::move(executor), std::move(policy));
+    auto result = sandbox.Run();
+    EXPECT_THAT(result.final_status(), Eq(Result::OK));
+    EXPECT_THAT(result.reason_code(), Eq(0));
+    EXPECT_THAT(GlobalForkClient::IsStarted(), IsTrue());
+  }
 }
 
 void BM_MinimalSandbox(benchmark::State& state) {

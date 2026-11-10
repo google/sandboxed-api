@@ -1297,6 +1297,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::comms
     sandbox2::flags
     sandbox2::fork_client
+    sandbox2::global_forkserver
     sandbox2::sandbox2
     sapi::file_base
     sapi::file_helpers

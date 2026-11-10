@@ -1211,6 +1211,7 @@ cc_test(
         ":comms",
         ":flags",
         ":fork_client",
+        ":global_forkserver",
         ":sandbox2",
         ":util",
         "//sandboxed_api:config",
