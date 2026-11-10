@@ -73,8 +73,13 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::flat_hash_set<std::string> sandbox_funcs_;
   absl::flat_hash_set<std::string> ignore_funcs_;
   absl::flat_hash_map<std::string, std::string> used_funcs_;
-  // Names of callback typedefs referenced by at least one callback parameter,
-  // used to detect and report unused callback typedefs in the annotation file.
+  // Names of callback typedefs referenced by at least one declaration (even if
+  // ignored), used to detect and report unused callback typedefs in the
+  // annotation file.
+  absl::flat_hash_set<std::string> referenced_callback_typedefs_;
+  // Names of callback typedefs referenced by at least one emitted function or
+  // struct annotation, used to prune unused reverse-callback invokers and thunk
+  // pools.
   absl::flat_hash_set<std::string> used_callback_typedefs_;
   std::optional<std::string> funcs_loc_;
   ir::Library library_ir_;

@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -62,7 +63,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   for (const clang::ParmVarDecl* param : decl->parameters()) {
     if (const clang::TypedefNameDecl* td =
             FindCallbackTypedef(param->getType())) {
-      used_callback_typedefs_.insert(td->getNameAsString());
+      referenced_callback_typedefs_.insert(td->getNameAsString());
     }
   }
 
@@ -146,6 +147,13 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     return absl::OkStatus();
   }
 
+  for (const clang::ParmVarDecl* param : decl->parameters()) {
+    if (const clang::TypedefNameDecl* td =
+            FindCallbackTypedef(param->getType())) {
+      used_callback_typedefs_.insert(td->getNameAsString());
+    }
+  }
+
   ABSL_ASSIGN_OR_RETURN(
       ir::Function ir_func,
       ConvertFunctionToIR(
@@ -223,16 +231,16 @@ absl::Status SandboxedLibraryEmitter::AddTypedef(clang::TypedefNameDecl* decl) {
   if (decl != decl->getMostRecentDecl()) {
     return absl::OkStatus();
   }
-  std::string name = decl->getNameAsString();
-  if (library_ir_.callback_typedefs.contains(name)) {
+  if (library_ir_.callback_typedefs.contains(decl->getNameAsString())) {
     return absl::OkStatus();
   }
-  if (absl::StatusOr<CallbackTypedef> cb_typedef =
-          sapi::ParseCallbackTypedef(*decl);
-      cb_typedef.ok()) {
-    library_ir_.callback_typedefs.try_emplace(name, *std::move(cb_typedef));
+  // Ignore unannotated header typedefs that are not valid callback typedefs
+  // on their own; if a sandboxed function references one, `arg_converter.cc`
+  // reports the error at the use site.
+  if (!sapi::ParseCallbackTypedef(*decl).ok()) {
+    return absl::OkStatus();
   }
-  return absl::OkStatus();
+  return ParseCallbackTypedef(*decl);
 }
 
 absl::Status SandboxedLibraryEmitter::ParseCallbackTypedef(
@@ -247,9 +255,29 @@ absl::Status SandboxedLibraryEmitter::ParseCallbackTypedef(
           "callback typedef $0 is annotated more than once", name));
     }
     it->second = std::move(cb_typedef);
-    return absl::OkStatus();
+    std::erase_if(library_ir_.functions, [&](const ir::Function& f) {
+      return f.invoker_for_typedef == name;
+    });
+  } else {
+    it = library_ir_.callback_typedefs
+             .emplace(std::move(name), std::move(cb_typedef))
+             .first;
   }
-  library_ir_.callback_typedefs.emplace(std::move(name), std::move(cb_typedef));
+
+  // Built here, and not once everything has been parsed, because `decl` is
+  // only alive while this file's AST is. Typedefs are parsed in source
+  // order, so the invokers are appended in a stable one. Not every typedef
+  // has one; see ConvertCallbackTypedefToInvokerIR.
+  if (absl::StatusOr<std::optional<ir::Function>> invoker =
+          ConvertCallbackTypedefToInvokerIR(
+              decl, it->second,
+              ConversionContext{
+                  .record_annotations = library_ir_.record_annotations,
+                  .callback_typedefs = library_ir_.callback_typedefs,
+              });
+      invoker.ok() && invoker->has_value()) {
+    library_ir_.functions.push_back(**std::move(invoker));
+  }
   return absl::OkStatus();
 }
 
@@ -336,10 +364,12 @@ absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
 
 absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
   // Report any annotated callback typedefs that are never referenced by a
-  // callback parameter.
+  // callback parameter (the synthetic invoker generated for a typedef does not
+  // count as a use).
   std::vector<std::string> unused_typedefs;
   for (const auto& [name, cb_typedef] : library_ir_.callback_typedefs) {
-    if (cb_typedef.has_annotations && !used_callback_typedefs_.contains(name)) {
+    if (cb_typedef.has_annotations &&
+        !referenced_callback_typedefs_.contains(name)) {
       unused_typedefs.push_back(name);
     }
   }
@@ -348,6 +378,13 @@ absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
     return absl::InvalidArgumentError(absl::Substitute(
         "unused callback typedefs: $0", absl::StrJoin(unused_typedefs, ", ")));
   }
+  std::erase_if(library_ir_.functions, [&](const ir::Function& f) {
+    return f.invoker_for_typedef.has_value() &&
+           !used_callback_typedefs_.contains(*f.invoker_for_typedef);
+  });
+  absl::erase_if(library_ir_.callback_typedefs, [&](const auto& entry) {
+    return !used_callback_typedefs_.contains(entry.first);
+  });
 
   if (!funcs_loc_) {
     return ValidateAndLinkLibraryIR(library_ir_);

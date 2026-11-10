@@ -240,12 +240,24 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
     ReportIfError(context, var->getBeginLoc(), status);
   }
 
+  for (clang::FunctionDecl* func : visitor_.functions()) {
+    if (func->getIdentifier() != nullptr &&
+        func->getName().starts_with("sandbox_annotation_")) {
+      absl::Status status = emitter_.AddFunction(func);
+      ReportIfError(context, func->getBeginLoc(), status);
+    }
+  }
+
   for (clang::TypedefNameDecl* td : visitor_.typedefs()) {
     absl::Status status = emitter_.AddTypedef(td);
     ReportIfError(context, td->getBeginLoc(), status);
   }
 
   for (clang::FunctionDecl* func : visitor_.functions()) {
+    if (func->getIdentifier() != nullptr &&
+        func->getName().starts_with("sandbox_annotation_")) {
+      continue;
+    }
     absl::Status status = emitter_.AddFunction(func);
     ReportIfError(context, func->getBeginLoc(), status);
   }

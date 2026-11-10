@@ -305,6 +305,18 @@ struct ThunkOverride {
   std::string declaration;
 };
 
+// The parameter an invoker takes its target sandboxee function in. It carries
+// the generator's prefix because it shares a parameter list with the callback
+// typedef's own parameters, whose names the typedef's author chooses.
+inline constexpr absl::string_view kInvokerTargetParam = "sapi_target";
+
+// The symbol the indirect caller for `typedef_name` is generated under. Typedef
+// names already have to be distinct from each other and from the library's
+// own function names, which is what makes this unambiguous.
+inline std::string InvokerName(absl::string_view typedef_name) {
+  return absl::StrCat("sapi_invoke_", typedef_name);
+}
+
 // Declarative Intermediate Representation of an entire library function.
 struct Function {
   std::string name;
@@ -315,6 +327,17 @@ struct Function {
   std::optional<ThunkOverride> sandboxee_thunk;
 
   ContextBoundAnnotations context_bound;
+
+  // Set when this is not one of the library's functions but a generated
+  // indirect caller for the named callback typedef: parameter 0 holds the
+  // address of a sandboxee function with the typedef's signature, and the
+  // rest are the typedef's own parameters.
+  //
+  // Everything the host does either side of the call is the same as for a
+  // library function, which is why an invoker is represented as one. The two
+  // differences are both on the sandboxee side: there is no library symbol to
+  // declare, and the wrapper calls through the address rather than by name.
+  std::optional<std::string> invoker_for_typedef;
 
   // Finds a parameter by name (returns nullptr if not found).
   const Parameter* FindParameter(absl::string_view param_name) const;

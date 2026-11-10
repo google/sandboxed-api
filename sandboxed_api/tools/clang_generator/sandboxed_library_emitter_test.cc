@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/tools/clang_generator/sandboxed_library_emitter.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -37,6 +38,7 @@ using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 using ::testing::Not;
+using ::testing::StartsWith;
 
 class SandboxedLibraryEmitterTest : public FrontendActionTest {};
 
@@ -189,9 +191,9 @@ absl::StatusOr<std::pair<std::string, std::string>> EmitHostAndSandboxeeSrc(
 // Verifies that annotating callbacks via `typedef` declarations (including
 // `host_opaque_ptr` closures, input/output buffers, `lifetime_outer_call`
 // returned buffers, and typedef reuse across multiple library functions)
-// generates the same host and sandboxee code as writing callback parameter
-// annotations inline and using a `typedef` only for the pointer-returning
-// `alloc` callback.
+// generates the same host and sandboxee wrapper code as writing callback
+// parameter annotations inline and using a `typedef` only for the
+// pointer-returning `alloc` callback.
 TEST_F(SandboxedLibraryEmitterTest,
        CallbackTypedefGeneratesSameCodeAsInlineForm) {
   SAPI_ASSERT_OK_AND_ASSIGN(const auto with_typedef, EmitHostAndSandboxeeSrc(R"(
@@ -224,6 +226,7 @@ TEST_F(SandboxedLibraryEmitterTest,
     [[clang::annotate("sandbox", "elem_sized_by", "size")]]
     [[clang::annotate("sandbox", "uninitialized")]]
     typedef unsigned char* (*chunk_alloc_cb)(unsigned long size);
+
     extern "C"
     [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
     unsigned char* compress_stream(
@@ -248,23 +251,38 @@ TEST_F(SandboxedLibraryEmitterTest,
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
   )"));
 
-  EXPECT_EQ(with_typedef.first, inline_form.first);
-  EXPECT_EQ(with_typedef.second, inline_form.second);
-  EXPECT_THAT(with_typedef.second, HasSubstr("compress_stream"));
-  EXPECT_THAT(with_typedef.second, HasSubstr("decompress_stream"));
+  const size_t inline_shims_pos =
+      inline_form.first.find("extern \"C\" unsigned char* compress_stream");
+  const size_t inline_host_end = inline_form.first.rfind("}\n");
+  ASSERT_NE(inline_shims_pos, std::string::npos);
+  ASSERT_NE(inline_host_end, std::string::npos);
+  EXPECT_THAT(with_typedef.first,
+              HasSubstr(inline_form.first.substr(
+                  inline_shims_pos, inline_host_end + 2 - inline_shims_pos)));
+  const size_t inline_sandboxee_end = inline_form.second.rfind("}\n");
+  ASSERT_NE(inline_sandboxee_end, std::string::npos);
+  EXPECT_THAT(with_typedef.second, StartsWith(inline_form.second.substr(
+                                       0, inline_sandboxee_end + 2)));
+  EXPECT_THAT(with_typedef.first, HasSubstr("sapi_bind_thunk_stream_write_cb"));
+  EXPECT_THAT(with_typedef.second, HasSubstr("sapi_invoke_stream_write_cb"));
+  EXPECT_THAT(inline_form.first,
+              Not(HasSubstr("sapi_bind_thunk_stream_write_cb")));
+  EXPECT_THAT(inline_form.second,
+              Not(HasSubstr("sapi_invoke_stream_write_cb")));
 }
 
 // Verifies that redeclaring an unannotated C header callback `typedef` with
 // sandbox annotations generates the same host and sandboxee code as declaring
-// the annotated `typedef` once.
+// the annotated `typedef` once, and emits reverse-callback invokers and thunk
+// pools only for reversible (scalar-returning) callback typedefs.
 TEST_F(SandboxedLibraryEmitterTest,
        RedeclaringUnannotatedCallbackTypedefAttachesAnnotations) {
   SAPI_ASSERT_OK_AND_ASSIGN(const auto redeclared, EmitHostAndSandboxeeSrc(R"(
-    typedef int (*stream_write_cb)(void*, const unsigned char*, unsigned long,
-                                   unsigned long*);
-    typedef unsigned char* (*chunk_alloc_cb)(unsigned long);
+    typedef int (*stream_writer)(void* other_ctx, const unsigned char*,
+                                 unsigned long, unsigned long*);
+    typedef unsigned char* (*chunk_allocator)(unsigned long);
 
-    typedef int (*stream_write_cb)(
+    typedef int (*stream_writer)(
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
         const unsigned char* data
             [[clang::annotate("sandbox", "in_ptr")]]
@@ -275,17 +293,21 @@ TEST_F(SandboxedLibraryEmitterTest,
     [[clang::annotate("sandbox", "lifetime_outer_call")]]
     [[clang::annotate("sandbox", "elem_sized_by", "size")]]
     [[clang::annotate("sandbox", "uninitialized")]]
-    typedef unsigned char* (*chunk_alloc_cb)(unsigned long size);
+    typedef unsigned char* (*chunk_allocator)(unsigned long size);
 
     extern "C"
     [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
     unsigned char* compress_stream(
-        stream_write_cb write,
-        chunk_alloc_cb alloc,
+        stream_writer write,
+        chunk_allocator alloc,
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+
+    extern "C" int decompress_stream(
+        stream_writer write,
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
   )"));
   SAPI_ASSERT_OK_AND_ASSIGN(const auto single_decl, EmitHostAndSandboxeeSrc(R"(
-    typedef int (*stream_write_cb)(
+    typedef int (*stream_writer)(
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]],
         const unsigned char* data
             [[clang::annotate("sandbox", "in_ptr")]]
@@ -296,18 +318,28 @@ TEST_F(SandboxedLibraryEmitterTest,
     [[clang::annotate("sandbox", "lifetime_outer_call")]]
     [[clang::annotate("sandbox", "elem_sized_by", "size")]]
     [[clang::annotate("sandbox", "uninitialized")]]
-    typedef unsigned char* (*chunk_alloc_cb)(unsigned long size);
+    typedef unsigned char* (*chunk_allocator)(unsigned long size);
 
     extern "C"
     [[clang::annotate("sandbox", "alias_callback_return", "alloc")]]
     unsigned char* compress_stream(
-        stream_write_cb write,
-        chunk_alloc_cb alloc,
+        stream_writer write,
+        chunk_allocator alloc,
+        void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+
+    extern "C" int decompress_stream(
+        stream_writer write,
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
   )"));
 
   EXPECT_EQ(redeclared.first, single_decl.first);
   EXPECT_EQ(redeclared.second, single_decl.second);
+  EXPECT_THAT(redeclared.first, HasSubstr("sapi_bind_thunk_stream_writer"));
+  EXPECT_THAT(redeclared.second, HasSubstr("sapi_invoke_stream_writer"));
+  EXPECT_THAT(redeclared.first,
+              Not(HasSubstr("sapi_bind_thunk_chunk_allocator")));
+  EXPECT_THAT(redeclared.second, HasSubstr("compress_stream"));
+  EXPECT_THAT(redeclared.second, HasSubstr("decompress_stream"));
 }
 
 // Verifies that `PostParseAllFiles` reports only callback typedefs in the main
@@ -338,28 +370,41 @@ TEST_F(SandboxedLibraryEmitterTest, UnusedCallbackTypedefIsReported) {
 }
 
 // Verifies that a callback typedef referenced only by a function listed in
-// `SANDBOX_IGNORE_FUNCS` is still counted as used and does not trigger an
-// unused-typedef error.
+// `SANDBOX_IGNORE_FUNCS` is still counted as referenced (does not trigger an
+// unused-typedef error), while pruning its reverse invoker and thunk pool.
 TEST_F(SandboxedLibraryEmitterTest,
        CallbackTypedefUsedOnlyByIgnoredFunctionIsNotReported) {
-  GeneratorOptions options;
-  options.name = "MyLib";
-  options.sandboxed_library_gen = true;
-  SandboxedLibraryEmitter emitter;
-  ASSERT_THAT(
-      RunFrontendAction(R"(
-    const char* sandbox_ignore_funcs_1[] = {"compress"};
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto emitted, EmitHostAndSandboxeeSrc(R"(
+    const char* sandbox_ignore_funcs_1[] = {"compress", "ignored_with_cb",
+                                            "ignored_by_val"};
+
+    struct ByVal {
+      long a;
+      long b;
+      long c;
+    };
+    typedef void (*by_val_cb)(ByVal s);
+    typedef int (*ignored_reversible_cb)(const int* x);
+    typedef int (*active_const_ptr_cb)(const int* x);
 
     [[clang::annotate("sandbox", "lifetime_outer_call")]]
     [[clang::annotate("sandbox", "elem_sized_by", "size")]]
     typedef unsigned char* (*chunk_allocator)(unsigned long size);
 
     extern "C" void compress(chunk_allocator alloc);
-  )",
-                        std::make_unique<GeneratorAction>(&emitter, &options)),
-      IsOk());
+    extern "C" void ignored_with_cb(ignored_reversible_cb cb);
+    extern "C" void ignored_by_val(by_val_cb cb);
+    extern "C" int active_with_cb(active_const_ptr_cb cb);
+  )"));
 
-  EXPECT_THAT(emitter.PostParseAllFiles(), IsOk());
+  EXPECT_THAT(emitted.first,
+              Not(HasSubstr("sapi_bind_thunk_ignored_reversible_cb")));
+  EXPECT_THAT(emitted.second,
+              Not(HasSubstr("sapi_invoke_ignored_reversible_cb")));
+  EXPECT_THAT(emitted.first, Not(HasSubstr("sapi_bind_thunk_by_val_cb")));
+  EXPECT_THAT(emitted.second, Not(HasSubstr("sapi_invoke_by_val_cb")));
+  EXPECT_THAT(emitted.first, HasSubstr("sapi_bind_thunk_active_const_ptr_cb"));
+  EXPECT_THAT(emitted.second, HasSubstr("sapi_invoke_active_const_ptr_cb"));
 }
 
 using SandboxedLibraryEmitterErrorTest = SandboxedLibraryEmitterTest;

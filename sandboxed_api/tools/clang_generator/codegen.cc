@@ -392,6 +392,21 @@ std::vector<std::string> GetCallbackParamTypes(const ir::CallbackParam& cb) {
   return types;
 }
 
+// The function type an invoker's target has, which is the callback typedef's
+// own: the invoker's signature with the leading target parameter taken back
+// off.
+std::string EmitInvokerTargetType(const ir::Function& func) {
+  std::vector<std::string> types;
+  types.reserve(func.parameters.size() - 1);
+  for (size_t i = 1; i < func.parameters.size(); ++i) {
+    types.push_back(func.parameters[i].type.canonical_name);
+  }
+  return absl::Substitute(
+      "$0 (*)($1)",
+      func.return_value ? func.return_value->type.canonical_name : "void",
+      absl::StrJoin(types, ", "));
+}
+
 // Emits the C++ parameter type declaration for the host wrapper.
 std::string EmitHostParamDecl(const ir::Parameter& param) {
   return std::visit(
@@ -1197,8 +1212,12 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
   std::vector<const ir::Function*> sorted_funcs = GetSortedFunctions(library);
 
   for (const auto* func : sorted_funcs) {
-    EmitFuncDecl(out, *func);
-    absl::StrAppend(&out, ";\n\n");
+    // An invoker stands for no library function, so there is nothing to
+    // declare and nothing to link against.
+    if (!func->invoker_for_typedef) {
+      EmitFuncDecl(out, *func);
+      absl::StrAppend(&out, ";\n\n");
+    }
     if (func->sandboxee_thunk) {
       absl::StrAppend(&out, "// Start of thunk\n", "extern \"C\" ",
                       func->sandboxee_thunk->body, "\n// End of thunk\n\n");
@@ -1210,7 +1229,10 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
       call_args.reserve(func->parameters.size());
       std::string post_call_code;
 
-      for (size_t i = 0; i < func->parameters.size(); ++i) {
+      // An invoker's first parameter is what it calls, not something it
+      // passes on.
+      const size_t first_arg = func->invoker_for_typedef ? 1 : 0;
+      for (size_t i = first_arg; i < func->parameters.size(); ++i) {
         const auto& param = func->parameters[i];
         std::visit(
             absl::Overload{
@@ -1293,7 +1315,11 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
 
       std::string call_args_str = absl::StrJoin(call_args, ", ");
       std::string target_call =
-          absl::Substitute("$0($1)", func->name, call_args_str);
+          func->invoker_for_typedef
+              ? absl::Substitute("reinterpret_cast<$0>($1)($2)",
+                                 EmitInvokerTargetType(*func),
+                                 ir::kInvokerTargetParam, call_args_str)
+              : absl::Substitute("$0($1)", func->name, call_args_str);
 
       if (func->return_value) {
         if (func->return_value->type.kind == ir::TypeKind::kString) {
@@ -1372,7 +1398,15 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
 absl::StatusOr<std::string> EmitSandboxeeMain(const GeneratorOptions& options,
                                               const ir::Library& library) {
   std::string out;
-  std::vector<const ir::Function*> sorted_funcs = GetSortedFunctions(library);
+  // Referencing every library function is what forces the linker to keep the
+  // library's objects. An invoker is defined in the generated source and kept
+  // by its `retain` attribute, and has no library symbol to reference.
+  std::vector<const ir::Function*> sorted_funcs;
+  for (const ir::Function* func : GetSortedFunctions(library)) {
+    if (!func->invoker_for_typedef) {
+      sorted_funcs.push_back(func);
+    }
+  }
   for (const auto* func : sorted_funcs) {
     absl::StrAppend(&out, "extern \"C\" void ", func->name, "();\n");
   }
@@ -1895,6 +1929,14 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
         absl::Substitute("\"$0sandboxed_api/lenval_core.h\"", kIncludePrefix));
   }
   for (const auto* func : sorted_funcs) {
+    if (func->invoker_for_typedef) {
+      host_includes.insert("<cstdint>");
+      host_includes.insert("<optional>");
+      host_includes.insert(
+          absl::Substitute("\"$0absl/log/check.h\"", kIncludePrefix));
+      host_includes.insert(
+          absl::Substitute("\"$0absl/status/statusor.h\"", kIncludePrefix));
+    }
     for (const auto& param : func->parameters) {
       std::visit(
           absl::Overload{
@@ -1962,8 +2004,117 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
   return host_includes;
 }
 
-}  // namespace
+// Number of host thunks emitted per callback typedef.
+//
+// Each thunk is a distinct function symbol with the callback typedef's C
+// signature, because a C caller passes no extra closure argument and the thunk
+// can only identify its target sandboxee function from its own code address.
+// 32 slots per typedef (~640 bytes of code and 32 pointers) cover libraries
+// that expose multiple internal callbacks; exceeding the pool aborts with a
+// clear diagnostic rather than silently reusing a slot.
+//
+// TODO(b/584178307): Avoid fixed-size thunk pool exhaustion (for example, by
+// sizing pools via static analysis or an explicit annotation).
+constexpr int kThunkPoolSize = 32;
 
+// Emits one callback typedef's host thunks: `kThunkPoolSize` functions carrying
+// the typedef's signature, the dispatcher they share, the pool that names them,
+// and the entry point that binds a sandboxee function to a free slot.
+//
+// Nothing generated calls the entry point yet. Converting a callback-typed
+// value that crosses out of the sandbox into one of these thunks is a
+// separate change; this one only makes the thunks exist.
+std::string EmitThunkPool(const GeneratorOptions& options,
+                          const ir::Function& invoker) {
+  const std::string& typedef_name = *invoker.invoker_for_typedef;
+  const std::string ret_type =
+      invoker.return_value ? invoker.return_value->type.canonical_name : "void";
+
+  // A thunk has the callback typedef's signature, which is the invoker's
+  // without its leading target parameter.
+  std::vector<std::string> param_decls;
+  std::vector<std::string> arg_names;
+  param_decls.reserve(invoker.parameters.size() - 1);
+  arg_names.reserve(invoker.parameters.size() - 1);
+  for (size_t i = 1; i < invoker.parameters.size(); ++i) {
+    param_decls.push_back(EmitHostParamDecl(invoker.parameters[i]));
+    arg_names.push_back(invoker.parameters[i].name);
+  }
+  const std::string params = absl::StrJoin(param_decls, ", ");
+  const std::string args = absl::StrJoin(arg_names, ", ");
+  const std::string args_after_target =
+      args.empty() ? "" : absl::StrCat(", ", args);
+
+  std::string out;
+  absl::SubstituteAndAppend(
+      &out,
+      "// Host thunks for callback typedef `$0`.\n"
+      "//\n"
+      "// Each carries the typedef's signature, so library code cannot tell\n"
+      "// one from a function the host wrote. A thunk recovers which "
+      "sandboxee\n"
+      "// function it stands in for from its own address, which is all it "
+      "has:\n"
+      "// it is called through the library's signature, so there is no spare\n"
+      "// argument to carry a slot index.\n"
+      "extern \"C\" const sapi::lwbox::ThunkPool* sapi_thunk_pool_$0();\n\n"
+      "namespace {\n\n"
+      "$1 sapi_dispatch_thunk_$0(uintptr_t sapi_thunk$2) {\n"
+      "  std::optional<uintptr_t> sapi_bound =\n"
+      "      sapi::lwbox::SandboxeeCallbackRegistry::Instance()->LookUpThunk(\n"
+      "          *$3SandboxImpl::Instance(), *sapi_thunk_pool_$0(),\n"
+      "          sapi_thunk);\n"
+      "  CHECK(sapi_bound.has_value())\n"
+      "      << \"a host thunk for callback typedef $0 was called after its "
+      "\"\n"
+      "         \"binding was released\";\n"
+      "  return $4(*sapi_bound$5);\n"
+      "}\n\n",
+      typedef_name, ret_type, params.empty() ? "" : absl::StrCat(", ", params),
+      options.name, invoker.name, args_after_target);
+
+  std::vector<std::string> thunk_addresses;
+  thunk_addresses.reserve(kThunkPoolSize);
+  for (int i = 0; i < kThunkPoolSize; ++i) {
+    std::string thunk_name =
+        absl::Substitute("sapi_thunk_$0_$1", typedef_name, i);
+    absl::SubstituteAndAppend(&out,
+                              "$0 $1($2) {\n"
+                              "  return sapi_dispatch_thunk_$3(\n"
+                              "      reinterpret_cast<uintptr_t>(&$1)$4);\n"
+                              "}\n\n",
+                              ret_type, thunk_name, params, typedef_name,
+                              args_after_target);
+    thunk_addresses.push_back(absl::Substitute(
+        "      reinterpret_cast<uintptr_t>(&$0),", thunk_name));
+  }
+
+  absl::SubstituteAndAppend(
+      &out,
+      "}  // namespace\n\n"
+      "extern \"C\" const sapi::lwbox::ThunkPool* sapi_thunk_pool_$0() {\n"
+      "  static const uintptr_t kThunks[] = {\n"
+      "$1\n"
+      "  };\n"
+      "  static const sapi::lwbox::ThunkPool kPool = {\"$0\", kThunks};\n"
+      "  return &kPool;\n"
+      "}\n\n"
+      "// Returns the host-callable stand-in for a sandboxee function with\n"
+      "// callback typedef `$0`'s signature. A null function stays null.\n"
+      "extern \"C\" uintptr_t sapi_bind_thunk_$0(uintptr_t sapi_sandboxee_fn) "
+      "{\n"
+      "  auto* sandbox = $2SandboxImpl::Instance();\n"
+      "  absl::StatusOr<uintptr_t> sapi_thunk =\n"
+      "      sapi::lwbox::SandboxeeCallbackRegistry::Instance()->ThunkFor(\n"
+      "          *sandbox, *sapi_thunk_pool_$0(), sapi_sandboxee_fn);\n"
+      "  sandbox->Check(sapi_thunk.status());\n"
+      "  return *sapi_thunk;\n"
+      "}\n\n",
+      typedef_name, absl::StrJoin(thunk_addresses, "\n"), options.name);
+  return out;
+}
+
+}  // namespace
 absl::StatusOr<std::string> EmitHostSrc(
     const GeneratorOptions& options, const ir::Library& library,
     const absl::flat_hash_set<std::string>& includes) {
@@ -2119,6 +2270,15 @@ absl::StatusOr<std::string> EmitHostSrc(
           func->return_value->payload);
     }
     absl::StrAppend(&out, "}\n\n");
+  }
+
+  // After every shim, because a thunk calls the shim for its callback typedef's
+  // invoker.
+  for (const auto* func : sorted_funcs) {
+    if (!func->invoker_for_typedef) {
+      continue;
+    }
+    absl::StrAppend(&out, EmitThunkPool(options, *func));
   }
 
   absl::flat_hash_set<std::string> host_includes =

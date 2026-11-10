@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//sandboxed_api/bazel:sapi.bzl", "cc_sandboxed_library", "cc_sandboxed_library_test")
 
 package(default_visibility = ["//visibility:private"])
@@ -158,6 +159,39 @@ cc_sandboxed_library_test(
     srcs = ["replaced_library_callbacks_test.cc"],
     lib = ":replacement_library_callbacks",
     deps = [
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_sandboxed_library(
+    name = "replacement_library_reverse_callbacks",
+    srcs = [
+        "replaced_library_reverse_callbacks.cc",
+    ],
+    hdrs = [
+        "replaced_library_reverse_callbacks.h",
+    ],
+    annotations = ["lwbox_reverse_callbacks_sandbox.cc"],
+)
+
+cc_sandboxed_library_test(
+    name = "replacement_reverse_callbacks_test",
+    srcs = ["replaced_library_reverse_callbacks_test.cc"],
+    lib = ":replacement_library_reverse_callbacks",
+    deps = [
+        "@googletest//:gtest_main",
+    ],
+)
+
+# The generated thunk pool only exists in the sandboxed configuration, so this
+# depends on the sandboxed library directly rather than being a
+# cc_sandboxed_library_test pair.
+cc_test(
+    name = "replacement_reverse_callbacks_thunks_test",
+    srcs = ["replaced_library_reverse_callbacks_thunks_test.cc"],
+    deps = [
+        ":_sandboxed_replacement_library_reverse_callbacks",
+        "//sandboxed_api/lwbox/runtime",
         "@googletest//:gtest_main",
     ],
 )

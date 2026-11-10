@@ -28,6 +28,7 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
@@ -829,8 +830,14 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       ann.ptr_dir != PointerDir::kHostOpaque &&
       !(ir_param.type.kind == ir::TypeKind::kString ||
         (ir_param.type.is_pointer() && ir_param.type.is_pointee_string()))) {
+    const clang::ParmVarDecl* param_decl = nullptr;
     if (const auto* fp = std::get_if<FunctionParamSource>(&source)) {
-      const clang::ASTContext& context = fp->decl->getASTContext();
+      param_decl = fp->decl;
+    } else if (const auto* cb = std::get_if<CallbackParamSource>(&source)) {
+      param_decl = cb->decl;
+    }
+    if (param_decl != nullptr) {
+      const clang::ASTContext& context = param_decl->getASTContext();
       // Set only when the check below runs and fails, which is exactly when
       // the chain can reach the error return.
       std::string copyability_reason;
@@ -1188,6 +1195,70 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
   // Note: alias_ptr linking is performed later by ValidateAndLinkLibraryIR,
   // once every function in the library has been converted.
   return ir_func;
+}
+
+absl::StatusOr<std::optional<sapi::ir::Function>>
+ConvertCallbackTypedefToInvokerIR(const clang::TypedefNameDecl& decl,
+                                  const CallbackTypedef& cb_typedef,
+                                  const ConversionContext& conv_ctx) {
+  const clang::FunctionProtoType* proto = GetCallbackTypedefProto(decl);
+  std::optional<clang::FunctionProtoTypeLoc> ftl =
+      ast::GetFunctionProtoTypeLoc(decl.getTypeSourceInfo());
+  if (proto == nullptr || !ftl.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback typedef $0 does not have a function proto type loc",
+        cb_typedef.name));
+  }
+  ABSL_RETURN_IF_ERROR(CheckCallbackSignatureIsCallable(
+      absl::StrCat("callback typedef ", cb_typedef.name), decl.getASTContext(),
+      *proto));
+
+  ir::Function invoker;
+  invoker.name = ir::InvokerName(cb_typedef.name);
+  invoker.invoker_for_typedef = cb_typedef.name;
+
+  clang::QualType ret_type = proto->getReturnType();
+  if (!ret_type->isVoidType()) {
+    // Deliberately not re-parsed off `decl`: a callback typedef's return
+    // annotations are only legal on a callback typedef
+    // (SANDBOX_LIFETIME_OUTER_CALL is the case that matters), so they are taken
+    // as already parsed rather than read again at a site that would reject
+    // them.
+    ABSL_ASSIGN_OR_RETURN(
+        invoker.return_value,
+        ConvertParameterToIR(
+            "sapi_ret_arg", ret_type,
+            CallbackReturnSource{cb_typedef.return_annotations}, conv_ctx));
+    // Anything the host would have to copy out of the sandbox and then keep
+    // alive has no reverse direction yet; see the header for why the
+    // typedef's own lifetime cannot say how long for. Keyed on the payload
+    // rather than on the type so that an opaque handle, which needs no copy
+    // but also has nothing saying it may be dereferenced, is excluded too.
+    if (!invoker.return_value->Is<ir::ScalarParam>()) {
+      return std::nullopt;
+    }
+  }
+
+  // The target goes first so that the typedef's parameters keep the positions
+  // and the names the typedef gave them: a size annotation on one of them
+  // refers to another by name, and those names come from the typedef.
+  invoker.parameters.reserve(ftl->getNumParams() + 1);
+  invoker.parameters.push_back(ir::Parameter{
+      .name = std::string(ir::kInvokerTargetParam),
+      .type = {.kind = ir::TypeKind::kScalar, .canonical_name = "uintptr_t"},
+      .payload = ir::ScalarParam{},
+  });
+  for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
+    const clang::ParmVarDecl* param = ftl->getParam(i);
+    ABSL_ASSIGN_OR_RETURN(
+        ir::Parameter ir_param,
+        ConvertParameterToIR(
+            cb_typedef.params[i].name, param->getType(),
+            CallbackParamSource{param, cb_typedef.params[i].annotations},
+            conv_ctx));
+    invoker.parameters.push_back(std::move(ir_param));
+  }
+  return invoker;
 }
 
 }  // namespace sapi
