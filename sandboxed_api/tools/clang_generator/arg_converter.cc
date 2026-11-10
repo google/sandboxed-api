@@ -49,12 +49,38 @@
 namespace sapi {
 namespace {
 
+// Describes a non-record type that is not deeply trivially copyable, as a
+// phrase that reads after "unsupported pointee type: ".
+std::string DescribeUncopyableType(clang::QualType type) {
+  if (type->isFunctionPointerType()) {
+    // Worth calling out separately: this is the case the reverse-callback work
+    // is about, and the workaround is different from a plain pointer's.
+    return absl::Substitute(
+        "'$0' is a function pointer. A callback in a struct is not supported "
+        "yet; if the sandboxee alone ever calls it, annotate the field "
+        "SANDBOX_OPAQUE_PTR",
+        type.getAsString());
+  }
+  if (type->isPointerType()) {
+    return absl::Substitute("'$0' is a pointer", type.getAsString());
+  }
+  return absl::Substitute("'$0' is not trivially copyable", type.getAsString());
+}
+
 // Returns true if the type is trivially copyable and wouldn't involve complex
 // lifetimes or aliasing (e.g., struct with pointer fields that are outputs).
+//
+// When it returns false and `reason` is non-null, `*reason` is set to a phrase
+// naming the field that is actually at fault. `*reason` is left untouched when
+// the answer is true.
 bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
                                    clang::QualType type,
-                                   const ConversionContext& conv_ctx) {
+                                   const ConversionContext& conv_ctx,
+                                   std::string* reason = nullptr) {
   if (type.isNull()) {
+    if (reason != nullptr) {
+      *reason = "the type is not known here";
+    }
     return false;
   }
   if (type->isArithmeticType() || type->isEnumeralType()) {
@@ -70,12 +96,22 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
   // should add a thunk or customize the copying.
   if (auto* const_array_type = context.getAsConstantArrayType(type)) {
     return IsDeeplyTriviallyCopyableType(
-        context, const_array_type->getElementType(), conv_ctx);
+        context, const_array_type->getElementType(), conv_ctx, reason);
   }
 
   if (auto* record_decl = type->getAsRecordDecl(); record_decl != nullptr) {
-    if (!type.isTriviallyCopyableType(context) ||
-        record_decl->hasFlexibleArrayMember()) {
+    if (!type.isTriviallyCopyableType(context)) {
+      if (reason != nullptr) {
+        *reason = absl::Substitute("'$0' is not trivially copyable",
+                                   type.getAsString());
+      }
+      return false;
+    }
+    if (record_decl->hasFlexibleArrayMember()) {
+      if (reason != nullptr) {
+        *reason = absl::Substitute("'$0' has a flexible array member",
+                                   type.getAsString());
+      }
       return false;
     }
 
@@ -102,11 +138,21 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
         continue;
       }
 
-      if (!IsDeeplyTriviallyCopyableType(context, field->getType(), conv_ctx)) {
+      std::string field_reason;
+      if (!IsDeeplyTriviallyCopyableType(context, field->getType(), conv_ctx,
+                                         &field_reason)) {
+        if (reason != nullptr) {
+          *reason =
+              absl::Substitute("field $0 of '$1': $2", std::string(field_name),
+                               type.getAsString(), field_reason);
+        }
         return false;
       }
     }
     return true;
+  }
+  if (reason != nullptr) {
+    *reason = DescribeUncopyableType(type);
   }
   return false;
 }
@@ -785,9 +831,12 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         (ir_param.type.is_pointer() && ir_param.type.is_pointee_string()))) {
     if (const auto* fp = std::get_if<FunctionParamSource>(&source)) {
       const clang::ASTContext& context = fp->decl->getASTContext();
+      // Set only when the check below runs and fails, which is exactly when
+      // the chain can reach the error return.
+      std::string copyability_reason;
       if (!ann.shallow_struct_sync && ann.struct_sync.empty() &&
           !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
-                                         conv_ctx) &&
+                                         conv_ctx, &copyability_reason) &&
           !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
              std::holds_alternative<SizedByBinding>(ann.size_type)) &&
             IsSupportedArgByteSizedByType(type)) &&
@@ -799,7 +848,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             ann.ptr_dir == PointerDir::kOut &&
             IsSupportedOutParamContextBoundType(context, type, conv_ctx))) {
         return absl::InvalidArgumentError(absl::Substitute(
-            "pointer argument $0 has unsupported pointee type", name));
+            "pointer argument $0 has unsupported pointee type: $1", name,
+            copyability_reason));
       }
     } else if (is_return_value && !type->getPointeeType()->isArithmeticType() &&
                !std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime) &&
