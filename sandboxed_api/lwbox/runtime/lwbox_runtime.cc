@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/base/nullability.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -226,6 +227,86 @@ const char* GlobalStringRegistry::GetOrFetch(sapi::SandboxBase& sandbox,
   absl::MutexLock lock(mutex_);
   auto [it, inserted] = strings_.insert({remote_ptr, *std::move(remote_str)});
   return it->second.c_str();
+}
+
+SandboxeeCallbackRegistry* SandboxeeCallbackRegistry::Instance() {
+  static SandboxeeCallbackRegistry* instance = new SandboxeeCallbackRegistry();
+  return instance;
+}
+
+absl::StatusOr<uintptr_t> SandboxeeCallbackRegistry::ThunkFor(
+    const sapi::SandboxBase& sandbox, const ThunkPool& pool, uintptr_t fn) {
+  // Null is not a callback. Substituting a thunk for it would hand the caller
+  // a non-null address and break every `if (cb)` guard in the library.
+  if (fn == 0) {
+    return 0;
+  }
+
+  absl::MutexLock lock(mutex_);
+  const TargetKey key{&pool, &sandbox, fn};
+  if (auto it = by_target_.find(key); it != by_target_.end()) {
+    return it->second;
+  }
+
+  for (uintptr_t thunk : pool.thunks) {
+    if (by_thunk_.contains(thunk)) {
+      continue;
+    }
+    by_thunk_.emplace(thunk, Binding{&pool, &sandbox, fn});
+    by_target_.emplace(key, thunk);
+    return thunk;
+  }
+
+  return absl::ResourceExhaustedError(absl::StrCat(
+      "All ", pool.thunks.size(), " host thunks for callback typedef ",
+      pool.typedef_name,
+      " are in use. Every one stands in for a sandboxee callback that is still "
+      "reachable, so none can be reused"));
+}
+
+std::optional<uintptr_t> SandboxeeCallbackRegistry::LookUpThunk(
+    const sapi::SandboxBase& sandbox, const ThunkPool& pool, uintptr_t thunk) {
+  if (thunk == 0) {
+    return std::nullopt;
+  }
+  absl::MutexLock lock(mutex_);
+  auto it = by_thunk_.find(thunk);
+  if (it == by_thunk_.end()) {
+    return std::nullopt;
+  }
+  CHECK_EQ(it->second.pool, &pool)
+      << "Host thunk bound for callback typedef '"
+      << it->second.pool->typedef_name
+      << "' used across a boundary expecting callback typedef '"
+      << pool.typedef_name << "'";
+  CHECK_EQ(it->second.sandbox, &sandbox)
+      << "Host thunk bound for callback typedef '" << pool.typedef_name
+      << "' used with a different sandbox instance";
+  return it->second.fn;
+}
+
+void SandboxeeCallbackRegistry::Release(uintptr_t thunk) {
+  if (thunk == 0) {
+    return;
+  }
+  absl::MutexLock lock(mutex_);
+  auto it = by_thunk_.find(thunk);
+  CHECK(it != by_thunk_.end())
+      << "Attempted to release an unknown or already released host thunk";
+  by_target_.erase(
+      TargetKey{it->second.pool, it->second.sandbox, it->second.fn});
+  by_thunk_.erase(it);
+}
+
+void SandboxeeCallbackRegistry::ForgetSandbox(
+    const sapi::SandboxBase& sandbox) {
+  absl::MutexLock lock(mutex_);
+  absl::erase_if(by_target_, [&sandbox](const auto& entry) {
+    return std::get<1>(entry.first) == &sandbox;
+  });
+  absl::erase_if(by_thunk_, [&sandbox](const auto& entry) {
+    return entry.second.sandbox == &sandbox;
+  });
 }
 
 }  // namespace lwbox

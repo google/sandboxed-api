@@ -25,6 +25,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
@@ -48,7 +50,11 @@ namespace sapi {
 namespace lwbox {
 namespace {
 
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::_;
+using ::testing::HasSubstr;
 using ::testing::Return;
 
 class MockRPCChannel : public sapi::RPCChannel {
@@ -402,6 +408,220 @@ TEST(LwboxRuntimeTest, GlobalStringRegistryFailureCheckFails) {
         reg->GetOrFetch(sandbox, fake_remote);
       },
       "Failed to fetch remote string");
+}
+
+// =========================================================================
+// SandboxeeCallbackRegistry Tests
+// =========================================================================
+
+// The registry never dereferences a thunk address, so these stand in for
+// generated thunks: distinct objects, hence distinct addresses.
+uintptr_t ThunkAddress(int which) {
+  static const int kThunkBodies[8] = {};
+  return reinterpret_cast<uintptr_t>(&kThunkBodies[which]);
+}
+
+// Two callback typedefs' worth of pools. A pool's address is its typedef's
+// identity, so these must be distinct objects that outlive the registry entries
+// naming them.
+const ThunkPool& PoolA() {
+  static const uintptr_t kThunks[] = {ThunkAddress(0), ThunkAddress(1),
+                                      ThunkAddress(2)};
+  static const ThunkPool kPool = {"byte_sink", absl::MakeConstSpan(kThunks)};
+  return kPool;
+}
+
+const ThunkPool& PoolB() {
+  static const uintptr_t kThunks[] = {ThunkAddress(3), ThunkAddress(4)};
+  static const ThunkPool kPool = {"chunk_allocator",
+                                  absl::MakeConstSpan(kThunks)};
+  return kPool;
+}
+
+// The registry is process-wide, so each test hands back what it took. Scoped
+// rather than done in a fixture teardown because ForgetSandbox is itself under
+// test here.
+class ScopedSandbox {
+ public:
+  ScopedSandbox() : sandbox_(&channel_) {}
+  ~ScopedSandbox() {
+    SandboxeeCallbackRegistry::Instance()->ForgetSandbox(sandbox_);
+  }
+
+  MockSandbox& sandbox() { return sandbox_; }
+
+ private:
+  MockRPCChannel channel_;
+  MockSandbox sandbox_;
+};
+
+TEST(SandboxeeCallbackRegistryTest, NullIsNotACallback) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  // A null callback field stays null rather than becoming a non-null thunk,
+  // and consumes no slot. Otherwise every `if (s->cb)` in the library breaks.
+  EXPECT_THAT(reg->ThunkFor(scoped.sandbox(), PoolA(), 0), IsOkAndHolds(0));
+  EXPECT_EQ(reg->LookUpThunk(scoped.sandbox(), PoolA(), 0), std::nullopt);
+}
+
+TEST(SandboxeeCallbackRegistryTest, TheSameFunctionAlwaysGetsTheSameThunk) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> first =
+      reg->ThunkFor(scoped.sandbox(), PoolA(), 0x11);
+  ASSERT_THAT(first, IsOk());
+
+  // Otherwise a struct synced twice would burn a slot each time, and the host
+  // would hold two addresses that compare unequal but mean one callback.
+  EXPECT_THAT(reg->ThunkFor(scoped.sandbox(), PoolA(), 0x11),
+              IsOkAndHolds(*first));
+}
+
+TEST(SandboxeeCallbackRegistryTest, DifferentFunctionsGetDifferentThunks) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> one =
+      reg->ThunkFor(scoped.sandbox(), PoolA(), 0x11);
+  absl::StatusOr<uintptr_t> two =
+      reg->ThunkFor(scoped.sandbox(), PoolA(), 0x22);
+  ASSERT_THAT(one, IsOk());
+  ASSERT_THAT(two, IsOk());
+
+  EXPECT_NE(*one, *two);
+}
+
+TEST(SandboxeeCallbackRegistryTest, TheSameAddressInTwoSandboxesIsTwoTargets) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox first;
+  ScopedSandbox second;
+
+  // Two sandboxes have independent address spaces, so one number denotes two
+  // different functions. A registry keyed on the address alone -- which is what
+  // a file-scope slot table amounts to -- would hand both the same thunk and
+  // quietly route the second sandbox's callback into the first.
+  absl::StatusOr<uintptr_t> in_first =
+      reg->ThunkFor(first.sandbox(), PoolA(), 0x11);
+  absl::StatusOr<uintptr_t> in_second =
+      reg->ThunkFor(second.sandbox(), PoolA(), 0x11);
+  ASSERT_THAT(in_first, IsOk());
+  ASSERT_THAT(in_second, IsOk());
+
+  EXPECT_NE(*in_first, *in_second);
+  EXPECT_EQ(reg->LookUpThunk(first.sandbox(), PoolA(), *in_first), 0x11u);
+  EXPECT_EQ(reg->LookUpThunk(second.sandbox(), PoolA(), *in_second), 0x11u);
+  EXPECT_DEATH(reg->LookUpThunk(second.sandbox(), PoolA(), *in_first),
+               "used with a different sandbox instance");
+}
+
+TEST(SandboxeeCallbackRegistryTest, OneFunctionUnderTwoTypedefsIsTwoTargets) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  // Thunks carry their typedef's signature, so one address reached through
+  // two callback typedefs needs one thunk out of each pool.
+  absl::StatusOr<uintptr_t> as_a =
+      reg->ThunkFor(scoped.sandbox(), PoolA(), 0x11);
+  absl::StatusOr<uintptr_t> as_b =
+      reg->ThunkFor(scoped.sandbox(), PoolB(), 0x11);
+  ASSERT_THAT(as_a, IsOk());
+  ASSERT_THAT(as_b, IsOk());
+
+  EXPECT_NE(*as_a, *as_b);
+  EXPECT_EQ(reg->LookUpThunk(scoped.sandbox(), PoolA(), *as_a), 0x11u);
+  EXPECT_EQ(reg->LookUpThunk(scoped.sandbox(), PoolB(), *as_b), 0x11u);
+  EXPECT_DEATH(reg->LookUpThunk(scoped.sandbox(), PoolB(), *as_a),
+               "Host thunk bound for callback typedef 'byte_sink' used across "
+               "a boundary expecting callback typedef 'chunk_allocator'");
+}
+
+TEST(SandboxeeCallbackRegistryTest, LookUpThunkRoundTripsAndRejectsStrangers) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> thunk =
+      reg->ThunkFor(scoped.sandbox(), PoolA(), 0x11);
+  ASSERT_THAT(thunk, IsOk());
+
+  EXPECT_EQ(reg->LookUpThunk(scoped.sandbox(), PoolA(), *thunk), 0x11u);
+
+  // A genuine host function is simply absent, which is how a caller tells the
+  // two apart without an equality scan over the whole thunk table.
+  EXPECT_EQ(reg->LookUpThunk(scoped.sandbox(), PoolA(),
+                             reinterpret_cast<uintptr_t>(&ThunkAddress)),
+            std::nullopt);
+}
+
+TEST(SandboxeeCallbackRegistryTest, ExhaustionIsLoudRatherThanReusingASlot) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  ASSERT_THAT(reg->ThunkFor(scoped.sandbox(), PoolB(), 0x11), IsOk());
+  ASSERT_THAT(reg->ThunkFor(scoped.sandbox(), PoolB(), 0x22), IsOk());
+
+  // PoolB has two slots. Handing out a third by evicting one would silently
+  // redirect a callback the host still holds, so this has to be an error.
+  EXPECT_THAT(reg->ThunkFor(scoped.sandbox(), PoolB(), 0x33),
+              StatusIs(absl::StatusCode::kResourceExhausted,
+                       HasSubstr("chunk_allocator")));
+}
+
+TEST(SandboxeeCallbackRegistryTest, ReleaseReturnsTheSlotToThePool) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> first =
+      reg->ThunkFor(scoped.sandbox(), PoolB(), 0x11);
+  ASSERT_THAT(first, IsOk());
+  ASSERT_THAT(reg->ThunkFor(scoped.sandbox(), PoolB(), 0x22), IsOk());
+  ASSERT_THAT(reg->ThunkFor(scoped.sandbox(), PoolB(), 0x33),
+              StatusIs(absl::StatusCode::kResourceExhausted));
+
+  reg->Release(*first);
+
+  EXPECT_EQ(reg->LookUpThunk(scoped.sandbox(), PoolB(), *first), std::nullopt);
+  // Re-registering the same target after Release allocates the freed slot.
+  EXPECT_THAT(reg->ThunkFor(scoped.sandbox(), PoolB(), 0x11),
+              IsOkAndHolds(*first));
+}
+
+TEST(SandboxeeCallbackRegistryTest,
+     ReleaseNoOpsOnZeroAndCheckFailsOnUnknownThunk) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+
+  reg->Release(0);
+  EXPECT_DEATH(
+      reg->Release(reinterpret_cast<uintptr_t>(&ThunkAddress)),
+      "Attempted to release an unknown or already released host thunk");
+}
+
+TEST(SandboxeeCallbackRegistryTest, ForgetSandboxReleasesOnlyItsOwnSlots) {
+  auto* reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox keeper;
+
+  absl::StatusOr<uintptr_t> kept =
+      reg->ThunkFor(keeper.sandbox(), PoolA(), 0x11);
+  ASSERT_THAT(kept, IsOk());
+
+  uintptr_t doomed_thunk = 0;
+  {
+    ScopedSandbox doomed;
+    absl::StatusOr<uintptr_t> got =
+        reg->ThunkFor(doomed.sandbox(), PoolA(), 0x22);
+    ASSERT_THAT(got, IsOk());
+    ASSERT_NE(*got, *kept);
+    doomed_thunk = *got;
+  }  // ScopedSandbox's destructor calls ForgetSandbox.
+
+  EXPECT_EQ(reg->LookUpThunk(keeper.sandbox(), PoolA(), doomed_thunk),
+            std::nullopt);
+  EXPECT_EQ(reg->LookUpThunk(keeper.sandbox(), PoolA(), *kept), 0x11u);
+
+  // The forgotten slot is reusable, and the surviving binding still dedups.
+  EXPECT_THAT(reg->ThunkFor(keeper.sandbox(), PoolA(), 0x11),
+              IsOkAndHolds(*kept));
 }
 
 }  // namespace

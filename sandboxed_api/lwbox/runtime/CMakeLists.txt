@@ -21,6 +21,7 @@ target_link_libraries(sapi_lwbox_runtime
   PUBLIC
     absl::check
     absl::core_headers
+    absl::flat_hash_map
     absl::flat_hash_set
     absl::log
     absl::node_hash_map
@@ -43,6 +44,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::vars
     absl::status
     absl::status_matchers
+    absl::statusor
     absl::time
     absl::span
     sapi::test_main

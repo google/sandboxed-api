@@ -31,6 +31,10 @@
 //   - GlobalStringRegistry: caches C strings with global lifetime
 //     (SANDBOX_LIFETIME_GLOBAL) read out of the sandboxee, which have to stay
 //     valid for the lifetime of the process.
+//   - SandboxeeCallbackRegistry: which host thunk stands in for which
+//     sandboxee function, so that a callback the sandboxee implements can be
+//     held, compared and called by host code that only understands host
+//     addresses.
 //
 // Keeping that state here rather than inlining it into every generated
 // wrapper keeps the emitted code readable, and makes the bookkeeping
@@ -57,13 +61,17 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "sandboxed_api/sandbox.h"
 
 namespace sapi {
@@ -171,6 +179,98 @@ class GlobalStringRegistry {
   absl::Mutex mutex_;
   absl::node_hash_map<const void*, std::string> strings_
       ABSL_GUARDED_BY(mutex_);
+};
+
+// A callback typedef's pool of host thunks.
+//
+// Generated code defines exactly one of these per callback typedef that can
+// receive a sandboxee-implemented callback, and the pool's *address* is that
+// typedef's identity here. `thunks` holds the addresses of the generated
+// thunk functions, which all have the typedef's signature.
+//
+// The pool is shared by every sandbox in the process, because the thunks are
+// static symbols in the host binary and there is only one of each. Its size is
+// therefore a bound on how many sandboxee callbacks of this one typedef can be
+// live at the same time across all sandboxes, not per sandbox.
+//
+// A pool must outlive every binding made through it, and must not be a
+// temporary: the registry keeps its address as the typedef's identity.
+struct ThunkPool {
+  // Only used in diagnostics.
+  absl::string_view typedef_name;
+  absl::Span<const uintptr_t> thunks;
+};
+
+// Thread-safe registry mapping sandboxee functions to the host thunks that
+// stand in for them, and back.
+//
+// A callback-typed value is only ever valid in the address space that holds
+// it. When the sandboxee hands the host one of its own functions, the host
+// cannot call that address; it needs a host-callable stand-in that will make
+// the downcall. This registry owns that substitution in both directions:
+//
+//   ThunkFor        sandboxee function -> host thunk   ("store and replace")
+//   LookUpThunk     host thunk -> sandboxee function   ("replace back")
+//
+// `LookUpThunk` returning nothing is also how a caller tells a genuine host
+// function apart from a stand-in, which is the only question the "is this one
+// of ours?" check ever needed to answer.
+class SandboxeeCallbackRegistry {
+ public:
+  static SandboxeeCallbackRegistry* Instance();
+
+  // Returns the host thunk standing in for `fn` in `sandbox`, allocating one
+  // from `pool` the first time this pair is seen and returning the same thunk
+  // on every later call.
+  //
+  // A null `fn` is not a callback: it is returned unchanged and consumes no
+  // slot, so that a library's `if (s->cb)` keeps working.
+  //
+  // Returns ResourceExhausted, naming the callback typedef, when all thunks in
+  // `pool` are in use. Reusing one would silently redirect a callback the
+  // caller still holds, so this is deliberately an error rather than an
+  // eviction.
+  absl::StatusOr<uintptr_t> ThunkFor(const sapi::SandboxBase& sandbox,
+                                     const ThunkPool& pool, uintptr_t fn);
+
+  // The inverse of ThunkFor. Returns std::nullopt if `thunk` is 0 or not a
+  // thunk this registry handed out, which means the value is a genuine host
+  // function and needs no substitution.
+  //
+  // CHECK-fails if `thunk` is bound to a different callback typedef pool than
+  // `pool` or to a different sandbox instance than `sandbox`.
+  std::optional<uintptr_t> LookUpThunk(const sapi::SandboxBase& sandbox,
+                                       const ThunkPool& pool, uintptr_t thunk);
+
+  // Returns `thunk`'s slot to its pool. Safely no-ops on 0, and CHECK-fails if
+  // `thunk` is not a currently bound thunk. Calling a released thunk is a
+  // use-after-free of the binding and the generated thunk will CHECK-fail
+  // rather than call a stale target.
+  void Release(uintptr_t thunk);
+
+  // Releases every slot held on behalf of `sandbox`. Call when a sandbox goes
+  // away: its addresses become meaningless, and its slots would otherwise stay
+  // held for the lifetime of the process.
+  void ForgetSandbox(const sapi::SandboxBase& sandbox);
+
+ private:
+  SandboxeeCallbackRegistry() = default;
+
+  struct Binding {
+    const ThunkPool* pool;
+    const sapi::SandboxBase* sandbox;
+    uintptr_t fn;
+  };
+
+  // Identifies a target: the same sandboxee function reached through two
+  // different callback typedefs needs two different thunks, because the thunks
+  // have different signatures.
+  using TargetKey =
+      std::tuple<const ThunkPool*, const sapi::SandboxBase*, uintptr_t>;
+
+  absl::Mutex mutex_;
+  absl::flat_hash_map<uintptr_t, Binding> by_thunk_ ABSL_GUARDED_BY(mutex_);
+  absl::flat_hash_map<TargetKey, uintptr_t> by_target_ ABSL_GUARDED_BY(mutex_);
 };
 
 // Helper to copy a range of memory from a remote sandbox pointer directly to
