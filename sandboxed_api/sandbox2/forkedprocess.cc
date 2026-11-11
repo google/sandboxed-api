@@ -202,9 +202,10 @@ void MoveFDs(std::initializer_list<std::pair<FDCloser*, int>> move_fds) {
     if (auto it = fd_map.find(new_fd); it != fd_map.end()) {
       int fd = dup(new_fd);
       SAPI_RAW_CHECK(fd != -1, "Duplicating an FD failed.");
-      *it->second = FDCloser(fd);
-      fd_map.emplace(fd, it->second);
+      FDCloser* fd_closer = it->second;
       fd_map.erase(it);
+      *fd_closer = FDCloser(fd);
+      fd_map.emplace(fd, fd_closer);
     }
     if (dup2(old_fd->get(), new_fd) == -1) {
       SAPI_RAW_PLOG(FATAL, "Moving temporary to proper FD failed.");
