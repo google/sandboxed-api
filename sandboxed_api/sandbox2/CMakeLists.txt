@@ -1152,12 +1152,14 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME forkserver_test
   )
   add_dependencies(sandbox2_forkserver_test
-    sandbox2::testcase_minimal
+    sandbox2::testcase_sendrecv
   )
   target_link_libraries(sandbox2_forkserver_test PRIVATE
     absl::check
     absl::strings
+    sandbox2::comms
     sandbox2::fork_client
+    sandbox2::forkingclient
     sandbox2::forkserver
     sandbox2::forkserver_proto
     sandbox2::sandbox2

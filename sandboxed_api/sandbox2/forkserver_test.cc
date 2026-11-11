@@ -28,7 +28,9 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/fork_client.h"
+#include "sandboxed_api/sandbox2/forkingclient.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/global_forkclient.h"
 #include "sandboxed_api/sandbox2/ipc.h"
@@ -43,36 +45,45 @@ class IpcPeer {
   explicit IpcPeer(IPC* ipc) : ipc_(ipc) {}
 
   void SetUpServerSideComms(int fd) { ipc_->SetUpServerSideComms(fd); }
+  Comms* comms() const { return ipc_->comms(); }
 
  private:
   IPC* ipc_;
 };
 
-int GetMinimalTestcaseFd() {
-  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+int GetTestcaseFd() {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/sendrecv");
   return open(path.c_str(), O_RDONLY);
 }
 
-pid_t TestSingleRequest(Mode mode, int exec_fd) {
+pid_t TestSingleRequest(Mode mode, int exec_fd,
+                        ForkClient* fork_client = nullptr) {
   ForkRequest fork_req;
   IPC ipc;
   int sv[2];
   // Setup IPC
   PCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != -1);
-  IpcPeer{&ipc}.SetUpServerSideComms(sv[1]);
+  IpcPeer ipc_peer(&ipc);
+  ipc_peer.SetUpServerSideComms(sv[1]);
   // Setup fork_req
   fork_req.set_mode(mode);
   fork_req.add_args("/binary");
   fork_req.add_envs("FOO=1");
 
   SandboxeeProcess process =
-      GlobalForkClient::SendRequest(fork_req, exec_fd, sv[0]);
+      GlobalForkClient::SendRequest(fork_req, exec_fd, sv[0], fork_client);
   if (process.main_pid != -1) {
     VLOG(1) << "TestSingleRequest: Waiting for pid=" << process.main_pid;
     waitpid(process.main_pid, nullptr, 0);
   }
 
   close(sv[0]);
+  if (mode == FORKSERVER_FORK_EXECVE && process.main_pid != -1) {
+    bool b = false;
+    EXPECT_TRUE(ipc_peer.comms()->RecvBool(&b));
+    EXPECT_TRUE(b);
+    EXPECT_TRUE(ipc_peer.comms()->SendBool(true));
+  }
   return process.main_pid;
 }
 
@@ -102,14 +113,58 @@ TEST(ForkserverTest, SimpleForkNoZombie) {
 
 TEST(ForkserverTest, ForkExecveWorks) {
   // Run a test binary through the FORK_EXECVE request.
-  int exec_fd = GetMinimalTestcaseFd();
+  int exec_fd = GetTestcaseFd();
   PCHECK(exec_fd != -1) << "Could not open test binary";
   ASSERT_NE(TestSingleRequest(FORKSERVER_FORK_EXECVE, exec_fd), -1);
 }
 
+TEST(ForkserverTest, ForkExecveTargetFdCollision) {
+  int sv[2];
+  ASSERT_NE(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), -1);
+  pid_t fs_pid = fork();
+  ASSERT_NE(fs_pid, -1);
+  if (fs_pid == 0) {
+    close(sv[0]);
+    if (sv[1] != Comms::kSandbox2ClientCommsFD) {
+      PCHECK(dup2(sv[1], Comms::kSandbox2ClientCommsFD) != -1);
+      close(sv[1]);
+    }
+    // Occupy FDs up to kSandbox2TargetExecFD - 2 so that after setup_comms
+    // takes kSandbox2TargetExecFD - 1 (1021) and comms_->Terminate() frees
+    // kSandbox2ClientCommsFD (1023) in the child, ReceiveFDs() receives
+    // comms_fd_ on 1022 and execve_fd_ on 1023, triggering FD collision
+    // resolution in MoveToPredefiedFDs().
+    for (int fd = 3; fd < Comms::kSandbox2TargetExecFD - 1; ++fd) {
+      if (fcntl(fd, F_GETFD) == -1) {
+        PCHECK(dup2(STDIN_FILENO, fd) != -1);
+      }
+    }
+    close(Comms::kSandbox2TargetExecFD - 1);
+    close(Comms::kSandbox2TargetExecFD);
+
+    Comms comms(Comms::kSandbox2ClientCommsFD);
+    ForkingClient forking_client(&comms);
+    forking_client.EnterForkLoop();
+    _exit(EXIT_FAILURE);
+  }
+  close(sv[1]);
+  Comms comms(sv[0]);
+  ForkClient fork_client(fs_pid, &comms);
+  int exec_fd = GetTestcaseFd();
+  PCHECK(exec_fd != -1) << "Could not open test binary";
+  EXPECT_NE(TestSingleRequest(FORKSERVER_FORK_EXECVE, exec_fd, &fork_client),
+            -1);
+  close(exec_fd);
+  comms.Terminate();
+  int status;
+  ASSERT_EQ(waitpid(fs_pid, &status, 0), fs_pid);
+  ASSERT_TRUE(WIFEXITED(status)) << "status=" << status;
+  EXPECT_EQ(WEXITSTATUS(status), EXIT_SUCCESS);
+}
+
 TEST(ForkserverTest, ForkExecveSandboxWithoutPolicy) {
   // Run a test binary through the FORKSERVER_FORK_EXECVE_SANDBOX request.
-  int exec_fd = GetMinimalTestcaseFd();
+  int exec_fd = GetTestcaseFd();
   PCHECK(exec_fd != -1) << "Could not open test binary";
 }
 

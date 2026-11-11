@@ -1093,10 +1093,12 @@ cc_test(
     name = "forkserver_test",
     srcs = ["forkserver_test.cc"],
     copts = sapi_platform_copts(),
-    data = ["//sandboxed_api/sandbox2/testcases:minimal"],
+    data = ["//sandboxed_api/sandbox2/testcases:sendrecv"],
     tags = ["no_qemu_user_mode"],
     deps = [
+        ":comms",
         ":fork_client",
+        ":forkingclient",
         ":forkserver",
         ":forkserver_cc_proto",
         ":global_forkserver",
