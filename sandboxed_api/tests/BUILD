@@ -34,6 +34,8 @@ cc_test(
     deps = [
         ":sapi_test-sapi",
         "//sandboxed_api:call",
+        "//sandboxed_api:lenval_core",
+        "//sandboxed_api:passthrough_backend",
         "//sandboxed_api:sandbox_config",
         "//sandboxed_api:sapi",
         "//sandboxed_api:testing",
@@ -66,6 +68,7 @@ cc_library(
         "sapi_test_lib_cpp.cc",
     ],
     deps = [
+        "//sandboxed_api:lenval_core",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/types:span",
     ],
@@ -76,6 +79,7 @@ sapi_library(
     name = "sapi_test-sapi",
     functions = [
         "accumulate",
+        "clear_lenval",
         "compare_self_symbol",
         "call_callback",
         "call_callback_with_ptr",

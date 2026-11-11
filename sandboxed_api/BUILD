@@ -353,7 +353,6 @@ cc_library(
         ":var_type",
         "//sandboxed_api/util:checked_math",
         "//sandboxed_api/util:proto_helper",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

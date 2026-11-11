@@ -293,6 +293,34 @@ TEST_F(SharedMemoryRPCChannelTest, ReallocateGoesOOM) {
   EXPECT_EQ(reinterpret_cast<uintptr_t>(ptr2), 0x12345678);
 }
 
+TEST_F(SharedMemoryRPCChannelTest, AllocateAndReallocateZeroSize) {
+  void* ptr1 = nullptr;
+  ABSL_ASSERT_OK(rpc_channel()->Allocate(0, &ptr1));
+  ASSERT_TRUE(IsWithinSharedMemoryRegion(ptr1));
+
+  void* ptr2 = nullptr;
+  ABSL_ASSERT_OK(rpc_channel()->Reallocate(ptr1, 512, &ptr2));
+  ASSERT_TRUE(IsWithinSharedMemoryRegion(ptr2));
+
+  void* ptr3 = nullptr;
+  ABSL_ASSERT_OK(rpc_channel()->Reallocate(ptr2, 0, &ptr3));
+  ASSERT_TRUE(IsWithinSharedMemoryRegion(ptr3));
+  ABSL_ASSERT_OK(rpc_channel()->Free(ptr3));
+}
+
+TEST_F(SharedMemoryRPCChannelTest, CopyEmptySpan) {
+  void* remote_ptr;
+  ABSL_ASSERT_OK(rpc_channel()->Allocate(128, &remote_ptr));
+  EXPECT_THAT(
+      rpc_channel()->CopyToSandbox(reinterpret_cast<uintptr_t>(remote_ptr),
+                                   absl::Span<const char>()),
+      IsOkAndHolds(0));
+  EXPECT_THAT(rpc_channel()->CopyFromSandbox(
+                  reinterpret_cast<uintptr_t>(remote_ptr), absl::Span<char>()),
+              IsOkAndHolds(0));
+  ABSL_ASSERT_OK(rpc_channel()->Free(remote_ptr));
+}
+
 TEST_F(SharedMemoryRPCChannelTest, Free) {
   void* ptr1;
   ABSL_ASSERT_OK(rpc_channel()->Allocate(512, &ptr1));

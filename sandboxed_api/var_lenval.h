@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -28,6 +29,7 @@
 #include "sandboxed_api/var_abstract.h"
 #include "sandboxed_api/var_array.h"
 #include "sandboxed_api/var_struct.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi::v {
 
@@ -50,7 +52,9 @@ class LenVal : public Var {
   explicit LenVal(const std::vector<uint8_t>& data)
       : array_(data.size()), struct_(data.size(), nullptr) {
     array_.DisallowSharedMemory();
-    memcpy(array_.GetData(), data.data(), data.size());
+    if (!data.empty()) {
+      memcpy(array_.GetData(), data.data(), data.size());
+    }
   }
 
   explicit LenVal(size_t size) : array_(size), struct_(size, nullptr) {

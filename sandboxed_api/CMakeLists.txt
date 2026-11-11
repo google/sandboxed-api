@@ -300,7 +300,6 @@ target_link_libraries(sapi_vars
           sapi::var_type
   PUBLIC absl::any_invocable
          absl::check
-         absl::core_headers
          absl::die_if_null
          absl::log
          absl::status

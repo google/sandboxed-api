@@ -16,6 +16,7 @@
 #define SANDBOXED_API_VAR_ARRAY_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -52,7 +53,7 @@ class Array : public Var {
       : nelem_(nelem),
         total_size_(CheckedMultiply(nelem_, sizeof(T))),
         buffer_owned_(true) {
-    void* storage = malloc(total_size_);
+    void* storage = malloc(std::max<size_t>(total_size_, 1));
     CHECK(storage != nullptr);
     SetLocal(storage);
     arr_ = static_cast<T*>(storage);
@@ -128,13 +129,21 @@ class Array : public Var {
     if (size == total_size_ && buffer_owned_) {
       return absl::OkStatus();
     }
+    // Allocate at least 1 byte so size-0 reallocations never pass 0 to
+    // realloc() (which has undefined behavior in C23 and frees `arr_` while
+    // returning nullptr on glibc and TCMalloc).
+    const size_t alloc_size = std::max<size_t>(size, 1);
     void* new_addr = nullptr;
     if (buffer_owned_) {
-      new_addr = realloc(arr_, size);
+      new_addr = realloc(const_cast<std::remove_const_t<T>*>(arr_), alloc_size);
     } else {
-      new_addr = malloc(size);
-      if (new_addr) {
-        memcpy(new_addr, arr_, std::min(size, total_size_));
+      new_addr = malloc(alloc_size);
+      if (new_addr != nullptr) {
+        // Guard 0-byte copies because `arr_` can be nullptr when `total_size_`
+        // is 0, and passing nullptr to memcpy() is undefined behavior.
+        if (size_t copy_size = std::min(size, total_size_); copy_size > 0) {
+          memcpy(new_addr, arr_, copy_size);
+        }
         buffer_owned_ = true;
       }
     }

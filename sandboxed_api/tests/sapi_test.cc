@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -44,6 +45,8 @@
 #include "sandboxed_api/examples/stringop/stringop-sapi.sapi.h"
 #include "sandboxed_api/examples/stringop/stringop_params.pb.h"
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
+#include "sandboxed_api/lenval_core.h"
+#include "sandboxed_api/passthrough_backend.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox_config.h"
@@ -56,6 +59,7 @@
 #include "sandboxed_api/var_callback.h"
 #include "sandboxed_api/var_int.h"
 #include "sandboxed_api/var_lenval.h"
+#include "sandboxed_api/var_proto.h"
 #include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_reg.h"
 #include "sandboxed_api/var_struct.h"
@@ -75,6 +79,7 @@ using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ContainerEq;
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
@@ -512,6 +517,120 @@ TEST(VarsTest, ArraySizeOverflow) {
   v::Array<uint64_t> arr(1);
   EXPECT_THAT(arr.Resize(/*rpc_channel=*/nullptr, kOverflowNelem),
               StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(VarsTest, ZeroSizedBuffersAndPassthroughResize) {
+  std::vector<uint8_t> empty_vec;
+  v::LenVal from_empty_vec(empty_vec);
+  EXPECT_THAT(from_empty_vec.GetDataSize(), Eq(0));
+  EXPECT_THAT(from_empty_vec.GetData(), NotNull());
+
+  v::LenVal zero_sized(size_t{0});
+  EXPECT_THAT(zero_sized.GetDataSize(), Eq(0));
+  EXPECT_THAT(zero_sized.GetData(), NotNull());
+
+  Sandbox<PassthroughBackend> sandbox(PassthroughBackend(
+      SandboxConfig{}, [](const FuncCall&, FuncRet*) {},
+      [](const char*, FuncRet*) {}));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+
+  v::Array<int> arr(4);
+  ASSERT_THAT(sandbox.Allocate(&arr, /*automatic_free=*/true), IsOk());
+  ASSERT_THAT(arr.Resize(sandbox.rpc_channel(), 0), IsOk());
+  EXPECT_THAT(arr.GetSize(), Eq(0));
+  EXPECT_THAT(arr.GetData(), NotNull());
+  ASSERT_THAT(arr.Resize(sandbox.rpc_channel(), 2), IsOk());
+  arr[0] = 7;
+  arr[1] = 8;
+  ASSERT_THAT(sandbox.TransferToSandboxee(&arr), IsOk());
+  arr[0] = 0;
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&arr), IsOk());
+  EXPECT_THAT(arr[0], Eq(7));
+}
+
+TEST_P(SandboxTest, LenValAndProtoShrinkToZero) {
+  SapiTestSandbox sandbox(GetDefaultConfig());
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  for (bool free_data : {false, true}) {
+    std::vector<uint8_t> initial = {1, 2, 3, 4, 5};
+    v::LenVal owned_len_val(initial);
+    ASSERT_THAT(api.clear_lenval(owned_len_val.PtrBoth(), free_data), IsOk());
+    EXPECT_THAT(owned_len_val.GetDataSize(), Eq(0));
+    EXPECT_THAT(owned_len_val.GetData(), NotNull());
+
+    constexpr absl::string_view kPayload = "payload";
+    v::LenVal unowned_len_val(kPayload.data(), kPayload.size());
+    ASSERT_THAT(api.clear_lenval(unowned_len_val.PtrBoth(), free_data), IsOk());
+    EXPECT_THAT(unowned_len_val.GetDataSize(), Eq(0));
+    EXPECT_THAT(unowned_len_val.GetData(), NotNull());
+
+    v::LenVal null_len_val(nullptr, 0);
+    ASSERT_THAT(api.clear_lenval(null_len_val.PtrBoth(), free_data), IsOk());
+    EXPECT_THAT(null_len_val.GetDataSize(), Eq(0));
+    EXPECT_THAT(sandbox.Free(&null_len_val), IsOk());
+  }
+
+  v::Struct<LenValStruct> remote_header;
+  stringop::StringReverse proto;
+  proto.set_input("Hello");
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      v::Proto<stringop::StringReverse> sapi_proto,
+      v::Proto<stringop::StringReverse>::FromMessage(proto));
+  ASSERT_THAT(sandbox.Allocate(&sapi_proto, /*automatic_free=*/true), IsOk());
+  ASSERT_THAT(sandbox.TransferToSandboxee(&sapi_proto), IsOk());
+  remote_header.SetRemote(sapi_proto.GetRemote());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&remote_header), IsOk());
+  remote_header.mutable_data()->size = 0;
+  ASSERT_THAT(sandbox.TransferToSandboxee(&remote_header), IsOk());
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&sapi_proto), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(stringop::StringReverse out_proto,
+                            sapi_proto.GetMessage());
+  EXPECT_THAT(out_proto.payload_case(),
+              Eq(stringop::StringReverse::PAYLOAD_NOT_SET));
+}
+
+TEST_P(SandboxTest, ResizeToZero) {
+  SapiTestSandbox sandbox(GetDefaultConfig());
+  ASSERT_THAT(sandbox.Init(), IsOk());
+
+  v::Array<int> arr(8);
+  ASSERT_THAT(sandbox.Allocate(&arr, /*automatic_free=*/true), IsOk());
+  ASSERT_THAT(arr.Resize(sandbox.rpc_channel(), 0), IsOk());
+  EXPECT_THAT(arr.GetNElem(), Eq(0));
+  EXPECT_THAT(arr.GetData(), NotNull());
+  ASSERT_THAT(arr.Resize(sandbox.rpc_channel(), 4), IsOk());
+  arr[0] = 10;
+  arr[1] = 11;
+  arr[2] = 12;
+  arr[3] = 13;
+  ASSERT_THAT(sandbox.TransferToSandboxee(&arr), IsOk());
+  arr[0] = 0;
+  arr[3] = 0;
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&arr), IsOk());
+  EXPECT_THAT(absl::MakeConstSpan(arr.GetData(), arr.GetNElem()),
+              ElementsAre(10, 11, 12, 13));
+
+  v::Array<const int> const_arr(4);
+  ASSERT_THAT(sandbox.Allocate(&const_arr, /*automatic_free=*/true), IsOk());
+  ASSERT_THAT(const_arr.Resize(sandbox.rpc_channel(), 0), IsOk());
+  EXPECT_THAT(const_arr.GetNElem(), Eq(0));
+
+  v::LenVal len_val(12);
+  ASSERT_THAT(sandbox.Allocate(&len_val, /*automatic_free=*/true), IsOk());
+  ASSERT_THAT(len_val.ResizeData(sandbox.rpc_channel(), 0), IsOk());
+  EXPECT_THAT(len_val.GetDataSize(), Eq(0));
+  EXPECT_THAT(len_val.GetData(), NotNull());
+  ASSERT_THAT(len_val.ResizeData(sandbox.rpc_channel(), 6), IsOk());
+  memcpy(len_val.GetData(), "123456", 6);
+  ASSERT_THAT(sandbox.TransferToSandboxee(&len_val), IsOk());
+  memset(len_val.GetData(), 0, 6);
+  ASSERT_THAT(sandbox.TransferFromSandboxee(&len_val), IsOk());
+  EXPECT_THAT(
+      absl::string_view(reinterpret_cast<const char*>(len_val.GetData()),
+                        len_val.GetDataSize()),
+      Eq("123456"));
 }
 
 TEST_P(SandboxTest, MapFd) {

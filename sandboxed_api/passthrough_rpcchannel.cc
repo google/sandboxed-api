@@ -16,6 +16,7 @@
 
 #include <dlfcn.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -34,7 +35,7 @@ namespace sapi {
 absl::Status PassthroughRPCChannel::Allocate(size_t size, void** addr,
                                              bool disable_shared_memory) {
   // TODO: b/500974875 - Free all memory in the destructor.
-  *addr = malloc(size);
+  *addr = malloc(std::max<size_t>(size, 1));
   if (!*addr) {
     return absl::ErrnoToStatus(
         errno, "PassthroughRPCChannel::Allocate: malloc failed");
@@ -44,7 +45,7 @@ absl::Status PassthroughRPCChannel::Allocate(size_t size, void** addr,
 
 absl::Status PassthroughRPCChannel::Reallocate(void* old_addr, size_t size,
                                                void** new_addr) {
-  *new_addr = realloc(old_addr, size);
+  *new_addr = realloc(old_addr, std::max<size_t>(size, 1));
   if (!*new_addr) {
     return absl::ErrnoToStatus(
         errno, "PassthroughRPCChannel::Reallocate: realloc failed");
@@ -59,12 +60,18 @@ absl::Status PassthroughRPCChannel::Free(void* addr) {
 
 absl::StatusOr<size_t> PassthroughRPCChannel::CopyFromSandbox(
     uintptr_t ptr, absl::Span<char> data) {
+  if (data.empty()) {
+    return 0;
+  }
   memcpy(data.data(), reinterpret_cast<const char*>(ptr), data.size());
   return data.size();
 }
 
 absl::StatusOr<size_t> PassthroughRPCChannel::CopyToSandbox(
     uintptr_t remote_ptr, absl::Span<const char> data) {
+  if (data.empty()) {
+    return 0;
+  }
   memcpy(reinterpret_cast<char*>(remote_ptr), data.data(), data.size());
   return data.size();
 }

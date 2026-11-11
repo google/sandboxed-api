@@ -22,11 +22,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     absl::algorithm_container
     absl::span
     sapi::base
+    sapi::lenval_core
   )
 
   # sandboxed_api/examples/sum/lib:sum-sapi
   add_sapi_library(sapi_test-sapi
     FUNCTIONS accumulate
+              clear_lenval
               compare_self_symbol
               call_callback
               call_callback_with_ptr
@@ -56,6 +58,8 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sandbox2::result
     sapi::call
     sapi::fileops
+    sapi::lenval_core
+    sapi::passthrough_backend
     sapi::proto_arg_proto
     sapi::sapi
     sapi::sapi_test_sapi

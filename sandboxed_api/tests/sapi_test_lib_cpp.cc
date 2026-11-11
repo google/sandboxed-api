@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
+
 #include "absl/algorithm/container.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/lenval_core.h"
 
 namespace sapi_test {
 
@@ -48,4 +51,12 @@ extern "C" int call_callback_loop(int (*cb)(int), int count) {
     sum += cb(i);
   }
   return sum;
+}
+
+extern "C" void clear_lenval(sapi::LenValStruct* input, bool free_data) {
+  if (free_data) {
+    free(input->data);
+    input->data = nullptr;
+  }
+  input->size = 0;
 }

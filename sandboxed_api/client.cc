@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -64,7 +65,7 @@ FuncRet ProcessRequest(sandbox2::Comms* comms, uint32_t tag,
 void HandleAllocMsg(const size_t size, FuncRet* ret) {
   VLOG(1) << "HandleAllocMsg: size=" << size;
 
-  const void* allocated = malloc(size);
+  const void* allocated = malloc(std::max<size_t>(size, 1));
 
   ret->ret_type = v::Type::kPointer;
   ret->int_val = reinterpret_cast<uintptr_t>(allocated);
@@ -76,7 +77,8 @@ void HandleReallocMsg(uintptr_t ptr, size_t size, FuncRet* ret) {
   VLOG(1) << "HandleReallocMsg(" << absl::StrCat(absl::Hex(ptr)) << ", " << size
           << ")";
 
-  const void* reallocated = realloc(reinterpret_cast<void*>(ptr), size);
+  const void* reallocated =
+      realloc(reinterpret_cast<void*>(ptr), std::max<size_t>(size, 1));
 
   ret->ret_type = v::Type::kPointer;
   ret->int_val = reinterpret_cast<uintptr_t>(reallocated);

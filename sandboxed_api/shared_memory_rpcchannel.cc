@@ -15,6 +15,7 @@
 #include "sandboxed_api/shared_memory_rpcchannel.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -50,8 +51,9 @@ absl::StatusOr<size_t> AlignSize(size_t size) {
   constexpr size_t kMaxAllocatableSize =
       (std::numeric_limits<size_t>::max() - kAlignment) & ~(kAlignment - 1);
 
-  if (size == 0 || size > kMaxAllocatableSize) {
-    return absl::InvalidArgumentError("Size is zero or too large");
+  size = std::max<size_t>(size, 1);
+  if (size > kMaxAllocatableSize) {
+    return absl::InvalidArgumentError("Size is too large");
   }
   return RoundUp(size, kAlignment);
 }
@@ -305,7 +307,9 @@ absl::StatusOr<size_t> SharedMemoryRPCChannel::CopyToSandbox(
   // The remote_ptr must be in the shared memory region.
   void* local_addr = ToLocalAddr(remote_ptr);
   ABSL_RETURN_IF_ERROR(EnsureWithinAllocationBounds(local_addr, data.size()));
-  memcpy(local_addr, data.data(), data.size());
+  if (!data.empty()) {
+    memcpy(local_addr, data.data(), data.size());
+  }
   return data.size();
 }
 
@@ -317,7 +321,9 @@ absl::StatusOr<size_t> SharedMemoryRPCChannel::CopyFromSandbox(
   // The remote_ptr must be in the shared memory region.
   void* local_addr = ToLocalAddr(remote_ptr);
   ABSL_RETURN_IF_ERROR(EnsureWithinAllocationBounds(local_addr, data.size()));
-  memcpy(data.data(), local_addr, data.size());
+  if (!data.empty()) {
+    memcpy(data.data(), local_addr, data.size());
+  }
   return data.size();
 }
 
