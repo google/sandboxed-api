@@ -412,11 +412,10 @@ TEST(SandboxPoolTest, SandboxThatDiedWhileIdleIsNotHandedOut) {
                                            .max_sandbox_reuse = 100,
                                            .max_maintenance_threads = 0,
                                        }));
-  StringopSandbox* idle = nullptr;
-  {
-    SAPI_ASSERT_OK_AND_ASSIGN(auto handle, pool->Acquire());
-    idle = handle.get();
-  }
+  SAPI_ASSERT_OK_AND_ASSIGN(SandboxHandle<StringopSandbox> idle_handle,
+                            pool->Acquire());
+  StringopSandbox* idle = idle_handle.get();
+  idle_handle = {};
   ASSERT_EQ(pool->AvailableCount(), 1);
   // Stands in for a sandboxee killed while sitting in the idle queue, e.g. by
   // its wall-time limit or the OOM killer. Nothing else touches the idle queue
