@@ -114,7 +114,7 @@ absl::StatusOr<void*> SimpleAllocator::Reallocate(void* old_addr, size_t size) {
     absl::MutexLock lock(mutex_);
 
     auto it = all_blocks_.find(reinterpret_cast<uintptr_t>(old_addr));
-    if (it == all_blocks_.end()) {
+    if (it == all_blocks_.end() || it->second.is_free) {
       return absl::InvalidArgumentError("Invalid pointer");
     }
     old_size = it->second.size;
@@ -384,18 +384,35 @@ absl::Status SharedMemoryRPCChannel::ReallocateInNonSharedMemory(
     void* local_addr, size_t size, void** new_addr) {
   ABSL_ASSIGN_OR_RETURN(auto old_metadata,
                         allocator_->GetAllocationMetadata(local_addr));
-  ABSL_RETURN_IF_ERROR(rpcchannel_->Allocate(size, new_addr));
-  if (auto ret = rpcchannel_->CopyToSandbox(
-          reinterpret_cast<uintptr_t>(*new_addr),
-          absl::MakeSpan(reinterpret_cast<char*>(old_metadata->addr),
-                         old_metadata->size));
-      !ret.ok()) {
-    // Copying data failed, so we just want to free the allocation on the
-    // remote side so that the operation doesn't have any side-effects.
-    ABSL_RETURN_IF_ERROR(rpcchannel_->Free(*new_addr));
-    return ret.status();
+  if (old_metadata->addr != reinterpret_cast<uintptr_t>(local_addr) ||
+      old_metadata->is_free) {
+    return absl::InvalidArgumentError("Invalid pointer");
   }
-  return allocator_->Free(local_addr);
+  void* remote_addr = nullptr;
+  ABSL_RETURN_IF_ERROR(rpcchannel_->Allocate(size, &remote_addr));
+  if (!remote_addr) {
+    return absl::UnavailableError("Allocate() returned nullptr");
+  }
+  if (size_t copy_size = std::min(old_metadata->size, size); copy_size > 0) {
+    absl::StatusOr<size_t> bytes_copied = rpcchannel_->CopyToSandbox(
+        reinterpret_cast<uintptr_t>(remote_addr),
+        absl::MakeSpan(reinterpret_cast<const char*>(old_metadata->addr),
+                       copy_size));
+    if (!bytes_copied.ok() || *bytes_copied != copy_size) {
+      // Copying data failed, so we just want to free the allocation on the
+      // remote side so that the operation doesn't have any side-effects.
+      rpcchannel_->Free(remote_addr).IgnoreError();
+      return !bytes_copied.ok()
+                 ? bytes_copied.status()
+                 : absl::UnavailableError("CopyToSandbox: partial success");
+    }
+  }
+  if (absl::Status status = allocator_->Free(local_addr); !status.ok()) {
+    rpcchannel_->Free(remote_addr).IgnoreError();
+    return status;
+  }
+  *new_addr = remote_addr;
+  return absl::OkStatus();
 }
 
 void* SharedMemoryRPCChannel::ToLocalAddr(uintptr_t remote_addr) {

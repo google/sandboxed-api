@@ -633,6 +633,25 @@ TEST_P(SandboxTest, ResizeToZero) {
       Eq("123456"));
 }
 
+TEST_P(SandboxTest, InvalidBufferPointersRejected) {
+  SapiTestSandbox sandbox(GetDefaultConfig());
+  ASSERT_THAT(sandbox.Init(), IsOk());
+
+  v::Array<uint8_t> invalid_unowned_arr(nullptr, 4);
+  ASSERT_THAT(sandbox.Allocate(&invalid_unowned_arr, /*automatic_free=*/true),
+              IsOk());
+  EXPECT_THAT(sandbox.TransferToSandboxee(&invalid_unowned_arr),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(sandbox.TransferFromSandboxee(&invalid_unowned_arr),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(invalid_unowned_arr.Resize(sandbox.rpc_channel(), 8),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+
+  v::Array<uint8_t> unallocated_nonempty_arr(4);
+  EXPECT_THAT(sandbox.TransferFromSandboxee(&unallocated_nonempty_arr),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
 TEST_P(SandboxTest, MapFd) {
   sapi::file_util::fileops::FDCloser dev_null(open("/dev/null", O_WRONLY));
   ASSERT_NE(dev_null.get(), -1);

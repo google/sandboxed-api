@@ -137,6 +137,10 @@ class Array : public Var {
     if (buffer_owned_) {
       new_addr = realloc(const_cast<std::remove_const_t<T>*>(arr_), alloc_size);
     } else {
+      if (arr_ == nullptr && total_size_ > 0) {
+        return absl::FailedPreconditionError(
+            "Object: Array has no local storage set");
+      }
       new_addr = malloc(alloc_size);
       if (new_addr != nullptr) {
         // Guard 0-byte copies because `arr_` can be nullptr when `total_size_`

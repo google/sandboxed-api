@@ -117,6 +117,10 @@ absl::Status Var::TransferToSandboxee(RPCChannel* rpc_channel) {
     return absl::FailedPreconditionError(
         absl::StrCat("Object: ", GetTypeString(), " has no remote object set"));
   }
+  if (local_ == nullptr && GetSize() > 0) {
+    return absl::FailedPreconditionError(
+        absl::StrCat("Object: ", GetTypeString(), " has no local storage set"));
+  }
 
   ABSL_ASSIGN_OR_RETURN(
       size_t ret,
@@ -142,6 +146,12 @@ absl::Status Var::TransferFromSandboxee(RPCChannel* rpc_channel) {
   if (local_ == nullptr) {
     return absl::FailedPreconditionError(
         absl::StrCat("Object: ", GetTypeString(), " has no local storage set"));
+  }
+  if (remote_ == nullptr && GetSize() > 0) {
+    LOG(WARNING) << "Object: " << GetTypeString()
+                 << " has no remote object set";
+    return absl::FailedPreconditionError(
+        absl::StrCat("Object: ", GetTypeString(), " has no remote object set"));
   }
 
   ABSL_ASSIGN_OR_RETURN(

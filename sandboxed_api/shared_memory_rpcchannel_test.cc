@@ -45,6 +45,7 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::_;
 using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::SetArgPointee;
@@ -319,6 +320,44 @@ TEST_F(SharedMemoryRPCChannelTest, CopyEmptySpan) {
                   reinterpret_cast<uintptr_t>(remote_ptr), absl::Span<char>()),
               IsOkAndHolds(0));
   ABSL_ASSERT_OK(rpc_channel()->Free(remote_ptr));
+}
+
+TEST_F(SharedMemoryRPCChannelTest, ReallocateInvalidOrFreedPointerFails) {
+  void* ptr1;
+  ABSL_ASSERT_OK(rpc_channel()->Allocate(512, &ptr1));
+  ASSERT_TRUE(IsWithinSharedMemoryRegion(ptr1));
+  void* ptr2 = nullptr;
+  EXPECT_THAT(rpc_channel()->Reallocate(reinterpret_cast<uint8_t*>(ptr1) + 24,
+                                        0, &ptr2),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  ABSL_ASSERT_OK(rpc_channel()->Free(ptr1));
+  EXPECT_THAT(rpc_channel()->Reallocate(ptr1, 0, &ptr2),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(rpc_channel()->Reallocate(ptr1, 256, &ptr2),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(SharedMemoryRPCChannelTest, ReallocateFallbackErrorPreservesOriginal) {
+  void* ptr1;
+  ABSL_ASSERT_OK(rpc_channel()->Allocate(512, &ptr1));
+  ASSERT_TRUE(IsWithinSharedMemoryRegion(ptr1));
+
+  void* const sentinel = reinterpret_cast<void*>(0xdeadbeef);
+  void* ptr2 = sentinel;
+  ExpectAllocationRequest(nullptr);
+  EXPECT_THAT(rpc_channel()->Reallocate(ptr1, SharedMemorySize() + 1024, &ptr2),
+              StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_EQ(ptr2, sentinel);
+
+  ExpectAllocationRequest(reinterpret_cast<void*>(0x12345678));
+  EXPECT_CALL(*mock_rpc_channel_, CopyToSandbox(0x12345678, _))
+      .WillOnce(Return(256));
+  EXPECT_CALL(*mock_rpc_channel_, Free(reinterpret_cast<void*>(0x12345678)))
+      .WillOnce(Return(absl::InternalError("channel closed")));
+  EXPECT_THAT(rpc_channel()->Reallocate(ptr1, SharedMemorySize() + 1024, &ptr2),
+              StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_EQ(ptr2, sentinel);
+  ABSL_ASSERT_OK(rpc_channel()->Free(ptr1));
 }
 
 TEST_F(SharedMemoryRPCChannelTest, Free) {
