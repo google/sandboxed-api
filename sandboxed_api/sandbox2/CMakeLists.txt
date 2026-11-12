@@ -1597,7 +1597,10 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     OUTPUT_NAME global_forkclient_test
   )
   target_link_libraries(sandbox2_global_forkclient_test
-    PRIVATE sandbox2::global_forkserver
+    PRIVATE sandbox2::comms
+            sandbox2::fork_client
+            sandbox2::forkserver_proto
+            sandbox2::global_forkserver
             sapi::test_main
   )
   gtest_discover_tests_xcompile(sandbox2_global_forkclient_test PROPERTIES

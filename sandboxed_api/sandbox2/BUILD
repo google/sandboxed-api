@@ -329,6 +329,9 @@ cc_test(
     srcs = ["global_forkclient_test.cc"],
     copts = sapi_platform_copts(),
     deps = [
+        ":comms",
+        ":fork_client",
+        ":forkserver_cc_proto",
         ":global_forkserver",
         "@googletest//:gtest_main",
     ],

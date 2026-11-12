@@ -107,8 +107,8 @@ void DisableCompressStackDepotImpl(C& envs, AddFn&& add_env) {
 
 int LaunchForkserver(void* vargs) {
   auto* args = static_cast<ForkserverArgs*>(vargs);
-  // Move the comms FD to the proper, expected FD number.
-  // The new FD will not be CLOEXEC, which is what we want.
+  // Move the comms FD to the proper, expected FD number and ensure FD_CLOEXEC
+  // is cleared (dup2 is a no-op and preserves FD_CLOEXEC when oldfd == newfd).
   // If exec_fd == Comms::kSandbox2ClientCommsFD then it would be replaced by
   // the comms fd and result in EACCESS at execveat.
   // So first move exec_fd to another fd number.
@@ -119,6 +119,8 @@ int LaunchForkserver(void* vargs) {
   }
   SAPI_RAW_PCHECK(dup2(args->comms_fd, Comms::kSandbox2ClientCommsFD) != -1,
                   "duping comms fd failed");
+  SAPI_RAW_PCHECK(fcntl(Comms::kSandbox2ClientCommsFD, F_SETFD, 0) != -1,
+                  "clearing FD_CLOEXEC on comms fd failed");
 
   char proc_name[] = "S2-FORK-SERV";
   char* const argv[] = {proc_name, nullptr};
