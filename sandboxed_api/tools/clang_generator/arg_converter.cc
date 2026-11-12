@@ -822,6 +822,14 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       .is_return_value = is_return_value,
   };
 
+  if (const auto* fp = std::get_if<FunctionParamSource>(&source);
+      fp != nullptr && ann.context_bound.copy_from_and_bind.has_value() &&
+      !IsSupportedOutParamContextBoundType(fp->decl->getASTContext(), type,
+                                           conv_ctx)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointer argument $0 has unsupported pointee type", name));
+  }
+
   // Note: functors need no exemption here; they are record types, so they
   // never satisfy isPointerType().
   if (type->isPointerType() && !type->getPointeeType()->isPointerType() &&
@@ -846,14 +854,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                                          conv_ctx, &copyability_reason) &&
           !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
              std::holds_alternative<SizedByBinding>(ann.size_type)) &&
-            IsSupportedArgByteSizedByType(type)) &&
-          !(std::holds_alternative<NullTerminated>(ann.size_type) &&
-            std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime) &&
-            ann.ptr_dir != PointerDir::kIn &&
-            IsSupportedOutParamNullTerminatedType(type)) &&
-          !(ann.context_bound.copy_from_and_bind.has_value() &&
-            ann.ptr_dir == PointerDir::kOut &&
-            IsSupportedOutParamContextBoundType(context, type, conv_ctx))) {
+            IsSupportedArgByteSizedByType(type))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type: $1", name,
             copyability_reason));
@@ -862,8 +863,13 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                !std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime) &&
                !std::holds_alternative<AliasCallbackReturnLifetime>(
                    ann.lifetime)) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "return pointer $0 has unsupported pointee type", name));
+      const auto* fr = std::get_if<FunctionReturnSource>(&source);
+      if (fr == nullptr || !ann.context_bound.copy_from_and_bind.has_value() ||
+          !IsDeeplyTriviallyCopyableType(fr->decl->getASTContext(),
+                                         type->getPointeeType(), conv_ctx)) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "return pointer $0 has unsupported pointee type", name));
+      }
     }
   }
 

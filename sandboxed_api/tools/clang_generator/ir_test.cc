@@ -1859,6 +1859,78 @@ TEST_F(IrConvertTest,
                                  "outer_len")));
 }
 
+TEST_F(IrConvertTest,
+       CopyFromAndBindOutPtrSupportsTriviallyCopyableStructReturn) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    struct Ctx;
+    struct Palette {
+      unsigned char r;
+      unsigned char g;
+      unsigned char b;
+    };
+    extern "C" [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr",
+                                 "ctx", "b1")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "256")]]
+    const Palette* get_palette(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                                               "get_palette"));
+  ASSERT_TRUE(func.return_value.has_value());
+  ASSERT_TRUE(func.return_value->Is<BufferParam>());
+  const auto* ret_buf = func.return_value->As<BufferParam>();
+  EXPECT_TRUE(ret_buf->context_bound.copy_from_and_bind.has_value());
+}
+
+TEST_F(
+    IrConvertTest,
+    CopyFromAndBindOutPtrRejectsNonTriviallyCopyableStructReturnAndOutparam) {
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Ctx;
+    struct WithPtr {
+      int* ptr;
+    };
+    extern "C" [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr",
+                                 "ctx", "b1")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "1")]]
+    const WithPtr* get_with_ptr(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                         "get_with_ptr"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("return pointer sapi_ret_arg has unsupported pointee "
+                         "type")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    extern "C" void get_with_ptr_outparam(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        WithPtr** out [[clang::annotate("sandbox",
+                                        "copy_from_and_bind_out_ptr",
+                                        "ctx", "b1")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "1")]]);
+  )",
+                         "get_with_ptr_outparam"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointer argument out has unsupported pointee type")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Pod {
+      int x;
+    };
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "1")]]
+    typedef Pod* (*pod_allocator)(int n);
+    extern "C" void use_pod_cb(pod_allocator cb);
+  )",
+                         "use_pod_cb"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("return pointer return_val has unsupported pointee "
+                         "type")));
+}
+
 }  // namespace
 }  // namespace ir
 }  // namespace sapi
