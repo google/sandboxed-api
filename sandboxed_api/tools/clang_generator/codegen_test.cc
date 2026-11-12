@@ -814,5 +814,56 @@ TEST(EmitHostSrcTest, CallbackReturnValueUninitializedSkipsInitialTransfer) {
                     HasSubstr("TransferFromSandboxee(var.get())")));
 }
 
+TEST(EmitHostSrcTest, StructSyncEmitsResolvedMemberSizeExprsAndConstants) {
+  ir::TypeInfo record_type{
+      .kind = ir::TypeKind::kStruct,
+      .canonical_name = "SavedImage",
+  };
+  ir::Parameter struct_param{
+      .name = "Image",
+      .type = PointerTo(std::move(record_type)),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "RasterBits",
+                          .parent_prefix = "Image->",
+                          .direction = PointerDir::kInOut,
+                          .bounds =
+                              ir::bounds::ElemCount{
+                                  .size_expr = "Image->ImageDesc.Width * "
+                                               "Image->ImageDesc.Height",
+                              },
+                      },
+                      ir::StructMemberSync{
+                          .member_name = "Palette",
+                          .parent_prefix = "Image->",
+                          .direction = PointerDir::kIn,
+                          .bounds =
+                              ir::bounds::ByteCount{
+                                  .size_expr = "256",
+                              },
+                      },
+                  },
+          },
+  };
+  ir::Function func{
+      .name = "GifApplyTranslation",
+      .parameters = {std::move(struct_param)},
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr(
+                "sandbox->CheckedMultiply(\n"
+                "        sizeof(*(Image->RasterBits)),\n"
+                "        (Image->ImageDesc.Width * Image->ImageDesc.Height))"),
+            HasSubstr("sapi_member_size_Image_Palette = 256;")));
+}
+
 }  // namespace
 }  // namespace sapi

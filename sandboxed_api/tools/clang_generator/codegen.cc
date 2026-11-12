@@ -502,14 +502,14 @@ std::string EmitStructMemberSyncsPreCall(
                                       size_expr);
             },
             [&](const ir::bounds::ByteCount& byte) {
-              return absl::Substitute("sapi_member_size_$0 = $1$2;\n", suffix,
-                                      sync.parent_prefix, byte.size_expr);
+              return absl::Substitute("sapi_member_size_$0 = $1;\n", suffix,
+                                      byte.size_expr);
             },
             [&](const ir::bounds::ElemCount& elem) {
               return absl::Substitute(
                   "sapi_member_size_$0 = "
-                  "sandbox->CheckedMultiply(sizeof(*($1)), ($2$3));\n",
-                  suffix, host_ptr_expr, sync.parent_prefix, elem.size_expr);
+                  "sandbox->CheckedMultiply(sizeof(*($1)), ($2));\n",
+                  suffix, host_ptr_expr, elem.size_expr);
             },
             [&](const auto& b) {
               using T = std::decay_t<decltype(b)>;

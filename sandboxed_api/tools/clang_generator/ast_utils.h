@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "clang/AST/Decl.h"
@@ -41,6 +42,26 @@ std::optional<std::string> MemberNameOfAccessPath(absl::string_view path);
 // TODO(b/491717148): For now, we don't handle expressions with "." and return
 // std::nullopt as well.
 std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path);
+
+// Returns true if `name` names a non-static data member of `record_decl`
+// (including fields of anonymous nested structs/unions and C++ base classes).
+bool IsNonStaticDataMember(const clang::RecordDecl& record_decl,
+                           absl::string_view name);
+
+// Validates a `size_expr` from a `SANDBOX_ANNOTATE_STRUCT` field annotation
+// against `real_record`, rejecting any unqualified base identifier before `.`
+// or `->` (or `.*` / `->*`) that is not a non-static data member of
+// `real_record`.
+absl::Status ValidateStructMemberSizeExpr(const clang::RecordDecl& real_record,
+                                          absl::string_view field_name,
+                                          absl::string_view size_expr);
+
+// Rewrites `size_expr` by prepending `parent_prefix` (e.g., "Image->") to
+// every unqualified identifier token that resolves to a non-static data
+// member of `record_decl`.
+std::string PrefixStructMemberSizeExpr(const clang::RecordDecl& record_decl,
+                                       absl::string_view parent_prefix,
+                                       absl::string_view size_expr);
 
 // Returns the source text of `decl` with the SANDBOX_* annotation macros
 // removed.

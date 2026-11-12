@@ -1066,13 +1066,16 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         .is_shallow = ann.shallow_struct_sync,
         .context_bound = std::move(ann.context_bound),
     };
-    // The pointee's record annotations are the same for every synchronized
-    // member, so resolve them once rather than per member. The annotations
-    // guarantee a pointer to a record here (see CheckParsedAnnotations).
+    // The pointee's record declaration and annotations are the same for every
+    // synchronized member, so resolve them once rather than per member. The
+    // annotations guarantee a pointer to a record here (see
+    // CheckParsedAnnotations).
+    const clang::RecordDecl* record_decl = nullptr;
     const RecordAnnotations* rec_ann = nullptr;
     if (type->isPointerType()) {
-      if (const auto* record_decl = type->getPointeeType()->getAsRecordDecl();
-          record_decl != nullptr) {
+      if (const auto* rd = type->getPointeeType()->getAsRecordDecl();
+          rd != nullptr) {
+        record_decl = rd->getDefinition() != nullptr ? rd->getDefinition() : rd;
         auto it = conv_ctx.record_annotations.find(record_decl->getName());
         if (it != conv_ctx.record_annotations.end()) {
           rec_ann = &it->second;
@@ -1103,6 +1106,17 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             Annotations member_a;
             member_a.size_type = member_ann.size_type;
             ir_sync.bounds = AnnotationsToBufferBounds(member_a);
+            if (record_decl != nullptr) {
+              if (auto* elem =
+                      std::get_if<ir::bounds::ElemCount>(&ir_sync.bounds)) {
+                elem->size_expr = ast::PrefixStructMemberSizeExpr(
+                    *record_decl, ir_sync.parent_prefix, elem->size_expr);
+              } else if (auto* byte = std::get_if<ir::bounds::ByteCount>(
+                             &ir_sync.bounds)) {
+                byte->size_expr = ast::PrefixStructMemberSizeExpr(
+                    *record_decl, ir_sync.parent_prefix, byte->size_expr);
+              }
+            }
             break;
           }
         }

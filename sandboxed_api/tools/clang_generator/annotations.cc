@@ -761,7 +761,8 @@ namespace {
 // record declaration. This is a real record declaration has the same name,
 // but should be declared in a parent declaration context.
 absl::Status CheckShadowRecordMatchesRealRecord(
-    const clang::RecordDecl& shadow_decl) {
+    const clang::RecordDecl& shadow_decl,
+    const RecordAnnotations& record_annotations) {
   llvm::StringRef record_name = shadow_decl.getName();
   clang::ASTContext& ast_ctx = shadow_decl.getASTContext();
   clang::IdentifierInfo& id_info = ast_ctx.Idents.get(record_name);
@@ -833,6 +834,17 @@ absl::Status CheckShadowRecordMatchesRealRecord(
                            shadow_type.getAsString(), real_type.getAsString()));
     }
   }
+
+  for (const DataMemberAnnotations& member :
+       record_annotations.member_annotations) {
+    if (const auto* elem = std::get_if<ElemSizedBy>(&member.size_type)) {
+      ABSL_RETURN_IF_ERROR(ast::ValidateStructMemberSizeExpr(
+          *real_record, member.name, elem->expr));
+    } else if (const auto* byte = std::get_if<ByteSizedBy>(&member.size_type)) {
+      ABSL_RETURN_IF_ERROR(ast::ValidateStructMemberSizeExpr(
+          *real_record, member.name, byte->expr));
+    }
+  }
   return absl::OkStatus();
 }
 
@@ -901,7 +913,8 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
         "No sandbox annotations found for record $0", record_name.str()));
   }
 
-  ABSL_RETURN_IF_ERROR(CheckShadowRecordMatchesRealRecord(decl));
+  ABSL_RETURN_IF_ERROR(
+      CheckShadowRecordMatchesRealRecord(decl, record_annotations));
 
   return record_annotations;
 }

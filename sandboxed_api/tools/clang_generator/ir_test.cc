@@ -39,6 +39,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg_converter.h"
@@ -241,11 +242,13 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
     std::optional<Function> result_func;
     absl::Status conversion_status = absl::NotFoundError(
         absl::StrCat("Target function '", target_name, "' not found"));
+    absl::flat_hash_map<std::string, RecordAnnotations> records =
+        record_annotations;
     absl::flat_hash_map<std::string, CallbackTypedef> typedefs =
         callback_typedefs;
     // Outlives the frontend action below, which only holds a reference.
     const ConversionContext conv_ctx{
-        .record_annotations = record_annotations,
+        .record_annotations = records,
         .callback_typedefs = typedefs,
     };
 
@@ -253,10 +256,13 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
      public:
       ExtractAction(
           absl::string_view target_name, const ConversionContext& conv_ctx,
+          absl::flat_hash_map<std::string, RecordAnnotations>&
+              record_annotations,
           absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs,
           std::optional<Function>& out_func, absl::Status& out_status)
           : target_name_(target_name),
             conv_ctx_(conv_ctx),
+            record_annotations_(record_annotations),
             callback_typedefs_(callback_typedefs),
             out_func_(out_func),
             out_status_(out_status) {}
@@ -268,17 +274,50 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
          public:
           Consumer(absl::string_view target_name,
                    const ConversionContext& conv_ctx,
+                   absl::flat_hash_map<std::string, RecordAnnotations>&
+                       record_annotations,
                    absl::flat_hash_map<std::string, CallbackTypedef>&
                        callback_typedefs,
                    std::optional<Function>& out_func, absl::Status& out_status)
               : target_name_(target_name),
                 conv_ctx_(conv_ctx),
+                record_annotations_(record_annotations),
                 callback_typedefs_(callback_typedefs),
                 out_func_(out_func),
                 out_status_(out_status) {}
 
           void HandleTranslationUnit(clang::ASTContext& context) override {
             TraverseDecl(context.getTranslationUnitDecl());
+            for (const clang::FunctionDecl* func_decl : functions_) {
+              if (func_decl->getIdentifier() == nullptr ||
+                  !func_decl->getName().starts_with("sandbox_annotation_")) {
+                continue;
+              }
+              const auto* body = llvm::dyn_cast_or_null<clang::CompoundStmt>(
+                  func_decl->getBody());
+              if (body == nullptr || body->size() != 1) {
+                continue;
+              }
+              const auto* decl_stmt =
+                  llvm::dyn_cast<clang::DeclStmt>(body->body_front());
+              if (decl_stmt == nullptr || !decl_stmt->isSingleDecl()) {
+                continue;
+              }
+              const auto* record_decl =
+                  llvm::dyn_cast_or_null<clang::RecordDecl>(
+                      decl_stmt->getSingleDecl());
+              if (record_decl == nullptr) {
+                continue;
+              }
+              absl::StatusOr<RecordAnnotations> rec_ann =
+                  ParseRecordAnnotations(*record_decl);
+              if (!rec_ann.ok()) {
+                out_status_ = rec_ann.status();
+                return;
+              }
+              std::string rec_name = rec_ann->name;
+              record_annotations_[std::move(rec_name)] = *std::move(rec_ann);
+            }
             for (const clang::TypedefNameDecl* td : typedefs_) {
               if (td != td->getMostRecentDecl() &&
                   !HasSandboxAnnotations(*td)) {
@@ -301,6 +340,10 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
               }
             }
             for (const clang::FunctionDecl* func_decl : functions_) {
+              if (func_decl->getIdentifier() != nullptr &&
+                  func_decl->getName().starts_with("sandbox_annotation_")) {
+                continue;
+              }
               if (target_name_.empty() ||
                   func_decl->getNameAsString() == target_name_ ||
                   func_decl->getNameAsString() == "Target" ||
@@ -333,28 +376,32 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
          private:
           std::string target_name_;
           const ConversionContext& conv_ctx_;
+          absl::flat_hash_map<std::string, RecordAnnotations>&
+              record_annotations_;
           absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs_;
           std::optional<Function>& out_func_;
           absl::Status& out_status_;
           std::vector<const clang::TypedefNameDecl*> typedefs_;
           std::vector<const clang::FunctionDecl*> functions_;
         };
-        return std::make_unique<Consumer>(target_name_, conv_ctx_,
-                                          callback_typedefs_, out_func_,
-                                          out_status_);
+        return std::make_unique<Consumer>(
+            target_name_, conv_ctx_, record_annotations_, callback_typedefs_,
+            out_func_, out_status_);
       }
 
      private:
       std::string target_name_;
       const ConversionContext& conv_ctx_;
+      absl::flat_hash_map<std::string, RecordAnnotations>& record_annotations_;
       absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs_;
       std::optional<Function>& out_func_;
       absl::Status& out_status_;
     };
 
-    absl::Status run_status = RunFrontendAction(
-        code, std::make_unique<ExtractAction>(target_name, conv_ctx, typedefs,
-                                              result_func, conversion_status));
+    absl::Status run_status =
+        RunFrontendAction(code, std::make_unique<ExtractAction>(
+                                    target_name, conv_ctx, records, typedefs,
+                                    result_func, conversion_status));
     if (!run_status.ok()) return run_status;
     if (!conversion_status.ok()) return conversion_status;
     return *std::move(result_func);
@@ -786,7 +833,105 @@ TEST_F(IrConvertTest, ASTToFunctionIRConversionWithStructSync) {
   EXPECT_EQ(sync.parent_prefix, "img->");
   EXPECT_EQ(sync.direction, PointerDir::kIn);
   ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(sync.bounds));
-  EXPECT_EQ(std::get<bounds::ElemCount>(sync.bounds).size_expr, "size");
+  EXPECT_EQ(std::get<bounds::ElemCount>(sync.bounds).size_expr, "img->size");
+}
+
+TEST_F(IrConvertTest,
+       StructSyncResolvesMultiFieldAndConstantAndNestedSizeExprs) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    using uint32_t = unsigned int;
+    struct Limits {
+      static constexpr int kExtra = 4;
+    };
+    struct GifImageDesc {
+      int Width;
+      int Height;
+    };
+    struct BaseHeader {
+      int base_len;
+    };
+    struct SavedImage : BaseHeader {
+      GifImageDesc ImageDesc;
+      struct {
+        int anon_len;
+      };
+      int count;
+      unsigned char* RasterBits;
+      unsigned char* Palette;
+      uint32_t* Words;
+    };
+    inline void sandbox_annotation_1() {
+      struct SavedImage {
+        unsigned char* RasterBits [[clang::annotate(
+            "sandbox", "elem_sized_by",
+            "ImageDesc.Width * ImageDesc.Height")]];
+        unsigned char* Palette
+            [[clang::annotate("sandbox", "byte_sized_by", "256")]];
+        uint32_t* Words [[clang::annotate(
+            "sandbox", "byte_sized_by",
+            "(count + anon_len + base_len) * sizeof(uint32_t) + Limits::kExtra")]];
+      };
+    }
+    extern "C" void GifApplyTranslation(
+        SavedImage* Image [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "binding_1",
+                           "{Image->RasterBits", "inout_ptr}",
+                           "{Image->Palette", "in_ptr}",
+                           "{Image->Words", "in_ptr}", "$")]]);
+  )",
+                                               "GifApplyTranslation"));
+  ASSERT_EQ(func.parameters.size(), 1);
+  const auto* sync_param = func.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(sync_param, nullptr);
+  ASSERT_EQ(sync_param->members.size(), 3);
+
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::ElemCount>(sync_param->members[0].bounds));
+  EXPECT_EQ(
+      std::get<bounds::ElemCount>(sync_param->members[0].bounds).size_expr,
+      "Image->ImageDesc.Width * Image->ImageDesc.Height");
+
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::ByteCount>(sync_param->members[1].bounds));
+  EXPECT_EQ(
+      std::get<bounds::ByteCount>(sync_param->members[1].bounds).size_expr,
+      "256");
+
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::ByteCount>(sync_param->members[2].bounds));
+  EXPECT_EQ(
+      std::get<bounds::ByteCount>(sync_param->members[2].bounds).size_expr,
+      "(Image->count + Image->anon_len + Image->base_len) * sizeof(uint32_t) + "
+      "Limits::kExtra");
+}
+
+TEST_F(IrConvertTest, ParseRecordAnnotationsRejectsUnknownMemberInSizeExpr) {
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct GifImageDesc {
+      int Width;
+      int Height;
+    };
+    struct SavedImage {
+      GifImageDesc ImageDesc;
+      unsigned char* RasterBits;
+    };
+    inline void sandbox_annotation_1() {
+      struct SavedImage {
+        unsigned char* RasterBits [[clang::annotate(
+            "sandbox", "elem_sized_by",
+            "TypoDesc.Width * ImageDesc.Height")]];
+      };
+    }
+    extern "C" void GifApplyTranslation(
+        SavedImage* Image [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                         "GifApplyTranslation"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("field RasterBits in record SavedImage: size "
+                         "expression 'TypoDesc.Width * ImageDesc.Height' "
+                         "references unknown member 'TypoDesc'")));
 }
 
 // A `typedef struct { ... } Image;` declares an *anonymous* record, so

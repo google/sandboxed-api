@@ -17,24 +17,32 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/substitute.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TokenKinds.h"
+#include "clang/Lex/Lexer.h"
+#include "clang/Lex/Token.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Config/llvm-config.h"
@@ -66,6 +74,144 @@ std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path) {
     return std::string(path.substr(0, arrow_pos + 2));
   }
   return std::nullopt;
+}
+
+namespace {
+
+// Tokenizes `expr` in Clang raw lexer mode. `expr` must be null-terminated and
+// must outlive the returned tokens (whose `getRawIdentifier()` views point into
+// `expr`).
+std::vector<clang::Token> LexRawTokens(const clang::LangOptions& lang_opts,
+                                       const std::string& expr) {
+  std::vector<clang::Token> tokens;
+  clang::Lexer lexer(clang::SourceLocation::getFromRawEncoding(1), lang_opts,
+                     expr.data(), expr.data(), expr.data() + expr.size());
+  clang::Token tok;
+  while (true) {
+    bool at_end = lexer.LexFromRawLexer(tok);
+    if (tok.isNot(clang::tok::eof)) {
+      tokens.push_back(tok);
+    }
+    if (at_end || tok.is(clang::tok::eof)) {
+      break;
+    }
+  }
+  return tokens;
+}
+
+}  // namespace
+
+bool IsNonStaticDataMember(const clang::RecordDecl& record_decl,
+                           absl::string_view name) {
+  const clang::RecordDecl* def = record_decl.getDefinition();
+  if (def == nullptr) {
+    return false;
+  }
+  clang::ASTContext& ast_ctx = def->getASTContext();
+  clang::DeclarationName decl_name(
+      &ast_ctx.Idents.get(llvm::StringRef(name.data(), name.size())));
+  for (const clang::NamedDecl* nd : def->lookup(decl_name)) {
+    if (llvm::isa<clang::FieldDecl, clang::IndirectFieldDecl>(nd)) {
+      return true;
+    }
+  }
+  if (const auto* cxx_record = llvm::dyn_cast<clang::CXXRecordDecl>(def)) {
+    for (const clang::CXXBaseSpecifier& base : cxx_record->bases()) {
+      if (const clang::RecordDecl* base_decl =
+              base.getType()->getAsRecordDecl();
+          base_decl != nullptr && IsNonStaticDataMember(*base_decl, name)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+absl::Status ValidateStructMemberSizeExpr(const clang::RecordDecl& real_record,
+                                          absl::string_view field_name,
+                                          absl::string_view size_expr) {
+  const clang::RecordDecl* def = real_record.getDefinition();
+  if (def == nullptr || size_expr.empty()) {
+    return absl::OkStatus();
+  }
+  clang::LangOptions lang_opts = def->getASTContext().getLangOpts();
+  lang_opts.CPlusPlus = true;
+
+  std::string expr(size_expr);
+  std::vector<clang::Token> tokens = LexRawTokens(lang_opts, expr);
+  for (size_t i = 0; i < tokens.size(); ++i) {
+    if (!tokens[i].is(clang::tok::raw_identifier)) {
+      continue;
+    }
+    const bool preceded_by_member_or_scope =
+        i > 0 &&
+        tokens[i - 1].isOneOf(clang::tok::period, clang::tok::arrow,
+                              clang::tok::periodstar, clang::tok::arrowstar,
+                              clang::tok::coloncolon);
+    const bool followed_by_member_access =
+        i + 1 < tokens.size() &&
+        tokens[i + 1].isOneOf(clang::tok::period, clang::tok::arrow,
+                              clang::tok::periodstar, clang::tok::arrowstar);
+    if (!preceded_by_member_or_scope && followed_by_member_access) {
+      llvm::StringRef ident = tokens[i].getRawIdentifier();
+      if (!IsNonStaticDataMember(
+              *def, absl::string_view(ident.data(), ident.size()))) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "field $0 in record $1: size expression '$2' references unknown "
+            "member '$3'",
+            field_name, def->getName().str(), size_expr, ident.str()));
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+std::string PrefixStructMemberSizeExpr(const clang::RecordDecl& record_decl,
+                                       absl::string_view parent_prefix,
+                                       absl::string_view size_expr) {
+  if (parent_prefix.empty() || size_expr.empty()) {
+    return std::string(size_expr);
+  }
+  const clang::RecordDecl* def = record_decl.getDefinition();
+  if (def == nullptr) {
+    return std::string(size_expr);
+  }
+  clang::LangOptions lang_opts = def->getASTContext().getLangOpts();
+  lang_opts.CPlusPlus = true;
+
+  std::string expr(size_expr);
+  std::vector<clang::Token> tokens = LexRawTokens(lang_opts, expr);
+
+  std::string result;
+  size_t last_pos = 0;
+  for (size_t i = 0; i < tokens.size(); ++i) {
+    if (!tokens[i].is(clang::tok::raw_identifier)) {
+      continue;
+    }
+    const bool preceded_by_member_or_scope =
+        i > 0 &&
+        tokens[i - 1].isOneOf(clang::tok::period, clang::tok::arrow,
+                              clang::tok::periodstar, clang::tok::arrowstar,
+                              clang::tok::coloncolon);
+    const bool followed_by_scope =
+        i + 1 < tokens.size() && tokens[i + 1].is(clang::tok::coloncolon);
+    if (preceded_by_member_or_scope || followed_by_scope) {
+      continue;
+    }
+    llvm::StringRef ident = tokens[i].getRawIdentifier();
+    if (!IsNonStaticDataMember(*def,
+                               absl::string_view(ident.data(), ident.size()))) {
+      continue;
+    }
+    size_t tok_offset = ident.data() - expr.data();
+    absl::StrAppend(
+        &result,
+        absl::string_view(expr).substr(last_pos, tok_offset - last_pos),
+        parent_prefix);
+    last_pos = tok_offset;
+  }
+  absl::StrAppend(&result, absl::string_view(expr).substr(last_pos));
+  return result;
 }
 
 namespace {
