@@ -35,7 +35,6 @@ class ForkingClient : public Client {
 
  private:
   void InitializeForkServer();
-  pid_t WaitAndForkInternal();
   // ForkServer object, which is used only if the current process is meant
   // to behave like a Fork-Server, i.e. to create a new process which will be
   // later sandboxed (with SandboxMeHere()).

@@ -142,10 +142,9 @@ void ForkServer::HandleInitializeRequest(const ForkRequest& fork_request,
 pid_t ForkServer::ServeRequest() {
   ForkRequest fork_request;
   if (!comms_->RecvProtoBuf(&fork_request)) {
-    if (comms_->IsTerminated()) {
-      return -1;
-    }
-    SAPI_RAW_LOG(FATAL, "Failed to receive ForkServer request");
+    SAPI_RAW_CHECK(comms_->IsTerminated(),
+                   "Failed to receive ForkServer request");
+    return -1;
   }
   SetupLatencyBreakdown latency_breakdown;
   LatencyStopWatch latency_stop_watch;

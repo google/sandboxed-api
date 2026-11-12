@@ -42,20 +42,14 @@ void ForkingClient::InitializeForkServer() {
   fork_server_worker_ = std::make_unique<ForkServer>(comms_);
 }
 
-pid_t ForkingClient::WaitAndForkInternal() {
-  pid_t pid = fork_server_worker_->ServeRequest();
-  if (pid == -1 && fork_server_worker_->IsTerminated()) {
-    VLOG(1) << "ForkServer Comms closed. Exiting";
-    exit(0);
-  }
-  return pid;
-}
-
 void ForkingClient::EnterForkLoop() {
   InitializeForkServer();
   for (;;) {
-    pid_t pid = WaitAndForkInternal();
-    CHECK_NE(pid, -1);
+    pid_t pid = fork_server_worker_->ServeRequest();
+    if (pid == -1) {
+      VLOG(1) << "ForkServer Comms closed. Exiting";
+      exit(0);
+    }
     if (pid == 0) {
       break;
     }
