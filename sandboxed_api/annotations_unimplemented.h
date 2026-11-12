@@ -35,8 +35,10 @@
 #define SANDBOX_INNER_PTR_OF(other_arg) \
   [[clang::annotate("sandbox", "inner_ptr_of", #other_arg)]]
 
-// TODO(b/491762076): Annotates function pointers that are passed from the host
-// to the sandboxee.
+// TODO(b/491762076): Reserved for persistent callbacks (stored by the sandbox
+// across calls) or function pointers inside structs. Synchronous per-call
+// function-pointer parameters (`R (*cb)(Args...)`) are already supported
+// directly without this macro; see `third_party/sandboxed_api/annotations.h`.
 #define SANDBOX_CALLBACK [[clang::annotate("sandbox", "callback")]]
 
 // This annotation is only used for testing purposes. Please do not use it.

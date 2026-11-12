@@ -22,7 +22,11 @@
 
 // NOTE: this functionality is experimental and may change in the future.
 
-// Lists function that are to be sandboxed, or not sandboxed, correspondingly.
+// Optional macros to explicitly allowlist or blocklist functions to be
+// sandboxed. Do not use these by default: when neither macro is used, all
+// functions in the library header files are selected for sandboxing, and
+// individual unsupported functions should be marked with `SANDBOX_UNSUPPORTED`
+// (from `annotations_unimplemented.h`) instead.
 //
 // For example:
 //   SANDBOX_FUNCS(foo_init, foo_destroy, foo_something);
@@ -30,9 +34,8 @@
 //   SANDBOX_IGNORE_FUNCS(foo_unused_func, foo_unsupported_signature);
 //
 // Functions that are not selected by these macros will not be available
-// in the sandbox. If none of these macros are used, all functions in the
-// library header files are selected for sandboxing. But if used, only one
-// of the macros can be used in a given file once.
+// in the sandbox. If used, only one of the macros can be used in a given file
+// once.
 #define SANDBOX_FUNCS(...) SANDBOX_FUNCS_IMPL(__VA_ARGS__)
 #define SANDBOX_IGNORE_FUNCS(...) SANDBOX_IGNORE_FUNCS_IMPL(__VA_ARGS__)
 
@@ -45,20 +48,58 @@
 //                       int* y SANDBOX_OUT_PTR,
 //                       int* z SANDBOX_OUT_PTR);
 //
-// For callbacks, we currently assume that the function is a host function
-// and that the caller is a sandbox function. In that case,
+// For callbacks, synchronous callbacks passed as function-pointer parameters
+// (`R (*cb)(Args...)`) and invoked only during the outer call are supported
+// directly (no special macro is needed on the function pointer itself). We
+// currently assume that the callback is a host function and that the caller is
+// a sandbox function. In that case:
 // - IN still denotes that the data is input to the function (the callback,
 //   so syncs from sandbox to host),
 // - For outparams, OUT still denotes data flows out of the function (the
-//   callback, so syncs from host to sandbox)
-// If we support callbacks that are sandbox functions and are called by the
-// host, then the directions still mean the same, though could mean
-// sync'ing from host to sandbox instead.
+//   callback, so syncs from host to sandbox).
 //
-// These annotations apply to the pointer declaration they are attached to. On
-// a callback, place them on the callback's own pointer parameters. For a
-// pointer returned by a callback, specify its lifetime using
-// SANDBOX_LIFETIME_OUTER_CALL instead.
+// On a callback, place pointer annotations on the callback's own pointer
+// parameters. If the library header declares the callback via a `typedef`,
+// expand the function pointer inline in the function declaration when its
+// pointer parameters need per-call annotations, or annotate the `typedef`
+// declaration (which is required when using `SANDBOX_LIFETIME_OUTER_CALL` on a
+// callback return value).
+//
+// Callbacks are not supported when:
+// - The sandbox retains the callback to invoke after the outer call returns
+//   (persistent callbacks, such as error or log handlers).
+// - The function pointer is a struct member.
+// - The callback takes floating-point, by-value struct, or variadic (`...`)
+//   arguments, or more than 6 arguments, or returns a function pointer.
+//
+// Placement and type support rules:
+// - Parameter annotations are placed after the parameter name (for example,
+//   `int* x SANDBOX_OUT_PTR`). Every annotated parameter must have a name. For
+//   a function-pointer parameter `R (*cb)(Args...)`, any attribute on the
+//   parameter itself must go inside the first parentheses right after the
+//   parameter name (`R (*cb ATTR)(Args...)`). For array parameters (`T a[]` or
+//   `T a[N]`), use pointer syntax `T* a` so the attribute attaches to the
+//   parameter declaration rather than the array type (with
+//   `SANDBOX_ELEM_SIZED_BY(N)` for fixed-size `T a[N]`).
+// - Return-value and function-level annotations (such as `SANDBOX_OPAQUE_PTR`,
+//   `SANDBOX_OUT_PTR`, `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR`,
+//   `SANDBOX_LIFETIME_GLOBAL`, or `SANDBOX_BIND_DATA`) are placed before the
+//   return type of the function declaration.
+// - Conditionally-written outparams (only written on some paths and left
+//   unmodified otherwise) must use `SANDBOX_INOUT_PTR` rather than
+//   `SANDBOX_OUT_PTR` so the caller's initial value is preserved.
+// - Non-opaque pointer return values support `SANDBOX_LIFETIME_GLOBAL` (for
+//   null-terminated `const char*`), `SANDBOX_ALIAS_PTR` /
+//   `SANDBOX_ALIAS_CALLBACK_RETURN`, and `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR`
+//   (for primitive or deeply trivially copyable struct pointees).
+// - Passing structs or unions by value is not supported; pointers to trivially
+//   copyable structs are supported via `SANDBOX_IN_PTR`, `SANDBOX_OUT_PTR`, or
+//   `SANDBOX_INOUT_PTR`.
+// - On a `T**` outparam, `SANDBOX_OUT_PTR` alone only syncs the outer pointer
+//   value (`*out`), which is sufficient when `T*` is an opaque handle; to copy
+//   pointee data to the host, combine with `SANDBOX_LIFETIME_GLOBAL` (for
+//   `const char**`) or `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR` (plus a size
+//   annotation).
 #define SANDBOX_IN_PTR [[clang::annotate("sandbox", "in_ptr")]]
 #define SANDBOX_OUT_PTR [[clang::annotate("sandbox", "out_ptr")]]
 #define SANDBOX_INOUT_PTR [[clang::annotate("sandbox", "inout_ptr")]]
@@ -90,8 +131,9 @@
 //   void my_memcpy(char* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(n),
 //                  const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(n),
 //                  size_t n);
-#define SANDBOX_ELEM_SIZED_BY(elem_size_arg) \
-  [[clang::annotate("sandbox", "elem_sized_by", #elem_size_arg)]]
+#define SANDBOX_ELEM_SIZED_BY(elem_size_arg)    \
+  [[clang::annotate("sandbox", "elem_sized_by", \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(elem_size_arg))]]
 
 // Pointer argument annotation that denotes that the pointee data is an array
 // with the size `byte_size_arg` bytes (not number of elements).
@@ -102,8 +144,9 @@
 // For example:
 //   void my_memset(void* dst SANDBOX_OUT_PTR SANDBOX_BYTE_SIZED_BY(n),
 //                  int c, size_t n);
-#define SANDBOX_BYTE_SIZED_BY(byte_size_arg) \
-  [[clang::annotate("sandbox", "byte_sized_by", #byte_size_arg)]]
+#define SANDBOX_BYTE_SIZED_BY(byte_size_arg)    \
+  [[clang::annotate("sandbox", "byte_sized_by", \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(byte_size_arg))]]
 
 // Pointer argument annotation that denotes that the pointee data is an array
 // with size determined by an outparam (SANDBOX_OUT_PTR or SANDBOX_INOUT_PTR).
@@ -124,29 +167,36 @@
 //       char* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*len, cap),
 //       size_t* len SANDBOX_OUT_PTR,
 //       size_t cap);
-#define SANDBOX_ELEM_SIZED_BY_OUTPARAM(size_outparam, capacity_expr)     \
-  [[clang::annotate("sandbox", "elem_sized_by_outparam", #size_outparam, \
-                    #capacity_expr)]]
+#define SANDBOX_ELEM_SIZED_BY_OUTPARAM(size_outparam, capacity_expr) \
+  [[clang::annotate("sandbox", "elem_sized_by_outparam",             \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(size_outparam),  \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(capacity_expr))]]
 
 // A pointer argument annotation like SANDBOX_ELEM_SIZED_BY_OUTPARAM, but for
 // byte sizes (similar to SANDBOX_BYTE_SIZED_BY).
-#define SANDBOX_BYTE_SIZED_BY_OUTPARAM(size_outparam, capacity_expr)     \
-  [[clang::annotate("sandbox", "byte_sized_by_outparam", #size_outparam, \
-                    #capacity_expr)]]
+#define SANDBOX_BYTE_SIZED_BY_OUTPARAM(size_outparam, capacity_expr) \
+  [[clang::annotate("sandbox", "byte_sized_by_outparam",             \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(size_outparam),  \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(capacity_expr))]]
 
 // Pointer argument annotation that denotes that the pointee data is a
 // null-terminated C string.
 // - `const char*` parameters are supported
-// - `const char*` return values are also supported, but need a lifetime
-//   annotation (like SANDBOX_LIFETIME_GLOBAL) to indicate how to manage a host
-//   copy (if a copy is needed).
+// - `const char*` return values are also supported, but need a lifetime or
+//   binding annotation (`SANDBOX_OUT_PTR SANDBOX_LIFETIME_GLOBAL` for
+//   static/global strings, or `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(ctx)` for
+//   strings whose lifetime is tied to a context handle `ctx`) to indicate how
+//   to manage a host copy.
 //
 // Input example:
 //   int my_open(const char* path SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
 // Output examples:
-// as a return value:
+// as a return value with global lifetime:
 //   SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_GLOBAL
 //   const char* status_to_error(int error_code);
+// as a return value bound to a context handle `ctx`:
+//   SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(ctx) SANDBOX_NULL_TERMINATED
+//   const char* get_name(Context* ctx SANDBOX_OPAQUE_PTR);
 // or, as an outparam:
 //   void status_to_error(int error_code,
 //                        const char** error_msg SANDBOX_OUT_PTR
@@ -186,6 +236,9 @@
 // One should only annotate properties that are always true, regardless of
 // context, such as size annotations. It does not make sense for annotations
 // that are context-dependent, such as parameter pointer direction or lifetimes.
+//
+// Note: The entire `struct Name { ... };` definition (including the `struct`
+// keyword and trailing semicolon) must be passed inside the macro parentheses.
 #define SANDBOX_ANNOTATE_STRUCT(struct_decl) \
   SANDBOX_ANNOTATE_STRUCT_IMPL(struct_decl)
 
@@ -389,7 +442,7 @@
 #define SANDBOX_BIND_DATA(context, type, name, host_computable_expr)        \
   [[clang::annotate("sandbox", "bind_data",                                 \
                     SANDBOX_INTERNAL_STRINGIFY_NEST(context), #type, #name, \
-                    #host_computable_expr)]]
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(host_computable_expr))]]
 
 // Shortcut for binding data of type `size_t`.
 #define SANDBOX_BIND_SIZE(context, name, host_computable_expr) \
@@ -413,7 +466,9 @@
 //
 // We also require the pointer to have a size annotation, e.g.
 // SANDBOX_BYTE_SIZED_BY, SANDBOX_NULL_TERMINATED, or
-// SANDBOX_BYTE_SIZED_BY_BINDING.
+// SANDBOX_BYTE_SIZED_BY_BINDING. Supported pointee types are
+// primitive/character types and deeply trivially copyable structs (on both
+// pointer return values and `T**` outparams).
 //
 // For example (continuing from the `create_image` of SANDBOX_BIND_DATA):
 //
@@ -464,6 +519,11 @@
 // copies, if necessary.
 // This assumes that the order of freeing doesn't matter.
 // If the context is null, then there should be no bindings to clear.
+//
+// Note: Bound buffers are keyed by the sandbox context pointer address, so a
+// function annotated with `SANDBOX_CLEAR_BINDINGS` must be called on that
+// handle before the sandbox frees it (functions that transfer handle or host
+// buffer ownership to the sandbox to free internally are not supported).
 //
 // For example:
 //
