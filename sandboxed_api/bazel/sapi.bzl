@@ -766,17 +766,21 @@ def cc_sandboxed_library_test(
         **test_kwargs
     )
 
+    sandboxed_tags = list(kwargs.get("tags", []))
+    if "notsan" not in sandboxed_tags:
+        sandboxed_tags.append("notsan")
+
     cc_test(
         name = "_test_" + name + "_sandboxed",
         deps = deps + [lib],
-        **cc_test_kwargs
+        **(cc_test_kwargs | {"tags": sandboxed_tags})
     )
 
     _transitioned_test(
         name = name + "_sandboxed",
         actual = ":_test_" + name + "_sandboxed",
         sandboxing_test_mode = "sandboxed",
-        **test_kwargs
+        **(test_kwargs | {"tags": sandboxed_tags})
     )
 
     native.test_suite(

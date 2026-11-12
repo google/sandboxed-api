@@ -3,9 +3,12 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/synchronization/mutex.h"
 #include "sandboxed_api/tests/testcases/replaced_library_context_bound_struct.h"
+#include "sandboxed_api/util/thread.h"
 
 namespace {
 
@@ -195,6 +198,40 @@ TEST(Test, ContextWithHostOwnedOutBufferInput) {
       "3333");
   EXPECT_EQ(get_next_chunk_host_owned_out_buffer(context), nullptr);
   destroy_context_with_host_owned_buffer(context);
+}
+
+TEST(Test, HostSynchronizedMultithreadedAccess) {
+  char data_to_decode[] = {2, 3, 'a', 'b', 'c', 'd', 'e', 'f'};
+  ContextWithSizedAfterDecoding* context = create_context_sized_after_decoding(
+      data_to_decode, sizeof(data_to_decode));
+  Dimensions dimensions;
+  get_dimensions_sized_after_decoding(context, &dimensions);
+  ASSERT_EQ(dimensions.width, 2);
+  ASSERT_EQ(dimensions.height, 3);
+
+  constexpr int kNumThreads = 4;
+  constexpr int kIterationsPerThread = 5;
+  absl::Mutex mu;
+  std::vector<sapi::Thread> threads;
+  threads.reserve(kNumThreads);
+  for (int t = 0; t < kNumThreads; ++t) {
+    threads.emplace_back([&]() {
+      for (int i = 0; i < kIterationsPerThread; ++i) {
+        absl::MutexLock lock(mu);
+        increment_buff_sized_after_decoding(context);
+        const char* buf = get_buff_sized_after_decoding(context);
+        EXPECT_NE(buf, nullptr);
+      }
+    });
+  }
+  for (sapi::Thread& thread : threads) {
+    thread.Join();
+  }
+
+  const char* final_buf = get_buff_sized_after_decoding(context);
+  EXPECT_EQ(std::string(final_buf, dimensions.width * dimensions.height),
+            "uvwxyz");
+  destroy_context_sized_after_decoding(context);
 }
 
 }  // namespace

@@ -111,6 +111,8 @@ cc_sandboxed_library_test(
     srcs = ["replaced_library_context_bound_test.cc"],
     lib = ":replacement_library_context_bound",
     deps = [
+        "//sandboxed_api/util:thread",
+        "@abseil-cpp//absl/synchronization",
         "@googletest//:gtest_main",
     ],
 )
