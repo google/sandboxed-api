@@ -1671,6 +1671,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
   auto policy = absl::WrapUnique(new Policy());
 
   bool use_landlock = use_landlock_;
+  int landlock_abi = -1;
 
   if (use_landlock) {
     // We need to check that all the mounts are compatible with Landlock, i.e.
@@ -1687,7 +1688,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
     // Starting in Landlock ABI v9 (LANDLOCK_ACCESS_FS_RESOLVE_UNIX), pathname
     // AF_UNIX sockets are restricted by Landlock filesystem rules, so neither
     // UnrestrictedNetworking() nor NetworkProxy is required.
-    const int landlock_abi =
+    landlock_abi =
         landlock_abi_version_for_testing_.value_or(GetLandlockAbiVersion());
     if (landlock_abi < 9) {
       bool has_unrestricted_networking = (netns_mode_ == NETNS_MODE_NONE);
@@ -1709,9 +1710,20 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
   }
 
   if (use_namespaces_ || use_landlock) {
-    // If no specific netns mode is set, default to per-sandboxee.
+#if defined(SAPI_PPC64_LE)
+    // On PPC64LE, socket creation may use __NR_socketcall, whose userspace
+    // pointer arguments seccomp-bpf cannot inspect.
+    const bool use_landlock_shared_netns = false;
+#else
+    bool use_landlock_shared_netns = use_landlock && (landlock_abi >= 10);
+#endif
+    // If no specific netns mode is set, default to the ForkServer's shared
+    // empty network namespace on Landlock ABI v10+ (where Landlock TCP/UDP
+    // rules and the seccomp socket(2) filter isolate sibling sandboxees), or
+    // per-sandboxee otherwise.
     if (netns_mode_ == NETNS_MODE_UNSPECIFIED) {
-      netns_mode_ = NETNS_MODE_PER_SANDBOXEE;
+      netns_mode_ = use_landlock_shared_netns ? NETNS_MODE_SHARED_PER_FORKSERVER
+                                              : NETNS_MODE_PER_SANDBOXEE;
     }
     if (netns_mode_ == NETNS_MODE_NONE && hostname_ != kDefaultHostname) {
       return absl::FailedPreconditionError(
@@ -1719,6 +1731,9 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
     }
     policy->namespace_ = Namespace(std::move(mounts_), hostname_, netns_mode_,
                                    use_landlock, use_shared_ipcns_);
+    policy->restrict_socket_for_landlock_ =
+        use_landlock_shared_netns &&
+        (netns_mode_ == NETNS_MODE_SHARED_PER_FORKSERVER);
   }
 
   policy->allow_map_exec_ = allow_map_exec_;

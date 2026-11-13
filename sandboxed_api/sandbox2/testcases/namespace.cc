@@ -37,11 +37,23 @@
 //    spaces, and returns the content strings. Returns 0 on OK.
 // ./binary 11:
 //    Returns the list of all PIDs in /proc.
+// ./binary 16 <unix_socket_path>:
+//    Connects a SOCK_STREAM AF_UNIX socket to <unix_socket_path>.
+// ./binary 17 <unix_socket_path>:
+//    Sends a datagram via a SOCK_DGRAM AF_UNIX socket to <unix_socket_path>.
 // ./binary 18 <exec_path>:
 //    Forks and executes <exec_path>, reporting "exec_success" or
 //    "exec_failed:<errno>".
+// ./binary 19:
+//    Tests socket() creation across AF_UNIX, AF_INET, AF_INET6, AF_NETLINK,
+//    AF_PACKET, and AF_VSOCK domains.
+// ./binary 20 <tcp_port> <udp_port>:
+//    Tests TCP bind/connect and UDP bind/connect/sendto on 127.0.0.1.
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
+#include <linux/netlink.h>
+#include <netinet/in.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -67,6 +79,10 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
+
+#ifndef AF_VSOCK
+#define AF_VSOCK 40
+#endif
 
 namespace {
 
@@ -341,6 +357,118 @@ int main(int argc, char* argv[]) {
                                        : absl::StrCat("exec_failed:", err));
       } else {
         result.push_back(absl::StrCat("child_status:", status));
+      }
+      break;
+    }
+    case 19: {
+      // Test socket creation across allowed and disallowed address families.
+      auto check_socket = [&](const char* name, int domain, int type,
+                              int protocol) {
+        int s = socket(domain, type, protocol);
+        if (s >= 0) {
+          close(s);
+          result.push_back(absl::StrCat(name, ":ok"));
+        } else {
+          result.push_back(errno == EACCES
+                               ? absl::StrCat(name, ":EACCES")
+                               : absl::StrCat(name, ":err_", errno));
+        }
+      };
+      check_socket("unix_stream", AF_UNIX, SOCK_STREAM, 0);
+      check_socket("unix_dgram", AF_UNIX, SOCK_DGRAM, 0);
+      check_socket("inet_tcp", AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+      check_socket("inet_udp", AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
+      check_socket("inet6_tcp", AF_INET6, SOCK_STREAM, 0);
+      check_socket("inet6_udp", AF_INET6, SOCK_DGRAM, 0);
+      check_socket("netlink_route", AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+      check_socket("netlink_usersock", AF_NETLINK, SOCK_DGRAM,
+                   NETLINK_USERSOCK);
+      check_socket("packet", AF_PACKET, SOCK_DGRAM, 0);
+      check_socket("vsock", AF_VSOCK, SOCK_STREAM, 0);
+      break;
+    }
+    case 20: {
+      // Test TCP and UDP bind/connect/sendto on 127.0.0.1:<port>.
+      int tcp_port = 0;
+      int udp_port = 0;
+      if (argc > 3) {
+        CHECK(absl::SimpleAtoi(argv[2], &tcp_port));
+        CHECK(absl::SimpleAtoi(argv[3], &udp_port));
+      }
+      struct sockaddr_in bind_addr = {};
+      bind_addr.sin_family = AF_INET;
+      bind_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      bind_addr.sin_port = htons(0);
+
+      int ts = socket(AF_INET, SOCK_STREAM, 0);
+      if (ts >= 0) {
+        if (bind(ts, reinterpret_cast<struct sockaddr*>(&bind_addr),
+                 sizeof(bind_addr)) == 0) {
+          result.push_back("tcp_bind:ok");
+        } else {
+          result.push_back(errno == EACCES
+                               ? "tcp_bind:EACCES"
+                               : absl::StrCat("tcp_bind:err_", errno));
+        }
+        close(ts);
+      }
+
+      int tc = socket(AF_INET, SOCK_STREAM, 0);
+      if (tc >= 0) {
+        struct sockaddr_in dst = bind_addr;
+        dst.sin_port = htons(tcp_port);
+        if (connect(tc, reinterpret_cast<struct sockaddr*>(&dst),
+                    sizeof(dst)) == 0) {
+          result.push_back("tcp_connect:ok");
+        } else {
+          result.push_back(errno == EACCES
+                               ? "tcp_connect:EACCES"
+                               : absl::StrCat("tcp_connect:err_", errno));
+        }
+        close(tc);
+      }
+
+      int us = socket(AF_INET, SOCK_DGRAM, 0);
+      if (us >= 0) {
+        if (bind(us, reinterpret_cast<struct sockaddr*>(&bind_addr),
+                 sizeof(bind_addr)) == 0) {
+          result.push_back("udp_bind:ok");
+        } else {
+          result.push_back(errno == EACCES
+                               ? "udp_bind:EACCES"
+                               : absl::StrCat("udp_bind:err_", errno));
+        }
+        close(us);
+      }
+
+      int uc = socket(AF_INET, SOCK_DGRAM, 0);
+      if (uc >= 0) {
+        struct sockaddr_in dst = bind_addr;
+        dst.sin_port = htons(udp_port);
+        if (connect(uc, reinterpret_cast<struct sockaddr*>(&dst),
+                    sizeof(dst)) == 0) {
+          result.push_back("udp_connect:ok");
+        } else {
+          result.push_back(errno == EACCES
+                               ? "udp_connect:EACCES"
+                               : absl::StrCat("udp_connect:err_", errno));
+        }
+        close(uc);
+      }
+
+      int usend = socket(AF_INET, SOCK_DGRAM, 0);
+      if (usend >= 0) {
+        struct sockaddr_in dst = bind_addr;
+        dst.sin_port = htons(udp_port);
+        if (sendto(usend, "x", 1, 0, reinterpret_cast<struct sockaddr*>(&dst),
+                   sizeof(dst)) == 1) {
+          result.push_back("udp_sendto:ok");
+        } else {
+          result.push_back(errno == EACCES
+                               ? "udp_sendto:EACCES"
+                               : absl::StrCat("udp_sendto:err_", errno));
+        }
+        close(usend);
       }
       break;
     }

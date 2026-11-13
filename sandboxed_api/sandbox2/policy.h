@@ -118,6 +118,7 @@ class Policy final {
   std::vector<sock_filter> user_policy_;
   bool user_policy_handles_bpf_ = false;
   bool user_policy_handles_ptrace_ = false;
+  bool restrict_socket_for_landlock_ = false;
 
   // Contains a list of endpoints the sandboxee is allowed to connect to.
   std::optional<AllowedEndpoints> allowed_endpoints_;

@@ -21,6 +21,11 @@ namespace sandbox2 {
 
 // Enforces Landlock access rules based on the requested Sandbox2 mounts.
 //
+// Starting in Landlock ABI v9, pathname AF_UNIX domain sockets are restricted
+// to paths mounted into the sandbox via LANDLOCK_ACCESS_FS_RESOLVE_UNIX.
+// Starting in Landlock ABI v10, TCP and UDP bind/connect/sendto are blocked
+// when `restrict_networking` is true.
+//
 // Note: Landlock support is experimental and subject to change.
 // Certain file-related syscall families (e.g., access(2), stat(2), chdir(2),
 // flock(2), chmod(2), chown(2), setxattr(2), utime(2), fcntl(2)) are not
@@ -30,7 +35,7 @@ namespace sandbox2 {
 // contents, and thus do not materially expand the sandbox attack surface.
 // Future Landlock ABI versions will support restricting these syscalls, and
 // Sandbox2 will be updated as new kernel features become available.
-void EnforceLandlock(const Mounts& mounts);
+void EnforceLandlock(const Mounts& mounts, bool restrict_networking = true);
 
 // Returns the kernel Landlock ABI version, or -1 if Landlock is not supported.
 int GetLandlockAbiVersion();

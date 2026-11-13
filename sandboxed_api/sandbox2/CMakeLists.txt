@@ -558,6 +558,7 @@ target_link_libraries(sandbox2_policybuilder
   PRIVATE absl::log
           absl::memory
           absl::status
+          absl::status_macros
           sapi::base
           sapi::config
           sandbox2::bpf_helper
@@ -573,10 +574,9 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::allowlists_write_executable
           sapi::file_base
           sapi::fileops
-          sapi::status
   PUBLIC absl::check
-         absl::core_headers
          absl::flat_hash_set
+         absl::optional
          absl::span
          absl::source_location
          absl::strings
@@ -1446,6 +1446,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sandbox2::allowlists_unrestricted_networking
             sandbox2::allowlists_write_executable
             sandbox2::bpf_helper
+            sandbox2::forkserver_proto
             sandbox2::mounts
             sandbox2::mount_tree_proto
             sandbox2::namespace

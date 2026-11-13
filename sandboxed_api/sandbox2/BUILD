@@ -617,7 +617,6 @@ cc_library(
     hdrs = ["policybuilder.h"],
     copts = sapi_platform_copts(),
     deps = [
-        ":flags",
         ":forkserver_cc_proto",
         ":mounts",
         ":namespace",
@@ -638,10 +637,7 @@ cc_library(
         "//sandboxed_api/sandbox2/util:bpf_helper",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:fileops",
-        "//sandboxed_api/util:status",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
@@ -1350,6 +1346,7 @@ cc_test(
     srcs = ["policybuilder_test.cc"],
     copts = sapi_platform_copts(),
     deps = [
+        ":forkserver_cc_proto",
         ":mount_tree_cc_proto",
         ":mounts",
         ":namespace",

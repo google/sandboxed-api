@@ -399,9 +399,11 @@ void ForkedProcess::JoinIpcNamespace() {
 void ForkedProcess::EnforceIsolation(FDCloser proc_self_fd, uid_t uid,
                                      gid_t gid) {
   if (request_.use_landlock()) {
-    Namespace::EnforceLandlockIsolation(request_.clone_flags() | CLONE_NEWUSER,
-                                        Mounts(request_.mount_specs()), uid,
-                                        gid, latency_breakdown_);
+    Namespace::EnforceLandlockIsolation(
+        request_.clone_flags() | CLONE_NEWUSER, Mounts(request_.mount_specs()),
+        uid, gid, latency_breakdown_,
+        /*restrict_networking=*/request_.netns_mode() ==
+            NETNS_MODE_SHARED_PER_FORKSERVER);
 
     // TODO(cffsmith): If UnotifyMonitor support is added back to Landlock mode,
     // we will need to launch an init process here to coordinate return values

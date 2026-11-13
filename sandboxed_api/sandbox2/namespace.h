@@ -41,9 +41,11 @@ class Namespace final {
   static void SetupIDMaps(int proc_self_fd, uid_t uid, gid_t gid);
 
   // Enforces Landlock isolation for the given mounts.
-  static void EnforceLandlockIsolation(
-      int32_t clone_flags, const Mounts& mounts, uid_t uid, gid_t gid,
-      SetupLatencyBreakdown& latency_breakdown);
+  static void EnforceLandlockIsolation(int32_t clone_flags,
+                                       const Mounts& mounts, uid_t uid,
+                                       gid_t gid,
+                                       SetupLatencyBreakdown& latency_breakdown,
+                                       bool restrict_networking = true);
 
   static void InitializeSharedPidNamespaces();
 

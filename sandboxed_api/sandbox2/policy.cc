@@ -23,6 +23,7 @@
 #include <linux/seccomp.h>
 #include <sched.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <syscall.h>
 
 #include <cerrno>
@@ -293,6 +294,27 @@ std::vector<sock_filter> Policy::GetDefaultPolicy(
                     JA32(SECCOMP_FILTER_FLAG_NEW_LISTENER, DENY),
                     LABEL(&l, past_seccomp_new_listener),
                 });
+
+  if (restrict_socket_for_landlock_) {
+    policy.insert(
+        policy.end(),
+        {
+            // On Landlock ABI v10+, Landlock sandboxees share the ForkServer's
+            // empty network namespace by default and rely on Landlock rules to
+            // block TCP and UDP operations and restrict AF_UNIX sockets.
+            // Restrict socket(2) domains to AF_UNIX, AF_INET, and AF_INET6 so
+            // sibling sandboxees cannot communicate through unmediated socket
+            // families (such as AF_NETLINK NETLINK_USERSOCK or AF_VSOCK).
+            LOAD_SYSCALL_NR,
+            JNE32(__NR_socket, JUMP(&l, past_landlock_socket_l)),
+            ARG_32(0),
+            JEQ32(AF_UNIX, JUMP(&l, past_landlock_socket_l)),
+            JEQ32(AF_INET, JUMP(&l, past_landlock_socket_l)),
+            JEQ32(AF_INET6, JUMP(&l, past_landlock_socket_l)),
+            ERRNO(EACCES),
+            LABEL(&l, past_landlock_socket_l),
+        });
+  }
 
   CHECK_EQ(bpf_resolve_jumps(&l, policy.data(), policy.size()), 0);
 

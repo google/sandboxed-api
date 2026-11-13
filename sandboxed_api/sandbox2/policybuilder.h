@@ -202,6 +202,18 @@ class PolicyBuilder final {
   //   filtering can still opt into
   //   AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true) with
   //   AllowUnixSocket().
+  // - Starting in Landlock ABI v10, Landlock mode defaults to the ForkServer's
+  //   shared empty network namespace (NETNS_MODE_SHARED_PER_FORKSERVER) unless
+  //   Allow(UnrestrictedNetworking()) is set. To isolate sibling sandboxees in
+  //   that shared network namespace, Landlock blocks TCP and UDP operations and
+  //   seccomp restricts socket(2) domains to AF_UNIX, AF_INET, and AF_INET6.
+  //   Because TCP and UDP are blocked and the shared loopback interface is
+  //   down, intra-sandbox TCP/UDP loopback (127.0.0.1 / ::1) is unavailable;
+  //   use AF_UNIX or socketpair(2) for intra-sandbox IPC. With deferred
+  //   sandboxing (Executor::set_enable_sandbox_before_exec(false) /
+  //   SandboxMeHere()), the shared network namespace and Landlock rules apply
+  //   before execve(2), while the seccomp socket(2) filter applies when
+  //   SandboxMeHere() runs.
   // Future Landlock ABI versions will support restricting these syscalls, and
   // Sandbox2 will be updated as new kernel features become available.
   PolicyBuilder& EnableLandlock(sandbox2::EnableLandlock);
@@ -248,7 +260,9 @@ class PolicyBuilder final {
   // AF_UNIX domain sockets (because kernel Landlock ABI <= 8 does not restrict
   // UNIX domain sockets); use NetworkProxy with UNIX socket filtering instead.
   // Starting in Landlock ABI v9, pathname AF_UNIX domain sockets are restricted
-  // by Landlock filesystem rules to paths mounted into the sandbox.
+  // by Landlock filesystem rules to paths mounted into the sandbox. Starting in
+  // Landlock ABI v10, Allow(UnrestrictedNetworking) also disables Landlock
+  // TCP/UDP restrictions and the seccomp socket domain filter.
   PolicyBuilder& Allow(UnrestrictedNetworking);
 
   // Appends code to allow a specific syscall.

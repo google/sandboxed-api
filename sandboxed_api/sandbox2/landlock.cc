@@ -87,6 +87,17 @@
 #define LANDLOCK_ACCESS_FS_RESOLVE_UNIX (1ULL << 16)
 #endif
 
+// Define ABI v4+ TCP and ABI v10+ UDP network flags
+#ifndef LANDLOCK_ACCESS_NET_BIND_TCP
+#define LANDLOCK_ACCESS_NET_BIND_TCP (1ULL << 0)
+#define LANDLOCK_ACCESS_NET_CONNECT_TCP (1ULL << 1)
+#endif
+
+#ifndef LANDLOCK_ACCESS_NET_BIND_UDP
+#define LANDLOCK_ACCESS_NET_BIND_UDP (1ULL << 2)
+#define LANDLOCK_ACCESS_NET_CONNECT_SEND_UDP (1ULL << 3)
+#endif
+
 struct landlock_ruleset_attr_v6 {
   uint64_t handled_access_fs;
   uint64_t handled_access_net;
@@ -240,7 +251,7 @@ void AddRulesRecursively(int ruleset_fd, const MountTree* tree,
 }
 }  // namespace
 
-void EnforceLandlock(const Mounts& mounts) {
+void EnforceLandlock(const Mounts& mounts, bool restrict_networking) {
   const int abi_version = GetLandlockAbiVersion();
   SAPI_RAW_PCHECK(abi_version >= 6,
                   "Landlock ABI v6+ is required (detected ABI v%d)",
@@ -261,6 +272,11 @@ void EnforceLandlock(const Mounts& mounts) {
   };
   if (abi_version >= 9) {
     ruleset_attr.handled_access_fs |= LANDLOCK_ACCESS_FS_RESOLVE_UNIX;
+  }
+  if (restrict_networking && abi_version >= 10) {
+    ruleset_attr.handled_access_net =
+        LANDLOCK_ACCESS_NET_BIND_TCP | LANDLOCK_ACCESS_NET_CONNECT_TCP |
+        LANDLOCK_ACCESS_NET_BIND_UDP | LANDLOCK_ACCESS_NET_CONNECT_SEND_UDP;
   }
 
   FDCloser ruleset_fd(sandbox2::util::Syscall(

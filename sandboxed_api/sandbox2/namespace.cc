@@ -258,7 +258,7 @@ void Namespace::UnshareNestedUserNamespace(int proc_self_fd) {
 
 void Namespace::EnforceLandlockIsolation(
     int32_t clone_flags, const Mounts& mounts, uid_t uid, gid_t gid,
-    SetupLatencyBreakdown& latency_breakdown) {
+    SetupLatencyBreakdown& latency_breakdown, bool restrict_networking) {
   LatencyStopWatch latency_stop_watch;
   if (clone_flags & CLONE_NEWNET) {
     ActivateLoopbackInterface();
@@ -274,7 +274,7 @@ void Namespace::EnforceLandlockIsolation(
         SetupLatencyBreakdown::kNsInitNestedUserNamespace,
         latency_stop_watch.LapTime());
   }
-  EnforceLandlock(mounts);
+  EnforceLandlock(mounts, restrict_networking);
   latency_breakdown.SetLatency(SetupLatencyBreakdown::kLandlockEnforcement,
                                latency_stop_watch.LapTime());
   SAPI_RAW_PCHECK(chdir("/") == 0, "changing cwd");

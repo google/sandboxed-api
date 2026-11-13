@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
+#include <sched.h>
 #include <syscall.h>
 #include <unistd.h>
 
@@ -35,6 +36,7 @@
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/allowlists/write_executable.h"
+#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
@@ -404,6 +406,15 @@ TEST(PolicyBuilderTest,
     auto policy = std::move(*policy_result);
     ASSERT_TRUE(policy->GetNamespace().has_value());
     EXPECT_TRUE(policy->GetNamespace()->use_landlock());
+    if (abi_version >= 10) {
+      EXPECT_EQ(policy->GetNamespace()->netns_config(),
+                NETNS_MODE_SHARED_PER_FORKSERVER);
+      EXPECT_EQ(policy->GetNamespace()->clone_flags() & CLONE_NEWNET, 0);
+    } else {
+      EXPECT_EQ(policy->GetNamespace()->netns_config(),
+                NETNS_MODE_PER_SANDBOXEE);
+      EXPECT_NE(policy->GetNamespace()->clone_flags() & CLONE_NEWNET, 0);
+    }
   }
 }
 

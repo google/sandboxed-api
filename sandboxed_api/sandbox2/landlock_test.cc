@@ -14,8 +14,10 @@
 
 #include "sandboxed_api/sandbox2/landlock.h"
 
+#include <arpa/inet.h>
 #include <asm-generic/unistd.h>
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -53,6 +55,19 @@
 #include "sandboxed_api/util/temp_file.h"
 
 namespace sandbox2 {
+
+class PolicyBuilderPeer {
+ public:
+  explicit PolicyBuilderPeer(PolicyBuilder* builder) : builder_(builder) {}
+
+  void SetLandlockAbiVersion(int abi_version) {
+    builder_->landlock_abi_version_for_testing_ = abi_version;
+  }
+
+ private:
+  PolicyBuilder* builder_;
+};
+
 namespace {
 
 using ::absl_testing::StatusIs;
@@ -124,16 +139,28 @@ class LandlockTest : public ::testing::Test {
 TEST_F(LandlockTest, LandlockWithNetworkNamespace) {
   const std::string path = GetTestcaseBinPath("namespace");
 
-  // By default, CLONE_NEWNET is used so only loopback 'lo' interface exists.
+  // On ABI < 10, CLONE_NEWNET is used so only loopback 'lo' interface exists.
+  // On ABI >= 10, the ForkServer's shared network namespace is used and
+  // AF_NETLINK is blocked by the seccomp preamble so getifaddrs() fails with
+  // EACCES.
   SAPI_ASSERT_OK_AND_ASSIGN(
       auto policy_isolated,
       CreateLandlockPermissiveTestPolicy(path).TryBuild());
-  std::vector<std::string> result_isolated = RunSandboxeeWithArgsAndPolicy(
-      path, {path, "5"}, std::move(policy_isolated));
-  EXPECT_THAT(result_isolated, ElementsAre("lo"));
+  if (GetLandlockAbiVersion() >= 10) {
+    Sandbox2 sandbox(
+        std::make_unique<Executor>(path, std::vector<std::string>{path, "5"}),
+        std::move(policy_isolated));
+    ASSERT_TRUE(sandbox.RunAsync());
+    Result result = sandbox.AwaitResult();
+    EXPECT_THAT(result.final_status(), Eq(Result::OK));
+    EXPECT_THAT(result.reason_code(), Eq(255));
+  } else {
+    std::vector<std::string> result_isolated = RunSandboxeeWithArgsAndPolicy(
+        path, {path, "5"}, std::move(policy_isolated));
+    EXPECT_THAT(result_isolated, ElementsAre("lo"));
+  }
 
-  // With UnrestrictedNetworking(), CLONE_NEWNET is disabled so host interfaces
-  // are accessible.
+  // With UnrestrictedNetworking(), host interfaces are accessible.
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy_host,
                             CreateLandlockPermissiveTestPolicy(path)
                                 .Allow(UnrestrictedNetworking())
@@ -668,6 +695,157 @@ TEST_F(LandlockTest, LandlockPathnameUnixSocketRestriction) {
   sapi::file_util::fileops::DeleteRecursively(temp_dir);
 }
 
+TEST_F(LandlockTest, LandlockSocketPreambleRestriction) {
+  const std::string path = GetTestcaseBinPath("namespace");
+  const std::string host_netns =
+      sapi::file_util::fileops::ReadLink("/proc/self/ns/net");
+
+  // When ABI v10+ uses the ForkServer's shared network namespace, the seccomp
+  // preamble allows AF_UNIX, AF_INET, and AF_INET6 socket creation and blocks
+  // other socket families (AF_NETLINK, AF_PACKET, AF_VSOCK) with EACCES.
+  PolicyBuilder builder_restricted =
+      CreateDefaultPermissiveTestPolicy(path).AddFile(path).EnableLandlock(
+          sandbox2::EnableLandlock());
+  PolicyBuilderPeer(&builder_restricted).SetLandlockAbiVersion(10);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_restricted,
+                            builder_restricted.TryBuild());
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(path, {path, "19"},
+                                            std::move(policy_restricted)),
+              ElementsAre("unix_stream:ok", "unix_dgram:ok", "inet_tcp:ok",
+                          "inet_udp:ok", "inet6_tcp:ok", "inet6_udp:ok",
+                          "netlink_route:EACCES", "netlink_usersock:EACCES",
+                          "packet:EACCES", "vsock:EACCES"));
+
+  // Two ABI v10+ sandboxees share the ForkServer's empty network namespace,
+  // isolated from the host network namespace.
+  auto make_shared_netns_policy = [&]() {
+    PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path)
+                                .AddFile(path)
+                                .AddDirectory("/proc")
+                                .EnableLandlock(sandbox2::EnableLandlock());
+    PolicyBuilderPeer(&builder).SetLandlockAbiVersion(10);
+    return builder.BuildOrDie();
+  };
+  std::vector<std::string> res_shared_1 = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "8"}, make_shared_netns_policy());
+  std::vector<std::string> res_shared_2 = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "8"}, make_shared_netns_policy());
+  ASSERT_THAT(res_shared_1, SizeIs(1));
+  ASSERT_THAT(res_shared_2, SizeIs(1));
+  EXPECT_EQ(res_shared_1[0], res_shared_2[0]);
+  EXPECT_NE(std::string(res_shared_1[0].c_str()), host_netns);
+
+  // With UnrestrictedNetworking(), the sandboxee remains in the host network
+  // namespace and the seccomp preamble does not block AF_NETLINK.
+  PolicyBuilder builder_unrestricted =
+      CreateDefaultPermissiveTestPolicy(path)
+          .AddFile(path)
+          .EnableLandlock(sandbox2::EnableLandlock())
+          .Allow(UnrestrictedNetworking());
+  PolicyBuilderPeer(&builder_unrestricted).SetLandlockAbiVersion(10);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_unrestricted,
+                            builder_unrestricted.TryBuild());
+  std::vector<std::string> res_unrestricted = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "19"}, std::move(policy_unrestricted));
+  EXPECT_THAT(res_unrestricted, Contains("netlink_route:ok"));
+  EXPECT_THAT(res_unrestricted, Contains("netlink_usersock:ok"));
+}
+
+TEST_F(LandlockTest, LandlockV10NetworkRestriction) {
+  if (GetLandlockAbiVersion() < 10) {
+    GTEST_SKIP() << "Landlock ABI v10+ required for TCP/UDP network rules";
+  }
+
+  const std::string path = GetTestcaseBinPath("namespace");
+
+  // Bind ephemeral TCP and UDP sockets on host loopback to test connect/sendto.
+  struct sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = htons(0);
+
+  sapi::file_util::fileops::FDCloser tcp_srv(socket(AF_INET, SOCK_STREAM, 0));
+  ASSERT_GE(tcp_srv.get(), 0);
+  ASSERT_EQ(bind(tcp_srv.get(), reinterpret_cast<struct sockaddr*>(&addr),
+                 sizeof(addr)),
+            0);
+  ASSERT_EQ(listen(tcp_srv.get(), 4), 0);
+  struct sockaddr_in tcp_bound = {};
+  socklen_t tcp_len = sizeof(tcp_bound);
+  ASSERT_EQ(
+      getsockname(tcp_srv.get(), reinterpret_cast<struct sockaddr*>(&tcp_bound),
+                  &tcp_len),
+      0);
+  std::string tcp_port_str = absl::StrCat(ntohs(tcp_bound.sin_port));
+
+  sapi::file_util::fileops::FDCloser udp_srv(socket(AF_INET, SOCK_DGRAM, 0));
+  ASSERT_GE(udp_srv.get(), 0);
+  ASSERT_EQ(bind(udp_srv.get(), reinterpret_cast<struct sockaddr*>(&addr),
+                 sizeof(addr)),
+            0);
+  struct sockaddr_in udp_bound = {};
+  socklen_t udp_len = sizeof(udp_bound);
+  ASSERT_EQ(
+      getsockname(udp_srv.get(), reinterpret_cast<struct sockaddr*>(&udp_bound),
+                  &udp_len),
+      0);
+  std::string udp_port_str = absl::StrCat(ntohs(udp_bound.sin_port));
+
+  // Without UnrestrictedNetworking(), Landlock ABI v10 blocks TCP and UDP
+  // bind/connect/sendto with EACCES.
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      auto policy_restricted,
+      CreateLandlockPermissiveTestPolicy(path).TryBuild());
+  EXPECT_THAT(
+      RunSandboxeeWithArgsAndPolicy(path,
+                                    {path, "20", tcp_port_str, udp_port_str},
+                                    std::move(policy_restricted)),
+      ElementsAre("tcp_bind:EACCES", "tcp_connect:EACCES", "udp_bind:EACCES",
+                  "udp_connect:EACCES", "udp_sendto:EACCES"));
+
+  // With UnrestrictedNetworking(), Landlock does not restrict TCP or UDP.
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_unrestricted,
+                            CreateLandlockPermissiveTestPolicy(path)
+                                .Allow(UnrestrictedNetworking())
+                                .TryBuild());
+  EXPECT_THAT(RunSandboxeeWithArgsAndPolicy(
+                  path, {path, "20", tcp_port_str, udp_port_str},
+                  std::move(policy_unrestricted)),
+              ElementsAre("tcp_bind:ok", "tcp_connect:ok", "udp_bind:ok",
+                          "udp_connect:ok", "udp_sendto:ok"));
+
+  // Verify that on ABI v10+, sandboxees share the ForkServer's empty network
+  // namespace (isolated from the host network namespace), unless
+  // Allow(UnrestrictedNetworking()) is set.
+  const std::string host_netns =
+      sapi::file_util::fileops::ReadLink("/proc/self/ns/net");
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_netns_1,
+                            CreateLandlockPermissiveTestPolicy(path)
+                                .AddDirectory("/proc")
+                                .TryBuild());
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_netns_2,
+                            CreateLandlockPermissiveTestPolicy(path)
+                                .AddDirectory("/proc")
+                                .TryBuild());
+  std::vector<std::string> res_netns_1 = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "8"}, std::move(policy_netns_1));
+  std::vector<std::string> res_netns_2 = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "8"}, std::move(policy_netns_2));
+  ASSERT_THAT(res_netns_1, SizeIs(1));
+  ASSERT_THAT(res_netns_2, SizeIs(1));
+  EXPECT_EQ(res_netns_1[0], res_netns_2[0]);
+  EXPECT_NE(std::string(res_netns_1[0].c_str()), host_netns);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy_netns_host,
+                            CreateLandlockPermissiveTestPolicy(path)
+                                .Allow(UnrestrictedNetworking())
+                                .AddDirectory("/proc")
+                                .TryBuild());
+  std::vector<std::string> res_netns_host = RunSandboxeeWithArgsAndPolicy(
+      path, {path, "8"}, std::move(policy_netns_host));
+  ASSERT_THAT(res_netns_host, SizeIs(1));
+  EXPECT_EQ(std::string(res_netns_host[0].c_str()), host_netns);
+}
 TEST(SimpleLandlockTest, NonIdentityMountsRejected) {
   const std::string path = GetTestcaseBinPath("namespace");
   PolicyBuilder policy_builder = CreateLandlockPermissiveTestPolicy(path);
