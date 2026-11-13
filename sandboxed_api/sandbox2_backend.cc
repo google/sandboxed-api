@@ -33,6 +33,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -115,12 +116,31 @@ class Sandbox2Backend::ThreadLocalChannelsState {
   static absl::flat_hash_set<ThreadLocalChannelsState*>& GetBackendRegistry()
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_mutex);
 
+  struct PthreadHash {
+    size_t operator()(pthread_t t) const {
+#if defined(__LLVM_LIBC__) && !defined(__Fuchsia__)
+      pthread_id_np_t id = 0;
+      pthread_getunique_np(&t, &id);
+      return absl::HashOf(id);
+#else
+      return absl::HashOf(t);
+#endif
+    }
+  };
+
+  struct PthreadEqual {
+    bool operator()(pthread_t lhs, pthread_t rhs) const {
+      return pthread_equal(lhs, rhs) != 0;
+    }
+  };
+
   // If multithreading is enabled, we want to keep a thread local comms channel
   // for this Sandbox2Backend instance. Since C++ doesn't have thread local
   // member variables, we emulate it with a map indexed by thread id.
   mutable absl::Mutex mutex;
-  absl::flat_hash_map<pthread_t, std::unique_ptr<RPCChannel>> channels
-      ABSL_GUARDED_BY(mutex);
+  absl::flat_hash_map<pthread_t, std::unique_ptr<RPCChannel>, PthreadHash,
+                      PthreadEqual>
+      channels ABSL_GUARDED_BY(mutex);
 };
 
 constinit absl::Mutex Sandbox2Backend::ThreadLocalChannelsState::registry_mutex(

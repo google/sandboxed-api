@@ -149,6 +149,7 @@ target_link_libraries(sapi_sandbox2_backend
           absl::core_headers
           absl::flat_hash_map
           absl::flat_hash_set
+          absl::hash
           absl::log
           absl::log_globals
           absl::no_destructor
