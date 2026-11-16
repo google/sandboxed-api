@@ -19,11 +19,13 @@ add_library(sapi_lwbox_runtime ${SAPI_LIB_TYPE}
 add_library(sapi::lwbox_runtime ALIAS sapi_lwbox_runtime)
 target_link_libraries(sapi_lwbox_runtime
   PUBLIC
+    absl::any_invocable
     absl::check
     absl::core_headers
     absl::flat_hash_map
     absl::flat_hash_set
     absl::log
+    absl::no_destructor
     absl::node_hash_map
     absl::span
     absl::status
@@ -42,6 +44,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::lwbox_runtime
     sapi::sapi
     sapi::vars
+    absl::any_invocable
     absl::status
     absl::status_matchers
     absl::statusor

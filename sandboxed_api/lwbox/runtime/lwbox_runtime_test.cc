@@ -21,9 +21,13 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -32,6 +36,7 @@
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox.h"
+#include "sandboxed_api/var_callback.h"
 #include "sandboxed_api/var_type.h"
 
 // `ContextBindingRegistry` annotates its pointer parameters `absl_nonnull` to
@@ -76,12 +81,17 @@ class MockRPCChannel : public sapi::RPCChannel {
   MOCK_METHOD(absl::StatusOr<std::unique_ptr<RPCChannel>>, SpawnThread, (),
               (override));
   MOCK_METHOD(absl::StatusOr<size_t>, Strlen, (void*), (override));
+  MOCK_METHOD(absl::StatusOr<uintptr_t>, RegisterCallback,
+              (absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)>),
+              (override));
+  MOCK_METHOD(absl::Status, UnregisterCallback, (uintptr_t), (override));
 };
 
 class MockSandbox : public sapi::SandboxBase {
  public:
   explicit MockSandbox(sapi::RPCChannel* channel) : channel_(channel) {}
 
+  void set_channel(sapi::RPCChannel* channel) { channel_ = channel; }
   absl::Status Init() override { return absl::OkStatus(); }
   bool is_active() const override { return true; }
   void Terminate(bool attempt_graceful_exit = true) override {}
@@ -443,16 +453,34 @@ const ThunkPool& PoolB() {
 // test here.
 class ScopedSandbox {
  public:
-  ScopedSandbox() : sandbox_(&channel_) {}
+  ScopedSandbox() : sandbox_(&channel_) {
+    ON_CALL(channel_, RegisterCallback(_))
+        .WillByDefault(
+            [this](absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb)
+                -> absl::StatusOr<uintptr_t> {
+              uintptr_t addr = next_trampoline_++;
+              last_handler_ = std::move(cb);
+              return addr;
+            });
+    ON_CALL(channel_, UnregisterCallback(_))
+        .WillByDefault(Return(absl::OkStatus()));
+  }
   ~ScopedSandbox() {
     SandboxeeCallbackRegistry::Instance()->ForgetSandbox(sandbox_);
+    HostCallbackRegistry::Instance()->ForgetSandbox(sandbox_);
   }
 
   MockSandbox& sandbox() { return sandbox_; }
+  MockRPCChannel& channel() { return channel_; }
+  uint64_t InvokeLastHandler(absl::Span<const uint64_t> args) {
+    return last_handler_(args);
+  }
 
  private:
-  MockRPCChannel channel_;
+  testing::NiceMock<MockRPCChannel> channel_;
   MockSandbox sandbox_;
+  uintptr_t next_trampoline_ = 0x7000;
+  absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> last_handler_;
 };
 
 TEST(SandboxeeCallbackRegistryTest, NullIsNotACallback) {
@@ -622,6 +650,370 @@ TEST(SandboxeeCallbackRegistryTest, ForgetSandboxReleasesOnlyItsOwnSlots) {
   // The forgotten slot is reusable, and the surviving binding still dedups.
   EXPECT_THAT(reg->ThunkFor(keeper.sandbox(), PoolA(), 0x11),
               IsOkAndHolds(*kept));
+}
+
+// =========================================================================
+// HostCallbackRegistry Tests
+// =========================================================================
+
+TEST(HostCallbackRegistryTest, NullIsNotACallback) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  EXPECT_CALL(scoped.channel(), RegisterCallback(_)).Times(0);
+  EXPECT_THAT(reg->TrampolineFor(scoped.sandbox(), "adder", 0,
+                                 [](int a, int b) { return a + b; }),
+              IsOkAndHolds(0));
+  EXPECT_EQ(reg->LookUpTrampoline(scoped.sandbox(), "adder", 0), std::nullopt);
+}
+
+TEST(HostCallbackRegistryTest, TheSameFunctionAlwaysGetsTheSameTrampoline) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  EXPECT_CALL(scoped.channel(), RegisterCallback(_)).Times(1);
+  absl::StatusOr<uintptr_t> first = reg->TrampolineFor(
+      scoped.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(first, IsOk());
+
+  // Installing the same host callback twice reuses one trampoline slot and
+  // hands the sandboxee the same address so pointer equality holds.
+  EXPECT_THAT(reg->TrampolineFor(scoped.sandbox(), "adder", 0x1111,
+                                 [](int a, int b) { return a + b; }),
+              IsOkAndHolds(*first));
+}
+
+TEST(HostCallbackRegistryTest, DifferentFunctionsGetDifferentTrampolines) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> one = reg->TrampolineFor(
+      scoped.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  absl::StatusOr<uintptr_t> two = reg->TrampolineFor(
+      scoped.sandbox(), "adder", 0x2222, [](int a, int b) { return a * b; });
+  ASSERT_THAT(one, IsOk());
+  ASSERT_THAT(two, IsOk());
+
+  EXPECT_NE(*one, *two);
+}
+
+TEST(HostCallbackRegistryTest,
+     TheSameFunctionInTwoSandboxesGetsOneTrampolineInEach) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox first;
+  ScopedSandbox second;
+
+  EXPECT_CALL(first.channel(), RegisterCallback(_)).Times(1);
+  EXPECT_CALL(second.channel(), RegisterCallback(_)).Times(1);
+
+  absl::StatusOr<uintptr_t> in_first = reg->TrampolineFor(
+      first.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  absl::StatusOr<uintptr_t> in_second = reg->TrampolineFor(
+      second.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(in_first, IsOk());
+  ASSERT_THAT(in_second, IsOk());
+
+  EXPECT_EQ(reg->LookUpTrampoline(first.sandbox(), "adder", *in_first),
+            0x1111u);
+  EXPECT_EQ(reg->LookUpTrampoline(second.sandbox(), "adder", *in_second),
+            0x1111u);
+}
+
+TEST(HostCallbackRegistryTest, OneFunctionUnderTwoTypedefsGetsTwoTrampolines) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  // Each callback typedef has its own parameter marshaling wrapper, so one host
+  // function address used under two callback typedefs needs a distinct
+  // trampoline for each.
+  absl::StatusOr<uintptr_t> as_a =
+      reg->TrampolineFor(scoped.sandbox(), "typedef_a", 0x1111,
+                         [](int a, int b) { return a + b; });
+  absl::StatusOr<uintptr_t> as_b =
+      reg->TrampolineFor(scoped.sandbox(), "typedef_b", 0x1111,
+                         [](int a, int b) { return a + b; });
+  ASSERT_THAT(as_a, IsOk());
+  ASSERT_THAT(as_b, IsOk());
+
+  EXPECT_NE(*as_a, *as_b);
+  EXPECT_EQ(reg->LookUpTrampoline(scoped.sandbox(), "typedef_a", *as_a),
+            0x1111u);
+  EXPECT_EQ(reg->LookUpTrampoline(scoped.sandbox(), "typedef_b", *as_b),
+            0x1111u);
+}
+
+TEST(HostCallbackRegistryTest,
+     LookUpTrampolineRejectsCrossTypedefSubstitution) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> as_a =
+      reg->TrampolineFor(scoped.sandbox(), "typedef_a", 0x1111,
+                         [](int a, int b) { return a + b; });
+  ASSERT_THAT(as_a, IsOk());
+
+  // Security check: if a compromised sandboxee returns `as_a` across a
+  // boundary governed by `typedef_b`, LookUpTrampoline must CHECK-fail rather
+  // than unwrap `0x1111` under the wrong C ABI signature.
+  EXPECT_DEATH(reg->LookUpTrampoline(scoped.sandbox(), "typedef_b", *as_a),
+               "registered for callback typedef 'typedef_a' across a boundary "
+               "expecting callback typedef 'typedef_b'");
+}
+
+TEST(HostCallbackRegistryTest, LookUpTrampolineRoundTripsAndRejectsStrangers) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> trampoline = reg->TrampolineFor(
+      scoped.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(trampoline, IsOk());
+
+  EXPECT_EQ(reg->LookUpTrampoline(scoped.sandbox(), "adder", *trampoline),
+            0x1111u);
+  // A genuine sandboxee function address is absent, telling the caller to bind
+  // a host thunk from SandboxeeCallbackRegistry instead.
+  EXPECT_EQ(reg->LookUpTrampoline(scoped.sandbox(), "adder", 0x9999),
+            std::nullopt);
+}
+
+TEST(HostCallbackRegistryTest,
+     RegisteredHandlerRemainsCallableAfterRegistrationReturns) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  ASSERT_THAT(reg->TrampolineFor(scoped.sandbox(), "adder", 0x1111,
+                                 [](int a, int b) { return a + b; }),
+              IsOk());
+
+  const uint64_t kArgs[] = {17, 25};
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs), 42u);
+}
+
+TEST(HostCallbackRegistryTest, ExhaustionPropagatesFromChannel) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  EXPECT_CALL(scoped.channel(), RegisterCallback(_))
+      .WillOnce(Return(absl::ResourceExhaustedError("No free callback slots")));
+  EXPECT_THAT(reg->TrampolineFor(scoped.sandbox(), "adder", 0x1111,
+                                 [](int a, int b) { return a + b; }),
+              StatusIs(absl::StatusCode::kResourceExhausted,
+                       HasSubstr("No free callback slots")));
+}
+
+TEST(HostCallbackRegistryTest, ReleaseUnregistersAndFreesTheTrampoline) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  absl::StatusOr<uintptr_t> trampoline = reg->TrampolineFor(
+      scoped.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(trampoline, IsOk());
+
+  EXPECT_CALL(scoped.channel(), UnregisterCallback(*trampoline))
+      .WillOnce(Return(absl::OkStatus()));
+  reg->Release(scoped.sandbox(), *trampoline);
+  testing::Mock::VerifyAndClearExpectations(&scoped.channel());
+
+  EXPECT_EQ(reg->LookUpTrampoline(scoped.sandbox(), "adder", *trampoline),
+            std::nullopt);
+  // Safe no-op on 0, and CHECK-failure on unknown or already released
+  // trampolines.
+  reg->Release(scoped.sandbox(), 0);
+  EXPECT_DEATH(reg->Release(scoped.sandbox(), *trampoline),
+               "Attempted to release an unknown or already released host "
+               "callback trampoline");
+
+  // Re-registering the same target after Release registers a new trampoline.
+  absl::StatusOr<uintptr_t> re_registered = reg->TrampolineFor(
+      scoped.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(re_registered, IsOk());
+  EXPECT_NE(*re_registered, *trampoline);
+}
+
+TEST(HostCallbackRegistryTest, ForgetSandboxReleasesOnlyItsOwnTrampolines) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox keeper;
+
+  absl::StatusOr<uintptr_t> kept = reg->TrampolineFor(
+      keeper.sandbox(), "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(kept, IsOk());
+
+  ScopedSandbox doomed;
+  absl::StatusOr<uintptr_t> got = reg->TrampolineFor(
+      doomed.sandbox(), "adder", 0x2222, [](int a, int b) { return a * b; });
+  ASSERT_THAT(got, IsOk());
+  uintptr_t doomed_trampoline = *got;
+
+  EXPECT_CALL(doomed.channel(), UnregisterCallback(doomed_trampoline))
+      .WillOnce(Return(absl::OkStatus()));
+  reg->ForgetSandbox(doomed.sandbox());
+  testing::Mock::VerifyAndClearExpectations(&doomed.channel());
+
+  EXPECT_EQ(reg->LookUpTrampoline(doomed.sandbox(), "adder", doomed_trampoline),
+            std::nullopt);
+  EXPECT_EQ(reg->LookUpTrampoline(keeper.sandbox(), "adder", *kept), 0x1111u);
+  EXPECT_THAT(reg->TrampolineFor(keeper.sandbox(), "adder", 0x1111,
+                                 [](int a, int b) { return a + b; }),
+              IsOkAndHolds(*kept));
+  absl::StatusOr<uintptr_t> re_registered = reg->TrampolineFor(
+      doomed.sandbox(), "adder", 0x2222, [](int a, int b) { return a * b; });
+  ASSERT_THAT(re_registered, IsOk());
+  EXPECT_NE(*re_registered, doomed_trampoline);
+}
+
+TEST(HostCallbackRegistryTest,
+     RestartingSandboxWithoutForgetSandboxInvalidatesStaleBindings) {
+  auto* host_reg = HostCallbackRegistry::Instance();
+  auto* sb_reg = SandboxeeCallbackRegistry::Instance();
+
+  testing::NiceMock<MockRPCChannel> first_channel;
+  ON_CALL(first_channel, RegisterCallback(_)).WillByDefault(Return(0x7100));
+  testing::NiceMock<MockRPCChannel> second_channel;
+  ON_CALL(second_channel, RegisterCallback(_)).WillByDefault(Return(0x8200));
+
+  MockSandbox sandbox(&first_channel);
+
+  absl::StatusOr<uintptr_t> first_trampoline = host_reg->TrampolineFor(
+      sandbox, "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(first_trampoline, IsOkAndHolds(0x7100));
+  EXPECT_EQ(host_reg->LookUpTrampoline(sandbox, "adder", 0x7100), 0x1111u);
+
+  // Exhaust all 3 slots in PoolA during the first session.
+  absl::StatusOr<uintptr_t> first_thunk =
+      sb_reg->ThunkFor(sandbox, PoolA(), 0x10);
+  ASSERT_THAT(first_thunk, IsOk());
+  ASSERT_THAT(sb_reg->ThunkFor(sandbox, PoolA(), 0x20), IsOk());
+  ASSERT_THAT(sb_reg->ThunkFor(sandbox, PoolA(), 0x30), IsOk());
+
+  // Simulate restarting `sandbox` in place (replacing its RPCChannel without
+  // calling `ForgetSandbox`). `second_channel` has a distinct `session_id()`.
+  sandbox.set_channel(&second_channel);
+
+  // Stale trampoline and thunk bindings from the old channel must no longer
+  // unwrap, and `second_channel` must receive a fresh `RegisterCallback` call.
+  EXPECT_EQ(sb_reg->LookUpThunk(sandbox, PoolA(), *first_thunk), std::nullopt);
+  EXPECT_EQ(host_reg->LookUpTrampoline(sandbox, "adder", 0x7100), std::nullopt);
+  EXPECT_CALL(second_channel, RegisterCallback(_)).WillOnce(Return(0x8200));
+  absl::StatusOr<uintptr_t> second_trampoline = host_reg->TrampolineFor(
+      sandbox, "adder", 0x1111, [](int a, int b) { return a + b; });
+  ASSERT_THAT(second_trampoline, IsOkAndHolds(0x8200));
+  EXPECT_EQ(host_reg->LookUpTrampoline(sandbox, "adder", 0x8200), 0x1111u);
+
+  // PoolA slots from the previous session must also be reclaimed automatically.
+  EXPECT_THAT(sb_reg->ThunkFor(sandbox, PoolA(), 0x40), IsOk());
+
+  sb_reg->ForgetSandbox(sandbox);
+  host_reg->ForgetSandbox(sandbox);
+}
+
+TEST(HostCallbackRegistryTest,
+     SessionInvalidatedMidRegistrationUnregistersSlotAndReturnsUnavailable) {
+  auto* host_reg = HostCallbackRegistry::Instance();
+
+  testing::NiceMock<MockRPCChannel> first_channel;
+  testing::NiceMock<MockRPCChannel> second_channel;
+  MockSandbox sandbox(&first_channel);
+
+  EXPECT_CALL(first_channel, RegisterCallback(_)).WillOnce([&](auto) {
+    // Simulate a concurrent sandbox restart advancing `active_session_` while
+    // `first_channel.RegisterCallback` is in flight outside `mutex_`.
+    sandbox.set_channel(&second_channel);
+    EXPECT_CALL(second_channel, RegisterCallback(_)).WillOnce(Return(0x8200));
+    EXPECT_THAT(host_reg->TrampolineFor(sandbox, "adder", 0x2222,
+                                        [](int a, int b) { return a * b; }),
+                IsOkAndHolds(0x8200));
+    return 0x7100;
+  });
+  EXPECT_CALL(first_channel, UnregisterCallback(0x7100))
+      .WillOnce(Return(absl::OkStatus()));
+
+  EXPECT_THAT(
+      host_reg->TrampolineFor(sandbox, "adder", 0x1111,
+                              [](int a, int b) { return a + b; }),
+      StatusIs(absl::StatusCode::kUnavailable, HasSubstr("invalidated")));
+
+  host_reg->ForgetSandbox(sandbox);
+}
+
+TEST(HostCallbackRegistryTest,
+     ForgetSandboxAndReleaseHandleTerminatedSandboxWithNullChannel) {
+  auto* reg = HostCallbackRegistry::Instance();
+  testing::NiceMock<MockRPCChannel> channel;
+  EXPECT_CALL(channel, RegisterCallback(_))
+      .WillOnce(Return(0x7300))
+      .WillOnce(Return(0x7310));
+  MockSandbox sandbox(&channel);
+
+  ASSERT_THAT(reg->TrampolineFor(sandbox, "adder", 0x1111,
+                                 [](int a, int b) { return a + b; }),
+              IsOkAndHolds(0x7300));
+  ASSERT_THAT(reg->TrampolineFor(sandbox, "adder", 0x2222,
+                                 [](int a, int b) { return a * b; }),
+              IsOkAndHolds(0x7310));
+
+  // Simulate `sandbox.Terminate()` clearing `rpc_channel()` to nullptr before
+  // `Release` and `ForgetSandbox` run.
+  sandbox.set_channel(nullptr);
+  EXPECT_EQ(reg->LookUpTrampoline(sandbox, "adder", 0x7300), std::nullopt);
+  reg->Release(sandbox, 0x7300);
+  reg->ForgetSandbox(sandbox);
+}
+
+TEST(HostCallbackRegistryTest,
+     ConcurrentThreadsShareTrampolinesAndThunksSafely) {
+  auto* host_reg = HostCallbackRegistry::Instance();
+  auto* sb_reg = SandboxeeCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  constexpr int kThreads = 8;
+  std::vector<uintptr_t> trampolines(kThreads, 0);
+  std::vector<uintptr_t> thunks(kThreads, 0);
+  std::vector<std::thread> workers;
+  workers.reserve(kThreads);
+  for (int i = 0; i < kThreads; ++i) {
+    workers.emplace_back([&, i] {
+      absl::StatusOr<uintptr_t> tramp =
+          host_reg->TrampolineFor(scoped.sandbox(), "adder", 0x1111,
+                                  [](int a, int b) { return a + b; });
+      ASSERT_THAT(tramp, IsOk());
+      trampolines[i] = *tramp;
+      EXPECT_EQ(host_reg->LookUpTrampoline(scoped.sandbox(), "adder", *tramp),
+                0x1111u);
+
+      absl::StatusOr<uintptr_t> thunk =
+          sb_reg->ThunkFor(scoped.sandbox(), PoolA(), 0x5555);
+      ASSERT_THAT(thunk, IsOk());
+      thunks[i] = *thunk;
+      EXPECT_EQ(sb_reg->LookUpThunk(scoped.sandbox(), PoolA(), *thunk),
+                0x5555u);
+    });
+  }
+  for (std::thread& t : workers) {
+    t.join();
+  }
+  for (int i = 1; i < kThreads; ++i) {
+    EXPECT_EQ(trampolines[i], trampolines[0]);
+    EXPECT_EQ(thunks[i], thunks[0]);
+  }
+}
+
+uint64_t NoexceptCallbackFn(int x) noexcept { return x + 10; }
+
+TEST(HostCallbackRegistryTest, SupportsNoexceptFunctionPointersAndLambdas) {
+  ScopedSandbox scoped;
+  auto* reg = HostCallbackRegistry::Instance();
+
+  absl::StatusOr<uintptr_t> tramp = reg->TrampolineFor(
+      scoped.sandbox(), "noexcept_cb",
+      reinterpret_cast<uintptr_t>(&NoexceptCallbackFn), &NoexceptCallbackFn);
+  ASSERT_THAT(tramp, IsOk());
+  const uint64_t kArgs[1] = {32};
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs), 42u);
+
+  sapi::v::Callback var_cb([](int a, const int* const& p) noexcept -> int {
+    return a + (p != nullptr ? *p : 0);
+  });
+  EXPECT_EQ(var_cb.GetSize(), sizeof(void*));
 }
 
 }  // namespace

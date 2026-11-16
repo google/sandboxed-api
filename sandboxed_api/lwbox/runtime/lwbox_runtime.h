@@ -35,6 +35,9 @@
 //     sandboxee function, so that a callback the sandboxee implements can be
 //     held, compared and called by host code that only understands host
 //     addresses.
+//   - HostCallbackRegistry: which sandboxee trampoline stands in for which
+//     host function, so that a callback the host implements can outlive the
+//     call that installed it and be recovered when handed back out.
 //
 // Keeping that state here rather than inlining it into every generated
 // wrapper keeps the emitted code readable, and makes the bookkeeping
@@ -62,17 +65,21 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
+#include "absl/base/no_destructor.h"
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox.h"
+#include "sandboxed_api/var_callback.h"
 
 namespace sapi {
 namespace lwbox {
@@ -204,17 +211,23 @@ struct ThunkPool {
 // Thread-safe registry mapping sandboxee functions to the host thunks that
 // stand in for them, and back.
 //
-// A callback-typed value is only ever valid in the address space that holds
-// it. When the sandboxee hands the host one of its own functions, the host
-// cannot call that address; it needs a host-callable stand-in that will make
-// the downcall. This registry owns that substitution in both directions:
+// Security model (Capability Table Indirection):
+// A function pointer arriving from an untrusted sandboxee (via a return value
+// or an `OUT`/`INOUT` struct field) must never be stored directly in a host
+// function pointer variable, as calling a sandboxee-controlled address on the
+// host would allow arbitrary host control-flow hijacking (CFI bypass). Instead,
+// every incoming sandboxee address is bound here to one of a fixed set of
+// compiler-emitted static host thunk functions (`sapi_thunk_<typedef>_0..7`)
+// living in host `.text`. When called by the host, the thunk looks up its
+// target address here and dispatches the call into the sandboxee via RPC, so
+// the untrusted address is only ever jumped to inside the sandboxee's own fault
+// domain.
 //
 //   ThunkFor        sandboxee function -> host thunk   ("store and replace")
 //   LookUpThunk     host thunk -> sandboxee function   ("replace back")
 //
 // `LookUpThunk` returning nothing is also how a caller tells a genuine host
-// function apart from a stand-in, which is the only question the "is this one
-// of ours?" check ever needed to answer.
+// function apart from a stand-in when a pointer crosses back into the sandbox.
 class SandboxeeCallbackRegistry {
  public:
   static SandboxeeCallbackRegistry* Instance();
@@ -254,8 +267,6 @@ class SandboxeeCallbackRegistry {
   void ForgetSandbox(const sapi::SandboxBase& sandbox);
 
  private:
-  SandboxeeCallbackRegistry() = default;
-
   struct Binding {
     const ThunkPool* pool;
     const sapi::SandboxBase* sandbox;
@@ -268,9 +279,157 @@ class SandboxeeCallbackRegistry {
   using TargetKey =
       std::tuple<const ThunkPool*, const sapi::SandboxBase*, uintptr_t>;
 
+  SandboxeeCallbackRegistry() = default;
+
+  void PurgeStaleSessionLocked(const sapi::SandboxBase& sandbox)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
   absl::Mutex mutex_;
   absl::flat_hash_map<uintptr_t, Binding> by_thunk_ ABSL_GUARDED_BY(mutex_);
   absl::flat_hash_map<TargetKey, uintptr_t> by_target_ ABSL_GUARDED_BY(mutex_);
+  absl::flat_hash_map<const sapi::SandboxBase*, uint64_t> active_session_
+      ABSL_GUARDED_BY(mutex_);
+};
+
+// Thread-safe registry mapping host callback functions to the sandboxee
+// trampolines that stand in for them, and back.
+//
+// This is the mirror of SandboxeeCallbackRegistry for the forward direction:
+// when host code hands one of its own functions to a library that keeps the
+// pointer past the call that installed it (in a struct field or a global
+// hook), a call-scoped `sapi::v::Callback` would unregister its trampoline as
+// soon as the installing shim returned. Keying the registration here on
+// `(sandbox, typedef_name, host_fn)` keeps the trampoline alive for the
+// lifetime of the sandbox, ensures installing the same host function twice
+// reuses one trampoline slot and preserves pointer equality inside the
+// sandbox, and lets `LookUpTrampoline` recover the original host function
+// address when the sandbox later hands the pointer back to the host.
+//
+// Security notes:
+// 1. No host `.text` address ever enters the sandboxee: the sandboxee only
+//    receives the address of a slot in its own `sapi_callback_trampolines`
+//    array, and upcalls identify the slot by integer index `[0, 64)`.
+// 2. Multiplicity / Idempotency: while a callback slot is registered, a
+//    compromised sandboxee can invoke that trampoline an arbitrary number of
+//    times during any active RPC call. Generated marshaling wrappers allocate
+//    fresh host buffers per invocation, but the user's host callback function
+//    itself must tolerate repeated invocation without corrupting host state.
+// 3. Callback-typedef-checked unwrapping: `LookUpTrampoline` verifies that the
+//    trampoline's recorded `typedef_name` matches the callback typedef of the
+//    return value or struct field through which it is leaving the sandbox,
+//    preventing a compromised sandboxee from swapping trampolines across
+//    callback typedefs with incompatible C ABI signatures.
+class HostCallbackRegistry {
+ public:
+  using RawHandler = absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)>;
+  using HandlerFactory = absl::AnyInvocable<RawHandler() &&>;
+
+  static HostCallbackRegistry* Instance();
+
+  // Returns the sandboxee trampoline address standing in for `fn` under
+  // `typedef_name` in `sandbox`, registering `handler` via
+  // `sandbox.rpc_channel()->RegisterCallback(...)` the first time this triple
+  // is seen and returning the same trampoline address on every later call.
+  //
+  // A null `fn` is not a callback: it is returned unchanged and consumes no
+  // slot, so that a library's `if (s->cb)` keeps working.
+  template <typename F>
+  absl::StatusOr<uintptr_t> TrampolineFor(sapi::SandboxBase& sandbox,
+                                          absl::string_view typedef_name,
+                                          uintptr_t fn, F&& handler) {
+    using Traits = sapi::v::callback_internal::FunctionTraits<std::decay_t<F>>;
+    static_assert(Traits::kArgsCount <= 6,
+                  "SAPI callbacks support a maximum of 6 arguments");
+    return TrampolineForFactory(
+        sandbox, typedef_name, fn,
+        [f = std::forward<F>(handler)]() mutable -> RawHandler {
+          return [f = std::move(f)](
+                     absl::Span<const uint64_t> span) mutable -> uint64_t {
+            using ArgsTuple = typename Traits::ArgsTuple;
+            return sapi::v::callback_internal::CallHelper<ArgsTuple>(f, span);
+          };
+        });
+  }
+
+  // The inverse of TrampolineFor. Returns std::nullopt if `trampoline` is not
+  // a trampoline this registry handed out for `sandbox`, which means the value
+  // is a genuine sandboxee function and needs a host thunk from
+  // SandboxeeCallbackRegistry instead.
+  //
+  // CHECK-fails if `trampoline` WAS registered for `sandbox`, but under a
+  // different callback typedef than `typedef_name` (preventing cross-typedef C
+  // ABI type confusion if a compromised sandboxee substitutes a trampoline from
+  // another callback typedef).
+  std::optional<uintptr_t> LookUpTrampoline(const sapi::SandboxBase& sandbox,
+                                            absl::string_view typedef_name,
+                                            uintptr_t trampoline);
+
+  // Unregisters `trampoline` in `sandbox` and removes its binding. Safely
+  // no-ops on 0, and CHECK-fails if `trampoline` is not currently registered
+  // for `sandbox`.
+  void Release(sapi::SandboxBase& sandbox, uintptr_t trampoline);
+
+  // Unregisters and removes every trampoline held on behalf of `sandbox`.
+  void ForgetSandbox(sapi::SandboxBase& sandbox);
+
+ private:
+  friend class absl::NoDestructor<HostCallbackRegistry>;
+
+  struct Binding {
+    std::string typedef_name;
+    uintptr_t fn;
+  };
+
+  // The same host function reached through two different callback typedefs
+  // needs two different trampolines because each callback typedef has its own
+  // marshaling wrapper. Including `RPCChannel::session_id()` ensures restarting
+  // a `SandboxBase` in place invalidates cached trampolines from the previous
+  // sandboxee process even if `ForgetSandbox` was not called.
+  struct TargetKey {
+    const sapi::SandboxBase* sandbox;
+    uint64_t session_id;
+    std::string typedef_name;
+    uintptr_t fn;
+
+    friend bool operator==(const TargetKey&, const TargetKey&) = default;
+    template <typename H>
+    friend H AbslHashValue(H h, const TargetKey& key) {
+      return H::combine(std::move(h), key.sandbox, key.session_id,
+                        key.typedef_name, key.fn);
+    }
+  };
+
+  struct TrampolineKey {
+    const sapi::SandboxBase* sandbox;
+    uint64_t session_id;
+    uintptr_t trampoline;
+
+    friend bool operator==(const TrampolineKey&,
+                           const TrampolineKey&) = default;
+    template <typename H>
+    friend H AbslHashValue(H h, const TrampolineKey& key) {
+      return H::combine(std::move(h), key.sandbox, key.session_id,
+                        key.trampoline);
+    }
+  };
+
+  HostCallbackRegistry() = default;
+
+  absl::StatusOr<uintptr_t> TrampolineForFactory(sapi::SandboxBase& sandbox,
+                                                 absl::string_view typedef_name,
+                                                 uintptr_t fn,
+                                                 HandlerFactory make_handler);
+
+  void PurgeStaleSessionLocked(const sapi::SandboxBase& sandbox,
+                               uint64_t session_id)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  absl::Mutex mutex_;
+  absl::flat_hash_map<TrampolineKey, Binding> by_trampoline_
+      ABSL_GUARDED_BY(mutex_);
+  absl::flat_hash_map<TargetKey, uintptr_t> by_target_ ABSL_GUARDED_BY(mutex_);
+  absl::flat_hash_map<const sapi::SandboxBase*, uint64_t> active_session_
+      ABSL_GUARDED_BY(mutex_);
 };
 
 // Helper to copy a range of memory from a remote sandbox pointer directly to

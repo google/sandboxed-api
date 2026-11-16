@@ -37,16 +37,19 @@ class RemotePtr;
 namespace callback_internal {
 
 template <typename T>
-T CastArg(uint64_t val) {
+inline constexpr bool kIsSupportedCallbackScalar =
+    std::is_integral_v<T> || std::is_enum_v<T> || std::is_pointer_v<T> ||
+    std::is_same_v<T, RemotePtr>;
+
+template <typename T>
+std::decay_t<T> CastArg(uint64_t val) {
   using DecayedT = std::decay_t<T>;
-  static_assert(std::is_integral_v<DecayedT> || std::is_enum_v<DecayedT> ||
-                    std::is_pointer_v<DecayedT> ||
-                    std::is_same_v<DecayedT, RemotePtr>,
+  static_assert(kIsSupportedCallbackScalar<DecayedT>,
                 "Callback arguments must be integral, enum, or pointer types");
-  if constexpr (std::is_pointer_v<T>) {
-    return reinterpret_cast<T>(val);
+  if constexpr (std::is_pointer_v<DecayedT>) {
+    return reinterpret_cast<DecayedT>(val);
   } else {
-    return static_cast<T>(val);
+    return static_cast<DecayedT>(val);
   }
 }
 
@@ -54,10 +57,9 @@ template <typename T>
 uint64_t CastRet(T val) {
   using DecayedT = std::decay_t<T>;
   static_assert(
-      std::is_integral_v<DecayedT> || std::is_enum_v<DecayedT> ||
-          std::is_pointer_v<DecayedT> || std::is_same_v<DecayedT, RemotePtr>,
+      kIsSupportedCallbackScalar<DecayedT>,
       "Callback return values must be integral, enum, or pointer types");
-  if constexpr (std::is_pointer_v<T>) {
+  if constexpr (std::is_pointer_v<DecayedT>) {
     return reinterpret_cast<uint64_t>(val);
   } else {
     return static_cast<uint64_t>(val);
@@ -73,6 +75,12 @@ struct FunctionTraits<R (*)(Args...)> {
   static constexpr size_t kArgsCount = sizeof...(Args);
 };
 
+template <typename R, typename... Args>
+struct FunctionTraits<R (*)(Args...) noexcept> {
+  using ArgsTuple = std::tuple<Args...>;
+  static constexpr size_t kArgsCount = sizeof...(Args);
+};
+
 template <typename C, typename R, typename... Args>
 struct FunctionTraits<R (C::*)(Args...) const> {
   using ArgsTuple = std::tuple<Args...>;
@@ -80,7 +88,19 @@ struct FunctionTraits<R (C::*)(Args...) const> {
 };
 
 template <typename C, typename R, typename... Args>
+struct FunctionTraits<R (C::*)(Args...) const noexcept> {
+  using ArgsTuple = std::tuple<Args...>;
+  static constexpr size_t kArgsCount = sizeof...(Args);
+};
+
+template <typename C, typename R, typename... Args>
 struct FunctionTraits<R (C::*)(Args...)> {
+  using ArgsTuple = std::tuple<Args...>;
+  static constexpr size_t kArgsCount = sizeof...(Args);
+};
+
+template <typename C, typename R, typename... Args>
+struct FunctionTraits<R (C::*)(Args...) noexcept> {
   using ArgsTuple = std::tuple<Args...>;
   static constexpr size_t kArgsCount = sizeof...(Args);
 };

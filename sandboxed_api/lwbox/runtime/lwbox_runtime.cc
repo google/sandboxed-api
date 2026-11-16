@@ -14,13 +14,16 @@
 
 #include "sandboxed_api/lwbox/runtime/lwbox_runtime.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -234,6 +237,26 @@ SandboxeeCallbackRegistry* SandboxeeCallbackRegistry::Instance() {
   return instance;
 }
 
+void SandboxeeCallbackRegistry::PurgeStaleSessionLocked(
+    const sapi::SandboxBase& sandbox) {
+  const sapi::RPCChannel* channel = sandbox.rpc_channel();
+  if (channel == nullptr) {
+    return;
+  }
+  const uint64_t session_id = channel->session_id();
+  auto [it, inserted] = active_session_.try_emplace(&sandbox, session_id);
+  if (inserted || it->second == session_id) {
+    return;
+  }
+  it->second = session_id;
+  absl::erase_if(by_target_, [&sandbox](const auto& entry) {
+    return std::get<1>(entry.first) == &sandbox;
+  });
+  absl::erase_if(by_thunk_, [&sandbox](const auto& entry) {
+    return entry.second.sandbox == &sandbox;
+  });
+}
+
 absl::StatusOr<uintptr_t> SandboxeeCallbackRegistry::ThunkFor(
     const sapi::SandboxBase& sandbox, const ThunkPool& pool, uintptr_t fn) {
   // Null is not a callback. Substituting a thunk for it would hand the caller
@@ -243,6 +266,7 @@ absl::StatusOr<uintptr_t> SandboxeeCallbackRegistry::ThunkFor(
   }
 
   absl::MutexLock lock(mutex_);
+  PurgeStaleSessionLocked(sandbox);
   const TargetKey key{&pool, &sandbox, fn};
   if (auto it = by_target_.find(key); it != by_target_.end()) {
     return it->second;
@@ -270,6 +294,7 @@ std::optional<uintptr_t> SandboxeeCallbackRegistry::LookUpThunk(
     return std::nullopt;
   }
   absl::MutexLock lock(mutex_);
+  PurgeStaleSessionLocked(sandbox);
   auto it = by_thunk_.find(thunk);
   if (it == by_thunk_.end()) {
     return std::nullopt;
@@ -301,12 +326,190 @@ void SandboxeeCallbackRegistry::Release(uintptr_t thunk) {
 void SandboxeeCallbackRegistry::ForgetSandbox(
     const sapi::SandboxBase& sandbox) {
   absl::MutexLock lock(mutex_);
+  active_session_.erase(&sandbox);
   absl::erase_if(by_target_, [&sandbox](const auto& entry) {
     return std::get<1>(entry.first) == &sandbox;
   });
   absl::erase_if(by_thunk_, [&sandbox](const auto& entry) {
     return entry.second.sandbox == &sandbox;
   });
+}
+
+HostCallbackRegistry* HostCallbackRegistry::Instance() {
+  static absl::NoDestructor<HostCallbackRegistry> instance;
+  return instance.get();
+}
+
+void HostCallbackRegistry::PurgeStaleSessionLocked(
+    const sapi::SandboxBase& sandbox, uint64_t session_id) {
+  auto [it, inserted] = active_session_.try_emplace(&sandbox, session_id);
+  if (inserted || it->second == session_id) {
+    return;
+  }
+  if (session_id < it->second) {
+    return;
+  }
+  it->second = session_id;
+  absl::erase_if(by_target_, [&sandbox, session_id](const auto& entry) {
+    return entry.first.sandbox == &sandbox &&
+           entry.first.session_id != session_id;
+  });
+  absl::erase_if(by_trampoline_, [&sandbox, session_id](const auto& entry) {
+    return entry.first.sandbox == &sandbox &&
+           entry.first.session_id != session_id;
+  });
+}
+
+absl::StatusOr<uintptr_t> HostCallbackRegistry::TrampolineForFactory(
+    sapi::SandboxBase& sandbox, absl::string_view typedef_name, uintptr_t fn,
+    HandlerFactory make_handler) {
+  // Null is not a callback: keep it null and consume no trampoline slot.
+  if (fn == 0) {
+    return 0;
+  }
+
+  sapi::RPCChannel* channel = sandbox.rpc_channel();
+  CHECK_NE(channel, nullptr)
+      << "Sandbox RPCChannel is null while registering callback for typedef "
+      << typedef_name;
+  const uint64_t session_id = channel->session_id();
+  const TargetKey key{&sandbox, session_id, std::string(typedef_name), fn};
+  {
+    absl::MutexLock lock(mutex_);
+    PurgeStaleSessionLocked(sandbox, session_id);
+    if (auto it = by_target_.find(key); it != by_target_.end()) {
+      return it->second;
+    }
+  }
+
+  absl::StatusOr<uintptr_t> trampoline =
+      channel->RegisterCallback(std::move(make_handler)());
+  if (!trampoline.ok()) {
+    return trampoline.status();
+  }
+
+  uintptr_t winner = 0;
+  {
+    absl::MutexLock lock(mutex_);
+    PurgeStaleSessionLocked(sandbox, session_id);
+    auto session_it = active_session_.find(&sandbox);
+    if (session_it != active_session_.end() &&
+        session_it->second == session_id) {
+      auto [it, inserted] = by_target_.emplace(key, *trampoline);
+      if (inserted) {
+        by_trampoline_.emplace(TrampolineKey{&sandbox, session_id, *trampoline},
+                               Binding{std::string(typedef_name), fn});
+        return *trampoline;
+      }
+      winner = it->second;
+    }
+  }
+  // Another thread registered the same (sandbox, session, typedef, fn)
+  // concurrently, or the sandbox restarted mid-registration. Unregister the
+  // duplicate/stale slot outside the lock.
+  channel->UnregisterCallback(*trampoline).IgnoreError();
+  if (winner == 0) {
+    return absl::UnavailableError(
+        "Sandbox session was invalidated during callback registration");
+  }
+  return winner;
+}
+
+std::optional<uintptr_t> HostCallbackRegistry::LookUpTrampoline(
+    const sapi::SandboxBase& sandbox, absl::string_view typedef_name,
+    uintptr_t trampoline) {
+  // NOMUTANTS(ROR): Lock-free fast path for null function pointers; 0 is never
+  // registered in by_trampoline_.
+  if (trampoline == 0) {
+    return std::nullopt;
+  }
+  sapi::RPCChannel* channel = sandbox.rpc_channel();
+  if (channel == nullptr) {
+    return std::nullopt;
+  }
+  const uint64_t session_id = channel->session_id();
+  absl::MutexLock lock(mutex_);
+  PurgeStaleSessionLocked(sandbox, session_id);
+  auto it =
+      by_trampoline_.find(TrampolineKey{&sandbox, session_id, trampoline});
+  if (it == by_trampoline_.end()) {
+    return std::nullopt;
+  }
+  // Security invariant: a compromised sandboxee could take a trampoline
+  // address registered under `typedef_A` (e.g. `void (*)(int)`) and return it
+  // through a return value or struct field governed by `typedef_B` (e.g.
+  // `void (*)(const char*, size_t)`). Unwrapping without verifying that the
+  // callback typedef matches would `reinterpret_cast` the `typedef_A` host
+  // function pointer to `typedef_B`'s C ABI type, causing host-side
+  // argument/type confusion if the host calls the pointer directly.
+  CHECK_EQ(it->second.typedef_name, typedef_name)
+      << "Sandboxee returned a host callback trampoline registered for "
+         "callback typedef '"
+      << it->second.typedef_name
+      << "' across a boundary expecting callback typedef '" << typedef_name
+      << "'";
+  return it->second.fn;
+}
+
+void HostCallbackRegistry::Release(sapi::SandboxBase& sandbox,
+                                   uintptr_t trampoline) {
+  if (trampoline == 0) {
+    return;
+  }
+  sapi::RPCChannel* channel = sandbox.rpc_channel();
+  {
+    absl::MutexLock lock(mutex_);
+    auto it = by_trampoline_.end();
+    if (channel != nullptr) {
+      const uint64_t session_id = channel->session_id();
+      PurgeStaleSessionLocked(sandbox, session_id);
+      it = by_trampoline_.find(TrampolineKey{&sandbox, session_id, trampoline});
+    } else {
+      it = std::find_if(by_trampoline_.begin(), by_trampoline_.end(),
+                        [&sandbox, trampoline](const auto& entry) {
+                          return entry.first.sandbox == &sandbox &&
+                                 entry.first.trampoline == trampoline;
+                        });
+    }
+    CHECK(it != by_trampoline_.end())
+        << "Attempted to release an unknown or already released host "
+           "callback trampoline";
+    by_target_.erase(TargetKey{&sandbox, it->first.session_id,
+                               it->second.typedef_name, it->second.fn});
+    by_trampoline_.erase(it);
+  }
+  if (channel != nullptr) {
+    channel->UnregisterCallback(trampoline).IgnoreError();
+  }
+}
+
+void HostCallbackRegistry::ForgetSandbox(sapi::SandboxBase& sandbox) {
+  sapi::RPCChannel* channel = sandbox.rpc_channel();
+  const std::optional<uint64_t> current_session =
+      channel != nullptr ? std::optional<uint64_t>(channel->session_id())
+                         : std::nullopt;
+  std::vector<uintptr_t> trampolines_to_unregister;
+  {
+    absl::MutexLock lock(mutex_);
+    active_session_.erase(&sandbox);
+    absl::erase_if(by_target_, [&sandbox](const auto& entry) {
+      return entry.first.sandbox == &sandbox;
+    });
+    for (const auto& [key, binding] : by_trampoline_) {
+      if (key.sandbox == &sandbox && current_session.has_value() &&
+          key.session_id == *current_session) {
+        trampolines_to_unregister.push_back(key.trampoline);
+      }
+    }
+    absl::erase_if(by_trampoline_, [&sandbox](const auto& entry) {
+      return entry.first.sandbox == &sandbox;
+    });
+  }
+  if (channel != nullptr) {
+    for (uintptr_t trampoline : trampolines_to_unregister) {
+      channel->UnregisterCallback(trampoline).IgnoreError();
+    }
+  }
 }
 
 }  // namespace lwbox
