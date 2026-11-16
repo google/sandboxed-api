@@ -63,6 +63,12 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::Status ParseRecordAnnotations(const clang::RecordDecl& decl) {
     ABSL_ASSIGN_OR_RETURN(auto record_annotations,
                           sapi::ParseRecordAnnotations(decl));
+    for (const auto& member : record_annotations.member_annotations) {
+      if (member.callback_typedef.has_value()) {
+        referenced_callback_typedefs_.insert(*member.callback_typedef);
+        used_callback_typedefs_.insert(*member.callback_typedef);
+      }
+    }
     std::string name = record_annotations.name;
     library_ir_.record_annotations[name] = std::move(record_annotations);
     return absl::OkStatus();

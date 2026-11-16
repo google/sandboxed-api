@@ -403,6 +403,39 @@ TEST_F(SandboxedLibraryEmitterTest, UnusedCallbackTypedefIsReported) {
                              Not(HasSubstr("referenced_cb")))));
 }
 
+TEST_F(SandboxedLibraryEmitterTest,
+       SelfReferentialStructAnnotationMatchesRealStruct) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    struct Node {
+      void (*visit)(Node* self, int val);
+      Node* next;
+    };
+
+    typedef void (*node_visitor)(
+        Node* self [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        int val);
+
+    inline void sandbox_annotation_1() {
+      struct Node {
+        node_visitor visit;
+        [[clang::annotate("sandbox", "sandbox_opaque_ptr")]] Node* next;
+      };
+    }
+
+    extern "C" void run_node(
+        const Node* n [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  EXPECT_THAT(emitter.PostParseAllFiles(), IsOk());
+}
+
 // Verifies that a callback typedef referenced only by a function listed in
 // `SANDBOX_IGNORE_FUNCS` is still counted as referenced (does not trigger an
 // unused-typedef error), while pruning its reverse invoker and thunk pool.

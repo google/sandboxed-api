@@ -57,9 +57,9 @@ std::string DescribeUncopyableType(clang::QualType type) {
     // Worth calling out separately: this is the case the reverse-callback work
     // is about, and the workaround is different from a plain pointer's.
     return absl::Substitute(
-        "'$0' is a function pointer. A callback in a struct is not supported "
-        "yet; if the sandboxee alone ever calls it, annotate the field "
-        "SANDBOX_OPAQUE_PTR",
+        "'$0' is a function pointer. Use a callback typedef on the field in "
+        "SANDBOX_ANNOTATE_STRUCT, or SANDBOX_OPAQUE_PTR if the sandboxee "
+        "alone ever calls it",
         type.getAsString());
   }
   if (type->isPointerType()) {
@@ -77,7 +77,8 @@ std::string DescribeUncopyableType(clang::QualType type) {
 bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
                                    clang::QualType type,
                                    const ConversionContext& conv_ctx,
-                                   std::string* reason = nullptr) {
+                                   std::string* reason = nullptr,
+                                   bool in_array = false) {
   if (type.isNull()) {
     if (reason != nullptr) {
       *reason = "the type is not known here";
@@ -97,7 +98,8 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
   // should add a thunk or customize the copying.
   if (auto* const_array_type = context.getAsConstantArrayType(type)) {
     return IsDeeplyTriviallyCopyableType(
-        context, const_array_type->getElementType(), conv_ctx, reason);
+        context, const_array_type->getElementType(), conv_ctx, reason,
+        /*in_array=*/true);
   }
 
   if (auto* record_decl = type->getAsRecordDecl(); record_decl != nullptr) {
@@ -123,14 +125,17 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
     }
 
     for (const clang::FieldDecl* field : record_decl->fields()) {
-      // If the field is annotated as sandbox_opaque_ptr, we'll treat it as
-      // trivially copyable.
+      // If the field is annotated as sandbox_opaque_ptr or names a callback
+      // typedef (outside an array), we'll treat it as allowed in the struct
+      // copy.
       llvm::StringRef field_name = field->getName();
       bool is_opaque = false;
+      bool has_callback_typedef = false;
       if (rec_ann != nullptr) {
         for (const auto& member_ann : rec_ann->member_annotations) {
           if (member_ann.name == field_name) {
             is_opaque = (member_ann.ptr_dir == PointerDir::kSandboxOpaque);
+            has_callback_typedef = member_ann.callback_typedef.has_value();
             break;
           }
         }
@@ -138,10 +143,22 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
       if (is_opaque) {
         continue;
       }
+      if (has_callback_typedef) {
+        if (in_array) {
+          if (reason != nullptr) {
+            *reason = absl::Substitute(
+                "field $0 of '$1': callback fields inside an array are not "
+                "supported",
+                std::string(field_name), type.getAsString());
+          }
+          return false;
+        }
+        continue;
+      }
 
       std::string field_reason;
       if (!IsDeeplyTriviallyCopyableType(context, field->getType(), conv_ctx,
-                                         &field_reason)) {
+                                         &field_reason, in_array)) {
         if (reason != nullptr) {
           *reason =
               absl::Substitute("field $0 of '$1': $2", std::string(field_name),
@@ -885,6 +902,34 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   // Populate callback parameter metadata if applicable
   if (ir_param.type.kind == ir::TypeKind::kCallback) {
     ir::CallbackParam cb;
+    const clang::ASTContext* ast_ctx = std::visit(
+        absl::Overload{
+            [](const FunctionParamSource& s) -> const clang::ASTContext* {
+              return &s.decl->getASTContext();
+            },
+            [](const CallbackParamSource& s) -> const clang::ASTContext* {
+              return &s.decl->getASTContext();
+            },
+            [](const FunctionReturnSource& s) -> const clang::ASTContext* {
+              return &s.decl->getASTContext();
+            },
+            [](const CallbackReturnSource&) -> const clang::ASTContext* {
+              return nullptr;
+            },
+        },
+        source);
+    // Check ABI compatibility before resolving annotations or typedefs.
+    // Callbacks without a function prototype (`FunctionNoProtoType`) are
+    // rejected below by `ExtractCallbackParams`.
+    if (ast_ctx != nullptr) {
+      if (const clang::FunctionProtoType* proto =
+              ast::GetFunctionProtoType(type);
+          proto != nullptr) {
+        ABSL_RETURN_IF_ERROR(
+            CheckCallbackSignatureIsCallable(name, *ast_ctx, *proto));
+      }
+    }
+
     const clang::ParmVarDecl* param = std::visit(
         absl::Overload{
             [](const FunctionParamSource& s) { return s.decl; },
@@ -898,16 +943,6 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         },
         source);
     if (param != nullptr) {
-      // Check ABI compatibility before resolving annotations or typedefs.
-      // Callbacks without a function prototype (`FunctionNoProtoType`) are
-      // rejected below by `ExtractCallbackParams`.
-      if (const clang::FunctionProtoType* proto =
-              ast::GetFunctionProtoType(type);
-          proto != nullptr) {
-        ABSL_RETURN_IF_ERROR(CheckCallbackSignatureIsCallable(
-            name, param->getASTContext(), *proto));
-      }
-
       // Resolve any referenced callback `typedef` first so all callback-return
       // and callback-parameter annotations below come from a single source.
       const CallbackTypedef* cb_typedef =
@@ -918,6 +953,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             td != nullptr && !HasSandboxAnnotations(*td)) {
           ABSL_RETURN_IF_ERROR(ParseCallbackTypedef(*td).status());
         }
+      } else if (cb_typedef->no_reverse_reason.empty()) {
+        cb.typedef_name = cb_typedef->name;
       }
       // Only a callback `typedef` can specify annotations for a callback's
       // return value; `CheckParsedAnnotations` rejects pointer-returning
@@ -1092,8 +1129,122 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
     return ir_param;
   }
 
-  // Struct synchronized pointers
-  if (!ann.struct_sync.empty() || ann.shallow_struct_sync) {
+  // Struct synchronized pointers (including structs whose fields, or nested
+  // struct fields, carry callback typedefs).
+  std::vector<ir::StructCallbackField> struct_callbacks;
+  if (type->isPointerType()) {
+    if (const auto* top_record = type->getPointeeType()->getAsRecordDecl();
+        top_record != nullptr) {
+      auto collect_callbacks =
+          [&](auto& self, const clang::RecordDecl& record_decl,
+              absl::string_view prefix, bool in_array) -> absl::Status {
+        const RecordAnnotations* rec_ann = nullptr;
+        auto it = conv_ctx.record_annotations.find(record_decl.getName());
+        if (it != conv_ctx.record_annotations.end()) {
+          rec_ann = &it->second;
+        }
+        for (const clang::FieldDecl* field : record_decl.fields()) {
+          const bool field_in_array =
+              in_array || field->getType()->isArrayType();
+          clang::QualType base_field_type =
+              field->getASTContext().getBaseElementType(field->getType());
+          std::string member_path =
+              absl::StrCat(prefix, field->getNameAsString());
+          bool is_opaque_member = false;
+          bool has_callback_typedef = false;
+          if (rec_ann != nullptr) {
+            for (const auto& member_ann : rec_ann->member_annotations) {
+              if (member_ann.name == field->getName()) {
+                is_opaque_member =
+                    (member_ann.ptr_dir == PointerDir::kSandboxOpaque);
+                if (member_ann.callback_typedef.has_value()) {
+                  has_callback_typedef = true;
+                  std::string field_label = absl::Substitute(
+                      "field $0 of '$1'", field->getNameAsString(),
+                      record_decl.getNameAsString());
+                  if (field_in_array) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "$0: callback fields inside an array are not supported",
+                        field_label));
+                  }
+                  const clang::FunctionProtoType* proto =
+                      ast::GetFunctionProtoType(field->getType());
+                  if (proto == nullptr) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "callback $0 does not have a prototype", field_label));
+                  }
+                  ABSL_RETURN_IF_ERROR(CheckCallbackSignatureIsCallable(
+                      field_label, field->getASTContext(), *proto));
+                  auto typedef_it = conv_ctx.callback_typedefs.find(
+                      *member_ann.callback_typedef);
+                  if (typedef_it == conv_ctx.callback_typedefs.end()) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "callback $0 names unknown callback typedef $1",
+                        field_label, *member_ann.callback_typedef));
+                  }
+                  const CallbackTypedef* cb_typedef = &typedef_it->second;
+                  std::string canonical_type = clang::QualType(proto, 0)
+                                                   .getCanonicalType()
+                                                   .getAsString();
+                  if (canonical_type != cb_typedef->canonical_type) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "callback $0 has type '$1', which does not match "
+                        "callback typedef $2 of type '$3'",
+                        field_label, canonical_type, cb_typedef->name,
+                        cb_typedef->canonical_type));
+                  }
+                  if (!cb_typedef->no_reverse_reason.empty()) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "$0 hands back a callback, but $1", field_label,
+                        cb_typedef->no_reverse_reason));
+                  }
+                  struct_callbacks.push_back(ir::StructCallbackField{
+                      .member_name = member_path,
+                      .typedef_name = cb_typedef->name,
+                  });
+                }
+                break;
+              }
+            }
+          }
+          if (!ann.shallow_struct_sync && !is_opaque_member &&
+              !has_callback_typedef && field_in_array &&
+              base_field_type->isFunctionPointerType()) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "pointer argument $0 has unsupported pointee type: field $1 of "
+                "'$2': $3",
+                name, field->getNameAsString(), record_decl.getNameAsString(),
+                DescribeUncopyableType(base_field_type)));
+          }
+          if (const auto* nested_record = base_field_type->getAsRecordDecl();
+              nested_record != nullptr) {
+            ABSL_RETURN_IF_ERROR(self(self, *nested_record,
+                                      absl::StrCat(member_path, "."),
+                                      field_in_array));
+          }
+        }
+        return absl::OkStatus();
+      };
+      ABSL_RETURN_IF_ERROR(collect_callbacks(collect_callbacks, *top_record, "",
+                                             /*in_array=*/false));
+    }
+  }
+
+  if (is_return_value && !struct_callbacks.empty()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "return pointer $0: structs with callback fields cannot be returned by "
+        "pointer",
+        name));
+  }
+
+  if (!struct_callbacks.empty() &&
+      !std::holds_alternative<std::monostate>(ann.size_type)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: array of structs with callback fields is not supported", name));
+  }
+
+  if (!ann.struct_sync.empty() || ann.shallow_struct_sync ||
+      !struct_callbacks.empty()) {
     // Unlike a plain buffer, a synchronized struct has no defensible default
     // direction: guessing kIn would silently drop the write-back of the
     // synchronized members, which is the whole point of the annotation. Every
@@ -1107,6 +1258,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
     }
     ir::StructSyncParam sync_param{
         .direction = *ann.ptr_dir,
+        .callbacks = std::move(struct_callbacks),
         .is_shallow = ann.shallow_struct_sync,
         .context_bound = std::move(ann.context_bound),
     };

@@ -2006,6 +2006,362 @@ TEST_F(
                          "type")));
 }
 
+TEST_F(IrConvertTest, ConvertsStructCallbackFieldNamingACallbackTypedef) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function func,
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+      int tag;
+    };
+    extern "C" void set_hooks(
+        const Hooks* h [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                         "set_hooks", record_annotations, typedefs));
+  ASSERT_EQ(func.parameters.size(), 1);
+  ASSERT_TRUE(func.parameters[0].Is<StructSyncParam>());
+  const auto* sync = func.parameters[0].As<StructSyncParam>();
+  EXPECT_EQ(sync->direction, PointerDir::kIn);
+  ASSERT_EQ(sync->callbacks.size(), 1);
+  EXPECT_EQ(sync->callbacks[0].member_name, "cb");
+  EXPECT_EQ(sync->callbacks[0].typedef_name, "adder");
+}
+
+TEST_F(IrConvertTest, RejectsStructCallbackFieldNamingUnknownCallbackTypedef) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "no_such_typedef",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    extern "C" void set_hooks(
+        const Hooks* h [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                                 "set_hooks", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback field cb of 'Hooks' names unknown "
+                                 "callback typedef no_such_typedef")));
+}
+
+TEST_F(IrConvertTest,
+       RejectsStructCallbackFieldWithCallbackTypedefShapeMismatch) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int);
+    };
+    extern "C" void set_hooks(
+        const Hooks* h [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                         "set_hooks", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback field cb of 'Hooks' has type "
+                         "'int (int)', which does not match callback typedef "
+                         "adder of type 'int (int, int)'")));
+}
+
+TEST_F(IrConvertTest, RejectsOutStructCallbackFieldWhoseTypedefHasNoReverse) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "alloc",
+      .callback_typedef = "chunk_allocator",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"chunk_allocator",
+       CallbackTypedef{
+           .name = "chunk_allocator",
+           .canonical_type = "char *(unsigned long)",
+           .params = {{.name = "size"}},
+           .no_reverse_reason = "it hands back a pointer",
+       }},
+  };
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Hooks {
+      char* (*alloc)(unsigned long);
+    };
+    extern "C" void get_hooks(
+        Hooks* h [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                 "get_hooks", record_annotations, typedefs),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("field alloc of 'Hooks' hands back a "
+                                 "callback, but it hands back a pointer")));
+}
+
+TEST_F(IrConvertTest, RejectsArrayOfStructsWithCallbackFields) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    extern "C" void set_hooks_array(
+        const Hooks* h [[clang::annotate("sandbox", "in_ptr")]]
+                       [[clang::annotate("sandbox", "elem_sized_by", "n")]],
+        unsigned long n);
+  )",
+                         "set_hooks_array", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("h: array of structs with callback fields is "
+                         "not supported")));
+}
+
+TEST_F(IrConvertTest, RejectsUncallableReturnedCallbackSignature) {
+  EXPECT_THAT(ConvertSnippetToIR(
+                  R"(
+    typedef double (*float_cb)(double x);
+    extern "C" float_cb get_handler();
+  )",
+                  "get_handler"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback sapi_ret_arg parameter 1 has type "
+                                 "'double'")));
+}
+
+TEST_F(IrConvertTest,
+       ValidateAndLinkCallbackInvokerReportsTypedefNameAndExcludesTarget) {
+  Function invoker{
+      .name = "sapi_invoke_byte_sink",
+      .parameters =
+          {
+              Parameter{
+                  .name = "sapi_target",
+                  .type = {.kind = TypeKind::kScalar,
+                           .canonical_name = "uintptr_t"},
+                  .payload = ScalarParam{},
+              },
+              Parameter{
+                  .name = "buf",
+                  .type = {.kind = TypeKind::kPointer,
+                           .canonical_name = "const char *"},
+                  .payload =
+                      BufferParam{
+                          .direction = PointerDir::kIn,
+                          .bounds =
+                              bounds::ElemCount{.size_expr = "sapi_target"},
+                      },
+              },
+          },
+      .invoker_for_typedef = "byte_sink",
+  };
+
+  Library lib{.name = "MyLib", .functions = {invoker}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(lib),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback typedef byte_sink parameter buf references "
+                         "non-existent sibling parameter sapi_target")));
+}
+
+TEST_F(IrConvertTest, ConvertsNestedStructCallbackField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations inner_ann{.name = "Inner"};
+  inner_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Inner"] = std::move(inner_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function func,
+      ConvertSnippetToIR(R"(
+    struct Inner {
+      int (*cb)(int, int);
+    };
+    struct Outer {
+      Inner inner;
+      int extra;
+    };
+    extern "C" void set_outer(
+        const Outer* o [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                         "set_outer", record_annotations, typedefs));
+  ASSERT_EQ(func.parameters.size(), 1);
+  ASSERT_TRUE(func.parameters[0].Is<StructSyncParam>());
+  const auto* sync = func.parameters[0].As<StructSyncParam>();
+  ASSERT_EQ(sync->callbacks.size(), 1);
+  EXPECT_EQ(sync->callbacks[0].member_name, "inner.cb");
+  EXPECT_EQ(sync->callbacks[0].typedef_name, "adder");
+}
+
+TEST_F(IrConvertTest, RejectsConstantArrayOfStructWithCallbackField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations inner_ann{.name = "Inner"};
+  inner_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Inner"] = std::move(inner_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Inner {
+      int (*cb)(int, int);
+    };
+    struct Outer {
+      Inner arr[2];
+    };
+    extern "C" void set_outer(
+        const Outer* o [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                                 "set_outer", record_annotations, typedefs),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback fields inside an array are not "
+                                 "supported")));
+}
+
+TEST_F(IrConvertTest,
+       RejectsConstantArrayOfStructWithCallbackFieldUnderStructSync) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations inner_ann{.name = "Inner"};
+  inner_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Inner"] = std::move(inner_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Inner {
+      int (*cb)(int, int);
+    };
+    struct SyncedOuter {
+      const char* name;
+      Inner arr[2];
+    };
+    extern "C" void set_synced_outer(
+        const SyncedOuter* o
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b1",
+                          "{o->name, in_ptr}", "$")]]);
+  )",
+                         "set_synced_outer", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback fields inside an array are not "
+                         "supported")));
+}
+
+TEST_F(IrConvertTest, RejectsReturnPointerToStructWithCallbackField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    extern "C" {
+    [[clang::annotate("sandbox", "alias_ptr", "h")]]
+    Hooks* passthrough_hooks(
+        Hooks* h [[clang::annotate("sandbox", "inout_ptr")]]);
+    }
+  )",
+                         "passthrough_hooks", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("structs with callback fields cannot be "
+                         "returned by pointer")));
+}
+
 }  // namespace
 }  // namespace ir
 }  // namespace sapi

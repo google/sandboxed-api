@@ -769,6 +769,83 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
 
 namespace {
 
+// Returns true if `shadow_type` and `real_type` are identical except that
+// references to `shadow_decl` in `shadow_type` correspond to `real_decl` in
+// `real_type`. Inside `SANDBOX_ANNOTATE_STRUCT(struct Foo { ... })`, an
+// unqualified mention of `Foo` in a field type (e.g. `Foo* next` or a function
+// pointer taking `Foo*`) resolves to the local `shadow_decl` rather than the
+// outer `real_decl`.
+bool TypesMatchModuloShadowRecord(clang::QualType shadow_type,
+                                  clang::QualType real_type,
+                                  const clang::RecordDecl& shadow_decl,
+                                  const clang::RecordDecl& real_decl) {
+  shadow_type = shadow_type.getCanonicalType();
+  real_type = real_type.getCanonicalType();
+  if (shadow_type == real_type) {
+    return true;
+  }
+  if (shadow_type.getCVRQualifiers() != real_type.getCVRQualifiers()) {
+    return false;
+  }
+  const clang::Type* s = shadow_type.getTypePtr();
+  const clang::Type* r = real_type.getTypePtr();
+  if (const auto* s_rec = clang::dyn_cast<clang::RecordType>(s)) {
+    if (const auto* r_rec = clang::dyn_cast<clang::RecordType>(r)) {
+      return s_rec->getDecl()->getCanonicalDecl() ==
+                 shadow_decl.getCanonicalDecl() &&
+             r_rec->getDecl()->getCanonicalDecl() ==
+                 real_decl.getCanonicalDecl();
+    }
+    return false;
+  }
+  if (const auto* s_ptr = clang::dyn_cast<clang::PointerType>(s)) {
+    if (const auto* r_ptr = clang::dyn_cast<clang::PointerType>(r)) {
+      return TypesMatchModuloShadowRecord(s_ptr->getPointeeType(),
+                                          r_ptr->getPointeeType(), shadow_decl,
+                                          real_decl);
+    }
+    return false;
+  }
+  if (const auto* s_arr = clang::dyn_cast<clang::ConstantArrayType>(s)) {
+    if (const auto* r_arr = clang::dyn_cast<clang::ConstantArrayType>(r)) {
+      return s_arr->getSize() == r_arr->getSize() &&
+             TypesMatchModuloShadowRecord(s_arr->getElementType(),
+                                          r_arr->getElementType(), shadow_decl,
+                                          real_decl);
+    }
+    return false;
+  }
+  if (const auto* s_arr = clang::dyn_cast<clang::IncompleteArrayType>(s)) {
+    if (const auto* r_arr = clang::dyn_cast<clang::IncompleteArrayType>(r)) {
+      return TypesMatchModuloShadowRecord(s_arr->getElementType(),
+                                          r_arr->getElementType(), shadow_decl,
+                                          real_decl);
+    }
+    return false;
+  }
+  if (const auto* s_fn = clang::dyn_cast<clang::FunctionProtoType>(s)) {
+    if (const auto* r_fn = clang::dyn_cast<clang::FunctionProtoType>(r)) {
+      if (s_fn->getNumParams() != r_fn->getNumParams() ||
+          s_fn->isVariadic() != r_fn->isVariadic() ||
+          !TypesMatchModuloShadowRecord(s_fn->getReturnType(),
+                                        r_fn->getReturnType(), shadow_decl,
+                                        real_decl)) {
+        return false;
+      }
+      for (unsigned i = 0; i < s_fn->getNumParams(); ++i) {
+        if (!TypesMatchModuloShadowRecord(s_fn->getParamType(i),
+                                          r_fn->getParamType(i), shadow_decl,
+                                          real_decl)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+
 // Check that the shadow record declaration with annotations matches a real
 // record declaration. This is a real record declaration has the same name,
 // but should be declared in a parent declaration context.
@@ -838,7 +915,8 @@ absl::Status CheckShadowRecordMatchesRealRecord(
 
     clang::QualType shadow_type = shadow_field->getType().getCanonicalType();
     clang::QualType real_type = matched_field->getType().getCanonicalType();
-    if (shadow_type != real_type) {
+    if (!TypesMatchModuloShadowRecord(shadow_type, real_type, shadow_decl,
+                                      *real_record)) {
       return absl::InvalidArgumentError(
           absl::Substitute("Type mismatch for field $0 in record $1: "
                            "shadow type is '$2', but real type is '$3'",
@@ -875,13 +953,23 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
   for (const clang::FieldDecl* field : decl.fields()) {
     ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
                           GetSandboxAnnotations(field));
-    if (annotations.empty()) {
+    const clang::TypedefNameDecl* callback_typedef = FindCallbackTypedef(
+        decl.getASTContext().getBaseElementType(field->getType()));
+    if (callback_typedef != nullptr && field->getType()->isArrayType()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "field $0: callback fields inside an array are not supported",
+          field->getName().str()));
+    }
+    if (annotations.empty() && callback_typedef == nullptr) {
       continue;
     }
 
     DataMemberAnnotations member;
     member.name = field->getName();
     member.ptr_dir = std::nullopt;
+    if (callback_typedef != nullptr) {
+      member.callback_typedef = callback_typedef->getNameAsString();
+    }
     for (const auto& ann : annotations) {
       if (ann.name == "sandbox_opaque_ptr") {
         member.ptr_dir = PointerDir::kSandboxOpaque;
@@ -905,6 +993,17 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
         return absl::InvalidArgumentError(absl::Substitute(
             "field $0: annotation $1 is not supported for record members",
             member.name, ann.name));
+      }
+    }
+
+    if (member.callback_typedef.has_value()) {
+      if (member.ptr_dir.has_value() ||
+          !std::holds_alternative<std::monostate>(member.size_type)) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "field $0: callback typedef $1 is the sole source of this "
+            "callback's annotations, so no other sandbox annotation may be "
+            "written on the field",
+            member.name, *member.callback_typedef));
       }
     }
 

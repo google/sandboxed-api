@@ -313,9 +313,14 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
   const LifetimePolicy* policy = nullptr;
   if (const auto* buf = param.As<BufferParam>()) {
     policy = &buf->lifetime;
-    ABSL_RETURN_IF_ERROR(ValidateBufferBounds(
-        func.parameters, absl::StrCat("Function ", func.name), role,
-        buf->bounds));
+    absl::Span<const Parameter> scope = func.parameters;
+    std::string scope_desc = absl::StrCat("Function ", func.name);
+    if (func.invoker_for_typedef.has_value()) {
+      scope = scope.subspan(1);
+      scope_desc = absl::StrCat("callback typedef ", *func.invoker_for_typedef);
+    }
+    ABSL_RETURN_IF_ERROR(
+        ValidateBufferBounds(scope, scope_desc, role, buf->bounds));
   } else if (const auto* opaque = param.As<OpaquePointerParam>()) {
     policy = &opaque->lifetime;
   } else if (const auto* cb = param.As<CallbackParam>()) {

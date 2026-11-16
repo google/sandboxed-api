@@ -240,10 +240,18 @@ struct OpaquePointerParam {
   std::optional<size_t> host_opaque_handle;
 };
 
+// Synchronized callback function-pointer field within a struct pointer
+// argument (a callback typedef field in SANDBOX_ANNOTATE_STRUCT).
+struct StructCallbackField {
+  std::string member_name;   // Field name (e.g., "cb")
+  std::string typedef_name;  // Callback typedef name
+};
+
 // Struct pointer parameter with synchronized member fields.
 struct StructSyncParam {
   PointerDir direction = PointerDir::kIn;
   std::vector<StructMemberSync> members;
+  std::vector<StructCallbackField> callbacks;
   bool is_shallow = false;
   ContextBoundAnnotations context_bound;
 };
@@ -255,6 +263,7 @@ struct CallbackParam {
   std::vector<Parameter> callback_parameters;
   std::shared_ptr<Parameter> return_value;
   std::optional<std::string> functor_template_name;
+  std::optional<std::string> typedef_name;
   bool is_callback_return_aliased = false;
   bool uninitialized = false;
 };

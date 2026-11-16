@@ -129,18 +129,19 @@ struct StructSync {
   ContextBoundAnnotations context_bound;
 };
 
-// Sizing and direction annotations for a single data member in a struct/class.
+// Sizing, direction, and callback-typedef annotations for a single data member
+// in a struct/class.
 struct DataMemberAnnotations {
   std::string name;
   ArraySizedByType size_type;
   std::optional<PointerDir> ptr_dir;
+  std::optional<std::string> callback_typedef;
 };
 
 // Annotations that apply to all instances of a given Struct/Class type.
-// For now, we only support sizing annotations for pointer typed members
-// which represent arrays.
-// We also support indicating that a pointer is kSandboxOpaque,
-// and so does not need to be synced beyond a shallow copy.
+// Supports sizing annotations for array-pointer members, kSandboxOpaque for
+// pointers only touched by the sandboxee, and callback_typedef for function
+// pointer fields that cross the sandbox boundary.
 struct RecordAnnotations {
   std::string name;
   std::vector<DataMemberAnnotations> member_annotations;
