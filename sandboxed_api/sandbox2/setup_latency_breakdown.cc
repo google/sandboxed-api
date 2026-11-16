@@ -13,15 +13,25 @@
 // limitations under the License.
 #include "sandboxed_api/sandbox2/setup_latency_breakdown.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "absl/time/time.h"
 #include "sandboxed_api/sandbox2/comms.h"
 
 namespace sandbox2 {
+namespace {
+
+// Wire sentinel for steps where SetLatency() was never called. Steps that ran
+// in under 1 microsecond are transmitted as 0 so they remain distinguishable
+// from unexecuted steps.
+constexpr int64_t kUnsetLatencyMicros = -1;
+
+}  // namespace
 
 std::string SetupLatencyBreakdown::SetupStepToString(SetupStep step) {
   switch (step) {
@@ -74,7 +84,10 @@ std::string SetupLatencyBreakdown::SetupStepToString(SetupStep step) {
 bool SetupLatencyBreakdown::Send(Comms& comms) {
   std::array<int64_t, kNumSetupSteps> latencies_micros;
   for (int i = 0; i < kNumSetupSteps; ++i) {
-    latencies_micros[i] = absl::ToInt64Microseconds(latencies_[i]);
+    latencies_micros[i] =
+        latencies_[i].has_value()
+            ? std::max<int64_t>(0, absl::ToInt64Microseconds(*latencies_[i]))
+            : kUnsetLatencyMicros;
   }
   return comms.SendTLV(Comms::kTagLatencyBreakdown,
                        sizeof(int64_t) * latencies_micros.size(),
@@ -92,7 +105,11 @@ bool SetupLatencyBreakdown::Receive(Comms& comms) {
     return false;
   }
   for (int i = 0; i < kNumSetupSteps; ++i) {
-    latencies_[i] = absl::Microseconds(latencies_micros[i]);
+    if (latencies_micros[i] >= 0) {
+      latencies_[i] = absl::Microseconds(latencies_micros[i]);
+    } else {
+      latencies_[i] = std::nullopt;
+    }
   }
   return true;
 }

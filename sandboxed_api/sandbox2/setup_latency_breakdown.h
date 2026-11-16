@@ -15,6 +15,7 @@
 #define SANDBOXED_API_SANDBOX2_SETUP_LATENCY_BREAKDOWN_H_
 
 #include <array>
+#include <optional>
 #include <string>
 
 #include "absl/time/time.h"
@@ -62,13 +63,17 @@ class SetupLatencyBreakdown {
     SAPI_RAW_CHECK(step < kNumSetupSteps, "Invalid setup step");
     latencies_[step] = duration;
   }
-  absl::Duration GetLatency(SetupStep step) const { return latencies_[step]; }
+  std::optional<absl::Duration> GetLatency(SetupStep step) const {
+    SAPI_RAW_CHECK(step < kNumSetupSteps, "Invalid setup step");
+    return latencies_[step];
+  }
 
   bool Send(Comms& comms);
   bool Receive(Comms& comms);
 
  private:
-  std::array<absl::Duration, SetupStep::kNumSetupSteps> latencies_;
+  std::array<std::optional<absl::Duration>, SetupStep::kNumSetupSteps>
+      latencies_;
 };
 
 }  // namespace sandbox2

@@ -16,6 +16,7 @@
 
 #include <sys/types.h>
 
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -43,12 +44,11 @@ void ReportLatency(const SetupLatencyBreakdown& latency_breakdown) {
   }
   LOG(INFO) << "Setup latency breakdown:";
   for (int i = 0; i < SetupLatencyBreakdown::kNumSetupSteps; ++i) {
-    LOG(INFO) << "  "
-              << SetupLatencyBreakdown::SetupStepToString(
-                     static_cast<SetupLatencyBreakdown::SetupStep>(i))
-              << ": "
-              << latency_breakdown.GetLatency(
-                     static_cast<SetupLatencyBreakdown::SetupStep>(i));
+    const auto step = static_cast<SetupLatencyBreakdown::SetupStep>(i);
+    if (auto latency = latency_breakdown.GetLatency(step)) {
+      LOG(INFO) << "  " << SetupLatencyBreakdown::SetupStepToString(step)
+                << ": " << *latency;
+    }
   }
 }
 

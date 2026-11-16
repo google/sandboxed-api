@@ -1106,6 +1106,11 @@ TEST(Sandbox2Test, LogsSetupLatencyBreakdown) {
   absl::ScopedMockLog log;
   EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_,
                        HasSubstr("Setup latency breakdown:")));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_,
+                       HasSubstr("Prepare chroot:")));
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, testing::_,
+                       HasSubstr("Landlock enforcement:")))
+      .Times(0);
 
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
