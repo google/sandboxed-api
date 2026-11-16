@@ -1300,11 +1300,39 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
                     }
                   }
                 },
+                [&](const ir::CallbackParam& cb) {
+                  if (cb.functor_template_name.has_value()) {
+                    std::string ret_type = GetCallbackReturnType(cb);
+                    std::vector<std::string> param_types =
+                        GetCallbackParamTypes(cb);
+                    std::vector<std::string> lambda_params;
+                    std::vector<std::string> lambda_args;
+                    lambda_params.reserve(param_types.size());
+                    lambda_args.reserve(param_types.size());
+                    for (size_t j = 0; j < param_types.size(); ++j) {
+                      lambda_params.push_back(
+                          absl::Substitute("$0 a$1", param_types[j], j));
+                      lambda_args.push_back(absl::Substitute("a$0", j));
+                    }
+                    std::string functor_type = absl::Substitute(
+                        "$0<$1($2)>", *cb.functor_template_name, ret_type,
+                        absl::StrJoin(param_types, ", "));
+                    call_args.push_back(absl::Substitute(
+                        "$1 == nullptr ? $0(nullptr) : $0([$1]($2) "
+                        "__attribute__((no_sanitize(\"cfi\", \"kcfi\"))) -> $3 "
+                        "{ return $1($4); })",
+                        functor_type, param.name,
+                        absl::StrJoin(lambda_params, ", "), ret_type,
+                        absl::StrJoin(lambda_args, ", ")));
+                  } else {
+                    call_args.push_back(param.name);
+                  }
+                },
                 [&](const auto& p) {
                   using T = std::decay_t<decltype(p)>;
                   static_assert(IsOneOf<T, ir::VoidParam, ir::ScalarParam,
                                         ir::BufferParam, ir::OpaquePointerParam,
-                                        ir::StructSyncParam, ir::CallbackParam>,
+                                        ir::StructSyncParam>,
                                 "Unhandled parameter payload type in sandboxee "
                                 "call arguments!");
                   call_args.push_back(param.name);

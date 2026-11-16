@@ -470,6 +470,47 @@ TEST(EmitSandboxeeTest, SourceForwardsCallAndWritesReturnValue) {
                     HasSubstr("*sapi_ret_arg = sapi_ret_val;")));
 }
 
+TEST(EmitSandboxeeTest, FunctorCallbackWrapsFunctionPointerWithoutCfiCheck) {
+  ir::Parameter cb_arg{
+      .name = "x",
+      .type = ScalarType("int"),
+      .payload = ir::ScalarParam{},
+  };
+  ir::Parameter cb_ret{
+      .name = "return_val",
+      .type = ScalarType("int"),
+      .is_return_value = true,
+      .payload = ir::ScalarParam{},
+  };
+  ir::Parameter cb_param{
+      .name = "cb",
+      .type = ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                           .canonical_name = "std::function<int(int)>"},
+      .payload =
+          ir::CallbackParam{
+              .callback_parameters = {std::move(cb_arg)},
+              .return_value =
+                  std::make_shared<ir::Parameter>(std::move(cb_ret)),
+              .functor_template_name = "std::function",
+          },
+  };
+  ir::Function func{
+      .name = "run_with_functor",
+      .parameters = {std::move(cb_param)},
+  };
+
+  absl::StatusOr<std::string> src =
+      EmitSandboxeeSrc(TestOptions(), LibraryWith(std::move(func)),
+                       /*includes=*/{});
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("? std::function<int(int)>(nullptr)"),
+            HasSubstr("[cb](int a0) __attribute__((no_sanitize(\n"
+                      "                                 \"cfi\", \"kcfi\"))) "
+                      "-> int { return cb(a0); }")));
+}
+
 TEST(EmitSandboxeeTest, MainReferencesEveryLibraryFunction) {
   ir::Library library{
       .name = "testlib",

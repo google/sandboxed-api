@@ -152,6 +152,7 @@ cc_sandboxed_library(
     annotations = ["lwbox_callbacks_sandbox.cc"],
     deps = [
         "//sandboxed_api:annotations",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
     ],
 )
@@ -174,6 +175,9 @@ cc_sandboxed_library(
         "replaced_library_reverse_callbacks.h",
     ],
     annotations = ["lwbox_reverse_callbacks_sandbox.cc"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+    ],
 )
 
 cc_sandboxed_library_test(

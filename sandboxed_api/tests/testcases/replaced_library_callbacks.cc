@@ -22,11 +22,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/functional/any_invocable.h"
 
 extern "C" {
 
-int callback_with_primitives(int (*cb)(int, int), int a, int b) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int callback_with_primitives(int (*cb)(int, int),
+                                                            int a, int b) {
   if (cb == nullptr) return 0;
   return cb(a, b);
 }
@@ -36,7 +38,8 @@ int callback_with_primitives(int (*cb)(int, int), int a, int b) {
 namespace {
 
 template <typename T>
-uint8_t* callback_ret_alias_impl(const uint8_t* input, size_t in_size, T cb) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI uint8_t* callback_ret_alias_impl(
+    const uint8_t* input, size_t in_size, T cb) {
   if (cb == nullptr || input == nullptr) return nullptr;
 
   int init_val = 0xCA;
@@ -73,9 +76,9 @@ uint8_t* ret_alias_any_invocable(const uint8_t* input, size_t in_size,
   return callback_ret_alias_impl(input, in_size, std::move(cb));
 }
 
-uint8_t* ret_alias_called_multiple_times(int num_chunks, size_t chunk_size,
-                                         bool return_second_last,
-                                         uint8_t* (*next_out_chunk)(size_t)) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI uint8_t* ret_alias_called_multiple_times(
+    int num_chunks, size_t chunk_size, bool return_second_last,
+    uint8_t* (*next_out_chunk)(size_t)) {
   if (next_out_chunk == nullptr) return nullptr;
   uint8_t* second_last_chunk = nullptr;
   uint8_t* last_chunk = nullptr;
@@ -90,9 +93,9 @@ uint8_t* ret_alias_called_multiple_times(int num_chunks, size_t chunk_size,
   return return_second_last ? second_last_chunk : last_chunk;
 }
 
-uint8_t* multiple_callbacks_one_ret_alias(size_t chunk_size,
-                                          uint8_t* (*get_chunk1)(size_t),
-                                          uint8_t* (*get_chunk2)(size_t)) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI uint8_t* multiple_callbacks_one_ret_alias(
+    size_t chunk_size, uint8_t* (*get_chunk1)(size_t),
+    uint8_t* (*get_chunk2)(size_t)) {
   if (get_chunk1 == nullptr || get_chunk2 == nullptr) return nullptr;
   uint8_t* chunk1 = get_chunk1(chunk_size);
   if (chunk1 == nullptr) return nullptr;
@@ -103,7 +106,8 @@ uint8_t* multiple_callbacks_one_ret_alias(size_t chunk_size,
   return chunk2;
 }
 
-int64_t with_input_prim_pointer(int64_t (*cb)(const int64_t*), int64_t input) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int64_t
+with_input_prim_pointer(int64_t (*cb)(const int64_t*), int64_t input) {
   if (cb == nullptr) return -1;
   int64_t doubled = input * 2;
   return cb(&doubled);
@@ -118,7 +122,9 @@ std::vector<int> create_int_buffer(size_t in_size) {
 }
 
 // Callbacks with input pointers.
-int with_input_elem_sized(int (*cb)(const int*, size_t), size_t in_size) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_input_elem_sized(int (*cb)(const int*,
+                                                                   size_t),
+                                                         size_t in_size) {
   if (cb == nullptr) return -1;
   std::vector<int> buf = create_int_buffer(in_size);
   size_t half_size = in_size / 2;
@@ -127,7 +133,9 @@ int with_input_elem_sized(int (*cb)(const int*, size_t), size_t in_size) {
          cb(buf.data() + half_size, second_half_size);
 }
 
-int with_input_byte_sized(int (*cb)(const void*, size_t), size_t in_size) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_input_byte_sized(int (*cb)(const void*,
+                                                                   size_t),
+                                                         size_t in_size) {
   if (cb == nullptr) return -1;
   std::vector<int> buf = create_int_buffer(in_size);
   size_t half_size = in_size / 2;
@@ -136,12 +144,14 @@ int with_input_byte_sized(int (*cb)(const void*, size_t), size_t in_size) {
          cb(buf.data() + half_size, second_half_size * sizeof(int));
 }
 
-int with_input_null_term(int (*cb)(const char*), const char* input) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_input_null_term(int (*cb)(const char*),
+                                                        const char* input) {
   if (cb == nullptr || input == nullptr) return -1;
   return cb(input);
 }
 
-int with_typedefd_input_elem_sized(sum_ints_cb cb, size_t in_size) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_typedefd_input_elem_sized(
+    sum_ints_cb cb, size_t in_size) {
   if (cb == nullptr) return -1;
   std::vector<int> buf = create_int_buffer(in_size);
   size_t half_size = in_size / 2;
@@ -151,21 +161,26 @@ int with_typedefd_input_elem_sized(sum_ints_cb cb, size_t in_size) {
 }
 
 // Callbacks with output pointers
-int64_t with_output_prim_pointer(void (*cb)(int64_t*)) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int64_t
+with_output_prim_pointer(void (*cb)(int64_t*)) {
   if (cb == nullptr) return -1;
   int64_t out;
   cb(&out);
   return out;
 }
 
-int with_output_elem_sized(void (*cb)(int*, size_t), size_t num_elems) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_output_elem_sized(void (*cb)(int*,
+                                                                     size_t),
+                                                          size_t num_elems) {
   if (cb == nullptr) return -1;
   std::vector<int> out(num_elems);
   cb(out.data(), num_elems);
   return std::accumulate(out.begin(), out.end(), 0);
 }
 
-int with_output_byte_sized(void (*cb)(void*, size_t), size_t num_bytes) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_output_byte_sized(void (*cb)(void*,
+                                                                     size_t),
+                                                          size_t num_bytes) {
   if (cb == nullptr) return -1;
   std::vector<uint8_t> out(num_bytes);
   cb(out.data(), num_bytes);
@@ -173,14 +188,17 @@ int with_output_byte_sized(void (*cb)(void*, size_t), size_t num_bytes) {
 }
 
 // Callbacks with in-out pointers
-int64_t with_inout_prim_pointer(void (*cb)(int64_t*), int64_t x) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int64_t
+with_inout_prim_pointer(void (*cb)(int64_t*), int64_t x) {
   if (cb == nullptr) return -1;
   int64_t inout = x;
   cb(&inout);
   return inout;
 }
 
-int with_inout_elem_sized(void (*cb)(int*, size_t), size_t num_elems) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_inout_elem_sized(void (*cb)(int*,
+                                                                    size_t),
+                                                         size_t num_elems) {
   if (cb == nullptr) return -1;
   std::vector<int> inout(num_elems);
   std::iota(inout.begin(), inout.end(), 0);
@@ -188,8 +206,8 @@ int with_inout_elem_sized(void (*cb)(int*, size_t), size_t num_elems) {
   return std::accumulate(inout.begin(), inout.end(), 0);
 }
 
-int with_inout_elem_sized_and_ret_value(size_t (*cb)(int*, size_t),
-                                        size_t num_elems) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_inout_elem_sized_and_ret_value(
+    size_t (*cb)(int*, size_t), size_t num_elems) {
   if (cb == nullptr) return -1;
   std::vector<int> inout(num_elems);
   std::iota(inout.begin(), inout.end(), 0);
@@ -198,8 +216,9 @@ int with_inout_elem_sized_and_ret_value(size_t (*cb)(int*, size_t),
 }
 
 // Callbacks with host opaque pointers.
-int with_host_opaque(int (*combiner)(void*, int, void*, void*), int val,
-                     void* outer_param, void* outer_param2) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_host_opaque(
+    int (*combiner)(void*, int, void*, void*), int val, void* outer_param,
+    void* outer_param2) {
   return combiner(outer_param, val * 2, outer_param2, outer_param);
 }
 

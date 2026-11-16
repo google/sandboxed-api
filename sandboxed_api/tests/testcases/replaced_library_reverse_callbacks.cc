@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include "absl/base/attributes.h"
+
 namespace {
 
 int AddInts(int a, int b) { return a + b; }
@@ -37,7 +39,8 @@ uintptr_t get_adder(int which) {
   }
 }
 
-int apply_twice(int (*cb)(int, int), int a, int b) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int apply_twice(int (*cb)(int, int), int a,
+                                               int b) {
   if (cb == nullptr) {
     return 0;
   }
