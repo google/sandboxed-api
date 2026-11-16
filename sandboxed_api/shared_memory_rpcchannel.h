@@ -99,6 +99,8 @@ class SharedMemoryRPCChannel : public RPCChannel {
                                   size_t size, void* local_base_address,
                                   void* remote_base_address);
 
+  uint64_t session_id() const override { return rpcchannel_->session_id(); }
+
   absl::Status Allocate(size_t size, void** addr,
                         bool disable_shared_memory = false) override;
 

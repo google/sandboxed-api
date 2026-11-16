@@ -1001,6 +1001,35 @@ TEST_P(SandboxTest, MultithreadingCleanup) {
   EXPECT_EQ(Sandbox2BackendPeer::NumThreadLocalChannels(sandbox.backend()), 0);
 }
 
+TEST_P(SandboxTest, RestartClearsThreadLocalChannels) {
+  SandboxConfig config = GetDefaultConfig();
+  config.sandbox2.enable_multithreading = true;
+  SumSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SumApi api(&sandbox);
+
+  absl::Notification first_call_done;
+  absl::Notification sandbox_restarted;
+
+  sapi::Thread worker([&api, &first_call_done, &sandbox_restarted]() {
+    EXPECT_THAT(api.sum(1, 2), IsOkAndHolds(3));
+    first_call_done.Notify();
+    sandbox_restarted.WaitForNotification();
+    // After Restart(), the persistent worker thread must transparently spawn a
+    // fresh channel on the new sandboxee rather than reusing the closed socket.
+    EXPECT_THAT(api.sum(3, 4), IsOkAndHolds(7));
+  });
+
+  first_call_done.WaitForNotification();
+  EXPECT_EQ(Sandbox2BackendPeer::NumThreadLocalChannels(sandbox.backend()), 1);
+
+  ASSERT_THAT(sandbox.Restart(true), IsOk());
+  EXPECT_EQ(Sandbox2BackendPeer::NumThreadLocalChannels(sandbox.backend()), 0);
+
+  sandbox_restarted.Notify();
+  worker.Join();
+}
+
 INSTANTIATE_TEST_SUITE_P(SAPI, SandboxTest, ::testing::Values(false, true),
                          [](const ::testing::TestParamInfo<bool>& info) {
                            return info.param ? "EnableSharedMemory"

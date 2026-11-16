@@ -15,6 +15,7 @@
 #ifndef SANDBOXED_API_RPCCHANNEL_H_
 #define SANDBOXED_API_RPCCHANNEL_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -32,7 +33,13 @@ namespace sapi {
 // Comms channel.
 class RPCChannel {
  public:
+  RPCChannel() : session_id_(NextSessionId()) {}
   virtual ~RPCChannel() = default;
+
+  // Monotonically increasing identifier shared by all channels belonging to the
+  // same sandboxee session (including channels spawned via `SpawnThread()`).
+  // Restarting a sandbox creates a new root channel with a distinct ID.
+  virtual uint64_t session_id() const { return session_id_; }
 
   // Calls a function.
   virtual absl::Status Call(const FuncCall& call, uint32_t tag, FuncRet* ret,
@@ -98,6 +105,17 @@ class RPCChannel {
   virtual absl::Status UnregisterCallback(uintptr_t remote_ptr) {
     return absl::UnimplementedError("Callbacks not supported by this channel");
   }
+
+ protected:
+  explicit RPCChannel(uint64_t session_id) : session_id_(session_id) {}
+
+ private:
+  static uint64_t NextSessionId() {
+    static std::atomic<uint64_t> next_id{1};
+    return next_id.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  uint64_t session_id_;
 };
 
 }  // namespace sapi

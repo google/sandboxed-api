@@ -164,8 +164,31 @@ class Sandbox2RPCChannel : public RPCChannel {
   static constexpr size_t kMaxCallbacks = 64;
   static constexpr size_t kTrampolineSize = 16;
 
-  explicit Sandbox2RPCChannel(std::unique_ptr<sandbox2::Comms> comms,
-                              pid_t pid);
+  // Per-slot synchronization so concurrent invocations of distinct callbacks
+  // execute in parallel without holding the table lock, while concurrent or
+  // re-entrant invocations of the same callback serialize safely.
+  struct CallbackSlot {
+    explicit CallbackSlot(
+        absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> handler)
+        : cb(std::move(handler)) {}
+    RecursiveMutex mu;
+    absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb
+        ABSL_GUARDED_BY(mu);
+  };
+
+  // Shared across the root channel and all worker channels created via
+  // `SpawnThread()`, mirroring the single `sapi_callback_trampolines` table in
+  // the sandboxee process.
+  struct CallbackTable {
+    absl::Mutex mu;
+    uintptr_t trampoline_table_addr ABSL_GUARDED_BY(mu) = 0;
+    std::array<std::shared_ptr<CallbackSlot>, kMaxCallbacks> slots
+        ABSL_GUARDED_BY(mu);
+  };
+
+  explicit Sandbox2RPCChannel(std::unique_ptr<sandbox2::Comms> comms, pid_t pid,
+                              uint64_t session_id,
+                              std::shared_ptr<CallbackTable> callback_table);
 
   // Marks the memory as initialized (used with MSAN).
   absl::Status MarkMemoryInit(void* addr, size_t size);
@@ -187,11 +210,7 @@ class Sandbox2RPCChannel : public RPCChannel {
   // The pid of the sandboxee.
   pid_t pid_;
   RecursiveMutex mutex_;
-
-  std::array<absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)>,
-             kMaxCallbacks>
-      callbacks_ ABSL_GUARDED_BY(mutex_);
-  uintptr_t trampoline_table_addr_ ABSL_GUARDED_BY(mutex_) = 0;
+  std::shared_ptr<CallbackTable> callback_table_;
 };
 
 }  // namespace sapi

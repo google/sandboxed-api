@@ -33,6 +33,7 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/call.h"
 #include "sandboxed_api/config.h"
@@ -46,11 +47,18 @@ namespace sapi {
 using sapi::file_util::fileops::FDCloser;
 
 Sandbox2RPCChannel::Sandbox2RPCChannel(sandbox2::Comms* comms, pid_t pid)
-    : comms_(comms), pid_(pid) {}
+    : comms_(comms),
+      pid_(pid),
+      callback_table_(std::make_shared<CallbackTable>()) {}
 
-Sandbox2RPCChannel::Sandbox2RPCChannel(std::unique_ptr<sandbox2::Comms> comms,
-                                       pid_t pid)
-    : owned_comms_(std::move(comms)), comms_(owned_comms_.get()), pid_(pid) {}
+Sandbox2RPCChannel::Sandbox2RPCChannel(
+    std::unique_ptr<sandbox2::Comms> comms, pid_t pid, uint64_t session_id,
+    std::shared_ptr<CallbackTable> callback_table)
+    : RPCChannel(session_id),
+      owned_comms_(std::move(comms)),
+      comms_(owned_comms_.get()),
+      pid_(pid),
+      callback_table_(std::move(callback_table)) {}
 
 Sandbox2RPCChannel::~Sandbox2RPCChannel() = default;
 
@@ -82,8 +90,14 @@ absl::StatusOr<FuncRet> Sandbox2RPCChannel::Exchange(uint32_t tag,
     memcpy(&req, recv_value.data(), sizeof(CallbackRequest));
 
     uint64_t ret = 0;
-    if (req.index < callbacks_.size() && callbacks_[req.index]) {
-      ret = callbacks_[req.index](req.args);
+    std::shared_ptr<CallbackSlot> slot;
+    if (req.index < kMaxCallbacks) {
+      absl::MutexLock table_lock(callback_table_->mu);
+      slot = callback_table_->slots[req.index];
+    }
+    if (slot != nullptr) {
+      RecursiveMutexLock slot_lock(slot->mu);
+      ret = slot->cb(req.args);
     } else {
       LOG(ERROR) << "Callback index " << req.index << " not registered or null";
     }
@@ -287,8 +301,8 @@ absl::StatusOr<std::unique_ptr<RPCChannel>> Sandbox2RPCChannel::SpawnThread() {
   }
 
   auto thread_comms = std::make_unique<sandbox2::Comms>(host_fd.Release());
-  return std::unique_ptr<RPCChannel>(
-      new Sandbox2RPCChannel(std::move(thread_comms), pid_));
+  return std::unique_ptr<RPCChannel>(new Sandbox2RPCChannel(
+      std::move(thread_comms), pid_, session_id(), callback_table_));
 }
 
 absl::StatusOr<size_t> Sandbox2RPCChannel::Strlen(void* str) {
@@ -313,42 +327,59 @@ absl::Status Sandbox2RPCChannel::MarkMemoryInit(void* addr, size_t size) {
 }
 
 absl::StatusOr<uintptr_t> Sandbox2RPCChannel::GetTrampolineTableAddr() {
-  if (trampoline_table_addr_ != 0) {
-    return trampoline_table_addr_;
+  {
+    absl::MutexLock table_lock(callback_table_->mu);
+    if (callback_table_->trampoline_table_addr != 0) {
+      return callback_table_->trampoline_table_addr;
+    }
   }
   const std::string_view symname = "sapi_callback_trampolines";
   ABSL_ASSIGN_OR_RETURN(auto fret,
                         Exchange(comms::kMsgSymbol, symname.data(),
                                  symname.length() + 1, v::Type::kPointer));
-  trampoline_table_addr_ = fret.int_val;
-  if (trampoline_table_addr_ == 0) {
+  if (fret.int_val == 0) {
     return absl::NotFoundError(
         "sapi_callback_trampolines symbol not found in sandboxee");
   }
-  return trampoline_table_addr_;
+  absl::MutexLock table_lock(callback_table_->mu);
+  callback_table_->trampoline_table_addr = fret.int_val;
+  return callback_table_->trampoline_table_addr;
 }
 
 absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallback(
     absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) {
-  RecursiveMutexLock lock(mutex_);
-  ABSL_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
-                        GetTrampolineTableAddr());
+  uintptr_t trampoline_table_addr = 0;
+  {
+    absl::MutexLock table_lock(callback_table_->mu);
+    trampoline_table_addr = callback_table_->trampoline_table_addr;
+  }
+  if (trampoline_table_addr == 0) {
+    RecursiveMutexLock lock(mutex_);
+    ABSL_ASSIGN_OR_RETURN(trampoline_table_addr, GetTrampolineTableAddr());
+  }
 
-  auto it = std::find(callbacks_.begin(), callbacks_.end(), nullptr);
-  if (it == callbacks_.end()) {
+  absl::MutexLock table_lock(callback_table_->mu);
+  auto it = std::find(callback_table_->slots.begin(),
+                      callback_table_->slots.end(), nullptr);
+  if (it == callback_table_->slots.end()) {
     return absl::ResourceExhaustedError(absl::StrCat(
         "All ", kMaxCallbacks, " callback slots are already registered"));
   }
-  *it = std::move(cb);
-  size_t slot = std::distance(callbacks_.begin(), it);
-  uintptr_t remote_ptr = trampoline_table_addr + slot * kTrampolineSize;
-  return remote_ptr;
+  *it = std::make_shared<CallbackSlot>(std::move(cb));
+  size_t slot = std::distance(callback_table_->slots.begin(), it);
+  return trampoline_table_addr + slot * kTrampolineSize;
 }
 
 absl::Status Sandbox2RPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
-  RecursiveMutexLock lock(mutex_);
-  ABSL_ASSIGN_OR_RETURN(uintptr_t trampoline_table_addr,
-                        GetTrampolineTableAddr());
+  uintptr_t trampoline_table_addr = 0;
+  {
+    absl::MutexLock table_lock(callback_table_->mu);
+    trampoline_table_addr = callback_table_->trampoline_table_addr;
+  }
+  if (trampoline_table_addr == 0) {
+    RecursiveMutexLock lock(mutex_);
+    ABSL_ASSIGN_OR_RETURN(trampoline_table_addr, GetTrampolineTableAddr());
+  }
   if (remote_ptr < trampoline_table_addr) {
     return absl::InvalidArgumentError("Invalid remote_ptr");
   }
@@ -357,10 +388,14 @@ absl::Status Sandbox2RPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
     return absl::InvalidArgumentError("Invalid remote_ptr alignment");
   }
   size_t slot = offset / kTrampolineSize;
-  if (slot >= callbacks_.size()) {
-    return absl::InvalidArgumentError("Invalid remote_ptr slot");
+  std::shared_ptr<CallbackSlot> removed_slot;
+  {
+    absl::MutexLock table_lock(callback_table_->mu);
+    if (slot >= callback_table_->slots.size()) {
+      return absl::InvalidArgumentError("Invalid remote_ptr slot");
+    }
+    removed_slot = std::move(callback_table_->slots[slot]);
   }
-  callbacks_[slot] = nullptr;
   return absl::OkStatus();
 }
 

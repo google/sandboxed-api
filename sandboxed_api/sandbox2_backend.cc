@@ -80,6 +80,11 @@ class Sandbox2Backend::ThreadLocalChannelsState {
     channels.erase(tid);
   }
 
+  void Clear() {
+    absl::MutexLock lock(mutex);
+    channels.clear();
+  }
+
   std::optional<RPCChannel*> GetChannel(pthread_t tid) const {
     absl::MutexLock lock(mutex);
     auto it = channels.find(tid);
@@ -378,6 +383,9 @@ absl::Status Sandbox2Backend::Init() {
         shared_memory_local_ptr, shared_memory_remote_ptr);
   }
 
+  if (thread_local_state_) {
+    thread_local_state_->Clear();
+  }
   s2_awaited_ = false;
   s2_ = std::move(s2);
   comms_ = comms;
@@ -417,6 +425,9 @@ absl::Status Sandbox2Backend::SetWallTimeLimit(absl::Duration limit) const {
 RPCChannel* Sandbox2Backend::rpc_channel() const {
   if (!multithreading_enabled_) {
     return rpc_channel_.get();
+  }
+  if (rpc_channel_ == nullptr) {
+    return nullptr;
   }
 
   static thread_local absl::Cleanup cleanup(
